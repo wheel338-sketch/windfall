@@ -6,7 +6,7 @@
 //! back, so a refused preset changes nothing.
 
 use super::*;
-use crate::preset::{ChannelPreset, PluginPreset, PluginPresetState, Processor};
+use crate::preset::{ChannelPreset, PluginPreset, PluginPresetState, PresetAudio, Processor};
 use crate::{PluginBinding, PluginTarget};
 
 impl Transaction<'_> {
@@ -16,6 +16,7 @@ impl Transaction<'_> {
         expected: Channel,
         preset: ChannelPreset,
         sample: Option<SampleId>,
+        audio: Option<PresetAudio>,
         name_color: bool,
     ) -> Result<Label, CommandError> {
         // The audio is whatever `sample` says here, so the body is checked
@@ -29,14 +30,31 @@ impl Transaction<'_> {
                 "The destination channel changed; load the preset again",
             ));
         }
-        if let Some(sample) = sample {
-            self.sample_index(sample)?;
-            if !matches!(preset.source, ChannelSource::Sampler(_)) {
-                return Err(CommandError::invalid(
-                    "only a sampler preset plays a sample",
-                ));
-            }
+        if sample.is_some() && audio.is_some() {
+            return Err(CommandError::invalid(
+                "a preset's audio is a sample of the project or a file, not both",
+            ));
         }
+        if (sample.is_some() || audio.is_some())
+            && !matches!(preset.source, ChannelSource::Sampler(_))
+        {
+            return Err(CommandError::invalid(
+                "only a sampler preset plays a sample",
+            ));
+        }
+        let sample = match (sample, audio) {
+            (Some(sample), _) => {
+                self.sample_index(sample)?;
+                Some(sample)
+            }
+            (None, Some(audio)) => {
+                // The file joins the pool in this same step. A file the
+                // project already has is not added again.
+                self.add_sample(audio.name, audio.path)?;
+                self.created.last().copied().map(SampleId)
+            }
+            (None, None) => None,
+        };
         let target = PluginTarget::Instrument { channel: id };
         let old = Processor::of_source(&expected.source, self.project.plugin(target));
         let new = Processor::of_source(&preset.source, preset.plugin.as_ref());

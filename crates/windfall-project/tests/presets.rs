@@ -245,6 +245,7 @@ fn a_sampler_channel_preset_carries_its_audio_and_loads_as_one_undo_step() {
                         expected: expected.clone(),
                         preset: read.channel.clone().unwrap(),
                         sample: Some(SampleId(before.next_id)),
+                        audio: None,
                         name_color: false,
                     },
                 ],
@@ -297,6 +298,71 @@ fn a_sampler_channel_preset_carries_its_audio_and_loads_as_one_undo_step() {
 }
 
 #[test]
+fn a_presets_audio_file_joins_the_pool_in_the_same_step_and_is_not_added_twice() {
+    let mut doc = Document::new(Project::new("Audio"));
+    let kick = sample(&mut doc, "Kick");
+    let source = sampler(&mut doc, "Kick", kick);
+    let (body, _) = ChannelPreset::capture(doc.project(), source).unwrap();
+    let first = synth(&mut doc, "First", InstrumentKind::SubtractiveSynth);
+    let second = synth(&mut doc, "Second", InstrumentKind::SubtractiveSynth);
+    let audio = PresetAudio {
+        name: "Preset kick".into(),
+        path: SamplePath::External("C:/presets/Kick audio/Kick.wav".into()),
+    };
+
+    let before = doc.project().clone();
+    let history = doc.history().entries.len();
+    let applied = doc
+        .dispatch(
+            Command::ApplyChannelPreset {
+                id: first,
+                expected: channel_of(&doc, first),
+                preset: body.clone(),
+                sample: None,
+                audio: Some(audio.clone()),
+                name_color: false,
+            },
+            None,
+        )
+        .unwrap();
+    // One step that made one sample, and says which.
+    assert_eq!(doc.history().entries.len(), history + 1);
+    assert_eq!(applied.created, [before.next_id]);
+    let added = SampleId(before.next_id);
+    assert_eq!(doc.project().sample(added).unwrap().path, audio.path);
+    assert_eq!(doc.project().sample(added).unwrap().name, "Preset kick");
+    assert_eq!(channel_of(&doc, first).source.sample(), Some(added));
+    assert_eq!(doc.project().samples.len(), before.samples.len() + 1);
+    doc.project().check().unwrap();
+
+    // The same file again: the sample the project has is the one used.
+    let samples = doc.project().samples.len();
+    let applied = doc
+        .dispatch(
+            Command::ApplyChannelPreset {
+                id: second,
+                expected: channel_of(&doc, second),
+                preset: body,
+                sample: None,
+                audio: Some(audio),
+                name_color: false,
+            },
+            None,
+        )
+        .unwrap();
+    assert_eq!(applied.created, [added.0]);
+    assert_eq!(doc.project().samples.len(), samples);
+    assert_eq!(channel_of(&doc, second).source.sample(), Some(added));
+
+    // Undoing the first load takes its sample out again with it.
+    doc.undo().unwrap();
+    doc.undo().unwrap();
+    let mut restored = before.clone();
+    restored.next_id = doc.project().next_id;
+    assert_eq!(*doc.project(), restored);
+}
+
+#[test]
 fn name_and_color_are_restored_only_when_asked() {
     let mut doc = Document::new(Project::new("Names"));
     let source = synth(&mut doc, "Glass pad", InstrumentKind::FourOp);
@@ -324,6 +390,7 @@ fn name_and_color_are_restored_only_when_asked() {
                 expected: expected.clone(),
                 preset: body.clone(),
                 sample: None,
+                audio: None,
                 name_color,
             },
             None,
@@ -385,6 +452,7 @@ fn automation_survives_the_same_instrument_and_goes_with_another() {
             expected,
             preset: same_kind,
             sample: None,
+            audio: None,
             name_color: false,
         },
         None,
@@ -404,6 +472,7 @@ fn automation_survives_the_same_instrument_and_goes_with_another() {
             expected,
             preset: other_kind,
             sample: None,
+            audio: None,
             name_color: false,
         },
         None,
@@ -476,6 +545,7 @@ fn a_hosted_instrument_keeps_its_opaque_state_and_follows_the_destination() {
             expected,
             preset: read.channel.clone().unwrap(),
             sample: None,
+            audio: None,
             name_color: false,
         },
         None,
@@ -531,6 +601,7 @@ fn a_hosted_instrument_keeps_its_opaque_state_and_follows_the_destination() {
             expected,
             preset: update,
             sample: None,
+            audio: None,
             name_color: false,
         },
         None,
@@ -552,6 +623,7 @@ fn a_hosted_instrument_keeps_its_opaque_state_and_follows_the_destination() {
             expected,
             preset: drum_body,
             sample: Some(kick),
+            audio: None,
             name_color: false,
         },
         None,
@@ -746,6 +818,7 @@ fn a_stale_destination_a_wrong_role_and_invalid_bodies_are_refused_whole() {
             expected: seen,
             preset: drum_body.clone(),
             sample: Some(kick),
+            audio: None,
             name_color: false,
         },
     );
@@ -757,11 +830,37 @@ fn a_stale_destination_a_wrong_role_and_invalid_bodies_are_refused_whole() {
         expected: expected.clone(),
         preset,
         sample,
+        audio: None,
         name_color: true,
     };
     // A sample the project does not have, and a sample for an instrument.
     refused(&mut doc, channel(drum_body.clone(), Some(SampleId(9_999))));
     refused(&mut doc, channel(lead_body.clone(), Some(kick)));
+    // Audio as a sample and as a file at once, a file for an instrument,
+    // and a file whose path a project could not store.
+    let file = |path: &str| {
+        Some(PresetAudio {
+            name: "Kick".into(),
+            path: SamplePath::Project(path.into()),
+        })
+    };
+    for (preset, sample, audio) in [
+        (drum_body.clone(), Some(kick), file("presets/Kick.wav")),
+        (lead_body.clone(), None, file("presets/Kick.wav")),
+        (drum_body.clone(), None, file("../outside/Kick.wav")),
+    ] {
+        refused(
+            &mut doc,
+            Command::ApplyChannelPreset {
+                id: lead,
+                expected: expected.clone(),
+                preset,
+                sample,
+                audio,
+                name_color: false,
+            },
+        );
+    }
     // A channel that does not exist.
     refused(
         &mut doc,
@@ -770,6 +869,7 @@ fn a_stale_destination_a_wrong_role_and_invalid_bodies_are_refused_whole() {
             expected: expected.clone(),
             preset: lead_body.clone(),
             sample: None,
+            audio: None,
             name_color: false,
         },
     );

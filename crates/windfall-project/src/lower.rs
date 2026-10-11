@@ -1173,8 +1173,9 @@ impl Transaction<'_> {
                 expected,
                 preset,
                 sample,
+                audio,
                 name_color,
-            } => self.apply_channel_preset(id, expected, preset, sample, name_color)?,
+            } => self.apply_channel_preset(id, expected, preset, sample, audio, name_color)?,
             Command::ApplyPluginPreset {
                 target,
                 expected,

@@ -236,10 +236,13 @@ pub enum Command {
     /// Replaces a channel's sound and settings with a channel preset's, as
     /// one undo step. The channel keeps its id, group, mute, solo and mixer
     /// track. `expected` is the channel as it was when the preset was
-    /// chosen: a channel that changed since is refused. `sample` is the
-    /// project sample that holds the preset's audio, when it has any.
-    /// Automation of instrument settings the preset replaces is removed.
-    /// [`crate::preset`] has the rules.
+    /// chosen: a channel that changed since is refused. A sampler preset's
+    /// audio is `sample`, a sample the project has, or `audio`, a file that
+    /// is added to the pool in the same step; giving both fails. With
+    /// `audio` the command creates a [`SampleId`], or reports the one the
+    /// project already has for that file. Automation of instrument
+    /// settings the preset replaces is removed. [`crate::preset`] has the
+    /// rules.
     ApplyChannelPreset {
         id: ChannelId,
         expected: crate::Channel,
@@ -247,6 +250,9 @@ pub enum Command {
         #[serde(default)]
         #[ts(optional)]
         sample: Option<SampleId>,
+        #[serde(default)]
+        #[ts(optional)]
+        audio: Option<crate::PresetAudio>,
         name_color: bool,
     },
     /// Replaces the state of one instrument or effect with a plugin

@@ -56,7 +56,8 @@ pub use patch::*;
 pub use piano_tools::{NoteEdge, NoteGroove, NoteTransform};
 pub mod preset;
 pub use preset::{
-    ChannelPreset, PluginPreset, PluginPresetState, Preset, PresetAsset, PresetKind,
+    ChannelPreset, PluginPreset, PluginPresetState, Preset, PresetAsset, PresetAudio, PresetKind,
+    PresetPluginIdentity,
 };
 mod project_settings;
 pub use project_settings::PanLaw;

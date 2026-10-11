@@ -222,6 +222,16 @@ pub struct PresetPluginIdentity {
     pub instrument: bool,
 }
 
+/// Audio for a sampler preset that the project does not have yet: the name
+/// and the file of the sample to add.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct PresetAudio {
+    pub name: String,
+    pub path: SamplePath,
+}
+
 /// A setting of a built-in processor that has had another name.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ParamRename {
