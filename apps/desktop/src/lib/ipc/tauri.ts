@@ -113,6 +113,17 @@ export function createTauriBackend(): Backend {
     midiHardwareTarget: (channel, generation, revision) =>
       call("midi_hardware_target", { channel, generation, revision }),
     midiHardwarePanic: () => call("midi_hardware_panic"),
+    controllerState: () => call("controller_state"),
+    controllerSettingsSet: (settings) =>
+      call("controller_settings_set", { settings }),
+    controllerLearn: (targets, global, multi, generation) =>
+      call("controller_learn", { targets, global, multi, generation }),
+    controllerLearnCancel: () => call("controller_learn_cancel"),
+    noteRecordArm: (armed) => call("note_record_arm", { armed }),
+    automationRecordArm: (armed) => call("automation_record_arm", { armed }),
+    scoreLogDump: (pattern, seconds, generation) =>
+      call("score_log_dump", { pattern, seconds, generation }),
+    scoreLogClear: () => call("score_log_clear"),
     audioEditorOpen: (clip) => call("audio_editor_open", { clip }),
     audioEditorApply: (request) => call("audio_editor_apply", { request }),
     audioEditorDiscard: (token) => call("audio_editor_discard", { token }),
