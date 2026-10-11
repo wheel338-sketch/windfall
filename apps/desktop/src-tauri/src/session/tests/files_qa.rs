@@ -563,6 +563,18 @@ fn a_user_template_carries_its_audio_and_opens_as_a_new_project() {
 #[test]
 fn running_native_channel_and_plugin_presets_capture_apply_undo_and_reopen() {
     use windfall_project::ChannelId;
+    fn exported_level(rig: &Rig, name: &str) -> f32 {
+        rig.events.take();
+        let options = windfall_ipc::ExportOptions {
+            path: rig.file(name),
+            mode: windfall_ipc::PlayMode::Pattern,
+            tail_secs: 0.0,
+            ..Default::default()
+        };
+        rig.session.export_audio(options.clone()).unwrap();
+        assert_eq!(rig.events.wait_for_export().error, None);
+        super::rms(windfall_codec::decode_file(options.path).unwrap().samples())
+    }
     for channel_preset in [false, true] {
         let mut rig = Rig::new();
         let (manager, path) = super::plugins::manager(&rig);
@@ -603,6 +615,8 @@ fn running_native_channel_and_plugin_presets_capture_apply_undo_and_reopen() {
             )
             .unwrap();
         rig.run(256);
+        let original_level = exported_level(&rig, "capture-reference.wav");
+        assert!(original_level > 0.01);
         let captured = manager
             .runtime
             .capture(rig.project())
@@ -634,6 +648,8 @@ fn running_native_channel_and_plugin_presets_capture_apply_undo_and_reopen() {
             )
             .unwrap();
         rig.run(256);
+        let changed_level = exported_level(&rig, "changed-reference.wav");
+        assert!(changed_level < original_level * 0.5);
         let expected = rig.project().channel(channel).unwrap().clone();
         let (generation, revision) = seen(&rig);
         let history = rig.session.document_snapshot().history.entries.len();
@@ -696,15 +712,9 @@ fn running_native_channel_and_plugin_presets_capture_apply_undo_and_reopen() {
                 .unwrap(),
             &captured
         );
-        let options = windfall_ipc::ExportOptions {
-            path: rig.file("restored.wav"),
-            mode: windfall_ipc::PlayMode::Pattern,
-            tail_secs: 0.0,
-            ..Default::default()
-        };
-        rig.session.export_audio(options.clone()).unwrap();
-        assert_eq!(rig.events.wait_for_export().error, None);
-        assert!(super::rms(windfall_codec::decode_file(options.path).unwrap().samples()) > 0.01);
+        let restored_level = exported_level(&rig, "restored.wav");
+        assert!((restored_level - original_level).abs() < original_level * 0.001);
+        assert!(restored_level > changed_level * 3.0);
         let before = rig.session.document_snapshot();
         assert!(
             rig.session
