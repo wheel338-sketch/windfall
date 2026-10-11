@@ -450,6 +450,7 @@ export type { SevenBandParams } from "./SevenBandParams";
 export type { SliceDeckParams } from "./SliceDeckParams";
 export type { SliceMapParams } from "./SliceMapParams";
 export type { SliceRegion } from "./SliceRegion";
+export type { SliceSettings } from "./SliceSettings";
 export type { SlotTarget } from "./SlotTarget";
 export type { SnapshotMorphParams } from "./SnapshotMorphParams";
 export type { SoftClipperParams } from "./SoftClipperParams";

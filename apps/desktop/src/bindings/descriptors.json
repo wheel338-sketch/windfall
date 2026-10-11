@@ -20338,7 +20338,7 @@
         "level": 0.5,
         "pitch": 0.0,
         "position": 0.5,
-        "releaseMs": 30.0,
+        "releaseMs": 80.0,
         "rootKey": 60,
         "seed": 1,
         "spray": 1.0,
@@ -31792,6 +31792,106 @@
         "baseKey": 60,
         "level": 0.5,
         "releaseMs": 30.0,
+        "sliceStarts": [
+          0.0,
+          0.0625,
+          0.125,
+          0.1875,
+          0.25,
+          0.3125,
+          0.375,
+          0.4375,
+          0.5,
+          0.5625,
+          0.625,
+          0.6875,
+          0.75,
+          0.8125,
+          0.875,
+          0.9375
+        ],
+        "slices": [
+          {
+            "gain": 1.0,
+            "pitch": 0.0,
+            "reverse": false
+          },
+          {
+            "gain": 1.0,
+            "pitch": 0.0,
+            "reverse": false
+          },
+          {
+            "gain": 1.0,
+            "pitch": 0.0,
+            "reverse": false
+          },
+          {
+            "gain": 1.0,
+            "pitch": 0.0,
+            "reverse": false
+          },
+          {
+            "gain": 1.0,
+            "pitch": 0.0,
+            "reverse": false
+          },
+          {
+            "gain": 1.0,
+            "pitch": 0.0,
+            "reverse": false
+          },
+          {
+            "gain": 1.0,
+            "pitch": 0.0,
+            "reverse": false
+          },
+          {
+            "gain": 1.0,
+            "pitch": 0.0,
+            "reverse": false
+          },
+          {
+            "gain": 1.0,
+            "pitch": 0.0,
+            "reverse": false
+          },
+          {
+            "gain": 1.0,
+            "pitch": 0.0,
+            "reverse": false
+          },
+          {
+            "gain": 1.0,
+            "pitch": 0.0,
+            "reverse": false
+          },
+          {
+            "gain": 1.0,
+            "pitch": 0.0,
+            "reverse": false
+          },
+          {
+            "gain": 1.0,
+            "pitch": 0.0,
+            "reverse": false
+          },
+          {
+            "gain": 1.0,
+            "pitch": 0.0,
+            "reverse": false
+          },
+          {
+            "gain": 1.0,
+            "pitch": 0.0,
+            "reverse": false
+          },
+          {
+            "gain": 1.0,
+            "pitch": 0.0,
+            "reverse": false
+          }
+        ],
         "type": "sliceDeck"
       },
       "name": "Slice Deck",
@@ -31828,6 +31928,710 @@
           "name": "Release",
           "scale": "linear",
           "unit": "milliseconds"
+        },
+        {
+          "choices": [],
+          "default": 0.0,
+          "id": "sliceStarts.0",
+          "kind": "float",
+          "max": 1.0,
+          "min": 0.0,
+          "name": "Slice 1 start",
+          "scale": "linear",
+          "unit": "fraction"
+        },
+        {
+          "choices": [],
+          "default": 0.0625,
+          "id": "sliceStarts.1",
+          "kind": "float",
+          "max": 1.0,
+          "min": 0.0,
+          "name": "Slice 2 start",
+          "scale": "linear",
+          "unit": "fraction"
+        },
+        {
+          "choices": [],
+          "default": 0.125,
+          "id": "sliceStarts.2",
+          "kind": "float",
+          "max": 1.0,
+          "min": 0.0,
+          "name": "Slice 3 start",
+          "scale": "linear",
+          "unit": "fraction"
+        },
+        {
+          "choices": [],
+          "default": 0.1875,
+          "id": "sliceStarts.3",
+          "kind": "float",
+          "max": 1.0,
+          "min": 0.0,
+          "name": "Slice 4 start",
+          "scale": "linear",
+          "unit": "fraction"
+        },
+        {
+          "choices": [],
+          "default": 0.25,
+          "id": "sliceStarts.4",
+          "kind": "float",
+          "max": 1.0,
+          "min": 0.0,
+          "name": "Slice 5 start",
+          "scale": "linear",
+          "unit": "fraction"
+        },
+        {
+          "choices": [],
+          "default": 0.3125,
+          "id": "sliceStarts.5",
+          "kind": "float",
+          "max": 1.0,
+          "min": 0.0,
+          "name": "Slice 6 start",
+          "scale": "linear",
+          "unit": "fraction"
+        },
+        {
+          "choices": [],
+          "default": 0.375,
+          "id": "sliceStarts.6",
+          "kind": "float",
+          "max": 1.0,
+          "min": 0.0,
+          "name": "Slice 7 start",
+          "scale": "linear",
+          "unit": "fraction"
+        },
+        {
+          "choices": [],
+          "default": 0.4375,
+          "id": "sliceStarts.7",
+          "kind": "float",
+          "max": 1.0,
+          "min": 0.0,
+          "name": "Slice 8 start",
+          "scale": "linear",
+          "unit": "fraction"
+        },
+        {
+          "choices": [],
+          "default": 0.5,
+          "id": "sliceStarts.8",
+          "kind": "float",
+          "max": 1.0,
+          "min": 0.0,
+          "name": "Slice 9 start",
+          "scale": "linear",
+          "unit": "fraction"
+        },
+        {
+          "choices": [],
+          "default": 0.5625,
+          "id": "sliceStarts.9",
+          "kind": "float",
+          "max": 1.0,
+          "min": 0.0,
+          "name": "Slice 10 start",
+          "scale": "linear",
+          "unit": "fraction"
+        },
+        {
+          "choices": [],
+          "default": 0.625,
+          "id": "sliceStarts.10",
+          "kind": "float",
+          "max": 1.0,
+          "min": 0.0,
+          "name": "Slice 11 start",
+          "scale": "linear",
+          "unit": "fraction"
+        },
+        {
+          "choices": [],
+          "default": 0.6875,
+          "id": "sliceStarts.11",
+          "kind": "float",
+          "max": 1.0,
+          "min": 0.0,
+          "name": "Slice 12 start",
+          "scale": "linear",
+          "unit": "fraction"
+        },
+        {
+          "choices": [],
+          "default": 0.75,
+          "id": "sliceStarts.12",
+          "kind": "float",
+          "max": 1.0,
+          "min": 0.0,
+          "name": "Slice 13 start",
+          "scale": "linear",
+          "unit": "fraction"
+        },
+        {
+          "choices": [],
+          "default": 0.8125,
+          "id": "sliceStarts.13",
+          "kind": "float",
+          "max": 1.0,
+          "min": 0.0,
+          "name": "Slice 14 start",
+          "scale": "linear",
+          "unit": "fraction"
+        },
+        {
+          "choices": [],
+          "default": 0.875,
+          "id": "sliceStarts.14",
+          "kind": "float",
+          "max": 1.0,
+          "min": 0.0,
+          "name": "Slice 15 start",
+          "scale": "linear",
+          "unit": "fraction"
+        },
+        {
+          "choices": [],
+          "default": 0.9375,
+          "id": "sliceStarts.15",
+          "kind": "float",
+          "max": 1.0,
+          "min": 0.0,
+          "name": "Slice 16 start",
+          "scale": "linear",
+          "unit": "fraction"
+        },
+        {
+          "choices": [],
+          "default": 0.0,
+          "id": "slices.0.pitch",
+          "kind": "float",
+          "max": 48.0,
+          "min": -48.0,
+          "name": "Slice 1 pitch",
+          "scale": "linear",
+          "unit": "semitones"
+        },
+        {
+          "choices": [],
+          "default": 1.0,
+          "id": "slices.0.gain",
+          "kind": "float",
+          "max": 2.0,
+          "min": 0.0,
+          "name": "Slice 1 gain",
+          "scale": "linear",
+          "unit": "gain"
+        },
+        {
+          "choices": [],
+          "default": 0.0,
+          "id": "slices.0.reverse",
+          "kind": "toggle",
+          "max": 1.0,
+          "min": 0.0,
+          "name": "Slice 1 reverse",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": 0.0,
+          "id": "slices.1.pitch",
+          "kind": "float",
+          "max": 48.0,
+          "min": -48.0,
+          "name": "Slice 2 pitch",
+          "scale": "linear",
+          "unit": "semitones"
+        },
+        {
+          "choices": [],
+          "default": 1.0,
+          "id": "slices.1.gain",
+          "kind": "float",
+          "max": 2.0,
+          "min": 0.0,
+          "name": "Slice 2 gain",
+          "scale": "linear",
+          "unit": "gain"
+        },
+        {
+          "choices": [],
+          "default": 0.0,
+          "id": "slices.1.reverse",
+          "kind": "toggle",
+          "max": 1.0,
+          "min": 0.0,
+          "name": "Slice 2 reverse",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": 0.0,
+          "id": "slices.2.pitch",
+          "kind": "float",
+          "max": 48.0,
+          "min": -48.0,
+          "name": "Slice 3 pitch",
+          "scale": "linear",
+          "unit": "semitones"
+        },
+        {
+          "choices": [],
+          "default": 1.0,
+          "id": "slices.2.gain",
+          "kind": "float",
+          "max": 2.0,
+          "min": 0.0,
+          "name": "Slice 3 gain",
+          "scale": "linear",
+          "unit": "gain"
+        },
+        {
+          "choices": [],
+          "default": 0.0,
+          "id": "slices.2.reverse",
+          "kind": "toggle",
+          "max": 1.0,
+          "min": 0.0,
+          "name": "Slice 3 reverse",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": 0.0,
+          "id": "slices.3.pitch",
+          "kind": "float",
+          "max": 48.0,
+          "min": -48.0,
+          "name": "Slice 4 pitch",
+          "scale": "linear",
+          "unit": "semitones"
+        },
+        {
+          "choices": [],
+          "default": 1.0,
+          "id": "slices.3.gain",
+          "kind": "float",
+          "max": 2.0,
+          "min": 0.0,
+          "name": "Slice 4 gain",
+          "scale": "linear",
+          "unit": "gain"
+        },
+        {
+          "choices": [],
+          "default": 0.0,
+          "id": "slices.3.reverse",
+          "kind": "toggle",
+          "max": 1.0,
+          "min": 0.0,
+          "name": "Slice 4 reverse",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": 0.0,
+          "id": "slices.4.pitch",
+          "kind": "float",
+          "max": 48.0,
+          "min": -48.0,
+          "name": "Slice 5 pitch",
+          "scale": "linear",
+          "unit": "semitones"
+        },
+        {
+          "choices": [],
+          "default": 1.0,
+          "id": "slices.4.gain",
+          "kind": "float",
+          "max": 2.0,
+          "min": 0.0,
+          "name": "Slice 5 gain",
+          "scale": "linear",
+          "unit": "gain"
+        },
+        {
+          "choices": [],
+          "default": 0.0,
+          "id": "slices.4.reverse",
+          "kind": "toggle",
+          "max": 1.0,
+          "min": 0.0,
+          "name": "Slice 5 reverse",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": 0.0,
+          "id": "slices.5.pitch",
+          "kind": "float",
+          "max": 48.0,
+          "min": -48.0,
+          "name": "Slice 6 pitch",
+          "scale": "linear",
+          "unit": "semitones"
+        },
+        {
+          "choices": [],
+          "default": 1.0,
+          "id": "slices.5.gain",
+          "kind": "float",
+          "max": 2.0,
+          "min": 0.0,
+          "name": "Slice 6 gain",
+          "scale": "linear",
+          "unit": "gain"
+        },
+        {
+          "choices": [],
+          "default": 0.0,
+          "id": "slices.5.reverse",
+          "kind": "toggle",
+          "max": 1.0,
+          "min": 0.0,
+          "name": "Slice 6 reverse",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": 0.0,
+          "id": "slices.6.pitch",
+          "kind": "float",
+          "max": 48.0,
+          "min": -48.0,
+          "name": "Slice 7 pitch",
+          "scale": "linear",
+          "unit": "semitones"
+        },
+        {
+          "choices": [],
+          "default": 1.0,
+          "id": "slices.6.gain",
+          "kind": "float",
+          "max": 2.0,
+          "min": 0.0,
+          "name": "Slice 7 gain",
+          "scale": "linear",
+          "unit": "gain"
+        },
+        {
+          "choices": [],
+          "default": 0.0,
+          "id": "slices.6.reverse",
+          "kind": "toggle",
+          "max": 1.0,
+          "min": 0.0,
+          "name": "Slice 7 reverse",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": 0.0,
+          "id": "slices.7.pitch",
+          "kind": "float",
+          "max": 48.0,
+          "min": -48.0,
+          "name": "Slice 8 pitch",
+          "scale": "linear",
+          "unit": "semitones"
+        },
+        {
+          "choices": [],
+          "default": 1.0,
+          "id": "slices.7.gain",
+          "kind": "float",
+          "max": 2.0,
+          "min": 0.0,
+          "name": "Slice 8 gain",
+          "scale": "linear",
+          "unit": "gain"
+        },
+        {
+          "choices": [],
+          "default": 0.0,
+          "id": "slices.7.reverse",
+          "kind": "toggle",
+          "max": 1.0,
+          "min": 0.0,
+          "name": "Slice 8 reverse",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": 0.0,
+          "id": "slices.8.pitch",
+          "kind": "float",
+          "max": 48.0,
+          "min": -48.0,
+          "name": "Slice 9 pitch",
+          "scale": "linear",
+          "unit": "semitones"
+        },
+        {
+          "choices": [],
+          "default": 1.0,
+          "id": "slices.8.gain",
+          "kind": "float",
+          "max": 2.0,
+          "min": 0.0,
+          "name": "Slice 9 gain",
+          "scale": "linear",
+          "unit": "gain"
+        },
+        {
+          "choices": [],
+          "default": 0.0,
+          "id": "slices.8.reverse",
+          "kind": "toggle",
+          "max": 1.0,
+          "min": 0.0,
+          "name": "Slice 9 reverse",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": 0.0,
+          "id": "slices.9.pitch",
+          "kind": "float",
+          "max": 48.0,
+          "min": -48.0,
+          "name": "Slice 10 pitch",
+          "scale": "linear",
+          "unit": "semitones"
+        },
+        {
+          "choices": [],
+          "default": 1.0,
+          "id": "slices.9.gain",
+          "kind": "float",
+          "max": 2.0,
+          "min": 0.0,
+          "name": "Slice 10 gain",
+          "scale": "linear",
+          "unit": "gain"
+        },
+        {
+          "choices": [],
+          "default": 0.0,
+          "id": "slices.9.reverse",
+          "kind": "toggle",
+          "max": 1.0,
+          "min": 0.0,
+          "name": "Slice 10 reverse",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": 0.0,
+          "id": "slices.10.pitch",
+          "kind": "float",
+          "max": 48.0,
+          "min": -48.0,
+          "name": "Slice 11 pitch",
+          "scale": "linear",
+          "unit": "semitones"
+        },
+        {
+          "choices": [],
+          "default": 1.0,
+          "id": "slices.10.gain",
+          "kind": "float",
+          "max": 2.0,
+          "min": 0.0,
+          "name": "Slice 11 gain",
+          "scale": "linear",
+          "unit": "gain"
+        },
+        {
+          "choices": [],
+          "default": 0.0,
+          "id": "slices.10.reverse",
+          "kind": "toggle",
+          "max": 1.0,
+          "min": 0.0,
+          "name": "Slice 11 reverse",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": 0.0,
+          "id": "slices.11.pitch",
+          "kind": "float",
+          "max": 48.0,
+          "min": -48.0,
+          "name": "Slice 12 pitch",
+          "scale": "linear",
+          "unit": "semitones"
+        },
+        {
+          "choices": [],
+          "default": 1.0,
+          "id": "slices.11.gain",
+          "kind": "float",
+          "max": 2.0,
+          "min": 0.0,
+          "name": "Slice 12 gain",
+          "scale": "linear",
+          "unit": "gain"
+        },
+        {
+          "choices": [],
+          "default": 0.0,
+          "id": "slices.11.reverse",
+          "kind": "toggle",
+          "max": 1.0,
+          "min": 0.0,
+          "name": "Slice 12 reverse",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": 0.0,
+          "id": "slices.12.pitch",
+          "kind": "float",
+          "max": 48.0,
+          "min": -48.0,
+          "name": "Slice 13 pitch",
+          "scale": "linear",
+          "unit": "semitones"
+        },
+        {
+          "choices": [],
+          "default": 1.0,
+          "id": "slices.12.gain",
+          "kind": "float",
+          "max": 2.0,
+          "min": 0.0,
+          "name": "Slice 13 gain",
+          "scale": "linear",
+          "unit": "gain"
+        },
+        {
+          "choices": [],
+          "default": 0.0,
+          "id": "slices.12.reverse",
+          "kind": "toggle",
+          "max": 1.0,
+          "min": 0.0,
+          "name": "Slice 13 reverse",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": 0.0,
+          "id": "slices.13.pitch",
+          "kind": "float",
+          "max": 48.0,
+          "min": -48.0,
+          "name": "Slice 14 pitch",
+          "scale": "linear",
+          "unit": "semitones"
+        },
+        {
+          "choices": [],
+          "default": 1.0,
+          "id": "slices.13.gain",
+          "kind": "float",
+          "max": 2.0,
+          "min": 0.0,
+          "name": "Slice 14 gain",
+          "scale": "linear",
+          "unit": "gain"
+        },
+        {
+          "choices": [],
+          "default": 0.0,
+          "id": "slices.13.reverse",
+          "kind": "toggle",
+          "max": 1.0,
+          "min": 0.0,
+          "name": "Slice 14 reverse",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": 0.0,
+          "id": "slices.14.pitch",
+          "kind": "float",
+          "max": 48.0,
+          "min": -48.0,
+          "name": "Slice 15 pitch",
+          "scale": "linear",
+          "unit": "semitones"
+        },
+        {
+          "choices": [],
+          "default": 1.0,
+          "id": "slices.14.gain",
+          "kind": "float",
+          "max": 2.0,
+          "min": 0.0,
+          "name": "Slice 15 gain",
+          "scale": "linear",
+          "unit": "gain"
+        },
+        {
+          "choices": [],
+          "default": 0.0,
+          "id": "slices.14.reverse",
+          "kind": "toggle",
+          "max": 1.0,
+          "min": 0.0,
+          "name": "Slice 15 reverse",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": 0.0,
+          "id": "slices.15.pitch",
+          "kind": "float",
+          "max": 48.0,
+          "min": -48.0,
+          "name": "Slice 16 pitch",
+          "scale": "linear",
+          "unit": "semitones"
+        },
+        {
+          "choices": [],
+          "default": 1.0,
+          "id": "slices.15.gain",
+          "kind": "float",
+          "max": 2.0,
+          "min": 0.0,
+          "name": "Slice 16 gain",
+          "scale": "linear",
+          "unit": "gain"
+        },
+        {
+          "choices": [],
+          "default": 0.0,
+          "id": "slices.15.reverse",
+          "kind": "toggle",
+          "max": 1.0,
+          "min": 0.0,
+          "name": "Slice 16 reverse",
+          "scale": "linear",
+          "unit": "none"
         }
       ]
     },
@@ -31836,6 +32640,24 @@
         "baseKey": 60,
         "level": 0.5,
         "releaseMs": 30.0,
+        "sliceStarts": [
+          0.0,
+          0.0625,
+          0.125,
+          0.1875,
+          0.25,
+          0.3125,
+          0.375,
+          0.4375,
+          0.5,
+          0.5625,
+          0.625,
+          0.6875,
+          0.75,
+          0.8125,
+          0.875,
+          0.9375
+        ],
         "type": "sliceMap"
       },
       "name": "Slice Map",
@@ -31872,6 +32694,182 @@
           "name": "Release",
           "scale": "linear",
           "unit": "milliseconds"
+        },
+        {
+          "choices": [],
+          "default": 0.0,
+          "id": "sliceStarts.0",
+          "kind": "float",
+          "max": 1.0,
+          "min": 0.0,
+          "name": "Slice 1 start",
+          "scale": "linear",
+          "unit": "fraction"
+        },
+        {
+          "choices": [],
+          "default": 0.0625,
+          "id": "sliceStarts.1",
+          "kind": "float",
+          "max": 1.0,
+          "min": 0.0,
+          "name": "Slice 2 start",
+          "scale": "linear",
+          "unit": "fraction"
+        },
+        {
+          "choices": [],
+          "default": 0.125,
+          "id": "sliceStarts.2",
+          "kind": "float",
+          "max": 1.0,
+          "min": 0.0,
+          "name": "Slice 3 start",
+          "scale": "linear",
+          "unit": "fraction"
+        },
+        {
+          "choices": [],
+          "default": 0.1875,
+          "id": "sliceStarts.3",
+          "kind": "float",
+          "max": 1.0,
+          "min": 0.0,
+          "name": "Slice 4 start",
+          "scale": "linear",
+          "unit": "fraction"
+        },
+        {
+          "choices": [],
+          "default": 0.25,
+          "id": "sliceStarts.4",
+          "kind": "float",
+          "max": 1.0,
+          "min": 0.0,
+          "name": "Slice 5 start",
+          "scale": "linear",
+          "unit": "fraction"
+        },
+        {
+          "choices": [],
+          "default": 0.3125,
+          "id": "sliceStarts.5",
+          "kind": "float",
+          "max": 1.0,
+          "min": 0.0,
+          "name": "Slice 6 start",
+          "scale": "linear",
+          "unit": "fraction"
+        },
+        {
+          "choices": [],
+          "default": 0.375,
+          "id": "sliceStarts.6",
+          "kind": "float",
+          "max": 1.0,
+          "min": 0.0,
+          "name": "Slice 7 start",
+          "scale": "linear",
+          "unit": "fraction"
+        },
+        {
+          "choices": [],
+          "default": 0.4375,
+          "id": "sliceStarts.7",
+          "kind": "float",
+          "max": 1.0,
+          "min": 0.0,
+          "name": "Slice 8 start",
+          "scale": "linear",
+          "unit": "fraction"
+        },
+        {
+          "choices": [],
+          "default": 0.5,
+          "id": "sliceStarts.8",
+          "kind": "float",
+          "max": 1.0,
+          "min": 0.0,
+          "name": "Slice 9 start",
+          "scale": "linear",
+          "unit": "fraction"
+        },
+        {
+          "choices": [],
+          "default": 0.5625,
+          "id": "sliceStarts.9",
+          "kind": "float",
+          "max": 1.0,
+          "min": 0.0,
+          "name": "Slice 10 start",
+          "scale": "linear",
+          "unit": "fraction"
+        },
+        {
+          "choices": [],
+          "default": 0.625,
+          "id": "sliceStarts.10",
+          "kind": "float",
+          "max": 1.0,
+          "min": 0.0,
+          "name": "Slice 11 start",
+          "scale": "linear",
+          "unit": "fraction"
+        },
+        {
+          "choices": [],
+          "default": 0.6875,
+          "id": "sliceStarts.11",
+          "kind": "float",
+          "max": 1.0,
+          "min": 0.0,
+          "name": "Slice 12 start",
+          "scale": "linear",
+          "unit": "fraction"
+        },
+        {
+          "choices": [],
+          "default": 0.75,
+          "id": "sliceStarts.12",
+          "kind": "float",
+          "max": 1.0,
+          "min": 0.0,
+          "name": "Slice 13 start",
+          "scale": "linear",
+          "unit": "fraction"
+        },
+        {
+          "choices": [],
+          "default": 0.8125,
+          "id": "sliceStarts.13",
+          "kind": "float",
+          "max": 1.0,
+          "min": 0.0,
+          "name": "Slice 14 start",
+          "scale": "linear",
+          "unit": "fraction"
+        },
+        {
+          "choices": [],
+          "default": 0.875,
+          "id": "sliceStarts.14",
+          "kind": "float",
+          "max": 1.0,
+          "min": 0.0,
+          "name": "Slice 15 start",
+          "scale": "linear",
+          "unit": "fraction"
+        },
+        {
+          "choices": [],
+          "default": 0.9375,
+          "id": "sliceStarts.15",
+          "kind": "float",
+          "max": 1.0,
+          "min": 0.0,
+          "name": "Slice 16 start",
+          "scale": "linear",
+          "unit": "fraction"
         }
       ]
     },
@@ -35623,6 +36621,16 @@
         "durationMs": 1000.0,
         "level": 0.5,
         "pitch": 0.0,
+        "positions": [
+          0.0,
+          0.1428571492433548,
+          0.2857142984867096,
+          0.4285714328289032,
+          0.5714285969734192,
+          0.7142857313156128,
+          0.8571428656578064,
+          1.0
+        ],
         "releaseMs": 30.0,
         "rootKey": 60,
         "type": "waveRide"
@@ -35683,6 +36691,94 @@
           "name": "Release",
           "scale": "linear",
           "unit": "milliseconds"
+        },
+        {
+          "choices": [],
+          "default": 0.0,
+          "id": "positions.0",
+          "kind": "float",
+          "max": 1.0,
+          "min": 0.0,
+          "name": "Position 1",
+          "scale": "linear",
+          "unit": "fraction"
+        },
+        {
+          "choices": [],
+          "default": 0.1428571492433548,
+          "id": "positions.1",
+          "kind": "float",
+          "max": 1.0,
+          "min": 0.0,
+          "name": "Position 2",
+          "scale": "linear",
+          "unit": "fraction"
+        },
+        {
+          "choices": [],
+          "default": 0.2857142984867096,
+          "id": "positions.2",
+          "kind": "float",
+          "max": 1.0,
+          "min": 0.0,
+          "name": "Position 3",
+          "scale": "linear",
+          "unit": "fraction"
+        },
+        {
+          "choices": [],
+          "default": 0.4285714328289032,
+          "id": "positions.3",
+          "kind": "float",
+          "max": 1.0,
+          "min": 0.0,
+          "name": "Position 4",
+          "scale": "linear",
+          "unit": "fraction"
+        },
+        {
+          "choices": [],
+          "default": 0.5714285969734192,
+          "id": "positions.4",
+          "kind": "float",
+          "max": 1.0,
+          "min": 0.0,
+          "name": "Position 5",
+          "scale": "linear",
+          "unit": "fraction"
+        },
+        {
+          "choices": [],
+          "default": 0.7142857313156128,
+          "id": "positions.5",
+          "kind": "float",
+          "max": 1.0,
+          "min": 0.0,
+          "name": "Position 6",
+          "scale": "linear",
+          "unit": "fraction"
+        },
+        {
+          "choices": [],
+          "default": 0.8571428656578064,
+          "id": "positions.6",
+          "kind": "float",
+          "max": 1.0,
+          "min": 0.0,
+          "name": "Position 7",
+          "scale": "linear",
+          "unit": "fraction"
+        },
+        {
+          "choices": [],
+          "default": 1.0,
+          "id": "positions.7",
+          "kind": "float",
+          "max": 1.0,
+          "min": 0.0,
+          "name": "Position 8",
+          "scale": "linear",
+          "unit": "fraction"
         }
       ]
     }
