@@ -459,6 +459,7 @@ fn hosted(rig: &mut Rig, track: TrackId, id: &str) -> EffectId {
         parameters: Vec::new(),
         sidechain_input: None,
         auxiliary_inputs: Vec::new(),
+        wrapper: Default::default(),
     });
     effect
 }

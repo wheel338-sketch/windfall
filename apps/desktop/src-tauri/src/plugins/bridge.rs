@@ -668,6 +668,7 @@ mod tests {
                 state: Vec::new(),
                 parameters: Vec::new(),
                 sidechain_input: Some(1),
+                wrapper: Default::default(),
                 auxiliary_inputs: vec![windfall_project::PluginAuxInput {
                     index: 1,
                     name: "Detector".into(),
@@ -777,6 +778,7 @@ mod tests {
         let binding = PluginBinding {
             sidechain_input: None,
             auxiliary_inputs: Vec::new(),
+            wrapper: Default::default(),
             target: windfall_project::PluginTarget::Effect {
                 effect: windfall_project::EffectId(1),
             },
@@ -946,6 +948,7 @@ mod tests {
         let binding = PluginBinding {
             sidechain_input: None,
             auxiliary_inputs: Vec::new(),
+            wrapper: Default::default(),
             target: windfall_project::PluginTarget::Instrument {
                 channel: windfall_project::ChannelId(9001),
             },

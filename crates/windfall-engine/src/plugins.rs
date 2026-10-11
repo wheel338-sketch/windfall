@@ -166,6 +166,7 @@ pub(crate) fn identity(binding: &PluginBinding) -> u64 {
     binding.id.hash(&mut hash);
     binding.format.hash(&mut hash);
     binding.state.hash(&mut hash);
+    if !binding.wrapper.is_default() { binding.wrapper.hash(&mut hash); }
     for parameter in &binding.parameters {
         parameter.id.hash(&mut hash);
     }
@@ -465,6 +466,7 @@ mod tests {
         PluginBinding {
             sidechain_input: None,
             auxiliary_inputs: Vec::new(),
+            wrapper: Default::default(),
             target: PluginTarget::Instrument {
                 channel: ChannelId(0),
             },

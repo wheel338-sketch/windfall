@@ -219,6 +219,7 @@ fn missing_plugins_retain_opaque_state_and_parameters_without_bundling_binaries(
     let plugin = PluginBinding {
             sidechain_input: None,
             auxiliary_inputs: Vec::new(),
+            wrapper: Default::default(),
         target: PluginTarget::Instrument {
             channel: ChannelId(0),
         },

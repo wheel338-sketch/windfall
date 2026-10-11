@@ -127,6 +127,7 @@ fn native_owner() -> (
         .discover(PluginBinding {
             sidechain_input: None,
             auxiliary_inputs: Vec::new(),
+            wrapper: Default::default(),
             target: PluginTarget::Effect {
                 effect: windfall_project::EffectId(9),
             },

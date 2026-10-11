@@ -822,6 +822,11 @@ pub enum Command {
         label: Option<String>,
         commands: Vec<Command>,
     },
+    /// Replace one saved wrapper policy in one undoable preparation transaction.
+    SetPluginWrapper {
+        target: crate::PluginTarget,
+        options: crate::PluginWrapperOptions,
+    },
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, TS)]

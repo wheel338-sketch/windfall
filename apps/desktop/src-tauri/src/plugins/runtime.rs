@@ -476,6 +476,7 @@ pub(crate) fn binding_identity(binding: &PluginBinding) -> u64 {
     binding.path.hash(&mut hash);
     binding.id.hash(&mut hash);
     binding.state.hash(&mut hash);
+    if !binding.wrapper.is_default() { binding.wrapper.hash(&mut hash); }
     hash.finish()
 }
 struct Owner {

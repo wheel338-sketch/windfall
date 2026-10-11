@@ -465,6 +465,7 @@ impl PluginManager {
         self.runtime.discover(PluginBinding {
             sidechain_input: None,
             auxiliary_inputs: Vec::new(),
+            wrapper: Default::default(),
             target,
             format: entry.format,
             path: entry.path,

@@ -153,3 +153,24 @@ and returned ownership (written, not executed). Failed Initialize/timing setup
 retains callback input context; retries first quiesce/remove it, and successful
 return removes the native callback before releasing buffers. Mac review must
 check callback-property scope, idempotent Uninitialize and error-return disposal.
+
+## Wrapper persistence checkpoint
+
+PluginBinding now stores an omitted-at-default, validated wrapper policy:
+smart disable, fixed native buffer, processing owner choice, editor scale and
+detachment. SetPluginWrapper is one undoable Edit::Plugins transaction. Native
+owner/engine binding hashes include nondefault policy so preparation does not
+reuse an owner with another DSP policy. Existing binding literals gain only a
+Default::default() field, including mixer-stream fixtures; mixer routing is not
+changed. The EVERY_COMMAND simulation table has the new command example.
+
+Test written, not executed: windfall-project/tests/plugins.rs::
+wrapper_options_preserve_legacy_json_and_roundtrip_history_clone_and_reopen.
+Integrator: cargo test -p windfall-project --test plugins; regenerate bindings
+and simulation artifacts, then run the document command table suite. Regenerate
+PluginBinding, Command, PluginWrapperOptions and PluginProcessingMode plus their
+barrel exports. Generated files are not edited here. Runtime/UI wiring follows
+in the next group; persisted data alone is not claimed working DSP integration.
+Shared seams newly touched: project command.rs/lower.rs/plugin.rs, engine
+plugins.rs and binding literals in controller/device/render/preparation and
+session/mixer tests; only required field defaults were added to those literals.

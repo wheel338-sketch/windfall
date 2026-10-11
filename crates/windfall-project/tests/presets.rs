@@ -96,6 +96,7 @@ fn binding(id: &str, state: &[u8], parameter_ids: &[u32]) -> PluginBinding {
     PluginBinding {
         sidechain_input: None,
         auxiliary_inputs: Vec::new(),
+        wrapper: Default::default(),
         target: PluginTarget::Instrument {
             channel: ChannelId(999),
         },
