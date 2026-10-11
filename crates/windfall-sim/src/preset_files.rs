@@ -53,7 +53,20 @@ pub fn doc_preset_capture(handle: u32, input: &str) -> Reply {
         } else {
             let target = request.target.ok_or("Select a plugin")?;
             let body = PluginPreset::capture(doc.project(), target)?;
-            Preset::of_plugin("Plugin preset", body)
+            let name = match target {
+                PluginTarget::Instrument { channel } => doc
+                    .project()
+                    .channel(channel)
+                    .map(|channel| channel.name.clone()),
+                PluginTarget::Effect { .. } => match &body.state {
+                    PluginPresetState::Effect { params, .. } => {
+                        Some(params.kind().name().to_owned())
+                    }
+                    _ => None,
+                },
+            }
+            .unwrap_or_else(|| "Preset".to_owned());
+            Preset::of_plugin(&name, body)
         };
         supported(&preset)?;
         preset.validate()?;
@@ -68,6 +81,7 @@ pub fn preset_parse(_handle: u32, input: &str) -> Reply {
     let (preset, notes) = Preset::from_json(text.as_bytes())?;
     supported(&preset)?;
     json(&windfall_ipc::PresetReview {
+        path: String::new(),
         preset,
         notes,
         missing_audio: Vec::new(),

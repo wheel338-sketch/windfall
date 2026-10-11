@@ -14,12 +14,11 @@ export function mockPresetFiles(document: () => SimDocument, guard: (generation:
   function read(path: string) {
     const text = files.get(path)
     if (text === undefined) throw new Error("This preset is not in the browser memory library")
-    return parse(text)
+    return { ...parse(text), path }
   }
   function write(path: string, preset: Preset) {
     const text = JSON.stringify(preset)
     parse(text)
-    if (files.has(path)) throw new Error("A preset exists already at that path")
     files.set(path, text)
     return path
   }
@@ -44,14 +43,13 @@ export function mockPresetFiles(document: () => SimDocument, guard: (generation:
     presetLibrarySave: async (name,capture) => {
       if (capture.audio) throw new Error("Audio preset files require the desktop app")
       if (!name.trim()) throw new Error("Give the preset a name")
-      const stem = presetFileStem(name)
-      const taken = new Set([...files.keys()].map((path) => path.toLowerCase()))
-      for (let number=1;number<=2048;number++) {
-        const path = `${library}${stem}${number===1 ? "" : ` ${number}`}.wfpreset`
-        if (taken.has(path.toLowerCase())) continue
-        write(path,{ ...capture.preset,name: name.trim() }); return entry(path)
-      }
-      throw new Error("The preset library is full")
+      // Mirror session/presets.rs: library saves replace this safe name.
+      const stem = [...name.trim().replace(/[<>:"/\\|?*\p{Cc}]/gu, "_")].slice(0,120).join("").replace(/[. ]+$/g, "").trimStart()
+      if (!stem || stem === "." || stem === ".." || /^(CON|PRN|AUX|NUL|COM[0-9]|LPT[0-9])$/i.test(stem)) throw new Error(`"${name}" cannot be used as a file name.`)
+      let displayName = name.replace(/\p{Cc}/gu, "").trim()
+      while (new TextEncoder().encode(displayName).length > 256) displayName = [...displayName].slice(0,-1).join("")
+      const path = `${library}${stem}.wfpreset`
+      write(path,{ ...capture.preset,name: displayName.trim() }); return entry(path)
     },
     presetLibraryDelete: async (path) => { if (!path.startsWith(library) || !files.delete(path)) throw new Error("This preset is not in the library") },
     pickPresetPath: async (name) => name === undefined ? ([...files.keys()][0] ?? null) : pickSave(`/presets/${presetFileStem(name)}.wfpreset`),

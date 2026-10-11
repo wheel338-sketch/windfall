@@ -181,6 +181,10 @@ it("mounted file browser applies a real Rust channel preset from the memory file
   await app.backend.projectSave("/preset.windfall"); await app.backend.projectOpen("/preset.windfall")
   expect(state().project.channels.find((c)=>c.id===channel)?.pan).toBe(capture.preset.channel?.pan)
   expect((await app.backend.presetRead(entry.path)).preset).toEqual({ ...capture.preset, name: "Clean lead" })
+  expect((await app.backend.presetRead(entry.path)).path).toBe(entry.path)
+  const overwritten = await app.backend.presetLibrarySave("Clean lead",capture)
+  expect(overwritten.path).toBe(entry.path)
+  expect(await app.backend.presetLibrary()).toHaveLength(1)
 })
 it("mounted preset file picker refuses a stale project without invoking apply",async()=>{
   const added=await dispatch({type:"addChannel",instrument:"subtractiveSynth"})
