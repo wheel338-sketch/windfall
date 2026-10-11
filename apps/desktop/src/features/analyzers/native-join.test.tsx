@@ -119,6 +119,7 @@ it("replays real native session channel bytes through the mounted displays and e
   let sawPdc = false
   let sawInvalid = false
   let pdcBefore = 0
+  let delayedDeletedSource: string | undefined
   for (const step of fixture.steps) {
     if (step.projectLoaded) {
       answer = step.answer
@@ -130,6 +131,7 @@ it("replays real native session channel bytes through the mounted displays and e
         await settle()
       })
       await waitFor(() => expect(document.querySelector("[data-slot=analyzer-canvas]")).toHaveAttribute("data-live", "false"))
+      await waitFor(() => expect(element("[data-slot=large-clock] [data-part=time]").textContent).toBe(formatClock(0)))
     }
     if (step.select && step !== first) {
       answer = step.answer
@@ -145,6 +147,7 @@ it("replays real native session channel bytes through the mounted displays and e
         continue
       }
       const frame: AnalyzerFrame = event
+      if (step.name === "before-delete") delayedDeletedSource = text
       await waitFor(() => {
         expect(document.querySelector("[data-slot=analyzer-canvas]")).toHaveAttribute("data-live", "true")
         expect(document.querySelector("[data-slot=analyzer-canvas]")).toHaveAttribute("data-epoch", frame.clock.epoch)
@@ -169,7 +172,11 @@ it("replays real native session channel bytes through the mounted displays and e
         expect(frame.levels[0].peak).toBe(0)
         expect(frame.levels[1].peak).toBeGreaterThan(0.05)
         expect(Number(document.querySelector<HTMLElement>("[data-slot=analyzer-canvas]")?.dataset.peakHz)).toBeCloseTo(1875, 0)
+        const vectorCanvas = document.querySelector<HTMLCanvasElement>("canvas[aria-label^=Vectorscope]")
+        const context = vectorCanvas ? contexts.get(vectorCanvas) : undefined
+        expect(vi.mocked(context?.fillRect as ReturnType<typeof vi.fn>).mock.calls.some(([x, y]) => Number(x) > 160 && Number(y) < 60)).toBe(true)
       }
+      if (step.name === "replacement") expect(Number(document.querySelector<HTMLElement>("[data-slot=analyzer-canvas]")?.dataset.peakHz)).toBeCloseTo(861.328125, 0)
       if (frame.spectrum && step.name === "right") expect(Number(datasets("eq-live-spectrum").peakHz)).toBeGreaterThan(1700)
       for (const observation of frame.observations) {
         if (observation.type === "dynamics") {
@@ -222,6 +229,13 @@ it("replays real native session channel bytes through the mounted displays and e
       expect(datasets("limiter-history").blocks).toBe("0")
       expect(element("[data-slot=tuner-note]")).toHaveTextContent("–")
       expect(datasets("eq-live-spectrum").peakHz).toBeUndefined()
+      if (step.name === "deleted" && delayedDeletedSource) {
+        // A real captured predecessor, still byte-for-byte intact, arriving
+        // late from the channel cannot restore a terminally refused source.
+        await act(async () => { analyzer?.(JSON.parse(delayedDeletedSource!) as AnalyzerEvent); await settle() })
+        expect(document.querySelector("[data-slot=analyzer-canvas]")).toHaveAttribute("data-live", "false")
+        expect(datasets("eq-live-spectrum").peakHz).toBeUndefined()
+      }
     }
   }
   expect(visibleTicks.some((tick, index) => index > 0 && tick < visibleTicks[index - 1])).toBe(true)

@@ -95,3 +95,10 @@ Shared files changed: `apps/desktop/src-tauri/src/{commands.rs,lib.rs}` and `app
 3. Run mounted replay/typecheck/lint. Particular risks: overloaded canvas spy return typing, Node file/env imports under the app TS config, effect-observation cadence after Stop, strict calibrated tuner acceptance, and async source replacement/rebind scheduling.
 4. Build the debug bundled app and run the real-window script. Inspect whether WebView2 honors the loopback debugging environment in this build. Source selection waits for the native source identity, and UI-stall recovery requires a changed native subscription plus counted skipped events.
 5. Review fixture size, provenance and JSON report; commit the genuine checked-in capture. No checked-in bytes were fabricated in this worker pass.
+
+## Source-review follow-up (written, not executed)
+
+- A replacement track gets a distinct native 880 Hz clip; replay asserts its 44.1 kHz peak bin, rather than accepting a silent/invalid mix as replacement evidence.
+- Captured `project:loaded` JSON enters the actual frontend snapshot/reset boundary before old analyzer callbacks. The native selection reply for the renewed missing source is captured too. The realtime store now clears play/tick authority on project replacement, preventing the large clock from keeping the previous project's position until the next feed frame.
+- Replay delivers an intact real predecessor frame late after source deletion and asserts it cannot revive the canvas/EQ. It checks vector leaning on both hard-panned sources.
+- The window websocket handshake now has a five-second deadline. No build/test/lint/script was executed. The additional narrow seam is `apps/desktop/src/lib/store/realtime.ts`; generated types remain unchanged.

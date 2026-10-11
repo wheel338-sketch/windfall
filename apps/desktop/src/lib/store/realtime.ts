@@ -74,6 +74,8 @@ function receive(frame: RealtimeFrame) {
 // Levels and reductions still waiting to be drawn are the old project's,
 // and its tracks and effects share ids with the new one's.
 onProjectReplaced(() => {
+  latest.playing = false
+  latest.tick = 0
   latest.meters = []
   latest.correlation = undefined
   latest.waveforms = []

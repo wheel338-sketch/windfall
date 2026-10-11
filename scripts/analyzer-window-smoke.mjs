@@ -46,7 +46,11 @@ try {
   }
   if (!tab) throw new Error("No inspectable app window within 30 seconds (use the built debug shell with bundled frontend)")
   socket = new WebSocket(tab.webSocketDebuggerUrl)
-  await new Promise((resolve, reject) => { socket.addEventListener("open", resolve, { once:true }); socket.addEventListener("error", reject, { once:true }) })
+  await new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error("WebView2 DevTools websocket did not open within 5 seconds")), 5000)
+    socket.addEventListener("open", () => { clearTimeout(timer); resolve() }, { once:true })
+    socket.addEventListener("error", (error) => { clearTimeout(timer); reject(error) }, { once:true })
+  })
   let next = 0
   const pending = new Map()
   socket.addEventListener("message", ({ data }) => {
