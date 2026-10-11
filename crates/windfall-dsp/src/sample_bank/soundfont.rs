@@ -361,7 +361,8 @@ impl<'a> Tables<'a> {
             if table.len() == MAX_ZONES {
                 return Err(SoundFontError::TooManyZones);
             }
-            let mut zone = self.sample_zone(instrument)?;
+            let used: usize = table.iter().map(|z| z.audio.samples().len() * 4).sum();
+            let mut zone = self.sample_zone(instrument, MAX_BANK_BYTES.saturating_sub(used))?;
             zone.mapping.key_low = key.0;
             zone.mapping.key_high = key.1;
             zone.mapping.velocity_low = velocity.0;
@@ -413,7 +414,11 @@ impl<'a> Tables<'a> {
         }
         Ok(())
     }
-    fn sample_zone(&self, instrument: Generators) -> Result<LoadedZone, SoundFontError> {
+    fn sample_zone(
+        &self,
+        instrument: Generators,
+        remaining: usize,
+    ) -> Result<LoadedZone, SoundFontError> {
         let index = instrument
             .link
             .ok_or(SoundFontError::InvalidTable(*b"igen"))?;
@@ -437,7 +442,7 @@ impl<'a> Tables<'a> {
             return Err(SoundFontError::InvalidSample(index));
         }
         let frames = end - start;
-        if frames > MAX_BANK_BYTES / 4 {
+        if frames > remaining / 4 {
             return Err(SoundFontError::TooManyFrames {
                 sample: index,
                 frames,

@@ -23,3 +23,5 @@ mod utility_repairs;
 /// thread that is not being watched, so the other tests are unaffected.
 #[global_allocator]
 static ALLOCATOR: realtime::CountingAllocator = realtime::CountingAllocator;
+
+mod sample_bank;

@@ -63,8 +63,24 @@ pnpm --dir apps/desktop test src/features/sample-instruments src/features/params
 
 ## Remaining work / least-sure spots
 
-Editors, public engine/history/retirement acceptance, peripheral adapters and
-General MIDI wiring are being added in subsequent coherent commits.
+Editors now include a key/velocity zone map with mapping, layer, loop and envelope
+controls; sixteen auditionable pads; a player-only reference-bank loader; SF2
+bank/program browsing; generated keyboard switching; and saved speech rendering.
+Public engine/history/disk/live/offline and callback-allocation acceptance tests
+are written in the dedicated sample-instrument suites. Mounted editor cases cover
+zone undo, pad layers, player refusals, SF2 selection and speech capability errors.
+
+Portable peripheral traits, bounded frame scheduling, an own mock protocol and
+force-feedback/lighting mapping helpers are added with mock tests. The public
+Windows XInput adapter is behind the engine `xinput` feature. These contracts are
+not yet registered rack/mixer processors or session-managed devices. No vendor
+lighting SDK was added; a separately supplied compatible adapter is still required.
+
+The existing MIDI output worker now exposes a Windows system-General-MIDI alias
+only when a named Microsoft software synth is enumerated. The alias resolves
+fresh IDs and never falls back to external hardware; it is selectable in the
+existing MidiOut workflow. OS synth audio is outside the Windfall mix/offline path.
+No full-row claim is made for these peripheral or system-MIDI paths.
 Check registry exhaustive matches and Channel literals first. Reconcile
 append-only enum lengths with the parallel instrument streams. Check the
 new `SamplerPreparationError::Asset` in downstream exhaustive matches.
@@ -83,3 +99,30 @@ Regenerate bindings/descriptor catalog/WASM; never hand-edit generated files.
 Changed: `Channel`, `Command`, `InstrumentKind`, `InstrumentParams`.
 New: `SampleInstrumentAsset`, `SampleZone`, `BankLoop`, `SoundFontPreset`,
 six new instrument params named above.
+
+## Additional written acceptance suites
+
+All are written, not executed:
+
+- `crates/windfall-dsp/tests/dsp/sample_bank.rs`: callback allocation/free guard
+  across all six registered kinds and explicit off-audio source-owner destruction.
+- `crates/windfall-project/tests/sample_instruments.rs`: history/JSON/clone/legacy
+  omission and atomic stale, missing-source, pad-range and player-edit refusals.
+- `crates/windfall-engine/tests/sample_instrument_acceptance.rs`: document-to-disk
+  history and live/offline PCM equality, generated piano and speech determinism.
+- `apps/desktop/src-tauri/src/session/tests/sample_instruments.rs`: saved speech
+  WAV/one-step history/reopen and unsupported/stale recipe refusal.
+- `apps/desktop/src/features/sample-instruments/editor.test.tsx`: mounted cases
+  described above.
+- `crates/windfall-engine/src/peripherals.rs`: protocol roundtrip/truncation,
+  scheduler bounds/stop, unplug failure and motor note release mocks.
+- `crates/windfall-engine/src/midi_hardware/general_midi.rs`: fresh software-synth
+  route resolution and no external-device fallback.
+
+Next narrow fixes identified by inspection: preparation must resolve a newly
+opened project's SF2 relative paths against its new source folder; preset capture
+must refuse unsupported bank export instead of silently losing references; changing
+instrument kind must clear incompatible bank references; asynchronous speech UI
+patches must be guarded against project replacement. All nine rows remain partial
+until those gaps, held-voice bank replacement, portable bank loading, broader SF2
+interoperability and registered peripheral workflows are closed and verified.

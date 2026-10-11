@@ -9,6 +9,8 @@ repository.workspace = true
 authors.workspace = true
 
 [features]
+# Public Windows XInput import library; no SDK/content dependency is bundled.
+xinput = []
 # ASIO needs the Steinberg ASIO SDK at build time, so it is off by default.
 asio = ["cpal/asio"]
 

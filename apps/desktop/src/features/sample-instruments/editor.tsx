@@ -1,0 +1,197 @@
+import { useId, useRef, useState } from "react"
+
+import type { SampleInstrumentAsset, SampleZone, SoundFontPreset } from "@/bindings"
+import { Alert, AlertDescription } from "@/components/ui/alert"
+import { Button } from "@/components/ui/button"
+import { Field, FieldDescription, FieldGroup, FieldLabel } from "@/components/ui/field"
+import { Input } from "@/components/ui/input"
+import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { Textarea } from "@/components/ui/textarea"
+import type { InstrumentChannel } from "@/lib/channel-source"
+import { backend, errorMessage } from "@/lib/ipc"
+import { dispatch, useProjectStore } from "@/lib/store"
+import { receivePatch } from "@/lib/store/project"
+
+import { GenericInstrumentEditor } from "../channel-rack/inspector/generic-instrument-editor"
+
+export function newZone(sample: number, key?: number): SampleZone {
+  return { sample, keyLow: key ?? 0, keyHigh: key ?? 127, velocityLow: 0, velocityHigh: 127,
+    rootKey: key ?? 60, tuneCents: 0, gain: 1, pan: 0, keyFade: 0, velocityFade: 0,
+    roundRobin: 0, chokeGroup: 0, loopMode: "off", loopStart: 0, loopEnd: 0,
+    attackMs: 0, holdMs: 0, decayMs: 0, sustain: 1, releaseMs: 100, scaleTuning: 100 }
+}
+
+function ZoneMap({ zones }: { zones: SampleZone[] }) {
+  return <svg role="img" aria-label="Zone map: key horizontally, velocity vertically" viewBox="0 0 128 128" className="h-32 w-full rounded border bg-muted">
+    {zones.map((zone, index) => <rect key={index} x={zone.keyLow} y={127-zone.velocityHigh}
+      width={zone.keyHigh-zone.keyLow+1} height={zone.velocityHigh-zone.velocityLow+1}
+      className="fill-primary/20 stroke-primary" strokeWidth="0.5" />)}
+  </svg>
+}
+
+function NumberEdit({ label, value, min = 0, max = 127, commit }: {
+  label: string; value: number; min?: number; max?: number; commit: (value: number) => void
+}) {
+  return <Input key={String(value)} aria-label={label} type="number" min={min} max={max} step="any"
+    defaultValue={value} onBlur={(event) => {
+      const next = event.currentTarget.valueAsNumber
+      if (Number.isFinite(next) && next !== value) commit(next)
+    }} />
+}
+
+function ZonesEditor({ channel, pads }: { channel: InstrumentChannel; pads: boolean }) {
+  const samples = useProjectStore((state) => state.project.samples)
+  const zones = channel.sampleInstrument?.type === "zones" ? channel.sampleInstrument.zones : []
+  const [sample, setSample] = useState<number | null>(null)
+  const [pad, setPad] = useState(36)
+  const source = sample ?? samples[0]?.id ?? null
+  const replace = (next: SampleZone[]) => void dispatch({ type: "editSampleZones", channel: channel.id, expected: zones, zones: next })
+  const change = (index: number, patch: Partial<SampleZone>) => replace(zones.map((zone, i) => i === index ? { ...zone, ...patch } : zone))
+  const visible = zones.map((zone,index) => ({ zone,index })).filter(({zone}) => !pads || zone.keyLow === pad)
+  return <FieldGroup>
+    {pads ? <div role="group" aria-label="Sixteen drum pads" className="grid grid-cols-4 gap-1">
+      {Array.from({length:16},(_,index) => {
+        const key = 36+index
+        return <Button key={key} variant={pad === key ? "default" : "outline"} aria-pressed={pad === key}
+          onClick={() => setPad(key)} onPointerDown={() => { void backend.auditionNoteOn(channel.id,key,1) }}
+          onPointerUp={() => { void backend.auditionNoteOff(channel.id,key) }}
+          onPointerCancel={() => { void backend.auditionNoteOff(channel.id,key) }}
+          onPointerLeave={() => { void backend.auditionNoteOff(channel.id,key) }}>
+          Pad {index+1} · {zones.filter(zone=>zone.keyLow===key).length} layers
+        </Button>
+      })}
+    </div> : <ZoneMap zones={zones} />}
+    <Field><FieldLabel>Source sample</FieldLabel>
+      <Select value={source === null ? "" : String(source)} onValueChange={(value) => setSample(Number(value))}>
+        <SelectTrigger aria-label="Source sample"><SelectValue /></SelectTrigger>
+        <SelectContent><SelectGroup>{samples.map(item=><SelectItem key={item.id} value={String(item.id)}>{item.name}</SelectItem>)}</SelectGroup></SelectContent>
+      </Select>
+      <FieldDescription>Sources use project sample references. Import audio through the browser, then choose it here.</FieldDescription>
+    </Field>
+    <Button disabled={source === null || zones.length >= 256} onClick={() => { if(source!==null) replace([...zones,newZone(source,pads?pad:undefined)]) }}>
+      {pads ? "Add pad layer" : "Add zone"}
+    </Button>
+    <Table><TableHeader><TableRow><TableHead>Source</TableHead><TableHead>Keys</TableHead><TableHead>Velocity</TableHead><TableHead>Mapping</TableHead><TableHead>Actions</TableHead></TableRow></TableHeader>
+      <TableBody>{visible.map(({zone,index})=><TableRow key={index}>
+        <TableCell>{samples.find(item=>item.id===zone.sample)?.name ?? "Missing source"}</TableCell>
+        <TableCell>
+          {!pads && <><NumberEdit label={`Zone ${index+1} low key`} value={zone.keyLow} commit={value=>change(index,{keyLow:value})} />
+            <NumberEdit label={`Zone ${index+1} high key`} value={zone.keyHigh} commit={value=>change(index,{keyHigh:value})} /></>}
+          <NumberEdit label={`Zone ${index+1} root key`} value={zone.rootKey} commit={value=>change(index,{rootKey:value})} />
+        </TableCell>
+        <TableCell><NumberEdit label={`Zone ${index+1} low velocity`} value={zone.velocityLow} commit={value=>change(index,{velocityLow:value})} />
+          <NumberEdit label={`Zone ${index+1} high velocity`} value={zone.velocityHigh} commit={value=>change(index,{velocityHigh:value})} /></TableCell>
+        <TableCell>
+          <NumberEdit label={`Zone ${index+1} round robin`} value={zone.roundRobin} max={255} commit={value=>change(index,{roundRobin:value})} />
+          <NumberEdit label={`Zone ${index+1} choke group`} value={zone.chokeGroup} max={255} commit={value=>change(index,{chokeGroup:value})} />
+          <NumberEdit label={`Zone ${index+1} key fade`} value={zone.keyFade} commit={value=>change(index,{keyFade:value})} />
+          <NumberEdit label={`Zone ${index+1} velocity fade`} value={zone.velocityFade} commit={value=>change(index,{velocityFade:value})} />
+          <NumberEdit label={`Zone ${index+1} gain`} value={zone.gain} max={4} commit={value=>change(index,{gain:value})} />
+          <NumberEdit label={`Zone ${index+1} pan`} value={zone.pan} min={-1} max={1} commit={value=>change(index,{pan:value})} />
+          <NumberEdit label={`Zone ${index+1} tuning cents`} value={zone.tuneCents} min={-12000} max={12000} commit={value=>change(index,{tuneCents:value})} />
+          <Select value={zone.loopMode} onValueChange={(value)=>{if(value==="off"||value==="continuous"||value==="untilRelease")change(index,{loopMode:value})}}>
+            <SelectTrigger aria-label={`Zone ${index+1} loop mode`}><SelectValue /></SelectTrigger>
+            <SelectContent><SelectGroup><SelectItem value="off">One-shot</SelectItem><SelectItem value="continuous">Continuous loop</SelectItem><SelectItem value="untilRelease">Loop until release</SelectItem></SelectGroup></SelectContent>
+          </Select>
+          <NumberEdit label={`Zone ${index+1} loop start`} value={zone.loopStart} max={4294967295} commit={value=>change(index,{loopStart:value})} />
+          <NumberEdit label={`Zone ${index+1} loop end`} value={zone.loopEnd} max={4294967295} commit={value=>change(index,{loopEnd:value})} />
+          <NumberEdit label={`Zone ${index+1} attack ms`} value={zone.attackMs} max={100000} commit={value=>change(index,{attackMs:value})} />
+          <NumberEdit label={`Zone ${index+1} decay ms`} value={zone.decayMs} max={100000} commit={value=>change(index,{decayMs:value})} />
+          <NumberEdit label={`Zone ${index+1} sustain`} value={zone.sustain} max={1} commit={value=>change(index,{sustain:value})} />
+          <NumberEdit label={`Zone ${index+1} release ms`} value={zone.releaseMs} max={100000} commit={value=>change(index,{releaseMs:value})} />
+
+        </TableCell>
+        <TableCell><Button variant="outline" onClick={()=>replace(zones.filter((_,i)=>i!==index))}>Remove zone {index+1}</Button></TableCell>
+      </TableRow>)}</TableBody>
+    </Table>
+    {pads && <FieldDescription>Pad notes are keys 36–51. Add these keys in the piano roll to sequence all layers and chokes in a pattern.</FieldDescription>}
+  </FieldGroup>
+}
+
+function PlayerEditor({ channel }: { channel: InstrumentChannel }) {
+  const id = useId()
+  const [json,setJson] = useState("")
+  const [error,setError] = useState<string | null>(null)
+  const zones = channel.sampleInstrument?.type === "zones" ? channel.sampleInstrument.zones : []
+  return <FieldGroup>
+    <ZoneMap zones={zones} />
+    <Field><FieldLabel htmlFor={id}>Ready-made bank references</FieldLabel>
+      <Textarea id={id} value={json} onChange={event=>setJson(event.target.value)} />
+      <FieldDescription>Load a zone-bank JSON document using sample IDs present in this project. This player does not edit its mapping.</FieldDescription>
+    </Field>
+    <Button onClick={()=>{
+      try {
+        const parsed: unknown = JSON.parse(json)
+        if (!parsed || typeof parsed !== "object" || !("type" in parsed) || parsed.type!=="zones" || !("zones" in parsed) || !Array.isArray(parsed.zones)) throw new Error("Expected a zone-bank document")
+        // Rust validates every reference, numeric bound and zone field.
+        void dispatch({type:"setSampleInstrumentAsset",channel:channel.id,expected:channel.sampleInstrument??null,asset:parsed as SampleInstrumentAsset})
+        setError(null)
+      } catch(error) { setError(errorMessage(error)) }
+    }}>Load bank</Button>
+    {error && <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}
+  </FieldGroup>
+}
+
+function SoundFontEditor({ channel }: { channel: InstrumentChannel }) {
+  const [path,setPath] = useState("")
+  const [presets,setPresets] = useState<SoundFontPreset[]>([])
+  const [error,setError] = useState<string | null>(null)
+  const request = useRef(0)
+  return <FieldGroup>
+    <Field><FieldLabel>SoundFont file</FieldLabel><Input aria-label="SoundFont file" value={path} onChange={event=>{setPath(event.target.value);setPresets([]);request.current++}} /></Field>
+    <Button disabled={!backend.soundfontPresets || !path} onClick={async()=>{
+      const token = ++request.current
+      try { const found=await backend.soundfontPresets!(path);if(token===request.current){setPresets(found);setError(null)} }
+      catch(error){if(token===request.current)setError(errorMessage(error))}
+    }}>Browse presets</Button>
+    <div role="group" aria-label="SoundFont presets" className="flex flex-col gap-1">
+      {presets.map(preset=><Button key={`${preset.bank}:${preset.program}`} variant="outline" onClick={()=>void dispatch({
+        type:"setSampleInstrumentAsset",channel:channel.id,expected:channel.sampleInstrument??null,
+        asset:{type:"soundFont",path:{kind:"external",path},bank:preset.bank,program:preset.program}
+      })}>{preset.bank}:{preset.program} · {preset.name}</Button>)}
+    </div>
+    {channel.sampleInstrument?.type === "soundFont" && <FieldDescription>Selected bank {channel.sampleInstrument.bank}, program {channel.sampleInstrument.program}</FieldDescription>}
+    {!backend.soundfontPresets && <Alert><AlertDescription>SoundFont file loading requires the desktop app.</AlertDescription></Alert>}
+    {error && <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}
+  </FieldGroup>
+}
+
+function SpeechEditor({ channel }: { channel: InstrumentChannel }) {
+  const recipe=channel.sampleInstrument?.type==="speech" ? channel.sampleInstrument : null
+  const [text,setText]=useState(recipe?.text??"")
+  const [pitch,setPitch]=useState(recipe?.pitch??48)
+  const [duration,setDuration]=useState(recipe?.duration??2)
+  const [busy,setBusy]=useState(false)
+  const [error,setError]=useState<string|null>(null)
+  return <FieldGroup>
+    <Field><FieldLabel>Text</FieldLabel><Textarea aria-label="Text" maxLength={512} value={text} onChange={event=>setText(event.target.value)} /></Field>
+    <Field><FieldLabel>Voice pitch (MIDI key)</FieldLabel><Input aria-label="Voice pitch" type="number" min={24} max={84} value={pitch} onChange={event=>setPitch(event.target.valueAsNumber)} /></Field>
+    <Field><FieldLabel>Duration (seconds)</FieldLabel><Input aria-label="Speech duration" type="number" min={0.1} max={60} step={0.1} value={duration} onChange={event=>setDuration(event.target.valueAsNumber)} /></Field>
+    <Button disabled={busy || !backend.sampleInstrumentSpeech || !text.trim()} onClick={async()=>{
+      setBusy(true)
+      try { const result=await backend.sampleInstrumentSpeech!(channel.id,channel.sampleInstrument??null,text,pitch,duration);receivePatch(result.patch);setError(null) }
+      catch(error){setError(errorMessage(error))}finally{setBusy(false)}
+    }}>{busy ? "Rendering…" : "Render and save source"}</Button>
+    <FieldDescription>Own robotic English rule voice. Rendering saves audio for project reopen and undo. Notes transpose the saved phrase from key 60.</FieldDescription>
+    {!backend.sampleInstrumentSpeech && <Alert><AlertDescription>Saved speech rendering requires the desktop app.</AlertDescription></Alert>}
+    {error && <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}
+  </FieldGroup>
+}
+
+export function SampleInstrumentEditor({ channel }: { channel: InstrumentChannel }) {
+  const kind=channel.source.params.type
+  return <div className="flex flex-col gap-3">
+    {kind==="multiSampler" && <ZonesEditor channel={channel} pads={false} />}
+    {kind==="padBank" && <ZonesEditor channel={channel} pads />}
+    {kind==="samplePlayer" && <PlayerEditor channel={channel} />}
+    {kind==="soundFont" && <SoundFontEditor key={channel.id} channel={channel} />}
+    {kind==="textVoice" && <SpeechEditor key={channel.id} channel={channel} />}
+    {kind==="pianoKeys" && <FieldGroup>
+      <Button variant="outline" onClick={()=>void dispatch({type:"setSampleInstrumentAsset",channel:channel.id,expected:channel.sampleInstrument??null,
+        asset:{type:"piano",electric:!(channel.sampleInstrument?.type==="piano" && channel.sampleInstrument.electric),version:1}})}>Switch piano / electric keyboard</Button>
+      <FieldDescription>Windfall-generated struck-string and electric-keyboard sources, with two velocity layers and fifteen root keys.</FieldDescription>
+    </FieldGroup>}
+    <GenericInstrumentEditor channel={channel.id} params={channel.source.params} />
+  </div>
+}

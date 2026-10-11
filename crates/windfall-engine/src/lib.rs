@@ -205,3 +205,5 @@ mod qa_recording_mixer;
 mod qa_mixer_pdc_ports;
 
 mod sample_instruments;
+
+pub mod peripherals;

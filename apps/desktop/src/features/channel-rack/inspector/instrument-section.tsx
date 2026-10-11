@@ -1,3 +1,4 @@
+import { SampleInstrumentEditor } from "@/features/sample-instruments/editor"
 import { instrumentDescriptor } from "@/features/params"
 import { PluginControls } from "@/features/plugins/controls"
 import { usePluginBinding } from "@/features/plugins/store"
@@ -37,6 +38,8 @@ export function InstrumentSection({ channel }: { channel: InstrumentChannel }) {
           params={params}
           color={colorToCss(channel.color)}
         />
+      ) : ["multiSampler","samplePlayer","soundFont","padBank","pianoKeys","textVoice"].includes(params.type) ? (
+        <SampleInstrumentEditor key={channel.id} channel={channel} />
       ) : (
         <GenericInstrumentEditor channel={channel.id} params={params} />
       )}
