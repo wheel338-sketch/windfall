@@ -533,3 +533,41 @@ fn mapped_effect_parameters_can_receive_automation() {
     ));
     assert_eq!(c.report.category(ReportSection::Automation).approximated, 1);
 }
+
+#[test]
+fn the_panning_law_a_file_names_becomes_the_projects_law() {
+    use windfall_project::PanLaw;
+    let mut plain = fixture(96);
+    plain.settings.pan_law = None;
+    let without = converted(&plain);
+    assert_eq!(without.project.settings.pan_law, PanLaw::Balance);
+    for (law, expected) in [
+        // Circular: the power of the two sides stays constant.
+        (0, PanLaw::ConstantPower),
+        // Triangular is the balance law.
+        (2, PanLaw::Balance),
+        // A value no source documents leaves the project's default alone.
+        (7, PanLaw::Balance),
+    ] {
+        let mut source = fixture(96);
+        source.settings.pan_law = Some(law);
+        let with = converted(&source);
+        assert_eq!(with.project.settings.pan_law, expected, "law {law}");
+        // The law is carried over, not counted as a difference.
+        let (counted, plain) = (
+            with.report.category(ReportSection::Project),
+            without.report.category(ReportSection::Project),
+        );
+        assert_eq!(
+            (counted.exact, counted.approximated, counted.dropped),
+            (plain.exact, plain.approximated, plain.dropped),
+            "law {law}"
+        );
+        // Nothing else about the project depends on the law.
+        let mut same = with.project.clone();
+        same.settings.pan_law = PanLaw::Balance;
+        assert_eq!(same, without.project, "law {law}");
+        // The file's own resolution is converted, not adopted.
+        assert_eq!(with.project.settings.timebase_ppq, 960);
+    }
+}

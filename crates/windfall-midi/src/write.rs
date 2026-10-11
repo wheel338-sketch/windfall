@@ -31,6 +31,11 @@ pub enum Resolution {
     /// 480 ticks to the quarter note, for programs that read nothing
     /// finer. Every time is halved, and an odd tick rounds up.
     Ppq480,
+    /// This many ticks to the quarter note, 1 to 32,767: a project's own
+    /// timebase. Every time is scaled and rounded to the nearest file tick,
+    /// halves up, so a song whose times are on that timebase's grid is
+    /// written without rounding.
+    Ppq(u16),
 }
 
 impl Resolution {
@@ -38,6 +43,7 @@ impl Resolution {
         match self {
             Resolution::Ppq960 => 960,
             Resolution::Ppq480 => 480,
+            Resolution::Ppq(ticks) => ticks.clamp(1, 0x7FFF),
         }
     }
 

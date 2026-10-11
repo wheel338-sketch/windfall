@@ -15,7 +15,7 @@
 use std::ops::Range;
 
 use rtrb::Producer;
-use windfall_core::{AudioBuffer, db_to_gain, pan_gains};
+use windfall_core::{AudioBuffer, PanLaw, db_to_gain};
 use windfall_dsp::{
     NoteArticulation, NoteExpression,
     blocks::svf::{Svf, SvfCoeffs},
@@ -592,7 +592,7 @@ impl Voice {
             Mix::Sides(left, right) => (None, left, right),
             Mix::Strip(strip) => {
                 let (left, right) =
-                    stereo_gains(strip.gain.at(start), strip.pan.at(start) + self.pan);
+                    stereo_gains(strip.law, strip.gain.at(start), strip.pan.at(start) + self.pan);
                 let steady = strip.gain.settled(start)
                     && strip.pan.settled(start)
                     && !self.source.is_some_and(|source| source.active);
@@ -691,12 +691,14 @@ impl Voice {
                 && self.channel_envelopes.is_some()
             {
                 (left, right) = stereo_gains(
+                    strip.law,
                     strip.gain.at(frame),
                     (strip.pan.at(frame) + self.pan + pan_offset).clamp(-1.0, 1.0),
                 );
             }
             if let Some(strip) = gliding {
                 (left, right) = stereo_gains(
+                    strip.law,
                     strip.gain.at(frame),
                     (strip.pan.at(frame) + self.pan + pan_offset).clamp(-1.0, 1.0),
                 );
@@ -762,8 +764,8 @@ impl Voice {
 }
 
 #[inline]
-fn stereo_gains(gain: f32, pan: f32) -> (f32, f32) {
-    let (left, right) = pan_gains(pan);
+fn stereo_gains(law: PanLaw, gain: f32, pan: f32) -> (f32, f32) {
+    let (left, right) = law.gains(pan);
     (gain * left, gain * right)
 }
 
@@ -1204,7 +1206,7 @@ impl VoicePool {
                 Route::Channel(old_index) => {
                     let strip = &old_state.channels[old_index];
                     let (left, right) =
-                        stereo_gains(strip.gain.at(now), strip.pan.at(now) + voice.pan);
+                        stereo_gains(strip.law, strip.gain.at(now), strip.pan.at(now) + voice.pan);
                     let old_track = old_plan.channels[old_index].track;
                     let kept = plan.channel(voice.channel).filter(|_| !leaving);
                     let Some(new_index) = kept else {
@@ -1256,7 +1258,7 @@ impl VoicePool {
                     };
                 }
                 Route::Master if leaving && !old_state.shaped[0] => {
-                    let (left, right) = pan_gains(voice.pan);
+                    let (left, right) = old_plan.pan_law.gains(voice.pan);
                     let [master_left, master_right] = through[0];
                     voice.route = Route::Apart {
                         left: left * master_left,
@@ -1291,7 +1293,7 @@ impl VoicePool {
                     Mix::Strip(state.channels[channel]),
                     mixer.track_mut(plan.channels[channel].track),
                 ),
-                Route::Master => (Mix::Strip(Strip::at_rest(1.0, 0.0)), mixer.track_mut(0)),
+                Route::Master => (Mix::Strip(Strip::at_rest(1.0, 0.0).under(plan.pan_law)), mixer.track_mut(0)),
                 Route::Track {
                     track, left, right, ..
                 } => (Mix::Sides(left, right), mixer.track_mut(track)),

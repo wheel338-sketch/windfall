@@ -72,6 +72,8 @@ pub(crate) struct Plan {
     pub plugin_factory: Option<std::sync::Arc<dyn crate::plugins::PluginFactory>>,
     pub factory_stamp: Option<crate::project_preparation::FactoryStamp>,
     pub tempo_bpm: f64,
+    /// How every pan the engine applies turns into the level of each side.
+    pub pan_law: windfall_core::PanLaw,
     /// Channel rack order.
     pub channels: Vec<PlanChannel>,
     pub channel_ids: IdIndex,
@@ -777,6 +779,10 @@ impl PlanSampler {
 /// The model's rules are not assumed to hold: values out of range are
 /// clamped, and references to things that do not exist are dropped.
 pub(crate) fn compile(project: &Project, pool: &SamplePool) -> Plan {
+    // Notes and clips play on the grid of the project's timebase. At the
+    // default of 960 ticks this borrows the project as it is.
+    let on_grid = windfall_project::timebase::playback_project(project);
+    let project: &Project = &on_grid;
     let tempo_bpm = if project.settings.tempo_bpm.is_finite() {
         project
             .settings
@@ -825,6 +831,7 @@ pub(crate) fn compile(project: &Project, pool: &SamplePool) -> Plan {
         // snapshot_native_owners below fills this only for a valid plan.
         factory_stamp: None,
         tempo_bpm,
+        pan_law: project.settings.pan_law.core(),
         channels,
         channel_ids,
         patterns,

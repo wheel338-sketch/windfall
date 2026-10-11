@@ -411,6 +411,16 @@ impl<'a> Builder<'a> {
                 "Swing was carried over as the same share of Windfall's swing, which may not feel the same.",
             );
         }
+        // FL Studio's circular law keeps the power of the two sides
+        // constant; its triangular law is Windfall's balance law, which is
+        // also what a project without the setting has. Only a file that
+        // names its law changes anything, and what it names is kept as the
+        // nearest law Windfall has rather than counted as a difference.
+        match settings.pan_law {
+            Some(0) => patch.pan_law = Some(windfall_project::PanLaw::ConstantPower),
+            Some(2) => patch.pan_law = Some(windfall_project::PanLaw::Balance),
+            _ => {}
+        }
         if settings.main_pitch.is_some_and(|pitch| pitch != 0) {
             self.report.count(section, Outcome::Dropped, 1);
             self.report.say(

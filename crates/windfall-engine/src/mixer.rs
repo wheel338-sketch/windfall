@@ -4,7 +4,7 @@
 //! its effects in order, then its fader and pan, and from there to its
 //! meter, its output and its sends.
 
-use windfall_core::pan_gains;
+use windfall_core::PanLaw;
 use windfall_project::MAX_MIXER_TRACKS;
 
 use crate::plan::Plan;
@@ -159,12 +159,12 @@ impl Mixer {
             for tap in taps.iter_mut().filter(|tap| tap.tap.track == track.id) { tap.copy(base, state.latency, state.behind[index], windfall_project::MixerRecordMode::PostEffects, buffer); }
             let strip = &state.tracks[index];
             let steady = strip.gain.settled(base) && strip.pan.settled(base);
-            let (mut left, mut right) = fader_gains(strip.gain.at(base), strip.pan.at(base));
+            let (mut left, mut right) = fader_gains(strip.law, strip.gain.at(base), strip.pan.at(base));
             let (mut peak_left, mut peak_right) = (0.0_f32, 0.0_f32);
             for (offset, frame) in buffer.iter_mut().enumerate() {
                 if !steady {
                     let at = base + offset as u64;
-                    (left, right) = fader_gains(strip.gain.at(at), strip.pan.at(at));
+                    (left, right) = fader_gains(strip.law, strip.gain.at(at), strip.pan.at(at));
                 }
                 frame[0] *= left;
                 frame[1] *= right;
@@ -283,8 +283,8 @@ fn pair(buffers: &mut [Frame], source: usize, target: usize) -> (&[Frame], &mut 
 }
 
 #[inline]
-fn fader_gains(gain: f32, pan: f32) -> (f32, f32) {
-    let (left, right) = pan_gains(pan);
+fn fader_gains(law: PanLaw, gain: f32, pan: f32) -> (f32, f32) {
+    let (left, right) = law.gains(pan);
     (gain * left, gain * right)
 }
 
@@ -292,12 +292,12 @@ fn fader_gains(gain: f32, pan: f32) -> (f32, f32) {
 /// The block starts on frame `base`.
 fn apply_strip(left: &[f32], right: &[f32], strip: &Strip, base: u64, out: &mut [Frame]) {
     let steady = strip.gain.settled(base) && strip.pan.settled(base);
-    let mut gains = fader_gains(strip.gain.at(base), strip.pan.at(base));
+    let mut gains = fader_gains(strip.law, strip.gain.at(base), strip.pan.at(base));
     let sides = left.iter().zip(right);
     for (offset, (frame, (left, right))) in out.iter_mut().zip(sides).enumerate() {
         if !steady {
             let at = base + offset as u64;
-            gains = fader_gains(strip.gain.at(at), strip.pan.at(at));
+            gains = fader_gains(strip.law, strip.gain.at(at), strip.pan.at(at));
         }
         *frame = [left * gains.0, right * gains.1];
     }

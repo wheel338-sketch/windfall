@@ -89,7 +89,9 @@ pub struct MidiExportOptions {
     pub pattern: PatternId,
     /// Format 0 instead of the default format 1.
     pub single_track: bool,
-    /// 480 or 960 ticks per quarter note; other values are refused.
+    /// Ticks per quarter note of the file: 0 for the project's own
+    /// timebase, or one of the timebases a project can have (24, 48, 96,
+    /// 120, 192, 240, 480, 960). Other values are refused.
     pub ppq: u16,
     pub running_status: bool,
     pub swing: bool,
@@ -99,10 +101,27 @@ impl MidiExportOptions {
     /// Converts a checked project snapshot into deterministic MIDI bytes.
     pub fn bytes(&self, project: &Project) -> Result<Vec<u8>, String> {
         project.check().map_err(|error| error.to_string())?;
+        // The file holds what plays: every note and clip on the grid of the
+        // project's timebase. At the default timebase nothing moves.
+        let played = windfall_project::timebase::playback_project(project);
+        let project: &Project = &played;
         let resolution = match self.ppq {
+            0 => match project.settings.timebase_ppq {
+                960 => windfall_midi::Resolution::Ppq960,
+                480 => windfall_midi::Resolution::Ppq480,
+                ppq => windfall_midi::Resolution::Ppq(ppq),
+            },
             480 => windfall_midi::Resolution::Ppq480,
             960 => windfall_midi::Resolution::Ppq960,
-            _ => return Err("MIDI resolution must be 480 or 960 PPQ.".to_owned()),
+            ppq if windfall_project::timebase::is_timebase(ppq) => {
+                windfall_midi::Resolution::Ppq(ppq)
+            }
+            _ => {
+                return Err(format!(
+                    "MIDI resolution must be the project timebase or one of {:?} PPQ.",
+                    windfall_project::timebase::TIMEBASES
+                ));
+            }
         };
         let options = windfall_midi::ExportOptions {
             swing: self.swing,
@@ -125,5 +144,112 @@ impl MidiExportOptions {
                 running_status: self.running_status,
             },
         ))
+    }
+}
+
+#[cfg(test)]
+mod timebase_tests {
+    use super::*;
+    use windfall_project::{ChannelId, Command, Document, InstrumentKind, NoteInit, SettingsPatch};
+
+    fn options(project: &Project, ppq: u16) -> MidiExportOptions {
+        MidiExportOptions {
+            mode: PlayMode::Pattern,
+            pattern: project.patterns[0].id,
+            single_track: true,
+            ppq,
+            running_status: false,
+            swing: false,
+        }
+    }
+
+    /// The notes of a file, as starts and lengths at 960 to the quarter.
+    fn notes(bytes: &[u8]) -> Vec<(u32, u32)> {
+        let song = windfall_midi::read(bytes).unwrap();
+        song.tracks
+            .iter()
+            .flat_map(|track| &track.notes)
+            .map(|note| (note.start, note.length))
+            .collect()
+    }
+
+    fn note(start: u32, length: u32, key: u8) -> NoteInit {
+        NoteInit {
+            start,
+            length,
+            key,
+            velocity: None,
+            pan: None,
+            expression: None,
+        }
+    }
+
+    #[test]
+    fn midi_export_writes_what_plays_at_the_project_timebase() {
+        let mut doc = Document::new(Project::new("Timebase"));
+        let pattern = doc.project().patterns[0].id;
+        let channel = ChannelId(
+            doc.dispatch(
+                Command::AddChannel {
+                    name: None,
+                    sample: None,
+                    instrument: Some(InstrumentKind::SubtractiveSynth),
+                    index: None,
+                    mixer_track: None,
+                },
+                None,
+            )
+            .unwrap()
+            .created[0],
+        );
+        doc.dispatch(
+            Command::AddNotes {
+                pattern,
+                channel,
+                notes: vec![note(3, 7, 60), note(244, 233, 62)],
+            },
+            None,
+        )
+        .unwrap();
+
+        // At the default timebase the file holds the notes as drawn, and
+        // "the project's timebase" is 960.
+        let drawn = [(3, 7), (244, 233)];
+        let project = doc.project().clone();
+        let default = options(&project, 0).bytes(&project).unwrap();
+        assert_eq!(&default[12..14], &960_u16.to_be_bytes());
+        assert_eq!(notes(&default), drawn);
+        assert_eq!(default, options(&project, 960).bytes(&project).unwrap());
+
+        doc.dispatch(
+            Command::UpdateSettings {
+                patch: SettingsPatch {
+                    timebase_ppq: Some(96),
+                    ..SettingsPatch::default()
+                },
+            },
+            None,
+        )
+        .unwrap();
+        let project = doc.project().clone();
+        let on_grid = [(0, 10), (240, 240)];
+        // The project's own resolution: its division and its grid.
+        let own = options(&project, 0).bytes(&project).unwrap();
+        assert_eq!(&own[12..14], &96_u16.to_be_bytes());
+        assert_eq!(notes(&own), on_grid);
+        assert_eq!(own, options(&project, 96).bytes(&project).unwrap());
+        // A finer file still holds the grid positions: they are what plays.
+        for ppq in [480_u16, 960] {
+            let finer = options(&project, ppq).bytes(&project).unwrap();
+            assert_eq!(&finer[12..14], &ppq.to_be_bytes());
+            assert_eq!(notes(&finer), on_grid, "{ppq}");
+        }
+        // Exporting changed nothing.
+        assert_eq!(*doc.project(), project);
+
+        for ppq in [1_u16, 72, 123, 961, u16::MAX] {
+            let error = options(&project, ppq).bytes(&project).unwrap_err();
+            assert!(error.contains("resolution"), "{ppq}: {error}");
+        }
     }
 }

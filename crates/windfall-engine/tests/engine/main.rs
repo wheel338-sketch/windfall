@@ -10,6 +10,7 @@ mod instruments;
 mod lofi;
 mod mixer;
 mod modulation;
+mod project_settings;
 mod realtime;
 mod rendering;
 mod sampler;

@@ -43,6 +43,7 @@ pub mod gm;
 pub mod import;
 mod mix;
 pub mod read;
+pub mod score;
 pub mod song;
 pub mod write;
 
@@ -55,5 +56,6 @@ pub use import::{
     PlannedClip, PlannedLane, PlannedPattern, PlannedSample, PlannedSound, Unsupported, import,
 };
 pub use read::{MAX_FILE_BYTES, read};
+pub use score::{score_from_song, score_to_song};
 pub use song::*;
 pub use write::{Resolution, SmfFormat, WriteOptions, write};
