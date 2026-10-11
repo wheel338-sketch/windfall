@@ -322,7 +322,8 @@ fn native_clap_vst3_healthy_audio_and_state_use_independent_helpers() {
         );
         assert_ne!(control.status().process_id, other.status().process_id);
         assert_eq!(audio.latency(), if format == "clap" { 128 } else { 145 });
-        assert!(control.editor(true).unwrap_err().contains("unsupported"));
+        control.editor(true).unwrap();
+        control.editor(false).unwrap();
         assert!(audio.set_param(7, 0.75));
         let mut left = [1.0; 64];
         let mut right = left;

@@ -55,6 +55,7 @@ pub fn standard_folders_on(
     let name = match format {
         PluginFormat::Clap => "CLAP",
         PluginFormat::Vst3 => "VST3",
+        PluginFormat::Au => "Components",
     };
     let mut folders = Vec::new();
 

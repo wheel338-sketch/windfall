@@ -787,3 +787,12 @@ P1's genuinely ready Session route remains a separate composition gate. The
 historical parent capture body is not presented as off-lock native preparation.
 The parent correction has compiled RED/GREEN evidence; its next independent
 review waits for T3 messaging to become available. No Actions run is authorized.
+
+## 2026-10-11 hosting source checkpoint
+
+See [the worker hand-off](../qa/2026-10-11-plugin-hosting.md) for ABI 7 channel/instance
+replay, negotiated expression capabilities, real helper editor lifecycle and
+guarded native dirty capture, DSP wrapper policies, and the unverified macOS
+AUv2 adapter. Earlier ABI/editor-limit notes are historical where superseded.
+All new regressions are written, not executed; platform/corpus/packaging gates
+remain explicit and no whole hosting row is newly verified.

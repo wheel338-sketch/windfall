@@ -96,6 +96,10 @@ pub(crate) struct ProcessFailed;
 /// One plugin format's way of running a block. The processor calls these
 /// on the audio thread only, never two at once.
 pub(crate) trait ProcessorBackend: Send + 'static {
+    fn additional_latency(&self) -> u32 {
+        0
+    }
+    fn retire_params(&mut self, _params: &mut Vec<HostEvent>) {}
     fn supports_note_instances(&self) -> bool {
         false
     }
@@ -270,6 +274,7 @@ impl PluginProcessor {
             };
             self.pending.push(event);
         }
+        self.backend.retire_params(&mut self.pending);
         self.pending.sort_by_key(HostEvent::time);
         self.pending
             .retain(|event| matches!(event, HostEvent::Param { .. }));
@@ -476,7 +481,10 @@ impl PluginProcessor {
 
     /// Samples by which the plugin's output lags its input.
     pub fn latency_samples(&self) -> u32 {
-        self.shared.latency.load(Ordering::Relaxed)
+        self.shared
+            .latency
+            .load(Ordering::Relaxed)
+            .saturating_add(self.backend.additional_latency())
     }
 
     /// Samples for which the plugin can keep sounding after its input has

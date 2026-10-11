@@ -60,3 +60,43 @@ be rebuilt together; ABI 6 helpers are deliberately incompatible.
 Shared seam files: none so far. Generated IPC/TS types: none so far. Plugin
 scanner metadata changes, when added, require the integrator to refresh the
 existing generated plugin catalog bindings; never hand-edit them.
+
+## Wrapper/editor and AU checkpoint
+
+Native helper editors now open/close on the native owner and pump Win32 events.
+Native state/parameter notifications publish a monotonic bounded change serial;
+the desktop queues the existing guarded capture request and acknowledges only
+after document/engine acceptance. Editor options call actual CLAP/VST3 scaling
+interfaces; a custom scale refusal is an error. Attached means a native DAW-owned
+top-level editor, detached means no owner; unsupported floating-only attachment
+is refused. Existing bridge editor test now requires open/close success.
+
+`wrapper::WrapperOptions` and `activate_with_options` implement fixed native
+buffers with B-sample latency, event-offset preservation and off-audio pending
+parameter retirement, and smart disable after a finite tail plus a second of
+observed silence. Events/input wake processing; endless-tail plugins stay awake.
+Threaded/bridged policy choices are explicitly refused by the in-process API;
+actual default desktop bridging continues through the existing supervisor.
+**Wrapper options are not yet wired into project commands/history or a desktop
+options editor. This row remains partial.**
+
+AUv2 source is entirely macOS-gated. Installed AudioComponent registration,
+parameter discovery, stereo Float32 render/input callbacks, MIDI, native plist
+state, negotiated latency/tail, fallible processor return and owner-side disposal
+use the existing host traits. `PluginHost::create_audio_unit` uses stable
+component registry IDs. This is **uncompiled, unexecuted and unverified; a Mac is
+required**. Cocoa editor, registry scanner/desktop provider, host callbacks,
+AU multi-bus/sidechain and native reset-thread acceptance remain open.
+Windows cannot call or link these framework declarations.
+
+Additional tests written, not executed:
+- `wrapper::tests::smart_disable_stops_only_after_observed_quiet_and_wakes_on_input_or_control`
+- `tests/wrapper_options.rs::fixed_native_buffers_delay_pcm_exactly_and_preserve_pending_state_on_return`
+- `tests/wrapper_options.rs::wrapper_legacy_defaults_and_unsupported_owner_modes_are_explicit`
+- macOS `au::tests::apple_effect_bypass_audio_parameter_state_and_processor_return`
+
+Additional commands: `cargo test -p windfall-plugin-host --test wrapper_options`
+and on a Mac `cargo test -p windfall-plugin-host --lib au::tests:: -- --test-threads=1`.
+Check VST3 content-scale interface imports, native owner/window semantics,
+bridge dirty capture/ack races, and AU C struct layout/CF ownership first.
+No new dependencies or generated IPC/TS types in this checkpoint.

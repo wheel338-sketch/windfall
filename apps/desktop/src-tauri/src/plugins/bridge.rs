@@ -55,6 +55,9 @@ impl Metadata {
 }
 
 pub(super) struct Record {
+    pub dirty_serial: u64,
+    pub acknowledged_serial: u64,
+    pub capture_sent: bool,
     pub binding: PluginBinding,
     pub revision: u64,
     pub playback: bool,
@@ -280,6 +283,9 @@ pub(super) fn launch(
         })
         .collect();
     let record = Record {
+        dirty_serial: 0,
+        acknowledged_serial: 0,
+        capture_sent: false,
         binding,
         revision,
         playback: !offline,

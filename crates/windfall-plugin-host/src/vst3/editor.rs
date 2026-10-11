@@ -131,6 +131,18 @@ impl Editor {
             if unsafe { view.isPlatformTypeSupported(c"HWND".as_ptr()) } != kResultOk {
                 return Err(EditorError::UnsupportedPlatform);
             }
+            let scale = crate::gui::win32::system_scale() * options.scale;
+            if let Some(support) = view.cast::<IPlugViewContentScaleSupport>() {
+                if unsafe { support.setContentScaleFactor(scale as f32) } != kResultOk
+                    && options.scale != 1.0
+                {
+                    return Err(EditorError::Failed("VST3 editor refused scaling".into()));
+                }
+            } else if options.scale != 1.0 {
+                return Err(EditorError::Failed(
+                    "VST3 editor has no scale capability".into(),
+                ));
+            }
             let mut rect = ViewRect {
                 left: 0,
                 top: 0,
@@ -160,6 +172,13 @@ impl Editor {
                 }),
             )
             .map_err(EditorError::Failed)?;
+            window
+                .set_owner(if options.detached {
+                    None
+                } else {
+                    options.owner_window
+                })
+                .map_err(EditorError::Failed)?;
             let frame = ComWrapper::new(Frame {
                 view: Clone::clone(&view),
                 size: size.clone(),

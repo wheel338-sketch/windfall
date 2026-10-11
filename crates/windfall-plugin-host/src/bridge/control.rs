@@ -184,6 +184,7 @@ pub enum Message {
     },
     Editor {
         open: bool,
+        options: crate::EditorOptions,
     },
     Shutdown,
     Stopped,

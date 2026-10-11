@@ -120,6 +120,7 @@ pub(crate) trait InstanceBackend {
 }
 
 struct Active {
+    additional_latency: u32,
     shared: Arc<ProcessorShared>,
     to_audio: rtrb::Producer<HostEvent>,
     from_audio: rtrb::Consumer<PluginEvent>,
@@ -294,6 +295,24 @@ impl PluginInstance {
         sample_rate: f64,
         max_block: usize,
     ) -> Result<PluginProcessor, PluginError> {
+        self.activate_with_options(
+            sample_rate,
+            max_block,
+            &crate::wrapper::WrapperOptions::default(),
+        )
+    }
+    pub fn activate_with_options(
+        &mut self,
+        sample_rate: f64,
+        max_block: usize,
+        options: &crate::wrapper::WrapperOptions,
+    ) -> Result<PluginProcessor, PluginError> {
+        options.validate(max_block)?;
+        if options.processing != crate::wrapper::ProcessingMode::InProcess {
+            return Err(PluginError::Unsupported(
+                "threaded/bridged modes require a separate owner provider",
+            ));
+        }
         if self.active.is_some() {
             return Err(PluginError::AlreadyActive);
         }
@@ -305,9 +324,16 @@ impl PluginInstance {
         let block = u32::try_from(max_block).unwrap_or(u32::MAX);
         let shared = Arc::new(ProcessorShared::default());
         let backend = self.backend.activate(sample_rate, block, &shared)?;
+        let backend = crate::wrapper::wrap(
+            backend,
+            options,
+            sample_rate,
+            shared.tail.load(std::sync::atomic::Ordering::Relaxed),
+        );
         let (to_audio, from_main) = rtrb::RingBuffer::new(QUEUE_CAPACITY);
         let (to_main, from_audio) = rtrb::RingBuffer::new(QUEUE_CAPACITY);
         self.active = Some(Active {
+            additional_latency: backend.additional_latency(),
             shared: Arc::clone(&shared),
             to_audio,
             from_audio,
@@ -315,7 +341,12 @@ impl PluginInstance {
         Ok(PluginProcessor::new(ProcessorParts {
             backend,
             shared,
-            shape: self.backend.shape(),
+            shape: AudioShape {
+                in_place: self.backend.shape().in_place
+                    && !options.smart_disable
+                    && options.fixed_block.is_none(),
+                ..self.backend.shape()
+            },
             sample_rate,
             max_block,
             from_main,
@@ -375,6 +406,7 @@ impl PluginInstance {
                 .shared
                 .latency
                 .load(std::sync::atomic::Ordering::Relaxed)
+                .saturating_add(active.additional_latency)
         })
     }
 
@@ -423,6 +455,7 @@ impl PluginInstance {
 
     /// Opens the plugin's editor in a window of its own.
     pub fn open_editor(&mut self, options: &EditorOptions) -> Result<EditorInfo, EditorError> {
+        options.validate()?;
         self.backend.open_editor(options)
     }
 

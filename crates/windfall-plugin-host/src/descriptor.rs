@@ -13,6 +13,7 @@ use serde::{Deserialize, Serialize};
 pub enum PluginFormat {
     Clap,
     Vst3,
+    Au,
 }
 
 impl PluginFormat {

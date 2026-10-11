@@ -131,6 +131,20 @@ impl Region {
             .map(|_| ())
             .map_err(|_| ProtocolError::Sequence)
     }
+    /// Native owner publication, off the callback. Exhaustion fails this helper.
+    #[cfg(windows)]
+    pub(super) fn publish_native_change(&self) -> Result<(), ProtocolError> {
+        let word = &self.storage.words()[NATIVE_CHANGES];
+        let current = u32::from_le(word.load(Ordering::Relaxed));
+        let next = current.checked_add(1).ok_or(ProtocolError::Sequence)?;
+        word.store(next.to_le(), Ordering::Release);
+        Ok(())
+    }
+    pub fn native_change_serial(&self) -> u64 {
+        u64::from(u32::from_le(
+            self.storage.words()[NATIVE_CHANGES].load(Ordering::Acquire),
+        ))
+    }
     fn offset(slot: usize, offset: usize) -> usize {
         HEADER_WORDS + slot * SLOT_WORDS + offset
     }

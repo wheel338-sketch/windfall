@@ -52,3 +52,12 @@ The original production-enablement commit `7476b074ffaff593e9a9f392665d1a1e8067a
 The committed CLAP parameter saturation regression was reproduced before its repair: 1024 hardware note-ons plus empty callbacks left the native value at `0.5` after the document committed `0.75`. Retaining rejected final values makes this same real-fixture regression pass with unchanged playback token and zero callback allocator calls. The native VST3 release regression also covers reset expansion plus saturated notes and a final reserved release without callback allocation. Deferred dirty-state tests capture the deactivation-generated `0.375` preset and its latency change from 17 to 64 samples before installing the replacement plan.
 
 Follow-up persistence, nested-binary identity and multi-channel release repairs have separate scoped verification recorded in [runtime repairs](runtime-repairs.md). The full workspace and UI checks above are historical evidence for the enablement commit, not repeated full-suite claims for these repairs. No generated artifacts are included in the repair commit. Binary identity uses metadata rather than a content hash; it does not provide tamper detection or eliminate replacement between validation and native loading.
+
+## 2026-10-11 hosting source checkpoint
+
+See [the worker hand-off](../qa/2026-10-11-plugin-hosting.md) for ABI 7 channel/instance
+replay, negotiated expression capabilities, real helper editor lifecycle and
+guarded native dirty capture, DSP wrapper policies, and the unverified macOS
+AUv2 adapter. Earlier ABI/editor-limit notes are historical where superseded.
+All new regressions are written, not executed; platform/corpus/packaging gates
+remain explicit and no whole hosting row is newly verified.

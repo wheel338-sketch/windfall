@@ -279,3 +279,12 @@ Automation needs stable plugin parameter ids, with a prepared id-to-index mappin
 ## Primary evaluation sources
 
 The package versions above were read from downloaded registry source, including each `Cargo.toml` license; `cargo search clack-host` and `cargo search vst3` were rerun on 2026-10-07. Repository maintenance figures for clack and vst3 were rechecked through the GitHub API. Primary sources: [clack source](https://github.com/prokopyl/clack), [clack-host docs](https://docs.rs/clack-host/0.2.0/clack_host/), [clap-sys source](https://github.com/micahrj/clap-sys), [vst3-rs source](https://github.com/coupler-rs/vst3-rs), [vst3 docs](https://docs.rs/vst3/0.3.0/vst3/), [vst3-sys source/license](https://github.com/RustAudio/vst3-sys), [official VST3 SDK](https://github.com/steinbergmedia/vst3sdk), [SDK interface license](https://github.com/steinbergmedia/vst3_pluginterfaces/blob/master/LICENSE.txt), and [CLAP specification](https://github.com/free-audio/clap).
+
+## 2026-10-11 hosting source checkpoint
+
+See [the worker hand-off](../qa/2026-10-11-plugin-hosting.md) for ABI 7 channel/instance
+replay, negotiated expression capabilities, real helper editor lifecycle and
+guarded native dirty capture, DSP wrapper policies, and the unverified macOS
+AUv2 adapter. Earlier ABI/editor-limit notes are historical where superseded.
+All new regressions are written, not executed; platform/corpus/packaging gates
+remain explicit and no whole hosting row is newly verified.

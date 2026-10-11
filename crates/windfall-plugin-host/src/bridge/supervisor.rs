@@ -153,6 +153,9 @@ impl Control {
     pub fn owner(&self) -> Owner {
         self.0.owner
     }
+    pub fn native_change_serial(&self) -> u64 {
+        self.0.region.native_change_serial()
+    }
     pub fn last_valid_state(&self) -> Option<Captured> {
         self.0
             .last_state
@@ -273,9 +276,18 @@ impl Control {
         Ok(())
     }
     pub fn editor(&self, open: bool) -> Result<(), String> {
-        let packet = self.call(Message::Editor { open }, Duration::from_secs(2))?;
+        self.editor_with_options(open, crate::EditorOptions::default())
+    }
+    pub fn editor_with_options(
+        &self,
+        open: bool,
+        options: crate::EditorOptions,
+    ) -> Result<(), String> {
+        options.validate().map_err(|error| error.to_string())?;
+        let packet = self.call(Message::Editor { open, options }, Duration::from_secs(2))?;
         match packet.body {
             Message::Error { message } => Err(message),
+            Message::Stopped => Ok(()),
             _ => Err("unexpected editor bridge response".into()),
         }
     }

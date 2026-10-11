@@ -122,3 +122,8 @@ pub use params::{MAX_LISTED_CHOICES, PluginParam, PluginParamChoice, PluginParam
 pub use processor::{EVENT_CAPACITY, PluginProcessor, ProcessStatus};
 pub use scan::{PluginCatalog, ProcessRunner, ScanRunner, scan_file};
 pub use state::{InvalidState, MAX_STATE_BYTES, PluginState};
+
+#[cfg(target_os = "macos")]
+pub mod au;
+
+pub mod wrapper;

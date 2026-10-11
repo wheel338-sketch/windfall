@@ -69,3 +69,12 @@ No Linux/macOS, audio-device playback, whole-workspace or desktop build was perf
 `vst3 = "=0.3.0"` is generated Rust binding code licensed MIT OR Apache-2.0. Its `com-scrape-types` dependency has the same license. The referenced current SDK interface license is MIT. `libloading` is ISC, `rtrb` and `windows-sys` are MIT OR Apache-2.0. These dependencies are compatible with the repository's GPL-3.0-or-later license. No proprietary SDK content, C++ SDK implementation, real plugin binaries or release archives were copied into the repository. No new dependency was added beyond pinning the existing binding version exactly.
 
 Lifecycle decisions follow primary Steinberg documentation: [API and threading model](https://steinbergmedia.github.io/vst3_dev_portal/pages/Technical%2BDocumentation/API%2BDocumentation/Index.html), [processor call sequence](https://steinbergmedia.github.io/vst3_dev_portal/pages/Technical%2BDocumentation/Workflow%2BDiagrams/Audio%2BProcessor%2BCall%2BSequence.html), [processing FAQ](https://steinbergmedia.github.io/vst3_dev_portal/pages/FAQ/Processing.html), and [communication FAQ](https://steinbergmedia.github.io/vst3_dev_portal/pages/FAQ/Communication.html). SDK/binding license sources are linked in [host evaluation](host-evaluation.md#primary-evaluation-sources).
+
+## 2026-10-11 hosting source checkpoint
+
+See [the worker hand-off](../qa/2026-10-11-plugin-hosting.md) for ABI 7 channel/instance
+replay, negotiated expression capabilities, real helper editor lifecycle and
+guarded native dirty capture, DSP wrapper policies, and the unverified macOS
+AUv2 adapter. Earlier ABI/editor-limit notes are historical where superseded.
+All new regressions are written, not executed; platform/corpus/packaging gates
+remain explicit and no whole hosting row is newly verified.

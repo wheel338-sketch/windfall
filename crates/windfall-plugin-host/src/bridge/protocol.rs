@@ -14,6 +14,7 @@ pub const HEADER_WORDS: usize = 64;
 pub const HELPER_FAILURE: usize = 26;
 pub const OWNER_COMPLETIONS: usize = 27;
 pub const TIMELINE_EPOCH: usize = 28;
+pub const NATIVE_CHANGES: usize = 29;
 pub const META_WORDS: usize = 64;
 pub const INPUT: usize = META_WORDS;
 pub const KEY_INPUT: usize = INPUT + MAX_BLOCK * 2;

@@ -742,11 +742,19 @@ fn run(address: SocketAddr) -> io::Result<()> {
                     reply(&mut socket, &response)?;
                     return Ok(());
                 }
-                Message::Editor { .. } => {
-                    response.body = Message::Error {
-                        message:
-                            "Native editors are unsupported by this audio/state bridge delivery"
-                                .into(),
+                Message::Editor { open, options } => {
+                    if native.offline {
+                        response.body = Message::Error {
+                            message: "render helpers cannot open editors".into(),
+                        };
+                    } else if open {
+                        if let Err(error) = native.instance.open_editor(&options) {
+                            response.body = Message::Error {
+                                message: error.to_string(),
+                            };
+                        }
+                    } else {
+                        native.instance.close_editor();
                     }
                 }
                 Message::Capture {
@@ -797,17 +805,24 @@ fn run(address: SocketAddr) -> io::Result<()> {
             }
         }
         native.adopt_timeline()?;
+        crate::gui::pump_events(Some(Duration::ZERO));
+        let mut changed = false;
         native.instance.idle(&mut |notification| {
             if matches!(
                 notification,
-                PluginNotification::StateChanged
+                PluginNotification::ParamChanged { .. }
+                    | PluginNotification::StateChanged
                     | PluginNotification::RestartRequested
                     | PluginNotification::ParamsRescanned
             ) {
                 native.dirty = true;
+                changed = true;
             }
         });
         native.adopt_timeline()?;
+        if changed {
+            native.region.publish_native_change().map_err(error)?;
+        }
         native.region.owner_completed().map_err(error)?;
         if !worked {
             std::thread::sleep(Duration::from_micros(200));

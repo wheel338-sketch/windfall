@@ -299,6 +299,7 @@ impl PluginManager {
                 format: match plugin.descriptor.format {
                     PluginFormat::Clap => "clap",
                     PluginFormat::Vst3 => "vst3",
+                    PluginFormat::Au => "au",
                 }
                 .into(),
                 id: plugin.descriptor.id.clone(),

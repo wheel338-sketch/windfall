@@ -572,12 +572,17 @@ impl Runtime {
                                 .remove(&token);
                             owner.bridges.remove(&token);
                         }
-                        for (token, record) in &owner.bridges {
+                        for (token, record) in &mut owner.bridges {
                             if record.playback
                                 && selected(&owner.selection, record.binding.target) == Some(*token)
                                 && record.revision
                                     == owner_revision.load(std::sync::atomic::Ordering::Acquire)
                             {
+                                record.dirty_serial = record.control.native_change_serial();
+                                if record.dirty_serial > record.acknowledged_serial && !record.capture_sent {
+                                    record.capture_sent = updates.try_send(PendingUpdate { binding: binding_identity(&record.binding), token: *token, revision: record.revision,
+                                        update: Update::Capture { target: record.binding.target, serial: record.dirty_serial } }).is_ok();
+                                }
                                 let status = record.status();
                                 if status.failed {
                                     let mut errors = owner_errors
@@ -1207,6 +1212,15 @@ impl Runtime {
                 {
                     return Ok(None);
                 }
+                #[cfg(windows)]
+                if let Some(record) = owner.bridges.get_mut(&request.token).filter(|record| record.playback && record.revision == request.revision
+                    && binding_identity(&record.binding) == request.binding && record.dirty_serial >= serial && record.dirty_serial > record.acknowledged_serial) {
+                    if lifetime.cancelled() { return Err("Plugin capture was cancelled".into()); }
+                    let serial = record.dirty_serial;
+                    let (bytes, parameters) = record.capture(&desired)?;
+                    if lifetime.cancelled() || revision.load(std::sync::atomic::Ordering::Acquire) != request.revision { return Err("Plugin capture ownership changed".into()); }
+                    return Ok(Some(CapturedState { bytes, parameters, restart: false, serial }));
+                }
                 let Some(record) = owner.instances.get_mut(&request.token).filter(|record| {
                     record.playback
                         && record.revision == request.revision
@@ -1315,6 +1329,13 @@ impl Runtime {
         checkpoint: impl FnOnce(&mut Owner, &JobLifetime) + Send + 'static,
     ) -> Result<super::capture_ack::CaptureAckCompletion, String> {
         self.call_with_lifetime(timeout, move |owner, lifetime| {
+            #[cfg(windows)]
+            if let Some(record) = owner.bridges.get_mut(&ticket.token) {
+                record.capture_sent = false;
+                record.acknowledged_serial = record.acknowledged_serial.max(ticket.serial);
+                checkpoint(owner, lifetime);
+                return Ok(super::capture_ack::CaptureAckCompletion::Acknowledged);
+            }
             let completion = if let Some(record) = owner.instances.get_mut(&ticket.token) {
                 record.capture_sent = false;
                 if record.dirty_serial == ticket.serial {
