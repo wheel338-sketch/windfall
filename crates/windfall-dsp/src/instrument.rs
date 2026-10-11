@@ -574,6 +574,18 @@ pub enum AnyInstrument {
 }
 
 impl AnyInstrument {
+    /// Fixed-storage voice transfer when a prebuilt sample asset unit replaces
+    /// its predecessor. New sources/curves are retained by the incoming unit.
+    pub fn inherit_playback_state(&mut self, previous: &Self) -> bool {
+        match (self, previous) {
+            (Self::SliceMap(a), Self::SliceMap(b)) => a.adopt(b),
+            (Self::SliceDeck(a), Self::SliceDeck(b)) => a.adopt(b),
+            (Self::GrainCloud(a), Self::GrainCloud(b)) => a.adopt(b),
+            (Self::WaveRide(a), Self::WaveRide(b)) => a.adopt(b),
+            _ => return false,
+        }
+        true
+    }
     /// Called only while constructing a control-side instrument unit.
     pub fn set_playback_asset(&mut self, asset: std::sync::Arc<crate::granular::PlaybackAsset>) -> bool {
         match self {

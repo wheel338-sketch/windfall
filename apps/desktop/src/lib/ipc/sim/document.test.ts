@@ -10,6 +10,7 @@ import type {
 } from "@/bindings"
 import descriptors from "@/bindings/descriptors.json"
 import { createDefaultChannelVoiceSettings } from "@/features/channel-rack/voice/settings"
+import { defaultAsset } from "@/features/sample-playback/settings"
 import { DEFAULT_TRACK_PROCESSING } from "@/lib/track-processing"
 
 import { SimDocument } from "./document"
@@ -22,6 +23,7 @@ function fullProject() {
     spareSample: 0,
     channel: 0,
     synth: 0,
+    slicer: 0,
     effect: 0,
     tap: 0,
     sparePattern: 0,
@@ -57,6 +59,8 @@ function fullProject() {
     ;[ids.sparePattern] = run({ type: "addPattern" })
     ;[ids.track] = run({ type: "addMixerTrack" })
     ;[ids.synth] = run({ type: "addChannel", instrument: "subtractiveSynth" })
+    ;[ids.slicer] = run({ type: "addChannel", instrument: "sliceDeck" })
+    run({ type: "setSamplePlayback", channel: ids.slicer, asset: { ...defaultAsset(), sample: ids.sample } })
     ;[ids.effect] = run({
       type: "addEffect",
       track: ids.track,
@@ -243,6 +247,8 @@ type Ids = ReturnType<typeof fullProject>["ids"]
  * for a new entry when the Rust `Command` gains a variant.
  */
 const EVERY_COMMAND: { [Type in Command["type"]]: (ids: Ids) => Command } = {
+  setSamplePlayback: (ids) => ({ type: "setSamplePlayback", channel: ids.slicer, asset: { ...defaultAsset(), sample: ids.sample, sourceBpm: 90 } }),
+  generateSlicePattern: (ids) => ({ type: "generateSlicePattern", channel: ids.slicer, pattern: ids.pattern }),
   addArrangement: (ids) => ({
     type: "addArrangement",
     name: "New",

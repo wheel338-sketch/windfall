@@ -472,3 +472,17 @@ fn names_are_plain_descriptions() {
         ]
     );
 }
+
+#[test]
+fn slice_grain_curve_parameter_prefixes_are_stable_and_sources_are_assets() {
+    for (kind, ids) in [
+        (InstrumentKind::SliceMap, vec!["baseKey", "level", "releaseMs"]),
+        (InstrumentKind::SliceDeck, vec!["baseKey", "level", "releaseMs"]),
+        (InstrumentKind::GrainCloud, vec!["rootKey", "grainSizeMs", "density", "position", "spray", "pitch", "seed", "level", "releaseMs"]),
+        (InstrumentKind::WaveRide, vec!["rootKey", "durationMs", "pitch", "level", "releaseMs"]),
+    ] {
+        assert_eq!(kind.descriptors().iter().map(|p|p.id).collect::<Vec<_>>(),ids);
+        let json=serde_json::to_value(kind.default_params()).unwrap();
+        for key in ["table","sliceStarts","slices","positions"] {assert!(json.get(key).is_none());}
+    }
+}

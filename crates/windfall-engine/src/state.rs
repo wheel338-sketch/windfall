@@ -1584,6 +1584,9 @@ impl PlanState {
                     .plugins
                     .iter()
                     .find(|binding| binding.target == target);
+                if !channel.leaving && binding.is_none() && old_binding.is_none() {
+                    unit.inherit_playback_notes(before);
+                }
                 if !channel.leaving
                     && binding.zip(old_binding).is_some_and(|(binding, old)| {
                         binding.path == old.path

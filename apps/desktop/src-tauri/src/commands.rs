@@ -174,6 +174,13 @@ async fn mixer_preset_library_delete(
 }
 
 #[tauri::command]
+async fn sample_playback_detect(session: State<'_, Session>, channel: windfall_project::ChannelId,
+    options: windfall_ipc::SliceOptions, generation: u64, revision: u64) -> Result<DispatchResult, String> {
+    let session = session.inner().clone();
+    blocking(move || session.sample_playback_detect(channel, options, generation, revision)).await
+}
+
+#[tauri::command]
 async fn slice_analyze(
     session: State<'_, Session>,
     clip: windfall_project::ClipId,
@@ -1042,6 +1049,7 @@ pub fn handler() -> impl Fn(Invoke) -> bool + Send + Sync + 'static {
         audio_editor_apply,
         audio_editor_discard,
         slice_analyze,
+        sample_playback_detect,
         slice_apply,
         slice_discard,
         samples_reload,

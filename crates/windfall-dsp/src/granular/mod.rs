@@ -1,7 +1,10 @@
-//! Bounded sample-table slice, granular and position-envelope instruments.
-mod engine;
+//! Prepared-source slice, granular and drawn-position/speed instruments.
 mod asset;
-pub use asset::{MAX_ASSET_SLICES, MAX_CURVE_POINTS, MAX_SOURCE_FRAMES,PlaybackAsset, PlaybackCurve, PlaybackCurveMode, PlaybackPoint, SliceRegion, validate_slices};
+mod engine;
+pub use asset::{
+    MAX_ASSET_SLICES, MAX_CURVE_POINTS, MAX_SOURCE_FRAMES, PlaybackAsset, PlaybackCurve,
+    PlaybackCurveMode, PlaybackPoint, SliceRegion, validate_slices,
+};
 use std::sync::Arc;
 mod params;
 
@@ -41,7 +44,17 @@ macro_rules! instrument {
         }
         impl $name {
             /// Control-thread only: install before publishing the prepared unit.
-            pub fn set_asset(&mut self, asset: Arc<PlaybackAsset>) { self.asset = Some(asset); }
+            pub fn set_asset(&mut self, asset: Arc<PlaybackAsset>) {
+                self.asset = Some(asset);
+            }
+            pub fn voices_stolen(&self) -> u64 {
+                self.engine.voices_stolen
+            }
+            pub(crate) fn adopt(&mut self, previous: &Self) {
+                self.engine.adopt(&previous.engine);
+                self.current = previous.current;
+                self.moving = true;
+            }
         }
         impl Instrument for $name {
             type Params = $params;
@@ -56,7 +69,7 @@ macro_rules! instrument {
             }
             fn set_params(&mut self, params: &$params) {
                 self.params = params.sanitized();
-                
+
                 if self.engine.fresh {
                     self.current = self.params;
                     self.moving = false;
@@ -102,7 +115,7 @@ macro_rules! instrument {
                     velocity,
                     pan,
                     expression,
-                                        self.current.settings(),
+                    self.current.settings(),
                     self.asset.as_deref(),
                 );
             }
@@ -156,6 +169,9 @@ instrument!(GrainCloud, GrainCloudParams, Cloud);
 instrument!(WaveRide, WaveRideParams, Wave);
 
 impl GrainCloud {
+    pub fn grains_dropped(&self) -> u64 {
+        self.engine.grains_dropped
+    }
     /// Successfully scheduled grain events since prepare/reset, across all voices.
     /// Excess events at the fixed overlap limit drop without being deferred.
     pub fn grains_spawned(&self) -> u64 {

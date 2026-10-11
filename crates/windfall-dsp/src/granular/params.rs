@@ -105,7 +105,11 @@ impl Default for SliceSettings {
     }
 }
 pub(super) fn clean(value: f32, min: f32, max: f32, default: f32) -> f32 {
-    if value.is_finite() { value.clamp(min, max) } else { default }
+    if value.is_finite() {
+        value.clamp(min, max)
+    } else {
+        default
+    }
 }
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase", default)]
@@ -114,7 +118,15 @@ pub struct SliceMapParams {
     pub level: f32,
     pub release_ms: f32,
 }
-impl Default for SliceMapParams { fn default() -> Self { Self { base_key: 60, level: 0.5, release_ms: 30.0 } } }
+impl Default for SliceMapParams {
+    fn default() -> Self {
+        Self {
+            base_key: 60,
+            level: 0.5,
+            release_ms: 30.0,
+        }
+    }
+}
 impl ParamSet for SliceMapParams {
     const NAME: &'static str = "Slice Map";
     fn descriptors() -> &'static [ParamInfo] {
@@ -155,30 +167,50 @@ impl ParamSet for SliceMapParams {
         ];
         INFO
     }
-    fn get(&self, index: usize) -> Option<f32> { Some(match index {
-        0 => self.base_key as f32,
-        1 => self.level,
-        2 => self.release_ms,
-        _ => return None,
-    }) }
+    fn get(&self, index: usize) -> Option<f32> {
+        Some(match index {
+            0 => self.base_key as f32,
+            1 => self.level,
+            2 => self.release_ms,
+            _ => return None,
+        })
+    }
     fn set(&mut self, index: usize, value: f32) -> bool {
-        let Some(info) = Self::descriptors().get(index) else { return false; };
+        let Some(info) = Self::descriptors().get(index) else {
+            return false;
+        };
         let value = clean(value, info.min, info.max, info.default);
         match index {
             0 => self.base_key = value.round() as u8,
             1 => self.level = value,
             2 => self.release_ms = value,
             _ => return false,
-        } true
+        }
+        true
     }
-    fn sanitized(&self) -> Self { let mut result = *self; for i in 0..Self::descriptors().len() { result.set(i, self.get(i).unwrap()); } result }
+    fn sanitized(&self) -> Self {
+        let mut result = *self;
+        for i in 0..Self::descriptors().len() {
+            result.set(i, self.get(i).unwrap());
+        }
+        result
+    }
     fn approach(&mut self, target: &Self, amount: f32) -> bool {
-        let mut moving = false; let amount = clean(amount, 0.0, 1.0, 1.0);
+        let mut moving = false;
+        let amount = clean(amount, 0.0, 1.0, 1.0);
         for (i, info) in Self::descriptors().iter().enumerate() {
             let target = target.get(i).unwrap();
-            let value = if info.kind == ParamKind::Float { let (value, unsettled) = approach_value(self.get(i).unwrap(), target, amount, info.max - info.min); moving |= unsettled; value } else { target };
+            let value = if info.kind == ParamKind::Float {
+                let (value, unsettled) =
+                    approach_value(self.get(i).unwrap(), target, amount, info.max - info.min);
+                moving |= unsettled;
+                value
+            } else {
+                target
+            };
             self.set(i, value);
-        } moving
+        }
+        moving
     }
 }
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, TS)]
@@ -188,7 +220,15 @@ pub struct SliceDeckParams {
     pub level: f32,
     pub release_ms: f32,
 }
-impl Default for SliceDeckParams { fn default() -> Self { Self { base_key: 60, level: 0.5, release_ms: 30.0 } } }
+impl Default for SliceDeckParams {
+    fn default() -> Self {
+        Self {
+            base_key: 60,
+            level: 0.5,
+            release_ms: 30.0,
+        }
+    }
+}
 impl ParamSet for SliceDeckParams {
     const NAME: &'static str = "Slice Deck";
     fn descriptors() -> &'static [ParamInfo] {
@@ -229,30 +269,50 @@ impl ParamSet for SliceDeckParams {
         ];
         INFO
     }
-    fn get(&self, index: usize) -> Option<f32> { Some(match index {
-        0 => self.base_key as f32,
-        1 => self.level,
-        2 => self.release_ms,
-        _ => return None,
-    }) }
+    fn get(&self, index: usize) -> Option<f32> {
+        Some(match index {
+            0 => self.base_key as f32,
+            1 => self.level,
+            2 => self.release_ms,
+            _ => return None,
+        })
+    }
     fn set(&mut self, index: usize, value: f32) -> bool {
-        let Some(info) = Self::descriptors().get(index) else { return false; };
+        let Some(info) = Self::descriptors().get(index) else {
+            return false;
+        };
         let value = clean(value, info.min, info.max, info.default);
         match index {
             0 => self.base_key = value.round() as u8,
             1 => self.level = value,
             2 => self.release_ms = value,
             _ => return false,
-        } true
+        }
+        true
     }
-    fn sanitized(&self) -> Self { let mut result = *self; for i in 0..Self::descriptors().len() { result.set(i, self.get(i).unwrap()); } result }
+    fn sanitized(&self) -> Self {
+        let mut result = *self;
+        for i in 0..Self::descriptors().len() {
+            result.set(i, self.get(i).unwrap());
+        }
+        result
+    }
     fn approach(&mut self, target: &Self, amount: f32) -> bool {
-        let mut moving = false; let amount = clean(amount, 0.0, 1.0, 1.0);
+        let mut moving = false;
+        let amount = clean(amount, 0.0, 1.0, 1.0);
         for (i, info) in Self::descriptors().iter().enumerate() {
             let target = target.get(i).unwrap();
-            let value = if info.kind == ParamKind::Float { let (value, unsettled) = approach_value(self.get(i).unwrap(), target, amount, info.max - info.min); moving |= unsettled; value } else { target };
+            let value = if info.kind == ParamKind::Float {
+                let (value, unsettled) =
+                    approach_value(self.get(i).unwrap(), target, amount, info.max - info.min);
+                moving |= unsettled;
+                value
+            } else {
+                target
+            };
             self.set(i, value);
-        } moving
+        }
+        moving
     }
 }
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, TS)]
@@ -268,7 +328,21 @@ pub struct GrainCloudParams {
     pub level: f32,
     pub release_ms: f32,
 }
-impl Default for GrainCloudParams { fn default() -> Self { Self { root_key: 60, grain_size_ms: 80.0, density: 24.0, position: 0.5, spray: 1.0, pitch: 0.0, seed: 1, level: 0.5, release_ms: 30.0 } } }
+impl Default for GrainCloudParams {
+    fn default() -> Self {
+        Self {
+            root_key: 60,
+            grain_size_ms: 80.0,
+            density: 24.0,
+            position: 0.5,
+            spray: 1.0,
+            pitch: 0.0,
+            seed: 1,
+            level: 0.5,
+            release_ms: 30.0,
+        }
+    }
+}
 impl ParamSet for GrainCloudParams {
     const NAME: &'static str = "Grain Cloud";
     fn descriptors() -> &'static [ParamInfo] {
@@ -375,20 +449,24 @@ impl ParamSet for GrainCloudParams {
         ];
         INFO
     }
-    fn get(&self, index: usize) -> Option<f32> { Some(match index {
-        0 => self.root_key as f32,
-        1 => self.grain_size_ms,
-        2 => self.density,
-        3 => self.position,
-        4 => self.spray,
-        5 => self.pitch,
-        6 => self.seed as f32,
-        7 => self.level,
-        8 => self.release_ms,
-        _ => return None,
-    }) }
+    fn get(&self, index: usize) -> Option<f32> {
+        Some(match index {
+            0 => self.root_key as f32,
+            1 => self.grain_size_ms,
+            2 => self.density,
+            3 => self.position,
+            4 => self.spray,
+            5 => self.pitch,
+            6 => self.seed as f32,
+            7 => self.level,
+            8 => self.release_ms,
+            _ => return None,
+        })
+    }
     fn set(&mut self, index: usize, value: f32) -> bool {
-        let Some(info) = Self::descriptors().get(index) else { return false; };
+        let Some(info) = Self::descriptors().get(index) else {
+            return false;
+        };
         let value = clean(value, info.min, info.max, info.default);
         match index {
             0 => self.root_key = value.round() as u8,
@@ -401,16 +479,32 @@ impl ParamSet for GrainCloudParams {
             7 => self.level = value,
             8 => self.release_ms = value,
             _ => return false,
-        } true
+        }
+        true
     }
-    fn sanitized(&self) -> Self { let mut result = *self; for i in 0..Self::descriptors().len() { result.set(i, self.get(i).unwrap()); } result }
+    fn sanitized(&self) -> Self {
+        let mut result = *self;
+        for i in 0..Self::descriptors().len() {
+            result.set(i, self.get(i).unwrap());
+        }
+        result
+    }
     fn approach(&mut self, target: &Self, amount: f32) -> bool {
-        let mut moving = false; let amount = clean(amount, 0.0, 1.0, 1.0);
+        let mut moving = false;
+        let amount = clean(amount, 0.0, 1.0, 1.0);
         for (i, info) in Self::descriptors().iter().enumerate() {
             let target = target.get(i).unwrap();
-            let value = if info.kind == ParamKind::Float { let (value, unsettled) = approach_value(self.get(i).unwrap(), target, amount, info.max - info.min); moving |= unsettled; value } else { target };
+            let value = if info.kind == ParamKind::Float {
+                let (value, unsettled) =
+                    approach_value(self.get(i).unwrap(), target, amount, info.max - info.min);
+                moving |= unsettled;
+                value
+            } else {
+                target
+            };
             self.set(i, value);
-        } moving
+        }
+        moving
     }
 }
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, TS)]
@@ -422,7 +516,17 @@ pub struct WaveRideParams {
     pub level: f32,
     pub release_ms: f32,
 }
-impl Default for WaveRideParams { fn default() -> Self { Self { root_key: 60, duration_ms: 1000.0, pitch: 0.0, level: 0.5, release_ms: 30.0 } } }
+impl Default for WaveRideParams {
+    fn default() -> Self {
+        Self {
+            root_key: 60,
+            duration_ms: 1000.0,
+            pitch: 0.0,
+            level: 0.5,
+            release_ms: 30.0,
+        }
+    }
+}
 impl ParamSet for WaveRideParams {
     const NAME: &'static str = "Wave Ride";
     fn descriptors() -> &'static [ParamInfo] {
@@ -485,16 +589,20 @@ impl ParamSet for WaveRideParams {
         ];
         INFO
     }
-    fn get(&self, index: usize) -> Option<f32> { Some(match index {
-        0 => self.root_key as f32,
-        1 => self.duration_ms,
-        2 => self.pitch,
-        3 => self.level,
-        4 => self.release_ms,
-        _ => return None,
-    }) }
+    fn get(&self, index: usize) -> Option<f32> {
+        Some(match index {
+            0 => self.root_key as f32,
+            1 => self.duration_ms,
+            2 => self.pitch,
+            3 => self.level,
+            4 => self.release_ms,
+            _ => return None,
+        })
+    }
     fn set(&mut self, index: usize, value: f32) -> bool {
-        let Some(info) = Self::descriptors().get(index) else { return false; };
+        let Some(info) = Self::descriptors().get(index) else {
+            return false;
+        };
         let value = clean(value, info.min, info.max, info.default);
         match index {
             0 => self.root_key = value.round() as u8,
@@ -503,15 +611,31 @@ impl ParamSet for WaveRideParams {
             3 => self.level = value,
             4 => self.release_ms = value,
             _ => return false,
-        } true
+        }
+        true
     }
-    fn sanitized(&self) -> Self { let mut result = *self; for i in 0..Self::descriptors().len() { result.set(i, self.get(i).unwrap()); } result }
+    fn sanitized(&self) -> Self {
+        let mut result = *self;
+        for i in 0..Self::descriptors().len() {
+            result.set(i, self.get(i).unwrap());
+        }
+        result
+    }
     fn approach(&mut self, target: &Self, amount: f32) -> bool {
-        let mut moving = false; let amount = clean(amount, 0.0, 1.0, 1.0);
+        let mut moving = false;
+        let amount = clean(amount, 0.0, 1.0, 1.0);
         for (i, info) in Self::descriptors().iter().enumerate() {
             let target = target.get(i).unwrap();
-            let value = if info.kind == ParamKind::Float { let (value, unsettled) = approach_value(self.get(i).unwrap(), target, amount, info.max - info.min); moving |= unsettled; value } else { target };
+            let value = if info.kind == ParamKind::Float {
+                let (value, unsettled) =
+                    approach_value(self.get(i).unwrap(), target, amount, info.max - info.min);
+                moving |= unsettled;
+                value
+            } else {
+                target
+            };
             self.set(i, value);
-        } moving
+        }
+        moving
     }
 }

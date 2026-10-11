@@ -6,6 +6,7 @@ import { colorToCss } from "@/lib/units"
 
 import { SoundMenu } from "../synth/sound-menu"
 import { SynthEditor } from "../synth/synth-editor"
+import { SamplePlaybackEditor } from "@/features/sample-playback/editor"
 import { GenericInstrumentEditor } from "./generic-instrument-editor"
 import { Section } from "./parts"
 
@@ -37,6 +38,8 @@ export function InstrumentSection({ channel }: { channel: InstrumentChannel }) {
           params={params}
           color={colorToCss(channel.color)}
         />
+      ) : ["sliceMap", "sliceDeck", "grainCloud", "waveRide"].includes(params.type) ? (
+        <SamplePlaybackEditor channel={channel} />
       ) : (
         <GenericInstrumentEditor channel={channel.id} params={params} />
       )}

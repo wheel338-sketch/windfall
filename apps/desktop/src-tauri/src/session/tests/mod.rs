@@ -466,3 +466,5 @@ fn a_session_starts_on_a_clean_default_project_the_engine_can_play() {
     rig.session.audition_note_on(rig.channel(0), 60, 1.0);
     assert!(rms(&rig.run(4_800)) > 0.01);
 }
+
+mod sample_playback;

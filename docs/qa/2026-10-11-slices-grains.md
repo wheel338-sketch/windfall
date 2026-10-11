@@ -22,8 +22,14 @@ this migration gate needs dedicated tests and integration inspection.
 
 ## Remaining work in progress
 
-Purpose-built editors, native/browser detection endpoint, registered acceptance tests,
-source reload/seek/export/realtime evidence and final documentation are being added.
+Purpose-built source/slice/grain/curve editors, native/browser detection endpoint,
+and registered acceptance tests have now been written. Test files are all **written,
+not executed**: granular/tests.rs; dsp/sample_playback.rs; project/tests/sample_playback.rs;
+engine/tests/sample_playback.rs; session/tests/sample_playback.rs; frontend
+sample-playback/{editor,detection}.test.{tsx,ts}; params/access.test.ts and EVERY_COMMAND.
+Detection applies one history step after source/generation/revision checks, with
+independent shared Rust execution in a browser worker. Backend mocks label sources
+simulated. Full-row candidacy is awaiting the integrator's compilation and evidence.
 
 ## Integrator commands (not run by this worker)
 

@@ -618,6 +618,12 @@ fn check_automations(project: &Project) -> Result<(), String> {
         check_id(project, "automation", automation.id, &mut ids)?;
         let owner = format!("automation {}", automation.id.0);
         check_color(&owner, automation.color)?;
+        if let crate::AutomationTarget::InstrumentParam { channel, param } = automation.target {
+            if project.channel(channel).is_some_and(|c| matches!(c.source, ChannelSource::Instrument { params }
+                if crate::sample_playback::supported(params.kind()) && param as usize >= params.kind().descriptors().len())) {
+                return Err("Legacy slice-marker/per-slice/curve automation cannot be migrated to immutable assets. Retain the original file and remove those legacy lanes before importing it.".into());
+            }
+        }
         if project.automation_range(&automation.target).is_none() {
             return Err(format!(
                 "{owner} moves something the project does not have: {:?}",

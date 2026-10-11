@@ -315,3 +315,18 @@ describe("readParam and writeParam", () => {
     }
   })
 })
+
+describe("sample instrument scalar controls", () => {
+  it("keeps the common indices and excludes immutable asset payloads", () => {
+    for (const [kind, expected] of [
+      ["sliceMap", ["baseKey", "level", "releaseMs"]],
+      ["sliceDeck", ["baseKey", "level", "releaseMs"]],
+      ["grainCloud", ["rootKey", "grainSizeMs", "density", "position", "spray", "pitch", "seed", "level", "releaseMs"]],
+      ["waveRide", ["rootKey", "durationMs", "pitch", "level", "releaseMs"]],
+    ] as const) {
+      const descriptor = instrumentDescriptor(kind)
+      expect(descriptor.params.map((p) => p.id)).toEqual(expected)
+      for (const key of ["table", "sliceStarts", "slices", "positions"]) expect(descriptor.defaults).not.toHaveProperty(key)
+    }
+  })
+})
