@@ -262,3 +262,23 @@ numeric_expressions_survive_the_sdk_list_and_refusal_counts_as_a_drop.
 Integrator: rebuild fixture, run host lib, vst3_host, bridge and realtime suites.
 Check SDK union field types and increased per-instance allocation first; the native
 expression fixture and measured helper case follow in the next file group.
+
+## VST3 native expression fixture checkpoint
+
+Appended fixture class 23 (all older indices remain unchanged) with an independent
+INoteExpressionController, per-channel capability refusal, 1,024 distinct owners,
+identity-specific release and algebraic stereo PCM marks for pan/tuning/modulation.
+The SDK event boundary and helper are exercised by measured PCM, including a saved
+held-owner/control replay after timeline reset. Expected samples are calculated in
+tests independently; no host mock substitutes for native processing. Updated only
+the fixture class counts in scan and Mac bundle tests. No new dependencies.
+
+Tests written, not executed:
+- tests/vst3_host.rs::native_numeric_expression_controls_distinct_overlapping_note_identities
+- tests/bridge.rs::vst3_expression_identity_and_controls_replay_after_helper_timeline_reset
+
+Integrator: rebuild standalone fixtures and both helper/parent, then run vst3_host,
+vst3_scan, bridge and realtime tests; Mac vst3_bundle_macos remains external.
+Check generated SDK getNoteExpressionValueByString pointer constness and interface
+tuple, exact capability mask, identity release and reset transition timing first.
+API source: https://github.com/steinbergmedia/vst3_pluginterfaces/blob/master/vst/ivstnoteexpression.h

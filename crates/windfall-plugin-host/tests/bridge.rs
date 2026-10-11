@@ -2192,7 +2192,13 @@ fn native_clap_instance_expression_audio_matches_reference_after_bridge_latency(
 
 #[test]
 fn helper_fixed_buffer_policy_reports_and_measures_its_added_latency() {
-    let mut options = options("clap", common::GAIN, Kind::Effect, vec![], Duration::from_secs(2));
+    let mut options = options(
+        "clap",
+        common::GAIN,
+        Kind::Effect,
+        vec![],
+        Duration::from_secs(2),
+    );
     options.offline = true;
     options.wrapper.fixed_block = Some(32);
     let (control, mut audio, _) = supervisor::launch(options).unwrap();
@@ -2200,15 +2206,149 @@ fn helper_fixed_buffer_policy_reports_and_measures_its_added_latency() {
     let cancelled = std::sync::atomic::AtomicBool::new(false);
     let mut observed = Vec::new();
     for block in 0..12 {
-        let mut left = std::array::from_fn::<_, 64, _>(|index| ((block * 64 + index) % 31) as f32 / 64.0);
+        let mut left =
+            std::array::from_fn::<_, 64, _>(|index| ((block * 64 + index) % 31) as f32 / 64.0);
         let mut right = left.map(|value| -value);
-        audio.process_offline(&mut left, &mut right, Instant::now() + Duration::from_secs(2), &cancelled).unwrap();
+        audio
+            .process_offline(
+                &mut left,
+                &mut right,
+                Instant::now() + Duration::from_secs(2),
+                &cancelled,
+            )
+            .unwrap();
         observed.extend(left.into_iter().zip(right));
     }
     assert!(observed[..160].iter().all(|(l, r)| *l == 0.0 && *r == 0.0));
     for (index, (left, right)) in observed[160..].iter().enumerate() {
         let expected = (index % 31) as f32 / 64.0;
         assert!((left - expected).abs() < 1e-7 && (right + expected).abs() < 1e-7);
+    }
+    drop(audio);
+    assert!(control.terminate().reaped);
+}
+
+#[test]
+fn vst3_expression_identity_and_controls_replay_after_helper_timeline_reset() {
+    use windfall_plugin_host::{
+        FIRST_NOTE_INSTANCE_ID, PluginNoteControls, bridge::slots::NoteSnapshot,
+    };
+    let mut options = options(
+        "vst3",
+        &vst_id(23),
+        Kind::Instrument,
+        vec![],
+        Duration::from_secs(2),
+    );
+    options.offline = true;
+    let (control, mut audio, _) = supervisor::launch(options).unwrap();
+    assert!(audio.supports_note_instances());
+    assert!(audio.supports_note_pitch());
+    assert_eq!(audio.latency(), 128);
+    let a = NoteSnapshot {
+        id: FIRST_NOTE_INSTANCE_ID,
+        key: 69,
+        channel: 2,
+        velocity: 0.5,
+        controls: PluginNoteControls {
+            pan: -0.5,
+            pitch: 69.5,
+            modulation_x: 0.25,
+            modulation_y: 0.75,
+        },
+    };
+    let b = NoteSnapshot {
+        id: a.id + 1,
+        velocity: 0.25,
+        controls: PluginNoteControls {
+            pan: 0.5,
+            pitch: 75.0,
+            modulation_x: 0.5,
+            modulation_y: 0.25,
+        },
+        ..a
+    };
+    assert_eq!(
+        guarded(|| {
+            assert!(audio.note_on_instance(a));
+            assert!(audio.note_on_instance(b));
+        }),
+        0
+    );
+    let changed = PluginNoteControls {
+        pan: -1.0,
+        pitch: 72.0,
+        modulation_x: 0.75,
+        modulation_y: 0.5,
+    };
+    let mark_a = 0.5_f64 * (1.0 + 0.5 / 12.0 + 0.75 / 4.0 + 0.25 / 8.0);
+    let mark_b = 0.25_f64 * (1.0 + 6.0 / 12.0 + 0.25 / 4.0 + 0.5 / 8.0);
+    let changed_b = 0.25_f64 * (1.0 + 3.0 / 12.0 + 0.5 / 4.0 + 0.75 / 8.0);
+    for phase in 0..5 {
+        let expected = match phase {
+            0 => [mark_a * 0.75 + mark_b * 0.25, mark_a * 0.25 + mark_b * 0.75],
+            1 => {
+                assert_eq!(
+                    guarded(|| {
+                        assert!(audio.set_note_controls(b.id, changed));
+                    }),
+                    0
+                );
+                [mark_a * 0.75 + changed_b, mark_a * 0.25]
+            }
+            2 => {
+                assert_eq!(
+                    guarded(|| {
+                        assert!(audio.note_off_instance(a.id, 0.375));
+                    }),
+                    0
+                );
+                [changed_b, 0.0]
+            }
+            3 => {
+                assert_eq!(guarded(|| audio.reset_timeline()), 0);
+                [changed_b, 0.0]
+            }
+            _ => {
+                assert_eq!(guarded(|| audio.all_notes_off()), 0);
+                [0.0; 2]
+            }
+        };
+        for block in 0..6 {
+            let mut left = [0.0; 64];
+            let mut right = left;
+            audio
+                .process_offline(
+                    &mut left,
+                    &mut right,
+                    Instant::now() + Duration::from_secs(2),
+                    &std::sync::atomic::AtomicBool::new(false),
+                )
+                .unwrap();
+            // Collection+scheduling add 128 frames. After reset allow the
+            // documented 64-frame transition, then compare every actual frame.
+            if block >= 3 {
+                for (l, r) in left.iter().zip(&right) {
+                    assert!(
+                        (f64::from(*l) - expected[0]).abs() < 1e-6
+                            && (f64::from(*r) - expected[1]).abs() < 1e-6,
+                        "phase {phase}: {l}/{r} vs {expected:?}"
+                    );
+                }
+            }
+        }
+        assert_eq!(audio.health().native_drops, 0);
+        assert!(audio.health().acknowledged_generation > 0);
+        assert_eq!(
+            audio.voices(),
+            if phase < 2 {
+                2
+            } else if phase < 4 {
+                1
+            } else {
+                0
+            }
+        );
     }
     drop(audio);
     assert!(control.terminate().reaped);

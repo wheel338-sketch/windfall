@@ -15,6 +15,56 @@ fn create(
 }
 
 #[test]
+fn native_numeric_expression_controls_distinct_overlapping_note_identities() {
+    use windfall_plugin_host::{FIRST_NOTE_INSTANCE_ID, PluginNoteControls};
+    let (_module, mut instance) = create(23);
+    let mut instrument = instance.prepare_instrument(48_000.0, 64).unwrap();
+    assert!(instrument.supports_note_instances());
+    assert!(instrument.supports_note_pitch());
+    assert_eq!(instrument.processor().note_expression_mask(2), 0x36);
+    assert_eq!(instrument.processor().note_expression_mask(15), 0);
+    assert_eq!(instrument.latency_samples(), 0);
+    let a = PluginNoteControls {
+        pan: -0.5,
+        pitch: 69.5,
+        modulation_x: 0.25,
+        modulation_y: 0.75,
+    };
+    let b = PluginNoteControls {
+        pan: 0.5,
+        pitch: 75.0,
+        modulation_x: 0.5,
+        modulation_y: 0.25,
+    };
+    let id = FIRST_NOTE_INSTANCE_ID;
+    assert!(instrument.note_on_instance(id, 69, 2, 0.5, a));
+    assert!(instrument.note_on_instance(id + 1, 69, 2, 0.25, b));
+    let mut left = [0.0; 64];
+    let mut right = left;
+    instrument.process(&mut left, &mut right);
+    let mark_a = 0.5_f64 * (1.0 + 0.5 / 12.0 + 0.75 / 4.0 + 0.25 / 8.0);
+    let mark_b = 0.25_f64 * (1.0 + 6.0 / 12.0 + 0.25 / 4.0 + 0.5 / 8.0);
+    for (l, r) in left.iter().zip(&right) {
+        assert!((f64::from(*l) - (mark_a * 0.75 + mark_b * 0.25)).abs() < 1e-6);
+        assert!((f64::from(*r) - (mark_a * 0.25 + mark_b * 0.75)).abs() < 1e-6);
+    }
+    assert!(instrument.note_off_instance(id, 0.375));
+    instrument.process(&mut left, &mut right);
+    assert!(
+        left.iter()
+            .all(|value| (f64::from(*value) - mark_b * 0.25).abs() < 1e-6)
+    );
+    assert!(
+        right
+            .iter()
+            .all(|value| (f64::from(*value) - mark_b * 0.75).abs() < 1e-6)
+    );
+    assert_eq!(instrument.active_voices(), 1);
+    assert_eq!(instrument.health().dropped_events, 0);
+    instance.release_instrument(instrument).unwrap();
+}
+
+#[test]
 fn refusing_native_deactivation_never_proves_inactive_state() {
     let (_module, mut instance) = create(6);
     let processor = instance.activate(48_000.0, 64).unwrap();

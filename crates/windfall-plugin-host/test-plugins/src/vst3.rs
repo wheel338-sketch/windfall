@@ -1,6 +1,8 @@
 //! Independent VST3 factory and component fixtures for the scanner.
 #![allow(non_snake_case)]
 mod native_thread;
+#[path = "vst3_expression.rs"]
+mod expression;
 use native_thread::CreatorThread;
 use std::ffi::c_void;
 use std::ptr;
@@ -21,7 +23,7 @@ fn cid(index: i32) -> TUID {
 }
 /// How many classes the factory offers. New ones are appended, so the
 /// positions and ids of the earlier ones do not move.
-const CLASSES: i32 = 23;
+const CLASSES: i32 = 24;
 /// The auxiliary input buses of the multi-detector class, after its main
 /// stereo bus: their names and speaker arrangements (left; left and right;
 /// left, right and both surrounds).
@@ -85,6 +87,7 @@ impl IPluginFactoryTrait for Factory {
                         "VST3 Bridge Deactivation Edit",
                         "VST3 Auxiliary Detector",
                         "VST3 Multi Auxiliary Detector",
+                        "VST3 Note Expression Probe",
                     ][index as usize],
                 ),
             });
@@ -110,7 +113,8 @@ impl IPluginFactoryTrait for Factory {
             }
             let component = ComWrapper::new(Component {
                 absurd: class == cid(1),
-                instrument: class == cid(2) || class == cid(12),
+                instrument: class == cid(2) || class == cid(12) || class == cid(23),
+                expression_probe: class == cid(23),
                 sidechain: class == cid(21),
                 multi_sidechain: class == cid(22),
                 bridge_note_probe: class == cid(12),
@@ -201,10 +205,11 @@ impl IPluginFactory2Trait for Factory {
                         "VST3 Bridge Deactivation Edit",
                         "VST3 Auxiliary Detector",
                         "VST3 Multi Auxiliary Detector",
+                        "VST3 Note Expression Probe",
                     ][index as usize],
                 ),
                 classFlags: 0,
-                subCategories: chars(if index == 2 || index == 12 {
+                subCategories: chars(if index == 2 || index == 12 || index == 23 {
                     "Instrument|Synth"
                 } else {
                     "Fx|Tools"
@@ -224,6 +229,7 @@ struct Component {
     multi_sidechain: bool,
     absurd: bool,
     instrument: bool,
+    expression_probe: bool,
     bridge_note_probe: bool,
     mono: bool,
     refuse: bool,
@@ -252,7 +258,7 @@ struct Component {
     audio: std::cell::UnsafeCell<Audio>,
 }
 impl Class for Component {
-    type Interfaces = (IComponent, IAudioProcessor, IEditController);
+    type Interfaces = (IComponent, IAudioProcessor, IEditController, INoteExpressionController);
 }
 impl IPluginBaseTrait for Component {
     unsafe fn initialize(&self, context: *mut FUnknown) -> tresult {
@@ -425,6 +431,7 @@ struct Audio {
     held: [[bool; 128]; 16],
     held_count: usize,
     extra: [f64; 2],
+    expressions: expression::Voices,
     bridge_delay: crate::bridge_behaviors::DelayedEffect,
 }
 impl Default for Audio {
@@ -437,6 +444,7 @@ impl Default for Audio {
             held: [[false; 128]; 16],
             held_count: 0,
             extra: [0.5; 2],
+            expressions: expression::Voices::default(),
             bridge_delay: crate::bridge_behaviors::DelayedEffect::default(),
         }
     }
@@ -584,6 +592,9 @@ impl IAudioProcessorTrait for Component {
         if size == 0 { kResultOk } else { kResultFalse }
     }
     unsafe fn getLatencySamples(&self) -> u32 {
+        if self.expression_probe {
+            return 0;
+        }
         if self.bridge_bad_latency {
             return u32::MAX;
         }
@@ -629,6 +640,7 @@ impl IAudioProcessorTrait for Component {
             audio.velocity = 0.0;
             audio.held = [[false; 128]; 16];
             audio.held_count = 0;
+            audio.expressions.clear();
             audio.bridge_delay.reset();
         }
         kResultOk
@@ -740,6 +752,10 @@ impl IAudioProcessorTrait for Component {
                     if unsafe { events.getEvent(index, &mut event) } == kResultOk
                         && event.sampleOffset == frame
                     {
+                        if self.expression_probe {
+                            audio.expressions.event(&event);
+                            continue;
+                        }
                         if event.r#type == 0 {
                             let note = unsafe { event.__field0.noteOn };
                             let held = &mut audio.held[note.channel as usize][note.pitch as usize];
@@ -786,6 +802,7 @@ impl IAudioProcessorTrait for Component {
                 }
                 continue;
             }
+            let expression_pcm = if self.expression_probe { audio.expressions.pcm() } else { [0.0; 2] };
             for channel in 0..output.numChannels {
                 let out = unsafe { *output.__field0.channelBuffers32.add(channel as usize) };
                 let input = if self.instrument {
@@ -802,6 +819,8 @@ impl IAudioProcessorTrait for Component {
                         f32::NAN
                     } else if self.bridge_note_probe {
                         f32::from(audio.held[0][69])
+                    } else if self.expression_probe {
+                        expression_pcm[channel as usize] * (gain as f32 * 2.0)
                     } else if self.multi_params && channel == 1 {
                         audio.extra.iter().sum::<f64>() as f32
                     } else {
