@@ -53,6 +53,7 @@ impl DereverbStream {
         work: &mut Work,
         emit: &mut impl FnMut(&[f32], &mut Work) -> Result<()>,
     ) -> Result<()> {
+        work.check()?;
         if self.finished || !samples.len().is_multiple_of(self.channels) {
             return Err(AnalysisError::Invalid("dereverb block lifecycle/alignment"));
         }
@@ -251,6 +252,7 @@ fn render_segment(
     }
     let mut powers = vec![0.0; count];
     for t in 0..count {
+        work.checkpoint((channels * bins) as u64)?;
         powers[t] = (0..channels)
             .flat_map(|c| spectrum[(t * channels + c) * bins..(t * channels + c + 1) * bins].iter())
             .map(|x| x.norm_sqr() as f64)
@@ -368,29 +370,36 @@ fn render_segment(
             }
         }
     }
-    let mut hold_samples = 0;
+    let mut since_attack: usize = 0;
+    let protect_samples = (rate as f64 * 0.045) as usize;
+    let release_samples = (rate as f64 * 0.01).max(1.0);
     for f in 0..frames {
+        if f.is_multiple_of(2048) {
+            work.checkpoint((2048 * channels) as u64)?;
+        }
         if f.is_multiple_of(cell) {
             let i = f / cell;
             if i == 0 || energy[i] > energy[i - 1] * 1.8 {
-                hold_samples = (rate as f64 * 0.045) as usize;
+                since_attack = 0;
             }
         }
         for c in 0..channels {
             let i = f * channels + c;
-            output[i] = if hold_samples > 0 {
-                samples[i] as f64
-            } else {
-                output[i] / norm[f].max(1e-20)
-            };
+            let blend =
+                (since_attack.saturating_sub(protect_samples) as f64 / release_samples).min(1.0);
+            output[i] =
+                samples[i] as f64 + (output[i] / norm[f].max(1e-20) - samples[i] as f64) * blend;
         }
-        hold_samples = hold_samples.saturating_sub(1);
+        since_attack = since_attack.saturating_add(1);
     }
-    if output
-        .iter()
-        .any(|x| !x.is_finite() || x.abs() > f32::MAX as f64)
-    {
-        return Err(AnalysisError::Invalid("dereverb nonfinite output"));
+    for block in output.chunks(4096) {
+        work.checkpoint(block.len() as u64)?;
+        if block
+            .iter()
+            .any(|x| !x.is_finite() || x.abs() > f32::MAX as f64)
+        {
+            return Err(AnalysisError::Invalid("dereverb nonfinite output"));
+        }
     }
     Ok(output.into_iter().map(|x| x as f32).collect())
 }

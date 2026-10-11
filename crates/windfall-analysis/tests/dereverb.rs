@@ -151,6 +151,42 @@ fn stereo_image_partition_invariance_and_distinct_modes() {
     let general = process(&stereo, 2, DereverbMode::General, 1.0, 211);
     assert!(vocal.iter().zip(general).any(|(a, b)| (a - b).abs() > 1e-4));
 }
+
+#[test]
+fn partial_wet_is_linear_and_long_stream_retention_is_bounded() {
+    let input = room(&dry(2), 0.7);
+    for mode in [DereverbMode::General, DereverbMode::Vocal] {
+        let wet = process(&input, 1, mode, 1.0, 509);
+        let half = process(&input, 1, mode, 0.5, 509);
+        for ((dry, wet), half) in input.iter().zip(&wet).zip(half) {
+            assert!((half - (dry + wet) * 0.5).abs() < 2e-6);
+        }
+    }
+    // Five minutes without retaining the file or its output in the harness.
+    let mut stream = DereverbStream::new(
+        RATE,
+        2,
+        DereverbSettings {
+            mode: DereverbMode::General,
+            amount: 1.0,
+        },
+    )
+    .unwrap();
+    let mut emitted = 0usize;
+    let mut budget = work();
+    let block = vec![0.0; RATE as usize * 2];
+    let mut emit = |samples: &[f32], _: &mut Work| {
+        emitted += samples.len() / 2;
+        Ok(())
+    };
+    for _ in 0..300 {
+        stream.push(&block, &mut budget, &mut emit).unwrap();
+        assert!(stream.retained_frames() <= RATE as usize * 3);
+    }
+    stream.finish(&mut budget, &mut emit).unwrap();
+    assert_eq!(emitted, RATE as usize * 300);
+    assert_eq!(stream.retained_frames(), 0);
+}
 #[test]
 fn cancellation_bad_shapes_and_stream_lifecycle_fail_without_finishing() {
     let token = CancelToken::default();
