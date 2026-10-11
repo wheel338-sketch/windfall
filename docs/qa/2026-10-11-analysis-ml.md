@@ -69,6 +69,10 @@ Additional tests, all **written, not executed**:
   draft undo/audition payload; crossing warp rejection/profile wet preview;
   selected score apply; late detection after replacement.
   `analysis-edit.test.ts`: mapping/order/ratio constraints.
+  Follow-up: frontend mapping now merges override edges exactly like the native
+  renderer; conflicting shared boundaries and combined ratios fail before
+  audition. New markers inherit the current mapping. A selected note can reset
+  to its estimate. The added mapping/shared-boundary case is written, not executed.
 
 ## Remaining work
 

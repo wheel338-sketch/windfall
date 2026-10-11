@@ -74,7 +74,7 @@ describe("classical audio editors (written, not executed)", () => {
     await waitFor(() => expect(onCommit).toHaveBeenCalledWith(result))
     expect(backend.audioAnalysisSendMidi).toHaveBeenCalledWith(review, [0])
   })
-  it("ignores late detection after project replacement and exposes browser refusal", async () => {
+  it("ignores late detection after project replacement", async () => {
     let resolve!: (v: AudioAnalysisPreview) => void
     vi.spyOn(backend, "audioAnalysisDetect").mockImplementation(() => new Promise((done) => { resolve = done }))
     render(<AnalysisTools preview={{ token: 7, clip: review.recipe.sourceClip.id, name: "Take",

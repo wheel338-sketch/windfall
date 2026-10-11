@@ -12,7 +12,7 @@ import { usePlaylistStore } from "@/features/playlist/store"
 import type { AudioEditPreview } from "./types"
 import type { Selection } from "./selection"
 import type { AudioEditRecipe, AudioNoteOverride } from "./analysis-types"
-import { noteEdit, overrideNote, recipeProblem } from "./analysis-edit"
+import { mappedFrame, noteEdit, overrideNote, recipeProblem } from "./analysis-edit"
 
 type Props = {
   preview: AudioEditPreview
@@ -123,6 +123,9 @@ export function AnalysisTools({ preview, selection, disabled, onBusy, onCommit }
                     onChange={(v) => updateNote({ endFrame: v })} />
                 </FieldGroup>
               )}
+              {edit && recipe.overrides.some((o) => o.note === focus) &&
+                <Button variant="outline" disabled={locked} onClick={() => change({ ...recipe,
+                  overrides: recipe.overrides.filter((o) => o.note !== focus) })}>Reset selected note to estimate</Button>}
               <div className="max-h-40 overflow-y-auto">
                 {recipe.analysis.notes.map((note, i) => {
                   const value = noteEdit(recipe, i)
@@ -161,7 +164,7 @@ export function AnalysisTools({ preview, selection, disabled, onBusy, onCommit }
                 if (sourceFrame <= 0 || sourceFrame >= recipe.analysis.frames ||
                   recipe.markers.some((m) => m.sourceFrame === sourceFrame)) return
                 change({ ...recipe, markers: [...recipe.markers, { sourceFrame,
-                  targetFrame: sourceFrame }].sort((a, b) => a.sourceFrame - b.sourceFrame) })
+                  targetFrame: mappedFrame(recipe, sourceFrame) }].sort((a, b) => a.sourceFrame - b.sourceFrame) })
               }}>Add warp marker at selection start</Button>
             </TabsContent>
             <TabsContent value="noise" className="flex flex-col gap-2">

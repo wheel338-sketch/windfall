@@ -1,7 +1,20 @@
-import type { AudioEditRecipe, AudioNoteOverride } from "./analysis-types"
+import type { AudioEditRecipe, AudioNoteOverride, AudioWarpMarker } from "./analysis-types"
+
+// Match AudioEditRecipe::render_markers: edited edges replace transient anchors.
+export function renderMarkers(recipe: AudioEditRecipe): AudioWarpMarker[] {
+  const anchors = new Map(recipe.markers.map((m) => [m.sourceFrame, m.targetFrame]))
+  for (const edit of recipe.overrides) {
+    const note = recipe.analysis.notes[edit.note]
+    if (!note) continue
+    anchors.set(note.startFrame, edit.startFrame)
+    anchors.set(note.endFrame, edit.endFrame)
+  }
+  return [...anchors].map(([sourceFrame, targetFrame]) => ({ sourceFrame, targetFrame }))
+    .sort((a, b) => a.sourceFrame - b.sourceFrame)
+}
 
 export function mappedFrame(recipe: AudioEditRecipe, source: number): number {
-  const markers = recipe.markers
+  const markers = renderMarkers(recipe)
   const index = markers.findIndex((m) => m.sourceFrame >= source)
   if (index <= 0) return markers[0].targetFrame
   const a = markers[index - 1], b = markers[index]
@@ -47,6 +60,27 @@ export function recipeProblem(recipe: AudioEditRecipe): string | null {
       (edit.endFrame - edit.startFrame) / (note.endFrame - note.startFrame) > 4)
       return "Note edits need valid ordered frames and at most 24 semitones of correction."
   }
+  if ((recipe.analysis.polyphonic && recipe.overrides.length > 0) ||
+    new Set(recipe.overrides.map((o) => o.note)).size !== recipe.overrides.length)
+    return "Pitch overrides must be unique and monophonic."
+  const editedEdges = new Map<number, number>()
+  for (const edit of recipe.overrides) {
+    const note = recipe.analysis.notes[edit.note]
+    for (const [source, target] of [[note.startFrame, edit.startFrame], [note.endFrame, edit.endFrame]]) {
+      if ((source === 0 && target !== 0) || (source === recipe.analysis.frames && target !== output))
+        return "Note edits cannot move fixed render endpoints."
+      if (editedEdges.has(source) && editedEdges.get(source) !== target)
+        return "Adjacent edited notes must agree on their shared boundary."
+      editedEdges.set(source, target)
+    }
+  }
+  const combined = renderMarkers(recipe)
+  for (let i = 1; i < combined.length; ++i) {
+    const a = combined[i - 1], b = combined[i]
+    const ratio = (b.targetFrame - a.targetFrame) / (b.sourceFrame - a.sourceFrame)
+    if (a.targetFrame >= b.targetFrame || ratio < 0.25 || ratio > 4)
+      return "Combined note and warp anchors must remain ordered with ratios from 0.25 to 4."
+  }
   if (!recipe.analysis.polyphonic) {
     const notes = recipe.analysis.notes.map((_, i) => noteEdit(recipe, i))
     if (notes.some((n, i) => i > 0 && notes[i - 1].endFrame > n.startFrame))
@@ -54,7 +88,8 @@ export function recipeProblem(recipe: AudioEditRecipe): string | null {
   }
   if (recipe.denoise) {
     const d = recipe.denoise
-    if (d.profileStart >= d.profileEnd || d.profileEnd > recipe.analysis.frames ||
+    if (!Number.isSafeInteger(d.profileStart) || !Number.isSafeInteger(d.profileEnd) ||
+      d.profileStart < 0 || d.profileStart >= d.profileEnd || d.profileEnd > recipe.analysis.frames ||
       !Number.isFinite(d.reductionDb) || d.reductionDb < 0 || d.reductionDb > 40 ||
       !Number.isFinite(d.wet) || d.wet < 0 || d.wet > 1)
       return "Select a noise-only profile with valid attenuation and wet mix."
