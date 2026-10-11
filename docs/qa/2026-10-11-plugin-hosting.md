@@ -1,4 +1,4 @@
-# Plugin hosting implementation hand-off � 2026-10-11
+# Plugin hosting implementation hand-off ï¿½ 2026-10-11
 
 Branch: `gpt/w3-plugin-hosting`. Worktree: `.claude/worktrees/gpt-plugin-hosting`.
 All changes are source-only. **No builds, tests, device checks or nested agents were run.**
@@ -6,7 +6,7 @@ The overseer owns tracker status. No full row is claimed verified.
 
 ## Bridge instance transport checkpoint
 
-ABI 7 replaces ABI 6: 16�128 legacy channel/key velocities and a checked,
+ABI 7 replaces ABI 6: 16ï¿½128 legacy channel/key velocities and a checked,
 bounded 1,024-owner snapshot precede timed events. The snapshot contains native
 identity, channel/key, velocity, pan, fractional pitch and both modulation
 controls. Ready negotiates actual native instance/expression capabilities.
@@ -53,9 +53,9 @@ be rebuilt together; ABI 6 helpers are deliberately incompatible.
 | `fmt-host-bridging` | partial | New expression replay validation; packaged discovery, fresh helper editor/lifecycle validation, external corpus, non-Windows IPC. |
 | `fmt-host-wrapper-options` | partial | DSP fixed-buffer/smart-disable and native editor policy implemented; persistence/history/UI and threaded owner provider remain. |
 | `fmt-host-au` | partial | macOS AUv2 source adapter written; needs a Mac to compile/execute plus scanner/provider/editor/multi-bus integration. |
-| `fmt-host-vst2` | partial | GPL header evidence documented in docs/plugins/vst2-licensing.md; provenance/distribution decision required before an adapter. |
+| `fmt-host-vst2` | excluded by scope | Owner decided against VST2: no new Steinberg licences; the project supports CLAP, VST3 and Audio Unit only. No adapter implemented. |
 | `fmt-host-fl-as-plugin` | partial | Separate CLAP engine export target written; VST3 export, editor/export UI, reset/state arbitration, packaging and actual other-host acceptance remain. |
-| `core-vst2-vst3-audio-unit-and-clap-support` | partial | Depends on VST2, VST3, AU, CLAP and platform/containment acceptance; wrapper/export rows tracked separately. |
+| `core-vst2-vst3-audio-unit-and-clap-support` | partial | Depends on VST3, AU, CLAP and platform/containment acceptance; overseer must reconcile umbrella wording with the explicit VST2 exclusion. Wrapper/export rows tracked separately. |
 
 Shared engine seams: crates/windfall-engine/Cargo.toml, src/processor.rs and src/sequencer.rs (feature-gated export hooks only). Generated IPC/TS types: none so far. Plugin
 scanner metadata changes, when added, require the integrator to refresh the
@@ -211,3 +211,12 @@ Tauri HWND return type, attached editor across helper-process ownership, dirty
 capture retry races and preserved wrapper delay after inactive reconciliation.
 Shared seam commands.rs has only the injected AppHandle/parent lookup; IPC
 pluginEditor arguments are unchanged. UI policy controls are the next group.
+
+## VST2 scope decision after restart
+
+The worktree was clean at fb18749c. The owner explicitly decided that VST2
+will not be implemented: Steinberg no longer offers new VST2 licences and
+the project plan covers CLAP, VST3 and Audio Unit. Updated the historical
+licence investigation accordingly. No SDK, header or VST2 implementation is
+added, and no legal conclusion is inferred from the product scope decision.
+The overseer owns recording this exclusion and narrowing the umbrella wording.
