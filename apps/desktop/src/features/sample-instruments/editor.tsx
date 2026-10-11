@@ -138,6 +138,8 @@ function ZonesEditor({ channel, pads }: { channel: InstrumentChannel; pads: bool
           <NumberEdit label={`Zone ${index+1} loop start`} value={zone.loopStart} max={4294967295} commit={value=>change(index,{loopStart:value})} />
           <NumberEdit label={`Zone ${index+1} loop end`} value={zone.loopEnd} max={4294967295} commit={value=>change(index,{loopEnd:value})} />
           <NumberEdit label={`Zone ${index+1} attack ms`} value={zone.attackMs} max={100000} commit={value=>change(index,{attackMs:value})} />
+          <NumberEdit label={`Zone ${index+1} hold ms`} value={zone.holdMs} max={100000} commit={value=>change(index,{holdMs:value})} />
+          <NumberEdit label={`Zone ${index+1} scale tuning`} value={zone.scaleTuning} max={1200} commit={value=>change(index,{scaleTuning:value})} />
           <NumberEdit label={`Zone ${index+1} decay ms`} value={zone.decayMs} max={100000} commit={value=>change(index,{decayMs:value})} />
           <NumberEdit label={`Zone ${index+1} sustain`} value={zone.sustain} max={1} commit={value=>change(index,{sustain:value})} />
           <NumberEdit label={`Zone ${index+1} release ms`} value={zone.releaseMs} max={100000} commit={value=>change(index,{releaseMs:value})} />
@@ -260,6 +262,7 @@ export function SampleInstrumentEditor({ channel }: { channel: InstrumentChannel
     {kind==="soundFont" && <SoundFontEditor key={channel.id} channel={channel} />}
     {kind==="textVoice" && <SpeechEditor key={channel.id} channel={channel} />}
     {kind==="pianoKeys" && <FieldGroup>
+      <FieldDescription>Current source: {channel.sampleInstrument?.type==="piano" && channel.sampleInstrument.electric ? "Electric keyboard" : "Struck-string piano"}</FieldDescription>
       <Button variant="outline" onClick={()=>void dispatch({type:"setSampleInstrumentAsset",channel:channel.id,expected:channel.sampleInstrument??null,
         asset:{type:"piano",electric:!(channel.sampleInstrument?.type==="piano" && channel.sampleInstrument.electric),version:1}})}>Switch piano / electric keyboard</Button>
       <FieldDescription>Windfall-generated struck-string and electric-keyboard sources, with two velocity layers and fifteen root keys.</FieldDescription>

@@ -174,3 +174,15 @@ to the engine feature. Integrator must also compile/test with `--features xinput
 on Windows and check real controller connect/unplug/panic; no device was accessed
 here. A dedicated feedback instrument editor/route picker remains missing, so this
 is still a partial claim for `inst-fruity-vibrator`.
+
+## Special output and keyboard editor group
+
+The MidiOut inspector now has dedicated system-General-MIDI and game-controller
+feedback route buttons, availability from the actual enumerated outputs, useful
+motor/channel instructions, selected output state and explicit native errors.
+It refreshes settings before configuration and guards async results by project
+generation. These routes deliberately reuse the registered MidiOut instrument;
+output selection is the existing app-wide persisted MIDI preference, not an
+undoable per-instrument destination. That limitation remains material for the
+special rows. The piano editor now exposes the active source recipe, and the zone
+editor exposes hold and scale tuning as well as its other envelopes/mappings.

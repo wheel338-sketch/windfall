@@ -1,3 +1,4 @@
+import { SpecialOutputEditor } from "@/features/sample-instruments/special-output-editor"
 import { SampleInstrumentEditor } from "@/features/sample-instruments/editor"
 import { instrumentDescriptor } from "@/features/params"
 import { PluginControls } from "@/features/plugins/controls"
@@ -43,7 +44,10 @@ export function InstrumentSection({ channel }: { channel: InstrumentChannel }) {
       ) : ["multiSampler","samplePlayer","soundFont","padBank","pianoKeys","textVoice"].includes(params.type) ? (
         <SampleInstrumentEditor key={`${generation}:${channel.id}:${params.type}`} channel={channel} />
       ) : (
+        <div className="flex flex-col gap-3">
+          {params.type === "midiOut" && <SpecialOutputEditor key={`${generation}:${channel.id}`} />}
         <GenericInstrumentEditor channel={channel.id} params={params} />
+        </div>
       )}
     </Section>
   )
