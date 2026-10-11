@@ -478,6 +478,39 @@ impl Controller {
             .send(Message::SetDiskTaps(Vec::new().into_boxed_slice()));
     }
 
+    /// The stream attached now: a number that changes whenever another takes
+    /// its place, and its sample rate. See `audio_logger.rs`.
+    pub(crate) fn attached_stream(&self) -> Option<(u64, u32)> {
+        let state = self.lock();
+        state.link.as_ref()?;
+        let rate = state.hosted.as_ref()?.sample_rate;
+        Some((state.stream_generation, rate))
+    }
+
+    /// Hands the audio thread the audio logger's tap, or takes its tap away.
+    /// A tap built for `stream` is refused once another stream is attached.
+    pub(crate) fn set_audio_logger_tap(
+        &self,
+        stream: Option<u64>,
+        tap: Option<Box<crate::audio_logger::LoggerTap>>,
+    ) -> Result<(), String> {
+        let refused = {
+            let mut state = self.lock();
+            let current = state.link.is_some() && stream.is_none_or(|stream| stream == state.stream_generation);
+            if current {
+                state.send(Message::SetAudioLogger(tap));
+                return Ok(());
+            }
+            tap
+        };
+        // Dropped here, with the guard released: nothing was installed.
+        drop(refused);
+        match stream {
+            Some(_) => Err("The audio output changed while the audio logger was starting.".into()),
+            None => Ok(()),
+        }
+    }
+
     /// Exact nominal sample span through the compiled song tempo map.
     pub fn song_range_frames(
         &self,

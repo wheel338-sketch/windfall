@@ -107,6 +107,7 @@ impl Mixer {
         base: u64,
         out: &mut [Frame],
         taps: &mut [crate::recording_disk::DiskWriter],
+        logger: &mut Option<Box<crate::audio_logger::LoggerTap>>,
     ) {
         let frames = out.len();
         self.add_instruments(plan, state, base, frames);
@@ -157,6 +158,7 @@ impl Mixer {
             for (frame, (left, right)) in buffer.iter_mut().zip(left.iter().zip(right.iter())) { *frame = [*left, *right]; }
             state.activity[index].hear_output(base, buffer, state.silence);
             for tap in taps.iter_mut().filter(|tap| tap.tap.track == track.id) { tap.copy(base, state.latency, state.behind[index], windfall_project::MixerRecordMode::PostEffects, buffer); }
+            if let Some(logger) = logger.as_mut() { logger.track(track.id, buffer); }
             let strip = &state.tracks[index];
             let steady = strip.gain.settled(base) && strip.pan.settled(base);
             let (mut left, mut right) = fader_gains(strip.gain.at(base), strip.pan.at(base));

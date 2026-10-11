@@ -68,6 +68,7 @@ mod analysis_jobs;
 mod archive;
 mod audio;
 mod audio_editor;
+mod audio_logger;
 mod autosave;
 mod clip_processing;
 mod edit;
@@ -216,6 +217,9 @@ struct Inner {
     /// handed to the engine or stopped, so neither can slip in between
     /// another's look at the count and what it then does.
     preview: Mutex<u64>,
+    /// The audio logger. Locked after `configuring` and `recording`; nothing
+    /// but the controller is taken under it.
+    audio_logger: Mutex<audio_logger::Logger>,
     #[cfg(test)]
     pauses: tests::Pauses,
 }
@@ -444,6 +448,7 @@ impl Session {
                 sampler_total: std::sync::atomic::AtomicU32::new(0),
                 export_cancelled: AtomicBool::new(false),
                 preview: Mutex::new(0),
+                audio_logger: Mutex::new(audio_logger::Logger::default()),
                 #[cfg(test)]
                 pauses: tests::Pauses::default(),
             }),

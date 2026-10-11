@@ -907,6 +907,9 @@ pub fn handler() -> impl Fn(Invoke) -> bool + Send + Sync + 'static {
         recording_start,
         recording_stop,
         recording_cancel,
+        audio_logger_state,
+        audio_logger_configure,
+        audio_logger_dump,
         document_snapshot,
         dispatch,
         automate,
@@ -1077,4 +1080,28 @@ async fn recording_cancel(session: State<'_, Session>) -> Result<(), String> {
         Ok(())
     })
     .await
+}
+
+#[tauri::command]
+async fn audio_logger_state(
+    session: State<'_, Session>,
+) -> Result<windfall_ipc::AudioLoggerState, String> {
+    let session = session.inner().clone();
+    blocking(move || Ok(session.audio_logger_state())).await
+}
+#[tauri::command]
+async fn audio_logger_configure(
+    session: State<'_, Session>,
+    settings: windfall_ipc::AudioLoggerSettings,
+) -> Result<windfall_ipc::AudioLoggerState, String> {
+    let session = session.inner().clone();
+    blocking(move || session.audio_logger_configure(settings)).await
+}
+#[tauri::command]
+async fn audio_logger_dump(
+    session: State<'_, Session>,
+    request: windfall_ipc::AudioLoggerDumpRequest,
+) -> Result<DispatchResult, String> {
+    let session = session.inner().clone();
+    blocking(move || session.audio_logger_dump(request)).await
 }

@@ -97,6 +97,7 @@ pub fn start(app: &AppHandle) -> Result<Session, Box<dyn Error>> {
     }
     session.spawn_realtime()?;
     session.spawn_autosave(AUTOSAVE_INTERVAL)?;
+    session.spawn_audio_logger()?;
     Ok(session)
 }
 

@@ -7,6 +7,7 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::thread::JoinHandle;
 use std::time::Duration;
+use crate::recording_endpoint::{FaultReason, InputFault};
 use windfall_ipc::{RecordingInput, RecordingSource};
 
 #[path = "recording_timed.rs"]
@@ -15,7 +16,7 @@ pub use timed::{AlignmentMetrics, CaptureRoute};
 
 pub struct Capture {
     stop: Arc<AtomicBool>,
-    fault: Arc<AtomicBool>,
+    fault: Arc<InputFault>,
     frames: Arc<AtomicU64>,
     worker: Option<JoinHandle<Result<u64, String>>>,
 }
@@ -28,7 +29,7 @@ impl Capture {
         F: FnMut(&[f32]) -> Result<(), String> + Send + 'static,
     {
         let stop = Arc::new(AtomicBool::new(false));
-        let fault = Arc::new(AtomicBool::new(false));
+        let fault = Arc::new(InputFault::new());
         let frames = Arc::new(AtomicU64::new(0));
         let (ready, waiting) = std::sync::mpsc::sync_channel(1);
         let s = stop.clone();
@@ -48,14 +49,14 @@ impl Capture {
                     match queue.pop() { Ok(frame) => { block[n] = frame[0]; block[n+1] = frame[1]; n += 2; }, Err(_) => break }
                 }
                 if n > 0 { if let Err(error)=sink(&block[..n]) {f.store(true,Ordering::Release);return Err(error)} total += (n / 2) as u64; count.store(total, Ordering::Relaxed); }
-                if f.load(Ordering::Acquire) { return Err("Recording failed: input dropout, device loss, or writer queue overflow. The take was discarded.".into()) }
+                if f.load(Ordering::Acquire) { return Err(f.describe("The take was discarded.")) }
                 if s.load(Ordering::Acquire) { break }
                 if n == 0 { std::thread::sleep(Duration::from_millis(2)); }
             }
             // Dropping closes callbacks before draining the final queued frames.
             drop(stream);
             while let Ok(frame) = queue.pop() { sink(&frame)?; total += 1; }
-            if f.load(Ordering::Acquire) { return Err("Recording input failed; take discarded.".into()) }
+            if f.load(Ordering::Acquire) { return Err(f.describe("The take was discarded.")) }
             Ok(total)
         }).map_err(|e| e.to_string())?;
         match waiting.recv() {
@@ -145,6 +146,21 @@ pub fn recording_inputs() -> Vec<RecordingInput> {
                 });
             }
         }
+        // What plays on an output device, captured through its loopback. It
+        // has the one rate the device mixes at.
+        for (name, format) in crate::recording_endpoint::loopback_inputs(&host) {
+            if matches!(
+                format.sample_format(),
+                SampleFormat::F32 | SampleFormat::I16 | SampleFormat::U16 | SampleFormat::I32
+            ) {
+                found.push(RecordingInput {
+                    host: id.name().into(),
+                    device: name,
+                    channels: format.channels(),
+                    sample_rates: vec![format.min_sample_rate()],
+                });
+            }
+        }
     }
     found
 }
@@ -153,7 +169,7 @@ struct Feed {
     channels: usize,
     left: usize,
     right: usize,
-    fault: Arc<AtomicBool>,
+    fault: Arc<InputFault>,
 }
 impl Feed {
     fn push<T: SizedSample>(&mut self, data: &[T])
@@ -164,14 +180,18 @@ impl Feed {
             return;
         }
         if !data.len().is_multiple_of(self.channels) {
-            self.fault.store(true, Ordering::Release);
+            self.fault.raise(FaultReason::InvalidAudio);
             return;
         }
         for frame in data.chunks_exact(self.channels) {
             let a = f32::from_sample(frame[self.left]);
             let b = f32::from_sample(frame[self.right]);
-            if !a.is_finite() || !b.is_finite() || self.queue.push([a, b]).is_err() {
-                self.fault.store(true, Ordering::Release);
+            if !a.is_finite() || !b.is_finite() {
+                self.fault.raise(FaultReason::InvalidAudio);
+                break;
+            }
+            if self.queue.push([a, b]).is_err() {
+                self.fault.raise(FaultReason::Overflow);
                 break;
             }
         }
@@ -180,20 +200,19 @@ impl Feed {
 fn open(
     source: &RecordingSource,
     rate: u32,
-    fault: Arc<AtomicBool>,
+    fault: Arc<InputFault>,
 ) -> Result<(cpal::Stream, rtrb::Consumer<[f32; 2]>), String> {
     let id = cpal::available_hosts()
         .into_iter()
         .find(|id| id.name() == source.host)
         .ok_or("Input host is unavailable.")?;
     let host = cpal::host_from_id(id).map_err(|e| e.to_string())?;
-    let device = host
-        .input_devices()
-        .map_err(|e| e.to_string())?
-        .find(|d| d.description().is_ok_and(|d| d.name() == source.device))
+    let endpoint = crate::recording_endpoint::find_input(&host, &source.device)?
         .ok_or("Input device is unavailable.")?;
+    let configs = crate::recording_endpoint::input_configs(&endpoint)?;
+    let device = endpoint.device;
     let right = source.right.unwrap_or(source.left);
-    let config = device.supported_input_configs().map_err(|e| e.to_string())?.find(|c| {
+    let config = configs.into_iter().find(|c| {
         c.channels() > source.left.max(right) && rate >= c.min_sample_rate() && rate <= c.max_sample_rate()
         && matches!(c.sample_format(), SampleFormat::F32 | SampleFormat::I16 | SampleFormat::U16 | SampleFormat::I32)
     }).ok_or("The input does not support the output sample rate and selected channels. Choose matching audio settings.")?.with_sample_rate(rate);
@@ -219,7 +238,7 @@ fn build<T: SizedSample>(
     device: &cpal::Device,
     config: &cpal::StreamConfig,
     mut feed: Feed,
-    fault: Arc<AtomicBool>,
+    fault: Arc<InputFault>,
 ) -> Result<cpal::Stream, String>
 where
     f32: FromSample<T>,
@@ -228,7 +247,7 @@ where
         .build_input_stream(
             *config,
             move |data: &[T], _| feed.push(data),
-            move |_| fault.store(true, Ordering::Release),
+            move |error: cpal::Error| fault.report(error),
             None,
         )
         .map_err(|e| e.to_string())
@@ -239,7 +258,7 @@ mod tests {
     #[test]
     fn converts_selected_channels_and_refuses_overflow() {
         let (queue, mut out) = RingBuffer::new(2);
-        let fault = Arc::new(AtomicBool::new(false));
+        let fault = Arc::new(InputFault::new());
         let mut feed = Feed {
             queue,
             channels: 3,
@@ -252,12 +271,13 @@ mod tests {
         assert_eq!(out.pop().unwrap(), [0.0, 0.0]);
         feed.push(&[0_i16; 9]);
         assert!(fault.load(Ordering::Acquire));
+        assert_eq!(fault.reason(), Some(FaultReason::Overflow));
         assert_eq!(out.slots(), 2);
     }
     #[test]
     fn unsigned_and_signed_32_bit_conversion_and_incomplete_frame_failure() {
         let (queue, mut out) = RingBuffer::new(4);
-        let fault = Arc::new(AtomicBool::new(false));
+        let fault = Arc::new(InputFault::new());
         let mut feed = Feed {
             queue,
             channels: 2,
@@ -271,6 +291,7 @@ mod tests {
         assert_eq!(out.pop().unwrap(), [-1.0, 0.0]);
         feed.push(&[0.0_f32]);
         assert!(fault.load(Ordering::Acquire));
+        assert_eq!(fault.reason(), Some(FaultReason::InvalidAudio));
     }
     #[test]
     fn mono_duplicates_without_allocating() {
@@ -280,7 +301,7 @@ mod tests {
             channels: 2,
             left: 1,
             right: 1,
-            fault: Arc::new(AtomicBool::new(false)),
+            fault: Arc::new(InputFault::new()),
         };
         assert_eq!(
             crate::test_alloc::allocator_calls(|| feed.push(&[0.0_f32, 0.25, 0.0, -0.5])),

@@ -1,5 +1,6 @@
 import { useRecordingStore } from "./recording-store"
 import { RecordingDialog } from "./recording-dialog"
+import { AudioLoggerDialog } from "@/features/audio-logger/logger-dialog"
 import {
   Add01Icon,
   PlayIcon,
@@ -107,6 +108,10 @@ export function TransportBar() {
           {recording ? "Recording..." : "Record"}
         </ActionButton>
         <RecordingDialog />
+        <ActionButton action="audioLogger.open" variant="ghost" size="sm">
+          Logger
+        </ActionButton>
+        <AudioLoggerDialog />
         <Button
           title="Record automation"
           aria-pressed={recordArmed}

@@ -193,6 +193,10 @@ export function createTauriBackend(): Backend {
 
     engineStatus: () => call("engine_status"),
     processMemory: () => call("process_memory"),
+    audioLoggerState: () => call("audio_logger_state"),
+    audioLoggerConfigure: (settings) =>
+      call("audio_logger_configure", { settings }),
+    audioLoggerDump: (request) => call("audio_logger_dump", { request }),
     recordingInputs: () => call("recording_inputs"),
     inputMonitorStart: () => call("input_monitor_start"),
     inputMonitorStop: () => call("input_monitor_stop"),
