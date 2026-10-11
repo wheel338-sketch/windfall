@@ -254,6 +254,7 @@ fn every_processor_contains_nonfinite_audio_and_parameters() {
         b: f32::INFINITY,
         base: -f32::INFINITY,
         amount: f32::MAX,
+        ..Default::default()
     });
     let mut output = [0.0; 4];
     formula.process_control(&[f32::NAN; 4], &[f32::INFINITY; 4], &mut output);

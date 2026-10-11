@@ -103,6 +103,13 @@ pub(crate) fn execute(project: &mut Project, command: Command) -> Result<Outcome
             for edit in curve_edits {
                 transaction.push(edit);
             }
+            let old = transaction.project.settings.clone();
+            let mut new = old.clone();
+            new.internal_controllers.retain(|c| crate::internal_controllers::source(transaction.project, c.controller).is_some());
+            for config in &mut new.internal_controllers {
+                if config.note_channel.is_some_and(|id| transaction.project.channel(id).is_none()) { config.note_channel = None; }
+            }
+            if old != new { transaction.push(Edit::Settings(Change { old, new })); }
             if let Some(links) = crate::controller_links::following(transaction.project) {
                 let old = transaction.project.settings.clone();
                 let mut new = old.clone();
@@ -1272,6 +1279,16 @@ impl Transaction<'_> {
                 new.controller_links = links;
                 self.push(Edit::Settings(Change { old, new }));
                 "Change controller links"
+            }
+            Command::SetInternalControllerSettings { settings } => {
+                if let Some(problem) = crate::internal_controllers::settings_problem(self.project, &settings) {
+                    return Err(CommandError::invalid(problem));
+                }
+                let old = self.project.settings.clone();
+                let mut new = old.clone();
+                new.internal_controllers = settings;
+                self.push(Edit::Settings(Change { old, new }));
+                "Configure internal controllers"
             }
             Command::AddSample { name, path } => self.add_sample(name, path)?,
             Command::RemoveSample { id } => self.remove_sample(id)?,

@@ -51,7 +51,7 @@ fn fixture() -> Fixture {
     }));
     let effect = EffectId(create(Command::AddEffect {
         track,
-        kind: EffectKind::ALL[0],
+        kind: EffectKind::XyPad,
         index: None,
     }));
     Fixture {

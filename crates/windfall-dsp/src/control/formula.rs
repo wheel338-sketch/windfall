@@ -19,6 +19,7 @@ pub struct FormulaSourceParams {
     pub b: f32,
     pub base: f32,
     pub amount: f32,
+    pub c: f32,
 }
 
 impl Default for FormulaSourceParams {
@@ -28,6 +29,7 @@ impl Default for FormulaSourceParams {
             b: 0.5,
             base: 0.0,
             amount: 1.0,
+            c: 0.0,
         }
     }
 }
@@ -37,6 +39,7 @@ param_set!(FormulaSourceParams, "Formula", {
     float [b] "b" "B" { Fraction, Linear, 0.0, 1.0, 0.5 }
     float [base] "base" "Base" { Fraction, Linear, 0.0, 1.0, 0.0 }
     float [amount] "amount" "Amount" { Gain, Linear, -4.0, 4.0, 1.0 }
+    float [c] "c" "C" { Fraction, Linear, 0.0, 1.0, 0.0 }
 });
 
 /// Rejected formulas leave the currently installed expression unchanged.
@@ -230,7 +233,7 @@ impl<'a> Parser<'a> {
             return match name {
                 b"a" => self.emit(Op::A),
                 b"b" => self.emit(Op::B),
-                b"peak" => self.emit(Op::Peak),
+                b"peak" | b"c" => self.emit(Op::Peak),
                 b"sin" | b"abs" | b"min" | b"max" => {
                     self.expect(b'(')?;
                     self.sum(depth + 1)?;
@@ -293,7 +296,7 @@ impl<'a> Parser<'a> {
 /// A control-only source; default expression is `a * b + peak`.
 /// Expression text is a separately persisted, bounded configuration asset.
 pub struct FormulaSource {
-    controls: Controls<4>,
+    controls: Controls<5>,
     program: Program,
 }
 
@@ -305,7 +308,7 @@ impl Default for FormulaSource {
         };
         program.ops[..5].copy_from_slice(&[Op::A, Op::B, Op::Multiply, Op::Peak, Op::Add]);
         Self {
-            controls: Controls::new([0.5, 0.5, 0.0, 1.0]),
+            controls: Controls::new([0.5, 0.5, 0.0, 1.0, 0.0]),
             program,
         }
     }
@@ -322,7 +325,7 @@ impl FormulaSource {
 
     pub fn set_params(&mut self, params: &FormulaSourceParams) {
         let p = params.sanitized();
-        self.controls.set([p.a, p.b, p.base, p.amount]);
+        self.controls.set([p.a, p.b, p.base, p.amount, p.c]);
     }
 
     /// Compiles at most 256 bytes to at most 64 stack operations. No allocation.
@@ -341,8 +344,24 @@ impl FormulaSource {
         output: &mut [f32; N],
     ) {
         for ((l, r), value) in left.iter().zip(right).zip(output) {
-            let [a, b, base, amount] = self.controls.tick();
+            let [a, b, base, amount, _c] = self.controls.tick();
             *value = (base + amount * self.program.evaluate(a, b, peak(*l, *r))).clamp(0.0, 1.0);
         }
     }
+}
+
+impl FormulaSource {
+    /// Evaluate the three scalar inputs, with no audio-derived fourth input.
+    pub fn next_value(&mut self) -> f32 {
+        let [a, b, base, amount, c] = self.controls.tick();
+        (base + amount * self.program.evaluate(a, b, c)).clamp(0.0, 1.0)
+    }
+}
+
+impl crate::Effect for FormulaSource {
+    type Params = FormulaSourceParams;
+    fn prepare(&mut self, rate: f32, block: usize) { FormulaSource::prepare(self, rate, block); }
+    fn reset(&mut self) { FormulaSource::reset(self); }
+    fn set_params(&mut self, params: &Self::Params) { FormulaSource::set_params(self, params); }
+    fn process(&mut self, _left: &mut [f32], _right: &mut [f32]) {}
 }

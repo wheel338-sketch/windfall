@@ -373,6 +373,12 @@ pub fn links_problem(links: &[ControllerLink], project: Option<&Project>) -> Opt
             }
         }
     }
+    if let Some(project) = project {
+        return crate::internal_controllers::links_problem(project, links);
+    }
+    if links.iter().any(|link| matches!(link.source, ControlSource::Internal { .. })) {
+        return Some("internal sources cannot be kept outside a project".into());
+    }
     None
 }
 
@@ -623,6 +629,11 @@ pub(crate) fn following(project: &Project) -> Option<Vec<ControllerLink>> {
     let mut kept: Vec<ControllerLink> = Vec::with_capacity(links.len());
     for link in links {
         let mut link = link.clone();
+        if let ControlSource::Internal { controller, .. } = link.source
+            && crate::internal_controllers::source(project, controller).is_none() {
+            changed = true;
+            continue;
+        }
         if let LinkTarget::Param { target } = &mut link.target {
             let before = *target;
             match target {

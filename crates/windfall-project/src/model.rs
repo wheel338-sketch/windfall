@@ -251,6 +251,7 @@ impl Project {
                 pan_law: crate::PanLaw::default(),
                 timebase_ppq: crate::timebase::DEFAULT_TIMEBASE_PPQ,
                 controller_links: Vec::new(),
+                internal_controllers: Vec::new(),
             },
             samples: Vec::new(),
             notebook: crate::Notebook::default(),
@@ -364,6 +365,9 @@ pub struct ProjectSettings {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     #[ts(as = "Option<Vec<crate::ControllerLink>>", optional)]
     pub controller_links: Vec<crate::ControllerLink>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[ts(as = "Option<Vec<crate::InternalControllerSettings>>", optional)]
+    pub internal_controllers: Vec<crate::InternalControllerSettings>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]

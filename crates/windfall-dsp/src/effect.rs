@@ -29,6 +29,7 @@ use crate::performance::{
 use crate::balance::{Balance, BalanceParams};
 use crate::channel_mute::{ChannelMute, ChannelMuteParams};
 use crate::control::{EnvelopeFollower, EnvelopeFollowerParams};
+use crate::control::{KeyboardSource, KeyboardSourceParams, FormulaSource, FormulaSourceParams};
 use crate::control::{NoteEnvelope, NoteEnvelopeParams};
 use crate::control::{PanLfo, PanLfoParams};
 use crate::control::{XyPad, XyPadParams};
@@ -281,10 +282,12 @@ pub enum EffectKind {
     StageStack,
     ControlSurface,
     SendTap,
+    FormulaSource,
+    KeyboardSource,
 }
 
 impl EffectKind {
-    pub const ALL: [EffectKind; 63] = [
+    pub const ALL: [EffectKind; 65] = [
         EffectKind::Eq,
         EffectKind::Compressor,
         EffectKind::Limiter,
@@ -348,6 +351,8 @@ impl EffectKind {
         EffectKind::StageStack,
         EffectKind::ControlSurface,
         EffectKind::SendTap,
+        EffectKind::FormulaSource,
+        EffectKind::KeyboardSource,
     ];
 
     /// The effect's name as shown to the user.
@@ -415,6 +420,8 @@ impl EffectKind {
             EffectKind::Tuner => TunerParams::NAME,
             EffectKind::StageStack => StageStackParams::NAME,
             EffectKind::ControlSurface => ControlSurfaceParams::NAME,
+            EffectKind::FormulaSource => FormulaSourceParams::NAME,
+            EffectKind::KeyboardSource => KeyboardSourceParams::NAME,
             EffectKind::SendTap => SendTapParams::NAME,
         }
     }
@@ -484,6 +491,8 @@ impl EffectKind {
             EffectKind::Tuner => TunerParams::descriptors(),
             EffectKind::StageStack => StageStackParams::descriptors(),
             EffectKind::ControlSurface => ControlSurfaceParams::descriptors(),
+            EffectKind::FormulaSource => FormulaSourceParams::descriptors(),
+            EffectKind::KeyboardSource => KeyboardSourceParams::descriptors(),
             EffectKind::SendTap => SendTapParams::descriptors(),
         }
     }
@@ -561,6 +570,8 @@ impl EffectKind {
             EffectKind::Tuner => 0,
             EffectKind::StageStack => 0,
             EffectKind::ControlSurface => 0,
+            EffectKind::FormulaSource => 0,
+            EffectKind::KeyboardSource => 0,
             EffectKind::SendTap => 0,
         }
     }
@@ -662,6 +673,8 @@ impl EffectKind {
             EffectKind::ControlSurface => {
                 EffectParams::ControlSurface(ControlSurfaceParams::default())
             }
+            EffectKind::FormulaSource => EffectParams::FormulaSource(FormulaSourceParams::default()),
+            EffectKind::KeyboardSource => EffectParams::KeyboardSource(KeyboardSourceParams::default()),
             EffectKind::SendTap => EffectParams::SendTap(SendTapParams::default()),
         }
     }
@@ -738,6 +751,8 @@ pub enum EffectParams {
     Tuner(TunerParams),
     StageStack(StageStackParams),
     ControlSurface(ControlSurfaceParams),
+    FormulaSource(FormulaSourceParams),
+    KeyboardSource(KeyboardSourceParams),
     SendTap(SendTapParams),
 }
 
@@ -808,6 +823,8 @@ macro_rules! each_params {
             EffectParams::Tuner($params) => $body,
             EffectParams::StageStack($params) => $body,
             EffectParams::ControlSurface($params) => $body,
+            EffectParams::FormulaSource($params) => $body,
+            EffectParams::KeyboardSource($params) => $body,
             EffectParams::SendTap($params) => $body,
         }
     };
@@ -878,6 +895,8 @@ impl EffectParams {
             EffectParams::Tuner(_) => EffectKind::Tuner,
             EffectParams::StageStack(_) => EffectKind::StageStack,
             EffectParams::ControlSurface(_) => EffectKind::ControlSurface,
+            EffectParams::FormulaSource(_) => EffectKind::FormulaSource,
+            EffectParams::KeyboardSource(_) => EffectKind::KeyboardSource,
             EffectParams::SendTap(_) => EffectKind::SendTap,
         }
     }
@@ -971,6 +990,8 @@ impl EffectParams {
             EffectParams::ControlSurface(params) => {
                 EffectParams::ControlSurface(params.sanitized())
             }
+            EffectParams::FormulaSource(params) => EffectParams::FormulaSource(params.sanitized()),
+            EffectParams::KeyboardSource(params) => EffectParams::KeyboardSource(params.sanitized()),
             EffectParams::SendTap(params) => EffectParams::SendTap(params.sanitized()),
         }
     }
@@ -1067,6 +1088,8 @@ impl EffectParams {
             EffectParams::ControlSurface(_) => {
                 EffectKind::ControlSurface.max_latency_samples(sample_rate)
             }
+            EffectParams::FormulaSource(_) => EffectKind::FormulaSource.max_latency_samples(sample_rate),
+            EffectParams::KeyboardSource(_) => EffectKind::KeyboardSource.max_latency_samples(sample_rate),
             EffectParams::SendTap(_) => EffectKind::SendTap.max_latency_samples(sample_rate),
         }
     }
@@ -1155,6 +1178,8 @@ pub enum AnyEffect {
     Tuner(Box<Tuner>),
     StageStack(Box<StageStack>),
     ControlSurface(Box<ControlSurface>),
+    FormulaSource(Box<FormulaSource>),
+    KeyboardSource(Box<KeyboardSource>),
     SendTap(Box<SendTap>),
 }
 
@@ -1224,6 +1249,8 @@ macro_rules! each_effect {
             AnyEffect::Tuner($effect) => $body,
             AnyEffect::StageStack($effect) => $body,
             AnyEffect::ControlSurface($effect) => $body,
+            AnyEffect::FormulaSource($effect) => $body,
+            AnyEffect::KeyboardSource($effect) => $body,
             AnyEffect::SendTap($effect) => $body,
         }
     };
@@ -1296,6 +1323,8 @@ impl AnyEffect {
             EffectKind::Tuner => AnyEffect::Tuner(Box::default()),
             EffectKind::StageStack => AnyEffect::StageStack(Box::default()),
             EffectKind::ControlSurface => AnyEffect::ControlSurface(Box::default()),
+            EffectKind::FormulaSource => AnyEffect::FormulaSource(Box::default()),
+            EffectKind::KeyboardSource => AnyEffect::KeyboardSource(Box::default()),
             EffectKind::SendTap => AnyEffect::SendTap(Box::default()),
         };
         effect.set_params(params);
@@ -1366,6 +1395,8 @@ impl AnyEffect {
             AnyEffect::Tuner(_) => EffectKind::Tuner,
             AnyEffect::StageStack(_) => EffectKind::StageStack,
             AnyEffect::ControlSurface(_) => EffectKind::ControlSurface,
+            AnyEffect::FormulaSource(_) => EffectKind::FormulaSource,
+            AnyEffect::KeyboardSource(_) => EffectKind::KeyboardSource,
             AnyEffect::SendTap(_) => EffectKind::SendTap,
         }
     }
@@ -1549,6 +1580,8 @@ impl AnyEffect {
             (AnyEffect::ControlSurface(effect), EffectParams::ControlSurface(params)) => {
                 effect.set_params(params)
             }
+            (AnyEffect::FormulaSource(effect), EffectParams::FormulaSource(params)) => effect.set_params(params),
+            (AnyEffect::KeyboardSource(effect), EffectParams::KeyboardSource(params)) => effect.set_params(params),
             (AnyEffect::SendTap(effect), EffectParams::SendTap(params)) => {
                 effect.set_params(params)
             }
