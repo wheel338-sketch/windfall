@@ -246,13 +246,15 @@ pub fn default_category(name: &str, instrument: bool) -> &'static str {
     } else if has(&["chorus", "flang", "phaser", "tremolo", "vibrato", "lfo"]) {
         "Modulation"
     } else if has(&[
-        "distort", "drive", "clip", "satur", "shaper", "lofi", "lo-fi", "crush", "exciter",
-        "amp", "fuzz",
+        "distort", "drive", "clip", "satur", "shaper", "lofi", "lo-fi", "crush", "exciter", "amp",
+        "fuzz",
     ]) {
         "Distortion"
     } else if has(&["pitch", "vocod", "tune", "shift", "harmon"]) {
         "Pitch and voice"
-    } else if has(&["stereo", "spread", "balance", "pan", "polarity", "mute", "dc ", "meter"]) {
+    } else if has(&[
+        "stereo", "spread", "balance", "pan", "polarity", "mute", "dc ", "meter",
+    ]) {
         "Utility"
     } else {
         "Effects"
@@ -291,10 +293,7 @@ impl PluginDatabase {
     /// Normalizes categories and drops annotations that say nothing.
     fn tidy(&mut self) {
         for annotation in self.annotations.values_mut() {
-            annotation.category = annotation
-                .category
-                .as_deref()
-                .and_then(normalize_category);
+            annotation.category = annotation.category.as_deref().and_then(normalize_category);
         }
         self.annotations
             .retain(|_, annotation| *annotation != PluginAnnotation::default());
@@ -461,8 +460,10 @@ impl PluginDatabase {
                 &b.id,
             ))
         });
-        let mut categories: Vec<String> =
-            records.iter().map(|record| record.category.clone()).collect();
+        let mut categories: Vec<String> = records
+            .iter()
+            .map(|record| record.category.clone())
+            .collect();
         categories.sort();
         categories.dedup();
         PluginDatabaseView {
@@ -580,7 +581,10 @@ mod tests {
             InstrumentKind::ALL.len()
         );
         let limiter = type_tag(&EffectKind::Limiter.default_params()).unwrap();
-        assert_eq!(find(&view, "builtin", &limiter).name, EffectKind::Limiter.name());
+        assert_eq!(
+            find(&view, "builtin", &limiter).name,
+            EffectKind::Limiter.name()
+        );
 
         let synth = find(&view, "clap", "org.example.synth");
         assert_eq!(synth.status, PluginStatus::Verified);
@@ -595,7 +599,10 @@ mod tests {
         );
         let broken = find(&view, "clap", "org.example.broken");
         assert_eq!(broken.status, PluginStatus::Failed);
-        assert_eq!(broken.detail.as_deref(), Some("It reported no audio ports."));
+        assert_eq!(
+            broken.detail.as_deref(),
+            Some("It reported no audio ports.")
+        );
         assert_eq!(
             find(&view, "clap", "org.example.crash").status,
             PluginStatus::Blocked
@@ -610,8 +617,11 @@ mod tests {
             .map(|record| (record.category.clone(), record.name.to_lowercase()))
             .collect();
         assert!(order.is_sorted());
-        let mut categories: Vec<_> =
-            view.records.iter().map(|record| record.category.clone()).collect();
+        let mut categories: Vec<_> = view
+            .records
+            .iter()
+            .map(|record| record.category.clone())
+            .collect();
         categories.sort();
         categories.dedup();
         assert_eq!(view.categories, categories);
@@ -706,7 +716,11 @@ mod tests {
     #[test]
     fn damaged_newer_and_invalid_input_is_refused() {
         assert!(PluginDatabase::from_json(b"not json").is_err());
-        assert!(PluginDatabase::from_json(b"{}").unwrap_err().contains("no version"));
+        assert!(
+            PluginDatabase::from_json(b"{}")
+                .unwrap_err()
+                .contains("no version")
+        );
         let newer = format!("{{\"version\":{}}}", PLUGIN_DATABASE_VERSION + 1);
         assert!(
             PluginDatabase::from_json(newer.as_bytes())
@@ -734,10 +748,16 @@ mod tests {
         assert_eq!(normalize_category("   "), None);
         assert_eq!(normalize_category("\u{1}\u{2}"), None);
         assert_eq!(
-            normalize_category(&"x".repeat(200)).unwrap().chars().count(),
+            normalize_category(&"x".repeat(200))
+                .unwrap()
+                .chars()
+                .count(),
             MAX_PLUGIN_CATEGORY_CHARS
         );
-        assert_eq!(normalize_category(" Drum   bus ").as_deref(), Some("Drum bus"));
+        assert_eq!(
+            normalize_category(" Drum   bus ").as_deref(),
+            Some("Drum bus")
+        );
         // A hand-edited file is tidied on the way in.
         let edited = br#"{"version":1,"annotations":{"clap:a":{"favorite":false,"category":"  "},"clap:b":{"category":" Keys "}}}"#;
         let database = PluginDatabase::from_json(edited).unwrap();

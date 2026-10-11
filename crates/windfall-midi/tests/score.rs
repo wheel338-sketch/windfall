@@ -142,15 +142,22 @@ fn what_a_midi_file_cannot_hold_is_reported_and_the_notes_still_travel() {
     // The release is the one thing of a note's expression a file holds.
     assert_eq!(song.tracks[0].notes[1].release, 32);
 
-    let (back, _) = score_from_song(&read(&write(&song, &WriteOptions::default())).unwrap(), "x")
-        .unwrap();
+    let (back, _) =
+        score_from_song(&read(&write(&song, &WriteOptions::default())).unwrap(), "x").unwrap();
     assert_eq!(back.time_signature, score.time_signature);
     assert_eq!(back.notes[1].expression.release, 0.25);
     assert_eq!(back.notes[0].pan, 0.0);
     assert_eq!(back.notes[2].expression, NoteExpression::default());
     assert_eq!(
-        back.notes.iter().map(|n| (n.start, n.length, n.key)).collect::<Vec<_>>(),
-        score.notes.iter().map(|n| (n.start, n.length, n.key)).collect::<Vec<_>>()
+        back.notes
+            .iter()
+            .map(|n| (n.start, n.length, n.key))
+            .collect::<Vec<_>>(),
+        score
+            .notes
+            .iter()
+            .map(|n| (n.start, n.length, n.key))
+            .collect::<Vec<_>>()
     );
 }
 
@@ -187,7 +194,10 @@ fn any_midi_file_loads_as_one_lane_with_a_report_of_the_rest() {
             },
             MidiTrack::default(),
         ],
-        tempos: vec![TempoChange::from_bpm(0, 90.0), TempoChange::from_bpm(960, 140.0)],
+        tempos: vec![
+            TempoChange::from_bpm(0, 90.0),
+            TempoChange::from_bpm(960, 140.0),
+        ],
         time_signatures: vec![TimeSignatureChange {
             tick: 0,
             numerator: 5,
@@ -208,11 +218,20 @@ fn any_midi_file_loads_as_one_lane_with_a_report_of_the_rest() {
         })
     );
     assert_eq!(
-        score.notes.iter().map(|n| (n.start, n.key)).collect::<Vec<_>>(),
+        score
+            .notes
+            .iter()
+            .map(|n| (n.start, n.key))
+            .collect::<Vec<_>>(),
         [(0, 48), (0, 76), (960, 72)]
     );
     assert!(score.notes.iter().all(|n| n.velocity == 100.0 / 127.0));
-    assert!(score.notes.iter().all(|n| n.expression == NoteExpression::default()));
+    assert!(
+        score
+            .notes
+            .iter()
+            .all(|n| n.expression == NoteExpression::default())
+    );
     assert_eq!(left_out.len(), 3, "{left_out:?}");
     assert!(left_out[0].contains("2 tracks"));
     assert!(left_out[1].contains("Controllers"));
@@ -226,7 +245,12 @@ fn any_midi_file_loads_as_one_lane_with_a_report_of_the_rest() {
         .load_command(doc.project(), pattern, channel, ScoreLoadMode::Replace)
         .unwrap();
     doc.dispatch(command, None).unwrap();
-    let lane = doc.project().pattern(pattern).unwrap().lane(channel).unwrap();
+    let lane = doc
+        .project()
+        .pattern(pattern)
+        .unwrap()
+        .lane(channel)
+        .unwrap();
     assert_eq!(lane.notes.len(), 3);
     assert_eq!(doc.project().pattern(pattern).unwrap().length_steps, 20);
     doc.project().check().unwrap();
@@ -235,7 +259,10 @@ fn any_midi_file_loads_as_one_lane_with_a_report_of_the_rest() {
     // the caller.
     let mut unnamed = song.clone();
     unnamed.name = None;
-    assert_eq!(score_from_song(&unnamed, "file name").unwrap().0.name, "Right");
+    assert_eq!(
+        score_from_song(&unnamed, "file name").unwrap().0.name,
+        "Right"
+    );
     for track in &mut unnamed.tracks {
         track.name = None;
     }
@@ -283,8 +310,16 @@ fn files_a_score_cannot_hold_are_refused_or_cut_with_a_reason() {
     assert_eq!(score.notes.len(), 2);
     assert_eq!(score.notes[1].length, 100);
     assert_eq!(score.length_ticks, MAX_PATTERN_TICKS);
-    assert!(left_out.iter().any(|line| line.contains("1 notes start past")));
-    assert!(left_out.iter().any(|line| line.contains("1 notes were cut")));
+    assert!(
+        left_out
+            .iter()
+            .any(|line| line.contains("1 notes start past"))
+    );
+    assert!(
+        left_out
+            .iter()
+            .any(|line| line.contains("1 notes were cut"))
+    );
     score.validate().unwrap();
 }
 
@@ -297,7 +332,11 @@ fn a_midi_file_at_the_project_timebase_holds_what_plays_without_rounding() {
         Command::AddNotes {
             pattern,
             channel,
-            notes: vec![note(3, 7, 60, 1.0), note(244, 233, 62, 1.0), note(485, 1, 64, 1.0)],
+            notes: vec![
+                note(3, 7, 60, 1.0),
+                note(244, 233, 62, 1.0),
+                note(485, 1, 64, 1.0),
+            ],
         },
         None,
     )

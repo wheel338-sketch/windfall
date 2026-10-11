@@ -188,7 +188,11 @@ mod tests {
         // Nothing found, nothing said: no file is made.
         let view = store.view(&PluginManagerState::default());
         assert_eq!(view.error, None);
-        assert!(view.records.iter().all(|r| r.status == PluginStatus::Builtin));
+        assert!(
+            view.records
+                .iter()
+                .all(|r| r.status == PluginStatus::Builtin)
+        );
         assert!(!file.exists());
 
         // A scan in progress is shown but not remembered yet.
@@ -240,10 +244,7 @@ mod tests {
         assert!(status(&view, "org.example.glass").is_some());
         let view = PluginDatabaseStore::load(folder.path()).view(&empty);
         assert!(status(&view, "org.example.brass").is_none());
-        assert_eq!(
-            status(&view, "org.example.glass").map(|s| s.1),
-            Some(true)
-        );
+        assert_eq!(status(&view, "org.example.glass").map(|s| s.1), Some(true));
     }
 
     #[test]
@@ -259,7 +260,11 @@ mod tests {
             let found = scan(&["glass"]);
             let view = store.view(&found);
             // The scan is still shown, with the reason nothing is saved.
-            assert!(view.error.as_deref().is_some_and(|e| e.contains("not being saved")));
+            assert!(
+                view.error
+                    .as_deref()
+                    .is_some_and(|e| e.contains("not being saved"))
+            );
             assert_eq!(
                 status(&view, "org.example.glass").map(|s| s.0),
                 Some(PluginStatus::Verified)
@@ -302,9 +307,6 @@ mod tests {
         std::fs::remove_dir(&file).unwrap();
         // The favorite did not stick in memory either.
         let view = store.view(&found);
-        assert_eq!(
-            status(&view, "org.example.glass").map(|s| s.1),
-            Some(false)
-        );
+        assert_eq!(status(&view, "org.example.glass").map(|s| s.1), Some(false));
     }
 }

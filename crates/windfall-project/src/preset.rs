@@ -584,7 +584,9 @@ impl ChannelPreset {
             || !self.pan.is_finite()
             || !(-1.0..=1.0).contains(&self.pan)
         {
-            return Err("The preset has a channel color, volume or pan outside its range".to_owned());
+            return Err(
+                "The preset has a channel color, volume or pan outside its range".to_owned(),
+            );
         }
         match (&self.source, self.sample_asset, &self.plugin) {
             (ChannelSource::Sampler(sampler), wanted, None) => {
@@ -592,7 +594,9 @@ impl ChannelPreset {
                     return Err("The preset's sampler names a project sample".to_owned());
                 }
                 if wanted.is_some() && wanted != asset {
-                    return Err("The preset's sampler plays audio the preset does not list".to_owned());
+                    return Err(
+                        "The preset's sampler plays audio the preset does not list".to_owned()
+                    );
                 }
             }
             (ChannelSource::Sampler(_), _, Some(_)) => {
@@ -883,7 +887,11 @@ fn tagged(value: Value) -> Option<(String, Value)> {
 
 /// Brings the built-in settings in a preset's JSON to what this build
 /// stores, wherever the three bodies keep them.
-fn migrate(value: &mut Value, renames: &[ParamRename], notes: &mut Vec<String>) -> Result<(), String> {
+fn migrate(
+    value: &mut Value,
+    renames: &[ParamRename],
+    notes: &mut Vec<String>,
+) -> Result<(), String> {
     if let Some(source) = value.pointer_mut("/channel/source")
         && source.get("type").and_then(Value::as_str) == Some("instrument")
         && let Some(params) = source.get_mut("params")
@@ -931,7 +939,9 @@ fn migrate_params(
         return Err(format!("The preset's {what} settings are not an object"));
     };
     let Some(tag) = given.get("type").and_then(Value::as_str).map(str::to_owned) else {
-        return Err(format!("The preset's {what} does not say which {what} it is"));
+        return Err(format!(
+            "The preset's {what} does not say which {what} it is"
+        ));
     };
     let Some(default) = defaults.get(&tag).and_then(Value::as_object) else {
         return Err(format!(
@@ -971,7 +981,8 @@ fn migrate_params(
         ));
     }
     // Typed, so that ranges are applied the way the processor applies them.
-    let damaged = |error: serde_json::Error| format!("The preset's {tag} settings are damaged: {error}");
+    let damaged =
+        |error: serde_json::Error| format!("The preset's {tag} settings are damaged: {error}");
     let (in_range, moved) = if what == "effect" {
         let typed: EffectParams = serde_json::from_value(params.clone()).map_err(damaged)?;
         let sanitized = typed.sanitized();

@@ -649,11 +649,8 @@ fn a_plugin_preset_replaces_one_effect_and_leaves_its_slot_alone() {
         None,
     )
     .unwrap();
-    let limiter = PluginPreset::capture(
-        doc.project(),
-        PluginTarget::Effect { effect: source },
-    )
-    .unwrap();
+    let limiter =
+        PluginPreset::capture(doc.project(), PluginTarget::Effect { effect: source }).unwrap();
     let PluginPresetState::Effect { params } = &limiter.state else {
         panic!("{limiter:?}")
     };
@@ -775,7 +772,10 @@ fn a_plugin_preset_replaces_one_effect_and_leaves_its_slot_alone() {
     assert_eq!(doc.project().plugin(target).unwrap().state, b"reverb state");
     assert!(doc.project().automation(kept).is_none());
     let captured = PluginPreset::capture(doc.project(), target).unwrap();
-    let PluginPresetState::Hosted { binding: stored, .. } = &captured.state else {
+    let PluginPresetState::Hosted {
+        binding: stored, ..
+    } = &captured.state
+    else {
         panic!("{captured:?}")
     };
     assert_eq!(
@@ -1035,7 +1035,10 @@ fn a_hosted_destination_is_recognised_by_its_plugin_not_by_its_changing_state() 
     );
 
     // Another plugin in its place is another destination.
-    let PluginPresetState::Hosted { binding: mut other, .. } = seen.state else {
+    let PluginPresetState::Hosted {
+        binding: mut other, ..
+    } = seen.state
+    else {
         panic!()
     };
     other.id = "org.example.other".into();
@@ -1078,7 +1081,11 @@ fn the_envelope_refuses_other_schemas_newer_versions_and_unsafe_or_repeated_asse
     other["schema"] = json!("someone.else");
     assert!(read(&other).unwrap_err().contains("not a Windfall preset"));
     assert!(Preset::from_json(b"[1, 2, 3]").is_err());
-    assert!(Preset::from_json(b"{}").unwrap_err().contains("not a Windfall preset"));
+    assert!(
+        Preset::from_json(b"{}")
+            .unwrap_err()
+            .contains("not a Windfall preset")
+    );
     assert!(Preset::from_json(b"not json").is_err());
 
     // A newer version is named, whatever else the file holds.
@@ -1088,7 +1095,10 @@ fn the_envelope_refuses_other_schemas_newer_versions_and_unsafe_or_repeated_asse
     newer["somethingNew"] = json!({"anything": true});
     let message = read(&newer).unwrap_err();
     assert!(message.contains("newer Windfall"), "{message}");
-    assert!(message.contains(&(PRESET_VERSION + 1).to_string()), "{message}");
+    assert!(
+        message.contains(&(PRESET_VERSION + 1).to_string()),
+        "{message}"
+    );
     let mut unversioned = file.clone();
     unversioned["version"] = json!(0);
     assert!(read(&unversioned).is_err());
@@ -1120,7 +1130,9 @@ fn the_envelope_refuses_other_schemas_newer_versions_and_unsafe_or_repeated_asse
     assert!(read(&same_path).unwrap_err().contains("twice"));
     let mut many = file.clone();
     let assets: Vec<Value> = (0..=MAX_PRESET_ASSETS)
-        .map(|index| json!({"id": index, "name": "A", "path": format!("a/{index}.wav"), "bytes": 1}))
+        .map(
+            |index| json!({"id": index, "name": "A", "path": format!("a/{index}.wav"), "bytes": 1}),
+        )
         .collect();
     many["assets"] = json!(assets);
     assert!(read(&many).is_err());
@@ -1136,7 +1148,10 @@ fn the_envelope_refuses_other_schemas_newer_versions_and_unsafe_or_repeated_asse
     unlisted["channel"]["sampleAsset"] = json!(99);
     assert!(read(&unlisted).is_err());
     let mut unused = file.clone();
-    unused["channel"].as_object_mut().unwrap().remove("sampleAsset");
+    unused["channel"]
+        .as_object_mut()
+        .unwrap()
+        .remove("sampleAsset");
     assert!(read(&unused).is_err());
     let mut long_name = file.clone();
     long_name["name"] = json!("n".repeat(257));
@@ -1153,7 +1168,10 @@ fn settings_from_another_build_are_renamed_dropped_defaulted_and_clamped_with_a_
     );
     let file: Value = serde_json::from_str(&preset.to_json().unwrap()).unwrap();
     let kind = tag(EffectKind::Limiter.default_params());
-    let params = file["plugin"]["state"]["params"].as_object().unwrap().clone();
+    let params = file["plugin"]["state"]["params"]
+        .as_object()
+        .unwrap()
+        .clone();
     // The first two numeric settings the limiter has in this build.
     let numeric: Vec<String> = params
         .iter()
@@ -1199,8 +1217,16 @@ fn settings_from_another_build_are_renamed_dropped_defaulted_and_clamped_with_a_
     assert!(read_params.get("settingThatWasRemoved").is_none());
     assert!(read_params.get("nameBeforeTheRename").is_none());
     assert_eq!(notes.len(), 3, "{notes:?}");
-    assert!(notes.iter().any(|note| note.contains("nameBeforeTheRename")));
-    assert!(notes.iter().any(|note| note.contains("settingThatWasRemoved")));
+    assert!(
+        notes
+            .iter()
+            .any(|note| note.contains("nameBeforeTheRename"))
+    );
+    assert!(
+        notes
+            .iter()
+            .any(|note| note.contains("settingThatWasRemoved"))
+    );
     assert!(notes.iter().any(|note| note.contains(&missing)));
     // What was read loads like any preset.
     let target = PluginTarget::Effect { effect: limiter };
@@ -1221,13 +1247,20 @@ fn settings_from_another_build_are_renamed_dropped_defaulted_and_clamped_with_a_
     let plain_params =
         serde_json::to_value(&plain.plugin.as_ref().unwrap().state).unwrap()["params"].clone();
     assert_eq!(single(&plain_params[&renamed]), single(&params[&renamed]));
-    assert!(notes.iter().any(|note| note.contains("nameBeforeTheRename")));
+    assert!(
+        notes
+            .iter()
+            .any(|note| note.contains("nameBeforeTheRename"))
+    );
 
     // A value far outside its range is brought into it, and reported.
     let mut wild = file.clone();
     wild["plugin"]["state"]["params"][&renamed] = json!(1.0e30);
     let (clamped, notes) = read(&wild).unwrap();
-    assert!(notes.iter().any(|note| note.contains("ranges")), "{notes:?}");
+    assert!(
+        notes.iter().any(|note| note.contains("ranges")),
+        "{notes:?}"
+    );
     clamped.validate().unwrap();
 
     // A processor this build does not have is refused by name.

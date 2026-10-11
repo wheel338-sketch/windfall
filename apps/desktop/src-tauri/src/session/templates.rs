@@ -24,9 +24,7 @@ use std::io;
 use std::path::{Path, PathBuf};
 
 use windfall_ipc::TemplateInfo;
-use windfall_project::{
-    ChannelId, Command, Document, DocumentSnapshot, Project, SettingsPatch,
-};
+use windfall_project::{ChannelId, Command, Document, DocumentSnapshot, Project, SettingsPatch};
 
 use super::Session;
 use super::presets::safe_file_stem;
@@ -117,11 +115,7 @@ fn beat(tempo_bpm: f64, swing: f32, steps: [&[u32]; 4]) -> Project {
 }
 
 fn four_on_the_floor() -> Project {
-    beat(
-        124.0,
-        0.0,
-        [&[0, 4, 8, 12], &[4, 12], &[2, 6, 10, 14], &[]],
-    )
+    beat(124.0, 0.0, [&[0, 4, 8, 12], &[4, 12], &[2, 6, 10, 14], &[]])
 }
 
 fn boom_bap() -> Project {
@@ -217,10 +211,7 @@ impl Session {
         }
         self.archive_export_to(target, self.archive_job()?)
             .map_err(|error| {
-                error.replace(
-                    "no portable archive was created",
-                    "no template was saved",
-                )
+                error.replace("no portable archive was created", "no template was saved")
             })?;
         Ok(TemplateInfo {
             id: format!("{USER_PREFIX}{stem}"),
@@ -242,8 +233,7 @@ impl Session {
             let ticket = self.begin_replacement();
             let mut project = (factory.build)();
             fresh(&mut project);
-            let decoded =
-                decode_all(&self.inner.cache, &project, None, &self.inner.factory_dir);
+            let decoded = decode_all(&self.inner.cache, &project, None, &self.inner.factory_dir);
             return self
                 .install(&ticket, Document::new(project), None, None, None, decoded)
                 .map_err(|refusal| refusal.message("The new project was not started"));

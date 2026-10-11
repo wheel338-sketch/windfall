@@ -9,10 +9,7 @@
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use windfall_plugin_host::{
-    PluginFormat, paths,
-    scan::PluginCatalog,
-};
+use windfall_plugin_host::{PluginFormat, paths, scan::PluginCatalog};
 
 use super::PluginManager;
 
@@ -119,10 +116,20 @@ mod tests {
         let again = PluginManager::new(config.path()).unwrap();
         assert_eq!(again.state().folders, standard);
 
-        assert!(manager.remove_folder(&folder).unwrap_err().contains("not one of"));
+        assert!(
+            manager
+                .remove_folder(&folder)
+                .unwrap_err()
+                .contains("not one of")
+        );
         for folder in &standard {
             assert!(!PluginManager::is_custom_folder(folder));
-            assert!(manager.remove_folder(folder).unwrap_err().contains("standard"));
+            assert!(
+                manager
+                    .remove_folder(folder)
+                    .unwrap_err()
+                    .contains("standard")
+            );
         }
         assert_eq!(manager.state().folders, standard);
     }

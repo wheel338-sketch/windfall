@@ -178,8 +178,13 @@ fn a_score_holds_a_lanes_notes_and_curves_and_nothing_of_the_project() {
     }
 
     // A selection keeps the positions its notes have and only their curves.
-    let ids: Vec<NoteId> = doc.project().pattern(pattern).unwrap().lane(lead).unwrap().notes
-        [1..]
+    let ids: Vec<NoteId> = doc
+        .project()
+        .pattern(pattern)
+        .unwrap()
+        .lane(lead)
+        .unwrap()
+        .notes[1..]
         .iter()
         .map(|note| note.id)
         .collect();
@@ -310,7 +315,12 @@ fn loading_replaces_or_merges_in_one_undo_step_with_new_note_ids() {
     );
     assert!(
         score
-            .load_command(doc.project(), pattern, ChannelId(9_999), ScoreLoadMode::Merge)
+            .load_command(
+                doc.project(),
+                pattern,
+                ChannelId(9_999),
+                ScoreLoadMode::Merge
+            )
             .is_err()
     );
 }
@@ -330,7 +340,11 @@ fn files_that_are_not_readable_scores_are_refused_with_the_reason() {
     let file = file_of(&score);
     read(&file).unwrap();
 
-    assert!(Score::from_json(b"{}").unwrap_err().contains("not a Windfall score"));
+    assert!(
+        Score::from_json(b"{}")
+            .unwrap_err()
+            .contains("not a Windfall score")
+    );
     assert!(Score::from_json(b"MThd").is_err());
     let mut other = file.clone();
     other["schema"] = json!("windfall.preset");

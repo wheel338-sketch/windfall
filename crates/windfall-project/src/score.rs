@@ -237,8 +237,7 @@ impl Score {
                 || note.expression.clamped() != note.expression
             {
                 return Err(
-                    "The score has a note outside its length or outside a note's ranges"
-                        .to_owned(),
+                    "The score has a note outside its length or outside a note's ranges".to_owned(),
                 );
             }
         }
@@ -272,7 +271,9 @@ impl Score {
             }
         }
         if points > MAX_PATTERN_CURVE_POINTS {
-            return Err("The score has more expression curve points than a pattern holds".to_owned());
+            return Err(
+                "The score has more expression curve points than a pattern holds".to_owned(),
+            );
         }
         Ok(())
     }
@@ -337,7 +338,10 @@ impl Score {
             return Err("The score has no notes".to_owned());
         }
         let mut commands = Vec::new();
-        let steps = self.length_ticks.div_ceil(TICKS_PER_STEP).min(MAX_PATTERN_STEPS);
+        let steps = self
+            .length_ticks
+            .div_ceil(TICKS_PER_STEP)
+            .min(MAX_PATTERN_STEPS);
         if steps > target.length_steps {
             commands.push(Command::UpdatePattern {
                 id: pattern,
@@ -347,7 +351,9 @@ impl Score {
                 },
             });
         }
-        let has_notes = target.lane(channel).is_some_and(|lane| !lane.notes.is_empty());
+        let has_notes = target
+            .lane(channel)
+            .is_some_and(|lane| !lane.notes.is_empty());
         if mode == ScoreLoadMode::Replace && has_notes {
             commands.push(Command::ClearLane { pattern, channel });
         }

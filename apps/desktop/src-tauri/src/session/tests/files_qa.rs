@@ -99,9 +99,9 @@ fn a_sampler_preset_takes_its_audio_along_and_loads_as_one_undo_step() {
 
     // A channel that changed since the preset was chosen is refused whole.
     let before = rig.project();
-    let refused =
-        rig.session
-            .preset_apply_channel(&written, destination, expected, false, false);
+    let refused = rig
+        .session
+        .preset_apply_channel(&written, destination, expected, false, false);
     assert!(refused.unwrap_err().contains("changed"));
     assert_eq!(rig.project(), before);
 }
@@ -296,11 +296,18 @@ fn plugin_presets_keep_a_missing_plugins_state_and_the_library_lists_them() {
             .session
             .preset_capture_plugin(target, generation, revision)
             .unwrap();
-        assert!(rig.session.preset_library_save(name, capture).is_err(), "{name:?}");
+        assert!(
+            rig.session.preset_library_save(name, capture).is_err(),
+            "{name:?}"
+        );
     }
     // A file from a newer build is refused by name.
     let newer = rig.file("Newer.wfpreset");
-    fs::write(&newer, br#"{"schema":"windfall.preset","version":99,"kind":"plugin"}"#).unwrap();
+    fs::write(
+        &newer,
+        br#"{"schema":"windfall.preset","version":99,"kind":"plugin"}"#,
+    )
+    .unwrap();
     assert!(
         rig.session
             .preset_read(&newer)
@@ -381,9 +388,17 @@ fn a_score_is_written_as_a_score_or_a_midi_file_and_read_back_from_either() {
 
     // Neither writing nor reading touched the project.
     assert_eq!(rig.project(), before);
-    assert!(rig.session.score_read(&rig.file("scores/None.wfscore")).is_err());
+    assert!(
+        rig.session
+            .score_read(&rig.file("scores/None.wfscore"))
+            .is_err()
+    );
     fs::write(rig.file("scores/Bad.wfscore"), b"{}").unwrap();
-    assert!(rig.session.score_read(&rig.file("scores/Bad.wfscore")).is_err());
+    assert!(
+        rig.session
+            .score_read(&rig.file("scores/Bad.wfscore"))
+            .is_err()
+    );
 
     // What was read loads into another lane as one step.
     let other = rig.channel(1);
@@ -432,7 +447,10 @@ fn factory_templates_start_fresh_projects_and_cannot_be_deleted_or_shadowed() {
     assert!(rig.session.template_new("basic-kit").is_err());
 
     // The beat templates have a beat in them.
-    let house = rig.session.template_new("factory:four-on-the-floor").unwrap();
+    let house = rig
+        .session
+        .template_new("factory:four-on-the-floor")
+        .unwrap();
     assert_eq!(house.project.settings.tempo_bpm, 124.0);
     assert!(!house.project.patterns[0].lanes.is_empty());
 }
@@ -460,7 +478,10 @@ fn a_user_template_carries_its_audio_and_opens_as_a_new_project() {
             None,
         )
         .unwrap();
-    let saved_to = rig.session.project_save(Some(&rig.file("My song"))).unwrap();
+    let saved_to = rig
+        .session
+        .project_save(Some(&rig.file("My song")))
+        .unwrap();
     rig.session
         .dispatch(
             Command::UpdateSettings {

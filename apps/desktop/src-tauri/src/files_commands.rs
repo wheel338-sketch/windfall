@@ -95,10 +95,8 @@ pub async fn preset_apply_channel(
     without_audio: bool,
 ) -> Result<DispatchResult, String> {
     let session = session.inner().clone();
-    blocking(move || {
-        session.preset_apply_channel(&path, id, expected, name_color, without_audio)
-    })
-    .await
+    blocking(move || session.preset_apply_channel(&path, id, expected, name_color, without_audio))
+        .await
 }
 
 #[tauri::command]

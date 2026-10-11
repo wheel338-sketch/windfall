@@ -121,12 +121,16 @@ impl Transaction<'_> {
                 }
             }
             (PluginTarget::Effect { effect }, state) if !state.is_instrument() => {
-                let found = self.project.mixer.tracks.iter().enumerate().find_map(
-                    |(track, strip)| {
-                        let slot = strip.effects.iter().position(|slot| slot.id == effect)?;
-                        Some((track, slot))
-                    },
-                );
+                let found =
+                    self.project
+                        .mixer
+                        .tracks
+                        .iter()
+                        .enumerate()
+                        .find_map(|(track, strip)| {
+                            let slot = strip.effects.iter().position(|slot| slot.id == effect)?;
+                            Some((track, slot))
+                        });
                 let (track, slot) =
                     found.ok_or_else(|| CommandError::not_found("effect", effect))?;
                 self.remove_automations_of(|automation| match *automation {

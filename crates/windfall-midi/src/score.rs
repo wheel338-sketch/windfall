@@ -158,7 +158,9 @@ pub fn score_from_song(
         ));
     }
     if notes.is_empty() {
-        return Err("Every note of the MIDI file starts past the end of the longest pattern".to_owned());
+        return Err(
+            "Every note of the MIDI file starts past the end of the longest pattern".to_owned(),
+        );
     }
     notes.sort_by(|a, b| (a.start, a.key).cmp(&(b.start, b.key)));
     if song
@@ -191,7 +193,10 @@ pub fn score_from_song(
         .clone()
         .or_else(|| song.tracks.iter().find_map(|track| track.name.clone()))
         .unwrap_or_else(|| fallback_name.to_owned());
-    let mut score = Score::new(clean(&name), song.length.min(MAX_PATTERN_TICKS).max(last_end));
+    let mut score = Score::new(
+        clean(&name),
+        song.length.min(MAX_PATTERN_TICKS).max(last_end),
+    );
     score.time_signature = song
         .time_signatures
         .first()

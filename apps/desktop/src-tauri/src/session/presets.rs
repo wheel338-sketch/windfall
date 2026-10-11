@@ -17,7 +17,9 @@ use std::io::{self, Read};
 use std::path::{Path, PathBuf};
 
 use windfall_ipc::{PresetCapture, PresetEntry, PresetReview};
-use windfall_project::preset::{MAX_PRESET_ASSET_BYTES, MAX_PRESET_FILE_BYTES, MAX_PRESET_NAME_BYTES};
+use windfall_project::preset::{
+    MAX_PRESET_ASSET_BYTES, MAX_PRESET_FILE_BYTES, MAX_PRESET_NAME_BYTES,
+};
 use windfall_project::{
     Channel, ChannelId, ChannelPreset, Command, DispatchResult, MixerTrackPreset, PluginBinding,
     PluginPreset, PluginPresetState, PluginTarget, Preset, PresetAsset, PresetAudio, Project,
@@ -107,9 +109,9 @@ impl Session {
         let (project, _) = self.preset_snapshot(generation, revision)?;
         let body = PluginPreset::capture(&project, target)?;
         let name = match target {
-            PluginTarget::Instrument { channel } => project
-                .channel(channel)
-                .map(|channel| channel.name.clone()),
+            PluginTarget::Instrument { channel } => {
+                project.channel(channel).map(|channel| channel.name.clone())
+            }
             PluginTarget::Effect { .. } => match &body.state {
                 PluginPresetState::Effect { params } => Some(params.kind().name().to_owned()),
                 PluginPresetState::Hosted { binding, .. } => Some(binding.name.clone()),
@@ -335,19 +337,25 @@ impl Session {
     pub fn preset_library_delete(&self, path: &str) -> Result<(), String> {
         let folder = paths::clean(&self.preset_library_dir());
         let target = paths::absolute(path)?;
-        let inside = target.parent().is_some_and(|parent| paths::same(parent, &folder));
+        let inside = target
+            .parent()
+            .is_some_and(|parent| paths::same(parent, &folder));
         let is_preset = target
             .extension()
             .is_some_and(|extension| extension.eq_ignore_ascii_case(PRESET_EXTENSION));
         if !inside || !is_preset {
             return Err("Only a preset of the preset library can be deleted here.".into());
         }
-        fs::remove_file(&target).map_err(|error| format!("Could not delete the preset: {error}"))?;
+        fs::remove_file(&target)
+            .map_err(|error| format!("Could not delete the preset: {error}"))?;
         let audio = folder.join(format!("{} audio", paths::stem(&target)));
         if audio.is_dir()
             && let Err(error) = fs::remove_dir_all(&audio)
         {
-            log::warn!("preset library: could not remove {}: {error}", audio.display());
+            log::warn!(
+                "preset library: could not remove {}: {error}",
+                audio.display()
+            );
         }
         Ok(())
     }
@@ -464,8 +472,7 @@ pub(super) fn safe_file_stem(name: &str) -> Result<String, String> {
 
 /// Reads a file that may be at most `limit` bytes long.
 fn read_capped(path: &Path, limit: usize) -> Result<Vec<u8>, String> {
-    let opened =
-        File::open(path).map_err(|error| format!("Could not open the preset: {error}"))?;
+    let opened = File::open(path).map_err(|error| format!("Could not open the preset: {error}"))?;
     let mut bytes = Vec::new();
     opened
         .take(limit as u64 + 1)
@@ -524,7 +531,10 @@ mod tests {
         assert_eq!(safe_file_stem("  Deep kick  ").unwrap(), "Deep kick");
         assert_eq!(safe_file_stem("a/b\\c:d*e?").unwrap(), "a_b_c_d_e_");
         assert_eq!(safe_file_stem("trailing. . ").unwrap(), "trailing");
-        assert_eq!(safe_file_stem(&"x".repeat(500)).unwrap().chars().count(), 120);
+        assert_eq!(
+            safe_file_stem(&"x".repeat(500)).unwrap().chars().count(),
+            120
+        );
         for name in ["", "   ", ".", "..", "CON", "nul", "com1", "LPT9"] {
             assert!(safe_file_stem(name).is_err(), "{name:?}");
         }
@@ -567,7 +577,13 @@ mod tests {
             asset_file(folder, &asset("Kick audio/Kick.wav")),
             Some(folder.join("Kick audio").join("Kick.wav"))
         );
-        for path in ["../Kick.wav", "a/../../Kick.wav", "/Kick.wav", "a\\Kick.wav", ""] {
+        for path in [
+            "../Kick.wav",
+            "a/../../Kick.wav",
+            "/Kick.wav",
+            "a\\Kick.wav",
+            "",
+        ] {
             assert_eq!(asset_file(folder, &asset(path)), None, "{path:?}");
         }
     }
