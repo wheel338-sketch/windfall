@@ -1095,6 +1095,12 @@ export function createMockBackend(options: MockOptions = {}): MockBackend {
           "Spectral sampler preparation needs the desktop audio engine. Settings and history were kept."
         )
       ),
+    samplerPreprocess: () =>
+      Promise.reject(
+        new Error(
+          "Sample pre-processing needs the desktop audio engine. Browser mode cannot render a new sample; settings and history were kept."
+        )
+      ),
     audioEditorOpen: () =>
       Promise.reject(
         new Error(

@@ -21,6 +21,8 @@ pub use midi_hardware::*;
 pub use slicer::{SliceOptions, SliceReview};
 mod plugins;
 pub use plugins::*;
+mod sampler_preprocess;
+pub use sampler_preprocess::*;
 pub use windfall_project::PlayMode;
 use windfall_project::{AutomationId, EffectId, PatternId, TrackId};
 

@@ -137,6 +137,16 @@ export interface Backend extends AnalysisBackend {
     command: Command,
     request: number
   ): Promise<DispatchResult>
+  /**
+   * Renders a sampler channel's sample through offline treatments into a new
+   * sample and gives it to the channel, as one undo step. `created` holds
+   * the new sample. The original sample and its file are kept. Rejects when
+   * nothing would change, when the project changed meanwhile, and in the
+   * browser, which cannot render audio.
+   */
+  samplerPreprocess(
+    request: import("@/bindings").SamplerPreprocessRequest
+  ): Promise<DispatchResult>
   detectClipTempo(
     sample: SampleId
   ): Promise<{ bpm: number; confidence: number }[]>

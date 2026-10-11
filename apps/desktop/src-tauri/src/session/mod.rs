@@ -83,6 +83,7 @@ mod playlist_bounce;
 mod preparation;
 mod realtime;
 mod recording;
+mod sampler_preprocess;
 mod sampler_processing;
 mod samples;
 mod slicer;

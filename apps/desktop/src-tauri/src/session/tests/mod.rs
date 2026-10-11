@@ -30,6 +30,7 @@ mod plugin_update;
 mod plugins;
 mod project_preparation;
 mod recording;
+mod sampler_preprocess;
 mod sampler_processing;
 mod slicer;
 mod song;

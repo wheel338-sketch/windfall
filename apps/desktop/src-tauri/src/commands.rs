@@ -702,6 +702,15 @@ async fn bounce_selected_clips(
 }
 
 #[tauri::command]
+async fn sampler_preprocess(
+    session: State<'_, Session>,
+    request: windfall_ipc::SamplerPreprocessRequest,
+) -> Result<DispatchResult, String> {
+    let session = session.inner().clone();
+    blocking(move || session.sampler_preprocess(request)).await
+}
+
+#[tauri::command]
 fn export_cancel(session: State<'_, Session>) {
     session.export_cancel();
 }
@@ -971,6 +980,7 @@ pub fn handler() -> impl Fn(Invoke) -> bool + Send + Sync + 'static {
         add_audio_clip_from_file,
         add_audio_clip_from_sample,
         bounce_selected_clips,
+        sampler_preprocess,
         export_audio,
         export_cancel,
         midi_preview,

@@ -39,9 +39,11 @@ pub struct SamplePreprocess {
     /// Keep only that region. Otherwise the whole sample is treated and
     /// the region stays a setting.
     pub trim: bool,
-    /// The sampler plays the region backwards.
+    /// The sampler's reverse switch: it plays the region backwards. The
+    /// switch is not changed by any step.
     pub reversed: bool,
-    /// Turn the audio around so the sampler no longer has to.
+    /// Turn the audio around. The played region and the loop stay on the
+    /// same audio, which now runs the other way.
     pub reverse: bool,
     pub remove_dc: bool,
     pub invert_polarity: bool,
@@ -93,7 +95,7 @@ pub struct Preprocessed {
     /// The region to play, as fractions of the new sample.
     pub start: f32,
     pub end: f32,
-    /// Whether the sampler still has to play the region backwards.
+    /// The sampler's reverse switch, as it was given.
     pub reversed: bool,
     /// The loop, as fractions of the new region in source order. `None`
     /// when no seam was asked for, which leaves the sampler's loop alone.
@@ -190,11 +192,10 @@ pub fn preprocess(source: &AudioBuffer, options: &SamplePreprocess) -> Result<Pr
     };
     let frames = data.len() / channels;
 
-    let mut reversed = options.reversed;
+    let reversed = options.reversed;
     if options.reverse {
         reverse_frames(&mut data, channels);
         (play_first, play_last) = (frames - play_last, frames - play_first);
-        reversed = !reversed;
     }
 
     if options.remove_dc {
@@ -252,11 +253,18 @@ pub fn preprocess(source: &AudioBuffer, options: &SamplePreprocess) -> Result<Pr
     let mut loop_points = None;
     let mut crossfade_frames = 0;
     if let Some(seam) = options.loop_crossfade {
-        // Loop bounds in playing order, with the plan compiler's rounding.
-        let source_first =
+        // Loop bounds in the region, in source order, with the plan
+        // compiler's rounding. Turning the audio around mirrored the region,
+        // and the loop goes with its frames.
+        let given_first =
             ((fraction(seam.start, 0.0) * play_frames as f64).round() as usize).min(play_frames - 1);
-        let source_end = ((fraction(seam.end, 1.0) * play_frames as f64).round() as usize)
-            .clamp(source_first + 1, play_frames);
+        let given_end = ((fraction(seam.end, 1.0) * play_frames as f64).round() as usize)
+            .clamp(given_first + 1, play_frames);
+        let (source_first, source_end) = if options.reverse {
+            (play_frames - given_end, play_frames - given_first)
+        } else {
+            (given_first, given_end)
+        };
         let length = source_end - source_first;
         let loop_first = if reversed {
             play_frames - source_end
@@ -391,8 +399,9 @@ mod tests {
         assert_eq!(trimmed.audio.samples(), &source.samples()[2..6]);
         assert_eq!((trimmed.start, trimmed.end), (0.0, 1.0));
 
-        // Reversing the audio clears the sampler's own reverse switch, and
-        // the region follows its frames to the other end of the buffer.
+        // Reversing the audio leaves the sampler's own reverse switch as
+        // it was, and the region follows its frames to the other end of the
+        // buffer.
         let turned = preprocess(
             &source,
             &SamplePreprocess {
@@ -407,11 +416,29 @@ mod tests {
         let mut expected = source.samples().to_vec();
         expected.reverse();
         assert_eq!(turned.audio.samples(), expected);
-        assert!(!turned.reversed);
+        assert!(turned.reversed);
         assert_eq!((turned.start, turned.end), (0.5, 0.75));
-        // The frames it plays, in the order it plays them, are unchanged.
-        let before: Vec<f32> = source.samples()[2..4].iter().rev().copied().collect();
-        assert_eq!(&turned.audio.samples()[4..6], before);
+        // The region holds the same two frames, the other way round, so the
+        // sampler now plays them in the opposite order.
+        let mirrored: Vec<f32> = source.samples()[2..4].iter().rev().copied().collect();
+        assert_eq!(&turned.audio.samples()[4..6], mirrored);
+
+        // The loop stays on its frames: [2, 4) of eight becomes [4, 6).
+        let looped = preprocess(
+            &source,
+            &SamplePreprocess {
+                reverse: true,
+                loop_crossfade: Some(LoopSeam {
+                    start: 0.25,
+                    end: 0.5,
+                    amount: 0.0,
+                }),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        assert_eq!(looped.loop_points, Some((0.5, 0.75)));
+        assert_eq!(looped.crossfade_frames, 0);
     }
 
     #[test]
