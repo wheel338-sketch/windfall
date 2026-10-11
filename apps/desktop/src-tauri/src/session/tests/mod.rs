@@ -35,6 +35,7 @@ mod slicer;
 mod song;
 mod timeline;
 mod versions;
+mod mastering_qa;
 
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};

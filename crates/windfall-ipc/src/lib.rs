@@ -436,6 +436,11 @@ pub struct ExportOptions {
     #[serde(default)]
     #[ts(optional)]
     pub stems: Option<ExportStems>,
+    /// Masters the mix to a loudness target before it is written. Absent
+    /// means the mix is written as it was rendered. Not with `stems`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub mastering: Option<MasteringOptions>,
 }
 
 impl Default for ExportOptions {
@@ -458,6 +463,7 @@ impl Default for ExportOptions {
             ogg_quality: None,
             mp3: None,
             stems: None,
+            mastering: None,
         }
     }
 }
@@ -549,6 +555,11 @@ pub struct ExportProgress {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(optional)]
     pub cancelled: Option<bool>,
+    /// What mastering measured before and after. Only on the last event of
+    /// an export that asked for mastering and went through.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub mastering: Option<MasteringReview>,
 }
 
 /// An input's channel count and common rates, without opening capture.
@@ -727,3 +738,5 @@ pub struct SamplerPreparationProgress {
     pub total: u32,
     pub current: bool,
 }
+mod mastering;
+pub use mastering::*;
