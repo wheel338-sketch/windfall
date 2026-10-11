@@ -239,3 +239,11 @@ includes retention of a final processor parameter drag as one undo gesture
 Written, not executed: musical_gate_retimes_mid_note_and_arpeggio_clock_survives_leader_release
 and bounded_refusals_are_visible_in_realtime_frames_and_do_not_double_count.
 The mounted drag case checks the final numeric Gain as well as undo grouping.
+
+ChannelPreset now captures and validates nested built-in rack state through the
+existing preset model/session capture path. Applying a channel preset replaces
+or clears its rack atomically and drops the previous parameter-owner lanes.
+Written, not executed: channel_preset_capture_keeps_nested_racks_and_loading_plain_sound_removes_them.
+Regenerate ChannelPreset.rack too. Native browser library/file UI integration
+for channel presets is not exposed in the current Backend interface; that gate
+remains, rather than claiming the text editor establishes native preset UX.

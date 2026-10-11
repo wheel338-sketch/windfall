@@ -308,3 +308,49 @@ fn latency_changing_control_wire_is_refused_before_publication() {
     });
     assert!(rack.check().is_err());
 }
+
+#[test]
+fn channel_preset_capture_keeps_nested_racks_and_loading_plain_sound_removes_them() {
+    let (mut doc, channel) = document();
+    let (plain, _) = preset::ChannelPreset::capture(doc.project(), channel).unwrap();
+    set(&mut doc, channel, Some(graph())).unwrap();
+    let (body, asset) = preset::ChannelPreset::capture(doc.project(), channel).unwrap();
+    assert!(asset.is_none());
+    assert_eq!(body.rack, Some(graph()));
+    let preset = preset::Preset::of_channel("Modular sound", body, None);
+    let json = preset.to_json().unwrap();
+    let (loaded, notes) = preset::Preset::from_json(json.as_bytes()).unwrap();
+    assert!(notes.is_empty());
+    assert_eq!(loaded, preset);
+    let before = doc.project().clone();
+    let expected = doc.project().channel(channel).unwrap().clone();
+    doc.dispatch(
+        Command::ApplyChannelPreset {
+            id: channel,
+            expected,
+            preset: plain,
+            sample: None,
+            audio: None,
+            name_color: false,
+        },
+        None,
+    )
+    .unwrap();
+    assert!(doc.project().settings.modular_racks.is_empty());
+    doc.undo().unwrap();
+    assert_eq!(doc.project(), &before);
+    let expected = doc.project().channel(channel).unwrap().clone();
+    doc.dispatch(
+        Command::ApplyChannelPreset {
+            id: channel,
+            expected,
+            preset: loaded.channel.unwrap(),
+            sample: None,
+            audio: None,
+            name_color: false,
+        },
+        None,
+    )
+    .unwrap();
+    assert_eq!(doc.project().settings.modular_racks[0].graph, graph());
+}
