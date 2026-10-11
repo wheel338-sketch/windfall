@@ -615,22 +615,20 @@ pub(crate) fn take_over(
         else {
             continue;
         };
-        automation::set(
-            plan,
-            state,
-            link.target,
-            link.range.value(state.controls.values[index]),
-            now,
-            automation::GRID,
-        );
+        let value = link.range.value(state.controls.values[index]);
+        automation::set(plan, state, link.target, value, now, automation::GRID);
         match (link.target, before.target) {
-            (Target::ChannelGain(new), Target::ChannelGain(was)) => {
+            (Target::ChannelGain(new), Target::ChannelGain(was))
+                if plan.channels[new].audible == old_plan.channels[was].audible =>
+            {
                 state.channels[new].gain = old.channels[was].gain
             }
             (Target::ChannelPan(new), Target::ChannelPan(was)) => {
                 state.channels[new].pan = old.channels[was].pan
             }
-            (Target::TrackGain(new), Target::TrackGain(was)) => {
+            (Target::TrackGain(new), Target::TrackGain(was))
+                if plan.tracks[new].audible == old_plan.tracks[was].audible =>
+            {
                 state.tracks[new].gain = old.tracks[was].gain
             }
             (Target::TrackPan(new), Target::TrackPan(was)) => {

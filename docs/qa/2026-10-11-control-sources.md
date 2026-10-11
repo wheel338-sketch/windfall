@@ -52,3 +52,5 @@ Mounted acceptance now arms the real automation recorder and checks X/Y keyboard
 Reference fixture review: mounted XYZ recording begins Y at 0.5 and allows f32 serialization tolerance. Sidechain-gain dependencies are conservatively included because they can alter upstream compressor audio seen by a peak source.
 
 Plan adoption now carries unchanged internal fader ramps and restores linked native parameters after stored plan settings apply, without advancing link smoothing outside its grid. Added an unrelated-edit-between-grid-boundaries gain continuity case; written, not executed.
+
+Adoption reference fixture uses ProjectSettings.name; gain continuity transfer respects mute/solo audibility changes, and cached values are read before mutably borrowing PlanState.

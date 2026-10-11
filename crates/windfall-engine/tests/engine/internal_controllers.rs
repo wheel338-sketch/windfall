@@ -373,7 +373,7 @@ fn unchanged_link_survives_unrelated_plan_edit_between_grid_boundaries_without_a
     let (mut processor, controller) = rig.song_processor(RATE);
     controller.play();
     run(&mut processor, 4801, 37);
-    rig.project.name = "Unrelated edit".into();
+    rig.project.settings.name = "Unrelated edit".into();
     controller.set_project(&rig.project, &rig.pool);
     let out = run(&mut processor, 256, 37);
     assert!(left(&out).iter().all(|value| (*value - 0.16).abs() < 1e-6));
