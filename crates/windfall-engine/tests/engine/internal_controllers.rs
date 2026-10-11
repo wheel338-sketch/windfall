@@ -289,3 +289,65 @@ fn all_hosted_sources_leave_real_carrier_audio_unchanged_without_links() {
         assert_eq!(rig.play_song(RATE, 4800, 37), reference, "{kind:?}");
     }
 }
+
+#[test]
+fn reversed_formula_mapping_and_grid_smoothing_match_independent_exponential_reference() {
+    let (mut rig, target) = carrier();
+    let controls = rig.track();
+    let source = rig.effect(controls, EffectKind::ControlSurface.default_params());
+    connect(
+        &mut rig,
+        source,
+        0,
+        AutomationTarget::TrackPan { track: target },
+        10.0,
+    );
+    let map = &mut rig.project.settings.controller_links[0].map;
+    map.min = 0.8;
+    map.max = 0.2;
+    map.formula = Some("x^2".into());
+    rig.project.check().unwrap();
+    let out = rig.play_song(RATE, 4096, 37);
+    // x=.5 -> .8 + (.2-.8)*x^2 = .65. At grid boundary n the
+    // preceding grid's ramp has arrived at the nth exponential endpoint.
+    for n in 4..60 {
+        let reference = 0.65 + (0.5 - 0.65) * (-n as f64 * 64.0 / 480.0).exp();
+        assert!(
+            (f64::from(left(&out)[n * 64]) - (1.0 - reference)).abs() < 2e-6,
+            "grid {n}"
+        );
+        assert!((right(&out)[n * 64] - 0.5).abs() < 1e-6);
+    }
+}
+#[test]
+fn note_triggered_envelope_modulates_real_audio_identically_for_callback_partitions() {
+    let (mut rig, target) = carrier();
+    let controls = rig.track();
+    let channel = rig.channel_on(level(RATE, 0.0, 2.0), controls);
+    let source = rig.effect(
+        controls,
+        EffectParams::NoteEnvelope(NoteEnvelopeParams {
+            attack_ms: 0.0,
+            decay_ms: 0.0,
+            sustain: 0.5,
+            release_ms: 0.0,
+            ..Default::default()
+        }),
+    );
+    rig.note(channel, 8, 192);
+    let lane = rig.playlist_track();
+    let pattern = rig.first_pattern();
+    rig.clip(lane, pattern, 0, 1920);
+    connect(
+        &mut rig,
+        source,
+        0,
+        AutomationTarget::TrackVolume { track: target },
+        0.0,
+    );
+    let a = rig.play_song(RATE, 9600, 1);
+    let b = rig.play_song(RATE, 9600, 127);
+    assert_eq!(a, b);
+    assert!((left(&a)[2000] - 0.25).abs() < 1e-6);
+    assert!(left(&a)[6000].abs() < 1e-6);
+}

@@ -40,3 +40,5 @@ Real DC-coupled outputs, calibration and voltage safety are hardware gates; no h
 Static follow-up: DC channel type conversions fixed; LFO ports share one DSP phase and smoothing; graph validation follows effect output taps and conservatively treats Current detector input as dynamic. Source-specific configuration is validated and cleared on kind replacement. Existing exhaustive frontend registry fixtures include new kinds. Dashboard registry MIDI CC acceptance is written, not executed.
 
 Host sources now pass carrier audio through and declare no audio tail; standalone DSP audio-application APIs are retained. Acceptance `all_hosted_sources_leave_real_carrier_audio_unchanged_without_links` is written, not executed. Both DSP and engine exhaustive realtime parameter fixtures include all appended source kinds.
+
+Added engine acceptance for reversed formula mapping with independently calculated grid smoothing, and note-triggered envelope modulation equality across 1/127-frame callback partitions. Written, not executed.
