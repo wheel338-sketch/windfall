@@ -243,6 +243,13 @@ describe("holdSegments", () => {
 })
 
 describe("laneCorners", () => {
+  it("includes curve corners and discontinuities on every offset pattern pass", () => {
+    const lane = { key: "trackVolume:5", target: FADER, spans: [{ start: 0, automation: 2, clip: 3, track: 100,
+      points: [point(0, 0, { curve: .5 }), point(120, 1), point(240, .5)], shift: 60, repeat: 480, held: 0 }] }
+    expect(laneCorners(lane, 1000, 60)).toEqual([0, 60, 180, 420, 480, 540, 660, 900, 960, 1000])
+    expect(laneValueAt(lane, 420)?.value).toBe(0)
+    expect(laneValueBefore(lane, 420)?.value).toBe(.5)
+  })
   it("has a corner at every span start and point, and cuts bends up", () => {
     const bent = automation(1, [
       point(0, 0, { curve: 0.5 }),

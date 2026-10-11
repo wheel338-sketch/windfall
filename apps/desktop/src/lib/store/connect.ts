@@ -2,7 +2,7 @@ import { watchMixerWaveforms } from "@/features/mixer/waveform-meter"
 import { reportError } from "@/lib/errors"
 import { watchCurrentSource } from "@/features/mixer/current-source"
 import { logHardwareNote } from "@/features/piano-roll/note-log"
-import { hardwareHeldKey, releaseHeldKeys } from "@/features/piano-roll/chords/held-keys"
+import { hardwareHeldKey, releaseHeldKeys, releaseHardwareKeys } from "@/features/piano-roll/chords/held-keys"
 import { backend } from "@/lib/ipc"
 
 import { receiveEngineStatus, refreshEngineStatus } from "./engine"
@@ -52,7 +52,10 @@ export function connectStores(): () => void {
       // Last, so every listener already sees the new project in the stores.
       announceProjectReplaced()
     }),
-    backend.onTransportState(receiveTransportState),
+    backend.onTransportState((state) => {
+      if (!state.playing) releaseHardwareKeys()
+      receiveTransportState(state)
+    }),
     backend.onEngineStatus(receiveEngineStatus),
     backend.onMidiHardwareNote((note) => {
       logHardwareNote(note.channel, note.key, note.velocity)

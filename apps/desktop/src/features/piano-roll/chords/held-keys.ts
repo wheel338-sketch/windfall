@@ -55,6 +55,13 @@ export function releaseKey(channel: ChannelId, key: number): void {
   changed(channel)
 }
 
+/** Hardware panic/input teardown must preserve independent UI auditions. */
+export function releaseHardwareKeys(): void {
+  if (!hardware.size) return
+  hardware.clear()
+  changed()
+}
+
 /**
  * Lets go of every key of one channel, or of all channels. For anything
  * that silences auditioned notes without a release for each: a panic, a

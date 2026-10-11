@@ -7,6 +7,7 @@ import {
   hardwareHeldKey,
   holdKey,
   releaseHeldKeys,
+  releaseHardwareKeys,
   releaseKey,
   subscribeHeldKeys,
 } from "./held-keys"
@@ -14,6 +15,15 @@ import {
 afterEach(() => releaseHeldKeys())
 
 describe("held keys", () => {
+  it("clears hardware ownership on panic while an independent audition survives", () => {
+    holdKey(1, 60)
+    hardwareHeldKey(1, 60, 100)
+    hardwareHeldKey(1, 64, 100)
+    releaseHardwareKeys()
+    expect(heldKeys(1)).toEqual([60])
+    releaseKey(1, 60)
+    expect(heldKeys(1)).toEqual([])
+  })
   it("keeps sounding hardware keys through sustain, repeated down and independent audition releases", () => {
     hardwareHeldKey(1, 60, 100)
     hardwareHeldKey(1, 60, 90)

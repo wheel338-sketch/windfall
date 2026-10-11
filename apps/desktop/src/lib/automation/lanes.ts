@@ -302,20 +302,22 @@ export function laneCorners(lane: Lane, end: number, grain: number): number[] {
     corners.push(span.start)
     const points = span.points
     if (!points) return
-    points.forEach((point, at) => {
-      const tick = point.tick - span.shift
-      if (tick > span.start && tick < until) corners.push(tick)
-      const next = points[at + 1]
-      if (!next || point.hold || point.curve === 0) return
-      const stop = Math.min(next.tick - span.shift, until)
-      for (
-        let inside = Math.max(tick, span.start) + grain;
-        inside < stop;
-        inside += grain
-      ) {
-        corners.push(inside)
-      }
-    })
+    const pass = (origin: number, passEnd: number) => {
+      if (origin > span.start && origin < until) corners.push(origin)
+      points.forEach((point, at) => {
+        const tick = origin + point.tick
+        if (tick >= passEnd) return
+        if (tick > span.start && tick < until) corners.push(tick)
+        const next = points[at + 1]
+        if (!next || point.hold || point.curve === 0) return
+        const stop = Math.min(origin + next.tick, passEnd, until)
+        for (let inside = Math.max(tick, span.start) + Math.max(1, grain); inside < stop; inside += Math.max(1, grain)) corners.push(inside)
+      })
+    }
+    if (span.repeat) {
+      const first = Math.floor((span.start + span.shift) / span.repeat) * span.repeat - span.shift
+      for (let origin = first; origin < until; origin += span.repeat) pass(origin, origin + span.repeat)
+    } else pass(-span.shift, Infinity)
   })
   corners.push(end)
   return [...new Set(corners)].sort((a, b) => a - b)

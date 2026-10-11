@@ -6,6 +6,7 @@ import { setBackend, type Backend } from "@/lib/ipc"
 import { useProjectStore } from "@/lib/store"
 import { startTestApp } from "@/test/harness"
 import { MidiHardwareSettingsSection, portOptions } from "./midi-hardware"
+import { hardwareHeldKey, heldKeys } from "@/features/piano-roll/chords/held-keys"
 
 describe("MIDI hardware settings", () => {
   let app: Awaited<ReturnType<typeof startTestApp>>
@@ -129,8 +130,10 @@ describe("MIDI hardware settings", () => {
       42,
       useProjectStore.getState().revision
     )
+    hardwareHeldKey(channel.id, 60, 100)
     await user.click(screen.getByRole("button", { name: "Panic MIDI" }))
     expect(calls.midiHardwarePanic).toHaveBeenCalledOnce()
+    await waitFor(() => expect(heldKeys(channel.id)).toEqual([]))
     expect(await app.backend.documentSnapshot()).toEqual(before)
   })
 

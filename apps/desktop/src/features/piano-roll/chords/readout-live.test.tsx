@@ -12,7 +12,7 @@ import { currentSession } from "../session"
 import { useStepEntryStore } from "../step-entry"
 import { channel, currentPattern, notesOf, startRoll, undoSteps } from "../test-utils"
 import { useTypingKeyboardStore } from "../typing-keyboard"
-import { heldKeys, releaseHeldKeys } from "./held-keys"
+import { heldKeys, holdKey, releaseHeldKeys } from "./held-keys"
 import { useChordDisplayStore } from "./readout-panel"
 
 /*
@@ -70,6 +70,15 @@ function display() {
 }
 
 describe("chord readout over the mounted piano roll", () => {
+  it("clears native hardware notes on Stop while retaining a separate audition owner", async () => {
+    act(() => {
+      roll.backend.playMidiHardwareNote({ channel: kick(), key: 60, velocity: 100 })
+      roll.backend.playMidiHardwareNote({ channel: kick(), key: 64, velocity: 100 })
+      holdKey(kick(), 72)
+    })
+    await act(async () => { await roll.backend.transportStop(); await settle() })
+    expect(heldKeys(kick())).toEqual([72])
+  })
   it("names accepted native MIDI notes, filters destinations and clears on project replacement", async () => {
     const before = undoSteps()
     const send = (key: number, velocity: number, channelId = kick()) => {
