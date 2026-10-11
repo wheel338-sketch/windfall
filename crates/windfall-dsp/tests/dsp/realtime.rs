@@ -400,3 +400,25 @@ fn the_synth_never_allocates_after_prepare() {
     assert_eq!(calls, 0, "the synth touched the allocator");
     assert!(loudest > 0.0);
 }
+
+#[test]
+fn subtractive_hybrid_matrix_and_pack_callbacks_do_not_allocate_or_free() {
+    for kind in [InstrumentKind::VintagePoly,InstrumentKind::DualPoly,InstrumentKind::CompactSynth,
+        InstrumentKind::VintageSaw,InstrumentKind::PocketSynth,InstrumentKind::GrooveSynth,
+        InstrumentKind::HybridSeq,InstrumentKind::MatrixSynth,InstrumentKind::PackSynth] {
+        let mut params=kind.default_params();
+        let mut unit=AnyInstrument::new(&params);unit.prepare(48000.0,64);
+        let mut l=[0.0;257];let mut r=l;
+        let calls=allocator_calls(|| {
+            for i in 0..kind.descriptors().len() {
+                let info=&kind.descriptors()[i];params.set(i,info.max);unit.set_params(&params);
+                unit.note_on((36+i%60) as u8,0.8);unit.process(&mut l,&mut r);
+                unit.note_off((36+i%60) as u8);unit.set_tempo(80.0+i as f32);
+                if i%7==0 { unit.all_notes_off();unit.reset(); }
+            }
+            unit.all_notes_off();unit.process(&mut l,&mut r);unit.reset();
+        });
+        assert_eq!(calls,0,"{kind:?} callback allocation/reallocation/free");
+        assert!(l.iter().chain(&r).all(|x|x.is_finite()));
+    }
+}

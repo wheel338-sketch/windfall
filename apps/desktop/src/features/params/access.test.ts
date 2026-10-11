@@ -133,6 +133,15 @@ describe("descriptors", () => {
       macroVoice: true,
       speechVoice: true,
       midiOut: true,
+      vintagePoly: true,
+      dualPoly: true,
+      compactSynth: true,
+      vintageSaw: true,
+      pocketSynth: true,
+      grooveSynth: true,
+      hybridSeq: true,
+      matrixSynth: true,
+      packSynth: true,
     }
     expect([...EFFECT_KINDS].sort()).toEqual(Object.keys(effects).sort())
     expect([...INSTRUMENT_KINDS].sort()).toEqual(

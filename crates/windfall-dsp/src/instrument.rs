@@ -5,6 +5,15 @@ use crate::analog::{AcidLine, AcidLineParams};
 use crate::analog::{MacroVoice, MacroVoiceParams};
 use crate::analog::{TripleOsc, TripleOscParams};
 use crate::analog::{WaveLane, WaveLaneParams};
+use crate::polysynth::{VintagePoly, VintagePolyParams};
+use crate::polysynth::{DualPoly, DualPolyParams};
+use crate::polysynth::{CompactSynth, CompactSynthParams};
+use crate::polysynth::{VintageSaw, VintageSawParams};
+use crate::polysynth::{PocketSynth, PocketSynthParams};
+use crate::polysynth::{GrooveSynth, GrooveSynthParams};
+use crate::polysynth::{HybridSeq, HybridSeqParams};
+use crate::polysynth::{MatrixSynth, MatrixSynthParams};
+use crate::polysynth::{PackSynth, PackSynthParams};
 use crate::midi_out::{MidiOut, MidiOutEvent, MidiOutParams};
 use crate::speech::{SpeechVoice, SpeechVoiceParams};
 use serde::{Deserialize, Serialize};
@@ -175,10 +184,19 @@ pub enum InstrumentKind {
     MacroVoice,
     SpeechVoice,
     MidiOut,
+    VintagePoly,
+    DualPoly,
+    CompactSynth,
+    VintageSaw,
+    PocketSynth,
+    GrooveSynth,
+    HybridSeq,
+    MatrixSynth,
+    PackSynth,
 }
 
 impl InstrumentKind {
-    pub const ALL: [InstrumentKind; 27] = [
+    pub const ALL: [InstrumentKind; 36] = [
         InstrumentKind::SubtractiveSynth,
         InstrumentKind::FourOp,
         InstrumentKind::MatrixFm,
@@ -206,6 +224,15 @@ impl InstrumentKind {
         InstrumentKind::MacroVoice,
         InstrumentKind::SpeechVoice,
         InstrumentKind::MidiOut,
+        InstrumentKind::VintagePoly,
+        InstrumentKind::DualPoly,
+        InstrumentKind::CompactSynth,
+        InstrumentKind::VintageSaw,
+        InstrumentKind::PocketSynth,
+        InstrumentKind::GrooveSynth,
+        InstrumentKind::HybridSeq,
+        InstrumentKind::MatrixSynth,
+        InstrumentKind::PackSynth,
     ];
 
     /// The instrument's name as shown to the user.
@@ -238,6 +265,15 @@ impl InstrumentKind {
             InstrumentKind::MacroVoice => MacroVoiceParams::NAME,
             InstrumentKind::SpeechVoice => SpeechVoiceParams::NAME,
             InstrumentKind::MidiOut => MidiOutParams::NAME,
+            InstrumentKind::VintagePoly => VintagePolyParams::NAME,
+            InstrumentKind::DualPoly => DualPolyParams::NAME,
+            InstrumentKind::CompactSynth => CompactSynthParams::NAME,
+            InstrumentKind::VintageSaw => VintageSawParams::NAME,
+            InstrumentKind::PocketSynth => PocketSynthParams::NAME,
+            InstrumentKind::GrooveSynth => GrooveSynthParams::NAME,
+            InstrumentKind::HybridSeq => HybridSeqParams::NAME,
+            InstrumentKind::MatrixSynth => MatrixSynthParams::NAME,
+            InstrumentKind::PackSynth => PackSynthParams::NAME,
         }
     }
 
@@ -271,6 +307,15 @@ impl InstrumentKind {
             InstrumentKind::MacroVoice => MacroVoiceParams::descriptors(),
             InstrumentKind::SpeechVoice => SpeechVoiceParams::descriptors(),
             InstrumentKind::MidiOut => MidiOutParams::descriptors(),
+            InstrumentKind::VintagePoly => VintagePolyParams::descriptors(),
+            InstrumentKind::DualPoly => DualPolyParams::descriptors(),
+            InstrumentKind::CompactSynth => CompactSynthParams::descriptors(),
+            InstrumentKind::VintageSaw => VintageSawParams::descriptors(),
+            InstrumentKind::PocketSynth => PocketSynthParams::descriptors(),
+            InstrumentKind::GrooveSynth => GrooveSynthParams::descriptors(),
+            InstrumentKind::HybridSeq => HybridSeqParams::descriptors(),
+            InstrumentKind::MatrixSynth => MatrixSynthParams::descriptors(),
+            InstrumentKind::PackSynth => PackSynthParams::descriptors(),
         }
     }
 
@@ -314,6 +359,15 @@ impl InstrumentKind {
                 InstrumentParams::SpeechVoice(SpeechVoiceParams::default())
             }
             InstrumentKind::MidiOut => InstrumentParams::MidiOut(MidiOutParams::default()),
+            InstrumentKind::VintagePoly => InstrumentParams::VintagePoly(VintagePolyParams::default()),
+            InstrumentKind::DualPoly => InstrumentParams::DualPoly(DualPolyParams::default()),
+            InstrumentKind::CompactSynth => InstrumentParams::CompactSynth(CompactSynthParams::default()),
+            InstrumentKind::VintageSaw => InstrumentParams::VintageSaw(VintageSawParams::default()),
+            InstrumentKind::PocketSynth => InstrumentParams::PocketSynth(PocketSynthParams::default()),
+            InstrumentKind::GrooveSynth => InstrumentParams::GrooveSynth(GrooveSynthParams::default()),
+            InstrumentKind::HybridSeq => InstrumentParams::HybridSeq(HybridSeqParams::default()),
+            InstrumentKind::MatrixSynth => InstrumentParams::MatrixSynth(MatrixSynthParams::default()),
+            InstrumentKind::PackSynth => InstrumentParams::PackSynth(PackSynthParams::default()),
         }
     }
 }
@@ -351,6 +405,15 @@ pub enum InstrumentParams {
     MacroVoice(MacroVoiceParams),
     SpeechVoice(SpeechVoiceParams),
     MidiOut(MidiOutParams),
+    VintagePoly(VintagePolyParams),
+    DualPoly(DualPolyParams),
+    CompactSynth(CompactSynthParams),
+    VintageSaw(VintageSawParams),
+    PocketSynth(PocketSynthParams),
+    GrooveSynth(GrooveSynthParams),
+    HybridSeq(HybridSeqParams),
+    MatrixSynth(MatrixSynthParams),
+    PackSynth(PackSynthParams),
 }
 
 impl InstrumentParams {
@@ -383,6 +446,15 @@ impl InstrumentParams {
             InstrumentParams::MacroVoice(_) => InstrumentKind::MacroVoice,
             InstrumentParams::SpeechVoice(_) => InstrumentKind::SpeechVoice,
             InstrumentParams::MidiOut(_) => InstrumentKind::MidiOut,
+            InstrumentParams::VintagePoly(_) => InstrumentKind::VintagePoly,
+            InstrumentParams::DualPoly(_) => InstrumentKind::DualPoly,
+            InstrumentParams::CompactSynth(_) => InstrumentKind::CompactSynth,
+            InstrumentParams::VintageSaw(_) => InstrumentKind::VintageSaw,
+            InstrumentParams::PocketSynth(_) => InstrumentKind::PocketSynth,
+            InstrumentParams::GrooveSynth(_) => InstrumentKind::GrooveSynth,
+            InstrumentParams::HybridSeq(_) => InstrumentKind::HybridSeq,
+            InstrumentParams::MatrixSynth(_) => InstrumentKind::MatrixSynth,
+            InstrumentParams::PackSynth(_) => InstrumentKind::PackSynth,
         }
     }
 
@@ -436,6 +508,15 @@ impl InstrumentParams {
                 InstrumentParams::SpeechVoice(params.sanitized())
             }
             InstrumentParams::MidiOut(params) => InstrumentParams::MidiOut(params.sanitized()),
+            InstrumentParams::VintagePoly(params) => InstrumentParams::VintagePoly(params.sanitized()),
+            InstrumentParams::DualPoly(params) => InstrumentParams::DualPoly(params.sanitized()),
+            InstrumentParams::CompactSynth(params) => InstrumentParams::CompactSynth(params.sanitized()),
+            InstrumentParams::VintageSaw(params) => InstrumentParams::VintageSaw(params.sanitized()),
+            InstrumentParams::PocketSynth(params) => InstrumentParams::PocketSynth(params.sanitized()),
+            InstrumentParams::GrooveSynth(params) => InstrumentParams::GrooveSynth(params.sanitized()),
+            InstrumentParams::HybridSeq(params) => InstrumentParams::HybridSeq(params.sanitized()),
+            InstrumentParams::MatrixSynth(params) => InstrumentParams::MatrixSynth(params.sanitized()),
+            InstrumentParams::PackSynth(params) => InstrumentParams::PackSynth(params.sanitized()),
         }
     }
 
@@ -473,6 +554,15 @@ impl InstrumentParams {
             InstrumentParams::MacroVoice(_) => 0,
             InstrumentParams::SpeechVoice(_) => 0,
             InstrumentParams::MidiOut(_) => 0,
+            InstrumentParams::VintagePoly(_) => 0,
+            InstrumentParams::DualPoly(_) => 0,
+            InstrumentParams::CompactSynth(_) => 0,
+            InstrumentParams::VintageSaw(_) => 0,
+            InstrumentParams::PocketSynth(_) => 0,
+            InstrumentParams::GrooveSynth(_) => 0,
+            InstrumentParams::HybridSeq(_) => 0,
+            InstrumentParams::MatrixSynth(_) => 0,
+            InstrumentParams::PackSynth(_) => 0,
         }
     }
 
@@ -507,6 +597,15 @@ impl InstrumentParams {
             InstrumentParams::MacroVoice(params) => params.get(index),
             InstrumentParams::SpeechVoice(params) => params.get(index),
             InstrumentParams::MidiOut(params) => params.get(index),
+            InstrumentParams::VintagePoly(params) => params.get(index),
+            InstrumentParams::DualPoly(params) => params.get(index),
+            InstrumentParams::CompactSynth(params) => params.get(index),
+            InstrumentParams::VintageSaw(params) => params.get(index),
+            InstrumentParams::PocketSynth(params) => params.get(index),
+            InstrumentParams::GrooveSynth(params) => params.get(index),
+            InstrumentParams::HybridSeq(params) => params.get(index),
+            InstrumentParams::MatrixSynth(params) => params.get(index),
+            InstrumentParams::PackSynth(params) => params.get(index),
         }
     }
 
@@ -541,6 +640,15 @@ impl InstrumentParams {
             InstrumentParams::MacroVoice(params) => params.set(index, value),
             InstrumentParams::SpeechVoice(params) => params.set(index, value),
             InstrumentParams::MidiOut(params) => params.set(index, value),
+            InstrumentParams::VintagePoly(params) => params.set(index, value),
+            InstrumentParams::DualPoly(params) => params.set(index, value),
+            InstrumentParams::CompactSynth(params) => params.set(index, value),
+            InstrumentParams::VintageSaw(params) => params.set(index, value),
+            InstrumentParams::PocketSynth(params) => params.set(index, value),
+            InstrumentParams::GrooveSynth(params) => params.set(index, value),
+            InstrumentParams::HybridSeq(params) => params.set(index, value),
+            InstrumentParams::MatrixSynth(params) => params.set(index, value),
+            InstrumentParams::PackSynth(params) => params.set(index, value),
         }
     }
 }
@@ -579,6 +687,15 @@ pub enum AnyInstrument {
     MacroVoice(Box<MacroVoice>),
     SpeechVoice(Box<SpeechVoice>),
     MidiOut(Box<MidiOut>),
+    VintagePoly(Box<VintagePoly>),
+    DualPoly(Box<DualPoly>),
+    CompactSynth(Box<CompactSynth>),
+    VintageSaw(Box<VintageSaw>),
+    PocketSynth(Box<PocketSynth>),
+    GrooveSynth(Box<GrooveSynth>),
+    HybridSeq(Box<HybridSeq>),
+    MatrixSynth(Box<MatrixSynth>),
+    PackSynth(Box<PackSynth>),
 }
 
 impl AnyInstrument {
@@ -737,6 +854,51 @@ impl AnyInstrument {
                 synth.set_params(params);
                 AnyInstrument::MidiOut(synth)
             }
+            InstrumentParams::VintagePoly(params) => {
+                let mut synth = Box::<VintagePoly>::default();
+                synth.set_params(params);
+                AnyInstrument::VintagePoly(synth)
+            }
+            InstrumentParams::DualPoly(params) => {
+                let mut synth = Box::<DualPoly>::default();
+                synth.set_params(params);
+                AnyInstrument::DualPoly(synth)
+            }
+            InstrumentParams::CompactSynth(params) => {
+                let mut synth = Box::<CompactSynth>::default();
+                synth.set_params(params);
+                AnyInstrument::CompactSynth(synth)
+            }
+            InstrumentParams::VintageSaw(params) => {
+                let mut synth = Box::<VintageSaw>::default();
+                synth.set_params(params);
+                AnyInstrument::VintageSaw(synth)
+            }
+            InstrumentParams::PocketSynth(params) => {
+                let mut synth = Box::<PocketSynth>::default();
+                synth.set_params(params);
+                AnyInstrument::PocketSynth(synth)
+            }
+            InstrumentParams::GrooveSynth(params) => {
+                let mut synth = Box::<GrooveSynth>::default();
+                synth.set_params(params);
+                AnyInstrument::GrooveSynth(synth)
+            }
+            InstrumentParams::HybridSeq(params) => {
+                let mut synth = Box::<HybridSeq>::default();
+                synth.set_params(params);
+                AnyInstrument::HybridSeq(synth)
+            }
+            InstrumentParams::MatrixSynth(params) => {
+                let mut synth = Box::<MatrixSynth>::default();
+                synth.set_params(params);
+                AnyInstrument::MatrixSynth(synth)
+            }
+            InstrumentParams::PackSynth(params) => {
+                let mut synth = Box::<PackSynth>::default();
+                synth.set_params(params);
+                AnyInstrument::PackSynth(synth)
+            }
         }
     }
 
@@ -769,6 +931,15 @@ impl AnyInstrument {
             AnyInstrument::MacroVoice(_) => InstrumentKind::MacroVoice,
             AnyInstrument::SpeechVoice(_) => InstrumentKind::SpeechVoice,
             AnyInstrument::MidiOut(_) => InstrumentKind::MidiOut,
+            AnyInstrument::VintagePoly(_) => InstrumentKind::VintagePoly,
+            AnyInstrument::DualPoly(_) => InstrumentKind::DualPoly,
+            AnyInstrument::CompactSynth(_) => InstrumentKind::CompactSynth,
+            AnyInstrument::VintageSaw(_) => InstrumentKind::VintageSaw,
+            AnyInstrument::PocketSynth(_) => InstrumentKind::PocketSynth,
+            AnyInstrument::GrooveSynth(_) => InstrumentKind::GrooveSynth,
+            AnyInstrument::HybridSeq(_) => InstrumentKind::HybridSeq,
+            AnyInstrument::MatrixSynth(_) => InstrumentKind::MatrixSynth,
+            AnyInstrument::PackSynth(_) => InstrumentKind::PackSynth,
         }
     }
 
@@ -802,6 +973,15 @@ impl AnyInstrument {
             AnyInstrument::MacroVoice(synth) => synth.prepare(sample_rate, max_block),
             AnyInstrument::SpeechVoice(synth) => synth.prepare(sample_rate, max_block),
             AnyInstrument::MidiOut(synth) => synth.prepare(sample_rate, max_block),
+            AnyInstrument::VintagePoly(synth) => synth.prepare(sample_rate, max_block),
+            AnyInstrument::DualPoly(synth) => synth.prepare(sample_rate, max_block),
+            AnyInstrument::CompactSynth(synth) => synth.prepare(sample_rate, max_block),
+            AnyInstrument::VintageSaw(synth) => synth.prepare(sample_rate, max_block),
+            AnyInstrument::PocketSynth(synth) => synth.prepare(sample_rate, max_block),
+            AnyInstrument::GrooveSynth(synth) => synth.prepare(sample_rate, max_block),
+            AnyInstrument::HybridSeq(synth) => synth.prepare(sample_rate, max_block),
+            AnyInstrument::MatrixSynth(synth) => synth.prepare(sample_rate, max_block),
+            AnyInstrument::PackSynth(synth) => synth.prepare(sample_rate, max_block),
         }
     }
 
@@ -835,6 +1015,15 @@ impl AnyInstrument {
             AnyInstrument::MacroVoice(synth) => synth.reset(),
             AnyInstrument::SpeechVoice(synth) => synth.reset(),
             AnyInstrument::MidiOut(synth) => synth.reset(),
+            AnyInstrument::VintagePoly(synth) => synth.reset(),
+            AnyInstrument::DualPoly(synth) => synth.reset(),
+            AnyInstrument::CompactSynth(synth) => synth.reset(),
+            AnyInstrument::VintageSaw(synth) => synth.reset(),
+            AnyInstrument::PocketSynth(synth) => synth.reset(),
+            AnyInstrument::GrooveSynth(synth) => synth.reset(),
+            AnyInstrument::HybridSeq(synth) => synth.reset(),
+            AnyInstrument::MatrixSynth(synth) => synth.reset(),
+            AnyInstrument::PackSynth(synth) => synth.reset(),
         }
     }
 
@@ -926,6 +1115,33 @@ impl AnyInstrument {
             (AnyInstrument::MidiOut(synth), InstrumentParams::MidiOut(params)) => {
                 synth.set_params(params);
             }
+            (AnyInstrument::VintagePoly(synth), InstrumentParams::VintagePoly(params)) => {
+                synth.set_params(params);
+            }
+            (AnyInstrument::DualPoly(synth), InstrumentParams::DualPoly(params)) => {
+                synth.set_params(params);
+            }
+            (AnyInstrument::CompactSynth(synth), InstrumentParams::CompactSynth(params)) => {
+                synth.set_params(params);
+            }
+            (AnyInstrument::VintageSaw(synth), InstrumentParams::VintageSaw(params)) => {
+                synth.set_params(params);
+            }
+            (AnyInstrument::PocketSynth(synth), InstrumentParams::PocketSynth(params)) => {
+                synth.set_params(params);
+            }
+            (AnyInstrument::GrooveSynth(synth), InstrumentParams::GrooveSynth(params)) => {
+                synth.set_params(params);
+            }
+            (AnyInstrument::HybridSeq(synth), InstrumentParams::HybridSeq(params)) => {
+                synth.set_params(params);
+            }
+            (AnyInstrument::MatrixSynth(synth), InstrumentParams::MatrixSynth(params)) => {
+                synth.set_params(params);
+            }
+            (AnyInstrument::PackSynth(synth), InstrumentParams::PackSynth(params)) => {
+                synth.set_params(params);
+            }
             _ => return false,
         }
         true
@@ -961,6 +1177,15 @@ impl AnyInstrument {
             AnyInstrument::MacroVoice(synth) => synth.set_tempo(bpm),
             AnyInstrument::SpeechVoice(synth) => synth.set_tempo(bpm),
             AnyInstrument::MidiOut(synth) => synth.set_tempo(bpm),
+            AnyInstrument::VintagePoly(synth) => synth.set_tempo(bpm),
+            AnyInstrument::DualPoly(synth) => synth.set_tempo(bpm),
+            AnyInstrument::CompactSynth(synth) => synth.set_tempo(bpm),
+            AnyInstrument::VintageSaw(synth) => synth.set_tempo(bpm),
+            AnyInstrument::PocketSynth(synth) => synth.set_tempo(bpm),
+            AnyInstrument::GrooveSynth(synth) => synth.set_tempo(bpm),
+            AnyInstrument::HybridSeq(synth) => synth.set_tempo(bpm),
+            AnyInstrument::MatrixSynth(synth) => synth.set_tempo(bpm),
+            AnyInstrument::PackSynth(synth) => synth.set_tempo(bpm),
         }
     }
 
@@ -994,6 +1219,15 @@ impl AnyInstrument {
             AnyInstrument::MacroVoice(synth) => synth.note_on(key, velocity),
             AnyInstrument::SpeechVoice(synth) => synth.note_on(key, velocity),
             AnyInstrument::MidiOut(synth) => synth.note_on(key, velocity),
+            AnyInstrument::VintagePoly(synth) => synth.note_on(key, velocity),
+            AnyInstrument::DualPoly(synth) => synth.note_on(key, velocity),
+            AnyInstrument::CompactSynth(synth) => synth.note_on(key, velocity),
+            AnyInstrument::VintageSaw(synth) => synth.note_on(key, velocity),
+            AnyInstrument::PocketSynth(synth) => synth.note_on(key, velocity),
+            AnyInstrument::GrooveSynth(synth) => synth.note_on(key, velocity),
+            AnyInstrument::HybridSeq(synth) => synth.note_on(key, velocity),
+            AnyInstrument::MatrixSynth(synth) => synth.note_on(key, velocity),
+            AnyInstrument::PackSynth(synth) => synth.note_on(key, velocity),
         }
     }
 
@@ -1082,6 +1316,33 @@ impl AnyInstrument {
             AnyInstrument::MidiOut(synth) => {
                 synth.note_on_expression(key, velocity, pan, expression)
             }
+            AnyInstrument::VintagePoly(synth) => {
+                synth.note_on_expression(key, velocity, pan, expression)
+            }
+            AnyInstrument::DualPoly(synth) => {
+                synth.note_on_expression(key, velocity, pan, expression)
+            }
+            AnyInstrument::CompactSynth(synth) => {
+                synth.note_on_expression(key, velocity, pan, expression)
+            }
+            AnyInstrument::VintageSaw(synth) => {
+                synth.note_on_expression(key, velocity, pan, expression)
+            }
+            AnyInstrument::PocketSynth(synth) => {
+                synth.note_on_expression(key, velocity, pan, expression)
+            }
+            AnyInstrument::GrooveSynth(synth) => {
+                synth.note_on_expression(key, velocity, pan, expression)
+            }
+            AnyInstrument::HybridSeq(synth) => {
+                synth.note_on_expression(key, velocity, pan, expression)
+            }
+            AnyInstrument::MatrixSynth(synth) => {
+                synth.note_on_expression(key, velocity, pan, expression)
+            }
+            AnyInstrument::PackSynth(synth) => {
+                synth.note_on_expression(key, velocity, pan, expression)
+            }
         }
     }
 
@@ -1115,6 +1376,15 @@ impl AnyInstrument {
             AnyInstrument::MacroVoice(synth) => synth.note_off(key),
             AnyInstrument::SpeechVoice(synth) => synth.note_off(key),
             AnyInstrument::MidiOut(synth) => synth.note_off(key),
+            AnyInstrument::VintagePoly(synth) => synth.note_off(key),
+            AnyInstrument::DualPoly(synth) => synth.note_off(key),
+            AnyInstrument::CompactSynth(synth) => synth.note_off(key),
+            AnyInstrument::VintageSaw(synth) => synth.note_off(key),
+            AnyInstrument::PocketSynth(synth) => synth.note_off(key),
+            AnyInstrument::GrooveSynth(synth) => synth.note_off(key),
+            AnyInstrument::HybridSeq(synth) => synth.note_off(key),
+            AnyInstrument::MatrixSynth(synth) => synth.note_off(key),
+            AnyInstrument::PackSynth(synth) => synth.note_off(key),
         }
     }
 
@@ -1147,6 +1417,15 @@ impl AnyInstrument {
             AnyInstrument::MacroVoice(synth) => synth.supports_note_instances(),
             AnyInstrument::SpeechVoice(synth) => synth.supports_note_instances(),
             AnyInstrument::MidiOut(synth) => synth.supports_note_instances(),
+            AnyInstrument::VintagePoly(synth) => synth.supports_note_instances(),
+            AnyInstrument::DualPoly(synth) => synth.supports_note_instances(),
+            AnyInstrument::CompactSynth(synth) => synth.supports_note_instances(),
+            AnyInstrument::VintageSaw(synth) => synth.supports_note_instances(),
+            AnyInstrument::PocketSynth(synth) => synth.supports_note_instances(),
+            AnyInstrument::GrooveSynth(synth) => synth.supports_note_instances(),
+            AnyInstrument::HybridSeq(synth) => synth.supports_note_instances(),
+            AnyInstrument::MatrixSynth(synth) => synth.supports_note_instances(),
+            AnyInstrument::PackSynth(synth) => synth.supports_note_instances(),
         }
     }
 
@@ -1240,6 +1519,33 @@ impl AnyInstrument {
             AnyInstrument::MidiOut(synth) => {
                 synth.note_on_instance(id, key, velocity, pan, expression)
             }
+            AnyInstrument::VintagePoly(synth) => {
+                synth.note_on_instance(id, key, velocity, pan, expression)
+            }
+            AnyInstrument::DualPoly(synth) => {
+                synth.note_on_instance(id, key, velocity, pan, expression)
+            }
+            AnyInstrument::CompactSynth(synth) => {
+                synth.note_on_instance(id, key, velocity, pan, expression)
+            }
+            AnyInstrument::VintageSaw(synth) => {
+                synth.note_on_instance(id, key, velocity, pan, expression)
+            }
+            AnyInstrument::PocketSynth(synth) => {
+                synth.note_on_instance(id, key, velocity, pan, expression)
+            }
+            AnyInstrument::GrooveSynth(synth) => {
+                synth.note_on_instance(id, key, velocity, pan, expression)
+            }
+            AnyInstrument::HybridSeq(synth) => {
+                synth.note_on_instance(id, key, velocity, pan, expression)
+            }
+            AnyInstrument::MatrixSynth(synth) => {
+                synth.note_on_instance(id, key, velocity, pan, expression)
+            }
+            AnyInstrument::PackSynth(synth) => {
+                synth.note_on_instance(id, key, velocity, pan, expression)
+            }
         }
     }
 
@@ -1272,6 +1578,15 @@ impl AnyInstrument {
             AnyInstrument::MacroVoice(synth) => synth.note_off_instance(id, key),
             AnyInstrument::SpeechVoice(synth) => synth.note_off_instance(id, key),
             AnyInstrument::MidiOut(synth) => synth.note_off_instance(id, key),
+            AnyInstrument::VintagePoly(synth) => synth.note_off_instance(id, key),
+            AnyInstrument::DualPoly(synth) => synth.note_off_instance(id, key),
+            AnyInstrument::CompactSynth(synth) => synth.note_off_instance(id, key),
+            AnyInstrument::VintageSaw(synth) => synth.note_off_instance(id, key),
+            AnyInstrument::PocketSynth(synth) => synth.note_off_instance(id, key),
+            AnyInstrument::GrooveSynth(synth) => synth.note_off_instance(id, key),
+            AnyInstrument::HybridSeq(synth) => synth.note_off_instance(id, key),
+            AnyInstrument::MatrixSynth(synth) => synth.note_off_instance(id, key),
+            AnyInstrument::PackSynth(synth) => synth.note_off_instance(id, key),
         }
     }
 
@@ -1311,6 +1626,15 @@ impl AnyInstrument {
             AnyInstrument::MacroVoice(synth) => synth.set_note_expression(id, pan, expression),
             AnyInstrument::SpeechVoice(synth) => synth.set_note_expression(id, pan, expression),
             AnyInstrument::MidiOut(synth) => synth.set_note_expression(id, pan, expression),
+            AnyInstrument::VintagePoly(synth) => synth.set_note_expression(id, pan, expression),
+            AnyInstrument::DualPoly(synth) => synth.set_note_expression(id, pan, expression),
+            AnyInstrument::CompactSynth(synth) => synth.set_note_expression(id, pan, expression),
+            AnyInstrument::VintageSaw(synth) => synth.set_note_expression(id, pan, expression),
+            AnyInstrument::PocketSynth(synth) => synth.set_note_expression(id, pan, expression),
+            AnyInstrument::GrooveSynth(synth) => synth.set_note_expression(id, pan, expression),
+            AnyInstrument::HybridSeq(synth) => synth.set_note_expression(id, pan, expression),
+            AnyInstrument::MatrixSynth(synth) => synth.set_note_expression(id, pan, expression),
+            AnyInstrument::PackSynth(synth) => synth.set_note_expression(id, pan, expression),
         }
     }
 
@@ -1343,6 +1667,15 @@ impl AnyInstrument {
             AnyInstrument::MacroVoice(synth) => synth.set_note_pitch(id, pitch),
             AnyInstrument::SpeechVoice(synth) => synth.set_note_pitch(id, pitch),
             AnyInstrument::MidiOut(synth) => synth.set_note_pitch(id, pitch),
+            AnyInstrument::VintagePoly(synth) => synth.set_note_pitch(id, pitch),
+            AnyInstrument::DualPoly(synth) => synth.set_note_pitch(id, pitch),
+            AnyInstrument::CompactSynth(synth) => synth.set_note_pitch(id, pitch),
+            AnyInstrument::VintageSaw(synth) => synth.set_note_pitch(id, pitch),
+            AnyInstrument::PocketSynth(synth) => synth.set_note_pitch(id, pitch),
+            AnyInstrument::GrooveSynth(synth) => synth.set_note_pitch(id, pitch),
+            AnyInstrument::HybridSeq(synth) => synth.set_note_pitch(id, pitch),
+            AnyInstrument::MatrixSynth(synth) => synth.set_note_pitch(id, pitch),
+            AnyInstrument::PackSynth(synth) => synth.set_note_pitch(id, pitch),
         }
     }
 
@@ -1389,6 +1722,15 @@ impl AnyInstrument {
             AnyInstrument::MacroVoice(synth) => synth.all_notes_off(),
             AnyInstrument::SpeechVoice(synth) => synth.all_notes_off(),
             AnyInstrument::MidiOut(synth) => synth.all_notes_off(),
+            AnyInstrument::VintagePoly(synth) => synth.all_notes_off(),
+            AnyInstrument::DualPoly(synth) => synth.all_notes_off(),
+            AnyInstrument::CompactSynth(synth) => synth.all_notes_off(),
+            AnyInstrument::VintageSaw(synth) => synth.all_notes_off(),
+            AnyInstrument::PocketSynth(synth) => synth.all_notes_off(),
+            AnyInstrument::GrooveSynth(synth) => synth.all_notes_off(),
+            AnyInstrument::HybridSeq(synth) => synth.all_notes_off(),
+            AnyInstrument::MatrixSynth(synth) => synth.all_notes_off(),
+            AnyInstrument::PackSynth(synth) => synth.all_notes_off(),
         }
     }
 
@@ -1422,6 +1764,15 @@ impl AnyInstrument {
             AnyInstrument::MacroVoice(synth) => synth.process(left, right),
             AnyInstrument::SpeechVoice(synth) => synth.process(left, right),
             AnyInstrument::MidiOut(synth) => synth.process(left, right),
+            AnyInstrument::VintagePoly(synth) => synth.process(left, right),
+            AnyInstrument::DualPoly(synth) => synth.process(left, right),
+            AnyInstrument::CompactSynth(synth) => synth.process(left, right),
+            AnyInstrument::VintageSaw(synth) => synth.process(left, right),
+            AnyInstrument::PocketSynth(synth) => synth.process(left, right),
+            AnyInstrument::GrooveSynth(synth) => synth.process(left, right),
+            AnyInstrument::HybridSeq(synth) => synth.process(left, right),
+            AnyInstrument::MatrixSynth(synth) => synth.process(left, right),
+            AnyInstrument::PackSynth(synth) => synth.process(left, right),
         }
     }
 
@@ -1455,6 +1806,15 @@ impl AnyInstrument {
             AnyInstrument::MacroVoice(synth) => synth.active_voices(),
             AnyInstrument::SpeechVoice(synth) => synth.active_voices(),
             AnyInstrument::MidiOut(synth) => synth.active_voices(),
+            AnyInstrument::VintagePoly(synth) => synth.active_voices(),
+            AnyInstrument::DualPoly(synth) => synth.active_voices(),
+            AnyInstrument::CompactSynth(synth) => synth.active_voices(),
+            AnyInstrument::VintageSaw(synth) => synth.active_voices(),
+            AnyInstrument::PocketSynth(synth) => synth.active_voices(),
+            AnyInstrument::GrooveSynth(synth) => synth.active_voices(),
+            AnyInstrument::HybridSeq(synth) => synth.active_voices(),
+            AnyInstrument::MatrixSynth(synth) => synth.active_voices(),
+            AnyInstrument::PackSynth(synth) => synth.active_voices(),
         }
     }
 
@@ -1488,6 +1848,15 @@ impl AnyInstrument {
             AnyInstrument::MacroVoice(synth) => synth.latency_samples(),
             AnyInstrument::SpeechVoice(synth) => synth.latency_samples(),
             AnyInstrument::MidiOut(synth) => synth.latency_samples(),
+            AnyInstrument::VintagePoly(synth) => synth.latency_samples(),
+            AnyInstrument::DualPoly(synth) => synth.latency_samples(),
+            AnyInstrument::CompactSynth(synth) => synth.latency_samples(),
+            AnyInstrument::VintageSaw(synth) => synth.latency_samples(),
+            AnyInstrument::PocketSynth(synth) => synth.latency_samples(),
+            AnyInstrument::GrooveSynth(synth) => synth.latency_samples(),
+            AnyInstrument::HybridSeq(synth) => synth.latency_samples(),
+            AnyInstrument::MatrixSynth(synth) => synth.latency_samples(),
+            AnyInstrument::PackSynth(synth) => synth.latency_samples(),
         }
     }
 
@@ -1521,6 +1890,15 @@ impl AnyInstrument {
             AnyInstrument::MacroVoice(synth) => synth.tail_samples(),
             AnyInstrument::SpeechVoice(synth) => synth.tail_samples(),
             AnyInstrument::MidiOut(synth) => synth.tail_samples(),
+            AnyInstrument::VintagePoly(synth) => synth.tail_samples(),
+            AnyInstrument::DualPoly(synth) => synth.tail_samples(),
+            AnyInstrument::CompactSynth(synth) => synth.tail_samples(),
+            AnyInstrument::VintageSaw(synth) => synth.tail_samples(),
+            AnyInstrument::PocketSynth(synth) => synth.tail_samples(),
+            AnyInstrument::GrooveSynth(synth) => synth.tail_samples(),
+            AnyInstrument::HybridSeq(synth) => synth.tail_samples(),
+            AnyInstrument::MatrixSynth(synth) => synth.tail_samples(),
+            AnyInstrument::PackSynth(synth) => synth.tail_samples(),
         }
     }
 }

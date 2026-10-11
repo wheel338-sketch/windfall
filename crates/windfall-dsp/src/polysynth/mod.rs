@@ -1,0 +1,42 @@
+//! Windfall's subtractive, hybrid and matrix instruments.
+//!
+//! Each one is its own instrument with its own settings and synthesis graph
+//! and tests; the fixed voice memory is shared by typed runtime instances.
+//! Shared core blocks provide glide, smoothing and filters; effects provide
+//! chorus, delay, phaser and reverb. Voices live in fixed arrays,
+//! and every table a patch needs is built in `prepare`, so nothing here
+//! allocates, locks or waits on the audio thread.
+//!
+//! `docs/qa/2026-10-10-inst-subtractive-fm.md` maps the instruments to the
+//! parity rows they stand for and lists what each one's tests measure.
+
+mod core;
+mod fx;
+mod runtime;
+mod vintage_poly;
+mod dual_poly;
+mod compact_synth;
+mod vintage_saw;
+mod pocket_synth;
+mod groove_synth;
+mod operators;
+mod hybrid_seq;
+mod matrix_synth;
+mod pack_assets;
+mod pack_synth;
+pub use pack_synth::{PackSynth, PackSynthParams, PackPatch};
+pub use matrix_synth::{MatrixSynth, MatrixSynthParams};
+pub use operators::{MatrixOperator,OperatorWave};
+pub use hybrid_seq::{HybridSeq, HybridSeqParams, HybridAlgorithm, HybridStep};
+pub use groove_synth::{GrooveSynth, GrooveSynthParams, GrooveMode};
+pub use pocket_synth::{PocketSynth, PocketSynthParams};
+pub use vintage_saw::{VintageSaw, VintageSawParams};
+pub use compact_synth::{CompactSynth, CompactSynthParams, CompactResponse};
+pub use dual_poly::{DualPoly, DualPolyParams, PolyResponse};
+pub use vintage_poly::{VintagePoly, VintagePolyParams};
+
+#[cfg(test)]
+mod tests;
+
+pub use core::MAX_VOICES;
+

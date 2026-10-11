@@ -175,3 +175,14 @@ pub mod sendtap;
 pub mod notemap;
 
 pub mod zones;
+
+pub mod polysynth;
+pub use polysynth::{VintagePoly, VintagePolyParams};
+pub use polysynth::{DualPoly, DualPolyParams};
+pub use polysynth::{CompactSynth, CompactSynthParams};
+pub use polysynth::{VintageSaw, VintageSawParams};
+pub use polysynth::{PocketSynth, PocketSynthParams};
+pub use polysynth::{GrooveSynth, GrooveSynthParams};
+pub use polysynth::{HybridSeq, HybridSeqParams};
+pub use polysynth::{MatrixSynth, MatrixSynthParams};
+pub use polysynth::{PackSynth, PackSynthParams};

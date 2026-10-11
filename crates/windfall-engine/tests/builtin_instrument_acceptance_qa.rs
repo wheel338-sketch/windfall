@@ -9,6 +9,9 @@ use windfall_project::*;
 
 static NEXT_FILE: AtomicU64 = AtomicU64::new(0);
 
+#[path = "builtin_instrument_acceptance_qa/polysynth.rs"]
+mod polysynth_acceptance;
+
 struct SavedProject(PathBuf);
 impl SavedProject {
     fn new(project: &Project) -> Self {
@@ -249,3 +252,4 @@ fn acid_internal_sequence_pitch_reaches_project_history_disk_and_renderer() {
         InstrumentParams::AcidLine(changed),
     );
 }
+
