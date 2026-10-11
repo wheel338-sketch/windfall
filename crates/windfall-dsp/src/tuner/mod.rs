@@ -60,6 +60,8 @@ pub struct Tuner {
     decimation_count: usize,
     decimation_sum: f64,
     analysis_rate: f64,
+    /// Blocks processed, so a reader can tell a new readout from an old one.
+    blocks: u64,
 }
 
 impl Default for Tuner {
@@ -75,6 +77,7 @@ impl Default for Tuner {
             decimation_count: 0,
             decimation_sum: 0.0,
             analysis_rate: 12_000.0,
+            blocks: 0,
         }
     }
 }
@@ -82,6 +85,13 @@ impl Default for Tuner {
 impl Tuner {
     pub fn readout(&self) -> TunerReadout {
         self.readout
+    }
+
+    /// The readout together with the count of blocks processed so far. A
+    /// tuner that is switched off stops counting, which is how a reader
+    /// tells a readout of this block from one left over.
+    pub fn observation(&self) -> (u64, TunerReadout) {
+        (self.blocks, self.readout)
     }
 
     fn clear_analysis(&mut self) {
@@ -186,6 +196,7 @@ impl Effect for Tuner {
     }
 
     fn process(&mut self, left: &mut [f32], right: &mut [f32]) {
+        self.blocks = self.blocks.wrapping_add(1);
         let mut energy = 0.0;
         let mut count = 0;
         let mut invalid = false;

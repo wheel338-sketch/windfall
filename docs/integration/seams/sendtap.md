@@ -56,3 +56,23 @@ library-test allocator. A positive control verifies alloc, alloc_zeroed,
 realloc, and free detection; callback counts must be `[0, 0, 0]`. Rustc and
 the initialized MSVC environment must remain available. Temporary probe
 artifacts are removed on exit.
+
+## Host integration, 2026-10-10
+
+The sections above describe the processor as first delivered, before any host
+used it. Since then:
+
+- `pub mod sendtap;` is in the crate, and the effect is registered as
+  `EffectKind::SendTap`.
+- The engine routes the tap. A saved route (`Mixer.effectOutputs`, command
+  `SetEffectOutput`) sends the copy from the effect's place in the chain,
+  before the fader, to another mixer track, with its own delay compensation.
+- For that path the processor has `send_frames`, which glides to a changed
+  level over 5 ms and starts on the level after `prepare` or `reset`. `send`
+  is unchanged and still applies a level at once.
+- The slot's switch and mix scale what is sent: a slot that is off sends
+  nothing.
+
+Design, tests and what remains are in `docs/qa/2026-10-10-mixer.md` under
+`fx-fruity-send`. Nothing there was executed after the no-build rule; read its
+first section before relying on it.

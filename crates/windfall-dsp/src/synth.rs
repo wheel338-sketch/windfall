@@ -625,10 +625,12 @@ struct HeldNote {
     pan: f32,
     expression: NoteExpression,
     pitch: f32,
+    /// Linear gain from the expression map of the channel. 1 is unity.
+    gain: f32,
 }
 
 impl HeldNote {
-    const EMPTY: Self = Self { id: NoteInstanceId(0), key: 0, velocity: 0.0, pan: 0.0, expression: NoteExpression::NEUTRAL, pitch: 0.0 };
+    const EMPTY: Self = Self { id: NoteInstanceId(0), key: 0, velocity: 0.0, pan: 0.0, expression: NoteExpression::NEUTRAL, pitch: 0.0, gain: 1.0 };
 }
 
 struct Voice {
@@ -638,6 +640,8 @@ struct Voice {
     velocity: f32,
     expression: NoteExpression,
     note_pan: f32,
+    /// Linear gain from the expression map of the channel. 1 is unity.
+    gain: f32,
     /// Counts up with every note, so the oldest voice can be found.
     order: u64,
     /// Pitch in keys. It advances once per control period, which is how a
@@ -736,6 +740,7 @@ impl Voice {
             velocity: 0.0,
             expression: NoteExpression::default(),
             note_pan: 0.0,
+            gain: 1.0,
             order: 0,
             pitch: LinearRamp::new(60.0),
             oscillators: [OscillatorState::SILENT; OSCILLATORS],
@@ -830,7 +835,7 @@ impl Voice {
             + filter.velocity * VELOCITY_OCTAVES * (self.velocity - 1.0);
         let cutoff_hz = (filter.cutoff_hz * octaves.exp2()).clamp(16.0, 0.45 * rate.min(48_000.0));
         let cutoff = cutoff_gain(cutoff_hz, rate);
-        let level = (1.0 - params.amp_velocity * (1.0 - self.velocity)) * modulation.level;
+        let level = (1.0 - params.amp_velocity * (1.0 - self.velocity)) * modulation.level * self.gain;
         if snap {
             self.cutoff = cutoff;
             self.cutoff_step = 0.0;
@@ -1209,7 +1214,7 @@ impl SubtractiveSynth {
     /// Starts a note in the voice at `index`. `glide_from` is the key to
     /// slide in from, if any.
     fn start_voice(&mut self, index: usize, note: HeldNote, glide_from: Option<u8>) {
-        let HeldNote { id, key, velocity, pan, expression, pitch } = note;
+        let HeldNote { id, key, velocity, pan, expression, pitch, gain } = note;
         let glide_steps = self.glide_steps();
         let voice = &mut self.voices[index];
         if voice.stage == Stage::Idle {
@@ -1236,6 +1241,7 @@ impl SubtractiveSynth {
         voice.velocity = velocity;
         voice.expression = expression;
         voice.note_pan = pan;
+        voice.gain = gain;
         voice.order = self.notes_started;
         self.notes_started = self.notes_started.wrapping_add(1);
         match glide_from {
@@ -1278,7 +1284,7 @@ impl SubtractiveSynth {
     }
 
     fn start_mono(&mut self, note: HeldNote) {
-        let HeldNote { id, key, velocity, pan, expression, pitch } = note;
+        let HeldNote { id, key, velocity, pan, expression, pitch, gain } = note;
         self.forget_instance(id);
         if self.held_len == HELD_KEYS {
             self.held.copy_within(1.., 0);
@@ -1309,6 +1315,7 @@ impl SubtractiveSynth {
         voice.expression = expression;
         voice.note_pan = pan;
         voice.velocity = velocity;
+        voice.gain = gain;
         voice.configure_envelopes(&self.params, self.sample_rate);
         voice.order = self.notes_started;
         self.notes_started = self.notes_started.wrapping_add(1);
@@ -1346,6 +1353,7 @@ impl SubtractiveSynth {
                     voice.velocity = previous.velocity;
                     voice.expression = previous.expression;
                     voice.note_pan = previous.pan;
+                    voice.gain = previous.gain;
                     voice.configure_envelopes(&self.params, self.sample_rate);
                     if glide_steps > 0 {
                         voice.pitch.set_target(previous.pitch - previous.expression.fine_pitch_cents / 100.0, glide_steps);
@@ -1471,6 +1479,7 @@ impl Instrument for SubtractiveSynth {
             pan: if pan.is_finite() { pan.clamp(-1.0, 1.0) } else { 0.0 },
             expression: expression.clamped(),
             pitch: f32::from(key.min(127)) + expression.clamped().fine_pitch_cents / 100.0,
+            gain: 1.0,
         };
         match self.params.voice_mode {
             VoiceMode::Poly => self.start_poly(note),
@@ -1511,6 +1520,20 @@ impl Instrument for SubtractiveSynth {
                 // Expression updates can arrive every output frame. Read the
                 // current control/envelope values without advancing their clocks.
                 if controls_changed { voice.control(&self.current, &self.patch, &self.modulation, self.sample_rate, true); }
+            }
+        }
+    }
+
+    fn set_note_gain(&mut self, id: NoteInstanceId, gain: f32) {
+        if !gain.is_finite() { return; }
+        let gain = gain.clamp(0.0, 16.0);
+        for held in &mut self.held[..self.held_len] {
+            if held.id == id { held.gain = gain; }
+        }
+        for voice in &mut self.voices {
+            if voice.stage != Stage::Idle && voice.instance == id && voice.gain != gain {
+                voice.gain = gain;
+                voice.control(&self.current, &self.patch, &self.modulation, self.sample_rate, true);
             }
         }
     }

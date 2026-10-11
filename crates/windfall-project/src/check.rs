@@ -47,6 +47,11 @@ impl Project {
         }
         check_settings(self)?;
         self.notebook.check().map_err(|error| error.to_string())?;
+        if let Some(problem) =
+            crate::controller_links::links_problem(&self.settings.controller_links, Some(self))
+        {
+            return Err(problem);
+        }
         self.playlist
             .timeline
             .check(self.settings.time_signature, self.next_id)?;
@@ -204,6 +209,13 @@ fn check_settings(project: &Project) -> Result<(), String> {
     if !within(settings.swing, 0.0, 1.0) {
         return Err(format!("swing {} is outside 0 to 1", settings.swing));
     }
+    if !crate::timebase::is_timebase(settings.timebase_ppq) {
+        return Err(format!(
+            "timebase {} is not one of {:?} ticks per quarter note",
+            settings.timebase_ppq,
+            crate::timebase::TIMEBASES
+        ));
+    }
     Ok(())
 }
 
@@ -314,6 +326,7 @@ fn check_mixer(project: &Project) -> Result<(), String> {
             }
         }
     }
+    crate::effect_outputs::check(project)?;
     if let Some(track) = routing_cycle(&project.mixer) {
         return Err(format!(
             "mixer routing loops back on itself at track {}",
@@ -362,14 +375,16 @@ fn routing_cycle(mixer: &Mixer) -> Option<TrackId> {
         .map(|track| track.id)
 }
 
-/// The tracks `from` feeds directly: its output and its sends.
+/// The tracks `from` feeds directly: its output, its sends and sidechains,
+/// and the routed outputs of its effects.
 fn routing_targets(mixer: &Mixer, from: TrackId) -> impl Iterator<Item = TrackId> + '_ {
-    mixer.track(from).into_iter().flat_map(|track| {
+    mixer.track(from).into_iter().flat_map(move |track| {
         track
             .output
             .into_iter()
             .chain(track.sends.iter().map(|send| send.target))
             .chain(track.sidechains.iter().map(|send| send.target))
+            .chain(crate::effect_outputs::targets(mixer, from))
     })
 }
 
@@ -395,6 +410,7 @@ fn check_channels(project: &Project) -> Result<(), String> {
         check_id(project, "channel", channel.id, &mut ids)?;
         check_channel(project, channel)?;
     }
+    crate::layer::check(&project.channels)?;
     Ok(())
 }
 
@@ -403,6 +419,7 @@ fn check_channel(project: &Project, channel: &Channel) -> Result<(), String> {
         return Err(format!("channel {} has invalid voice settings", channel.id.0));
     }
     channel.timing.validate().map_err(|reason| format!("channel {}: {reason}", channel.id.0))?;
+    crate::expression_map::check(channel)?;
     if channel.group.len() > crate::MAX_CHANNEL_GROUP_NAME_BYTES
         || channel.group.trim() != channel.group
         || channel.group.chars().any(char::is_control)
@@ -526,6 +543,7 @@ fn check_patterns(project: &Project) -> Result<(), String> {
         check_id(project, "pattern", pattern.id, &mut ids)?;
         check_pattern(project, pattern, &mut notes)?;
     }
+    crate::pattern_events::check(project)?;
     Ok(())
 }
 
@@ -766,6 +784,8 @@ pub(crate) fn check_arrangement_references(project: &Project, book: &crate::Arra
                 return Err(format!("arrangement channel {} does not exist", channel.0)),
             crate::arrangement::TrackKind::Audio { source } if project.sample(source).is_none() =>
                 return Err(format!("arrangement sample {} does not exist", source.0)),
+            crate::arrangement::TrackKind::AudioTrack { mixer } if project.mixer.track(mixer).is_none_or(|track| track.current) =>
+                return Err(format!("arrangement mixer track {} does not exist", mixer.0)),
             _ => {}
         }
     }

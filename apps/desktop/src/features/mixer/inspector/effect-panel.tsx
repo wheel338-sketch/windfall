@@ -20,6 +20,7 @@ import { clamp } from "@/lib/units"
 
 import { endEffectDrag, startEffectDrag } from "../effect-drag"
 import { EffectMenuButton, effectMenu } from "../effect-menu"
+import { EffectOutputs } from "../effect-outputs"
 import { effectName, selectEffect, setEffectEnabled } from "../effect-ops"
 import { useEffectsUi } from "../effects-ui"
 import { nextMixPreset } from "../mix-preset-step"
@@ -259,7 +260,10 @@ export const EffectPanel = memo(function EffectPanel({
           {plugin ? (
             <PluginControls binding={plugin} />
           ) : (
-            <EffectEditor trackId={track} slot={slot} />
+            <>
+              <EffectEditor trackId={track} slot={slot} />
+              <EffectOutputs track={track} slot={slot} />
+            </>
           )}
         </div>
       )}

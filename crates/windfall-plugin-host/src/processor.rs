@@ -546,7 +546,10 @@ impl PluginProcessor {
                 let _flush = NoDenormals::enter();
                 backend.process_sidechain(
                     audio,
-                    key.and_then(|key| key.get(done..done + length)),
+                    // The part of the key that lies in this piece. A key that
+                    // ends early is silent from there on, not from the start
+                    // of the piece it ends in.
+                    key.map(|key| &key[done.min(key.len())..(done + length).min(key.len())]),
                     &pending[..due],
                     &self.transport,
                     self.steady_time,

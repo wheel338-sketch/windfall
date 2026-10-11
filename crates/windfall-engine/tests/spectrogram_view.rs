@@ -39,6 +39,7 @@ fn publication_packs_existing_history_oldest_first_without_audio_allocation() {
         solo: false,
         group: String::new(),
         voice: Default::default(),
+        expression_map: Default::default(),
         timing: Default::default(),
         mixer_track: TrackId::MASTER,
         source: ChannelSource::Sampler(SamplerSettings {

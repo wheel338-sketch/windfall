@@ -641,7 +641,8 @@ impl Audio {
             self.process_sidechain(
                 &mut left[offset..offset + frames],
                 &mut right[offset..offset + frames],
-                key.and_then(|key| key.get(offset..offset + frames)),
+                // A key shorter than the audio is silent past its own end only.
+                key.map(|key| &key[offset.min(key.len())..(offset + frames).min(key.len())]),
             );
             if self.health.corrupt_blocks != corrupt {
                 return Err(OfflineError::Corrupt);

@@ -5,9 +5,13 @@ use ts_rs::TS;
 
 use crate::blocks::SMOOTHING_MS;
 use crate::blocks::delay_line::DelayLine;
-use crate::blocks::math::{db_to_gain, level_to_db, ms_to_samples, smoothing_coefficient};
+use crate::blocks::envelope::Ballistics;
+use crate::blocks::math::{
+    db_to_gain, db_to_gain_exp, level_to_db, ms_to_samples, smoothing_coefficient,
+};
 use crate::blocks::smooth::LinearRamp;
 use crate::effect::{Effect, GainReductionMeter};
+use crate::observe::{DynamicsObservation, GATE_FLOOR_DB};
 use crate::param::{ParamSet, param_set};
 
 /// Longest look-ahead, in ms. Buffers are sized for it.
@@ -16,6 +20,34 @@ const MAX_LOOKAHEAD_MS: f32 = 20.0;
 /// Length of the crossfade between the old and new delay when the
 /// look-ahead is changed while audio is running.
 pub(crate) const LOOKAHEAD_FADE_MS: f32 = 5.0;
+
+/// A gate threshold at or below this is the gate switched off.
+pub const GATE_OFF_DB: f32 = -90.0;
+
+/// How quickly a gate opens: the time to complete 63% of the way, in ms.
+const GATE_OPEN_MS: f32 = 1.0;
+
+/// How quickly the gate's level reading falls after a peak, in ms. Long
+/// enough to bridge the zero crossings of a 20 Hz wave, so a steady low
+/// note does not chatter.
+const GATE_DETECTOR_MS: f32 = 25.0;
+
+/// A ratio at or above this holds the level at the threshold.
+const MAX_RATIO: f32 = 100.0;
+
+/// What the limiter does to the signal before its ceiling.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub enum LimiterMode {
+    /// Only the ceiling acts: peaks are held under it and nothing else
+    /// changes.
+    #[default]
+    Limit,
+    /// The signal is compressed above the threshold first, by the ratio,
+    /// knee and attack, and then held under the ceiling.
+    Compress,
+}
 
 /// Settings of the [`Limiter`].
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, TS)]
@@ -37,6 +69,30 @@ pub struct LimiterParams {
     /// delays the signal. 0.1 to 20, default 5. Longer look-ahead turns
     /// down more gently before a peak arrives and so distorts less.
     pub lookahead_ms: f32,
+    /// Limit only, or compress before the ceiling. Default limit.
+    pub mode: LimiterMode,
+    /// In compress mode, the level above which the signal is turned down,
+    /// in dB relative to full scale, measured after the input gain. -60 to
+    /// 0, default -18.
+    pub threshold_db: f32,
+    /// In compress mode, how hard: for every `ratio` dB the input rises
+    /// above the threshold the output rises 1 dB. 1 to 100, default 4.
+    pub ratio: f32,
+    /// In compress mode, the width in dB of the region around the
+    /// threshold over which the ratio eases in. 0 to 24, default 6.
+    pub knee_db: f32,
+    /// In compress mode, how quickly the gain drops when the signal gets
+    /// louder: the time to complete 63% of the change, in ms. 0.05 to 250,
+    /// default 10. The recovery uses `release_ms`.
+    pub attack_ms: f32,
+    /// The level, in dB after the input gain, below which the gate shuts
+    /// and the signal is silenced. -90 to 0. At -90, the default, there is
+    /// no gate.
+    pub gate_threshold_db: f32,
+    /// How quickly the gate shuts once the signal has fallen under its
+    /// threshold: the time to complete 63% of the way, in ms. 5 to 2500,
+    /// default 200.
+    pub gate_release_ms: f32,
 }
 
 impl Default for LimiterParams {
@@ -46,6 +102,13 @@ impl Default for LimiterParams {
             input_gain_db: 0.0,
             release_ms: 100.0,
             lookahead_ms: 5.0,
+            mode: LimiterMode::Limit,
+            threshold_db: -18.0,
+            ratio: 4.0,
+            knee_db: 6.0,
+            attack_ms: 10.0,
+            gate_threshold_db: GATE_OFF_DB,
+            gate_release_ms: 200.0,
         }
     }
 }
@@ -57,6 +120,50 @@ impl LimiterParams {
     pub fn latency_samples(&self, sample_rate: f32) -> usize {
         ms_to_samples(self.sanitized().lookahead_ms, sample_rate.max(1.0)) as usize
     }
+
+    /// Whether these settings have a gate at all.
+    pub fn gated(&self) -> bool {
+        self.sanitized().gate_threshold_db > GATE_OFF_DB
+    }
+
+    /// The gain change in dB, zero or negative, that compress mode applies
+    /// to a steady signal at `level_db` after the input gain, before the
+    /// ceiling. Zero in limit mode. This is the curve a display draws.
+    pub fn static_gain_db(&self, level_db: f32) -> f32 {
+        let params = self.sanitized();
+        if params.mode != LimiterMode::Compress {
+            return 0.0;
+        }
+        -compression_db(
+            level_db - params.threshold_db,
+            compression_slope(params.ratio),
+            params.knee_db,
+        )
+    }
+}
+
+/// The share of every dB over the threshold that is taken away: 0 at a
+/// ratio of 1, 1 at the top ratio.
+fn compression_slope(ratio: f32) -> f32 {
+    if ratio >= MAX_RATIO {
+        1.0
+    } else {
+        1.0 - 1.0 / ratio.max(1.0)
+    }
+}
+
+/// Reduction in dB, zero or more, for a signal `over_db` above the
+/// threshold. Inside the knee the slope eases in along a parabola.
+#[inline]
+fn compression_db(over_db: f32, slope: f32, knee_db: f32) -> f32 {
+    if 2.0 * over_db <= -knee_db {
+        0.0
+    } else if 2.0 * over_db < knee_db {
+        let into_knee = over_db + 0.5 * knee_db;
+        slope * into_knee * into_knee / (2.0 * knee_db)
+    } else {
+        slope * over_db
+    }
 }
 
 param_set!(LimiterParams, "Limiter", {
@@ -64,6 +171,15 @@ param_set!(LimiterParams, "Limiter", {
     float [input_gain_db] "inputGainDb" "Input gain" { Decibels, Linear, -12.0, 24.0, 0.0 }
     float [release_ms] "releaseMs" "Release" { Milliseconds, Logarithmic, 1.0, 1000.0, 100.0 }
     float [lookahead_ms] "lookaheadMs" "Look-ahead" { Milliseconds, Logarithmic, 0.1, 20.0, 5.0 }
+    choice [mode] "mode" "Mode" {
+        LimiterMode, Limit, [Limit "limit" "Limit", Compress "compress" "Compress"]
+    }
+    float [threshold_db] "thresholdDb" "Threshold" { Decibels, Linear, -60.0, 0.0, -18.0 }
+    float [ratio] "ratio" "Ratio" { Ratio, Logarithmic, 1.0, 100.0, 4.0 }
+    float [knee_db] "kneeDb" "Knee" { Decibels, Linear, 0.0, 24.0, 6.0 }
+    float [attack_ms] "attackMs" "Attack" { Milliseconds, Logarithmic, 0.05, 250.0, 10.0 }
+    float [gate_threshold_db] "gateThresholdDb" "Gate" { Decibels, Linear, -90.0, 0.0, -90.0 }
+    float [gate_release_ms] "gateReleaseMs" "Gate release" { Milliseconds, Logarithmic, 5.0, 2500.0, 200.0 }
 });
 
 /// The smallest value of the last `window` pushes, in constant time per
@@ -179,6 +295,16 @@ impl MovingAverage {
 /// while audio runs crossfades between the old delay and the new one.
 /// During that crossfade, and while the ceiling is being lowered, the
 /// guarantee is kept by a plain clip at the ceiling.
+///
+/// Ahead of all that sit two stages that only ever turn the signal down,
+/// so they take nothing from the guarantee. A gate silences the signal
+/// while its level is under the gate threshold, opening fast and shutting
+/// at its release time. In compress mode a feed-forward compressor then
+/// turns down what is over its threshold, by its ratio, knee and attack,
+/// and lets go at the limiter's release time. Both measure the peak of the
+/// louder channel after the input gain, and both channels get the same
+/// gain. With the gate off and in limit mode both stages multiply by
+/// exactly one.
 pub struct Limiter {
     sample_rate: f32,
     params: LimiterParams,
@@ -208,6 +334,19 @@ pub struct Limiter {
     clock: u64,
     meter: GainReductionMeter,
     fresh: bool,
+    /// The input gain as a linear factor, for the gate's and the
+    /// compressor's level measurement.
+    input_gain: f32,
+    /// The level the gate goes by: it follows peaks at once and falls
+    /// slowly, as a linear level.
+    gate_level: Ballistics,
+    /// The gate's opening, 0 (shut) to 1 (open).
+    gate: Ballistics,
+    /// Compression in dB, zero or more. Rising is the attack.
+    compression: Ballistics,
+    /// What the last block measured, and how many blocks there have been.
+    observed: Option<DynamicsObservation>,
+    blocks: u64,
 }
 
 impl Default for Limiter {
@@ -236,6 +375,12 @@ impl Default for Limiter {
             clock: 0,
             meter: GainReductionMeter::default(),
             fresh: true,
+            input_gain: 1.0,
+            gate_level: Ballistics::new(0.0),
+            gate: Ballistics::new(1.0),
+            compression: Ballistics::new(0.0),
+            observed: None,
+            blocks: 0,
         };
         limiter.apply();
         limiter
@@ -254,6 +399,13 @@ impl Limiter {
         self.meter.clone()
     }
 
+    /// What the last processed block measured. `None` until a block has
+    /// been processed since the limiter was prepared or reset. Reading it
+    /// changes nothing, the meter included.
+    pub fn observation(&self) -> Option<DynamicsObservation> {
+        self.observed
+    }
+
     fn apply(&mut self) {
         let params = self.params;
         let samples = if self.fresh {
@@ -268,6 +420,13 @@ impl Limiter {
             samples,
         );
         self.release = smoothing_coefficient(params.release_ms, self.sample_rate);
+        self.input_gain = db_to_gain(params.input_gain_db);
+        self.gate_level
+            .set_times(0.0, GATE_DETECTOR_MS, self.sample_rate);
+        self.gate
+            .set_times(GATE_OPEN_MS, params.gate_release_ms, self.sample_rate);
+        self.compression
+            .set_times(params.attack_ms, params.release_ms, self.sample_rate);
 
         let lookahead = params
             .latency_samples(self.sample_rate)
@@ -297,14 +456,59 @@ impl Limiter {
         self.second_average.refill(total - first, start);
     }
 
+    /// The gain of the gate and of the compressor for one frame whose
+    /// peak, before the input gain, is `raw_peak`. Never more than 1, and
+    /// exactly 1 with the gate off in limit mode.
+    #[inline]
+    fn shape(&mut self, raw_peak: f32, gated: bool, compress: bool, block: &mut Block) -> f32 {
+        let level = raw_peak * self.input_gain;
+        if level.is_finite() {
+            block.input_peak = block.input_peak.max(level);
+        }
+        let mut gain = 1.0_f32;
+        if gated {
+            let held = self
+                .gate_level
+                .tick(if level.is_finite() { level } else { 0.0 });
+            let open = level_to_db(held) >= self.params.gate_threshold_db;
+            let opening = self.gate.tick(if open { 1.0 } else { 0.0 }).clamp(0.0, 1.0);
+            block.gate = block.gate.min(opening);
+            gain = opening;
+        }
+        if compress {
+            let wanted = compression_db(
+                level_to_db(level) - self.params.threshold_db,
+                compression_slope(self.params.ratio),
+                self.params.knee_db,
+            );
+            let reduction = self.compression.tick(wanted).max(0.0);
+            block.compression_db = block.compression_db.max(reduction);
+            gain *= db_to_gain_exp(-reduction).min(1.0);
+        }
+        gain
+    }
+
     /// The limiter proper: everything but the final safety clip. Returns
-    /// the lowest gain it applied.
-    fn limit(&mut self, left: &mut [f32], right: &mut [f32]) -> f32 {
+    /// what the block measured, the lowest limiting gain included.
+    fn limit(&mut self, left: &mut [f32], right: &mut [f32]) -> Block {
         let window = self.lookahead as u64 + 1;
         let mut lowest = 1.0_f32;
+        let mut block = Block::default();
+        let gated = self.params.gate_threshold_db > GATE_OFF_DB;
+        let compress = self.params.mode == LimiterMode::Compress;
+        if !gated {
+            self.gate.snap(1.0);
+            self.gate_level.snap(0.0);
+        }
+        if !compress {
+            self.compression.snap(0.0);
+        }
         for (left, right) in left.iter_mut().zip(right.iter_mut()) {
             let drive = self.drive.tick();
-            let (in_left, in_right) = (*left * drive, *right * drive);
+            let shape = self.shape(left.abs().max(right.abs()), gated, compress, &mut block);
+            // With nothing to shape this is the driven sample untouched:
+            // multiplying by one changes no bit of it.
+            let (in_left, in_right) = (*left * drive * shape, *right * drive * shape);
             let peak = in_left.abs().max(in_right.abs());
             let needed = if peak > 1.0 { 1.0 / peak } else { 1.0 };
 
@@ -336,7 +540,32 @@ impl Limiter {
             *left = out_left * level;
             *right = out_right * level;
         }
-        lowest
+        block.lowest = lowest;
+        block
+    }
+}
+
+/// What one call of [`Limiter::limit`] measured.
+#[derive(Clone, Copy)]
+struct Block {
+    /// The lowest limiting gain applied.
+    lowest: f32,
+    /// The loudest input after the input gain, as a linear level.
+    input_peak: f32,
+    /// The furthest the gate shut, 1 (open) to 0.
+    gate: f32,
+    /// The deepest compression, in dB.
+    compression_db: f32,
+}
+
+impl Default for Block {
+    fn default() -> Self {
+        Self {
+            lowest: 1.0,
+            input_peak: 0.0,
+            gate: 1.0,
+            compression_db: 0.0,
+        }
     }
 }
 
@@ -365,6 +594,10 @@ impl Effect for Limiter {
         self.gain = 1.0;
         self.fade_left = 0;
         self.clock = 0;
+        self.gate.snap(1.0);
+        self.gate_level.snap(0.0);
+        self.compression.snap(0.0);
+        self.observed = None;
         self.apply();
         self.resize_averages();
     }
@@ -376,17 +609,36 @@ impl Effect for Limiter {
 
     fn process(&mut self, left: &mut [f32], right: &mut [f32]) {
         self.fresh = false;
-        let lowest = self.limit(left, right);
+        let block = self.limit(left, right);
         // The limiter already keeps every sample under the ceiling. This
         // clip only acts on rounding in the last digit, and on the two
         // cases the limiter cannot foresee: the ceiling being lowered and
         // the look-ahead being changed under audio that is already inside
         // the delay.
         let ceiling = self.ceiling_now;
+        let mut output_peak = 0.0_f32;
         for sample in left.iter_mut().chain(right.iter_mut()) {
             *sample = sample.clamp(-ceiling, ceiling);
+            output_peak = output_peak.max(sample.abs());
         }
-        self.meter.raise(-level_to_db(lowest));
+        // The meter and the observation count what was turned down on
+        // purpose: compression and limiting. A shut gate is told apart.
+        let limiting_db = -level_to_db(block.lowest);
+        let reduction_db = if block.compression_db > 0.0 {
+            limiting_db.max(0.0) + block.compression_db
+        } else {
+            limiting_db
+        };
+        self.meter.raise(reduction_db);
+        self.blocks = self.blocks.wrapping_add(1);
+        self.observed = Some(DynamicsObservation {
+            serial: self.blocks,
+            frames: left.len().min(u32::MAX as usize) as u32,
+            input_peak: block.input_peak,
+            output_peak,
+            reduction_db: reduction_db.max(0.0),
+            gate_db: (-level_to_db(block.gate)).clamp(0.0, GATE_FLOOR_DB),
+        });
     }
 
     fn latency_samples(&self) -> usize {
@@ -514,6 +766,7 @@ mod tests {
                         input_gain_db: 12.0,
                         release_ms,
                         lookahead_ms,
+                        ..LimiterParams::default()
                     });
                     let ceiling = db_to_gain(-6.0);
                     for kind in 0..7 {

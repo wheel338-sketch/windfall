@@ -108,6 +108,32 @@ impl TransientSplit {
             std::array::from_fn(|c| audio((input[c] - transient[c]) * sg)),
         ]
     }
+
+    /// Block form of the separate-output seam, for a host that routes the
+    /// parts to other tracks. A part flagged in `routed` (transient first,
+    /// then sustain) leaves the main signal and is written to its own
+    /// buffer; a part that is not routed stays in the main signal and its
+    /// buffer is silent. With neither routed this is exactly `process`.
+    /// Does not allocate.
+    pub fn process_routed(
+        &mut self,
+        left: &mut [f32],
+        right: &mut [f32],
+        routed: [bool; 2],
+        transient: &mut [[f32; 2]],
+        sustain: &mut [[f32; 2]],
+    ) {
+        let frames = left.iter_mut().zip(right.iter_mut());
+        for ((l, r), (attack_out, body_out)) in frames.zip(transient.iter_mut().zip(sustain)) {
+            let [attack, body] = self.split_frame([*l, *r]);
+            let kept = |part: [f32; 2], away: bool| if away { [0.0; 2] } else { part };
+            let (main_attack, main_body) = (kept(attack, routed[0]), kept(body, routed[1]));
+            *attack_out = kept(attack, !routed[0]);
+            *body_out = kept(body, !routed[1]);
+            *l = audio(main_attack[0] + main_body[0]);
+            *r = audio(main_attack[1] + main_body[1]);
+        }
+    }
 }
 impl Effect for TransientSplit {
     type Params = TransientSplitParams;

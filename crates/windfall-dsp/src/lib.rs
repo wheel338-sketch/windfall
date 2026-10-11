@@ -71,6 +71,7 @@ pub mod filter_family;
 pub mod frequency_delay;
 mod instrument;
 mod note_expression;
+pub mod expression_map;
 mod limiter;
 pub mod lofi;
 pub mod modulation;
@@ -92,6 +93,7 @@ pub use dc_block::{DcBlock, DcBlockParams};
 pub use delay::{Delay, DelayMode, DelayParams, NoteDivision};
 pub use distortion::{DISTORTION_LATENCY_SAMPLES, Distortion, DistortionParams};
 pub use effect::{AnyEffect, Effect, EffectKind, EffectParams, EffectSlot, GainReductionMeter};
+pub use effect::{AuxBlock, AuxOutputInfo, MAX_AUX_OUTPUTS};
 pub use eq::{CutSlope, EqBand, EqCutBand, EqParams, ParametricEq};
 pub use filter_family::{
     BassShelf, BassShelfParams, FastLowpass, FastLowpassParams, SelectableFilter,
@@ -99,7 +101,11 @@ pub use filter_family::{
 };
 pub use instrument::{AnyInstrument, Instrument, InstrumentKind, InstrumentParams};
 pub use note_expression::{NoteArticulation, NoteExpression, NoteInstanceId};
-pub use limiter::{Limiter, LimiterParams};
+pub use expression_map::{
+    ExpressionDestination, ExpressionMap, ExpressionRoute, PluginControls,
+    PluginExpressionDestination, VoiceControls,
+};
+pub use limiter::{GATE_OFF_DB, Limiter, LimiterMode, LimiterParams};
 pub use lofi::{FilterPlacement, Lofi, LofiParams, RunRelation};
 pub use modulation::{Chorus, ChorusParams, Flanger, FlangerParams, Phaser, PhaserParams};
 pub use param::{ParamChoice, ParamInfo, ParamKind, ParamScale, ParamSet, ParamUnit};
@@ -131,7 +137,13 @@ pub mod lush;
 
 pub mod speech;
 
+pub mod midi_out;
+pub use midi_out::{MidiOut, MidiOutController, MidiOutEvent, MidiOutParams};
+
 pub mod tuner;
+
+pub mod observe;
+pub use observe::{DynamicsObservation, EffectObservation, GATE_FLOOR_DB};
 
 pub mod mastering;
 

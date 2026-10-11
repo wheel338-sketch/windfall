@@ -41,10 +41,18 @@ fn main() {
         })
         .collect();
 
+    // Only the effects with an output a mixer can route to another track.
+    let effect_outputs: serde_json::Map<String, Value> = EffectKind::ALL
+        .iter()
+        .filter(|kind| !kind.aux_outputs().is_empty())
+        .map(|kind| (key(kind), json!(kind.aux_outputs())))
+        .collect();
+
     let output = json!({
         "effects": effects,
         "instruments": instruments,
         "track": { "name": "Track EQ and stereo", "params": TrackParams::descriptors(), "defaults": TrackParams::default() },
+        "effectOutputs": effect_outputs,
         "fixtures": {
             "eqResponse": eq_fixture(),
             "compressorCurve": compressor_fixture(),

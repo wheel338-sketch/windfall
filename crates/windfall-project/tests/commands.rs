@@ -4896,6 +4896,7 @@ fn set_effect_params_replaces_every_setting() {
         input_gain_db: 6.0,
         release_ms: 50.0,
         lookahead_ms: 2.0,
+        ..LimiterParams::default()
     };
 
     let applied = run(&mut doc, set(EffectParams::Limiter(preset)));
@@ -4913,6 +4914,7 @@ fn set_effect_params_replaces_every_setting() {
         input_gain_db: -100.0,
         release_ms: f32::INFINITY,
         lookahead_ms: -0.0,
+        ..LimiterParams::default()
     };
     run(&mut doc, set(EffectParams::Limiter(wild)));
     assert_eq!(
@@ -4922,6 +4924,7 @@ fn set_effect_params_replaces_every_setting() {
             input_gain_db: -12.0,
             release_ms: 1000.0,
             lookahead_ms: 0.1,
+            ..LimiterParams::default()
         })
     );
 
@@ -5627,7 +5630,14 @@ fn a_track_with_effects_has_this_json() {
         "ceilingDb": -0.3,
         "inputGainDb": 0.0,
         "releaseMs": 100.0,
-        "lookaheadMs": 5.0
+        "lookaheadMs": 5.0,
+        "mode": "limit",
+        "thresholdDb": -18.0,
+        "ratio": 4.0,
+        "kneeDb": 6.0,
+        "attackMs": 10.0,
+        "gateThresholdDb": -90.0,
+        "gateReleaseMs": 200.0
       }
     }
   ],
@@ -5854,7 +5864,7 @@ fn the_effect_and_instrument_commands_have_this_json() {
                 effect,
                 params: EffectKind::Limiter.default_params(),
             },
-            r#"{"type":"setEffectParams","track":3,"effect":4,"params":{"type":"limiter","ceilingDb":-0.3,"inputGainDb":0.0,"releaseMs":100.0,"lookaheadMs":5.0}}"#,
+            r#"{"type":"setEffectParams","track":3,"effect":4,"params":{"type":"limiter","ceilingDb":-0.3,"inputGainDb":0.0,"releaseMs":100.0,"lookaheadMs":5.0,"mode":"limit","thresholdDb":-18.0,"ratio":4.0,"kneeDb":6.0,"attackMs":10.0,"gateThresholdDb":-90.0,"gateReleaseMs":200.0}}"#,
         ),
         (
             Command::DuplicateEffect { track, effect },

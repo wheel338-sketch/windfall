@@ -1,4 +1,6 @@
 import { unavailableAnalysis } from "@/features/analysis/unavailable"
+import { NATIVE_ONLY, unavailableLogger } from "@/features/audio-logger/types"
+import { unavailableAnalyzer } from "@/features/analyzers/types"
 import type {
   FlpImportPreview,
   ImportReport,
@@ -33,6 +35,7 @@ import type {
   StoredAudioSettings,
   Unsubscribe,
 } from "./backend"
+import { mockMixerPresetLibrary } from "./mixer-presets"
 import {
   baseName,
   defaultRoots,
@@ -51,6 +54,11 @@ import { createMidiMock, type MockMidiOptions } from "./sim/midi"
 import { createMidiHardwareMock } from "./sim/midi-hardware"
 import { createSlicerMock, type SlicerMockOptions } from "./sim/slicer"
 import { createLibraryMock, storedBrowserRoots } from "./sim/library"
+import {
+  createPlaylistMock,
+  type PlaylistMock,
+  type PlaylistMockOptions,
+} from "./sim/playlist"
 
 /** Stand-ins for the native file dialogs. Each resolves to null on cancel. */
 export type MockDialogs = {
@@ -63,6 +71,7 @@ export type MockDialogs = {
 }
 
 export type MockOptions = MockMidiOptions &
+  PlaylistMockOptions &
   SlicerMockOptions & {
     /** Original FL bytes supplied by tests, or selected with the browser picker. */
     flpFiles?: Record<string, Uint8Array>
@@ -80,6 +89,8 @@ export type MockOptions = MockMidiOptions &
 
 /** A backend that lives in the page, and what tidies it up. */
 export type MockBackend = Backend & {
+  /** Stands in for a note arriving from a MIDI input. */
+  playMidiHardwareNote: PlaylistMock["playMidiHardwareNote"]
   /** Successful requests to open a panel window, in call order. */
   detachCalls: PanelId[]
   /**
@@ -625,9 +636,11 @@ export function createMockBackend(options: MockOptions = {}): MockBackend {
     return commands
   }
 
-  return {
+  const made: MockBackend = {
     kind: "mock",
     ...unavailableAnalysis(),
+    ...mockMixerPresetLibrary(),
+    ...unavailableAnalyzer(),
     mixerWaveformTracks: (tracks, generation, revision) => ipc(() => {
       const state = timelineState()
       if (state.generation !== generation || state.revision !== revision) throw new Error("The project changed before waveform selection could update")
@@ -651,12 +664,12 @@ export function createMockBackend(options: MockOptions = {}): MockBackend {
       setTimeout(() => URL.revokeObjectURL(url), 1000)
       return name
     },
-    sheetMusicSave: async (suggestedName, xml) => {
-      const name = `${suggestedName.replace(/[<>:"/\\|?*]/g, "_") || "Score"}.musicxml`
+    sheetMusicSave: async (suggestedName, xml, format = "musicxml") => {
+      const name = `${suggestedName.replace(/[<>:"/\\|?*]/g, "_") || "Score"}.${format === "pdf" ? "pdf" : "musicxml"}`
       const path = await dialogs.exportPath(`/exports/${name}`)
       if (!path) return null
       if (typeof document === "undefined") throw new Error("Score downloads require a browser")
-      const url = URL.createObjectURL(new Blob([xml], { type: "application/vnd.recordare.musicxml+xml" }))
+      const url = URL.createObjectURL(new Blob([xml], { type: format === "pdf" ? "application/pdf" : "application/vnd.recordare.musicxml+xml" }))
       const anchor = document.createElement("a")
       anchor.href = url
       anchor.download = path.split(/[\\/]/).pop() || name
@@ -699,6 +712,15 @@ export function createMockBackend(options: MockOptions = {}): MockBackend {
       throw new Error("Portable project archives require the desktop app.")
     },
     ...createMidiHardwareMock(),
+    ...createPlaylistMock(options, {
+      snapshot: () => doc.snapshot(path),
+      ipc,
+      dispatch: dispatchNow,
+      sampleCommands,
+      audioClipCommands,
+      sampleInfo: (file) => sampleInfoFor(roots, file),
+      exportAudio: (exportOptions) => made.exportAudio(exportOptions),
+    }),
     ...createSlicerMock(
       options,
       () => doc,
@@ -985,6 +1007,11 @@ export function createMockBackend(options: MockOptions = {}): MockBackend {
 
     engineStatus: () => ipc(() => currentEngine()),
     processMemory: async () => null,
+    // The browser preview keeps no audio history. It says so; it never
+    // pretends to log or to add a clip.
+    audioLoggerState: async () => unavailableLogger(),
+    audioLoggerConfigure: () => Promise.reject(new Error(NATIVE_ONLY)),
+    audioLoggerDump: () => Promise.reject(new Error(NATIVE_ONLY)),
     recordingInputs: async () => [],
     inputMonitorState: async () => ({ active: false, sampleRate: 0, tracks: [], error: null }),
     inputMonitorStop: async () => ({ active: false, sampleRate: 0, tracks: [], error: null }),
@@ -1093,6 +1120,12 @@ export function createMockBackend(options: MockOptions = {}): MockBackend {
       Promise.reject(
         new Error(
           "Spectral sampler preparation needs the desktop audio engine. Settings and history were kept."
+        )
+      ),
+    samplerPreprocess: () =>
+      Promise.reject(
+        new Error(
+          "Sample pre-processing needs the desktop audio engine. Browser mode cannot render a new sample; settings and history were kept."
         )
       ),
     audioEditorOpen: () =>
@@ -1446,4 +1479,5 @@ export function createMockBackend(options: MockOptions = {}): MockBackend {
       doc.dispose()
     },
   }
+  return made
 }

@@ -31,6 +31,12 @@ export const NOTE_TOOLS: {
       "Shorten selected lengths by a percentage, keeping at least one tick.",
   },
   {
+    value: "portamento",
+    label: "Portamento",
+    description:
+      "Tie each selected onset into the next and make every note after the first glide in from the one before. Slide notes stay slides.",
+  },
+  {
     value: "chop",
     label: "Chop",
     description:

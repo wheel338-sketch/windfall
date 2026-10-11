@@ -70,6 +70,7 @@ impl Session {
         self.retire_project(retirement);
         let frame = self.controller().frame();
         lock(&self.inner.subscribers).retain_mut(|subscriber| (subscriber.send)(&frame));
+        self.analyzer_tick(Instant::now());
         // Playback that ended by itself: the end of a song, or a device
         // that went away.
         let told = lock(&self.inner.transport).playing;

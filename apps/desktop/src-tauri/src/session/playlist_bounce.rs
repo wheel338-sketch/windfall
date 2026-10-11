@@ -17,7 +17,7 @@ const STALE: &str =
     "The project or its audio changed while bouncing. Select the clips and try again.";
 
 /// Own a persistent render until its sample and clip have both been installed.
-struct RenderFile(PathBuf);
+pub(super) struct RenderFile(pub(super) PathBuf);
 impl Drop for RenderFile {
     fn drop(&mut self) {
         if !self.0.as_os_str().is_empty() {
@@ -119,44 +119,7 @@ impl Session {
             self.capture_plugins_idle(project, plugin_revision)?
         };
         let render_pool = pool.prepare_plugin_render();
-        let options = RenderOptions {
-            region: Some(range),
-            mode: PlayMode::Song,
-            sample_rate,
-            tail_secs: 0.0,
-            auto_tail: false,
-            ..Default::default()
-        };
-        let mut samples = Vec::new();
-        let rendered = render_streaming_checked(
-            &project,
-            &render_pool,
-            &options,
-            &mut |block| {
-                samples.extend_from_slice(block);
-                true
-            },
-            &mut |_| true,
-        )
-        .map_err(|error| error.to_string())?;
-        if !rendered.completed || rendered.dropped_clips != 0 || rendered.frames == 0 {
-            return Err("The bounce did not render all of the selected span.".into());
-        }
-        let audio = AudioBuffer::from_interleaved(sample_rate, 2, samples);
-        let folder = self.store().recordings_dir().join("Bounces");
-        std::fs::create_dir_all(&folder).map_err(|error| error.to_string())?;
-        let path = tempfile::Builder::new()
-            .prefix("Bounce-")
-            .suffix(".wav")
-            .tempfile_in(&folder)
-            .map_err(|error| error.to_string())?
-            .into_temp_path()
-            .keep()
-            .map_err(|error| error.to_string())?;
-        let mut file = RenderFile(path);
-        windfall_codec::write_wav(&file.0, &audio, windfall_codec::WavSampleFormat::Float32)
-            .map_err(|error| error.to_string())?;
-        let audio = self.inner.cache.decode(&file.0)?;
+        let (mut file, audio) = self.render_print(&project, &render_pool, range, sample_rate)?;
         #[cfg(test)]
         self.pause("bounce:rendered");
         let ticket = {
@@ -231,5 +194,56 @@ impl Session {
         let result = self.finish_sample_edit(ticket)?;
         file.0 = PathBuf::new(); // Keep the source for undo/redo and save/reopen.
         Ok(result)
+    }
+
+    /// Renders `range` of a prepared project copy with no tail and keeps it
+    /// as a Float32 WAV among the recordings. The file is removed again if
+    /// the returned guard is dropped before its path is cleared.
+    pub(super) fn render_print(
+        &self,
+        project: &Project,
+        render_pool: &windfall_engine::SamplePool,
+        range: TickRange,
+        sample_rate: u32,
+    ) -> Result<(RenderFile, AudioBuffer), String> {
+        let options = RenderOptions {
+            region: Some(range),
+            mode: PlayMode::Song,
+            sample_rate,
+            tail_secs: 0.0,
+            auto_tail: false,
+            ..Default::default()
+        };
+        let mut samples = Vec::new();
+        let rendered = render_streaming_checked(
+            project,
+            render_pool,
+            &options,
+            &mut |block| {
+                samples.extend_from_slice(block);
+                true
+            },
+            &mut |_| true,
+        )
+        .map_err(|error| error.to_string())?;
+        if !rendered.completed || rendered.dropped_clips != 0 || rendered.frames == 0 {
+            return Err("The bounce did not render all of the selected span.".into());
+        }
+        let audio = AudioBuffer::from_interleaved(sample_rate, 2, samples);
+        let folder = self.store().recordings_dir().join("Bounces");
+        std::fs::create_dir_all(&folder).map_err(|error| error.to_string())?;
+        let path = tempfile::Builder::new()
+            .prefix("Bounce-")
+            .suffix(".wav")
+            .tempfile_in(&folder)
+            .map_err(|error| error.to_string())?
+            .into_temp_path()
+            .keep()
+            .map_err(|error| error.to_string())?;
+        let file = RenderFile(path);
+        windfall_codec::write_wav(&file.0, &audio, windfall_codec::WavSampleFormat::Float32)
+            .map_err(|error| error.to_string())?;
+        let audio = self.inner.cache.decode(&file.0)?;
+        Ok((file, audio))
     }
 }

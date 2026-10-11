@@ -15,7 +15,13 @@ import { setSelectedClipFromEndScale } from "./clip-from-end-scale"
 import { CLIP_LENGTH_BARS, setSelectedClipLength } from "./clip-length-presets"
 import { setSelectedClipLengthScale } from "./clip-length-scale"
 import { setSelectedClipStartScale } from "./clip-start-scale"
+import {
+  consolidatableTracks,
+  consolidateTracks,
+  selectedClipTracks,
+} from "./consolidate"
 import type { Tool } from "./intents"
+import { addAudioTrack, addInstrumentTrack } from "./linked-tracks"
 import { makeUniqueClipIds } from "./make-unique"
 import { patchSelectedAudioClips, selectedAudioClips } from "./audio/ops"
 import { openAudioComp, openTakeGroupComp } from "./audio/comp-dialog"
@@ -410,6 +416,16 @@ const ACTIONS: Action[] = [
     run: bounceSelectedClips,
   },
   {
+    id: "playlist.consolidateSelectedTracks",
+    title: "Consolidate tracks of selected clips",
+    section: SECTION,
+    keywords: "freeze render audio print bounce mute sources lane",
+    enabled: (state) =>
+      hasSelection(state) &&
+      consolidatableTracks(selectedClipTracks()).length > 0,
+    run: () => consolidateTracks(selectedClipTracks()),
+  },
+  {
     id: "playlist.nudgeLeft",
     title: "Move clips left",
     section: SECTION,
@@ -623,6 +639,20 @@ const ACTIONS: Action[] = [
     run: addTrack,
   },
   {
+    id: "playlist.addInstrumentTrack",
+    title: "New instrument track",
+    section: SECTION,
+    keywords: "channel mixer linked lane sampler conventional",
+    run: addInstrumentTrack,
+  },
+  {
+    id: "playlist.addAudioTrack",
+    title: "New audio track",
+    section: SECTION,
+    keywords: "mixer insert linked lane recording conventional",
+    run: addAudioTrack,
+  },
+  {
     id: "playlist.insertTrack",
     title: "Insert a track above",
     section: SECTION,
@@ -675,6 +705,23 @@ const ACTIONS: Action[] = [
     run: withTarget((track) =>
       ui().select(clipIdsOnTrack(playlist().clips, track.id))
     ),
+  },
+  {
+    id: "playlist.consolidateTrack",
+    title: "Consolidate track",
+    section: SECTION,
+    keywords: "freeze render audio print bounce mute sources lane",
+    enabled: () => {
+      const track = targetTrack()
+      return (
+        track !== undefined && consolidatableTracks([track.id]).length > 0
+      )
+    },
+    whyDisabled: () =>
+      targetTrack() !== undefined
+        ? "No unmuted pattern or audio clip on it"
+        : undefined,
+    run: withTarget((track) => consolidateTracks([track.id])),
   },
   {
     id: "playlist.muteTrack",

@@ -34,6 +34,12 @@ export interface ArrangementPanelProps {
   onEdit?: (edit: ArrangementEdit) => Promise<void>
   onMakeUnique?: (clip: number) => Promise<void>
   makeUniqueClipIds?: number[]
+  /**
+   * Project mode: adds a timeline layout of its own and switches to it.
+   * With `copy` the active layout's clips are cloned as new clips;
+   * without it the layout starts with the same tracks and no clips.
+   */
+  onAddLayout?: (name: string, copy: boolean) => Promise<void>
   clips?: NamedReference[]
   tracks: NamedReference[]
   clipIds: number[]
@@ -115,6 +121,53 @@ function NameEditor({
   )
 }
 
+/** A name and the two ways to start a timeline layout of its own. */
+function LayoutEditor({
+  suggested,
+  onSubmit,
+}: {
+  suggested: string
+  onSubmit(name: string, copy: boolean): void
+}) {
+  const id = useId()
+  const [name, setName] = useState(suggested)
+  return (
+    <Field>
+      <FieldLabel htmlFor={id}>New layout name</FieldLabel>
+      <Input
+        id={id}
+        value={name}
+        maxLength={256}
+        onChange={(event) => setName(event.target.value)}
+      />
+      <div className="flex flex-wrap gap-1">
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={() => onSubmit(name, false)}
+        >
+          New empty layout
+        </Button>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={() => onSubmit(name, true)}
+        >
+          Duplicate layout
+        </Button>
+      </div>
+      <FieldDescription>
+        A layout is a timeline of its own. Clips placed, moved or deleted in
+        one layout leave the others as they are. Duplicate copies the clips of
+        the layout shown now; the first new layout keeps the present timeline
+        as Arrangement 1.
+      </FieldDescription>
+    </Field>
+  )
+}
+
 function ReferencesEditor({
   item,
   tracks,
@@ -190,6 +243,7 @@ export function ArrangementPanel({
   onEdit,
   onMakeUnique,
   makeUniqueClipIds,
+  onAddLayout,
   clips: namedClips,
   tracks,
   clipIds,
@@ -250,7 +304,10 @@ export function ArrangementPanel({
       const next = editArrangementBook(value, edit(), (kind) =>
         kind.type === "instrument"
           ? channels.some((item) => item.id === kind.channel)
-          : sources.some((item) => item.id === kind.source)
+          : kind.type === "audio"
+            ? sources.some((item) => item.id === kind.source)
+            : // Mixer tracks are not listed here; the project checks them.
+              true
       )
       onChange?.(next)
       setError(null)
@@ -279,8 +336,33 @@ export function ArrangementPanel({
   ]
   const linkValue = (kind: TrackKind | undefined) =>
     kind
-      ? `${kind.type}:${kind.type === "instrument" ? kind.channel : kind.source}`
+      ? `${kind.type}:${
+          kind.type === "instrument"
+            ? kind.channel
+            : kind.type === "audio"
+              ? kind.source
+              : kind.mixer
+        }`
       : "none"
+  // A track linked to a mixer track from its header keeps that choice
+  // listed here, so the select shows what is saved.
+  const mixerLinks = Object.values(value.linkedTracks).flatMap((kind) =>
+    kind?.type === "audioTrack"
+      ? [
+          {
+            value: `audioTrack:${kind.mixer}`,
+            label: `Audio track: mixer track ${kind.mixer}`,
+          },
+        ]
+      : []
+  )
+  const linkChoices = [
+    ...linkOptions,
+    ...mixerLinks.filter(
+      (item, index) =>
+        mixerLinks.findIndex((other) => other.value === item.value) === index
+    ),
+  ]
   return (
     <section
       aria-label="Playlist arrangements"
@@ -289,7 +371,7 @@ export function ArrangementPanel({
       <Alert>
         <AlertDescription>
           {onEdit
-            ? "Arrangement edits are saved with the project. Playback uses the single playlist; switching changes the active arrangement reference only."
+            ? "Arrangement edits are saved with the project. The playlist shows, plays and exports the active arrangement."
             : "Local arrangement edits only. Persistence and playlist playback are not connected."}
         </AlertDescription>
       </Alert>
@@ -313,6 +395,15 @@ export function ArrangementPanel({
                 onChange={(id) =>
                   apply(() => ({ type: "switchArrangement", id: Number(id) }))
                 }
+              />
+            )}
+            {onAddLayout && (
+              <LayoutEditor
+                key={value.arrangements.length}
+                suggested={`Arrangement ${Math.max(2, value.arrangements.length + 1)}`}
+                onSubmit={(name, copy) => {
+                  void work(() => onAddLayout(name, copy))
+                }}
               />
             )}
             <NameEditor
@@ -448,7 +539,7 @@ export function ArrangementPanel({
                 <Choice
                   label={`Source for ${track.name}`}
                   value={linkValue(value.linkedTracks[track.id])}
-                  items={linkOptions}
+                  items={linkChoices}
                   onChange={(value) =>
                     apply(() => {
                       if (value === "none")
@@ -460,7 +551,9 @@ export function ArrangementPanel({
                         kind:
                           type === "instrument"
                             ? { type: "instrument", channel: Number(id) }
-                            : { type: "audio", source: Number(id) },
+                            : type === "audioTrack"
+                              ? { type: "audioTrack", mixer: Number(id) }
+                              : { type: "audio", source: Number(id) },
                       }
                     })
                   }
@@ -550,7 +643,8 @@ export function ArrangementPanel({
                   </Button>
                 ))}
               <FieldDescription>
-                Copies the source and redirects only the chosen clip. Audio
+                Copies the source and redirects only the chosen clip: a
+                pattern, an audio source entry or an automation curve. Audio
                 copies share the immutable source file.
               </FieldDescription>
             </FieldSet>

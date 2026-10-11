@@ -45,3 +45,14 @@ document guards, file bounds/version errors, unavailable plugins/assets, shelf
 quota errors and file cancellation. Bindings are provisionally synchronized;
 the simulator artifact remains the earlier advanced-fill build until the later
 combined artifact pass. No GitHub CI or Actions are used.
+
+## Follow-up, 2026-10-10
+
+Presets can now be kept in a per-user library folder (`mixer-presets` beside
+the settings file) and browsed from the Track presets panel: list with
+per-file errors, collision-safe save, read, delete. The panel names hosted
+plugins a preset refers to that are not installed here, before and after
+loading. A preset never carries effect-output routes; loading one retires the
+routes of the effects it replaces. Session and mounted tests are written and
+not yet executed, and a preset captured from a running native plugin is still
+not covered end to end. See `docs/qa/2026-10-10-mixer.md`.

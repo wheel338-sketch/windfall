@@ -375,6 +375,24 @@ impl Sequencer {
         Some(plan.unwarp(tick.max(0.0)))
     }
 
+    /// The place in the pattern that frame `frame`, now or a little ahead,
+    /// plays while the pattern plays by itself: what its event lanes are
+    /// read at, with the pattern's index in [`Plan::patterns`]. `None`
+    /// while the transport is stopped or the playlist is what plays. A
+    /// frame past the end of the pattern reads as the next time around.
+    pub fn pattern_tick_at(&self, plan: &Plan, frame: u64) -> Option<(usize, f64)> {
+        if !self.playing || self.mode != PlayMode::Pattern {
+            return None;
+        }
+        let index = plan
+            .pattern_ids
+            .get(self.pattern.0)
+            .or((!plan.patterns.is_empty()).then_some(0))?;
+        let length = f64::from(plan.patterns[index].length);
+        let tick = (self.clock.tick_at(frame) - self.pass_start).max(0.0);
+        Some((index, if tick >= length { tick % length } else { tick }))
+    }
+
     /// The place in the pattern or song of a reading of the clock, counted
     /// from the start of the pass.
     fn place(&self, plan: &Plan, counted: f64) -> f64 {
@@ -792,6 +810,9 @@ impl Sequencer {
                     if tick < clip_start || tick >= clip_end {
                         continue;
                     }
+                    if clip.only.is_some_and(|only| only != event.channel) {
+                        continue;
+                    }
                     let Some(frame) = self.due(plan.warp(tick), from, to) else {
                         continue;
                     };
@@ -1100,6 +1121,7 @@ mod tests {
             solo: false,
             group: String::new(),
             voice: Default::default(),
+            expression_map: Default::default(),
             timing: windfall_project::ChannelTiming::default(),
             mixer_track: TrackId::MASTER,
             source: ChannelSource::Sampler(SamplerSettings::default()),

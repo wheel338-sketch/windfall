@@ -279,6 +279,17 @@ impl Session {
         let import = self.decode_for_project(path)?;
         self.attach_audio_clip_import(import, place, None)
     }
+    /// The same for work that began in the document numbered `generation`:
+    /// refused if another document has taken its place, however long ago.
+    pub(super) fn add_audio_clip_from_file_in(
+        &self,
+        path: &str,
+        place: ClipPlace,
+        generation: u64,
+    ) -> Result<DispatchResult, String> {
+        let import = self.decode_for_generation(path, generation)?;
+        self.attach_audio_clip_import(import, place, None)
+    }
     pub(super) fn attach_audio_clip_from_file(
         &self,
         path: &str,

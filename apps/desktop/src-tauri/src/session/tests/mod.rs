@@ -2,19 +2,26 @@
 //! a [`Processor`] the tests run by hand.
 
 mod analysis_jobs;
+mod analyzers;
 #[path = "../recording_completion_qa.rs"]
 mod recording_completion_qa;
 #[path = "../mixer_render_qa.rs"]
 mod mixer_render_qa;
+#[path = "../mixer_presets_qa.rs"]
+mod mixer_presets_qa;
 mod archive;
 mod audio_editor;
 mod beat;
 mod clip_recording;
+mod consolidate;
+mod device_acceptance;
+mod controllers;
 mod document;
 mod effects;
 mod export;
 mod export_formats;
 mod files;
+mod files_qa;
 mod flp;
 mod import_formats;
 mod import_recording;
@@ -23,6 +30,7 @@ mod midi;
 mod midi_hardware;
 mod playback;
 mod playlist_bounce;
+mod playlist_export;
 mod plugin_recording;
 #[cfg(windows)]
 mod plugin_update;
@@ -30,11 +38,16 @@ mod plugin_update;
 mod plugins;
 mod project_preparation;
 mod recording;
+mod sampler_preprocess;
 mod sampler_processing;
+#[cfg(windows)]
+mod sidechain_buses;
 mod slicer;
 mod song;
 mod timeline;
+mod transport_acceptance;
 mod versions;
+mod audio_logger;
 
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
