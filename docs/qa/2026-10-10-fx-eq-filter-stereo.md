@@ -18,9 +18,9 @@ been started.
 | Row | Processor | State |
 | --- | --- | --- |
 | `fx-fruity-7-band-eq` | Seven Band (`sevenBand`) | editor and tests written; candidate for done once they pass |
-| `fx-spreader` | Spreader (`spreader`) | not started |
-| `fx-fruity-stereo-enhancer` | Stereo Enhancer (`stereoEnhancer`) | not started |
-| `fx-fruity-panomatic` | Pan Motion (`panLfo`) | not started |
+| `fx-spreader` | Spreader (`spreader`) | editor and tests written; candidate for done once they pass |
+| `fx-fruity-stereo-enhancer` | Stereo Enhancer (`stereoEnhancer`) | phase offset and inversion added, editor and tests written; candidate for done once they pass |
+| `fx-fruity-panomatic` | Pan Motion (`panLfo`) | shapes and tempo sync added, editor and tests written; candidate for done once they pass |
 | `fx-equo` | Morph EQ (`morphEq`) | not started |
 | `fx-fruity-love-philter` | Filter Bank (`filterBank`) | not started |
 | `fx-fruity-filter` | new kind | not started |
@@ -79,3 +79,69 @@ a knob does (the UI helper `toEnd` relies on it).
 Remaining gate: "low CPU cost" is shown structurally (flat bands run no filter, bit-exact
 pass-through) and by an ignored wall-clock comparison; no CPU budget is asserted in the
 ordinary run.
+
+## `fx-spreader` — Spreader
+
+Implemented: DSP unchanged (mid/side width plus a Haas difference added to one side and taken
+from the other). New editor `features/effects/stereo/spreader-editor.tsx` with the width
+picture `stereo/stereo-field.tsx` and the mono statement.
+
+Tests: DSP `spreader_matches_a_mid_side_reference_and_folds_to_the_same_mono`,
+`spreader_makes_a_mono_source_wide_without_changing_its_mono_sum`,
+`spreader_is_block_invariant_and_bypasses_without_a_click`; engine
+`spreader_controls_reach_native_audio_history_files_and_automation`; UI `describe("Spreader")`
+(two cases); helpers `the stereo picture`.
+
+Least sure: the 3e-6 tolerance of the sample-by-sample reference.
+
+Remaining gate: none known beyond execution.
+
+## `fx-fruity-stereo-enhancer` — Stereo Enhancer
+
+Implemented (`crates/windfall-dsp/src/spatial/stereo.rs`): two appended controls,
+`phaseOffsetMs` (-20 to 20 ms; above zero holds the right side back, below zero the left, with
+linear interpolation below one frame) and `invert` (`off`/`left`/`right`, as a gain that glides
+through zero). Descriptor indices 0 to 4 are unchanged; the new ones are 5 and 6. Zero latency
+is kept: the offset is an audible effect, like the spreader's Haas delay. With both at their
+defaults the output is bit-identical to before (the lines are written but not read, the signs
+multiply by exactly 1). New types `StereoInvert` and `MAX_PHASE_OFFSET_MS` are exported from
+`windfall_dsp::spatial`. Editor `stereo/stereo-enhancer-editor.tsx`.
+
+This closes the "open phase gate" named in `docs/integration/seams/spatial.md` and the
+completion audit.
+
+Tests: DSP `stereo_enhancer_phase_offset_holds_one_side_back_by_exactly_its_time`,
+`stereo_enhancer_width_balance_and_inversion_match_their_arithmetic`,
+`stereo_enhancer_is_block_invariant_and_bypasses_without_a_click`; engine
+`stereo_enhancer_phase_offset_and_inversion_reach_native_audio_history_and_files`; UI
+`describe("Stereo Enhancer")` (three cases).
+
+Least sure: `Controls<8>` destructuring and the borrow of `self.offset` beside `self.rate` in
+the frame loop; the existing `spatial_reported_tails_really_expire` case with the new lines
+(they are cleared when the tail expires).
+
+Remaining gate: the phase offset glides when moved (10 ms control ramp), which bends pitch for
+that moment; no pitch-preserving crossfade is claimed.
+
+## `fx-fruity-panomatic` — Pan Motion
+
+Implemented (`crates/windfall-dsp/src/control/motion.rs`): three appended controls, `shape`
+(sine, triangle, saw, square, random; index 5), `sync` (6) and `beats` (7, quarter notes per
+cycle while synced). Square, saw and random glide over their jumps with a 2 ms one-pole so a
+pan never steps; sine and triangle are exact. The default (sine, free rate) keeps the previous
+arithmetic. `set_tempo` now drives the rate while synced. The pan law stays inside the
+processor (`control::balance`); no shared pan call site is touched. Editor
+`motion/pan-motion-editor.tsx` with a two-cycle picture of pan and volume.
+
+Tests: DSP `pan_motion_draws_each_shape_at_its_rate`, `pan_motion_follows_the_tempo_when_synced`,
+`pan_motion_pan_volume_and_gain_process_the_audio`,
+`pan_motion_is_block_invariant_and_bypasses_without_a_click`; engine
+`pan_motion_shape_sync_and_volume_reach_native_audio_history_and_files`; UI
+`describe("Pan Motion")` (three cases); helpers `the pan motion`.
+
+Least sure: the existing `control/tests.rs` cases `pan_motion_modulates_audio_and_volume` and
+`invariant::<PanLfo>` after the rewrite of `tick`; whether `ParamControl` with
+`choiceStyle="select"` puts `data-param` where the UI helper `choose` looks for it.
+
+Remaining gate: the motion free-runs from the start of processing; it is not locked to the
+song position (the `Effect` interface carries tempo, not transport position).

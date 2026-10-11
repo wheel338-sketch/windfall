@@ -8,8 +8,12 @@
 
 use std::f64::consts::{PI, TAU};
 
+use windfall_dsp::control::PanLfoParams;
 use windfall_dsp::eqbank::{SEVEN_BAND_FREQUENCIES_HZ, SevenBandParams};
-use windfall_dsp::{AnyEffect, EffectParams, EffectSlot};
+use windfall_dsp::spatial::StereoInvert;
+use windfall_dsp::{
+    AnyEffect, EffectParams, EffectSlot, LfoShape, SpreaderParams, StereoEnhancerParams,
+};
 
 const RATES: [f32; 3] = [44_100.0, 48_000.0, 96_000.0];
 
@@ -341,4 +345,382 @@ fn seven_band_costs_less_than_the_parametric_equalizer_with_every_band_working()
         graphic <= full,
         "seven fixed bands took {graphic:?}, the parametric equalizer {full:?}"
     );
+}
+
+// ---------------------------------------------------------------------
+// Spreader
+
+fn spreader(width: f32, haas_ms: f32, amount: f32, mix: f32) -> EffectParams {
+    let mut params = SpreaderParams::default();
+    params.width = width;
+    params.haas_ms = haas_ms;
+    params.amount = amount;
+    params.mix = mix;
+    EffectParams::Spreader(params)
+}
+
+/// Runs both sides through a processor in blocks of 512.
+fn run(params: &EffectParams, rate: f32, left: &mut [f32], right: &mut [f32]) {
+    let mut effect = effect(params, rate, 512);
+    effect.set_tempo(120.0);
+    for (left, right) in left.chunks_mut(512).zip(right.chunks_mut(512)) {
+        effect.process(left, right);
+    }
+}
+
+fn assert_close(found: &[f32], expected: &[f32], tolerance: f32, what: &str) {
+    assert_eq!(found.len(), expected.len());
+    for (index, (found, expected)) in found.iter().zip(expected).enumerate() {
+        assert!(
+            (found - expected).abs() <= tolerance,
+            "{what}, frame {index}: {found} against {expected}"
+        );
+    }
+}
+
+#[test]
+fn spreader_matches_a_mid_side_reference_and_folds_to_the_same_mono() {
+    // 10 ms is 480 frames at 48 kHz, so the reference needs no interpolation.
+    let (width, amount) = (1.6_f32, 0.7_f32);
+    let dry_left = busy(4_800, 1);
+    let dry_right = busy(4_800, 2);
+    let (mut left, mut right) = (dry_left.clone(), dry_right.clone());
+    run(
+        &spreader(width, 10.0, amount, 1.0),
+        48_000.0,
+        &mut left,
+        &mut right,
+    );
+    let mid: Vec<f32> = dry_left
+        .iter()
+        .zip(&dry_right)
+        .map(|(l, r)| 0.5 * (l + r))
+        .collect();
+    let mut expected_left = Vec::new();
+    let mut expected_right = Vec::new();
+    for n in 0..4_800 {
+        let earlier = if n >= 480 { mid[n - 480] } else { 0.0 };
+        let side =
+            width * (0.5 * (dry_left[n] - dry_right[n]) + amount * 0.5 * (mid[n] - earlier));
+        expected_left.push(mid[n] + side);
+        expected_right.push(mid[n] - side);
+    }
+    assert_close(&left, &expected_left, 3.0e-6, "left");
+    assert_close(&right, &expected_right, 3.0e-6, "right");
+    // Mono playback hears exactly what went in.
+    for n in 0..4_800 {
+        assert!((left[n] + right[n] - dry_left[n] - dry_right[n]).abs() < 3.0e-6);
+    }
+}
+
+#[test]
+fn spreader_makes_a_mono_source_wide_without_changing_its_mono_sum() {
+    let dry = busy(9_600, 4);
+    let (mut left, mut right) = (dry.clone(), dry.clone());
+    run(
+        &spreader(2.0, 12.0, 1.0, 1.0),
+        48_000.0,
+        &mut left,
+        &mut right,
+    );
+    let (mut side, mut mid) = (0.0_f64, 0.0_f64);
+    for n in 2_400..9_600 {
+        side += f64::from(left[n] - right[n]).powi(2);
+        mid += f64::from(left[n] + right[n]).powi(2);
+        assert!((left[n] + right[n] - 2.0 * dry[n]).abs() < 3.0e-6);
+    }
+    assert!(side > 0.2 * mid, "side {side} against mid {mid}");
+
+    // No Haas amount at unity width is the input, and width 0 is mono.
+    let (dry_left, dry_right) = (busy(2_400, 8), busy(2_400, 9));
+    let (mut left, mut right) = (dry_left.clone(), dry_right.clone());
+    run(
+        &spreader(1.0, 12.0, 0.0, 1.0),
+        48_000.0,
+        &mut left,
+        &mut right,
+    );
+    assert_close(&left, &dry_left, 3.0e-6, "unity left");
+    assert_close(&right, &dry_right, 3.0e-6, "unity right");
+    run(
+        &spreader(0.0, 12.0, 1.0, 1.0),
+        48_000.0,
+        &mut left,
+        &mut right,
+    );
+    assert_close(&left, &right, 3.0e-6, "width zero");
+}
+
+#[test]
+fn spreader_is_block_invariant_and_bypasses_without_a_click() {
+    assert_block_invariant(
+        &EffectParams::Spreader(SpreaderParams::default()),
+        &spreader(2.0, 25.0, 1.0, 0.8),
+    );
+    assert_bypass_is_continuous(&spreader(2.0, 9.0, 1.0, 1.0), 0.06);
+}
+
+// ---------------------------------------------------------------------
+// Stereo Enhancer
+
+/// Width 1 with no bass lock: the enhancer alone changes nothing, so each
+/// test sees only the control it moves.
+fn enhancer(change: impl FnOnce(&mut StereoEnhancerParams)) -> EffectParams {
+    let mut params = StereoEnhancerParams::default();
+    params.width = 1.0;
+    params.bass_lock = 0.0;
+    change(&mut params);
+    EffectParams::StereoEnhancer(params)
+}
+
+/// `signal` moved `frames` later, with silence before it.
+fn later(signal: &[f32], frames: usize) -> Vec<f32> {
+    (0..signal.len())
+        .map(|n| if n >= frames { signal[n - frames] } else { 0.0 })
+        .collect()
+}
+
+fn scaled(signal: &[f32], gain: f32) -> Vec<f32> {
+    signal.iter().map(|sample| sample * gain).collect()
+}
+
+/// Two different busy signals through a processor at 48 kHz: what went in
+/// and what came out, left then right.
+fn through(params: &EffectParams, frames: usize) -> [Vec<f32>; 4] {
+    let dry_left = busy(frames, 21);
+    let dry_right = busy(frames, 22);
+    let (mut left, mut right) = (dry_left.clone(), dry_right.clone());
+    run(params, 48_000.0, &mut left, &mut right);
+    [dry_left, dry_right, left, right]
+}
+
+#[test]
+fn stereo_enhancer_phase_offset_holds_one_side_back_by_exactly_its_time() {
+    // 5 ms is 240 frames at 48 kHz.
+    let [dry_left, dry_right, left, right] =
+        through(&enhancer(|p| p.phase_offset_ms = 5.0), 4_800);
+    assert_close(&left, &dry_left, 2.0e-6, "right late: left");
+    assert_close(&right, &later(&dry_right, 240), 2.0e-6, "right late: right");
+
+    let [dry_left, dry_right, left, right] =
+        through(&enhancer(|p| p.phase_offset_ms = -5.0), 4_800);
+    assert_close(&left, &later(&dry_left, 240), 2.0e-6, "left late: left");
+    assert_close(&right, &dry_right, 2.0e-6, "left late: right");
+
+    // A quarter of a frame, between two samples.
+    let quarter = 0.25 / 48.0;
+    let [dry_left, dry_right, left, right] =
+        through(&enhancer(|p| p.phase_offset_ms = quarter), 4_800);
+    let previous = later(&dry_right, 1);
+    let between: Vec<f32> = dry_right
+        .iter()
+        .zip(&previous)
+        .map(|(now, before)| now + 0.25 * (before - now))
+        .collect();
+    assert_close(&right, &between, 1.0e-5, "a quarter frame");
+    assert_close(&left, &dry_left, 2.0e-6, "a quarter frame: left");
+
+    // The offset is an effect, not latency to compensate.
+    let longest = effect(&enhancer(|p| p.phase_offset_ms = 20.0), 48_000.0, 64);
+    assert_eq!(longest.latency_samples(), 0);
+}
+
+#[test]
+fn stereo_enhancer_width_balance_and_inversion_match_their_arithmetic() {
+    // Width scales the difference of the sides and leaves their sum.
+    let [dry_left, dry_right, left, right] = through(&enhancer(|p| p.width = 2.0), 2_400);
+    for n in 0..2_400 {
+        let mid = 0.5 * (dry_left[n] + dry_right[n]);
+        let side = dry_left[n] - dry_right[n];
+        assert!((left[n] - (mid + side)).abs() < 3.0e-6);
+        assert!((right[n] - (mid - side)).abs() < 3.0e-6);
+    }
+    let [_, _, left, right] = through(&enhancer(|p| p.width = 0.0), 2_400);
+    assert_close(&left, &right, 2.0e-6, "width zero is mono");
+
+    // Balance turns the other side down and leaves the favored one.
+    let [dry_left, dry_right, left, right] = through(&enhancer(|p| p.balance = 0.5), 2_400);
+    assert_close(&left, &scaled(&dry_left, 0.5), 2.0e-6, "balance right: left");
+    assert_close(&right, &dry_right, 2.0e-6, "balance right: right");
+    let [dry_left, dry_right, left, right] = through(&enhancer(|p| p.balance = -1.0), 2_400);
+    assert_close(&left, &dry_left, 2.0e-6, "balance left: left");
+    assert_close(&right, &scaled(&dry_right, 0.0), 2.0e-6, "balance left: right");
+
+    // Inversion flips one side and only that side.
+    let [dry_left, dry_right, left, right] =
+        through(&enhancer(|p| p.invert = StereoInvert::Left), 2_400);
+    assert_close(&left, &scaled(&dry_left, -1.0), 2.0e-6, "invert left: left");
+    assert_close(&right, &dry_right, 2.0e-6, "invert left: right");
+    let [dry_left, dry_right, left, right] =
+        through(&enhancer(|p| p.invert = StereoInvert::Right), 2_400);
+    assert_close(&left, &dry_left, 2.0e-6, "invert right: left");
+    assert_close(&right, &scaled(&dry_right, -1.0), 2.0e-6, "invert right: right");
+}
+
+#[test]
+fn stereo_enhancer_is_block_invariant_and_bypasses_without_a_click() {
+    assert_block_invariant(
+        &EffectParams::StereoEnhancer(StereoEnhancerParams::default()),
+        &enhancer(|p| {
+            p.width = 1.8;
+            p.phase_offset_ms = -13.0;
+            p.invert = StereoInvert::Right;
+            p.balance = 0.3;
+        }),
+    );
+    assert_block_invariant(
+        &enhancer(|p| p.phase_offset_ms = 20.0),
+        &enhancer(|p| p.phase_offset_ms = 0.01),
+    );
+    assert_bypass_is_continuous(&enhancer(|p| p.phase_offset_ms = 4.0), 0.03);
+}
+
+// ---------------------------------------------------------------------
+// Pan Motion
+
+fn motion(change: impl FnOnce(&mut PanLfoParams)) -> EffectParams {
+    let mut params = PanLfoParams::default();
+    change(&mut params);
+    EffectParams::PanLfo(params)
+}
+
+/// The pan the motion applied to each frame of a constant full-scale
+/// input, read back from the two sides: the side away from the pan is
+/// turned down by its size and the other is left alone.
+fn pan_of(params: &EffectParams, bpm: f32, frames: usize) -> Vec<f32> {
+    let mut effect = effect(params, 48_000.0, 512);
+    effect.set_tempo(bpm);
+    let (mut left, mut right) = (vec![1.0; frames], vec![1.0; frames]);
+    for (left, right) in left.chunks_mut(512).zip(right.chunks_mut(512)) {
+        effect.process(left, right);
+    }
+    left.iter().zip(&right).map(|(l, r)| r - l).collect()
+}
+
+fn shaped(shape: LfoShape, rate_hz: f32) -> EffectParams {
+    motion(|p| {
+        p.rate_hz = rate_hz;
+        p.shape = shape;
+    })
+}
+
+#[test]
+fn pan_motion_draws_each_shape_at_its_rate() {
+    let sine = pan_of(&shaped(LfoShape::Sine, 2.0), 120.0, 48_000);
+    let triangle = pan_of(&shaped(LfoShape::Triangle, 2.0), 120.0, 48_000);
+    for n in (0..48_000).step_by(37) {
+        let angle = TAU * (n as f64 * 2.0 / 48_000.0).fract();
+        assert!((f64::from(sine[n]) - angle.sin()).abs() < 2.0e-4, "sine {n}");
+        // A triangle is the arcsine of a sine, scaled to reach 1.
+        let expected = angle.sin().asin() * 2.0 / PI;
+        assert!(
+            (f64::from(triangle[n]) - expected).abs() < 2.0e-4,
+            "triangle {n}"
+        );
+    }
+
+    let square = pan_of(&shaped(LfoShape::Square, 2.0), 120.0, 48_000);
+    let saw = pan_of(&shaped(LfoShape::Saw, 2.0), 120.0, 48_000);
+    for start in [0, 24_000] {
+        // A quarter, a half and three quarters of the way through a cycle.
+        assert!((square[start + 6_000] - 1.0).abs() < 1.0e-3);
+        assert!((square[start + 18_000] + 1.0).abs() < 1.0e-3);
+        assert!((saw[start + 6_000] + 0.5).abs() < 0.02);
+        assert!(saw[start + 12_000].abs() < 0.02);
+        assert!((saw[start + 18_000] - 0.5).abs() < 0.02);
+    }
+    // The jumps of a square are glided, never stepped.
+    let step = square
+        .windows(2)
+        .map(|pair| (pair[1] - pair[0]).abs())
+        .fold(0.0_f32, f32::max);
+    assert!(step < 0.05, "a square pan stepped by {step}");
+
+    let random = pan_of(&shaped(LfoShape::Random, 4.0), 120.0, 48_000);
+    // One level per cycle of 12000 frames, read once it has been reached.
+    let levels: Vec<f32> = (0..4).map(|cycle| random[cycle * 12_000 + 11_000]).collect();
+    for (cycle, level) in levels.iter().enumerate() {
+        assert!((-1.0..=1.0).contains(level));
+        assert!((random[cycle * 12_000 + 6_000] - level).abs() < 1.0e-3);
+    }
+    assert!(
+        levels
+            .windows(2)
+            .any(|pair| (pair[0] - pair[1]).abs() > 0.05)
+    );
+    // The sequence starts over with the processor.
+    assert_eq!(
+        random,
+        pan_of(&shaped(LfoShape::Random, 4.0), 120.0, 48_000)
+    );
+}
+
+#[test]
+fn pan_motion_follows_the_tempo_when_synced() {
+    let synced = motion(|p| {
+        p.sync = true;
+        p.beats = 2.0;
+        // Ignored while synced.
+        p.rate_hz = 17.0;
+    });
+    // Two beats at 120 BPM are one second; at 60 BPM, two.
+    for (bpm, period) in [(120.0, 48_000), (60.0, 96_000)] {
+        let pan = pan_of(&synced, bpm, period);
+        assert!((pan[period / 4] - 1.0).abs() < 1.0e-3, "{bpm} BPM peak");
+        assert!(pan[period / 2].abs() < 1.0e-3, "{bpm} BPM crossing");
+        assert!(
+            (pan[3 * period / 4] + 1.0).abs() < 1.0e-3,
+            "{bpm} BPM trough"
+        );
+    }
+}
+
+#[test]
+fn pan_motion_pan_volume_and_gain_process_the_audio() {
+    // With no motion it is a pan and a gain.
+    let still = motion(|p| {
+        p.depth = 0.0;
+        p.pan = -0.5;
+        p.gain = 0.5;
+    });
+    let (mut left, mut right) = (vec![0.8; 960], vec![0.8; 960]);
+    run(&still, 48_000.0, &mut left, &mut right);
+    assert_close(&left, &vec![0.4; 960], 1.0e-6, "favored side");
+    assert_close(&right, &vec![0.2; 960], 1.0e-6, "other side");
+
+    // The volume motion dips to silence once per cycle and returns.
+    let tremolo = motion(|p| {
+        p.depth = 0.0;
+        p.volume_depth = 1.0;
+        p.rate_hz = 2.0;
+    });
+    let (mut left, mut right) = (vec![1.0; 24_000], vec![1.0; 24_000]);
+    run(&tremolo, 48_000.0, &mut left, &mut right);
+    for n in (0..24_000).step_by(41) {
+        let wave = (TAU * n as f64 * 2.0 / 48_000.0).sin();
+        let expected = 1.0 - (0.5 + 0.5 * wave);
+        assert!((f64::from(left[n]) - expected).abs() < 2.0e-4, "left {n}");
+        assert!((f64::from(right[n]) - expected).abs() < 2.0e-4, "right {n}");
+    }
+}
+
+#[test]
+fn pan_motion_is_block_invariant_and_bypasses_without_a_click() {
+    assert_block_invariant(
+        &EffectParams::PanLfo(PanLfoParams::default()),
+        &motion(|p| {
+            p.shape = LfoShape::Random;
+            p.rate_hz = 9.0;
+            p.volume_depth = 0.6;
+        }),
+    );
+    assert_block_invariant(
+        &shaped(LfoShape::Square, 1.0),
+        &motion(|p| {
+            p.shape = LfoShape::Saw;
+            p.sync = true;
+            p.beats = 0.25;
+        }),
+    );
+    assert_bypass_is_continuous(&shaped(LfoShape::Square, 1.0), 0.06);
 }

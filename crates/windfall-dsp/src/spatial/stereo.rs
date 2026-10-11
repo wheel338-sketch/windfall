@@ -118,7 +118,24 @@ pub struct StereoEnhancerParams {
     pub bass_lock: f32,
     pub balance: f32,
     pub mix: f32,
+    /// Milliseconds one side is held back, -20 to 20; default 0. Above zero
+    /// delays the right side, below zero the left. The other side is not
+    /// delayed, so the effect adds no latency.
+    pub phase_offset_ms: f32,
+    /// Turns one side upside down; default off.
+    pub invert: StereoInvert,
 }
+/// Which side [`StereoEnhancer`] turns upside down.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+pub enum StereoInvert {
+    #[default]
+    Off,
+    Left,
+    Right,
+}
+/// The longest phase offset, in milliseconds either way.
+pub const MAX_PHASE_OFFSET_MS: f32 = 20.0;
 impl Default for StereoEnhancerParams {
     fn default() -> Self {
         Self {
@@ -127,6 +144,8 @@ impl Default for StereoEnhancerParams {
             bass_lock: 1.0,
             balance: 0.0,
             mix: 1.0,
+            phase_offset_ms: 0.0,
+            invert: StereoInvert::Off,
         }
     }
 }
@@ -136,11 +155,17 @@ param_set!(StereoEnhancerParams, "Stereo Enhancer", {
     float [bass_lock] "bassLock" "Mono bass lock" { Fraction, Linear, 0.0, 1.0, 1.0 }
     float [balance] "balance" "Balance" { Pan, Linear, -1.0, 1.0, 0.0 }
     float [mix] "mix" "Mix" { Fraction, Linear, 0.0, 1.0, 1.0 }
+    float [phase_offset_ms] "phaseOffsetMs" "Phase offset" { Milliseconds, Linear, -MAX_PHASE_OFFSET_MS, MAX_PHASE_OFFSET_MS, 0.0 }
+    choice [invert] "invert" "Invert" { StereoInvert, Off, [Off "off" "Off", Left "left" "Left", Right "right" "Right"] }
 });
 pub struct StereoEnhancer {
     params: StereoEnhancerParams,
-    controls: Controls<5>,
+    // Width, log crossover, lock, balance, mix, offset in ms, and the sign
+    // of each side as a gain, so that an inversion glides through zero.
+    controls: Controls<8>,
     bass: [Lowpass; 2],
+    /// What each side put out, for the side the phase offset holds back.
+    offset: [DelayLine; 2],
     tail: Tail,
     rate: f32,
     prepared: bool,
@@ -151,6 +176,7 @@ impl Default for StereoEnhancer {
             params: StereoEnhancerParams::default(),
             controls: Controls::default(),
             bass: [Lowpass::default(); 2],
+            offset: [DelayLine::default(), DelayLine::default()],
             tail: Tail::default(),
             rate: 48_000.0,
             prepared: false,
@@ -160,8 +186,17 @@ impl Default for StereoEnhancer {
 impl StereoEnhancer {
     fn apply(&mut self) {
         let p = self.params;
-        self.controls
-            .set([p.width, p.bass_hz.ln(), p.bass_lock, p.balance, p.mix]);
+        let sign = |side: StereoInvert| if p.invert == side { -1.0 } else { 1.0 };
+        self.controls.set([
+            p.width,
+            p.bass_hz.ln(),
+            p.bass_lock,
+            p.balance,
+            p.mix,
+            p.phase_offset_ms,
+            sign(StereoInvert::Left),
+            sign(StereoInvert::Right),
+        ]);
     }
 }
 impl Effect for StereoEnhancer {
@@ -170,11 +205,16 @@ impl Effect for StereoEnhancer {
         self.rate = rate(sample_rate);
         self.controls.prepare(self.rate);
         self.tail.prepare(0.5, self.rate);
+        let longest = frames(MAX_PHASE_OFFSET_MS, self.rate) + 2;
+        self.offset = [DelayLine::new(longest), DelayLine::new(longest)];
         self.prepared = true;
         self.reset();
     }
     fn reset(&mut self) {
         self.bass = [Lowpass::default(); 2];
+        for line in &mut self.offset {
+            line.clear();
+        }
         self.tail.reset();
         self.controls.reset();
         self.apply();
@@ -190,7 +230,8 @@ impl Effect for StereoEnhancer {
                 [*l, *r] = dry;
                 continue;
             }
-            let [width, hz, lock, balance, mix] = self.controls.tick();
+            let [width, hz, lock, balance, mix, offset, flip_left, flip_right] =
+                self.controls.tick();
             let (gain, expired) = self.tail.tick(dry);
             let mid = 0.5 * (dry[0] + dry[1]);
             let side = 0.5 * (dry[0] - dry[1]);
@@ -202,11 +243,27 @@ impl Effect for StereoEnhancer {
             let side = width * (side + lock * (high * gain - side));
             if expired {
                 self.bass = [Lowpass::default(); 2];
+                for line in &mut self.offset {
+                    line.clear();
+                }
             }
-            let wet = [
-                (mid + side) * (1.0 - balance).min(1.0),
-                (mid - side) * (1.0 + balance).min(1.0),
+            let mut wet = [
+                (mid + side) * (1.0 - balance).min(1.0) * flip_left,
+                (mid - side) * (1.0 + balance).min(1.0) * flip_right,
             ];
+            // The phase offset holds one side back. At zero neither line is
+            // read, so the default is the signal itself.
+            let late = [(-offset).max(0.0), offset.max(0.0)];
+            for (channel, line) in self.offset.iter_mut().enumerate() {
+                let now = wet[channel];
+                let delay = super::common::samples(late[channel], self.rate);
+                if delay >= 1.0 {
+                    wet[channel] = tap(line, delay);
+                } else if delay > 0.0 {
+                    wet[channel] = now + delay * (line.tap(1) - now);
+                }
+                line.push(now);
+            }
             *l = bounded(dry[0] + mix * (wet[0] - dry[0]));
             *r = bounded(dry[1] + mix * (wet[1] - dry[1]));
         }

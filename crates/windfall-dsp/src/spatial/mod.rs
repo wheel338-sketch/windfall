@@ -16,7 +16,11 @@ pub use chorus::{HyperChorus, HyperChorusParams, VintageChorus, VintageChorusPar
 pub use flanger::{StackedFlanger, StackedFlangerParams};
 pub use phaser::{VintagePhaser, VintagePhaserParams};
 pub use room::{Room, RoomParams};
-pub use stereo::{Spreader, SpreaderParams, StereoEnhancer, StereoEnhancerParams};
+pub use stereo::{
+    MAX_PHASE_OFFSET_MS, Spreader, SpreaderParams, StereoEnhancer, StereoEnhancerParams,
+    StereoInvert,
+};
+
 
 #[cfg(test)]
 mod tests;

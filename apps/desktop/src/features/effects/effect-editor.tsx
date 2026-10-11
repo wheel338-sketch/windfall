@@ -18,7 +18,10 @@ import type { EditorProps } from "./editor-props"
 import { EqEditor } from "./eq/eq-editor"
 import { SevenBandEditor } from "./graphic/seven-band-editor"
 import { LimiterEditor } from "./limiter/limiter-editor"
+import { PanMotionEditor } from "./motion/pan-motion-editor"
 import { ReverbEditor } from "./reverb/reverb-editor"
+import { SpreaderEditor } from "./stereo/spreader-editor"
+import { StereoEnhancerEditor } from "./stereo/stereo-enhancer-editor"
 
 type Editors = {
   [Kind in EffectKind]?: ComponentType<EditorProps<EffectParamsOf<Kind>>>
@@ -36,6 +39,9 @@ const EDITORS: Editors = {
   reverb: ReverbEditor,
   delay: DelayEditor,
   sevenBand: SevenBandEditor,
+  spreader: SpreaderEditor,
+  stereoEnhancer: StereoEnhancerEditor,
+  panLfo: PanMotionEditor,
 }
 
 type AnyEditor = ComponentType<EditorProps<EffectParams>>

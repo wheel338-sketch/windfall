@@ -6,7 +6,9 @@
 mod support;
 
 use support::{Rig, sine};
+use windfall_dsp::control::PanLfoParams;
 use windfall_dsp::eqbank::SevenBandParams;
+use windfall_dsp::{SpreaderParams, StereoEnhancerParams};
 use windfall_engine::{Processor, RenderOptions, render};
 use windfall_ipc::PlayMode;
 use windfall_project::*;
@@ -204,5 +206,42 @@ fn seven_band_faders_reach_native_audio_history_files_and_automation() {
         EffectParams::SevenBand(SevenBandParams::default()),
         &[("gainsDb.3", 12.0), ("gainsDb.6", -15.0), ("gainsDb.2", -9.0)],
         "gainsDb.3",
+    );
+}
+
+#[test]
+fn spreader_controls_reach_native_audio_history_files_and_automation() {
+    accept(
+        EffectParams::Spreader(SpreaderParams::default()),
+        &[("width", 2.0), ("haasMs", 25.0), ("amount", 1.0)],
+        "width",
+    );
+}
+
+#[test]
+fn stereo_enhancer_phase_offset_and_inversion_reach_native_audio_history_and_files() {
+    accept(
+        EffectParams::StereoEnhancer(StereoEnhancerParams::default()),
+        &[
+            ("phaseOffsetMs", 12.0),
+            ("invert", 1.0),
+            ("width", 0.0),
+            ("balance", -1.0),
+        ],
+        "phaseOffsetMs",
+    );
+}
+
+#[test]
+fn pan_motion_shape_sync_and_volume_reach_native_audio_history_and_files() {
+    accept(
+        EffectParams::PanLfo(PanLfoParams::default()),
+        &[
+            ("shape", 3.0),
+            ("sync", 1.0),
+            ("beats", 0.25),
+            ("volumeDepth", 1.0),
+        ],
+        "depth",
     );
 }

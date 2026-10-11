@@ -1,4 +1,10 @@
-import { act, fireEvent, render, screen } from "@testing-library/react"
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  within,
+} from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
@@ -11,6 +17,7 @@ import { settle, startTestApp } from "@/test/harness"
 
 import { customEditor, EffectEditor } from "./effect-editor"
 import { SEVEN_BAND_HZ, SEVEN_BAND_IDS } from "./graphic/seven-band"
+import { describeOffset } from "./stereo/stereo"
 
 /*
  * The purpose-built editors of the equalizer, filter and stereo effects,
@@ -179,5 +186,161 @@ describe("Seven Band", () => {
     await undo()
     await flush()
     expect(slotOf(effect).params).toEqual(shaped)
+  })
+})
+
+/** Sets one setting by id, as its own undo step. */
+async function setParam(
+  kind: EffectKind,
+  effect: EffectId,
+  id: string,
+  value: number
+) {
+  await dispatch({
+    type: "setEffectParam",
+    track,
+    effect,
+    param: paramIndex(effectDescriptor(kind), id),
+    value,
+  })
+  await flush()
+}
+
+/** Picks an option of a setting shown as a list or a strip of buttons. */
+async function choose(kind: EffectKind, id: string, label: string) {
+  const user = userEvent.setup()
+  const root = document.querySelector<HTMLElement>(`[data-param="${id}"]`)
+  if (!root) throw new Error(`No control is showing for "${id}" of ${kind}`)
+  const radio = within(root).queryByRole("radio", { name: label })
+  if (radio) {
+    await user.click(radio)
+  } else {
+
+    const combobox = root.querySelector<HTMLElement>("[role=combobox]")
+    if (!combobox) throw new Error(`"${id}" has no list of options`)
+    await user.click(combobox)
+    await user.click(await screen.findByRole("option", { name: label }))
+  }
+  await flush()
+}
+
+describe("Spreader", () => {
+  it("has its own editor with every control and the mono promise", async () => {
+    expect(customEditor("spreader")).toBeDefined()
+    const effect = await open("spreader")
+    expect(
+      screen.getByRole("group", { name: "Spreader settings" })
+    ).toBeVisible()
+    expect(screen.getByText(/Mono playback hears the original/)).toBeVisible()
+    await expectSliders("spreader", effect, [
+      "width",
+      "mix",
+      "haasMs",
+      "amount",
+    ])
+  })
+
+  it("draws the width it is set to", async () => {
+    const effect = await open("spreader")
+    expect(
+      screen.getByRole("img", {
+        name: "Stereo image at 120% of its width. The mono sum is unchanged",
+      })
+    ).toBeVisible()
+    await setParam("spreader", effect, "width", 0)
+    const field = screen.getByRole("img", {
+      name: "Stereo image at 0% of its width. The mono sum is unchanged",
+    })
+    // Mono is a line in the middle.
+    expect(
+      field.querySelector<HTMLElement>("[data-slot=stereo-field-image]")?.style
+        .left
+    ).toBe("50%")
+  })
+})
+
+describe("Stereo Enhancer", () => {
+  it("has its own editor with width, balance, phase and bass controls", async () => {
+    expect(customEditor("stereoEnhancer")).toBeDefined()
+    const effect = await open("stereoEnhancer")
+    expect(
+      screen.getByRole("group", { name: "Stereo Enhancer settings" })
+    ).toBeVisible()
+    await expectSliders("stereoEnhancer", effect, [
+      "width",
+      "balance",
+      "phaseOffsetMs",
+      "bassHz",
+      "bassLock",
+      "mix",
+    ])
+  })
+
+  it("says which side the phase offset holds back", async () => {
+    const effect = await open("stereoEnhancer")
+    const readout = () =>
+      document.querySelector("[data-slot=phase-readout]")?.textContent
+    expect(readout()).toBe("Both sides in time")
+    await setParam("stereoEnhancer", effect, "phaseOffsetMs", 5)
+    expect(readout()).toBe(describeOffset(5))
+    expect(readout()).toMatch(/^Right side .* late$/)
+    await setParam("stereoEnhancer", effect, "phaseOffsetMs", -12)
+    expect(readout()).toMatch(/^Left side .* late$/)
+  })
+
+  it("inverts one side from its own control, as one undo step", async () => {
+    const effect = await open("stereoEnhancer")
+    const cursor = history().cursor
+    await choose("stereoEnhancer", "invert", "Left")
+    expect(slotOf(effect).params).toMatchObject({ invert: "left" })
+    expect(history().cursor).toBe(cursor + 1)
+    await choose("stereoEnhancer", "invert", "Right")
+    expect(slotOf(effect).params).toMatchObject({ invert: "right" })
+    await undo()
+    await undo()
+    await flush()
+    expect(slotOf(effect).params).toMatchObject({ invert: "off" })
+  })
+})
+
+describe("Pan Motion", () => {
+  it("has its own editor with pan, volume and motion controls", async () => {
+    expect(customEditor("panLfo")).toBeDefined()
+    const effect = await open("panLfo")
+    expect(
+      screen.getByRole("group", { name: "Pan Motion settings" })
+    ).toBeVisible()
+    await expectSliders("panLfo", effect, [
+      "rateHz",
+      "pan",
+      "depth",
+      "gain",
+      "volumeDepth",
+    ])
+  })
+
+  it("swaps the rate for beats when it follows the tempo", async () => {
+    const user = userEvent.setup()
+    const effect = await open("panLfo")
+    expect(screen.queryByRole("slider", { name: "Cycle" })).toBeNull()
+    await user.click(screen.getByRole("switch", { name: "Sync to tempo" }))
+    await flush()
+    expect(slotOf(effect).params).toMatchObject({ sync: true })
+    expect(screen.queryByRole("slider", { name: "Rate" })).toBeNull()
+    await expectSliders("panLfo", effect, ["beats"])
+  })
+
+  it("describes the motion it will make, shape and reach", async () => {
+    const effect = await open("panLfo")
+    const label = () =>
+      document
+        .querySelector("[data-slot=motion-display]")
+        ?.getAttribute("aria-label")
+    expect(label()).toMatch(/^Pan moves between L100 and R100 as a sine/)
+    await choose("panLfo", "shape", "Square")
+    expect(slotOf(effect).params).toMatchObject({ shape: "square" })
+    await setParam("panLfo", effect, "depth", 0.5)
+    await setParam("panLfo", effect, "pan", 0.5)
+    expect(label()).toMatch(/^Pan moves between C and R100 as a square/)
   })
 })
