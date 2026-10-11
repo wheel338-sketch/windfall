@@ -2,6 +2,8 @@
 
 ## Running progress
 
+- Final complete native gate is green: fixture/build/test exits 0, 3,871 passed/0 failed/37 ignored (`target/round2-native.log`). All nine branches and the repaired release/registry cases pass together; no device/ignored cases were executed. Starting the complete frontend suite with four workers, then build and final script gates.
+
 - Final repaired tree: rustfmt and strict workspace Clippy exit 0 with zero warnings (`round2-fmt-final.log`, `round2-clippy-final.log`); rebuilt simulator records current seven-crate provenance and 4,980,098 bytes (`round2-sim-final.log`). Acceptance review keeps Echo Bank/Frequency Delay open for the DELAY-FAMILY shared installed/retiring-owner retained/peak admission gate, despite passing candidate-plan refusal tests. Starting the second complete native gate after its two failures were verified fixed; initial result is preserved separately.
 
 - Every-effect rapid edit/reset/tempo allocator stress passes 1/0/0 (`target/round2-all-effects-stress-final.log`), including the previously failing shortened-loop release. No allocation/free assertion was weakened. Final formatting/Clippy and artifact provenance are being refreshed before the justified complete-suite rerun.
