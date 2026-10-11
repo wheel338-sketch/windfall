@@ -1,4 +1,25 @@
 {
+  "effectOutputs": {
+    "sendTap": [
+      {
+        "id": "send",
+        "label": "Send",
+        "splits": false
+      }
+    ],
+    "transientSplit": [
+      {
+        "id": "transient",
+        "label": "Transient",
+        "splits": true
+      },
+      {
+        "id": "sustain",
+        "label": "Sustain",
+        "splits": true
+      }
+    ]
+  },
   "effects": {
     "balance": {
       "defaults": {
@@ -9373,10 +9394,17 @@
     },
     "limiter": {
       "defaults": {
+        "attackMs": 10.0,
         "ceilingDb": -0.30000001192092896,
+        "gateReleaseMs": 200.0,
+        "gateThresholdDb": -90.0,
         "inputGainDb": 0.0,
+        "kneeDb": 6.0,
         "lookaheadMs": 5.0,
+        "mode": "limit",
+        "ratio": 4.0,
         "releaseMs": 100.0,
+        "thresholdDb": -18.0,
         "type": "limiter"
       },
       "name": "Limiter",
@@ -9422,6 +9450,92 @@
           "max": 20.0,
           "min": 0.10000000149011612,
           "name": "Look-ahead",
+          "scale": "logarithmic",
+          "unit": "milliseconds"
+        },
+        {
+          "choices": [
+            {
+              "label": "Limit",
+              "value": "limit"
+            },
+            {
+              "label": "Compress",
+              "value": "compress"
+            }
+          ],
+          "default": 0.0,
+          "id": "mode",
+          "kind": "choice",
+          "max": 1.0,
+          "min": 0.0,
+          "name": "Mode",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": -18.0,
+          "id": "thresholdDb",
+          "kind": "float",
+          "max": 0.0,
+          "min": -60.0,
+          "name": "Threshold",
+          "scale": "linear",
+          "unit": "decibels"
+        },
+        {
+          "choices": [],
+          "default": 4.0,
+          "id": "ratio",
+          "kind": "float",
+          "max": 100.0,
+          "min": 1.0,
+          "name": "Ratio",
+          "scale": "logarithmic",
+          "unit": "ratio"
+        },
+        {
+          "choices": [],
+          "default": 6.0,
+          "id": "kneeDb",
+          "kind": "float",
+          "max": 24.0,
+          "min": 0.0,
+          "name": "Knee",
+          "scale": "linear",
+          "unit": "decibels"
+        },
+        {
+          "choices": [],
+          "default": 10.0,
+          "id": "attackMs",
+          "kind": "float",
+          "max": 250.0,
+          "min": 0.05000000074505806,
+          "name": "Attack",
+          "scale": "logarithmic",
+          "unit": "milliseconds"
+        },
+        {
+          "choices": [],
+          "default": -90.0,
+          "id": "gateThresholdDb",
+          "kind": "float",
+          "max": 0.0,
+          "min": -90.0,
+          "name": "Gate",
+          "scale": "linear",
+          "unit": "decibels"
+        },
+        {
+          "choices": [],
+          "default": 200.0,
+          "id": "gateReleaseMs",
+          "kind": "float",
+          "max": 2500.0,
+          "min": 5.0,
+          "name": "Gate release",
           "scale": "logarithmic",
           "unit": "milliseconds"
         }
@@ -23257,6 +23371,284 @@
           "name": "Level",
           "scale": "linear",
           "unit": "gain"
+        }
+      ]
+    },
+    "midiOut": {
+      "defaults": {
+        "bankLsb": 0,
+        "bankMsb": 0,
+        "channel": 1,
+        "controllers": [
+          {
+            "number": -1,
+            "value": 0
+          },
+          {
+            "number": -1,
+            "value": 0
+          },
+          {
+            "number": -1,
+            "value": 0
+          },
+          {
+            "number": -1,
+            "value": 0
+          },
+          {
+            "number": -1,
+            "value": 0
+          },
+          {
+            "number": -1,
+            "value": 0
+          },
+          {
+            "number": -1,
+            "value": 0
+          },
+          {
+            "number": -1,
+            "value": 0
+          }
+        ],
+        "pitchBend": 0.0,
+        "program": 0,
+        "type": "midiOut"
+      },
+      "name": "MIDI output",
+      "params": [
+        {
+          "choices": [],
+          "default": 1.0,
+          "id": "channel",
+          "kind": "integer",
+          "max": 16.0,
+          "min": 1.0,
+          "name": "MIDI channel",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": 0.0,
+          "id": "program",
+          "kind": "integer",
+          "max": 128.0,
+          "min": 0.0,
+          "name": "Program",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": 0.0,
+          "id": "bankMsb",
+          "kind": "integer",
+          "max": 127.0,
+          "min": 0.0,
+          "name": "Bank (coarse)",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": 0.0,
+          "id": "bankLsb",
+          "kind": "integer",
+          "max": 127.0,
+          "min": 0.0,
+          "name": "Bank (fine)",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": 0.0,
+          "id": "pitchBend",
+          "kind": "float",
+          "max": 1.0,
+          "min": -1.0,
+          "name": "Pitch wheel",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": -1.0,
+          "id": "controllers.0.number",
+          "kind": "integer",
+          "max": 127.0,
+          "min": -1.0,
+          "name": "Controller 1 number",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": 0.0,
+          "id": "controllers.0.value",
+          "kind": "integer",
+          "max": 127.0,
+          "min": 0.0,
+          "name": "Controller 1",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": -1.0,
+          "id": "controllers.1.number",
+          "kind": "integer",
+          "max": 127.0,
+          "min": -1.0,
+          "name": "Controller 2 number",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": 0.0,
+          "id": "controllers.1.value",
+          "kind": "integer",
+          "max": 127.0,
+          "min": 0.0,
+          "name": "Controller 2",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": -1.0,
+          "id": "controllers.2.number",
+          "kind": "integer",
+          "max": 127.0,
+          "min": -1.0,
+          "name": "Controller 3 number",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": 0.0,
+          "id": "controllers.2.value",
+          "kind": "integer",
+          "max": 127.0,
+          "min": 0.0,
+          "name": "Controller 3",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": -1.0,
+          "id": "controllers.3.number",
+          "kind": "integer",
+          "max": 127.0,
+          "min": -1.0,
+          "name": "Controller 4 number",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": 0.0,
+          "id": "controllers.3.value",
+          "kind": "integer",
+          "max": 127.0,
+          "min": 0.0,
+          "name": "Controller 4",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": -1.0,
+          "id": "controllers.4.number",
+          "kind": "integer",
+          "max": 127.0,
+          "min": -1.0,
+          "name": "Controller 5 number",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": 0.0,
+          "id": "controllers.4.value",
+          "kind": "integer",
+          "max": 127.0,
+          "min": 0.0,
+          "name": "Controller 5",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": -1.0,
+          "id": "controllers.5.number",
+          "kind": "integer",
+          "max": 127.0,
+          "min": -1.0,
+          "name": "Controller 6 number",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": 0.0,
+          "id": "controllers.5.value",
+          "kind": "integer",
+          "max": 127.0,
+          "min": 0.0,
+          "name": "Controller 6",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": -1.0,
+          "id": "controllers.6.number",
+          "kind": "integer",
+          "max": 127.0,
+          "min": -1.0,
+          "name": "Controller 7 number",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": 0.0,
+          "id": "controllers.6.value",
+          "kind": "integer",
+          "max": 127.0,
+          "min": 0.0,
+          "name": "Controller 7",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": -1.0,
+          "id": "controllers.7.number",
+          "kind": "integer",
+          "max": 127.0,
+          "min": -1.0,
+          "name": "Controller 8 number",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": 0.0,
+          "id": "controllers.7.value",
+          "kind": "integer",
+          "max": 127.0,
+          "min": 0.0,
+          "name": "Controller 8",
+          "scale": "linear",
+          "unit": "none"
         }
       ]
     },

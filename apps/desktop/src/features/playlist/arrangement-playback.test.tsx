@@ -112,21 +112,35 @@ describe("active arrangement playlist view", () => {
     expect(project().playlist.clips).toEqual(saved)
   })
 
-  it.each([112, 113])(
-    "shows nothing for empty references in arrangement %s",
-    async (id) => {
-      render(<TrackHeaders metrics={metrics} />)
-      await act(async () => {
-        await dispatch({ type: "switchArrangement", id })
-        await settle()
-      })
-      for (const id of [100, 101, 102]) {
-        expect(screen.queryByRole("group", { name: `Track ${id}` })).toBeNull()
-      }
-      expect(canvasClips()).toEqual([])
-      expect(scene.songEnd).toBe(0)
+  it("shows the lanes of an arrangement that has no clips yet, and nothing on them", async () => {
+    render(<TrackHeaders metrics={metrics} />)
+    await act(async () => {
+      await dispatch({ type: "switchArrangement", id: 112 })
+      await settle()
+    })
+    // A new layout has to offer its lanes, or nothing could be placed on it.
+    expect(screen.getByRole("group", { name: "Track 100" })).toHaveStyle({
+      top: "0px",
+    })
+    for (const id of [101, 102]) {
+      expect(screen.queryByRole("group", { name: `Track ${id}` })).toBeNull()
     }
-  )
+    expect(canvasClips()).toEqual([])
+    expect(scene.songEnd).toBe(0)
+  })
+
+  it("shows nothing for an arrangement that lists no tracks", async () => {
+    render(<TrackHeaders metrics={metrics} />)
+    await act(async () => {
+      await dispatch({ type: "switchArrangement", id: 113 })
+      await settle()
+    })
+    for (const id of [100, 101, 102]) {
+      expect(screen.queryByRole("group", { name: `Track ${id}` })).toBeNull()
+    }
+    expect(canvasClips()).toEqual([])
+    expect(scene.songEnd).toBe(0)
+  })
 
   it("keeps every clip and track for a missing book, empty book or no active id", () => {
     for (const mode of ["missing", "empty", "inactive"]) {

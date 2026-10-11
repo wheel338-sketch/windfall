@@ -65,11 +65,16 @@
 //! first and gives up if another document has taken its place.
 
 mod analysis_jobs;
+mod analyzers;
 mod archive;
 mod audio;
 mod audio_editor;
+mod audio_logger;
 mod autosave;
 mod clip_processing;
+mod consolidate;
+mod controller_capture;
+mod controllers;
 mod edit;
 mod export;
 mod files;
@@ -80,12 +85,17 @@ mod midi;
 mod midi_hardware;
 mod mixer_presets;
 mod playlist_bounce;
+mod playlist_export;
 mod preparation;
+mod presets;
 mod realtime;
 mod recording;
+mod sampler_preprocess;
 mod sampler_processing;
 mod samples;
+mod scores;
 mod slicer;
+mod templates;
 #[cfg(test)]
 mod tests;
 mod timeline;
@@ -107,10 +117,12 @@ use crate::settings::SettingsStore;
 use crate::sync::lock;
 use crate::template::default_project;
 
+pub use analyzers::{ACK_TIMEOUT, AUDIO_TIMEOUT, AnalyzerSender};
 pub use audio::openable;
 pub use autosave::{AUTOSAVE_INTERVAL, backup_timestamp};
 pub use files::{EDITED_WHILE_MOVING, NO_FILE_YET};
 pub use library::{ClipPlace, PROJECT_REPLACED};
+pub use mixer_presets::{MixerPresetLibrary, MixerPresetLibraryEntry, MixerPresetPluginRef};
 pub use realtime::{FRAME_INTERVAL, FrameSender};
 pub use transport::{EMPTY_PLAYLIST, MUTED_PLAYLIST, SILENT_PLAYLIST};
 
@@ -172,8 +184,16 @@ struct Inner {
     timeline_play_request: std::sync::atomic::AtomicU64,
     archive_job: Mutex<Option<Arc<AtomicBool>>>,
     analysis: analysis_jobs::Service,
+    /// Live analyzer slots and captures. Locked after `state`, before the
+    /// engine's controller; the realtime thread takes it without `state`.
+    analyzers: analyzers::Service,
     midi_hardware: Mutex<Option<Arc<windfall_engine::midi_hardware::Runtime>>>,
     midi_configuring: Mutex<()>,
+    /// Controller links at work, takes being recorded and the note log.
+    /// May be locked under `state`, never the other way round.
+    controllers: Mutex<controllers::Hub>,
+    /// Wakes the thread that carries out what controllers ask for.
+    controllers_wake: std::sync::Condvar,
     /// Serializes editor workers and retains at most one bounded clip view.
     audio_editor: Mutex<audio_editor::Editor>,
     library: crate::library::Library,
@@ -216,6 +236,9 @@ struct Inner {
     /// handed to the engine or stopped, so neither can slip in between
     /// another's look at the count and what it then does.
     preview: Mutex<u64>,
+    /// The audio logger. Locked after `configuring` and `recording`; nothing
+    /// but the controller is taken under it.
+    audio_logger: Mutex<audio_logger::Logger>,
     #[cfg(test)]
     pauses: tests::Pauses,
 }
@@ -383,6 +406,10 @@ impl Session {
             .collect();
         let library = crate::library::Library::new(settings.library_file(), roots);
         let analysis = analysis_jobs::Service::new(settings.recordings_dir().join("Analysis"));
+        let controller_hub = controllers::Hub::new(
+            settings.settings().controllers.clone(),
+            &settings.controllers_dir(),
+        );
 
         let project = default_project();
         let decoded = samples::decode_all(&cache, &project, None, &factory_dir);
@@ -397,8 +424,11 @@ impl Session {
                 timeline_play_request: std::sync::atomic::AtomicU64::new(0),
                 archive_job: Mutex::new(None),
                 analysis,
+                analyzers: analyzers::Service::new(),
                 midi_hardware: Mutex::new(None),
                 midi_configuring: Mutex::new(()),
+                controllers: Mutex::new(controller_hub),
+                controllers_wake: std::sync::Condvar::new(),
                 audio_editor: Mutex::new(audio_editor::Editor::default()),
                 library,
                 plugins: Mutex::new(None),
@@ -444,6 +474,7 @@ impl Session {
                 sampler_total: std::sync::atomic::AtomicU32::new(0),
                 export_cancelled: AtomicBool::new(false),
                 preview: Mutex::new(0),
+                audio_logger: Mutex::new(audio_logger::Logger::default()),
                 #[cfg(test)]
                 pauses: tests::Pauses::default(),
             }),

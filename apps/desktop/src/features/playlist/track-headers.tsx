@@ -26,6 +26,7 @@ import { colorToCss } from "@/lib/units"
 import { cn } from "@/lib/utils"
 
 import { trackDropIndex } from "./edit"
+import { linkMenu, selectLinkedSource, trackLinkLabel } from "./linked-tracks"
 import { DRAG_THRESHOLD_PX, HEADER_WIDTH, MIN_ROW_HEIGHT } from "./layout"
 import { useViewportValue, wheelInput, type GridMetrics } from "./metrics"
 import {
@@ -53,6 +54,7 @@ import { trackRowsNow, useTrackRows } from "./track-rows"
 const TRACK_MENU: ContextItem[] = [
   "playlist.renameTrack",
   "playlist.selectTrackClips",
+  "playlist.consolidateTrack",
   "playlist.muteTrack",
   contextSeparator,
   "playlist.moveTrackUp",
@@ -60,11 +62,17 @@ const TRACK_MENU: ContextItem[] = [
   contextSeparator,
   "playlist.insertTrack",
   "playlist.addTrack",
+  "playlist.addInstrumentTrack",
+  "playlist.addAudioTrack",
   contextSeparator,
   "playlist.deleteTrack",
 ]
 
-const SPARE_MENU: ContextItem[] = ["playlist.addTrack"]
+const SPARE_MENU: ContextItem[] = [
+  "playlist.addTrack",
+  "playlist.addInstrumentTrack",
+  "playlist.addAudioTrack",
+]
 
 function NameField({
   track,
@@ -139,15 +147,9 @@ const TrackHeader = memo(function TrackHeader({
   }, [track.id])
   useEffect(() => cancelResize, [cancelResize])
   const resizeHint = useHint(`Drag to resize ${track.name}`)
-  const linkLabel = useProjectStore(({ project }) => {
-    const link = project.playlist.arrangementBook?.linkedTracks[track.id]
-    if (!link) return null
-    const name =
-      link.type === "instrument"
-        ? project.channels.find((channel) => channel.id === link.channel)?.name
-        : project.samples.find((sample) => sample.id === link.source)?.name
-    return name ?? "Missing link"
-  })
+  const linkLabel = useProjectStore(({ project }) =>
+    trackLinkLabel(project, track.id)
+  )
   const setTargetTrack = usePlaylistStore((state) => state.setTargetTrack)
   const hint = useHint(
     `${track.name}${track.muted ? ", muted" : ""}${track.solo ? ", solo" : ""}. Drag up or down to reorder, double-click the name to rename, right-click for more`
@@ -165,6 +167,7 @@ const TrackHeader = memo(function TrackHeader({
       items={() => [
         ...TRACK_MENU,
         contextSeparator,
+        linkMenu(track.id),
         {
           submenu: "Color",
           items: [
@@ -282,6 +285,9 @@ const TrackHeader = memo(function TrackHeader({
         data-lifted={lifted ? "" : undefined}
         onPointerDown={(event) => {
           setTargetTrack(track.id)
+          // An instrument or audio track brings its channel and mixer
+          // track into view with it, as a conventional track does.
+          selectLinkedSource(track.id)
           if (!renaming) onGrab(event, row)
         }}
         style={{

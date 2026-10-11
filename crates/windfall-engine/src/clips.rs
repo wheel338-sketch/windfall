@@ -40,7 +40,7 @@
 //! with, and every start it has refused, for an export to report.
 
 use rtrb::Producer;
-use windfall_core::{AudioBuffer, pan_gains};
+use windfall_core::{AudioBuffer, PanLaw};
 use windfall_project::{ClipId, TrackId};
 
 use crate::message::{Garbage, retire};
@@ -99,6 +99,8 @@ struct Slot {
     step: f64,
     gain: Ramp,
     pan: Ramp,
+    /// The panning law of the plan the slot plays under.
+    law: PanLaw,
     /// Frame the slot started sounding on.
     began: u64,
     /// The slot started in the middle of its audio, which is a cut, and
@@ -139,6 +141,7 @@ impl Slot {
             step: 1.0,
             gain: Ramp::at_rest(0.0),
             pan: Ramp::at_rest(0.0),
+            law: PanLaw::Balance,
             began: 0,
             fades_in: false,
             origin: 0.0,
@@ -195,7 +198,7 @@ impl Slot {
         let fade_in_ticks = self.faded_in - self.starts;
         let fade_out_ticks = self.ends - self.fades_out;
         let steady = self.gain.settled(first) && self.pan.settled(first);
-        let (mut left, mut right) = sides(self.gain.at(first), self.pan.at(first));
+        let (mut left, mut right) = sides(self.law, self.gain.at(first), self.pan.at(first));
         let declick_frames = declick as f32;
         let frames = self.region.frames as f64;
 
@@ -205,7 +208,7 @@ impl Slot {
                 return true;
             }
             if !steady {
-                (left, right) = sides(self.gain.at(frame), self.pan.at(frame));
+                (left, right) = sides(self.law, self.gain.at(frame), self.pan.at(frame));
             }
 
             let mut level = 1.0_f32;
@@ -255,8 +258,8 @@ impl Slot {
 }
 
 #[inline]
-fn sides(gain: f32, pan: f32) -> (f32, f32) {
-    let (left, right) = pan_gains(pan);
+fn sides(law: PanLaw, gain: f32, pan: f32) -> (f32, f32) {
+    let (left, right) = law.gains(pan);
     (gain * left, gain * right)
 }
 
@@ -409,6 +412,7 @@ impl ClipPlayer {
             step,
             gain: Ramp::at_rest(clip.gain),
             pan: Ramp::at_rest(clip.pan),
+            law: plan.pan_law,
             began: now,
             // The first frame of the audio is where the audio itself
             // begins. Any other frame, the last one of a reversed clip
@@ -481,6 +485,7 @@ impl ClipPlayer {
                     slot.track = clip.track;
                     slot.gain.retarget(clip.gain, now, glide);
                     slot.pan.retarget(clip.pan, now, glide);
+                    slot.law = plan.pan_law;
                     slot.place(clip, plan);
                 }
                 None => {

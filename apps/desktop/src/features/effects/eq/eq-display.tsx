@@ -9,6 +9,7 @@ import {
   type CSSProperties,
   type KeyboardEvent,
   type PointerEvent,
+  type ReactNode,
 } from "react"
 
 import type { EqParams } from "@/bindings"
@@ -127,6 +128,11 @@ type EqDisplayProps = {
   selected: EqBandId
   onSelect(band: EqBandId): void
   bind: ParamBinder
+  /**
+   * Drawn over the grid and under the nodes, filling the display: the
+   * track's live spectrum. It takes no pointer events.
+   */
+  underlay?: ReactNode
   className?: string
 }
 
@@ -143,6 +149,7 @@ export function EqDisplay({
   selected,
   onSelect,
   bind,
+  underlay,
   className,
 }: EqDisplayProps) {
   const root = useRef<HTMLDivElement>(null)
@@ -475,6 +482,7 @@ export function EqDisplay({
       {...hint}
     >
       <canvas ref={canvas} className="absolute inset-0 size-full" />
+      {underlay}
       {EQ_BANDS.map((spec) => {
         const point = bandPoint(params, spec.id)
         const at = nodeAt(spec.id)

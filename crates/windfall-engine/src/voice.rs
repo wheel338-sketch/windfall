@@ -15,21 +15,23 @@
 use std::ops::Range;
 
 use rtrb::Producer;
-use windfall_core::{AudioBuffer, db_to_gain, pan_gains};
+use windfall_core::{AudioBuffer, PanLaw, db_to_gain};
 use windfall_dsp::{
     NoteArticulation, NoteExpression,
     blocks::svf::{Svf, SvfCoeffs},
 };
 use windfall_project::{ChannelId, Envelope, SamplerLoopMode, TrackId};
 
-use crate::channel_voice::{ModulationBlock, PreparedChannelEnvelopes};
+use crate::channel_voice::{
+    ModulationBlock, PreparedChannelEnvelopes, VoiceFilter, VoiceFilterMode,
+};
 use crate::message::{Garbage, retire};
 use crate::mixer::{Frame, Mixer};
 use crate::note_glide::NoteGlide;
 use crate::plan::Plan;
 use crate::sequencer::Clock;
 use crate::state::{Heard, PlanState, Strip};
-use windfall_dsp::NoteInstanceId;
+use windfall_dsp::{ExpressionMap, NoteInstanceId};
 
 /// Most voices that sound at full level at once. One more steals a voice.
 pub(crate) const MAX_VOICES: usize = 256;
@@ -464,7 +466,17 @@ struct Voice {
     channel_pitch: f64,
     glide_coefficient: f64,
     source: Option<crate::note_curves::CurveSource>,
+    /// The note's own controls, as stored or as its curves last gave them.
     expression: NoteExpression,
+    /// The note's own pan, before the expression map moved it.
+    raw_pan: f32,
+    /// The channel's expression map, and what it makes of `expression`:
+    /// the values that drive release, cutoff and resonance, a gain and
+    /// cents of pitch.
+    map: ExpressionMap,
+    driver: NoteExpression,
+    map_gain: f32,
+    map_cents: f32,
     release_base_ms: f32,
     active: bool,
     /// Held for as long as the voice may read it. A stopped voice can still
@@ -502,6 +514,12 @@ struct Voice {
     /// `None` plays the sample to its end at full level.
     envelope: Option<EnvelopeState>,
     expression_filter: Option<SvfCoeffs>,
+    /// The channel's own filter, when it is switched on.
+    channel_filter: Option<VoiceFilter>,
+    /// The last modulated coefficients with the cutoff offset, resonance
+    /// offset and note expression they were made from, so a filter that is
+    /// not moving is not designed again on every frame.
+    filter_cache: Option<([f32; 4], SvfCoeffs)>,
     filters: [Svf; 2],
     /// Frames left of an early fade-out. Zero means the voice is not fading.
     fade: u32,
@@ -521,6 +539,11 @@ impl Voice {
             glide_coefficient: 1.0,
             source: None,
             expression: NoteExpression::NEUTRAL,
+            raw_pan: 0.0,
+            map: ExpressionMap::DEFAULT,
+            driver: NoteExpression::NEUTRAL,
+            map_gain: 1.0,
+            map_cents: 0.0,
             release_base_ms: 0.0,
             active: false,
             sample: None,
@@ -549,6 +572,8 @@ impl Voice {
             pan: 0.0,
             envelope: None,
             expression_filter: None,
+            channel_filter: None,
+            filter_cache: None,
             filters: [Svf::default(); 2],
             fade: 0,
             fade_in: 0,
@@ -584,15 +609,45 @@ impl Voice {
         plan: &Plan,
         sample_rate: f64,
     ) -> bool {
-        let Some(sample) = &self.sample else {
+        // Taken out for the call, so the frame loop can change the voice
+        // while it reads the sample. Moving it allocates nothing.
+        let Some(sample) = self.sample.take() else {
             return true;
         };
+        let ended = self.render_frames(
+            &sample,
+            out,
+            mix,
+            start,
+            release_at,
+            fade_frames,
+            clock,
+            plan,
+            sample_rate,
+        );
+        self.sample = Some(sample);
+        ended
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn render_frames(
+        &mut self,
+        sample: &AudioBuffer,
+        out: &mut [Frame],
+        mix: Mix,
+        start: u64,
+        release_at: u64,
+        fade_frames: u32,
+        clock: Clock,
+        plan: &Plan,
+        sample_rate: f64,
+    ) -> bool {
         // A strip that is still gliding is read again on every frame.
         let (gliding, mut left, mut right) = match mix {
             Mix::Sides(left, right) => (None, left, right),
             Mix::Strip(strip) => {
                 let (left, right) =
-                    stereo_gains(strip.gain.at(start), strip.pan.at(start) + self.pan);
+                    stereo_gains(strip.law, strip.gain.at(start), strip.pan.at(start) + self.pan);
                 let steady = strip.gain.settled(start)
                     && strip.pan.settled(start)
                     && !self.source.is_some_and(|source| source.active);
@@ -634,45 +689,11 @@ impl Voice {
             let cutoff_offset = modulation.filter_cutoff_offset[mod_index];
             let pitch_cents = modulation.pitch_cents[mod_index];
             let pan_offset = modulation.pan[mod_index];
+            let resonance_offset = modulation.resonance[mod_index];
+            let tremolo = modulation.volume[mod_index];
             if let Some(source) = self.source.filter(|source| source.active) {
                 let (pan, expression) = source.controls(plan, clock.tick_at(frame));
-                let moved =
-                    f64::from(expression.fine_pitch_cents - self.expression.fine_pitch_cents)
-                        / 100.0;
-                if moved != 0.0 {
-                    self.pitch += moved;
-                    if let Some(glide) = &mut self.glide {
-                        glide.from += moved;
-                        glide.to += moved;
-                    }
-                    if self.glide.is_none() {
-                        self.step = self.pitch_base_step * (self.pitch / 12.0).exp2();
-                    }
-                }
-                if expression.modulation_x != self.expression.modulation_x
-                    || expression.modulation_y != self.expression.modulation_y
-                {
-                    self.expression_filter = (expression.modulation_x != 0.5
-                        || expression.modulation_y != 0.5)
-                        .then(|| {
-                            SvfCoeffs::new(
-                                (20_000.0 * expression.cutoff_octaves().exp2())
-                                    .clamp(20.0, sample_rate as f32 * 0.45),
-                                std::f32::consts::FRAC_1_SQRT_2 * expression.resonance_multiplier(),
-                                sample_rate as f32,
-                            )
-                        });
-                }
-                if expression.release != self.expression.release
-                    && let Some(envelope) = &mut self.envelope
-                {
-                    envelope.set_release_ms(
-                        self.release_base_ms * expression.release_multiplier(),
-                        sample_rate,
-                    );
-                }
-                self.expression = expression;
-                self.pan = pan;
+                self.follow(pan, expression, sample_rate);
             }
             if let Some(glide) = self.glide {
                 let tick = clock.tick_at(frame);
@@ -691,17 +712,19 @@ impl Voice {
                 && self.channel_envelopes.is_some()
             {
                 (left, right) = stereo_gains(
+                    strip.law,
                     strip.gain.at(frame),
                     (strip.pan.at(frame) + self.pan + pan_offset).clamp(-1.0, 1.0),
                 );
             }
             if let Some(strip) = gliding {
                 (left, right) = stereo_gains(
+                    strip.law,
                     strip.gain.at(frame),
                     (strip.pan.at(frame) + self.pan + pan_offset).clamp(-1.0, 1.0),
                 );
             }
-            let mut level = self.gain;
+            let mut level = self.gain * self.map_gain * tremolo;
             if let Some(envelope) = &mut self.envelope {
                 if frame >= release_at {
                     envelope.release();
@@ -724,20 +747,57 @@ impl Voice {
                 }
                 None => self.region.read(sample, self.position),
             };
-            let modulated_filter = (cutoff_offset != 0.0).then(|| {
-                SvfCoeffs::new(
-                    (20_000.0 * (self.expression.cutoff_octaves() + cutoff_offset).exp2())
-                        .clamp(20.0, sample_rate as f32 * 0.45),
-                    std::f32::consts::FRAC_1_SQRT_2 * self.expression.resonance_multiplier(),
-                    sample_rate as f32,
-                )
-            });
+            // The channel filter, with cutoff and resonance moved by their
+            // envelopes and LFOs and by the note's own expression. With the
+            // filter off, a modulation still sweeps the 20 kHz low-pass that
+            // note expression uses.
+            let modulated_filter =
+                if self.channel_filter.is_some() || cutoff_offset != 0.0 || resonance_offset != 0.0
+                {
+                    let key = [
+                        cutoff_offset,
+                        resonance_offset,
+                        self.driver.modulation_x,
+                        self.driver.modulation_y,
+                    ];
+                    let coeffs = match self.filter_cache {
+                        Some((made_from, coeffs)) if made_from == key => coeffs,
+                        _ => {
+                            let (base, amount) =
+                                self.channel_filter.map_or((20_000.0, 0.0), |filter| {
+                                    (filter.cutoff_hz, filter.resonance)
+                                });
+                            let coeffs = SvfCoeffs::new(
+                                (base * (self.driver.cutoff_octaves() + cutoff_offset).exp2())
+                                    .clamp(20.0, sample_rate as f32 * 0.45),
+                                VoiceFilter::q((amount + resonance_offset).clamp(0.0, 1.0))
+                                    * self.driver.resonance_multiplier(),
+                                sample_rate as f32,
+                            );
+                            self.filter_cache = Some((key, coeffs));
+                            coeffs
+                        }
+                    };
+                    Some(coeffs)
+                } else {
+                    None
+                };
             if let Some(coeffs) = modulated_filter
                 .as_ref()
                 .or(self.expression_filter.as_ref())
             {
-                sample_left = self.filters[0].tick(coeffs, sample_left).low;
-                sample_right = self.filters[1].tick(coeffs, sample_right).low;
+                let mode = self
+                    .channel_filter
+                    .map_or(VoiceFilterMode::LowPass, |filter| filter.mode);
+                let left = self.filters[0].tick(coeffs, sample_left);
+                let right = self.filters[1].tick(coeffs, sample_right);
+                (sample_left, sample_right) = match mode {
+                    VoiceFilterMode::LowPass => (left.low, right.low),
+                    VoiceFilterMode::HighPass => (left.high, right.high),
+                    // Scaled by the damping, so the peak passes at unity.
+                    VoiceFilterMode::BandPass => (left.band * coeffs.k, right.band * coeffs.k),
+                    VoiceFilterMode::Notch => (left.low + left.high, right.low + right.high),
+                };
             }
             out[0] += sample_left * level * left;
             out[1] += sample_right * level * right;
@@ -761,9 +821,63 @@ impl Voice {
     }
 }
 
+impl Voice {
+    /// Takes the note's controls as they now are, from its curves or under a
+    /// changed expression map, and moves only what they changed.
+    fn follow(&mut self, pan: f32, expression: NoteExpression, sample_rate: f64) {
+        let controls = self.map.resolve(pan, expression);
+        let moved = f64::from(
+            (expression.fine_pitch_cents + controls.pitch_cents)
+                - (self.expression.fine_pitch_cents + self.map_cents),
+        ) / 100.0;
+        if moved != 0.0 {
+            self.pitch += moved;
+            if let Some(glide) = &mut self.glide {
+                glide.from += moved;
+                glide.to += moved;
+            }
+            if self.glide.is_none() {
+                self.step = self.pitch_base_step * (self.pitch / 12.0).exp2();
+            }
+        }
+        let driver = controls.expression;
+        if driver.modulation_x != self.driver.modulation_x
+            || driver.modulation_y != self.driver.modulation_y
+        {
+            self.expression_filter = driven_filter(driver, sample_rate);
+        }
+        if driver.release != self.driver.release
+            && let Some(envelope) = &mut self.envelope
+        {
+            envelope.set_release_ms(
+                self.release_base_ms * driver.release_multiplier(),
+                sample_rate,
+            );
+        }
+        self.expression = expression;
+        self.raw_pan = pan;
+        self.driver = driver;
+        self.map_gain = controls.gain;
+        self.map_cents = controls.pitch_cents;
+        self.pan = controls.pan;
+    }
+}
+
+/// The low-pass a voice's cutoff and resonance drivers ask for. `None` when
+/// both are neutral, which keeps the voice on its bypass path.
+fn driven_filter(driver: NoteExpression, sample_rate: f64) -> Option<SvfCoeffs> {
+    (driver.modulation_x != 0.5 || driver.modulation_y != 0.5).then(|| {
+        SvfCoeffs::new(
+            (20_000.0 * driver.cutoff_octaves().exp2()).clamp(20.0, sample_rate as f32 * 0.45),
+            std::f32::consts::FRAC_1_SQRT_2 * driver.resonance_multiplier(),
+            sample_rate as f32,
+        )
+    })
+}
+
 #[inline]
-fn stereo_gains(gain: f32, pan: f32) -> (f32, f32) {
-    let (left, right) = pan_gains(pan);
+fn stereo_gains(law: PanLaw, gain: f32, pan: f32) -> (f32, f32) {
+    let (left, right) = law.gains(pan);
     (gain * left, gain * right)
 }
 
@@ -883,16 +997,15 @@ impl VoicePool {
         self.make_room();
         let slot = self.free_slot(plan, garbage)?;
         let expression = note.expression.clamped();
+        let controls = channel.expression_map.resolve(note.pan, expression);
+        // The note's fine pitch and whatever its channel maps to pitch.
+        let cents = expression.fine_pitch_cents + controls.pitch_cents;
         let pitch = if sampler.spectral {
-            2.0_f64.powf(f64::from(expression.fine_pitch_cents) / 1200.0)
+            2.0_f64.powf(f64::from(cents) / 1200.0)
         } else {
-            2.0_f64.powf(
-                f64::from(
-                    f32::from(note.key) + sampler.key_offset + expression.fine_pitch_cents / 100.0,
-                ) / 12.0,
-            )
+            2.0_f64.powf(f64::from(f32::from(note.key) + sampler.key_offset + cents / 100.0) / 12.0)
         };
-        let target_pitch = f64::from(note.key) + f64::from(expression.fine_pitch_cents) / 100.0;
+        let target_pitch = f64::from(note.key) + f64::from(cents) / 100.0;
         let glide = if expression.articulation == NoteArticulation::Portamento {
             from.map(|from| NoteGlide::new(at, glide_end, from, target_pitch))
         } else {
@@ -905,8 +1018,11 @@ impl VoicePool {
         let instance = NoteInstanceId(self.next_instance);
         self.next_instance = self.next_instance.wrapping_add(1);
         channel_envelopes.gate_on();
+        let channel_filter = Some(channel_envelopes.filter()).filter(|filter| filter.enabled);
         self.voices[slot] = Voice {
             instance,
+            channel_filter,
+            filter_cache: None,
             channel_envelopes: channel_envelopes.enabled().then_some(channel_envelopes),
             modulation_released: false,
             channel_pitch: if glide_coefficient < 1.0 {
@@ -919,6 +1035,11 @@ impl VoicePool {
             sample: Some(sample.clone()),
             source: note.source,
             expression,
+            raw_pan: note.pan,
+            map: channel.expression_map,
+            driver: controls.expression,
+            map_gain: controls.gain,
+            map_cents: controls.pitch_cents,
             release_base_ms: sampler.envelope.map_or(0.0, |envelope| envelope.release_ms),
             bank: sampler.bank.clone(),
             origin: note.origin,
@@ -950,21 +1071,13 @@ impl VoicePool {
             pitch_base_step,
             glide,
             gain: note.velocity * sampler.gain,
-            pan: note.pan,
+            pan: controls.pan,
             envelope: sampler.envelope.as_ref().map(|envelope| {
                 let mut envelope = *envelope;
-                envelope.release_ms *= expression.release_multiplier();
+                envelope.release_ms *= controls.expression.release_multiplier();
                 EnvelopeState::new(&envelope, self.sample_rate)
             }),
-            expression_filter: (expression.modulation_x != 0.5 || expression.modulation_y != 0.5)
-                .then(|| {
-                    SvfCoeffs::new(
-                        (20_000.0 * expression.cutoff_octaves().exp2())
-                            .clamp(20.0, self.sample_rate as f32 * 0.45),
-                        std::f32::consts::FRAC_1_SQRT_2 * expression.resonance_multiplier(),
-                        self.sample_rate as f32,
-                    )
-                }),
+            expression_filter: driven_filter(controls.expression, self.sample_rate),
             filters: [Svf::default(); 2],
             fade: 0,
             fade_in: 0,
@@ -1060,6 +1173,10 @@ impl VoicePool {
         }) else {
             return false;
         };
+        let controls = channel
+            .expression_map
+            .resolve(note.pan, note.expression.clamped());
+        let mapped = f64::from(controls.pitch_cents) / 100.0;
         if channel.sampler.spectral {
             // Existing prepared bank selection, preserving envelope and playback position.
             if let Some(sample) = channel
@@ -1071,8 +1188,9 @@ impl VoicePool {
                 voice.sample = Some(sample.clone());
                 voice.region.frames = sample.frames();
                 voice.position = voice.position.min(sample.frames().saturating_sub(1) as f64);
-                let pitch =
-                    f64::from(note.key) + f64::from(note.expression.fine_pitch_cents) / 100.0;
+                let pitch = f64::from(note.key)
+                    + f64::from(note.expression.fine_pitch_cents) / 100.0
+                    + mapped;
                 voice.pitch_base_step = f64::from(sample.sample_rate()) / self.sample_rate
                     * (-f64::from(note.key) / 12.0).exp2();
                 voice.pitch = pitch;
@@ -1080,7 +1198,9 @@ impl VoicePool {
                 return false;
             }
         } else {
-            voice.pitch = f64::from(note.key) + f64::from(note.expression.fine_pitch_cents) / 100.0;
+            voice.pitch = f64::from(note.key)
+                + f64::from(note.expression.fine_pitch_cents) / 100.0
+                + mapped;
         }
         let target = voice.pitch;
         voice.glide = if note.expression.articulation == NoteArticulation::Portamento {
@@ -1092,7 +1212,14 @@ impl VoicePool {
         voice.key = note.key;
         voice.source = note.source;
         voice.expression = note.expression.clamped();
-        voice.pan = note.pan;
+        // As before the map existed, the filter and envelope the voice
+        // started with carry on; the note's other controls are the new ones.
+        voice.raw_pan = note.pan;
+        voice.map = channel.expression_map;
+        voice.driver = controls.expression;
+        voice.map_gain = controls.gain;
+        voice.map_cents = controls.pitch_cents;
+        voice.pan = controls.pan;
         voice.end = note.end;
         voice.origin = note.origin;
         true
@@ -1165,6 +1292,7 @@ impl VoicePool {
     /// be gentle with.
     pub fn rebind(&mut self, plan: &Plan, old_plan: &Plan, old_state: &PlanState, now: u64) {
         let fade_frames = self.fade_frames;
+        let sample_rate = self.sample_rate;
         let through = old_state.gains_to_output(old_plan, now);
         // Where a voice that was in the old plan's track `old_track`, at
         // these gains, finishes.
@@ -1204,7 +1332,7 @@ impl VoicePool {
                 Route::Channel(old_index) => {
                     let strip = &old_state.channels[old_index];
                     let (left, right) =
-                        stereo_gains(strip.gain.at(now), strip.pan.at(now) + voice.pan);
+                        stereo_gains(strip.law, strip.gain.at(now), strip.pan.at(now) + voice.pan);
                     let old_track = old_plan.channels[old_index].track;
                     let kept = plan.channel(voice.channel).filter(|_| !leaving);
                     let Some(new_index) = kept else {
@@ -1216,6 +1344,11 @@ impl VoicePool {
                         continue;
                     };
                     voice.route = Route::Channel(new_index);
+                    let map = plan.channels[new_index].expression_map;
+                    if map != voice.map {
+                        voice.map = map;
+                        voice.follow(voice.raw_pan, voice.expression, sample_rate);
+                    }
                     let moved = plan.tracks[plan.channels[new_index].track].id
                         != old_plan.tracks[old_track].id;
                     if !moved {
@@ -1256,7 +1389,7 @@ impl VoicePool {
                     };
                 }
                 Route::Master if leaving && !old_state.shaped[0] => {
-                    let (left, right) = pan_gains(voice.pan);
+                    let (left, right) = old_plan.pan_law.gains(voice.pan);
                     let [master_left, master_right] = through[0];
                     voice.route = Route::Apart {
                         left: left * master_left,
@@ -1291,7 +1424,7 @@ impl VoicePool {
                     Mix::Strip(state.channels[channel]),
                     mixer.track_mut(plan.channels[channel].track),
                 ),
-                Route::Master => (Mix::Strip(Strip::at_rest(1.0, 0.0)), mixer.track_mut(0)),
+                Route::Master => (Mix::Strip(Strip::at_rest(1.0, 0.0).under(plan.pan_law)), mixer.track_mut(0)),
                 Route::Track {
                     track, left, right, ..
                 } => (Mix::Sides(left, right), mixer.track_mut(track)),

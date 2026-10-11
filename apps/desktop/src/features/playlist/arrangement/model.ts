@@ -248,10 +248,16 @@ export function editArrangementBook(
       else {
         if (!validLink(edit.kind))
           missing(
-            edit.kind.type === "instrument" ? "Channel" : "Audio source",
+            edit.kind.type === "instrument"
+              ? "Channel"
+              : edit.kind.type === "audio"
+                ? "Audio source"
+                : "Mixer track",
             edit.kind.type === "instrument"
               ? edit.kind.channel
-              : edit.kind.source
+              : edit.kind.type === "audio"
+                ? edit.kind.source
+                : edit.kind.mixer
           )
         next.linkedTracks[edit.id] = { ...edit.kind }
       }

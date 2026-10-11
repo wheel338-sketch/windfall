@@ -68,7 +68,7 @@ impl Capture {
             return Err("Enable monitoring on at least one mixer input.".into());
         }
         let stop = Arc::new(AtomicBool::new(false));
-        let fault = Arc::new(AtomicBool::new(false));
+        let fault = Arc::new(InputFault::new());
         let frames = Arc::new(AtomicU64::new(0));
         let (ready, waiting) = std::sync::mpsc::sync_channel(1);
         let s = stop.clone();
@@ -130,10 +130,7 @@ impl Capture {
                         return Err("Audio output changed; start monitoring again.".into());
                     }
                     if f.load(Ordering::Acquire) {
-                        return Err(
-                            "Input monitoring stopped after device loss or input queue overflow."
-                                .into(),
-                        );
+                        return Err(f.describe("Input monitoring stopped."));
                     }
                     let mut received = false;
                     for (queue, route, input_rate, period, origin, next) in &mut channels {
@@ -230,7 +227,7 @@ impl Capture {
             return Err("Arm between one track and the mixer's recording capacity.".into());
         }
         let stop = Arc::new(AtomicBool::new(false));
-        let fault = Arc::new(AtomicBool::new(false));
+        let fault = Arc::new(InputFault::new());
         let frames = Arc::new(AtomicU64::new(0));
         let (ready, waiting) = std::sync::mpsc::sync_channel(1);
         let s = stop.clone();
@@ -284,7 +281,7 @@ impl Capture {
                     channel.metrics.output_latency.store(gate.clock().output().map_or(0, |clock| clock.latency_nanos), Ordering::Relaxed);
                 }
                 count.store(channels.iter().map(|channel| channel.aligner.received).chain(disks.iter().map(|channel| channel.reader.frames())).min().unwrap_or(0), Ordering::Relaxed);
-                if f.load(Ordering::Acquire) { return Err("A multitrack input failed or overflowed; all tracks in the take were discarded.".into()); }
+                if f.load(Ordering::Acquire) { return Err(f.describe("All tracks in the take were discarded.")); }
                 if s.load(Ordering::Acquire) {
                     if stopping.is_none() { gate.close(); stopping = Some(std::time::Instant::now()); }
                     let mut complete = true;
@@ -304,7 +301,7 @@ impl Capture {
                 while let Ok(packet) = channel.queue.pop() { channel.consume(&packet)?; }
                 channel.aligner.finish(&mut channel.sink)?;
             }
-            if f.load(Ordering::Acquire) { return Err("Multitrack input failed while closing; take group discarded.".into()); }
+            if f.load(Ordering::Acquire) { return Err(f.describe("The take group was discarded.")); }
             Ok(channels.iter().map(|channel| channel.aligner.received).chain(disks.iter().map(|channel| channel.reader.frames())).min().unwrap_or(0))
         }).map_err(|error| error.to_string())?;
         match waiting.recv() {
@@ -329,7 +326,7 @@ fn open_group(
     routes: &[CaptureRoute],
     rate: u32,
     clock: RecordingClock,
-    fault: Arc<AtomicBool>,
+    fault: Arc<InputFault>,
 ) -> Result<OpenedInputGroup, String> {
     let mut groups = BTreeMap::<(String, String), Vec<usize>>::new();
     for (index, route) in routes.iter().enumerate() {
@@ -346,15 +343,10 @@ fn open_group(
             .find(|id| id.name() == host_name)
             .ok_or_else(|| format!("Input host {host_name} is unavailable."))?;
         let host = cpal::host_from_id(id).map_err(|error| error.to_string())?;
-        let device = host
-            .input_devices()
-            .map_err(|error| error.to_string())?
-            .find(|device| {
-                device
-                    .description()
-                    .is_ok_and(|desc| desc.name() == device_name)
-            })
+        let endpoint = crate::recording_endpoint::find_input(&host, &device_name)?
             .ok_or_else(|| format!("Input device {device_name} is unavailable."))?;
+        let configs = crate::recording_endpoint::input_configs(&endpoint)?;
+        let device = endpoint.device;
         let highest = indices
             .iter()
             .map(|index| {
@@ -373,9 +365,8 @@ fn open_group(
             .as_ref()
             .and_then(|alignment| alignment.input_sample_rate)
             .unwrap_or(rate);
-        let config = device
-            .supported_input_configs()
-            .map_err(|error| error.to_string())?
+        let config = configs
+            .into_iter()
             .filter(|config| {
                 config.channels() > highest
                     && matches!(
@@ -432,7 +423,7 @@ struct GroupFeed {
     clock: RecordingClock,
     rate: u32,
     frame: u64,
-    fault: Arc<AtomicBool>,
+    fault: Arc<InputFault>,
 }
 impl GroupFeed {
     fn push<T: SizedSample>(&mut self, data: &[T], info: &cpal::InputCallbackInfo)
@@ -443,7 +434,7 @@ impl GroupFeed {
             return;
         }
         if !data.len().is_multiple_of(self.channels) {
-            self.fault.store(true, Ordering::Release);
+            self.fault.raise(FaultReason::InvalidAudio);
             return;
         }
         let stamp = info.timestamp();
@@ -474,12 +465,12 @@ impl GroupFeed {
                         f32::from_sample(input[*right]),
                     ];
                     if !output[0].is_finite() || !output[1].is_finite() {
-                        self.fault.store(true, Ordering::Release);
+                        self.fault.raise(FaultReason::InvalidAudio);
                         return;
                     }
                 }
                 if queue.push(packet).is_err() {
-                    self.fault.store(true, Ordering::Release);
+                    self.fault.raise(FaultReason::Overflow);
                     return;
                 }
             }
@@ -491,7 +482,7 @@ fn build_group<T: SizedSample>(
     device: &cpal::Device,
     config: &cpal::StreamConfig,
     mut feed: GroupFeed,
-    fault: Arc<AtomicBool>,
+    fault: Arc<InputFault>,
 ) -> Result<cpal::Stream, String>
 where
     f32: FromSample<T>,
@@ -500,7 +491,7 @@ where
         .build_input_stream(
             *config,
             move |data: &[T], info| feed.push(data, info),
-            move |_| fault.store(true, Ordering::Release),
+            move |error: cpal::Error| fault.report(error),
             None,
         )
         .map_err(|error| error.to_string())

@@ -1853,6 +1853,9 @@ impl HostedEffect for Audio {
 #[path = "capture_ack_tests.rs"]
 mod capture_ack_tests;
 #[cfg(all(test, windows))]
+#[path = "sidechain_bus_tests.rs"]
+mod sidechain_bus_tests;
+#[cfg(all(test, windows))]
 #[path = "ownership_tests.rs"]
 pub(crate) mod ownership_tests;
 impl HostedInstrument for Audio {

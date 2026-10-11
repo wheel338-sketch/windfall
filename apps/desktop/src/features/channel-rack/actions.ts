@@ -47,6 +47,7 @@ import { matchingPreset, SYNTH_PRESETS } from "./synth/presets"
 import { openAdvancedFill } from "./advanced-fill"
 import { dispatch } from "@/lib/store/project"
 import { createChannelGroup, currentNamedGroup, openChannelGroups, removeChannelGroup, renameChannelGroup } from "./channel-groups"
+import { addLayerChannel } from "./layer"
 
 /** The palette section, and menu, of the built-in instrument sounds. */
 export const SOUNDS_SECTION = "Sounds"
@@ -302,6 +303,13 @@ export const CHANNEL_RACK_ACTIONS: Action[] = [
     run: addChannelFromPickedFile,
   },
   ...ADD_INSTRUMENT_ACTIONS,
+  {
+    id: "channel.addLayer",
+    title: "Add layer channel",
+    section: "Channels",
+    keywords: "new layer stack children notes together silent fan out",
+    run: () => addLayerChannel(),
+  },
   {
     id: "channel.replaceSample",
     title: "Replace sample from an audio file…",

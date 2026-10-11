@@ -9,8 +9,10 @@
 pub mod browser;
 mod commands;
 pub mod events;
+mod files_commands;
 pub mod library;
 pub mod paths;
+pub mod plugin_database;
 pub mod plugins;
 mod process_memory;
 pub mod samples;
@@ -48,6 +50,7 @@ pub fn run() {
                 && let Some(session) = window.try_state::<Session>()
             {
                 session.unsubscribe_realtime(window.label());
+                session.analyzer_window_closed(window.label());
             }
         })
         .invoke_handler(commands::handler())

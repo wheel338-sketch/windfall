@@ -84,6 +84,32 @@ pub(crate) struct Lane {
     spans: Vec<Span>,
     /// The curves the spans read.
     curves: Vec<Vec<AutomationPoint>>,
+    /// What the target does while a pattern plays by itself: the event
+    /// lane each pattern has for it, sorted by the pattern's index in
+    /// [`Plan::patterns`]. A pattern that is not listed leaves the target
+    /// alone.
+    patterns: Vec<PatternCurve>,
+}
+
+/// The event lane one pattern has for a target.
+#[derive(Debug)]
+struct PatternCurve {
+    /// Index into [`Plan::patterns`].
+    pattern: usize,
+    /// Index into the lane's curves.
+    curve: usize,
+    /// The lane's id, which the engine reports its value under.
+    automation: AutomationId,
+}
+
+/// A place automation is read at.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub(crate) enum Place {
+    /// A tick of the song.
+    Song(f64),
+    /// A tick of the pattern at this index of [`Plan::patterns`], while it
+    /// plays by itself.
+    Pattern { index: usize, tick: f64 },
 }
 
 #[derive(Debug)]
@@ -102,6 +128,19 @@ enum Source {
     Curve { curve: usize, shift: f64 },
     /// No clip is playing: the value the last one ended on.
     Hold(f32),
+    /// A pattern clip is playing: the curve of the pattern's event lane,
+    /// read at the place in the pattern, which goes around every `length`
+    /// ticks from the song tick `origin`.
+    Loop {
+        curve: usize,
+        origin: f64,
+        length: f64,
+    },
+}
+
+/// The place in a pattern `length` ticks long that began at `origin`.
+fn looped(tick: f64, origin: f64, length: f64) -> f64 {
+    (tick - origin).rem_euclid(length)
 }
 
 /// What a lane moves, as the plan names it.
@@ -186,6 +225,9 @@ struct Piece {
     id: ClipId,
     automation: AutomationId,
     curve: usize,
+    /// For a pattern clip, the length of the pattern its curve goes around
+    /// in. `None` for an automation clip, whose curve is read once.
+    repeat: Option<u32>,
 }
 
 impl Piece {
@@ -208,8 +250,42 @@ impl Lane {
         let value = match span.source {
             Source::Curve { curve, shift } => curve_value(&self.curves[curve], tick + shift),
             Source::Hold(value) => value,
+            Source::Loop {
+                curve,
+                origin,
+                length,
+            } => curve_value(&self.curves[curve], looped(tick, origin, length)),
         };
         Some((value, span.automation))
+    }
+
+    /// The value, 0 to 1, the target has at `place` and the automation or
+    /// event lane it comes from. `None` where nothing moves the target: in
+    /// the song before its first clip, and in a pattern that has no event
+    /// lane for it.
+    pub fn value_in(&self, place: Place) -> Option<(f32, AutomationId)> {
+        match place {
+            Place::Song(tick) => self.value_at(tick),
+            Place::Pattern { index, tick } => {
+                let at = self
+                    .patterns
+                    .binary_search_by_key(&index, |entry| entry.pattern)
+                    .ok()?;
+                let entry = &self.patterns[at];
+                Some((curve_value(&self.curves[entry.curve], tick), entry.automation))
+            }
+        }
+    }
+
+    /// [`value_in`](Self::value_in) in the target's own unit.
+    pub fn real_in(&self, place: Place) -> Option<f32> {
+        self.value_in(place)
+            .map(|(value, _)| self.range.value(value))
+    }
+
+    /// True when some pattern has an event lane for the target.
+    pub fn in_patterns(&self) -> bool {
+        !self.patterns.is_empty()
     }
 
     /// The same in the target's own unit.
@@ -227,6 +303,21 @@ impl Lane {
         let value = match span.source {
             Source::Curve { curve, shift } => curve_before(&self.curves[curve], tick + shift),
             Source::Hold(value) => value,
+            Source::Loop {
+                curve,
+                origin,
+                length,
+            } => {
+                // Arriving at the end of a round is arriving at the end of
+                // the pattern, not at its start.
+                let place = looped(tick, origin, length);
+                let place = if place == 0.0 && tick > span.start {
+                    length
+                } else {
+                    place
+                };
+                curve_before(&self.curves[curve], place)
+            }
         };
         Some(self.range.value(value))
     }
@@ -313,7 +404,7 @@ pub(crate) fn compile(project: &Project, playlist: &Playlist, plan: &Plan) -> Ve
 
     // The clips of each target, in the order the targets first turn up
     // among the automations, which keeps the lanes in a fixed order.
-    let mut lanes: Vec<(Lane, Vec<Piece>, HashMap<AutomationId, usize>)> = Vec::new();
+    let mut lanes: Building = Vec::new();
     let mut by_target: HashMap<AutomationTarget, usize> = HashMap::new();
     for clip in &playlist.clips {
         let ClipContent::Automation { automation: id } = clip.content else {
@@ -332,25 +423,9 @@ pub(crate) fn compile(project: &Project, playlist: &Playlist, plan: &Plan) -> Ve
         if automation.points.is_empty() {
             continue;
         }
-        let at = match by_target.get(&automation.target) {
-            Some(at) => *at,
-            None => {
-                let target = resolve(&automation.target, plan);
-                let range = project.automation_range(&automation.target);
-                let Some((target, range)) = target.zip(range) else {
-                    continue;
-                };
-                let lane = Lane {
-                    key: automation.target,
-                    target,
-                    range,
-                    spans: Vec::new(),
-                    curves: Vec::new(),
-                };
-                lanes.push((lane, Vec::new(), HashMap::new()));
-                by_target.insert(automation.target, lanes.len() - 1);
-                lanes.len() - 1
-            }
+        let Some(at) = lane_of(&automation.target, project, plan, &mut lanes, &mut by_target)
+        else {
+            continue;
         };
         let (lane, pieces, curves) = &mut lanes[at];
         let curve = *curves.entry(id).or_insert_with(|| {
@@ -365,14 +440,77 @@ pub(crate) fn compile(project: &Project, playlist: &Playlist, plan: &Plan) -> Ve
             id: clip.id,
             automation: id,
             curve,
+            repeat: None,
         });
     }
 
+    // The event lanes of the patterns. Each has its curve once per lane,
+    // whatever number of clips play the pattern.
+    let mut seen: Vec<AutomationTarget> = Vec::new();
+    for (index, pattern) in project.patterns.iter().enumerate() {
+        debug_assert_eq!(plan.patterns[index].id, pattern.id);
+        for events in &pattern.events {
+            if events.points.is_empty() || events.target == AutomationTarget::Tempo {
+                continue;
+            }
+            let Some(at) = lane_of(&events.target, project, plan, &mut lanes, &mut by_target)
+            else {
+                continue;
+            };
+            if !seen.contains(&events.target) {
+                seen.push(events.target);
+            }
+            let (lane, pieces, curves) = &mut lanes[at];
+            let curve = *curves.entry(events.id).or_insert_with(|| {
+                lane.curves.push(events.points.clone());
+                lane.curves.len() - 1
+            });
+            // By itself the pattern plays its lane from its start.
+            lane.patterns.push(PatternCurve {
+                pattern: index,
+                curve,
+                automation: events.id,
+            });
+            // On the playlist every clip of the pattern plays it, around
+            // and around, as it plays the notes.
+            let length = plan.patterns[index].length;
+            for clip in &playlist.clips {
+                let ClipContent::Pattern { pattern: id } = clip.content else {
+                    continue;
+                };
+                let end = clip.start.saturating_add(clip.length);
+                if id != pattern.id
+                    || clip.muted
+                    || silent_tracks.contains(&clip.track)
+                    || end == clip.start
+                {
+                    continue;
+                }
+                let Some(row) = row_of(clip.track) else {
+                    continue;
+                };
+                pieces.push(Piece {
+                    start: clip.start,
+                    end,
+                    offset: clip.offset % length,
+                    row,
+                    id: clip.id,
+                    automation: events.id,
+                    curve,
+                    repeat: Some(length),
+                });
+            }
+        }
+    }
+
     // The order the automations have in the project, so that the lanes do
-    // not depend on where their clips happen to sit.
+    // not depend on where their clips happen to sit. Targets only patterns
+    // move come after, in the order the patterns first name them.
     let order = |lane: &Lane| {
         let automations = project.automations.iter();
-        automations.clone().position(|a| a.target == lane.key)
+        let among = automations.clone().position(|a| a.target == lane.key);
+        let named = seen.iter().position(|target| *target == lane.key);
+        (among.unwrap_or(usize::MAX), named.unwrap_or(usize::MAX))
     };
     let mut lanes: Vec<Lane> = lanes
         .into_iter()
@@ -383,6 +521,36 @@ pub(crate) fn compile(project: &Project, playlist: &Playlist, plan: &Plan) -> Ve
         .collect();
     lanes.sort_by_key(order);
     lanes
+}
+
+/// The lanes being built, each with the clips of its target and where the
+/// curve of each automation or event lane sits among its curves.
+type Building = Vec<(Lane, Vec<Piece>, HashMap<AutomationId, usize>)>;
+
+/// Finds the lane of `target` among those being built, starting one when
+/// the target has none yet. `None` when the plan has no such target.
+fn lane_of(
+    target: &AutomationTarget,
+    project: &Project,
+    plan: &Plan,
+    lanes: &mut Building,
+    by_target: &mut HashMap<AutomationTarget, usize>,
+) -> Option<usize> {
+    if let Some(at) = by_target.get(target) {
+        return Some(*at);
+    }
+    let (resolved, range) = resolve(target, plan).zip(project.automation_range(target))?;
+    let lane = Lane {
+        key: *target,
+        target: resolved,
+        range,
+        spans: Vec::new(),
+        curves: Vec::new(),
+        patterns: Vec::new(),
+    };
+    lanes.push((lane, Vec::new(), HashMap::new()));
+    by_target.insert(*target, lanes.len() - 1);
+    Some(lanes.len() - 1)
 }
 
 /// Settles what a target does along the song: at every tick the clip that
@@ -409,13 +577,21 @@ fn flatten(pieces: &[Piece], curves: &[Vec<AutomationPoint>]) -> Vec<Span> {
             Some(piece) if playing == Some(piece.id) => continue,
             Some(piece) => {
                 playing = Some(piece.id);
-                Span {
-                    start: f64::from(edge),
-                    automation: piece.automation,
-                    source: Source::Curve {
+                let source = match piece.repeat {
+                    None => Source::Curve {
                         curve: piece.curve,
                         shift: f64::from(piece.offset) - f64::from(piece.start),
                     },
+                    Some(length) => Source::Loop {
+                        curve: piece.curve,
+                        origin: f64::from(piece.start) - f64::from(piece.offset),
+                        length: f64::from(length),
+                    },
+                };
+                Span {
+                    start: f64::from(edge),
+                    automation: piece.automation,
+                    source,
                 }
             }
             None => {
@@ -430,8 +606,15 @@ fn flatten(pieces: &[Piece], curves: &[Vec<AutomationPoint>]) -> Vec<Span> {
                 let Some(last) = last else {
                     continue;
                 };
-                // The value its curve has where the clip ends.
+                // The value its curve has where the clip ends. A pattern
+                // clip that ends with a round of its pattern ends at the
+                // pattern's end, not back at its start.
                 let end = f64::from(last.offset) + f64::from(last.end - last.start);
+                let end = match last.repeat.map(f64::from) {
+                    Some(length) if end.rem_euclid(length) == 0.0 => length,
+                    Some(length) => end.rem_euclid(length),
+                    None => end,
+                };
                 Span {
                     start: f64::from(edge),
                     automation: last.automation,
@@ -510,10 +693,10 @@ pub(crate) struct Look {
     /// where the song will be playing then, or where a song that has
     /// stopped is being held. `None` lets go of every target, which sends
     /// each back to its stored value.
-    pub tick: Option<f64>,
+    pub tick: Option<Place>,
     /// The place in the song that frame `now` plays, when playback has
     /// only just begun there or been moved there.
-    pub landed: Option<f64>,
+    pub landed: Option<Place>,
     /// Frames a target that is let go of at this look takes to get back to
     /// its stored value.
     pub back: u64,
@@ -533,7 +716,7 @@ pub(crate) fn step(plan: &Plan, state: &mut PlanState, look: Look) {
     } = look;
     let (mut engaged, mut returning) = (0, 0);
     for (index, lane) in plan.lanes.iter().enumerate() {
-        let Some((value, automation)) = tick.and_then(|tick| lane.value_at(tick)) else {
+        let Some((value, automation)) = tick.and_then(|place| lane.value_in(place)) else {
             if let_go(plan, state, index, look) {
                 returning += 1;
             }
@@ -541,7 +724,7 @@ pub(crate) fn step(plan: &Plan, state: &mut PlanState, look: Look) {
         };
         // Playback landed inside the lane: the target is where the curve
         // has it at once, and moves on from there.
-        if let Some(here) = landed.and_then(|tick| lane.real_at(tick)) {
+        if let Some(here) = landed.and_then(|place| lane.real_in(place)) {
             set(plan, state, lane.target, here, now, 0);
         }
         let real = lane.range.value(value);
@@ -773,6 +956,7 @@ mod tests {
             id: ClipId(id),
             automation: AutomationId(100 + curve as u32),
             curve,
+            repeat: None,
         }
     }
 
@@ -809,6 +993,7 @@ mod tests {
             range: AutomationRange::TEMPO,
             spans,
             curves,
+            patterns: Vec::new(),
         };
         // Nothing before the first clip, the curve inside it, and its last
         // value from its end until the next clip.
@@ -883,6 +1068,7 @@ mod tests {
             range: AutomationRange::TEMPO,
             spans: flatten(&[piece(1, 0, 1_000, 2_000, 0)], &curves),
             curves,
+            patterns: Vec::new(),
         };
         assert_eq!(lane.real_before(1_000.0), None);
         assert_eq!(lane.real_at(1_000.0), Some(266.0));
@@ -905,6 +1091,7 @@ mod tests {
             range: AutomationRange::TEMPO,
             spans: flatten(&[window], &curves),
             curves,
+            patterns: Vec::new(),
         };
         let value = |tick: f64| lane.value_at(tick).unwrap().0;
         assert!((value(5_000.0) - 0.5).abs() < 1e-6);

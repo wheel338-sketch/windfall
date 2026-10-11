@@ -1,0 +1,332 @@
+{
+  "actual": {
+    "bufferFrames": 480,
+    "bufferLatencyMs": 10.0,
+    "host": "WASAPI",
+    "outputChannels": 2,
+    "outputDevice": "Speakers (Steam Streaming Microphone)",
+    "processingLatencyFrames": 0,
+    "sampleRate": 48000
+  },
+  "arch": "x86_64",
+  "checks": [
+    {
+      "check": "the uncalibrated take is kept",
+      "passed": false
+    }
+  ],
+  "commit": "fd60cddeea700f6206c5a3d01e7a3e471f445db9",
+  "inputDevice": "Microphone (Steam Streaming Microphone)",
+  "label": "cable",
+  "os": "windows",
+  "osVersion": "Microsoft Windows [Version 10.0.26300.9550]",
+  "passed": false,
+  "profile": "dev",
+  "raw": {
+    "alignment": {
+      "driftPpm": 3830.647,
+      "inputLatencyMs": 20.0,
+      "inputSampleRate": 44100,
+      "measuredTimestamps": true,
+      "outputLatencyMs": 41.958,
+      "trimmedFrames": 1420
+    },
+    "countInBars": 0,
+    "firstWrittenAtMs": 100,
+    "offsetMs": 0.0,
+    "openMs": 48,
+    "progress": [
+      {
+        "alignment": {
+          "driftPpm": 0.0,
+          "inputLatencyMs": 0.0,
+          "inputSampleRate": 44100,
+          "measuredTimestamps": false,
+          "outputLatencyMs": 0.0,
+          "trimmedFrames": 0
+        },
+        "atMs": 0,
+        "countInRemaining": 1,
+        "error": null,
+        "frames": 0,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": -0.0,
+          "inputLatencyMs": 19.955,
+          "inputSampleRate": 44100,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 50.938,
+          "trimmedFrames": 1499
+        },
+        "atMs": 100,
+        "countInRemaining": 0,
+        "error": null,
+        "frames": 1711,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": -0.0,
+          "inputLatencyMs": 19.932,
+          "inputSampleRate": 44100,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 41.938,
+          "trimmedFrames": 1508
+        },
+        "atMs": 200,
+        "countInRemaining": 0,
+        "error": null,
+        "frames": 6982,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": -0.0,
+          "inputLatencyMs": 29.909,
+          "inputSampleRate": 44100,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 41.938,
+          "trimmedFrames": 1516
+        },
+        "atMs": 301,
+        "countInRemaining": 0,
+        "error": null,
+        "frames": 11773,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": -0.0,
+          "inputLatencyMs": 19.887,
+          "inputSampleRate": 44100,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 41.958,
+          "trimmedFrames": 1524
+        },
+        "atMs": 401,
+        "countInRemaining": 0,
+        "error": null,
+        "frames": 16564,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": -0.0,
+          "inputLatencyMs": 19.841,
+          "inputSampleRate": 44100,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 41.938,
+          "trimmedFrames": 1533
+        },
+        "atMs": 502,
+        "countInRemaining": 0,
+        "error": null,
+        "frames": 21354,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": -0.0,
+          "inputLatencyMs": 10.785,
+          "inputSampleRate": 44100,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 41.938,
+          "trimmedFrames": 1542
+        },
+        "atMs": 602,
+        "countInRemaining": 0,
+        "error": null,
+        "frames": 25668,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": -0.0,
+          "inputLatencyMs": 19.773,
+          "inputSampleRate": 44100,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 41.938,
+          "trimmedFrames": 1552
+        },
+        "atMs": 702,
+        "countInRemaining": 0,
+        "error": null,
+        "frames": 30938,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": -0.0,
+          "inputLatencyMs": 10.183,
+          "inputSampleRate": 44100,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 41.938,
+          "trimmedFrames": 1559
+        },
+        "atMs": 803,
+        "countInRemaining": 0,
+        "error": null,
+        "frames": 35249,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": -0.0,
+          "inputLatencyMs": 19.705,
+          "inputSampleRate": 44100,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 41.896,
+          "trimmedFrames": 1570
+        },
+        "atMs": 903,
+        "countInRemaining": 0,
+        "error": null,
+        "frames": 40520,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": -0.0,
+          "inputLatencyMs": 19.683,
+          "inputSampleRate": 44100,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 41.938,
+          "trimmedFrames": 1577
+        },
+        "atMs": 1003,
+        "countInRemaining": 0,
+        "error": null,
+        "frames": 45792,
+        "xruns": 0
+      },
+      {
+        "alignment": {
+          "driftPpm": 1313.222,
+          "inputLatencyMs": 10.613,
+          "inputSampleRate": 44100,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 41.958,
+          "trimmedFrames": 1522
+        },
+        "atMs": 1103,
+        "countInRemaining": 0,
+        "error": null,
+        "frames": 50579,
+        "xruns": 1
+      },
+      {
+        "alignment": {
+          "driftPpm": 2386.055,
+          "inputLatencyMs": 19.592,
+          "inputSampleRate": 44100,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 41.938,
+          "trimmedFrames": 1477
+        },
+        "atMs": 1204,
+        "countInRemaining": 0,
+        "error": null,
+        "frames": 55360,
+        "xruns": 1
+      },
+      {
+        "alignment": {
+          "driftPpm": 2859.393,
+          "inputLatencyMs": 19.592,
+          "inputSampleRate": 44100,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 40.938,
+          "trimmedFrames": 1461
+        },
+        "atMs": 1304,
+        "countInRemaining": 0,
+        "error": null,
+        "frames": 59663,
+        "xruns": 1
+      },
+      {
+        "alignment": {
+          "driftPpm": 3190.042,
+          "inputLatencyMs": 19.569,
+          "inputSampleRate": 44100,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 41.958,
+          "trimmedFrames": 1444
+        },
+        "atMs": 1404,
+        "countInRemaining": 0,
+        "error": null,
+        "frames": 64915,
+        "xruns": 1
+      },
+      {
+        "alignment": {
+          "driftPpm": 3457.731,
+          "inputLatencyMs": 19.547,
+          "inputSampleRate": 44100,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 41.938,
+          "trimmedFrames": 1436
+        },
+        "atMs": 1504,
+        "countInRemaining": 0,
+        "error": null,
+        "frames": 69691,
+        "xruns": 1
+      },
+      {
+        "alignment": {
+          "driftPpm": 3732.227,
+          "inputLatencyMs": 19.524,
+          "inputSampleRate": 44100,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 41.917,
+          "trimmedFrames": 1425
+        },
+        "atMs": 1605,
+        "countInRemaining": 0,
+        "error": null,
+        "frames": 73992,
+        "xruns": 1
+      },
+      {
+        "alignment": {
+          "driftPpm": 3830.647,
+          "inputLatencyMs": 20.0,
+          "inputSampleRate": 44100,
+          "measuredTimestamps": true,
+          "outputLatencyMs": 41.958,
+          "trimmedFrames": 1420
+        },
+        "atMs": 1705,
+        "countInRemaining": 0,
+        "error": "Input failed. Stop to discard this take.",
+        "frames": 74946,
+        "xruns": 1
+      }
+    ],
+    "stopError": "Recording failed: input dropout, device loss, or timestamp queue overflow. The take was discarded.",
+    "stopMs": 0,
+    "transportRestored": true,
+    "xrunsDuringTake": 1
+  },
+  "requested": {
+    "bufferFrames": null,
+    "host": null,
+    "outputChannels": null,
+    "outputDevice": "Speakers (Steam Streaming Microphone)",
+    "sampleRate": null
+  },
+  "scenario": "round-trip",
+  "stimulus": {
+    "amplitude": 0.05000000074505806,
+    "burstSeconds": 0.004,
+    "leadSeconds": 0.25,
+    "minScore": 0.5,
+    "periodSeconds": 0.5
+  },
+  "utcUnixSeconds": 1791679270,
+  "workingTreeDirty": true
+}

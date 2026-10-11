@@ -5,6 +5,7 @@ import {
   cancelRecording,
   useRecordingStore,
 } from "@/features/transport/recording-store"
+import { openAudioLogger } from "@/features/audio-logger/logger-store"
 import { toast } from "sonner"
 import { openGettingStarted } from "@/features/help/getting-started-store"
 import {
@@ -162,6 +163,13 @@ export const BUILTIN_ACTIONS: Action[] = [
     title: "Record audio input",
     section: "Transport",
     run: openRecording,
+  },
+  {
+    id: "audioLogger.open",
+    title: "Audio logger…",
+    section: "Transport",
+    keywords: "background history recover take capture retrospective log",
+    run: openAudioLogger,
   },
   {
     id: "recording.start",

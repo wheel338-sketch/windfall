@@ -104,6 +104,7 @@ impl Session {
             .update(|stored| stored.audio = settings.clone());
         let open = openable(&settings, || self.inner.audio.devices());
         self.inner.audio.reconfigure(&open);
+        self.audio_logger_reconfigured();
         // The device adapter attached the current ready plan off State. Cache
         // notifications queued during reopening use their own checked worker.
         {
@@ -133,10 +134,12 @@ impl Session {
     /// Plays a note on a channel right away, as from the UI keyboard.
     pub fn audition_note_on(&self, channel: ChannelId, key: u8, velocity: f32) {
         self.controller().note_on(channel, key, velocity);
+        self.controller_played(channel, key, Some(velocity), std::time::Instant::now());
     }
 
     pub fn audition_note_off(&self, channel: ChannelId, key: u8) {
         self.controller().note_off(channel, key);
+        self.controller_played(channel, key, None, std::time::Instant::now());
     }
 
     /// Plays an audio file once, straight to the master. Slow the first

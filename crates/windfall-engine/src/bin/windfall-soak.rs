@@ -152,6 +152,28 @@ fn soak(options: &Options) -> bool {
         );
         return false;
     }
+    // What was asked for and what the driver gave are different facts; a
+    // shared-mode driver with one fixed period ignores the request.
+    println!(
+        "requested: host={} device={} sample_rate={} buffer_frames={}",
+        options.host.as_deref().unwrap_or("default"),
+        options.device.as_deref().unwrap_or("default"),
+        options
+            .sample_rate
+            .map_or_else(|| "default".to_owned(), |rate| rate.to_string()),
+        options.buffer_frames,
+    );
+    println!(
+        "actual: host={} device={} sample_rate={} buffer_frames={} channels={} buffer_latency_ms={:.2} os={} arch={}",
+        status.host,
+        status.device.as_deref().unwrap_or("unknown device"),
+        status.sample_rate,
+        status.buffer_frames,
+        status.output_channels,
+        status.latency_ms,
+        std::env::consts::OS,
+        std::env::consts::ARCH,
+    );
     println!(
         "playing on {} / {} at {} Hz, {} frames requested, {} seconds{}{}",
         status.host,
@@ -250,12 +272,14 @@ fn soak(options: &Options) -> bool {
     }
     let passed = stream_error.is_none() && !stalled && stats.xruns == 0;
     println!(
-        "SOAK RESULT: {} xruns={} max_cpu={:.2}% buffer_frames={} sample_rate={}",
+        "SOAK RESULT: {} xruns={} max_cpu={:.2}% buffer_frames={} sample_rate={} requested_buffer_frames={} frames_played={}",
         if passed { "pass" } else { "fail" },
         stats.xruns,
         max_cpu * 100.0,
         status.buffer_frames,
         status.sample_rate,
+        options.buffer_frames,
+        stats.frames,
     );
     passed
 }
@@ -317,6 +341,7 @@ fn drum_project() -> (Project, SamplePool) {
             solo: false,
             group: String::new(),
             voice: Default::default(),
+            expression_map: Default::default(),
             timing: windfall_project::ChannelTiming::default(),
             mixer_track: track,
             source: ChannelSource::Sampler(SamplerSettings {
@@ -415,6 +440,7 @@ fn add_effects(project: &mut Project) -> (ChannelId, TrackId) {
         solo: false,
         group: String::new(),
         voice: Default::default(),
+        expression_map: Default::default(),
         timing: windfall_project::ChannelTiming::default(),
         mixer_track: track,
         source: ChannelSource::Instrument {

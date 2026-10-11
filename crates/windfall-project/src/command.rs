@@ -96,6 +96,40 @@ pub enum Command {
     MakeUnique {
         clip: ClipId,
     },
+    /// Adds an alternative timeline layout and makes it the active one.
+    /// `copy` clones every clip of the layout that is active now as a new
+    /// clip, so later moves, resizes and deletions in either layout leave
+    /// the other alone; without it the new layout starts with the same
+    /// tracks and no clips. A project that has no arrangement yet first
+    /// keeps its present timeline as "Arrangement 1". Creates the
+    /// arrangement id and then one [`ClipId`] per copied clip.
+    AddArrangementLayout {
+        name: String,
+        copy: bool,
+    },
+    /// Adds a channel with its mixer track and a playlist track linked to
+    /// it, as one undo step. Pattern clips on the track play only that
+    /// channel. Creates a [`ChannelId`], then a [`TrackId`] when the mixer
+    /// has room, then a [`PlaylistTrackId`].
+    AddInstrumentTrack {
+        #[serde(default)]
+        #[ts(optional)]
+        name: Option<String>,
+        #[serde(default)]
+        #[ts(optional)]
+        sample: Option<SampleId>,
+        #[serde(default)]
+        #[ts(optional)]
+        instrument: Option<InstrumentKind>,
+    },
+    /// Adds a mixer track and a playlist track linked to it, as one undo
+    /// step. Audio clips on the track play into that mixer track. Creates a
+    /// [`TrackId`] and then a [`PlaylistTrackId`].
+    AddAudioTrack {
+        #[serde(default)]
+        #[ts(optional)]
+        name: Option<String>,
+    },
     AddNotesWithCurves {
         pattern: PatternId,
         channel: ChannelId,
@@ -109,6 +143,51 @@ pub enum Command {
         expected_curves: Vec<crate::NoteExpressionCurve>,
         curves: Vec<crate::NoteExpressionCurve>,
     },
+    /// Replaces the event automation a pattern stores for `target`: a curve
+    /// in pattern ticks that moves the control wherever the pattern plays.
+    /// `expected` is the curve as the editor captured it, empty when the
+    /// pattern had none; the command fails when it no longer matches. No
+    /// points removes the lane. Values are brought into 0 to 1 and curves
+    /// into -1 to 1. Fails for the tempo, for a target the project does not
+    /// have, for points out of order or past the longest pattern, and past
+    /// 64 lanes in one pattern. A new lane creates an
+    /// [`AutomationId`]. Dispatched with a gesture id, a drag is one undo
+    /// step.
+    SetPatternEvents {
+        pattern: PatternId,
+        target: AutomationTarget,
+        expected: Vec<AutomationPoint>,
+        points: Vec<AutomationPoint>,
+    },
+    /// Writes a bounded musical LFO into a range of a pattern's event lane
+    /// in one edit, creating the lane at the target's stored value when the
+    /// pattern has none. `expected` is checked as for
+    /// [`Command::SetPatternEvents`].
+    GeneratePatternEventLfo {
+        pattern: PatternId,
+        target: AutomationTarget,
+        expected: Vec<AutomationPoint>,
+        start: u32,
+        end: u32,
+        resolution: u32,
+        lfo: crate::CurveLfo,
+    },
+    /// Writes a musical LFO into the expression curves of captured notes:
+    /// one continuous curve per note for `parameter`, sampled every
+    /// `resolution` ticks along the note from `origin`, and blended with the
+    /// value the note had there by `strength`. The captured notes and their
+    /// curves are checked as for [`Command::SetNoteExpressionCurves`].
+    GenerateNoteCurveLfo {
+        pattern: PatternId,
+        channel: ChannelId,
+        expected: Vec<crate::Note>,
+        expected_curves: Vec<crate::NoteExpressionCurve>,
+        parameter: crate::NoteCurveParameter,
+        origin: u32,
+        resolution: u32,
+        strength: f64,
+        lfo: crate::CurveLfo,
+    },
     SetPluginSidechainInput {
         target: crate::PluginTarget,
         input: Option<u32>,
@@ -118,6 +197,16 @@ pub enum Command {
         to: TrackId,
         #[ts(optional)]
         gain: Option<f32>,
+    },
+    /// Sends one separately routable output of an effect to another mixer
+    /// track, or disconnects it when `target` is absent. Refused when the
+    /// effect has no such output, sits on the master, or the route would
+    /// make routing loop back on itself.
+    SetEffectOutput {
+        effect: EffectId,
+        output: u8,
+        #[ts(optional)]
+        target: Option<TrackId>,
     },
     ApplyMixerTrackPreset {
         id: TrackId,
@@ -233,6 +322,43 @@ pub enum Command {
     ReplaceNotebook {
         notebook: crate::Notebook,
     },
+    /// Replaces a channel's sound and settings with a channel preset's, as
+    /// one undo step. The channel keeps its id, group, mute, solo and mixer
+    /// track. `expected` is the channel as it was when the preset was
+    /// chosen: a channel that changed since is refused. A sampler preset's
+    /// audio is `sample`, a sample the project has, or `audio`, a file that
+    /// is added to the pool in the same step; giving both fails. With
+    /// `audio` the command creates a [`SampleId`], or reports the one the
+    /// project already has for that file. Automation of instrument
+    /// settings the preset replaces is removed. [`crate::preset`] has the
+    /// rules.
+    ApplyChannelPreset {
+        id: ChannelId,
+        expected: crate::Channel,
+        preset: crate::ChannelPreset,
+        #[serde(default)]
+        #[ts(optional)]
+        sample: Option<SampleId>,
+        #[serde(default)]
+        #[ts(optional)]
+        audio: Option<crate::PresetAudio>,
+        name_color: bool,
+    },
+    /// Replaces the state of one instrument or effect with a plugin
+    /// preset's, as one undo step. `expected` is the state the target had
+    /// when the preset was chosen. Automation of settings the preset
+    /// replaces with another processor's is removed.
+    ApplyPluginPreset {
+        target: crate::PluginTarget,
+        expected: crate::PluginPresetState,
+        preset: crate::PluginPreset,
+    },
+    /// Replaces every controller link saved with the project, in one undo
+    /// step. Fails, with nothing changed, when a link is malformed, repeats
+    /// another, or points at something that is not in the project.
+    SetControllerLinks {
+        links: Vec<crate::ControllerLink>,
+    },
 
     // Sample pool
     /// Registers an audio file. Creates a [`SampleId`]. If a sample with the
@@ -307,6 +433,13 @@ pub enum Command {
     UpdateChannel {
         id: ChannelId,
         patch: ChannelPatch,
+    },
+    /// Replaces what the channel's per-note modulation X, modulation Y and
+    /// release drive, in one undoable edit. A map with an amount, pitch
+    /// range or bend range outside its range is refused.
+    SetChannelExpressionMap {
+        id: ChannelId,
+        map: crate::ExpressionMap,
     },
     /// Moves every listed channel to a named group in one undo entry.
     /// An empty group name means ungrouped. All channel ids are checked
@@ -709,6 +842,12 @@ pub struct SettingsPatch {
     pub time_signature: Option<TimeSignature>,
     #[ts(optional)]
     pub swing: Option<f32>,
+    #[ts(optional)]
+    pub pan_law: Option<crate::PanLaw>,
+    /// One of [`TIMEBASES`](crate::timebase::TIMEBASES); another value
+    /// fails the command.
+    #[ts(optional)]
+    pub timebase_ppq: Option<u16>,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, TS)]

@@ -117,6 +117,23 @@ impl Session {
         command: Command,
         gesture: Option<u64>,
     ) -> Result<DispatchResult, String> {
+        // What the command is about to set, for linking the control last
+        // moved and for recording the movement as automation.
+        let tweaks = self.controller_tweak_probe(&command);
+        let result = self.dispatch_quiet(command, gesture);
+        if result.is_ok() {
+            self.controller_tweaked(&tweaks);
+        }
+        result
+    }
+
+    /// [`dispatch`](Self::dispatch) without telling the controller hub:
+    /// for the edits the hub makes itself.
+    pub(super) fn dispatch_quiet(
+        &self,
+        command: Command,
+        gesture: Option<u64>,
+    ) -> Result<DispatchResult, String> {
         let ticket = {
             let _recording = self.recording_idle()?;
             let state = self.state();

@@ -61,9 +61,10 @@ export function ArrangementControls() {
             channels={project.channels}
             sources={project.samples}
             onEdit={(edit) => send(arrangementCommand(edit))}
-            makeUniqueClipIds={project.playlist.clips
-              .filter((clip) => clip.content.type !== "automation")
-              .map((clip) => clip.id)}
+            onAddLayout={(name, copy) =>
+              send({ type: "addArrangementLayout", name, copy })
+            }
+            makeUniqueClipIds={project.playlist.clips.map((clip) => clip.id)}
             onMakeUnique={(clip) => send({ type: "makeUnique", clip })}
           />
         </PopoverContent>

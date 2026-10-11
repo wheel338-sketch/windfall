@@ -25,6 +25,105 @@ and reopening; no old result is attached to a new document.
 - **Cut selection** removes the range and joins the remainder. Cutting the
   entire clip is refused; use the playlist's ordinary Delete action instead.
 
+## Cleaning and processing tools
+
+Added 2026-10-10. The dialog groups these under **Clean up** and **Process**,
+below the original edits. Each acts on the selection, commits as one undo
+step and writes a derived WAV like the edits above. Samples outside the
+selection are bit-identical afterwards; the tools that change length move,
+but never alter, the audio after the selection. A control outside its range
+disables its button; a request the editor refuses anyway leaves no file and no
+history entry.
+
+Clean up:
+
+- **Remove DC offset** subtracts each channel's own mean over the selection.
+  The channels are not linked, because converter offsets differ per channel.
+- **De-click** (strength 0–100 %) finds short impulsive outliers with a
+  32nd-order autoregressive model fitted per 2048-sample block and replaces
+  them by least-squares interpolation from the audio around them, at most 128
+  samples in one cluster. Prediction errors below −80 dBFS are never treated
+  as clicks. Samples that are not detected keep their exact value.
+- **Reduce noise** (0.1–48 dB) is an overlap-add Wiener gain against a
+  stationary noise spectrum, with decision-directed smoothing and a floor at
+  the chosen reduction, so noise is turned down evenly rather than gated. One
+  gain per bin is shared by both channels. **Use selection as noise profile**
+  remembers a noise-only range to learn the spectrum from; without a profile
+  the noise floor is estimated from the selection itself as a low quantile
+  over time with a median across neighbouring bins that rejects steady tones.
+  Where the selection ends inside the clip the result is crossfaded into the
+  untouched audio over a quarter window. A silent profile, or one outside the
+  clip, is refused.
+- **Trim silence** (threshold −120 to −6 dBFS) removes the selection's leading
+  and trailing frames below the threshold. The clip's start follows what was
+  removed from its front.
+
+Process:
+
+- **Apply gain** (−96 to +96 dB, not 0) is one linked gain. A boost that would
+  pass full scale is refused with the largest boost that fits; it is never
+  clipped.
+- **Normalize to target** (−60 to 0 dBFS, peak or RMS) uses one linked gain.
+  The original **Normalize** button stays peak at −1 dBFS.
+- **Fade in/out with shape**: equal power (playback's sine law), linear, or
+  S-curve (raised cosine). The original fade buttons stay equal power.
+- **Swap channels**, **Mono sum** (the average of left and right to both) and
+  **Invert phase** (both, left or right).
+- **Stretch and pitch**: length 25–400 % and pitch ±24 semitones,
+  independently, through the same spectral preparation a stretched playlist
+  clip uses. Only the selection is stretched; the clip gets longer or shorter
+  by the difference.
+- **Insert silence** (milliseconds, rounded to frames) before the selection's
+  first frame.
+
+Clip length follows the audio: the same frame count keeps the tick length; a
+shorter result rounds up and is capped at the old length; a longer result
+takes the fewest ticks whose reopened view holds every frame, and is refused
+if it would pass the end of the song. Several edits in a row name the derived
+sample after the latest edit, not after the whole chain.
+
+Request compatibility: the eight original operations keep their wire names.
+Operations with parameters travel as an object with one key, and every
+parameter has a default, so `{"declick": {}}` parses.
+
+Status of this section: written, not executed. The Rust and TypeScript were
+finished under an instruction not to build or test, so none of the tests
+below has been run. No measured figures are claimed here; the bounds asserted
+by the DSP tests are in the test sources.
+
+- `crates/windfall-engine/src/audio_edit/clean.rs` (`audio_clean_*`, nine
+  tests): DC removal, exact silence bounds, de-click on a sine and on a noisy
+  chord, clean audio and the outside untouched, noise reduction SNR in both
+  modes, reduction amount, automatic estimate against a known floor and a
+  tone, refusals.
+- `crates/windfall-engine/src/audio_edit/process.rs` (`audio_process_*`, five
+  tests): gain exactness and refusal to clip, peak and RMS targets, fade shape
+  endpoints and midpoints, channel tools, stretch duration and pitch.
+- `crates/windfall-engine/src/audio_edit.rs` (`audio_edit_*`, three tests):
+  trim and insert boundaries, selection stretch splice lengths, every
+  operation deterministic and preserving the outside.
+- `crates/windfall-ipc/src/audio_edit.rs` (two tests): old requests still
+  parse; parameters default and use camel case.
+- `apps/desktop/src-tauri/src/session/tests/audio_editor.rs` (four tests added):
+  tools write what the engine computes as one undo step each; length-changing
+  tools move start and length; refused tools leave no file and no history;
+  several edits in a row undo one at a time.
+- `apps/desktop/src/features/audio-editor/tools.test.ts` and
+  `tools-panel.test.tsx`: request shapes and ranges, the noise profile, a
+  disabled tool for an out-of-range parameter or an invalid selection, a
+  native refusal.
+
+Not implemented: the editor still closes after each edit and must be reopened
+on the new clip (the session supports edits in a row; the dialog does not yet
+stay open); recording into the editor from an effect slot (the
+[audio logger](AUDIO-LOGGER.md) can keep a mixer track after its effects and
+add it to the playlist, from where the editor opens it, but there is no
+recorder inside the editor and no tap between two effects); a spectral view;
+regions and markers; scripting; convolution, blur and equalisation; drag to a
+sampler channel; clipping repair; strip-silence splitting; loop crossfade
+tuning; stretch quality and formant controls in the dialog (the request
+carries them; the dialog sends standard quality without formant correction).
+
 ## What is rendered
 
 The edit input is a stereo clip view at the original source's sample rate,

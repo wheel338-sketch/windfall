@@ -63,3 +63,24 @@ No builds, tests, reviews, interaction checks or artifact generators ran for
 this pass, as directed by the user. The checked-in WASM simulator is still the
 earlier advanced-fill artifact; new source commands need artifact regeneration
 in the deferred build/QA pass.
+
+## 2026-10-10: MIDI files and the expression map
+
+Two pieces were written and have not been built or run in the integrated
+tree; see [the QA hand-off](qa/2026-10-10-piano.md).
+
+- MIDI export has a note-expression option: fine pitch as pitch bend,
+  modulation X as controller 74, modulation Y as the modulation wheel (or
+  channel pressure in MPE), a note's pan as controller 10 where no other
+  pan sounds on its channel, and saved curves sampled into the same
+  messages. Import reads the bend and controllers a channel has when each
+  note starts. `crates/windfall-midi/src/expression.rs`.
+- A channel has an expression map: what modulation X, modulation Y and
+  release drive in its built-in voices (cutoff, resonance, volume, pan,
+  pitch or nothing). The default is the fixed mapping above.
+  `crates/windfall-dsp/src/expression_map.rs`, `SetChannelExpressionMap`.
+  There is no UI for it, and hosted providers are handed the map without
+  applying it.
+
+Still missing: live MIDI/MPE input expression, bridge-provider expression
+transport, the hosted side of the expression map and its UI.

@@ -16,8 +16,16 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import type { SamplerChannel } from "@/lib/channel-source"
 import { backend } from "@/lib/ipc"
 import { dispatch, receivePatch, useProjectStore } from "@/lib/store/project"
+import { useSample, useTempo } from "@/lib/store/selectors"
 import { Section } from "./parts"
+import { useSampleInfo } from "./sample-info"
 import { nextSamplerQuality } from "./sampler-quality-step"
+import {
+  regionSeconds,
+  suggestedBeats,
+  tempoFitRatio,
+  tempoFitTune,
+} from "./tempo-fit"
 
 export function SamplerProcessingSection({
   channel,
@@ -43,6 +51,18 @@ function ProcessingForm({ channel }: { channel: SamplerChannel }) {
   const [first, setFirst] = useState(String(spectral?.range.first ?? low))
   const [last, setLast] = useState(String(spectral?.range.last ?? low + 11))
   const [pending, setPending] = useState(false)
+  const [beats, setBeats] = useState("")
+  const tempo = useTempo()
+  const sampleInfo = useSampleInfo(useSample(channel.source.sample))
+  const seconds =
+    sampleInfo?.status === "ready"
+      ? regionSeconds(
+          sampleInfo.info.durationSecs,
+          channel.source.start,
+          channel.source.end
+        )
+      : 0
+  const suggested = suggestedBeats(seconds, tempo)
   const [progress, setProgress] = useState("Preparing key variants…")
   const [error, setError] = useState<string | null>(null)
   const job = useRef<{ request: number | null; cancelled: boolean } | null>(
@@ -137,6 +157,40 @@ function ProcessingForm({ channel }: { channel: SamplerChannel }) {
         setPending(false)
       }
     }
+  }
+
+  /** Makes the played region last a whole number of beats at the tempo. */
+  async function fitToTempo() {
+    setError(null)
+    const wanted = beats.trim() === "" ? suggested : Number(beats)
+    if (seconds <= 0) {
+      setError("Load a sample before fitting it to the tempo.")
+      return
+    }
+    if (!Number.isFinite(wanted) || wanted <= 0) {
+      setError("Enter how many beats the sample should last.")
+      return
+    }
+    if (mode === "spectral") {
+      const fitted = tempoFitRatio(seconds, wanted, tempo)
+      if (fitted === null) {
+        setError(
+          "That many beats needs a duration ratio outside 0.25 to 4. Choose another beat count."
+        )
+        return
+      }
+      // A draft like the knob's: Apply stretch prepares and saves it.
+      setRatio(fitted)
+      return
+    }
+    const tune = tempoFitTune(seconds, wanted, tempo)
+    if (tune === null) {
+      setError(
+        "That many beats needs more than 48 semitones of tuning. Choose another beat count."
+      )
+      return
+    }
+    await dispatch({ type: "updateSampler", id: channel.id, patch: { tune } })
   }
 
   const published = spectral
@@ -287,6 +341,34 @@ function ProcessingForm({ channel }: { channel: SamplerChannel }) {
             )}
           </>
         )}
+        <Field data-disabled={pending || undefined}>
+          <FieldLabel htmlFor={`${id}-beats`}>Beats to fit</FieldLabel>
+          <div className="flex gap-2">
+            <Input
+              id={`${id}-beats`}
+              type="number"
+              min={0}
+              step={0.25}
+              placeholder={String(suggested)}
+              value={beats}
+              disabled={pending}
+              onChange={(event) => setBeats(event.target.value)}
+            />
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={pending}
+              onClick={() => void fitToTempo()}
+            >
+              Fit to tempo
+            </Button>
+          </div>
+          <FieldDescription>
+            {mode === "spectral"
+              ? "Sets the duration ratio so the played region lasts that many beats at the project tempo. Pitch stays; Apply stretch prepares it."
+              : "Tunes the sample so the played region lasts that many beats at its root key. Tape changes pitch with speed."}
+          </FieldDescription>
+        </Field>
         {error && (
           <Field data-invalid>
             <FieldError role="alert">{error}</FieldError>
