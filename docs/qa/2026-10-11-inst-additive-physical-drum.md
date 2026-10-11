@@ -14,7 +14,7 @@ benchmarks, generators or audio-device checks were run. Every test below is
 | inst-ogun | Full-row candidate: Metal Voice has prepared inharmonic partials, partial stretch, independent phase-offset amplitude shimmer and exponential decay; dedicated spacing/shimmer editor. | Fresh integration execution and listening. |
 | inst-harmless | Full-row candidate: Harmonic Filter plays an immutable 64-harmonic bank through saw/square/triangle weighting, spectral cutoff/resonance and envelope/polyphony controls; dedicated oscillator/filter/envelope editor. | Fresh integration execution and listening. |
 | inst-autogun | Full-row candidate: Number Voice derives immutable 64-partial patches deterministically from any unsigned 32-bit number; preset-only editor and output level. | Fresh integration execution and listening. |
-| inst-beepmap | Pending this stream. | Color/brightness image scan. |
+| inst-beepmap | Full-row candidate: Color Scan maps luminance/alpha to amplitude, rows/hue to semitone frequencies, red/blue to stereo; timed scan/manual freeze, speed/width editor and immutable spectral preview. | Fresh integration execution and listening. |
 | inst-drumaxx | Full-row candidate: sixteen independent modal membrane/cavity patches, fixed MIDI 36–51, per-pad strike/damping/body controls, selection grid and hold-to-audition editor; shared passive model with single Membrane. | Fresh integration execution and listening. |
 | inst-bassdrum | Full-row candidate: distinct Layer Kick kind, swept sine body plus optional immutable WAV layer, mix/tune/start controls; cancellable worker import, finite limits, remove/history and host asset identity. | Fresh integration execution and listening. |
 | inst-drumpad | Full-row candidate: Membrane adds eight circular membrane eigenmodes plus a damped cavity, radial strike position, and frequency-dependent damping. One voice per channel, chromatic tuning, finite passive losses and deterministic noisy excitation; editor shows strike radius and grouped model controls. | Fresh integration execution and listening. |
@@ -196,3 +196,15 @@ and image row/alpha/luminance mapping; DSP static phase reconstruction and scan
 differences; engine frame edit history/disk/live equality; mounted source/frame
 workflow. Phase interpolation now honors every frame's base phase (not just
 frame zero). Regenerate SpectralResynthParams and union/descriptors/WASM.
+
+### Color Scan checkpoint
+
+Appends ColorScan (34 kinds here). Image-only workflow shares bounded decoding
+and cancellable worker preparation with resynthesis, but has distinct observable
+hue/brightness/frequency/stereo mapping and a color stereo-width control. Written,
+not executed: independent worker red/blue mapping, DSP measured frequency/pan,
+interpolation and exact scan partition identity; engine scan history/disk/live
+PCM; mounted image-only/width/history workflow. Regenerate ColorScanParams,
+InstrumentKind/InstrumentParams, descriptors and simulator. All eleven rows now
+have implementation candidates; runtime acceptance remains exclusively with the
+integrator. Static cross-seam reconciliation follows.

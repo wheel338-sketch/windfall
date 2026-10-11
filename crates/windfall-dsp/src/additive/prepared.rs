@@ -21,6 +21,7 @@ pub(super) struct Controls {
     pub decay: f32,
     pub scan_rate: f32,
     pub scan: bool,
+    pub pan_width: f32,
 }
 impl Default for Controls {
     fn default() -> Self {
@@ -39,6 +40,7 @@ impl Default for Controls {
             decay: 0.0,
             scan_rate: 1.0,
             scan: false,
+            pan_width: 1.0,
         }
     }
 }
@@ -183,6 +185,7 @@ impl PreparedEngine {
                 (&mut self.controls.shimmer, self.target.shimmer),
                 (&mut self.controls.shimmer_depth, self.target.shimmer_depth),
                 (&mut self.controls.scan_rate, self.target.scan_rate),
+                (&mut self.controls.pan_width, self.target.pan_width),
             ] {
                 *value += (target - *value) * self.smoothing;
                 if (*value - target).abs() < 1e-6 {
@@ -242,7 +245,7 @@ impl PreparedEngine {
                     let shimmer = 1.0
                         + c.shimmer_depth
                             * sine_turns((seconds * c.shimmer + i as f32 * 0.137).fract());
-                    let pan = (pa.pan + (pb.pan - pa.pan) * mix).clamp(-1.0, 1.0);
+                    let pan = ((pa.pan + (pb.pan - pa.pan) * mix) * c.pan_width).clamp(-1.0, 1.0);
                     let phase_offset = pa.phase - self.bank.frames[0].partials[i].phase
                         + (pb.phase - pa.phase) * mix;
                     let sample = sine_turns((v.phases[i] + phase_offset).rem_euclid(1.0))

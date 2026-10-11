@@ -138,6 +138,7 @@ describe("descriptors", () => {
       metalVoice: true,
       numberVoice: true,
       spectralResynth: true,
+      colorScan: true,
     }
     expect([...EFFECT_KINDS].sort()).toEqual(Object.keys(effects).sort())
     expect([...INSTRUMENT_KINDS].sort()).toEqual(

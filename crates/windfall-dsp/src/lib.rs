@@ -169,3 +169,5 @@ pub use additive::{MetalVoice,MetalVoiceParams};
 pub use additive::{NumberVoice,NumberVoiceParams};
 
 pub use additive::{SpectralResynth,SpectralResynthParams};
+
+pub use additive::{ColorScan,ColorScanParams};

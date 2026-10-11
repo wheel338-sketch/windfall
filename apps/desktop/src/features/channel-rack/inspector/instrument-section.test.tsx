@@ -295,6 +295,14 @@ describe("instrument settings panels", () => {
     expect(channelOf(channel).source.params).not.toEqual(original);await act(()=>undo());expect(channelOf(channel).source.params).toEqual(original)
   })
 
+  it("mounts color image scan mapping and undoes stereo-width editing",async()=>{
+    const channel=await open("colorScan"),original=channelOf(channel).source.params
+    expect(screen.getByLabelText("Load scan image")).toHaveAttribute("accept",".png,.jpg,.jpeg,.webp")
+    expect(screen.queryByRole("spinbutton",{name:"WAV source root Hz"})).toBeNull()
+    const width=screen.getByRole("slider",{name:"Color Stereo Width"});fireEvent.keyDown(width,{key:"Home"});fireEvent.keyUp(width,{key:"Home"});await flush()
+    expect(channelOf(channel).source.params).not.toEqual(original);await act(()=>undo());expect(channelOf(channel).source.params).toEqual(original)
+  })
+
   it("keeps hosted plugin controls ahead of the built-in panel", async () => {
     const channel = await open("acidLine")
     const plugin: PluginBinding = {

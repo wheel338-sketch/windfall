@@ -228,6 +228,7 @@ impl InstrumentAsset {
             (Self::DrumKeys { .. }, InstrumentKind::DrumVoice) => Ok(()),
             (Self::Pcm(_), InstrumentKind::LayerKick) => Ok(()),
             (Self::Spectra(_), InstrumentKind::HarmonicFilter) => Ok(()),
+            (Self::Spectra(_), InstrumentKind::ColorScan) => Ok(()),
             (Self::Spectra(_), InstrumentKind::SpectralResynth) => Ok(()),
             (Self::Spectra(_), InstrumentKind::MetalVoice) => Ok(()),
             (Self::Spectra(bank), InstrumentKind::NumberVoice) if bank.preset_number.is_some() => {

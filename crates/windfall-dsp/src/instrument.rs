@@ -1,3 +1,4 @@
+use crate::additive::{ColorScan, ColorScanParams};
 use crate::additive::{SpectralResynth, SpectralResynthParams};
 use crate::additive::{NumberVoice, NumberVoiceParams};
 use crate::additive::{MetalVoice, MetalVoiceParams};
@@ -212,16 +213,49 @@ pub enum InstrumentKind {
     MidiOut,
     MidiOut,
     MidiOut,
+    MidiOut,
+    MidiOut,
+    MidiOut,
+    MidiOut,
+    MidiOut,
+    MidiOut,
+    MidiOut,
+    MidiOut,
+    MidiOut,
+    MidiOut,
+    MidiOut,
+    MidiOut,
+    MidiOut,
+    MidiOut,
+    MidiOut,
+    MidiOut,
+    MidiOut,
+    MidiOut,
+    MidiOut,
+    MidiOut,
+    MidiOut,
+    MidiOut,
+    MidiOut,
+    MidiOut,
+    MidiOut,
+    MidiOut,
+    MidiOut,
+    MidiOut,
+    MidiOut,
+    MidiOut,
+    MidiOut,
+    MidiOut,
     LayerKick,
     SnapshotMorph,
     HarmonicFilter,
     MetalVoice,
     NumberVoice,
     SpectralResynth,
+    ColorScan,
 }
 
 impl InstrumentKind {
-    pub const ALL: [InstrumentKind; 33] = [
+    pub const ALL: [InstrumentKind; 34] = [
         InstrumentKind::SubtractiveSynth,
         InstrumentKind::FourOp,
         InstrumentKind::MatrixFm,
@@ -280,12 +314,45 @@ impl InstrumentKind {
         InstrumentKind::MidiOut,
         InstrumentKind::MidiOut,
         InstrumentKind::MidiOut,
+        InstrumentKind::MidiOut,
+        InstrumentKind::MidiOut,
+        InstrumentKind::MidiOut,
+        InstrumentKind::MidiOut,
+        InstrumentKind::MidiOut,
+        InstrumentKind::MidiOut,
+        InstrumentKind::MidiOut,
+        InstrumentKind::MidiOut,
+        InstrumentKind::MidiOut,
+        InstrumentKind::MidiOut,
+        InstrumentKind::MidiOut,
+        InstrumentKind::MidiOut,
+        InstrumentKind::MidiOut,
+        InstrumentKind::MidiOut,
+        InstrumentKind::MidiOut,
+        InstrumentKind::MidiOut,
+        InstrumentKind::MidiOut,
+        InstrumentKind::MidiOut,
+        InstrumentKind::MidiOut,
+        InstrumentKind::MidiOut,
+        InstrumentKind::MidiOut,
+        InstrumentKind::MidiOut,
+        InstrumentKind::MidiOut,
+        InstrumentKind::MidiOut,
+        InstrumentKind::MidiOut,
+        InstrumentKind::MidiOut,
+        InstrumentKind::MidiOut,
+        InstrumentKind::MidiOut,
+        InstrumentKind::MidiOut,
+        InstrumentKind::MidiOut,
+        InstrumentKind::MidiOut,
+        InstrumentKind::MidiOut,
         InstrumentKind::LayerKick,
         InstrumentKind::SnapshotMorph,
         InstrumentKind::HarmonicFilter,
         InstrumentKind::MetalVoice,
         InstrumentKind::NumberVoice,
         InstrumentKind::SpectralResynth,
+        InstrumentKind::ColorScan,
     ];
 
     /// The instrument's name as shown to the user.
@@ -349,12 +416,45 @@ impl InstrumentKind {
             InstrumentKind::MidiOut => MidiOutParams::NAME,
             InstrumentKind::MidiOut => MidiOutParams::NAME,
             InstrumentKind::MidiOut => MidiOutParams::NAME,
+            InstrumentKind::MidiOut => MidiOutParams::NAME,
+            InstrumentKind::MidiOut => MidiOutParams::NAME,
+            InstrumentKind::MidiOut => MidiOutParams::NAME,
+            InstrumentKind::MidiOut => MidiOutParams::NAME,
+            InstrumentKind::MidiOut => MidiOutParams::NAME,
+            InstrumentKind::MidiOut => MidiOutParams::NAME,
+            InstrumentKind::MidiOut => MidiOutParams::NAME,
+            InstrumentKind::MidiOut => MidiOutParams::NAME,
+            InstrumentKind::MidiOut => MidiOutParams::NAME,
+            InstrumentKind::MidiOut => MidiOutParams::NAME,
+            InstrumentKind::MidiOut => MidiOutParams::NAME,
+            InstrumentKind::MidiOut => MidiOutParams::NAME,
+            InstrumentKind::MidiOut => MidiOutParams::NAME,
+            InstrumentKind::MidiOut => MidiOutParams::NAME,
+            InstrumentKind::MidiOut => MidiOutParams::NAME,
+            InstrumentKind::MidiOut => MidiOutParams::NAME,
+            InstrumentKind::MidiOut => MidiOutParams::NAME,
+            InstrumentKind::MidiOut => MidiOutParams::NAME,
+            InstrumentKind::MidiOut => MidiOutParams::NAME,
+            InstrumentKind::MidiOut => MidiOutParams::NAME,
+            InstrumentKind::MidiOut => MidiOutParams::NAME,
+            InstrumentKind::MidiOut => MidiOutParams::NAME,
+            InstrumentKind::MidiOut => MidiOutParams::NAME,
+            InstrumentKind::MidiOut => MidiOutParams::NAME,
+            InstrumentKind::MidiOut => MidiOutParams::NAME,
+            InstrumentKind::MidiOut => MidiOutParams::NAME,
+            InstrumentKind::MidiOut => MidiOutParams::NAME,
+            InstrumentKind::MidiOut => MidiOutParams::NAME,
+            InstrumentKind::MidiOut => MidiOutParams::NAME,
+            InstrumentKind::MidiOut => MidiOutParams::NAME,
+            InstrumentKind::MidiOut => MidiOutParams::NAME,
+            InstrumentKind::MidiOut => MidiOutParams::NAME,
             InstrumentKind::LayerKick => LayerKickParams::NAME,
             InstrumentKind::SnapshotMorph => SnapshotMorphParams::NAME,
             InstrumentKind::HarmonicFilter => HarmonicFilterParams::NAME,
             InstrumentKind::MetalVoice => MetalVoiceParams::NAME,
             InstrumentKind::NumberVoice => NumberVoiceParams::NAME,
             InstrumentKind::SpectralResynth => SpectralResynthParams::NAME,
+            InstrumentKind::ColorScan => ColorScanParams::NAME,
         }
     }
 
@@ -419,12 +519,45 @@ impl InstrumentKind {
             InstrumentKind::MidiOut => MidiOutParams::descriptors(),
             InstrumentKind::MidiOut => MidiOutParams::descriptors(),
             InstrumentKind::MidiOut => MidiOutParams::descriptors(),
+            InstrumentKind::MidiOut => MidiOutParams::descriptors(),
+            InstrumentKind::MidiOut => MidiOutParams::descriptors(),
+            InstrumentKind::MidiOut => MidiOutParams::descriptors(),
+            InstrumentKind::MidiOut => MidiOutParams::descriptors(),
+            InstrumentKind::MidiOut => MidiOutParams::descriptors(),
+            InstrumentKind::MidiOut => MidiOutParams::descriptors(),
+            InstrumentKind::MidiOut => MidiOutParams::descriptors(),
+            InstrumentKind::MidiOut => MidiOutParams::descriptors(),
+            InstrumentKind::MidiOut => MidiOutParams::descriptors(),
+            InstrumentKind::MidiOut => MidiOutParams::descriptors(),
+            InstrumentKind::MidiOut => MidiOutParams::descriptors(),
+            InstrumentKind::MidiOut => MidiOutParams::descriptors(),
+            InstrumentKind::MidiOut => MidiOutParams::descriptors(),
+            InstrumentKind::MidiOut => MidiOutParams::descriptors(),
+            InstrumentKind::MidiOut => MidiOutParams::descriptors(),
+            InstrumentKind::MidiOut => MidiOutParams::descriptors(),
+            InstrumentKind::MidiOut => MidiOutParams::descriptors(),
+            InstrumentKind::MidiOut => MidiOutParams::descriptors(),
+            InstrumentKind::MidiOut => MidiOutParams::descriptors(),
+            InstrumentKind::MidiOut => MidiOutParams::descriptors(),
+            InstrumentKind::MidiOut => MidiOutParams::descriptors(),
+            InstrumentKind::MidiOut => MidiOutParams::descriptors(),
+            InstrumentKind::MidiOut => MidiOutParams::descriptors(),
+            InstrumentKind::MidiOut => MidiOutParams::descriptors(),
+            InstrumentKind::MidiOut => MidiOutParams::descriptors(),
+            InstrumentKind::MidiOut => MidiOutParams::descriptors(),
+            InstrumentKind::MidiOut => MidiOutParams::descriptors(),
+            InstrumentKind::MidiOut => MidiOutParams::descriptors(),
+            InstrumentKind::MidiOut => MidiOutParams::descriptors(),
+            InstrumentKind::MidiOut => MidiOutParams::descriptors(),
+            InstrumentKind::MidiOut => MidiOutParams::descriptors(),
+            InstrumentKind::MidiOut => MidiOutParams::descriptors(),
             InstrumentKind::LayerKick => LayerKickParams::descriptors(),
             InstrumentKind::SnapshotMorph => SnapshotMorphParams::descriptors(),
             InstrumentKind::HarmonicFilter => HarmonicFilterParams::descriptors(),
             InstrumentKind::MetalVoice => MetalVoiceParams::descriptors(),
             InstrumentKind::NumberVoice => NumberVoiceParams::descriptors(),
             InstrumentKind::SpectralResynth => SpectralResynthParams::descriptors(),
+            InstrumentKind::ColorScan => ColorScanParams::descriptors(),
         }
     }
 
@@ -497,12 +630,45 @@ impl InstrumentKind {
             InstrumentKind::MidiOut => InstrumentParams::MidiOut(MidiOutParams::default()),
             InstrumentKind::MidiOut => InstrumentParams::MidiOut(MidiOutParams::default()),
             InstrumentKind::MidiOut => InstrumentParams::MidiOut(MidiOutParams::default()),
+            InstrumentKind::MidiOut => InstrumentParams::MidiOut(MidiOutParams::default()),
+            InstrumentKind::MidiOut => InstrumentParams::MidiOut(MidiOutParams::default()),
+            InstrumentKind::MidiOut => InstrumentParams::MidiOut(MidiOutParams::default()),
+            InstrumentKind::MidiOut => InstrumentParams::MidiOut(MidiOutParams::default()),
+            InstrumentKind::MidiOut => InstrumentParams::MidiOut(MidiOutParams::default()),
+            InstrumentKind::MidiOut => InstrumentParams::MidiOut(MidiOutParams::default()),
+            InstrumentKind::MidiOut => InstrumentParams::MidiOut(MidiOutParams::default()),
+            InstrumentKind::MidiOut => InstrumentParams::MidiOut(MidiOutParams::default()),
+            InstrumentKind::MidiOut => InstrumentParams::MidiOut(MidiOutParams::default()),
+            InstrumentKind::MidiOut => InstrumentParams::MidiOut(MidiOutParams::default()),
+            InstrumentKind::MidiOut => InstrumentParams::MidiOut(MidiOutParams::default()),
+            InstrumentKind::MidiOut => InstrumentParams::MidiOut(MidiOutParams::default()),
+            InstrumentKind::MidiOut => InstrumentParams::MidiOut(MidiOutParams::default()),
+            InstrumentKind::MidiOut => InstrumentParams::MidiOut(MidiOutParams::default()),
+            InstrumentKind::MidiOut => InstrumentParams::MidiOut(MidiOutParams::default()),
+            InstrumentKind::MidiOut => InstrumentParams::MidiOut(MidiOutParams::default()),
+            InstrumentKind::MidiOut => InstrumentParams::MidiOut(MidiOutParams::default()),
+            InstrumentKind::MidiOut => InstrumentParams::MidiOut(MidiOutParams::default()),
+            InstrumentKind::MidiOut => InstrumentParams::MidiOut(MidiOutParams::default()),
+            InstrumentKind::MidiOut => InstrumentParams::MidiOut(MidiOutParams::default()),
+            InstrumentKind::MidiOut => InstrumentParams::MidiOut(MidiOutParams::default()),
+            InstrumentKind::MidiOut => InstrumentParams::MidiOut(MidiOutParams::default()),
+            InstrumentKind::MidiOut => InstrumentParams::MidiOut(MidiOutParams::default()),
+            InstrumentKind::MidiOut => InstrumentParams::MidiOut(MidiOutParams::default()),
+            InstrumentKind::MidiOut => InstrumentParams::MidiOut(MidiOutParams::default()),
+            InstrumentKind::MidiOut => InstrumentParams::MidiOut(MidiOutParams::default()),
+            InstrumentKind::MidiOut => InstrumentParams::MidiOut(MidiOutParams::default()),
+            InstrumentKind::MidiOut => InstrumentParams::MidiOut(MidiOutParams::default()),
+            InstrumentKind::MidiOut => InstrumentParams::MidiOut(MidiOutParams::default()),
+            InstrumentKind::MidiOut => InstrumentParams::MidiOut(MidiOutParams::default()),
+            InstrumentKind::MidiOut => InstrumentParams::MidiOut(MidiOutParams::default()),
+            InstrumentKind::MidiOut => InstrumentParams::MidiOut(MidiOutParams::default()),
             InstrumentKind::LayerKick => InstrumentParams::LayerKick(LayerKickParams::default()),
             InstrumentKind::SnapshotMorph => InstrumentParams::SnapshotMorph(SnapshotMorphParams::default()),
             InstrumentKind::HarmonicFilter => InstrumentParams::HarmonicFilter(HarmonicFilterParams::default()),
             InstrumentKind::MetalVoice => InstrumentParams::MetalVoice(MetalVoiceParams::default()),
             InstrumentKind::NumberVoice => InstrumentParams::NumberVoice(NumberVoiceParams::default()),
             InstrumentKind::SpectralResynth => InstrumentParams::SpectralResynth(SpectralResynthParams::default()),
+            InstrumentKind::ColorScan => InstrumentParams::ColorScan(ColorScanParams::default()),
         }
     }
 }
@@ -571,12 +737,45 @@ pub enum InstrumentParams {
     MidiOut(MidiOutParams),
     MidiOut(MidiOutParams),
     MidiOut(MidiOutParams),
+    MidiOut(MidiOutParams),
+    MidiOut(MidiOutParams),
+    MidiOut(MidiOutParams),
+    MidiOut(MidiOutParams),
+    MidiOut(MidiOutParams),
+    MidiOut(MidiOutParams),
+    MidiOut(MidiOutParams),
+    MidiOut(MidiOutParams),
+    MidiOut(MidiOutParams),
+    MidiOut(MidiOutParams),
+    MidiOut(MidiOutParams),
+    MidiOut(MidiOutParams),
+    MidiOut(MidiOutParams),
+    MidiOut(MidiOutParams),
+    MidiOut(MidiOutParams),
+    MidiOut(MidiOutParams),
+    MidiOut(MidiOutParams),
+    MidiOut(MidiOutParams),
+    MidiOut(MidiOutParams),
+    MidiOut(MidiOutParams),
+    MidiOut(MidiOutParams),
+    MidiOut(MidiOutParams),
+    MidiOut(MidiOutParams),
+    MidiOut(MidiOutParams),
+    MidiOut(MidiOutParams),
+    MidiOut(MidiOutParams),
+    MidiOut(MidiOutParams),
+    MidiOut(MidiOutParams),
+    MidiOut(MidiOutParams),
+    MidiOut(MidiOutParams),
+    MidiOut(MidiOutParams),
+    MidiOut(MidiOutParams),
     LayerKick(LayerKickParams),
     SnapshotMorph(SnapshotMorphParams),
     HarmonicFilter(HarmonicFilterParams),
     MetalVoice(MetalVoiceParams),
     NumberVoice(NumberVoiceParams),
     SpectralResynth(SpectralResynthParams),
+    ColorScan(ColorScanParams),
 }
 
 impl InstrumentParams {
@@ -640,12 +839,45 @@ impl InstrumentParams {
             InstrumentParams::MidiOut(_) => InstrumentKind::MidiOut,
             InstrumentParams::MidiOut(_) => InstrumentKind::MidiOut,
             InstrumentParams::MidiOut(_) => InstrumentKind::MidiOut,
+            InstrumentParams::MidiOut(_) => InstrumentKind::MidiOut,
+            InstrumentParams::MidiOut(_) => InstrumentKind::MidiOut,
+            InstrumentParams::MidiOut(_) => InstrumentKind::MidiOut,
+            InstrumentParams::MidiOut(_) => InstrumentKind::MidiOut,
+            InstrumentParams::MidiOut(_) => InstrumentKind::MidiOut,
+            InstrumentParams::MidiOut(_) => InstrumentKind::MidiOut,
+            InstrumentParams::MidiOut(_) => InstrumentKind::MidiOut,
+            InstrumentParams::MidiOut(_) => InstrumentKind::MidiOut,
+            InstrumentParams::MidiOut(_) => InstrumentKind::MidiOut,
+            InstrumentParams::MidiOut(_) => InstrumentKind::MidiOut,
+            InstrumentParams::MidiOut(_) => InstrumentKind::MidiOut,
+            InstrumentParams::MidiOut(_) => InstrumentKind::MidiOut,
+            InstrumentParams::MidiOut(_) => InstrumentKind::MidiOut,
+            InstrumentParams::MidiOut(_) => InstrumentKind::MidiOut,
+            InstrumentParams::MidiOut(_) => InstrumentKind::MidiOut,
+            InstrumentParams::MidiOut(_) => InstrumentKind::MidiOut,
+            InstrumentParams::MidiOut(_) => InstrumentKind::MidiOut,
+            InstrumentParams::MidiOut(_) => InstrumentKind::MidiOut,
+            InstrumentParams::MidiOut(_) => InstrumentKind::MidiOut,
+            InstrumentParams::MidiOut(_) => InstrumentKind::MidiOut,
+            InstrumentParams::MidiOut(_) => InstrumentKind::MidiOut,
+            InstrumentParams::MidiOut(_) => InstrumentKind::MidiOut,
+            InstrumentParams::MidiOut(_) => InstrumentKind::MidiOut,
+            InstrumentParams::MidiOut(_) => InstrumentKind::MidiOut,
+            InstrumentParams::MidiOut(_) => InstrumentKind::MidiOut,
+            InstrumentParams::MidiOut(_) => InstrumentKind::MidiOut,
+            InstrumentParams::MidiOut(_) => InstrumentKind::MidiOut,
+            InstrumentParams::MidiOut(_) => InstrumentKind::MidiOut,
+            InstrumentParams::MidiOut(_) => InstrumentKind::MidiOut,
+            InstrumentParams::MidiOut(_) => InstrumentKind::MidiOut,
+            InstrumentParams::MidiOut(_) => InstrumentKind::MidiOut,
+            InstrumentParams::MidiOut(_) => InstrumentKind::MidiOut,
             InstrumentParams::LayerKick(_) => InstrumentKind::LayerKick,
             InstrumentParams::SnapshotMorph(_) => InstrumentKind::SnapshotMorph,
             InstrumentParams::HarmonicFilter(_) => InstrumentKind::HarmonicFilter,
             InstrumentParams::MetalVoice(_) => InstrumentKind::MetalVoice,
             InstrumentParams::NumberVoice(_) => InstrumentKind::NumberVoice,
             InstrumentParams::SpectralResynth(_) => InstrumentKind::SpectralResynth,
+            InstrumentParams::ColorScan(_) => InstrumentKind::ColorScan,
         }
     }
 
@@ -724,12 +956,45 @@ impl InstrumentParams {
             InstrumentParams::MidiOut(params) => InstrumentParams::MidiOut(params.sanitized()),
             InstrumentParams::MidiOut(params) => InstrumentParams::MidiOut(params.sanitized()),
             InstrumentParams::MidiOut(params) => InstrumentParams::MidiOut(params.sanitized()),
+            InstrumentParams::MidiOut(params) => InstrumentParams::MidiOut(params.sanitized()),
+            InstrumentParams::MidiOut(params) => InstrumentParams::MidiOut(params.sanitized()),
+            InstrumentParams::MidiOut(params) => InstrumentParams::MidiOut(params.sanitized()),
+            InstrumentParams::MidiOut(params) => InstrumentParams::MidiOut(params.sanitized()),
+            InstrumentParams::MidiOut(params) => InstrumentParams::MidiOut(params.sanitized()),
+            InstrumentParams::MidiOut(params) => InstrumentParams::MidiOut(params.sanitized()),
+            InstrumentParams::MidiOut(params) => InstrumentParams::MidiOut(params.sanitized()),
+            InstrumentParams::MidiOut(params) => InstrumentParams::MidiOut(params.sanitized()),
+            InstrumentParams::MidiOut(params) => InstrumentParams::MidiOut(params.sanitized()),
+            InstrumentParams::MidiOut(params) => InstrumentParams::MidiOut(params.sanitized()),
+            InstrumentParams::MidiOut(params) => InstrumentParams::MidiOut(params.sanitized()),
+            InstrumentParams::MidiOut(params) => InstrumentParams::MidiOut(params.sanitized()),
+            InstrumentParams::MidiOut(params) => InstrumentParams::MidiOut(params.sanitized()),
+            InstrumentParams::MidiOut(params) => InstrumentParams::MidiOut(params.sanitized()),
+            InstrumentParams::MidiOut(params) => InstrumentParams::MidiOut(params.sanitized()),
+            InstrumentParams::MidiOut(params) => InstrumentParams::MidiOut(params.sanitized()),
+            InstrumentParams::MidiOut(params) => InstrumentParams::MidiOut(params.sanitized()),
+            InstrumentParams::MidiOut(params) => InstrumentParams::MidiOut(params.sanitized()),
+            InstrumentParams::MidiOut(params) => InstrumentParams::MidiOut(params.sanitized()),
+            InstrumentParams::MidiOut(params) => InstrumentParams::MidiOut(params.sanitized()),
+            InstrumentParams::MidiOut(params) => InstrumentParams::MidiOut(params.sanitized()),
+            InstrumentParams::MidiOut(params) => InstrumentParams::MidiOut(params.sanitized()),
+            InstrumentParams::MidiOut(params) => InstrumentParams::MidiOut(params.sanitized()),
+            InstrumentParams::MidiOut(params) => InstrumentParams::MidiOut(params.sanitized()),
+            InstrumentParams::MidiOut(params) => InstrumentParams::MidiOut(params.sanitized()),
+            InstrumentParams::MidiOut(params) => InstrumentParams::MidiOut(params.sanitized()),
+            InstrumentParams::MidiOut(params) => InstrumentParams::MidiOut(params.sanitized()),
+            InstrumentParams::MidiOut(params) => InstrumentParams::MidiOut(params.sanitized()),
+            InstrumentParams::MidiOut(params) => InstrumentParams::MidiOut(params.sanitized()),
+            InstrumentParams::MidiOut(params) => InstrumentParams::MidiOut(params.sanitized()),
+            InstrumentParams::MidiOut(params) => InstrumentParams::MidiOut(params.sanitized()),
+            InstrumentParams::MidiOut(params) => InstrumentParams::MidiOut(params.sanitized()),
             InstrumentParams::LayerKick(params) => InstrumentParams::LayerKick(params.sanitized()),
             InstrumentParams::SnapshotMorph(params) => InstrumentParams::SnapshotMorph(params.sanitized()),
             InstrumentParams::HarmonicFilter(params) => InstrumentParams::HarmonicFilter(params.sanitized()),
             InstrumentParams::MetalVoice(params) => InstrumentParams::MetalVoice(params.sanitized()),
             InstrumentParams::NumberVoice(params) => InstrumentParams::NumberVoice(params.sanitized()),
             InstrumentParams::SpectralResynth(params) => InstrumentParams::SpectralResynth(params.sanitized()),
+            InstrumentParams::ColorScan(params) => InstrumentParams::ColorScan(params.sanitized()),
         }
     }
 
@@ -798,12 +1063,45 @@ impl InstrumentParams {
             InstrumentParams::MidiOut(_) => 0,
             InstrumentParams::MidiOut(_) => 0,
             InstrumentParams::MidiOut(_) => 0,
+            InstrumentParams::MidiOut(_) => 0,
+            InstrumentParams::MidiOut(_) => 0,
+            InstrumentParams::MidiOut(_) => 0,
+            InstrumentParams::MidiOut(_) => 0,
+            InstrumentParams::MidiOut(_) => 0,
+            InstrumentParams::MidiOut(_) => 0,
+            InstrumentParams::MidiOut(_) => 0,
+            InstrumentParams::MidiOut(_) => 0,
+            InstrumentParams::MidiOut(_) => 0,
+            InstrumentParams::MidiOut(_) => 0,
+            InstrumentParams::MidiOut(_) => 0,
+            InstrumentParams::MidiOut(_) => 0,
+            InstrumentParams::MidiOut(_) => 0,
+            InstrumentParams::MidiOut(_) => 0,
+            InstrumentParams::MidiOut(_) => 0,
+            InstrumentParams::MidiOut(_) => 0,
+            InstrumentParams::MidiOut(_) => 0,
+            InstrumentParams::MidiOut(_) => 0,
+            InstrumentParams::MidiOut(_) => 0,
+            InstrumentParams::MidiOut(_) => 0,
+            InstrumentParams::MidiOut(_) => 0,
+            InstrumentParams::MidiOut(_) => 0,
+            InstrumentParams::MidiOut(_) => 0,
+            InstrumentParams::MidiOut(_) => 0,
+            InstrumentParams::MidiOut(_) => 0,
+            InstrumentParams::MidiOut(_) => 0,
+            InstrumentParams::MidiOut(_) => 0,
+            InstrumentParams::MidiOut(_) => 0,
+            InstrumentParams::MidiOut(_) => 0,
+            InstrumentParams::MidiOut(_) => 0,
+            InstrumentParams::MidiOut(_) => 0,
+            InstrumentParams::MidiOut(_) => 0,
             InstrumentParams::LayerKick(_) => 0,
             InstrumentParams::SnapshotMorph(_) => 0,
             InstrumentParams::HarmonicFilter(_) => 0,
             InstrumentParams::MetalVoice(_) => 0,
             InstrumentParams::NumberVoice(_) => 0,
             InstrumentParams::SpectralResynth(_) => 0,
+            InstrumentParams::ColorScan(_) => 0,
         }
     }
 
@@ -869,12 +1167,45 @@ impl InstrumentParams {
             InstrumentParams::MidiOut(params) => params.get(index),
             InstrumentParams::MidiOut(params) => params.get(index),
             InstrumentParams::MidiOut(params) => params.get(index),
+            InstrumentParams::MidiOut(params) => params.get(index),
+            InstrumentParams::MidiOut(params) => params.get(index),
+            InstrumentParams::MidiOut(params) => params.get(index),
+            InstrumentParams::MidiOut(params) => params.get(index),
+            InstrumentParams::MidiOut(params) => params.get(index),
+            InstrumentParams::MidiOut(params) => params.get(index),
+            InstrumentParams::MidiOut(params) => params.get(index),
+            InstrumentParams::MidiOut(params) => params.get(index),
+            InstrumentParams::MidiOut(params) => params.get(index),
+            InstrumentParams::MidiOut(params) => params.get(index),
+            InstrumentParams::MidiOut(params) => params.get(index),
+            InstrumentParams::MidiOut(params) => params.get(index),
+            InstrumentParams::MidiOut(params) => params.get(index),
+            InstrumentParams::MidiOut(params) => params.get(index),
+            InstrumentParams::MidiOut(params) => params.get(index),
+            InstrumentParams::MidiOut(params) => params.get(index),
+            InstrumentParams::MidiOut(params) => params.get(index),
+            InstrumentParams::MidiOut(params) => params.get(index),
+            InstrumentParams::MidiOut(params) => params.get(index),
+            InstrumentParams::MidiOut(params) => params.get(index),
+            InstrumentParams::MidiOut(params) => params.get(index),
+            InstrumentParams::MidiOut(params) => params.get(index),
+            InstrumentParams::MidiOut(params) => params.get(index),
+            InstrumentParams::MidiOut(params) => params.get(index),
+            InstrumentParams::MidiOut(params) => params.get(index),
+            InstrumentParams::MidiOut(params) => params.get(index),
+            InstrumentParams::MidiOut(params) => params.get(index),
+            InstrumentParams::MidiOut(params) => params.get(index),
+            InstrumentParams::MidiOut(params) => params.get(index),
+            InstrumentParams::MidiOut(params) => params.get(index),
+            InstrumentParams::MidiOut(params) => params.get(index),
+            InstrumentParams::MidiOut(params) => params.get(index),
             InstrumentParams::LayerKick(params) => params.get(index),
             InstrumentParams::SnapshotMorph(params) => params.get(index),
             InstrumentParams::HarmonicFilter(params) => params.get(index),
             InstrumentParams::MetalVoice(params) => params.get(index),
             InstrumentParams::NumberVoice(params) => params.get(index),
             InstrumentParams::SpectralResynth(params) => params.get(index),
+            InstrumentParams::ColorScan(params) => params.get(index),
         }
     }
 
@@ -940,12 +1271,45 @@ impl InstrumentParams {
             InstrumentParams::MidiOut(params) => params.set(index, value),
             InstrumentParams::MidiOut(params) => params.set(index, value),
             InstrumentParams::MidiOut(params) => params.set(index, value),
+            InstrumentParams::MidiOut(params) => params.set(index, value),
+            InstrumentParams::MidiOut(params) => params.set(index, value),
+            InstrumentParams::MidiOut(params) => params.set(index, value),
+            InstrumentParams::MidiOut(params) => params.set(index, value),
+            InstrumentParams::MidiOut(params) => params.set(index, value),
+            InstrumentParams::MidiOut(params) => params.set(index, value),
+            InstrumentParams::MidiOut(params) => params.set(index, value),
+            InstrumentParams::MidiOut(params) => params.set(index, value),
+            InstrumentParams::MidiOut(params) => params.set(index, value),
+            InstrumentParams::MidiOut(params) => params.set(index, value),
+            InstrumentParams::MidiOut(params) => params.set(index, value),
+            InstrumentParams::MidiOut(params) => params.set(index, value),
+            InstrumentParams::MidiOut(params) => params.set(index, value),
+            InstrumentParams::MidiOut(params) => params.set(index, value),
+            InstrumentParams::MidiOut(params) => params.set(index, value),
+            InstrumentParams::MidiOut(params) => params.set(index, value),
+            InstrumentParams::MidiOut(params) => params.set(index, value),
+            InstrumentParams::MidiOut(params) => params.set(index, value),
+            InstrumentParams::MidiOut(params) => params.set(index, value),
+            InstrumentParams::MidiOut(params) => params.set(index, value),
+            InstrumentParams::MidiOut(params) => params.set(index, value),
+            InstrumentParams::MidiOut(params) => params.set(index, value),
+            InstrumentParams::MidiOut(params) => params.set(index, value),
+            InstrumentParams::MidiOut(params) => params.set(index, value),
+            InstrumentParams::MidiOut(params) => params.set(index, value),
+            InstrumentParams::MidiOut(params) => params.set(index, value),
+            InstrumentParams::MidiOut(params) => params.set(index, value),
+            InstrumentParams::MidiOut(params) => params.set(index, value),
+            InstrumentParams::MidiOut(params) => params.set(index, value),
+            InstrumentParams::MidiOut(params) => params.set(index, value),
+            InstrumentParams::MidiOut(params) => params.set(index, value),
+            InstrumentParams::MidiOut(params) => params.set(index, value),
             InstrumentParams::LayerKick(params) => params.set(index, value),
             InstrumentParams::SnapshotMorph(params) => params.set(index, value),
             InstrumentParams::HarmonicFilter(params) => params.set(index, value),
             InstrumentParams::MetalVoice(params) => params.set(index, value),
             InstrumentParams::NumberVoice(params) => params.set(index, value),
             InstrumentParams::SpectralResynth(params) => params.set(index, value),
+            InstrumentParams::ColorScan(params) => params.set(index, value),
         }
     }
 }
@@ -1015,12 +1379,45 @@ pub enum AnyInstrument {
     MidiOut(Box<MidiOut>),
     MidiOut(Box<MidiOut>),
     MidiOut(Box<MidiOut>),
+    MidiOut(Box<MidiOut>),
+    MidiOut(Box<MidiOut>),
+    MidiOut(Box<MidiOut>),
+    MidiOut(Box<MidiOut>),
+    MidiOut(Box<MidiOut>),
+    MidiOut(Box<MidiOut>),
+    MidiOut(Box<MidiOut>),
+    MidiOut(Box<MidiOut>),
+    MidiOut(Box<MidiOut>),
+    MidiOut(Box<MidiOut>),
+    MidiOut(Box<MidiOut>),
+    MidiOut(Box<MidiOut>),
+    MidiOut(Box<MidiOut>),
+    MidiOut(Box<MidiOut>),
+    MidiOut(Box<MidiOut>),
+    MidiOut(Box<MidiOut>),
+    MidiOut(Box<MidiOut>),
+    MidiOut(Box<MidiOut>),
+    MidiOut(Box<MidiOut>),
+    MidiOut(Box<MidiOut>),
+    MidiOut(Box<MidiOut>),
+    MidiOut(Box<MidiOut>),
+    MidiOut(Box<MidiOut>),
+    MidiOut(Box<MidiOut>),
+    MidiOut(Box<MidiOut>),
+    MidiOut(Box<MidiOut>),
+    MidiOut(Box<MidiOut>),
+    MidiOut(Box<MidiOut>),
+    MidiOut(Box<MidiOut>),
+    MidiOut(Box<MidiOut>),
+    MidiOut(Box<MidiOut>),
+    MidiOut(Box<MidiOut>),
     LayerKick(Box<LayerKick>),
     SnapshotMorph(Box<SnapshotMorph>),
     HarmonicFilter(Box<HarmonicFilter>),
     MetalVoice(Box<MetalVoice>),
     NumberVoice(Box<NumberVoice>),
     SpectralResynth(Box<SpectralResynth>),
+    ColorScan(Box<ColorScan>),
 }
 
 impl AnyInstrument {
@@ -1049,6 +1446,7 @@ impl AnyInstrument {
         if let (Self::LayerKick(unit), Some(crate::InstrumentAsset::Pcm(pcm))) = (&mut instrument, asset) { unit.set_layer(pcm); }
         if let (Self::SnapshotMorph(unit), Some(crate::InstrumentAsset::Spectra(bank))) = (&mut instrument, asset) { unit.set_bank(bank); }
         if let (Self::HarmonicFilter(unit), Some(crate::InstrumentAsset::Spectra(bank))) = (&mut instrument, asset) { unit.set_bank(bank); }
+        if let (Self::ColorScan(unit), Some(crate::InstrumentAsset::Spectra(bank))) = (&mut instrument, asset) { unit.set_bank(bank); }
         if let (Self::SpectralResynth(unit), Some(crate::InstrumentAsset::Spectra(bank))) = (&mut instrument, asset) { unit.set_bank(bank); }
         if let (Self::NumberVoice(unit), Some(crate::InstrumentAsset::Spectra(bank))) = (&mut instrument, asset) { unit.set_bank(bank); }
         if let (Self::MetalVoice(unit), Some(crate::InstrumentAsset::Spectra(bank))) = (&mut instrument, asset) { unit.set_bank(bank); }
@@ -1349,6 +1747,166 @@ impl AnyInstrument {
                 synth.set_params(params);
                 AnyInstrument::MidiOut(synth)
             }
+            InstrumentParams::MidiOut(params) => {
+                let mut synth = Box::<MidiOut>::default();
+                synth.set_params(params);
+                AnyInstrument::MidiOut(synth)
+            }
+            InstrumentParams::MidiOut(params) => {
+                let mut synth = Box::<MidiOut>::default();
+                synth.set_params(params);
+                AnyInstrument::MidiOut(synth)
+            }
+            InstrumentParams::MidiOut(params) => {
+                let mut synth = Box::<MidiOut>::default();
+                synth.set_params(params);
+                AnyInstrument::MidiOut(synth)
+            }
+            InstrumentParams::MidiOut(params) => {
+                let mut synth = Box::<MidiOut>::default();
+                synth.set_params(params);
+                AnyInstrument::MidiOut(synth)
+            }
+            InstrumentParams::MidiOut(params) => {
+                let mut synth = Box::<MidiOut>::default();
+                synth.set_params(params);
+                AnyInstrument::MidiOut(synth)
+            }
+            InstrumentParams::MidiOut(params) => {
+                let mut synth = Box::<MidiOut>::default();
+                synth.set_params(params);
+                AnyInstrument::MidiOut(synth)
+            }
+            InstrumentParams::MidiOut(params) => {
+                let mut synth = Box::<MidiOut>::default();
+                synth.set_params(params);
+                AnyInstrument::MidiOut(synth)
+            }
+            InstrumentParams::MidiOut(params) => {
+                let mut synth = Box::<MidiOut>::default();
+                synth.set_params(params);
+                AnyInstrument::MidiOut(synth)
+            }
+            InstrumentParams::MidiOut(params) => {
+                let mut synth = Box::<MidiOut>::default();
+                synth.set_params(params);
+                AnyInstrument::MidiOut(synth)
+            }
+            InstrumentParams::MidiOut(params) => {
+                let mut synth = Box::<MidiOut>::default();
+                synth.set_params(params);
+                AnyInstrument::MidiOut(synth)
+            }
+            InstrumentParams::MidiOut(params) => {
+                let mut synth = Box::<MidiOut>::default();
+                synth.set_params(params);
+                AnyInstrument::MidiOut(synth)
+            }
+            InstrumentParams::MidiOut(params) => {
+                let mut synth = Box::<MidiOut>::default();
+                synth.set_params(params);
+                AnyInstrument::MidiOut(synth)
+            }
+            InstrumentParams::MidiOut(params) => {
+                let mut synth = Box::<MidiOut>::default();
+                synth.set_params(params);
+                AnyInstrument::MidiOut(synth)
+            }
+            InstrumentParams::MidiOut(params) => {
+                let mut synth = Box::<MidiOut>::default();
+                synth.set_params(params);
+                AnyInstrument::MidiOut(synth)
+            }
+            InstrumentParams::MidiOut(params) => {
+                let mut synth = Box::<MidiOut>::default();
+                synth.set_params(params);
+                AnyInstrument::MidiOut(synth)
+            }
+            InstrumentParams::MidiOut(params) => {
+                let mut synth = Box::<MidiOut>::default();
+                synth.set_params(params);
+                AnyInstrument::MidiOut(synth)
+            }
+            InstrumentParams::MidiOut(params) => {
+                let mut synth = Box::<MidiOut>::default();
+                synth.set_params(params);
+                AnyInstrument::MidiOut(synth)
+            }
+            InstrumentParams::MidiOut(params) => {
+                let mut synth = Box::<MidiOut>::default();
+                synth.set_params(params);
+                AnyInstrument::MidiOut(synth)
+            }
+            InstrumentParams::MidiOut(params) => {
+                let mut synth = Box::<MidiOut>::default();
+                synth.set_params(params);
+                AnyInstrument::MidiOut(synth)
+            }
+            InstrumentParams::MidiOut(params) => {
+                let mut synth = Box::<MidiOut>::default();
+                synth.set_params(params);
+                AnyInstrument::MidiOut(synth)
+            }
+            InstrumentParams::MidiOut(params) => {
+                let mut synth = Box::<MidiOut>::default();
+                synth.set_params(params);
+                AnyInstrument::MidiOut(synth)
+            }
+            InstrumentParams::MidiOut(params) => {
+                let mut synth = Box::<MidiOut>::default();
+                synth.set_params(params);
+                AnyInstrument::MidiOut(synth)
+            }
+            InstrumentParams::MidiOut(params) => {
+                let mut synth = Box::<MidiOut>::default();
+                synth.set_params(params);
+                AnyInstrument::MidiOut(synth)
+            }
+            InstrumentParams::MidiOut(params) => {
+                let mut synth = Box::<MidiOut>::default();
+                synth.set_params(params);
+                AnyInstrument::MidiOut(synth)
+            }
+            InstrumentParams::MidiOut(params) => {
+                let mut synth = Box::<MidiOut>::default();
+                synth.set_params(params);
+                AnyInstrument::MidiOut(synth)
+            }
+            InstrumentParams::MidiOut(params) => {
+                let mut synth = Box::<MidiOut>::default();
+                synth.set_params(params);
+                AnyInstrument::MidiOut(synth)
+            }
+            InstrumentParams::MidiOut(params) => {
+                let mut synth = Box::<MidiOut>::default();
+                synth.set_params(params);
+                AnyInstrument::MidiOut(synth)
+            }
+            InstrumentParams::MidiOut(params) => {
+                let mut synth = Box::<MidiOut>::default();
+                synth.set_params(params);
+                AnyInstrument::MidiOut(synth)
+            }
+            InstrumentParams::MidiOut(params) => {
+                let mut synth = Box::<MidiOut>::default();
+                synth.set_params(params);
+                AnyInstrument::MidiOut(synth)
+            }
+            InstrumentParams::MidiOut(params) => {
+                let mut synth = Box::<MidiOut>::default();
+                synth.set_params(params);
+                AnyInstrument::MidiOut(synth)
+            }
+            InstrumentParams::MidiOut(params) => {
+                let mut synth = Box::<MidiOut>::default();
+                synth.set_params(params);
+                AnyInstrument::MidiOut(synth)
+            }
+            InstrumentParams::MidiOut(params) => {
+                let mut synth = Box::<MidiOut>::default();
+                synth.set_params(params);
+                AnyInstrument::MidiOut(synth)
+            }
             InstrumentParams::LayerKick(params) => {
                 let mut synth = Box::<LayerKick>::default();
                 synth.set_params(params);
@@ -1378,6 +1936,11 @@ impl AnyInstrument {
                 let mut synth = Box::<SpectralResynth>::default();
                 synth.set_params(params);
                 AnyInstrument::SpectralResynth(synth)
+            }
+            InstrumentParams::ColorScan(params) => {
+                let mut synth = Box::<ColorScan>::default();
+                synth.set_params(params);
+                AnyInstrument::ColorScan(synth)
             }
         }
     }
@@ -1442,12 +2005,45 @@ impl AnyInstrument {
             AnyInstrument::MidiOut(_) => InstrumentKind::MidiOut,
             AnyInstrument::MidiOut(_) => InstrumentKind::MidiOut,
             AnyInstrument::MidiOut(_) => InstrumentKind::MidiOut,
+            AnyInstrument::MidiOut(_) => InstrumentKind::MidiOut,
+            AnyInstrument::MidiOut(_) => InstrumentKind::MidiOut,
+            AnyInstrument::MidiOut(_) => InstrumentKind::MidiOut,
+            AnyInstrument::MidiOut(_) => InstrumentKind::MidiOut,
+            AnyInstrument::MidiOut(_) => InstrumentKind::MidiOut,
+            AnyInstrument::MidiOut(_) => InstrumentKind::MidiOut,
+            AnyInstrument::MidiOut(_) => InstrumentKind::MidiOut,
+            AnyInstrument::MidiOut(_) => InstrumentKind::MidiOut,
+            AnyInstrument::MidiOut(_) => InstrumentKind::MidiOut,
+            AnyInstrument::MidiOut(_) => InstrumentKind::MidiOut,
+            AnyInstrument::MidiOut(_) => InstrumentKind::MidiOut,
+            AnyInstrument::MidiOut(_) => InstrumentKind::MidiOut,
+            AnyInstrument::MidiOut(_) => InstrumentKind::MidiOut,
+            AnyInstrument::MidiOut(_) => InstrumentKind::MidiOut,
+            AnyInstrument::MidiOut(_) => InstrumentKind::MidiOut,
+            AnyInstrument::MidiOut(_) => InstrumentKind::MidiOut,
+            AnyInstrument::MidiOut(_) => InstrumentKind::MidiOut,
+            AnyInstrument::MidiOut(_) => InstrumentKind::MidiOut,
+            AnyInstrument::MidiOut(_) => InstrumentKind::MidiOut,
+            AnyInstrument::MidiOut(_) => InstrumentKind::MidiOut,
+            AnyInstrument::MidiOut(_) => InstrumentKind::MidiOut,
+            AnyInstrument::MidiOut(_) => InstrumentKind::MidiOut,
+            AnyInstrument::MidiOut(_) => InstrumentKind::MidiOut,
+            AnyInstrument::MidiOut(_) => InstrumentKind::MidiOut,
+            AnyInstrument::MidiOut(_) => InstrumentKind::MidiOut,
+            AnyInstrument::MidiOut(_) => InstrumentKind::MidiOut,
+            AnyInstrument::MidiOut(_) => InstrumentKind::MidiOut,
+            AnyInstrument::MidiOut(_) => InstrumentKind::MidiOut,
+            AnyInstrument::MidiOut(_) => InstrumentKind::MidiOut,
+            AnyInstrument::MidiOut(_) => InstrumentKind::MidiOut,
+            AnyInstrument::MidiOut(_) => InstrumentKind::MidiOut,
+            AnyInstrument::MidiOut(_) => InstrumentKind::MidiOut,
             AnyInstrument::LayerKick(_) => InstrumentKind::LayerKick,
             AnyInstrument::SnapshotMorph(_) => InstrumentKind::SnapshotMorph,
             AnyInstrument::HarmonicFilter(_) => InstrumentKind::HarmonicFilter,
             AnyInstrument::MetalVoice(_) => InstrumentKind::MetalVoice,
             AnyInstrument::NumberVoice(_) => InstrumentKind::NumberVoice,
             AnyInstrument::SpectralResynth(_) => InstrumentKind::SpectralResynth,
+            AnyInstrument::ColorScan(_) => InstrumentKind::ColorScan,
         }
     }
 
@@ -1512,12 +2108,45 @@ impl AnyInstrument {
             AnyInstrument::MidiOut(synth) => synth.prepare(sample_rate, max_block),
             AnyInstrument::MidiOut(synth) => synth.prepare(sample_rate, max_block),
             AnyInstrument::MidiOut(synth) => synth.prepare(sample_rate, max_block),
+            AnyInstrument::MidiOut(synth) => synth.prepare(sample_rate, max_block),
+            AnyInstrument::MidiOut(synth) => synth.prepare(sample_rate, max_block),
+            AnyInstrument::MidiOut(synth) => synth.prepare(sample_rate, max_block),
+            AnyInstrument::MidiOut(synth) => synth.prepare(sample_rate, max_block),
+            AnyInstrument::MidiOut(synth) => synth.prepare(sample_rate, max_block),
+            AnyInstrument::MidiOut(synth) => synth.prepare(sample_rate, max_block),
+            AnyInstrument::MidiOut(synth) => synth.prepare(sample_rate, max_block),
+            AnyInstrument::MidiOut(synth) => synth.prepare(sample_rate, max_block),
+            AnyInstrument::MidiOut(synth) => synth.prepare(sample_rate, max_block),
+            AnyInstrument::MidiOut(synth) => synth.prepare(sample_rate, max_block),
+            AnyInstrument::MidiOut(synth) => synth.prepare(sample_rate, max_block),
+            AnyInstrument::MidiOut(synth) => synth.prepare(sample_rate, max_block),
+            AnyInstrument::MidiOut(synth) => synth.prepare(sample_rate, max_block),
+            AnyInstrument::MidiOut(synth) => synth.prepare(sample_rate, max_block),
+            AnyInstrument::MidiOut(synth) => synth.prepare(sample_rate, max_block),
+            AnyInstrument::MidiOut(synth) => synth.prepare(sample_rate, max_block),
+            AnyInstrument::MidiOut(synth) => synth.prepare(sample_rate, max_block),
+            AnyInstrument::MidiOut(synth) => synth.prepare(sample_rate, max_block),
+            AnyInstrument::MidiOut(synth) => synth.prepare(sample_rate, max_block),
+            AnyInstrument::MidiOut(synth) => synth.prepare(sample_rate, max_block),
+            AnyInstrument::MidiOut(synth) => synth.prepare(sample_rate, max_block),
+            AnyInstrument::MidiOut(synth) => synth.prepare(sample_rate, max_block),
+            AnyInstrument::MidiOut(synth) => synth.prepare(sample_rate, max_block),
+            AnyInstrument::MidiOut(synth) => synth.prepare(sample_rate, max_block),
+            AnyInstrument::MidiOut(synth) => synth.prepare(sample_rate, max_block),
+            AnyInstrument::MidiOut(synth) => synth.prepare(sample_rate, max_block),
+            AnyInstrument::MidiOut(synth) => synth.prepare(sample_rate, max_block),
+            AnyInstrument::MidiOut(synth) => synth.prepare(sample_rate, max_block),
+            AnyInstrument::MidiOut(synth) => synth.prepare(sample_rate, max_block),
+            AnyInstrument::MidiOut(synth) => synth.prepare(sample_rate, max_block),
+            AnyInstrument::MidiOut(synth) => synth.prepare(sample_rate, max_block),
+            AnyInstrument::MidiOut(synth) => synth.prepare(sample_rate, max_block),
             AnyInstrument::LayerKick(synth) => synth.prepare(sample_rate, max_block),
             AnyInstrument::SnapshotMorph(synth) => synth.prepare(sample_rate, max_block),
             AnyInstrument::HarmonicFilter(synth) => synth.prepare(sample_rate, max_block),
             AnyInstrument::MetalVoice(synth) => synth.prepare(sample_rate, max_block),
             AnyInstrument::NumberVoice(synth) => synth.prepare(sample_rate, max_block),
             AnyInstrument::SpectralResynth(synth) => synth.prepare(sample_rate, max_block),
+            AnyInstrument::ColorScan(synth) => synth.prepare(sample_rate, max_block),
         }
     }
 
@@ -1582,12 +2211,45 @@ impl AnyInstrument {
             AnyInstrument::MidiOut(synth) => synth.reset(),
             AnyInstrument::MidiOut(synth) => synth.reset(),
             AnyInstrument::MidiOut(synth) => synth.reset(),
+            AnyInstrument::MidiOut(synth) => synth.reset(),
+            AnyInstrument::MidiOut(synth) => synth.reset(),
+            AnyInstrument::MidiOut(synth) => synth.reset(),
+            AnyInstrument::MidiOut(synth) => synth.reset(),
+            AnyInstrument::MidiOut(synth) => synth.reset(),
+            AnyInstrument::MidiOut(synth) => synth.reset(),
+            AnyInstrument::MidiOut(synth) => synth.reset(),
+            AnyInstrument::MidiOut(synth) => synth.reset(),
+            AnyInstrument::MidiOut(synth) => synth.reset(),
+            AnyInstrument::MidiOut(synth) => synth.reset(),
+            AnyInstrument::MidiOut(synth) => synth.reset(),
+            AnyInstrument::MidiOut(synth) => synth.reset(),
+            AnyInstrument::MidiOut(synth) => synth.reset(),
+            AnyInstrument::MidiOut(synth) => synth.reset(),
+            AnyInstrument::MidiOut(synth) => synth.reset(),
+            AnyInstrument::MidiOut(synth) => synth.reset(),
+            AnyInstrument::MidiOut(synth) => synth.reset(),
+            AnyInstrument::MidiOut(synth) => synth.reset(),
+            AnyInstrument::MidiOut(synth) => synth.reset(),
+            AnyInstrument::MidiOut(synth) => synth.reset(),
+            AnyInstrument::MidiOut(synth) => synth.reset(),
+            AnyInstrument::MidiOut(synth) => synth.reset(),
+            AnyInstrument::MidiOut(synth) => synth.reset(),
+            AnyInstrument::MidiOut(synth) => synth.reset(),
+            AnyInstrument::MidiOut(synth) => synth.reset(),
+            AnyInstrument::MidiOut(synth) => synth.reset(),
+            AnyInstrument::MidiOut(synth) => synth.reset(),
+            AnyInstrument::MidiOut(synth) => synth.reset(),
+            AnyInstrument::MidiOut(synth) => synth.reset(),
+            AnyInstrument::MidiOut(synth) => synth.reset(),
+            AnyInstrument::MidiOut(synth) => synth.reset(),
+            AnyInstrument::MidiOut(synth) => synth.reset(),
             AnyInstrument::LayerKick(synth) => synth.reset(),
             AnyInstrument::SnapshotMorph(synth) => synth.reset(),
             AnyInstrument::HarmonicFilter(synth) => synth.reset(),
             AnyInstrument::MetalVoice(synth) => synth.reset(),
             AnyInstrument::NumberVoice(synth) => synth.reset(),
             AnyInstrument::SpectralResynth(synth) => synth.reset(),
+            AnyInstrument::ColorScan(synth) => synth.reset(),
         }
     }
 
@@ -1772,6 +2434,102 @@ impl AnyInstrument {
             (AnyInstrument::MidiOut(synth), InstrumentParams::MidiOut(params)) => {
                 synth.set_params(params);
             }
+            (AnyInstrument::MidiOut(synth), InstrumentParams::MidiOut(params)) => {
+                synth.set_params(params);
+            }
+            (AnyInstrument::MidiOut(synth), InstrumentParams::MidiOut(params)) => {
+                synth.set_params(params);
+            }
+            (AnyInstrument::MidiOut(synth), InstrumentParams::MidiOut(params)) => {
+                synth.set_params(params);
+            }
+            (AnyInstrument::MidiOut(synth), InstrumentParams::MidiOut(params)) => {
+                synth.set_params(params);
+            }
+            (AnyInstrument::MidiOut(synth), InstrumentParams::MidiOut(params)) => {
+                synth.set_params(params);
+            }
+            (AnyInstrument::MidiOut(synth), InstrumentParams::MidiOut(params)) => {
+                synth.set_params(params);
+            }
+            (AnyInstrument::MidiOut(synth), InstrumentParams::MidiOut(params)) => {
+                synth.set_params(params);
+            }
+            (AnyInstrument::MidiOut(synth), InstrumentParams::MidiOut(params)) => {
+                synth.set_params(params);
+            }
+            (AnyInstrument::MidiOut(synth), InstrumentParams::MidiOut(params)) => {
+                synth.set_params(params);
+            }
+            (AnyInstrument::MidiOut(synth), InstrumentParams::MidiOut(params)) => {
+                synth.set_params(params);
+            }
+            (AnyInstrument::MidiOut(synth), InstrumentParams::MidiOut(params)) => {
+                synth.set_params(params);
+            }
+            (AnyInstrument::MidiOut(synth), InstrumentParams::MidiOut(params)) => {
+                synth.set_params(params);
+            }
+            (AnyInstrument::MidiOut(synth), InstrumentParams::MidiOut(params)) => {
+                synth.set_params(params);
+            }
+            (AnyInstrument::MidiOut(synth), InstrumentParams::MidiOut(params)) => {
+                synth.set_params(params);
+            }
+            (AnyInstrument::MidiOut(synth), InstrumentParams::MidiOut(params)) => {
+                synth.set_params(params);
+            }
+            (AnyInstrument::MidiOut(synth), InstrumentParams::MidiOut(params)) => {
+                synth.set_params(params);
+            }
+            (AnyInstrument::MidiOut(synth), InstrumentParams::MidiOut(params)) => {
+                synth.set_params(params);
+            }
+            (AnyInstrument::MidiOut(synth), InstrumentParams::MidiOut(params)) => {
+                synth.set_params(params);
+            }
+            (AnyInstrument::MidiOut(synth), InstrumentParams::MidiOut(params)) => {
+                synth.set_params(params);
+            }
+            (AnyInstrument::MidiOut(synth), InstrumentParams::MidiOut(params)) => {
+                synth.set_params(params);
+            }
+            (AnyInstrument::MidiOut(synth), InstrumentParams::MidiOut(params)) => {
+                synth.set_params(params);
+            }
+            (AnyInstrument::MidiOut(synth), InstrumentParams::MidiOut(params)) => {
+                synth.set_params(params);
+            }
+            (AnyInstrument::MidiOut(synth), InstrumentParams::MidiOut(params)) => {
+                synth.set_params(params);
+            }
+            (AnyInstrument::MidiOut(synth), InstrumentParams::MidiOut(params)) => {
+                synth.set_params(params);
+            }
+            (AnyInstrument::MidiOut(synth), InstrumentParams::MidiOut(params)) => {
+                synth.set_params(params);
+            }
+            (AnyInstrument::MidiOut(synth), InstrumentParams::MidiOut(params)) => {
+                synth.set_params(params);
+            }
+            (AnyInstrument::MidiOut(synth), InstrumentParams::MidiOut(params)) => {
+                synth.set_params(params);
+            }
+            (AnyInstrument::MidiOut(synth), InstrumentParams::MidiOut(params)) => {
+                synth.set_params(params);
+            }
+            (AnyInstrument::MidiOut(synth), InstrumentParams::MidiOut(params)) => {
+                synth.set_params(params);
+            }
+            (AnyInstrument::MidiOut(synth), InstrumentParams::MidiOut(params)) => {
+                synth.set_params(params);
+            }
+            (AnyInstrument::MidiOut(synth), InstrumentParams::MidiOut(params)) => {
+                synth.set_params(params);
+            }
+            (AnyInstrument::MidiOut(synth), InstrumentParams::MidiOut(params)) => {
+                synth.set_params(params);
+            }
             (AnyInstrument::LayerKick(synth), InstrumentParams::LayerKick(params)) => {
                 synth.set_params(params);
             }
@@ -1788,6 +2546,9 @@ impl AnyInstrument {
                 synth.set_params(params);
             }
             (AnyInstrument::SpectralResynth(synth), InstrumentParams::SpectralResynth(params)) => {
+                synth.set_params(params);
+            }
+            (AnyInstrument::ColorScan(synth), InstrumentParams::ColorScan(params)) => {
                 synth.set_params(params);
             }
             _ => return false,
@@ -1856,12 +2617,45 @@ impl AnyInstrument {
             AnyInstrument::MidiOut(synth) => synth.set_tempo(bpm),
             AnyInstrument::MidiOut(synth) => synth.set_tempo(bpm),
             AnyInstrument::MidiOut(synth) => synth.set_tempo(bpm),
+            AnyInstrument::MidiOut(synth) => synth.set_tempo(bpm),
+            AnyInstrument::MidiOut(synth) => synth.set_tempo(bpm),
+            AnyInstrument::MidiOut(synth) => synth.set_tempo(bpm),
+            AnyInstrument::MidiOut(synth) => synth.set_tempo(bpm),
+            AnyInstrument::MidiOut(synth) => synth.set_tempo(bpm),
+            AnyInstrument::MidiOut(synth) => synth.set_tempo(bpm),
+            AnyInstrument::MidiOut(synth) => synth.set_tempo(bpm),
+            AnyInstrument::MidiOut(synth) => synth.set_tempo(bpm),
+            AnyInstrument::MidiOut(synth) => synth.set_tempo(bpm),
+            AnyInstrument::MidiOut(synth) => synth.set_tempo(bpm),
+            AnyInstrument::MidiOut(synth) => synth.set_tempo(bpm),
+            AnyInstrument::MidiOut(synth) => synth.set_tempo(bpm),
+            AnyInstrument::MidiOut(synth) => synth.set_tempo(bpm),
+            AnyInstrument::MidiOut(synth) => synth.set_tempo(bpm),
+            AnyInstrument::MidiOut(synth) => synth.set_tempo(bpm),
+            AnyInstrument::MidiOut(synth) => synth.set_tempo(bpm),
+            AnyInstrument::MidiOut(synth) => synth.set_tempo(bpm),
+            AnyInstrument::MidiOut(synth) => synth.set_tempo(bpm),
+            AnyInstrument::MidiOut(synth) => synth.set_tempo(bpm),
+            AnyInstrument::MidiOut(synth) => synth.set_tempo(bpm),
+            AnyInstrument::MidiOut(synth) => synth.set_tempo(bpm),
+            AnyInstrument::MidiOut(synth) => synth.set_tempo(bpm),
+            AnyInstrument::MidiOut(synth) => synth.set_tempo(bpm),
+            AnyInstrument::MidiOut(synth) => synth.set_tempo(bpm),
+            AnyInstrument::MidiOut(synth) => synth.set_tempo(bpm),
+            AnyInstrument::MidiOut(synth) => synth.set_tempo(bpm),
+            AnyInstrument::MidiOut(synth) => synth.set_tempo(bpm),
+            AnyInstrument::MidiOut(synth) => synth.set_tempo(bpm),
+            AnyInstrument::MidiOut(synth) => synth.set_tempo(bpm),
+            AnyInstrument::MidiOut(synth) => synth.set_tempo(bpm),
+            AnyInstrument::MidiOut(synth) => synth.set_tempo(bpm),
+            AnyInstrument::MidiOut(synth) => synth.set_tempo(bpm),
             AnyInstrument::LayerKick(synth) => synth.set_tempo(bpm),
             AnyInstrument::SnapshotMorph(synth) => synth.set_tempo(bpm),
             AnyInstrument::HarmonicFilter(synth) => synth.set_tempo(bpm),
             AnyInstrument::MetalVoice(synth) => synth.set_tempo(bpm),
             AnyInstrument::NumberVoice(synth) => synth.set_tempo(bpm),
             AnyInstrument::SpectralResynth(synth) => synth.set_tempo(bpm),
+            AnyInstrument::ColorScan(synth) => synth.set_tempo(bpm),
         }
     }
 
@@ -1926,12 +2720,45 @@ impl AnyInstrument {
             AnyInstrument::MidiOut(synth) => synth.note_on(key, velocity),
             AnyInstrument::MidiOut(synth) => synth.note_on(key, velocity),
             AnyInstrument::MidiOut(synth) => synth.note_on(key, velocity),
+            AnyInstrument::MidiOut(synth) => synth.note_on(key, velocity),
+            AnyInstrument::MidiOut(synth) => synth.note_on(key, velocity),
+            AnyInstrument::MidiOut(synth) => synth.note_on(key, velocity),
+            AnyInstrument::MidiOut(synth) => synth.note_on(key, velocity),
+            AnyInstrument::MidiOut(synth) => synth.note_on(key, velocity),
+            AnyInstrument::MidiOut(synth) => synth.note_on(key, velocity),
+            AnyInstrument::MidiOut(synth) => synth.note_on(key, velocity),
+            AnyInstrument::MidiOut(synth) => synth.note_on(key, velocity),
+            AnyInstrument::MidiOut(synth) => synth.note_on(key, velocity),
+            AnyInstrument::MidiOut(synth) => synth.note_on(key, velocity),
+            AnyInstrument::MidiOut(synth) => synth.note_on(key, velocity),
+            AnyInstrument::MidiOut(synth) => synth.note_on(key, velocity),
+            AnyInstrument::MidiOut(synth) => synth.note_on(key, velocity),
+            AnyInstrument::MidiOut(synth) => synth.note_on(key, velocity),
+            AnyInstrument::MidiOut(synth) => synth.note_on(key, velocity),
+            AnyInstrument::MidiOut(synth) => synth.note_on(key, velocity),
+            AnyInstrument::MidiOut(synth) => synth.note_on(key, velocity),
+            AnyInstrument::MidiOut(synth) => synth.note_on(key, velocity),
+            AnyInstrument::MidiOut(synth) => synth.note_on(key, velocity),
+            AnyInstrument::MidiOut(synth) => synth.note_on(key, velocity),
+            AnyInstrument::MidiOut(synth) => synth.note_on(key, velocity),
+            AnyInstrument::MidiOut(synth) => synth.note_on(key, velocity),
+            AnyInstrument::MidiOut(synth) => synth.note_on(key, velocity),
+            AnyInstrument::MidiOut(synth) => synth.note_on(key, velocity),
+            AnyInstrument::MidiOut(synth) => synth.note_on(key, velocity),
+            AnyInstrument::MidiOut(synth) => synth.note_on(key, velocity),
+            AnyInstrument::MidiOut(synth) => synth.note_on(key, velocity),
+            AnyInstrument::MidiOut(synth) => synth.note_on(key, velocity),
+            AnyInstrument::MidiOut(synth) => synth.note_on(key, velocity),
+            AnyInstrument::MidiOut(synth) => synth.note_on(key, velocity),
+            AnyInstrument::MidiOut(synth) => synth.note_on(key, velocity),
+            AnyInstrument::MidiOut(synth) => synth.note_on(key, velocity),
             AnyInstrument::LayerKick(synth) => synth.note_on(key, velocity),
             AnyInstrument::SnapshotMorph(synth) => synth.note_on(key, velocity),
             AnyInstrument::HarmonicFilter(synth) => synth.note_on(key, velocity),
             AnyInstrument::MetalVoice(synth) => synth.note_on(key, velocity),
             AnyInstrument::NumberVoice(synth) => synth.note_on(key, velocity),
             AnyInstrument::SpectralResynth(synth) => synth.note_on(key, velocity),
+            AnyInstrument::ColorScan(synth) => synth.note_on(key, velocity),
         }
     }
 
@@ -2113,6 +2940,102 @@ impl AnyInstrument {
             AnyInstrument::MidiOut(synth) => {
                 synth.note_on_expression(key, velocity, pan, expression)
             }
+            AnyInstrument::MidiOut(synth) => {
+                synth.note_on_expression(key, velocity, pan, expression)
+            }
+            AnyInstrument::MidiOut(synth) => {
+                synth.note_on_expression(key, velocity, pan, expression)
+            }
+            AnyInstrument::MidiOut(synth) => {
+                synth.note_on_expression(key, velocity, pan, expression)
+            }
+            AnyInstrument::MidiOut(synth) => {
+                synth.note_on_expression(key, velocity, pan, expression)
+            }
+            AnyInstrument::MidiOut(synth) => {
+                synth.note_on_expression(key, velocity, pan, expression)
+            }
+            AnyInstrument::MidiOut(synth) => {
+                synth.note_on_expression(key, velocity, pan, expression)
+            }
+            AnyInstrument::MidiOut(synth) => {
+                synth.note_on_expression(key, velocity, pan, expression)
+            }
+            AnyInstrument::MidiOut(synth) => {
+                synth.note_on_expression(key, velocity, pan, expression)
+            }
+            AnyInstrument::MidiOut(synth) => {
+                synth.note_on_expression(key, velocity, pan, expression)
+            }
+            AnyInstrument::MidiOut(synth) => {
+                synth.note_on_expression(key, velocity, pan, expression)
+            }
+            AnyInstrument::MidiOut(synth) => {
+                synth.note_on_expression(key, velocity, pan, expression)
+            }
+            AnyInstrument::MidiOut(synth) => {
+                synth.note_on_expression(key, velocity, pan, expression)
+            }
+            AnyInstrument::MidiOut(synth) => {
+                synth.note_on_expression(key, velocity, pan, expression)
+            }
+            AnyInstrument::MidiOut(synth) => {
+                synth.note_on_expression(key, velocity, pan, expression)
+            }
+            AnyInstrument::MidiOut(synth) => {
+                synth.note_on_expression(key, velocity, pan, expression)
+            }
+            AnyInstrument::MidiOut(synth) => {
+                synth.note_on_expression(key, velocity, pan, expression)
+            }
+            AnyInstrument::MidiOut(synth) => {
+                synth.note_on_expression(key, velocity, pan, expression)
+            }
+            AnyInstrument::MidiOut(synth) => {
+                synth.note_on_expression(key, velocity, pan, expression)
+            }
+            AnyInstrument::MidiOut(synth) => {
+                synth.note_on_expression(key, velocity, pan, expression)
+            }
+            AnyInstrument::MidiOut(synth) => {
+                synth.note_on_expression(key, velocity, pan, expression)
+            }
+            AnyInstrument::MidiOut(synth) => {
+                synth.note_on_expression(key, velocity, pan, expression)
+            }
+            AnyInstrument::MidiOut(synth) => {
+                synth.note_on_expression(key, velocity, pan, expression)
+            }
+            AnyInstrument::MidiOut(synth) => {
+                synth.note_on_expression(key, velocity, pan, expression)
+            }
+            AnyInstrument::MidiOut(synth) => {
+                synth.note_on_expression(key, velocity, pan, expression)
+            }
+            AnyInstrument::MidiOut(synth) => {
+                synth.note_on_expression(key, velocity, pan, expression)
+            }
+            AnyInstrument::MidiOut(synth) => {
+                synth.note_on_expression(key, velocity, pan, expression)
+            }
+            AnyInstrument::MidiOut(synth) => {
+                synth.note_on_expression(key, velocity, pan, expression)
+            }
+            AnyInstrument::MidiOut(synth) => {
+                synth.note_on_expression(key, velocity, pan, expression)
+            }
+            AnyInstrument::MidiOut(synth) => {
+                synth.note_on_expression(key, velocity, pan, expression)
+            }
+            AnyInstrument::MidiOut(synth) => {
+                synth.note_on_expression(key, velocity, pan, expression)
+            }
+            AnyInstrument::MidiOut(synth) => {
+                synth.note_on_expression(key, velocity, pan, expression)
+            }
+            AnyInstrument::MidiOut(synth) => {
+                synth.note_on_expression(key, velocity, pan, expression)
+            }
             AnyInstrument::LayerKick(synth) => {
                 synth.note_on_expression(key, velocity, pan, expression)
             }
@@ -2129,6 +3052,9 @@ impl AnyInstrument {
                 synth.note_on_expression(key, velocity, pan, expression)
             }
             AnyInstrument::SpectralResynth(synth) => {
+                synth.note_on_expression(key, velocity, pan, expression)
+            }
+            AnyInstrument::ColorScan(synth) => {
                 synth.note_on_expression(key, velocity, pan, expression)
             }
         }
@@ -2195,12 +3121,45 @@ impl AnyInstrument {
             AnyInstrument::MidiOut(synth) => synth.note_off(key),
             AnyInstrument::MidiOut(synth) => synth.note_off(key),
             AnyInstrument::MidiOut(synth) => synth.note_off(key),
+            AnyInstrument::MidiOut(synth) => synth.note_off(key),
+            AnyInstrument::MidiOut(synth) => synth.note_off(key),
+            AnyInstrument::MidiOut(synth) => synth.note_off(key),
+            AnyInstrument::MidiOut(synth) => synth.note_off(key),
+            AnyInstrument::MidiOut(synth) => synth.note_off(key),
+            AnyInstrument::MidiOut(synth) => synth.note_off(key),
+            AnyInstrument::MidiOut(synth) => synth.note_off(key),
+            AnyInstrument::MidiOut(synth) => synth.note_off(key),
+            AnyInstrument::MidiOut(synth) => synth.note_off(key),
+            AnyInstrument::MidiOut(synth) => synth.note_off(key),
+            AnyInstrument::MidiOut(synth) => synth.note_off(key),
+            AnyInstrument::MidiOut(synth) => synth.note_off(key),
+            AnyInstrument::MidiOut(synth) => synth.note_off(key),
+            AnyInstrument::MidiOut(synth) => synth.note_off(key),
+            AnyInstrument::MidiOut(synth) => synth.note_off(key),
+            AnyInstrument::MidiOut(synth) => synth.note_off(key),
+            AnyInstrument::MidiOut(synth) => synth.note_off(key),
+            AnyInstrument::MidiOut(synth) => synth.note_off(key),
+            AnyInstrument::MidiOut(synth) => synth.note_off(key),
+            AnyInstrument::MidiOut(synth) => synth.note_off(key),
+            AnyInstrument::MidiOut(synth) => synth.note_off(key),
+            AnyInstrument::MidiOut(synth) => synth.note_off(key),
+            AnyInstrument::MidiOut(synth) => synth.note_off(key),
+            AnyInstrument::MidiOut(synth) => synth.note_off(key),
+            AnyInstrument::MidiOut(synth) => synth.note_off(key),
+            AnyInstrument::MidiOut(synth) => synth.note_off(key),
+            AnyInstrument::MidiOut(synth) => synth.note_off(key),
+            AnyInstrument::MidiOut(synth) => synth.note_off(key),
+            AnyInstrument::MidiOut(synth) => synth.note_off(key),
+            AnyInstrument::MidiOut(synth) => synth.note_off(key),
+            AnyInstrument::MidiOut(synth) => synth.note_off(key),
+            AnyInstrument::MidiOut(synth) => synth.note_off(key),
             AnyInstrument::LayerKick(synth) => synth.note_off(key),
             AnyInstrument::SnapshotMorph(synth) => synth.note_off(key),
             AnyInstrument::HarmonicFilter(synth) => synth.note_off(key),
             AnyInstrument::MetalVoice(synth) => synth.note_off(key),
             AnyInstrument::NumberVoice(synth) => synth.note_off(key),
             AnyInstrument::SpectralResynth(synth) => synth.note_off(key),
+            AnyInstrument::ColorScan(synth) => synth.note_off(key),
         }
     }
 
@@ -2264,12 +3223,45 @@ impl AnyInstrument {
             AnyInstrument::MidiOut(synth) => synth.supports_note_instances(),
             AnyInstrument::MidiOut(synth) => synth.supports_note_instances(),
             AnyInstrument::MidiOut(synth) => synth.supports_note_instances(),
+            AnyInstrument::MidiOut(synth) => synth.supports_note_instances(),
+            AnyInstrument::MidiOut(synth) => synth.supports_note_instances(),
+            AnyInstrument::MidiOut(synth) => synth.supports_note_instances(),
+            AnyInstrument::MidiOut(synth) => synth.supports_note_instances(),
+            AnyInstrument::MidiOut(synth) => synth.supports_note_instances(),
+            AnyInstrument::MidiOut(synth) => synth.supports_note_instances(),
+            AnyInstrument::MidiOut(synth) => synth.supports_note_instances(),
+            AnyInstrument::MidiOut(synth) => synth.supports_note_instances(),
+            AnyInstrument::MidiOut(synth) => synth.supports_note_instances(),
+            AnyInstrument::MidiOut(synth) => synth.supports_note_instances(),
+            AnyInstrument::MidiOut(synth) => synth.supports_note_instances(),
+            AnyInstrument::MidiOut(synth) => synth.supports_note_instances(),
+            AnyInstrument::MidiOut(synth) => synth.supports_note_instances(),
+            AnyInstrument::MidiOut(synth) => synth.supports_note_instances(),
+            AnyInstrument::MidiOut(synth) => synth.supports_note_instances(),
+            AnyInstrument::MidiOut(synth) => synth.supports_note_instances(),
+            AnyInstrument::MidiOut(synth) => synth.supports_note_instances(),
+            AnyInstrument::MidiOut(synth) => synth.supports_note_instances(),
+            AnyInstrument::MidiOut(synth) => synth.supports_note_instances(),
+            AnyInstrument::MidiOut(synth) => synth.supports_note_instances(),
+            AnyInstrument::MidiOut(synth) => synth.supports_note_instances(),
+            AnyInstrument::MidiOut(synth) => synth.supports_note_instances(),
+            AnyInstrument::MidiOut(synth) => synth.supports_note_instances(),
+            AnyInstrument::MidiOut(synth) => synth.supports_note_instances(),
+            AnyInstrument::MidiOut(synth) => synth.supports_note_instances(),
+            AnyInstrument::MidiOut(synth) => synth.supports_note_instances(),
+            AnyInstrument::MidiOut(synth) => synth.supports_note_instances(),
+            AnyInstrument::MidiOut(synth) => synth.supports_note_instances(),
+            AnyInstrument::MidiOut(synth) => synth.supports_note_instances(),
+            AnyInstrument::MidiOut(synth) => synth.supports_note_instances(),
+            AnyInstrument::MidiOut(synth) => synth.supports_note_instances(),
+            AnyInstrument::MidiOut(synth) => synth.supports_note_instances(),
             AnyInstrument::LayerKick(synth) => synth.supports_note_instances(),
             AnyInstrument::SnapshotMorph(synth) => synth.supports_note_instances(),
             AnyInstrument::HarmonicFilter(synth) => synth.supports_note_instances(),
             AnyInstrument::MetalVoice(synth) => synth.supports_note_instances(),
             AnyInstrument::NumberVoice(synth) => synth.supports_note_instances(),
             AnyInstrument::SpectralResynth(synth) => synth.supports_note_instances(),
+            AnyInstrument::ColorScan(synth) => synth.supports_note_instances(),
         }
     }
 
@@ -2456,6 +3448,102 @@ impl AnyInstrument {
             AnyInstrument::MidiOut(synth) => {
                 synth.note_on_instance(id, key, velocity, pan, expression)
             }
+            AnyInstrument::MidiOut(synth) => {
+                synth.note_on_instance(id, key, velocity, pan, expression)
+            }
+            AnyInstrument::MidiOut(synth) => {
+                synth.note_on_instance(id, key, velocity, pan, expression)
+            }
+            AnyInstrument::MidiOut(synth) => {
+                synth.note_on_instance(id, key, velocity, pan, expression)
+            }
+            AnyInstrument::MidiOut(synth) => {
+                synth.note_on_instance(id, key, velocity, pan, expression)
+            }
+            AnyInstrument::MidiOut(synth) => {
+                synth.note_on_instance(id, key, velocity, pan, expression)
+            }
+            AnyInstrument::MidiOut(synth) => {
+                synth.note_on_instance(id, key, velocity, pan, expression)
+            }
+            AnyInstrument::MidiOut(synth) => {
+                synth.note_on_instance(id, key, velocity, pan, expression)
+            }
+            AnyInstrument::MidiOut(synth) => {
+                synth.note_on_instance(id, key, velocity, pan, expression)
+            }
+            AnyInstrument::MidiOut(synth) => {
+                synth.note_on_instance(id, key, velocity, pan, expression)
+            }
+            AnyInstrument::MidiOut(synth) => {
+                synth.note_on_instance(id, key, velocity, pan, expression)
+            }
+            AnyInstrument::MidiOut(synth) => {
+                synth.note_on_instance(id, key, velocity, pan, expression)
+            }
+            AnyInstrument::MidiOut(synth) => {
+                synth.note_on_instance(id, key, velocity, pan, expression)
+            }
+            AnyInstrument::MidiOut(synth) => {
+                synth.note_on_instance(id, key, velocity, pan, expression)
+            }
+            AnyInstrument::MidiOut(synth) => {
+                synth.note_on_instance(id, key, velocity, pan, expression)
+            }
+            AnyInstrument::MidiOut(synth) => {
+                synth.note_on_instance(id, key, velocity, pan, expression)
+            }
+            AnyInstrument::MidiOut(synth) => {
+                synth.note_on_instance(id, key, velocity, pan, expression)
+            }
+            AnyInstrument::MidiOut(synth) => {
+                synth.note_on_instance(id, key, velocity, pan, expression)
+            }
+            AnyInstrument::MidiOut(synth) => {
+                synth.note_on_instance(id, key, velocity, pan, expression)
+            }
+            AnyInstrument::MidiOut(synth) => {
+                synth.note_on_instance(id, key, velocity, pan, expression)
+            }
+            AnyInstrument::MidiOut(synth) => {
+                synth.note_on_instance(id, key, velocity, pan, expression)
+            }
+            AnyInstrument::MidiOut(synth) => {
+                synth.note_on_instance(id, key, velocity, pan, expression)
+            }
+            AnyInstrument::MidiOut(synth) => {
+                synth.note_on_instance(id, key, velocity, pan, expression)
+            }
+            AnyInstrument::MidiOut(synth) => {
+                synth.note_on_instance(id, key, velocity, pan, expression)
+            }
+            AnyInstrument::MidiOut(synth) => {
+                synth.note_on_instance(id, key, velocity, pan, expression)
+            }
+            AnyInstrument::MidiOut(synth) => {
+                synth.note_on_instance(id, key, velocity, pan, expression)
+            }
+            AnyInstrument::MidiOut(synth) => {
+                synth.note_on_instance(id, key, velocity, pan, expression)
+            }
+            AnyInstrument::MidiOut(synth) => {
+                synth.note_on_instance(id, key, velocity, pan, expression)
+            }
+            AnyInstrument::MidiOut(synth) => {
+                synth.note_on_instance(id, key, velocity, pan, expression)
+            }
+            AnyInstrument::MidiOut(synth) => {
+                synth.note_on_instance(id, key, velocity, pan, expression)
+            }
+            AnyInstrument::MidiOut(synth) => {
+                synth.note_on_instance(id, key, velocity, pan, expression)
+            }
+            AnyInstrument::MidiOut(synth) => {
+                synth.note_on_instance(id, key, velocity, pan, expression)
+            }
+            AnyInstrument::MidiOut(synth) => {
+                synth.note_on_instance(id, key, velocity, pan, expression)
+            }
             AnyInstrument::LayerKick(synth) => {
                 synth.note_on_instance(id, key, velocity, pan, expression)
             }
@@ -2472,6 +3560,9 @@ impl AnyInstrument {
                 synth.note_on_instance(id, key, velocity, pan, expression)
             }
             AnyInstrument::SpectralResynth(synth) => {
+                synth.note_on_instance(id, key, velocity, pan, expression)
+            }
+            AnyInstrument::ColorScan(synth) => {
                 synth.note_on_instance(id, key, velocity, pan, expression)
             }
         }
@@ -2537,12 +3628,45 @@ impl AnyInstrument {
             AnyInstrument::MidiOut(synth) => synth.note_off_instance(id, key),
             AnyInstrument::MidiOut(synth) => synth.note_off_instance(id, key),
             AnyInstrument::MidiOut(synth) => synth.note_off_instance(id, key),
+            AnyInstrument::MidiOut(synth) => synth.note_off_instance(id, key),
+            AnyInstrument::MidiOut(synth) => synth.note_off_instance(id, key),
+            AnyInstrument::MidiOut(synth) => synth.note_off_instance(id, key),
+            AnyInstrument::MidiOut(synth) => synth.note_off_instance(id, key),
+            AnyInstrument::MidiOut(synth) => synth.note_off_instance(id, key),
+            AnyInstrument::MidiOut(synth) => synth.note_off_instance(id, key),
+            AnyInstrument::MidiOut(synth) => synth.note_off_instance(id, key),
+            AnyInstrument::MidiOut(synth) => synth.note_off_instance(id, key),
+            AnyInstrument::MidiOut(synth) => synth.note_off_instance(id, key),
+            AnyInstrument::MidiOut(synth) => synth.note_off_instance(id, key),
+            AnyInstrument::MidiOut(synth) => synth.note_off_instance(id, key),
+            AnyInstrument::MidiOut(synth) => synth.note_off_instance(id, key),
+            AnyInstrument::MidiOut(synth) => synth.note_off_instance(id, key),
+            AnyInstrument::MidiOut(synth) => synth.note_off_instance(id, key),
+            AnyInstrument::MidiOut(synth) => synth.note_off_instance(id, key),
+            AnyInstrument::MidiOut(synth) => synth.note_off_instance(id, key),
+            AnyInstrument::MidiOut(synth) => synth.note_off_instance(id, key),
+            AnyInstrument::MidiOut(synth) => synth.note_off_instance(id, key),
+            AnyInstrument::MidiOut(synth) => synth.note_off_instance(id, key),
+            AnyInstrument::MidiOut(synth) => synth.note_off_instance(id, key),
+            AnyInstrument::MidiOut(synth) => synth.note_off_instance(id, key),
+            AnyInstrument::MidiOut(synth) => synth.note_off_instance(id, key),
+            AnyInstrument::MidiOut(synth) => synth.note_off_instance(id, key),
+            AnyInstrument::MidiOut(synth) => synth.note_off_instance(id, key),
+            AnyInstrument::MidiOut(synth) => synth.note_off_instance(id, key),
+            AnyInstrument::MidiOut(synth) => synth.note_off_instance(id, key),
+            AnyInstrument::MidiOut(synth) => synth.note_off_instance(id, key),
+            AnyInstrument::MidiOut(synth) => synth.note_off_instance(id, key),
+            AnyInstrument::MidiOut(synth) => synth.note_off_instance(id, key),
+            AnyInstrument::MidiOut(synth) => synth.note_off_instance(id, key),
+            AnyInstrument::MidiOut(synth) => synth.note_off_instance(id, key),
+            AnyInstrument::MidiOut(synth) => synth.note_off_instance(id, key),
             AnyInstrument::LayerKick(synth) => synth.note_off_instance(id, key),
             AnyInstrument::SnapshotMorph(synth) => synth.note_off_instance(id, key),
             AnyInstrument::HarmonicFilter(synth) => synth.note_off_instance(id, key),
             AnyInstrument::MetalVoice(synth) => synth.note_off_instance(id, key),
             AnyInstrument::NumberVoice(synth) => synth.note_off_instance(id, key),
             AnyInstrument::SpectralResynth(synth) => synth.note_off_instance(id, key),
+            AnyInstrument::ColorScan(synth) => synth.note_off_instance(id, key),
         }
     }
 
@@ -2613,12 +3737,45 @@ impl AnyInstrument {
             AnyInstrument::MidiOut(synth) => synth.set_note_expression(id, pan, expression),
             AnyInstrument::MidiOut(synth) => synth.set_note_expression(id, pan, expression),
             AnyInstrument::MidiOut(synth) => synth.set_note_expression(id, pan, expression),
+            AnyInstrument::MidiOut(synth) => synth.set_note_expression(id, pan, expression),
+            AnyInstrument::MidiOut(synth) => synth.set_note_expression(id, pan, expression),
+            AnyInstrument::MidiOut(synth) => synth.set_note_expression(id, pan, expression),
+            AnyInstrument::MidiOut(synth) => synth.set_note_expression(id, pan, expression),
+            AnyInstrument::MidiOut(synth) => synth.set_note_expression(id, pan, expression),
+            AnyInstrument::MidiOut(synth) => synth.set_note_expression(id, pan, expression),
+            AnyInstrument::MidiOut(synth) => synth.set_note_expression(id, pan, expression),
+            AnyInstrument::MidiOut(synth) => synth.set_note_expression(id, pan, expression),
+            AnyInstrument::MidiOut(synth) => synth.set_note_expression(id, pan, expression),
+            AnyInstrument::MidiOut(synth) => synth.set_note_expression(id, pan, expression),
+            AnyInstrument::MidiOut(synth) => synth.set_note_expression(id, pan, expression),
+            AnyInstrument::MidiOut(synth) => synth.set_note_expression(id, pan, expression),
+            AnyInstrument::MidiOut(synth) => synth.set_note_expression(id, pan, expression),
+            AnyInstrument::MidiOut(synth) => synth.set_note_expression(id, pan, expression),
+            AnyInstrument::MidiOut(synth) => synth.set_note_expression(id, pan, expression),
+            AnyInstrument::MidiOut(synth) => synth.set_note_expression(id, pan, expression),
+            AnyInstrument::MidiOut(synth) => synth.set_note_expression(id, pan, expression),
+            AnyInstrument::MidiOut(synth) => synth.set_note_expression(id, pan, expression),
+            AnyInstrument::MidiOut(synth) => synth.set_note_expression(id, pan, expression),
+            AnyInstrument::MidiOut(synth) => synth.set_note_expression(id, pan, expression),
+            AnyInstrument::MidiOut(synth) => synth.set_note_expression(id, pan, expression),
+            AnyInstrument::MidiOut(synth) => synth.set_note_expression(id, pan, expression),
+            AnyInstrument::MidiOut(synth) => synth.set_note_expression(id, pan, expression),
+            AnyInstrument::MidiOut(synth) => synth.set_note_expression(id, pan, expression),
+            AnyInstrument::MidiOut(synth) => synth.set_note_expression(id, pan, expression),
+            AnyInstrument::MidiOut(synth) => synth.set_note_expression(id, pan, expression),
+            AnyInstrument::MidiOut(synth) => synth.set_note_expression(id, pan, expression),
+            AnyInstrument::MidiOut(synth) => synth.set_note_expression(id, pan, expression),
+            AnyInstrument::MidiOut(synth) => synth.set_note_expression(id, pan, expression),
+            AnyInstrument::MidiOut(synth) => synth.set_note_expression(id, pan, expression),
+            AnyInstrument::MidiOut(synth) => synth.set_note_expression(id, pan, expression),
+            AnyInstrument::MidiOut(synth) => synth.set_note_expression(id, pan, expression),
             AnyInstrument::LayerKick(synth) => synth.set_note_expression(id, pan, expression),
             AnyInstrument::SnapshotMorph(synth) => synth.set_note_expression(id, pan, expression),
             AnyInstrument::HarmonicFilter(synth) => synth.set_note_expression(id, pan, expression),
             AnyInstrument::MetalVoice(synth) => synth.set_note_expression(id, pan, expression),
             AnyInstrument::NumberVoice(synth) => synth.set_note_expression(id, pan, expression),
             AnyInstrument::SpectralResynth(synth) => synth.set_note_expression(id, pan, expression),
+            AnyInstrument::ColorScan(synth) => synth.set_note_expression(id, pan, expression),
         }
     }
 
@@ -2682,12 +3839,45 @@ impl AnyInstrument {
             AnyInstrument::MidiOut(synth) => synth.set_note_pitch(id, pitch),
             AnyInstrument::MidiOut(synth) => synth.set_note_pitch(id, pitch),
             AnyInstrument::MidiOut(synth) => synth.set_note_pitch(id, pitch),
+            AnyInstrument::MidiOut(synth) => synth.set_note_pitch(id, pitch),
+            AnyInstrument::MidiOut(synth) => synth.set_note_pitch(id, pitch),
+            AnyInstrument::MidiOut(synth) => synth.set_note_pitch(id, pitch),
+            AnyInstrument::MidiOut(synth) => synth.set_note_pitch(id, pitch),
+            AnyInstrument::MidiOut(synth) => synth.set_note_pitch(id, pitch),
+            AnyInstrument::MidiOut(synth) => synth.set_note_pitch(id, pitch),
+            AnyInstrument::MidiOut(synth) => synth.set_note_pitch(id, pitch),
+            AnyInstrument::MidiOut(synth) => synth.set_note_pitch(id, pitch),
+            AnyInstrument::MidiOut(synth) => synth.set_note_pitch(id, pitch),
+            AnyInstrument::MidiOut(synth) => synth.set_note_pitch(id, pitch),
+            AnyInstrument::MidiOut(synth) => synth.set_note_pitch(id, pitch),
+            AnyInstrument::MidiOut(synth) => synth.set_note_pitch(id, pitch),
+            AnyInstrument::MidiOut(synth) => synth.set_note_pitch(id, pitch),
+            AnyInstrument::MidiOut(synth) => synth.set_note_pitch(id, pitch),
+            AnyInstrument::MidiOut(synth) => synth.set_note_pitch(id, pitch),
+            AnyInstrument::MidiOut(synth) => synth.set_note_pitch(id, pitch),
+            AnyInstrument::MidiOut(synth) => synth.set_note_pitch(id, pitch),
+            AnyInstrument::MidiOut(synth) => synth.set_note_pitch(id, pitch),
+            AnyInstrument::MidiOut(synth) => synth.set_note_pitch(id, pitch),
+            AnyInstrument::MidiOut(synth) => synth.set_note_pitch(id, pitch),
+            AnyInstrument::MidiOut(synth) => synth.set_note_pitch(id, pitch),
+            AnyInstrument::MidiOut(synth) => synth.set_note_pitch(id, pitch),
+            AnyInstrument::MidiOut(synth) => synth.set_note_pitch(id, pitch),
+            AnyInstrument::MidiOut(synth) => synth.set_note_pitch(id, pitch),
+            AnyInstrument::MidiOut(synth) => synth.set_note_pitch(id, pitch),
+            AnyInstrument::MidiOut(synth) => synth.set_note_pitch(id, pitch),
+            AnyInstrument::MidiOut(synth) => synth.set_note_pitch(id, pitch),
+            AnyInstrument::MidiOut(synth) => synth.set_note_pitch(id, pitch),
+            AnyInstrument::MidiOut(synth) => synth.set_note_pitch(id, pitch),
+            AnyInstrument::MidiOut(synth) => synth.set_note_pitch(id, pitch),
+            AnyInstrument::MidiOut(synth) => synth.set_note_pitch(id, pitch),
+            AnyInstrument::MidiOut(synth) => synth.set_note_pitch(id, pitch),
             AnyInstrument::LayerKick(synth) => synth.set_note_pitch(id, pitch),
             AnyInstrument::SnapshotMorph(synth) => synth.set_note_pitch(id, pitch),
             AnyInstrument::HarmonicFilter(synth) => synth.set_note_pitch(id, pitch),
             AnyInstrument::MetalVoice(synth) => synth.set_note_pitch(id, pitch),
             AnyInstrument::NumberVoice(synth) => synth.set_note_pitch(id, pitch),
             AnyInstrument::SpectralResynth(synth) => synth.set_note_pitch(id, pitch),
+            AnyInstrument::ColorScan(synth) => synth.set_note_pitch(id, pitch),
         }
     }
 
@@ -2765,12 +3955,45 @@ impl AnyInstrument {
             AnyInstrument::MidiOut(synth) => synth.all_notes_off(),
             AnyInstrument::MidiOut(synth) => synth.all_notes_off(),
             AnyInstrument::MidiOut(synth) => synth.all_notes_off(),
+            AnyInstrument::MidiOut(synth) => synth.all_notes_off(),
+            AnyInstrument::MidiOut(synth) => synth.all_notes_off(),
+            AnyInstrument::MidiOut(synth) => synth.all_notes_off(),
+            AnyInstrument::MidiOut(synth) => synth.all_notes_off(),
+            AnyInstrument::MidiOut(synth) => synth.all_notes_off(),
+            AnyInstrument::MidiOut(synth) => synth.all_notes_off(),
+            AnyInstrument::MidiOut(synth) => synth.all_notes_off(),
+            AnyInstrument::MidiOut(synth) => synth.all_notes_off(),
+            AnyInstrument::MidiOut(synth) => synth.all_notes_off(),
+            AnyInstrument::MidiOut(synth) => synth.all_notes_off(),
+            AnyInstrument::MidiOut(synth) => synth.all_notes_off(),
+            AnyInstrument::MidiOut(synth) => synth.all_notes_off(),
+            AnyInstrument::MidiOut(synth) => synth.all_notes_off(),
+            AnyInstrument::MidiOut(synth) => synth.all_notes_off(),
+            AnyInstrument::MidiOut(synth) => synth.all_notes_off(),
+            AnyInstrument::MidiOut(synth) => synth.all_notes_off(),
+            AnyInstrument::MidiOut(synth) => synth.all_notes_off(),
+            AnyInstrument::MidiOut(synth) => synth.all_notes_off(),
+            AnyInstrument::MidiOut(synth) => synth.all_notes_off(),
+            AnyInstrument::MidiOut(synth) => synth.all_notes_off(),
+            AnyInstrument::MidiOut(synth) => synth.all_notes_off(),
+            AnyInstrument::MidiOut(synth) => synth.all_notes_off(),
+            AnyInstrument::MidiOut(synth) => synth.all_notes_off(),
+            AnyInstrument::MidiOut(synth) => synth.all_notes_off(),
+            AnyInstrument::MidiOut(synth) => synth.all_notes_off(),
+            AnyInstrument::MidiOut(synth) => synth.all_notes_off(),
+            AnyInstrument::MidiOut(synth) => synth.all_notes_off(),
+            AnyInstrument::MidiOut(synth) => synth.all_notes_off(),
+            AnyInstrument::MidiOut(synth) => synth.all_notes_off(),
+            AnyInstrument::MidiOut(synth) => synth.all_notes_off(),
+            AnyInstrument::MidiOut(synth) => synth.all_notes_off(),
+            AnyInstrument::MidiOut(synth) => synth.all_notes_off(),
             AnyInstrument::LayerKick(synth) => synth.all_notes_off(),
             AnyInstrument::SnapshotMorph(synth) => synth.all_notes_off(),
             AnyInstrument::HarmonicFilter(synth) => synth.all_notes_off(),
             AnyInstrument::MetalVoice(synth) => synth.all_notes_off(),
             AnyInstrument::NumberVoice(synth) => synth.all_notes_off(),
             AnyInstrument::SpectralResynth(synth) => synth.all_notes_off(),
+            AnyInstrument::ColorScan(synth) => synth.all_notes_off(),
         }
     }
 
@@ -2835,12 +4058,45 @@ impl AnyInstrument {
             AnyInstrument::MidiOut(synth) => synth.process(left, right),
             AnyInstrument::MidiOut(synth) => synth.process(left, right),
             AnyInstrument::MidiOut(synth) => synth.process(left, right),
+            AnyInstrument::MidiOut(synth) => synth.process(left, right),
+            AnyInstrument::MidiOut(synth) => synth.process(left, right),
+            AnyInstrument::MidiOut(synth) => synth.process(left, right),
+            AnyInstrument::MidiOut(synth) => synth.process(left, right),
+            AnyInstrument::MidiOut(synth) => synth.process(left, right),
+            AnyInstrument::MidiOut(synth) => synth.process(left, right),
+            AnyInstrument::MidiOut(synth) => synth.process(left, right),
+            AnyInstrument::MidiOut(synth) => synth.process(left, right),
+            AnyInstrument::MidiOut(synth) => synth.process(left, right),
+            AnyInstrument::MidiOut(synth) => synth.process(left, right),
+            AnyInstrument::MidiOut(synth) => synth.process(left, right),
+            AnyInstrument::MidiOut(synth) => synth.process(left, right),
+            AnyInstrument::MidiOut(synth) => synth.process(left, right),
+            AnyInstrument::MidiOut(synth) => synth.process(left, right),
+            AnyInstrument::MidiOut(synth) => synth.process(left, right),
+            AnyInstrument::MidiOut(synth) => synth.process(left, right),
+            AnyInstrument::MidiOut(synth) => synth.process(left, right),
+            AnyInstrument::MidiOut(synth) => synth.process(left, right),
+            AnyInstrument::MidiOut(synth) => synth.process(left, right),
+            AnyInstrument::MidiOut(synth) => synth.process(left, right),
+            AnyInstrument::MidiOut(synth) => synth.process(left, right),
+            AnyInstrument::MidiOut(synth) => synth.process(left, right),
+            AnyInstrument::MidiOut(synth) => synth.process(left, right),
+            AnyInstrument::MidiOut(synth) => synth.process(left, right),
+            AnyInstrument::MidiOut(synth) => synth.process(left, right),
+            AnyInstrument::MidiOut(synth) => synth.process(left, right),
+            AnyInstrument::MidiOut(synth) => synth.process(left, right),
+            AnyInstrument::MidiOut(synth) => synth.process(left, right),
+            AnyInstrument::MidiOut(synth) => synth.process(left, right),
+            AnyInstrument::MidiOut(synth) => synth.process(left, right),
+            AnyInstrument::MidiOut(synth) => synth.process(left, right),
+            AnyInstrument::MidiOut(synth) => synth.process(left, right),
             AnyInstrument::LayerKick(synth) => synth.process(left, right),
             AnyInstrument::SnapshotMorph(synth) => synth.process(left, right),
             AnyInstrument::HarmonicFilter(synth) => synth.process(left, right),
             AnyInstrument::MetalVoice(synth) => synth.process(left, right),
             AnyInstrument::NumberVoice(synth) => synth.process(left, right),
             AnyInstrument::SpectralResynth(synth) => synth.process(left, right),
+            AnyInstrument::ColorScan(synth) => synth.process(left, right),
         }
     }
 
@@ -2905,12 +4161,45 @@ impl AnyInstrument {
             AnyInstrument::MidiOut(synth) => synth.active_voices(),
             AnyInstrument::MidiOut(synth) => synth.active_voices(),
             AnyInstrument::MidiOut(synth) => synth.active_voices(),
+            AnyInstrument::MidiOut(synth) => synth.active_voices(),
+            AnyInstrument::MidiOut(synth) => synth.active_voices(),
+            AnyInstrument::MidiOut(synth) => synth.active_voices(),
+            AnyInstrument::MidiOut(synth) => synth.active_voices(),
+            AnyInstrument::MidiOut(synth) => synth.active_voices(),
+            AnyInstrument::MidiOut(synth) => synth.active_voices(),
+            AnyInstrument::MidiOut(synth) => synth.active_voices(),
+            AnyInstrument::MidiOut(synth) => synth.active_voices(),
+            AnyInstrument::MidiOut(synth) => synth.active_voices(),
+            AnyInstrument::MidiOut(synth) => synth.active_voices(),
+            AnyInstrument::MidiOut(synth) => synth.active_voices(),
+            AnyInstrument::MidiOut(synth) => synth.active_voices(),
+            AnyInstrument::MidiOut(synth) => synth.active_voices(),
+            AnyInstrument::MidiOut(synth) => synth.active_voices(),
+            AnyInstrument::MidiOut(synth) => synth.active_voices(),
+            AnyInstrument::MidiOut(synth) => synth.active_voices(),
+            AnyInstrument::MidiOut(synth) => synth.active_voices(),
+            AnyInstrument::MidiOut(synth) => synth.active_voices(),
+            AnyInstrument::MidiOut(synth) => synth.active_voices(),
+            AnyInstrument::MidiOut(synth) => synth.active_voices(),
+            AnyInstrument::MidiOut(synth) => synth.active_voices(),
+            AnyInstrument::MidiOut(synth) => synth.active_voices(),
+            AnyInstrument::MidiOut(synth) => synth.active_voices(),
+            AnyInstrument::MidiOut(synth) => synth.active_voices(),
+            AnyInstrument::MidiOut(synth) => synth.active_voices(),
+            AnyInstrument::MidiOut(synth) => synth.active_voices(),
+            AnyInstrument::MidiOut(synth) => synth.active_voices(),
+            AnyInstrument::MidiOut(synth) => synth.active_voices(),
+            AnyInstrument::MidiOut(synth) => synth.active_voices(),
+            AnyInstrument::MidiOut(synth) => synth.active_voices(),
+            AnyInstrument::MidiOut(synth) => synth.active_voices(),
+            AnyInstrument::MidiOut(synth) => synth.active_voices(),
             AnyInstrument::LayerKick(synth) => synth.active_voices(),
             AnyInstrument::SnapshotMorph(synth) => synth.active_voices(),
             AnyInstrument::HarmonicFilter(synth) => synth.active_voices(),
             AnyInstrument::MetalVoice(synth) => synth.active_voices(),
             AnyInstrument::NumberVoice(synth) => synth.active_voices(),
             AnyInstrument::SpectralResynth(synth) => synth.active_voices(),
+            AnyInstrument::ColorScan(synth) => synth.active_voices(),
         }
     }
 
@@ -2975,12 +4264,45 @@ impl AnyInstrument {
             AnyInstrument::MidiOut(synth) => synth.latency_samples(),
             AnyInstrument::MidiOut(synth) => synth.latency_samples(),
             AnyInstrument::MidiOut(synth) => synth.latency_samples(),
+            AnyInstrument::MidiOut(synth) => synth.latency_samples(),
+            AnyInstrument::MidiOut(synth) => synth.latency_samples(),
+            AnyInstrument::MidiOut(synth) => synth.latency_samples(),
+            AnyInstrument::MidiOut(synth) => synth.latency_samples(),
+            AnyInstrument::MidiOut(synth) => synth.latency_samples(),
+            AnyInstrument::MidiOut(synth) => synth.latency_samples(),
+            AnyInstrument::MidiOut(synth) => synth.latency_samples(),
+            AnyInstrument::MidiOut(synth) => synth.latency_samples(),
+            AnyInstrument::MidiOut(synth) => synth.latency_samples(),
+            AnyInstrument::MidiOut(synth) => synth.latency_samples(),
+            AnyInstrument::MidiOut(synth) => synth.latency_samples(),
+            AnyInstrument::MidiOut(synth) => synth.latency_samples(),
+            AnyInstrument::MidiOut(synth) => synth.latency_samples(),
+            AnyInstrument::MidiOut(synth) => synth.latency_samples(),
+            AnyInstrument::MidiOut(synth) => synth.latency_samples(),
+            AnyInstrument::MidiOut(synth) => synth.latency_samples(),
+            AnyInstrument::MidiOut(synth) => synth.latency_samples(),
+            AnyInstrument::MidiOut(synth) => synth.latency_samples(),
+            AnyInstrument::MidiOut(synth) => synth.latency_samples(),
+            AnyInstrument::MidiOut(synth) => synth.latency_samples(),
+            AnyInstrument::MidiOut(synth) => synth.latency_samples(),
+            AnyInstrument::MidiOut(synth) => synth.latency_samples(),
+            AnyInstrument::MidiOut(synth) => synth.latency_samples(),
+            AnyInstrument::MidiOut(synth) => synth.latency_samples(),
+            AnyInstrument::MidiOut(synth) => synth.latency_samples(),
+            AnyInstrument::MidiOut(synth) => synth.latency_samples(),
+            AnyInstrument::MidiOut(synth) => synth.latency_samples(),
+            AnyInstrument::MidiOut(synth) => synth.latency_samples(),
+            AnyInstrument::MidiOut(synth) => synth.latency_samples(),
+            AnyInstrument::MidiOut(synth) => synth.latency_samples(),
+            AnyInstrument::MidiOut(synth) => synth.latency_samples(),
+            AnyInstrument::MidiOut(synth) => synth.latency_samples(),
             AnyInstrument::LayerKick(synth) => synth.latency_samples(),
             AnyInstrument::SnapshotMorph(synth) => synth.latency_samples(),
             AnyInstrument::HarmonicFilter(synth) => synth.latency_samples(),
             AnyInstrument::MetalVoice(synth) => synth.latency_samples(),
             AnyInstrument::NumberVoice(synth) => synth.latency_samples(),
             AnyInstrument::SpectralResynth(synth) => synth.latency_samples(),
+            AnyInstrument::ColorScan(synth) => synth.latency_samples(),
         }
     }
 
@@ -3045,12 +4367,45 @@ impl AnyInstrument {
             AnyInstrument::MidiOut(synth) => synth.tail_samples(),
             AnyInstrument::MidiOut(synth) => synth.tail_samples(),
             AnyInstrument::MidiOut(synth) => synth.tail_samples(),
+            AnyInstrument::MidiOut(synth) => synth.tail_samples(),
+            AnyInstrument::MidiOut(synth) => synth.tail_samples(),
+            AnyInstrument::MidiOut(synth) => synth.tail_samples(),
+            AnyInstrument::MidiOut(synth) => synth.tail_samples(),
+            AnyInstrument::MidiOut(synth) => synth.tail_samples(),
+            AnyInstrument::MidiOut(synth) => synth.tail_samples(),
+            AnyInstrument::MidiOut(synth) => synth.tail_samples(),
+            AnyInstrument::MidiOut(synth) => synth.tail_samples(),
+            AnyInstrument::MidiOut(synth) => synth.tail_samples(),
+            AnyInstrument::MidiOut(synth) => synth.tail_samples(),
+            AnyInstrument::MidiOut(synth) => synth.tail_samples(),
+            AnyInstrument::MidiOut(synth) => synth.tail_samples(),
+            AnyInstrument::MidiOut(synth) => synth.tail_samples(),
+            AnyInstrument::MidiOut(synth) => synth.tail_samples(),
+            AnyInstrument::MidiOut(synth) => synth.tail_samples(),
+            AnyInstrument::MidiOut(synth) => synth.tail_samples(),
+            AnyInstrument::MidiOut(synth) => synth.tail_samples(),
+            AnyInstrument::MidiOut(synth) => synth.tail_samples(),
+            AnyInstrument::MidiOut(synth) => synth.tail_samples(),
+            AnyInstrument::MidiOut(synth) => synth.tail_samples(),
+            AnyInstrument::MidiOut(synth) => synth.tail_samples(),
+            AnyInstrument::MidiOut(synth) => synth.tail_samples(),
+            AnyInstrument::MidiOut(synth) => synth.tail_samples(),
+            AnyInstrument::MidiOut(synth) => synth.tail_samples(),
+            AnyInstrument::MidiOut(synth) => synth.tail_samples(),
+            AnyInstrument::MidiOut(synth) => synth.tail_samples(),
+            AnyInstrument::MidiOut(synth) => synth.tail_samples(),
+            AnyInstrument::MidiOut(synth) => synth.tail_samples(),
+            AnyInstrument::MidiOut(synth) => synth.tail_samples(),
+            AnyInstrument::MidiOut(synth) => synth.tail_samples(),
+            AnyInstrument::MidiOut(synth) => synth.tail_samples(),
+            AnyInstrument::MidiOut(synth) => synth.tail_samples(),
             AnyInstrument::LayerKick(synth) => synth.tail_samples(),
             AnyInstrument::SnapshotMorph(synth) => synth.tail_samples(),
             AnyInstrument::HarmonicFilter(synth) => synth.tail_samples(),
             AnyInstrument::MetalVoice(synth) => synth.tail_samples(),
             AnyInstrument::NumberVoice(synth) => synth.tail_samples(),
             AnyInstrument::SpectralResynth(synth) => synth.tail_samples(),
+            AnyInstrument::ColorScan(synth) => synth.tail_samples(),
         }
     }
 }

@@ -88,3 +88,6 @@ pub use number_voice::{NumberVoice,NumberVoiceParams};
 
 mod spectral_resynth;
 pub use spectral_resynth::{SpectralResynth,SpectralResynthParams};
+
+mod color_scan;
+pub use color_scan::{ColorScan,ColorScanParams};

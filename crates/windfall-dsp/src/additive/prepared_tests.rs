@@ -261,3 +261,62 @@ fn resynthesis_static_frames_reconstruct_phase_and_scan_changes_measured_audio()
             > 100.0
     );
 }
+
+#[test]
+fn image_scan_interpolates_brightness_pitch_and_stereo_with_partition_identity() {
+    let bank = SpectralBank {
+        frames: vec![
+            SpectralFrame {
+                partials: vec![SpectralPartial {
+                    ratio: 1.0,
+                    level: 0.5,
+                    phase: 0.0,
+                    pan: -1.0,
+                }],
+            },
+            SpectralFrame {
+                partials: vec![SpectralPartial {
+                    ratio: 2.0,
+                    level: 0.25,
+                    phase: 0.0,
+                    pan: 1.0,
+                }],
+            },
+        ],
+        frame_seconds: 0.05,
+        root_hz: 440.0,
+        preset_number: None,
+    };
+    let sound = |position, scan, width, block| {
+        let mut synth = ColorScan::default();
+        synth.set_bank(&bank);
+        synth.prepare(48000.0, 257);
+        synth.set_params(&ColorScanParams {
+            position,
+            scan,
+            stereo_width: width,
+            attack_ms: 0.1,
+            level: 1.0,
+            ..Default::default()
+        });
+        synth.note_on(69, 1.0);
+        let mut l = vec![0.0; 12000];
+        let mut r = vec![0.0; 12000];
+        for (l, r) in l.chunks_mut(block).zip(r.chunks_mut(block)) {
+            synth.process(l, r);
+        }
+        (l, r)
+    };
+    let (left, right) = sound(0.0, false, 1.0, 257);
+    assert!(right.iter().all(|x| *x == 0.0));
+    assert!(band(&left, 440.0) > band(&left, 880.0) * 100.0);
+    let (left, right) = sound(1.0, false, 1.0, 31);
+    assert!(left.iter().all(|x| *x == 0.0));
+    assert!(band(&right, 880.0) > band(&right, 440.0) * 100.0);
+    let (left, right) = sound(0.5, false, 1.0, 17);
+    assert_eq!(left, right);
+    assert!(band(&left, 660.0) > band(&left, 440.0) * 100.0);
+    let (left, right) = sound(0.0, false, 0.0, 257);
+    assert_eq!(left, right);
+    assert_eq!(sound(0.0, true, 1.0, 12000), sound(0.0, true, 1.0, 1));
+}

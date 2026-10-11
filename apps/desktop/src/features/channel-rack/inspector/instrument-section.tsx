@@ -50,6 +50,8 @@ export function InstrumentSection({ channel }: { channel: InstrumentChannel }) {
           params={params}
           color={colorToCss(channel.color)}
         />
+      ) : params.type === "colorScan" ? (
+        <ResynthesisEditor channel={channel} colorScan />
       ) : params.type === "spectralResynth" ? (
         <ResynthesisEditor channel={channel} />
       ) : params.type === "numberVoice" ? (

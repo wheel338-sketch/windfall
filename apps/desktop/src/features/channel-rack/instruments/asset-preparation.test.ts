@@ -54,3 +54,12 @@ it("maps image columns, reversed rows, alpha and luminance independently",()=>{
   expect(asset.frames[1]!.partials.map(p=>p.level)).toEqual([0,0])
   expect(()=>prepareInstrumentAsset({type:"imageSpectrum",pixels,width:257,height:2,color:false})).toThrow("RGBA")
 })
+
+it("maps red and blue hue to pitch, squared brightness and stereo scan coordinates",()=>{
+  const asset=prepareInstrumentAsset({type:"imageSpectrum",pixels:new Uint8Array([255,0,0,255,0,0,255,255]).buffer,width:2,height:1,color:true})
+  if(asset.type!=="spectra")throw new Error("wrong asset")
+  expect(asset.frames[0]!.partials[0]).toEqual({ratio:1,level:Math.fround(0.2126**2),phase:0,pan:-1})
+  expect(asset.frames[1]!.partials[0]!.ratio).toBeCloseTo(2**((4/3)/12),6)
+  expect(asset.frames[1]!.partials[0]!.level).toBeCloseTo(0.0722**2,6)
+  expect(asset.frames[1]!.partials[0]!.pan).toBe(1)
+})

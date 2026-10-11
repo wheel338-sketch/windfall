@@ -394,3 +394,27 @@ fn spectral_frame_edit_reaches_history_disk_and_live_offline_pcm() {
         bank,
     );
 }
+
+#[test]
+fn color_image_scan_reaches_history_disk_and_live_offline_pcm() {
+    let a = ColorScanParams {
+        scan: false,
+        ..Default::default()
+    };
+    let b = ColorScanParams {
+        scan: true,
+        scan_rate: 2.0,
+        ..a
+    };
+    let bank = Some(InstrumentAsset::Spectra(
+        windfall_dsp::instrument_asset::SpectralBank::harmonic_snapshots(),
+    ));
+    acceptance_data(
+        InstrumentKind::ColorScan,
+        InstrumentParams::ColorScan(a),
+        InstrumentParams::ColorScan(b),
+        60,
+        bank.clone(),
+        bank,
+    );
+}
