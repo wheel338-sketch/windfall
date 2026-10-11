@@ -445,15 +445,6 @@ pub enum Command {
         #[ts(optional)]
         expected: Option<crate::ExpressionMap>,
     },
-    /// Applies generated notes against the complete reviewed pattern. The
-    /// captured notes, curves, events and meter must still match atomically.
-    InsertReviewedNotes {
-        expected: crate::Pattern,
-        channel: ChannelId,
-        notes: Vec<NoteInit>,
-        remove: Vec<NoteId>,
-        extend: bool,
-    },
     /// Moves every listed channel to a named group in one undo entry.
     /// An empty group name means ungrouped. All channel ids are checked
     /// before any membership changes; repeated ids are ignored.
@@ -850,6 +841,15 @@ pub enum Command {
     SetSamplePlayback { channel: ChannelId, asset: Option<crate::SamplePlayback> },
     /// Generates source-length notes in the saved slice order in one history step.
     GenerateSlicePattern { channel: ChannelId, pattern: PatternId },
+    /// Applies generated notes against the complete reviewed pattern. The
+    /// captured notes, curves, events and meter must still match atomically.
+    InsertReviewedNotes {
+        expected: crate::Pattern,
+        channel: ChannelId,
+        notes: Vec<NoteInit>,
+        remove: Vec<NoteId>,
+        extend: bool,
+    },
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, TS)]
