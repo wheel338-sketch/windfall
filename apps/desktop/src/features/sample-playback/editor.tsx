@@ -52,6 +52,7 @@ export function SamplePlaybackEditor({ channel }: { channel: InstrumentChannel }
   const [busy, setBusy] = useState(false)
   const [sensitivity, setSensitivity] = useState(0.6)
   const slicing = params.type === "sliceMap" || params.type === "sliceDeck"
+  const availableKeys = params.type === "sliceMap" || params.type === "sliceDeck" ? 128 - params.baseKey : 128
   const index = Math.min(selected, asset.slices.length - 1)
   const region = asset.slices[index]
   const save = (next: SamplePlayback) => { void dispatch({ type: "setSamplePlayback", channel: channel.id, asset: next }) }
@@ -99,6 +100,9 @@ export function SamplePlaybackEditor({ channel }: { channel: InstrumentChannel }
     <PlaybackControls channel={channel.id} params={params} />
     {params.type === "grainCloud" && <p className="text-xs text-muted-foreground">Grain spacing is 1000 ÷ density milliseconds. Size controls overlap; spray randomizes source positions. The same seed reproduces the schedule after reset.</p>}
     {slicing && <>
+      {asset.slices.length > availableKeys && <Alert><AlertDescription>
+        This map extends past MIDI key 127. Lower Base key to trigger every slice and generate its pattern.
+      </AlertDescription></Alert>}
       <svg viewBox="0 0 300 70" role="img" aria-label="Source waveform and slice boundaries" className="h-24 w-full rounded border bg-muted">
         <path d={waveform} stroke="currentColor" strokeWidth="1" />
         {asset.slices.map((s, i) => <rect key={i} x={s.start * 300} y={0} width={(s.end - s.start) * 300} height={70}
@@ -112,7 +116,7 @@ export function SamplePlaybackEditor({ channel }: { channel: InstrumentChannel }
       <div className="flex flex-wrap gap-2">
         <Button size="sm" disabled={busy || asset.sample == null} onClick={() => { void detect({ mode: "transients", sensitivity }) }}>Detect transients</Button>
         <Button size="sm" variant="outline" disabled={busy || asset.sample == null} onClick={() => { void detect({ mode: "grid", gridTicks: 960 }) }}>Detect beat grid</Button>
-        <Button size="sm" variant="outline" disabled={!channel.samplePlayback} onClick={() => { void dispatch({ type: "generateSlicePattern", channel: channel.id,
+        <Button size="sm" variant="outline" disabled={!channel.samplePlayback || asset.slices.length > availableKeys || patternIds.length === 0} onClick={() => { void dispatch({ type: "generateSlicePattern", channel: channel.id,
           pattern: patternIds.some((p) => p.id === selectedPattern) ? selectedPattern : patternIds[0].id }) }}>Generate slice pattern</Button>
       </div>
       <FieldGroup><Field><FieldLabel>Selected slice</FieldLabel><Select<string> value={String(index)} onValueChange={(v) => { if (v != null) select(Number(v)) }}>
