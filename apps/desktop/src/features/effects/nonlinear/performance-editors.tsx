@@ -1,6 +1,7 @@
 import type { PerformanceRackParams, ScratchParams, TimeTransportParams, VolumeGateParams } from "@/bindings"
 import { Field, FieldDescription, FieldLabel } from "@/components/ui/field"
 import { Alert, AlertDescription } from "@/components/ui/alert"
+import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { ParamControl, ParamRow } from "@/features/params"
 import { useProjectStore } from "@/lib/store"
@@ -13,6 +14,8 @@ export function VolumeGateEditor({ effect, track, params, bind }: EditorProps<Vo
   return <div role="group" aria-label="Volume Gate settings" className="flex flex-col gap-2">
     <CurveEditor key={`time:${effect}`} label="Replay time" points={params.timeCurve} onCommit={(curve) => commitAsset(effect, track, "volumeGate", "timeCurve", curve)} />
     <CurveEditor key={`volume:${effect}`} label="Replay volume" points={params.volumeCurve} fallback={[{ x: 0, y: 1, tension: 0 }, { x: 1, y: 1, tension: 0 }]} onCommit={(curve) => commitAsset(effect, track, "volumeGate", "volumeCurve", curve)} />
+    <div className="flex gap-2"><Button size="sm" variant="outline" onClick={() => commitAsset(effect,track,"volumeGate","timeCurve",[])}>Use live replay clock</Button><Button size="sm" variant="outline" onClick={() => commitAsset(effect,track,"volumeGate","volumeCurve",[])}>Use automatable volume steps</Button></div>
+    {params.volumeCurve.length === 0 && <ParamRow columns={8}>{params.steps.map((_,index) => <ParamControl key={index} {...bind(`steps.${index}`)} />)}</ParamRow>}
     <ParamRow columns={5}>{["loopBeats", "retriggerChance", "retriggerSteps", "feedback", "mix"].map((id) => <ParamControl key={id} {...bind(id)} />)}</ParamRow>
   </div>
 }

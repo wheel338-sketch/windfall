@@ -25,6 +25,7 @@ export function WaveshaperEditor({ effect, track, params, bind }: EditorProps<Wa
   const fallback: CurvePoint[] = params.curve.map((y, i) => ({ x: i / 32, y: (y + 1) / 2, tension: 0 }))
   return <div role="group" aria-label="Waveshaper settings" className="flex flex-col gap-2">
     <CurveEditor key={effect} label="Transfer curve" points={params.shape} fallback={fallback} onCommit={(shape) => commitAsset(effect, track, "waveshaper", "shape", shape)} />
+    {params.shape.length > 0 ? <Button size="sm" variant="outline" onClick={() => commitAsset(effect,track,"waveshaper","shape",[])}>Use automatable knots</Button> : <ParamRow columns={6}>{params.curve.map((_, index) => <ParamControl key={index} {...bind(`curve.${index}`)} />)}</ParamRow>}
     <ParamRow columns={5}>{["inputDb", "outputDb", "oversampling", "mix", "bipolar"].map((id) => <ParamControl key={id} {...bind(id)} />)}</ParamRow>
   </div>
 }

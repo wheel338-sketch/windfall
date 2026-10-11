@@ -122,6 +122,29 @@ fn replay_and_scratch_assets_save_reopen_undo_and_validate_sample_ownership() {
         before
     );
     doc.project().check().unwrap();
+    let scratch = doc.project().mixer.tracks[0]
+        .effects
+        .iter()
+        .find(|effect| effect.kind() == EffectKind::Scratch)
+        .unwrap()
+        .id;
+    let invalid = EffectParams::Scratch(ScratchParams {
+        source_id: doc.project().next_id + 100,
+        ..Default::default()
+    });
+    assert!(
+        doc.dispatch(
+            Command::SetEffectParams {
+                track: TrackId::MASTER,
+                effect: scratch,
+                params: invalid
+            },
+            None
+        )
+        .is_err()
+    );
+    assert_eq!(doc.project(), &before);
+    assert_eq!(doc.history(), history);
 }
 
 fn add(doc: &mut Document, kind: EffectKind) -> EffectId {
@@ -183,7 +206,10 @@ fn settings_gestures_noops_and_disk_save_reopen_preserve_every_control() {
                 info.max
             };
             let middle = (info.min + info.max) * 0.5;
-            let middle = if info.kind == ParamKind::Choice {
+            let middle = if matches!(
+                info.kind,
+                ParamKind::Choice | ParamKind::Integer | ParamKind::Toggle
+            ) {
                 middle.round()
             } else {
                 middle
@@ -268,7 +294,10 @@ fn every_control_has_the_correct_automation_range_and_removal_history_restores_c
             let target = target(effect, index);
             let range = doc.project().automation_range(&target).unwrap();
             assert_eq!((range.min, range.max), (info.min, info.max));
-            let middle = if info.kind == ParamKind::Choice {
+            let middle = if matches!(
+                info.kind,
+                ParamKind::Choice | ParamKind::Integer | ParamKind::Toggle
+            ) {
                 ((info.min + info.max) * 0.5).round()
             } else if info.scale == ParamScale::Logarithmic {
                 (info.min * info.max).sqrt()

@@ -372,11 +372,41 @@ macro_rules! curve_reference {
 
         impl<'de> Deserialize<'de> for $name {
             fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
-                let points = Vec::<CurvePoint>::deserialize(deserializer)?;
+                let points = deserialize_points(deserializer)?;
                 Self::new(&points).map_err(D::Error::custom)
             }
         }
     };
+}
+
+/// Bound temporary deserialization storage too, before publishing an asset.
+fn deserialize_points<'de, D: Deserializer<'de>>(
+    deserializer: D,
+) -> Result<Vec<CurvePoint>, D::Error> {
+    struct Points;
+    impl<'de> serde::de::Visitor<'de> for Points {
+        type Value = Vec<CurvePoint>;
+        fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            write!(formatter, "at most {MAX_CURVE_POINTS} effect curve points")
+        }
+        fn visit_seq<A: serde::de::SeqAccess<'de>>(
+            self,
+            mut sequence: A,
+        ) -> Result<Self::Value, A::Error> {
+            if sequence.size_hint().is_some_and(|n| n > MAX_CURVE_POINTS) {
+                return Err(A::Error::custom(AssetError::TooManyPoints));
+            }
+            let mut points = Vec::with_capacity(MAX_CURVE_POINTS);
+            while let Some(point) = sequence.next_element()? {
+                if points.len() == MAX_CURVE_POINTS {
+                    return Err(A::Error::custom(AssetError::TooManyPoints));
+                }
+                points.push(point);
+            }
+            Ok(points)
+        }
+    }
+    deserializer.deserialize_seq(Points)
 }
 
 curve_reference!(
@@ -547,6 +577,25 @@ mod tests {
 
     fn point(x: f32, y: f32) -> CurvePoint {
         CurvePoint::new(x, y)
+    }
+
+    #[test]
+    fn deserialization_rejects_more_than_sixty_four_points() {
+        let points = vec![CurvePoint::new(0.0, 0.5); MAX_CURVE_POINTS + 1];
+        let encoded = serde_json::to_string(&points).unwrap();
+        assert!(
+            serde_json::from_str::<CurveRef>(&encoded)
+                .unwrap_err()
+                .to_string()
+                .contains("at most 64")
+        );
+        assert!(serde_json::from_str::<ShapeRef>(&encoded).is_err());
+        assert!(
+            serde_json::from_str::<CurveRef>(
+                &serde_json::to_string(&points[..MAX_CURVE_POINTS]).unwrap()
+            )
+            .is_ok()
+        );
     }
 
     #[test]

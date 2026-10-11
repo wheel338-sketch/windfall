@@ -421,7 +421,11 @@ impl Effect for TimeTransport {
         0
     }
     fn warm_up_samples(&self) -> usize {
-        self.history.length
+        if self.controls.target.auto_trigger {
+            0
+        } else {
+            self.history.length
+        }
     }
     fn tail_samples(&self) -> usize {
         if self.controls.target.trigger || self.controls.target.auto_trigger {
@@ -460,7 +464,11 @@ impl Scratch {
         let next = (index + 1).min(audio.frames() - 1);
         let (l, r) = audio.stereo_frame(index);
         let (nl, nr) = audio.stereo_frame(next);
-        blend([l, r], [nl, nr], (position - index as f64) as f32)
+        blend(
+            [finite(l), finite(r)],
+            [finite(nl), finite(nr)],
+            (position - index as f64) as f32,
+        )
     }
 }
 impl Effect for Scratch {
@@ -607,6 +615,7 @@ pub struct PerformanceRack {
     highpass_memory: [f64; 2],
     lowpass_memory: [f64; 2],
     last_read: Option<f64>,
+    orbit: f64,
 }
 impl PerformanceRack {
     pub fn new() -> Self {
@@ -717,7 +726,9 @@ impl PerformanceRack {
                 wet = blend(dry, wet, p.amount);
             }
             PerformanceModel::PanSpin => {
-                let pan = (std::f64::consts::TAU * progress * speed).sin() as f32 * p.amount;
+                let pan = self.orbit.sin() as f32 * p.amount;
+                self.orbit = (self.orbit + std::f64::consts::TAU * speed / n as f64)
+                    .rem_euclid(std::f64::consts::TAU);
                 wet[0] *= (1.0 - pan).sqrt();
                 wet[1] *= (1.0 + pan).sqrt();
             }
@@ -768,6 +779,7 @@ impl Effect for PerformanceRack {
         self.feedback = [0.0; 2];
         self.highpass_memory = [0.0; 2];
         self.lowpass_memory = [0.0; 2];
+        self.orbit = 0.0;
         self.last_read = None;
     }
     fn set_params(&mut self, params: &Self::Params) {

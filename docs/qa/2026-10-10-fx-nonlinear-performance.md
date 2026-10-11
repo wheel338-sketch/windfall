@@ -314,3 +314,25 @@ Risk order for integration:
    oversamplers, ring clearing on reset. Allocation safety does not establish
    a deadline. Retained immutable source/curve budgets are process-wide and
    reclaim only on exit; no project-replacement reclamation is claimed.
+
+## Final source-review corrections
+
+- Curve deserialization now bounds its temporary vector at 64 points before
+  publication; added `asset::tests::deserialization_rejects_more_than_sixty_four_points`
+  (**written, not executed**).
+- Added `engine::nonlinear_performance::scratch_source_reload_reuses_project_ids_without_redirecting_another_engine`
+  (**written, not executed**) to cover pool replacement, retained independent
+  owners and allocator-free adoption, beyond the pure-DSP source identity case.
+- Restored access to the old automatable Waveshaper knots and Volume Gate steps:
+  their editors can explicitly clear the drawn asset and expose the old controls.
+- Pan Spin's Y-steered oscillator now keeps a continuous phase across slice
+  boundaries, avoiding a new pan jump at noninteger orbit rates. Automatic
+  transient capture warms up without delaying its initial live pass-through.
+- Generic project acceptance correctly rounds integer/toggle gesture and
+  automation midpoints; this was found by reading the real ParamKind contract.
+- Integrator should run the same commands above. Only touched owned Rust files
+  were rustfmt-ed; git whitespace inspection found no whitespace errors. No
+  executable validation, tests or build commands were run.
+- Full-row candidates are implementation claims only. Gross Beat/Transporter
+  still need the roadmap's mapped MIDI-trigger acceptance (the automatable
+  Trigger parameter exists, but no new direct note adapter was added).

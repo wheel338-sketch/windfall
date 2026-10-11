@@ -114,3 +114,46 @@ fn all_eight_processors_capture_the_same_pcm_live_offline_and_under_block_partit
         }
     }
 }
+
+#[test]
+fn scratch_source_reload_reuses_project_ids_without_redirecting_another_engine() {
+    use windfall_dsp::performance::ScratchParams;
+    let fixture = |value| {
+        let mut rig = Rig::new();
+        let track = rig.track();
+        let sample = rig.sample(AudioBuffer::from_interleaved(48_000, 1, vec![value; 2048]));
+        let channel = rig.channel_on(
+            AudioBuffer::from_interleaved(48_000, 1, vec![0.0; 8000]),
+            track,
+        );
+        rig.steps(channel, &[0]);
+        rig.effect(
+            track,
+            EffectParams::Scratch(ScratchParams {
+                source_id: sample.0,
+                position: 0.5,
+                ..Default::default()
+            }),
+        );
+        rig
+    };
+    let original = fixture(0.2);
+    let replacement = fixture(-0.4);
+    let (mut processor, controller) = original.processor(48_000);
+    controller.play();
+    let mut block = [0.0; 512];
+    for _ in 0..16 {
+        processor.process(&mut block);
+    }
+    assert!(block.iter().all(|x| (*x - 0.2).abs() < 1e-6));
+    controller.set_project(&replacement.project, &replacement.pool);
+    for _ in 0..16 {
+        assert_eq!(
+            crate::realtime::allocator_calls(|| processor.process(&mut block)),
+            0
+        );
+    }
+    assert!(block.iter().all(|x| (*x + 0.4).abs() < 1e-6));
+    let again = original.play(48_000, 4096, 137);
+    assert!(again[2048..].iter().all(|x| (*x - 0.2).abs() < 1e-6));
+}
