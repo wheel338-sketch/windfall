@@ -20,7 +20,9 @@ use windfall_project::{
     Timeline, TimelineMarker, TimelineMarkerId,
 };
 
+use crate::expression::{pressure_from_midi, timbre_from_midi};
 use crate::gm::{DrumKit, program_name};
+use crate::import_expression::{self, NoteValues};
 use crate::mix::{pan_from_midi, velocity_from_midi, volume_from_midi};
 use crate::song::{
     CC_PAN, CC_VOLUME, ControlKind, DEFAULT_MICROS_PER_QUARTER, DRUM_CHANNEL, MidiSong, MidiTrack,
@@ -65,11 +67,16 @@ pub struct ImportOptions {
     /// Sets each channel's volume and pan from the first channel volume
     /// (controller 7) and pan (controller 10) its MIDI channel is given.
     pub channel_mix: bool,
+    /// Gives each note the fine pitch and modulation its channel has when
+    /// it starts: pitch bend scaled by the channel's bend range, controller
+    /// 74 as modulation X and the modulation wheel as modulation Y. Off,
+    /// every bend and controller is left behind and reported.
+    pub note_expression: bool,
 }
 
 impl Default for ImportOptions {
     /// One pattern for each track, no drum kit, and the file's tempo, time
-    /// signature, volumes and pans.
+    /// signature, volumes, pans and note expression.
     fn default() -> Self {
         Self {
             patterns: PatternStrategy::default(),
@@ -77,6 +84,7 @@ impl Default for ImportOptions {
             tempo: true,
             time_signature: true,
             channel_mix: true,
+            note_expression: true,
         }
     }
 }
@@ -255,6 +263,12 @@ pub enum Adjustment {
     DrumKeysWithoutPad { notes: usize },
     /// Something the file says that a project has no place for yet.
     NotImported { what: Unsupported, count: usize },
+    /// Notes that take a fine pitch or a modulation from the pitch bend and
+    /// controllers their channel has when they start.
+    ExpressionImported { notes: usize },
+    /// Notes whose pitch bend reaches further than the octave either way
+    /// that a note's fine pitch holds.
+    FinePitchFitted { notes: usize },
 }
 
 /// A kind of thing in a MIDI file that an import leaves behind.
@@ -339,6 +353,16 @@ impl fmt::Display for Adjustment {
                 };
                 write!(f, "{} not imported", counted(*count, one, many))
             }
+            Adjustment::ExpressionImported { notes: count } => write!(
+                f,
+                "{} given the fine pitch and modulation of the pitch bend and controllers at their start; later movement inside a note is not imported",
+                notes(*count)
+            ),
+            Adjustment::FinePitchFitted { notes: count } => write!(
+                f,
+                "{} bent further than an octave, which is as far as a note's fine pitch goes",
+                notes(*count)
+            ),
         }
     }
 }
@@ -477,7 +501,15 @@ pub fn import(song: &MidiSong, options: &ImportOptions) -> ImportPlan {
         room: MAX_IMPORTED_NOTES,
         fitted: Fitted::default(),
         drums: Vec::new(),
+        mpe_members: 0,
     };
+    if options.note_expression {
+        builder.mpe_members = import_expression::mpe_members(&song.tracks);
+        if builder.mpe_members > 0 {
+            let setup = song.tracks.iter().map(import_expression::mpe_setup_messages);
+            builder.fitted.controllers_kept += setup.sum::<usize>();
+        }
+    }
     for (index, track) in song.tracks.iter().enumerate() {
         let channels = track.note_channels();
         for &channel in &channels {
@@ -598,6 +630,8 @@ struct Hit {
     velocity: u8,
     release: u8,
     midi_channel: u8,
+    /// The bend and controllers the note's channel has when it starts.
+    values: NoteValues,
 }
 
 /// The notes one channel plays in a pattern: the channel's index in the
@@ -632,6 +666,15 @@ struct Fitted {
     /// Volume and pan messages that were put to use.
     mixed: usize,
     drum_keys_without_pad: usize,
+    /// Bend, controller and pressure messages that note expression
+    /// accounts for.
+    bends_kept: usize,
+    controllers_kept: usize,
+    pressure_kept: usize,
+    /// Notes that took expression from their channel, and those whose
+    /// bend was more than a fine pitch holds.
+    expressive: usize,
+    fine_fitted: usize,
 }
 
 struct Builder<'a> {
@@ -648,6 +691,9 @@ struct Builder<'a> {
     fitted: Fitted,
     /// The names of the drum parts that play a synth.
     drums: Vec<String>,
+    /// How many member channels the song's lower MPE zone has, from
+    /// channel 2 up. 0 when the song has no zone.
+    mpe_members: u8,
 }
 
 impl Builder<'_> {
@@ -674,6 +720,19 @@ impl Builder<'_> {
         if kept.is_empty() {
             return;
         }
+        let values = if self.options.note_expression {
+            let spans: Vec<(u32, u32)> = kept.iter().map(|note| (note.0, note.1)).collect();
+            let member = (1..=self.mpe_members).contains(&channel);
+            let part = import_expression::read(track, channel, &spans, member);
+            self.fitted.bends_kept += part.bends_kept;
+            self.fitted.controllers_kept += part.controllers_kept;
+            self.fitted.pressure_kept += part.pressure_kept;
+            self.fitted.expressive += part.expressive;
+            self.fitted.fine_fitted += part.clamped;
+            part.notes
+        } else {
+            vec![NoteValues::NEUTRAL; kept.len()]
+        };
 
         let options = self.options;
         let name = part_name(track, index, channel, shared);
@@ -746,7 +805,7 @@ impl Builder<'_> {
             }
         }
 
-        for (start, end, key, velocity, release) in kept {
+        for ((start, end, key, velocity, release), values) in kept.into_iter().zip(values) {
             let (lane, key) = match lane_of_key.get(&key) {
                 Some(&lane) => (lane, DEFAULT_KEY),
                 None => {
@@ -767,6 +826,7 @@ impl Builder<'_> {
                     velocity,
                     release,
                     midi_channel: channel,
+                    values,
                 });
                 at += length;
             }
@@ -985,9 +1045,18 @@ impl Builder<'_> {
                 list.push(Adjustment::NotImported { what, count });
             }
         };
-        left(Unsupported::PitchBend, bends);
-        left(Unsupported::Controllers, controllers - fitted.mixed);
-        left(Unsupported::Aftertouch, pressure);
+        left(
+            Unsupported::PitchBend,
+            bends.saturating_sub(fitted.bends_kept),
+        );
+        left(
+            Unsupported::Controllers,
+            (controllers - fitted.mixed).saturating_sub(fitted.controllers_kept),
+        );
+        left(
+            Unsupported::Aftertouch,
+            pressure.saturating_sub(fitted.pressure_kept),
+        );
         left(Unsupported::ProgramChanges, programs);
         left(Unsupported::KeySignatures, song.key_signatures.len());
         left(
@@ -997,6 +1066,16 @@ impl Builder<'_> {
 
         if let Some((changes, kept)) = fitted.tempo_thinned {
             list.push(Adjustment::TempoChangesThinned { changes, kept });
+        }
+        if fitted.expressive > 0 {
+            list.push(Adjustment::ExpressionImported {
+                notes: fitted.expressive,
+            });
+        }
+        if fitted.fine_fitted > 0 {
+            list.push(Adjustment::FinePitchFitted {
+                notes: fitted.fine_fitted,
+            });
         }
         let _ = signature; // Fitted meter events are reported individually above.
         let drums = self.drums.drain(..);
@@ -1019,6 +1098,9 @@ fn planned_lane((channel, hits): &LaneHits) -> PlannedLane {
                 expression: Some(windfall_project::NoteExpression {
                     release: f32::from(hit.release.min(127)) / 128.0,
                     color_group: Some(hit.midi_channel),
+                    fine_pitch_cents: hit.values.fine_pitch_cents().0,
+                    modulation_x: timbre_from_midi(hit.values.x),
+                    modulation_y: pressure_from_midi(hit.values.y),
                     ..Default::default()
                 }),
             })

@@ -46,6 +46,7 @@ fn export_options(rig: &Rig, mode: PlayMode) -> MidiExportOptions {
         ppq: 960,
         running_status: true,
         swing: true,
+        expression: Default::default(),
     }
 }
 

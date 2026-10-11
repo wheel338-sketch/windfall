@@ -901,7 +901,13 @@ fn the_first_volume_and_pan_of_a_part_set_its_channel() {
         ..MidiTrack::default()
     };
     let song = song_of(vec![track]);
-    let (project, plan) = imported(&song, &ImportOptions::default());
+    // Without note expression the modulation wheel is left behind too; with
+    // it, `tests/expression.rs` covers what the wheel becomes.
+    let plain = ImportOptions {
+        note_expression: false,
+        ..ImportOptions::default()
+    };
+    let (project, plan) = imported(&song, &plain);
     let first = &project.channels[0];
     assert!((first.volume - 0.8 * 1.27 * 1.27).abs() < 1e-6);
     assert_eq!(first.pan, -1.0);
@@ -920,7 +926,7 @@ fn the_first_volume_and_pan_of_a_part_set_its_channel() {
 
     let untouched = ImportOptions {
         channel_mix: false,
-        ..ImportOptions::default()
+        ..plain
     };
     let (project, plan) = imported(&song, &untouched);
     assert_eq!(project.channels[0].volume, DEFAULT_CHANNEL_VOLUME);
@@ -975,7 +981,13 @@ fn what_a_project_has_no_place_for_is_listed() {
         ],
         ..song_of(vec![track])
     };
-    let plan = import(&song, &ImportOptions::default());
+    // The bend is listed whole when note expression is not imported. See
+    // `tests/expression.rs` for the bend a note takes when it is.
+    let plain = ImportOptions {
+        note_expression: false,
+        ..ImportOptions::default()
+    };
+    let plan = import(&song, &plain);
     let left = |what, count| Adjustment::NotImported { what, count };
     assert_eq!(
         plan.adjustments,
