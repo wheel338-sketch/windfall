@@ -134,8 +134,8 @@ it("asks for a track or the mix, and for the song", async () => {
   for (const name of ["Drums", "Bass", "Spare"]) {
     await user.click(screen.getByRole("checkbox", { name }))
   }
-  // The second "Include the full mix" belongs to the playlist tracks.
-  await user.click(screen.getByLabelText("Include the full mix"))
+  // Base UI also labels its hidden form input; drive the visible checkbox.
+  await user.click(screen.getByRole("checkbox", { name: "Include the full mix" }))
   await submit(user)
   expect(
     screen.getByText("Choose at least one playlist track or include the full mix.")

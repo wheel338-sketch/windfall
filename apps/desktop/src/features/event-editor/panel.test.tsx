@@ -100,8 +100,12 @@ describe("event editor", () => {
       screen.getByRole("combobox", { name: "Event pattern" })
     ).toHaveTextContent("Verse")
     expect(screen.queryByRole("application", { name: "Event curve" })).toBeNull()
-    expect(screen.getByText(/Choose a control/)).toBeInTheDocument()
-    fireEvent.click(screen.getByRole("button", { name: "Close" }))
+    // The picker and the instruction both say this; check the control itself.
+    expect(screen.getByRole("combobox", { name: "Event control" })).toHaveTextContent(
+      "Choose a control"
+    )
+    // The dialog also has an icon close button; use the footer's text button.
+    fireEvent.click(screen.getByText("Close", { selector: "button" }))
     expect(useEventEditor.getState().open).toBe(false)
     expect(sent()).toHaveLength(0)
   })

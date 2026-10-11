@@ -141,7 +141,7 @@ describe("targetState", () => {
         effect: ids.limiter,
         param,
       }))
-    ).toBe(4)
+    ).toBe(11)
     expect(
       check("Subtractive synth", (param) => ({
         type: "instrumentParam",

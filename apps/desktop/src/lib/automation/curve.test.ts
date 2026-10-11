@@ -117,8 +117,9 @@ describe("the range of a target", () => {
       })
     }
     // All generated effect and instrument ranges, nine samples per range.
-    expect(fixtures.ranges).toHaveLength(1622)
-    expect(checked).toBe(1622 * 9)
+    // Includes the limiter's dynamics settings and the MIDI output instrument.
+    expect(fixtures.ranges).toHaveLength(1650)
+    expect(checked).toBe(1650 * 9)
     expect(worstForward).toBeLessThan(RANGE_TOLERANCE)
     expect(worstBack).toBeLessThan(RANGE_TOLERANCE)
   })

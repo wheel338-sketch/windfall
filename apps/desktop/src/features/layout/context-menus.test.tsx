@@ -231,10 +231,11 @@ describe("a right-click anywhere opens the app's menu", () => {
           expect.arrayContaining(["Type in value…Enter", "Copy value"])
         )
       }
-      // What the knob is bound to comes first: automating it, then the
-      // rest about the channel.
-      expect(offered.get("a channel's volume")?.slice(0, 2)).toEqual([
+      // The bound control offers clip automation and pattern events before
+      // the entries about its channel.
+      expect(offered.get("a channel's volume")?.slice(0, 3)).toEqual([
         "Create automation clip",
+        "Edit events in pattern",
         "Show the mixer track it plays into",
       ])
       expect(offered.get("a channel's pan")?.[0]).toBe("Create automation clip")
@@ -264,12 +265,14 @@ describe("a right-click anywhere opens the app's menu", () => {
       expect.arrayContaining(["Add mixer trackAlt+M"])
     )
     // Whatever a control is bound to can be automated, and says so first.
-    expect(offered.get("a fader")?.slice(0, 2)).toEqual([
+    expect(offered.get("a fader")?.slice(0, 3)).toEqual([
       "Create automation clip",
+      "Edit events in pattern",
       "Reset peak readout",
     ])
-    expect(offered.get("a send")?.slice(0, 2)).toEqual([
+    expect(offered.get("a send")?.slice(0, 3)).toEqual([
       "Create automation clip",
+      "Edit events in pattern",
       "Send level",
     ])
     expect(offered.get("a send")).toContain("Remove send")

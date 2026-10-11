@@ -153,6 +153,13 @@ describe("paramGroups", () => {
       "Input gain",
       "Release",
       "Look-ahead",
+      "Mode",
+      "Threshold",
+      "Ratio",
+      "Knee",
+      "Attack",
+      "Gate",
+      "Gate release",
     ])
   })
 })

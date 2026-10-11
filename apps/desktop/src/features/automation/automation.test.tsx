@@ -485,11 +485,12 @@ describe("Create automation clip", () => {
       within(menu)
         .getAllByRole("menuitem")
         .map((item) => item.textContent)
-        .slice(0, 4)
+        .slice(0, 5)
     ).toEqual([
       "Create automation clip",
       "Show automation: Kick track pan",
       "Show automation: Kick track pan 2",
+      "Edit events in pattern",
       "Remove automation",
     ])
   })

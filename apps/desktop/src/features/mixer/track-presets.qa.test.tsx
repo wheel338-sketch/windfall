@@ -198,6 +198,13 @@ describe("mixer track presets: library, files, shelf, missing plugins and histor
 
   it("lists a damaged or newer file with its reason, cannot apply it, and still applies its neighbours", async () => {
     const user = userEvent.setup()
+    // Loading an identical preset is intentionally a no-op. Give the good
+    // neighbour a distinct setting so this case proves a real undoable load.
+    await dispatch({
+      type: "updateMixerTrack",
+      id: trackNamed("Kick").id,
+      patch: { volume: 0.42 },
+    })
     const good = await app.backend.mixerPresetCapture(
       trackNamed("Kick").id,
       (await app.backend.timelineState()).generation,
@@ -237,6 +244,7 @@ describe("mixer track presets: library, files, shelf, missing plugins and histor
     const cursor = history().cursor
     await user.click(within(list).getByRole("button", { name: "Good · 0 FX" }))
     await waitFor(() => expect(status()).toHaveTextContent("Loaded Good"))
+    expect(trackNamed("Clap").volume).toBeCloseTo(0.42)
     expect(history().cursor).toBe(cursor + 1)
   })
 
