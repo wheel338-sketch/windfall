@@ -1,7 +1,7 @@
 //! Worker-side RIFF/SF2 parsing. No file IO, native libraries or hidden truncation.
 use super::{
-    BankLoop as LoopMode, LoadedZone, MAX_BANK_BYTES, MAX_BANK_ZONES as MAX_ZONES, SampleBank,
-    SampleZone as Zone,
+    BankLoop as LoopMode, LoadedZone, SampleBank, SampleZone as Zone, MAX_BANK_BYTES,
+    MAX_BANK_ZONES as MAX_ZONES,
 };
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
