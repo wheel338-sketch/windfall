@@ -1281,6 +1281,7 @@ impl Processor {
         // lets the source borrow end before its hosted destination is borrowed.
         let empty = windfall_dsp::MidiOutEvent { frame: 0, bytes: [0; 3], len: 0, output_port: 0, plugin_destination: 0 };
         for index in 0..self.state.instruments.len() {
+            if !self.plan.channels[index].instrument.is_some_and(|params| matches!(params, windfall_dsp::InstrumentParams::MidiOut(_))) { continue; }
             let mut messages = [empty; windfall_dsp::midi_out::MIDI_OUT_PENDING];
             let mut count = 0;
             if let Some(unit) = self.state.instrument(index) {

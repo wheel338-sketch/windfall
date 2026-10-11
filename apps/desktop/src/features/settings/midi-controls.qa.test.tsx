@@ -55,3 +55,21 @@ it("mounts independent extra inputs, each profile, offset and both clock control
   expect(await app.backend.documentSnapshot()).toEqual(before)
   expect(configure.mock.calls.length).toBe(7)
 })
+
+it("mounts independent MIDI output slots and keeps the later slot fixed when an earlier port is disabled", async () => {
+  let state: MidiHardwareState = { ...(await app.backend.midiHardwareState()), outputs: [{ id: "main", name: "Main" }, { id: "aux1", name: "First synth" }, { id: "aux2", name: "Second synth" }], settings: { ...(await app.backend.midiHardwareState()).settings, output: "main" }, error: null }
+  const configure = vi.fn(async (settings: MidiHardwareSettings) => { state = { ...state, settings }; return state })
+  setBackend({ ...app.backend, kind: "tauri", midiHardwareState: async () => state, midiHardwareConfigure: configure })
+  const user = userEvent.setup()
+  render(<MidiHardwareSettingsSection />)
+  const add = await screen.findByRole("button", { name: "Add MIDI output" })
+  await waitFor(() => expect(add).toBeEnabled())
+  await user.click(add); await waitFor(() => expect(state.settings.extraOutputs).toEqual(["aux1"]))
+  await user.click(add); await waitFor(() => expect(state.settings.extraOutputs).toEqual(["aux1", "aux2"]))
+  await user.click(screen.getByRole("combobox", { name: "MIDI output slot 1" }))
+  await user.click(await screen.findByRole("option", { name: "Off", exact: true }))
+  expect(state.settings.extraOutputs).toEqual(["", "aux2"])
+  expect(state.settings.output).toBe("main")
+  await user.click(add)
+  expect(state.settings.extraOutputs).toEqual(["aux1", "aux2"])
+})

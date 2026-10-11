@@ -723,6 +723,14 @@ impl Controller {
         }
     }
 
+    /// Control-side surface feedback reads normalized audible automation only,
+    /// without requesting analysis snapshots or taking the engine control lock.
+    pub fn controller_automation_values(&self) -> Vec<(u32, f32)> {
+        let mut values = Vec::new();
+        self.inner.shared.automated(&mut values);
+        values
+    }
+
     /// Frame corresponding to the published playhead in the DAC clock.
     pub fn playhead_output_frame(&self) -> u64 {
         self.inner.shared.position_frame.load(Ordering::Acquire)

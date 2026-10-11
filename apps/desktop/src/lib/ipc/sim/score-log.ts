@@ -10,6 +10,7 @@ type Note = { channel: ChannelId; key: number; velocity: number; on: number; off
 export function createBrowserScoreLog(storage: Pick<Storage, "getItem" | "setItem"> | null) {
   let notes: Note[] = []
   const open = new Map<string, Omit<Note, "off">>()
+  let bound = false
   let identity: string | null = null
   let error: string | null = null
   try {
@@ -31,7 +32,8 @@ export function createBrowserScoreLog(storage: Pick<Storage, "getItem" | "setIte
   }
   function sync(project: Project) {
     const next = JSON.stringify([project.settings.name, project.channels.map((channel) => [channel.id, channel.name, channel.source.type])])
-    if (identity !== null && identity !== next) { notes = []; open.clear() }
+    if (!bound && identity !== null && identity !== next) { notes = []; open.clear() }
+    bound = true
     identity = next
     prune()
   }

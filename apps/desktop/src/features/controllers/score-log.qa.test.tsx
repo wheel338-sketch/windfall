@@ -60,3 +60,34 @@ it("restores the bounded browser note log from storage across backend restart", 
   second.dispose()
   setBackend(app.backend)
 })
+
+it("surfaces browser log persistence failures in the mounted transport status", async () => {
+  const project = structuredClone(useProjectStore.getState().project)
+  const backend = createMockBackend({ project, storage: { getItem: () => null, setItem: () => { throw new Error("quota") } } })
+  setBackend(backend)
+  const channel = project.channels[0]!.id
+  await backend.auditionNoteOn(channel, 110, 0.5)
+  await backend.auditionNoteOff(channel, 110)
+  render(<MidiRecordingControls />)
+  await screen.findByText("The note log could not be saved in browser storage.")
+  expect((await backend.controllerState()).scoreLog.notes).toBe(1)
+  backend.dispose(); setBackend(app.backend)
+})
+
+it("mounts native-capability dump replies into the real document and retains native log state through history", async () => {
+  const channel = useProjectStore.getState().project.channels[0]!.id
+  await app.backend.auditionNoteOn(channel, 111, 0.75)
+  await app.backend.auditionNoteOff(channel, 111)
+  const state = await app.backend.controllerState()
+  state.error = null
+  const dump = vi.fn(app.backend.scoreLogDump.bind(app.backend))
+  setBackend({ ...app.backend, kind: "tauri", controllerState: async () => state, scoreLogDump: dump })
+  const user = userEvent.setup()
+  render(<MidiRecordingControls />)
+  await user.click(screen.getByRole("button", { name: "Dump note log" }))
+  await waitFor(() => expect(useProjectStore.getState().history.cursor).toBe(1))
+  expect(dump).toHaveBeenCalledWith(useProjectStore.getState().project.patterns[0]!.id, null, state.generation)
+  expect(useProjectStore.getState().project.patterns[0]!.lanes.flatMap((lane) => lane.notes).some((note) => note.key === 111)).toBe(true)
+  await act(async () => { await undo(); await settle() })
+  expect((await app.backend.controllerState()).scoreLog.notes).toBe(1)
+})

@@ -663,7 +663,7 @@ impl Session {
                     commands: std::mem::take(&mut plan.commands),
                 }
             };
-            match self.dispatch_quiet(command, Some(plan.gesture)) {
+            match self.dispatch_controller_capture(command, Some(plan.gesture), plan.generation) {
                 Ok(_) => self.controllers_wrote(&plan, now),
                 Err(error) => lock(&self.inner.controllers).error = Some(error),
             }
@@ -685,7 +685,7 @@ impl Session {
     fn flush_score_log(&self) {
         let saved = {
             let mut hub = lock(&self.inner.controllers);
-            if !hub.log_dirty {
+            if !hub.log_dirty || hub.saved_log.is_some() {
                 return;
             }
             hub.log_dirty = false;
@@ -708,6 +708,7 @@ impl Session {
     fn surface_feedback(&self) {
         use windfall_project::controller_links::FeedbackSource;
         let transport = self.transport_state();
+        let automated = self.controller().controller_automation_values();
         let messages = {
             let state = self.state();
             let project = state.document.project();
@@ -718,14 +719,29 @@ impl Session {
                 .map(|feedback| {
                     let (value, text) = match feedback.source {
                         FeedbackSource::Slot { slot } => {
-                            let value = slot
-                                .resolve(project, hub.bank)
-                                .and_then(|target| {
-                                    project
-                                        .automation_range(&target)
-                                        .zip(project.automation_stored_value(&target))
-                                })
-                                .map_or(0.0, |(range, value)| range.normalized(value));
+                            let value =
+                                slot.resolve(project, hub.bank)
+                                    .and_then(|target| {
+                                        let audible = automated.iter().find_map(|(id, value)| {
+                                            let matches = project.automations.iter().any(|lane| {
+                                                lane.id.0 == *id && lane.target == target
+                                            }) || project
+                                                .patterns
+                                                .iter()
+                                                .flat_map(|pattern| &pattern.events)
+                                                .any(|lane| {
+                                                    lane.id.0 == *id && lane.target == target
+                                                });
+                                            matches.then_some(*value)
+                                        });
+                                        project
+                                            .automation_range(&target)
+                                            .zip(project.automation_stored_value(&target))
+                                            .map(|(range, stored)| {
+                                                audible.unwrap_or_else(|| range.normalized(stored))
+                                            })
+                                    })
+                                    .unwrap_or(0.0);
                             (value, "")
                         }
                         FeedbackSource::Playing => (f32::from(u8::from(transport.playing)), ""),
@@ -762,7 +778,10 @@ impl Session {
             return;
         }
         if let Ok(runtime) = self.midi_runtime() {
-            match runtime.feedback(messages.clone()) {
+            let outcome = messages
+                .chunks(256)
+                .try_for_each(|chunk| runtime.feedback(chunk.to_vec()));
+            match outcome {
                 Ok(()) => lock(&self.inner.controllers).last_feedback = messages,
                 Err(error) => lock(&self.inner.controllers).error = Some(error),
             }
@@ -1388,42 +1407,67 @@ impl Session {
 
     /// Writes the notes of the pass into their patterns, as one undo step.
     fn commit_note_take(&self) {
-        let (notes, quantize) = {
+        let (notes, quantize, generation) = {
             let mut hub = lock(&self.inner.controllers);
-            (hub.notes.take(), hub.settings.record_quantize_ticks)
+            (
+                hub.notes.take(),
+                hub.settings.record_quantize_ticks,
+                hub.generation,
+            )
         };
         if notes.is_empty() {
             return;
         }
         let command = {
             let state = self.state();
+            if state.generation != generation {
+                return;
+            }
             recorded_notes_command(state.document.project(), &notes, quantize)
         };
         let Some(command) = command else {
             return;
         };
-        if let Err(error) = self.dispatch_quiet(command, None) {
-            lock(&self.inner.controllers).error = Some(error);
+        if let Err(error) = self.dispatch_controller_capture(command, None, generation) {
+            let current = self.state().generation;
+            let mut hub = lock(&self.inner.controllers);
+            if current == generation && hub.generation == generation {
+                hub.notes.restore(notes);
+            }
+            hub.error = Some(error);
         }
     }
 
     /// Writes the movements of the pass as automation, as one undo step.
     fn commit_automation_take(&self) {
-        let (lanes, gesture) = {
+        let (lanes, gesture, generation) = {
             let mut hub = lock(&self.inner.controllers);
-            (hub.automation.take(), hub.recording_gesture.take())
+            (
+                hub.automation.take(),
+                hub.recording_gesture.take(),
+                hub.generation,
+            )
         };
         if lanes.is_empty() {
             return;
         }
         let command = {
             let state = self.state();
+            if state.generation != generation {
+                return;
+            }
             recorded_automation_command(state.document.project(), &lanes)
         };
         if let Some(command) = command
-            && let Err(error) = self.dispatch_quiet(command, gesture)
+            && let Err(error) = self.dispatch_controller_capture(command, gesture, generation)
         {
-            lock(&self.inner.controllers).error = Some(error);
+            let current = self.state().generation;
+            let mut hub = lock(&self.inner.controllers);
+            if current == generation && hub.generation == generation {
+                hub.automation.restore(lanes);
+                hub.recording_gesture = gesture;
+            }
+            hub.error = Some(error);
         }
         for lane in lanes {
             self.controller().automation_touch(lane.target, None);
@@ -1480,7 +1524,7 @@ impl Session {
                 commands,
             }
         };
-        self.dispatch_quiet(command, None)
+        self.dispatch_controller_capture(command, None, generation)
     }
 
     pub fn score_log_clear(&self) -> ControllerState {

@@ -2248,6 +2248,7 @@ impl Transaction<'_> {
 
     fn check_midi_destination(&self, source: ChannelId, params: &InstrumentParams) -> Result<(), CommandError> {
         if let InstrumentParams::MidiOut(params) = params {
+            if !(0..=7).contains(&params.output_port) || params.plugin_destination < -1 { return Err(CommandError::invalid("The MIDI destination is outside its range")); }
             if params.plugin_destination > 0 {
                 let target = ChannelId(params.plugin_destination as u32);
                 if target == source || self.project.plugin(crate::PluginTarget::Instrument { channel: target }).is_none() {

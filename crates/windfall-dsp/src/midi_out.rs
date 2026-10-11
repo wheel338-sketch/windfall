@@ -140,8 +140,6 @@ param_set!(MidiOutParams, "MIDI output", {
     int [controllers[6].value] "controllers.6.value" "Controller 7" { None, 0, 127, 0 }
     int [controllers[7].number] "controllers.7.number" "Controller 8 number" { None, -1, 127, -1 }
     int [controllers[7].value] "controllers.7.value" "Controller 8" { None, 0, 127, 0 }
-    int [output_port] "outputPort" "Output port slot" { None, 0, 7, 0 }
-    int [plugin_destination] "pluginDestination" "Plugin destination channel" { None, -1, 2147483647, 0 }
 });
 
 /// The instrument. See the module documentation.
@@ -343,6 +341,8 @@ impl Instrument for MidiOut {
 
     fn set_params(&mut self, params: &MidiOutParams) {
         self.params = params.sanitized();
+        self.params.output_port = self.params.output_port.clamp(0, 7);
+        self.params.plugin_destination = self.params.plugin_destination.max(-1);
         self.sync();
     }
 

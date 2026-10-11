@@ -225,6 +225,13 @@ impl NoteTake {
             } else {
                 tick
             };
+            let tick = note
+                .expression
+                .samples
+                .iter()
+                .rev()
+                .find(|(p, _, _)| *p == parameter)
+                .map_or(tick, |(_, before, _)| tick.max(*before));
             note.expression.samples.push((parameter, tick, value));
             self.expression_samples += 1;
         }
@@ -268,6 +275,27 @@ impl NoteTake {
             velocity: note.velocity,
             expression: note.expression,
         });
+    }
+
+    /// A refused document publication retains the recovery take for a retry.
+    pub fn restore(&mut self, notes: Vec<TakenNote>) {
+        let newer = std::mem::take(&mut self.done);
+        self.expression_samples = self
+            .open
+            .iter()
+            .map(|note| note.expression.samples.len())
+            .sum();
+        for note in notes.into_iter().chain(newer) {
+            if self.open.len() + self.done.len() >= MAX_TAKE_NOTES
+                || self.expression_samples + note.expression.samples.len()
+                    > windfall_project::MAX_PATTERN_CURVE_POINTS - 3 * MAX_TAKE_NOTES
+            {
+                self.dropped = self.dropped.saturating_add(1);
+                continue;
+            }
+            self.expression_samples += note.expression.samples.len();
+            self.done.push(note);
+        }
     }
 
     /// Hands over the finished notes in the order they began and starts an
@@ -581,6 +609,30 @@ impl AutomationTake {
         samples.push((tick, value));
     }
 
+    /// Retain a refused pass, bounded as normal capture, ahead of newer samples.
+    pub fn restore(&mut self, lanes: Vec<AutomationLane>) {
+        let newer = std::mem::take(&mut self.lanes);
+        for lane in lanes.into_iter().chain(newer) {
+            if let Some(held) = self
+                .lanes
+                .iter_mut()
+                .find(|held| held.target == lane.target && held.pattern == lane.pattern)
+            {
+                for sample in lane.samples {
+                    if held.samples.len() < MAX_LANE_SAMPLES {
+                        held.samples.push(sample);
+                    } else {
+                        self.dropped = self.dropped.saturating_add(1);
+                    }
+                }
+            } else if self.lanes.len() < MAX_AUTOMATION_LANES {
+                self.lanes.push(lane);
+            } else {
+                self.dropped = self.dropped.saturating_add(1);
+            }
+        }
+    }
+
     pub fn take(&mut self) -> Vec<AutomationLane> {
         self.dropped = 0;
         std::mem::take(&mut self.lanes)
@@ -811,6 +863,31 @@ mod tests {
     }
 
     const KICK: ChannelId = ChannelId(7);
+
+    #[test]
+    fn refused_capture_publication_retains_notes_and_automation_before_newer_samples() {
+        let mut notes = NoteTake::default();
+        notes.note_on(KICK, 60, 0.75, at(10.0));
+        notes.note_off(KICK, 60, at(20.0));
+        let refused = notes.take();
+        notes.note_on(KICK, 62, 0.5, at(30.0));
+        notes.note_off(KICK, 62, at(40.0));
+        notes.restore(refused);
+        assert_eq!(
+            notes.take().iter().map(|note| note.key).collect::<Vec<_>>(),
+            [60, 62]
+        );
+        let target = AutomationTarget::ChannelVolume { channel: KICK };
+        let mut automation = AutomationTake::default();
+        automation.record_in(Some(PatternId(1)), target, 0.5, 10.0, 0.25);
+        let refused = automation.take();
+        automation.record_in(Some(PatternId(1)), target, 0.25, 20.0, 0.0);
+        automation.restore(refused);
+        let lanes = automation.take();
+        assert_eq!(lanes.len(), 1);
+        assert_eq!(lanes[0].before, 0.5);
+        assert_eq!(lanes[0].samples, [(10.0, 0.25), (20.0, 0.0)]);
+    }
 
     #[test]
     fn a_moment_gets_the_tick_the_playhead_had_then() {

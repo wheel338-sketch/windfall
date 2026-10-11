@@ -768,6 +768,15 @@ fn wheel_pressure_and_cc_capture_attach_curves_to_native_note_ids_and_survive_hi
 
 #[test]
 fn pattern_recording_and_overdub_are_one_history_entry_and_audible_during_capture() {
+    audible_pattern_recording(false);
+}
+
+#[test]
+fn linked_target_pattern_overdub_is_audible_saved_and_one_history_entry() {
+    audible_pattern_recording(true);
+}
+
+fn audible_pattern_recording(linked: bool) {
     use windfall_project::{AutomationPoint, InstrumentKind, NoteInit};
     let mut rig = Rig::new();
     let pattern = rig.pattern();
@@ -850,6 +859,9 @@ fn pattern_recording_and_overdub_are_one_history_entry_and_audible_during_captur
             )
             .unwrap();
     }
+    if linked {
+        set_links(&rig, vec![link(7, target)]);
+    }
     rig.session.transport_play().unwrap();
     let audible = rig.run(2000);
     assert!(audible.iter().any(|sample| sample.abs() > 0.01));
@@ -858,7 +870,12 @@ fn pattern_recording_and_overdub_are_one_history_entry_and_audible_during_captur
     rig.session.automation_record_arm(true);
     let entries = history(&rig);
     let before_lane = rig.project().pattern(pattern).unwrap().events.clone();
-    for gain in [0.25, 0.1, 0.0] {
+    for (gain, controller) in [(0.25, 32), (0.1, 13), (0.0, 0)] {
+        if linked {
+            assert!(cc(&rig, 7, controller));
+            pump(&rig);
+            continue;
+        }
         rig.session
             .dispatch(
                 Command::UpdateChannel {
@@ -1044,4 +1061,276 @@ fn learned_multilinks_and_global_mappings_survive_file_and_settings_restart() {
     let expected = rig.session.controller_state().settings;
     let rig = rig.restart();
     assert_eq!(rig.session.controller_state().settings, expected);
+}
+
+#[test]
+fn assigned_surface_profile_emits_live_led_motor_and_name_feedback_on_the_output_worker() {
+    use std::sync::{Arc, Condvar, Mutex};
+    use windfall_engine::midi_hardware::{Audition, Ingress, Output, Ports, Runtime};
+    use windfall_ipc::{MidiHardwareSettings, MidiPort};
+    use windfall_project::MixerTrackPatch;
+    type Sent = Arc<(Mutex<Vec<Vec<u8>>>, Condvar)>;
+    struct Surface(Sent);
+    impl Output for Surface {
+        fn send(&mut self, bytes: &[u8]) -> Result<(), String> {
+            self.0.0.lock().unwrap().push(bytes.to_vec());
+            self.0.1.notify_all();
+            Ok(())
+        }
+    }
+    struct Device(Sent);
+    impl Ports for Device {
+        fn enumerate(&mut self) -> Result<(Vec<MidiPort>, Vec<MidiPort>), String> {
+            let port = MidiPort {
+                id: "surface".into(),
+                name: "Synthetic surface".into(),
+            };
+            Ok((vec![port.clone()], vec![port]))
+        }
+        fn input(&mut self, _: &str, _: Ingress) -> Result<Box<dyn Send>, String> {
+            Ok(Box::new(()))
+        }
+        fn output(&mut self, _: &str) -> Result<Box<dyn Output>, String> {
+            Ok(Box::new(Surface(self.0.clone())))
+        }
+    }
+    struct Sink;
+    impl Audition for Sink {
+        fn note(&self, _: u64, _: u8, _: u8) -> bool {
+            true
+        }
+    }
+    let mut rig = Rig::new();
+    let sent: Sent = Arc::new((Mutex::new(Vec::new()), Condvar::new()));
+    let output = sent.clone();
+    let settings = MidiHardwareSettings {
+        input: Some("surface".into()),
+        output: Some("surface".into()),
+        input_profile: Some("mackie-control".into()),
+        ..Default::default()
+    };
+    let runtime = Runtime::start_with(
+        rig.session.controller().clone(),
+        Arc::new(Sink),
+        settings.clone(),
+        move || Box::new(Device(output)),
+    )
+    .unwrap();
+    *crate::sync::lock(&rig.session.inner.midi_hardware) = Some(Arc::new(runtime));
+    rig.session.midi_hardware_configure(settings).unwrap();
+    let track = rig
+        .project()
+        .mixer
+        .tracks
+        .iter()
+        .find(|track| track.id != windfall_project::TrackId::MASTER && !track.current)
+        .unwrap()
+        .id;
+    rig.session
+        .dispatch(
+            Command::UpdateMixerTrack {
+                id: track,
+                patch: MixerTrackPatch {
+                    name: Some("Bass".into()),
+                    volume: Some(0.5),
+                    ..Default::default()
+                },
+            },
+            None,
+        )
+        .unwrap();
+    rig.session.note_record_arm(true);
+    rig.session.transport_play().unwrap();
+    rig.run(480);
+    pump(&rig);
+    let wanted = [
+        vec![0x90, 94, 127],
+        vec![0x90, 95, 127],
+        vec![0xe0, 0, 64],
+        vec![
+            0xf0, 0, 0, 0x66, 0x14, 0x12, 0, b'B', b'a', b's', b's', b' ', b' ', b' ', 0xf7,
+        ],
+    ];
+    let deadline = Instant::now() + Duration::from_secs(3);
+    let mut bytes = sent.0.lock().unwrap();
+    while !wanted.iter().all(|message| bytes.contains(message)) {
+        let left = deadline
+            .checked_duration_since(Instant::now())
+            .expect("surface feedback deadline");
+        bytes = sent.1.wait_timeout(bytes, left).unwrap().0;
+    }
+    drop(bytes);
+    rig.session.transport_stop();
+    rig.run(480);
+    pump(&rig);
+    let mut bytes = sent.0.lock().unwrap();
+    while !bytes.contains(&vec![0x90, 94, 0]) {
+        let left = deadline
+            .checked_duration_since(Instant::now())
+            .expect("surface stop LED deadline");
+        bytes = sent.1.wait_timeout(bytes, left).unwrap().0;
+    }
+}
+
+#[test]
+fn controller_capture_ticket_refuses_a_replaced_generation_before_preparation() {
+    let rig = Rig::new();
+    let generation = rig.session.controller_state().generation;
+    rig.session.project_new().unwrap();
+    let before = rig.project();
+    let result = rig.session.dispatch_controller_capture(
+        Command::UpdateChannel {
+            id: before.channels[0].id,
+            patch: ChannelPatch {
+                volume: Some(0.0),
+                ..Default::default()
+            },
+        },
+        None,
+        generation,
+    );
+    assert!(result.unwrap_err().contains("Project changed"));
+    assert_eq!(rig.project(), before);
+}
+
+#[test]
+fn hardware_ingress_expression_recording_joins_native_capture_quantization_and_saved_curves() {
+    let mut rig = Rig::new();
+    pump(&rig);
+    let channel = rig.channel(0);
+    let pattern = rig.pattern();
+    let snapshot = rig.session.document_snapshot();
+    let generation = rig.session.controller_state().generation;
+    rig.session
+        .midi_hardware_target(Some(channel), generation, snapshot.revision)
+        .unwrap();
+    rig.session
+        .controller_settings_set(ControllerSettings {
+            record_quantize_ticks: 240,
+            ..Default::default()
+        })
+        .unwrap();
+    rig.session
+        .transport_set(windfall_ipc::TransportPatch {
+            mode: Some(PlayMode::Pattern),
+            pattern: Some(pattern),
+            count_in_bars: Some(0),
+            ..Default::default()
+        })
+        .unwrap();
+    rig.session.note_record_arm(true);
+    rig.session.transport_play().unwrap();
+    rig.run(480);
+    let head = rig.session.controller().playhead();
+    let at = Instant::now();
+    rig.session.controller_idle(at, &head);
+    let message = |message, ms| {
+        rig.session.controller_message(InputMessage {
+            device: 0,
+            message,
+            at: at + Duration::from_millis(ms),
+            stamp_micros: ms * 1000,
+        })
+    };
+    message(
+        MidiMessage::PitchBend {
+            channel: 0,
+            value: 8192,
+        },
+        0,
+    );
+    message(
+        MidiMessage::NoteOn {
+            channel: 0,
+            key: 110,
+            velocity: 100,
+        },
+        0,
+    );
+    let epoch = rig.session.controller().hardware_epoch();
+    assert!(rig.session.hardware_note_at(epoch, 110, 100, at));
+    message(
+        MidiMessage::PitchBend {
+            channel: 0,
+            value: 16383,
+        },
+        50,
+    );
+    message(
+        MidiMessage::Controller {
+            channel: 0,
+            number: 74,
+            value: 127,
+        },
+        60,
+    );
+    message(
+        MidiMessage::Controller {
+            channel: 0,
+            number: 1,
+            value: 0,
+        },
+        75,
+    );
+    message(
+        MidiMessage::ChannelPressure {
+            channel: 0,
+            value: 127,
+        },
+        100,
+    );
+    message(
+        MidiMessage::NoteOff {
+            channel: 0,
+            key: 110,
+        },
+        125,
+    );
+    assert!(
+        rig.session
+            .hardware_note_at(epoch, 110, 0, at + Duration::from_millis(125))
+    );
+    let entries = history(&rig);
+    rig.session.note_record_arm(false);
+    assert_eq!(history(&rig), entries + 1);
+    let project = rig.project();
+    let held = project.pattern(pattern).unwrap();
+    let note = held
+        .lanes
+        .iter()
+        .flat_map(|lane| &lane.notes)
+        .find(|note| note.key == 110)
+        .unwrap();
+    assert_eq!(note.start, 0);
+    assert!(note.length >= 250 && note.length <= 270);
+    let curves: Vec<_> = held
+        .note_curves
+        .iter()
+        .filter(|curve| curve.note == note.id)
+        .collect();
+    assert_eq!(curves.len(), 3);
+    let pitch = curves
+        .iter()
+        .find(|curve| curve.parameter == windfall_project::NoteCurveParameter::FinePitchCents)
+        .unwrap();
+    assert!((pitch.points[1].position - 0.4).abs() < 0.001);
+    assert_eq!(pitch.points[1].value, 200.0);
+    let saved = rig.file("hardware-expression.windfall");
+    rig.session.project_save(Some(&saved)).unwrap();
+    rig.session.undo().unwrap();
+    assert!(
+        !rig.project()
+            .pattern(pattern)
+            .unwrap()
+            .lanes
+            .iter()
+            .flat_map(|lane| &lane.notes)
+            .any(|note| note.key == 110)
+    );
+    rig.session.redo().unwrap();
+    rig.session.project_open(&saved).unwrap();
+    assert_eq!(
+        rig.project().pattern(pattern).unwrap().note_curves,
+        held.note_curves
+    );
 }

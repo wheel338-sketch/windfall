@@ -68,7 +68,7 @@ export function createMidiHardwareMock(context?: {
     automationRecord: { armed: false, targets: 0, pending: 0 },
     scoreLog: context ? context.log.state(context.project()) : { notes: 0, seconds: 0 },
     dropped: 0,
-    error: DESKTOP_ONLY,
+    error: context?.log.error() ?? DESKTOP_ONLY,
     generation: context?.generation() ?? 0,
   })
   const unavailable = async (): Promise<never> => {

@@ -144,6 +144,20 @@ impl Session {
         self.finish_sample_edit(ticket)
     }
 
+    /// Controller captures and dumps must bind the ticket under the document
+    /// lock to the generation they observed, before off-thread preparation.
+    pub(super) fn dispatch_controller_capture(
+        &self, command: Command, gesture: Option<u64>, generation: u64,
+    ) -> Result<DispatchResult, String> {
+        let ticket = {
+            let _recording = self.recording_idle()?;
+            let state = self.state();
+            if state.generation != generation { return Err("Project changed. Try again.".into()); }
+            self.sample_edit_ticket(&state, command, gesture, Vec::new())?.ordinary()
+        };
+        self.finish_sample_edit(ticket)
+    }
+
     /// Validate native ownership and apply its edit under the same document lock.
     /// An obsolete notification succeeds without changing the document; a
     /// temporary refusal remains an error so the manager can retain the edit.

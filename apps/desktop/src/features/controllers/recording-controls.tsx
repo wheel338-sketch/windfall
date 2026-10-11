@@ -19,11 +19,12 @@ export function MidiRecordingControls() {
     catch (failure) { setError(errorMessage(failure)) } finally { setBusy(false) }
   }
   const project = useProjectStore((state) => state.project)
+  const logError = state?.error && !state.error.startsWith("MIDI hardware is available") ? state.error : null
   const bars = useTransportStore((state) => state.countInBars ?? 0)
   return <div className="flex items-center gap-1">
     <Button title={`Record MIDI notes; ${bars} count-in bars`} aria-label="Record MIDI notes" aria-pressed={state?.noteRecord.armed ?? false} disabled={!state || busy || backend.kind !== "tauri"} variant={state?.noteRecord.armed ? "destructive" : "secondary"} onClick={() => void arm()}>MIDI record</Button>
     <Button size="sm" variant="ghost" onClick={() => void dumpNoteLog(null)}>Dump note log</Button>
     <span role="status" aria-label="Controller pickup indicator">{state?.waiting.length ? `Pickup held: ${state.waiting.map((target) => describeTarget(project, target)).join(", ")}` : ""}</span>
-    <span role="status" aria-label="MIDI recording status">{error ?? (state?.noteRecord.armed ? `${state.noteRecord.pending} notes captured` : "")}</span>
+    <span role="status" aria-label="MIDI recording status">{error ?? logError ?? (state?.noteRecord.armed ? `${state.noteRecord.pending} notes captured` : "")}</span>
   </div>
 }

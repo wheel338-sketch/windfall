@@ -213,14 +213,24 @@ impl Audio {
             for previous in self.input.events[..count].iter().rev() {
                 match (*previous, event) {
                     (HostEvent::AllNotesOff { .. }, _) => return true,
-                    (HostEvent::NoteOn { key: previous, .. }, HostEvent::NoteOff { key, .. })
-                        if previous == key =>
-                    {
+                    (
+                        HostEvent::NoteOn {
+                            key: previous,
+                            channel: previous_channel,
+                            ..
+                        },
+                        HostEvent::NoteOff { key, channel, .. },
+                    ) if previous == key && previous_channel == channel => {
                         break;
                     }
-                    (HostEvent::NoteOff { key: previous, .. }, HostEvent::NoteOff { key, .. })
-                        if previous == key =>
-                    {
+                    (
+                        HostEvent::NoteOff {
+                            key: previous,
+                            channel: previous_channel,
+                            ..
+                        },
+                        HostEvent::NoteOff { key, channel, .. },
+                    ) if previous == key && previous_channel == channel => {
                         return true;
                     }
                     (HostEvent::NoteOn { .. }, HostEvent::AllNotesOff { .. }) => break,
@@ -780,6 +790,46 @@ mod tests {
     fn offline_done_cancellation_race_fails_and_clears_both_buffers() {
         offline_done_race(true);
     }
+    #[test]
+    fn routed_midi_snapshots_preserve_wire_channels_and_control_bytes() {
+        let (mut audio, region) = make(Kind::Instrument, 0);
+        assert!(audio.midi_message(&[0x92, 60, 100]));
+        assert!(audio.midi_message(&[0x94, 60, 90]));
+        assert!(audio.midi_message(&[0xb4, 74, 99]));
+        assert!(audio.midi_message(&[0xc4, 11]));
+        assert!(audio.midi_message(&[0xe4, 127, 127]));
+        assert!(audio.midi_message(&[0x82, 60, 0]));
+        assert!(!audio.midi_message(&[0xb4, 128, 0]));
+        assert!(!audio.midi_message(&[0xc4, 0, 0]));
+        audio.process(&mut [0.0; 64], &mut [0.0; 64]);
+        let mut input = InputBlock::new();
+        region.take_input(&mut input).unwrap().unwrap();
+        assert_eq!(input.notes[2 * 128 + 60], 0.0);
+        assert_eq!(input.notes[4 * 128 + 60], 90.0 / 127.0);
+        let events = &input.events[..input.event_count];
+        assert!(events.contains(&HostEvent::NoteOn {
+            time: 0,
+            key: 60,
+            channel: 4,
+            velocity: 90.0 / 127.0
+        }));
+        assert!(events.contains(&HostEvent::Midi {
+            time: 0,
+            bytes: [0xb4, 74, 99],
+            len: 3
+        }));
+        assert!(events.contains(&HostEvent::Midi {
+            time: 0,
+            bytes: [0xc4, 11, 0],
+            len: 2
+        }));
+        assert!(events.contains(&HostEvent::Midi {
+            time: 0,
+            bytes: [0xe4, 127, 127],
+            len: 3
+        }));
+    }
+
     #[test]
     fn offline_done_deadline_race_fails_and_clears_both_buffers() {
         offline_done_race(false);
