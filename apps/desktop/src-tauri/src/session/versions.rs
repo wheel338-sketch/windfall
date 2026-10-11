@@ -14,7 +14,26 @@ pub(super) fn write<T>(
     project: &Project,
     session: &ProjectSession,
     base: &Path,
+    prepare: impl FnMut(&mut Project, &Path) -> Result<T, String>,
+) -> Result<(PathBuf, Project, T), String> {
+    write_checked(project, session, base, prepare, &mut |_| Ok(()))
+}
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum Publication {
+    Reservation,
+    Copy,
+    Written,
+    Rename,
+    Published,
+}
+/// Uses the production publication path; hooks inject local faults or terminate
+/// a child process at precise boundaries without replacing filesystem code.
+pub(super) fn write_checked<T>(
+    project: &Project,
+    session: &ProjectSession,
+    base: &Path,
     mut prepare: impl FnMut(&mut Project, &Path) -> Result<T, String>,
+    check: &mut impl FnMut(Publication) -> Result<(), String>,
 ) -> Result<(PathBuf, Project, T), String> {
     project.check()?;
     let parent = base.parent().ok_or("The project has no folder.")?;
@@ -35,7 +54,9 @@ pub(super) fn write<T>(
         if fs::symlink_metadata(&target).is_ok() {
             continue;
         }
+        check(Publication::Reservation)?;
         let mut written = project.clone();
+        check(Publication::Copy)?;
         let prepared = prepare(&mut written, &target)?;
         written.check()?;
         let json = file::to_json_with(&written, Some(session)).map_err(|e| e.to_string())?;
@@ -44,8 +65,13 @@ pub(super) fn write<T>(
             .write_all(json.as_bytes())
             .map_err(|e| e.to_string())?;
         staged.as_file().sync_all().map_err(|e| e.to_string())?;
+        check(Publication::Written)?;
+        check(Publication::Rename)?;
         match staged.persist_noclobber(&target) {
-            Ok(_) => return Ok((target, written, prepared)),
+            Ok(_) => {
+                check(Publication::Published)?;
+                return Ok((target, written, prepared));
+            }
             Err(error)
                 if error.error.kind() == io::ErrorKind::AlreadyExists
                     || fs::symlink_metadata(&target).is_ok() =>

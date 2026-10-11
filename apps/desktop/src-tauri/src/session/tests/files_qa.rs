@@ -790,3 +790,75 @@ fn extracted_template_audio_is_reclaimed_only_after_replacement_and_captures_pin
     rig.session.prune_extractions();
     assert!(untracked.join("keep").exists());
 }
+
+#[test]
+fn actual_native_scanner_rescans_blocked_and_all_then_removes_a_folder() {
+    use crate::plugins::Rescan;
+    use std::time::{Duration, Instant};
+    fn finish(manager: &crate::plugins::PluginManager) {
+        let deadline = Instant::now() + Duration::from_secs(30);
+        while manager.state().scanning {
+            assert!(Instant::now() < deadline);
+            std::thread::sleep(Duration::from_millis(10));
+        }
+        assert_eq!(manager.state().error, None);
+    }
+    let rig = Rig::new();
+    let (manager, path) = super::plugins::manager(&rig);
+    let folder = Path::new(&path)
+        .parent()
+        .unwrap()
+        .to_string_lossy()
+        .into_owned();
+    let broken = Path::new(&folder).join("broken.clap");
+    fs::write(&broken, b"not a native library").unwrap();
+    manager.rescan(Rescan::Everything).unwrap();
+    finish(&manager);
+    let state = manager.state();
+    assert!(
+        state
+            .entries
+            .iter()
+            .any(|entry| entry.id == "org.windfall.test.sine")
+    );
+    assert!(
+        state
+            .entries
+            .iter()
+            .any(|entry| entry.path == broken.to_string_lossy() && entry.error.is_some())
+    );
+    fs::copy(&path, &broken).unwrap();
+    manager.rescan(Rescan::Blocked).unwrap();
+    finish(&manager);
+    assert!(
+        manager
+            .state()
+            .entries
+            .iter()
+            .any(|entry| entry.path == broken.to_string_lossy()
+                && entry.id == "org.windfall.test.sine"
+                && entry.error.is_none())
+    );
+    manager.rescan(Rescan::Everything).unwrap();
+    finish(&manager);
+    assert!(
+        manager
+            .state()
+            .entries
+            .iter()
+            .filter(|entry| entry.id == "org.windfall.test.sine")
+            .count()
+            >= 2
+    );
+    manager.remove_folder(&folder).unwrap();
+    manager.scan(None).unwrap();
+    finish(&manager);
+    assert!(
+        !manager
+            .state()
+            .entries
+            .iter()
+            .any(|entry| entry.path.starts_with(&folder))
+    );
+    assert!(!manager.state().folders.contains(&folder));
+}

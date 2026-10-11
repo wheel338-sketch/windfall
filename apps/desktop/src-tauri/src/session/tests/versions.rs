@@ -301,3 +301,145 @@ fn backup_shaped_numbered_destination_carries_relinks_and_reopens_audio() {
         assert!(rms(&rig.run(4800)) > 0.0, "the reopened sampler must play");
     }
 }
+
+#[test]
+fn numbered_publication_child() {
+    let Some(folder) = std::env::var_os("WINDFALL_VERSION_FAULT_ROOT") else {
+        return;
+    };
+    let folder = std::path::PathBuf::from(folder);
+    let stage = std::env::var("WINDFALL_VERSION_FAULT_STAGE").unwrap();
+    let project = file::load(folder.join("input.windfall")).unwrap();
+    let _ = crate::session::versions::write_checked(
+        &project,
+        &Default::default(),
+        &folder.join("Song.windfall"),
+        |_, _| {
+            let mut destination = fs::File::create(folder.join("copied-audio.part")).unwrap();
+            use std::io::Write;
+            destination.write_all(&[7; 64 * 1024]).unwrap();
+            if stage == "PartialCopy" {
+                std::process::exit(73);
+            }
+            Ok(())
+        },
+        &mut |boundary| {
+            if format!("{boundary:?}") == stage {
+                std::process::exit(73);
+            }
+            Ok(())
+        },
+    );
+    panic!("the requested publication boundary was not reached");
+}
+#[test]
+fn large_numbered_project_survives_real_child_termination_at_every_publication_boundary() {
+    use windfall_project::{Document, NoteInit, Project};
+    let rig = Rig::new();
+    let mut doc = Document::new(rig.project());
+    for batch in 0..40 {
+        doc.dispatch(
+            Command::AddNotes {
+                pattern: rig.pattern(),
+                channel: rig.channel(0),
+                notes: (0..500)
+                    .map(|i| NoteInit {
+                        start: (i % 16) * 240,
+                        length: 120,
+                        key: 48 + (batch % 24) as u8,
+                        velocity: Some(0.5),
+                        pan: Some(0.25),
+                        expression: None,
+                    })
+                    .collect(),
+            },
+            None,
+        )
+        .unwrap();
+    }
+    let project: Project = doc.project().clone();
+    let json = file::to_json(&project).unwrap();
+    assert!(json.len() > 1_000_000);
+    for stage in [
+        "Reservation",
+        "Copy",
+        "PartialCopy",
+        "Written",
+        "Rename",
+        "Published",
+    ] {
+        let root = tempfile::tempdir().unwrap();
+        fs::write(root.path().join("input.windfall"), &json).unwrap();
+        fs::write(root.path().join("Song.windfall"), b"previous version").unwrap();
+        fs::write(
+            root.path().join("Song (001).windfall"),
+            b"competing process",
+        )
+        .unwrap();
+        let status = std::process::Command::new(std::env::current_exe().unwrap())
+            .args([
+                "--exact",
+                "session::tests::versions::numbered_publication_child",
+                "--nocapture",
+            ])
+            .env("WINDFALL_VERSION_FAULT_ROOT", root.path())
+            .env("WINDFALL_VERSION_FAULT_STAGE", stage)
+            .status()
+            .unwrap();
+        assert_eq!(status.code(), Some(73), "{stage}");
+        assert_eq!(
+            fs::read(root.path().join("Song.windfall")).unwrap(),
+            b"previous version"
+        );
+        assert_eq!(
+            fs::read(root.path().join("Song (001).windfall")).unwrap(),
+            b"competing process"
+        );
+        let published = root.path().join("Song (002).windfall");
+        if stage == "Published" {
+            assert_eq!(file::load(&published).unwrap(), project);
+        } else {
+            assert!(!published.exists(), "{stage}");
+        }
+        let (saved, actual, ()) = crate::session::versions::write(
+            &project,
+            &Default::default(),
+            &root.path().join("Song.windfall"),
+            |_, _| Ok(()),
+        )
+        .unwrap();
+        assert_eq!(actual, project);
+        assert_eq!(file::load(saved).unwrap(), project);
+    }
+}
+#[test]
+fn injected_numbered_io_faults_never_expose_partial_projects_or_change_the_snapshot() {
+    use crate::session::versions::{Publication, write_checked};
+    let rig = Rig::new();
+    let original = rig.project();
+    for boundary in [
+        Publication::Reservation,
+        Publication::Copy,
+        Publication::Written,
+        Publication::Rename,
+    ] {
+        let root = tempfile::tempdir().unwrap();
+        let result = write_checked(
+            &original,
+            &Default::default(),
+            &root.path().join("Song.windfall"),
+            |_, _| Ok(()),
+            &mut |stage| {
+                if stage == boundary {
+                    Err("injected disk failure".into())
+                } else {
+                    Ok(())
+                }
+            },
+        );
+        assert!(result.unwrap_err().contains("injected"));
+        assert!(!root.path().join("Song (001).windfall").exists());
+        assert_eq!(fs::read_dir(root.path()).unwrap().count(), 0);
+        assert_eq!(rig.project(), original);
+    }
+}

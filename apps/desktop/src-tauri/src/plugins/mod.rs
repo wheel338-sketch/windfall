@@ -60,6 +60,8 @@ pub struct PluginManager {
     // Other status producers (for example scanning) cannot hide an accepted
     // state's outstanding acknowledgement while its control worker is waiting.
     capture_ack_warning: Mutex<Option<String>>,
+    #[cfg(test)]
+    fixture_scanner: Mutex<Option<PathBuf>>,
 }
 impl PluginManager {
     #[cfg(all(test, windows))]
@@ -71,6 +73,8 @@ impl PluginManager {
     #[cfg(all(test, windows))]
     pub(crate) fn fixture(folder: &Path, file: &Path, scanner: &Path) -> Arc<Self> {
         let manager = Self::new(folder).unwrap();
+        *manager.fixture_scanner.lock().unwrap() = Some(scanner.to_path_buf());
+        manager.status.lock().unwrap().folders = vec![file.parent().unwrap().to_string_lossy().into_owned()];
         let files = paths::find_plugins(&[file.parent().unwrap().to_path_buf()]);
         manager
             .catalog
@@ -120,6 +124,8 @@ impl PluginManager {
             session: Mutex::new(None),
             retry_requested: std::sync::atomic::AtomicBool::new(false),
             capture_ack_warning: Mutex::new(None),
+            #[cfg(test)]
+            fixture_scanner: Mutex::new(None),
         });
         manager.update_entries();
         Ok(manager)
@@ -405,6 +411,8 @@ impl PluginManager {
                         catalog.retry(Path::new(&path));
                     }
                     let program = std::env::current_exe().map_err(|error| error.to_string())?;
+                    #[cfg(test)]
+                    let program = manager.fixture_scanner.lock().unwrap().clone().unwrap_or(program);
                     catalog
                         .refresh(&files, &ProcessRunner::new(program), &mut |path| {
                             let mut state = manager

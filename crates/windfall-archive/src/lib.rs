@@ -43,6 +43,8 @@ impl Default for Limits {
 /// A caller can cancel or inject an IO error without affecting other files.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Stage {
+    Reservation,
+    Published,
     Source,
     Write,
     Publish,
@@ -175,6 +177,7 @@ pub fn create(
         .ok_or_else(|| invalid("Archive target has no folder."))?;
     // Caller chooses an existing destination. Only this request's temporary
     // directory and file are owned; failures never delete destination files.
+    check(Stage::Reservation)?;
     let staging = tempfile::tempdir_in(parent)?;
     let mut snapshot = project.clone();
     let mut manifest = Manifest {
@@ -294,6 +297,7 @@ pub fn create(
     check(Stage::Publish)?;
     temp.persist_noclobber(target)
         .map_err(|error| error.error)?;
+    check(Stage::Published)?;
     Ok(())
 }
 

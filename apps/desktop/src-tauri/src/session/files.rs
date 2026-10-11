@@ -343,6 +343,7 @@ impl Session {
             current && moved && !state.failed.is_empty()
         };
         drop(saving);
+        self.prune_extractions();
         if retry_samples {
             self.samples_reload();
         }
