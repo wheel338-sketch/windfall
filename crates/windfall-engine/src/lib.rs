@@ -132,6 +132,7 @@ mod mixer;
 mod hardware_output;
 mod note_glide;
 mod note_curves;
+pub mod modular;
 mod plan;
 pub mod plugins;
 mod pool;

@@ -461,6 +461,7 @@ pub(crate) struct Ledger {
     pub sample_rate: u32,
     effects: HashMap<EffectId, (EffectKind, u64)>,
     instruments: HashMap<ChannelId, InstrumentKind>,
+    racks: HashMap<ChannelId, std::sync::Arc<windfall_project::RackGraph>>,
     /// The length each compensation delay is set to and the longest its
     /// line can give, plus the identity and prepared bounds of its stages.
     delays: HashMap<DelayKey, (usize, usize, Vec<DelayStage>)>,
@@ -550,12 +551,12 @@ impl Layout {
         let mut arrival = vec![0_usize; plan.tracks.len()];
         let mut native = vec![false; plan.tracks.len()];
         for channel in plan.channels.iter().filter(|channel| !channel.leaving) {
-            if let Some(params) = &channel.instrument {
+            if channel.instrument.is_some() {
                 let record = plugins.get(&windfall_project::PluginTarget::Instrument {
                     channel: channel.id,
                 });
                 arrival[channel.track] = arrival[channel.track].max(record.map_or_else(
-                    || params.latency_samples(sample_rate as f32),
+                    || channel.latency_samples(sample_rate as f32),
                     |record| record.1,
                 ));
                 native[channel.track] |= record.is_some();
@@ -649,13 +650,13 @@ impl Layout {
             path.clear();
         }
         for channel in plan.channels.iter().filter(|channel| !channel.leaving) {
-            if let Some(params) = &channel.instrument {
+            if channel.instrument.is_some() {
                 let key = windfall_project::PluginTarget::Instrument {
                     channel: channel.id,
                 };
                 let latency = plugins
                     .get(&key)
-                    .map_or_else(|| params.latency_samples(rate), |record| record.1)
+                    .map_or_else(|| channel.latency_samples(rate), |record| record.1)
                     .min(most);
                 if latency > self.arrival[channel.track] {
                     self.arrival_path[channel.track].clear();
@@ -935,6 +936,17 @@ impl PlanState {
     ) -> Result<(Self, Ledger), crate::project_preparation::ProjectPreparationError> {
         let sample_rate = sample_rate.max(1);
         let held = held.filter(|held| held.sample_rate == sample_rate);
+        let mut prepared_racks = HashMap::new();
+        for channel in &plan.channels {
+            if let Some(graph) = &channel.rack
+                && !channel.leaving
+                && held.and_then(|held| held.racks.get(&channel.id)) != Some(graph)
+            {
+                let rack = crate::modular::ModularRack::prepare(graph, sample_rate, plan.tempo_bpm)
+                    .map_err(crate::project_preparation::ProjectPreparationError::Rack)?;
+                prepared_racks.insert(channel.id, rack);
+            }
+        }
         let conditional = plan
             .tracks
             .iter()
@@ -1096,6 +1108,7 @@ impl PlanState {
             sample_rate,
             effects: HashMap::new(),
             instruments: HashMap::new(),
+            racks: plan.channels.iter().filter_map(|channel| channel.rack.clone().map(|graph| (channel.id, graph))).collect(),
             delays: HashMap::new(),
             meters: Vec::new(),
             latency: u32::try_from(output_latency).unwrap_or(u32::MAX),
@@ -1269,6 +1282,7 @@ impl PlanState {
                 channel: channel.id,
             };
             let known = held.and_then(|held| held.instruments.get(&channel.id)) == Some(&kind)
+                && held.and_then(|held| held.racks.get(&channel.id)) == channel.rack.as_ref()
                 && held
                     .is_some_and(|held| held.plugins.get(&target) == ledger.plugins.get(&target));
             let unit = if channel.leaving {
@@ -1280,6 +1294,7 @@ impl PlanState {
                 ledger.instruments.insert(channel.id, kind);
                 (!known).then(|| {
                     let mut unit = InstrumentUnit::build(params, sample_rate, plan.tempo_bpm);
+                    if let Some(rack) = prepared_racks.remove(&channel.id) { unit.install_rack(rack); }
                     unit.configure_voice(
                         crate::channel_voice::PreparedChannelEnvelopes::prepare(
                             channel.voice.envelopes,
@@ -1304,7 +1319,7 @@ impl PlanState {
                 })
             };
             let behind = ledger.plugins.get(&target).map_or_else(
-                || params.latency_samples(sample_rate as f32),
+                || channel.latency_samples(sample_rate as f32),
                 |record| record.1,
             );
             Some(InstrumentSeat {
@@ -1571,6 +1586,9 @@ impl PlanState {
                 &mut seat.unit,
                 before.as_ref().and_then(|seat| seat.unit.as_ref()),
             ) {
+                if !channel.leaving && (channel.rack.is_some() || found.is_some_and(|found| old_plan.channels[found].rack.is_some())) {
+                    unit.inherit_rack_notes(before);
+                }
                 let target = windfall_project::PluginTarget::Instrument {
                     channel: channel.id,
                 };

@@ -822,6 +822,12 @@ pub enum Command {
         label: Option<String>,
         commands: Vec<Command>,
     },
+    /// Atomic checked rack replacement. None removes the rack. Graph-local
+    /// node IDs are stable through history; old macro automation is pruned.
+    SetChannelRack {
+        id: ChannelId,
+        graph: Option<crate::RackGraph>,
+    },
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, TS)]

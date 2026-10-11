@@ -251,6 +251,7 @@ impl Project {
                 pan_law: crate::PanLaw::default(),
                 timebase_ppq: crate::timebase::DEFAULT_TIMEBASE_PPQ,
                 controller_links: Vec::new(),
+                modular_racks: Vec::new(),
             },
             samples: Vec::new(),
             notebook: crate::Notebook::default(),
@@ -364,6 +365,10 @@ pub struct ProjectSettings {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     #[ts(as = "Option<Vec<crate::ControllerLink>>", optional)]
     pub controller_links: Vec<crate::ControllerLink>,
+    /// Saved modular graphs by channel; legacy projects omit the empty table.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[ts(as = "Option<Vec<crate::ChannelRack>>", optional)]
+    pub modular_racks: Vec<crate::ChannelRack>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]

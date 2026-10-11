@@ -70,6 +70,8 @@ mod eq;
 pub mod filter_family;
 pub mod frequency_delay;
 mod instrument;
+pub mod notemap;
+pub mod rack_note;
 mod note_expression;
 pub mod expression_map;
 mod limiter;

@@ -873,6 +873,7 @@ fn stored(plan: &Plan, target: Target) -> Option<f32> {
         }
         Target::EffectMix(id) => Some(effect(id)?.mix),
         Target::InstrumentParam { channel, param } => {
+            if let Some(rack) = &plan.channels[channel].rack { return rack.control(param); }
             if let Some(binding) = plan.plugins.iter().find(|binding| {
                 binding.target
                     == windfall_project::PluginTarget::Instrument {

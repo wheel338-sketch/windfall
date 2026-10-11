@@ -1,0 +1,927 @@
+//! Control-side graph compilation and bounded, allocation-free rack playback.
+//! All vectors, delay rings, DSP owners and event seats are built in `prepare`.
+//! A changed rack is retired with its containing PlanState on the control side.
+use windfall_dsp::rack_note::{EnvelopeDestination, NoteSequence, RackNote, RackNoteModule};
+use windfall_dsp::{
+    AnyEffect, AnyInstrument, EffectParams, EffectSlot, InstrumentParams, NoteExpression,
+    NoteInstanceId,
+};
+use windfall_project::rack::*;
+
+const MAX_OWNERS: usize = 1024;
+const MAX_GENERATORS: usize = 64;
+const MAX_FLAT_EDGES: usize = 1024;
+
+struct FlatNode {
+    processor: RackProcessor,
+    muted: bool,
+    solo: bool,
+    root: bool,
+}
+struct FlatEdge {
+    from: usize,
+    to: usize,
+    port: u16,
+    signal: RackSignal,
+    gain: f32,
+    parameter: Option<usize>,
+}
+#[derive(Default)]
+struct Boundary {
+    audio_in: Vec<usize>,
+    audio_out: Vec<usize>,
+    note_in: Vec<usize>,
+    note_out: Vec<usize>,
+    control_in: Vec<usize>,
+    control_out: Vec<usize>,
+}
+struct Flat {
+    nodes: Vec<FlatNode>,
+    edges: Vec<FlatEdge>,
+}
+impl Flat {
+    fn add(
+        &mut self,
+        graph: &RackGraph,
+        root: bool,
+        muted: bool,
+        solo: bool,
+    ) -> Result<Boundary, String> {
+        let mut places: Vec<Boundary> = Vec::new();
+        let mut boundary = Boundary::default();
+        for node in &graph.nodes {
+            let own = if let RackProcessor::Rack { graph } = &node.processor {
+                self.add(graph, false, muted || node.muted, solo || node.solo)?
+            } else {
+                let index = self.nodes.len();
+                self.nodes.push(FlatNode {
+                    processor: node.processor.clone(),
+                    muted: muted || node.muted,
+                    solo: solo || node.solo,
+                    root,
+                });
+                let mut own = Boundary::default();
+                if node.processor.port(AUDIO_IN, false).is_some() {
+                    own.audio_in.push(index);
+                }
+                if node.processor.port(AUDIO_OUT, true).is_some() {
+                    own.audio_out.push(index);
+                }
+                if node.processor.port(NOTE_IN, false).is_some() {
+                    own.note_in.push(index);
+                }
+                if node.processor.port(NOTE_OUT, true).is_some() {
+                    own.note_out.push(index);
+                }
+                if node.processor.port(CONTROL_IN, false).is_some() {
+                    own.control_in.push(index);
+                }
+                if node.processor.port(CONTROL_OUT, true).is_some() {
+                    own.control_out.push(index);
+                }
+                if matches!(node.processor, RackProcessor::AudioInput) {
+                    boundary.audio_in.push(index);
+                }
+                if matches!(node.processor, RackProcessor::AudioOutput) {
+                    boundary.audio_out.push(index);
+                }
+                if matches!(node.processor, RackProcessor::NoteInput) {
+                    boundary.note_in.push(index);
+                }
+                if matches!(node.processor, RackProcessor::NoteOutput) {
+                    boundary.note_out.push(index);
+                }
+                own
+            };
+            places.push(own);
+        }
+        for edge in &graph.edges {
+            let from = graph
+                .nodes
+                .iter()
+                .position(|node| node.id == edge.from.node)
+                .ok_or("Missing rack source")?;
+            let to = graph
+                .nodes
+                .iter()
+                .position(|node| node.id == edge.to.node)
+                .ok_or("Missing rack destination")?;
+            let signal = graph.nodes[from]
+                .processor
+                .port(edge.from.port, true)
+                .ok_or("Missing rack port")?;
+            let (sources, targets) = match signal {
+                RackSignal::Audio => (&places[from].audio_out, &places[to].audio_in),
+                RackSignal::Note => (&places[from].note_out, &places[to].note_in),
+                RackSignal::Control => (&places[from].control_out, &places[to].control_in),
+            };
+            for &source in sources {
+                for &target in targets {
+                    self.edges.push(FlatEdge {
+                        from: source,
+                        to: target,
+                        port: edge.from.port,
+                        signal,
+                        gain: edge.gain,
+                        parameter: edge
+                            .parameter
+                            .as_deref()
+                            .and_then(|id| graph.nodes[to].processor.parameter_index(id)),
+                    });
+                    if self.edges.len() > MAX_FLAT_EDGES {
+                        return Err("Flattened rack exceeds 1024 wires".into());
+                    }
+                }
+            }
+        }
+        Ok(boundary)
+    }
+    fn order(&self) -> Result<Vec<usize>, String> {
+        let mut out = Vec::with_capacity(self.nodes.len());
+        let mut done = vec![false; self.nodes.len()];
+        while let Some(index) = (0..self.nodes.len()).find(|&index| {
+            !done[index]
+                && self
+                    .edges
+                    .iter()
+                    .filter(|edge| edge.to == index)
+                    .all(|edge| done[edge.from])
+        }) {
+            done[index] = true;
+            out.push(index);
+        }
+        if out.len() != self.nodes.len() {
+            Err("Flattened rack cycle".into())
+        } else {
+            Ok(out)
+        }
+    }
+}
+
+enum Unit {
+    Bus,
+    Control {
+        value: f32,
+        index: Option<u8>,
+    },
+    Instrument {
+        dsp: AnyInstrument,
+        params: InstrumentParams,
+    },
+    Effect {
+        dsp: EffectSlot,
+        params: EffectParams,
+    },
+    Note(RackNoteModule),
+}
+struct Node {
+    unit: Unit,
+    muted: bool,
+    root_audio: bool,
+    root_note: bool,
+}
+struct Ring {
+    data: Box<[[f32; 2]]>,
+    at: usize,
+}
+impl Ring {
+    fn new(delay: usize) -> Self {
+        Self {
+            data: vec![[0.0; 2]; delay].into_boxed_slice(),
+            at: 0,
+        }
+    }
+    fn frame(&mut self, input: [f32; 2]) -> [f32; 2] {
+        if self.data.is_empty() {
+            return input;
+        }
+        let out = self.data[self.at];
+        self.data[self.at] = input;
+        self.at += 1;
+        if self.at == self.data.len() {
+            self.at = 0;
+        }
+        out
+    }
+    fn reset(&mut self) {
+        self.data.fill([0.0; 2]);
+        self.at = 0;
+    }
+}
+struct Edge {
+    from: usize,
+    to: usize,
+    port: u16,
+    signal: RackSignal,
+    gain: f32,
+    parameter: Option<usize>,
+    delay: Ring,
+}
+#[derive(Clone, Copy)]
+struct Owner {
+    active: bool,
+    parent: NoteInstanceId,
+    child: NoteInstanceId,
+    node: usize,
+    note: RackNote,
+    age: u64,
+    release_age: Option<u64>,
+    release_level: f32,
+    end: u64,
+}
+impl Owner {
+    const EMPTY: Self = Self {
+        active: false,
+        parent: NoteInstanceId(0),
+        child: NoteInstanceId(0),
+        node: 0,
+        note: RackNote {
+            key: 0,
+            velocity: 0.0,
+            pan: 0.0,
+            expression: NoteExpression::NEUTRAL,
+            channel: 0,
+            envelope: None,
+        },
+        age: 0,
+        release_age: None,
+        release_level: 0.0,
+        end: u64::MAX,
+    };
+}
+#[derive(Clone, Copy)]
+struct Generator {
+    active: bool,
+    parent: NoteInstanceId,
+    node: usize,
+    note: RackNote,
+    params: NoteSequence,
+    phase: f64,
+    step: u64,
+}
+impl Generator {
+    const EMPTY: Self = Self {
+        active: false,
+        parent: NoteInstanceId(0),
+        node: 0,
+        note: Owner::EMPTY.note,
+        params: NoteSequence {
+            grid: windfall_dsp::notemap::StepGridParams {
+                steps_per_beat: 4,
+                steps: [windfall_dsp::notemap::GridStep {
+                    gate: true,
+                    pitch_offset: 0,
+                    velocity_scale: 1.0,
+                }; 16],
+            },
+            length: 16,
+            gate: 0.5,
+            octaves: 1,
+        },
+        phase: 0.0,
+        step: 0,
+    };
+}
+#[derive(Clone, Copy)]
+struct Event {
+    node: usize,
+    parent: NoteInstanceId,
+    note: RackNote,
+    duration: u64,
+}
+impl Event {
+    const EMPTY: Self = Self {
+        node: 0,
+        parent: NoteInstanceId(0),
+        note: Owner::EMPTY.note,
+        duration: u64::MAX,
+    };
+}
+
+/// A prepared rack owns all callback storage. Overflow increments `rejected`
+/// and refuses the new event; it never steals an unrelated held occurrence.
+pub struct ModularRack {
+    nodes: Vec<Node>,
+    edges: Vec<Edge>,
+    order: Vec<usize>,
+    outputs: Vec<(usize, Ring)>,
+    owners: Box<[Owner]>,
+    generators: Box<[Generator]>,
+    queue: Box<[Event]>,
+    next_id: u64,
+    sample_rate: f64,
+    tempo: f64,
+    latency: usize,
+    rejected: u64,
+}
+impl ModularRack {
+    pub fn prepare(graph: &RackGraph, sample_rate: u32, tempo: f64) -> Result<Self, String> {
+        graph.check()?;
+        if !(8_000..=384_000).contains(&sample_rate) || !tempo.is_finite() || tempo <= 0.0 {
+            return Err("Invalid rack sample rate or tempo".into());
+        }
+        let mut flat = Flat {
+            nodes: Vec::new(),
+            edges: Vec::new(),
+        };
+        let boundary = flat.add(graph, true, false, false)?;
+        let order = flat.order()?;
+        let any_solo = flat.nodes.iter().any(|node| node.solo);
+        let mut audible: Vec<bool> = flat
+            .nodes
+            .iter()
+            .map(|node| node.solo || !any_solo)
+            .collect();
+        if any_solo {
+            let mut upstream = audible.clone();
+            let mut downstream = audible.clone();
+            for _ in 0..flat.nodes.len() {
+                for edge in &flat.edges {
+                    if upstream[edge.to] {
+                        upstream[edge.from] = true;
+                    }
+                    if downstream[edge.from] {
+                        downstream[edge.to] = true;
+                    }
+                }
+            }
+            for index in 0..audible.len() {
+                audible[index] = upstream[index] || downstream[index];
+            }
+        }
+        let nodes: Vec<Node> = flat
+            .nodes
+            .iter()
+            .enumerate()
+            .map(|(index, node)| {
+                let unit = match &node.processor {
+                    RackProcessor::Instrument { params } => {
+                        let mut dsp = AnyInstrument::new(params);
+                        dsp.prepare(sample_rate as f32, 1);
+                        dsp.set_params(params);
+                        dsp.set_tempo(tempo as f32);
+                        Unit::Instrument {
+                            dsp,
+                            params: *params,
+                        }
+                    }
+                    RackProcessor::Effect { params, mix } => {
+                        let mut dsp = EffectSlot::new(AnyEffect::new(params));
+                        dsp.prepare(sample_rate as f32, 1);
+                        dsp.set_params(params);
+                        dsp.set_tempo(tempo as f32);
+                        dsp.set_mix(*mix);
+                        dsp.set_enabled(!node.muted);
+                        Unit::Effect {
+                            dsp,
+                            params: *params,
+                        }
+                    }
+                    RackProcessor::Note { module } => Unit::Note(*module),
+                    RackProcessor::ControlInput { value, index } => Unit::Control {
+                        value: *value,
+                        index: node.root.then_some(*index),
+                    },
+                    _ => Unit::Bus,
+                };
+                Node {
+                    unit,
+                    muted: node.muted || !audible[index],
+                    root_audio: node.root && matches!(node.processor, RackProcessor::AudioInput),
+                    root_note: node.root && matches!(node.processor, RackProcessor::NoteInput),
+                }
+            })
+            .collect();
+        let mut arrival = vec![0usize; nodes.len()];
+        let mut input_latency = vec![0usize; nodes.len()];
+        for &index in &order {
+            input_latency[index] = flat
+                .edges
+                .iter()
+                .filter(|edge| edge.to == index && edge.signal == RackSignal::Audio)
+                .map(|edge| arrival[edge.from])
+                .max()
+                .unwrap_or(0);
+            let own = match &nodes[index].unit {
+                Unit::Instrument { dsp, .. } => dsp.latency_samples(),
+                Unit::Effect { dsp, .. } => dsp.latency_samples(),
+                _ => 0,
+            };
+            arrival[index] = input_latency[index].saturating_add(own);
+        }
+        let latency = boundary
+            .audio_out
+            .iter()
+            .map(|&index| arrival[index])
+            .max()
+            .unwrap_or(0);
+        if latency > sample_rate as usize {
+            return Err("Rack latency exceeds one second".into());
+        }
+        let frames = boundary
+            .audio_out
+            .iter()
+            .map(|&index| latency.saturating_sub(arrival[index]))
+            .sum::<usize>()
+            + flat
+                .edges
+                .iter()
+                .filter(|edge| edge.signal == RackSignal::Audio)
+                .map(|edge| input_latency[edge.to].saturating_sub(arrival[edge.from]))
+                .sum::<usize>();
+        if frames > sample_rate as usize * 16 || frames > 1024 * 1024 {
+            return Err("Rack compensation storage exceeds 16 seconds of stereo frames".into());
+        }
+        let edges = flat
+            .edges
+            .into_iter()
+            .map(|edge| Edge {
+                from: edge.from,
+                to: edge.to,
+                port: edge.port,
+                signal: edge.signal,
+                gain: edge.gain,
+                parameter: edge.parameter,
+                delay: Ring::new(if edge.signal == RackSignal::Audio {
+                    input_latency[edge.to].saturating_sub(arrival[edge.from])
+                } else {
+                    0
+                }),
+            })
+            .collect();
+        let outputs = boundary
+            .audio_out
+            .into_iter()
+            .map(|index| (index, Ring::new(latency - arrival[index])))
+            .collect();
+        Ok(Self {
+            nodes,
+            edges,
+            order,
+            outputs,
+            owners: vec![Owner::EMPTY; MAX_OWNERS].into_boxed_slice(),
+            generators: vec![Generator::EMPTY; MAX_GENERATORS].into_boxed_slice(),
+            queue: vec![Event::EMPTY; MAX_RACK_EVENTS].into_boxed_slice(),
+            next_id: 0,
+            sample_rate: f64::from(sample_rate),
+            tempo,
+            latency,
+            rejected: 0,
+        })
+    }
+    pub fn latency_samples(&self) -> usize {
+        self.latency
+    }
+    pub fn rejected_events(&self) -> u64 {
+        self.rejected
+    }
+    pub fn active_voices(&self) -> usize {
+        self.nodes
+            .iter()
+            .map(|node| match &node.unit {
+                Unit::Instrument { dsp, .. } => dsp.active_voices(),
+                _ => 0,
+            })
+            .sum()
+    }
+    pub fn tail_samples(&self) -> usize {
+        self.nodes
+            .iter()
+            .map(|node| match &node.unit {
+                Unit::Instrument { dsp, .. } => dsp.tail_samples(),
+                Unit::Effect { dsp, .. } => dsp.tail_samples(),
+                _ => 0,
+            })
+            .fold(0usize, usize::saturating_add)
+    }
+    pub fn set_tempo(&mut self, tempo: f64) {
+        if !tempo.is_finite() || tempo <= 0.0 {
+            return;
+        }
+        self.tempo = tempo.clamp(1.0, 1000.0);
+        for node in &mut self.nodes {
+            match &mut node.unit {
+                Unit::Instrument { dsp, .. } => dsp.set_tempo(self.tempo as f32),
+                Unit::Effect { dsp, .. } => dsp.set_tempo(self.tempo as f32),
+                _ => {}
+            }
+        }
+    }
+    pub fn set_control(&mut self, index: usize, value: f32) {
+        if !value.is_finite() {
+            return;
+        }
+        for node in &mut self.nodes {
+            if let Unit::Control {
+                index: Some(control),
+                value: stored,
+            } = &mut node.unit
+            {
+                if usize::from(*control) == index {
+                    *stored = value.clamp(0.0, 1.0);
+                }
+            }
+        }
+    }
+    pub fn note_on(&mut self, parent: NoteInstanceId, note: RackNote) {
+        if !note.velocity.is_finite() || note.velocity <= 0.0 {
+            return;
+        }
+        let mut len = 0;
+        for index in 0..self.nodes.len() {
+            if self.nodes[index].root_note {
+                self.enqueue(
+                    &mut len,
+                    Event {
+                        node: index,
+                        parent,
+                        note,
+                        duration: u64::MAX,
+                    },
+                );
+            }
+        }
+        self.dispatch(len);
+    }
+    fn enqueue(&mut self, len: &mut usize, event: Event) {
+        if *len < self.queue.len() {
+            self.queue[*len] = event;
+            *len += 1;
+        } else {
+            self.rejected = self.rejected.saturating_add(1);
+        }
+    }
+    fn successors(&mut self, len: &mut usize, event: Event) {
+        for index in 0..self.edges.len() {
+            let edge = &self.edges[index];
+            if edge.from != event.node
+                || edge.signal != RackSignal::Note
+                || edge.port != NOTE_OUT
+                    && edge.port != NOTE_CHANNEL_BASE + u16::from(event.note.channel)
+            {
+                continue;
+            }
+            let next = Event {
+                node: edge.to,
+                note: RackNote {
+                    velocity: (event.note.velocity * edge.gain).clamp(0.0, 1.0),
+                    ..event.note
+                },
+                ..event
+            };
+            self.enqueue(len, next);
+        }
+    }
+    fn dispatch(&mut self, mut len: usize) {
+        let mut at = 0;
+        while at < len {
+            let event = self.queue[at];
+            at += 1;
+            if self.nodes[event.node].muted || event.note.velocity <= 0.0 {
+                continue;
+            }
+            match &self.nodes[event.node].unit {
+                Unit::Note(RackNoteModule::Sequencer { params }) => {
+                    let params = *params;
+                    if let Some(slot) = self
+                        .generators
+                        .iter_mut()
+                        .find(|generator| !generator.active)
+                    {
+                        *slot = Generator {
+                            active: true,
+                            parent: event.parent,
+                            node: event.node,
+                            note: event.note,
+                            params,
+                            phase: 0.0,
+                            step: 0,
+                        };
+                    } else {
+                        self.rejected = self.rejected.saturating_add(1);
+                    }
+                }
+                Unit::Note(module) => {
+                    let module = *module;
+                    let mut out = [RackNote::default(); 4];
+                    let count = module.map(event.note, &mut out);
+                    for note in out.into_iter().take(count) {
+                        self.successors(&mut len, Event { note, ..event });
+                    }
+                }
+                Unit::Instrument { .. } => self.admit(event),
+                _ => self.successors(&mut len, event),
+            }
+        }
+    }
+    fn admit(&mut self, event: Event) {
+        let Some(slot) = self.owners.iter().position(|owner| !owner.active) else {
+            self.rejected = self.rejected.saturating_add(1);
+            return;
+        };
+        self.next_id = self.next_id.wrapping_add(1).max(1);
+        let child = NoteInstanceId(self.next_id);
+        self.owners[slot] = Owner {
+            active: true,
+            parent: event.parent,
+            child,
+            node: event.node,
+            note: event.note,
+            age: 0,
+            release_age: None,
+            release_level: 0.0,
+            end: event.duration,
+        };
+        if let Unit::Instrument { dsp, .. } = &mut self.nodes[event.node].unit {
+            dsp.note_on_instance(
+                child,
+                event.note.key,
+                event.note.velocity,
+                event.note.pan,
+                event.note.expression,
+            );
+            if event
+                .note
+                .envelope
+                .is_some_and(|envelope| envelope.destination == EnvelopeDestination::Gain)
+            {
+                dsp.set_note_gain(child, 0.0);
+            }
+        }
+    }
+    pub fn note_off(&mut self, parent: NoteInstanceId) {
+        for generator in &mut self.generators {
+            if generator.active && generator.parent == parent {
+                generator.active = false;
+            }
+        }
+        for index in 0..self.owners.len() {
+            if self.owners[index].active && self.owners[index].parent == parent {
+                self.release(index);
+            }
+        }
+    }
+    fn release(&mut self, index: usize) {
+        let owner = self.owners[index];
+        if owner.release_age.is_some() {
+            return;
+        }
+        if let Some(envelope) = owner
+            .note
+            .envelope
+            .filter(|envelope| envelope.release_ms > 0.0)
+        {
+            self.owners[index].release_age = Some(0);
+            self.owners[index].release_level = envelope.level(owner.age as f64 / self.sample_rate);
+        } else {
+            self.finish(index);
+        }
+    }
+    fn finish(&mut self, index: usize) {
+        let owner = self.owners[index];
+        self.owners[index].active = false;
+        if let Unit::Instrument { dsp, .. } = &mut self.nodes[owner.node].unit {
+            dsp.note_off_instance(owner.child, owner.note.key);
+        }
+    }
+    pub fn set_note_expression(
+        &mut self,
+        parent: NoteInstanceId,
+        pan: f32,
+        expression: NoteExpression,
+    ) {
+        for owner in &mut self.owners {
+            if owner.active && owner.parent == parent {
+                // Keep mapped pitch/properties and routing. Updates are offsets
+                // from the input, delivered by the host's expression map.
+                owner.note.pan = pan.clamp(-1.0, 1.0);
+                owner.note.expression.modulation_x = expression.modulation_x;
+                owner.note.expression.modulation_y = expression.modulation_y;
+                owner.note.expression.release = expression.release;
+                if let Unit::Instrument { dsp, .. } = &mut self.nodes[owner.node].unit {
+                    dsp.set_note_expression(owner.child, owner.note.pan, owner.note.expression);
+                }
+            }
+        }
+    }
+    pub fn set_note_pitch_offset(&mut self, parent: NoteInstanceId, offset: f32) {
+        for owner in &mut self.owners {
+            if owner.active && owner.parent == parent {
+                if let Unit::Instrument { dsp, .. } = &mut self.nodes[owner.node].unit {
+                    dsp.set_note_pitch(
+                        owner.child,
+                        f32::from(owner.note.key)
+                            + owner.note.expression.fine_pitch_cents / 100.0
+                            + offset,
+                    );
+                }
+            }
+        }
+    }
+    pub fn all_notes_off(&mut self) {
+        self.generators.fill(Generator::EMPTY);
+        for index in 0..self.owners.len() {
+            if self.owners[index].active {
+                self.finish(index);
+            }
+        }
+    }
+    pub fn reset(&mut self) {
+        self.all_notes_off();
+        self.owners.fill(Owner::EMPTY);
+        for node in &mut self.nodes {
+            match &mut node.unit {
+                Unit::Instrument { dsp, .. } => dsp.reset(),
+                Unit::Effect { dsp, .. } => dsp.reset(),
+                _ => {}
+            }
+        }
+        for edge in &mut self.edges {
+            edge.delay.reset();
+        }
+        for (_, delay) in &mut self.outputs {
+            delay.reset();
+        }
+    }
+    fn generate(&mut self) {
+        for index in 0..self.generators.len() {
+            let before = self.generators[index];
+            if !before.active {
+                continue;
+            }
+            if before.phase <= 1.0e-12 {
+                let step = before.params.grid.steps
+                    [(before.step % u64::from(before.params.length)) as usize];
+                if step.gate {
+                    let octave = ((before.step / u64::from(before.params.length))
+                        % u64::from(before.params.octaves)) as i16
+                        * 12;
+                    let note = RackNote {
+                        key: (i16::from(before.note.key) + step.pitch_offset + octave).clamp(0, 127)
+                            as u8,
+                        velocity: (before.note.velocity * step.velocity_scale).clamp(0.0, 1.0),
+                        ..before.note
+                    };
+                    let duration = (60.0 * self.sample_rate
+                        / (self.tempo * f64::from(before.params.grid.steps_per_beat))
+                        * f64::from(before.params.gate))
+                    .round()
+                    .max(1.0) as u64;
+                    let mut len = 0;
+                    self.successors(
+                        &mut len,
+                        Event {
+                            node: before.node,
+                            parent: before.parent,
+                            note,
+                            duration,
+                        },
+                    );
+                    self.dispatch(len);
+                }
+                self.generators[index].step = before.step.wrapping_add(1);
+                self.generators[index].phase += 1.0;
+            }
+            self.generators[index].phase -= self.tempo
+                * f64::from(before.params.grid.steps_per_beat)
+                / (60.0 * self.sample_rate);
+        }
+    }
+    fn envelopes(&mut self) {
+        for index in 0..self.owners.len() {
+            let before = self.owners[index];
+            if !before.active {
+                continue;
+            }
+            if before.age >= before.end && before.release_age.is_none() {
+                self.release(index);
+            }
+            let owner = self.owners[index];
+            if !owner.active {
+                continue;
+            }
+            if let Some(envelope) = owner.note.envelope {
+                let level = if let Some(age) = owner.release_age {
+                    let length = f64::from(envelope.release_ms) * self.sample_rate / 1000.0;
+                    if age as f64 >= length {
+                        self.finish(index);
+                        continue;
+                    }
+                    self.owners[index].release_age = Some(age + 1);
+                    owner.release_level * (1.0 - age as f64 / length) as f32
+                } else {
+                    envelope.level(owner.age as f64 / self.sample_rate)
+                };
+                if let Unit::Instrument { dsp, .. } = &mut self.nodes[owner.node].unit {
+                    let mut expression = owner.note.expression;
+                    match envelope.destination {
+                        EnvelopeDestination::Gain => dsp.set_note_gain(
+                            owner.child,
+                            (1.0 - envelope.amount.abs() + level * envelope.amount.abs()).max(0.0),
+                        ),
+                        EnvelopeDestination::Pan => dsp.set_note_expression(
+                            owner.child,
+                            (owner.note.pan + level * envelope.amount).clamp(-1.0, 1.0),
+                            expression,
+                        ),
+                        EnvelopeDestination::Pitch => dsp.set_note_pitch(
+                            owner.child,
+                            f32::from(owner.note.key)
+                                + expression.fine_pitch_cents / 100.0
+                                + level * envelope.amount * 12.0,
+                        ),
+                        EnvelopeDestination::ModulationX => {
+                            expression.modulation_x =
+                                (expression.modulation_x + level * envelope.amount).clamp(0.0, 1.0);
+                            dsp.set_note_expression(owner.child, owner.note.pan, expression);
+                        }
+                        EnvelopeDestination::ModulationY => {
+                            expression.modulation_y =
+                                (expression.modulation_y + level * envelope.amount).clamp(0.0, 1.0);
+                            dsp.set_note_expression(owner.child, owner.note.pan, expression);
+                        }
+                    }
+                }
+            }
+            self.owners[index].age = owner.age.saturating_add(1);
+        }
+    }
+    /// Input/output may alias. The same frame loop handles live and render.
+    pub fn process(&mut self, left: &mut [f32], right: &mut [f32]) {
+        for frame in 0..left.len().min(right.len()) {
+            self.generate();
+            self.envelopes();
+            let input = [left[frame], right[frame]];
+            let mut audio = [[0.0f32; 2]; MAX_RACK_NODES];
+            for &index in &self.order {
+                let mut sample = if self.nodes[index].root_audio {
+                    input
+                } else {
+                    [0.0; 2]
+                };
+                for edge in &mut self.edges {
+                    if edge.to != index {
+                        continue;
+                    }
+                    if edge.signal == RackSignal::Audio {
+                        let source = edge.delay.frame(audio[edge.from]);
+                        sample[0] += source[0] * edge.gain;
+                        sample[1] += source[1] * edge.gain;
+                    } else if edge.signal == RackSignal::Control {
+                        let value = match self.nodes[edge.from].unit {
+                            Unit::Control { value, .. } => value,
+                            _ => 0.0,
+                        };
+                        if let Some(parameter) = edge.parameter {
+                            match &mut self.nodes[index].unit {
+                                Unit::Instrument { dsp, params } => {
+                                    let info = &params.kind().descriptors()[parameter];
+                                    let value = windfall_project::AutomationRange::of_param(info)
+                                        .value((value * edge.gain).clamp(0.0, 1.0));
+                                    if params.get(parameter) != Some(value) {
+                                        params.set(parameter, value);
+                                        dsp.set_params(params);
+                                    }
+                                }
+                                Unit::Effect { dsp, params } => {
+                                    let info = &params.kind().descriptors()[parameter];
+                                    let value = windfall_project::AutomationRange::of_param(info)
+                                        .value((value * edge.gain).clamp(0.0, 1.0));
+                                    if params.get(parameter) != Some(value) {
+                                        params.set(parameter, value);
+                                        dsp.set_params(params);
+                                    }
+                                }
+                                _ => {}
+                            }
+                        }
+                    }
+                }
+                let mut l = [sample[0]];
+                let mut r = [sample[1]];
+                match &mut self.nodes[index].unit {
+                    Unit::Instrument { dsp, .. } => {
+                        l[0] = 0.0;
+                        r[0] = 0.0;
+                        dsp.process(&mut l, &mut r);
+                    }
+                    Unit::Effect { dsp, .. } => dsp.process(&mut l, &mut r),
+                    _ => {}
+                }
+                if self.nodes[index].muted {
+                    l[0] = 0.0;
+                    r[0] = 0.0;
+                }
+                audio[index] = [l[0], r[0]];
+            }
+            let mut out = [0.0f32; 2];
+            for (index, delay) in &mut self.outputs {
+                let sample = delay.frame(audio[*index]);
+                out[0] += sample[0];
+                out[1] += sample[1];
+            }
+            left[frame] = if out[0].is_finite() { out[0] } else { 0.0 };
+            right[frame] = if out[1].is_finite() { out[1] } else { 0.0 };
+        }
+    }
+}

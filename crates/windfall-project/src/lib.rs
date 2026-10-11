@@ -79,3 +79,5 @@ pub use project_settings::PanLaw;
 pub mod score;
 pub use score::{Score, ScoreLoadMode, ScoreNote};
 pub mod timebase;
+pub mod rack;
+pub use rack::{ChannelRack, RackEdge, RackEndpoint, RackGraph, RackNode, RackPreset, RackProcessor};
