@@ -406,8 +406,10 @@ pub fn links_problem(project: &Project, links: &[ControllerLink]) -> Option<Stri
                         }
                     }
                     AutomationTarget::SendGain { target, .. } => Some(target),
-                    // The follower reads main input, never the sidechain detector bus.
-                    AutomationTarget::SidechainGain { .. } | AutomationTarget::Tempo => None,
+                    // A changed detector send can alter a compressor ahead of
+                    // the follower, so include that indirect audio dependency.
+                    AutomationTarget::SidechainGain { target, .. } => Some(target),
+                    AutomationTarget::Tempo => None,
                 };
                 if affected.is_some_and(|from| {
                     audio_reaches(project, from, detector_track.id, &mut Vec::new())

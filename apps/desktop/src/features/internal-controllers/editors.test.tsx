@@ -106,6 +106,7 @@ it.each(["xyPad", "xyzPad"] satisfies EffectKind[])("pad %s axis edits are recor
   vi.stubGlobal("cancelAnimationFrame",() => {})
   const stopFeed = subscribeRealtime(() => undefined)
   const id = await open(kind)
+  await dispatch({type:"setEffectParam",track,effect:id,param:1,value:0.5})
   const recorded: number[] = []
   for (const param of [0,1]) {
     const result = await appBackend.automate({type:"effectParam",track,effect:id,param})
@@ -123,7 +124,7 @@ it.each(["xyPad", "xyzPad"] satisfies EffectKind[])("pad %s axis edits are recor
     fireEvent.keyDown(pad,{key:"ArrowUp"}); await act(settle)
     for (const automation of recorded) {
       const curve = useProjectStore.getState().project.automations.find((a) => a.id === automation)
-      expect(curve?.points).toContainEqual({tick:120,value:0.51,curve:0,hold:false})
+      expect(curve?.points).toContainEqual({tick:120,value:expect.closeTo(0.51,5),curve:0,hold:false})
     }
   } finally {
     useAutomationRecordStore.setState({recordArmed:false}); stopRecording(); stopFeed(); vi.unstubAllGlobals()

@@ -48,3 +48,5 @@ Registry seam review: new Command and effect parameter/processor variants are ap
 UI follow-up: destination menu now resolves both removal and source choices against the current document; internal Tempo shows its concrete disabled reason. Pad/drawn-envelope right-click opens context without moving values. Surface controls respect disabled bindings and slider gestures end on capture loss/blur/commit. Formula editor shows the installed expression while editing a draft.
 
 Mounted acceptance now arms the real automation recorder and checks X/Y keyboard edits for XY and XYZ pads write normalized points into actual document curves. Realtime transport delivery is simulated for this UI-only case. A right-click history regression case is also written. Not executed. Native simultaneous multi-axis recording remains an integrator acceptance check.
+
+Reference fixture review: mounted XYZ recording begins Y at 0.5 and allows f32 serialization tolerance. Sidechain-gain dependencies are conservatively included because they can alter upstream compressor audio seen by a peak source.
