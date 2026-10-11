@@ -234,6 +234,9 @@ impl PreparationSnapshot {
         if matches!(self.phase, StreamPhase::Starting | StreamPhase::Closing) {
             return Err(ProjectPreparationError::StreamTransitioning);
         }
+        if prepared.scratch_asset_refused() {
+            return Err(ProjectPreparationError::Unsupported("The scratch source exceeds the effect asset memory budget; restart to release retained sources."));
+        }
         let mut plan = prepared.plan;
         if plan.meters.is_err() {
             return Err(ProjectPreparationError::Unsupported(

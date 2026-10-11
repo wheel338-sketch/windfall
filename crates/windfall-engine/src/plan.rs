@@ -885,7 +885,14 @@ pub(crate) fn compile(project: &Project, pool: &SamplePool) -> Plan {
     };
     let swing = f64::from(unit(project.settings.swing));
 
-    let (tracks, order) = compile_mixer(&project.mixer);
+    let (mut tracks, order) = compile_mixer(&project.mixer);
+    for effect in tracks.iter_mut().flat_map(|track| &mut track.effects) {
+        if let EffectParams::Scratch(p) = &mut effect.params {
+            p.runtime_source = pool.get(windfall_project::SampleId(p.source_id))
+                .and_then(|audio| windfall_dsp::asset::publish_audio(audio).ok())
+                .unwrap_or(windfall_dsp::asset::SourceRef::NONE);
+        }
+    }
     let track_ids = IdIndex::new(tracks.iter().map(|track| track.id.0));
     let edge_count = tracks.iter().map(|track| track.edges.len()).sum();
 

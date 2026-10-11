@@ -83,6 +83,10 @@ fn any_effect_reports_what_it_holds_and_refuses_other_settings() {
                 | EffectKind::OneKnob
                 | EffectKind::BassHarmonics
                 | EffectKind::Exciter
+                | EffectKind::Waveshaper
+                | EffectKind::Overdrive
+                | EffectKind::GuitarRack
+                | EffectKind::DriveChain
                 | EffectKind::PerformanceRack
                 | EffectKind::Convolver
                 | EffectKind::FrequencyShifter

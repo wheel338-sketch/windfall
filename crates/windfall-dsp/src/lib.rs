@@ -48,6 +48,7 @@
 //! default.
 
 pub mod additive;
+pub mod asset;
 mod balance;
 pub mod blocks;
 mod channel_mute;

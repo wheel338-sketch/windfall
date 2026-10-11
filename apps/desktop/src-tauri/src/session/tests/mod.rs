@@ -49,6 +49,7 @@ mod timeline;
 mod transport_acceptance;
 mod versions;
 mod mastering_qa;
+mod nonlinear_performance;
 
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};

@@ -182,6 +182,9 @@ impl EffectUnit {
         }
     }
     pub fn plugin_transport(&mut self, transport: crate::plugins::PluginTransport) {
+        if self.external.is_none() {
+            self.slot.set_transport(transport.playing, transport.position_beats);
+        }
         if let Some(external) = &mut self.external
             && let Some(unit) = &mut external.unit
         {

@@ -120,6 +120,10 @@ pub trait Effect: Send {
         let _ = bpm;
     }
 
+    /// Musical position of the next frame. Default keeps a processor's local
+    /// clock. Implementations must preserve history on ordinary block updates.
+    fn set_transport(&mut self, _playing: bool, _position_beats: f64) {}
+
     /// Processes one block in place. The two slices have the same length,
     /// which may be anything from 1 up.
     fn process(&mut self, left: &mut [f32], right: &mut [f32]);
@@ -528,10 +532,10 @@ impl EffectKind {
             }
             EffectKind::BassHarmonics => crate::multiband::HARMONICS_LATENCY_SAMPLES,
             EffectKind::Exciter => crate::multiband::HARMONICS_LATENCY_SAMPLES,
-            EffectKind::Waveshaper => 0,
-            EffectKind::Overdrive => 0,
-            EffectKind::GuitarRack => 0,
-            EffectKind::DriveChain => 0,
+            EffectKind::Waveshaper => crate::drive::DRIVE_LATENCY_SAMPLES,
+            EffectKind::Overdrive => crate::drive::DRIVE_LATENCY_SAMPLES,
+            EffectKind::GuitarRack => crate::drive::DRIVE_LATENCY_SAMPLES,
+            EffectKind::DriveChain => crate::drive::CHAIN_LATENCY_SAMPLES,
             EffectKind::VintageChorus => 0,
             EffectKind::HyperChorus => 0,
             EffectKind::VintagePhaser => 0,
@@ -1028,10 +1032,10 @@ impl EffectParams {
             }
             EffectParams::BassHarmonics(_) => crate::multiband::HARMONICS_LATENCY_SAMPLES,
             EffectParams::Exciter(_) => crate::multiband::HARMONICS_LATENCY_SAMPLES,
-            EffectParams::Waveshaper(_) => 0,
-            EffectParams::Overdrive(_) => 0,
-            EffectParams::GuitarRack(_) => 0,
-            EffectParams::DriveChain(_) => 0,
+            EffectParams::Waveshaper(_) => crate::drive::DRIVE_LATENCY_SAMPLES,
+            EffectParams::Overdrive(_) => crate::drive::DRIVE_LATENCY_SAMPLES,
+            EffectParams::GuitarRack(_) => crate::drive::DRIVE_LATENCY_SAMPLES,
+            EffectParams::DriveChain(_) => crate::drive::CHAIN_LATENCY_SAMPLES,
             EffectParams::VintageChorus(_) => 0,
             EffectParams::HyperChorus(_) => 0,
             EffectParams::VintagePhaser(_) => 0,
@@ -1585,6 +1589,10 @@ impl AnyEffect {
         each_effect!(self, effect => effect.set_tempo(bpm));
     }
 
+    pub fn set_transport(&mut self, playing: bool, position_beats: f64) {
+        each_effect!(self, effect => effect.set_transport(playing, position_beats));
+    }
+
     /// See [`Effect::process`].
     pub fn process(&mut self, left: &mut [f32], right: &mut [f32]) {
         each_effect!(self, effect => effect.process(left, right));
@@ -1941,6 +1949,10 @@ impl EffectSlot {
     /// See [`Effect::set_tempo`].
     pub fn set_tempo(&mut self, bpm: f32) {
         self.effect.set_tempo(bpm);
+    }
+
+    pub fn set_transport(&mut self, playing: bool, position_beats: f64) {
+        self.effect.set_transport(playing, position_beats);
     }
 
     pub fn effect(&self) -> &AnyEffect {

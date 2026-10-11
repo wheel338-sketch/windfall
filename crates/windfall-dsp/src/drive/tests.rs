@@ -28,29 +28,45 @@ fn difference(a: &[f32], b: &[f32]) -> f32 {
         .fold(0.0, f32::max)
 }
 
+/// `input` as a processor with the drive latency and no other change
+/// would put it out.
+fn late(input: &[f32]) -> Vec<f32> {
+    let mut output = vec![0.0; DRIVE_LATENCY_SAMPLES];
+    output.extend_from_slice(&input[..input.len() - DRIVE_LATENCY_SAMPLES]);
+    output
+}
+
 #[test]
 fn identity_waveshape_is_unity() {
     let input = sine(4_096, 0.35);
-    assert_eq!(
-        render::<Waveshaper>(WaveshaperParams::default(), &input),
-        input
-    );
-    let mut effect = Waveshaper::default();
-    effect.prepare(RATE, 3);
-    let mut tiny = [-1.0e-8, 0.0, 1.0e-8];
-    let mut right = tiny;
-    effect.process(&mut tiny, &mut right);
-    assert_eq!(tiny, [-1.0e-8, 0.0, 1.0e-8]);
+    // At the host rate the identity curve is the input itself, late.
+    let host_rate = WaveshaperParams {
+        oversampling: Oversampling::Off,
+        ..Default::default()
+    };
+    assert_eq!(render::<Waveshaper>(host_rate, &input), late(&input));
+    let mut tiny = [0.0; 40];
+    tiny[0] = -1.0e-8;
+    tiny[2] = 1.0e-8;
+    let output = render::<Waveshaper>(host_rate, &tiny);
+    assert_eq!(output[DRIVE_LATENCY_SAMPLES], -1.0e-8);
+    assert_eq!(output[DRIVE_LATENCY_SAMPLES + 1], 0.0);
+    assert_eq!(output[DRIVE_LATENCY_SAMPLES + 2], 1.0e-8);
+    // Oversampled, it is the input through two flat filters.
+    let output = render::<Waveshaper>(WaveshaperParams::default(), &input);
+    assert!(difference(&output[512..], &late(&input)[512..]) < 2.0e-3);
 }
 
 #[test]
 fn bent_curve_changes_amplitude_and_interpolates_knots() {
     let params = WaveshaperParams {
         curve: IDENTITY_CURVE.map(|x| x * 0.5),
+        oversampling: Oversampling::Off,
         ..Default::default()
     };
     let input = sine(4_096, 0.35);
     let output = render::<Waveshaper>(params, &input);
+    let input = late(&input);
     for (a, b) in output.iter().zip(&input) {
         assert!((a - b * 0.5).abs() < 2.0e-7);
     }
@@ -137,12 +153,22 @@ fn spring_has_a_delayed_tail_and_cabinet_attenuates_treble() {
     let slap = render::<GuitarRack>(
         GuitarRackParams {
             model: GuitarModel::SpringSlap,
+            oversampling: Oversampling::Off,
             ..Default::default()
         },
         &impulse,
     );
-    assert!(slap[1..1_776].iter().all(|x| *x == 0.0));
-    assert!(slap[1_776..].iter().any(|x| x.abs() > 0.001));
+    assert!(slap[..DRIVE_LATENCY_SAMPLES].iter().all(|x| *x == 0.0));
+    assert!(
+        slap[DRIVE_LATENCY_SAMPLES + 1..DRIVE_LATENCY_SAMPLES + 1_776]
+            .iter()
+            .all(|x| *x == 0.0)
+    );
+    assert!(
+        slap[DRIVE_LATENCY_SAMPLES + 1_776..]
+            .iter()
+            .any(|x| x.abs() > 0.001)
+    );
     let high: Vec<_> = (0..8_192)
         .map(|n| 0.3 * (std::f32::consts::TAU * 12_000.0 * n as f32 / RATE).sin())
         .collect();
@@ -183,18 +209,31 @@ fn gate_closes_on_quiet_audio_and_compressor_squashes_loud_audio() {
 fn drive_chain_order_changes_the_result_and_bypass_is_unity() {
     let input = sine(4_096, 0.65);
     assert_eq!(
-        render::<DriveChain>(DriveChainParams::default(), &input),
-        input
+        render::<DriveChain>(
+            DriveChainParams {
+                oversampling: Oversampling::Off,
+                ..Default::default()
+            },
+            &input
+        ),
+        {
+            let mut delayed = vec![0.0; CHAIN_LATENCY_SAMPLES];
+            delayed.extend_from_slice(&input[..input.len() - CHAIN_LATENCY_SAMPLES]);
+            delayed
+        }
     );
     let mut first = DriveChainParams {
+        oversampling: Oversampling::Off,
         stages: [
             DriveStageParams {
                 model: DriveStage::Overdrive,
                 gain_db: 12.0,
+                ..Default::default()
             },
             DriveStageParams {
                 model: DriveStage::Waveshape,
                 gain_db: 3.0,
+                ..Default::default()
             },
             DriveStageParams::default(),
         ],
@@ -204,7 +243,7 @@ fn drive_chain_order_changes_the_result_and_bypass_is_unity() {
     first.stages.swap(0, 1);
     let b = render::<DriveChain>(first, &input);
     assert!(difference(&a, &b) > 0.1);
-    for (x, y) in input.iter().zip(b) {
+    for (x, y) in input.iter().zip(&b[CHAIN_LATENCY_SAMPLES..]) {
         assert!((first.transfer(*x) - y).abs() < 1.0e-6);
     }
 }
@@ -251,6 +290,15 @@ fn partition_invariance_including_automation_and_model_retargeting() {
             input_db: 18.0,
             output_db: -9.0,
             curve: IDENTITY_CURVE.map(|x| x * x.abs()),
+            oversampling: Oversampling::X2,
+            mix: 0.7,
+            bipolar: false,
+            shape: crate::asset::ShapeRef::new(&[
+                crate::asset::CurvePoint::new(0.0, 0.0),
+                crate::asset::CurvePoint::new(0.4, 0.9),
+                crate::asset::CurvePoint::new(1.0, 0.6),
+            ])
+            .unwrap(),
         },
     );
     partition_check::<Overdrive>(
@@ -261,6 +309,9 @@ fn partition_invariance_including_automation_and_model_retargeting() {
             asymmetry: 1.0,
             emphasis: 1.0,
             output_db: -12.0,
+            pre_band_hz: 2_500.0,
+            hot: true,
+            oversampling: Oversampling::X8,
         },
     );
     for model in GuitarModel::ALL {
@@ -270,6 +321,7 @@ fn partition_invariance_including_automation_and_model_retargeting() {
                 model,
                 drive_db: 24.0,
                 output_db: -12.0,
+                ..Default::default()
             },
         );
     }
@@ -280,17 +332,21 @@ fn partition_invariance_including_automation_and_model_retargeting() {
                 DriveStageParams {
                     model: DriveStage::Fuzz,
                     gain_db: 12.0,
+                    ..Default::default()
                 },
                 DriveStageParams {
                     model: DriveStage::Overdrive,
                     gain_db: -3.0,
+                    ..Default::default()
                 },
                 DriveStageParams {
                     model: DriveStage::Waveshape,
                     gain_db: 6.0,
+                    ..Default::default()
                 },
             ],
             output_db: -6.0,
+            ..Default::default()
         },
     );
 }
@@ -404,6 +460,8 @@ fn damaged_parameters_extreme_audio_and_sample_rates_never_produce_nan() {
         input_db: f32::MAX,
         output_db: f32::INFINITY,
         curve: [f32::NAN; 33],
+        mix: f32::NAN,
+        ..Default::default()
     });
     finite::<Overdrive>(OverdriveParams {
         drive_db: f32::MAX,
@@ -411,12 +469,16 @@ fn damaged_parameters_extreme_audio_and_sample_rates_never_produce_nan() {
         asymmetry: f32::NAN,
         tone_hz: f32::MAX,
         output_db: f32::MAX,
+        pre_band_hz: f32::NAN,
+        hot: true,
+        ..Default::default()
     });
     for model in GuitarModel::ALL {
         finite::<GuitarRack>(GuitarRackParams {
             model,
             drive_db: f32::MAX,
             output_db: f32::MAX,
+            ..Default::default()
         });
     }
     for model in [
@@ -429,8 +491,10 @@ fn damaged_parameters_extreme_audio_and_sample_rates_never_produce_nan() {
             stages: [DriveStageParams {
                 model,
                 gain_db: f32::MAX,
+                ..Default::default()
             }; 3],
             output_db: f32::MAX,
+            ..Default::default()
         });
     }
 }

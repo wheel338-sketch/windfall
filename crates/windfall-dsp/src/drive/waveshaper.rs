@@ -1,5 +1,15 @@
-use crate::balance::{Controls, audio};
-use crate::blocks::math::db_to_gain;
+//! Distorts audio through a drawn input-to-output curve.
+//!
+//! The curve is either the 33 fixed knots every project has had, each of
+//! which is a control automation can move, or a freely drawn shape held as
+//! an immutable asset (`crate::asset`). The drawn shape wins when there is
+//! one. Either way the curve runs above the host rate.
+
+use super::oversample::{DRIVE_LATENCY_SAMPLES, Kernels, LatencyDelay, Oversampler, Oversampling};
+use crate::asset::{CurveAsset, ShapeRef};
+use crate::balance::{Controls, audio, rate};
+use crate::blocks::math::{db_to_gain, ms_to_samples};
+use crate::blocks::smooth::LinearRamp;
 use crate::effect::Effect;
 use crate::param::{ParamSet, param_set};
 use serde::{Deserialize, Serialize};
@@ -25,6 +35,19 @@ pub struct WaveshaperParams {
     #[serde(with = "curve_serde")]
     #[ts(as = "[f32; 33]")]
     pub curve: [f32; CURVE_POINTS],
+    /// Rate the curve runs at; default four times the host rate.
+    pub oversampling: Oversampling,
+    /// Share of the shaped signal in the output, 0..1; default 1. The dry
+    /// share is delayed to match.
+    pub mix: f32,
+    /// How a drawn shape is read. On, it spans inputs -1..1 left to right
+    /// and outputs -1..1 bottom to top. Off, it is drawn for the magnitude
+    /// only (0..1 both ways) and mirrored for negative input. Default on.
+    pub bipolar: bool,
+    /// A freely drawn curve. Empty means the 33 knots are the curve. It is
+    /// not a control: it is replaced as a whole with the settings.
+    #[ts(as = "Vec<crate::asset::CurvePoint>")]
+    pub shape: ShapeRef,
 }
 
 // Serde's built-in array implementations stop at 32. Persist exactly 33
@@ -76,6 +99,10 @@ impl Default for WaveshaperParams {
             input_db: 0.0,
             output_db: 0.0,
             curve: IDENTITY_CURVE,
+            oversampling: Oversampling::X4,
+            mix: 1.0,
+            bipolar: true,
+            shape: ShapeRef::NONE,
         }
     }
 }
@@ -116,6 +143,11 @@ param_set!(WaveshaperParams, "Waveshaper", {
     float [curve[30]] "curve.30" "Point 31" { None, Linear, -1.0, 1.0, IDENTITY_CURVE[30] }
     float [curve[31]] "curve.31" "Point 32" { None, Linear, -1.0, 1.0, IDENTITY_CURVE[31] }
     float [curve[32]] "curve.32" "Point 33" { None, Linear, -1.0, 1.0, IDENTITY_CURVE[32] }
+    choice [oversampling] "oversampling" "Quality" { Oversampling, X4, [
+        Off "off" "Off", X2 "x2" "2x", X4 "x4" "4x", X8 "x8" "8x"
+    ] }
+    float [mix] "mix" "Mix" { Fraction, Linear, 0.0, 1.0, 1.0 }
+    toggle [bipolar] "bipolar" "Bipolar" { true }
 });
 
 #[inline]
@@ -130,31 +162,99 @@ fn lookup(input: f32, curve: &[f32; CURVE_POINTS]) -> f32 {
     input + a + (b - a) * (position - index as f32)
 }
 
-impl WaveshaperParams {
-    pub fn transfer(&self, input: f32) -> f32 {
-        let p = self.sanitized();
-        audio(lookup(audio(input) * db_to_gain(p.input_db), &p.curve) * db_to_gain(p.output_db))
+/// Which curve is in force: a drawn shape and how it is read, or the knots.
+#[derive(Clone, Copy)]
+struct Curve {
+    shape: Option<&'static CurveAsset>,
+    bipolar: bool,
+}
+
+impl Curve {
+    const KNOTS: Self = Self {
+        shape: None,
+        bipolar: true,
+    };
+
+    fn of(params: &WaveshaperParams) -> Self {
+        Self {
+            shape: params.shape.asset(),
+            bipolar: params.bipolar,
+        }
+    }
+
+    fn same(&self, other: &Self) -> bool {
+        match (self.shape, other.shape) {
+            (Some(a), Some(b)) => std::ptr::eq(a, b) && self.bipolar == other.bipolar,
+            // The knots are read one way whatever the switch says.
+            (None, None) => true,
+            _ => false,
+        }
+    }
+
+    #[inline]
+    fn value(&self, input: f32, knots: &[f32; CURVE_POINTS]) -> f32 {
+        let input = input.clamp(-1.0, 1.0);
+        match self.shape {
+            None => lookup(input, knots),
+            Some(shape) if self.bipolar => shape.shaped(0.5 * (input + 1.0)) * 2.0 - 1.0,
+            Some(shape) => shape.shaped(input.abs()).copysign(input),
+        }
     }
 }
 
+impl WaveshaperParams {
+    /// The settled static curve: gains and the curve in force, without the
+    /// oversampling filters, the delay or the mix.
+    pub fn transfer(&self, input: f32) -> f32 {
+        let p = self.sanitized();
+        let driven = audio(input) * db_to_gain(p.input_db);
+        audio(Curve::of(&p).value(driven, &p.curve) * db_to_gain(p.output_db))
+    }
+}
+
+#[derive(Default)]
+struct Channel {
+    shaper: Oversampler,
+    dry: LatencyDelay,
+}
+
 pub struct Waveshaper {
-    controls: Controls<35>,
+    controls: Controls<36>,
+    channels: [Channel; 2],
+    kernels: Option<&'static Kernels>,
+    quality: Oversampling,
+    curve: Curve,
+    /// The curve being faded out of, and how far the fade to `curve` is.
+    previous: Curve,
+    arrival: LinearRamp,
+    fade_samples: u32,
+    /// Nothing has been processed since `prepare` or `reset`.
+    fresh: bool,
 }
 
 impl Default for Waveshaper {
     fn default() -> Self {
         Self {
             controls: Controls::new(Self::values(&WaveshaperParams::default())),
+            channels: Default::default(),
+            kernels: None,
+            quality: Oversampling::default(),
+            curve: Curve::KNOTS,
+            previous: Curve::KNOTS,
+            arrival: LinearRamp::new(1.0),
+            fade_samples: 240,
+            fresh: true,
         }
     }
 }
 
 impl Waveshaper {
-    fn values(p: &WaveshaperParams) -> [f32; 35] {
-        let mut values = [0.0; 35];
+    fn values(p: &WaveshaperParams) -> [f32; 36] {
+        let mut values = [0.0; 36];
         values[0] = db_to_gain(p.input_db);
         values[1] = db_to_gain(p.output_db);
-        values[2..].copy_from_slice(&p.curve);
+        values[2..35].copy_from_slice(&p.curve);
+        values[35] = p.mix;
         values
     }
 }
@@ -162,20 +262,79 @@ impl Waveshaper {
 impl Effect for Waveshaper {
     type Params = WaveshaperParams;
     fn prepare(&mut self, sample_rate: f32, _max_block: usize) {
+        let sample_rate = rate(sample_rate);
+        self.kernels = Some(Kernels::shared());
         self.controls.prepare(sample_rate);
+        self.fade_samples = ms_to_samples(5.0, sample_rate);
+        self.reset();
     }
     fn reset(&mut self) {
         self.controls.reset();
+        for channel in &mut self.channels {
+            channel.shaper.reset();
+            channel.dry.reset();
+        }
+        self.previous = self.curve;
+        self.arrival.snap(1.0);
+        self.fresh = true;
     }
     fn set_params(&mut self, params: &Self::Params) {
-        self.controls.set(Self::values(&params.sanitized()));
+        let p = params.sanitized();
+        self.controls.set(Self::values(&p));
+        self.quality = p.oversampling;
+        for channel in &mut self.channels {
+            channel.shaper.set_quality(self.quality, self.fresh);
+        }
+        let curve = Curve::of(&p);
+        if !curve.same(&self.curve) {
+            if self.fresh {
+                self.previous = curve;
+                self.arrival.snap(1.0);
+            } else {
+                self.previous = self.curve;
+                self.arrival.snap(0.0);
+                self.arrival.set_target(1.0, self.fade_samples);
+            }
+        }
+        self.curve = curve;
     }
     fn process(&mut self, left: &mut [f32], right: &mut [f32]) {
+        self.fresh = false;
         for (l, r) in left.iter_mut().zip(right) {
             let values = self.controls.tick();
-            let curve = std::array::from_fn(|i| values[i + 2]);
-            *l = audio(lookup(audio(*l) * values[0], &curve) * values[1]);
-            *r = audio(lookup(audio(*r) * values[0], &curve) * values[1]);
+            let knots: [f32; CURVE_POINTS] = std::array::from_fn(|i| values[i + 2]);
+            let arrived = self.arrival.tick();
+            let (curve, previous) = (self.curve, self.previous);
+            let (kernels, mix) = (self.kernels, values[35]);
+            for (channel, sample) in self.channels.iter_mut().zip([l, r]) {
+                let input = audio(*sample);
+                let dry = channel.dry.tick(input);
+                let shaped = channel.shaper.tick(kernels, input * values[0], |x| {
+                    let x = x as f32;
+                    let now = curve.value(x, &knots);
+                    f64::from(if arrived < 1.0 {
+                        let before = previous.value(x, &knots);
+                        before + (now - before) * arrived
+                    } else {
+                        now
+                    })
+                });
+                let wet = shaped * values[1];
+                // Fully wet is the shaped signal itself, not a blend that
+                // rounds differently.
+                *sample = audio(if mix >= 1.0 {
+                    wet
+                } else {
+                    dry + (wet - dry) * mix
+                });
+            }
         }
+    }
+    fn latency_samples(&self) -> usize {
+        DRIVE_LATENCY_SAMPLES
+    }
+    fn tail_samples(&self) -> usize {
+        // The oversampling filters ring for their own length.
+        2 * DRIVE_LATENCY_SAMPLES
     }
 }

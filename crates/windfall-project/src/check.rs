@@ -421,6 +421,11 @@ fn check_effects(
         if effect.params.sanitized() != effect.params {
             return Err(format!("{name} has a setting outside its range"));
         }
+        if let crate::EffectParams::Scratch(p) = effect.params {
+            if p.source_id != 0 && project.sample(crate::SampleId(p.source_id)).is_none() {
+                return Err(format!("{name} references missing scratch sample {}", p.source_id));
+            }
+        }
     }
     Ok(())
 }

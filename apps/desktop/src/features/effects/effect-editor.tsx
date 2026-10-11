@@ -46,6 +46,8 @@ import { BucketChorusEditor } from "./circuits/bucket-chorus-editor"
 import { StagePhaserEditor } from "./circuits/stage-phaser-editor"
 import { SwarmChorusEditor } from "./circuits/swarm-chorus-editor"
 import { StackedFlangerEditor } from "./circuits/stacked-flanger-editor"
+import { DriveChainEditor, GuitarRackEditor, OverdriveEditor, WaveshaperEditor } from "./nonlinear/editors"
+import { PerformanceRackEditor, ScratchEditor, TimeTransportEditor, VolumeGateEditor } from "./nonlinear/performance-editors"
 
 type Editors = {
   [Kind in EffectKind]?: ComponentType<EditorProps<EffectParamsOf<Kind>>>
@@ -86,6 +88,14 @@ const EDITORS: Editors = {
   vintagePhaser: StagePhaserEditor,
   hyperChorus: SwarmChorusEditor,
   stackedFlanger: StackedFlangerEditor,
+  overdrive: OverdriveEditor,
+  waveshaper: WaveshaperEditor,
+  guitarRack: GuitarRackEditor,
+  driveChain: DriveChainEditor,
+  volumeGate: VolumeGateEditor,
+  timeTransport: TimeTransportEditor,
+  performanceRack: PerformanceRackEditor,
+  scratch: ScratchEditor,
 }
 
 type AnyEditor = ComponentType<EditorProps<EffectParams>>
