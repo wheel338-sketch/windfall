@@ -73,3 +73,10 @@ through ABI 7 recovery. This supersedes the source gap above, subject to
 integrator execution of the authored regressions in
 [the hosting hand-off](qa/2026-10-11-plugin-hosting.md). No new native success
 or cross-platform readiness is claimed.
+
+The hosting follow-up also fixes VST3's SDK event list to retain numeric
+expression, reserves recovery/fixed-block translation storage, and adds native
+CLAP/VST3 PCM regressions for same-key ownership/release and helper replay.
+Capability changes after a native restart still require provider re-preparation
+acceptance. Tests are written, not executed; live MIDI/MPE and configurable
+expression routing are not closed by these hosting changes.
