@@ -319,6 +319,7 @@ pub(crate) struct DepartureReservation {
 
 #[derive(Debug, Clone)]
 pub(crate) struct DepartureSource {
+    pub impulse: Option<Arc<windfall_project::ConvolverImpulse>>,
     pub life: Arc<EffectLife>,
     pub params: EffectParams,
     pub enabled: bool,
@@ -353,6 +354,7 @@ impl DepartureReservation {
 }
 
 impl PlanEffect {
+    pub fn latency_samples(&self,rate:u32)->usize {self.params.latency_samples(rate as f32)+self.impulse.as_ref().map_or(0,|asset|asset.group_delay_at(rate))}
     pub fn native_identity(&self) -> Option<u64> {
         self.native_owner
     }
@@ -645,6 +647,7 @@ impl Plan {
                     // adoption. Finished departures alone can be excluded.
                     if !before.leaving || before.life.progress.load(Ordering::Acquire) != 2 {
                         sources.push(DepartureSource {
+                            impulse: before.impulse.clone(),
                             life: before.life.clone(),
                             params: before.params,
                             enabled: before.enabled,
@@ -680,7 +683,7 @@ impl Plan {
             for (inserted, (id, sources, anchor)) in rows.into_iter().enumerate() {
                 let first = &sources[0];
                 let row = PlanEffect {
-                    impulse: None,
+                    impulse: first.impulse.clone(),
                     id,
                     params: first.params,
                     enabled: first.enabled,

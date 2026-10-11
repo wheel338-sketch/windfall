@@ -21,6 +21,7 @@ import { ReverbEditor } from "./reverb/reverb-editor"
 import { TunerEditor } from "./tuner/tuner-editor"
 
 import { ConvolverEditor } from "./spectral/convolver-editor"
+import { PitchShiftEditor, PitchCorrectEditor } from "./spectral/pitch-editor"
 import { VocoderEditor } from "./spectral/vocoder-editor"
 
 type Editors = {
@@ -41,6 +42,8 @@ const EDITORS: Editors = {
   tuner: TunerEditor,
   convolver: ConvolverEditor,
   vocoder: VocoderEditor,
+  pitchShift: PitchShiftEditor,
+  pitchCorrect: PitchCorrectEditor,
 }
 
 type AnyEditor = ComponentType<EditorProps<EffectParams>>

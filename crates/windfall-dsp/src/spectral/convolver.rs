@@ -1,5 +1,6 @@
 use super::{audio, output};
 use crate::balance::Controls;
+use crate::blocks::delay_line::DelayLine;
 use crate::effect::Effect;
 use crate::param::{ParamSet, param_set};
 use serde::{Deserialize, Serialize};
@@ -105,11 +106,21 @@ impl Fft {
 pub struct PreparedImpulse {
     kernels: Vec<[[Complex; FFT_SIZE]; 2]>,
     length: usize,
+    group_delay: usize,
 }
 impl PreparedImpulse {
     /// Independent-channel stereo convolution (mono callers duplicate taps).
     /// Reject damaged data instead of silently shortening or normalizing an IR.
     pub fn prepare(frames: &[[f32; 2]]) -> Result<Self, &'static str> {
+        Self::prepare_with_delay(frames, 0)
+    }
+    pub fn prepare_with_delay(
+        frames: &[[f32; 2]],
+        group_delay: usize,
+    ) -> Result<Self, &'static str> {
+        if group_delay >= frames.len() {
+            return Err("IR group delay exceeds its support");
+        }
         if frames.is_empty() || frames.len() > MAX_IMPULSE_SAMPLES {
             return Err("impulse must contain 1 to 65536 frames");
         }
@@ -136,6 +147,7 @@ impl PreparedImpulse {
         Ok(Self {
             kernels,
             length: frames.len(),
+            group_delay,
         })
     }
 }
@@ -150,6 +162,7 @@ pub struct Convolver {
     input: [[f32; CONVOLUTION_PARTITION]; 2],
     dry: [[f32; CONVOLUTION_PARTITION]; 2],
     wet: [[f32; CONVOLUTION_PARTITION]; 2],
+    dry_delay: [DelayLine; 2],
     head: usize,
     cursor: usize,
     controls: Controls<2>,
@@ -165,6 +178,7 @@ impl Convolver {
     /// Control-side construction; replaces the whole prepared owner on IR edits.
     pub fn with_impulse(impulse: Arc<PreparedImpulse>) -> Self {
         Self {
+            dry_delay: std::array::from_fn(|_| DelayLine::new(impulse.group_delay)),
             history: vec![[[Complex::ZERO; FFT_SIZE]; 2]; impulse.kernels.len()],
             impulse,
             fft: Fft::default(),
@@ -223,6 +237,9 @@ impl Effect for Convolver {
         self.input.fill([0.0; CONVOLUTION_PARTITION]);
         self.dry.fill([0.0; CONVOLUTION_PARTITION]);
         self.wet.fill([0.0; CONVOLUTION_PARTITION]);
+        for delay in &mut self.dry_delay {
+            delay.clear();
+        }
         self.head = 0;
         self.cursor = 0;
         self.controls.reset();
@@ -236,10 +253,13 @@ impl Effect for Convolver {
             let [mix, gain] = self.controls.tick();
             for (ch, sample) in [l, r].into_iter().enumerate() {
                 self.input[ch][self.cursor] = audio(*sample);
-                *sample = output(
-                    (self.dry[ch][self.cursor] * (1.0 - mix) + self.wet[ch][self.cursor] * mix)
-                        * gain,
-                );
+                let dry = if self.impulse.group_delay == 0 {
+                    self.dry[ch][self.cursor]
+                } else {
+                    self.dry_delay[ch].tap(self.impulse.group_delay)
+                };
+                self.dry_delay[ch].push(self.dry[ch][self.cursor]);
+                *sample = output((dry * (1.0 - mix) + self.wet[ch][self.cursor] * mix) * gain);
             }
             self.cursor += 1;
             if self.cursor == CONVOLUTION_PARTITION {
@@ -249,7 +269,7 @@ impl Effect for Convolver {
         }
     }
     fn latency_samples(&self) -> usize {
-        CONVOLUTION_PARTITION
+        CONVOLUTION_PARTITION + self.impulse.group_delay
     }
     fn tail_samples(&self) -> usize {
         CONVOLUTION_PARTITION + self.impulse.length - 1

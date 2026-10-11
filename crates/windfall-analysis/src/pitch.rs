@@ -630,54 +630,24 @@ impl PitchAnalyzer {
         // Inspect shorter lags too: skipping an above-range fundamental can
         // otherwise accept its in-range subharmonic. The first trough's
         // interpolated Hz itself must be inside the requested bounds.
-        let mut lag = 2;
-        while lag <= self.resources.max_lag {
-            let left = self.difference[lag - 1];
-            let middle = self.difference[lag];
-            let right = self.difference[lag + 1];
-            // YIN II.E selects on the INTERPOLATED CMND minimum's ordinate.
-            // A sampled trough can exceed threshold at fractional periods even
-            // though its interpolated minimum is admissible. Strict descent
-            // and nonstrict ascent choose the leftmost point of a flat trough.
-            let depth = if middle < left && middle <= right {
-                parabolic_minimum(left, middle, right).1
-            } else {
-                1.0
-            };
-            if depth < self.config.yin_threshold {
-                // YIN II.E: CMND chooses the trough; raw differences interpolate
-                // its abscissa to avoid normalization's fine bias. Correlation
-                // and energies remain available, so no extra lag buffer.
-                let offset = parabolic_minimum(
-                    self.raw_difference(lag - 1)?,
-                    self.raw_difference(lag)?,
-                    self.raw_difference(lag + 1)?,
-                )
-                .0;
-                let hz = f64::from(self.config.sample_rate) / (lag as f64 + offset);
-                if (self.config.min_hz..=self.config.max_hz).contains(&hz) {
-                    return Ok((Some(hz), (1.0 - depth).clamp(0.0, 1.0)));
-                }
-                // An out-of-range first trough must not turn into a subharmonic.
-                return Ok((None, 0.0));
+        if let Some((lag, depth)) = windfall_core::yin::first_trough(
+            &self.difference,
+            self.resources.max_lag,
+            self.config.yin_threshold,
+        ) {
+            let offset = parabolic_minimum(
+                self.raw_difference(lag - 1)?,
+                self.raw_difference(lag)?,
+                self.raw_difference(lag + 1)?,
+            )
+            .0;
+            let hz = f64::from(self.config.sample_rate) / (lag as f64 + offset);
+            if (self.config.min_hz..=self.config.max_hz).contains(&hz) {
+                return Ok((Some(hz), (1.0 - depth).clamp(0.0, 1.0)));
             }
-            lag += 1;
         }
         Ok((None, 0.0))
     }
 }
 
-/// Three points at -1,0,+1. CMND uses the ordinate; raw differences use only
-/// the abscissa. Clamping the vertex keeps interpolation between neighbors;
-/// clamping a negative modeled depth preserves the periodicity score's 0..1
-/// domain without changing threshold acceptance (all thresholds are positive).
-fn parabolic_minimum(left: f64, middle: f64, right: f64) -> (f64, f64) {
-    let curvature = left - 2.0 * middle + right;
-    let offset = if curvature > 0.0 {
-        (0.5 * (left - right) / curvature).clamp(-0.5, 0.5)
-    } else {
-        0.0
-    };
-    let depth = middle + 0.5 * offset * (right - left + offset * curvature);
-    (offset, depth.max(0.0))
-}
+use windfall_core::yin::parabolic_minimum;

@@ -4,7 +4,7 @@ export function VocoderEditor({ params, bind }: EditorProps<EffectParamsOf<"voco
   const count = Math.round(bind.value("bandCount"))
   return <div className="flex flex-col gap-3" data-slot="vocoder-editor">
     <ParamGroup title="Inputs">
-      <p className="text-xs text-muted-foreground">{params.keyIsCarrier ? "Main input: modulator. Mixer sidechain key: carrier." : "Main input: carrier. Mixer sidechain key: modulator."} Route another mixer track here as a sidechain. An absent key is silent.</p>
+      <p className="text-xs text-muted-foreground">{params.synthCarrier ? (params.keyIsCarrier ? "Built-in carrier. Main input: modulator." : "Built-in carrier. Mixer sidechain key: modulator.") : (params.keyIsCarrier ? "Main input: modulator. Mixer sidechain key: carrier." : "Main input: carrier. Mixer sidechain key: modulator.")} Route an external carrier or modulator here as a mixer sidechain. A missing external input is silent.</p>
       <ParamRow columns={3}><ParamControl {...bind("keyIsCarrier")} /><ParamControl {...bind("synthCarrier")} /><ParamControl {...bind("carrierHz")} disabled={!params.synthCarrier} /></ParamRow>
     </ParamGroup>
     <ParamGroup title="Band bank">

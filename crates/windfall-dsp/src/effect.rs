@@ -1597,6 +1597,7 @@ impl AnyEffect {
     /// `sample_rate`. A host that reserves this much never has to grow a
     /// compensation buffer while playing.
     pub fn max_latency_samples(&self, sample_rate: f32) -> usize {
+        if let Self::Convolver(effect)=self {return effect.latency_samples();}
         self.kind().max_latency_samples(sample_rate)
     }
 
@@ -1894,6 +1895,11 @@ impl EffectSlot {
     /// See [`Effect::set_tempo`].
     pub fn set_tempo(&mut self, bpm: f32) {
         self.effect.set_tempo(bpm);
+    }
+
+    /// Live MIDI harmony state; ownership remains inside the prepared slot.
+    pub fn set_harmony_notes(&mut self, notes: [u8; 4]) {
+        if let AnyEffect::PitchCorrect(effect) = &mut self.effect { effect.set_harmony_notes(notes); }
     }
 
     pub fn effect(&self) -> &AnyEffect {

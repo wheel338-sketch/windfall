@@ -9,10 +9,23 @@ use ts_rs::TS;
 pub struct ConvolverImpulse {
     pub name: String,
     pub sample_rate: u32,
+    #[serde(default, skip_serializing_if = "is_zero_delay")]
+    #[ts(optional)]
+    pub group_delay: u32,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub eq_gains: Option<[f32; 3]>,
     /// Owned user/generated PCM. Mono import duplicates channels explicitly.
     pub frames: Vec<[f32; 2]>,
 }
+fn is_zero_delay(delay: &u32) -> bool {
+    *delay == 0
+}
 impl ConvolverImpulse {
+    pub fn group_delay_at(&self, rate: u32) -> usize {
+        (f64::from(self.group_delay) * f64::from(rate) / f64::from(self.sample_rate.max(1))).round()
+            as usize
+    }
     pub fn check(&self) -> Result<(), &'static str> {
         if self.name.is_empty() || self.name.len() > 256 {
             return Err("IR name must contain 1 to 256 bytes");
@@ -32,11 +45,32 @@ impl ConvolverImpulse {
         {
             return Err("IR samples must be finite within -8 to 8");
         }
+        if self
+            .eq_gains
+            .is_some_and(|gains| gains.iter().any(|v| !v.is_finite() || v.abs() > 24.0))
+        {
+            return Err("EQ gains must be finite within -24 to 24 dB");
+        }
+        if self.group_delay != 0 {
+            let delay = self.group_delay as usize;
+            if delay.checked_mul(2).and_then(|n| n.checked_add(1)) != Some(self.frames.len())
+                || self
+                    .frames
+                    .iter()
+                    .zip(self.frames.iter().rev())
+                    .any(|(a, b)| a.iter().zip(b).any(|(a, b)| (a - b).abs() > 1e-6))
+            {
+                return Err("linear-phase IR delay requires an odd symmetric kernel");
+            }
+        }
         Ok(())
     }
     /// Rate conversion occurs before processor publication, never in process.
     pub fn at_rate(&self, rate: u32) -> Result<Vec<[f32; 2]>, &'static str> {
         self.check()?;
+        if !(8000..=384000).contains(&rate) {
+            return Err("destination IR rate must be 8000 to 384000 Hz");
+        }
         let length =
             (self.frames.len() as u64 * u64::from(rate)).div_ceil(u64::from(self.sample_rate));
         if length == 0 || length > windfall_dsp::spectral::MAX_IMPULSE_SAMPLES as u64 {
@@ -93,6 +127,8 @@ impl<'de> Deserialize<'de> for EffectSlot {
                 impulse = Some(ConvolverImpulse {
                     name: "Imported legacy impulse".into(),
                     sample_rate: 48000,
+                    group_delay: 0,
+                    eq_gains: None,
                     frames,
                 });
             }

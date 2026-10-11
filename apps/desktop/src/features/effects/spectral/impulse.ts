@@ -48,5 +48,5 @@ export function linearPhaseImpulse(lowDb: number, midDb: number, highDb: number)
     if (Math.abs(tap) > 8) throw new Error("Combined EQ gain exceeds the IR headroom limit")
     return [tap, tap]
   })
-  return { name: `Linear-phase EQ ${lowDb}/${midDb}/${highDb} dB`, sampleRate: 48000, frames }
+  return { name: `Linear-phase EQ ${lowDb}/${midDb}/${highDb} dB`, sampleRate: 48000, groupDelay: 512, eqGains: [lowDb, midDb, highDb], frames }
 }

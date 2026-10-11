@@ -10,12 +10,11 @@ import { readImpulseWav, linearPhaseImpulse } from "./impulse"
 export function ConvolverEditor({ effect, track, bind }: EditorProps<EffectParamsOf<"convolver">>) {
   const impulse = useProjectStore((s) => s.project.mixer.tracks.find((t) => t.id === track)?.effects.find((e) => e.id === effect)?.impulse)
   const [error, setError] = useState("")
-  const [gains, setGains] = useState([0, 0, 0])
   const request = useRef(0)
   useEffect(() => () => { ++request.current }, [effect, track])
   const apply = async (asset: ReturnType<typeof linearPhaseImpulse> | null) => {
     if (track === undefined) return
-    try { await dispatch({ type: "setConvolverImpulse", track, effect, impulse: asset }); setError("") }
+    try { const result = await dispatch({ type: "setConvolverImpulse", track, effect, impulse: asset }); setError(result ? "" : "Impulse change was refused; the previous IR is retained") }
     catch (cause) { setError(cause instanceof Error ? cause.message : String(cause)) }
   }
   return <div className="flex flex-col gap-3" data-slot="convolver-editor">
@@ -34,15 +33,20 @@ export function ConvolverEditor({ effect, track, bind }: EditorProps<EffectParam
       <FieldDescription>{impulse ? `${impulse.name}: ${impulse.frames.length} stereo frames at ${impulse.sampleRate} Hz` : "No IR loaded: unit impulse"}</FieldDescription>
     </Field>
     <Button variant="outline" onClick={() => { ++request.current; void apply(null) }}>Clear impulse</Button>
-    <ParamGroup title="Linear-phase EQ">
-      <div className="grid grid-cols-3 gap-2">{["Low (<500 Hz)", "Mid", "High (>2 kHz)"].map((label, index) => <Field key={label}>
-        <FieldLabel htmlFor={`eq-${effect}-${index}`}>{label} dB</FieldLabel>
-        <Input id={`eq-${effect}-${index}`} type="number" min={-24} max={24} value={gains[index]} onChange={(e) => setGains(gains.map((v, i) => i === index ? Number(e.target.value) : v))} />
-      </Field>)}</div>
-      <Button variant="outline" onClick={() => { ++request.current; try { void apply(linearPhaseImpulse(gains[0], gains[1], gains[2])) } catch (cause) { setError(cause instanceof Error ? cause.message : String(cause)) } }}>Apply EQ impulse</Button>
-      <p className="text-xs text-muted-foreground">Symmetric FIR adds 512 frames of group delay at 48 kHz, plus the 128-frame convolution buffer.</p>
-    </ParamGroup>
+    <EqControls key={`${effect}:${impulse?.name ?? "identity"}`} effect={effect} initial={impulse?.eqGains ?? [0,0,0]} apply={(gains) => { ++request.current; try { void apply(linearPhaseImpulse(gains[0], gains[1], gains[2])) } catch (cause) { setError(cause instanceof Error ? cause.message : String(cause)) } }} />
     <ParamRow columns={2}><ParamControl {...bind("mix")} /><ParamControl {...bind("gain")} /></ParamRow>
     {error && <p role="alert" className="text-xs text-destructive">{error}</p>}
   </div>
+}
+
+function EqControls({ effect, initial, apply }: { effect: number; initial: number[]; apply: (gains: number[]) => void }) {
+  const [gains, setGains] = useState(initial)
+  return <ParamGroup title="Linear-phase EQ">
+    <div className="grid grid-cols-3 gap-2">{["Low (<500 Hz)", "Mid", "High (>2 kHz)"].map((label, index) => <Field key={label}>
+      <FieldLabel htmlFor={`eq-${effect}-${index}`}>{label} dB</FieldLabel>
+      <Input id={`eq-${effect}-${index}`} type="number" min={-24} max={24} value={gains[index]} onChange={(e) => setGains(gains.map((v, i) => i === index ? Number(e.target.value) : v))} />
+    </Field>)}</div>
+    <Button variant="outline" onClick={() => apply(gains)}>Apply EQ impulse</Button>
+    <p className="text-xs text-muted-foreground">Linear-phase EQ reports 640 frames at 48 kHz, including its 512-frame group delay. Mixer compensation and the dry path follow this delay.</p>
+  </ParamGroup>
 }

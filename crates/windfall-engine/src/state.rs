@@ -578,7 +578,7 @@ impl Layout {
                     plugins.get(&windfall_project::PluginTarget::Effect { effect: effect.id });
                 out = out
                     .checked_add(record.map_or_else(
-                        || effect.params.latency_samples(sample_rate as f32),
+                        || effect.latency_samples(sample_rate),
                         |record| record.1,
                     ))
                     .ok_or(ProjectPreparationError::SizeOverflow)?;
@@ -699,7 +699,7 @@ impl Layout {
                     } else {
                         reservation.possible().max_by_key(|source| {
                             source.native.map_or_else(
-                                || source.params.kind().max_latency_samples(rate),
+                                || source.params.kind().max_latency_samples(rate)+source.impulse.as_ref().map_or(0,|asset|asset.group_delay_at(rate as u32)),
                                 |record| record.1,
                             )
                         })
@@ -709,6 +709,8 @@ impl Layout {
                     continue;
                 }
                 let params = source.map_or(effect.params, |source| source.params);
+                let impulse=source.map_or(effect.impulse.as_ref(),|source|source.impulse.as_ref());
+                let impulse_delay=impulse.map_or(0,|asset|asset.group_delay_at(rate as u32));
                 let generation =
                     source.map_or(effect.life.generation, |source| source.life.generation);
                 let native = if effect.leaving {
@@ -719,13 +721,13 @@ impl Layout {
                     plugins.get(&key).copied()
                 };
                 let maximum = native.map_or_else(
-                    || params.kind().max_latency_samples(rate),
+                    || params.kind().max_latency_samples(rate)+impulse_delay,
                     |record| record.1,
                 );
                 let delay = if effect.leaving {
                     0
                 } else {
-                    native.map_or_else(|| params.latency_samples(rate), |record| record.1)
+                    native.map_or_else(|| params.latency_samples(rate)+impulse_delay, |record| record.1)
                 };
                 if maximum > 0 {
                     path.push(DelayStage {
@@ -965,7 +967,8 @@ impl PlanState {
             let partitions = frames.div_ceil(windfall_dsp::spectral::CONVOLUTION_PARTITION);
             // Two stereo complex planes (kernels + history), plus source PCM,
             // resampled PCM, allocator headers, queue/fixed scratch allowance.
-            let bytes = partitions.checked_mul(8192)?.checked_add(frames.checked_mul(8)?)?.checked_add(asset.frames.len().checked_mul(8)?)?.checked_add(16384)?;
+            let dry=asset.group_delay_at(sample_rate).checked_add(4)?.checked_next_power_of_two()?.checked_mul(8)?;
+            let bytes = partitions.checked_mul(8192)?.checked_add(dry)?.checked_add(frames.checked_mul(8)?)?.checked_add(asset.frames.len().checked_mul(8)?)?.checked_add(16384)?;
             total.checked_add(bytes)
         }).ok_or(crate::project_preparation::ProjectPreparationError::SizeOverflow)?;
         const IMPULSE_LIMIT: usize = 128 * 1024 * 1024;

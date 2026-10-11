@@ -181,6 +181,7 @@ fn pitch_shift_changes_period_by_semitones() {
             PitchShiftParams {
                 semitones,
                 mix: 1.0,
+                ..Default::default()
             },
             &input,
             &[1, 71, 127],
@@ -303,7 +304,6 @@ fn damaged_parameters_and_audio_never_produce_nan() {
     let convolution = ConvolverParams {
         mix: f32::NAN,
         gain: f32::INFINITY,
-        ..ConvolverParams::default()
     };
     healthy::<Convolver>(convolution);
     healthy::<FrequencyShifter>(FrequencyShifterParams {
@@ -313,6 +313,7 @@ fn damaged_parameters_and_audio_never_produce_nan() {
     healthy::<PitchShift>(PitchShiftParams {
         semitones: f32::INFINITY,
         mix: f32::NAN,
+        ..Default::default()
     });
     healthy::<PitchCorrect>(PitchCorrectParams {
         root: u8::MAX,
@@ -369,6 +370,7 @@ fn remaining_processors_are_also_partition_invariant() {
     let shift = PitchShiftParams {
         semitones: 7.0,
         mix: 0.91,
+        ..Default::default()
     };
     assert_eq!(
         render::<PitchShift>(shift, &input, one),
@@ -388,4 +390,238 @@ fn remaining_processors_are_also_partition_invariant() {
         render::<Vocoder>(vocoder, &input, one),
         render::<Vocoder>(vocoder, &input, many)
     );
+}
+
+fn tone_power(signal: &[f32], hz: f64) -> f64 {
+    let step = std::f64::consts::TAU * hz / f64::from(SR);
+    let (mut re, mut im) = (0.0, 0.0);
+    for (i, v) in signal.iter().enumerate() {
+        let phase = step * i as f64;
+        re += f64::from(*v) * phase.cos();
+        im += f64::from(*v) * phase.sin();
+    }
+    (re * re + im * im) / (signal.len() * signal.len()) as f64
+}
+#[test]
+fn frequency_shift_translates_each_partial_by_hz_and_rejects_the_image() {
+    let input: Vec<f32> = (0..48000)
+        .map(|n| {
+            0.2 * (std::f32::consts::TAU * 1000.0 * n as f32 / SR).sin()
+                + 0.2 * (std::f32::consts::TAU * 2300.0 * n as f32 / SR).sin()
+        })
+        .collect();
+    for shift_hz in [-317.0, 317.0] {
+        let (l, r) = render::<FrequencyShifter>(
+            FrequencyShifterParams { shift_hz, mix: 1.0 },
+            &input,
+            &[1, 31, 257],
+        );
+        for source in [1000.0, 2300.0] {
+            let desired = tone_power(&l[8000..], source + f64::from(shift_hz));
+            let image = tone_power(&l[8000..], source - f64::from(shift_hz));
+            assert!(desired > 0.005);
+            assert!(desired > image * 100.0, "desired {desired}, image {image}");
+        }
+        for (a, b) in l.iter().zip(&r) {
+            assert!((*b + 0.25 * *a).abs() < 1e-5);
+        }
+    }
+}
+#[test]
+fn frequency_shifter_measured_identity_latency_is_127_frames() {
+    let mut input = vec![0.0; 1024];
+    input[0] = 1.0;
+    let (l, _) =
+        render::<FrequencyShifter>(FrequencyShifterParams::default(), &input, &[17, 1, 71]);
+    assert_eq!(
+        l.iter().position(|v| *v != 0.0),
+        Some(FREQUENCY_SHIFTER_LATENCY)
+    );
+    assert_eq!(l[FREQUENCY_SHIFTER_LATENCY], 1.0);
+}
+fn render_key(
+    params: VocoderParams,
+    carrier: &[f32],
+    key: Option<&[[f32; 2]]>,
+    chunks: &[usize],
+) -> (Vec<f32>, Vec<f32>) {
+    let mut effect = Vocoder::default();
+    effect.prepare(SR, 512);
+    effect.set_params(&params);
+    let mut l = carrier.to_vec();
+    let mut r: Vec<f32> = carrier.iter().map(|v| *v * 0.3).collect();
+    let mut at = 0;
+    let mut index = 0;
+    while at < l.len() {
+        let end = (at + chunks[index % chunks.len()]).min(l.len());
+        effect.process_sidechain(
+            &mut l[at..end],
+            &mut r[at..end],
+            key.map(|key| &key[at..end]),
+        );
+        at = end;
+        index += 1;
+    }
+    (l, r)
+}
+#[test]
+fn vocoder_bands_follow_the_real_modulator_and_preserve_carrier_balance() {
+    let carrier: Vec<f32> = (0..48000)
+        .map(|n| {
+            0.3 * (std::f32::consts::TAU * 375.0 * n as f32 / SR).sin()
+                + 0.3 * (std::f32::consts::TAU * 3000.0 * n as f32 / SR).sin()
+        })
+        .collect();
+    for band_count in [16, 32] {
+        for (hz, other) in [(375.0, 3000.0), (3000.0, 375.0)] {
+            let key: Vec<[f32; 2]> = sine(hz, carrier.len()).iter().map(|v| [*v, -*v]).collect();
+            let params = VocoderParams {
+                band_count,
+                attack_ms: 0.1,
+                ..Default::default()
+            };
+            let (l, r) = render_key(params, &carrier, Some(&key), &[1, 7, 127]);
+            assert!(
+                tone_power(&l[8000..], f64::from(hz))
+                    > tone_power(&l[8000..], f64::from(other)) * 10.0
+            );
+            for (a, b) in l.iter().zip(&r) {
+                assert!((*b - 0.3 * *a).abs() < 1e-5);
+            }
+            assert_eq!(
+                (l, r),
+                render_key(params, &carrier, Some(&key), &[carrier.len()])
+            );
+        }
+    }
+}
+#[test]
+fn explicit_vocoder_synth_requires_modulator_and_key_carrier_routing_works() {
+    let carrier = sine(880.0, 48000);
+    let key: Vec<[f32; 2]> = carrier.iter().map(|v| [*v, *v * 0.3]).collect();
+    let synth = VocoderParams {
+        band_count: 32,
+        synth_carrier: true,
+        carrier_hz: 110.0,
+        ..Default::default()
+    };
+    let (l, _) = render_key(synth, &vec![0.0; carrier.len()], Some(&key), &[47]);
+    assert!(rms(&l[8000..]) > 0.001);
+    let (l, _) = render_key(synth, &carrier, None, &[47]);
+    assert!(l.iter().all(|v| *v == 0.0));
+    let params = VocoderParams {
+        key_is_carrier: true,
+        ..Default::default()
+    };
+    let (l, _) = render_key(params, &carrier, Some(&key), &[47]);
+    assert!(rms(&l[8000..]) > 0.01);
+}
+#[test]
+fn pitch_accuracy_is_measured_in_cents_and_formants_have_separate_controls() {
+    let input = sine(375.0, 96000);
+    for semitones in [-12.0, 12.0] {
+        let params = PitchShiftParams {
+            semitones,
+            ..Default::default()
+        };
+        let (l, _) = render::<PitchShift>(params, &input, &[1, 17, 256]);
+        let frequency = crossing_rate(&l[24000..]);
+        let expected = 375.0 * (semitones / 12.0).exp2();
+        let cents = 1200.0 * (frequency / expected).log2();
+        assert!(cents.abs() < 15.0, "pitch error {cents} cents");
+    }
+    let harmonic: Vec<f32> = (0..48000)
+        .map(|n| {
+            (1..=20)
+                .map(|h| {
+                    let hz = 125.0 * h as f32;
+                    let envelope = (-((hz - 1500.0) / 450.0).powi(2)).exp();
+                    0.08 * envelope * (std::f32::consts::TAU * hz * n as f32 / SR).sin()
+                })
+                .sum()
+        })
+        .collect();
+    let neutral = PitchShiftParams {
+        mode: PitchShiftMode::Voice,
+        ..Default::default()
+    };
+    let shifted = PitchShiftParams {
+        formant_semitones: 5.0,
+        ..neutral
+    };
+    let (plain, _) = render::<PitchShift>(neutral, &harmonic, &[1, 7, 128]);
+    let (wet, right) = render::<PitchShift>(shifted, &harmonic, &[1, 7, 128]);
+    assert!(wet.iter().chain(&right).all(|v| v.is_finite()));
+    let difference: f32 = wet.iter().zip(&plain).map(|(a, b)| (a - b).powi(2)).sum();
+    assert!(difference > 1.0);
+    let centroid = |audio: &[f32]| {
+        let (mut energy, mut weighted) = (0.0, 0.0);
+        for harmonic in 1..=32 {
+            let hz = 125.0 * harmonic as f64;
+            let power = tone_power(&audio[24000..], hz);
+            energy += power;
+            weighted += power * hz;
+        }
+        weighted / energy.max(1e-12)
+    };
+    assert!(
+        centroid(&wet) > centroid(&plain) * 1.1,
+        "formant centroid did not move upward"
+    );
+
+    assert_eq!(
+        (wet, right),
+        render::<PitchShift>(shifted, &harmonic, &[harmonic.len()])
+    );
+}
+#[test]
+fn correction_detects_antiphase_and_midi_harmonies_release() {
+    let mut effect = PitchCorrect::default();
+    effect.prepare(SR, 512);
+    effect.set_params(&PitchCorrectParams {
+        speed_ms: 0.0,
+        harmony_mix: 1.0,
+        ..Default::default()
+    });
+    effect.set_harmony_notes([72, 255, 255, 255]);
+    let input = sine(440.0, 144000);
+    let mut left = input.clone();
+    let mut right: Vec<f32> = input.iter().map(|v| -*v).collect();
+    effect.process(&mut left, &mut right);
+    let hz = crossing_rate(&left[96000..]);
+    assert!(hz > 430.0 && hz < 540.0);
+    assert!(tone_power(&left[96000..], 523.251) > 0.0001);
+    for (a, b) in left.iter().zip(&right) {
+        assert!((*a + *b).abs() < 1e-5);
+    }
+    effect.set_harmony_notes([255; 4]);
+    let mut left = input.clone();
+    let mut right = left.clone();
+    effect.process(&mut left, &mut right);
+    assert!(tone_power(&left[96000..], 523.251) < tone_power(&left[96000..], 440.0) * 0.01);
+}
+
+#[test]
+fn linear_phase_identity_reports_its_group_delay_and_aligns_the_dry_mix() {
+    let mut frames = vec![[0.0; 2]; 1025];
+    frames[512] = [1.0; 2];
+    let mut effect = Convolver::with_impulse(std::sync::Arc::new(
+        PreparedImpulse::prepare_with_delay(&frames, 512).unwrap(),
+    ));
+    effect.prepare(SR, 256);
+    assert_eq!(effect.latency_samples(), 640);
+    for mix in [0.0, 0.5, 1.0] {
+        effect.reset();
+        effect.set_params(&ConvolverParams {
+            mix,
+            ..Default::default()
+        });
+        let mut left = vec![0.0; 2000];
+        left[0] = 1.0;
+        let mut right = left.clone();
+        effect.process(&mut left, &mut right);
+        for (n, v) in left.iter().enumerate() {
+            assert!((*v - if n == 640 { 1.0 } else { 0.0 }).abs() < 2e-6);
+        }
+    }
 }

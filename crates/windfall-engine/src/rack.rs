@@ -77,6 +77,7 @@ impl Splice {
 /// with a hole as long as its look-ahead, and a removed reverb would cut
 /// its tail.
 pub(crate) struct EffectUnit {
+    harmony_frames: [[u8; 4]; MAX_BLOCK],
     external: Option<crate::plugins::ExternalEffect>,
     slot: EffectSlot,
     /// What the slot was last given.
@@ -110,7 +111,7 @@ impl EffectUnit {
     ) -> Result<(Self, Option<GainReductionMeter>), crate::project_preparation::ProjectPreparationError> {
         let processor = if let Some(asset) = &effect.impulse {
             let frames = asset.at_rate(sample_rate).map_err(crate::project_preparation::ProjectPreparationError::Unsupported)?;
-            let impulse = windfall_dsp::spectral::PreparedImpulse::prepare(&frames).map_err(crate::project_preparation::ProjectPreparationError::Unsupported)?;
+            let impulse = windfall_dsp::spectral::PreparedImpulse::prepare_with_delay(&frames,asset.group_delay_at(sample_rate)).map_err(crate::project_preparation::ProjectPreparationError::Unsupported)?;
             AnyEffect::Convolver(Box::new(windfall_dsp::spectral::Convolver::with_impulse(std::sync::Arc::new(impulse))))
         } else { AnyEffect::new(&effect.params) };
         let meter = processor.gain_reduction();
@@ -121,6 +122,7 @@ impl EffectUnit {
         slot.set_enabled(effect.enabled);
         slot.set_mix(effect.mix);
         let unit = Self {
+            harmony_frames: [[255;4];MAX_BLOCK],
             external: None,
             slot,
             params: effect.params,
@@ -137,6 +139,11 @@ impl EffectUnit {
         };
         Ok((unit, meter))
     }
+
+    pub fn harmony_channel(&self) -> Option<u32> {
+        match self.params {EffectParams::PitchCorrect(p) if p.harmony_channel != 0 => Some(p.harmony_channel), _ => None}
+    }
+    pub fn record_harmony_frame(&mut self, frame: usize, notes: [u8;4]) { self.harmony_frames[frame]=notes; }
 
     pub fn kind(&self) -> EffectKind {
         self.params.kind()
@@ -464,6 +471,13 @@ impl EffectUnit {
         key: Option<&[[f32; 2]]>,
         aux: Option<&mut windfall_dsp::AuxBlock<'_>>,
     ) {
+        if self.external.is_none() && matches!(self.params, EffectParams::PitchCorrect(_)) {
+            for frame in 0..left.len().min(right.len()) {
+                self.slot.set_harmony_notes(self.harmony_frames[frame]);
+                self.slot.process_sidechain(&mut left[frame..frame+1], &mut right[frame..frame+1], key.and_then(|key| key.get(frame..frame+1)));
+            }
+            return;
+        }
         if let Some(external) = &mut self.external {
             external.process_sidechain(left, right, key);
             if let Some(aux) = aux {

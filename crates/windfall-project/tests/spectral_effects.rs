@@ -19,6 +19,8 @@ fn asset() -> ConvolverImpulse {
     ConvolverImpulse {
         name: "Own stereo IR".into(),
         sample_rate: 48000,
+        group_delay: 0,
+        eq_gains: None,
         frames: vec![[1.0, 0.5], [0.0, -0.25]],
     }
 }
@@ -146,4 +148,52 @@ fn rate_conversion_preserves_stereo_and_refuses_runtime_overflow() {
     assert_eq!(ir.at_rate(96000).unwrap(), vec![[0.25, -0.5]; 16]);
     ir.frames = vec![[0.0; 2]; 65536];
     assert!(ir.at_rate(96000).is_err());
+}
+
+#[test]
+fn harmony_source_reference_persists_separately_from_scalar_automation() {
+    let mut doc = Document::new(Project::new("MIDI harmony"));
+    let effect = add(&mut doc, EffectKind::PitchCorrect);
+    let windfall_project::EffectParams::PitchCorrect(mut params) =
+        doc.project().mixer.tracks[0].effects[0].params
+    else {
+        panic!("correct kind")
+    };
+    params.harmony_channel = 123;
+    params.harmony_mix = 0.75;
+    doc.dispatch(
+        Command::SetEffectParams {
+            track: TrackId::MASTER,
+            effect,
+            params: windfall_project::EffectParams::PitchCorrect(params),
+        },
+        None,
+    )
+    .unwrap();
+    let project = doc.project().clone();
+    assert_eq!(
+        file::from_json(&file::to_json(&project).unwrap()).unwrap(),
+        project
+    );
+    doc.undo().unwrap();
+    assert_ne!(*doc.project(), project);
+    doc.redo().unwrap();
+    assert_eq!(doc.project(), &project);
+}
+
+#[test]
+fn linear_phase_delay_and_eq_controls_persist_and_invalid_metadata_is_refused() {
+    let mut impulse = asset();
+    impulse.frames = vec![[0.0; 2]; 1025];
+    impulse.frames[512] = [1.0; 2];
+    impulse.group_delay = 512;
+    impulse.eq_gains = Some([0.0; 3]);
+    impulse.check().unwrap();
+    assert_eq!(impulse.group_delay_at(48000), 512);
+    assert_eq!(impulse.group_delay_at(96000), 1024);
+    let copy: ConvolverImpulse =
+        serde_json::from_str(&serde_json::to_string(&impulse).unwrap()).unwrap();
+    assert_eq!(copy, impulse);
+    impulse.frames[0][0] = 0.5;
+    assert!(impulse.check().is_err());
 }
