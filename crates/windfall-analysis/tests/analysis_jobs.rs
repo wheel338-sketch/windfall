@@ -127,6 +127,7 @@ fn stamp(audio: &AudioBuffer) -> CaptureStamp {
 }
 fn request(audio: &AudioBuffer) -> JobRequest {
     JobRequest {
+        amount: 1.0,
         task: Default::default(),
         input: CapturedInput::capture(audio, stamp(audio), InputLimits::default(), &mut work())
             .unwrap(),
@@ -1520,6 +1521,7 @@ fn one_second_cpu_lifecycle_measures_owned_peak_and_retirement() {
     .unwrap();
     let id = manager
         .submit(JobRequest {
+            amount: 1.0,
             task: Default::default(),
             input,
             model: manifest(),

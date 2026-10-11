@@ -1109,7 +1109,7 @@ fn model() -> AnalysisModel {
 }
 fn request(clip: ClipId) -> AnalysisSubmit {
     AnalysisSubmit {
-        task: Default::default(),
+        amount: None,        task: Default::default(),
         clip,
         model_id: model().id,
         model_version: "1".into(),
@@ -1199,13 +1199,14 @@ fn analysis_production_local_import_is_explicit_and_never_fakes_inference() {
     let before = rig.session.document_snapshot();
     let capability = rig.session.analysis_capability();
     assert!(capability.native);
-    assert!(!capability.available);
+    assert!(capability.available);
+    assert!(capability.classical_dereverb);
     assert!(capability.models.is_empty());
     assert!(
         rig.session
             .analysis_submit(request(ClipId(1)))
             .unwrap_err()
-            .contains("analysis:unavailable")
+            .contains("analysis:modelAbsent")
     );
     let path = rig.file("authored.model");
     std::fs::write(&path, MODEL).unwrap();
@@ -1219,7 +1220,8 @@ fn analysis_production_local_import_is_explicit_and_never_fakes_inference() {
     );
     let capability = rig.session.analysis_capability();
     assert_eq!(capability.models, vec![model()]);
-    assert!(!capability.available);
+    assert!(capability.available);
+    assert!(capability.classical_dereverb);
     assert!(
         rig.session
             .analysis_submit(request(ClipId(1)))
@@ -1227,4 +1229,58 @@ fn analysis_production_local_import_is_explicit_and_never_fakes_inference() {
             .contains("analysis:unavailable")
     );
     assert_eq!(rig.session.document_snapshot(), before);
+}
+
+#[test]
+fn builtin_dereverb_without_weights_reviews_amount_and_applies_one_saved_undo_step() {
+    for task in [windfall_ipc::AnalysisTask::DereverbGeneral, windfall_ipc::AnalysisTask::DereverbVocal] {
+        let rig = Rig::new();
+        assert!(rig.session.analysis_capability().classical_dereverb);
+        let path = rig.file("authored-dry.wav");
+        let audio = AudioBuffer::from_interleaved(8_000, 2, (0..8_000).flat_map(|i| {
+            let x = (std::f32::consts::TAU * 220.0 * i as f32 / 8_000.0).sin() * 0.2;
+            [x, -0.5*x]
+        }).collect());
+        windfall_codec::write_wav(&path, &audio, windfall_codec::WavSampleFormat::Float32).unwrap();
+        let original = std::fs::read(&path).unwrap();
+        let imported = rig.session.add_audio_clip_from_file(&path, ClipPlace { track: None, start: 0, mixer_track: None }).unwrap();
+        let clip = ClipId(*imported.created.last().unwrap());
+        let before = rig.session.document_snapshot();
+        let mut request = request(clip);
+        request.task = task; request.model_id = native::BUILTIN_DEREVERB_ID.into();
+        request.end_frame = "8000".into(); request.amount = Some(0.4);
+        let job = rig.session.analysis_submit(request).unwrap();
+        let settled = rig.session.inner.analysis.test_manager().wait(native::JobId(job.job.parse().unwrap())).unwrap();
+        assert_eq!(settled.status, native::JobStatus::Ready, "{settled:?}");
+        let review = rig.session.analysis_review(&job.ticket).unwrap();
+        assert_eq!(review.task, task); assert_eq!(review.amount, 0.4);
+        assert_eq!(review.model.bytes, "0"); assert_eq!(review.artifacts[0].frames, "8000");
+        assert_eq!(review.artifacts[0].frame_origin, "0");
+        assert!(rig.session.analysis_capability().models.is_empty());
+        rig.session.analysis_preview(&job.ticket, &review.artifacts[0].role).unwrap();
+        let result = rig.session.analysis_apply(apply(&job, true)).unwrap();
+        assert_eq!(rig.session.document_snapshot().history.cursor, before.history.cursor + 1);
+        assert_eq!(std::fs::read(&path).unwrap(), original);
+        let derived = SampleId(result.created[0]);
+        let edited = rig.project();
+        let rendered = rig.session.state().pool.get(derived).unwrap().samples().to_vec();
+        rig.session.undo().unwrap();
+        let mut restored = before.project; restored.next_id = rig.project().next_id;
+        assert_eq!(rig.project(), restored);
+        rig.session.redo().unwrap(); assert_eq!(rig.project(), edited);
+        let saved = rig.file("dereverb.windfall"); rig.session.project_save(Some(&saved)).unwrap();
+        let rig = rig.restart(); rig.session.project_open(&saved).unwrap();
+        assert_eq!(rig.project(), edited);
+        assert_eq!(rig.session.state().pool.get(derived).unwrap().samples(), rendered);
+        assert_eq!(std::fs::read(&path).unwrap(), original);
+    }
+}
+
+#[test]
+fn builtin_descriptor_cannot_be_imported_as_fake_weights() {
+    let rig = Rig::new();
+    let mut spec = model(); spec.id = native::BUILTIN_DEREVERB_ID.into();
+    let path = rig.file("fake.model"); std::fs::write(&path, MODEL).unwrap();
+    assert!(rig.session.analysis_model_import(&path, spec).unwrap_err().contains("not an imported model"));
+    assert!(rig.session.analysis_capability().models.is_empty());
 }

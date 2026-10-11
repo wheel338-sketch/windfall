@@ -1,4 +1,4 @@
-//! Native analysis control service. No production inference adapter is installed.
+//! Native analysis control service with built-in classical dereverberation.
 //! Gate -> recording -> State is the capture/apply order. IO, hashes, decoding,
 //! model/worker waits and retirement always run outside recording/State guards.
 use super::{Session, State};
@@ -21,7 +21,7 @@ use windfall_project::{
     SampleAsset, SampleId, SamplePath,
 };
 
-pub(super) const UNAVAILABLE: &str = "No production inference adapter is installed. Stem separation and both dereverb modes require a licensed supported model and runtime. Local model import does not install an algorithm.";
+pub(super) const UNAVAILABLE: &str = "Stem separation/remix require an imported licensed ONNX pack and an installed ONNX Runtime adapter. Pack registration does not install executable code. Classical dereverb is built in.";
 const PCM_LIMIT: u64 = 16 * 1024 * 1024;
 const OUTPUT_PCM_LIMIT: u64 = 32 * 1024 * 1024;
 const MODEL_LIMIT: u64 = 64 * 1024 * 1024;
@@ -87,6 +87,7 @@ fn input_limits() -> native::InputLimits {
 }
 fn manifest(spec: AnalysisModel) -> Result<native::ModelManifest, String> {
     let p = spec.provenance;
+    if spec.id == native::BUILTIN_DEREVERB_ID { return Err(error("invalid", "Built-in dereverb is code, not an imported model pack.")); }
     let model = native::ModelManifest {
         onnx: spec.onnx.map(onnx_native),
         id: spec.id,
@@ -221,6 +222,13 @@ struct Owned {
     stage: Option<PathBuf>,
     closed: bool,
 }
+fn current_model(owned: &Owned, review: &native::Review) -> Result<native::ModelManifest, String> {
+    if review.model.is_builtin_dereverb() && owned.adapter.as_ref().is_some_and(|a| a.id() == native::BUILTIN_DEREVERB_ID) {
+        return native::ClassicalDereverbAdapter::descriptor(review.capture.input_shape, review.task).map_err(native_error);
+    }
+    owned.models.get(&(review.model.id.clone(), review.model.version.clone())).cloned()
+        .ok_or_else(|| error("modelAbsent", "Pinned model is missing."))
+}
 pub(super) struct Service {
     root: PathBuf,
     gate: Mutex<()>,
@@ -240,7 +248,7 @@ impl Service {
                 manager: None,
                 models: BTreeMap::new(),
                 bindings: BTreeMap::new(),
-                adapter: None,
+                adapter: Some(Arc::new(native::ClassicalDereverbAdapter)),
                 stage: None,
                 closed: false,
             }),
@@ -296,6 +304,7 @@ impl Service {
         config.max_queued = 2;
         config.max_retained_jobs = JOBS;
         config.memory_bytes = 192 * 1024 * 1024;
+        config.max_work_units = 100_000_000_000;
         config.input_limits = input_limits();
         let manager =
             Arc::new(native::JobManager::new(config, cache, adapter).map_err(native_error)?);
@@ -435,12 +444,15 @@ fn file_bytes(file: &mut impl Read, work: &mut native::Work) -> Result<Vec<u8>, 
 impl Session {
     pub fn analysis_capability(&self) -> AnalysisCapability {
         let service = &self.inner.analysis;
-        let _gate = lock(&service.gate);
-        let registry_error = service.restore_packs().err();
+        // Capability must remain nonblocking while shutdown joins a worker.
+        let registry_error = if let Ok(_gate) = service.gate.try_lock() {
+            if lock(&service.owned).closed { None } else { service.restore_packs().err() }
+        } else { None };
         let owned = lock(&service.owned);
         let available = owned.adapter.is_some() && !owned.closed;
         AnalysisCapability {
             native: true,
+            classical_dereverb: owned.adapter.as_ref().is_some_and(|a| a.id() == native::BUILTIN_DEREVERB_ID) && !owned.closed,
             available,
             reason: registry_error.or_else(|| (!available).then(|| UNAVAILABLE.into())),
             models: owned.models.values().map(model_wire).collect(),
@@ -502,15 +514,21 @@ impl Session {
     pub fn analysis_submit(&self, request: AnalysisSubmit) -> Result<AnalysisJob, String> {
         let service = &self.inner.analysis;
         let _gate = lock(&service.gate);
-        service.restore_packs()?;
+        let builtin = request.model_id == native::BUILTIN_DEREVERB_ID;
+        if !builtin { service.restore_packs()?; }
         let manager = service.ensure_manager()?;
-        let model = lock(&service.owned)
-            .models
-            .get(&(request.model_id, request.model_version))
-            .cloned()
-            .ok_or_else(|| error("modelAbsent", "Explicitly import this pinned local model."))?;
-        if number(&request.model_revision)? != model.revision {
-            return Err(error("stale", "Model revision changed."));
+        let amount = request.amount.unwrap_or(1.0);
+        if !amount.is_finite() || !(0.0..=1.0).contains(&amount) { return Err(error("invalid", "Wet/dry amount must be 0 to 1.")); }
+        let imported = if builtin {
+            if request.model_version != "1" || number(&request.model_revision)? != 1 { return Err(error("stale", "Built-in algorithm revision changed.")); }
+            None
+        } else { Some(lock(&service.owned).models.get(&(request.model_id, request.model_version)).cloned()
+            .ok_or_else(|| error("modelAbsent", "Explicitly import this pinned local model."))?) };
+        if let Some(model) = &imported {
+            let owned = lock(&service.owned);
+            if !owned.adapter.as_ref().is_some_and(|a| a.id() == model.provenance.adapter_id && a.version() == model.provenance.adapter_version && a.supports(task_native(request.task))) {
+                return Err(error("unavailable", UNAVAILABLE));
+            }
         }
         let selection = native::FrameRange {
             start: number(&request.start_frame)?,
@@ -618,6 +636,12 @@ impl Session {
         selection
             .validate(rendered_frames as u64)
             .map_err(native_error)?;
+        let shape = native::AudioShape { frames: rendered_frames as u64, channels: 2, sample_rate: source.sample_rate() };
+        let model = match imported {
+            Some(model) => model,
+            None => native::ClassicalDereverbAdapter::descriptor(shape, task_native(request.task)).map_err(native_error)?,
+        };
+        if number(&request.model_revision)? != model.revision { return Err(error("stale", "Model revision changed.")); }
         model
             .validate_input(
                 native::AudioShape {
@@ -696,17 +720,18 @@ impl Session {
         work.check().map_err(native_error)?;
         let id = manager
             .submit(native::JobRequest {
+                amount,
                 task: task_native(request.task),
                 input,
                 model,
                 budget: native::JobBudget {
-                    scratch_bytes: OUTPUT_PCM_LIMIT,
+                    scratch_bytes: if builtin { native::DEREVERB_SCRATCH_BYTES } else { OUTPUT_PCM_LIMIT },
                     output_bytes: output_pcm
                         .checked_mul(3)
                         .and_then(|n| n.checked_add(16 * 4096))
                         .ok_or_else(|| error("budget", "Output bytes overflow."))?,
-                    work_units: 500_000_000,
-                    timeout: Duration::from_secs(120),
+                    work_units: if builtin { 100_000_000_000 } else { 500_000_000 },
+                    timeout: Duration::from_secs(if builtin { 600 } else { 120 }),
                 },
             })
             .map_err(native_error)?;
@@ -757,6 +782,7 @@ impl Session {
             .clip
             .id;
         Ok(AnalysisReview {
+            amount: review.amount,
             task: task_wire(review.task),
             job: job_wire(manager.snapshot(review.job).map_err(native_error)?),
             clip,
@@ -799,8 +825,7 @@ impl Session {
             let owned = lock(&service.owned);
             let binding = owned.bindings.get(&review.job).cloned()
                 .ok_or_else(|| error("stale", "This review expired."))?;
-            let model = owned.models.get(&(review.model.id.clone(),review.model.version.clone())).cloned()
-                .ok_or_else(|| error("modelAbsent", "Pinned model is missing."))?;
+            let model = current_model(&owned, &review)?;
             (binding,model)
         };
         { let _recording = self.recording_idle()?; if !binding.current(&self.state()) {
@@ -844,11 +869,7 @@ impl Session {
                 .get(&review.job)
                 .cloned()
                 .ok_or_else(|| error("stale", "Unknown Session source."))?;
-            let model = owned
-                .models
-                .get(&(review.model.id.clone(), review.model.version.clone()))
-                .cloned()
-                .ok_or_else(|| error("modelAbsent", "Pinned model is missing."))?;
+            let model = current_model(&owned, &review)?;
             (binding, model)
         };
         if request.replace_original

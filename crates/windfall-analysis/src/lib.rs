@@ -9,6 +9,8 @@ mod model;
 pub mod pitch;
 pub mod classical;
 pub mod dereverb;
+mod dereverb_adapter;
+pub use dereverb_adapter::{ClassicalDereverbAdapter, BUILTIN_DEREVERB_ID, DEREVERB_SCRATCH_BYTES};
 mod work;
 
 pub use artifacts::{ArtifactMetadata, ArtifactWriter, RelativeName};

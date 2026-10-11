@@ -73,6 +73,9 @@ pub struct AnalysisModel {
 #[serde(rename_all = "camelCase")]
 #[ts(export)]
 pub struct AnalysisCapability {
+    #[serde(default)]
+    #[ts(optional)]
+    pub classical_dereverb: bool,
     pub native: bool,
     pub available: bool,
     pub reason: Option<String>,
@@ -82,6 +85,9 @@ pub struct AnalysisCapability {
 #[serde(rename_all = "camelCase")]
 #[ts(export)]
 pub struct AnalysisSubmit {
+    #[serde(default)]
+    #[ts(optional)]
+    pub amount: Option<f32>,
     #[serde(default)]
     #[ts(optional)]
     pub task: AnalysisTask,
@@ -134,6 +140,7 @@ pub struct AnalysisArtifact {
 #[serde(rename_all = "camelCase")]
 #[ts(export)]
 pub struct AnalysisReview {
+    pub amount: f32,
     pub task: AnalysisTask,
     pub job: AnalysisJob,
     pub clip: ClipId,

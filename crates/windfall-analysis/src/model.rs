@@ -169,6 +169,25 @@ pub struct ModelManifest {
     pub onnx: Option<OnnxContract>,
 }
 impl ModelManifest {
+    /// Explicit code descriptor. Imported manifests may never claim this ID.
+    pub fn is_builtin_dereverb(&self) -> bool {
+        self.id == crate::BUILTIN_DEREVERB_ID
+            && self.version == "1"
+            && self.revision == 1
+            && self.bytes == 0
+            && self.max_bytes == 0
+            && self.sha256 == [0; 32]
+            && self.onnx.is_none()
+            && self.provenance.adapter_id == crate::BUILTIN_DEREVERB_ID
+            && self.provenance.adapter_version == "1"
+            && self.provenance.origin == "builtin:windfall/classical-dereverb"
+            && self.outputs.len() == 1
+            && matches!(
+                self.outputs[0].role.as_str(),
+                "dereverb-general" | "dereverb-vocal"
+            )
+            && self.outputs[0].channels == self.input_channels
+    }
     /// Actual retained heap capacity, including unused String/Vec capacity.
     /// Admission also reserves two compact copies used during worker loading.
     pub fn retained_bytes(&self) -> Result<u64> {
@@ -239,7 +258,7 @@ impl ModelManifest {
                 return Err(AnalysisError::Invalid("model provenance fields"));
             }
         }
-        if self.bytes == 0
+        if (self.bytes == 0 && !self.is_builtin_dereverb())
             || self.bytes > self.max_bytes
             || self.max_bytes > usize::MAX as u64
             || self.sample_rate < 8_000
@@ -330,6 +349,12 @@ pub struct VerifiedModel {
     bytes: Box<[u8]>,
 }
 impl VerifiedModel {
+    pub(crate) fn builtin(manifest: ModelManifest) -> Self {
+        Self {
+            manifest,
+            bytes: Box::new([]),
+        }
+    }
     pub fn manifest(&self) -> &ModelManifest {
         &self.manifest
     }
@@ -382,6 +407,11 @@ impl ModelCache {
         mut reader: impl Read,
         work: &mut Work,
     ) -> Result<PathBuf> {
+        if manifest.id == crate::BUILTIN_DEREVERB_ID {
+            return Err(AnalysisError::Invalid(
+                "built-in algorithm cannot be imported as a weight pack",
+            ));
+        }
         self.validate(manifest)?;
         work.check()?;
         let target = self.0.root.join(manifest.cache_name());
@@ -462,6 +492,11 @@ impl ModelCache {
     /// Rehash and copy to bounded immutable memory. A worker never infers from
     /// a mutable pathname or trusts a prior import's checksum check.
     pub fn load(&self, manifest: &ModelManifest, work: &mut Work) -> Result<VerifiedModel> {
+        if manifest.id == crate::BUILTIN_DEREVERB_ID {
+            return Err(AnalysisError::Invalid(
+                "built-in algorithm is not an imported pack",
+            ));
+        }
         self.validate(manifest)?;
         let bytes = verify_file(
             &self.0.root.join(manifest.cache_name()),
