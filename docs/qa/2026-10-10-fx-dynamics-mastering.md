@@ -164,3 +164,12 @@ an independent formula; `two_stage_drive_automation_matches_live_export_without_
 covers native DSP hosting and saved automation. Existing eight stage unit tests
 cover reset, extreme inputs, live control ramps, instant lowered ceiling and
 zero delay/tail. No true-peak claim; ceiling protects wet samples only.
+
+
+Transient host acceptance supplement (written, not executed):
+`transient_attack_automation_matches_live_export_without_callback_allocations`
+and `shaped_transient_outputs_recombine_in_the_real_mixer_and_destinations_process_independently`
+cover all four saved routing masks, real recombination, a disconnected ordinary
+source output, independently muted Attack destination, Sustain-listen reference,
+disabled-slot auxiliary silence, native automation, partitions and allocation
+guards. This closes the previously missing split-frame-to-mixer seam in software.

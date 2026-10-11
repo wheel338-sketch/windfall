@@ -1,6 +1,6 @@
 //! Dynamics family through saved routing, automation, offline/live paths and
 //! the callback allocation guard. DSP reference tests live in windfall-dsp.
-use crate::support::{Rig, run};
+use crate::support::Rig;
 use windfall_core::AudioBuffer;
 use windfall_dsp::{EffectKind, EffectParams};
 use windfall_engine::{RenderOptions, render};
@@ -99,4 +99,50 @@ fn mastering_limiter_gain_automation_matches_live_export_and_fixed_true_peak_lat
 #[test]
 fn two_stage_drive_automation_matches_live_export_without_delay_or_callback_allocation() {
     verify(EffectKind::StageStack, "driveDb", 0);
+}
+
+
+#[test]
+fn transient_attack_automation_matches_live_export_without_callback_allocations() {
+    verify(EffectKind::TransientShaper, "attack", 0);
+}
+
+#[test]
+fn shaped_transient_outputs_recombine_in_the_real_mixer_and_destinations_process_independently() {
+    use windfall_dsp::multiband::{TransientListen, TransientShaperParams};
+    use windfall_project::EffectOutputRoute;
+    let settings = TransientShaperParams { attack: 0.4, sustain: -0.25, ..Default::default() };
+    let (baseline, _) = song(Some(EffectParams::TransientShaper(settings)));
+    let (expected, _) = guarded_song(&baseline, RATE as usize, 257);
+    for mask in 0..4 {
+        let (mut rig, source) = song(Some(EffectParams::TransientShaper(settings)));
+        let effect = rig.track_mut(source).effects[0].id;
+        let attack = rig.track(); let sustain = rig.track();
+        for (output,target) in [(0,attack),(1,sustain)] {
+            if mask & (1<<output) != 0 {
+                rig.project.mixer.effect_outputs.push(EffectOutputRoute { effect, output, target });
+            }
+        }
+        rig.project.check().unwrap();
+        let (actual, _) = guarded_song(&rig, RATE as usize, 137);
+        assert!(difference(&actual, &expected) < 2e-6, "recombined mask {mask}");
+        if mask == 3 {
+            // Both parts have left the source: disconnecting its ordinary
+            // output cannot remove them. Muting Attack independently should
+            // leave the exact Sustain-listen result heard through the host.
+            rig.track_mut(source).output = None;
+            rig.track_mut(attack).muted = true;
+            let (body, _) = guarded_song(&rig, RATE as usize, 53);
+            let (listen, _) = song(Some(EffectParams::TransientShaper(TransientShaperParams {
+                listen: TransientListen::Sustain, ..settings
+            })));
+            let (reference, _) = guarded_song(&listen, RATE as usize, 211);
+            assert!(difference(&body, &reference) < 2e-6);
+            assert!(difference(&body, &expected) > 0.01);
+            // A disabled slot emits no auxiliary part.
+            rig.track_mut(source).effects[0].enabled = false;
+            let (disabled, _) = guarded_song(&rig, RATE as usize, 71);
+            assert!(disabled.iter().all(|x| x.abs() < 1e-7));
+        }
+    }
 }
