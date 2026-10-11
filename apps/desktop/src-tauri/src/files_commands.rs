@@ -236,3 +236,14 @@ pub async fn plugins_rescan(
     };
     blocking(move || session.while_recording_idle(|| manager.rescan(from))).await
 }
+
+#[tauri::command]
+pub async fn score_capture(session: State<'_, Session>, pattern: windfall_project::PatternId, channel: ChannelId, only: Option<Vec<windfall_project::NoteId>>, generation: u64, revision: u64) -> Result<Score, String> {
+    let session = session.inner().clone();
+    blocking(move || session.score_capture(pattern, channel, only, generation, revision)).await
+}
+#[tauri::command]
+pub async fn score_apply(session: State<'_, Session>, score: Score, pattern: windfall_project::PatternId, channel: ChannelId, mode: windfall_project::ScoreLoadMode, generation: u64, revision: u64) -> Result<DispatchResult, String> {
+    let session = session.inner().clone();
+    blocking(move || session.score_apply(score, pattern, channel, mode, generation, revision)).await
+}

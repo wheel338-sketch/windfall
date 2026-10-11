@@ -87,3 +87,5 @@ pub use sample_playback::{SamplePlayback, KeyPlaybackCurve};
 
 mod legacy_sample_playback;
 pub use sample_playback::InlinePlaybackSource;
+
+pub use score::ScoreEventLane;

@@ -9,7 +9,7 @@
 //! nothing is dropped without a word.
 
 use windfall_project::score::MAX_SCORE_NOTES;
-use windfall_project::{MAX_PATTERN_TICKS, NoteExpression, Score, ScoreNote, TimeSignature};
+use windfall_project::{NoteExpression, Score, ScoreNote, TimeSignature, MAX_PATTERN_TICKS};
 
 use crate::mix::{velocity_from_midi, velocity_to_midi};
 use crate::song::{MidiNote, MidiSong, MidiTrack, TempoChange, TimeSignatureChange};
@@ -63,6 +63,17 @@ pub fn score_to_song(score: &Score, tempo_bpm: f64) -> (MidiSong, Vec<String>) {
             score.curves.len()
         ));
     }
+    // A standard marker retains Windfall's complete expressive score. Other
+    // sequencers still read the ordinary notes, and can ignore this marker.
+    let metadata = score
+        .to_json()
+        .ok()
+        .map(|text| crate::song::Marker {
+            tick: 0,
+            text: format!("windfall.score.v1:{text}"),
+        })
+        .into_iter()
+        .collect();
     let song = MidiSong {
         name: None,
         tracks: vec![MidiTrack {
@@ -83,10 +94,13 @@ pub fn score_to_song(score: &Score, tempo_bpm: f64) -> (MidiSong, Vec<String>) {
             .into_iter()
             .collect(),
         key_signatures: Vec::new(),
-        markers: Vec::new(),
+        markers: metadata,
         length: score.length_ticks,
     }
     .normalized();
+    if !left_out.is_empty() || !score.events.is_empty() {
+        left_out = vec!["Note expression, color, articulation, curves and event lanes are retained in Windfall score metadata. Other MIDI applications read the ordinary notes and may ignore that metadata.".into()];
+    }
     (song, left_out)
 }
 
@@ -103,6 +117,23 @@ pub fn score_from_song(
     song: &MidiSong,
     fallback_name: &str,
 ) -> Result<(Score, Vec<String>), String> {
+    for marker in &song.markers {
+        if let Some(text) = marker.text.strip_prefix("windfall.score.v1:") {
+            let score = Score::from_json(text.as_bytes())?;
+            // Bind metadata to the ordinary notes. Editing the MIDI in another
+            // application must never resurrect stale hidden notes/events.
+            let (expected, _) = score_to_song(&score, 120.0);
+            if expected
+                .tracks
+                .iter()
+                .flat_map(|t| &t.notes)
+                .eq(song.tracks.iter().flat_map(|t| &t.notes))
+            {
+                return Ok((score, Vec::new()));
+            }
+            return Err("The MIDI notes changed after Windfall score metadata was written; import as MIDI to choose the new notes".into());
+        }
+    }
     let total: usize = song.tracks.iter().map(|track| track.notes.len()).sum();
     if total == 0 {
         return Err("The MIDI file has no notes".to_owned());

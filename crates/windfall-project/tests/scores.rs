@@ -1,7 +1,7 @@
 //! Score files: taking a lane's notes and curves, the file, and loading it
 //! into another lane as one undo step.
 
-use serde_json::{Value, json};
+use serde_json::{json, Value};
 use windfall_project::score::{MAX_SCORE_NOTES, SCORE_SCHEMA, SCORE_VERSION};
 use windfall_project::*;
 
@@ -308,21 +308,17 @@ fn loading_replaces_or_merges_in_one_undo_step_with_new_note_ids() {
     doc.dispatch(command, None).unwrap();
     assert_eq!(contents(doc.project(), pattern, empty), source);
 
-    assert!(
-        score
-            .load_command(doc.project(), PatternId(9_999), bass, ScoreLoadMode::Merge)
-            .is_err()
-    );
-    assert!(
-        score
-            .load_command(
-                doc.project(),
-                pattern,
-                ChannelId(9_999),
-                ScoreLoadMode::Merge
-            )
-            .is_err()
-    );
+    assert!(score
+        .load_command(doc.project(), PatternId(9_999), bass, ScoreLoadMode::Merge)
+        .is_err());
+    assert!(score
+        .load_command(
+            doc.project(),
+            pattern,
+            ChannelId(9_999),
+            ScoreLoadMode::Merge
+        )
+        .is_err());
 }
 
 fn file_of(score: &Score) -> Value {
@@ -340,11 +336,9 @@ fn files_that_are_not_readable_scores_are_refused_with_the_reason() {
     let file = file_of(&score);
     read(&file).unwrap();
 
-    assert!(
-        Score::from_json(b"{}")
-            .unwrap_err()
-            .contains("not a Windfall score")
-    );
+    assert!(Score::from_json(b"{}")
+        .unwrap_err()
+        .contains("not a Windfall score"));
     assert!(Score::from_json(b"MThd").is_err());
     let mut other = file.clone();
     other["schema"] = json!("windfall.preset");
@@ -414,9 +408,53 @@ fn files_that_are_not_readable_scores_are_refused_with_the_reason() {
     // An empty score is a valid file, and there is nothing in it to load.
     let empty = Score::new("Empty", 3840);
     assert_eq!(read(&file_of(&empty)).unwrap(), empty);
-    assert!(
-        empty
-            .load_command(doc.project(), pattern, lead, ScoreLoadMode::Merge)
-            .is_err()
+    assert!(empty
+        .load_command(doc.project(), pattern, lead, ScoreLoadMode::Merge)
+        .is_err());
+}
+
+#[test]
+fn score_events_remap_the_channel_and_replace_in_one_history_step() {
+    let (mut doc, pattern, lead, bass) = written();
+    doc.dispatch(
+        Command::SetPatternEvents {
+            pattern,
+            target: AutomationTarget::ChannelPan { channel: lead },
+            points: vec![AutomationPoint {
+                tick: 0,
+                value: 0.25,
+                curve: 0.0,
+                hold: true,
+            }],
+        },
+        None,
+    )
+    .unwrap();
+    let captured = Score::capture(doc.project(), pattern, lead, None).unwrap();
+    assert_eq!(
+        captured.events[0].target,
+        AutomationTarget::ChannelPan {
+            channel: ChannelId(0)
+        }
     );
+    assert_eq!(
+        Score::from_json(captured.to_json().unwrap().as_bytes()).unwrap(),
+        captured
+    );
+    let before = doc.project().clone();
+    let command = captured
+        .load_command(doc.project(), pattern, bass, ScoreLoadMode::Replace)
+        .unwrap();
+    doc.dispatch(command, None).unwrap();
+    assert_eq!(
+        doc.project()
+            .pattern(pattern)
+            .unwrap()
+            .event_lane(&AutomationTarget::ChannelPan { channel: bass })
+            .unwrap()
+            .points,
+        captured.events[0].points
+    );
+    doc.undo().unwrap();
+    assert_eq!(doc.project(), &before);
 }

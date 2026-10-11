@@ -119,6 +119,19 @@ export class SimDocument {
     return this.call<number[]>("doc_midi_export", options)
   }
 
+  captureScore(pattern: number, channel: number, only: number[] | null): import("@/bindings").Score {
+    return this.call("doc_score_capture", { pattern, channel, only })
+  }
+  scoreCommand(score: import("@/bindings").Score, pattern: number, channel: number, mode: import("@/bindings").ScoreLoadMode): Command {
+    return this.call("doc_score_command", { score, pattern, channel, mode })
+  }
+  writeScore(score: import("@/bindings").Score, path: string): { bytes: number[]; notes: string[] } {
+    return this.call("doc_score_write", { score, path })
+  }
+  readScore(bytes: number[], name: string): import("@/bindings").ScoreReview {
+    return this.call("score_read", { bytes, name })
+  }
+
   redo(): ProjectPatch | null {
     return this.follow(this.call<ProjectPatch | null>("doc_redo"))
   }

@@ -66,6 +66,37 @@ export function createTauriBackend(): Backend {
 
   return {
     kind: "tauri",
+    presetCaptureChannel: (id, generation, revision) => call("preset_capture_channel", { id, generation, revision }),
+    presetCapturePlugin: (target, generation, revision) => call("preset_capture_plugin", { target, generation, revision }),
+    presetWrite: (path, capture) => call("preset_write", { path, capture }),
+    presetRead: (path) => call("preset_read", { path }),
+    presetApplyChannel: (path, id, expected, nameColor, withoutAudio) => call("preset_apply_channel", { path, id, expected, nameColor, withoutAudio }),
+    presetLibrary: () => call("preset_library"),
+    presetLibrarySave: (name, capture) => call("preset_library_save", { name, capture }),
+    presetLibraryDelete: (path) => call("preset_library_delete", { path }),
+    scoreCapture: (pattern, channel, only, generation, revision) => call("score_capture", { pattern, channel, only, generation, revision }),
+    scoreApply: (score, pattern, channel, mode, generation, revision) => call("score_apply", { score, pattern, channel, mode, generation, revision }),
+    scoreWrite: (path, score) => call("score_write", { path, score }),
+    scoreRead: (path) => call("score_read", { path }),
+    templates: () => call("templates"),
+    templateSave: (name) => call("template_save", { name }),
+    templateNew: (id) => call("template_new", { id }),
+    templateDelete: (id) => call("template_delete", { id }),
+    pluginDatabase: () => call("plugin_database"),
+    pluginDatabaseAnnotate: (format, id, annotation) => call("plugin_database_annotate", { format, id, annotation }),
+    pluginDatabaseForgetMissing: () => call("plugin_database_forget_missing"),
+    pluginsRemoveFolder: (folder) => call("plugins_remove_folder", { folder }),
+    pluginsRescan: (everything) => call("plugins_rescan", { everything }),
+    pickPresetPath: async (saveName) => {
+      const filters = [{ name: "Windfall preset", extensions: ["wfpreset", "wfmixer"] }]
+      const path = saveName === undefined ? await open({ multiple: false, filters }) : await save({ defaultPath: `${saveName.replace(/[<>:"/\\|?*]/g, "_")}.wfpreset`, filters })
+      return typeof path === "string" ? path : null
+    },
+    pickScorePath: async (saveName) => {
+      const filters = [{ name: "Windfall score", extensions: ["wfscore"] }, { name: "MIDI score", extensions: ["mid", "midi"] }]
+      const path = saveName === undefined ? await open({ multiple: false, filters }) : await save({ defaultPath: `${saveName.replace(/[<>:"/\\|?*]/g, "_")}.wfscore`, filters })
+      return typeof path === "string" ? path : null
+    },
     analyzerCapability: () => call("analyzer_capability"),
     analyzerSubscribe: (slot, handler) => {
       // One channel per slot. Events that arrive after the slot stopped

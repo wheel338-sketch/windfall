@@ -14,7 +14,7 @@ use std::path::{Path, PathBuf};
 
 use windfall_ipc::{ScoreReview, ScoreWritten};
 use windfall_project::score::MAX_SCORE_FILE_BYTES;
-use windfall_project::{Score, file};
+use windfall_project::{file, Score};
 
 use super::Session;
 use crate::paths;
@@ -87,5 +87,43 @@ impl Session {
             score: Score::from_json(&bytes)?,
             notes: Vec::new(),
         })
+    }
+}
+
+impl Session {
+    pub fn score_capture(
+        &self,
+        pattern: windfall_project::PatternId,
+        channel: windfall_project::ChannelId,
+        only: Option<Vec<windfall_project::NoteId>>,
+        generation: u64,
+        revision: u64,
+    ) -> Result<Score, String> {
+        let state = self.state();
+        if state.generation != generation || state.document.revision() != revision {
+            return Err("The project changed before score capture".into());
+        }
+        Score::capture(state.document.project(), pattern, channel, only.as_deref())
+    }
+    pub fn score_apply(
+        &self,
+        score: Score,
+        pattern: windfall_project::PatternId,
+        channel: windfall_project::ChannelId,
+        mode: windfall_project::ScoreLoadMode,
+        generation: u64,
+        revision: u64,
+    ) -> Result<windfall_project::DispatchResult, String> {
+        let ticket = {
+            let _recording = self.recording_idle()?;
+            let state = self.state();
+            if state.generation != generation || state.document.revision() != revision {
+                return Err("The project changed while the score was chosen; try again".into());
+            }
+            let command = score.load_command(state.document.project(), pattern, channel, mode)?;
+            self.sample_edit_ticket(&state, command, None, Vec::new())?
+                .ordinary()
+        };
+        self.finish_sample_edit(ticket)
     }
 }

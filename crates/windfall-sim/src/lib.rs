@@ -40,6 +40,7 @@ use std::sync::{Mutex, MutexGuard, Once, PoisonError};
 use serde::{Deserialize, Serialize};
 use windfall_project::Document;
 mod midi;
+mod files;
 mod slicer;
 mod timeline;
 
@@ -141,6 +142,7 @@ pub mod ops {
         let tags: Vec<String> = super::parse("library tags", input)?;
         super::json(&windfall_ipc::normalize_tags(&tags)?)
     }
+    pub use crate::files::{doc_score_capture, doc_score_command, doc_score_write, score_read, plugin_database_view};
     pub use crate::midi::{doc_midi_export, doc_midi_import, midi_preview};
     pub use crate::slicer::{slice_analyze, slice_command, sample_playback_detect};
     pub use crate::timeline::{timeline_position, timeline_range};
@@ -308,8 +310,8 @@ fn record_panics() {
     });
 }
 
-/// Runs an operation and wraps what it gives in the `{"ok": …}` or
-/// `{"error": …}` text a caller receives. A panic becomes an error.
+/// Runs an operation and wraps what it gives in the `{"ok": â€¦}` or
+/// `{"error": â€¦}` text a caller receives. A panic becomes an error.
 pub fn call(op: Op, handle: u32, input: &str) -> String {
     record_panics();
     let reply = panic::catch_unwind(AssertUnwindSafe(|| op(handle, input)))
@@ -426,6 +428,11 @@ export_ops! {
     midi_preview
     doc_midi_import
     doc_midi_export
+    doc_score_capture
+    doc_score_command
+    doc_score_write
+    score_read
+    plugin_database_view
 }
 
 #[cfg(test)]

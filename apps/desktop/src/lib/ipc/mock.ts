@@ -35,6 +35,7 @@ import type {
   StoredAudioSettings,
   Unsubscribe,
 } from "./backend"
+import { mockNativeFiles } from "./mock-files"
 import { mockMixerPresetLibrary } from "./mixer-presets"
 import {
   baseName,
@@ -636,10 +637,36 @@ export function createMockBackend(options: MockOptions = {}): MockBackend {
     return commands
   }
 
+  const scoreFiles = new Map<string, number[]>()
+  function checkFileGuard(generation: number, revision: number) {
+    const current = timelineState()
+    if (generation !== current.generation || revision !== current.revision) throw new Error("The project changed while the file was chosen; try again")
+  }
+
   const made: MockBackend = {
     kind: "mock",
     ...unavailableAnalysis(),
     ...mockMixerPresetLibrary(),
+    ...mockNativeFiles(),
+    scoreCapture: (pattern, channel, only, generation, revision) => ipc(() => {
+      checkFileGuard(generation, revision)
+      return doc.captureScore(pattern, channel, only)
+    }),
+    scoreApply: (score, pattern, channel, mode, generation, revision) => ipc(() => {
+      checkFileGuard(generation, revision)
+      return dispatchNow(doc.scoreCommand(score, pattern, channel, mode))
+    }),
+    scoreWrite: (target, score) => ipc(() => {
+      const written = doc.writeScore(score, target)
+      scoreFiles.set(target, written.bytes)
+      return { path: target, notes: written.notes }
+    }),
+    scoreRead: (target) => ipc(() => {
+      const bytes = scoreFiles.get(target)
+      if (!bytes) throw new Error("This score is not in the browser score library")
+      return doc.readScore(bytes, target)
+    }),
+    pickScorePath: async (name) => name === undefined ? ([...scoreFiles.keys()][0] ?? null) : dialogs.exportPath(`/scores/${name}.wfscore`),
     ...unavailableAnalyzer(),
     mixerWaveformTracks: (tracks, generation, revision) => ipc(() => {
       const state = timelineState()

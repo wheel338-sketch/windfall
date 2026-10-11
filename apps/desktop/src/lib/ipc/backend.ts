@@ -37,6 +37,7 @@ import type { AnalysisBackend } from "@/features/analysis/types"
 import type { AnalyzerBackend } from "@/features/analyzers/types"
 import type { PanelId } from "@/lib/store/ui"
 
+import type { ProjectFilesBackend } from "./files"
 import type { MixerPresetLibraryBackend } from "./mixer-presets"
 
 export type Unsubscribe = () => void
@@ -69,7 +70,7 @@ export type AudioClipPlace = {
  * the shell needs. A failed call rejects with an `Error` whose message is
  * plain text that can be shown to the user.
  */
-export interface Backend extends AnalysisBackend, MixerPresetLibraryBackend, AnalyzerBackend {
+export interface Backend extends AnalysisBackend, MixerPresetLibraryBackend, AnalyzerBackend, ProjectFilesBackend {
   mixerWaveformTracks(tracks: TrackId[], generation: number, revision: number): Promise<void>
   mixerPresetCapture(id: TrackId, generation: number, revision: number): Promise<import("@/bindings").MixerTrackPreset>
   mixerPresetSave(preset: import("@/bindings").MixerTrackPreset): Promise<string | null>
