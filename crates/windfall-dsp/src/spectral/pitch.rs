@@ -78,11 +78,17 @@ impl Grains {
         self.phase = 0.5;
     }
     fn tick(&mut self, input: [f32; 2], ratio: f32) -> ([f32; 2], [f32; 2]) {
+        self.tick_span(input, ratio, GRAIN_SPAN as f32)
+    }
+    fn tick_span(&mut self, input: [f32; 2], ratio: f32, span: f32) -> ([f32; 2], [f32; 2]) {
         let p = self.phase as f32;
         let q = (p + 0.5).fract();
         let weight = 0.5 - 0.5 * (std::f32::consts::TAU * p).cos();
-        let a = (self.extra_delay + 2) as f32 + p * GRAIN_SPAN as f32;
-        let b = (self.extra_delay + 2) as f32 + q * GRAIN_SPAN as f32;
+        // Keep the centre age fixed when a tracked voice chooses a shorter,
+        // pitch-synchronous window; storage and reported latency stay bounded.
+        let start = (self.extra_delay + 2) as f32 + (GRAIN_SPAN as f32 - span) * 0.5;
+        let a = start + p * span;
+        let b = start + q * span;
         let mut wet = [0.0; 2];
         let mut dry = [0.0; 2];
         // Collapse onto the fixed delay at unison, including after automation.
@@ -94,7 +100,7 @@ impl Grains {
             wet[ch] = dry[ch] + (grain - dry[ch]) * shifted;
             self.lines[ch].push(input[ch]);
         }
-        self.phase = (self.phase + (1.0 - f64::from(ratio)) / GRAIN_SPAN as f64).rem_euclid(1.0);
+        self.phase = (self.phase + (1.0 - f64::from(ratio)) / f64::from(span)).rem_euclid(1.0);
         (wet, dry)
     }
     fn latency(&self) -> usize {
@@ -440,7 +446,16 @@ impl Effect for PitchCorrect {
             let target = self.target(tuning) * amount;
             self.correction +=
                 (target - self.correction) * smoothing_coefficient(speed, self.sample_rate);
-            let (mut wet, dry) = self.grains.tick(input, (self.correction / 12.0).exp2());
+            // Both read heads must differ by whole source periods. Otherwise
+            // their windows cancel/beat and quantize a harmony onto grain-rate
+            // sidebands instead of the requested MIDI pitch.
+            let span = if self.frequency > 0.0 {
+                let pair = 2.0 * self.sample_rate / self.frequency;
+                ((GRAIN_SPAN as f32 / pair).floor().max(1.0) * pair).min(GRAIN_SPAN as f32)
+            } else {
+                GRAIN_SPAN as f32
+            };
+            let (mut wet, dry) = self.grains.tick_span(input, (self.correction / 12.0).exp2(), span);
             let source_note = if self.frequency > 0.0 {
                 69.0 + 12.0 * (self.frequency / tuning).log2()
             } else {
@@ -456,7 +471,7 @@ impl Effect for PitchCorrect {
                 } else {
                     0.0
                 };
-                let (harmony, _) = self.harmonies[voice].tick(input, (shift / 12.0).exp2());
+                let (harmony, _) = self.harmonies[voice].tick_span(input, (shift / 12.0).exp2(), span);
                 for ch in 0..2 {
                     wet[ch] += harmony[ch] * self.harmony_levels[voice] * harmony_mix * 0.25;
                 }

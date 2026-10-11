@@ -853,9 +853,35 @@ mod tests {
         // Nothing ever comes back on the side the sound came in on.
         assert!(left.iter().all(|sample| *sample == 0.0));
         assert_eq!(right[at], 1.0);
-        // Each repeat is one more pass through the feedback path, which
-        // halves it. The filters smear it over a few samples and take a
-        // little more, so compare the energy around each repeat.
+        // Independent bilinear Butterworth biquads, in direct form rather
+        // than the processor's SVF state representation. IIR tails overlap
+        // successive repeat windows, so their energies need not have an
+        // exact <= feedback^2 ratio even though the loop is contractive.
+        fn filter(hz: f64, high: bool) -> ([f64; 3], [f64; 2]) {
+            let g = (std::f64::consts::PI * hz / 44_100.0).tan();
+            let k = std::f64::consts::SQRT_2;
+            let norm = 1.0 / (1.0 + k * g + g * g);
+            let b = if high { norm } else { g * g * norm };
+            ([b, if high { -2.0 * b } else { 2.0 * b }, b],
+                [2.0 * (g * g - 1.0) * norm, (1.0 - k * g + g * g) * norm])
+        }
+        fn step(input: f64, coeffs: ([f64; 3], [f64; 2]), state: &mut [f64; 4]) -> f64 {
+            let (b, a) = coeffs;
+            let output = b[0] * input + b[1] * state[0] + b[2] * state[1]
+                - a[0] * state[2] - a[1] * state[3];
+            *state = [input, state[0], output, state[2]];
+            output
+        }
+        let high = filter(20.0, true);
+        let low = filter(20_000.0, false);
+        let mut states = [[0.0; 4]; 2];
+        let mut history = vec![0.0; right.len()];
+        for n in 0..right.len() {
+            let echo = if n >= at { history[n - at] } else { 0.0 };
+            let back = step(step(echo, high, &mut states[0]), low, &mut states[1]);
+            history[n] = f64::from(n == 0) + 0.5 * back;
+            assert!((f64::from(right[n]) - echo).abs() < 1e-5, "sample {n}");
+        }
         let energy = |repeat: usize| -> f32 {
             let from = repeat * at - at / 2;
             right[from..from + at].iter().map(|x| x * x).sum()
@@ -864,7 +890,7 @@ mod tests {
         for repeat in 2..7 {
             let now = energy(repeat);
             assert!(
-                now > 0.12 * previous && now <= 0.2501 * previous,
+                now > 0.12 * previous && now < previous,
                 "repeat {repeat}: {now} after {previous}"
             );
             previous = now;
