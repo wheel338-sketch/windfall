@@ -322,6 +322,37 @@ pub enum Command {
     ReplaceNotebook {
         notebook: crate::Notebook,
     },
+    /// Replaces a channel's sound and settings with a channel preset's, as
+    /// one undo step. The channel keeps its id, group, mute, solo and mixer
+    /// track. `expected` is the channel as it was when the preset was
+    /// chosen: a channel that changed since is refused. A sampler preset's
+    /// audio is `sample`, a sample the project has, or `audio`, a file that
+    /// is added to the pool in the same step; giving both fails. With
+    /// `audio` the command creates a [`SampleId`], or reports the one the
+    /// project already has for that file. Automation of instrument
+    /// settings the preset replaces is removed. [`crate::preset`] has the
+    /// rules.
+    ApplyChannelPreset {
+        id: ChannelId,
+        expected: crate::Channel,
+        preset: crate::ChannelPreset,
+        #[serde(default)]
+        #[ts(optional)]
+        sample: Option<SampleId>,
+        #[serde(default)]
+        #[ts(optional)]
+        audio: Option<crate::PresetAudio>,
+        name_color: bool,
+    },
+    /// Replaces the state of one instrument or effect with a plugin
+    /// preset's, as one undo step. `expected` is the state the target had
+    /// when the preset was chosen. Automation of settings the preset
+    /// replaces with another processor's is removed.
+    ApplyPluginPreset {
+        target: crate::PluginTarget,
+        expected: crate::PluginPresetState,
+        preset: crate::PluginPreset,
+    },
 
     // Sample pool
     /// Registers an audio file. Creates a [`SampleId`]. If a sample with the
@@ -805,6 +836,12 @@ pub struct SettingsPatch {
     pub time_signature: Option<TimeSignature>,
     #[ts(optional)]
     pub swing: Option<f32>,
+    #[ts(optional)]
+    pub pan_law: Option<crate::PanLaw>,
+    /// One of [`TIMEBASES`](crate::timebase::TIMEBASES); another value
+    /// fails the command.
+    #[ts(optional)]
+    pub timebase_ppq: Option<u16>,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, TS)]

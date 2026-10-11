@@ -14,6 +14,7 @@ mod modulation;
 mod playlist_layouts;
 mod playlist_stems;
 mod rack_voice;
+mod project_settings;
 mod realtime;
 mod rendering;
 mod sampler;

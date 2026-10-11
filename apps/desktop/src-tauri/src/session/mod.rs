@@ -85,12 +85,15 @@ mod mixer_presets;
 mod playlist_bounce;
 mod playlist_export;
 mod preparation;
+mod presets;
 mod realtime;
 mod recording;
 mod sampler_preprocess;
 mod sampler_processing;
 mod samples;
+mod scores;
 mod slicer;
+mod templates;
 #[cfg(test)]
 mod tests;
 mod timeline;

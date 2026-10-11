@@ -95,6 +95,10 @@ pub fn start(app: &AppHandle) -> Result<Session, Box<dyn Error>> {
         }
         Err(error) => log::warn!("plugins: {error}"),
     }
+    // The user's favorites and categories, whether or not hosting started.
+    app.manage(Arc::new(crate::plugin_database::PluginDatabaseStore::load(
+        &config_dir,
+    )));
     session.spawn_realtime()?;
     session.spawn_autosave(AUTOSAVE_INTERVAL)?;
     session.spawn_audio_logger()?;

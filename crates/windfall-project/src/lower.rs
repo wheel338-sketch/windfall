@@ -35,6 +35,8 @@ use crate::model::{
 type Label = &'static str;
 
 mod playlist_layouts;
+/// Preset commands, lowered beside the rest so they share its transaction.
+mod preset_apply;
 
 /// What a command did to the project.
 pub(crate) struct Outcome {
@@ -1240,6 +1242,19 @@ impl Transaction<'_> {
                 }));
                 "Save notebook"
             }
+            Command::ApplyChannelPreset {
+                id,
+                expected,
+                preset,
+                sample,
+                audio,
+                name_color,
+            } => self.apply_channel_preset(id, expected, preset, sample, audio, name_color)?,
+            Command::ApplyPluginPreset {
+                target,
+                expected,
+                preset,
+            } => self.apply_plugin_preset(target, expected, preset)?,
             Command::AddSample { name, path } => self.add_sample(name, path)?,
             Command::RemoveSample { id } => self.remove_sample(id)?,
             Command::AddChannel {
@@ -1624,6 +1639,8 @@ impl Transaction<'_> {
                 (patch.tempo_bpm.is_some(), "Change tempo"),
                 (patch.time_signature.is_some(), "Change time signature"),
                 (patch.swing.is_some(), "Change swing"),
+                (patch.pan_law.is_some(), "Change panning law"),
+                (patch.timebase_ppq.is_some(), "Change timebase"),
             ],
             "Change project settings",
         );
@@ -1661,6 +1678,18 @@ impl Transaction<'_> {
         }
         if let Some(swing) = patch.swing {
             new.swing = clamped("the swing", swing, 0.0, 1.0)?;
+        }
+        if let Some(law) = patch.pan_law {
+            new.pan_law = law;
+        }
+        if let Some(ppq) = patch.timebase_ppq {
+            if !crate::timebase::is_timebase(ppq) {
+                return Err(CommandError::invalid(format!(
+                    "a timebase of {ppq} ticks per quarter note is not one of {:?}",
+                    crate::timebase::TIMEBASES
+                )));
+            }
+            new.timebase_ppq = ppq;
         }
         self.push(Edit::Settings(Change { old, new }));
         Ok(label)
