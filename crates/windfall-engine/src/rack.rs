@@ -229,6 +229,7 @@ impl EffectUnit {
     /// limiter's look-ahead, is left alone: the delays that line the other
     /// paths up with the effect are made for the plan's value.
     pub fn control_params(&self) -> EffectParams { self.params }
+    pub fn control_enabled(&self) -> bool { self.enabled }
 
     pub fn automate(&mut self, param: usize, value: f32) {
         if let Some(external) = &mut self.external {

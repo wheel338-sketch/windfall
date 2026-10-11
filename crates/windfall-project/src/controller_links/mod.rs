@@ -18,11 +18,10 @@
 //! about a link depends on what kind of source feeds it.
 //!
 //! - [`ControlSource::Midi`] is fed by hardware, away from the audio thread.
-//! - [`ControlSource::Internal`] is reserved for sources inside the project
-//!   (peak, envelope and formula controllers). It is stored, checked, undone
-//!   and removed with its target like any link; the hardware runtime never
-//!   feeds it. Whoever adds such a source evaluates [`CompiledMap::shape`],
-//!   which is `Copy` and allocation free, wherever its signal is produced.
+//! - [`ControlSource::Internal`] is evaluated by the engine at its owning
+//!   mixer slot or Dashboard channel. Source ports, cycles and configuration
+//!   are checked by `internal_controllers`. Source and target deletion both
+//!   retire links in the same undo step. The hardware runtime never feeds it.
 //!
 //! A link to a [`LinkTarget::Param`] is removed in the same edit that
 //! removes what it points at, exactly as automations are, and comes back

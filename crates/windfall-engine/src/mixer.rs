@@ -153,7 +153,8 @@ impl Mixer {
                         continue;
                     };
                     if let Some(effect) = track.effects.get(place) {
-                        state.controls.process_slot(plan, effect.id, unit.control_params(), left, right, base, control_tempo);
+                        if unit.control_enabled() { state.controls.process_slot(plan, effect.id, unit.control_params(), left, right, base, control_tempo); }
+                        else { state.controls.silence(plan, effect.id); }
                     }
                     self.scratch[..frames].copy_from_slice(&self.keys[index * MAX_BLOCK..][..frames]);
                     if let Some(line) = &mut state.key_delays[index][place].line { line.process(&mut self.scratch[..frames]); }

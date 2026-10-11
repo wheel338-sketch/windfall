@@ -18,6 +18,7 @@ import type { EditorProps } from "./editor-props"
 import { EqEditor } from "./eq/eq-editor"
 import { LimiterEditor } from "./limiter/limiter-editor"
 import { ReverbEditor } from "./reverb/reverb-editor"
+import { EnvelopeSourceEditor, KeyboardSourceEditor, FormulaSourceEditor, PeakSourceEditor, XySourceEditor, XyzSourceEditor, SurfaceSourceEditor, VoltageSourceEditor } from "@/features/internal-controllers/editors"
 import { TunerEditor } from "./tuner/tuner-editor"
 
 type Editors = {
@@ -36,6 +37,14 @@ const EDITORS: Editors = {
   reverb: ReverbEditor,
   delay: DelayEditor,
   tuner: TunerEditor,
+  noteEnvelope: EnvelopeSourceEditor,
+  keyboardSource: KeyboardSourceEditor,
+  formulaSource: FormulaSourceEditor,
+  envelopeFollower: PeakSourceEditor,
+  xyPad: XySourceEditor,
+  xyzPad: XyzSourceEditor,
+  controlSurface: SurfaceSourceEditor,
+  voltageSource: VoltageSourceEditor,
 }
 
 type AnyEditor = ComponentType<EditorProps<EffectParams>>
@@ -92,6 +101,7 @@ function BoundEditor({ trackId, slot, Editor, descriptor }: BoundEditorProps) {
   })
   return (
     <Editor
+      key={slot.id}
       effect={slot.id}
       track={trackId}
       params={slot.params}

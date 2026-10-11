@@ -1,3 +1,4 @@
+import { DashboardEditor } from "@/features/internal-controllers/dashboard"
 import { instrumentDescriptor } from "@/features/params"
 import { PluginControls } from "@/features/plugins/controls"
 import { usePluginBinding } from "@/features/plugins/store"
@@ -37,6 +38,8 @@ export function InstrumentSection({ channel }: { channel: InstrumentChannel }) {
           params={params}
           color={colorToCss(channel.color)}
         />
+      ) : params.type === "dashboard" ? (
+        <DashboardEditor key={channel.id} channel={channel.id} params={params} />
       ) : (
         <GenericInstrumentEditor channel={channel.id} params={params} />
       )}

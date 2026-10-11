@@ -174,6 +174,12 @@ impl Processor {
     pub fn set_output_channels(&mut self, channels: usize) {
         self.hardware_output = Some(crate::hardware_output::HardwareOutput::new(channels));
     }
+    /// Configured DC routes outside the prepared device channel count.
+    pub fn unavailable_dc_routes(&self) -> usize {
+        let channels = self.hardware_output.as_ref().map_or(0, |output| output.channels());
+        self.plan.control_sources.iter().flat_map(|source| &source.config.voltage_routes).filter(|route| usize::from(route.channel) >= channels).count()
+    }
+    /// The most recently prepared multichannel software output block.
     pub fn hardware_samples(&self) -> &[f32] {
         self.hardware_output
             .as_ref()
@@ -300,6 +306,7 @@ impl Processor {
         if epoch != self.hardware_epoch {
             self.cut_echoes_of(Origin::Hardware);
             self.voices.fade_origin(Origin::Hardware);
+            self.state.controls.release_origin(Origin::Hardware);
             for unit in self.state.instrument_units() {
                 unit.silence_hardware();
             }
@@ -556,6 +563,7 @@ impl Processor {
                 // Stop silences every note, so no echo of one may follow it.
                 for origin in [Origin::Sequenced, Origin::Live, Origin::Hardware] {
                     self.cut_echoes_of(origin);
+                    self.state.controls.release_origin(origin);
                 }
                 self.voices.fade_origin(Origin::Sequenced);
                 self.voices.fade_origin(Origin::Live);
@@ -669,6 +677,7 @@ impl Processor {
         let shift = self.sequencer.take_clock_shift();
         if shift != 0.0 {
             self.voices.shift_ends(shift);
+            self.state.controls.move_ends(&|end| end + shift);
             for runtime in &mut self.state.channel_voice {
                 runtime.move_ends(&|end| end + shift);
             }
@@ -779,6 +788,7 @@ impl Processor {
                     }
                     let shift = self.sequencer.take_clock_shift();
                     self.voices.shift_ends(shift);
+            self.state.controls.move_ends(&|end| end + shift);
                     for runtime in &mut self.state.channel_voice {
                         runtime.move_ends(&|end| end + shift);
                     }
@@ -1191,6 +1201,7 @@ impl Processor {
             let origin = self.sequencer.pass_start();
             let moved = |end: f64| Sequencer::moved(&plan, &self.plan, origin, end);
             self.voices.move_ends(moved);
+            state.controls.move_ends(&moved);
             for runtime in &mut state.channel_voice {
                 runtime.move_ends(&moved);
             }

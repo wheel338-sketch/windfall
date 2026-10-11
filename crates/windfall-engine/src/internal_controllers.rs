@@ -47,11 +47,16 @@ impl std::fmt::Debug for Link {
 
 pub(crate) fn compile(project: &Project, plan: &Plan) -> (Vec<Source>, Vec<Link>) {
     // Invalid externally supplied projects cannot sneak past the checked document.
-    if windfall_project::internal_controllers::links_problem(
+    if windfall_project::internal_controllers::settings_problem(
         project,
-        &project.settings.controller_links,
+        &project.settings.internal_controllers,
     )
     .is_some()
+        || windfall_project::internal_controllers::links_problem(
+            project,
+            &project.settings.controller_links,
+        )
+        .is_some()
     {
         return (Vec::new(), Vec::new());
     }
@@ -282,7 +287,9 @@ impl Node {
         self.phase = 0.0;
         self.drawn = 0.0;
         self.gate = false;
-        if let Dsp::Envelope(d) = &mut self.dsp {
+        if let (Dsp::Envelope(d), EffectParams::NoteEnvelope(params)) = (&mut self.dsp, self.params)
+        {
+            d.set_params(&params);
             d.reset();
         }
     }
@@ -478,6 +485,14 @@ impl Runtime {
             }
         }
     }
+    pub fn silence(&mut self, plan: &Plan, id: EffectId) {
+        for (index, source) in plan.control_sources.iter().enumerate() {
+            if source.id == id {
+                self.nodes[index].values.fill(0.0);
+                self.nodes[index].dc.fill([0.0; 8]);
+            }
+        }
+    }
     pub fn dashboard(
         &mut self,
         plan: &Plan,
@@ -517,6 +532,24 @@ impl Runtime {
     pub fn note_off(&mut self, channel: usize, key: u8, origin: Origin) {
         for node in &mut self.nodes {
             node.note_off(channel, key, origin);
+        }
+    }
+    pub fn move_ends(&mut self, moved: &impl Fn(f64) -> f64) {
+        for node in &mut self.nodes {
+            for note in node.held.iter_mut().flatten() {
+                if note.end_tick.is_finite() {
+                    note.end_tick = moved(note.end_tick);
+                }
+            }
+        }
+    }
+    pub fn release_origin(&mut self, origin: Origin) {
+        for node in &mut self.nodes {
+            for note in &mut node.held {
+                if note.is_some_and(|n| n.origin == origin) {
+                    *note = None;
+                }
+            }
         }
     }
     pub fn end_sequenced(&mut self) {

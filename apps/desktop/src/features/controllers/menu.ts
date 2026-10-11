@@ -1,4 +1,5 @@
 import { toast } from "sonner"
+import { addInternalLink, internalSources } from "@/features/internal-controllers/model"
 
 import type { AutomationTarget, ControllerLink, LinkTarget } from "@/bindings"
 import type { ContextItem } from "@/components/context-actions"
@@ -68,17 +69,22 @@ export async function learnTargets(
  * no MIDI hardware.
  */
 export function controllerEntries(target: AutomationTarget): ContextItem[] {
-  if (backend.kind !== "tauri") return []
   const links = useProjectStore.getState().project.settings.controllerLinks ?? []
   const linked = linksOf(links, target)
-  const items: ContextItem[] = [
+  const items: ContextItem[] = [{
+    dynamic: () => {
+      const sources = internalSources(useProjectStore.getState().project)
+      return [{ submenu: "Link to internal controller", items: sources.length ? sources.map((source) => ({ submenu: source.name, items: source.ports.map((port, output) => ({ title: port, disabled: (useProjectStore.getState().project.settings.controllerLinks ?? []).some((link) => link.source.type === "internal" && link.source.controller === source.id && link.source.output === output && link.target.type === "param" && sameShape(link.target.target, target)), run: () => addInternalLink(source.id, output, target) })) })) : [{ title: "Add a controller in a mixer effect slot or add a Dashboard channel", disabled: true, run: () => {} }] }]
+    },
+  }]
+  if (backend.kind === "tauri") items.push(
     {
       title: linked.length > 0 ? "Link to another controller…" : "Link to controller…",
       run: () => {
         void learnTargets([{ type: "param", target }], false)
       },
     },
-  ]
+  )
   if (linked.length > 0) {
     items.push({
       title: "Remove controller link",

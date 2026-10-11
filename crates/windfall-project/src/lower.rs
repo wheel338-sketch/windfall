@@ -127,7 +127,8 @@ pub(crate) fn execute(project: &mut Project, command: Command) -> Result<Outcome
                 let new = crate::take_groups::prune(transaction.project);
                 transaction.push(Edit::TakeGroups(Change { old, new }));
             }
-            if let Some(problem) = crate::internal_controllers::links_problem(transaction.project, &transaction.project.settings.controller_links) {
+            if let Some(problem) = crate::internal_controllers::settings_problem(transaction.project, &transaction.project.settings.internal_controllers)
+                .or_else(|| crate::internal_controllers::links_problem(transaction.project, &transaction.project.settings.controller_links)) {
                 for edit in transaction.edits.iter().rev() { edit.apply(transaction.project, Direction::Backward); }
                 transaction.project.next_id = first_id;
                 return Err(CommandError::invalid(problem));

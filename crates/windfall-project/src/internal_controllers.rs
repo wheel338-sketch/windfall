@@ -217,6 +217,23 @@ pub fn settings_problem(
                 return Some("two DC sources reserve the same audio channel".into());
             }
         }
+        for route in &config.voltage_routes {
+            let audible = project.mixer.tracks.iter().any(|track| {
+                let route_audio = track.external_output.or_else(|| {
+                    (track.id == crate::TrackId::MASTER).then_some(crate::ExternalOutputRoute {
+                        left: 0,
+                        right: Some(1),
+                        exclusive: false,
+                    })
+                });
+                route_audio.is_some_and(|audio| {
+                    audio.left == route.channel || audio.right == Some(route.channel)
+                })
+            });
+            if audible {
+                return Some("DC output channel is already reserved for audible audio".into());
+            }
+        }
         for (at, route) in config.voltage_routes.iter().enumerate() {
             if effect.kind() != EffectKind::VoltageSource
                 || route.output > 7
@@ -289,7 +306,7 @@ pub fn links_problem(project: &Project, links: &[ControllerLink]) -> Option<Stri
         let ControlSource::Internal { controller, output } = link.source else {
             continue;
         };
-        let Some((track, effect)) = source(project, controller) else {
+        let Some((_, effect)) = source(project, controller) else {
             return Some("internal link source is missing or has no control ports".into());
         };
         if usize::from(output) >= effect.ports().len() {
@@ -308,49 +325,59 @@ pub fn links_problem(project: &Project, links: &[ControllerLink]) -> Option<Stri
         if let Some(to) = owner(target) {
             edges.push((controller, to));
         }
-        // The detector observes this track's pre-fader input at the source slot.
-        // No feedback through earlier slots or upstream audible track routes.
-        if effect.kind() == EffectKind::EnvelopeFollower {
-            let target_track = match target {
-                AutomationTarget::ChannelVolume { channel }
-                | AutomationTarget::ChannelPan { channel }
-                | AutomationTarget::InstrumentParam { channel, .. } => {
-                    project.channel(channel).map(|c| c.mixer_track)
+        // A parameter edit can feed a detector through audio as well as through
+        // another scalar source. Add both kinds of dependency to the same graph.
+        for detector_track in &project.mixer.tracks {
+            for detector in &detector_track.effects {
+                if detector.params.kind() != EffectKind::EnvelopeFollower {
+                    continue;
                 }
-                AutomationTarget::EffectParam {
-                    track,
-                    effect: destination,
-                    ..
-                }
-                | AutomationTarget::EffectMix {
-                    track,
-                    effect: destination,
-                } => {
-                    let chain = project.mixer.track(track)?;
-                    let before = chain.effects.iter().position(|e| e.id == destination)?;
-                    let detector = chain.effects.iter().position(|e| e.id.0 == controller);
-                    if detector.is_some_and(|at| before >= at) {
-                        None
-                    } else {
-                        Some(track)
+                let affected = match target {
+                    AutomationTarget::ChannelVolume { channel }
+                    | AutomationTarget::ChannelPan { channel }
+                    | AutomationTarget::InstrumentParam { channel, .. } => {
+                        project.channel(channel).map(|c| c.mixer_track)
                     }
-                }
-                AutomationTarget::TrackVolume { track }
-                | AutomationTarget::TrackPan { track }
-                | AutomationTarget::TrackParam { track, .. } => {
-                    if track == source(project, controller)?.0 {
-                        None
-                    } else {
-                        Some(track)
+                    AutomationTarget::EffectParam {
+                        track,
+                        effect: destination,
+                        ..
                     }
+                    | AutomationTarget::EffectMix {
+                        track,
+                        effect: destination,
+                    } => {
+                        if track == detector_track.id {
+                            let chain = &detector_track.effects;
+                            let before = chain.iter().position(|e| e.id == destination);
+                            let at = chain.iter().position(|e| e.id == detector.id);
+                            if before.zip(at).is_some_and(|(before, at)| before < at) {
+                                Some(track)
+                            } else {
+                                None
+                            }
+                        } else {
+                            Some(track)
+                        }
+                    }
+                    AutomationTarget::TrackVolume { track }
+                    | AutomationTarget::TrackPan { track }
+                    | AutomationTarget::TrackParam { track, .. } => {
+                        if track == detector_track.id {
+                            None
+                        } else {
+                            Some(track)
+                        }
+                    }
+                    AutomationTarget::SendGain { target, .. } => Some(target),
+                    // The follower reads main input, never the sidechain detector bus.
+                    AutomationTarget::SidechainGain { .. } | AutomationTarget::Tempo => None,
+                };
+                if affected.is_some_and(|from| {
+                    audio_reaches(project, from, detector_track.id, &mut Vec::new())
+                }) {
+                    edges.push((controller, detector.id.0));
                 }
-                AutomationTarget::SendGain { track, .. }
-                | AutomationTarget::SidechainGain { track, .. } => Some(track),
-                AutomationTarget::Tempo => None,
-            };
-            if target_track.is_some_and(|from| audio_reaches(project, from, track, &mut Vec::new()))
-            {
-                return Some("audio follower would modulate its own detector input".into());
             }
         }
     }

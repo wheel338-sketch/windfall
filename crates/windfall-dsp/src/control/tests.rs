@@ -339,3 +339,40 @@ fn parameter_defaults_descriptors_and_camel_case_persist() {
     persistence::<NoteEnvelopeParams>();
     persistence::<KeyboardSourceParams>();
 }
+
+#[test]
+fn formula_three_inputs_division_power_and_errors_match_reference() {
+    let mut source = FormulaSource::default(); source.prepare(1000.0, 1);
+    source.set_params(&FormulaSourceParams { a: 0.4, b: 0.2, c: 0.3, ..Default::default() });
+    source.set_expression("a^2 / b - c").unwrap();
+    assert!((source.next_value() - 0.5).abs() < 1e-6);
+    assert!(source.set_expression("system(a)").is_err());
+    assert!((source.next_value() - 0.5).abs() < 1e-6);
+    source.set_expression("a / (b - b)").unwrap(); assert_eq!(source.next_value(), 0.0);
+}
+#[test]
+fn rms_follower_attack_and_release_match_exponential_power_reference() {
+    let mut follower = EnvelopeFollower::default(); follower.prepare(1000.0, 1);
+    follower.set_params(&EnvelopeFollowerParams { attack_ms: 10.0, release_ms: 20.0, ..Default::default() });
+    let mut power = 0.0_f64;
+    for i in 0..100 {
+        let input = if i < 50 { 0.5_f64 } else { 0.0 };
+        let target = input * input; let keep = if target > power { (-0.1_f64).exp() } else { (-0.05_f64).exp() };
+        power = target + (power - target) * keep;
+        let mut output = [0.0]; follower.process_control_rms(&[input as f32], &[input as f32], &mut output);
+        assert!((f64::from(output[0]) - power.sqrt()).abs() < 2e-6, "sample {i}");
+    }
+}
+#[test]
+fn dc_calibration_and_five_ms_smoothing_are_bounded_and_exact() {
+    use super::VoltageSource;
+    use super::VoltageSourceParams;
+    let mut source = VoltageSource::default(); source.prepare(1000.0, 1);
+    assert_eq!(source.next_values(), [0.0; 8]);
+    source.set_params(&VoltageSourceParams { value1: 1.0, ..Default::default() });
+    for i in 1..=5 { assert!((source.next_values()[0] - i as f32 / 5.0).abs() < 1e-6); }
+    assert!((VoltageSource::calibrated(0.5, -0.2, 0.8) - 0.2).abs() < 1e-6);
+    assert_eq!(VoltageSource::calibrated(1.0, 0.5, 2.0), 1.0);
+    assert_eq!(VoltageSource::calibrated(f32::NAN, 0.0, 1.0), 0.0);
+    assert!(!VoltageSourceParams::default().armed);
+}

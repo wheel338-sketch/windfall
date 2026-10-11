@@ -1,4 +1,4 @@
-# Internal control sources — implementation hand-off
+# Internal control sources - implementation hand-off
 
 Branch: `gpt/w3-control-sources`, based on `87b87bc2439ec076d0f75c5b4d997c9db1faba95`.
 
@@ -12,7 +12,9 @@ Edit-only worker: **no builds, tests, package tools, device checks, or generated
 - Engine samples sources at the actual slot input, applies internal links on the common 64-frame grid after ordinary automation, and keeps source/link state across compatible plans. Note tables are fixed at 128 per source; rejected notes are observable through `Controller::rejected_control_notes`.
 - Added eight-output DC software source with affine calibration, smoothing and default-off arming. DC adds to configured channels of the existing multichannel buffer separately from audible stereo. `Processor::set_output_channels` / `hardware_samples` expose a device-free harness.
 - Dashboard is a distinct instrument kind reusing the actual MIDI-out processor; it adds normalized internal source ports and persisted custom panel configuration.
-- Purpose-built editors and acceptance cases are in progress. No row is currently claimed complete.
+- Purpose-built editors are wired for every source, including drawn envelopes, formula errors, peak/RMS sync, XY/XYZ gestures, custom surfaces, dashboard MIDI controls and DC calibration routes. The normal control context menu lists internal sources and their outputs; source editors expose destination/range/mapping edits.
+- Acceptance tests are written, not executed: DSP reference formula/RMS/DC cases; project ports, persistence, cycles and atomic deletion/undo; engine real-audio modulation, block/live/offline equivalence, smoothing, keyboard and multichannel DC; mounted editor and menu cases. Final static review remains in progress.
+- Source notes now follow loop/tempo-map clock changes and are released on stop or hardware disconnect. Invalid externally supplied source settings fail closed when plans compile.
 
 Known limits: internal Tempo target is explicitly refused pending a clock feedback contract; internal maps use absolute mode without pickup; up to eight custom controls per surface/dashboard. Detector graph checks conservatively reject upstream audible feedback. Hardware output calibration/safety remain external.
 
