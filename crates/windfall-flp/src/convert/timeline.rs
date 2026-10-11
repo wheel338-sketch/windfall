@@ -90,6 +90,8 @@ impl Builder<'_> {
                     },
                     1,
                 );
+            } else {
+                self.report.count(section, Outcome::Dropped, 1);
             }
         }
     }

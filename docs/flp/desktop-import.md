@@ -21,7 +21,10 @@ retains original native states for mapped sounds, as well as placeholders.
 The Imported sounds report can therefore include an archival original state
 beside a playable approximate Windfall instrument/effect. These bytes are not
 restored to the approximate processor. Selected-arrangement meters/labels remain
-shared timeline data. Sample loop metadata application, absolute stretch-time
-resolution and broader real-version acceptance remain open. See
+shared timeline data. Desktop review now resolves requested WAV smpl loop
+metadata after decoding; only the first forward/alternating loop is represented,
+with approximate seam/release behavior and warnings. Browser conversion does not
+resolve external loop files. Absolute stretch-time resolution and broader
+real-version acceptance remain open. See
 [coverage](coverage.md) and [worker hand-off](../qa/2026-10-11-formats.md).
 No desktop acceptance was run by the edit-only worker.

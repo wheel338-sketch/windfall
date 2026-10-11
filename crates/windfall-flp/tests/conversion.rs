@@ -627,3 +627,39 @@ fn unknown_version_bad_event_length_and_unknown_marker_counts_remain_honest() {
     let bytes = common::file(p.header.unwrap(), &events.bytes);
     assert!(parse(&bytes).is_err());
 }
+
+#[test]
+fn effects_beyond_chain_capacity_keep_their_opaque_state_and_count_the_loss() {
+    let mut source = fixture(96);
+    source.mixer.inserts[1].slots = (0..=windfall_project::MAX_EFFECT_SLOTS)
+        .map(|index| Slot {
+            index: index as u8,
+            plugin: Plugin {
+                internal_name: "Fruity Balance".into(),
+                state: vec![index as u8, 90],
+                ..Default::default()
+            },
+            ..Default::default()
+        })
+        .collect();
+    // Direct hostile model: a public parser need not admit out-of-format slot counts.
+    let imported = convert(&source, &ConvertOptions::default());
+    imported.project.check().unwrap();
+    assert_eq!(
+        imported.project.mixer.tracks[1].effects.len(),
+        windfall_project::MAX_EFFECT_SLOTS
+    );
+    assert_eq!(
+        imported.plugins.len(),
+        windfall_project::MAX_EFFECT_SLOTS + 1
+    );
+    assert!(imported.report.category(ReportSection::Effects).dropped >= 1);
+    let last = windfall_project::MAX_EFFECT_SLOTS as u8;
+    assert!(
+        imported
+            .project
+            .retained_plugins
+            .iter()
+            .any(|entry| entry.state == [last, 90])
+    );
+}

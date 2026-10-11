@@ -77,6 +77,33 @@ mod tests {
     use super::*;
     use windfall_project::{Command, Document};
     #[test]
+    fn navigation_that_changes_render_positions_is_refused() {
+        let mut document = Document::new(Project::new("Original navigation fixture"));
+        document
+            .dispatch(
+                Command::AddTimelineMarker {
+                    tick: 960,
+                    name: "Skip".into(),
+                    kind: MarkerKind::Skip { end: 1920 },
+                },
+                None,
+            )
+            .unwrap();
+        assert!(
+            song_metadata(
+                document.project(),
+                &SamplePool::new(),
+                48000,
+                Some(TickRange {
+                    start: 0,
+                    end: 3840
+                })
+            )
+            .unwrap_err()
+            .contains("skip or pause")
+        );
+    }
+    #[test]
     fn loop_metadata_uses_render_frames_and_region_origin() {
         let mut document = Document::new(Project::new("Original marker fixture"));
         document

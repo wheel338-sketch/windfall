@@ -289,9 +289,26 @@ fn read<R: Read + Seek>(reader: &mut R) -> Result<WavMetadata, CodecError> {
                         "metadata positions require PCM WAV".into(),
                     ));
                 }
+                let channels = u16le(&b, 2);
+                let rate = u32le(&b, 4);
+                let bits = u16le(&b, 14);
                 let a = u16le(&b, 12);
-                if a == 0 {
-                    return Err(corrupt("zero block alignment"));
+                if channels == 0
+                    || rate == 0
+                    || ![8, 16, 24, 32, 64].contains(&bits)
+                    || u32::from(a) != u32::from(channels) * u32::from(bits / 8)
+                    || u64::from(u32le(&b, 8)) != u64::from(rate) * u64::from(a)
+                {
+                    return Err(corrupt("invalid PCM frame layout"));
+                }
+                if tag == 0xfffe
+                    && (u16le(&b, 16) < 22
+                        || b[26..40]
+                            != [0, 0, 0, 0, 0x10, 0, 0x80, 0, 0, 0xaa, 0, 0x38, 0x9b, 0x71])
+                {
+                    return Err(CodecError::UnsupportedFormat(
+                        "unknown extensible PCM subtype".into(),
+                    ));
                 }
                 align = Some(u64::from(a));
             }

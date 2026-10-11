@@ -112,7 +112,7 @@ impl DrumSynthPreset {
         {
             return Err(invalid("invalid render rate or frame budget"));
         }
-        for ((section, key), _) in &self.fields {
+        for (section, key) in self.fields.keys() {
             if key == "on"
                 && !["tone", "noise"].contains(&section.as_str())
                 && self.number(section, "on", 0.0, 0.0, 1.0)? != 0.0
@@ -134,7 +134,7 @@ impl DrumSynthPreset {
                 )));
             }
         }
-        let on = |section| {
+        let on = |section| -> Result<bool, CodecError> {
             let flag = self.number(section, "on", 0.0, 0.0, 1.0)?;
             if flag != 0.0 && flag != 1.0 {
                 return Err(invalid("On must be zero or one"));
@@ -204,7 +204,7 @@ impl DrumSynthPreset {
             out.push((sample * gain).clamp(-1.0, 1.0) as f32);
         }
         let mut warnings=vec!["Tone/flat-noise subset rendered approximately; source integer rounding, random noise and tail padding differ.".to_owned()];
-        for ((section, key), _) in &self.fields {
+        for (section, key) in self.fields.keys() {
             let mapped = match section.as_str() {
                 "general" => [
                     "version", "comment", "stretch", "level", "tuning", "filter", "highpass",

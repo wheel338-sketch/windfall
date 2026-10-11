@@ -145,7 +145,9 @@ Sampler dimensionless stretch speed maps to prepared spectral duration when
 its mode is non-resampling, requested time is zero, and its ratio is 0.25..4.
 Stretch pitch is added to sampler tune. All MIDI keys are requested for preparation;
 the existing strict memory budget can refuse large sources. Requested duration,
-embedded sample loop bounds, source algorithms and sample FX remain open.
+absolute stretch-time resolution, source algorithms and sample FX remain open.
+Desktop preview resolves requested WAV smpl loops after decoding, with bounds
+relative to the trimmed region and review warnings for unsupported loop behavior.
 No source-only loop bounds are guessed as whole-sample loops.
 
 Tests added/updated in windfall-flp: **written, not executed**. The historical

@@ -381,6 +381,19 @@ impl Builder<'_> {
                 .unwrap_or_else(|| plugin.internal_name.clone())
         });
 
+        self.plugins.push(PluginPlaceholder {
+            place: PluginPlace::Effect {
+                track,
+                slot: slot.index,
+            },
+            internal_name: plugin.internal_name.clone(),
+            name: hosted.as_ref().and_then(|hosted| hosted.name.clone()),
+            vendor: hosted.as_ref().and_then(|hosted| hosted.vendor.clone()),
+            format: hosted.as_ref().map(|hosted| hosted.format),
+            path: hosted.as_ref().and_then(|hosted| hosted.path.clone()),
+            state: plugin.state.clone(),
+        });
+
         let Some(translated) =
             effects::translate(&plugin.internal_name, &plugin.state, self.tempo_bpm)
         else {
@@ -404,18 +417,6 @@ impl Builder<'_> {
                 )
             };
             self.report.say(section, Outcome::Placeholder, what);
-            self.plugins.push(PluginPlaceholder {
-                place: PluginPlace::Effect {
-                    track,
-                    slot: slot.index,
-                },
-                internal_name: plugin.internal_name.clone(),
-                name: hosted.as_ref().and_then(|hosted| hosted.name.clone()),
-                vendor: hosted.as_ref().and_then(|hosted| hosted.vendor.clone()),
-                format: hosted.as_ref().map(|hosted| hosted.format),
-                path: hosted.as_ref().and_then(|hosted| hosted.path.clone()),
-                state: plugin.state.clone(),
-            });
             return;
         };
 
@@ -499,18 +500,6 @@ impl Builder<'_> {
             );
             self.report.say(section, Outcome::Approximated, "Send tap level uses a linear approximation of the source logarithmic level; source pan and dry controls are not mapped.");
         }
-        self.plugins.push(PluginPlaceholder {
-            place: PluginPlace::Effect {
-                track,
-                slot: slot.index,
-            },
-            internal_name: plugin.internal_name.clone(),
-            name: None,
-            vendor: None,
-            format: None,
-            path: None,
-            state: plugin.state.clone(),
-        });
         let mix = slot.mix.unwrap_or(FULL);
         let patch = EffectSlotPatch {
             // Switching all of an insert's slots off is one button in FL

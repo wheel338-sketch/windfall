@@ -203,3 +203,35 @@ fn failed_finalization_preserves_destination_and_drop_removes_staging() {
     assert_eq!(std::fs::read(&path).unwrap(), b"original");
     std::fs::remove_file(path).unwrap();
 }
+
+#[test]
+fn inconsistent_frame_layout_and_unknown_extensible_subtypes_are_refused() {
+    let mut layout = fmt();
+    layout[12..14].copy_from_slice(&4_u16.to_le_bytes());
+    assert!(read_wav_metadata(&fixture(&[(b"fmt ", layout), (b"data", vec![0; 8])])).is_err());
+    let mut extensible = fmt();
+    extensible[0..2].copy_from_slice(&0xfffe_u16.to_le_bytes());
+    extensible.extend_from_slice(&22_u16.to_le_bytes());
+    extensible.extend_from_slice(&16_u16.to_le_bytes());
+    extensible.extend_from_slice(&4_u32.to_le_bytes());
+    extensible.extend_from_slice(&[
+        1, 0, 1, 0, 0, 0, 0x10, 0, 0x80, 0, 0, 0xaa, 0, 0x38, 0x9b, 0x71,
+    ]);
+    assert!(read_wav_metadata(&fixture(&[(b"fmt ", extensible), (b"data", vec![0; 8])])).is_err());
+}
+
+#[test]
+fn reader_accepts_independent_extensible_pcm_frame_layout() {
+    let mut layout = fmt();
+    layout[0..2].copy_from_slice(&0xfffe_u16.to_le_bytes());
+    layout.extend_from_slice(&22_u16.to_le_bytes());
+    layout.extend_from_slice(&16_u16.to_le_bytes());
+    layout.extend_from_slice(&4_u32.to_le_bytes());
+    layout.extend_from_slice(&[
+        1, 0, 0, 0, 0, 0, 0x10, 0, 0x80, 0, 0, 0xaa, 0, 0x38, 0x9b, 0x71,
+    ]);
+    assert_eq!(
+        read_wav_metadata(&fixture(&[(b"fmt ", layout), (b"data", vec![0; 8])])).unwrap(),
+        WavMetadata::default()
+    );
+}
