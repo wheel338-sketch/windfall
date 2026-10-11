@@ -191,3 +191,69 @@ fn flp_superseded_previews_and_nonproject_containers_never_replace_the_document(
     assert!(rig.session.flp_preview(&score_path, &too_many).is_err());
     assert_eq!(rig.session.document_snapshot(), before);
 }
+
+#[test]
+fn flp_wav_loop_metadata_is_reviewed_and_survives_save_reopen() {
+    use windfall_codec::{
+        AudioTags, WavLoop, WavLoopKind, WavMetadata, WavSampleFormat, WavWriter,
+    };
+    use windfall_project::{ChannelSource, SamplerLoopMode};
+    let rig = Rig::new();
+    let sample = rig.file("own-loop.wav");
+    let metadata = WavMetadata {
+        loops: vec![WavLoop {
+            cue_id: 1,
+            start: 8,
+            end: 32,
+            kind: WavLoopKind::Alternating,
+            play_count: 0,
+        }],
+        ..Default::default()
+    };
+    let mut writer = WavWriter::create_with_metadata(
+        &sample,
+        48000,
+        1,
+        WavSampleFormat::Float32,
+        &AudioTags::default(),
+        &metadata,
+    )
+    .unwrap();
+    writer.write(&[0.25; 64]).unwrap();
+    writer.finalize().unwrap();
+    let mut project = fixtures::project(fixtures::MODERN, 96);
+    project.channels.push(Channel {
+        iid: 0,
+        kind: ChannelKind::Sampler,
+        sample_path: Some(sample),
+        sampler_flags: Some(8),
+        ..Default::default()
+    });
+    let path = rig.file("own-loop.flp");
+    fs::write(&path, fixtures::write(&project)).unwrap();
+    let before = rig.session.document_snapshot();
+    let preview = rig
+        .session
+        .flp_preview(&path, &FlpImportOptions::default())
+        .unwrap();
+    assert_eq!(rig.session.document_snapshot(), before);
+    assert!(
+        preview
+            .warnings
+            .iter()
+            .any(|warning| warning.contains("smpl chunk"))
+    );
+    let opened = rig.session.flp_open(preview.token).unwrap();
+    let ChannelSource::Sampler(settings) = &opened.project.channels[0].source else {
+        panic!("expected sampler")
+    };
+    assert_eq!(settings.loop_mode, SamplerLoopMode::PingPong);
+    assert_eq!((settings.loop_start, settings.loop_end), (0.125, 0.5));
+    let saved = rig
+        .session
+        .project_save(Some(&rig.file("own-loop.windfall")))
+        .unwrap();
+    rig.session.project_new().unwrap();
+    let reloaded = rig.session.project_open(&saved).unwrap();
+    assert_eq!(reloaded.project.channels, opened.project.channels);
+}

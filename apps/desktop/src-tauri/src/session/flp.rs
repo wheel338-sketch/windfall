@@ -57,6 +57,12 @@ impl Session {
             .map_err(|e| format!("The converted project is invalid: {e}"))?;
         let decoded = decode_all(&self.inner.cache, &project, None, &self.inner.factory_dir);
         warnings.extend(decoded.warnings.clone());
+        resolve_sampler_loops(
+            &mut project,
+            &decoded,
+            &conversion.sampler_loops,
+            &mut warnings,
+        )?;
         let missing_samples = project
             .samples
             .iter()
@@ -198,4 +204,108 @@ fn resolve_samples(
         }
     }
     Ok(())
+}
+
+/// Metadata work happens before the prepared snapshot is published, off locks.
+fn resolve_sampler_loops(
+    project: &mut Project,
+    decoded: &Decoded,
+    requests: &[(windfall_project::ChannelId, windfall_project::SampleId)],
+    warnings: &mut Vec<String>,
+) -> Result<(), String> {
+    use windfall_codec::{WavLoopKind, read_wav_metadata_file};
+    use windfall_project::{Command, Document, SamplerLoopMode, SamplerPatch};
+    let mut document = Document::new(project.clone());
+    for &(channel, sample) in requests {
+        let Some(asset) = project.samples.iter().find(|asset| asset.id == sample) else {
+            continue;
+        };
+        let Some(buffer) = decoded.pool.get(sample) else {
+            continue;
+        };
+        let SamplePath::External(path) = &asset.path else {
+            continue;
+        };
+        if !Path::new(path)
+            .extension()
+            .and_then(|ext| ext.to_str())
+            .is_some_and(|ext| ext.eq_ignore_ascii_case("wav") || ext.eq_ignore_ascii_case("wave"))
+        {
+            warnings.push(format!(
+                "Sample {} requests loop points, but only RIFF/WAVE loop metadata is supported.",
+                asset.name
+            ));
+            continue;
+        }
+        let metadata = match read_wav_metadata_file(path) {
+            Ok(metadata) => metadata,
+            Err(error) => {
+                warnings.push(format!(
+                    "Sample {} loop metadata was not applied: {error}",
+                    asset.name
+                ));
+                continue;
+            }
+        };
+        let Some(points) = metadata.loops.first() else {
+            warnings.push(format!(
+                "Sample {} requests loop points but its WAV has none.",
+                asset.name
+            ));
+            continue;
+        };
+        if buffer.frames() == 0
+            || points.end as usize > buffer.frames()
+            || points.kind == WavLoopKind::Backward
+        {
+            warnings.push(format!(
+                "Sample {} loop bounds or backward mode cannot be applied.",
+                asset.name
+            ));
+            continue;
+        }
+        let mode = match points.kind {
+            WavLoopKind::Forward => SamplerLoopMode::Forward,
+            WavLoopKind::Alternating => SamplerLoopMode::PingPong,
+            WavLoopKind::Backward => unreachable!("refused above"),
+        };
+        let Some(source) = project.channel(channel) else {
+            continue;
+        };
+        let windfall_project::ChannelSource::Sampler(settings) = &source.source else {
+            continue;
+        };
+        let total = buffer.frames() as f64;
+        let trim_start = (f64::from(settings.start) * total).round();
+        let trim_end = (f64::from(settings.end) * total).round();
+        if f64::from(points.start) < trim_start
+            || f64::from(points.end) > trim_end
+            || trim_end <= trim_start
+        {
+            warnings.push(format!(
+                "Sample {} loop lies outside its trimmed playback region.",
+                asset.name
+            ));
+            continue;
+        }
+        let frames = trim_end - trim_start;
+        let patch = SamplerPatch {
+            loop_mode: Some(mode),
+            loop_start: Some(((f64::from(points.start) - trim_start) / frames) as f32),
+            loop_end: Some(((f64::from(points.end) - trim_start) / frames) as f32),
+            ..Default::default()
+        };
+        match document.dispatch(Command::UpdateSampler { id: channel, patch }, None) {
+            Ok(_) => warnings.push(format!("Sample {} loop points came from its WAV smpl chunk; loop release/seam behavior can differ.", asset.name)),
+            Err(error) => warnings.push(format!("Sample {} loop metadata was not applied: {error}", asset.name)),
+        }
+        if metadata.loops.len() > 1 || points.play_count != 0 {
+            warnings.push(format!(
+                "Sample {}: only the first loop and indefinite repetition are represented.",
+                asset.name
+            ));
+        }
+    }
+    *project = document.project().clone();
+    project.check().map_err(|error| error.to_string())
 }

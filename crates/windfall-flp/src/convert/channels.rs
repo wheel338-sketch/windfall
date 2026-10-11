@@ -224,6 +224,11 @@ impl Builder<'_> {
                     ),
                 );
             } else if sampler {
+                if channel.sampler_flags.is_some_and(|flags| flags & 8 != 0)
+                    && let Some(sample) = sample
+                {
+                    self.sampler_loops.push((id, sample));
+                }
                 let start = channel
                     .params
                     .and_then(|p| p.sample_start)

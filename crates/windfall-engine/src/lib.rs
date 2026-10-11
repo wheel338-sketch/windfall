@@ -203,3 +203,6 @@ pub mod audio_logger;
 mod qa_recording_mixer;
 #[cfg(test)]
 mod qa_mixer_pdc_ports;
+
+mod export_positions;
+pub use export_positions::SongFrameMap;

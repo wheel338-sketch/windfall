@@ -21,6 +21,11 @@ mod mp3;
 mod peaks;
 mod vorbis;
 mod wav;
+mod wav_metadata;
+pub use wav_metadata::{
+    MAX_WAV_MARKERS, MAX_WAV_METADATA_BYTES, WavCue, WavLoop, WavLoopKind, WavMetadata, WavSlice,
+    WavTempo, read_wav_metadata, read_wav_metadata_file,
+};
 
 pub use decode::{
     AudioInfo, DEFAULT_MAX_DECODED_BYTES, DecodeOptions, decode_bytes, decode_bytes_strict_with,
@@ -83,3 +88,14 @@ mod tests {
         }
     }
 }
+
+mod m4a;
+pub use m4a::{
+    AacConfig, AacEncoderAdapter, AacPacket, AacTrim, M4aWriter, MAX_AAC_PACKET_BYTES,
+    MAX_M4A_PACKETS,
+};
+
+mod drumsynth;
+pub use drumsynth::{
+    DrumSynthPreset, DrumSynthRendered, MAX_DRUMSYNTH_FRAMES, MAX_DRUMSYNTH_PRESET_BYTES,
+};

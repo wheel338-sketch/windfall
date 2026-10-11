@@ -20,6 +20,8 @@ use windfall_ipc::{BitDepth, ExportFormat, ExportOptions, ExportProgress, Export
 use windfall_project::{AutomationRange, AutomationTarget, PatternId, Project, TrackId};
 
 use super::Session;
+#[path = "export_markers.rs"]
+mod markers;
 use crate::events::Event;
 use crate::paths;
 
@@ -683,13 +685,25 @@ fn write_files(
         genre: &project_settings.genre,
         comments: &project_settings.comments,
     };
+    let wav_metadata =
+        if matches!(job.settings, EncoderSettings::Wav { .. }) && options.mode == PlayMode::Song {
+            markers::song_metadata(
+                &job.project,
+                &prepared_pool,
+                options.sample_rate,
+                options.region,
+            )?
+        } else {
+            windfall_codec::WavMetadata::default()
+        };
     for (target, file) in job.targets.iter().zip(&transaction.files) {
-        let encoder = Encoder::open_with_tags(
+        let encoder = Encoder::open_with_wav_metadata(
             &file.stage,
             &job.settings,
             options.sample_rate,
             encoder_channels(&job.settings),
             &tags,
+            &wav_metadata,
         );
         encoders.push(encoder.map_err(|error| named(&target.path, job, &error.to_string()))?);
     }
