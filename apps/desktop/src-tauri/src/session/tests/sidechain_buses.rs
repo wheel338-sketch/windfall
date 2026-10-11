@@ -430,6 +430,9 @@ fn saved_choice_survives_exchange(vst3: bool, helper: bool) {
         assert!(close(stage.level(), levels.nothing));
         stage.rig.session.transport_stop();
         stage.rig.session.refresh_plugins().unwrap();
+        // Retry queues a replacement plan. Like the device callback (and
+        // n4_setup), drive its adoption before asking for the selected owner.
+        stage.rig.run(256);
         let (after_token, after) = stage.helper_status();
         assert_ne!(after_token, token);
         assert_ne!(after.process_id, before.process_id);
