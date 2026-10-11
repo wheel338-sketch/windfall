@@ -275,3 +275,5 @@ executed: mounted full-width patch load/undo, snapshot harmonic load/undo,
 worker refusal leaving history unchanged, and undo cancellation ignoring a late
 result. These replace only the worker boundary in mounted tests; pure preparation,
 worker retirement and real simulator/document mutation are tested separately.
+
+Mounted cancellation assertion accepts both a retained instrument and its removal by Undo; neither can receive the late asset. Written, not executed.

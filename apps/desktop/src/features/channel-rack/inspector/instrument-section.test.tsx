@@ -337,7 +337,8 @@ describe("instrument settings panels", () => {
     await userEvent.setup().click(screen.getByRole("button",{name:"Load numbered patch"}))
     await act(()=>undo());expect(signal?.aborted).toBe(true)
     await act(async()=>{complete?.(prepareInstrumentAsset({type:"number",number:4294967295}));await settle()})
-    expect(useProjectStore.getState().project.channels.find(item=>item.id===channel)?.source).not.toHaveProperty("asset")
+    const after=useProjectStore.getState().project.channels.find(item=>item.id===channel)
+    expect(after && isInstrumentChannel(after) ? after.source.asset : undefined).toBeUndefined()
   })
 
   it("keeps hosted plugin controls ahead of the built-in panel", async () => {
