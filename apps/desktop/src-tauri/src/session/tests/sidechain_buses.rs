@@ -281,14 +281,20 @@ impl Stage {
 
     /// The process that hosts the playing plugin, when a helper does.
     fn helper_status(&self) -> (u64, windfall_plugin_host::bridge::supervisor::Status) {
-        let status = self
-            .manager
-            .runtime
-            .bridge_status()
-            .into_iter()
-            .find(|entry| entry.0 == self.target)
-            .expect("the playing plugin has a helper");
-        (status.1, status.2)
+        // A helper for an edited document is started off the audio thread
+        // and takes over when it has answered.
+        let deadline = Instant::now() + Duration::from_secs(10);
+        loop {
+            let all = self.manager.runtime.bridge_status();
+            if let Some(status) = all.iter().find(|entry| entry.0 == self.target) {
+                return (status.1, status.2.clone());
+            }
+            assert!(
+                Instant::now() < deadline,
+                "the playing plugin has a helper; known: {all:?}"
+            );
+            std::thread::sleep(Duration::from_millis(20));
+        }
     }
 
     fn save_while_playing(&mut self, name: &str) -> String {

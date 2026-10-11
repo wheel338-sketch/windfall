@@ -326,9 +326,17 @@ fn the_last_seconds_of_the_master_become_a_clip_of_exactly_what_was_played() {
         .unwrap();
     let all = decode(&last_file(&rig)).1;
     assert!(all == played);
+    // Clips are kept in song order, so the new one is found by where it is.
+    let clips = project.playlist.clips.len();
     let project = rig.project();
-    let clip = project.playlist.clips.last().unwrap();
-    assert_eq!((clip.start, clip.track), (0, track));
+    assert_eq!(project.playlist.clips.len(), clips + 1);
+    assert!(
+        project
+            .playlist
+            .clips
+            .iter()
+            .any(|clip| (clip.start, clip.track) == (0, track))
+    );
     assert_eq!(logged_files(&rig).len(), 2);
 
     // More seconds than there are gives all there is.
