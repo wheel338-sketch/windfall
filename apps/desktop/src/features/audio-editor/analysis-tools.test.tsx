@@ -87,4 +87,32 @@ describe("classical audio editors (written, not executed)", () => {
     expect(screen.getByRole("alert")).toHaveTextContent("Project or source changed")
     expect(backend.audioAnalysisCancel).toHaveBeenCalled()
   })
+  it("uses preserved source frames when a reopened derived clip has a different duration", async () => {
+    review.sourcePeaks = [-0.3, 0.3]
+    review.recipe.markers[1].targetFrame = 24000
+    vi.spyOn(backend, "audioAnalysisDetect").mockResolvedValue(review)
+    vi.spyOn(backend, "audioAnalysisAudition").mockResolvedValue()
+    render(<AnalysisTools preview={{ token: 7, clip: review.recipe.sourceClip.id, name: "Edited take",
+      frames: 24000, sampleRate: 16000, peaks: [-0.1, 0.1] }}
+      selection={{ start: 18000, end: 22000 }} disabled={false} onBusy={vi.fn()} onCommit={vi.fn()} />)
+    fireEvent.click(screen.getByRole("button", { name: "Detect monophonic notes" }))
+    await screen.findByRole("group", { name: "Detected note pitch editor" })
+    expect(screen.getByLabelText("Analysis source selection end")).toHaveValue(16000)
+    fireEvent.change(screen.getByLabelText("Analysis source selection start"), { target: { value: "0" } })
+    fireEvent.change(screen.getByLabelText("Analysis source selection end"), { target: { value: "2000" } })
+    fireEvent.click(screen.getByRole("tab", { name: "Noise profile" }))
+    fireEvent.click(screen.getByRole("button", { name: "Learn noise profile from selection" }))
+    fireEvent.click(screen.getByRole("button", { name: "Audition edited audio" }))
+    await waitFor(() => expect(backend.audioAnalysisAudition).toHaveBeenCalledWith({
+      token: 7, recipe: { ...review.recipe, denoise: { profileStart: 0, profileEnd: 2000, reductionDb: 24, wet: 1 } },
+    }, false))
+  })
+  it("shows explicit native-only refusal in the browser backend", async () => {
+    render(<AnalysisTools preview={{ token: 7, clip: review.recipe.sourceClip.id, name: "Take",
+      frames: 16000, sampleRate: 16000, peaks: [] }} selection={{ start: 0, end: 2000 }}
+      disabled={false} onBusy={vi.fn()} onCommit={vi.fn()} />)
+    fireEvent.click(screen.getByRole("button", { name: "Detect monophonic notes" }))
+    expect(await screen.findByRole("alert")).toHaveTextContent(/desktop|native|available/i)
+    expect(screen.queryByRole("group", { name: "Detected note pitch editor" })).toBeNull()
+  })
 })

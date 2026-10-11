@@ -92,6 +92,8 @@ Additional tests, all **written, not executed**:
   Native previews now expose an optional preserved-source envelope via
   `AudioAnalysisPreview.sourcePeaks`, so the frontend can select source
   coordinates independently of a reopened derived clip.
+  The mounted editor now owns that source waveform/range. Added preserved-source
+  selection and real browser-backend refusal cases, written, not executed.
 
 ## Remaining work
 

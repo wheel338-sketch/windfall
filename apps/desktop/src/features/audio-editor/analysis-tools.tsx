@@ -10,7 +10,8 @@ import { getProjectGeneration, onProjectReplaced } from "@/lib/store/replaced"
 import { onHistoryNavigation, useProjectStore } from "@/lib/store/project"
 import { usePlaylistStore } from "@/features/playlist/store"
 import type { AudioEditPreview } from "./types"
-import type { Selection } from "./selection"
+import { selectionBetween, validSelection, type Selection } from "./selection"
+import { Waveform } from "./waveform"
 import type { AudioEditRecipe, AudioNoteOverride } from "./analysis-types"
 import { mappedFrame, noteEdit, overrideNote, recipeProblem } from "./analysis-edit"
 
@@ -30,6 +31,8 @@ export function AnalysisTools({ preview, selection, disabled, onBusy, onCommit }
   const [error, setError] = useState<string | null>(null)
   const [undo, setUndo] = useState<AudioEditRecipe[]>([])
   const [redo, setRedo] = useState<AudioEditRecipe[]>([])
+  const [sourcePeaks, setSourcePeaks] = useState<number[]>([])
+  const [sourceSelection, setSourceSelection] = useState<Selection | null>(null)
   const alive = useRef(false)
   const working = useRef(false)
   const current = useRef<() => boolean>(() => false)
@@ -82,12 +85,16 @@ export function AnalysisTools({ preview, selection, disabled, onBusy, onCommit }
       const result = await backend.audioAnalysisDetect(preview.token, polyphonic)
       if (!current.current() || result.token !== preview.token) return
       setRecipe(result.recipe); setSelected(new Set(result.recipe.analysis.notes.map((_, i) => i)))
+      setSourcePeaks(result.sourcePeaks ?? (result.recipe.analysis.frames === preview.frames ? preview.peaks : []))
+      setSourceSelection(selectionBetween(selection.start, selection.end, result.recipe.analysis.frames))
       setFocus(0); setUndo([]); setRedo([])
     })
   }
   const problem = recipe && recipeProblem(recipe)
   const locked = disabled || busy || stale
   const edit = recipe?.analysis.notes[focus] ? noteEdit(recipe, focus) : null
+  const range = sourceSelection ?? selection
+  const rangeValid = !!recipe && validSelection(range, recipe.analysis.frames)
   function updateNote(patch: Partial<AudioNoteOverride>) {
     if (recipe && edit) change(overrideNote(recipe, { ...edit, ...patch }))
   }
@@ -107,6 +114,19 @@ export function AnalysisTools({ preview, selection, disabled, onBusy, onCommit }
       </AlertDescription></Alert>}
       {recipe && (
         <>
+          <section aria-label="Preserved analysis source" className="flex flex-col gap-2">
+            <p className="text-xs text-muted-foreground">Preserved source waveform. Select source frames here for a noise profile or new warp marker.</p>
+            <Waveform preview={{ ...preview, frames: recipe.analysis.frames,
+              sampleRate: recipe.analysis.sampleRate, peaks: sourcePeaks }}
+              selection={range} disabled={locked} onSelection={setSourceSelection} />
+            <FieldGroup className="flex-row flex-wrap">
+              <NumberField label="Analysis source selection start" value={range.start} disabled={locked}
+                onChange={(start) => setSourceSelection({ ...range, start })} />
+              <NumberField label="Analysis source selection end" value={range.end} disabled={locked}
+                onChange={(end) => setSourceSelection({ ...range, end })} />
+            </FieldGroup>
+            {!rangeValid && <p role="alert">Choose an ordered source range inside the preserved waveform.</p>}
+          </section>
           <Tabs defaultValue="pitch">
             <TabsList><TabsTrigger value="pitch">Pitch and score</TabsTrigger>
               <TabsTrigger value="time">Time and warp</TabsTrigger><TabsTrigger value="noise">Noise profile</TabsTrigger></TabsList>
@@ -159,8 +179,8 @@ export function AnalysisTools({ preview, selection, disabled, onBusy, onCommit }
                     markers: recipe.markers.filter((_, index) => index !== i + 1) })}>Remove marker</Button>
                 </FieldGroup>)}
               </div>
-              <Button variant="outline" disabled={locked || recipe.markers.length >= 512} onClick={() => {
-                const sourceFrame = selection.start
+              <Button variant="outline" disabled={locked || !rangeValid || recipe.markers.length >= 512} onClick={() => {
+                const sourceFrame = range.start
                 if (sourceFrame <= 0 || sourceFrame >= recipe.analysis.frames ||
                   recipe.markers.some((m) => m.sourceFrame === sourceFrame)) return
                 change({ ...recipe, markers: [...recipe.markers, { sourceFrame,
@@ -170,10 +190,10 @@ export function AnalysisTools({ preview, selection, disabled, onBusy, onCommit }
             <TabsContent value="noise" className="flex flex-col gap-2">
               <p className="text-xs text-muted-foreground">Select at least 45 ms of noise-only audio in the waveform, then learn its channel spectra.
                 The profile is retained as a range into the preserved source. This reduces stationary noise; it is not a voice model or dereverb.</p>
-              <Button variant="outline" disabled={locked || selection.end > recipe.analysis.frames ||
-                (selection.end - selection.start) / recipe.analysis.sampleRate < 0.045}
-                onClick={() => change({ ...recipe, denoise: { profileStart: selection.start,
-                  profileEnd: selection.end, reductionDb: 24, wet: 1 } })}>Learn noise profile from selection</Button>
+              <Button variant="outline" disabled={locked || !rangeValid ||
+                (range.end - range.start) / recipe.analysis.sampleRate < 0.045}
+                onClick={() => change({ ...recipe, denoise: { profileStart: range.start,
+                  profileEnd: range.end, reductionDb: 24, wet: 1 } })}>Learn noise profile from selection</Button>
               {recipe.denoise && <FieldGroup>
                 <p>Profile frames {recipe.denoise.profileStart}–{recipe.denoise.profileEnd}</p>
                 <NumberField label="Noise reduction (dB)" value={recipe.denoise.reductionDb} disabled={locked} step={1}
