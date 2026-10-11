@@ -28,6 +28,7 @@
 - Original sample control suffixes restored: SliceMap 19, SliceDeck 67, WaveRide 13 descriptors, each at its original index. PCM remains immutable; small saved edit masks activate only explicitly edited legacy marker/pad/curve controls. Asset authoring clears these overrides in the same undo step. Verified granular 14/0/0 (`round2-playback-compat-dsp2.log`), sample project 8/0/0 (`round2-playback-compat-project2.log`), DSP integration 188/0/5 (`round2-playback-compat-allocator.log`). Added measured zero-default marker/held gain/curve-partition and undo/reopen regressions; validation/smoothing walks do not activate untouched controls. Frontend binding updates and fresh prefix comparison remain pending.
 - Applied workspace Rust formatting after merging/repairs; `cargo fmt --all --check` passes (exit 0, `target/round2-fmt.log`). Formatting is a separate checkpoint. Next: fresh bindings/WASM, frontend joins and remaining native gates.
 - Binding refresh passed: 512 files generated and committed in `09ca137e`; restored scalar suffixes and GrainCloud's original 80 ms release default are present. Starting-descriptor audit now reports no removed or moved indices. Simulator refresh is running before frontend acceptance.
+- Simulator refresh passed: 4,980,098 bytes with current seven-crate provenance (`target/round2-sim-refresh.log`). Prefix/choice/enum audit passes for all original 63 effects and 27 instruments; final kind counts are 64 effects/43 instruments. Next: refreshed frontend typecheck and focused UI/native joins.
 
 ## Verified execution record
 
