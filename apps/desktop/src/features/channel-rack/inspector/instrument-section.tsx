@@ -4,6 +4,8 @@ import { usePluginBinding } from "@/features/plugins/store"
 import type { InstrumentChannel } from "@/lib/channel-source"
 import { colorToCss } from "@/lib/units"
 
+import { useProjectGeneration } from "@/lib/store"
+import { LayerKickEditor } from "../instruments/layer-kick-editor"
 import { KeyDrumEditor } from "../instruments/key-drum-editor"
 import { DrumRackEditor } from "../instruments/drum-rack-editor"
 import { MembraneEditor } from "../instruments/membrane-editor"
@@ -18,6 +20,7 @@ import { Section } from "./parts"
  * its name, with starting sounds beside the subtractive synth's panel.
  */
 export function InstrumentSection({ channel }: { channel: InstrumentChannel }) {
+  const generation = useProjectGeneration()
   const plugin = usePluginBinding({ type: "instrument", channel: channel.id })
   if (plugin)
     return (
@@ -28,6 +31,7 @@ export function InstrumentSection({ channel }: { channel: InstrumentChannel }) {
   const { params } = channel.source
   return (
     <Section
+      key={`${channel.id}:${generation}`}
       title={instrumentDescriptor(params.type).name}
       aside={
         params.type === "subtractiveSynth" ? (
@@ -41,6 +45,8 @@ export function InstrumentSection({ channel }: { channel: InstrumentChannel }) {
           params={params}
           color={colorToCss(channel.color)}
         />
+      ) : params.type === "layerKick" ? (
+        <LayerKickEditor channel={channel} />
       ) : params.type === "drumVoice" ? (
         <KeyDrumEditor channel={channel} />
       ) : params.type === "drumRack" ? (

@@ -278,3 +278,25 @@ fn per_key_drum_program_reaches_history_disk_and_live_offline_pcm() {
         bank(DrumMode::Snare),
     );
 }
+
+#[test]
+fn layer_kick_sample_changes_history_disk_and_live_offline_pcm() {
+    let params = InstrumentParams::LayerKick(LayerKickParams {
+        sample_mix: 0.7,
+        ..Default::default()
+    });
+    let asset = InstrumentAsset::Pcm(windfall_dsp::instrument_asset::LayerPcm::from_samples(
+        48_000,
+        &(0..4096)
+            .map(|i| (std::f32::consts::TAU * 500.0 * i as f32 / 48_000.0).sin() * 0.5)
+            .collect::<Vec<_>>(),
+    ));
+    acceptance_data(
+        InstrumentKind::LayerKick,
+        params,
+        params,
+        36,
+        None,
+        Some(asset),
+    );
+}

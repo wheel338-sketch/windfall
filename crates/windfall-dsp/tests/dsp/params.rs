@@ -472,3 +472,10 @@ fn names_are_plain_descriptions() {
         ]
     );
 }
+
+#[test]
+fn layer_kick_scalar_controls_round_trip_without_pcm_in_params() {
+    check::<windfall_dsp::LayerKickParams>();
+    let json = serde_json::to_value(InstrumentKind::LayerKick.default_params()).unwrap();
+    assert!(json.get("samples").is_none());
+}

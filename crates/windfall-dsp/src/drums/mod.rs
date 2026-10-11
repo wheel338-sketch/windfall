@@ -6,6 +6,8 @@
 
 mod engine;
 mod modal;
+mod layer_kick;
+pub use layer_kick::{LayerKick, LayerKickParams};
 mod params;
 
 pub use params::{

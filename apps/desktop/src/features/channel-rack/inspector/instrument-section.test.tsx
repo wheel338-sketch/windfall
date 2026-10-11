@@ -241,6 +241,19 @@ describe("instrument settings panels", () => {
     expect(channelOf(channel).source.asset).toBeUndefined()
   })
 
+  it("shows Layer Kick sample editing and removes/restores immutable layer data", async () => {
+    const channel = await open("layerKick")
+    await act(async () => { await dispatch({ type: "setInstrumentAsset", channel, expected: channelOf(channel).source, asset: { type: "pcm", sampleRate: 48000, samples: [0,8192,0] } }) })
+    expect(screen.getByText("3 mono frames at 48000 Hz")).toBeVisible()
+    expect(screen.getByRole("slider", { name: "Sample Mix" })).toBeVisible()
+    expect(screen.getByRole("slider", { name: "Pitch Drop" })).toBeVisible()
+    await userEvent.setup().click(screen.getByRole("button", { name: "Remove sample layer" }))
+    await flush()
+    expect(channelOf(channel).source.asset).toBeUndefined()
+    await act(() => undo())
+    expect(channelOf(channel).source.asset?.type).toBe("pcm")
+  })
+
   it("keeps hosted plugin controls ahead of the built-in panel", async () => {
     const channel = await open("acidLine")
     const plugin: PluginBinding = {

@@ -70,6 +70,7 @@ impl InstrumentAsset {
         self.check()?;
         match (self, kind) {
             (Self::DrumKeys { .. }, InstrumentKind::DrumVoice) => Ok(()),
+            (Self::Pcm(_), InstrumentKind::LayerKick) => Ok(()),
             _ => Err("this instrument cannot play that asset type"),
         }
     }

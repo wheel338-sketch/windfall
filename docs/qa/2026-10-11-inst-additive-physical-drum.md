@@ -16,7 +16,7 @@ benchmarks, generators or audio-device checks were run. Every test below is
 | inst-autogun | Pending this stream. | Full number domain and preset-only workflow. |
 | inst-beepmap | Pending this stream. | Color/brightness image scan. |
 | inst-drumaxx | Full-row candidate: sixteen independent modal membrane/cavity patches, fixed MIDI 36–51, per-pad strike/damping/body controls, selection grid and hold-to-audition editor; shared passive model with single Membrane. | Fresh integration execution and listening. |
-| inst-bassdrum | Pending this stream. | Optional immutable sample layer. |
+| inst-bassdrum | Full-row candidate: distinct Layer Kick kind, swept sine body plus optional immutable WAV layer, mix/tune/start controls; cancellable worker import, finite limits, remove/history and host asset identity. | Fresh integration execution and listening. |
 | inst-drumpad | Full-row candidate: Membrane adds eight circular membrane eigenmodes plus a damped cavity, radial strike position, and frequency-dependent damping. One voice per channel, chromatic tuning, finite passive losses and deterministic noisy excitation; editor shows strike radius and grouped model controls. | Fresh integration execution and listening. |
 | inst-fruity-drumsynth-live | Full-row candidate: sorted bank of up to 128 independent key patches; kick/snare/hat/tom synthesis, absolute key-program tuning, deterministic noise, bounded eight-voice hosting and a per-key editor with audition/history. | Fresh integration execution and listening. |
 
@@ -108,3 +108,27 @@ Shared seams touched: DSP `instrument.rs`, `lib.rs`; project `model.rs`,
 and simulator `EVERY_COMMAND`. No new IPC method or patch section is needed.
 Check source-variant constructors, `Command::Batch` integration and engine
 asset-aware reuse first. Existing instrument kind order/count is unchanged here.
+
+### Layer Kick checkpoint
+
+Appends `LayerKick` after MidiOut, bringing this branch's registry to 28 kinds.
+Every union/delegation arm is extended; the frontend exhaustive kind record and
+Rust parameter contract are extended. Integrator must reconcile other workers'
+append-only kinds and recompute ALL length. Core Kick remains separate.
+PCM lives in `InstrumentAsset::Pcm`, never params. WAV decoding/downmixing,
+quantization and long-source fade run in a dedicated browser worker; 16 MiB
+input, 32768 output frames, 8–192 kHz, 1–8 channels, PCM16/24/32 or float32.
+Jobs cancel on replacement/unmount and timeout at 30 seconds; attachment uses
+complete expected-source guards. No proprietary content/dependency added.
+
+Written, not executed: Layer Kick DSP sample-only independent PCM/partition
+reference and missing-layer core identity; engine
+`layer_kick_sample_changes_history_disk_and_live_offline_pcm`; Rust
+`layer_kick_scalar_controls_round_trip_without_pcm_in_params`; worker WAV decode,
+limit/fade/refusal tests; mounted layer remove/undo test.
+Run `cargo test -p windfall-dsp --lib drums` and `cargo test -p windfall-dsp --test dsp`,
+plus engine/project commands above. Include frontend
+`src/features/channel-rack/instruments/asset-preparation.test.ts`,
+`src/features/params/access.test.ts`, and `src/lib/ipc/sim/document.test.ts`.
+Regenerate InstrumentKind/InstrumentParams, LayerKickParams, descriptors/WASM.
+Check new enum arms and sample-only/missing-layer exact PCM first.

@@ -157,3 +157,5 @@ pub mod zones;
 
 pub mod instrument_asset;
 pub use instrument_asset::{DrumKeyPatch, InstrumentAsset};
+
+pub use drums::{LayerKick, LayerKickParams};

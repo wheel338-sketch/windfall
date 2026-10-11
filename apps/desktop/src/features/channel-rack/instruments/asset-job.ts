@@ -1,0 +1,21 @@
+import type { InstrumentAsset } from "@/bindings"
+import type { AssetRequest } from "./asset-preparation"
+
+export function prepareAsset(request: AssetRequest, signal: AbortSignal): Promise<InstrumentAsset> {
+  return new Promise((resolve,reject) => {
+    if (signal.aborted) { reject(new Error("Instrument preparation cancelled")); return }
+    const worker = new Worker(new URL("./asset-worker.ts", import.meta.url), { type: "module" })
+    const timer = setTimeout(() => fail(new Error("Instrument preparation timed out")), 30000)
+    function clean() { clearTimeout(timer); signal.removeEventListener("abort",abort); worker.terminate() }
+    function fail(error: Error) { clean(); reject(error) }
+    function abort() { fail(new Error("Instrument preparation cancelled")) }
+    signal.addEventListener("abort",abort,{ once: true })
+    worker.onerror = () => fail(new Error("Instrument worker failed"))
+    worker.onmessage = (event: MessageEvent<{ asset?: InstrumentAsset; error?: string }>) => {
+      if (event.data.error) fail(new Error(event.data.error))
+      else if (event.data.asset) { clean(); resolve(event.data.asset) }
+      else fail(new Error("Instrument worker returned no data"))
+    }
+    worker.postMessage(request, [request.bytes])
+  })
+}
