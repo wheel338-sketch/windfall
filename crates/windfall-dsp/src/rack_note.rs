@@ -95,10 +95,22 @@ impl NoteEnvelope {
     }
 }
 
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub enum SequenceMode {
+    #[default]
+    Sequence,
+    Up,
+    Down,
+    AsPlayed,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase", default)]
 #[ts(export)]
 pub struct NoteSequence {
+    pub mode: SequenceMode,
     pub grid: StepGridParams,
     /// Number of active steps, 1..16. Repeats while the input owner is held.
     pub length: u8,
@@ -109,6 +121,7 @@ pub struct NoteSequence {
 impl Default for NoteSequence {
     fn default() -> Self {
         Self {
+            mode: SequenceMode::Sequence,
             grid: Default::default(),
             length: 16,
             gate: 0.5,
@@ -118,7 +131,11 @@ impl Default for NoteSequence {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, TS)]
-#[serde(tag = "type", rename_all = "camelCase", rename_all_fields = "camelCase")]
+#[serde(
+    tag = "type",
+    rename_all = "camelCase",
+    rename_all_fields = "camelCase"
+)]
 #[ts(export)]
 pub enum RackNoteModule {
     ColorRouter {
@@ -248,6 +265,8 @@ impl RackNoteModule {
 pub struct RackNote {
     pub key: u8,
     pub velocity: f32,
+    /// Per-instance expression-map gain, preserved by note transforms.
+    pub gain: f32,
     pub pan: f32,
     pub expression: NoteExpression,
     pub channel: u8,
@@ -258,6 +277,7 @@ impl Default for RackNote {
         Self {
             key: 60,
             velocity: 1.0,
+            gain: 1.0,
             pan: 0.0,
             expression: NoteExpression::NEUTRAL,
             channel: 0,
@@ -273,5 +293,212 @@ impl RackNote {
             channel: self.channel,
             color: self.expression.color_group.unwrap_or(0),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn mapped(module: RackNoteModule, note: RackNote) -> Vec<RackNote> {
+        assert!(module.valid());
+        let mut out = [RackNote::default(); 4];
+        let count = module.map(note, &mut out);
+        out[..count].to_vec()
+    }
+
+    #[test]
+    fn color_mapping_routes_channels_and_keeps_source_color_and_expression_gain() {
+        let mut params = ColorMapParams::default();
+        params.table[3] = 9;
+        let note = RackNote {
+            gain: 0.4,
+            expression: NoteExpression {
+                color_group: Some(3),
+                ..NoteExpression::NEUTRAL
+            },
+            ..Default::default()
+        };
+        let out = mapped(RackNoteModule::ColorRouter { params }, note);
+        assert_eq!(out[0].channel, 9);
+        assert_eq!(out[0].expression.color_group, Some(3));
+        assert_eq!(out[0].gain, 0.4);
+    }
+
+    #[test]
+    fn splitter_boundaries_drop_outside_zones_and_optionally_preserve_pitch() {
+        let params = KeySplitParams {
+            low_min: 24,
+            boundary: 60,
+            high_max: 96,
+            ..Default::default()
+        };
+        for key in [23, 97] {
+            assert!(
+                mapped(
+                    RackNoteModule::KeySplitter {
+                        params,
+                        preserve_key: true
+                    },
+                    RackNote {
+                        key,
+                        ..Default::default()
+                    }
+                )
+                .is_empty()
+            );
+        }
+        for (key, channel) in [(24, 0), (59, 0), (60, 1), (96, 1)] {
+            let out = mapped(
+                RackNoteModule::KeySplitter {
+                    params,
+                    preserve_key: true,
+                },
+                RackNote {
+                    key,
+                    ..Default::default()
+                },
+            );
+            assert_eq!((out[0].key, out[0].channel), (key, channel));
+        }
+        assert_eq!(
+            mapped(
+                RackNoteModule::KeySplitter {
+                    params,
+                    preserve_key: false
+                },
+                RackNote::default()
+            )[0]
+            .key,
+            72
+        );
+    }
+
+    #[test]
+    fn key_mapping_expands_a_bounded_chord_and_clamps_at_keyboard_limits() {
+        let mut params = KeyMapParams::default();
+        params.table[60] = 126;
+        let out = mapped(
+            RackNoteModule::KeyMapper {
+                params,
+                chord: [-12, 0, 4, 7],
+                voices: 4,
+            },
+            RackNote::default(),
+        );
+        assert_eq!(
+            out.iter().map(|note| note.key).collect::<Vec<_>>(),
+            [114, 126, 127, 127]
+        );
+        assert!(
+            !RackNoteModule::KeyMapper {
+                params,
+                chord: [0; 4],
+                voices: 5
+            }
+            .valid()
+        );
+    }
+
+    #[test]
+    fn scaler_applies_the_power_curve_to_each_property_in_its_normalized_space() {
+        for property in [
+            NoteProperty::Velocity,
+            NoteProperty::Pan,
+            NoteProperty::Release,
+            NoteProperty::Pitch,
+            NoteProperty::ModulationX,
+            NoteProperty::ModulationY,
+        ] {
+            let note = RackNote {
+                velocity: 0.5,
+                pan: 0.0,
+                expression: NoteExpression {
+                    release: 0.5,
+                    modulation_x: 0.5,
+                    modulation_y: 0.5,
+                    fine_pitch_cents: 0.0,
+                    ..NoteExpression::NEUTRAL
+                },
+                ..Default::default()
+            };
+            let out = mapped(
+                RackNoteModule::PropertyScaler {
+                    params: PropertyScale {
+                        property,
+                        curve: 2.0,
+                        ..Default::default()
+                    },
+                },
+                note,
+            )[0];
+            let result = match property {
+                NoteProperty::Velocity => out.velocity,
+                NoteProperty::Pan => (out.pan + 1.0) / 2.0,
+                NoteProperty::Release => out.expression.release,
+                NoteProperty::Pitch => (out.expression.fine_pitch_cents + 1200.0) / 2400.0,
+                NoteProperty::ModulationX => out.expression.modulation_x,
+                NoteProperty::ModulationY => out.expression.modulation_y,
+            };
+            assert!((result - 0.25).abs() < 1e-6);
+        }
+    }
+
+    #[test]
+    fn envelope_attaches_an_independent_per_note_shape_with_exact_linear_segments() {
+        let params = NoteEnvelope {
+            attack_ms: 100.0,
+            decay_ms: 100.0,
+            sustain: 0.25,
+            ..Default::default()
+        };
+        assert_eq!(params.level(0.0), 0.0);
+        assert!((params.level(0.05) - 0.5).abs() < 1e-6);
+        assert!((params.level(0.15) - 0.625).abs() < 1e-6);
+        assert_eq!(params.level(0.25), 0.25);
+        assert_eq!(
+            mapped(RackNoteModule::Envelope { params }, RackNote::default())[0].envelope,
+            Some(params)
+        );
+    }
+
+    #[test]
+    fn sequencer_modes_and_all_note_modules_round_trip_saved_state() {
+        let modules = [
+            RackNoteModule::ColorRouter {
+                params: Default::default(),
+            },
+            RackNoteModule::Envelope {
+                params: Default::default(),
+            },
+            RackNoteModule::PropertyScaler {
+                params: Default::default(),
+            },
+            RackNoteModule::KeySplitter {
+                params: Default::default(),
+                preserve_key: true,
+            },
+            RackNoteModule::KeyMapper {
+                params: Default::default(),
+                chord: [0; 4],
+                voices: 1,
+            },
+            RackNoteModule::Sequencer {
+                params: NoteSequence {
+                    mode: SequenceMode::AsPlayed,
+                    ..Default::default()
+                },
+            },
+        ];
+        for module in modules {
+            assert!(module.valid());
+            let json = serde_json::to_string(&module).unwrap();
+            assert_eq!(
+                serde_json::from_str::<RackNoteModule>(&json).unwrap(),
+                module
+            );
+        }
+        let legacy: NoteSequence = serde_json::from_str("{}").unwrap();
+        assert_eq!(legacy.mode, SequenceMode::Sequence);
     }
 }

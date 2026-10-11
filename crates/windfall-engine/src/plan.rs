@@ -983,7 +983,7 @@ fn compile_channel(
 
 impl PlanChannel {
     pub fn latency_samples(&self, rate: f32) -> usize {
-        self.rack.as_ref().map_or_else(|| self.instrument.map_or(0, |params| params.latency_samples(rate)), |graph| graph.latency_samples(rate))
+        self.rack.as_ref().map_or_else(|| self.instrument.map_or(0, |params| params.latency_samples(rate)), |graph| graph.latency_with_input(rate, self.instrument.map_or(0, |params| params.latency_samples(rate))))
     }
 }
 

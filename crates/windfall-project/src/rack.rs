@@ -316,6 +316,11 @@ impl RackGraph {
     /// Bounded metadata lookup, also used by mixer PDC on plan adoption.
     /// Checked graphs have at most 64 nodes. This uses no heap storage.
     pub fn latency_samples(&self, rate: f32) -> usize {
+        self.latency_with_input(rate, 0)
+    }
+    /// Absolute arrival latency with the containing channel's audio source.
+    /// Nested instruments have their own origin; only AudioInput inherits it.
+    pub fn latency_with_input(&self, rate: f32, input: usize) -> usize {
         let mut done = [false; MAX_RACK_NODES];
         let mut arrival = [0usize; MAX_RACK_NODES];
         for _ in 0..self.nodes.len().min(MAX_RACK_NODES) {
@@ -342,13 +347,15 @@ impl RackGraph {
                 .map(|index| arrival[index])
                 .max()
                 .unwrap_or(0);
-            let own = match &self.nodes[index].processor {
+            arrival[index] = match &self.nodes[index].processor {
+                RackProcessor::AudioInput => input.max(incoming),
                 RackProcessor::Instrument { params } => params.latency_samples(rate),
-                RackProcessor::Effect { params, .. } => params.latency_samples(rate),
-                RackProcessor::Rack { graph } => graph.latency_samples(rate),
-                _ => 0,
+                RackProcessor::Effect { params, .. } => {
+                    incoming.saturating_add(params.latency_samples(rate))
+                }
+                RackProcessor::Rack { graph } => graph.latency_with_input(rate, incoming),
+                _ => incoming,
             };
-            arrival[index] = incoming.saturating_add(own);
             done[index] = true;
         }
         self.nodes

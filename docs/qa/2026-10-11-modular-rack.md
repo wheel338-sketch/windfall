@@ -23,11 +23,11 @@ foundations are reused. Control sources and scripting are outside this stream.
 | fx-patcher | partial | Hosted lifecycle/state, acceptance coverage, executed validation |
 | core-fl-studio-mobile-rack-fx | partial | Rack file/library workflow, acceptance coverage, executed validation |
 | fx-vfx-color-mapper | partial | Routed-note runtime and mounted acceptance coverage |
-| fx-vfx-envelope | partial | Expression-map gain forwarding, runtime/mounted coverage |
-| fx-vfx-level-scaler | partial | Expression updates must preserve transform, runtime/mounted coverage |
+| fx-vfx-envelope | partial | Executed runtime/mounted coverage |
+| fx-vfx-level-scaler | partial | Executed runtime/mounted coverage |
 | fx-vfx-keyboard-splitter | partial | Routed-note runtime and mounted coverage |
 | fx-vfx-key-mapper | partial | Child ownership runtime and mounted coverage |
-| fx-vfx-sequencer | partial | Held-chord arpeggiation, tempo gate changes, runtime/mounted coverage |
+| fx-vfx-sequencer | partial | Executed runtime/mounted coverage |
 
 ## Tests written, not executed
 
@@ -38,6 +38,18 @@ foundations are reused. Control sources and scripting are outside this stream.
 - bounded_graphs_refuse_excess_nodes_depth_duplicate_ids_and_note_explosion
 - legacy_projects_omit_racks_and_duplicate_channels_copy_an_independent_graph
 - latency_changing_control_wire_is_refused_before_publication
+
+DSP `rack_note::tests` now contains six tests for color routing, split
+boundaries, bounded chord expansion, each property curve, envelope segments
+and all module state round-trips (written, not executed).
+
+Live property updates replay the immutable path's scaler modules in topological
+order. Channel expression-map gain is preserved through generated notes and
+multiplied by per-note gain envelopes. Sequencer now supports up/down/as-played
+held-chord selection with shared bounded clocks; gate durations follow musical
+beats across tempo changes. Parent fine pitch and envelope pitch offsets compose.
+Latency metadata now passes absolute source arrival into nested audio inputs;
+independent instruments keep their own source origin, matching flattened DSP.
 
 Engine audio/allocation and mounted editor cases will be added next; they are
 not claimed as present or passing. Existing EVERY_COMMAND gains setChannelRack.
@@ -70,12 +82,10 @@ automation targets and EVERY_COMMAND. Exact final inventory is maintained in git
 ## Risks, in check order
 
 1. Uncompiled Rust and generated TS integration; inspect new literals/selects.
-2. Nested mixed-source latency metadata may differ from flattened runtime;
-   parent AudioInput latency is not incorporated in internal compensation.
+2. Nested mixed-source/source-input latency changes require reference coverage.
 3. Graph replacement retriggers held voices and resets delay/tail state.
-4. Expression updates currently overwrite some mapped properties; gain and
-   parent pitch forwarding need further integration.
-5. Sequencer repeats steps per root; held-chord selection is still absent.
+4. Multiple envelope modules currently retain only the last shape per path.
+5. Sequencer clock transfer when the held leader is removed needs coverage.
 6. Queue budget is fixed but validation counts terminal fanout, not every
    transit event. Runtime overflow rejects deterministically; UI counter absent.
 7. Hosted processors and sampler channels deliberately reject attachment;

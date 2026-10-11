@@ -573,7 +573,7 @@ impl InstrumentUnit {
             self.instrument.note_on_instance(note.id, note.key, note.velocity, controls.pan, controls.expression);
             if let Some(rack) = &mut self.modular { rack.note_on(note.id, windfall_dsp::rack_note::RackNote {
                 key: note.key, velocity: note.velocity, pan: controls.pan, expression: controls.expression,
-                channel: note.expression.color_group.unwrap_or(0), envelope: None,
+                channel: note.expression.color_group.unwrap_or(0), gain: controls.gain, envelope: None,
             }); }
         }
     }
@@ -707,7 +707,7 @@ impl InstrumentUnit {
 
     /// Voices sounding right now, fading ones included.
     pub fn voices(&self) -> u32 {
-        if let Some(rack) = &self.modular { return rack.active_voices() as u32; }
+        if let Some(rack) = &self.modular { return (rack.active_voices() + if rack.uses_audio_input() { self.instrument.active_voices() } else { 0 }) as u32; }
         self.external.as_ref().map_or_else(
             || self.instrument.active_voices(),
             |unit| unit.as_ref().map_or(0, |unit| unit.voices()),
@@ -774,7 +774,7 @@ impl InstrumentUnit {
         self.held += 1;
         if let Some(rack) = &mut self.modular { rack.note_on(note.id, windfall_dsp::rack_note::RackNote {
             key: note.key, velocity: note.velocity, pan: controls.pan, expression: controls.expression,
-            channel: note.expression.color_group.unwrap_or(0), envelope: None,
+            channel: note.expression.color_group.unwrap_or(0), gain: controls.gain, envelope: None,
         }); }
         if let Some(external) = &mut self.external {
             if let Some(unit) = external {
@@ -969,6 +969,7 @@ impl InstrumentUnit {
                 note.channel_pitch += self.voice_glide * (note.pitch - note.channel_pitch);
                 let (id, pitch) = (note.id, note.channel_pitch + pitch_offset);
                 if let Some((pan, expression)) = modulated_controls {
+                    if let Some(rack) = &mut self.modular { rack.set_note_expression(id, pan, expression); }
                     // Send through the existing per-instance expression API; don't overwrite base musical curves.
                     if let Some(Some(unit)) = &mut self.external { unit.set_note_expression(id, pan, expression); }
                     else if self.external.is_none() { self.instrument.set_note_expression(id, pan, expression); }
@@ -981,8 +982,8 @@ impl InstrumentUnit {
 
     fn set_pitch(&mut self, id: NoteInstanceId, pitch: f64) {
         if let Some(rack) = &mut self.modular {
-            let key = self.notes.iter().find(|note| note.active && note.id == id).map_or(0.0, |note| f32::from(note.key));
-            rack.set_note_pitch_offset(id, pitch as f32 - key);
+            let base = self.notes.iter().find(|note| note.active && note.id == id).map_or(0.0, |note| f32::from(note.key) + note.expression.fine_pitch_cents / 100.0);
+            rack.set_note_pitch_offset(id, pitch as f32 - base);
         }
         if let Some(Some(unit)) = &mut self.external { unit.set_note_pitch(id, pitch as f32); }
         else if self.external.is_none() { self.instrument.set_note_pitch(id, pitch as f32); }
@@ -1077,8 +1078,8 @@ impl InstrumentUnit {
             note.map_cents = controls.pitch_cents;
         }
         if let Some(Some(unit)) = &mut self.external { unit.set_note_expression(id, pan, expression); }
-        if let Some(rack) = &mut self.modular { rack.set_note_expression(id, controls.pan, controls.expression); }
-        else if self.external.is_none() {
+        if let Some(rack) = &mut self.modular { rack.set_note_expression(id, controls.pan, controls.expression); if gain_changed { rack.set_note_gain(id, controls.gain); } }
+        if self.external.is_none() {
             self.instrument.set_note_expression(id, controls.pan, controls.expression);
             if gain_changed { self.instrument.set_note_gain(id, controls.gain); }
         }

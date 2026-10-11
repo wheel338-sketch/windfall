@@ -943,7 +943,7 @@ impl PlanState {
                 && (held.and_then(|held| held.racks.get(&channel.id)) != Some(graph)
                     || held.and_then(|held| held.instruments.get(&channel.id)).copied() != channel.instrument.map(|params| params.kind()))
             {
-                let rack = crate::modular::ModularRack::prepare(graph, sample_rate, plan.tempo_bpm)
+                let rack = crate::modular::ModularRack::prepare_with_input_latency(graph, sample_rate, plan.tempo_bpm, channel.instrument.map_or(0, |params| params.latency_samples(sample_rate as f32)))
                     .map_err(crate::project_preparation::ProjectPreparationError::Rack)?;
                 prepared_racks.insert(channel.id, rack);
             }

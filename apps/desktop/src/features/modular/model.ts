@@ -42,7 +42,7 @@ export function defaultModule(type: RackNoteModule["type"]): RackNoteModule {
     case "propertyScaler": return { type, params: { property: "velocity", levels: { percent: 100, floor: 0, ceiling: 1 }, curve: 1 } }
     case "keySplitter": return { type, preserveKey: true, params: { lowMin: 0, boundary: 60, highMax: 127, lowKey: 48, highKey: 72, lowChannel: 0, highChannel: 1 } }
     case "keyMapper": return { type, params: { table: Array.from({ length: 128 }, (_, index) => index) }, chord: [0, 4, 7, 12], voices: 1 }
-    case "sequencer": return { type, params: { length: 16, gate: 0.5, octaves: 1, grid: { stepsPerBeat: 4, steps: Array.from({ length: 16 }, () => ({ gate: true, pitchOffset: 0, velocityScale: 1 })) } } }
+    case "sequencer": return { type, params: { mode: "sequence", length: 16, gate: 0.5, octaves: 1, grid: { stepsPerBeat: 4, steps: Array.from({ length: 16 }, () => ({ gate: true, pitchOffset: 0, velocityScale: 1 })) } } }
   }
 }
 

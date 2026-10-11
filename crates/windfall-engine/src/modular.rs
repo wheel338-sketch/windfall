@@ -1,7 +1,9 @@
 //! Control-side graph compilation and bounded, allocation-free rack playback.
 //! All vectors, delay rings, DSP owners and event seats are built in `prepare`.
 //! A changed rack is retired with its containing PlanState on the control side.
-use windfall_dsp::rack_note::{EnvelopeDestination, NoteSequence, RackNote, RackNoteModule};
+use windfall_dsp::rack_note::{
+    EnvelopeDestination, NoteSequence, RackNote, RackNoteModule, SequenceMode,
+};
 use windfall_dsp::{
     AnyEffect, AnyInstrument, EffectParams, EffectSlot, InstrumentParams, NoteExpression,
     NoteInstanceId,
@@ -227,7 +229,9 @@ struct Owner {
     age: u64,
     release_age: Option<u64>,
     release_level: f32,
-    end: u64,
+    end: f64,
+    transforms: u64,
+    pitch_offset: f32,
 }
 impl Owner {
     const EMPTY: Self = Self {
@@ -238,6 +242,7 @@ impl Owner {
         note: RackNote {
             key: 0,
             velocity: 0.0,
+            gain: 1.0,
             pan: 0.0,
             expression: NoteExpression::NEUTRAL,
             channel: 0,
@@ -246,7 +251,9 @@ impl Owner {
         age: 0,
         release_age: None,
         release_level: 0.0,
-        end: u64::MAX,
+        end: f64::INFINITY,
+        transforms: 0,
+        pitch_offset: 0.0,
     };
 }
 #[derive(Clone, Copy)]
@@ -258,6 +265,8 @@ struct Generator {
     params: NoteSequence,
     phase: f64,
     step: u64,
+    transforms: u64,
+    admission: u64,
 }
 impl Generator {
     const EMPTY: Self = Self {
@@ -266,6 +275,7 @@ impl Generator {
         node: 0,
         note: Owner::EMPTY.note,
         params: NoteSequence {
+            mode: SequenceMode::Sequence,
             grid: windfall_dsp::notemap::StepGridParams {
                 steps_per_beat: 4,
                 steps: [windfall_dsp::notemap::GridStep {
@@ -280,6 +290,8 @@ impl Generator {
         },
         phase: 0.0,
         step: 0,
+        transforms: 0,
+        admission: 0,
     };
 }
 #[derive(Clone, Copy)]
@@ -287,14 +299,16 @@ struct Event {
     node: usize,
     parent: NoteInstanceId,
     note: RackNote,
-    duration: u64,
+    duration: f64,
+    transforms: u64,
 }
 impl Event {
     const EMPTY: Self = Self {
         node: 0,
         parent: NoteInstanceId(0),
         note: Owner::EMPTY.note,
-        duration: u64::MAX,
+        duration: f64::INFINITY,
+        transforms: 0,
     };
 }
 
@@ -316,6 +330,14 @@ pub struct ModularRack {
 }
 impl ModularRack {
     pub fn prepare(graph: &RackGraph, sample_rate: u32, tempo: f64) -> Result<Self, String> {
+        Self::prepare_with_input_latency(graph, sample_rate, tempo, 0)
+    }
+    pub fn prepare_with_input_latency(
+        graph: &RackGraph,
+        sample_rate: u32,
+        tempo: f64,
+        source_latency: usize,
+    ) -> Result<Self, String> {
         graph.check()?;
         if !(8_000..=384_000).contains(&sample_rate) || !tempo.is_finite() || tempo <= 0.0 {
             return Err("Invalid rack sample rate or tempo".into());
@@ -407,7 +429,11 @@ impl ModularRack {
                 Unit::Effect { dsp, .. } => dsp.latency_samples(),
                 _ => 0,
             };
-            arrival[index] = input_latency[index].saturating_add(own);
+            arrival[index] = if nodes[index].root_audio {
+                source_latency.max(input_latency[index])
+            } else {
+                input_latency[index].saturating_add(own)
+            };
         }
         let latency = boundary
             .audio_out
@@ -475,6 +501,9 @@ impl ModularRack {
     pub fn rejected_events(&self) -> u64 {
         self.rejected
     }
+    pub fn uses_audio_input(&self) -> bool {
+        self.nodes.iter().any(|node| node.root_audio && !node.muted)
+    }
     pub fn active_voices(&self) -> usize {
         self.nodes
             .iter()
@@ -536,7 +565,8 @@ impl ModularRack {
                         node: index,
                         parent,
                         note,
-                        duration: u64::MAX,
+                        duration: f64::INFINITY,
+                        transforms: 0,
                     },
                 );
             }
@@ -583,6 +613,13 @@ impl ModularRack {
             match &self.nodes[event.node].unit {
                 Unit::Note(RackNoteModule::Sequencer { params }) => {
                     let params = *params;
+                    let clock = self
+                        .generators
+                        .iter()
+                        .find(|generator| generator.active && generator.node == event.node)
+                        .filter(|_| params.mode != SequenceMode::Sequence)
+                        .map(|generator| (generator.phase, generator.step));
+                    self.next_id = self.next_id.wrapping_add(1).max(1);
                     if let Some(slot) = self
                         .generators
                         .iter_mut()
@@ -594,8 +631,10 @@ impl ModularRack {
                             node: event.node,
                             note: event.note,
                             params,
-                            phase: 0.0,
-                            step: 0,
+                            phase: clock.map_or(0.0, |clock| clock.0),
+                            step: clock.map_or(0, |clock| clock.1),
+                            transforms: event.transforms,
+                            admission: self.next_id,
                         };
                     } else {
                         self.rejected = self.rejected.saturating_add(1);
@@ -606,7 +645,19 @@ impl ModularRack {
                     let mut out = [RackNote::default(); 4];
                     let count = module.map(event.note, &mut out);
                     for note in out.into_iter().take(count) {
-                        self.successors(&mut len, Event { note, ..event });
+                        self.successors(
+                            &mut len,
+                            Event {
+                                note,
+                                transforms: event.transforms
+                                    | if matches!(module, RackNoteModule::PropertyScaler { .. }) {
+                                        1u64 << event.node
+                                    } else {
+                                        0
+                                    },
+                                ..event
+                            },
+                        );
                     }
                 }
                 Unit::Instrument { .. } => self.admit(event),
@@ -631,6 +682,8 @@ impl ModularRack {
             release_age: None,
             release_level: 0.0,
             end: event.duration,
+            transforms: event.transforms,
+            pitch_offset: 0.0,
         };
         if let Unit::Instrument { dsp, .. } = &mut self.nodes[event.node].unit {
             dsp.note_on_instance(
@@ -646,6 +699,8 @@ impl ModularRack {
                 .is_some_and(|envelope| envelope.destination == EnvelopeDestination::Gain)
             {
                 dsp.set_note_gain(child, 0.0);
+            } else {
+                dsp.set_note_gain(child, event.note.gain);
             }
         }
     }
@@ -680,10 +735,39 @@ impl ModularRack {
     fn finish(&mut self, index: usize) {
         let owner = self.owners[index];
         self.owners[index].active = false;
-        let other = self.owners.iter().any(|other| other.active && other.node == owner.node && other.note.key == owner.note.key);
+        let other = self.owners.iter().any(|other| {
+            other.active && other.node == owner.node && other.note.key == owner.note.key
+        });
         if let Unit::Instrument { dsp, .. } = &mut self.nodes[owner.node].unit {
-            if dsp.supports_note_instances() || !other { dsp.note_off_instance(owner.child, owner.note.key); }
+            if dsp.supports_note_instances() || !other {
+                dsp.note_off_instance(owner.child, owner.note.key);
+            }
         }
+    }
+    fn updated_note(
+        &self,
+        mut note: RackNote,
+        transforms: u64,
+        pan: f32,
+        expression: NoteExpression,
+    ) -> RackNote {
+        note.pan = pan.clamp(-1.0, 1.0);
+        note.expression = expression.clamped();
+        for &index in &self.order {
+            if transforms & (1u64 << index) != 0 {
+                if let Unit::Note(module @ RackNoteModule::PropertyScaler { params }) =
+                    self.nodes[index].unit
+                {
+                    // Velocity is fixed at admission; other properties track live curves.
+                    if params.property != windfall_dsp::rack_note::NoteProperty::Velocity {
+                        let mut mapped = [RackNote::default(); 4];
+                        module.map(note, &mut mapped);
+                        note = mapped[0];
+                    }
+                }
+            }
+        }
+        note
     }
     pub fn set_note_expression(
         &mut self,
@@ -691,16 +775,51 @@ impl ModularRack {
         pan: f32,
         expression: NoteExpression,
     ) {
+        for index in 0..self.owners.len() {
+            let owner = self.owners[index];
+            if owner.active && owner.parent == parent {
+                let note = self.updated_note(owner.note, owner.transforms, pan, expression);
+                self.owners[index].note = note;
+                if let Unit::Instrument { dsp, .. } = &mut self.nodes[owner.node].unit {
+                    dsp.set_note_expression(owner.child, note.pan, note.expression);
+                    dsp.set_note_pitch(
+                        owner.child,
+                        f32::from(note.key)
+                            + note.expression.fine_pitch_cents / 100.0
+                            + owner.pitch_offset,
+                    );
+                }
+            }
+        }
+        for index in 0..self.generators.len() {
+            let generator = self.generators[index];
+            if generator.active && generator.parent == parent {
+                self.generators[index].note =
+                    self.updated_note(generator.note, generator.transforms, pan, expression);
+            }
+        }
+    }
+    pub fn set_note_gain(&mut self, parent: NoteInstanceId, gain: f32) {
+        if !gain.is_finite() {
+            return;
+        }
+        let gain = gain.clamp(0.0, 4.0);
+        for generator in &mut self.generators {
+            if generator.active && generator.parent == parent {
+                generator.note.gain = gain;
+            }
+        }
         for owner in &mut self.owners {
             if owner.active && owner.parent == parent {
-                // Keep mapped pitch/properties and routing. Updates are offsets
-                // from the input, delivered by the host's expression map.
-                owner.note.pan = pan.clamp(-1.0, 1.0);
-                owner.note.expression.modulation_x = expression.modulation_x;
-                owner.note.expression.modulation_y = expression.modulation_y;
-                owner.note.expression.release = expression.release;
-                if let Unit::Instrument { dsp, .. } = &mut self.nodes[owner.node].unit {
-                    dsp.set_note_expression(owner.child, owner.note.pan, owner.note.expression);
+                owner.note.gain = gain;
+                if owner
+                    .note
+                    .envelope
+                    .is_none_or(|envelope| envelope.destination != EnvelopeDestination::Gain)
+                {
+                    if let Unit::Instrument { dsp, .. } = &mut self.nodes[owner.node].unit {
+                        dsp.set_note_gain(owner.child, gain);
+                    }
                 }
             }
         }
@@ -708,6 +827,7 @@ impl ModularRack {
     pub fn set_note_pitch_offset(&mut self, parent: NoteInstanceId, offset: f32) {
         for owner in &mut self.owners {
             if owner.active && owner.parent == parent {
+                owner.pitch_offset = offset;
                 if let Unit::Instrument { dsp, .. } = &mut self.nodes[owner.node].unit {
                     dsp.set_note_pitch(
                         owner.child,
@@ -750,42 +870,85 @@ impl ModularRack {
             if !before.active {
                 continue;
             }
-            if before.phase <= 1.0e-12 {
+            let arpeggio = before.params.mode != SequenceMode::Sequence;
+            if arpeggio
+                && self.generators[..index]
+                    .iter()
+                    .any(|generator| generator.active && generator.node == before.node)
+            {
+                continue;
+            }
+            let mut phase = before.phase;
+            let mut next_step = before.step;
+            if phase <= 1.0e-12 {
                 let step = before.params.grid.steps
                     [(before.step % u64::from(before.params.length)) as usize];
-                if step.gate {
-                    let octave = ((before.step / u64::from(before.params.length))
-                        % u64::from(before.params.octaves)) as i16
-                        * 12;
-                    let note = RackNote {
-                        key: (i16::from(before.note.key) + step.pitch_offset + octave).clamp(0, 127)
-                            as u8,
-                        velocity: (before.note.velocity * step.velocity_scale).clamp(0.0, 1.0),
-                        ..before.note
+                let mut selected = before;
+                let mut octave_cycle = before.step / u64::from(before.params.length);
+                if arpeggio {
+                    let mut held = [0usize; MAX_GENERATORS];
+                    let mut count = 0;
+                    for (seat, generator) in self.generators.iter().enumerate() {
+                        if generator.active && generator.node == before.node {
+                            held[count] = seat;
+                            count += 1;
+                        }
+                    }
+                    held[..count].sort_unstable_by_key(|&seat| {
+                        let generator = self.generators[seat];
+                        if before.params.mode == SequenceMode::AsPlayed {
+                            (0, generator.admission)
+                        } else {
+                            (generator.note.key, generator.admission)
+                        }
+                    });
+                    let ordinal = (before.step % count as u64) as usize;
+                    let ordinal = if before.params.mode == SequenceMode::Down {
+                        count - ordinal - 1
+                    } else {
+                        ordinal
                     };
-                    let duration = (60.0 * self.sample_rate
-                        / (self.tempo * f64::from(before.params.grid.steps_per_beat))
-                        * f64::from(before.params.gate))
-                    .round()
-                    .max(1.0) as u64;
+                    selected = self.generators[held[ordinal]];
+                    octave_cycle = before.step / count as u64;
+                }
+                if step.gate {
+                    let octave = (octave_cycle % u64::from(before.params.octaves)) as i16 * 12;
+                    let note = RackNote {
+                        key: (i16::from(selected.note.key) + step.pitch_offset + octave)
+                            .clamp(0, 127) as u8,
+                        velocity: (selected.note.velocity * step.velocity_scale).clamp(0.0, 1.0),
+                        ..selected.note
+                    };
                     let mut len = 0;
                     self.successors(
                         &mut len,
                         Event {
                             node: before.node,
-                            parent: before.parent,
+                            parent: selected.parent,
                             note,
-                            duration,
+                            duration: f64::from(before.params.gate)
+                                / f64::from(before.params.grid.steps_per_beat),
+                            transforms: selected.transforms,
                         },
                     );
                     self.dispatch(len);
                 }
-                self.generators[index].step = before.step.wrapping_add(1);
-                self.generators[index].phase += 1.0;
+                next_step = before.step.wrapping_add(1);
+                phase += 1.0;
             }
-            self.generators[index].phase -= self.tempo
-                * f64::from(before.params.grid.steps_per_beat)
+            phase -= self.tempo * f64::from(before.params.grid.steps_per_beat)
                 / (60.0 * self.sample_rate);
+            if arpeggio {
+                for generator in &mut self.generators {
+                    if generator.active && generator.node == before.node {
+                        generator.phase = phase;
+                        generator.step = next_step;
+                    }
+                }
+            } else {
+                self.generators[index].phase = phase;
+                self.generators[index].step = next_step;
+            }
         }
     }
     fn envelopes(&mut self) {
@@ -794,7 +957,7 @@ impl ModularRack {
             if !before.active {
                 continue;
             }
-            if before.age >= before.end && before.release_age.is_none() {
+            if before.end <= 1.0e-12 && before.release_age.is_none() {
                 self.release(index);
             }
             let owner = self.owners[index];
@@ -818,7 +981,9 @@ impl ModularRack {
                     match envelope.destination {
                         EnvelopeDestination::Gain => dsp.set_note_gain(
                             owner.child,
-                            (1.0 - envelope.amount.abs() + level * envelope.amount.abs()).max(0.0),
+                            owner.note.gain
+                                * (1.0 - envelope.amount.abs() + level * envelope.amount.abs())
+                                    .max(0.0),
                         ),
                         EnvelopeDestination::Pan => dsp.set_note_expression(
                             owner.child,
@@ -829,6 +994,7 @@ impl ModularRack {
                             owner.child,
                             f32::from(owner.note.key)
                                 + expression.fine_pitch_cents / 100.0
+                                + owner.pitch_offset
                                 + level * envelope.amount * 12.0,
                         ),
                         EnvelopeDestination::ModulationX => {
@@ -845,6 +1011,7 @@ impl ModularRack {
                 }
             }
             self.owners[index].age = owner.age.saturating_add(1);
+            self.owners[index].end = owner.end - self.tempo / (60.0 * self.sample_rate);
         }
     }
     /// Input/output may alias. The same frame loop handles live and render.

@@ -1,5 +1,5 @@
 import { useId, useState } from "react"
-import type { RackNoteModule } from "@/bindings"
+import type { EnvelopeDestination, NoteProperty, RackNoteModule, SequenceMode } from "@/bindings"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field"
@@ -49,7 +49,7 @@ export function NoteModuleEditor({ module, onChange }: { module: RackNoteModule;
       <Button variant="outline" onClick={() => onChange({ ...module, params: { table: Array.from({ length: 128 }, (_, key) => key) } })}>Reset key map</Button>
     </FieldGroup>
     case "propertyScaler": return <FieldGroup>
-      <ChoiceField label="Note property" value={module.params.property} choices={["velocity", "pan", "release", "pitch", "modulationX", "modulationY"]} onChange={(property) => onChange({ ...module, params: { ...module.params, property } })} />
+      <ChoiceField<NoteProperty> label="Note property" value={module.params.property} choices={["velocity", "pan", "release", "pitch", "modulationX", "modulationY"]} onChange={(property) => onChange({ ...module, params: { ...module.params, property } })} />
       <svg role="img" aria-label="Property mapping curve" viewBox="0 0 200 100" className="h-24 w-full text-primary"><polyline fill="none" stroke="currentColor" points={Array.from({ length: 41 }, (_, index) => {
         const x = index / 40; const y = Math.min(Math.max(module.params.levels.ceiling, module.params.levels.floor), Math.max(module.params.levels.floor, x ** module.params.curve * module.params.levels.percent / 100)); return `${x * 200},${100 - y * 100}`
       }).join(" ")} /></svg>
@@ -57,11 +57,13 @@ export function NoteModuleEditor({ module, onChange }: { module: RackNoteModule;
       {(["percent", "floor", "ceiling"] as const).map((key) => <NumberField key={key} label={key} value={module.params.levels[key]} min={0} max={key === "percent" ? 200 : 1} step={key === "percent" ? 1 : 0.01} onChange={(value) => onChange({ ...module, params: { ...module.params, levels: { ...module.params.levels, [key]: value } } })} />)}
     </FieldGroup>
     case "envelope": return <FieldGroup>
-      <ChoiceField label="Envelope destination" value={module.params.destination} choices={["gain", "pan", "pitch", "modulationX", "modulationY"]} onChange={(destination) => onChange({ ...module, params: { ...module.params, destination } })} />
+      <ChoiceField<EnvelopeDestination> label="Envelope destination" value={module.params.destination} choices={["gain", "pan", "pitch", "modulationX", "modulationY"]} onChange={(destination) => onChange({ ...module, params: { ...module.params, destination } })} />
       <svg role="img" aria-label="Note envelope" viewBox="0 0 200 100" className="h-24 w-full text-primary"><polyline fill="none" stroke="currentColor" points={`0,100 35,0 80,${100 - module.params.sustain * 100} 140,${100 - module.params.sustain * 100} 200,100`} /></svg>
       {(["attackMs", "decayMs", "sustain", "releaseMs", "amount"] as const).map((key) => <NumberField key={key} label={key} value={module.params[key]} min={key === "amount" ? -1 : 0} max={key.endsWith("Ms") ? 10000 : 1} step={key.endsWith("Ms") ? 1 : 0.01} onChange={(value) => onChange({ ...module, params: { ...module.params, [key]: value } })} />)}
     </FieldGroup>
-    case "sequencer": return <FieldGroup><div className="grid grid-cols-4 gap-2">
+    case "sequencer": return <FieldGroup>
+      <ChoiceField<SequenceMode> label="Sequence mode" value={module.params.mode} choices={["sequence", "up", "down", "asPlayed"]} onChange={(mode) => onChange({ ...module, params: { ...module.params, mode } })} />
+      <div className="grid grid-cols-4 gap-2">
       <NumberField label="Sequence length" value={module.params.length} min={1} max={16} onChange={(length) => onChange({ ...module, params: { ...module.params, length } })} />
       <NumberField label="Steps per beat" value={module.params.grid.stepsPerBeat} min={1} max={16} onChange={(stepsPerBeat) => onChange({ ...module, params: { ...module.params, grid: { ...module.params.grid, stepsPerBeat } } })} />
       <NumberField label="Gate length" value={module.params.gate} min={0.01} max={1} step={0.01} onChange={(gate) => onChange({ ...module, params: { ...module.params, gate } })} />
