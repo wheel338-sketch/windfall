@@ -50,6 +50,9 @@ pub(crate) struct Clock {
 }
 
 impl Clock {
+    pub(crate) fn control_default(rate: u32, bpm: f64) -> Self {
+        Self { anchor_frame: 0, anchor_tick: 0.0, frames_per_tick: samples_per_tick(bpm, f64::from(rate)) }
+    }
     /// First frame at or after `tick`, never before the anchor. A tick of
     /// infinity gives a frame that never comes.
     pub fn frame_of(&self, tick: f64) -> u64 {

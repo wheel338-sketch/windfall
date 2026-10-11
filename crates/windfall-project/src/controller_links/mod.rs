@@ -629,8 +629,8 @@ pub(crate) fn following(project: &Project) -> Option<Vec<ControllerLink>> {
     let mut kept: Vec<ControllerLink> = Vec::with_capacity(links.len());
     for link in links {
         let mut link = link.clone();
-        if let ControlSource::Internal { controller, .. } = link.source
-            && crate::internal_controllers::source(project, controller).is_none() {
+        if let ControlSource::Internal { controller, output } = link.source
+            && !crate::internal_controllers::source(project, controller).is_some_and(|(_, owner)| usize::from(output) < owner.ports().len()) {
             changed = true;
             continue;
         }

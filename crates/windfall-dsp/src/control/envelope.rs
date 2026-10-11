@@ -79,11 +79,16 @@ impl EnvelopeFollower {
         );
     }
 
-    fn tick(&mut self, left: f32, right: f32) -> [f32; 2] {
+    fn tick(&mut self, left: f32, right: f32) -> [f32; 2] { self.tick_detector(left, right, false) }
+
+    fn tick_detector(&mut self, left: f32, right: f32, rms: bool) -> [f32; 2] {
         let [input_gain, base, amount, duck, lfo_depth, hz] = self.controls.tick();
-        let level = self
-            .follower
-            .tick((peak(left, right) * input_gain).min(1.0));
+        let detector = if rms {
+            let l = audio(left) * input_gain; let r = audio(right) * input_gain;
+            ((l * l + r * r) * 0.5).min(1.0)
+        } else { (peak(left, right) * input_gain).min(1.0) };
+        let level = self.follower.tick(detector);
+        let level = if rms { level.max(0.0).sqrt() } else { level };
         let wave = (0.5 + 0.5 * (std::f64::consts::TAU * self.phase).sin()) as f32;
         self.phase = (self.phase + f64::from(hz / self.sample_rate)).fract();
         let control = (base + amount * (level + lfo_depth * wave)).clamp(0.0, 1.0);
@@ -99,6 +104,11 @@ impl EnvelopeFollower {
         for ((l, r), value) in left.iter().zip(right).zip(output) {
             *value = self.tick(*l, *r)[0];
         }
+    }
+
+    /// Ballistics on mean stereo power, followed by a square root.
+    pub fn process_control_rms<const N: usize>(&mut self, left: &[f32; N], right: &[f32; N], output: &mut [f32; N]) {
+        for ((l, r), value) in left.iter().zip(right).zip(output) { *value = self.tick_detector(*l, *r, true)[0]; }
     }
 
     pub fn process_with_control<const N: usize>(

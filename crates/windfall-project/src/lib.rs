@@ -17,7 +17,7 @@ pub use channel_voice::*;
 pub mod layer;
 pub mod controller_links;
 pub mod internal_controllers;
-pub use internal_controllers::{ControlPoint, InternalControllerSettings, SurfaceControl, SurfaceControlKind};
+pub use internal_controllers::{ControlPoint, InternalControllerSettings, SurfaceControl, SurfaceControlKind, VoltageRoute};
 pub use controller_links::{
     ControlAction, ControlMap, ControlSource, ControllerLink, ControllerProfile, LinkTarget,
     MidiControl, PickupMode, ProfileControl, SlotTarget, SourceMode,

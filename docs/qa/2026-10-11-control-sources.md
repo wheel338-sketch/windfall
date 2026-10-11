@@ -9,7 +9,12 @@ Edit-only worker: **no builds, tests, package tools, device checks, or generated
 - Registered control-only Keyboard Source and Formula Source, reusing existing bounded DSP. Formula adds input c at the end of its descriptors (old parameter indices stay stable).
 - Added optional project configuration for note input, drawn envelope, formula text, peak/RMS and tempo sync, and up to eight named surface widgets. Checked command edits the configuration as one settings/history transaction.
 - Internal links now validate source existence/ports, reject direct and indirect source-parameter cycles and conservative detector audio feedback. Source deletion removes its links in the existing command transaction; undo restores links and source together.
-- Engine hosting and purpose-built editors are in progress. No row is currently claimed complete.
+- Engine samples sources at the actual slot input, applies internal links on the common 64-frame grid after ordinary automation, and keeps source/link state across compatible plans. Note tables are fixed at 128 per source; rejected notes are observable through `Controller::rejected_control_notes`.
+- Added eight-output DC software source with affine calibration, smoothing and default-off arming. DC adds to configured channels of the existing multichannel buffer separately from audible stereo. `Processor::set_output_channels` / `hardware_samples` expose a device-free harness.
+- Dashboard is a distinct instrument kind reusing the actual MIDI-out processor; it adds normalized internal source ports and persisted custom panel configuration.
+- Purpose-built editors and acceptance cases are in progress. No row is currently claimed complete.
+
+Known limits: internal Tempo target is explicitly refused pending a clock feedback contract; internal maps use absolute mode without pickup; up to eight custom controls per surface/dashboard. Detector graph checks conservatively reject upstream audible feedback. Hardware output calibration/safety remain external.
 
 ## Integrator commands (not run here)
 

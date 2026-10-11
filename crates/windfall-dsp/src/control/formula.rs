@@ -72,6 +72,8 @@ enum Op {
     Peak,
     Add,
     Multiply,
+    Divide,
+    Power,
     Negate,
     Sine,
     Abs,
@@ -115,13 +117,21 @@ impl Program {
                         _ => value.abs(),
                     };
                 }
-                Op::Add | Op::Multiply | Op::Min | Op::Max => {
+                Op::Add | Op::Multiply | Op::Divide | Op::Power | Op::Min | Op::Max => {
                     let right = stack[used - 1];
                     let left = stack[used - 2];
                     used -= 1;
                     let value = match op {
                         Op::Add => left + right,
                         Op::Multiply => left * right,
+                        Op::Divide => {
+                            if right.abs() < 1.0e-12 {
+                                0.0
+                            } else {
+                                left / right
+                            }
+                        }
+                        Op::Power => left.powf(right),
                         Op::Min => left.min(right),
                         _ => left.max(right),
                     };
@@ -195,18 +205,45 @@ impl<'a> Parser<'a> {
 
     fn sum(&mut self, depth: usize) -> Result<(), FormulaError> {
         self.product(depth)?;
-        while self.take(b'+') {
-            self.product(depth)?;
-            self.emit(Op::Add)?;
+        loop {
+            if self.take(b'+') {
+                self.product(depth)?;
+                self.emit(Op::Add)?;
+            } else if self.take(b'-') {
+                self.product(depth)?;
+                self.emit(Op::Negate)?;
+                self.emit(Op::Add)?;
+            } else {
+                break;
+            }
         }
         Ok(())
     }
 
     fn product(&mut self, depth: usize) -> Result<(), FormulaError> {
+        self.power(depth)?;
+        loop {
+            if self.take(b'*') {
+                self.power(depth)?;
+                self.emit(Op::Multiply)?;
+            } else if self.take(b'/') {
+                self.power(depth)?;
+                self.emit(Op::Divide)?;
+            } else {
+                break;
+            }
+        }
+        Ok(())
+    }
+
+    fn power(&mut self, depth: usize) -> Result<(), FormulaError> {
         self.atom(depth)?;
-        while self.take(b'*') {
-            self.atom(depth)?;
-            self.emit(Op::Multiply)?;
+        if self.take(b'^') {
+            if depth >= MAX_DEPTH {
+                return Err(FormulaError::TooComplex);
+            }
+            self.power(depth + 1)?;
+            self.emit(Op::Power)?;
         }
         Ok(())
     }
@@ -360,8 +397,14 @@ impl FormulaSource {
 
 impl crate::Effect for FormulaSource {
     type Params = FormulaSourceParams;
-    fn prepare(&mut self, rate: f32, block: usize) { FormulaSource::prepare(self, rate, block); }
-    fn reset(&mut self) { FormulaSource::reset(self); }
-    fn set_params(&mut self, params: &Self::Params) { FormulaSource::set_params(self, params); }
+    fn prepare(&mut self, rate: f32, block: usize) {
+        FormulaSource::prepare(self, rate, block);
+    }
+    fn reset(&mut self) {
+        FormulaSource::reset(self);
+    }
+    fn set_params(&mut self, params: &Self::Params) {
+        FormulaSource::set_params(self, params);
+    }
     fn process(&mut self, _left: &mut [f32], _right: &mut [f32]) {}
 }

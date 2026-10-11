@@ -120,6 +120,7 @@ impl Mixer {
     ) {
         let frames = out.len();
         self.add_instruments(plan, state, base, frames);
+        let control_tempo = state.tempo();
 
         for &index in &plan.order {
             let track = &plan.tracks[index];
@@ -151,6 +152,9 @@ impl Mixer {
                     let Some(unit) = &mut state.chains[index][place] else {
                         continue;
                     };
+                    if let Some(effect) = track.effects.get(place) {
+                        state.controls.process_slot(plan, effect.id, unit.control_params(), left, right, base, control_tempo);
+                    }
                     self.scratch[..frames].copy_from_slice(&self.keys[index * MAX_BLOCK..][..frames]);
                     if let Some(line) = &mut state.key_delays[index][place].line { line.process(&mut self.scratch[..frames]); }
                     let routed = track.routed_outputs(place);
@@ -295,6 +299,7 @@ impl Mixer {
             let Some(unit) = &seat.unit else {
                 continue;
             };
+            state.controls.dashboard(plan, index, unit.control_params(), base);
             let (left, right) = unit.output(frames);
             let scratch = &mut self.scratch[..frames];
             apply_strip(left, right, &state.channels[index], base, scratch);

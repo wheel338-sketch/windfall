@@ -171,10 +171,10 @@ impl Processor {
         self.frame
     }
     /// Configure off the callback, before the device starts processing.
-    pub(crate) fn set_output_channels(&mut self, channels: usize) {
+    pub fn set_output_channels(&mut self, channels: usize) {
         self.hardware_output = Some(crate::hardware_output::HardwareOutput::new(channels));
     }
-    pub(crate) fn hardware_samples(&self) -> &[f32] {
+    pub fn hardware_samples(&self) -> &[f32] {
         self.hardware_output
             .as_ref()
             .map_or(&[], |output| output.samples())
@@ -320,12 +320,13 @@ impl Processor {
             && self.sequencer.mode() == windfall_ipc::PlayMode::Pattern;
         let automating =
             !self.plan.lanes.is_empty() && (self.sequencer.in_song() || in_pattern || at_work);
-        if !automating {
+        if !automating && self.plan.control_sources.is_empty() {
             return most;
         }
         let into = self.frame % GRID;
         if into == 0 {
             self.automate();
+            crate::internal_controllers::step(&self.plan, &mut self.state, self.frame);
         }
         most.min((GRID - into) as usize)
     }
@@ -839,6 +840,10 @@ impl Processor {
 
     /// Starts a note on a channel that makes sound.
     fn start_on(&mut self, note: Note, now: u64) {
+        let before: u32 = self.state.controls.nodes.iter().map(|n| n.rejected_notes).fold(0, u32::saturating_add);
+        self.state.controls.note_on(&self.plan, note, now);
+        let after: u32 = self.state.controls.nodes.iter().map(|n| n.rejected_notes).fold(0, u32::saturating_add);
+        self.shared.rejected_control_notes.fetch_add(after.saturating_sub(before), std::sync::atomic::Ordering::Relaxed);
         let channel = note.channel;
         if self.state.channel_voice[channel].settings.arpeggiator.mode != ArpeggiatorMode::Off
             && note.expression.articulation != windfall_dsp::NoteArticulation::Slide
@@ -940,6 +945,7 @@ impl Processor {
     }
 
     fn release_input_on(&mut self, channel: usize, key: u8, origin: Origin) {
+        self.state.controls.note_off(channel, key, origin);
         self.state.channel_voice[channel].chord_off(key, origin);
         self.state.channel_voice[channel].release_held_echo(key, origin);
         for slot in 0..self.state.channel_voice[channel].owners.len() {
@@ -1127,6 +1133,7 @@ impl Processor {
 
     /// Ends sequenced notes and flushes the channel voice tools after a jump.
     fn end_sequenced(&mut self) {
+        self.state.controls.end_sequenced();
         if let Some(spectrum) = &mut self.spectrum {
             spectrum.reset();
         }
@@ -1388,6 +1395,7 @@ impl Processor {
         }
         self.render_voices(base, rendered, frames);
 
+        self.state.controls.clock = self.sequencer.clock();
         self.mixer.mix(
             &self.plan,
             &mut self.state,
@@ -1472,6 +1480,14 @@ impl Processor {
                 frame[0] *= gain;
                 frame[1] *= gain;
                 output.add(route, first + offset, frame);
+            }
+        }
+        for (index, source) in self.plan.control_sources.iter().enumerate() {
+            for route in &source.config.voltage_routes {
+                for offset in 0..out.len() {
+                    let value = self.state.controls.nodes[index].dc[offset][usize::from(route.output)];
+                    output.add(windfall_project::ExternalOutputRoute { left: route.channel, right: None, exclusive: true }, first + offset, [value, value]);
+                }
             }
         }
         output.advance(out.len());

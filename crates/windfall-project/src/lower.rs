@@ -107,6 +107,12 @@ pub(crate) fn execute(project: &mut Project, command: Command) -> Result<Outcome
             let mut new = old.clone();
             new.internal_controllers.retain(|c| crate::internal_controllers::source(transaction.project, c.controller).is_some());
             for config in &mut new.internal_controllers {
+                if let Some((_, owner)) = crate::internal_controllers::source(transaction.project, config.controller) {
+                    if owner.kind() != EffectKind::FormulaSource { config.expression = None; }
+                    if owner.kind() != EffectKind::NoteEnvelope { config.envelope.clear(); }
+                    if owner.kind() != EffectKind::ControlSurface { config.controls.clear(); }
+                    if owner.kind() != EffectKind::VoltageSource { config.voltage_routes.clear(); }
+                }
                 if config.note_channel.is_some_and(|id| transaction.project.channel(id).is_none()) { config.note_channel = None; }
             }
             if old != new { transaction.push(Edit::Settings(Change { old, new })); }
@@ -120,6 +126,11 @@ pub(crate) fn execute(project: &mut Project, command: Command) -> Result<Outcome
                 let old = transaction.project.playlist.take_groups.clone();
                 let new = crate::take_groups::prune(transaction.project);
                 transaction.push(Edit::TakeGroups(Change { old, new }));
+            }
+            if let Some(problem) = crate::internal_controllers::links_problem(transaction.project, &transaction.project.settings.controller_links) {
+                for edit in transaction.edits.iter().rev() { edit.apply(transaction.project, Direction::Backward); }
+                transaction.project.next_id = first_id;
+                return Err(CommandError::invalid(problem));
             }
             Ok(Outcome {
                 edits: transaction.edits,

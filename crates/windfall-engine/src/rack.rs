@@ -228,6 +228,8 @@ impl EffectUnit {
     /// A setting that changes how late the effect puts its output out, the
     /// limiter's look-ahead, is left alone: the delays that line the other
     /// paths up with the effect are made for the plan's value.
+    pub fn control_params(&self) -> EffectParams { self.params }
+
     pub fn automate(&mut self, param: usize, value: f32) {
         if let Some(external) = &mut self.external {
             external.automate(param, value);
@@ -664,6 +666,8 @@ impl InstrumentUnit {
     }
 
     /// Moves one setting, as automation does. Sounding notes glide to it.
+    pub fn control_params(&self) -> InstrumentParams { self.params }
+
     pub fn automate(&mut self, param: usize, value: f32) {
         if let Some(external) = &mut self.external {
             if let Some(cached) = self.plugin_params.get_mut(param)
