@@ -494,6 +494,7 @@ impl Ledger {
     ) -> bool {
         self.sample_rate == rate
             && effect.params.kind() == before.params.kind()
+            && effect.impulse == before.impulse
             && self.effects.get(&effect.id) == Some(&(effect.params.kind(), before.life.generation))
             && effect.native_identity()
                 == self
@@ -955,6 +956,22 @@ impl PlanState {
                 )
             })
             .ok_or(crate::project_preparation::ProjectPreparationError::SizeOverflow)?;
+        // Include both stereo kernel/history and temporary resampling storage.
+        // This admission runs before constructing any new convolver owner.
+        let impulse_bytes = plan.tracks.iter().flat_map(|track| &track.effects).try_fold(0_usize, |total, effect| {
+            let Some(asset) = &effect.impulse else { return Some(total); };
+            let frames = (asset.frames.len() as u64 * u64::from(sample_rate)).div_ceil(u64::from(asset.sample_rate.max(1)));
+            let frames = usize::try_from(frames).ok()?;
+            let partitions = frames.div_ceil(windfall_dsp::spectral::CONVOLUTION_PARTITION);
+            // Two stereo complex planes (kernels + history), plus source PCM,
+            // resampled PCM, allocator headers, queue/fixed scratch allowance.
+            let bytes = partitions.checked_mul(8192)?.checked_add(frames.checked_mul(8)?)?.checked_add(asset.frames.len().checked_mul(8)?)?.checked_add(16384)?;
+            total.checked_add(bytes)
+        }).ok_or(crate::project_preparation::ProjectPreparationError::SizeOverflow)?;
+        const IMPULSE_LIMIT: usize = 128 * 1024 * 1024;
+        if impulse_bytes > IMPULSE_LIMIT {
+            return Err(crate::project_preparation::ProjectPreparationError::MemoryLimit { required: impulse_bytes, limit: IMPULSE_LIMIT });
+        }
         let inherited = held.map_or(0, |held| held.history_capacity);
         if conditional {
             let capacity = inherited.max(sample_rate as usize);
@@ -1188,7 +1205,7 @@ impl PlanState {
                     });
                 if effect.leaving {
                     // Only there to fade out what is already playing.
-                    return None;
+                    return Ok(None);
                 }
                 ledger
                     .effects
@@ -1197,10 +1214,10 @@ impl PlanState {
                     let meters = held.map_or(&[][..], |held| &held.meters);
                     let meter = meters.iter().find(|(id, _)| *id == effect.id);
                     ledger.meters.extend(meter.cloned());
-                    return None;
+                    return Ok(None);
                 }
                 let (mut unit, meter) =
-                    EffectUnit::build(effect, track.id, sample_rate, plan.tempo_bpm);
+                    EffectUnit::build(effect, track.id, sample_rate, plan.tempo_bpm)?;
                 if let Some(binding) = plan.plugins.iter().find(|binding| binding.target == target)
                 {
                     let native = match prepared.remove(&target) {
@@ -1210,9 +1227,9 @@ impl PlanState {
                     unit.install_plugin(native, binding);
                 }
                 ledger.meters.extend(meter.map(|meter| (effect.id, meter)));
-                Some(unit)
+                Ok(Some(unit))
             });
-            chains.push(chain.collect());
+            chains.push(chain.collect::<Result<Vec<_>, crate::project_preparation::ProjectPreparationError>>()?);
         }
 
         let printed = if plan.audio_clips.iter().any(|clip| clip.direct_output)
@@ -2096,6 +2113,7 @@ mod tests {
 
     fn limiter(id: u32, lookahead_ms: f32) -> EffectSlot {
         EffectSlot {
+            impulse: None,
             id: EffectId(id),
             enabled: true,
             mix: 1.0,

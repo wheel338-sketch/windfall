@@ -125,6 +125,7 @@ impl Rig {
     pub fn effect(&mut self, track: TrackId, params: EffectParams) -> EffectId {
         let id = EffectId(self.id());
         self.track_mut(track).effects.push(EffectSlot {
+            impulse: None,
             id,
             enabled: true,
             mix: 1.0,

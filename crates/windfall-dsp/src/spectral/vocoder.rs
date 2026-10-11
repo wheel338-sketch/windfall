@@ -21,6 +21,11 @@ pub struct VocoderParams {
     pub release_ms: f32,
     pub gain: f32,
     pub mix: f32,
+    /// Main carrier + key modulator, or main modulator + key carrier.
+    pub key_is_carrier: bool,
+    /// An explicitly selected built-in harmonic carrier, driven by carrier_hz.
+    pub synth_carrier: bool,
+    pub carrier_hz: f32,
 }
 impl Default for VocoderParams {
     fn default() -> Self {
@@ -31,6 +36,9 @@ impl Default for VocoderParams {
             release_ms: 80.0,
             gain: 2.0,
             mix: 1.0,
+            key_is_carrier: false,
+            synth_carrier: false,
+            carrier_hz: 110.0,
         }
     }
 }
@@ -41,6 +49,9 @@ param_set!(VocoderParams, "Vocoder", {
     float [release_ms] "releaseMs" "Release" { Milliseconds, Logarithmic, 5.0, 1000.0, 80.0 }
     float [gain] "gain" "Gain" { Gain, Linear, 0.0, 8.0, 2.0 }
     float [mix] "mix" "Mix" { Fraction, Linear, 0.0, 1.0, 1.0 }
+    toggle [key_is_carrier] "keyIsCarrier" "Key is carrier" { false }
+    toggle [synth_carrier] "synthCarrier" "Synth carrier" { false }
+    float [carrier_hz] "carrierHz" "Carrier pitch" { Hertz, Logarithmic, 40.0, 1000.0, 110.0 }
 });
 
 #[derive(Clone, Copy)]
@@ -133,13 +144,14 @@ impl Bank {
 }
 
 /// The main input is always the carrier. Optional sidechain is the modulator;
-/// None self-modulates, while a short Some key is zero past its supplied frames.
+/// Missing key is silent, while a short key is zero past its supplied frames.
 pub struct Vocoder {
     params: VocoderParams,
     banks: [Bank; 2],
     active: usize,
     bank_mix: LinearRamp,
-    controls: Controls<5>,
+    controls: Controls<6>,
+    synth_phase: f64,
     sample_rate: f32,
     fresh: bool,
 }
@@ -150,7 +162,8 @@ impl Default for Vocoder {
             banks: [Bank::default(), Bank::default()],
             active: 0,
             bank_mix: LinearRamp::new(0.0),
-            controls: Controls::new([0.0, 5.0, 80.0, 2.0, 1.0]),
+            controls: Controls::new([0.0, 5.0, 80.0, 2.0, 1.0, 110.0]),
+            synth_phase: 0.0,
             sample_rate: 48_000.0,
             fresh: true,
         };
@@ -190,11 +203,18 @@ impl Effect for Vocoder {
         self.bank_mix.snap(self.active as f32);
         self.controls.reset();
         self.fresh = true;
+        self.synth_phase = 0.0;
     }
     fn set_params(&mut self, params: &Self::Params) {
         let p = params.sanitized();
-        self.controls
-            .set([p.color, p.attack_ms, p.release_ms, p.gain, p.mix]);
+        self.controls.set([
+            p.color,
+            p.attack_ms,
+            p.release_ms,
+            p.gain,
+            p.mix,
+            p.carrier_hz,
+        ]);
         if p.band_count != self.params.band_count && self.fresh {
             for bank in &mut self.banks {
                 bank.configure(usize::from(p.band_count), self.sample_rate);
@@ -210,19 +230,38 @@ impl Effect for Vocoder {
         for (i, (l, r)) in left.iter_mut().zip(right).enumerate() {
             self.fresh = false;
             self.start_pending_bank();
-            let carrier = [audio(*l), audio(*r)];
-            let modulator = match key {
-                None => carrier,
-                Some(frames) => frames.get(i).copied().unwrap_or([0.0; 2]).map(audio),
+            let main = [audio(*l), audio(*r)];
+            let key = key
+                .and_then(|frames| frames.get(i))
+                .copied()
+                .unwrap_or([0.0; 2])
+                .map(audio);
+            let [color, attack, release, gain, mix, carrier_hz] = self.controls.tick();
+            let (mut carrier, modulator) = if self.params.key_is_carrier {
+                (key, main)
+            } else {
+                (main, key)
             };
-            let [color, attack, release, gain, mix] = self.controls.tick();
+            if self.params.synth_carrier {
+                // Bounded additive saw, bandlimited by omitting harmonics above
+                // Nyquist. This is a selected synth, never an implicit modulator.
+                let mut value = 0.0;
+                let harmonics = (self.sample_rate * 0.45 / carrier_hz).floor().min(64.0) as usize;
+                for harmonic in 1..=harmonics {
+                    value += (self.synth_phase * harmonic as f64).sin() as f32 / harmonic as f32;
+                }
+                carrier = [value * 0.4; 2];
+            }
+            self.synth_phase = (self.synth_phase
+                + std::f64::consts::TAU * f64::from(carrier_hz / self.sample_rate))
+            .rem_euclid(std::f64::consts::TAU);
             let attack = smoothing_coefficient(attack, self.sample_rate);
             let release = smoothing_coefficient(release, self.sample_rate);
             let a = self.banks[0].tick(carrier, modulator, attack, release, color);
             let b = self.banks[1].tick(carrier, modulator, attack, release, color);
             let blend = self.bank_mix.tick();
-            *l = output(carrier[0] * (1.0 - mix) + (a[0] + (b[0] - a[0]) * blend) * gain * mix);
-            *r = output(carrier[1] * (1.0 - mix) + (a[1] + (b[1] - a[1]) * blend) * gain * mix);
+            *l = output(main[0] * (1.0 - mix) + (a[0] + (b[0] - a[0]) * blend) * gain * mix);
+            *r = output(main[1] * (1.0 - mix) + (a[1] + (b[1] - a[1]) * blend) * gain * mix);
         }
     }
     // Causal filters/envelopes add phase/attack response, no transport buffer.

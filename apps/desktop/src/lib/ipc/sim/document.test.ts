@@ -24,6 +24,7 @@ function fullProject() {
     synth: 0,
     effect: 0,
     tap: 0,
+    convolver: 0,
     sparePattern: 0,
     track: 0,
     playlistTrack: 0,
@@ -63,6 +64,7 @@ function fullProject() {
       kind: "compressor",
     })
     run({ type: "addEffect", track: ids.track, kind: "delay" })
+    ;[ids.convolver] = run({ type: "addEffect", track: ids.track, kind: "convolver" })
     ;[ids.tap] = run({ type: "addEffect", track: ids.track, kind: "sendTap" })
     ;[ids.playlistTrack] = run({ type: "addPlaylistTrack" })
     ;[ids.clip] = run({
@@ -691,6 +693,7 @@ const EVERY_COMMAND: { [Type in Command["type"]]: (ids: Ids) => Command } = {
     param: 0,
     value: -30,
   }),
+  setConvolverImpulse: (ids) => ({ type: "setConvolverImpulse", track: ids.track, effect: ids.convolver, impulse: { name: "Test IR", sampleRate: 48000, frames: [[1, .5], [0, .25]] } }),
   setEffectParams: (ids) => ({
     type: "setEffectParams",
     track: ids.track,

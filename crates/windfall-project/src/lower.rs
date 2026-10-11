@@ -1435,6 +1435,15 @@ impl Transaction<'_> {
                 param,
                 value,
             } => return self.set_effect_param(track, effect, param, value),
+            Command::SetConvolverImpulse { track, effect, impulse } => {
+                let (track, slot) = self.effect_index(track, effect)?;
+                if self.project.mixer.tracks[track].effects[slot].kind() != EffectKind::Convolver {
+                    return Err(CommandError::invalid("IR assets require a Convolver slot"));
+                }
+                if let Some(asset) = &impulse { asset.check().map_err(CommandError::invalid)?; }
+                self.change_track(track, |track| track.effects[slot].impulse = impulse);
+                "Change impulse response"
+            }
             Command::SetEffectParams {
                 track,
                 effect,
@@ -3196,6 +3205,7 @@ impl Transaction<'_> {
         let index = index.map_or(count, |index| (index as usize).min(count));
         let id = EffectId(self.allocate()?);
         let slot = EffectSlot {
+            impulse: None,
             id,
             enabled: true,
             mix: 1.0,
@@ -3464,6 +3474,7 @@ impl Transaction<'_> {
         let (track, slot) = self.effect_index(track, effect)?;
         let id = EffectId(self.allocate()?);
         let new = EffectSlot {
+            impulse: None,
             id,
             enabled: true,
             mix: 1.0,

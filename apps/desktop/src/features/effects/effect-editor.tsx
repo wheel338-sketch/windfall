@@ -20,6 +20,9 @@ import { LimiterEditor } from "./limiter/limiter-editor"
 import { ReverbEditor } from "./reverb/reverb-editor"
 import { TunerEditor } from "./tuner/tuner-editor"
 
+import { ConvolverEditor } from "./spectral/convolver-editor"
+import { VocoderEditor } from "./spectral/vocoder-editor"
+
 type Editors = {
   [Kind in EffectKind]?: ComponentType<EditorProps<EffectParamsOf<Kind>>>
 }
@@ -36,6 +39,8 @@ const EDITORS: Editors = {
   reverb: ReverbEditor,
   delay: DelayEditor,
   tuner: TunerEditor,
+  convolver: ConvolverEditor,
+  vocoder: VocoderEditor,
 }
 
 type AnyEditor = ComponentType<EditorProps<EffectParams>>

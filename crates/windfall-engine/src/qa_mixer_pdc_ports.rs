@@ -120,6 +120,7 @@ impl Rig {
     fn limiter(&mut self, track: TrackId) {
         let id = EffectId(self.id());
         self.track_mut(track).effects.push(EffectSlot {
+            impulse: None,
             id,
             enabled: true,
             mix: 1.0,

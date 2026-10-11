@@ -4335,6 +4335,7 @@ fn check_names_each_broken_rule() {
             let effects = &mut p.mixer.tracks[1].effects;
             while effects.len() <= MAX_EFFECT_SLOTS {
                 effects.push(EffectSlot {
+                    impulse: None,
                     id: EffectId(next),
                     ..copy.clone()
                 });
@@ -4477,6 +4478,7 @@ fn add_effect_puts_a_default_effect_on_the_track() {
     assert_eq!(
         slot(&doc, track_id, reverb),
         EffectSlot {
+            impulse: None,
             id: reverb,
             enabled: true,
             mix: 1.0,
@@ -4984,6 +4986,7 @@ fn duplicate_effect_copies_an_effect_right_after_it() {
     assert_eq!(
         slot(&doc, track_id, copy),
         EffectSlot {
+            impulse: None,
             id: copy,
             ..slot(&doc, track_id, delay)
         }
@@ -5083,6 +5086,7 @@ fn replace_effect_puts_a_new_effect_in_the_same_place() {
     assert_eq!(
         slot(&doc, track_id, reverb),
         EffectSlot {
+            impulse: None,
             id: reverb,
             enabled: true,
             mix: 1.0,

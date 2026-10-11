@@ -107,8 +107,12 @@ impl EffectUnit {
         track: TrackId,
         sample_rate: u32,
         tempo_bpm: f64,
-    ) -> (Self, Option<GainReductionMeter>) {
-        let processor = AnyEffect::new(&effect.params);
+    ) -> Result<(Self, Option<GainReductionMeter>), crate::project_preparation::ProjectPreparationError> {
+        let processor = if let Some(asset) = &effect.impulse {
+            let frames = asset.at_rate(sample_rate).map_err(crate::project_preparation::ProjectPreparationError::Unsupported)?;
+            let impulse = windfall_dsp::spectral::PreparedImpulse::prepare(&frames).map_err(crate::project_preparation::ProjectPreparationError::Unsupported)?;
+            AnyEffect::Convolver(Box::new(windfall_dsp::spectral::Convolver::with_impulse(std::sync::Arc::new(impulse))))
+        } else { AnyEffect::new(&effect.params) };
         let meter = processor.gain_reduction();
         let mut slot = EffectSlot::new(processor);
         slot.prepare(sample_rate as f32, MAX_BLOCK);
@@ -131,7 +135,7 @@ impl EffectUnit {
             life: effect.life.clone(),
             heard: false,
         };
-        (unit, meter)
+        Ok((unit, meter))
     }
 
     pub fn kind(&self) -> EffectKind {

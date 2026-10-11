@@ -992,10 +992,13 @@ impl MixerTrack {
 }
 
 /// One effect on a mixer track.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
+#[derive(Debug, Clone, PartialEq, Serialize, TS)]
 #[serde(rename_all = "camelCase")]
 #[ts(export)]
 pub struct EffectSlot {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub impulse: Option<crate::ConvolverImpulse>,
     pub id: EffectId,
     /// Off lets the signal pass untouched. Switching crossfades, so it
     /// never clicks, and an effect that is off costs no CPU.
