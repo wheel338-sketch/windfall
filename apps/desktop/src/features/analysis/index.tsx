@@ -524,6 +524,10 @@ export function AnalysisPanel({
             })}>Audition {output.role}</Button>
             </div>
           ))}
+          {isBuiltinDereverb(review.model) && <Button variant="outline" disabled={busy || stale}
+            onClick={() => void action(async () => {
+              await backend.analysisPreview(review.job.ticket, "dry-input")
+            })}>Audition dry input</Button>}
           <Button variant="outline" onClick={() => void backend.previewStop()}>Stop audition</Button>
           {review.task === "stemSeparation" && <fieldset className="flex flex-col gap-2" disabled={busy || stale}>
             <legend>Remix layout</legend>

@@ -1258,6 +1258,7 @@ fn builtin_dereverb_without_weights_reviews_amount_and_applies_one_saved_undo_st
         assert_eq!(review.artifacts[0].frame_origin, "0");
         assert!(rig.session.analysis_capability().models.is_empty());
         rig.session.analysis_preview(&job.ticket, &review.artifacts[0].role).unwrap();
+        rig.session.analysis_preview(&job.ticket, "dry-input").unwrap();
         let result = rig.session.analysis_apply(apply(&job, true)).unwrap();
         assert_eq!(rig.session.document_snapshot().history.cursor, before.history.cursor + 1);
         assert_eq!(std::fs::read(&path).unwrap(), original);

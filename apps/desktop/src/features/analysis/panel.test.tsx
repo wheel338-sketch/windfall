@@ -593,6 +593,8 @@ describe("analysis app controls", () => {
     expect(screen.getByRole("button", { name: "Apply reviewed outputs" })).toBeEnabled()
     fireEvent.click(screen.getByRole("button", { name: `Audition ${role}` }))
     await waitFor(() => expect(backend.analysisPreview).toHaveBeenCalledWith(job.ticket, role))
+    fireEvent.click(screen.getByRole("button", { name: "Audition dry input" }))
+    await waitFor(() => expect(backend.analysisPreview).toHaveBeenCalledWith(job.ticket, "dry-input"))
   })
   it("loads a song from the remix action and opens the honest stem wizard", async () => {
     vi.spyOn(backend, "pickAudioFile").mockResolvedValue("/factory/Loops/Drum loop 128.wav")

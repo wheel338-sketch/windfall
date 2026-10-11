@@ -1090,6 +1090,17 @@ pub struct ApplyLease {
     work: Option<Work>,
 }
 impl ApplyLease {
+    /// Audition the exact captured selection under the same review lease. This
+    /// uses immutable prepared input, never the source pathname or a new view.
+    pub fn preview_input(&self, work: &mut Work) -> Result<windfall_core::AudioBuffer> {
+        let input = self.input();
+        let samples = input.selected_samples();
+        let mut copy = Vec::new();
+        copy.try_reserve_exact(samples.len()).map_err(|_| AnalysisError::Budget("dry preview allocation"))?;
+        for block in samples.chunks(crate::CHUNK_SAMPLES) { work.checkpoint(block.len() as u64)?; copy.extend_from_slice(block); }
+        work.check()?;
+        Ok(windfall_core::AudioBuffer::from_interleaved(input.stamp().input_shape.sample_rate, input.stamp().input_shape.channels, copy))
+    }
     /// Claim ownership while auditioning; cancellation cannot remove the
     /// staging asset being decoded. Dropping the lease restores Ready.
     pub fn preview_audio(&self, role: &str, work: &mut Work) -> Result<windfall_core::AudioBuffer> {

@@ -834,7 +834,9 @@ impl Session {
         let preparation = service.begin_preparation();
         let mut work = work(preparation.cancel.clone())?;
         let lease = manager.claim(ticket,&binding.stamp,&model).map_err(native_error)?;
-        let audio = lease.preview_audio(role,&mut work).map_err(native_error)?;
+        let audio = if role == "dry-input" && review.model.is_builtin_dereverb() {
+            lease.preview_input(&mut work).map_err(native_error)?
+        } else { lease.preview_audio(role,&mut work).map_err(native_error)? };
         { let _recording = self.recording_idle()?; if !binding.current(&self.state()) {
             return Err(error("stale","The source or project changed."));
         }}
