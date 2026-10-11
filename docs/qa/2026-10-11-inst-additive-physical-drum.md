@@ -248,3 +248,11 @@ cut to zero. Reset clears all correction state; stop keeps the existing fade.
 Written, not executed: `prepared_voice_stealing_preserves_endpoint_and_stop_reaches_exact_silence`.
 Run alongside the additive/allocator suites; existing independent single-voice
 references remain untouched when no voice has been stolen.
+
+### Sample-layer continuity checkpoint
+
+Layer Kick's fixed eight sample voices retain a 4 ms endpoint correction on
+steal, including a changed velocity/start position, and keep a short expired
+sample alive only until that correction settles. Stop/reset clear it deterministically.
+Written, not executed: `stolen_sample_layer_preserves_endpoint_and_stop_silences_corrections`;
+existing independent sample-only playback remains unchanged without a steal.

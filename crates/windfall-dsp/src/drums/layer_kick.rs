@@ -57,6 +57,8 @@ struct LayerVoice {
     velocity: f32,
     order: u64,
     fade: LinearRamp,
+    correction: LinearRamp,
+    last: f32,
 }
 impl Default for LayerVoice {
     fn default() -> Self {
@@ -68,6 +70,8 @@ impl Default for LayerVoice {
             velocity: 0.0,
             order: 0,
             fade: LinearRamp::new(1.0),
+            correction: LinearRamp::new(0.0),
+            last: 0.0,
         }
     }
 }
@@ -164,15 +168,23 @@ impl Instrument for LayerKick {
                     .map_or(0, |(i, _)| i)
             });
         self.serial = self.serial.wrapping_add(1);
+        let position = f64::from(self.params.sample_start) * pcm.samples.len() as f64;
+        let mut correction = LinearRamp::new(0.0);
+        if self.voices[index].active {
+            correction.snap(self.voices[index].last - pcm.at(position) * velocity.min(1.0));
+            correction.set_target(0.0, (self.rate * 0.004).max(1.0) as u32);
+        }
         self.voices[index] = LayerVoice {
             active: true,
             key,
-            position: f64::from(self.params.sample_start) * pcm.samples.len() as f64,
+            position,
             step: f64::from(pcm.sample_rate) / f64::from(self.rate)
                 * (f64::from(self.params.sample_tune) / 12.0).exp2(),
             velocity: velocity.min(1.0),
             order: self.serial,
             fade: LinearRamp::new(1.0),
+            correction,
+            last: 0.0,
         };
     }
     fn note_off(&mut self, key: u8) {
@@ -201,9 +213,13 @@ impl Instrument for LayerKick {
             if let Some(pcm) = &self.pcm {
                 for v in &mut self.voices {
                     if v.active {
-                        layer += pcm.at(v.position) * v.velocity * v.fade.tick();
+                        let fade = v.fade.tick();
+                        v.last = (pcm.at(v.position) * v.velocity + v.correction.tick()) * fade;
+                        layer += v.last;
                         v.position += v.step;
-                        if v.position >= pcm.samples.len() as f64 || v.fade.value() == 0.0 {
+                        if (v.position >= pcm.samples.len() as f64 && v.correction.is_settled())
+                            || v.fade.value() == 0.0
+                        {
                             v.active = false;
                         }
                     }
@@ -272,5 +288,31 @@ mod tests {
         kick.process(&mut kl, &mut kr);
         assert_eq!(l, kl);
         assert_eq!(r, kr);
+    }
+    #[test]
+    fn stolen_sample_layer_preserves_endpoint_and_stop_silences_corrections() {
+        let pcm = LayerPcm::from_samples(48000, &vec![0.5; 4096]);
+        let mut unit = LayerKick::default();
+        unit.set_layer(&pcm);
+        unit.prepare(48000.0, 257);
+        unit.set_params(&LayerKickParams {
+            sample_mix: 1.0,
+            level: 1.0,
+            ..Default::default()
+        });
+        for key in 36..44 {
+            unit.note_on(key, 1.0);
+        }
+        let (mut l, mut r) = ([0.0; 257], [0.0; 257]);
+        unit.process(&mut l, &mut r);
+        let before = l[256];
+        unit.note_on(44, 0.1);
+        let (mut first, mut right) = ([0.0], [0.0]);
+        unit.process(&mut first, &mut right);
+        assert!((first[0] - before).abs() < 0.01);
+        unit.all_notes_off();
+        unit.process(&mut l, &mut r);
+        unit.process(&mut l, &mut r);
+        assert!(l.iter().chain(&r).all(|x| *x == 0.0));
     }
 }
