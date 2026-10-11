@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from "react"
 import { toast } from "sonner"
 
 import type { MidiImportOptions, MidiImportPreview } from "@/bindings"
+import { Input } from "@/components/ui/input"
+import { PROJECT_TIMEBASES } from "@/features/project-info/settings"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import {
@@ -325,12 +327,13 @@ function ExportForm({ done, busy }: FormProps) {
           id="midi-ppq"
           value={options.ppq}
           disabled={working}
-          options={[
-            { value: 960, label: "960 PPQ" },
-            { value: 480, label: "480 PPQ" },
-          ]}
+          options={PROJECT_TIMEBASES.map((value) => ({ value, label: `${value} PPQ` }))}
           onChange={(ppq) => setOptions({ ...options, ppq })}
         />
+      </Field>
+      <Field>
+        <FieldLabel htmlFor="midi-custom-ppq">Custom MIDI resolution (1–32767)</FieldLabel>
+        <Input id="midi-custom-ppq" type="number" min={1} max={32767} value={options.ppq} disabled={working} onChange={(event) => { const ppq = Number(event.target.value); if (Number.isInteger(ppq) && ppq >= 1 && ppq <= 32767) setOptions({ ...options, ppq }) }} />
       </Field>
       <FieldSet>
         <FieldLegend>Playback</FieldLegend>

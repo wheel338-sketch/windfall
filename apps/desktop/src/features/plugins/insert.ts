@@ -1,0 +1,63 @@
+import type { DragEvent } from "react"
+import type { EffectKind, InstrumentKind, PluginRecord } from "@/bindings"
+import { EFFECT_KINDS, INSTRUMENT_KINDS, instrumentDescriptor } from "@/features/params/descriptors"
+import { backend } from "@/lib/ipc"
+import { dispatch, receivePatch, useProjectStore } from "@/lib/store/project"
+import { getProjectGeneration } from "@/lib/store/replaced"
+import { useUiStore } from "@/lib/store/ui"
+import { selectChannel } from "@/features/channel-rack/channel-ops"
+import { openEffect } from "@/features/mixer/effect-ops"
+import { reportError } from "@/lib/errors"
+
+const MIME = "application/x-windfall-plugin"
+type Destination = { channel?: number; track?: number; effect?: number; index?: number }
+export function startPluginDrag(event: DragEvent, record: PluginRecord) {
+  event.dataTransfer.effectAllowed = "copy"
+  event.dataTransfer.setData(MIME, JSON.stringify({ format: record.format, id: record.id, generation: getProjectGeneration() }))
+  event.dataTransfer.setData("text/plain", record.name)
+}
+export async function insertPlugin(record: PluginRecord, destination: Destination = {}) {
+  if (record.status !== "builtin" && record.status !== "verified") throw new Error(record.detail ?? "This plugin is unavailable")
+  let result
+  const project = useProjectStore.getState().project
+  if (record.format === "builtin") {
+    if (record.instrument) {
+      if (!INSTRUMENT_KINDS.includes(record.id as InstrumentKind)) throw new Error("Unknown built-in instrument")
+      const kind = record.id as InstrumentKind
+      const channel = project.channels.find((c) => c.id === destination.channel)
+      result = channel ? await dispatch({ type: "applyChannelPreset", id: channel.id, expected: channel, preset: { name: record.name, color: channel.color, volume: channel.volume, pan: channel.pan, source: { type: "instrument", params: instrumentDescriptor(kind).defaults } }, nameColor: false }) : await dispatch({ type: "addChannel", instrument: kind })
+    } else {
+      if (!EFFECT_KINDS.includes(record.id as EffectKind)) throw new Error("Unknown built-in effect")
+      const track = destination.track ?? useUiStore.getState().selectedTrack ?? 0
+      result = destination.effect === undefined ? await dispatch({ type: "addEffect", track, kind: record.id as EffectKind, index: destination.index }) : await dispatch({ type: "replaceEffect", track, effect: destination.effect, kind: record.id as EffectKind })
+    }
+  } else {
+    const generation = getProjectGeneration()
+    result = await backend.pluginsAdd(record.path, record.id, record.instrument ? undefined : (destination.track ?? useUiStore.getState().selectedTrack ?? 0))
+    if (generation !== getProjectGeneration()) return
+    receivePatch(result.patch)
+  }
+  if (!result) return
+  if (record.instrument) { selectChannel(destination.channel ?? result.created[0], { openSettings: true }); useUiStore.getState().showCenterTab("channelRack") }
+  else openEffect(result.created[0])
+}
+export function pluginDropHandlers(destination: Destination) {
+  return {
+    onDragOver: (event: DragEvent) => { if (event.dataTransfer.types.includes(MIME)) { event.preventDefault(); event.stopPropagation(); event.dataTransfer.dropEffect = "copy" } },
+    onDrop: (event: DragEvent) => {
+      const text = event.dataTransfer.getData(MIME); if (!text) return
+      event.preventDefault(); event.stopPropagation()
+      void (async () => {
+        const value = JSON.parse(text) as { format: string; id: string; generation: number }
+        if (value.generation !== getProjectGeneration()) throw new Error("The project changed during the plugin drag")
+        const catalog = await backend.pluginDatabase()
+        if (value.generation !== getProjectGeneration()) throw new Error("The project changed during the plugin drag")
+        const record = catalog.records.find((r) => r.format === value.format && r.id === value.id)
+        if (!record) throw new Error("This plugin is no longer in the catalog")
+        if ((destination.channel !== undefined) !== record.instrument && destination.channel !== undefined) throw new Error("Drop an instrument onto a channel")
+        if (destination.track !== undefined && record.instrument) throw new Error("Drop an effect onto a mixer slot")
+        await insertPlugin(record, destination)
+      })().catch((error: unknown) => reportError(error, "Could not add plugin"))
+    },
+  }
+}

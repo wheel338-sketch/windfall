@@ -1,3 +1,7 @@
+import { Button } from "@/components/ui/button"
+import { navigateClip, navigatePattern } from "@/features/browser/project-navigation"
+import { selectChannel } from "@/features/channel-rack/channel-ops"
+import { closeProjectOverview } from "./actions"
 import type { ClipContent } from "@/bindings"
 import { useProjectStore } from "@/lib/store/project"
 
@@ -42,7 +46,7 @@ export function ProjectOverviewView() {
   )
 
   return (
-    <div className="flex max-h-[65vh] min-w-0 flex-col gap-4 overflow-y-auto">
+    <div className="flex min-h-0 flex-1 min-w-0 flex-col gap-4 overflow-y-auto">
       <section aria-label="Channel and pattern relationships">
         <div className="overflow-x-auto">
           <table className="w-full border-collapse text-xs">
@@ -60,7 +64,7 @@ export function ProjectOverviewView() {
                     scope="col"
                     className="min-w-24 border p-2 text-center"
                   >
-                    {pattern.name}
+                    <Button variant="ghost" size="sm" onClick={() => { void navigatePattern(pattern.id); closeProjectOverview() }}>{pattern.name}</Button>
                   </th>
                 ))}
               </tr>
@@ -69,7 +73,7 @@ export function ProjectOverviewView() {
               {project.channels.map((channel) => (
                 <tr key={channel.id}>
                   <th scope="row" className="border p-2 text-left font-medium">
-                    {channel.name}
+                    <Button variant="ghost" size="sm" onClick={() => { selectChannel(channel.id, { openSettings: true }); closeProjectOverview() }}>{channel.name}</Button>
                   </th>
                   {patterns.map((pattern) => {
                     const marked = pattern.activeChannels.has(channel.id)
@@ -79,7 +83,7 @@ export function ProjectOverviewView() {
                         aria-label={marked ? "Has notes" : "No notes"}
                         className="border p-2 text-center"
                       >
-                        <span aria-hidden="true">{marked ? "●" : "—"}</span>
+                        <Button variant="ghost" size="sm" aria-label={`Open ${pattern.name} / ${channel.name}${marked ? " with notes" : " empty lane"}`} onClick={() => { void navigatePattern(pattern.id, channel.id); closeProjectOverview() }}><span aria-hidden="true">{marked ? "●" : "—"}</span></Button>
                       </td>
                     )
                   })}
@@ -108,7 +112,8 @@ export function ProjectOverviewView() {
               className="flex flex-wrap gap-x-3 gap-y-1 rounded border p-2"
             >
               <span>{tracks.get(clip.track) ?? "Missing playlist track"}</span>
-              <span>{clipTargetName(clip.content, names)}</span>
+              <Button variant="ghost" size="sm" onClick={() => { navigateClip(clip.id); closeProjectOverview() }}>{clipTargetName(clip.content, names)}</Button>
+              {clip.content.type === "pattern" && project.patterns.find((p) => p.id === (clip.content.type === "pattern" ? clip.content.pattern : -1))?.lanes.filter((lane) => lane.notes.length > 0).map((lane) => <Button variant="outline" size="sm" key={lane.channel} onClick={() => { if (clip.content.type === "pattern") void navigatePattern(clip.content.pattern, lane.channel); closeProjectOverview() }}>{project.channels.find((c) => c.id === lane.channel)?.name ?? "Missing channel"}</Button>)}
               <span className="text-muted-foreground">
                 Start: {clip.start} ticks
               </span>

@@ -1,3 +1,4 @@
+import { pluginDropHandlers } from "@/features/plugins/insert"
 import { DragDropVerticalIcon } from "@hugeicons/core-free-icons"
 import { HugeiconsIcon } from "@hugeicons/react"
 import {
@@ -358,6 +359,7 @@ export const ChannelRow = memo(function ChannelRow({
       role="group"
       aria-label={channel.name}
       data-channel-row={id}
+      {...pluginDropHandlers({ channel: id })}
       data-selected={selected ? "" : undefined}
       className="group/row flex w-max min-w-full items-center"
       style={{ height: ROW_HEIGHT }}

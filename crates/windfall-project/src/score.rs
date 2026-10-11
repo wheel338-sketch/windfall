@@ -97,12 +97,18 @@ pub struct ScoreEventLane {
     pub points: Vec<crate::AutomationPoint>,
 }
 
-fn local_target(target: crate::AutomationTarget, from: ChannelId, to: ChannelId) -> Option<crate::AutomationTarget> {
+fn local_target(
+    target: crate::AutomationTarget,
+    from: ChannelId,
+    to: ChannelId,
+) -> Option<crate::AutomationTarget> {
     use crate::AutomationTarget::*;
     match target {
         ChannelVolume { channel } if channel == from => Some(ChannelVolume { channel: to }),
         ChannelPan { channel } if channel == from => Some(ChannelPan { channel: to }),
-        InstrumentParam { channel, param } if channel == from => Some(InstrumentParam { channel: to, param }),
+        InstrumentParam { channel, param } if channel == from => {
+            Some(InstrumentParam { channel: to, param })
+        }
         _ => None,
     }
 }
@@ -201,9 +207,16 @@ impl Score {
                 });
             }
         }
-        score.events = source.events.iter().filter_map(|lane| {
-            local_target(lane.target, channel, ChannelId(0)).map(|target| ScoreEventLane { target, points: lane.points.clone() })
-        }).collect();
+        score.events = source
+            .events
+            .iter()
+            .filter_map(|lane| {
+                local_target(lane.target, channel, ChannelId(0)).map(|target| ScoreEventLane {
+                    target,
+                    points: lane.points.clone(),
+                })
+            })
+            .collect();
         score.normalize_name();
         score.validate()?;
         Ok(score)
@@ -277,7 +290,9 @@ impl Score {
             if local_target(lane.target, ChannelId(0), ChannelId(0)).is_none()
                 || !event_targets.insert(lane.target)
                 || lane.points.is_empty()
-                || crate::pattern_events::checked_points(lane.points.clone()).map_err(|e| e.to_string())? != lane.points
+                || crate::pattern_events::checked_points(lane.points.clone())
+                    .map_err(|e| e.to_string())?
+                    != lane.points
                 || lane.points.iter().any(|p| p.tick > self.length_ticks)
             {
                 return Err("The score has an invalid pattern event lane".into());
@@ -419,16 +434,34 @@ impl Score {
         if mode == ScoreLoadMode::Replace {
             for lane in &target.events {
                 if local_target(lane.target, channel, channel).is_some() {
-                    commands.push(Command::SetPatternEvents { pattern, target: lane.target, points: Vec::new() });
+                    commands.push(Command::SetPatternEvents {
+                        pattern,
+                        target: lane.target,
+                        expected: lane.points.clone(),
+                        points: Vec::new(),
+                    });
                 }
             }
         }
         for lane in &self.events {
-            let target = local_target(lane.target, ChannelId(0), channel).ok_or("Invalid score event target")?;
+            let target = local_target(lane.target, ChannelId(0), channel)
+                .ok_or("Invalid score event target")?;
             if project.automation_range(&target).is_none() {
                 return Err("This channel does not have a control required by the score".into());
             }
-            commands.push(Command::SetPatternEvents { pattern, target, points: lane.points.clone() });
+            commands.push(Command::SetPatternEvents {
+                pattern,
+                target,
+                expected: if mode == ScoreLoadMode::Replace {
+                    Vec::new()
+                } else {
+                    crate::pattern_events::captured(
+                        project.pattern(pattern).expect("checked pattern"),
+                        &target,
+                    )
+                },
+                points: lane.points.clone(),
+            });
         }
         Ok(Command::Batch {
             label: Some("Load score".to_owned()),

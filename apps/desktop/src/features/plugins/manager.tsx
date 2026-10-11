@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react"
+import { PluginCatalog } from "./catalog"
 import type { PluginManagerState } from "@/bindings"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
@@ -95,6 +96,7 @@ export function PluginManager() {
             Add folder
           </Button>
         </div>
+        <div className="flex flex-wrap gap-2"><Button variant="outline" disabled={busy || state?.scanning || backend.kind === "mock"} onClick={() => void work(() => backend.pluginsRescan(false))}>Retry blocked plugins</Button><Button variant="outline" disabled={busy || state?.scanning || backend.kind === "mock"} onClick={() => void work(() => backend.pluginsRescan(true))}>Verify every plugin again</Button><Button variant="outline" disabled={busy} onClick={() => void work(() => backend.pluginDatabaseForgetMissing())}>Forget missing plugins</Button></div>
         {state?.scanning && (
           <p role="status">
             Scanning {state.completed}/{state.total}: {state.current}
@@ -122,7 +124,7 @@ export function PluginManager() {
             <ul>
               {state?.folders.map((folder) => (
                 <li key={folder} className="truncate" title={folder}>
-                  {folder}
+                  {folder}<Button size="sm" variant="ghost" disabled={busy || state?.scanning || backend.kind === "mock"} onClick={() => void work(() => backend.pluginsRemoveFolder(folder))}>Remove folder</Button>
                 </li>
               ))}
             </ul>
@@ -176,6 +178,7 @@ export function PluginManager() {
               </Button>
             </div>
           ))}
+          <PluginCatalog key={`${state?.completed ?? 0}:${state?.scanning ?? false}:${busy}`} />
           {state?.blocked.map((entry) => (
             <Alert key={`${entry.path}:${entry.id}`}>
               <AlertTitle>{entry.name} is blocked</AlertTitle>

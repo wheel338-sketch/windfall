@@ -1,3 +1,4 @@
+import { pluginDropHandlers } from "@/features/plugins/insert"
 import {
   ArrowDown01Icon,
   ArrowRight01Icon,
@@ -186,6 +187,7 @@ export const EffectPanel = memo(function EffectPanel({
       ref={root}
       data-slot="effect-panel"
       data-effect-row={effect}
+      {...pluginDropHandlers({ track, effect })}
       data-kind={kind}
       data-bypassed={slot.enabled ? undefined : ""}
       data-selected={selected || undefined}

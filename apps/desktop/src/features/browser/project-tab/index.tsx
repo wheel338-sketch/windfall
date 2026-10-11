@@ -1,5 +1,10 @@
 import { useId, type ReactNode } from "react"
 
+import { Button } from "@/components/ui/button"
+import { describeTarget } from "@/lib/automation/targets"
+import { dispatch } from "@/lib/store/project"
+import { selectChannel } from "@/features/channel-rack/channel-ops"
+import { navigatePattern, navigateTarget } from "../project-navigation"
 import { Badge } from "@/components/ui/badge"
 import { Empty, EmptyHeader, EmptyTitle } from "@/components/ui/empty"
 import { effectDescriptor } from "@/features/params/descriptors"
@@ -27,10 +32,12 @@ function NamedGroup({
   title,
   entries,
   always = false,
+  onPick,
 }: {
   title: string
   entries: readonly { name: string }[]
   always?: boolean
+  onPick?: (index: number) => void
 }) {
   if (!always && entries.length === 0) return null
   return (
@@ -45,7 +52,7 @@ function NamedGroup({
         <ul className="flex flex-col gap-1">
           {entries.map((entry, index) => (
             <li key={index} className="rounded-sm px-2 py-1 break-words">
-              {entry.name}
+              {onPick ? <Button variant="ghost" size="sm" onClick={() => onPick(index)}>{entry.name}</Button> : entry.name}
             </li>
           ))}
         </ul>
@@ -65,8 +72,8 @@ export function ProjectTab() {
   return (
     <div data-slot="project-browser" className="flex flex-col gap-4 p-2">
       <p className="text-xs text-muted-foreground">Open project · Read-only</p>
-      <NamedGroup title="Patterns" entries={project.patterns} always />
-      <NamedGroup title="Channels" entries={project.channels} />
+      <NamedGroup title="Patterns" entries={project.patterns} always onPick={(index) => void navigatePattern(project.patterns[index].id)} />
+      <NamedGroup title="Channels" entries={project.channels} onPick={(index) => selectChannel(project.channels[index].id, { openSettings: true })} />
       <NamedGroup title="Samples" entries={project.samples} />
       {effectTracks.length > 0 && (
         <ProjectGroup title="Mixer effects">
@@ -100,7 +107,14 @@ export function ProjectTab() {
           ))}
         </ProjectGroup>
       )}
-      <NamedGroup title="Automations" entries={project.automations} />
+      <NamedGroup title="Automations" entries={project.automations} onPick={(index) => navigateTarget(project.automations[index].target)} />
+      {(project.settings.controllerLinks?.length ?? 0) > 0 && <ProjectGroup title="Controller links">
+        <ul className="flex flex-col gap-2">{project.settings.controllerLinks?.map((link, index) => <li key={index} className="flex flex-wrap items-center gap-2">
+          <span>{link.source.type === "midi" ? `${link.source.device ?? "Any MIDI input"} · ${link.source.control.type}` : `Internal ${link.source.controller}:${link.source.output}`}</span>
+          {link.target.type === "param" ? <Button variant="ghost" size="sm" onClick={() => { if (link.target.type === "param") navigateTarget(link.target.target) }}>{describeTarget(project, link.target.target)}</Button> : <span>{link.target.type === "action" ? link.target.action : link.target.slot.type}</span>}
+          <Button variant="outline" size="sm" aria-label={`Remove controller link ${index + 1}`} onClick={() => void dispatch({ type: "setControllerLinks", links: (useProjectStore.getState().project.settings.controllerLinks ?? []).filter((_, at) => at !== index) })}>Remove</Button>
+        </li>)}</ul>
+      </ProjectGroup>}
       <NamedGroup title="Plugins" entries={project.plugins ?? []} />
       <NamedGroup
         title="Retained plugin states"
