@@ -14,8 +14,12 @@ export function ConvolverEditor({ effect, track, bind }: EditorProps<EffectParam
   useEffect(() => () => { ++request.current }, [effect, track])
   const apply = async (asset: ReturnType<typeof linearPhaseImpulse> | null) => {
     if (track === undefined) return
-    try { const result = await dispatch({ type: "setConvolverImpulse", track, effect, impulse: asset }); setError(result ? "" : "Impulse change was refused; the previous IR is retained") }
-    catch (cause) { setError(cause instanceof Error ? cause.message : String(cause)) }
+    const ticket = request.current, generation = getProjectGeneration()
+    const current = () => ticket === request.current && generation === getProjectGeneration()
+    try {
+      const result = await dispatch({ type: "setConvolverImpulse", track, effect, impulse: asset })
+      if (current()) setError(result ? "" : "Impulse change was refused; the previous IR is retained")
+    } catch (cause) { if (current()) setError(cause instanceof Error ? cause.message : String(cause)) }
   }
   return <div className="flex flex-col gap-3" data-slot="convolver-editor">
     <Field>
@@ -23,17 +27,18 @@ export function ConvolverEditor({ effect, track, bind }: EditorProps<EffectParam
       <Input id={`ir-${effect}`} type="file" accept=".wav,audio/wav" onChange={(event) => {
         const file = event.currentTarget.files?.[0]
         if (!file) return
-        const ticket = ++request.current, generation = getProjectGeneration()
+        const ticket = ++request.current, generation = getProjectGeneration(), revision = useProjectStore.getState().revision
         if (file.size > 2 * 1024 * 1024) { setError("IR WAV exceeds the 2 MiB import budget"); return }
         void file.arrayBuffer().then((buffer) => {
           if (ticket !== request.current || generation !== getProjectGeneration()) return
+          if (revision !== useProjectStore.getState().revision) { setError("The project changed during IR loading; choose the file again"); return }
           return apply(readImpulseWav(buffer, file.name))
-        }).catch((cause: unknown) => { if (ticket === request.current) setError(cause instanceof Error ? cause.message : String(cause)) })
+        }).catch((cause: unknown) => { if (ticket === request.current && generation === getProjectGeneration()) setError(cause instanceof Error ? cause.message : String(cause)) })
       }} />
       <FieldDescription>{impulse ? `${impulse.name}: ${impulse.frames.length} stereo frames at ${impulse.sampleRate} Hz` : "No IR loaded: unit impulse"}</FieldDescription>
     </Field>
     <Button variant="outline" onClick={() => { ++request.current; void apply(null) }}>Clear impulse</Button>
-    <EqControls key={`${effect}:${impulse?.name ?? "identity"}`} effect={effect} initial={impulse?.eqGains ?? [0,0,0]} apply={(gains) => { ++request.current; try { void apply(linearPhaseImpulse(gains[0], gains[1], gains[2])) } catch (cause) { setError(cause instanceof Error ? cause.message : String(cause)) } }} />
+    <EqControls key={`${effect}:${impulse?.name ?? "identity"}:${impulse?.eqGains?.join(",") ?? ""}`} effect={effect} initial={impulse?.eqGains ?? [0,0,0]} apply={(gains) => { ++request.current; try { void apply(linearPhaseImpulse(gains[0], gains[1], gains[2])) } catch (cause) { setError(cause instanceof Error ? cause.message : String(cause)) } }} />
     <ParamRow columns={2}><ParamControl {...bind("mix")} /><ParamControl {...bind("gain")} /></ParamRow>
     {error && <p role="alert" className="text-xs text-destructive">{error}</p>}
   </div>

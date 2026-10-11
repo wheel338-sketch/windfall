@@ -197,3 +197,141 @@ fn linear_phase_delay_and_eq_controls_persist_and_invalid_metadata_is_refused() 
     impulse.frames[0][0] = 0.5;
     assert!(impulse.check().is_err());
 }
+
+#[test]
+fn convolver_plugin_presets_carry_assets_and_refuse_stale_destinations() {
+    use windfall_project::{PluginPreset, PluginPresetState, PluginTarget, Preset};
+    let mut doc = Document::new(Project::new("Portable effect presets"));
+    let source = add(&mut doc, EffectKind::Convolver);
+    doc.dispatch(
+        Command::SetConvolverImpulse {
+            track: TrackId::MASTER,
+            effect: source,
+            impulse: Some(asset()),
+        },
+        None,
+    )
+    .unwrap();
+    let captured =
+        PluginPreset::capture(doc.project(), PluginTarget::Effect { effect: source }).unwrap();
+    let envelope = Preset::of_plugin("Own IR", captured.clone());
+    let (loaded, notes) = Preset::from_json(envelope.to_json().unwrap().as_bytes()).unwrap();
+    assert!(notes.is_empty());
+    assert_eq!(loaded, envelope);
+    let destination = add(&mut doc, EffectKind::Delay);
+    let target = PluginTarget::Effect {
+        effect: destination,
+    };
+    let before = PluginPreset::capture(doc.project(), target).unwrap().state;
+    doc.dispatch(
+        Command::ApplyPluginPreset {
+            target,
+            expected: before.clone(),
+            preset: captured.clone(),
+        },
+        None,
+    )
+    .unwrap();
+    assert_eq!(
+        doc.project().mixer.tracks[0].effects[1].impulse,
+        Some(asset())
+    );
+    doc.undo().unwrap();
+    assert_eq!(
+        doc.project().mixer.tracks[0].effects[1].params.kind(),
+        EffectKind::Delay
+    );
+    assert!(doc.project().mixer.tracks[0].effects[1].impulse.is_none());
+    doc.redo().unwrap();
+    let expected = PluginPreset::capture(doc.project(), target).unwrap().state;
+    doc.dispatch(
+        Command::SetConvolverImpulse {
+            track: TrackId::MASTER,
+            effect: destination,
+            impulse: None,
+        },
+        None,
+    )
+    .unwrap();
+    let project = doc.project().clone();
+    assert!(
+        doc.dispatch(
+            Command::ApplyPluginPreset {
+                target,
+                expected,
+                preset: captured.clone()
+            },
+            None
+        )
+        .is_err()
+    );
+    assert_eq!(doc.project(), &project);
+    let expected = PluginPreset::capture(doc.project(), target).unwrap().state;
+    doc.dispatch(
+        Command::ApplyPluginPreset {
+            target,
+            expected,
+            preset: captured,
+        },
+        None,
+    )
+    .unwrap();
+    let expected = PluginPreset::capture(doc.project(), target).unwrap().state;
+    doc.dispatch(
+        Command::ApplyPluginPreset {
+            target,
+            expected,
+            preset: PluginPreset {
+                state: PluginPresetState::Effect {
+                    params: EffectKind::Delay.default_params(),
+                    impulse: None,
+                },
+            },
+        },
+        None,
+    )
+    .unwrap();
+    assert!(doc.project().mixer.tracks[0].effects[1].impulse.is_none());
+    doc.project().check().unwrap();
+}
+#[test]
+fn legacy_ir_and_harmony_source_survive_preset_migration() {
+    use windfall_project::{PluginPreset, PluginPresetState, Preset};
+    let preset = Preset::of_plugin(
+        "Legacy IR",
+        PluginPreset {
+            state: PluginPresetState::Effect {
+                params: EffectKind::Convolver.default_params(),
+                impulse: None,
+            },
+        },
+    );
+    let mut json = serde_json::to_value(preset).unwrap();
+    json["plugin"]["state"]["params"]["impulseLength"] = serde_json::json!(2);
+    json["plugin"]["state"]["params"]["impulse"] = serde_json::json!([1.0, -0.5]);
+    let (loaded, _) = Preset::from_json(&serde_json::to_vec(&json).unwrap()).unwrap();
+    let PluginPresetState::Effect {
+        impulse: Some(ir), ..
+    } = loaded.plugin.unwrap().state
+    else {
+        panic!("legacy IR missing")
+    };
+    assert_eq!(ir.frames, vec![[1.0; 2], [-0.5; 2]]);
+    let preset = Preset::of_plugin(
+        "Harmony",
+        PluginPreset {
+            state: PluginPresetState::Effect {
+                params: windfall_project::EffectParams::PitchCorrect(
+                    windfall_dsp::spectral::PitchCorrectParams {
+                        harmony_channel: 123,
+                        ..Default::default()
+                    },
+                ),
+                impulse: None,
+            },
+        },
+    );
+    let (loaded, notes) = Preset::from_json(preset.to_json().unwrap().as_bytes()).unwrap();
+    assert_eq!(loaded, preset);
+    assert!(notes.is_empty());
+}

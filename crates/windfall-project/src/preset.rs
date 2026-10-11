@@ -200,6 +200,9 @@ pub struct PluginPreset {
 pub enum PluginPresetState {
     Effect {
         params: EffectParams,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        #[ts(optional)]
+        impulse: Option<crate::ConvolverImpulse>,
     },
     Instrument {
         params: InstrumentParams,
@@ -287,7 +290,7 @@ impl Processor {
 
     pub(crate) fn of_state(state: &PluginPresetState) -> Self {
         match state {
-            PluginPresetState::Effect { params } => Processor::Effect(params.kind()),
+            PluginPresetState::Effect { params, .. } => Processor::Effect(params.kind()),
             PluginPresetState::Instrument { params } => Processor::Instrument(params.kind()),
             PluginPresetState::Hosted { binding, .. } => Self::hosted(binding),
         }
@@ -372,7 +375,7 @@ impl PluginPresetState {
                 .unwrap_or_default()
         };
         match self {
-            PluginPresetState::Effect { params } => PresetPluginIdentity {
+            PluginPresetState::Effect { params, .. } => PresetPluginIdentity {
                 format: "builtin".to_owned(),
                 id: tag(serde_json::to_value(params)),
                 instrument: false,
@@ -422,7 +425,11 @@ impl PluginPresetState {
 
     fn validate(&self) -> Result<(), String> {
         match self {
-            PluginPresetState::Effect { params } => {
+            PluginPresetState::Effect { params, impulse } => {
+                if let Some(asset) = impulse {
+                    if params.kind() != EffectKind::Convolver { return Err("Only a convolver preset can hold an IR".into()); }
+                    asset.check().map_err(str::to_owned)?;
+                }
                 if params.sanitized() != *params {
                     return Err("The preset has effect settings outside their ranges".to_owned());
                 }
@@ -493,6 +500,7 @@ impl PluginPreset {
                     },
                     None => PluginPresetState::Effect {
                         params: slot.params,
+                        impulse: slot.impulse.clone(),
                     },
                 }
             }
@@ -900,6 +908,7 @@ fn migrate(
         migrate_params(params, instrument_defaults(), "instrument", renames, notes)?;
     }
     if let Some(state) = value.pointer_mut("/plugin/state") {
+        crate::convolver::migrate_impulse_holder(state)?;
         let kind = state.get("type").and_then(Value::as_str).map(str::to_owned);
         if let Some(params) = state.get_mut("params") {
             match kind.as_deref() {
@@ -918,6 +927,7 @@ fn migrate(
         .and_then(Value::as_array_mut)
     {
         for slot in effects {
+            crate::convolver::migrate_impulse_holder(slot)?;
             if let Some(params) = slot.get_mut("params") {
                 migrate_params(params, effect_defaults(), "effect", renames, notes)?;
             }
@@ -962,7 +972,7 @@ fn migrate_params(
     }
     let unknown: Vec<String> = given
         .keys()
-        .filter(|key| !default.contains_key(*key))
+        .filter(|key| !default.contains_key(*key) && !(tag == "pitchCorrect" && key.as_str() == "harmonyChannel"))
         .cloned()
         .collect();
     for key in unknown {

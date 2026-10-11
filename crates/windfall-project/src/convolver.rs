@@ -108,30 +108,8 @@ impl<'de> Deserialize<'de> for EffectSlot {
         let params: EffectParams =
             serde_json::from_value(wire.params.clone()).map_err(serde::de::Error::custom)?;
         let mut impulse = wire.impulse;
-        if impulse.is_none() && params.kind() == crate::EffectKind::Convolver {
-            let length = wire
-                .params
-                .get("impulseLength")
-                .and_then(|v| v.as_u64())
-                .unwrap_or(0) as usize;
-            if length > 2048 {
-                return Err(serde::de::Error::custom("legacy IR exceeds 2048 frames"));
-            }
-            if length > 0 {
-                let samples: Vec<f32> =
-                    serde_json::from_value(wire.params.get("impulse").cloned().unwrap_or_default())
-                        .map_err(serde::de::Error::custom)?;
-                let frames = (0..length)
-                    .map(|i| [samples.get(i).copied().unwrap_or(0.0); 2])
-                    .collect();
-                impulse = Some(ConvolverImpulse {
-                    name: "Imported legacy impulse".into(),
-                    sample_rate: 48000,
-                    group_delay: 0,
-                    eq_gains: None,
-                    frames,
-                });
-            }
+        if impulse.is_none() {
+            impulse = legacy_impulse(&wire.params).map_err(serde::de::Error::custom)?;
         }
         if let Some(asset) = &impulse {
             asset.check().map_err(serde::de::Error::custom)?;
@@ -144,4 +122,54 @@ impl<'de> Deserialize<'de> for EffectSlot {
             impulse,
         })
     }
+}
+
+/// Extract legacy PCM before preset scalar migration removes obsolete fields.
+fn legacy_impulse(params: &serde_json::Value) -> Result<Option<ConvolverImpulse>, String> {
+    if params.get("type").and_then(|v| v.as_str()) != Some("convolver") {
+        return Ok(None);
+    }
+    let length = params
+        .get("impulseLength")
+        .and_then(|v| v.as_u64())
+        .unwrap_or(0);
+    if length > 2048 {
+        return Err("legacy IR exceeds 2048 frames".into());
+    }
+    if length == 0 {
+        return Ok(None);
+    }
+    let samples: Vec<f32> =
+        serde_json::from_value(params.get("impulse").cloned().unwrap_or_default())
+            .map_err(|error| error.to_string())?;
+    let asset = ConvolverImpulse {
+        name: "Imported legacy impulse".into(),
+        sample_rate: 48000,
+        group_delay: 0,
+        eq_gains: None,
+        frames: (0..length as usize)
+            .map(|i| [samples.get(i).copied().unwrap_or(0.0); 2])
+            .collect(),
+    };
+    asset.check().map_err(str::to_owned)?;
+    Ok(Some(asset))
+}
+pub(crate) fn migrate_impulse_holder(holder: &mut serde_json::Value) -> Result<(), String> {
+    if holder.get("impulse").is_none_or(serde_json::Value::is_null) {
+        if let Some(asset) = holder
+            .get("params")
+            .map(legacy_impulse)
+            .transpose()?
+            .flatten()
+        {
+            holder
+                .as_object_mut()
+                .ok_or("IR holder must be an object")?
+                .insert(
+                    "impulse".into(),
+                    serde_json::to_value(asset).map_err(|error| error.to_string())?,
+                );
+        }
+    }
+    Ok(())
 }

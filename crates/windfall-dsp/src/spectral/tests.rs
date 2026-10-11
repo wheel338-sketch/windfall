@@ -223,9 +223,10 @@ fn pitch_correction_moves_a_voiced_note_toward_a_scale_note() {
         };
         let (l, _) = render::<PitchCorrect>(params, &input, &[173, 1, 211]);
         let observed = crossing_rate(&l[48000..]);
+        let cents = 1200.0 * (observed / expected).log2();
         assert!(
-            (observed - expected).abs() < 5.0,
-            "{scale:?} corrected frequency: {observed}"
+            cents.abs() < 20.0,
+            "{scale:?} correction error: {cents} cents ({observed} Hz)"
         );
         assert!(rms(&l[48000..]) > 0.05);
     }
@@ -623,5 +624,49 @@ fn linear_phase_identity_reports_its_group_delay_and_aligns_the_dry_mix() {
         for (n, v) in left.iter().enumerate() {
             assert!((*v - if n == 640 { 1.0 } else { 0.0 }).abs() < 2e-6);
         }
+    }
+}
+
+#[test]
+fn correction_measured_latency_tracks_the_input_sample_rate() {
+    for sample_rate in [44100.0_f32, 48000.0, 96000.0] {
+        let mut effect = PitchCorrect::default();
+        effect.prepare(sample_rate, 257);
+        effect.set_params(&PitchCorrectParams {
+            amount: 0.0,
+            ..Default::default()
+        });
+        let expected = PITCH_SHIFT_LATENCY + 256 * (sample_rate / 6000.0).round() as usize;
+        assert_eq!(effect.latency_samples(), expected);
+        let mut left = vec![0.0; expected + 2048];
+        left[0] = 1.0;
+        let mut right = left.iter().map(|v| -0.25 * v).collect::<Vec<_>>();
+        for (l, r) in left.chunks_mut(257).zip(right.chunks_mut(257)) {
+            effect.process(l, r);
+        }
+        assert_eq!(left.iter().position(|v| *v != 0.0), Some(expected));
+        assert_eq!(left[expected], 1.0);
+        assert_eq!(right[expected], -0.25);
+    }
+}
+#[test]
+fn classic_and_detailed_vocoders_have_measured_zero_transport_delay() {
+    for band_count in [16, 32] {
+        let mut effect = Vocoder::default();
+        effect.prepare(SR, 128);
+        effect.set_params(&VocoderParams {
+            band_count,
+            attack_ms: 0.0,
+            ..Default::default()
+        });
+        assert_eq!(effect.latency_samples(), 0);
+        let mut left = vec![0.0; 128];
+        left[0] = 1.0;
+        let mut right = left.clone();
+        let mut key = vec![[0.0; 2]; 128];
+        key[0] = [1.0, -1.0];
+        effect.process_sidechain(&mut left, &mut right, Some(&key));
+        assert_eq!(left.iter().position(|v| v.abs() > 1e-12), Some(0));
+        assert_eq!(left, right);
     }
 }

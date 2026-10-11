@@ -651,7 +651,7 @@ fn a_plugin_preset_replaces_one_effect_and_leaves_its_slot_alone() {
     .unwrap();
     let limiter =
         PluginPreset::capture(doc.project(), PluginTarget::Effect { effect: source }).unwrap();
-    let PluginPresetState::Effect { params } = &limiter.state else {
+    let PluginPresetState::Effect { params, .. } = &limiter.state else {
         panic!("{limiter:?}")
     };
     assert_eq!(params.kind(), EffectKind::Limiter);
@@ -960,6 +960,7 @@ fn a_stale_destination_a_wrong_role_and_invalid_bodies_are_refused_whole() {
             target: effect_target,
             expected: PluginPresetState::Effect {
                 params: EffectKind::Delay.default_params(),
+                impulse: None,
             },
             preset: effect_state.clone(),
         },

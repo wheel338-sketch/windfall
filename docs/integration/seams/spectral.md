@@ -15,7 +15,10 @@ loader migrates the old inline mono payload (up to 2048 taps, implicitly 48 kHz)
 into the new asset without dropping its samples.
 
 `SetConvolverImpulse` validates the whole asset and commits through the existing
-mixer-track edit/history/patch path. Duplication carries its asset. PCM is portable
+mixer-track edit/history/patch path. Duplication and individual effect/mixer-track
+presets carry assets; preset migration preserves legacy inline IRs before scalar
+cleanup. Loading another kind clears the prior IR. Slow WAV reads are canceled
+when the document revision changes. PCM is portable
 in project JSON: save/reopen does not depend on the original WAV still existing.
 The editor reads user PCM16/24/32 or float32 WAVs, with a 2 MiB preflight file
 budget, 65536-frame admission and explicit malformed/unsupported/long-IR errors.
