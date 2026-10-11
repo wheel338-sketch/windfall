@@ -1185,6 +1185,16 @@ impl Processor {
                 self.reset_channel_voice(channel);
             }
         }
+        // Retiring a MIDI-only instrument must deliver its releases before its
+        // fixed pending buffer is retired, even while the transport keeps playing.
+        for index in 0..self.plan.channels.len() {
+            let old = &self.plan.channels[index];
+            if old.instrument.is_some_and(|params| matches!(params, windfall_dsp::InstrumentParams::MidiOut(_)))
+                && plan.channel(old.id).is_none_or(|next| plan.channels[next].leaving || plan.channels[next].instrument.map(|p| p.kind()) != old.instrument.map(|p| p.kind()))
+                && let Some(unit) = self.state.instrument(index)
+            { unit.silence(); }
+        }
+        self.collect_midi_out();
         self.voices.rebind(&plan, &self.plan, &self.state, now);
         self.clips.rebind(&plan, now, self.fades.ramp);
         let sounding = self.voices.destinations();
@@ -1263,12 +1273,29 @@ impl Processor {
     /// the MIDI worker reads. Fixed storage on both sides; nothing is sent
     /// from here.
     fn collect_midi_out(&mut self) {
-        let shared = &self.shared;
-        for seat in self.state.instruments.iter_mut().flatten() {
-            if let Some(unit) = &mut seat.unit {
-                unit.drain_midi(&mut |event| {
-                    shared.push_midi_out(event.frame, event.bytes, event.len);
-                });
+        self.route_midi_out(None);
+    }
+
+    fn route_midi_out(&mut self, frame: Option<u64>) {
+        // Each source can queue at most MIDI_OUT_PENDING events. A stack batch
+        // lets the source borrow end before its hosted destination is borrowed.
+        let empty = windfall_dsp::MidiOutEvent { frame: 0, bytes: [0; 3], len: 0, output_port: 0, plugin_destination: 0 };
+        for index in 0..self.state.instruments.len() {
+            let mut messages = [empty; windfall_dsp::midi_out::MIDI_OUT_PENDING];
+            let mut count = 0;
+            if let Some(unit) = self.state.instrument(index) {
+                if let Some(frame) = frame { unit.stamp_midi(frame); }
+                unit.drain_midi(&mut |event| { if count < messages.len() { messages[count] = event; count += 1; } });
+            }
+            for event in &messages[..count] {
+                if event.plugin_destination == 0 {
+                    self.shared.push_midi_out_to(event.frame, event.bytes, event.len, event.output_port);
+                } else if event.plugin_destination != u32::MAX {
+                    let accepted = self.plan.channel(windfall_project::ChannelId(event.plugin_destination))
+                        .and_then(|target| self.state.instrument(target))
+                        .is_some_and(|unit| unit.midi_message(event.message()));
+                    if !accepted { self.shared.refused_midi_out(); }
+                }
             }
         }
     }
@@ -1533,7 +1560,8 @@ impl Processor {
     }
 
     fn render_voices(&mut self, base: u64, from: usize, to: usize) {
-        if self.state.channel_voice.iter().all(|runtime| {
+        let routed = self.plan.channels.iter().any(|channel| channel.instrument.is_some_and(|params| matches!(params, windfall_dsp::InstrumentParams::MidiOut(params) if params.plugin_destination != 0)));
+        if !routed && self.state.channel_voice.iter().all(|runtime| {
             runtime.settings.arpeggiator.mode == ArpeggiatorMode::Off
                 && runtime.echo.pending_events() == 0
         }) {
@@ -1672,6 +1700,15 @@ impl Processor {
                     frames: from..to,
                 },
             );
+            // Render MIDI sources first. Plugin routes use one-frame subblocks
+            // so source releases/CC changes reach the hosted unit on that frame.
+            for index in 0..self.plan.channels.len() {
+                if self.plan.channels[index].instrument.is_some_and(|params| matches!(params, windfall_dsp::InstrumentParams::MidiOut(_)))
+                    && let Some(unit) = self.state.instrument(index) {
+                    unit.render_curves(&self.plan, clock, base, from, to);
+                }
+            }
+            self.route_midi_out(Some(base + from as u64));
             self.state
                 .render_instrument_curves(&self.plan, clock, base, from..to);
             self.clips.render(

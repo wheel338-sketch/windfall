@@ -246,6 +246,16 @@ export function MidiHardwareSettingsSection() {
             configure({ output: value === OFF ? null : value.slice(5) })
           }
         />
+        {(state?.settings.extraOutputs ?? []).map((id, index) => <Choice key={`${index}:${id}`} label={`MIDI output slot ${index + 1}`} value={id ? `port:${id}` : OFF} options={portOptions(state?.outputs ?? [], id || null).filter((option) => option.value === `port:${id}` || option.value === OFF || ![state?.settings.output, ...(state?.settings.extraOutputs ?? [])].includes(option.value.slice(5)))} disabled={disabled} change={(value) => configure({ extraOutputs: (state?.settings.extraOutputs ?? []).map((item, at) => at === index ? value === OFF ? "" : value.slice(5) : item) })} />)}
+        <Button variant="outline" size="sm" disabled={disabled || (state?.settings.extraOutputs?.filter(Boolean).length ?? 0) >= 7 || !(state?.outputs ?? []).some((port) => port.id !== state?.settings.output && !(state?.settings.extraOutputs ?? []).includes(port.id))} onClick={() => {
+          const next = state?.outputs.find((port) => port.id !== state.settings.output && !(state.settings.extraOutputs ?? []).includes(port.id))
+          if (state && next) {
+            const slots = [...(state.settings.extraOutputs ?? [])]
+            const free = slots.indexOf("")
+            if (free < 0) slots.push(next.id); else slots[free] = next.id
+            configure({ extraOutputs: slots })
+          }
+        }}>Add MIDI output</Button>
         <Choice
           label="Output channel"
           value={String(state?.settings.outputChannel ?? 1)}

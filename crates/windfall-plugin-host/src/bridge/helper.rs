@@ -233,7 +233,12 @@ impl Native {
             processor.reset();
             for (key, velocity) in input.notes.iter().enumerate() {
                 if *velocity > 0.0 {
-                    let accepted = processor.note_on(0, key as u8, *velocity);
+                    let accepted = processor.push_event(HostEvent::NoteOn {
+                        time: 0,
+                        key: (key % 128) as u8,
+                        channel: (key / 128) as u8,
+                        velocity: *velocity,
+                    });
                     admitted &= accepted;
                     if !accepted {
                         output.native_drops = output.native_drops.saturating_add(1);

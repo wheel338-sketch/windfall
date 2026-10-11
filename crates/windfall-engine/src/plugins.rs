@@ -53,6 +53,11 @@ pub trait HostedEffect: Send {
 
 /// Prepared instruments, fed on the exact frame of each note boundary.
 pub trait HostedInstrument: HostedEffect {
+    /// Admits MIDI from a separate MIDI-output channel, preserving wire channel.
+    /// False means unsupported/refused and is counted by the engine.
+    fn midi_message(&mut self, _bytes: &[u8]) -> bool {
+        false
+    }
     fn note_on(&mut self, key: u8, velocity: f32);
     fn note_off(&mut self, key: u8);
     fn all_notes_off(&mut self);

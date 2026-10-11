@@ -345,6 +345,7 @@ struct Input {
 #[derive(Clone, Copy)]
 struct Timed {
     due: u64,
+    port: u8,
     bytes: [u8; 3],
     len: u8,
 }
@@ -356,6 +357,7 @@ struct Worker {
     state: MidiHardwareState,
     inputs: Vec<Input>,
     output: Option<Box<dyn Output>>,
+    extra_outputs: Vec<Option<Box<dyn Output>>>,
     dropped: Arc<AtomicU32>,
     epoch: u64,
     /// One bit per input channel/key, and a separate sustain bit. Fixed storage.
@@ -367,9 +369,9 @@ struct Worker {
     /// MIDI output channel messages in the order they were made.
     pending: VecDeque<Timed>,
     /// The latest time given to a pending message, so none overtakes another.
-    last_due: u64,
+    last_due: [u64; 8],
     /// One bit per MIDI channel a MIDI output channel has sent on.
-    used_channels: u16,
+    used_channels: [u16; 8],
 }
 
 impl Worker {
@@ -382,6 +384,7 @@ impl Worker {
             state: MidiHardwareState::default(),
             inputs: Vec::new(),
             output: None,
+            extra_outputs: Vec::new(),
             dropped: Arc::new(AtomicU32::new(0)),
             epoch,
             down: [[false; 128]; 16],
@@ -390,8 +393,8 @@ impl Worker {
             output_keys: [false; 128],
             clock: ClockOut::new(Instant::now()),
             pending: VecDeque::with_capacity(OUTPUT_PENDING),
-            last_due: 0,
-            used_channels: 0,
+            last_due: [0; 8],
+            used_channels: [0; 8],
         }
     }
 
@@ -416,6 +419,7 @@ impl Worker {
         self.stop_clock();
         self.inputs.clear();
         self.output.take();
+        self.extra_outputs.clear();
         self.pending.clear();
         self.state.settings = settings;
         self.state.error = None;
@@ -425,6 +429,20 @@ impl Worker {
                 Ok(output) => self.output = Some(output),
                 Err(error) => self.state.error = Some(error),
             }
+        }
+        for id in self.state.settings.extra_outputs.clone() {
+            if id.is_empty() {
+                self.extra_outputs.push(None);
+                continue;
+            }
+            let output = match self.ports.output(&id) {
+                Ok(output) => Some(output),
+                Err(error) => {
+                    self.state.error = Some(error);
+                    None
+                }
+            };
+            self.extra_outputs.push(output);
         }
         let wanted: Vec<String> = self
             .state
@@ -460,7 +478,13 @@ impl Worker {
                     && !outputs
                         .iter()
                         .any(|p| Some(&p.id) == self.state.settings.output.as_ref());
-                if lost_input || lost_output {
+                let lost_extra = self.extra_outputs.iter().enumerate().any(|(index, port)| {
+                    port.is_some()
+                        && !outputs
+                            .iter()
+                            .any(|p| self.state.settings.extra_outputs.get(index) == Some(&p.id))
+                });
+                if lost_input || lost_output || lost_extra {
                     self.panic();
                     if lost_input {
                         self.inputs.retain(|input| present(&input.id));
@@ -468,6 +492,15 @@ impl Worker {
                     if lost_output {
                         self.output.take();
                         self.pending.clear();
+                    }
+                    if lost_extra {
+                        for (index, port) in self.extra_outputs.iter_mut().enumerate() {
+                            if !outputs.iter().any(|p| {
+                                self.state.settings.extra_outputs.get(index) == Some(&p.id)
+                            }) {
+                                port.take();
+                            }
+                        }
                     }
                     self.state.error = Some("MIDI device disconnected. Refresh and apply the device settings to reconnect.".into());
                 }
@@ -478,6 +511,7 @@ impl Worker {
                 self.panic();
                 self.inputs.clear();
                 self.output.take();
+                self.extra_outputs.clear();
                 self.pending.clear();
                 self.state.error = Some(error);
             }
@@ -519,12 +553,15 @@ impl Worker {
         // is told to stop instead.
         let used = std::mem::take(&mut self.used_channels);
         self.pending.clear();
-        for other in 0..16_u8 {
-            if used & (1 << other) != 0 && other != channel {
-                self.send(&[0xb0 | other, 123, 0]);
-                self.send(&[0xb0 | other, 120, 0]);
+        for (port, used) in used.into_iter().enumerate() {
+            for other in 0..16_u8 {
+                if used & (1 << other) != 0 && (port != 0 || other != channel) {
+                    self.send_to(port as u8, &[0xb0 | other, 123, 0]);
+                    self.send_to(port as u8, &[0xb0 | other, 120, 0]);
+                }
             }
         }
+        self.last_due = [0; 8];
         self.down = [[false; 128]; 16];
         self.sounding = [[false; 128]; 16];
         self.sustain = [false; 16];
@@ -541,12 +578,27 @@ impl Worker {
     }
 
     fn send(&mut self, bytes: &[u8]) {
-        if let Some(output) = &mut self.output
+        self.send_to(0, bytes);
+    }
+
+    fn send_to(&mut self, port: u8, bytes: &[u8]) {
+        let output = if port == 0 {
+            self.output.as_mut()
+        } else {
+            self.extra_outputs
+                .get_mut(usize::from(port) - 1)
+                .and_then(Option::as_mut)
+        };
+        if let Some(output) = output
             && let Err(error) = output.send(bytes)
         {
             self.state.error = Some(error);
-            self.output.take();
-            self.pending.clear();
+            if port == 0 {
+                self.output.take();
+            } else if let Some(output) = self.extra_outputs.get_mut(usize::from(port) - 1) {
+                output.take();
+            }
+            self.pending.retain(|message| message.port != port);
             self.controller.panic_hardware();
         }
     }
@@ -626,26 +678,42 @@ impl Worker {
             .output
             .as_ref()
             .map_or(0, |output| output.latency_nanos());
-        let connected = self.output.is_some();
+        let mut connections = [(false, 0); 8];
+        connections[0] = (self.output.is_some(), latency);
+        for (index, output) in self.extra_outputs.iter().enumerate().take(7) {
+            connections[index + 1] = (
+                output.is_some(),
+                output.as_ref().map_or(0, |p| p.latency_nanos()),
+            );
+        }
         let pending = &mut self.pending;
         let last_due = &mut self.last_due;
-        // Drained whether or not an output is open, so the queue never
-        // fills and nothing stale is sent to a port opened later.
-        self.controller.drain_midi_out(|frame, bytes| {
+        self.controller.drain_midi_out_from(|frame, bytes, port| {
+            let index = usize::from(port.min(7));
+            let (connected, latency) = connections[index];
             if !connected || pending.len() >= OUTPUT_PENDING || bytes.is_empty() {
                 return;
             }
-            let believed = scheduling::deadline(output_clock, frame, now_nanos, latency);
-            // A message never goes before one made earlier.
-            let due = believed.max(*last_due);
-            *last_due = due;
+            let due =
+                scheduling::deadline(output_clock, frame, now_nanos, latency).max(last_due[index]);
+            last_due[index] = due;
             let mut stored = [0; 3];
             stored[..bytes.len()].copy_from_slice(bytes);
-            pending.push_back(Timed {
-                due,
-                bytes: stored,
-                len: bytes.len() as u8,
-            });
+            // Different port latencies may interleave. Sort the worker's bounded
+            // queue by deadline while retaining order on each individual port.
+            let at = pending
+                .iter()
+                .position(|message| message.due > due)
+                .unwrap_or(pending.len());
+            pending.insert(
+                at,
+                Timed {
+                    due,
+                    port,
+                    bytes: stored,
+                    len: bytes.len() as u8,
+                },
+            );
         });
         while let Some(front) = self.pending.front().copied() {
             if front.due > now_nanos {
@@ -653,12 +721,18 @@ impl Worker {
             }
             self.pending.pop_front();
             if front.bytes[0] < 0xf0 {
-                self.used_channels |= 1 << (front.bytes[0] & 15);
+                self.used_channels[usize::from(front.port)] |= 1 << (front.bytes[0] & 15);
             }
-            self.send(&front.bytes[..usize::from(front.len)]);
+            self.send_to(front.port, &front.bytes[..usize::from(front.len)]);
         }
-        if self.pending.is_empty() {
-            self.last_due = 0;
+        for port in 0..8 {
+            if !self
+                .pending
+                .iter()
+                .any(|message| usize::from(message.port) == port)
+            {
+                self.last_due[port] = 0;
+            }
         }
 
         if !(self.state.settings.send_clock && self.output.is_some()) {

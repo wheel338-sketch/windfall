@@ -64,7 +64,7 @@ pub struct Audio {
     input: InputBlock,
     output: OutputBlock,
     parameters: Box<[ParameterSpec]>,
-    held: [f32; 128],
+    held: [f32; 16 * 128],
     generation: u64,
     epoch: u64,
     sequence: u64,
@@ -118,7 +118,7 @@ impl Audio {
             input: InputBlock::new(),
             output: OutputBlock::silent(),
             parameters: parameters.to_vec().into_boxed_slice(),
-            held: [0.0; 128],
+            held: [0.0; 16 * 128],
             generation: 1,
             epoch: 1,
             sequence: 0,
@@ -266,6 +266,51 @@ impl Audio {
         }
         self.admit(HostEvent::Param { time: 0, id, value }, false)
     }
+    /// Fixed event admission for a MIDI-output channel, including ownership-safe
+    /// channel/key notes and raw wheel/CC/program messages.
+    pub fn midi_message(&mut self, bytes: &[u8]) -> bool {
+        if bytes.is_empty() || bytes.len() > 3 || bytes[1..].iter().any(|byte| *byte >= 128) {
+            return false;
+        }
+        let channel = bytes[0] & 15;
+        let kind = bytes[0] & 0xf0;
+        let expected = if matches!(kind, 0xc0 | 0xd0) { 2 } else { 3 };
+        if bytes.len() != expected || !(0x80..=0xe0).contains(&kind) {
+            return false;
+        }
+        let key = bytes[1];
+        let release = kind == 0x80 || (kind == 0x90 && bytes[2] == 0);
+        if kind == 0xb0 && matches!(key, 120 | 123) {
+            self.held[usize::from(channel) * 128..(usize::from(channel) + 1) * 128].fill(0.0);
+        }
+        let event = if kind == 0x90 && !release {
+            self.held[usize::from(channel) * 128 + key as usize] = f32::from(bytes[2]) / 127.0;
+            HostEvent::NoteOn {
+                time: 0,
+                key,
+                channel,
+                velocity: f32::from(bytes[2]) / 127.0,
+            }
+        } else if release {
+            self.held[usize::from(channel) * 128 + key as usize] = 0.0;
+            HostEvent::NoteOff {
+                time: 0,
+                key,
+                channel,
+                velocity: 0.0,
+            }
+        } else {
+            let mut stored = [0; 3];
+            stored[..bytes.len()].copy_from_slice(bytes);
+            HostEvent::Midi {
+                time: 0,
+                bytes: stored,
+                len: bytes.len() as u8,
+            }
+        };
+        self.advance_generation() && self.admit(event, release)
+    }
+
     pub fn note_on(&mut self, key: u8, velocity: f32) -> bool {
         if key > 127 || !velocity.is_finite() || !(0.0..=1.0).contains(&velocity) {
             return false;
@@ -782,8 +827,8 @@ mod tests {
                 OfflineError::Deadline
             })
         );
-        assert_eq!(left, [0.0; 128]);
-        assert_eq!(right, [0.0; 128]);
+        assert_eq!(left, [0.0; 16 * 128]);
+        assert_eq!(right, [0.0; 16 * 128]);
         assert_eq!(audio.health().completed_blocks, 1);
     }
     #[test]
@@ -1040,7 +1085,7 @@ mod tests {
         complete(&region, &mut worker, &mut output);
         assert!(worker.controls_complete);
         assert_eq!(worker.parameters[0].value, 0.75);
-        assert_eq!(worker.notes, [0.0; 128]);
+        assert_eq!(worker.notes, [0.0; 16 * 128]);
     }
 
     #[test]

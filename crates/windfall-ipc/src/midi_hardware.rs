@@ -40,6 +40,10 @@ pub struct MidiHardwareSettings {
     /// Further inputs, at most [`MAX_EXTRA_MIDI_INPUTS`], each open at once
     /// with the main one. Their notes and controllers are read alike.
     pub extra_inputs: Vec<MidiInputSettings>,
+    /// Slots 1..7 for MIDI-output channels. Slot zero is the main output.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    #[ts(optional)]
+    pub extra_outputs: Vec<String>,
     /// Sends MIDI clock, start, continue and stop to the output while the
     /// transport plays.
     pub send_clock: bool,
@@ -56,6 +60,7 @@ impl Default for MidiHardwareSettings {
             output_channel: 1,
             input_profile: None,
             extra_inputs: Vec::new(),
+            extra_outputs: Vec::new(),
             send_clock: false,
             follow_clock: false,
         }
@@ -84,6 +89,16 @@ impl MidiHardwareSettings {
                     .any(|other| other.id == extra.id);
             if extra.id.is_empty() || repeated {
                 return Err("Each MIDI input can be enabled once.".into());
+            }
+        }
+        if self.extra_outputs.len() > 7 {
+            return Err("At most eight MIDI outputs can be open at once.".into());
+        }
+        for (at, id) in self.extra_outputs.iter().enumerate() {
+            if !id.is_empty()
+                && (self.output.as_ref() == Some(id) || self.extra_outputs[..at].contains(id))
+            {
+                return Err("Each MIDI output can be enabled once.".into());
             }
         }
         let profiles = std::iter::once(&self.input_profile)

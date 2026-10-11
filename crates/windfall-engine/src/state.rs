@@ -2058,8 +2058,9 @@ impl PlanState {
         base: u64,
         frames: Range<usize>,
     ) {
-        for unit in self.instrument_units() {
-            unit.render_curves(plan, clock, base, frames.start, frames.end);
+        for index in 0..plan.channels.len() {
+            if plan.channels[index].instrument.is_some_and(|params| matches!(params, windfall_dsp::InstrumentParams::MidiOut(_))) { continue; }
+            if let Some(unit) = self.instrument(index) { unit.render_curves(plan, clock, base, frames.start, frames.end); }
         }
     }
 

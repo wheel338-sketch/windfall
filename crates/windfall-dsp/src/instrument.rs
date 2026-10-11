@@ -794,6 +794,7 @@ impl AnyInstrument {
     /// its predecessor. New sources/curves are retained by the incoming unit.
     pub fn inherit_playback_state(&mut self, previous: &Self) -> bool {
         match (self, previous) {
+            (Self::MidiOut(a), Self::MidiOut(b)) => a.adopt(b),
             (Self::SliceMap(a), Self::SliceMap(b)) => a.adopt(b),
             (Self::SliceDeck(a), Self::SliceDeck(b)) => a.adopt(b),
             (Self::GrainCloud(a), Self::GrainCloud(b)) => a.adopt(b),

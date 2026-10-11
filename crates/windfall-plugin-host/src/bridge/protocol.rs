@@ -1,8 +1,8 @@
-//! Explicit version-six words. These offsets, not Rust object layouts, are the ABI.
+//! Explicit version-seven words. These offsets, not Rust object layouts, are the ABI.
 
 use crate::{HostEvent, Transport};
 
-pub const VERSION: u32 = 6;
+pub const VERSION: u32 = 7;
 pub const DEFAULT_BLOCK: usize = 256;
 pub const MAGIC: u32 = u32::from_le_bytes(*b"WFBR");
 pub const SLOT_COUNT: usize = 4;
@@ -19,7 +19,7 @@ pub const INPUT: usize = META_WORDS;
 pub const KEY_INPUT: usize = INPUT + MAX_BLOCK * 2;
 pub const OUTPUT: usize = KEY_INPUT + MAX_BLOCK * 2;
 pub const NOTES: usize = OUTPUT + MAX_BLOCK * 2;
-pub const PARAMETERS: usize = NOTES + 128;
+pub const PARAMETERS: usize = NOTES + 16 * 128;
 pub const EVENTS: usize = PARAMETERS + PARAM_CAPACITY * 3;
 pub const EVENT_WORDS: usize = 8;
 pub const SLOT_WORDS: usize = (EVENTS + EVENT_CAPACITY * EVENT_WORDS).next_multiple_of(16);
@@ -213,6 +213,11 @@ pub fn encode_event(event: HostEvent, frames: usize) -> Result<[u32; EVENT_WORDS
     let mut words = [0; EVENT_WORDS];
     words[1] = event.time();
     match event {
+        HostEvent::Midi { bytes, len, .. } => {
+            words[0] = 8;
+            words[2] = u32::from_le_bytes([bytes[0], bytes[1], bytes[2], 0]);
+            words[3] = u32::from(len);
+        }
         HostEvent::NoteOn {
             key,
             channel,
@@ -346,6 +351,17 @@ pub fn decode_event(words: [u32; EVENT_WORDS], frames: usize) -> Result<HostEven
             kind: crate::NoteExpressionKind::from_raw(words[5]).ok_or(ProtocolError::Event)?,
             value: f64::from_bits(pair(words[6], words[7])),
         },
+        8 if words[2] <= 0x00ff_ffff
+            && words[3] <= 3
+            && words[4..].iter().all(|word| *word == 0) =>
+        {
+            let packed = words[2].to_le_bytes();
+            HostEvent::Midi {
+                time: words[1],
+                bytes: [packed[0], packed[1], packed[2]],
+                len: words[3] as u8,
+            }
+        }
         _ => return Err(ProtocolError::Event),
     };
     encode_event(event, frames)?;
@@ -486,12 +502,12 @@ mod tests {
         assert_eq!(SLOT_WORDS * 4 % 64, 0);
     }
     #[test]
-    fn earlier_mapping_versions_never_downgrade_the_v6_reset_and_sidechain_contract() {
+    fn earlier_mapping_versions_never_downgrade_the_v7_midi_reset_and_sidechain_contract() {
         let mut header = config().header().unwrap();
-        assert_eq!(header[1], 6);
+        assert_eq!(header[1], 7);
         assert_eq!(header[OWNER_COMPLETIONS], 0);
         assert_eq!(header[TIMELINE_EPOCH], 1);
-        for version in [1, 2, 3, 4, 5] {
+        for version in [1, 2, 3, 4, 5, 6] {
             header[1] = version;
             assert_eq!(
                 Config::from_header(&header, REGION_BYTES),
@@ -502,6 +518,21 @@ mod tests {
     #[test]
     fn event_roundtrip_preserves_native_precision_and_rejects_unchecked_bytes() {
         let events = [
+            HostEvent::Midi {
+                time: 1,
+                bytes: [0xb9, 74, 99],
+                len: 3,
+            },
+            HostEvent::Midi {
+                time: 1,
+                bytes: [0xc9, 11, 0],
+                len: 2,
+            },
+            HostEvent::Midi {
+                time: 1,
+                bytes: [0xe9, 127, 127],
+                len: 3,
+            },
             HostEvent::NoteOn {
                 time: 1,
                 key: 127,

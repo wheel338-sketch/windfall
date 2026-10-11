@@ -732,11 +732,13 @@ impl Controller {
     /// each with the engine frame it belongs to. One thread at a time may
     /// call this: it is the MIDI worker's. Never blocks the audio thread.
     pub fn drain_midi_out(&self, mut out: impl FnMut(u64, &[u8])) {
+        self.drain_midi_out_from(|frame, bytes, _| out(frame, bytes));
+    }
+
+    pub fn drain_midi_out_from(&self, mut out: impl FnMut(u64, &[u8], u8)) {
         for _ in 0..crate::shared::MIDI_OUT_CAPACITY {
-            let Some((frame, bytes, len)) = self.inner.shared.pop_midi_out() else {
-                break;
-            };
-            out(frame, &bytes[..usize::from(len.min(3))]);
+            let Some((frame, bytes, len, port)) = self.inner.shared.pop_midi_out_from() else { break; };
+            out(frame, &bytes[..usize::from(len.min(3))], port);
         }
     }
 

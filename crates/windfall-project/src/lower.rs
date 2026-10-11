@@ -1510,6 +1510,7 @@ impl Transaction<'_> {
             }
         };
         self.prune_plugins();
+        self.prune_midi_destinations();
         self.prune_effect_outputs();
         Ok(label.to_owned())
     }
@@ -1618,6 +1619,18 @@ impl Transaction<'_> {
             new: plugins,
         }));
         Ok(())
+    }
+
+    fn prune_midi_destinations(&mut self) {
+        for index in 0..self.project.channels.len() {
+            if let ChannelSource::Instrument { params: InstrumentParams::MidiOut(params), .. } = &self.project.channels[index].source {
+                let mut params = *params;
+                if params.plugin_destination > 0 && self.project.plugin(crate::PluginTarget::Instrument { channel: ChannelId(params.plugin_destination as u32) }).is_none() {
+                    params.plugin_destination = -1; // Explicitly disconnected, never rerouted to hardware.
+                    self.set_instrument(index, InstrumentParams::MidiOut(params));
+                }
+            }
+        }
     }
 
     fn prune_plugins(&mut self) {
@@ -2228,8 +2241,21 @@ impl Transaction<'_> {
         if !params.set(param as usize, checked_setting(value)?) {
             return Err(no_setting(kind.name(), param));
         }
+        self.check_midi_destination(channel, &params)?;
         self.set_instrument(index, params);
         Ok(setting_label(kind.descriptors(), param))
+    }
+
+    fn check_midi_destination(&self, source: ChannelId, params: &InstrumentParams) -> Result<(), CommandError> {
+        if let InstrumentParams::MidiOut(params) = params {
+            if params.plugin_destination > 0 {
+                let target = ChannelId(params.plugin_destination as u32);
+                if target == source || self.project.plugin(crate::PluginTarget::Instrument { channel: target }).is_none() {
+                    return Err(CommandError::invalid("Choose another hosted instrument as the MIDI destination"));
+                }
+            }
+        }
+        Ok(())
     }
 
     fn set_instrument_params(
@@ -2249,6 +2275,7 @@ impl Transaction<'_> {
         if params.kind() != current.kind() {
             return Err(other_kind(params.kind().name(), current.kind().name()));
         }
+        self.check_midi_destination(channel, &params)?;
         self.set_instrument(index, checked_instrument(params)?);
         Ok("Change instrument settings")
     }

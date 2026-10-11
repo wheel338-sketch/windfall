@@ -13,6 +13,7 @@ import { SnapshotEditor } from "../instruments/snapshot-editor"
 import { LayerKickEditor } from "../instruments/layer-kick-editor"
 import { KeyDrumEditor } from "../instruments/key-drum-editor"
 import { DrumRackEditor } from "../instruments/drum-rack-editor"
+import { MidiOutputEditor } from "../instruments/midi-output-editor"
 import { MembraneEditor } from "../instruments/membrane-editor"
 
 import { SoundMenu } from "../synth/sound-menu"
@@ -72,6 +73,8 @@ export function InstrumentSection({ channel }: { channel: InstrumentChannel }) {
         <KeyDrumEditor channel={channel} />
       ) : params.type === "drumRack" ? (
         <DrumRackEditor channel={channel.id} params={params} />
+      ) : params.type === "midiOut" ? (
+        <MidiOutputEditor channel={channel} />
       ) : params.type === "membrane" ? (
         <MembraneEditor channel={channel.id} params={params} />
       ) : ["sliceMap", "sliceDeck", "grainCloud", "waveRide"].includes(params.type) ? (
