@@ -810,8 +810,29 @@ fn bass_octave_survives_fundamental_removal_and_amount_is_additive_after_aligned
         (left, right)
     };
     let (dry, dry_r) = render(0.0);
-    assert!(dry[..13].iter().all(|x| *x == 0.0));
-    assert_eq!(&dry[13..], &input[..input.len() - 13]);
+    let latency = HARMONICS_LATENCY_SAMPLES;
+    assert!(dry[..latency].iter().all(|x| *x == 0.0));
+    // The dry path is the recombined LR4 bands, then the 13-frame delay;
+    // unity magnitude does not mean unchanged phase. Independently evaluate
+    // the two second-order Butterworth allpasses in direct form.
+    let mut reference: Vec<f64> = input.iter().map(|&x| f64::from(x)).collect();
+    for edge in [180.0, 2_500.0] {
+        let g = (std::f64::consts::PI * edge / f64::from(RATE)).tan();
+        let k = 1.0 / f64::from(std::f32::consts::FRAC_1_SQRT_2);
+        let norm = 1.0 / (1.0 + k * g + g * g);
+        let a1 = 2.0 * (g * g - 1.0) * norm;
+        let a2 = (1.0 - k * g + g * g) * norm;
+        let mut state = [0.0; 4];
+        for sample in &mut reference {
+            let x = *sample;
+            let y = a2 * x + a1 * state[0] + state[1] - a1 * state[2] - a2 * state[3];
+            state = [x, state[0], y, state[2]];
+            *sample = y;
+        }
+    }
+    for n in latency..dry.len() {
+        assert!((f64::from(dry[n]) - reference[n - latency]).abs() < 2e-7, "dry sample {n}");
+    }
     let (full, full_r) = render(1.0);
     let (quarter, _) = render(0.25);
     let wet: Vec<_> = full.iter().zip(&dry).map(|(a, b)| a - b).collect();

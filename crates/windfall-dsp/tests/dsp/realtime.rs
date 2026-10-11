@@ -271,9 +271,25 @@ fn effects_never_allocate_after_prepare() {
         let wrong = wrong_kind.default_params();
         let mut left = noise(11, 0.8, 512);
         let mut right = noise(12, 0.8, 512);
+        let source_left = left.clone();
+        let source_right = right.clone();
+        // A vocoder needs a real modulator; missing-key silence is deliberate.
+        // Prepare its key outside the watched audio-thread section.
+        let key: Vec<_> = noise(13, 0.8, 512).into_iter().map(|v| [v, -v]).collect();
         let mut loudest = 0.0_f32;
 
         let calls = allocator_calls(|| {
+            // Captured-loop processors cannot sound when continually reset
+            // before one loop arrives. First observe a complete default-latency
+            // interval under the same allocator guard, then stress retargeting.
+            for _ in 0..(slot.latency_samples() / 512 + 4) {
+                left.copy_from_slice(&source_left);
+                right.copy_from_slice(&source_right);
+                let key = (kind == EffectKind::Vocoder).then_some(key.as_slice());
+                slot.process_sidechain(&mut left, &mut right, key);
+                loudest = left.iter().chain(&right).fold(loudest, |peak, x| peak.max(x.abs()));
+            }
+            slot.reset();
             for step in 0..800_usize {
                 match step % 40 {
                     3 => assert!(slot.set_params(&settings[step % settings.len()])),
@@ -291,8 +307,10 @@ fn effects_never_allocate_after_prepare() {
                     slot.set_params(&params.sanitized());
                 }
                 let frames = SIZES[step % SIZES.len()];
-                slot.process(&mut left[..frames], &mut right[..frames]);
-                loudest = loudest.max(left[0].abs());
+                let key = (kind == EffectKind::Vocoder).then_some(&key[..frames]);
+                slot.process_sidechain(&mut left[..frames], &mut right[..frames], key);
+                loudest = left[..frames].iter().chain(&right[..frames])
+                    .fold(loudest, |peak, x| peak.max(x.abs()));
                 let _ = (slot.latency_samples(), slot.tail_samples());
                 if let Some(meter) = &meter {
                     let _ = meter.take_db();
@@ -303,7 +321,7 @@ fn effects_never_allocate_after_prepare() {
             }
         });
         assert_eq!(calls, 0, "{} touched the allocator", kind.name());
-        assert!(loudest > 0.0);
+        assert!(loudest > 0.0, "{} never sounded", kind.name());
     }
 }
 
