@@ -35,6 +35,7 @@ import type {
   StoredAudioSettings,
   Unsubscribe,
 } from "./backend"
+import { mockPresetFiles } from "./mock-presets"
 import { mockNativeFiles } from "./mock-files"
 import { mockMixerPresetLibrary } from "./mixer-presets"
 import {
@@ -648,6 +649,7 @@ export function createMockBackend(options: MockOptions = {}): MockBackend {
     ...unavailableAnalysis(),
     ...mockMixerPresetLibrary(),
     ...mockNativeFiles(),
+    ...mockPresetFiles(() => doc, checkFileGuard, dispatchNow, (path) => dialogs.exportPath(path)),
     scoreCapture: (pattern, channel, only, generation, revision) => ipc(() => {
       checkFileGuard(generation, revision)
       return doc.captureScore(pattern, channel, only)

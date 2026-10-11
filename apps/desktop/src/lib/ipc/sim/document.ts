@@ -119,6 +119,12 @@ export class SimDocument {
     return this.call<number[]>("doc_midi_export", options)
   }
 
+  capturePreset(channel: number | null, target: import("@/bindings").PluginTarget | null): import("@/bindings").PresetCapture {
+    return this.call("doc_preset_capture", { channel, target })
+  }
+  presetCommand(preset: import("@/bindings").Preset, channel: number | null, expected: import("@/bindings").Channel | null, target: import("@/bindings").PluginTarget | null, nameColor = false): Command {
+    return this.call("doc_preset_command", { preset, channel, expected, target, name_color: nameColor })
+  }
   captureScore(pattern: number, channel: number, only: number[] | null): import("@/bindings").Score {
     return this.call("doc_score_capture", { pattern, channel, only })
   }

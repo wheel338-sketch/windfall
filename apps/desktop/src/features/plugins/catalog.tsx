@@ -13,7 +13,11 @@ import { applyPresetFile } from "@/features/project-files/actions"
 
 const imageKey = "windfall.plugin-tile-images.v1"
 function readImages(): Record<string, string> {
-  try { return JSON.parse(localStorage.getItem(imageKey) ?? "{}") as Record<string, string> } catch { return {} }
+  try {
+    const value: unknown = JSON.parse(localStorage.getItem(imageKey) ?? "{}")
+    if (!value || typeof value !== "object" || Array.isArray(value)) return {}
+    return Object.fromEntries(Object.entries(value).filter((entry): entry is [string, string] => typeof entry[1] === "string" && /^data:image\/(png|jpeg|webp);base64,/.test(entry[1])))
+  } catch { return {} }
 }
 function Artwork({ record, image }: { record: PluginRecord; image?: string }) {
   const seed = [...`${record.name}:${record.vendor}:${record.instrument}`].reduce((hash, char) => ((hash * 31 + char.charCodeAt(0)) >>> 0), 7)

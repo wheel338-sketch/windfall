@@ -61,7 +61,7 @@ function NamedGroup({
   )
 }
 
-/** A live inventory of the open document, with no editor or command actions. */
+/** A live inventory with editor navigation and saved controller-link removal. */
 export function ProjectTab() {
   const project = useProjectStore((state) => state.project)
   const history = useProjectStore((state) => state.history)
@@ -71,7 +71,7 @@ export function ProjectTab() {
 
   return (
     <div data-slot="project-browser" className="flex flex-col gap-4 p-2">
-      <p className="text-xs text-muted-foreground">Open project · Read-only</p>
+      <p className="text-xs text-muted-foreground">Open project</p>
       <NamedGroup title="Patterns" entries={project.patterns} always onPick={(index) => void navigatePattern(project.patterns[index].id)} />
       <NamedGroup title="Channels" entries={project.channels} onPick={(index) => selectChannel(project.channels[index].id, { openSettings: true })} />
       <NamedGroup title="Samples" entries={project.samples} />

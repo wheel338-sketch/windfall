@@ -22,7 +22,7 @@ function clipTargetName(content: ClipContent, names: TargetNames): string {
   }
 }
 
-/** Document relationships only; no editor selection or command dispatch. */
+/** Select a document relationship and navigate to its editor. */
 export function ProjectOverviewView() {
   const project = useProjectStore((state) => state.project)
   const names: TargetNames = {

@@ -15,13 +15,24 @@ export function ProjectFilesPanel() {
   const pending = useRef(false)
   useEffect(() => {
     let cancelled = false
-    void Promise.all([backend.presetLibrary(), backend.templates()]).then(([presets, templates]) => { if (!cancelled) { setPresets(presets); setTemplates(templates) } }).catch((error: unknown) => { if (!cancelled) setError(errorMessage(error)) })
+    void Promise.allSettled([backend.presetLibrary(), backend.templates()]).then(([presets, templates]) => {
+      if (cancelled) return
+      if (presets.status === "fulfilled") setPresets(presets.value)
+      if (templates.status === "fulfilled") setTemplates(templates.value)
+      const errors = [presets, templates].filter((result) => result.status === "rejected").map((result) => errorMessage(result.reason))
+      if (errors.length) setError(errors.join(" "))
+    })
     return () => { cancelled = true }
   }, [])
   async function work(task: () => Promise<unknown>) {
     if (pending.current) return
     pending.current = true; setBusy(true); setError(null)
-    try { await task(); const [presets, templates] = await Promise.all([backend.presetLibrary(), backend.templates()]); setPresets(presets); setTemplates(templates) } catch (error) { setError(errorMessage(error)) } finally { pending.current = false; setBusy(false) }
+    try {
+      await task()
+      const [presets, templates] = await Promise.allSettled([backend.presetLibrary(), backend.templates()])
+      if (presets.status === "fulfilled") setPresets(presets.value)
+      if (templates.status === "fulfilled") setTemplates(templates.value)
+    } catch (error) { setError(errorMessage(error)) } finally { pending.current = false; setBusy(false) }
   }
   return <div className="flex flex-col gap-3 p-2">
     {error && <Alert><AlertTitle>Project files</AlertTitle><AlertDescription>{error}</AlertDescription></Alert>}

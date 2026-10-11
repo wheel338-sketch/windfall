@@ -1,19 +1,21 @@
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react"
 import { afterEach, beforeEach, expect, it, vi } from "vitest"
 import { startTestApp, settle } from "@/test/harness"
-import { dispatch, undo, useProjectStore } from "@/lib/store/project"
+import { dispatch, undo, redo, useProjectStore } from "@/lib/store/project"
 import { useUiStore } from "@/lib/store/ui"
 import { ProjectTab } from "@/features/browser/project-tab"
 import { ProjectOverviewView } from "@/features/project-overview/view"
+import { PluginPicker, usePluginPicker } from "@/features/plugins/picker"
 import { PluginCatalog } from "@/features/plugins/catalog"
 import { ProjectPlaybackSettings } from "@/features/project-info/settings"
+import { ProjectFilesPanel } from "./panel"
 import { ScoreFileControls } from "./score-controls"
 import { usePlaylistStore } from "@/features/playlist/store"
 import { useTransportStore } from "@/lib/store/transport"
 
 let app: Awaited<ReturnType<typeof startTestApp>>
 beforeEach(async () => { app = await startTestApp(); useUiStore.getState().selectChannel(useProjectStore.getState().project.channels[0].id) })
-afterEach(() => { app.stop(); vi.restoreAllMocks() })
+afterEach(() => { usePluginPicker.setState({ open: false }); localStorage.removeItem("windfall.plugin-tile-images.v1"); app.stop(); vi.restoreAllMocks() })
 const state = () => useProjectStore.getState()
 
 it("mounted controller browser navigates and removes saved links as one reversible edit", async () => {
@@ -113,4 +115,75 @@ it("mounted playback settings dispatch the panning law and timebase with history
   expect(state().history.cursor).toBe(before + 2)
   await app.backend.projectSave("/settings.windfall"); await app.backend.projectOpen("/settings.windfall")
   expect(state().project.settings).toMatchObject({ panLaw: "linear", timebasePpq: 96 })
+})
+
+function dragData() {
+  const data = new Map<string,string>()
+  return { types: ["application/x-windfall-plugin"], effectAllowed: "copy", dropEffect: "copy", setData: (type: string,value: string) => data.set(type,value), getData: (type: string) => data.get(type) ?? "" }
+}
+it("mounted full-screen picker drops a real instrument onto a channel as one reversible saved edit", async () => {
+  usePluginPicker.setState({ open: true })
+  render(<PluginPicker />)
+  const channel = state().project.channels[0]
+  const tile = await screen.findByRole("region", { name: "Subtractive synth" })
+  const before = state().history.cursor
+  const transfer = dragData()
+  fireEvent.dragStart(tile, { dataTransfer: transfer })
+  fireEvent.drop(screen.getByRole("button", { name: `Drop instrument on ${channel.name}` }), { dataTransfer: transfer })
+  await waitFor(() => expect(state().project.channels.find((c) => c.id === channel.id)?.source.type).toBe("instrument"))
+  expect(state().history.cursor).toBe(before + 1)
+  expect(state().project.channels.find((c) => c.id === channel.id)).toMatchObject({ name: channel.name, mixerTrack: channel.mixerTrack })
+  await act(async () => { await undo() })
+  expect(state().project.channels.find((c) => c.id === channel.id)?.source).toEqual(channel.source)
+  await act(async () => { await redo() })
+  await app.backend.projectSave("/picker.windfall"); await app.backend.projectOpen("/picker.windfall")
+  expect(state().project.channels.find((c) => c.id === channel.id)?.source.type).toBe("instrument")
+})
+it("mounted picker searches favorites and persists a supplied image over generated artwork", async () => {
+  render(<PluginCatalog tiles />)
+  const tile = await screen.findByRole("region", { name: "Subtractive synth" })
+  expect(within(tile).getByRole("img")).toHaveAccessibleName(/generated artwork/)
+  fireEvent.change(within(tile).getByLabelText("Tile image for Subtractive synth"), { target: { files: [new File(["png fixture"],"lead.png",{ type: "image/png" })] } })
+  await waitFor(() => expect(within(tile).getByRole("img")).toHaveAccessibleName("Subtractive synth artwork"))
+  expect(localStorage.getItem("windfall.plugin-tile-images.v1")).toContain("data:image/png;base64,")
+  fireEvent.click(within(tile).getByRole("button",{ name:"Favorite Subtractive synth" }))
+  await within(tile).findByRole("button",{ name:"Unfavorite Subtractive synth" })
+  fireEvent.click(screen.getByLabelText("Favorites only"))
+  fireEvent.change(screen.getByLabelText("Search plugins"),{ target:{ value:"Subtractive synth" } })
+  expect(screen.getAllByRole("region")).toHaveLength(1)
+  expect(state().history.cursor).toBe(0)
+})
+
+it("mounted file browser applies a real Rust channel preset from the memory file library with history and reopen", async () => {
+  const added = await dispatch({ type:"addChannel", instrument:"subtractiveSynth" })
+  const channel = added.created[0]
+  useUiStore.getState().selectChannel(channel)
+  const ticket = await app.backend.timelineState()
+  const capture = await app.backend.presetCaptureChannel(channel,ticket.generation,ticket.revision)
+  const entry = await app.backend.presetLibrarySave("Clean lead",capture)
+  await dispatch({ type:"updateChannel",id:channel,patch:{ pan:0.7,volume:0.3 } })
+  const before=state().history.cursor
+  render(<ProjectFilesPanel />)
+  fireEvent.click(await screen.findByRole("button",{name:"Clean lead · channel"}))
+  await waitFor(() => expect(state().project.channels.find((c)=>c.id===channel)?.pan).toBe(capture.preset.channel?.pan))
+  expect(state().history.cursor).toBe(before+1)
+  await act(async()=>{await undo()})
+  expect(state().project.channels.find((c)=>c.id===channel)?.pan).toBe(0.7)
+  await act(async()=>{await redo()})
+  await app.backend.projectSave("/preset.windfall"); await app.backend.projectOpen("/preset.windfall")
+  expect(state().project.channels.find((c)=>c.id===channel)?.pan).toBe(capture.preset.channel?.pan)
+  expect((await app.backend.presetRead(entry.path)).preset).toEqual({ ...capture.preset, name: "Clean lead" })
+})
+it("mounted preset file picker refuses a stale project without invoking apply",async()=>{
+  const added=await dispatch({type:"addChannel",instrument:"subtractiveSynth"})
+  useUiStore.getState().selectChannel(added.created[0])
+  let resolve!:(value:string|null)=>void
+  vi.spyOn(app.backend,"pickPresetPath").mockImplementation(()=>new Promise((done)=>{resolve=done}))
+  const apply=vi.spyOn(app.backend,"presetApplyChannel")
+  render(<ProjectFilesPanel />)
+  fireEvent.click(screen.getByRole("button",{name:"Browse preset files on disk…"}))
+  await waitFor(()=>expect(resolve).toBeTypeOf("function"))
+  await act(async()=>{await app.backend.projectNew();resolve("/stale.wfpreset");await settle()})
+  await waitFor(()=>expect(screen.getAllByRole("alert").some((alert)=>alert.textContent?.includes("project changed"))).toBe(true))
+  expect(apply).not.toHaveBeenCalled();expect(state().history.cursor).toBe(0)
 })
