@@ -1040,3 +1040,28 @@ fn band_split_is_block_invariant_and_bypasses_without_a_click() {
         0.05,
     );
 }
+
+#[test]
+fn band_split_recombination_matches_independent_allpass_level_and_phase() {
+    for rate in RATES {
+        for bands in [BandCount::Two, BandCount::Three] {
+            let params = EffectParams::BandSplit(BandSplitParams { bands,
+                low_crossover_hz: 300.0, high_crossover_hz: 3_000.0,
+                ..Default::default() });
+            for hz in [100.0, 300.0, 1_000.0, 3_000.0, 8_000.0] {
+                let pair = |corner| {
+                    let l = section(Shape::Lowpass, corner, 1.0 / 2.0_f64.sqrt(), 0.0, hz, f64::from(rate));
+                    let h = section(Shape::Highpass, corner, 1.0 / 2.0_f64.sqrt(), 0.0, hz, f64::from(rate));
+                    let (l, h) = (multiply(l, l), multiply(h, h));
+                    (l.0 + h.0, l.1 + h.1)
+                };
+                // Two-band mode still uses the high crossover allpass on
+                // both outputs, preserving phase when the mode changes.
+                let reference = multiply(pair(300.0), pair(3_000.0));
+                let heard = measured(&params, rate, hz);
+                assert!(magnitude_db(heard).abs() < 0.05);
+                assert!(phase_gap(phase(heard), phase(reference)) < 0.01);
+            }
+        }
+    }
+}

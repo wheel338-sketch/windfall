@@ -82,7 +82,7 @@ fn fixture() -> Fixture {
 }
 
 #[test]
-fn only_send_tap_and_transient_split_have_routable_outputs() {
+fn send_tap_transient_split_and_band_split_have_routable_outputs() {
     for kind in EffectKind::ALL {
         let outputs = kind.aux_outputs();
         match kind {
@@ -94,6 +94,11 @@ fn only_send_tap_and_transient_split_have_routable_outputs() {
             EffectKind::TransientSplit => {
                 let names: Vec<_> = outputs.iter().map(|output| output.label).collect();
                 assert_eq!(names, ["Transient", "Sustain"]);
+                assert!(outputs.iter().all(|output| output.splits));
+            }
+            EffectKind::BandSplit => {
+                let names: Vec<_> = outputs.iter().map(|output| output.label).collect();
+                assert_eq!(names, ["Low", "Mid", "High"]);
                 assert!(outputs.iter().all(|output| output.splits));
             }
             _ => assert!(outputs.is_empty(), "{kind:?} has no routable output"),

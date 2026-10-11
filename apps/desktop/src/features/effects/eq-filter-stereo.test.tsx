@@ -445,3 +445,22 @@ describe("Morph EQ", () => {
     ])
   })
 })
+describe("Band Split", () => {
+  it("shows the crossovers, band gains and the actual two/three-band layout", async () => {
+    const user = userEvent.setup()
+    const effect = await open("bandSplit")
+    expect(customEditor("bandSplit")).toBeDefined()
+    expect(screen.getByRole("group", { name: "Band Split settings" })).toBeVisible()
+    await expectSliders("bandSplit", effect, ["lowCrossoverHz", "highCrossoverHz", "lowGainDb", "midGainDb", "highGainDb"])
+    const choices = document.querySelector('[data-param="bands"]')!
+    await user.click(within(choices as HTMLElement).getByRole("radio", { name: "Two" }))
+    await flush()
+    expect(stored(effect, "bandSplit", "bands")).toBe(0)
+    expect(screen.queryByRole("slider", { name: "Mid gain" })).toBeNull()
+    expect(screen.queryByRole("slider", { name: "High crossover" })).toBeNull()
+    expect(screen.getByRole("img", { name: /Band Split response: Low below/ })).toBeVisible()
+    await undo()
+    await flush()
+    expect(screen.getByRole("slider", { name: "Mid gain" })).toBeVisible()
+  })
+})

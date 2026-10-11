@@ -12,6 +12,7 @@ import {
 import { useParamAutomation } from "@/features/automation/live"
 import { dispatch } from "@/lib/store"
 
+import { BandSplitEditor } from "./band-split/band-split-editor"
 import { CompressorEditor } from "./compressor/compressor-editor"
 import { DelayEditor } from "./delay/delay-editor"
 import type { EditorProps } from "./editor-props"
@@ -46,6 +47,7 @@ const EDITORS: Editors = {
   panLfo: PanMotionEditor,
   morphEq: MorphEqEditor,
   tuner: TunerEditor,
+  bandSplit: BandSplitEditor,
 }
 
 type AnyEditor = ComponentType<EditorProps<EffectParams>>

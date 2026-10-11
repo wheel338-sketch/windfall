@@ -25,7 +25,7 @@ been started.
 | `fx-fruity-love-philter` | Filter Bank (`filterBank`) | not started |
 | `fx-fruity-filter` | new kind | not started |
 | `fx-fruity-parametric-eq` | new kind | not started |
-| `fx-frequency-splitter` | Band Split (`bandSplit`) | not started |
+| `fx-frequency-splitter` | Band Split (`bandSplit`) | full-row candidate; integrated real low/mid/high mixer routes and editor; tests written, not executed |
 
 ## Test files (all written, not executed)
 
@@ -176,3 +176,43 @@ Least sure: the 61 generated `param_set!` rows compile as written (array-of-stru
 
 Remaining gate: no per-band pan or send, and no analysis-driven curve capture; "Store what is
 heard" captures the morphed setting, not the audio.
+
+## 2026-10-11 continuation — merge and Band Split
+
+Merged `feat/parity-100` at `07753e49`, retaining all stereo/graphic editors and
+Tuner. Generated artifacts in that merge came from integration; no generated
+files were authored by this worker.
+
+Band Split now declares three splitting outputs in `EffectKind::aux_outputs`;
+`AnyEffect::process_aux` invokes its real `process_routed` seam. The existing
+`Mixer.effectOutputs` / `SetEffectOutput` persistence, checked graph admission,
+route pruning, PDC and rack splice all apply. `MAX_AUX_OUTPUTS` becomes three;
+the engine allocates three fixed scratch buffers during construction. Both
+slot and engine buffer borrowing now include the third output. No second
+routing mechanism or new command. Two-band mode keeps Mid silent and preserves
+its saved route for switching back to three bands.
+
+Purpose-built `band-split/band-split-editor.tsx` shows actual crossover curves,
+mode-dependent controls and per-band levels; the existing inspector supplies
+Low/Mid/High destination selectors.
+
+Additional tests (written, not executed):
+- DSP `band_split_recombination_matches_independent_allpass_level_and_phase`;
+  earlier separate-band measurement, partition and bypass tests remain.
+- Engine `qa_band_split_routes_each_band_through_tracks_history_files_and_export`
+  in `mixer_effect_outputs_qa.rs`: both modes, single-output isolation,
+  recombination, downstream polarity, source fader/chain independence, bypass,
+  invalid output refusal, undo/redo, save/reopen, live block sizes and export.
+- Project `send_tap_transient_split_and_band_split_have_routable_outputs`.
+- Mounted `describe("Band Split")` in `eq-filter-stereo.test.tsx` and
+  `routes Low, Mid and High through the shared inspector with history and persistence`
+  in `effect-outputs.qa.test.tsx`.
+
+Integrator: run the existing commands above plus
+`cargo test -p windfall-engine --test mixer_effect_outputs_qa`,
+`cargo test -p windfall-project --test effect_outputs`, and after generation
+`pnpm --dir apps/desktop test src/features/mixer/effect-outputs.qa.test.tsx --maxWorkers=4`.
+Regenerate descriptors (`effectOutputs.bandSplit`), simulator and ordinary
+bindings. No new type/command for Band Split. Check third-buffer borrowing,
+expanded engine route capacity, test fixture render length and exact float
+comparisons first. All validation remains unexecuted as required.
