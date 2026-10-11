@@ -95,6 +95,7 @@ impl DereverbStream {
         work: &mut Work,
         emit: &mut impl FnMut(&[f32], &mut Work) -> Result<()>,
     ) -> Result<()> {
+        work.check()?;
         if self.finished {
             return Err(AnalysisError::Invalid("dereverb already finished"));
         }
@@ -114,6 +115,7 @@ impl DereverbStream {
         work: &mut Work,
         emit: &mut impl FnMut(&[f32], &mut Work) -> Result<()>,
     ) -> Result<()> {
+        work.check()?;
         let step = self.rate as usize * self.channels;
         let mut output =
             render_segment(&self.pending, self.rate, self.channels, self.settings, work)?;
@@ -125,10 +127,12 @@ impl DereverbStream {
             }
         }
         for block in output[..first].chunks(4096) {
+            work.check()?;
             emit(block, work)?;
         }
         if last {
             for block in output[first..].chunks(4096) {
+                work.check()?;
                 emit(block, work)?;
             }
             self.pending.clear();

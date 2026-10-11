@@ -259,7 +259,8 @@ All following cases are **written, not executed**:
   `already_dry_is_preserved_silence_and_zero_amount_are_exact`,
   `stereo_image_partition_invariance_and_distinct_modes`,
   `cancellation_bad_shapes_and_stream_lifecycle_fail_without_finishing`,
-  `partial_wet_is_linear_and_long_stream_retention_is_bounded`.
+  `partial_wet_is_linear_and_long_stream_retention_is_bounded`,
+  `cancel_before_final_partial_segment_never_emits_dry_bypass`.
   Independent dry impulses, harmonic vibrato and drum/tone mix are convolved
   with seeded exponentially decaying noise rooms of known decay. Targets:
   >10% late-tail energy reduction, bounded direct-region damage, already-dry

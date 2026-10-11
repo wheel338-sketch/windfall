@@ -228,3 +228,30 @@ fn cancellation_bad_shapes_and_stream_lifecycle_fail_without_finishing() {
             .is_err()
     );
 }
+
+#[test]
+fn cancel_before_final_partial_segment_never_emits_dry_bypass() {
+    let token = CancelToken::default();
+    let mut budget = Work::new(token.clone(), 1_000_000, Duration::from_secs(30)).unwrap();
+    let mut stream = DereverbStream::new(
+        RATE,
+        1,
+        DereverbSettings {
+            mode: DereverbMode::General,
+            amount: 1.0,
+        },
+    )
+    .unwrap();
+    let mut emitted = 0;
+    let mut emit = |samples: &[f32], _: &mut Work| {
+        emitted += samples.len();
+        Ok(())
+    };
+    stream.push(&[0.0; 137], &mut budget, &mut emit).unwrap();
+    token.cancel();
+    assert!(matches!(
+        stream.finish(&mut budget, &mut emit),
+        Err(AnalysisError::Cancelled)
+    ));
+    assert_eq!(emitted, 0);
+}
