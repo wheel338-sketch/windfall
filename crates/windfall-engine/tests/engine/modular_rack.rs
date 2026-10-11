@@ -421,3 +421,255 @@ fn note_overflow_controls_reset_and_processing_do_not_touch_the_allocator() {
     );
     assert!(rack.rejected_events() >= 36);
 }
+
+#[test]
+fn color_and_keyboard_outputs_deliver_only_matching_routes_to_real_instruments() {
+    let mut colors = windfall_dsp::notemap::ColorMapParams::default();
+    colors.table[3] = 7;
+    for (module, route, input, mapped_key) in [
+        (
+            RackNoteModule::ColorRouter { params: colors },
+            7,
+            RackNote {
+                key: 62,
+                expression: windfall_dsp::NoteExpression {
+                    color_group: Some(3),
+                    ..Default::default()
+                },
+                ..Default::default()
+            },
+            62,
+        ),
+        (
+            RackNoteModule::KeySplitter {
+                params: Default::default(),
+                preserve_key: false,
+            },
+            1,
+            RackNote::default(),
+            72,
+        ),
+    ] {
+        let mut graph = graph(Some(module));
+        graph.edges.last_mut().unwrap().from.port = NOTE_CHANNEL_BASE + route;
+        let mut rack = ModularRack::prepare(&graph, RATE, 120.0).unwrap();
+        rack.note_on(NoteInstanceId(42), input);
+        let mut dsp = synth();
+        start(
+            &mut dsp,
+            1,
+            RackNote {
+                key: mapped_key,
+                ..input
+            },
+        );
+        close(&audio(&mut rack, 2048, 17), &reference(&mut dsp, 2048));
+        graph.edges.last_mut().unwrap().from.port = NOTE_CHANNEL_BASE + (route + 1) % 16;
+        let mut silent = ModularRack::prepare(&graph, RATE, 120.0).unwrap();
+        silent.note_on(NoteInstanceId(42), input);
+        assert!(
+            audio(&mut silent, 2048, 127)
+                .iter()
+                .all(|sample| *sample == 0.0)
+        );
+    }
+}
+#[test]
+fn chord_children_release_by_parent_without_stopping_same_key_siblings() {
+    let graph = graph(Some(RackNoteModule::KeyMapper {
+        params: Default::default(),
+        chord: [0, 4, 7, 12],
+        voices: 4,
+    }));
+    let mut rack = ModularRack::prepare(&graph, RATE, 120.0).unwrap();
+    let mut dsp = synth();
+    for parent in [11, 12] {
+        rack.note_on(NoteInstanceId(parent), RackNote::default());
+        for (index, key) in [60, 64, 67, 72].into_iter().enumerate() {
+            start(
+                &mut dsp,
+                (parent - 11) * 4 + index as u64 + 1,
+                RackNote {
+                    key,
+                    ..Default::default()
+                },
+            );
+        }
+    }
+    close(&audio(&mut rack, 256, 17), &reference(&mut dsp, 256));
+    rack.note_off(NoteInstanceId(11));
+    for (id, key) in [(1, 60), (2, 64), (3, 67), (4, 72)] {
+        dsp.note_off_instance(NoteInstanceId(id), key);
+    }
+    close(&audio(&mut rack, 2048, 127), &reference(&mut dsp, 2048));
+    assert!(rack.active_voices() >= 4);
+    rack.note_off(NoteInstanceId(12));
+    audio(&mut rack, 2048, 127);
+    assert_eq!(rack.active_voices(), 0);
+}
+#[test]
+fn mute_solo_and_macro_wires_move_the_audible_processor() {
+    let mut graph = RackGraph {
+        next_id: 5,
+        nodes: vec![
+            node(1, RackProcessor::AudioInput),
+            node(
+                2,
+                RackProcessor::Effect {
+                    params: EffectParams::Polarity(Default::default()),
+                    mix: 1.0,
+                },
+            ),
+            node(3, RackProcessor::AudioOutput),
+            node(
+                4,
+                RackProcessor::ControlInput {
+                    value: 0.0,
+                    index: 0,
+                },
+            ),
+        ],
+        edges: vec![
+            wire(1, AUDIO_OUT, 2, AUDIO_IN),
+            wire(2, AUDIO_OUT, 3, AUDIO_IN),
+            RackEdge {
+                parameter: Some("left".into()),
+                ..wire(4, CONTROL_OUT, 2, CONTROL_IN)
+            },
+        ],
+    };
+    graph.nodes[1].solo = true;
+    let mut rack = ModularRack::prepare(&graph, RATE, 120.0).unwrap();
+    for _ in 0..512 {
+        rack.process(&mut [0.2], &mut [0.1]);
+    }
+    rack.set_control(0, 1.0);
+    let mut left = [0.2];
+    let mut right = [0.1];
+    for _ in 0..512 {
+        left[0] = 0.2;
+        right[0] = 0.1;
+        rack.process(&mut left, &mut right);
+    }
+    assert!((left[0] + 0.2).abs() < 1e-6);
+    assert!((right[0] - 0.1).abs() < 1e-6);
+    graph.nodes[1].muted = true;
+    let mut muted = ModularRack::prepare(&graph, RATE, 120.0).unwrap();
+    left[0] = 0.2;
+    right[0] = 0.1;
+    muted.process(&mut left, &mut right);
+    assert_eq!((left, right), ([0.0], [0.0]));
+}
+#[test]
+fn maximum_graph_processes_without_allocation_and_refuses_one_more_node() {
+    let mut max = RackGraph {
+        next_id: 65,
+        nodes: (1..=64)
+            .map(|id| {
+                node(
+                    id,
+                    if id == 1 {
+                        RackProcessor::AudioInput
+                    } else if id == 64 {
+                        RackProcessor::AudioOutput
+                    } else {
+                        RackProcessor::Effect {
+                            params: EffectParams::Polarity(Default::default()),
+                            mix: 1.0,
+                        }
+                    },
+                )
+            })
+            .collect(),
+        edges: (1..64)
+            .map(|id| wire(id, AUDIO_OUT, id + 1, AUDIO_IN))
+            .collect(),
+    };
+    let mut rack = ModularRack::prepare(&max, RATE, 120.0).unwrap();
+    let mut left = [0.01; 127];
+    let mut right = [0.02; 127];
+    assert_eq!(allocator_calls(|| rack.process(&mut left, &mut right)), 0);
+    assert_eq!(left, [0.01; 127]);
+    assert_eq!(right, [0.02; 127]);
+    max.nodes.push(node(65, RackProcessor::AudioOutput));
+    max.next_id = 66;
+    assert!(ModularRack::prepare(&max, RATE, 120.0).is_err());
+}
+#[test]
+fn channel_graph_matches_live_offline_and_reopened_project_audio() {
+    use super::support::{Rig, run};
+    use windfall_engine::{RenderOptions, render};
+    let mut rig = Rig::new();
+    rig.project.settings.tempo_bpm = 120.0;
+    let channel = rig.synth_on(plain_synth(), windfall_project::TrackId::MASTER);
+    rig.note(channel, 0, 240).key = 60;
+    rig.project
+        .settings
+        .modular_racks
+        .push(windfall_project::ChannelRack {
+            channel,
+            graph: graph(Some(RackNoteModule::Sequencer {
+                params: Default::default(),
+            })),
+        });
+    let lane = rig.playlist_track();
+    rig.clip(lane, rig.first_pattern(), 0, 960);
+    let options = RenderOptions {
+        mode: windfall_ipc::PlayMode::Song,
+        tail_secs: 0.1,
+        block_frames: 17,
+        ..Default::default()
+    };
+    let rendered = render(&rig.project, &rig.pool, &options, &mut |_| true);
+    assert!(rendered.samples().iter().any(|sample| sample.abs() > 0.01));
+    let (mut processor, controller) = rig.song_processor(RATE);
+    let latency = controller.latency_frames() as usize;
+    controller.play();
+    let played = run(&mut processor, rendered.frames() + latency, 127);
+    close(&played[latency * 2..], rendered.samples());
+    let json = windfall_project::file::to_json(&rig.project).unwrap();
+    rig.project = windfall_project::file::from_json(&json).unwrap();
+    close(
+        render(&rig.project, &rig.pool, &options, &mut |_| true).samples(),
+        rendered.samples(),
+    );
+}
+#[test]
+fn graph_replacement_preserves_live_parent_release_and_retires_off_callback() {
+    use super::support::{Rig, run};
+    let mut rig = Rig::new();
+    let channel = rig.synth_on(plain_synth(), windfall_project::TrackId::MASTER);
+    rig.project
+        .settings
+        .modular_racks
+        .push(windfall_project::ChannelRack {
+            channel,
+            graph: graph(None),
+        });
+    let (mut processor, controller) = rig.processor(RATE);
+    controller.note_on(channel, 60, 1.0);
+    let mut output = [0.0; 254];
+    processor.process(&mut output);
+    rig.project.settings.modular_racks[0].graph.edges.clear();
+    controller.set_project(&rig.project, &rig.pool);
+    assert_eq!(allocator_calls(|| processor.process(&mut output)), 0);
+    assert!(output.iter().all(|sample| sample.abs() < 1e-5));
+    rig.project.settings.modular_racks.clear();
+    controller.set_project(&rig.project, &rig.pool);
+    assert_eq!(allocator_calls(|| processor.process(&mut output)), 0);
+    assert!(
+        run(&mut processor, 1024, 127)
+            .iter()
+            .any(|sample| sample.abs() > 0.01)
+    );
+    controller.note_off(channel, 60);
+    assert_eq!(allocator_calls(|| processor.process(&mut output)), 0);
+    assert!(
+        run(&mut processor, 4096, 127)
+            .iter()
+            .rev()
+            .take(256)
+            .all(|sample| sample.abs() < 1e-5)
+    );
+    controller.frame();
+}

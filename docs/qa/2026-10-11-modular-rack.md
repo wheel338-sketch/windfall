@@ -60,7 +60,10 @@ admission coverage. Mounted `features/modular/editor.test.tsx` now has written, 
 add/connect/disconnect/undo, atomic cycle refusal, nested preset round-trip,
 mute/solo/removal undo, each of the six distinct module controls, and persisted
 held-chord mode. It uses the existing real-WASM document harness; regenerate
-bindings and simulator before running. Further engine ownership cases follow. Existing EVERY_COMMAND gains setChannelRack.
+bindings and simulator before running. The engine group also has six written, not executed cases for real color/split
+routes, same-key chord ownership, audible mute/solo/macros, maximum graph size,
+live/offline/reopened project audio, and parent release through graph replacement
+with allocator guarding plan adoption. Existing EVERY_COMMAND gains setChannelRack.
 
 ## Integrator commands (not executed here)
 
