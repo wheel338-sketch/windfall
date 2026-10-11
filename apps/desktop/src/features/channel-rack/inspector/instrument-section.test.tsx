@@ -209,6 +209,22 @@ describe("instrument settings panels", () => {
     expect(channelOf(channel).source.params).toEqual(original)
   })
 
+  it("selects and edits the sixteenth synthesized membrane without changing pad one", async () => {
+    const channel = await open("drumRack")
+    const original = channelOf(channel).source.params
+    await userEvent.setup().click(screen.getByRole("button", { name: "Pad 16 · MIDI 51" }))
+    const strike = screen.getByRole("slider", { name: "Strike Position" })
+    fireEvent.keyDown(strike, { key: "End" })
+    fireEvent.keyUp(strike, { key: "End" })
+    await flush()
+    const edited = channelOf(channel).source.params
+    if (original.type !== "drumRack" || edited.type !== "drumRack") throw new Error("wrong kind")
+    expect(edited.pads[0]).toEqual(original.pads[0])
+    expect(edited.pads[15].strikePosition).toBeCloseTo(0.95)
+    await act(() => undo())
+    expect(channelOf(channel).source.params).toEqual(original)
+  })
+
   it("keeps hosted plugin controls ahead of the built-in panel", async () => {
     const channel = await open("acidLine")
     const plugin: PluginBinding = {

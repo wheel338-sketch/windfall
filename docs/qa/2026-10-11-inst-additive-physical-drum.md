@@ -15,7 +15,7 @@ benchmarks, generators or audio-device checks were run. Every test below is
 | inst-harmless | Pending this stream. | Subtractive harmonic controls and editor acceptance. |
 | inst-autogun | Pending this stream. | Full number domain and preset-only workflow. |
 | inst-beepmap | Pending this stream. | Color/brightness image scan. |
-| inst-drumaxx | Pending this stream. | Membrane/body model, 16-pad editor. |
+| inst-drumaxx | Full-row candidate: sixteen independent modal membrane/cavity patches, fixed MIDI 36–51, per-pad strike/damping/body controls, selection grid and hold-to-audition editor; shared passive model with single Membrane. | Fresh integration execution and listening. |
 | inst-bassdrum | Pending this stream. | Optional immutable sample layer. |
 | inst-drumpad | Full-row candidate: Membrane adds eight circular membrane eigenmodes plus a damped cavity, radial strike position, and frequency-dependent damping. One voice per channel, chromatic tuning, finite passive losses and deterministic noisy excitation; editor shows strike radius and grouped model controls. | Fresh integration execution and listening. |
 | inst-fruity-drumsynth-live | Pending this stream. | Independent per-key programmable patches. |
@@ -67,3 +67,13 @@ Regenerate `MembraneParams` and instrument descriptors/WASM. Shared seam:
 `inspector/instrument-section.tsx` (editor routing only). Check the measured
 modal-frequency and damping assertions first. The finite modal impulse model is
 an original bounded approximation, not a vendor model/sound compatibility claim.
+
+### Sixteen-pad checkpoint
+
+`DrumPadParams` adds strike/damping/body with serde defaults. Drum Rack preserves
+all 65 historical descriptors, appending three controls per pad at indices 65–112.
+Written, not executed: DSP `rack_modal_model_edits_one_pad_without_changing_another`,
+engine `sixteen_pad_membrane_model_reaches_history_disk_and_live_offline_pcm`,
+mounted sixteenth-pad edit/undo test. Fresh artifacts must regenerate
+`DrumPadParams`, `DrumRackParams` defaults/descriptors and simulator.
+No sample-pad or zone-sampler claim. Shared editor routing seam is additive only.

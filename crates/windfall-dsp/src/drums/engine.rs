@@ -88,9 +88,9 @@ impl Settings for DrumRackParams {
             drop: 5.0,
             pitch_decay: 45.0,
             level: self.level,
-            strike: 0.25,
-            damping: 0.35,
-            body: 0.4,
+            strike: pad.strike_position,
+            damping: pad.damping,
+            body: pad.body,
         }
     }
 }

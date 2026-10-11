@@ -54,6 +54,15 @@ fn energy(audio: &[f32]) -> f64 {
 }
 
 fn acceptance(kind: InstrumentKind, initial: InstrumentParams, changed: InstrumentParams) {
+    acceptance_key(kind, initial, changed, 60);
+}
+
+fn acceptance_key(
+    kind: InstrumentKind,
+    initial: InstrumentParams,
+    changed: InstrumentParams,
+    key: u8,
+) {
     let mut doc = Document::new(Project::new("Built-in acceptance QA"));
     let channel = ChannelId(
         doc.dispatch(
@@ -85,7 +94,7 @@ fn acceptance(kind: InstrumentKind, initial: InstrumentParams, changed: Instrume
             notes: vec![NoteInit {
                 start: 240,
                 length: 1920,
-                key: 60,
+                key,
                 velocity: Some(1.0),
                 pan: None,
                 expression: None,
@@ -189,5 +198,20 @@ fn single_membrane_strike_reaches_history_disk_and_live_offline_pcm() {
         InstrumentKind::Membrane,
         InstrumentParams::Membrane(initial),
         InstrumentParams::Membrane(changed),
+    );
+}
+
+#[test]
+fn sixteen_pad_membrane_model_reaches_history_disk_and_live_offline_pcm() {
+    let initial = DrumRackParams::default();
+    let mut changed = initial;
+    changed.pads[0].strike_position = 0.85;
+    changed.pads[0].damping = 0.9;
+    changed.pads[0].body = 0.8;
+    acceptance_key(
+        InstrumentKind::DrumRack,
+        InstrumentParams::DrumRack(initial),
+        InstrumentParams::DrumRack(changed),
+        36,
     );
 }

@@ -366,3 +366,29 @@ fn membrane_has_measured_circular_mode_frequencies_and_transposes() {
         }
     }
 }
+
+#[test]
+fn rack_modal_model_edits_one_pad_without_changing_another() {
+    let sound = |params: DrumRackParams, key| {
+        let mut rack = DrumRack::default();
+        rack.prepare(RATE, 257);
+        rack.set_params(&params);
+        rack.note_on(key, 1.0);
+        render(&mut rack, 12_000, &[31, 257])
+    };
+    let initial = DrumRackParams::default();
+    let mut edited = initial;
+    edited.pads[15].strike_position = 0.85;
+    edited.pads[15].damping = 0.95;
+    edited.pads[15].body = 0.9;
+    assert_eq!(sound(initial, 36), sound(edited, 36));
+    let delta: Vec<_> = sound(initial, 51).iter().zip(sound(edited, 51)).map(|(a,b)| a-b).collect();
+    assert!(power(&delta) > 1e-6);
+    assert_eq!(DrumRackParams::descriptors()[64].id, "level");
+    assert_eq!(DrumRackParams::descriptors()[110].id, "pads.15.strikePosition");
+    let mut rack = DrumRack::default();
+    rack.prepare(RATE, 257);
+    for key in 36..52 { rack.note_on(key, 1.0); }
+    assert_eq!(rack.active_voices(), 16);
+    assert!(render(&mut rack, 4000, &[257]).iter().all(|x| x.is_finite()));
+}
