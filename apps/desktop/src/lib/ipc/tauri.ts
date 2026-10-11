@@ -48,18 +48,25 @@ const MIDI_FILTER = [{ name: "MIDI file", extensions: ["mid", "midi"] }]
 export function createTauriBackend(): Backend {
   const realtimeHandlers = new Set<(frame: RealtimeFrame) => void>()
   let realtimeStarted = false
+  let realtimeToken: string | null = null
 
   // The shell streams frames for the life of the window, so one channel is
   // opened on first use and shared by every subscriber.
   function startRealtime() {
     if (realtimeStarted) return
     realtimeStarted = true
+    const token = crypto.randomUUID()
+    realtimeToken = token
     const channel = new Channel<RealtimeFrame>()
     channel.onmessage = (frame) => {
+      if (realtimeToken !== token) return
       for (const handler of realtimeHandlers) handler(frame)
     }
-    call<void>("realtime_subscribe", { channel }).catch((error: unknown) => {
-      realtimeStarted = false
+    call<void>("realtime_subscribe", { channel, token }).catch((error: unknown) => {
+      if (realtimeToken === token) {
+        realtimeStarted = false
+        realtimeToken = null
+      }
       console.error("realtime_subscribe failed:", errorMessage(error))
     })
   }
@@ -327,6 +334,13 @@ export function createTauriBackend(): Backend {
       startRealtime()
       return () => {
         realtimeHandlers.delete(handler)
+        if (realtimeHandlers.size === 0 && realtimeToken !== null) {
+          const token = realtimeToken
+          realtimeToken = null
+          realtimeStarted = false
+          void call<void>("realtime_unsubscribe", { token }).catch((error: unknown) =>
+            console.error("realtime_unsubscribe failed:", errorMessage(error)))
+        }
       }
     },
 

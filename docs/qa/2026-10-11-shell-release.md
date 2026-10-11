@@ -53,6 +53,43 @@ audio-parameter page automation remains absent. `fx-fruity-html-notebook` is a
 safe local HTML subset, with active links/remote HTML unsupported and native
 CSP acceptance pending.
 
+## Detached windows
+
+Adds atomic saved `panel-layouts.json` outside the document. Geometry is
+monitor-relative in logical pixels, restored against current monitor identity
+and DPI; absent monitors fall back to an available monitor, offscreen/oversize
+frames clamp within it, corrupt files recover empty. OS chrome is subtracted
+when restoring inner size to avoid growing on reopen. Native move/resize records
+in memory and close saves; no IO is introduced in the audio callback.
+
+Realtime subscribe now owns a random token. Last UI unsubscribe releases the
+native sender, old channels stop delivering, and delayed old cleanup cannot
+remove the replacement sender. Window destruction still releases all feeds
+and analyzer slots using the existing shell hook.
+
+Written, not executed: `panel_layout.rs` tests
+`layout_recovers_removed_monitor_and_negative_desktop_at_new_dpi`,
+`layout_clamps_offscreen_and_corrupt_data`, `layout_file_roundtrip_and_corrupt_recovery`;
+registered `session/tests/detached_windows.rs` tests
+`two_windows_racing_edits_share_one_document_and_ordered_revision_stream`,
+`close_reopen_stale_cleanup_and_replacement_release_realtime_owners`;
+`lib/ipc/tauri-realtime.test.ts` shared-feed/cleanup/renewal/stale-delivery case.
+
+```powershell
+cargo test -p windfall-desktop panel_layout
+cargo test -p windfall-desktop detached_windows
+pnpm --dir apps/desktop test src/lib/ipc/tauri-realtime.test.ts src/features/layout/detach.test.tsx src/features/layout/shortcuts.integration.test.tsx src/features/layout/project-replaced.test.tsx --maxWorkers=2
+```
+
+Partial: native two-WebView edit/close/reopen/project replacement and device-loss
+races, monitor removal while an already-open window is running, maximized
+geometry/taskbar work-area correctness, focus/menus on real Windows/macOS/Linux
+remain. Session tests prove shared owner/revision order, not native event delivery.
+Existing frontend generation guards cannot authenticate an old-window command
+against a server document identity; delayed dispatch crossing asynchronous
+project replacement remains a separate unresolved gate. Native window APIs and
+new command argument/token ordering are first compile/runtime risks to check.
+
 ## Remaining streams
 
 Detached windows, scaling, tutorials, languages, updater and scheduler work

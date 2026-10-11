@@ -15,6 +15,7 @@ pub mod paths;
 pub mod plugin_database;
 pub mod plugins;
 mod process_memory;
+mod panel_layout;
 pub mod samples;
 pub mod session;
 pub mod settings;
@@ -41,11 +42,19 @@ pub fn run() {
                 .build(),
         )
         .setup(|app| {
+            app.manage(panel_layout::PanelLayouts::load(app.path().app_config_dir()?.join("panel-layouts.json")));
             let session = shell::start(app.handle())?;
             app.manage(session);
             Ok(())
         })
         .on_window_event(|window, event| {
+            if let Some(view) = window.app_handle().get_webview_window(window.label()) {
+                match event {
+                    WindowEvent::Moved(_) | WindowEvent::Resized(_) => panel_layout::capture(&view, false),
+                    WindowEvent::CloseRequested { .. } => panel_layout::capture(&view, true),
+                    _ => {}
+                }
+            }
             if matches!(event, WindowEvent::Destroyed)
                 && let Some(session) = window.try_state::<Session>()
             {

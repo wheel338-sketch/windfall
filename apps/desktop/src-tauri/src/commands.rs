@@ -472,11 +472,18 @@ fn realtime_subscribe(
     session: State<'_, Session>,
     window: WebviewWindow,
     channel: Channel<RealtimeFrame>,
+    token: String,
 ) {
-    session.subscribe_realtime(
+    session.subscribe_realtime_owned(
         window.label(),
+        Some(token),
         Box::new(move |frame| channel.send(frame.clone()).is_ok()),
     );
+}
+
+#[tauri::command]
+fn realtime_unsubscribe(session: State<'_, Session>, window: WebviewWindow, token: String) {
+    session.unsubscribe_realtime_owned(window.label(), &token);
 }
 
 #[tauri::command]
@@ -912,6 +919,7 @@ async fn detach_panel(app: AppHandle, id: String) -> Result<(), String> {
     .inner_size(960.0, 640.0)
     .build()
     .map_err(|error| error.to_string())?;
+    crate::panel_layout::restore(&window);
     window.on_window_event(move |event| {
         if matches!(event, WindowEvent::Destroyed)
             && let Some(main) = app.get_webview_window("main")
@@ -1006,6 +1014,7 @@ pub fn handler() -> impl Fn(Invoke) -> bool + Send + Sync + 'static {
         timeline_state,
         timeline_region,
         realtime_subscribe,
+        realtime_unsubscribe,
         analyzer_capability,
         analyzer_subscribe,
         analyzer_select,
