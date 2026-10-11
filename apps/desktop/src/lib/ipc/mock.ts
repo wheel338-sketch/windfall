@@ -1345,6 +1345,10 @@ export function createMockBackend(options: MockOptions = {}): MockBackend {
           throw new Error(
             "Spectral sampler export requires the desktop audio engine. Browser mode cannot render key variants."
           )
+        if (exportOptions.mastering)
+          throw new Error(
+            "Mastering requires the desktop audio engine. Browser mode cannot measure or master a mix."
+          )
         if (exporting) throw new Error("An export is already running.")
         if (!exportOptions.path)
           throw new Error("Choose where to save the file.")

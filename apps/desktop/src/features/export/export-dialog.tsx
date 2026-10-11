@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type FormEvent } from "react"
 import { toast } from "sonner"
 
-import type { ExportOptions, PlayMode } from "@/bindings"
+import type { ExportOptions, MasteringReview, PlayMode } from "@/bindings"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import {
@@ -37,6 +37,15 @@ import { Choice, type Option } from "./choice"
 import { useTimelineStore } from "@/features/playlist/timeline-store"
 import { changeExportFormat, FormatControls } from "./format-controls"
 import { StemControls } from "./stem-controls"
+import {
+  MasteringControls,
+  MasteringReviewPanel,
+} from "./mastering-controls"
+import {
+  DEFAULT_MASTERING_DRAFT,
+  masteringRequest,
+  type MasteringDraft,
+} from "./mastering"
 import { useMixerRender } from "./mixer-render"
 
 import {
@@ -90,6 +99,9 @@ function ExportForm({ onDone }: { onDone(): void }) {
   }))
   const [run, setRun] = useState<Run | null>(null)
   const [cancelling, setCancelling] = useState(false)
+  const [master, setMaster] = useState<MasteringDraft>(DEFAULT_MASTERING_DRAFT)
+  // What the last mastered export measured. The dialog stays open on it.
+  const [review, setReview] = useState<MasteringReview | null>(null)
   const selectedRegion = useTimelineStore((state) => state.selection)
   const [selectedOnly, setSelectedOnly] = useState(
     () => useTimelineStore.getState().exportSelection
@@ -127,6 +139,7 @@ function ExportForm({ onDone }: { onDone(): void }) {
     : draft.stems?.tracks?.some((id) => !exportTracks.some((track) => track.id === id && !track.current))
       ? "An export track was removed. Choose the remaining mixer tracks again."
       : null
+  const mastering = masteringRequest(master, draft.stems !== undefined)
   const regionError =
     draft.mode === "song" && selectedOnly && !selectedRegion
       ? "The time selection was cleared. Select a region again or turn off region export."
@@ -154,6 +167,12 @@ function ExportForm({ onDone }: { onDone(): void }) {
                 : "Mixer stems"
               : exportedName(progress.path, options.format),
           })
+          if (progress.mastering) {
+            // A master is reviewed before the dialog goes.
+            setRun(null)
+            setReview(progress.mastering)
+            return
+          }
           onDone()
         } else {
           setRun({ fraction: progress.fraction, error: null })
@@ -188,12 +207,22 @@ function ExportForm({ onDone }: { onDone(): void }) {
     if (stemsError) return focus("export-stem-selection")
     if (mixerSourceError) return focus("export-stem-selection")
     if (regionError) return
+    if (master.enabled && !mastering.options) {
+      return focus(
+        mastering.targetError
+          ? "export-mastering-target"
+          : mastering.ceilingError
+            ? "export-mastering-ceiling"
+            : "export-mastering"
+      )
+    }
 
     const options: ExportOptions = {
       ...draft,
       path,
       patternLoops,
       tailSecs,
+      mastering: mastering.options,
       region:
         draft.mode === "song" && selectedOnly && selectedRegion
           ? { ...selectedRegion }
@@ -203,6 +232,7 @@ function ExportForm({ onDone }: { onDone(): void }) {
     set("path", path)
     sent.current = options
     setCancelling(false)
+    setReview(null)
     setRun({ fraction: 0, error: null })
     try {
       if (options.region) {
@@ -376,13 +406,23 @@ function ExportForm({ onDone }: { onDone(): void }) {
         {stemsError && <FieldError>{stemsError}</FieldError>}
         {mixerSourceError && <FieldError>{mixerSourceError}</FieldError>}
 
+        <MasteringControls
+          value={master}
+          request={mastering}
+          disabled={exporting}
+          onChange={setMaster}
+        />
+
         {exporting && (
           <Progress value={run.fraction * 100}>
-            <ProgressLabel>Exporting</ProgressLabel>
+            <ProgressLabel>
+              {master.enabled ? "Exporting and mastering" : "Exporting"}
+            </ProgressLabel>
             <ProgressValue />
           </Progress>
         )}
         {run?.error && <FieldError>The export failed. {run.error}</FieldError>}
+        {review && !exporting && <MasteringReviewPanel review={review} />}
 
         <DialogFooter>
           {exporting && (
@@ -396,7 +436,7 @@ function ExportForm({ onDone }: { onDone(): void }) {
             </Button>
           )}
           <Button type="button" variant="outline" onClick={onDone}>
-            {exporting ? "Close" : "Cancel"}
+            {exporting ? "Close" : review ? "Done" : "Cancel"}
           </Button>
           <Button type="submit" disabled={exporting}>
             Export
