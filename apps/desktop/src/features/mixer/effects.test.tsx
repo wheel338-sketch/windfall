@@ -242,14 +242,15 @@ describe("the effect rack on a strip", () => {
         withBar.push(kind)
       await undoAll(1)
     }
+    // Generated JSON keys are alphabetical; native kind indices stay append-only.
     expect(withBar).toEqual([
       "compressor",
       "limiter",
+      "masterLimiter",
       "multibandCompressor",
       "multibandMaximizer",
       "oneKnob",
       "stageStack",
-      "masterLimiter",
     ])
   })
 })
