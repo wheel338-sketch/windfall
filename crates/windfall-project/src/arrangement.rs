@@ -1,7 +1,7 @@
 //! Pure arrangement metadata. The caller owns IDs, history, persistence and playback.
 use crate::model::{
     ChannelId, Clip, ClipId, MAX_SONG_TICKS, Pattern, PatternId, PlaylistTrackId, SampleAsset,
-    SampleId,
+    SampleId, TrackId,
 };
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
@@ -55,8 +55,13 @@ pub struct ClipGroup {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
 #[serde(tag = "type", rename_all = "camelCase")]
 pub enum TrackKind {
+    /// An instrument track: pattern clips on it play only this channel,
+    /// through the mixer track the channel is routed to.
     Instrument { channel: ChannelId },
+    /// A label naming the audio source a lane is kept for. It routes nothing.
     Audio { source: SampleId },
+    /// An audio track: audio clips on it play into this mixer track.
+    AudioTrack { mixer: TrackId },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
@@ -477,6 +482,10 @@ impl ArrangementBook {
                         TrackKind::Audio { source } => ArrangementError::MissingId {
                             kind: "sample",
                             id: source.0,
+                        },
+                        TrackKind::AudioTrack { mixer } => ArrangementError::MissingId {
+                            kind: "mixer track",
+                            id: mixer.0,
                         },
                     });
                 }

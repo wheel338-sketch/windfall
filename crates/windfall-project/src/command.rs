@@ -96,6 +96,40 @@ pub enum Command {
     MakeUnique {
         clip: ClipId,
     },
+    /// Adds an alternative timeline layout and makes it the active one.
+    /// `copy` clones every clip of the layout that is active now as a new
+    /// clip, so later moves, resizes and deletions in either layout leave
+    /// the other alone; without it the new layout starts with the same
+    /// tracks and no clips. A project that has no arrangement yet first
+    /// keeps its present timeline as "Arrangement 1". Creates the
+    /// arrangement id and then one [`ClipId`] per copied clip.
+    AddArrangementLayout {
+        name: String,
+        copy: bool,
+    },
+    /// Adds a channel with its mixer track and a playlist track linked to
+    /// it, as one undo step. Pattern clips on the track play only that
+    /// channel. Creates a [`ChannelId`], then a [`TrackId`] when the mixer
+    /// has room, then a [`PlaylistTrackId`].
+    AddInstrumentTrack {
+        #[serde(default)]
+        #[ts(optional)]
+        name: Option<String>,
+        #[serde(default)]
+        #[ts(optional)]
+        sample: Option<SampleId>,
+        #[serde(default)]
+        #[ts(optional)]
+        instrument: Option<InstrumentKind>,
+    },
+    /// Adds a mixer track and a playlist track linked to it, as one undo
+    /// step. Audio clips on the track play into that mixer track. Creates a
+    /// [`TrackId`] and then a [`PlaylistTrackId`].
+    AddAudioTrack {
+        #[serde(default)]
+        #[ts(optional)]
+        name: Option<String>,
+    },
     AddNotesWithCurves {
         pattern: PatternId,
         channel: ChannelId,

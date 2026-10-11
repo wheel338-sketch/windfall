@@ -62,6 +62,12 @@ use crate::pool::SamplePool;
 use crate::processor::Processor;
 use crate::render::{RenderOptions, TAIL_HOLD_SECONDS, TAIL_SILENCE_DB};
 
+mod playlist;
+pub use playlist::{
+    PlaylistStem, PlaylistStemError, PlaylistStemOptions, playlist_stem_project, playlist_stems,
+    render_playlist_stems,
+};
+
 /// The name of the stream that is the whole mix.
 const MIX_NAME: &str = "Mix";
 
