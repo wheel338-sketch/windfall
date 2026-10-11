@@ -73,7 +73,7 @@ impl Mixer {
             right: side(),
             dry_left: side(),
             dry_right: side(),
-            aux: [frames(MAX_BLOCK), frames(MAX_BLOCK)],
+            aux: std::array::from_fn(|_| frames(MAX_BLOCK)),
         }
     }
 
@@ -188,10 +188,10 @@ impl Mixer {
                     // the rest of the chain and the fader. Each goes through
                     // its compensation delay into the track it is routed to,
                     // which routing order puts after this one.
-                    let [first, second] = &mut self.aux;
+                    let [first, second, third] = &mut self.aux;
                     let mut aux = windfall_dsp::AuxBlock {
                         routed,
-                        outputs: [&mut first[..frames], &mut second[..frames]],
+                        outputs: [&mut first[..frames], &mut second[..frames], &mut third[..frames]],
                     };
                     unit.process_routed(
                         left,

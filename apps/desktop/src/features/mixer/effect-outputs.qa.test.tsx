@@ -71,7 +71,12 @@ describe("effect output routing in the inspector", () => {
     expect(effectOutputsOf("transientShaper")).toEqual(
       effectOutputsOf("transientSplit")
     )
-    for (const kind of ["eq", "compressor", "bandSplit", "reverb"]) {
+    expect(effectOutputsOf("bandSplit")).toEqual([
+      { id: "low", label: "Low", splits: true },
+      { id: "mid", label: "Mid", splits: true },
+      { id: "high", label: "High", splits: true },
+    ])
+    for (const kind of ["eq", "compressor", "reverb"]) {
       expect(effectOutputsOf(kind)).toEqual([])
     }
   })
@@ -305,4 +310,27 @@ describe("effect output routing in the inspector", () => {
     const { container } = render(<Outputs track={kick} effect={plain} />)
     expect(container).toBeEmptyDOMElement()
   })
+})
+
+it("routes Low, Mid and High through the shared inspector with history and persistence", async () => {
+  const user = userEvent.setup()
+  const source = trackNamed("Kick").id
+  const destinations = [trackNamed("Clap"), trackNamed("Hat"), trackNamed("Clap")]
+  const effect = await addEffect(source, "bandSplit")
+  render(<Outputs track={source} effect={effect} />)
+  const cursor = history().cursor
+  for (const [output, label] of ["Low", "Mid", "High"].entries()) {
+    // Existing fixture names are used as real mixer destinations.
+    const destination = destinations[output] ?? destinations[0]
+    await choose(user, `${label} output of Band Split: not routed`, new RegExp(destination.name))
+    expect(routes()).toContainEqual({ effect, output, target: destination.id })
+  }
+  expect(history().cursor).toBe(cursor + 3)
+  await fileRoundTrip()
+  await undo()
+  await flush()
+  expect(routes()).toHaveLength(2)
+  await redo()
+  await flush()
+  expect(routes()).toHaveLength(3)
 })

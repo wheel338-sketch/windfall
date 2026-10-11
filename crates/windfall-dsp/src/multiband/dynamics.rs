@@ -35,6 +35,42 @@ impl BandSplit {
             std::array::from_fn(|c| audio(bands[2][c] * high + bands[1][c] * mid * (1.0 - mode))),
         ]
     }
+
+    /// Block form of the separate-output seam, for a host that routes the
+    /// bands to other tracks. A band flagged in `routed` (low, mid, high)
+    /// leaves the main signal and is written to its own buffer; a band that
+    /// is not routed stays in the main signal and its buffer is silent.
+    /// With none routed this is exactly `process`, and whatever is routed,
+    /// the main signal and the three buffers add up to what `process` puts
+    /// out. In two-band mode the mid band is silent and the high band
+    /// carries everything above the crossover. A buffer shorter than the
+    /// block is filled as far as it goes. Does not allocate.
+    pub fn process_routed(
+        &mut self,
+        left: &mut [f32],
+        right: &mut [f32],
+        routed: [bool; 3],
+        mut outputs: [&mut [[f32; 2]]; 3],
+    ) {
+        for (index, (l, r)) in left.iter_mut().zip(right.iter_mut()).enumerate() {
+            let bands = self.split_frame([*l, *r]);
+            let mut main = [0.0_f32; 2];
+            for (band, output) in outputs.iter_mut().enumerate() {
+                let away = if routed[band] {
+                    bands[band]
+                } else {
+                    main[0] += bands[band][0];
+                    main[1] += bands[band][1];
+                    [0.0; 2]
+                };
+                if let Some(frame) = output.get_mut(index) {
+                    *frame = away;
+                }
+            }
+            *l = audio(main[0]);
+            *r = audio(main[1]);
+        }
+    }
 }
 
 impl Effect for BandSplit {

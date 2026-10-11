@@ -12,6 +12,7 @@ import {
 import { useParamAutomation } from "@/features/automation/live"
 import { dispatch } from "@/lib/store"
 
+import { BandSplitEditor } from "./band-split/band-split-editor"
 import { CompressorEditor } from "./compressor/compressor-editor"
 import { DelayEditor } from "./delay/delay-editor"
 import {
@@ -27,8 +28,15 @@ import {
 } from "./dynamics/multiband-editor"
 import type { EditorProps } from "./editor-props"
 import { EqEditor } from "./eq/eq-editor"
+import { FilterBankEditor } from "./filter-bank/filter-bank-editor"
+import { FilterEditor } from "./filter/filter-editor"
+import { MorphEqEditor } from "./graphic/morph-eq-editor"
+import { SevenBandEditor } from "./graphic/seven-band-editor"
 import { LimiterEditor } from "./limiter/limiter-editor"
+import { PanMotionEditor } from "./motion/pan-motion-editor"
 import { ReverbEditor } from "./reverb/reverb-editor"
+import { SpreaderEditor } from "./stereo/spreader-editor"
+import { StereoEnhancerEditor } from "./stereo/stereo-enhancer-editor"
 import { TunerEditor } from "./tuner/tuner-editor"
 
 type Editors = {
@@ -53,7 +61,15 @@ const EDITORS: Editors = {
   bassHarmonics: BassHarmonicsEditor,
   stageStack: StageStackEditor,
   masterLimiter: MasterLimiterEditor,
+  sevenBand: SevenBandEditor,
+  spreader: SpreaderEditor,
+  stereoEnhancer: StereoEnhancerEditor,
+  panLfo: PanMotionEditor,
+  morphEq: MorphEqEditor,
   tuner: TunerEditor,
+  bandSplit: BandSplitEditor,
+  selectableFilter: FilterEditor,
+  filterBank: FilterBankEditor,
 }
 
 type AnyEditor = ComponentType<EditorProps<EffectParams>>

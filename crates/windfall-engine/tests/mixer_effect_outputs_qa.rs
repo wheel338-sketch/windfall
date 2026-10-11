@@ -837,3 +837,86 @@ fn qa_transient_split_routes_follow_commands_history_file_and_offline_render() {
     rig.project = document.project().clone();
     assert_eq!(left(&rig.play(RATE, frames, 127)), attack, "redone routes");
 }
+
+#[test]
+fn qa_band_split_routes_each_band_through_tracks_history_files_and_export() {
+    use windfall_dsp::{BandSplit, BandSplitParams};
+    use windfall_dsp::multiband::BandCount;
+    for mode in [BandCount::Two, BandCount::Three] {
+        let mut rig = Rig::new();
+        let source = rig.track();
+        let targets = [rig.track(), rig.track(), rig.track()];
+        let channel = rig.channel_on(counting(RATE, 2_000), source);
+        rig.steps(channel, &[0]);
+        let input = left(&rig.play(RATE, FRAMES, 127));
+        let params = BandSplitParams { bands: mode, ..Default::default() };
+        let effect = rig.effect(source, EffectParams::BandSplit(params));
+        // A later processor and the source fader cannot alter routed bands.
+        rig.effect(source, flip());
+        rig.track_mut(source).volume = 0.25;
+        let mut doc = Document::new(rig.project.clone());
+        for (output, target) in targets.iter().enumerate() {
+            doc.dispatch(Command::SetEffectOutput {
+                effect, output: output as u8, target: Some(*target),
+            }, None).unwrap();
+        }
+        let routed = doc.project().clone();
+        doc.undo().unwrap();
+        assert_eq!(doc.project().mixer.effect_outputs.len(), 2);
+        doc.redo().unwrap();
+        assert_eq!(doc.project(), &routed);
+        assert!(doc.dispatch(Command::SetEffectOutput {
+            effect, output: 3, target: Some(targets[0]),
+        }, None).is_err());
+        rig.project = file::from_json(&file::to_json(doc.project()).unwrap()).unwrap();
+        assert_eq!(rig.project.mixer.effect_outputs, routed.mixer.effect_outputs);
+        let mut dsp = BandSplit::default();
+        dsp.prepare(RATE as f32, 512);
+        dsp.set_params(&params);
+        let expected: Vec<_> = input.iter().map(|&x| dsp.split_frame([x, x])).collect();
+        for band in 0..3 {
+            for (index, target) in targets.iter().enumerate() {
+                rig.track_mut(*target).muted = index != band;
+            }
+            let heard = rig.play(RATE, FRAMES, 127);
+            for (n, pair) in heard.chunks_exact(2).enumerate() {
+                for side in 0..2 {
+                    assert!((pair[side] - expected[n][band][side]).abs() < 2e-6,
+                        "{mode:?}, band {band}, frame {n}");
+                }
+            }
+            assert_eq!(heard, rig.play(RATE, FRAMES, 1));
+            assert_eq!(heard, rig.play(RATE, FRAMES, 64));
+            let exported = render(&rig.project, &rig.pool, &RenderOptions {
+                sample_rate: RATE, block_frames: 127, ..Default::default()
+            }, &mut |_| true);
+            assert_eq!(&heard[..FRAMES * 2], &exported.samples()[..FRAMES * 2]);
+        }
+        for target in targets { rig.track_mut(target).muted = false; }
+        let together = left(&rig.play(RATE, FRAMES, 127));
+        for n in 0..FRAMES {
+            let sum: f32 = expected[n].iter().map(|frame| frame[0]).sum();
+            assert!((together[n] - sum).abs() < 3e-6);
+        }
+        // Three real routed outputs do not allocate or retire storage in the callback.
+        let (mut processor, controller) = rig.processor(RATE);
+        controller.play();
+        let mut buffer = [0.0; 254];
+        processor.process(&mut buffer);
+        assert_eq!(allocator_calls(|| {
+            for _ in 0..24 { processor.process(&mut buffer); }
+        }), 0);
+        // Destinations have independent processors: invert only the low band.
+        rig.effect(targets[0], flip());
+        let processed = left(&rig.play(RATE, FRAMES, 127));
+        for n in 0..FRAMES {
+            let want = -expected[n][0][0] + expected[n][1][0] + expected[n][2][0];
+            assert!((processed[n] - want).abs() < 3e-6);
+        }
+        // Off at startup: the chain gets dry audio and destinations get silence.
+        rig.effect_mut(effect).enabled = false;
+        for target in targets { rig.track_mut(target).muted = true; }
+        let bypass = left(&rig.play(RATE, FRAMES, 127));
+        for n in 0..FRAMES { assert!((bypass[n] + 0.25 * input[n]).abs() < 1e-6); }
+    }
+}

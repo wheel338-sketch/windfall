@@ -1667,7 +1667,7 @@ impl AnyEffect {
 }
 
 /// Most separately routable outputs one effect has beside its main output.
-pub const MAX_AUX_OUTPUTS: usize = 2;
+pub const MAX_AUX_OUTPUTS: usize = 3;
 
 /// One output of an effect that a host can route somewhere other than the
 /// next place in the chain.
@@ -1717,6 +1717,11 @@ impl EffectKind {
                     splits: true,
                 },
             ],
+            EffectKind::BandSplit => &[
+                AuxOutputInfo { id: "low", label: "Low", splits: true },
+                AuxOutputInfo { id: "mid", label: "Mid", splits: true },
+                AuxOutputInfo { id: "high", label: "High", splits: true },
+            ],
             _ => &[],
         }
     }
@@ -1733,8 +1738,8 @@ impl AnyEffect {
         aux: &mut AuxBlock<'_>,
     ) {
         let frames = left.len().min(right.len());
-        let [first, second] = &mut aux.outputs;
-        let (first, second) = (&mut first[..frames], &mut second[..frames]);
+        let [first, second, third] = &mut aux.outputs;
+        let (first, second, third) = (&mut first[..frames], &mut second[..frames], &mut third[..frames]);
         match self {
             AnyEffect::SendTap(effect) => {
                 effect.process(left, right);
@@ -1744,6 +1749,7 @@ impl AnyEffect {
                     first.fill([0.0; 2]);
                 }
                 second.fill([0.0; 2]);
+                third.fill([0.0; 2]);
             }
             AnyEffect::TransientShaper(effect) => {
                 let routed = [aux.routed & 1 != 0, aux.routed & 2 != 0];
@@ -1752,11 +1758,18 @@ impl AnyEffect {
             AnyEffect::TransientSplit(effect) => {
                 let routed = [aux.routed & 1 != 0, aux.routed & 2 != 0];
                 effect.process_routed(left, right, routed, first, second);
+                third.fill([0.0; 2]);
+            }
+            AnyEffect::BandSplit(effect) => {
+                effect.process_routed(left, right,
+                    [aux.routed & 1 != 0, aux.routed & 2 != 0, aux.routed & 4 != 0],
+                    [first, second, third]);
             }
             _ => {
                 self.process_sidechain(left, right, key);
                 first.fill([0.0; 2]);
                 second.fill([0.0; 2]);
+                third.fill([0.0; 2]);
             }
         }
     }
@@ -2016,10 +2029,10 @@ impl EffectSlot {
         let mut start = 0;
         while start < frames {
             let end = (start + piece).min(frames);
-            let [first, second] = &mut aux.outputs;
+            let [first, second, third] = &mut aux.outputs;
             let mut part = AuxBlock {
                 routed: aux.routed,
-                outputs: [&mut first[start..end], &mut second[start..end]],
+                outputs: [&mut first[start..end], &mut second[start..end], &mut third[start..end]],
             };
             self.process_piece(
                 &mut left[start..end],
