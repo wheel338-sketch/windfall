@@ -56,7 +56,11 @@ written, not executed cases: synth/effect and disconnected-wire reference,
 parallel compensated dry/wet reference, nested/source latency agreement,
 per-frame gain-envelope reference, live property-update reference, independent
 sequence/arpeggio schedules across four block sizes, and allocator/overflow
-admission coverage. Mounted cases and further ownership cases follow. Existing EVERY_COMMAND gains setChannelRack.
+admission coverage. Mounted `features/modular/editor.test.tsx` now has written, not executed cases:
+add/connect/disconnect/undo, atomic cycle refusal, nested preset round-trip,
+mute/solo/removal undo, each of the six distinct module controls, and persisted
+held-chord mode. It uses the existing real-WASM document harness; regenerate
+bindings and simulator before running. Further engine ownership cases follow. Existing EVERY_COMMAND gains setChannelRack.
 
 ## Integrator commands (not executed here)
 
