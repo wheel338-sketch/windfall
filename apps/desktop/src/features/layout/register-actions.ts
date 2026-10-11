@@ -12,6 +12,7 @@ import { registerSpectrogramActions } from "@/features/spectrogram/actions"
 import { registerBuiltinActions } from "@/lib/actions/builtin"
 import { registerPluginActions } from "@/features/plugins/store"
 import { registerToolsActions } from "@/features/tools/actions"
+import { registerTouchControllerActions } from "@/features/touch-controllers/actions"
 
 /**
  * Puts every action the app has in the registry: the shell's own and each
@@ -33,6 +34,7 @@ export function registerAllActions(): () => void {
     registerPhaseMeterActions(),
     registerSpectrogramActions(),
     registerToolsActions(),
+    registerTouchControllerActions(),
   ]
   return () => {
     for (const stop of stops) stop()

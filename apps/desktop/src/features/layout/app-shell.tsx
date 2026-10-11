@@ -30,6 +30,7 @@ import { useToastOffset } from "./toast-place"
 import { useAppBoot, useWindowTitle } from "./use-app-boot"
 import { Workspace } from "./workspace"
 import { PluginManager } from "@/features/plugins/manager"
+import { TouchControllersWindow } from "@/features/touch-controllers/window"
 
 /** The most room a toast takes across, however long its message. */
 const TOAST_WIDTH = 340
@@ -67,6 +68,7 @@ export function Overlays() {
       <ProjectOverviewPanel />
       <PhaseMeterPanel />
       <SpectrogramPanel />
+      <TouchControllersWindow />
       <Toaster
         theme={theme}
         position="bottom-right"
