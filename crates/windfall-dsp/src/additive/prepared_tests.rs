@@ -345,3 +345,39 @@ fn prepared_voice_stealing_preserves_endpoint_and_stop_reaches_exact_silence() {
     assert_eq!(synth.active_voices(), 0);
     assert!(l.iter().chain(&r).all(|x| *x == 0.0));
 }
+
+#[test]
+fn snapshot_phase_interpolation_takes_the_short_path_across_cycle_zero() {
+    let bank = SpectralBank {
+        frames: [0.99, 0.01]
+            .into_iter()
+            .map(|phase| SpectralFrame {
+                partials: vec![SpectralPartial {
+                    ratio: 1.0,
+                    level: 1.0,
+                    phase,
+                    pan: 0.0,
+                }],
+            })
+            .collect(),
+        frame_seconds: 0.05,
+        root_hz: 440.0,
+        preset_number: None,
+    };
+    let mut synth = SnapshotMorph::default();
+    synth.set_bank(&bank);
+    synth.prepare(48000.0, 257);
+    synth.set_params(&SnapshotMorphParams {
+        morph: 0.5,
+        level: 1.0,
+        attack_ms: 0.1,
+        ..Default::default()
+    });
+    synth.note_on(69, 1.0);
+    let (mut l, mut r) = ([0.0; 4096], [0.0; 4096]);
+    synth.process(&mut l, &mut r);
+    for (i, x) in l.iter().enumerate().skip(10) {
+        let reference = (std::f64::consts::TAU * 440.0 * i as f64 / 48000.0).sin() * 0.5;
+        assert!((f64::from(*x) - reference).abs() < 0.0005);
+    }
+}

@@ -224,7 +224,11 @@ impl PreparedEngine {
                     c.position * last as f32
                 };
                 let a = (position.floor() as usize).min(last);
-                let b = (a + 1).min(last);
+                let b = if self.target.scan && a == last {
+                    0
+                } else {
+                    (a + 1).min(last)
+                };
                 let mix = position.fract();
                 let attack = (seconds / (self.target.attack * 0.001).max(1.0 / self.rate)).min(1.0);
                 let natural = if self.target.decay > 0.0 {
@@ -265,8 +269,9 @@ impl PreparedEngine {
                         + c.shimmer_depth
                             * sine_turns((seconds * c.shimmer + i as f32 * 0.137).fract());
                     let pan = ((pa.pan + (pb.pan - pa.pan) * mix) * c.pan_width).clamp(-1.0, 1.0);
-                    let phase_offset = pa.phase - self.bank.frames[0].partials[i].phase
-                        + (pb.phase - pa.phase) * mix;
+                    let phase_delta = (pb.phase - pa.phase + 0.5).rem_euclid(1.0) - 0.5;
+                    let phase_offset =
+                        pa.phase - self.bank.frames[0].partials[i].phase + phase_delta * mix;
                     let sample = sine_turns((v.phases[i] + phase_offset).rem_euclid(1.0))
                         * level
                         * shape

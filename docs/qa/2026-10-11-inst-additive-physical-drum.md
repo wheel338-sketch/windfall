@@ -256,3 +256,11 @@ steal, including a changed velocity/start position, and keep a short expired
 sample alive only until that correction settles. Stop/reset clear it deterministically.
 Written, not executed: `stolen_sample_layer_preserves_endpoint_and_stop_silences_corrections`;
 existing independent sample-only playback remains unchanged without a steal.
+
+### Spectral phase-wrap checkpoint
+
+Phase interpolation now follows the shortest cycle path across zero and timed
+scan interpolates the last column back into the first column. This avoids a
+spurious half-cycle inversion for analyzed phases near 0/1 and a hard spectrum
+jump on image scan wrap. Written, not executed:
+`snapshot_phase_interpolation_takes_the_short_path_across_cycle_zero`.
