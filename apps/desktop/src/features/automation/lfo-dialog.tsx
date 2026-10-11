@@ -56,11 +56,11 @@ export function openAutomationLfo(id: AutomationId, range?: { start: number; end
   if (!automation) return
   const clipEnd = project.playlist.clips.reduce((end, clip) => clip.content.type === "automation" && clip.content.automation === id
     ? Math.max(end, Math.min(MAX_SONG_TICKS, clip.offset + clip.length)) : end, 0)
-  const ranged = range && range.end > range.start && range.start >= 0
+  const shown = range && range.end > range.start && range.start >= 0 ? range : null
   useLfoDialog.setState({ request: {
     ...capture(), kind: "automation", expected: { ...automation, target: { ...automation.target }, points: automation.points.map((point) => ({ ...point })) },
-    start: ranged ? Math.min(MAX_SONG_TICKS - 1, range.start) : 0,
-    end: ranged ? Math.min(MAX_SONG_TICKS, range.end) : Math.min(MAX_SONG_TICKS, Math.max(PPQ * 4, clipEnd, automation.points.at(-1)?.tick ?? 0)),
+    start: shown ? Math.min(MAX_SONG_TICKS - 1, shown.start) : 0,
+    end: shown ? Math.min(MAX_SONG_TICKS, shown.end) : Math.min(MAX_SONG_TICKS, Math.max(PPQ * 4, clipEnd, automation.points.at(-1)?.tick ?? 0)),
   } })
 }
 
