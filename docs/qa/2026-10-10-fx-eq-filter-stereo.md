@@ -365,3 +365,8 @@ Stereo Enhancer's moving phase delay temporarily bends pitch; Morph EQ stores
 settings rather than analyzing/capturing audio. Those wider behaviors are not
 part of the supplied summaries. Hardware/listening review is external. Every
 new or previously authored test in this stream remains written, not executed.
+
+Final source review also closes an interrupted drawing gesture when its unit
+panel unmounts, using the existing binder's gesture-end callback. Working tree
+is clean after commits. No build, test, typecheck, lint, generator, benchmark,
+sub-agent, push or PR was invoked by this worker.

@@ -1,4 +1,4 @@
-import { useRef, type PointerEvent } from "react"
+import { useEffect, useRef, type PointerEvent } from "react"
 import { Button } from "@/components/ui/button"
 import type { ParamBinder } from "@/features/params"
 import { ParamFader } from "../controls/param-fader"
@@ -10,6 +10,8 @@ export function PatternEditor({ bind, unit, kind }: {
 }) {
   const prefix = `patterns.${unit}.${kind}`
   const group = bind.group(prefix)
+  // Selecting another unit or closing the effect must finish a held stroke.
+  useEffect(() => () => group.onGestureEnd(), [group])
   const held = useRef<{ index: number; value: number } | null>(null)
   const ids = Array.from({ length: POINTS }, (_, i) => `${prefix}.${i}`)
   const values = ids.map((id) => bind.value(id))
