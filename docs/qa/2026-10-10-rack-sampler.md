@@ -353,9 +353,21 @@ Go to these first.
    and the loop refusal, which goes through the store's error report.
 9. `inspector/preprocess-section.tsx`: `toggle()` returns JSX from a helper
    called during render; the `mounted` ref pattern.
-10. Prettier was not run on any TypeScript. Formatting was done by hand.
-11. `cargo fmt` was run only on new Rust files (see below). Edited Rust files
-    were formatted by hand and may need `cargo fmt`.
+10. `session/tests/transport_acceptance.rs`: never compiled. The exact list
+    of announced transport states and the `rms == 0.0` checks are the
+    likeliest failures.
+11. Unexecuted tests can hold plain logic mistakes. One was found on
+    re-reading and fixed: `tests/rack_voice.rs` compared the whole history
+    after an undo, which can never match because the undone entry stays for
+    redo. Expect a few more of that kind.
+12. `rack-voice.qa.test.tsx` assumes the browser test project has channels
+    named `Kick` and `Snare`, as `inspector.test.tsx` does.
+13. Prettier was not run on any TypeScript. Formatting was done by hand.
+14. `rustfmt` was run on the new Rust files and on `voice.rs` and the project
+    `channel_voice.rs`, which were clean before. `rustfmt --check` parses
+    every other edited Rust file without a syntax error. `plan.rs`,
+    `check.rs`, `shared.rs` and `controller.rs` had formatting differences
+    before this work and were left alone.
 
 ## Shared seam files touched
 
@@ -368,7 +380,8 @@ Go to these first.
 - `apps/desktop/src-tauri/src/commands.rs`: `sampler_preprocess` command and
   its handler registration.
 - `apps/desktop/src-tauri/src/session/mod.rs`: `mod sampler_preprocess;`.
-- `apps/desktop/src-tauri/src/session/tests/mod.rs`: `mod sampler_preprocess;`.
+- `apps/desktop/src-tauri/src/session/tests/mod.rs`: `mod sampler_preprocess;`
+  and `mod transport_acceptance;`.
 - `apps/desktop/src/lib/ipc/{backend,tauri,mock}.ts`: `samplerPreprocess`.
 - `apps/desktop/src/features/channel-rack/actions.ts`: `channel.addLayer`.
 
