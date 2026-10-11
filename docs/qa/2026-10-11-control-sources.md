@@ -46,3 +46,5 @@ Added engine acceptance for reversed formula mapping with independently calculat
 Registry seam review: new Command and effect parameter/processor variants are appended after existing entries; old kind and descriptor indices remain intact. No generated files were edited.
 
 UI follow-up: destination menu now resolves both removal and source choices against the current document; internal Tempo shows its concrete disabled reason. Pad/drawn-envelope right-click opens context without moving values. Surface controls respect disabled bindings and slider gestures end on capture loss/blur/commit. Formula editor shows the installed expression while editing a draft.
+
+Mounted acceptance now arms the real automation recorder and checks X/Y keyboard edits for XY and XYZ pads write normalized points into actual document curves. Realtime transport delivery is simulated for this UI-only case. A right-click history regression case is also written. Not executed. Native simultaneous multi-axis recording remains an integrator acceptance check.

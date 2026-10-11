@@ -2,19 +2,24 @@
 import { act, fireEvent, render, screen } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { beforeEach, afterEach, expect, it, vi } from "vitest"
-import type { EffectId, EffectKind, TrackId } from "@/bindings"
+import type { EffectId, EffectKind, TrackId, RealtimeFrame } from "@/bindings"
 import { EffectEditor } from "@/features/effects/effect-editor"
 import { ValueContextMenus } from "@/components/value-context-menu"
-import { dispatch, undo, useProjectStore } from "@/lib/store/project"
+import { dispatch, undo, receivePatch, useProjectStore } from "@/lib/store/project"
 import { settle, startTestApp } from "@/test/harness"
 import { controllerEntries } from "@/features/controllers/menu"
 import { addInternalLink, internalSources } from "./model"
 import { DashboardEditor } from "./dashboard"
+import type { MockBackend } from "@/lib/ipc/mock"
+import { subscribeRealtime } from "@/lib/store/realtime"
+import { useTransportStore } from "@/lib/store/transport"
+import { useAutomationRecordStore, watchAutomationRecording } from "@/features/automation/record"
 vi.mock("sonner", () => ({ toast: Object.assign(vi.fn(), { error: vi.fn(), success: vi.fn() }) }))
 let stop: () => void
+let appBackend: MockBackend
 let track: TrackId
 beforeEach(async () => {
-  const app = await startTestApp(); stop = app.stop;
+  const app = await startTestApp(); stop = app.stop; appBackend = app.backend;
   track = useProjectStore.getState().project.mixer.tracks[1].id
 })
 afterEach(() => { stop(); vi.restoreAllMocks() })
@@ -91,4 +96,43 @@ it("dashboard mounts configurable panel with real assignable MIDI controls",asyn
   render(<ValueContextMenus><Panel /></ValueContextMenus>);await act(settle)
   expect(screen.getByLabelText("Dashboard panel")).toBeInTheDocument();await userEvent.setup().click(screen.getByRole("button",{name:"Add control"}));await act(settle)
   expect(config(id)?.controls?.[0].output).toBe(0);expect(internalSources(useProjectStore.getState().project).find((s) => s.id === id)?.ports.length).toBe(8)
+})
+
+it.each(["xyPad", "xyzPad"] satisfies EffectKind[])("pad %s axis edits are recordable into real saved automation curves", async (kind) => {
+  let push: (frame: RealtimeFrame) => void = () => { throw new Error("No realtime subscriber") }
+  let pending: FrameRequestCallback[] = []
+  vi.spyOn(appBackend,"subscribeRealtime").mockImplementation((handler) => { push = handler; return () => {} })
+  vi.stubGlobal("requestAnimationFrame",(callback: FrameRequestCallback) => { pending.push(callback); return pending.length })
+  vi.stubGlobal("cancelAnimationFrame",() => {})
+  const stopFeed = subscribeRealtime(() => undefined)
+  const id = await open(kind)
+  const recorded: number[] = []
+  for (const param of [0,1]) {
+    const result = await appBackend.automate({type:"effectParam",track,effect:id,param})
+    receivePatch(result.patch); recorded.push(result.created[0])
+  }
+  await act(settle)
+  useTransportStore.setState({playing:true,mode:"song"})
+  push({playing:true,tick:120,meters:[],cpu:0,xruns:0,voices:0,gainReductions:[],automated:recorded.map((automation) => ({automation,value:0.5})),audioClips:0,droppedClips:0})
+  const due = pending; pending = []; act(() => { for (const callback of due) callback(0) })
+  const stopRecording = watchAutomationRecording()
+  useAutomationRecordStore.setState({recordArmed:true})
+  try {
+    const pad = screen.getByRole("group",{name:kind === "xyPad" ? "XY control pad" : "XYZ control pad"})
+    fireEvent.keyDown(pad,{key:"ArrowRight"}); await act(settle)
+    fireEvent.keyDown(pad,{key:"ArrowUp"}); await act(settle)
+    for (const automation of recorded) {
+      const curve = useProjectStore.getState().project.automations.find((a) => a.id === automation)
+      expect(curve?.points).toContainEqual({tick:120,value:0.51,curve:0,hold:false})
+    }
+  } finally {
+    useAutomationRecordStore.setState({recordArmed:false}); stopRecording(); stopFeed(); vi.unstubAllGlobals()
+  }
+})
+it("pad right-click leaves values and undo history untouched",async () => {
+  await open("xyPad"); const pad = screen.getByRole("group",{name:"XY control pad"})
+  vi.spyOn(pad,"getBoundingClientRect").mockReturnValue(new DOMRect(0,0,200,100))
+  const before = useProjectStore.getState().history.entries.length
+  fireEvent.pointerDown(pad,{button:2,pointerId:1,clientX:190,clientY:90}); fireEvent.pointerUp(pad,{button:2,pointerId:1}); await act(settle)
+  expect(useProjectStore.getState().history.entries.length).toBe(before)
 })
