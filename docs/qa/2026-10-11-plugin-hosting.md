@@ -220,3 +220,28 @@ the project plan covers CLAP, VST3 and Audio Unit. Updated the historical
 licence investigation accordingly. No SDK, header or VST2 implementation is
 added, and no legal conclusion is inferred from the product scope decision.
 The overseer owns recording this exclusion and narrowing the umbrella wording.
+
+## Wrapper controls checkpoint
+
+Added a separate wrapper controls module to the existing native plugin inspector:
+smart disable, fixed native buffer (including uncommon saved sizes), real owner
+selection, editor scale and detached/owned windows. Each edit uses SetPluginWrapper
+and the document's normal undo/save/reopen path. Pending commands disable controls;
+failed edits retain saved values and permit retry. Threaded is visibly unavailable,
+and previously saved threaded policies can be changed to a supported provider.
+Reads the latest binding before dispatch and resets transient UI on project or
+native identity replacement. Picker/database and sidechain controls are untouched.
+
+Tests in wrapper-controls.test.tsx, written, not executed:
+- saves wrapper edits through document history and restores defaults on undo
+- retains owner and editor choices in an actual saved and reopened document
+- preserves saved uncommon values and lets a refused owner policy recover
+- keeps saved controls unchanged on a failed command and permits retry
+
+After bindings and simulation regeneration, the integrator should run from
+apps/desktop: npm run test -- src/features/plugins/wrapper-controls.test.tsx
+src/features/plugins/plugins.test.tsx src/lib/ipc/sim/document.test.ts;
+npm run typecheck; npm run lint. These commands have not been run by the worker.
+Check generated optional fixedBuffer shape, Base UI numeric Select/ToggleGroup
+types and mounted async/history behavior first. This closes the controls software
+gap; threaded owner processing and fresh native acceptance remain open.

@@ -16,6 +16,7 @@ import { reportError } from "@/lib/errors"
 import { backend } from "@/lib/ipc"
 import { dispatch, useProjectStore } from "@/lib/store"
 import { openPluginManager, sameTarget } from "./store"
+import { PluginWrapperControls } from "./wrapper-controls"
 
 function Parameter({
   binding,
@@ -165,6 +166,7 @@ export function PluginControls({ binding }: { binding: PluginBinding }) {
           Manage plugins
         </Button>
       </div>
+      <PluginWrapperControls binding={binding} />
       <FieldGroup>
         {binding.target.type === "effect" && (
           <Field>
