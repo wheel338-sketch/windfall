@@ -75,3 +75,8 @@ fn verify(kind: EffectKind, id: &str, expected_latency: usize) {
 fn multiband_compressor_automation_is_audible_and_matches_live_render_without_allocations() {
     verify(EffectKind::MultibandCompressor, "low.thresholdDb", 0);
 }
+
+#[test]
+fn maximizer_band_automation_matches_live_render_with_both_pdc_stages() {
+    verify(EffectKind::MultibandMaximizer, "lowCeilingDb", 96);
+}

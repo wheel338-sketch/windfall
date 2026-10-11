@@ -622,3 +622,65 @@ fn shaper_saved_aux_routes_remove_only_the_routed_parts_and_ignore_listen() {
         }
     }
 }
+
+
+#[test]
+fn unity_band_sum_matches_the_independent_cascaded_allpass_phase_reference() {
+    // LR4 low+high equals the second-order Butterworth allpass. Derive
+    // its bilinear coefficients here rather than using product filters.
+    let allpass = |edge: f64, hz: f64, rate: f64| {
+        let k = (std::f64::consts::PI * edge / rate).tan();
+        let norm = 1.0 + std::f64::consts::SQRT_2 * k + k*k;
+        let a1 = 2.0 * (k*k - 1.0) / norm;
+        let a2 = (1.0 - std::f64::consts::SQRT_2*k + k*k) / norm;
+        let w = TAU * hz / rate;
+        let (c1,s1,c2,s2) = (w.cos(), -w.sin(), (2.0*w).cos(), -(2.0*w).sin());
+        let (nr,ni) = (a2 + a1*c1 + c2, a1*s1 + s2);
+        let (dr,di) = (1.0 + a1*c1 + a2*c2, a1*s1 + a2*s2);
+        let d = dr*dr + di*di;
+        ((nr*dr + ni*di)/d, (ni*dr - nr*di)/d)
+    };
+    for rate in [44_100, 48_000, 96_000] {
+        for hz in [20.0, 200.0, 1_000.0, 2_500.0, 12_000.0] {
+            let unity = BandDynamicsParams { ratio: 1.0, makeup_db: 0.0, ..Default::default() };
+            let mut compressor = windfall_dsp::multiband::MultibandCompressor::default();
+            compressor.prepare(rate as f32, 512);
+            compressor.set_params(&MultibandCompressorParams { low: unity, mid: unity, high: unity, ..Default::default() });
+            let input = sine(hz, 0.1, 0.0, 3 * rate as usize, rate);
+            let output = run(&mut compressor, &input, 137);
+            let (mut re, mut im) = (0.0, 0.0);
+            for (n,x) in output.iter().enumerate().skip(2 * rate as usize) {
+                let w = TAU * hz * n as f64 / f64::from(rate);
+                re += f64::from(*x) * w.sin(); im += f64::from(*x) * w.cos();
+            }
+            re *= 20.0 / f64::from(rate); im *= 20.0 / f64::from(rate);
+            let (a,b) = allpass(200.0, hz, f64::from(rate));
+            let (c,d) = allpass(2_500.0, hz, f64::from(rate));
+            assert!((re - (a*c-b*d)).hypot(im-(a*d+b*c)) < 2e-4, "phase {rate} Hz {hz}: {re} {im}");
+            assert!((re.hypot(im)-1.0).abs() < 2e-4);
+        }
+    }
+}
+
+#[test]
+fn maximizer_band_ceilings_protect_each_band_before_the_master_sum() {
+    use windfall_dsp::multiband::{MultibandMaximizer, MultibandMaximizerParams};
+    let unity = BandDynamicsParams { ratio: 1.0, makeup_db: 0.0, ..Default::default() };
+    for (hz, ceiling) in [(40.0, -18.0), (800.0, -12.0), (12_000.0, -6.0)] {
+        let mut effect = MultibandMaximizer::default();
+        effect.prepare(RATE as f32, 512);
+        effect.set_params(&MultibandMaximizerParams {
+            low: unity, mid: unity, high: unity,
+            low_ceiling_db: if hz < 200.0 { ceiling } else { 0.0 },
+            mid_ceiling_db: if hz > 200.0 && hz < 2_500.0 { ceiling } else { 0.0 },
+            high_ceiling_db: if hz > 2_500.0 { ceiling } else { 0.0 },
+            ceiling_db: 0.0, input_gain_db: 0.0, ..Default::default()
+        });
+        let input = sine(hz, 0.8, 0.0, 3 * RATE as usize, RATE);
+        let output = run(&mut effect, &input, 131);
+        let fundamental = amplitude_at(&output[2 * RATE as usize..], hz, RATE);
+        assert!((db(fundamental) - f64::from(ceiling)).abs() < 1.5, "{hz}: {} dB", db(fundamental));
+        assert_eq!(effect.latency_samples(), 96);
+        assert!(effect.tail_samples() >= effect.latency_samples());
+    }
+}

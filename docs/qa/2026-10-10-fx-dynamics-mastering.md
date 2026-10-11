@@ -83,3 +83,22 @@ Added public engine acceptance module and registered it in `engine/main.rs`:
 measures audible automation, live/offline agreement after PDC, 17/251-frame
 partitions, finite samples, tail decay and zero callback allocations/frees.
 All tests written, not executed. Crossover phase reference follows below.
+
+
+### `fx-maximus` — full-row candidate
+
+Kept independently editable three-band compression, per-band limiters and sum
+limiter, matched external key and dedicated split/curve/band/ceiling editor.
+All reused LimiterParams literals retain `..LimiterParams::default()` so the
+integration branch's mode/compression/gate fields default correctly.
+Written, not executed: `maximizer_band_ceilings_protect_each_band_before_the_master_sum`
+checks separate low/mid/high ceilings on far-band probes and 96-frame latency;
+`unity_band_sum_matches_the_independent_cascaded_allpass_phase_reference` checks
+both unity magnitude AND complex phase at three rates and both crossover points.
+The latter also covers compressor recombination. Engine
+`maximizer_band_automation_matches_live_render_with_both_pdc_stages` uses real
+saved automation, renders/live comparison, partitioning, allocation guard and tail.
+Existing DSP independent detectors, external key, curves, partitions; mounted
+editor controls/automation; file/history tests apply to this distinct kind.
+This effect promises sample ceilings, not calibrated true-peak limiting; the
+Mastering Limiter and local mastering chain supply the true-peak workflow.
