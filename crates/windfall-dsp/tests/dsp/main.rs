@@ -18,6 +18,7 @@ mod support;
 mod synth;
 mod utilities;
 mod utility_repairs;
+mod e3_circuits;
 
 /// Counts allocator calls for the realtime tests. It does nothing on a
 /// thread that is not being watched, so the other tests are unaffected.

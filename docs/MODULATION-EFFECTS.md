@@ -1,5 +1,11 @@
 # Modulation effects
 
+The baseline Chorus/Flanger/Phaser contract below remains unchanged. The
+distinct Bucket Chorus, Swarm Chorus, Stage Phaser and Stacked Flanger circuits
+and their 2026-10-11 model/count/tempo additions are specified in
+[E3-CIRCUITS.md](E3-CIRCUITS.md). Their authored acceptance tests have not been
+executed by the edit-only worker.
+
 Windfall's **Chorus**, **Flanger** and **Phaser** are original stereo processors.
 Add them from a mixer track's Add effect menu. Every control uses the ordinary
 parameter editor: drag or type a value, double-click to reset, and use its context

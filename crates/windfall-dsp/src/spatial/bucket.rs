@@ -1,8 +1,8 @@
-//! A bucket-brigade delay line and the three published sweeps of the
-//! two-line chorus built into a classic analog polysynth.
+//! A bucket-brigade delay line and three Windfall sweeps following the
+//! public two-line chorus behaviour of a classic analog polysynth.
 //!
 //! The behaviour modelled here is the public description in
-//! docs/MODULATION-EFFECTS.md: two 256-stage lines, one per output side,
+//! docs/E3-CIRCUITS.md: two 256-stage lines, one per output side,
 //! swept by one triangle oscillator whose right side is inverted, with a
 //! two-pole lowpass ahead of each line. A bucket-brigade line holds half
 //! as many samples as it has stages and is as long as its clock makes it:
@@ -18,7 +18,7 @@ use ts_rs::TS;
 pub const BUCKET_SAMPLES: usize = 128;
 
 /// Corner of the two-pole lowpass ahead of each line, in Hz. The slowest
-/// clock of the published sweeps is 23.9 kHz, so this keeps what the line
+/// clock of the Windfall sweeps is 23.9 kHz, so this keeps what the line
 /// samples below half of it.
 pub const BUCKET_GUARD_HZ: f32 = 9_000.0;
 
@@ -96,7 +96,11 @@ impl BucketSweep {
     /// left line starts at its shortest and rises to its longest half way.
     pub fn delay_ms(&self, phase: f64, right: bool) -> f32 {
         let rise = super::common::triangle(phase);
-        let position = if right && self.stereo { 1.0 - rise } else { rise };
+        let position = if right && self.stereo {
+            1.0 - rise
+        } else {
+            rise
+        };
         self.min_ms + (self.max_ms - self.min_ms) * position
     }
 }

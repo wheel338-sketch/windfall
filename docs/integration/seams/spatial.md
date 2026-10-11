@@ -1,5 +1,13 @@
 # Spatial DSP integration seam
 
+2026-10-11 continuation: the registered E3 processors now expose actual bucket
+modes, selectable chorus voices, phaser stages/stagger and flanger order, with
+tempo controls and dedicated editors. [E3-CIRCUITS.md](../../E3-CIRCUITS.md)
+supersedes the earlier model/count coverage and tempo/warmup limits below.
+Inverted Delay and delay-bank host/editor gates are also implemented in source.
+The new tests are written, not executed; the old verification section records
+only the earlier circuit checkpoint, not these changes.
+
 Implemented in `crates/windfall-dsp/src/spatial/`, exported through the existing
 `pub mod spatial`. Only that directory and this document were edited for this
 assignment. These processors compile and implement the real in-place `Effect`

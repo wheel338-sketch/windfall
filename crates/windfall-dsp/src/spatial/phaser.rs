@@ -53,6 +53,8 @@ pub struct VintagePhaserParams {
     /// they get. At 1, the default, each stage sits a little higher than
     /// the one before, which spreads the notches out.
     pub stagger: f32,
+    pub sync: bool,
+    pub cycle_beats: f32,
 }
 impl Default for VintagePhaserParams {
     fn default() -> Self {
@@ -66,6 +68,8 @@ impl Default for VintagePhaserParams {
             mix: 0.5,
             stages: PhaserStages::Twelve,
             stagger: 1.0,
+            sync: false,
+            cycle_beats: 4.0,
         }
     }
 }
@@ -82,6 +86,8 @@ param_set!(VintagePhaserParams, "Stage Phaser", {
         [Twelve "twelve" "12", Four "four" "4", Six "six" "6", Eight "eight" "8"]
     }
     float [stagger] "stagger" "Stagger" { Fraction, Linear, 0.0, 1.0, 1.0 }
+    toggle [sync] "sync" "Tempo sync" { false }
+    float [cycle_beats] "cycleBeats" "Cycle (beats)" { None, Logarithmic, 0.125, 16.0, 4.0 }
 });
 
 /// The corner of stage `index` as a share of the sweep's center, at a
@@ -92,6 +98,7 @@ pub fn stage_ratio(index: usize) -> f32 {
 
 pub struct VintagePhaser {
     params: VintagePhaserParams,
+    tempo: f32,
     controls: Controls<8>,
     states: [[f32; PHASER_MAX_STAGES]; 2],
     /// How much each stage is in the chain, 0 or 1 at rest. A stage that
@@ -108,6 +115,7 @@ impl Default for VintagePhaser {
     fn default() -> Self {
         Self {
             params: VintagePhaserParams::default(),
+            tempo: 120.0,
             controls: Controls::default(),
             states: [[0.0; PHASER_MAX_STAGES]; 2],
             weights: [LinearRamp::new(1.0); PHASER_MAX_STAGES],
@@ -131,7 +139,7 @@ impl VintagePhaser {
         self.controls.set([
             p.min_hz.ln(),
             p.max_hz.ln(),
-            p.rate_hz,
+            super::common::modulation_hz(p.rate_hz, p.sync, p.cycle_beats, self.tempo),
             p.feedback,
             p.color_hz,
             p.stereo_phase,
@@ -163,6 +171,10 @@ impl Effect for VintagePhaser {
     }
     fn set_params(&mut self, p: &Self::Params) {
         self.params = p.sanitized();
+        self.apply();
+    }
+    fn set_tempo(&mut self, bpm: f32) {
+        self.tempo = bpm;
         self.apply();
     }
     fn process(&mut self, left: &mut [f32], right: &mut [f32]) {

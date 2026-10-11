@@ -32,12 +32,12 @@ their declared `spatial::model_tests` module absent; this resumption completes i
 | `fx-fruity-delay` | complete in source (`61cd12b6` and the test commit); nothing run | Inverted stereo mode in the core Delay, with DSP, importer, engine and UI tests |
 | `fx-fruity-delay-bank` | all four named gates addressed in source (`7ecea4c7`, `ef0ce026`, editor commit); nothing run | Linked eight-unit editor, fallible host admission, saturating tails |
 | `fx-multiband-delay` | all four named gates addressed in source; nothing run | Drawn sixteen-band delay/level/pan editor, same host gates |
-| `fx-luxeverb` | pending | |
-| `fx-fruity-reeverb` | pending | |
-| `fx-vintage-chorus` | pending | |
-| `fx-vintage-phaser` | pending | |
-| `fx-hyper-chorus` | pending | |
-| `fx-fruity-flangus` | pending | |
+| `fx-luxeverb` | DSP/test candidate; editor integration in progress | Feed-forward pitched wet voice, variable size, modulated tanks |
+| `fx-fruity-reeverb` | DSP/test candidate; editor integration in progress | Existing distinct compact room plus independent reflection timing |
+| `fx-vintage-chorus` | DSP/test candidate; editor integration in progress | Clocked bucket modes and free voices, tempo sync |
+| `fx-vintage-phaser` | DSP/test candidate; editor integration in progress | Four-stage equal-corner pedal circuit, stage/stagger controls, tempo sync |
+| `fx-hyper-chorus` | DSP/test candidate; editor integration in progress | Two to sixteen actual detuned voices per side, tempo sync |
+| `fx-fruity-flangus` | DSP/test candidate; editor integration in progress | One to four serial swept combs, correct four-comb warmup, tempo sync |
 
 ## `fx-fruity-delay`: basic echo with ping-pong, inverted stereo and a lowpass
 
@@ -266,3 +266,96 @@ touch: `crates/windfall-engine/src/lib.rs` (one `mod` line at the end),
 `rack.rs` (`EffectUnit::build` signature), `state.rs` (admission before
 plugin preparation, the fallible build of each effect, saturating sums in
 `settled`), `project_preparation.rs` (one `Display` arm).
+
+## 2026-10-11 circuit continuation
+
+[E3-CIRCUITS.md](../E3-CIRCUITS.md) gives the public behavioural references,
+authored circuit equations/limits, appended indices and exact row mapping.
+No dependencies, assets, commands, IPC variants or EffectKind variants added.
+The old generic hosting path already carries the six registered kinds through
+document commands, engine construction and realtime/offline processing.
+
+The previously missing `spatial/model_tests.rs` is now supplied. Continuous and
+topology controls glide per frame. Chorus voice weights/phaser stage weights/
+stack order weights retain first-frame and legacy defaults. Four stacked combs
+now report 64 ms warmup instead of the previous two-comb 32 ms. Lush reserves
+its largest size and pitch histories in preparation; its wet pitch is purely
+feed-forward and adds no feedback cycle. Zero amount keeps plain hall audio.
+
+### Per-row tests (all written, not executed)
+
+| Row | Direct DSP measurement | Native PCM/history/file case |
+| --- | --- | --- |
+| `fx-fruity-reeverb` | `spatial::model_tests::legacy_room_first_reflection_matches_its_fractional_delay_and_signed_level`; existing `spatial::tests` room decay | `room_size_changes_native_reflections_and_roundtrips` |
+| `fx-luxeverb` | `lush::pitch::tests::an_octave_voice_moves_the_measured_spectral_peak_and_preserves_stereo`, `lush::tests::size_moves_early_arrivals_without_changing_their_signed_gain`, `zero_pitch_amount_preserves_plain_audio_and_legacy_defaults`; existing lush decay/modulation tests; partition test now edits pitch/size | `lush_pitched_space_changes_native_audio_and_roundtrips` |
+| `fx-vintage-chorus` | `bucket_clock_has_128_samples_in_transit_and_a_bounded_work_limit`, `bucket_sweeps_have_opposed_triangles_and_the_both_mode_stays_mono`, `bucket_modes_ignore_free_controls_and_have_distinct_audio` | `bucket_mode_changes_native_character_and_roundtrips` |
+| `fx-vintage-phaser` | `four_equal_allpasses_produce_two_measured_pedal_notches` | `pedal_stage_configuration_changes_native_notches_and_roundtrips` |
+| `fx-hyper-chorus` | `swarm_count_measures_the_average_of_independently_delayed_voices` | `sixteen_voice_chorus_changes_native_detuning_and_roundtrips` |
+| `fx-fruity-flangus` | `stacked_combs_match_an_independent_difference_equation_for_every_order` | `four_stacked_combs_change_native_audio_and_roundtrip` |
+
+All modulation direct cases are in `crates/windfall-dsp/src/spatial/model_tests.rs`.
+Its shared cases `model_extrema_partition_edits_empty_blocks_and_tails_are_stable`,
+`tempo_sync_matches_free_rate_and_depth_zero_removes_detuning` and
+`legacy_model_settings_keep_defaults_and_descriptor_prefixes` cover each circuit.
+The six named native cases are in `crates/windfall-engine/tests/e3_circuits_qa.rs`;
+each measures real changed PCM, gesture undo/redo, disk save/load and exact live
+versus offline audio at 7/64/127-frame partitions.
+
+All six also have:
+
+- `crates/windfall-dsp/tests/dsp/e3_circuits.rs`, registered in `dsp/main.rs`:
+  `e3_slots_allocate_nothing_through_topology_tempo_reset_bypass_and_tail_expiry`,
+  `e3_bypass_wake_and_parameter_edits_are_partition_invariant_and_return_exact_dry`.
+- `crates/windfall-project/tests/e3_circuits.rs`: every control via real checked
+  commands; `settings_gestures_noops_and_disk_save_reopen_preserve_every_control`,
+  `v1_defaults_roundtrip_without_a_format_bump`,
+  `invalid_edits_are_atomic_and_finite_extrema_use_descriptor_sanitization`,
+  `every_control_has_the_correct_automation_range_and_removal_history_restores_curves`.
+- `apps/desktop/src/features/effects/e3-circuits.test.tsx`: six mounted descriptor/
+  distinct-control/history/file cases, six mounted automation cases, bucket model
+  disabling/return-to-Free, and four mounted tempo-cycle switches. Requires new
+  descriptors and Rust WASM; using the old generated artifacts does not validate it.
+
+### Integrator commands
+
+Use Git Bash, `source scripts/msvc-env.sh`, and a task-specific temporary
+`TS_RS_EXPORT_DIR` as in roadmap section 3. Regenerate bindings/descriptors and
+WASM on integration, then run the prior delay commands and:
+
+```bash
+cargo test -p windfall-dsp --lib spatial
+cargo test -p windfall-dsp --lib lush
+cargo test -p windfall-dsp --test dsp e3_circuits
+cargo test -p windfall-project --test e3_circuits
+cargo test -p windfall-engine --test e3_circuits_qa
+pnpm --dir apps/desktop test src/features/effects/e3-circuits.test.tsx src/features/effects/delay-family.test.tsx --maxWorkers=4
+pnpm --dir apps/desktop typecheck
+pnpm --dir apps/desktop lint
+```
+
+The worker ran only rustfmt on owned Rust files; no compilation, test, generator
+or browser run. The existing lush allocator probe test compiles a standalone
+probe internally; that is integrator work, not a worker execution.
+
+### Regeneration and risks to check in order
+
+1. Regenerate `VintageChorusParams`, `HyperChorusParams`, `VintagePhaserParams`,
+   `StackedFlangerParams`, `BucketMode`, `PhaserStages`, `LushSpaceParams`, their
+   effect descriptors, umbrella exports and simulator dependency tree. `DelayMode`
+   still needs its earlier inverted variant. No new command or IPC shapes.
+2. Compile owned Rust and native fixtures first. The previously absent model test
+   module is now present. Verify independent phaser/comb/chorus tolerance bounds
+   before adjusting them; none has empirical pass evidence from this worker.
+3. Check Lush pitch projection at +/-12 semitones, size-dependent arrival times,
+   the enlarged lifetime, and legacy-default impulse tests. Pitch voice is a
+   windowed delay pitch shifter, not a formant-preserving vocal engine.
+4. Run mounted UI with regenerated descriptors/WASM. New panel sizes and disabled
+   controls have source review only. Frontend formatting/lint may need integrator
+   adjustment; the worker was prohibited from invoking frontend tooling.
+5. Run native live/offline and history cases, then allocator/bypass regressions.
+   Bank auto-tail remains conservative (roughly 200 s gap) and the 1 GiB admission
+   limit covers admitted echo histories, not every host allocation or old plan.
+
+All these rows remain candidates until the integrator passes the authored suites.
+This is summary-behaviour parity, not a claim of every reference plugin's extra
+control, proprietary preset, hardware noise or sound-identical emulation.

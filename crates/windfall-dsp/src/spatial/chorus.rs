@@ -29,6 +29,8 @@ pub struct VintageChorusParams {
     /// fixed by the mode; Tone and Mix still apply. Default free, which is
     /// what a project saved before the modes were added sounds like.
     pub mode: BucketMode,
+    pub sync: bool,
+    pub cycle_beats: f32,
 }
 impl Default for VintageChorusParams {
     fn default() -> Self {
@@ -40,6 +42,8 @@ impl Default for VintageChorusParams {
             tone_hz: 4500.0,
             mix: 0.5,
             mode: BucketMode::Free,
+            sync: false,
+            cycle_beats: 4.0,
         }
     }
 }
@@ -53,6 +57,8 @@ param_set!(VintageChorusParams, "Bucket Chorus", {
     choice [mode] "mode" "Mode" {
         BucketMode, Free, [Free "free" "Free", One "one" "I", Two "two" "II", Both "both" "I+II"]
     }
+    toggle [sync] "sync" "Tempo sync" { false }
+    float [cycle_beats] "cycleBeats" "Cycle (beats)" { None, Logarithmic, 0.125, 16.0, 4.0 }
 });
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, TS)]
@@ -67,6 +73,8 @@ pub struct HyperChorusParams {
     /// How many detuned voices each side has, 2 to 16. Default 8, which is
     /// what a project saved before the count could be set sounds like.
     pub voices: u8,
+    pub sync: bool,
+    pub cycle_beats: f32,
 }
 impl Default for HyperChorusParams {
     fn default() -> Self {
@@ -78,6 +86,8 @@ impl Default for HyperChorusParams {
             tone_hz: 16_000.0,
             mix: 0.65,
             voices: 8,
+            sync: false,
+            cycle_beats: 4.0,
         }
     }
 }
@@ -89,6 +99,8 @@ param_set!(HyperChorusParams, "Swarm Chorus", {
     float [tone_hz] "toneHz" "Tone" { Hertz, Logarithmic, 500.0, 20_000.0, 16_000.0 }
     float [mix] "mix" "Mix" { Fraction, Linear, 0.0, 1.0, 0.65 }
     int [voices] "voices" "Voices" { None, 2, 16, 8 }
+    toggle [sync] "sync" "Tempo sync" { false }
+    float [cycle_beats] "cycleBeats" "Cycle (beats)" { None, Logarithmic, 0.125, 16.0, 4.0 }
 });
 
 /// The share of voice `index`'s own rate in the Rate setting. Every voice
@@ -187,8 +199,8 @@ impl<const N: usize> Voices<N> {
             if weight > 0.0 {
                 for (ch, out) in wet.iter_mut().enumerate() {
                     let offset = spread as f64 * (0.17 + 0.037 * i as f64) * ch as f64;
-                    let time = delay * voice_delay_ratio(i)
-                        + depth * (0.5 + 0.5 * sine(*phase + offset));
+                    let time =
+                        delay * voice_delay_ratio(i) + depth * (0.5 + 0.5 * sine(*phase + offset));
                     let samples = samples(time, self.rate)
                         .clamp(2.0, self.lines[ch].max_delay() as f32 - 2.0);
                     let own = self.lines[ch].tap_cubic(samples);
@@ -267,6 +279,7 @@ impl Sweep {
 pub struct VintageChorus {
     params: VintageChorusParams,
     voices: Voices<4>,
+    tempo: f32,
     sweep: Sweep,
     /// Delay, depth, rate, spread, tone, mix, then how much of the sweep is
     /// heard in place of the voices, and the sweep's rate, shortest and
@@ -281,6 +294,7 @@ impl Default for VintageChorus {
         Self {
             params: VintageChorusParams::default(),
             voices: Voices::new(4, false),
+            tempo: 120.0,
             sweep: Sweep::default(),
             controls: Controls::default(),
             tail: Tail::default(),
@@ -298,7 +312,7 @@ impl VintageChorus {
         self.controls.set([
             p.delay_ms,
             p.depth_ms,
-            p.rate_hz,
+            super::common::modulation_hz(p.rate_hz, p.sync, p.cycle_beats, self.tempo),
             p.spread,
             p.tone_hz,
             p.mix,
@@ -336,6 +350,10 @@ impl Effect for VintageChorus {
         self.params = p.sanitized();
         self.apply();
     }
+    fn set_tempo(&mut self, bpm: f32) {
+        self.tempo = bpm;
+        self.apply();
+    }
     fn process(&mut self, left: &mut [f32], right: &mut [f32]) {
         for (l, r) in left.iter_mut().zip(right) {
             let input = [audio(*l), audio(*r)];
@@ -359,9 +377,7 @@ impl Effect for VintageChorus {
             let (gain, expired) = self.tail.tick(input);
             let tone_pole = pole(tone, self.rate);
             // Both circuits always run, so either is ready when chosen.
-            let voices = self
-                .voices
-                .tick(input, delay, depth, hz, spread, tone_pole);
+            let voices = self.voices.tick(input, delay, depth, hz, spread, tone_pole);
             let swept = self.sweep.tick(
                 input, sweep_hz, short_ms, long_ms, stereo, tone_pole, self.rate,
             );
@@ -403,6 +419,7 @@ impl Effect for VintageChorus {
 pub struct HyperChorus {
     params: HyperChorusParams,
     voices: Voices<SWARM_MAX_VOICES>,
+    tempo: f32,
     controls: Controls<6>,
     tail: Tail,
     rate: f32,
@@ -413,6 +430,7 @@ impl Default for HyperChorus {
         Self {
             params: HyperChorusParams::default(),
             voices: Voices::new(8, true),
+            tempo: 120.0,
             controls: Controls::default(),
             tail: Tail::default(),
             rate: 48_000.0,
@@ -426,7 +444,12 @@ impl HyperChorus {
         self.voices
             .set_count(usize::from(p.voices), self.controls.glide());
         self.controls.set([
-            p.delay_ms, p.depth_ms, p.rate_hz, p.spread, p.tone_hz, p.mix,
+            p.delay_ms,
+            p.depth_ms,
+            super::common::modulation_hz(p.rate_hz, p.sync, p.cycle_beats, self.tempo),
+            p.spread,
+            p.tone_hz,
+            p.mix,
         ]);
     }
 }
@@ -448,6 +471,10 @@ impl Effect for HyperChorus {
     }
     fn set_params(&mut self, p: &HyperChorusParams) {
         self.params = p.sanitized();
+        self.apply();
+    }
+    fn set_tempo(&mut self, bpm: f32) {
+        self.tempo = bpm;
         self.apply();
     }
     fn process(&mut self, left: &mut [f32], right: &mut [f32]) {

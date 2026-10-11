@@ -24,6 +24,8 @@ pub struct StackedFlangerParams {
     /// How many combs are stacked, 1 to 4. Default 2, which is what a
     /// project saved before the count could be set sounds like.
     pub order: u8,
+    pub sync: bool,
+    pub cycle_beats: f32,
 }
 
 /// Most combs in the stack.
@@ -50,6 +52,8 @@ impl Default for StackedFlangerParams {
             spread: 0.75,
             mix: 0.65,
             order: 2,
+            sync: false,
+            cycle_beats: 4.0,
         }
     }
 }
@@ -63,9 +67,12 @@ param_set!(StackedFlangerParams, "Stacked Flanger", {
     float [spread] "spread" "Spread" { Fraction, Linear, 0.0, 1.0, 0.75 }
     float [mix] "mix" "Mix" { Fraction, Linear, 0.0, 1.0, 0.65 }
     int [order] "order" "Order" { None, 1, 4, 2 }
+    toggle [sync] "sync" "Tempo sync" { false }
+    float [cycle_beats] "cycleBeats" "Cycle (beats)" { None, Logarithmic, 0.125, 16.0, 4.0 }
 });
 pub struct StackedFlanger {
     params: StackedFlangerParams,
+    tempo: f32,
     controls: Controls<8>,
     lines: [[DelayLine; 2]; FLANGER_MAX_ORDER],
     filters: [[Lowpass; 2]; FLANGER_MAX_ORDER],
@@ -81,11 +88,14 @@ impl Default for StackedFlanger {
     fn default() -> Self {
         Self {
             params: StackedFlangerParams::default(),
+            tempo: 120.0,
             controls: Controls::default(),
             lines: std::array::from_fn(|_| std::array::from_fn(|_| DelayLine::default())),
             filters: [[Lowpass::default(); 2]; FLANGER_MAX_ORDER],
             phases: START_PHASES,
-            weights: std::array::from_fn(|stage| LinearRamp::new(if stage < 2 { 1.0 } else { 0.0 })),
+            weights: std::array::from_fn(|stage| {
+                LinearRamp::new(if stage < 2 { 1.0 } else { 0.0 })
+            }),
             tail: Tail::default(),
             rate: 48_000.0,
             prepared: false,
@@ -97,10 +107,28 @@ impl StackedFlanger {
         let p = self.params;
         let glide = self.controls.glide();
         for (stage, weight) in self.weights.iter_mut().enumerate() {
-            weight.set_target(if stage < usize::from(p.order) { 1.0 } else { 0.0 }, glide);
+            weight.set_target(
+                if stage < usize::from(p.order) {
+                    1.0
+                } else {
+                    0.0
+                },
+                glide,
+            );
         }
         self.controls.set([
-            p.delay_ms, p.depth_ms, p.rate1_hz, p.rate2_hz, p.feedback, p.tone_hz, p.spread, p.mix,
+            p.delay_ms,
+            p.depth_ms,
+            super::common::modulation_hz(p.rate1_hz, p.sync, p.cycle_beats, self.tempo),
+            if p.sync {
+                super::common::modulation_hz(p.rate2_hz, true, p.cycle_beats, self.tempo) * 1.382
+            } else {
+                p.rate2_hz
+            },
+            p.feedback,
+            p.tone_hz,
+            p.spread,
+            p.mix,
         ]);
     }
     fn clear(&mut self) {
@@ -133,6 +161,10 @@ impl Effect for StackedFlanger {
     }
     fn set_params(&mut self, p: &Self::Params) {
         self.params = p.sanitized();
+        self.apply();
+    }
+    fn set_tempo(&mut self, bpm: f32) {
+        self.tempo = bpm;
         self.apply();
     }
     fn process(&mut self, left: &mut [f32], right: &mut [f32]) {
@@ -196,7 +228,8 @@ impl Effect for StackedFlanger {
         self.tail_samples()
     }
     fn warm_up_samples(&self) -> usize {
-        frames(32.0, self.rate)
+        // Four serial combs can hold more than the old two-comb warmup.
+        frames(64.0, self.rate)
     }
     fn delay_readiness_samples(&self) -> usize {
         self.warm_up_samples()

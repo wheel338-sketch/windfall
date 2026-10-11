@@ -27,6 +27,17 @@ pub(super) fn advance(phase: &mut f64, hz: f32, rate: f32) {
     *phase = (*phase + f64::from(hz) / f64::from(rate)).fract();
 }
 
+/// One cycle in `beats` quarter notes, without resetting the running phase.
+/// Free rates retain the legacy arithmetic. Host tempo is bounded consistently
+/// with the delay bank; invalid tempo falls back to 120 BPM.
+pub(super) fn modulation_hz(free: f32, sync: bool, beats: f32, bpm: f32) -> f32 {
+    if sync {
+        clean(bpm, 10.0, 1000.0, 120.0) / (60.0 * beats)
+    } else {
+        free
+    }
+}
+
 /// Fixed 10 ms ramps, including topology weights. Writes before the first
 /// processed frame snap. Repeated equal targets never restart a ramp.
 pub(super) struct Controls<const N: usize> {
