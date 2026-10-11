@@ -2,7 +2,9 @@
 #[cfg(windows)]
 mod bridge;
 mod capture_ack;
+mod manager_workflows;
 mod runtime;
+pub use manager_workflows::Rescan;
 pub(crate) use capture_ack::{CaptureAcknowledgement, CaptureOutcome};
 pub use runtime::Runtime;
 pub(crate) use runtime::binding_identity;

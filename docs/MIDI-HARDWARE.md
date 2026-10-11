@@ -165,3 +165,47 @@ The queue uses the existing `rtrb` dependency (MIT OR Apache-2.0).
 - [Opaque port identity](https://docs.rs/midir/latest/midir/struct.MidiInputPort.html)
 - [Output connection and send API](https://docs.rs/midir/latest/midir/struct.MidiOutputConnection.html)
 - [MIDI Association MIDI 1.0 message summary](https://midi.org/summary-of-midi-1-0-messages)
+
+## Additions of 2026-10-10 (written, not built or run)
+
+The sections above describe the first delivery, which was built and tested.
+What follows was written during a build freeze: none of it has been
+compiled, run, or tried on a MIDI port. Where it contradicts the limits
+listed above, the limits above describe what is verified.
+
+- **Several inputs.** `extraInputs` opens up to seven more ports beside the
+  main one. Every channel message and MIDI clock reaches the session with
+  the input it came from and its capture time. Sysex, time code and active
+  sensing are not read.
+- **Controller links.** See `docs/CONTROLLER-LINKS.md`. Right-click a knob
+  or fader, or use the command palette: Multi-link controllers, Link last
+  tweaked control, Toggle controller pickup mode.
+- **Profiles.** Mackie Control compatible, Korg nanoKONTROL2 and a standard
+  volume/pan surface. None was checked against the physical device.
+- **Note recording.** With "Record played notes into the pattern" armed,
+  notes played while the transport runs are written when it stops, as one
+  undo step. The typing keyboard and touch controllers are recorded too.
+  The time of a note is the playhead at the moment the input callback took
+  it, carried on from the last published playhead at the tempo, moved by
+  the recording offset. The output device's latency is not subtracted.
+- **Note log.** Everything played is kept for thirty minutes or 16,384
+  notes. Dumping it to a pattern does not empty it.
+- **Automation recording.** In song mode, with Record automation armed,
+  control movements by mouse or controller are written when the transport
+  stops, as one undo step. A control already driven by an automation clip
+  keeps following its old curve until then.
+- **MIDI clock.** Send: start, or song position and continue, 24 pulses a
+  quarter note, stop. It follows the published playhead, so it lags the
+  audio by about one buffer and is not latency compensated. Follow: start,
+  stop, continue and tempo of a device's clock; a followed tempo change is
+  a project edit.
+- **MIDI output channel.** A rack instrument, "MIDI output", sends its
+  notes, program and bank, pitch wheel and eight controllers. The audio
+  thread writes fixed-size messages to a preallocated queue and the MIDI
+  worker sends them at the time their audio is heard. It sends nothing
+  during an offline render. It cannot play another plugin.
+
+The opt-in real-port check is
+`cargo test -p windfall-engine real_ports -- --ignored --nocapture`. It
+lists the machine's ports and sends one second of clock to the first
+output. It has not been run.

@@ -43,6 +43,7 @@ function AddChannelMenuItems() {
   const instruments = actions.filter((action) =>
     action.id.startsWith("channel.addInstrument.")
   )
+  const layer = actions.find((action) => action.id === "channel.addLayer")
   const fromFile = actions.find((action) => action.id === "channel.addFromFile")
   const browser = actions.find((action) => action.id === "view.browser")
 
@@ -52,6 +53,7 @@ function AddChannelMenuItems() {
       {instruments.map((action) => (
         <ActionMenuItem key={action.id} action={action} state={state} />
       ))}
+      {layer && <ActionMenuItem action={layer} state={state} />}
       {fromFile && <ActionMenuItem action={fromFile} state={state} />}
       <DropdownMenuSeparator />
       <p className="px-2 py-1.5 text-muted-foreground">

@@ -40,3 +40,12 @@ reserve. Legacy key-only calls remain on channel zero. Platform per-instance
 identity/pitch expression and live hardware/MPE output remain separate required
 feature work. No builds, tests, QA, reviews or artifact generators ran for this
 source pass; provisional bindings await the later artifact pass.
+
+## 2026-10-10
+
+With note expression on, MIDI export writes each colour group's pitch bend
+and controllers on that group's channel, so groups keep separate bends; in
+MPE mode a colour group cannot choose the channel and the export report
+counts those notes. Written, not executed. Live output of sequenced notes
+to a MIDI device, which is what would send colour groups to hardware, is
+still not implemented.

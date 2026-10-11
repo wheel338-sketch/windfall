@@ -140,9 +140,121 @@ pub fn pan_gains(pan: f32) -> (f32, f32) {
     (left, right)
 }
 
+/// How a pan position turns into the level of each side. Every law is unity
+/// on both sides at the center, so material that is not panned sounds the
+/// same under all of them and pan stages in series do not add up to a
+/// level change. The laws differ only in what panning away from the center
+/// does.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash)]
+pub enum PanLaw {
+    /// [`pan_gains`]: the near side stays at unity and the far side fades
+    /// in a straight line. Total power falls as the pan moves out.
+    #[default]
+    Balance,
+    /// Sine and cosine: the power of the two sides together stays the same
+    /// at every position. The near side reaches +3.01 dB at the end.
+    ConstantPower,
+    /// Halfway between constant power and constant sum, in decibels. The
+    /// near side reaches +4.52 dB at the end.
+    Compromise,
+    /// Constant sum: the two sides always add up to the same level, so a
+    /// mono fold-down does not change with the pan. The near side reaches
+    /// +6.02 dB at the end.
+    Linear,
+}
+
+impl PanLaw {
+    /// The gains of the left and right side for a pan position from -1
+    /// (left) to 1 (right). Positions outside are brought to the nearest
+    /// end and a position that is not a number counts as the center.
+    #[inline]
+    pub fn gains(self, pan: f32) -> (f32, f32) {
+        let pan = if pan.is_nan() {
+            0.0
+        } else {
+            pan.clamp(-1.0, 1.0)
+        };
+        match self {
+            PanLaw::Balance => pan_gains(pan),
+            PanLaw::ConstantPower => constant_power(pan),
+            PanLaw::Linear => (1.0 - pan, 1.0 + pan),
+            PanLaw::Compromise => {
+                let (power_left, power_right) = constant_power(pan);
+                (
+                    (power_left * (1.0 - pan)).sqrt(),
+                    (power_right * (1.0 + pan)).sqrt(),
+                )
+            }
+        }
+    }
+}
+
+#[inline]
+fn constant_power(pan: f32) -> (f32, f32) {
+    // The ends are exact, so a hard pan leaves nothing on the far side.
+    if pan <= -1.0 {
+        return (std::f32::consts::SQRT_2, 0.0);
+    }
+    if pan >= 1.0 {
+        return (0.0, std::f32::consts::SQRT_2);
+    }
+    let angle = (pan + 1.0) * std::f32::consts::FRAC_PI_4;
+    (
+        std::f32::consts::SQRT_2 * angle.cos(),
+        std::f32::consts::SQRT_2 * angle.sin(),
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn every_pan_law_is_unity_at_the_center_and_silences_the_far_side_at_the_end() {
+        for law in [
+            PanLaw::Balance,
+            PanLaw::ConstantPower,
+            PanLaw::Compromise,
+            PanLaw::Linear,
+        ] {
+            let (left, right) = law.gains(0.0);
+            assert!((left - 1.0).abs() < 1e-6 && (right - 1.0).abs() < 1e-6, "{law:?}");
+            assert_eq!(law.gains(1.0).0, 0.0, "{law:?}");
+            assert_eq!(law.gains(-1.0).1, 0.0, "{law:?}");
+            // Mirrored positions swap the sides.
+            for pan in [0.1, 0.37, 0.5, 0.9, 1.0] {
+                let (left, right) = law.gains(pan);
+                let (mirror_left, mirror_right) = law.gains(-pan);
+                assert!((left - mirror_right).abs() < 1e-6, "{law:?} at {pan}");
+                assert!((right - mirror_left).abs() < 1e-6, "{law:?} at {pan}");
+            }
+            assert_eq!(law.gains(f32::NAN), law.gains(0.0));
+            assert_eq!(law.gains(7.0), law.gains(1.0));
+        }
+        assert_eq!(PanLaw::default(), PanLaw::Balance);
+        assert_eq!(PanLaw::Balance.gains(0.5), pan_gains(0.5));
+    }
+
+    #[test]
+    fn pan_laws_keep_what_their_names_promise() {
+        for step in 0..=40 {
+            let pan = -1.0 + step as f32 * 0.05;
+            let (left, right) = PanLaw::ConstantPower.gains(pan);
+            assert!((left * left + right * right - 2.0).abs() < 1e-5, "{pan}");
+            let (left, right) = PanLaw::Linear.gains(pan);
+            assert!((left + right - 2.0).abs() < 1e-6, "{pan}");
+            let (left, right) = PanLaw::Compromise.gains(pan);
+            let (power, _) = PanLaw::ConstantPower.gains(pan);
+            let (sum, _) = PanLaw::Linear.gains(pan);
+            assert!((left * left - power * sum).abs() < 1e-5, "{pan}");
+            assert!(right.is_finite());
+        }
+        let db = |gain: f32| 20.0 * gain.log10();
+        assert!((db(PanLaw::ConstantPower.gains(1.0).1) - 3.0103).abs() < 1e-3);
+        assert!((db(PanLaw::Compromise.gains(1.0).1) - 4.5154).abs() < 1e-3);
+        assert!((db(PanLaw::Linear.gains(1.0).1) - 6.0206).abs() < 1e-3);
+        assert_eq!(db(PanLaw::Balance.gains(1.0).1), 0.0);
+    }
 
     #[test]
     fn audio_identity_is_shared_by_clones_and_does_not_retain_audio() {

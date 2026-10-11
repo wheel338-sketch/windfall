@@ -34,7 +34,10 @@ import type {
   MidiExportOptions,
 } from "@/bindings"
 import type { AnalysisBackend } from "@/features/analysis/types"
+import type { AnalyzerBackend } from "@/features/analyzers/types"
 import type { PanelId } from "@/lib/store/ui"
+
+import type { MixerPresetLibraryBackend } from "./mixer-presets"
 
 export type Unsubscribe = () => void
 
@@ -66,7 +69,7 @@ export type AudioClipPlace = {
  * the shell needs. A failed call rejects with an `Error` whose message is
  * plain text that can be shown to the user.
  */
-export interface Backend extends AnalysisBackend {
+export interface Backend extends AnalysisBackend, MixerPresetLibraryBackend, AnalyzerBackend {
   mixerWaveformTracks(tracks: TrackId[], generation: number, revision: number): Promise<void>
   mixerPresetCapture(id: TrackId, generation: number, revision: number): Promise<import("@/bindings").MixerTrackPreset>
   mixerPresetSave(preset: import("@/bindings").MixerTrackPreset): Promise<string | null>
@@ -91,6 +94,34 @@ export interface Backend extends AnalysisBackend {
     revision: number
   ): Promise<import("@/bindings").MidiHardwareState>
   midiHardwarePanic(): Promise<void>
+  /** Controller links at work, learning, recording arms and the note log. */
+  controllerState(): Promise<import("@/bindings").ControllerState>
+  controllerSettingsSet(
+    settings: import("@/bindings").ControllerSettings
+  ): Promise<import("@/bindings").ControllerState>
+  /**
+   * Starts a pass of linking: the next hardware controls that move get
+   * `targets`, in order. With `multi`, controls moved on screen join the
+   * pass; with `global`, the links go to the app's settings.
+   */
+  controllerLearn(
+    targets: import("@/bindings").LinkTarget[],
+    global: boolean,
+    multi: boolean,
+    generation: number
+  ): Promise<import("@/bindings").ControllerState>
+  controllerLearnCancel(): Promise<import("@/bindings").ControllerState>
+  noteRecordArm(armed: boolean): Promise<import("@/bindings").ControllerState>
+  automationRecordArm(
+    armed: boolean
+  ): Promise<import("@/bindings").ControllerState>
+  /** One undo step. `seconds` limits the dump to notes that recent. */
+  scoreLogDump(
+    pattern: number,
+    seconds: number | null,
+    generation: number
+  ): Promise<DispatchResult>
+  scoreLogClear(): Promise<import("@/bindings").ControllerState>
   audioEditorOpen(
     clip: number
   ): Promise<import("@/features/audio-editor/types").AudioEditPreview>
@@ -104,6 +135,15 @@ export interface Backend extends AnalysisBackend {
   ): Promise<import("@/features/slicer/types").SliceReview>
   sliceApply(token: number, markers: number[]): Promise<DispatchResult>
   sliceDiscard(token: number): Promise<void>
+  audioLoggerState(): Promise<
+    import("@/features/audio-logger/types").AudioLoggerState
+  >
+  audioLoggerConfigure(
+    settings: import("@/features/audio-logger/types").AudioLoggerSettings
+  ): Promise<import("@/features/audio-logger/types").AudioLoggerState>
+  audioLoggerDump(
+    request: import("@/features/audio-logger/types").AudioLoggerDumpRequest
+  ): Promise<DispatchResult>
   recordingInputs(): Promise<import("@/bindings").RecordingInput[]>
   inputMonitorStart(): Promise<import("@/bindings").InputMonitorState>
   inputMonitorStop(): Promise<import("@/bindings").InputMonitorState>
@@ -137,6 +177,16 @@ export interface Backend extends AnalysisBackend {
     command: Command,
     request: number
   ): Promise<DispatchResult>
+  /**
+   * Renders a sampler channel's sample through offline treatments into a new
+   * sample and gives it to the channel, as one undo step. `created` holds
+   * the new sample. The original sample and its file are kept. Rejects when
+   * nothing would change, when the project changed meanwhile, and in the
+   * browser, which cannot render audio.
+   */
+  samplerPreprocess(
+    request: import("@/bindings").SamplerPreprocessRequest
+  ): Promise<DispatchResult>
   detectClipTempo(
     sample: SampleId
   ): Promise<{ bpm: number; confidence: number }[]>
@@ -169,7 +219,15 @@ export interface Backend extends AnalysisBackend {
   midiDiscard(token: number): Promise<void>
   exportMidi(path: string, options: MidiExportOptions): Promise<string>
   /** Native save dialog, then MusicXML write. Cancellation writes nothing. */
-  sheetMusicSave(suggestedName: string, xml: string): Promise<string | null>
+  /**
+   * Asks where to save a score and writes it as UTF-8 text. `format` picks
+   * the extension and file filter: MusicXML when omitted, or an ASCII PDF.
+   */
+  sheetMusicSave(
+    suggestedName: string,
+    xml: string,
+    format?: "musicxml" | "pdf"
+  ): Promise<string | null>
 
   transportPlay(
     guard?: import("@/bindings").TimelinePlaybackState
@@ -260,6 +318,15 @@ export interface Backend extends AnalysisBackend {
   /** Render selected tracks' span from a copy, then add audio and mute sources in one undo batch. */
   bounceSelectedClips(clips: ClipId[]): Promise<DispatchResult>
   /**
+   * Renders each of these playlist tracks' unmuted pattern and audio clips
+   * to one audio clip on that track and mutes the sources: one undo batch
+   * for any number of tracks. `created` holds a sample and then its clip
+   * for each track, in playlist order.
+   */
+  consolidatePlaylistTracks(
+    tracks: import("@/bindings").PlaylistTrackId[]
+  ): Promise<DispatchResult>
+  /**
    * One undo step, "Create automation clip": an automation of `target`
    * with one point at the value it has now, a new playlist track at the
    * end, and a clip of the automation on it from tick 0 for the length of
@@ -277,6 +344,15 @@ export interface Backend extends AnalysisBackend {
 
   /** Returns at once. Progress arrives through `onExportProgress`. */
   exportAudio(options: ExportOptions): Promise<void>
+  /**
+   * Like `exportAudio`, with one file for each playlist track: the song
+   * with only that track's pattern and audio clips placed, heard at the
+   * output. Needs song mode, and `options.stems` must be absent.
+   */
+  exportPlaylistTracks(
+    options: ExportOptions,
+    stems: import("@/bindings").ExportPlaylistStems
+  ): Promise<void>
   /** Stops the active export; its last progress event acknowledges cancellation. */
   exportCancel(): Promise<void>
 
@@ -285,6 +361,10 @@ export interface Backend extends AnalysisBackend {
   onTransportState(handler: (state: TransportState) => void): Unsubscribe
   onEngineStatus(handler: (status: EngineStatus) => void): Unsubscribe
   onExportProgress(handler: (progress: ExportProgress) => void): Unsubscribe
+  /** Notes a MIDI input played into the audition destination. */
+  onMidiHardwareNote(
+    handler: (note: import("@/bindings").MidiHardwareNote) => void
+  ): Unsubscribe
   /** Problems found while loading a project, such as a missing sample. */
   onProjectWarnings(handler: (warnings: string[]) => void): Unsubscribe
   /** Frames arrive about 60 times a second while subscribed. */
@@ -320,6 +400,7 @@ export const EVENTS = {
   transportState: "transport:state",
   engineStatus: "engine:status",
   exportProgress: "export:progress",
+  midiHardwareNote: "midi:note",
   projectWarnings: "project:warnings",
 } as const
 

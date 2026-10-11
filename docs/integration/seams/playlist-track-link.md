@@ -21,3 +21,12 @@ pnpm test -- src/features/playlist/track-link.test.tsx
 The suite covers unlinked and legacy projects, instrument and audio names, both
 missing reference kinds, reactive store updates, and command-free label rendering
 and clicks.
+
+## Linked behaviour — 2026-10-10
+
+The label is no longer the whole feature. It also names the mixer track of
+an audio track. The header menu has a **Link track** submenu, pressing a
+linked header selects its channel and mixer track without dispatching a
+command, and the link changes playback and routing as
+`arrangement.md` describes under "Linked tracks". The helpers are in
+`features/playlist/linked-tracks.ts`.

@@ -158,3 +158,52 @@ feature errors. The browser WASM simulator was not regenerated; the native
 project command path is connected, and browser simulator commands need a later
 artifact rebuild. Manual collapse/mute/solo, routing and alternate-layout QA
 is not claimed.
+
+## Independent layouts — 2026-10-10
+
+This supersedes the statements above that alternate layouts are not
+connected and that switching only changes an id.
+
+`AddArrangementLayout { name, copy }` adds a timeline layout of its own and
+makes it active. A project with no arrangement first keeps its present
+timeline as "Arrangement 1", listing every clip and lane. The new layout
+takes the active layout's lanes. With `copy`, every clip the active layout
+lists is cloned as a new clip entity with the same lane, start, length,
+offset, mute state and content, and a clip group whose members were copied
+is cloned for the copies. Without it the layout has no clips. It is one
+undo step and reports the arrangement id, then the copied clip ids.
+
+A layout owns its clips, so a move, resize, mute or delete in one layout
+cannot reach another. `SetArrangementReferences` can still list one clip in
+two layouts on purpose. `RemoveArrangement` removes the clips that only the
+removed layout listed; clips another layout lists, and clips no layout ever
+listed, stay.
+
+`ArrangementBook::shows(clip)` is the one rule for "does the active layout
+show this clip", used by consolidation. The engine and the canvas apply the
+same rule in `arrangement_playlist` and `arrangementPlaylist`.
+
+The popover has **New empty layout** and **Duplicate layout**. The older
+**Add arrangement** still lists the same clips again and is kept for that.
+An arrangement with no clips now shows its lanes.
+
+## Linked tracks — 2026-10-10
+
+`TrackKind` has a third kind, `{ type: "audioTrack", mixer }`.
+
+- An **instrument track** (`instrument`) plays only its channel of the
+  patterns placed on it. The engine compiles this into `PlanClip.only`; a
+  link whose channel is gone plays nothing on that lane. Audio clips on the
+  lane are not affected.
+- An **audio track** (`audioTrack`) routes every audio clip on it to its
+  mixer track. The document enforces it inside the command's own
+  transaction (`settle_linked_tracks`): on add, on a move onto the lane,
+  and when the lane is linked. A clip moved off the lane keeps the routing
+  it has. Deleting the mixer track drops the link.
+- `audio` (a sample) is still a label and routes nothing.
+
+`AddInstrumentTrack` and `AddAudioTrack` make the channel or mixer track
+and the linked lane in one undo step. The header menu has **Link track**;
+pressing a linked header selects its channel and mixer track.
+
+MIDI export of a song does not apply the instrument-track filter.

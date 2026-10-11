@@ -39,3 +39,41 @@ lookup remain required work. Continuous automation points use the existing
 scalar target and playlist playback infrastructure. No builds, tests, QA,
 reviews or artifact generators ran for this source pass. Provisional bindings
 await the later combined artifact pass.
+
+## Opened from a clip — 2026-10-10
+
+The clip menu of one selected automation clip has Write LFO. Opened there,
+the dialog offers the part of the curve that clip shows: Start is the
+clip's offset and End its offset plus its length. The generator and the
+command are unchanged. The engine test
+`an_lfo_written_into_a_curve_moves_the_linked_fader_live_and_offline`
+measures the linked fader offline and in the callback and was run on
+2026-10-10; `features/automation/lfo-automation.qa.test.tsx` covers the
+dialog and is written, not yet run.
+
+The note tool's values above are note-on properties: one value per note,
+read at its start. Two further writers were added on 2026-10-10.
+
+**Curve along each note.** "Write as: Curve along each note" in the note
+LFO dialog sends `GenerateNoteCurveLfo`. Each captured note gets one
+[expression curve](NOTE-CURVES.md) for pan, release, fine pitch or
+modulation X/Y: the LFO read every `resolution` ticks along the note from
+the origin, blended with the value the note had there by the apply
+strength. Pulse and sample-and-hold are written as held steps; where a saw,
+pulse or sample-and-hold jumps, the tick before the jump and the tick of it
+both get a point while the curve has room. A note too long for 256 points
+at the chosen spacing is read on a coarser grid. Velocity is struck once and
+is always written per note. The captured notes and their existing curves
+are compared as for `SetNoteExpressionCurves`; curves for other properties
+are kept.
+
+**Event lane.** "Write LFO…" in the event editor sends
+`GeneratePatternEventLfo`, which splices the LFO into a range of a
+pattern's [event lane](PATTERN-EVENTS.md) with the same range writer
+automation uses.
+
+Recording a moving control into a pattern does not exist. The generator
+itself is unchanged. The native writers and their unit tests were built and
+run; the dialog changes and the document-level acceptance in
+`crates/windfall-project/tests/piano_articulation_lfo_qa.rs` are written and
+not executed. See [the QA hand-off](qa/2026-10-10-piano.md).

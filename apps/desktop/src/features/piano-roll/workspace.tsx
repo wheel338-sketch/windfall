@@ -53,6 +53,8 @@ import { LaneHeader, LaneResizer } from "./lane-header"
 import { NOTE_MENU, PANEL_MENU } from "./menu"
 import { NoteToolsDialog } from "./note-tools-dialog"
 import { RiffGeneratorDialog } from "./riff-generator-dialog"
+import { SheetExportDialog } from "./score/export-dialog"
+import { closeSheetExport } from "./sheet-export"
 import { closeRiffGenerator } from "./riff-generator"
 import { ProgressionGeneratorDialog } from "./progression-dialog"
 import { closeProgressionGenerator } from "./progression"
@@ -217,6 +219,7 @@ export function Workspace({ patternId, channelId }: WorkspaceProps) {
       setCurrentSession(null)
       closeNoteTools()
       closeRiffGenerator()
+      closeSheetExport()
       closeProgressionGenerator()
       closeNoteProperties()
       closeNoteCurves()
@@ -387,6 +390,7 @@ export function Workspace({ patternId, channelId }: WorkspaceProps) {
     <SessionContext value={session}>
       <NoteToolsDialog />
       <RiffGeneratorDialog />
+      <SheetExportDialog />
       <ProgressionGeneratorDialog />
       <NotePropertiesDialog />
       <NoteCurvesDialog />

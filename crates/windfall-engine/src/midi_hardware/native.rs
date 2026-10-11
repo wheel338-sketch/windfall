@@ -39,7 +39,8 @@ impl Ports for Native {
 
     fn input(&mut self, id: &str, ingress: Ingress) -> Result<Box<dyn Send>, String> {
         let mut input = MidiInput::new("Windfall MIDI input").map_err(|e| e.to_string())?;
-        input.ignore(Ignore::Sysex | Ignore::Time | Ignore::ActiveSense);
+        // Timing messages are read: they carry a device's clock.
+        input.ignore(Ignore::Sysex | Ignore::ActiveSense);
         let port = input
             .find_port_by_id(id)
             .ok_or("MIDI input is unavailable.")?;
@@ -47,7 +48,7 @@ impl Ports for Native {
             .connect(
                 &port,
                 "Windfall audition",
-                |_, bytes, ingress| ingress.receive(bytes),
+                |stamp, bytes, ingress| ingress.receive_at(stamp, bytes),
                 ingress,
             )
             .map(|connection| Box::new(connection) as Box<dyn Send>)

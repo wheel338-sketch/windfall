@@ -72,6 +72,8 @@ pub(crate) enum Message {
     SetOutputGain(f32),
     SetInputMonitors(Box<[Box<crate::recording_monitor::MonitorReader>]>),
     SetDiskTaps(Box<[crate::recording_disk::DiskWriter]>),
+    /// Installs the audio logger's tap, or with `None` takes it away.
+    SetAudioLogger(Option<Box<crate::audio_logger::LoggerTap>>),
 }
 
 /// Values the audio thread is done with. Dropping them is the control
@@ -87,6 +89,7 @@ pub(crate) enum Garbage {
     SamplerBank(Arc<crate::sampler_processing::SamplerBank>),
     InputMonitors(Box<[Box<crate::recording_monitor::MonitorReader>]>),
     DiskTaps(Box<[crate::recording_disk::DiskWriter]>),
+    AudioLogger(Box<crate::audio_logger::LoggerTap>),
 }
 
 /// Sends a value back to the control side to be dropped there.

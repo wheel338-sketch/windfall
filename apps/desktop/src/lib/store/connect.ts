@@ -1,6 +1,7 @@
 import { watchMixerWaveforms } from "@/features/mixer/waveform-meter"
 import { reportError } from "@/lib/errors"
 import { watchCurrentSource } from "@/features/mixer/current-source"
+import { logHardwareNote } from "@/features/piano-roll/note-log"
 import { backend } from "@/lib/ipc"
 
 import { receiveEngineStatus, refreshEngineStatus } from "./engine"
@@ -52,6 +53,9 @@ export function connectStores(): () => void {
     }),
     backend.onTransportState(receiveTransportState),
     backend.onEngineStatus(receiveEngineStatus),
+    backend.onMidiHardwareNote((note) =>
+      logHardwareNote(note.channel, note.key, note.velocity)
+    ),
     backend.onProjectWarnings((warnings) => {
       receiveWarnings(warnings)
       for (const warning of warnings) reportError(warning, "Project")
