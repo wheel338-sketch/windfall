@@ -377,7 +377,12 @@ fn effect_defaults_and_unsupported_states_are_reported() {
     assert_eq!(c.project.mixer.tracks[1].effects.len(), 1);
     assert!(!c.project.mixer.tracks[1].effects[0].enabled);
     assert_eq!(c.project.mixer.tracks[1].effects[0].mix, 0.5);
-    assert_eq!(c.plugins[0].state, [5, 6]);
+    // Mapped effects now retain their opaque state too, in source slot order.
+    assert_eq!(c.plugins.len(), 2);
+    assert_eq!(c.plugins[0].internal_name, "Fruity Limiter");
+    assert!(c.plugins[0].state.is_empty());
+    assert_eq!(c.plugins[1].internal_name, "Original fictional effect");
+    assert_eq!(c.plugins[1].state, [5, 6]);
     assert!(!c.report.is_clean());
 }
 #[test]
@@ -553,22 +558,28 @@ fn the_panning_law_a_file_names_becomes_the_projects_law() {
         source.settings.pan_law = Some(law);
         let with = converted(&source);
         assert_eq!(with.project.settings.pan_law, expected, "law {law}");
-        // The law is carried over, not counted as a difference.
+        // Supported laws are now counted as exact carried-over settings;
+        // an unknown value is explicitly reported as one dropped setting.
         let (counted, plain) = (
             with.report.category(ReportSection::Project),
             without.report.category(ReportSection::Project),
         );
         assert_eq!(
             (counted.exact, counted.approximated, counted.dropped),
-            (plain.exact, plain.approximated, plain.dropped),
+            (
+                plain.exact + u32::from(law != 7),
+                plain.approximated,
+                plain.dropped + u32::from(law == 7)
+            ),
             "law {law}"
         );
         // Nothing else about the project depends on the law.
         let mut same = with.project.clone();
         same.settings.pan_law = PanLaw::Balance;
         assert_eq!(same, without.project, "law {law}");
-        // The file's own resolution is converted, not adopted.
-        assert_eq!(with.project.settings.timebase_ppq, 960);
+        // Supported source editing resolution is preserved; musical ticks
+        // are still converted to Windfall's fixed internal 960 tick timebase.
+        assert_eq!(with.project.settings.timebase_ppq, 96);
     }
 }
 
@@ -580,6 +591,7 @@ fn channel_swing_docks_sidechains_send_destinations_and_opaque_state_survive() {
     p.mixer.inserts.push(Insert {
         name: Some("Detector".into()),
         flags: Some(0x8c),
+        output: Some(-1),
         ..Default::default()
     });
     p.mixer.inserts[1].flags = Some(0x4c);
@@ -614,6 +626,20 @@ fn channel_swing_docks_sidechains_send_destinations_and_opaque_state_survive() {
 fn unknown_version_bad_event_length_and_unknown_marker_counts_remain_honest() {
     let mut p = fixture(96);
     p.version_text = Some("999.7.1".into());
+    // The writer follows the declared future version's 60-byte layout.
+    // Provide its extra fields so this tests unknown-version admission,
+    // rather than panicking while constructing an incomplete fixture.
+    for item in &mut p.arrangements[0].items {
+        item.extra = Some(windfall_flp::PlaylistItemExtra {
+            id: 0,
+            fade_in: 0.0,
+            fade_in_tension: 0.0,
+            fade_out: 0.0,
+            fade_out_tension: 0.0,
+            gain: 1.0,
+            fade_flags: 0,
+        });
+    }
     p.arrangements[0].markers.push(TimeMarker {
         kind: 127,
         position: 96,
@@ -622,10 +648,21 @@ fn unknown_version_bad_event_length_and_unknown_marker_counts_remain_honest() {
     let c = converted(&p);
     assert!(c.report.category(ReportSection::Other).dropped >= 1);
     assert!(!c.project.patterns[0].lanes[0].notes.is_empty());
-    let mut events = common::Events::new(true);
+    // Version bootstrap text is ASCII, even in modern UTF-16 projects.
+    let mut events = common::Events::new(false);
+    events.text(199, MODERN);
+    let damaged_offset = 22 + events.bytes.len();
     events.bytes.extend([213, 255, 255, 255, 255, 15]);
     let bytes = common::file(p.header.unwrap(), &events.bytes);
-    assert!(parse(&bytes).is_err());
+    // The parser deliberately salvages preceding events and reports a
+    // malformed event as a diagnostic instead of discarding the whole file.
+    let damaged = parse(&bytes).unwrap();
+    assert_eq!(damaged.version_text.as_deref(), Some(MODERN));
+    assert_eq!(damaged.diagnostics.len(), 1);
+    assert_eq!(
+        damaged.diagnostics[0].message,
+        format!("the file ends in the middle of the event that starts at byte {damaged_offset}. Everything before that was read, and the rest is lost.")
+    );
 }
 
 #[test]

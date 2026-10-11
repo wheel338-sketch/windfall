@@ -777,7 +777,10 @@ mod tests {
     fn undecoded_effects_use_defaults_without_parameter_links_and_report_the_loss() {
         let states = [
             Vec::new(),
-            state(&[i32::MIN, i32::MAX, -1, 42]),
+            // Sixteen bytes are now the supported Fruity Send record, not
+            // an undecoded fixture. Keep this hostile state outside that
+            // layout; supported send mapping has separate conversion tests.
+            state(&[i32::MIN, i32::MAX, -1, 42, 17]),
             vec![255; 3],
         ];
         for &(name, kind) in DEFAULT_EFFECTS {

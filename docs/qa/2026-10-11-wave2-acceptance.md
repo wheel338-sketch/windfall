@@ -2,6 +2,8 @@
 
 ## Running progress
 
+- Formats/core/analysis focused execution: the non-FLP targets pass 232/0/3 (`round2-formats-focused.log`); FLP is now 158/0/0 (`round2-flp-focused-final.log`). Corrected invalid/incomplete generated fixtures, exact pan-law report accounting, preserved source editing resolution and both mapped/unsupported opaque states. Malformed payload test now checks exact salvage diagnostic and preceding version preservation, matching the parser's established partial-recovery contract; no parser behavior or refusal bound weakened.
+
 - Remaining engine acceptance targets pass: EQ/filter/stereo 8/0/0, additive/physical/drum 11/0/0, sample playback 4/0/0 (`target/round2-engine-remaining.log`). Native session focused run passes 430/0/8, with 85 unrelated tests filtered (`target/round2-session-focused.log`); ignored hardware cases were not executed. Next: formats/core analysis, final simulator refresh, mounted UI and strict/full gates.
 
 - Nonlinear host fixes verified: all 3 acceptance tests pass (`target/round2-nonlinear-host-repair2.log`). Exact live/export comparisons now align reported PDC. Trigger reference uses the engine's documented next-grid parameter delivery and checks every capture/wrap/release sample at the original 1e-6 bound. This exposed and fixed VolumeGate's delayed absolute-phase restoration on release, which had restarted a fade at arbitrary host block boundaries. Artifact provenance must be refreshed again after this product fix.
