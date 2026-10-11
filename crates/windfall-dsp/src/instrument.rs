@@ -6,6 +6,7 @@ use crate::analog::{TripleOsc, TripleOscParams};
 use crate::analog::{WaveLane, WaveLaneParams};
 use crate::analog::{MacroVoice, MacroVoiceParams};
 use crate::speech::{SpeechVoice, SpeechVoiceParams};
+use crate::midi_out::{MidiOut, MidiOutEvent, MidiOutParams};
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
@@ -167,10 +168,11 @@ pub enum InstrumentKind {
     WaveLane,
     MacroVoice,
     SpeechVoice,
+    MidiOut,
 }
 
 impl InstrumentKind {
-    pub const ALL: [InstrumentKind; 26] = [
+    pub const ALL: [InstrumentKind; 27] = [
         InstrumentKind::SubtractiveSynth,
         InstrumentKind::FourOp,
         InstrumentKind::MatrixFm,
@@ -197,6 +199,7 @@ impl InstrumentKind {
         InstrumentKind::WaveLane,
         InstrumentKind::MacroVoice,
         InstrumentKind::SpeechVoice,
+        InstrumentKind::MidiOut,
     ];
 
     /// The instrument's name as shown to the user.
@@ -228,6 +231,7 @@ impl InstrumentKind {
             InstrumentKind::WaveLane => WaveLaneParams::NAME,
             InstrumentKind::MacroVoice => MacroVoiceParams::NAME,
             InstrumentKind::SpeechVoice => SpeechVoiceParams::NAME,
+            InstrumentKind::MidiOut => MidiOutParams::NAME,
         }
     }
 
@@ -260,6 +264,7 @@ impl InstrumentKind {
             InstrumentKind::WaveLane => WaveLaneParams::descriptors(),
             InstrumentKind::MacroVoice => MacroVoiceParams::descriptors(),
             InstrumentKind::SpeechVoice => SpeechVoiceParams::descriptors(),
+            InstrumentKind::MidiOut => MidiOutParams::descriptors(),
         }
     }
 
@@ -300,6 +305,7 @@ impl InstrumentKind {
             InstrumentKind::WaveLane => InstrumentParams::WaveLane(WaveLaneParams::default()),
             InstrumentKind::MacroVoice => InstrumentParams::MacroVoice(MacroVoiceParams::default()),
             InstrumentKind::SpeechVoice => InstrumentParams::SpeechVoice(SpeechVoiceParams::default()),
+            InstrumentKind::MidiOut => InstrumentParams::MidiOut(MidiOutParams::default()),
         }
     }
 }
@@ -336,6 +342,7 @@ pub enum InstrumentParams {
     WaveLane(WaveLaneParams),
     MacroVoice(MacroVoiceParams),
     SpeechVoice(SpeechVoiceParams),
+    MidiOut(MidiOutParams),
 }
 
 impl InstrumentParams {
@@ -367,6 +374,7 @@ impl InstrumentParams {
             InstrumentParams::WaveLane(_) => InstrumentKind::WaveLane,
             InstrumentParams::MacroVoice(_) => InstrumentKind::MacroVoice,
             InstrumentParams::SpeechVoice(_) => InstrumentKind::SpeechVoice,
+            InstrumentParams::MidiOut(_) => InstrumentKind::MidiOut,
         }
     }
 
@@ -413,6 +421,7 @@ impl InstrumentParams {
             InstrumentParams::WaveLane(params) => InstrumentParams::WaveLane(params.sanitized()),
             InstrumentParams::MacroVoice(params) => InstrumentParams::MacroVoice(params.sanitized()),
             InstrumentParams::SpeechVoice(params) => InstrumentParams::SpeechVoice(params.sanitized()),
+            InstrumentParams::MidiOut(params) => InstrumentParams::MidiOut(params.sanitized()),
         }
     }
 
@@ -449,6 +458,7 @@ impl InstrumentParams {
             InstrumentParams::WaveLane(_) => 0,
             InstrumentParams::MacroVoice(_) => 0,
             InstrumentParams::SpeechVoice(_) => 0,
+            InstrumentParams::MidiOut(_) => 0,
         }
     }
 
@@ -482,6 +492,7 @@ impl InstrumentParams {
             InstrumentParams::WaveLane(params) => params.get(index),
             InstrumentParams::MacroVoice(params) => params.get(index),
             InstrumentParams::SpeechVoice(params) => params.get(index),
+            InstrumentParams::MidiOut(params) => params.get(index),
         }
     }
 
@@ -515,6 +526,7 @@ impl InstrumentParams {
             InstrumentParams::WaveLane(params) => params.set(index, value),
             InstrumentParams::MacroVoice(params) => params.set(index, value),
             InstrumentParams::SpeechVoice(params) => params.set(index, value),
+            InstrumentParams::MidiOut(params) => params.set(index, value),
         }
     }
 }
@@ -552,9 +564,26 @@ pub enum AnyInstrument {
     WaveLane(Box<WaveLane>),
     MacroVoice(Box<MacroVoice>),
     SpeechVoice(Box<SpeechVoice>),
+    MidiOut(Box<MidiOut>),
 }
 
 impl AnyInstrument {
+    /// Gives the messages a MIDI output channel made since the last block
+    /// the frame of the block about to be processed. Nothing for the rest.
+    pub fn stamp_midi(&mut self, frame: u64) {
+        if let AnyInstrument::MidiOut(unit) = self {
+            unit.stamp(frame);
+        }
+    }
+
+    /// Hands over the messages a MIDI output channel has waiting, oldest
+    /// first. Nothing for the rest. Never allocates.
+    pub fn drain_midi(&mut self, out: &mut dyn FnMut(MidiOutEvent)) {
+        if let AnyInstrument::MidiOut(unit) = self {
+            unit.drain(out);
+        }
+    }
+
     /// Builds the instrument `params` belongs to, with those settings. It
     /// still needs [`AnyInstrument::prepare`].
     pub fn new(params: &InstrumentParams) -> Self {
@@ -689,6 +718,11 @@ impl AnyInstrument {
                 synth.set_params(params);
                 AnyInstrument::SpeechVoice(synth)
             }
+            InstrumentParams::MidiOut(params) => {
+                let mut synth = Box::<MidiOut>::default();
+                synth.set_params(params);
+                AnyInstrument::MidiOut(synth)
+            }
         }
     }
 
@@ -720,6 +754,7 @@ impl AnyInstrument {
             AnyInstrument::WaveLane(_) => InstrumentKind::WaveLane,
             AnyInstrument::MacroVoice(_) => InstrumentKind::MacroVoice,
             AnyInstrument::SpeechVoice(_) => InstrumentKind::SpeechVoice,
+            AnyInstrument::MidiOut(_) => InstrumentKind::MidiOut,
         }
     }
 
@@ -752,6 +787,7 @@ impl AnyInstrument {
             AnyInstrument::WaveLane(synth) => synth.prepare(sample_rate, max_block),
             AnyInstrument::MacroVoice(synth) => synth.prepare(sample_rate, max_block),
             AnyInstrument::SpeechVoice(synth) => synth.prepare(sample_rate, max_block),
+            AnyInstrument::MidiOut(synth) => synth.prepare(sample_rate, max_block),
         }
     }
 
@@ -784,6 +820,7 @@ impl AnyInstrument {
             AnyInstrument::WaveLane(synth) => synth.reset(),
             AnyInstrument::MacroVoice(synth) => synth.reset(),
             AnyInstrument::SpeechVoice(synth) => synth.reset(),
+            AnyInstrument::MidiOut(synth) => synth.reset(),
         }
     }
 
@@ -872,6 +909,9 @@ impl AnyInstrument {
             (AnyInstrument::SpeechVoice(synth), InstrumentParams::SpeechVoice(params)) => {
                 synth.set_params(params);
             }
+            (AnyInstrument::MidiOut(synth), InstrumentParams::MidiOut(params)) => {
+                synth.set_params(params);
+            }
             _ => return false,
         }
         true
@@ -906,6 +946,7 @@ impl AnyInstrument {
             AnyInstrument::WaveLane(synth) => synth.set_tempo(bpm),
             AnyInstrument::MacroVoice(synth) => synth.set_tempo(bpm),
             AnyInstrument::SpeechVoice(synth) => synth.set_tempo(bpm),
+            AnyInstrument::MidiOut(synth) => synth.set_tempo(bpm),
         }
     }
 
@@ -938,6 +979,7 @@ impl AnyInstrument {
             AnyInstrument::WaveLane(synth) => synth.note_on(key, velocity),
             AnyInstrument::MacroVoice(synth) => synth.note_on(key, velocity),
             AnyInstrument::SpeechVoice(synth) => synth.note_on(key, velocity),
+            AnyInstrument::MidiOut(synth) => synth.note_on(key, velocity),
         }
     }
 
@@ -1023,6 +1065,9 @@ impl AnyInstrument {
             AnyInstrument::SpeechVoice(synth) => {
                 synth.note_on_expression(key, velocity, pan, expression)
             }
+            AnyInstrument::MidiOut(synth) => {
+                synth.note_on_expression(key, velocity, pan, expression)
+            }
         }
     }
 
@@ -1055,6 +1100,7 @@ impl AnyInstrument {
             AnyInstrument::WaveLane(synth) => synth.note_off(key),
             AnyInstrument::MacroVoice(synth) => synth.note_off(key),
             AnyInstrument::SpeechVoice(synth) => synth.note_off(key),
+            AnyInstrument::MidiOut(synth) => synth.note_off(key),
         }
     }
 
@@ -1086,6 +1132,7 @@ impl AnyInstrument {
             AnyInstrument::WaveLane(synth) => synth.supports_note_instances(),
             AnyInstrument::MacroVoice(synth) => synth.supports_note_instances(),
             AnyInstrument::SpeechVoice(synth) => synth.supports_note_instances(),
+            AnyInstrument::MidiOut(synth) => synth.supports_note_instances(),
         }
     }
 
@@ -1176,6 +1223,9 @@ impl AnyInstrument {
             AnyInstrument::SpeechVoice(synth) => {
                 synth.note_on_instance(id, key, velocity, pan, expression)
             }
+            AnyInstrument::MidiOut(synth) => {
+                synth.note_on_instance(id, key, velocity, pan, expression)
+            }
         }
     }
 
@@ -1207,6 +1257,7 @@ impl AnyInstrument {
             AnyInstrument::WaveLane(synth) => synth.note_off_instance(id, key),
             AnyInstrument::MacroVoice(synth) => synth.note_off_instance(id, key),
             AnyInstrument::SpeechVoice(synth) => synth.note_off_instance(id, key),
+            AnyInstrument::MidiOut(synth) => synth.note_off_instance(id, key),
         }
     }
 
@@ -1245,6 +1296,7 @@ impl AnyInstrument {
             AnyInstrument::WaveLane(synth) => synth.set_note_expression(id, pan, expression),
             AnyInstrument::MacroVoice(synth) => synth.set_note_expression(id, pan, expression),
             AnyInstrument::SpeechVoice(synth) => synth.set_note_expression(id, pan, expression),
+            AnyInstrument::MidiOut(synth) => synth.set_note_expression(id, pan, expression),
         }
     }
 
@@ -1276,6 +1328,7 @@ impl AnyInstrument {
             AnyInstrument::WaveLane(synth) => synth.set_note_pitch(id, pitch),
             AnyInstrument::MacroVoice(synth) => synth.set_note_pitch(id, pitch),
             AnyInstrument::SpeechVoice(synth) => synth.set_note_pitch(id, pitch),
+            AnyInstrument::MidiOut(synth) => synth.set_note_pitch(id, pitch),
         }
     }
 
@@ -1308,6 +1361,7 @@ impl AnyInstrument {
             AnyInstrument::WaveLane(synth) => synth.all_notes_off(),
             AnyInstrument::MacroVoice(synth) => synth.all_notes_off(),
             AnyInstrument::SpeechVoice(synth) => synth.all_notes_off(),
+            AnyInstrument::MidiOut(synth) => synth.all_notes_off(),
         }
     }
 
@@ -1340,6 +1394,7 @@ impl AnyInstrument {
             AnyInstrument::WaveLane(synth) => synth.process(left, right),
             AnyInstrument::MacroVoice(synth) => synth.process(left, right),
             AnyInstrument::SpeechVoice(synth) => synth.process(left, right),
+            AnyInstrument::MidiOut(synth) => synth.process(left, right),
         }
     }
 
@@ -1372,6 +1427,7 @@ impl AnyInstrument {
             AnyInstrument::WaveLane(synth) => synth.active_voices(),
             AnyInstrument::MacroVoice(synth) => synth.active_voices(),
             AnyInstrument::SpeechVoice(synth) => synth.active_voices(),
+            AnyInstrument::MidiOut(synth) => synth.active_voices(),
         }
     }
 
@@ -1404,6 +1460,7 @@ impl AnyInstrument {
             AnyInstrument::WaveLane(synth) => synth.latency_samples(),
             AnyInstrument::MacroVoice(synth) => synth.latency_samples(),
             AnyInstrument::SpeechVoice(synth) => synth.latency_samples(),
+            AnyInstrument::MidiOut(synth) => synth.latency_samples(),
         }
     }
 
@@ -1436,6 +1493,7 @@ impl AnyInstrument {
             AnyInstrument::WaveLane(synth) => synth.tail_samples(),
             AnyInstrument::MacroVoice(synth) => synth.tail_samples(),
             AnyInstrument::SpeechVoice(synth) => synth.tail_samples(),
+            AnyInstrument::MidiOut(synth) => synth.tail_samples(),
         }
     }
 }

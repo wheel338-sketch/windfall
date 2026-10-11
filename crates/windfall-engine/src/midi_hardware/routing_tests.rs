@@ -1,0 +1,500 @@
+//! Several inputs, controllers and the wheel reaching the sink, MIDI clock
+//! and MIDI output channels, all against fake ports and an engine the test
+//! runs by hand.
+use super::*;
+use crate::{Processor, SamplePool};
+use std::collections::HashMap;
+use windfall_ipc::{MidiInputSettings, PlayMode, TransportPatch};
+use windfall_project::{
+    ChannelId, Command, Document, InstrumentKind, InstrumentParams, NoteInit, PatternId, Project,
+};
+
+#[derive(Default)]
+struct Fake {
+    ingress: HashMap<String, Ingress>,
+    /// Everything sent to the output, in order.
+    sent: Vec<Vec<u8>>,
+    /// Port ids that exist.
+    present: Vec<String>,
+}
+type Handle = Arc<Mutex<Fake>>;
+struct FakePorts(Handle);
+struct FakeInput(Handle, String);
+impl Drop for FakeInput {
+    fn drop(&mut self) {
+        self.0.lock().unwrap().ingress.remove(&self.1);
+    }
+}
+struct FakeOutput(Handle);
+impl Output for FakeOutput {
+    fn send(&mut self, bytes: &[u8]) -> Result<(), String> {
+        self.0.lock().unwrap().sent.push(bytes.to_vec());
+        Ok(())
+    }
+}
+impl Ports for FakePorts {
+    fn enumerate(&mut self) -> Result<(Vec<MidiPort>, Vec<MidiPort>), String> {
+        let ports: Vec<MidiPort> = self
+            .0
+            .lock()
+            .unwrap()
+            .present
+            .iter()
+            .map(|id| MidiPort {
+                id: id.clone(),
+                name: format!("Fake {id}"),
+            })
+            .collect();
+        Ok((ports.clone(), ports))
+    }
+    fn input(&mut self, id: &str, ingress: Ingress) -> Result<Box<dyn Send>, String> {
+        let mut fake = self.0.lock().unwrap();
+        if !fake.present.iter().any(|port| port == id) {
+            return Err(format!("{id} is unavailable"));
+        }
+        fake.ingress.insert(id.to_owned(), ingress);
+        Ok(Box::new(FakeInput(self.0.clone(), id.to_owned())))
+    }
+    fn output(&mut self, id: &str) -> Result<Box<dyn Output>, String> {
+        if !self.0.lock().unwrap().present.iter().any(|port| port == id) {
+            return Err(format!("{id} is unavailable"));
+        }
+        Ok(Box::new(FakeOutput(self.0.clone())))
+    }
+}
+
+/// A sink that keeps what it is told and can be told to take notes.
+#[derive(Default)]
+struct Sink {
+    messages: Mutex<Vec<InputMessage>>,
+    notes: Mutex<Vec<(u8, u8)>>,
+    take_key: Mutex<Option<u8>>,
+    idles: AtomicU32,
+}
+impl Audition for Sink {
+    fn note(&self, _epoch: u64, key: u8, velocity: u8) -> bool {
+        self.notes.lock().unwrap().push((key, velocity));
+        true
+    }
+    fn message(&self, input: InputMessage) -> bool {
+        self.messages.lock().unwrap().push(input);
+        let taken = *self.take_key.lock().unwrap();
+        match input.message {
+            MidiMessage::NoteOn { key, .. } | MidiMessage::NoteOff { key, .. } => {
+                taken == Some(key)
+            }
+            _ => false,
+        }
+    }
+    fn idle(&self, _now: Instant, _playhead: &Playhead) {
+        self.idles.fetch_add(1, Ordering::Relaxed);
+    }
+}
+
+fn fake(present: &[&str]) -> Handle {
+    Arc::new(Mutex::new(Fake {
+        present: present.iter().map(|id| (*id).to_owned()).collect(),
+        ..Fake::default()
+    }))
+}
+
+fn worker(
+    controller: &Controller,
+    fake: &Handle,
+    settings: MidiHardwareSettings,
+) -> (Worker, Arc<Sink>) {
+    let sink = Arc::new(Sink::default());
+    let mut worker = Worker::new(
+        Box::new(FakePorts(fake.clone())),
+        controller.clone(),
+        sink.clone(),
+    );
+    worker.configure(settings);
+    (worker, sink)
+}
+
+fn input(fake: &Handle, id: &str, bytes: &[u8]) {
+    fake.lock()
+        .unwrap()
+        .ingress
+        .get_mut(id)
+        .expect("the input is open")
+        .receive_at(7, bytes);
+}
+
+fn two_inputs() -> MidiHardwareSettings {
+    MidiHardwareSettings {
+        input: Some("keys".into()),
+        extra_inputs: vec![MidiInputSettings {
+            id: "knobs".into(),
+            profile: None,
+        }],
+        ..Default::default()
+    }
+}
+
+#[test]
+fn every_message_reaches_the_sink_with_its_input_and_capture_time() {
+    let (_processor, controller) = Processor::new(48_000);
+    let fake = fake(&["keys", "knobs"]);
+    let (mut worker, sink) = worker(&controller, &fake, two_inputs());
+    let state = worker.state();
+    assert!(state.input_connected);
+    assert_eq!(state.connected_inputs, ["keys", "knobs"]);
+
+    let before = Instant::now();
+    input(&fake, "knobs", &[0xb2, 74, 100]);
+    input(&fake, "knobs", &[0xe2, 0, 0x40]);
+    input(&fake, "knobs", &[0xd2, 55]);
+    input(&fake, "knobs", &[0xc2, 9]);
+    input(&fake, "knobs", &[0xf8]);
+    input(&fake, "keys", &[0x90, 60, 100]);
+    input(&fake, "keys", &[0x80, 60, 0]);
+    // Not read: system exclusive and active sensing never reach the queue.
+    input(&fake, "keys", &[0xf0, 1, 2, 0xf7]);
+    input(&fake, "keys", &[0xfe]);
+    worker.service();
+    let after = Instant::now();
+
+    let seen = sink.messages.lock().unwrap().clone();
+    assert_eq!(seen.len(), 7);
+    let from = |device: u8| -> Vec<MidiMessage> {
+        seen.iter()
+            .filter(|message| message.device == device)
+            .map(|message| message.message)
+            .collect()
+    };
+    // The main input is device 0; each input keeps its own order.
+    assert_eq!(
+        from(0),
+        [
+            MidiMessage::NoteOn {
+                channel: 0,
+                key: 60,
+                velocity: 100
+            },
+            MidiMessage::NoteOff {
+                channel: 0,
+                key: 60
+            },
+        ]
+    );
+    assert_eq!(
+        from(1),
+        [
+            MidiMessage::Controller {
+                channel: 2,
+                number: 74,
+                value: 100
+            },
+            MidiMessage::PitchBend {
+                channel: 2,
+                value: 8192
+            },
+            MidiMessage::ChannelPressure {
+                channel: 2,
+                value: 55
+            },
+            MidiMessage::ProgramChange {
+                channel: 2,
+                program: 9
+            },
+            MidiMessage::Clock,
+        ]
+    );
+    for message in &seen {
+        assert!(message.at >= before && message.at <= after);
+        assert_eq!(message.stamp_micros, 7);
+    }
+    // Notes from either input are auditioned; controllers are not notes.
+    assert_eq!(*sink.notes.lock().unwrap(), [(60, 100), (60, 0)]);
+    assert!(sink.idles.load(Ordering::Relaxed) >= 1);
+}
+
+#[test]
+fn a_note_the_sink_takes_is_not_auditioned_and_the_callback_never_allocates() {
+    let (_processor, controller) = Processor::new(48_000);
+    let fake = fake(&["keys"]);
+    let settings = MidiHardwareSettings {
+        input: Some("keys".into()),
+        ..Default::default()
+    };
+    let (mut worker, sink) = worker(&controller, &fake, settings);
+    *sink.take_key.lock().unwrap() = Some(36);
+    input(&fake, "keys", &[0x99, 36, 127]);
+    input(&fake, "keys", &[0x89, 36, 0]);
+    input(&fake, "keys", &[0x90, 40, 90]);
+    worker.service();
+    assert_eq!(sink.messages.lock().unwrap().len(), 3);
+    assert_eq!(*sink.notes.lock().unwrap(), [(40, 90)]);
+
+    let mut ingress = fake.lock().unwrap().ingress.remove("keys").unwrap();
+    for bytes in [&[0xb0, 1, 64][..], &[0xe0, 1, 2], &[0xf8], &[0x90, 61, 1]] {
+        let calls = crate::test_alloc::allocator_calls(|| ingress.receive_at(1, bytes));
+        assert_eq!(calls, 0, "{bytes:?}");
+    }
+}
+
+#[test]
+fn losing_one_input_keeps_the_other_and_a_missing_one_is_reported() {
+    let (_processor, controller) = Processor::new(48_000);
+    let fake = fake(&["keys", "knobs"]);
+    let (mut worker, sink) = worker(&controller, &fake, two_inputs());
+    fake.lock().unwrap().present.retain(|id| id != "knobs");
+    worker.refresh();
+    let state = worker.state();
+    assert!(state.input_connected);
+    assert_eq!(state.connected_inputs, ["keys"]);
+    assert!(state.error.as_deref().unwrap().contains("disconnected"));
+    input(&fake, "keys", &[0x90, 60, 100]);
+    worker.service();
+    assert_eq!(*sink.notes.lock().unwrap(), [(60, 100)]);
+
+    // Configuring an input that is not there opens the rest and says so.
+    worker.configure(two_inputs());
+    let state = worker.state();
+    assert_eq!(state.connected_inputs, ["keys"]);
+    assert!(state.error.as_deref().unwrap().contains("knobs"));
+    // The main input keeps device 0 even when another fails to open.
+    input(&fake, "keys", &[0xb0, 7, 1]);
+    worker.service();
+    assert_eq!(sink.messages.lock().unwrap().last().unwrap().device, 0);
+}
+
+/// A project with one MIDI output channel and a pattern of two notes.
+fn midi_out_project(channel: i32) -> (Document, ChannelId, PatternId) {
+    let mut doc = Document::new(Project::new("MIDI out"));
+    let created = doc
+        .dispatch(
+            Command::AddChannel {
+                name: Some("Hardware synth".into()),
+                sample: None,
+                instrument: Some(InstrumentKind::MidiOut),
+                index: None,
+                mixer_track: None,
+            },
+            None,
+        )
+        .unwrap()
+        .created;
+    let id = ChannelId(created[0]);
+    let mut params = InstrumentKind::MidiOut.default_params();
+    let InstrumentParams::MidiOut(out) = &mut params else {
+        panic!("the default settings of a MIDI output are its own");
+    };
+    out.channel = channel;
+    out.program = 12;
+    doc.dispatch(
+        Command::SetInstrumentParams {
+            channel: id,
+            params,
+        },
+        None,
+    )
+    .unwrap();
+    let pattern = doc.project().patterns[0].id;
+    let note = |start, key| NoteInit {
+        start,
+        length: 240,
+        key,
+        velocity: Some(1.0),
+        pan: None,
+        expression: None,
+    };
+    doc.dispatch(
+        Command::AddNotes {
+            pattern,
+            channel: id,
+            notes: vec![note(0, 60), note(480, 64)],
+        },
+        None,
+    )
+    .unwrap();
+    (doc, id, pattern)
+}
+
+fn play_pattern(controller: &Controller, pattern: PatternId) {
+    controller.set_transport(TransportPatch {
+        mode: Some(PlayMode::Pattern),
+        pattern: Some(pattern),
+        ..Default::default()
+    });
+    controller.play();
+}
+
+#[test]
+fn a_midi_output_channel_queues_its_pattern_with_exact_frames_and_no_allocation() {
+    let (mut processor, controller) = Processor::new(48_000);
+    let (doc, _, pattern) = midi_out_project(3);
+    controller.set_project(doc.project(), &SamplePool::new());
+    let mut out = [1.0_f32; 960];
+    processor.process(&mut out);
+    play_pattern(&controller, pattern);
+    // 120 bpm at 48 kHz is 25 frames a tick: the second note ends at
+    // tick 720, frame 18 000. Run a little past it.
+    for _ in 0..40 {
+        let calls = crate::test_alloc::allocator_calls(|| processor.process(&mut out));
+        assert_eq!(calls, 0);
+        assert!(out.iter().all(|sample| *sample == 0.0), "it makes no sound");
+    }
+    let mut queued = Vec::new();
+    controller.drain_midi_out(|frame, bytes| queued.push((frame, bytes.to_vec())));
+    // Status and first data byte of each message, in order.
+    let heads: Vec<(u8, u8)> = queued
+        .iter()
+        .map(|(_, bytes)| (bytes[0], bytes[1]))
+        .collect();
+    assert_eq!(
+        heads,
+        [
+            // The program is told first, on the channel's own MIDI channel.
+            (0xb2, 0),
+            (0xb2, 32),
+            (0xc2, 11),
+            (0x92, 60),
+            (0x82, 60),
+            (0x92, 64),
+            (0x82, 64),
+        ]
+    );
+    // A note-on carries a velocity; a program change is two bytes.
+    assert!(queued[3].1[2] > 0 && queued[5].1[2] > 0);
+    assert_eq!(queued[2].1.len(), 2);
+    let frame = |index: usize| queued[index].0;
+    // Each note is as long as it is written, and they are a beat's half apart.
+    assert_eq!(frame(4) - frame(3), 240 * 25);
+    assert_eq!(frame(5) - frame(3), 480 * 25);
+    assert_eq!(frame(6) - frame(5), 240 * 25);
+    assert_eq!(controller.midi_out_dropped(), 0);
+}
+
+#[test]
+fn the_worker_sends_a_midi_output_channel_in_order_and_stop_ends_its_notes() {
+    let (mut processor, controller) = Processor::new(48_000);
+    let (doc, _, pattern) = midi_out_project(1);
+    controller.set_project(doc.project(), &SamplePool::new());
+    let fake = fake(&["synth"]);
+    let settings = MidiHardwareSettings {
+        output: Some("synth".into()),
+        output_channel: 16,
+        ..Default::default()
+    };
+    let (mut worker, _sink) = worker(&controller, &fake, settings);
+    let mut out = [0.0_f32; 960];
+    processor.process(&mut out);
+    worker.service();
+    fake.lock().unwrap().sent.clear();
+    play_pattern(&controller, pattern);
+    // Stop while the first note is still held: 100 buffers of 480 frames
+    // would reach it, three do not.
+    for _ in 0..3 {
+        processor.process(&mut out);
+        worker.service();
+    }
+    let playing = fake.lock().unwrap().sent.clone();
+    assert_eq!(playing.last().unwrap()[..2], [0x90, 60]);
+    assert!(!playing.iter().any(|bytes| bytes[0] == 0x80));
+
+    controller.stop();
+    processor.process(&mut out);
+    worker.service();
+    let sent = fake.lock().unwrap().sent.clone();
+    let after = &sent[playing.len()..];
+    // The channel's own release, or the panic's all-notes-off on its MIDI
+    // channel: either way the hardware is told to let go.
+    assert!(
+        after.contains(&vec![0x80, 60, 0]) || after.contains(&vec![0xb0, 123, 0]),
+        "{after:?}"
+    );
+    // The live-note channel is quieted by the panic as before.
+    assert!(after.contains(&vec![0xbf, 123, 0]));
+    assert!(!after.iter().any(|bytes| bytes[0] == 0x90));
+}
+
+#[test]
+fn with_no_output_open_midi_output_messages_are_discarded_not_kept() {
+    let (mut processor, controller) = Processor::new(48_000);
+    let (doc, _, pattern) = midi_out_project(1);
+    controller.set_project(doc.project(), &SamplePool::new());
+    let fake = fake(&["synth"]);
+    let (mut worker, _sink) = worker(&controller, &fake, MidiHardwareSettings::default());
+    let mut out = [0.0_f32; 960];
+    play_pattern(&controller, pattern);
+    for _ in 0..40 {
+        processor.process(&mut out);
+        worker.service();
+    }
+    // Opening a port later does not replay what was played before.
+    worker.configure(MidiHardwareSettings {
+        output: Some("synth".into()),
+        ..Default::default()
+    });
+    worker.service();
+    let sent = fake.lock().unwrap().sent.clone();
+    assert!(
+        !sent.iter().any(|bytes| bytes[0] & 0xf0 == 0x90),
+        "{sent:?}"
+    );
+    assert_eq!(controller.midi_out_dropped(), 0);
+}
+
+#[test]
+fn the_worker_sends_clock_start_pulses_and_stop_for_the_transport() {
+    let (mut processor, controller) = Processor::new(48_000);
+    let (doc, _, pattern) = midi_out_project(1);
+    controller.set_project(doc.project(), &SamplePool::new());
+    let fake = fake(&["synth"]);
+    let settings = MidiHardwareSettings {
+        output: Some("synth".into()),
+        send_clock: true,
+        ..Default::default()
+    };
+    let (mut worker, _sink) = worker(&controller, &fake, settings);
+    let realtime = |sent: &[Vec<u8>]| -> Vec<u8> {
+        sent.iter()
+            .filter(|bytes| bytes[0] >= 0xf8)
+            .map(|bytes| bytes[0])
+            .collect()
+    };
+    let start = Instant::now();
+    let mut out = [0.0_f32; 960];
+    // Stopped: a turn of the worker sends no clock.
+    processor.process(&mut out);
+    worker.service_at(start);
+    assert!(realtime(&fake.lock().unwrap().sent).is_empty());
+    assert!(!worker.state().clock_running);
+
+    play_pattern(&controller, pattern);
+    // Half a second: 480 frames of audio for every 10 ms of the clock's time.
+    for step in 1..=50_u32 {
+        processor.process(&mut out);
+        worker.service_at(start + Duration::from_millis(10) * step);
+    }
+    assert!(worker.state().clock_running);
+    let sent = realtime(&fake.lock().unwrap().sent);
+    assert_eq!(sent[0], 0xfa, "{sent:x?}");
+    let pulses = sent.iter().filter(|byte| **byte == 0xf8).count();
+    // One beat at 120 bpm is twenty-four pulses.
+    assert!((23..=26).contains(&pulses), "{pulses} pulses");
+    assert!(!sent.contains(&0xfc));
+
+    controller.stop();
+    processor.process(&mut out);
+    worker.service_at(start + Duration::from_millis(520));
+    let sent = realtime(&fake.lock().unwrap().sent);
+    assert_eq!(sent.last(), Some(&0xfc));
+    assert_eq!(sent.iter().filter(|byte| **byte == 0xfc).count(), 1);
+    assert!(!worker.state().clock_running);
+
+    // Switching the clock off while playing sends stop once.
+    play_pattern(&controller, pattern);
+    processor.process(&mut out);
+    worker.service_at(start + Duration::from_millis(530));
+    assert!(worker.state().clock_running);
+    worker.configure(MidiHardwareSettings {
+        output: Some("synth".into()),
+        send_clock: false,
+        ..Default::default()
+    });
+    assert!(!worker.state().clock_running);
+}

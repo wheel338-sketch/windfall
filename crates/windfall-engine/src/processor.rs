@@ -195,6 +195,7 @@ impl Processor {
         self.finish_count_in();
         self.apply_navigation(&mut navigation_left);
         self.publish_automation();
+        self.collect_midi_out();
         self.shared.publish_transport(
             self.transport_sequence,
             self.sequencer.playing() || self.count_in.is_some(),
@@ -1047,6 +1048,20 @@ impl Processor {
     }
 
     /// Processes up to [`MAX_BLOCK`] frames.
+    /// Moves what the MIDI output channels made in this buffer to the queue
+    /// the MIDI worker reads. Fixed storage on both sides; nothing is sent
+    /// from here.
+    fn collect_midi_out(&mut self) {
+        let shared = &self.shared;
+        for seat in self.state.instruments.iter_mut().flatten() {
+            if let Some(unit) = &mut seat.unit {
+                unit.drain_midi(&mut |event| {
+                    shared.push_midi_out(event.frame, event.bytes, event.len);
+                });
+            }
+        }
+    }
+
     fn process_block(&mut self, out: &mut [Frame]) {
         // Failed preparations are refused on the control side. Keep this
         // internal invariant fail-closed without manufacturing native anchors.

@@ -467,6 +467,7 @@ fn names_are_plain_descriptions() {
             "Wavetable synth",
             "Macro synth",
             "Speech Voice",
+            "MIDI output",
         ]
     );
 }

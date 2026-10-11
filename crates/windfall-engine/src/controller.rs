@@ -655,6 +655,23 @@ impl Controller {
         }
     }
 
+    /// Takes the messages MIDI output channels have queued, oldest first,
+    /// each with the engine frame it belongs to. One thread at a time may
+    /// call this: it is the MIDI worker's. Never blocks the audio thread.
+    pub fn drain_midi_out(&self, mut out: impl FnMut(u64, &[u8])) {
+        for _ in 0..crate::shared::MIDI_OUT_CAPACITY {
+            let Some((frame, bytes, len)) = self.inner.shared.pop_midi_out() else {
+                break;
+            };
+            out(frame, &bytes[..usize::from(len.min(3))]);
+        }
+    }
+
+    /// MIDI output messages lost because the worker did not keep up.
+    pub fn midi_out_dropped(&self) -> u32 {
+        self.inner.shared.midi_out_dropped()
+    }
+
     /// Session-only song region, preserved across stream replacement.
     pub fn set_timeline_region(
         &self,

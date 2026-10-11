@@ -131,6 +131,9 @@ pub mod lush;
 
 pub mod speech;
 
+pub mod midi_out;
+pub use midi_out::{MidiOut, MidiOutController, MidiOutEvent, MidiOutParams};
+
 pub mod tuner;
 
 pub mod mastering;
