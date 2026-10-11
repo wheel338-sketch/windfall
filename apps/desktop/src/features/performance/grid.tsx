@@ -7,11 +7,10 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { FieldGroup } from "@/components/ui/field"
 import { learnTargets } from "@/features/controllers/menu"
 import { MediaChoice } from "@/features/performance-media/controls"
-import { changeStageMedia, DEFAULT_STAGE_MEDIA, useMediaWindows } from "@/features/performance-media/store"
+import { changeStageMedia, DEFAULT_STAGE_MEDIA, mediaDocumentGuard, useMediaWindows } from "@/features/performance-media/store"
 import { reportError } from "@/lib/errors"
 import { backend } from "@/lib/ipc"
 import { useProjectStore } from "@/lib/store/project"
-import { getProjectGeneration } from "@/lib/store/replaced"
 
 export function PerformanceGrid() {
   const project = useProjectStore((state) => state.project)
@@ -42,8 +41,10 @@ export function PerformanceGrid() {
     return () => { cancelled = true; cancelAnimationFrame(frame) }
   }, [])
   const send = async (track: number, scene: number | null) => {
-    const state = useProjectStore.getState()
-    try { await backend.performancePad(track, scene, getProjectGeneration(), state.revision) } catch (error) { reportError(error) }
+    try { const guard = await mediaDocumentGuard(); await backend.performancePad(track, scene, guard.generation, guard.revision) } catch (error) { reportError(error) }
+  }
+  const sendScene = async (scene: number) => {
+    try { const guard = await mediaDocumentGuard(); await backend.performanceScene(scene, guard.generation, guard.revision) } catch (error) { reportError(error) }
   }
   const tracks = Array.from({ length: 8 }, (_, i) => Number(trackBank) * 8 + i)
   const scenes = Array.from({ length: 4 }, (_, i) => Number(sceneBank) * 4 + i)
@@ -55,8 +56,7 @@ export function PerformanceGrid() {
       <MediaChoice label="Scene bank" value={sceneBank} options={[0, 1, 2, 3].map((i) => ({ value: String(i), label: `${i * 4 + 1}–${i * 4 + 4}` }))} onChange={setSceneBank} />
     </FieldGroup>
     <div className="overflow-x-auto"><table className="w-full" aria-label="Performance pads"><thead><tr><th>Scene</th>{tracks.map((track) => <th key={track}><div className="flex flex-col gap-1"><span>Track {track + 1}</span><Button variant="outline" size="sm" onClick={() => { void send(track, null) }}>Stop {track + 1}</Button></div></th>)}</tr></thead><tbody>{scenes.map((scene) => <tr key={scene}><th><Button variant="outline" size="sm" onClick={() => {
-      const state = useProjectStore.getState()
-      void backend.performanceScene(scene, getProjectGeneration(), state.revision).catch(reportError)
+      void sendScene(scene)
     }}>Scene {scene + 1}</Button></th>{tracks.map((track) => {
       const pad = media.pads.find((pad) => pad.track === track && pad.scene === scene)
       const state = status?.tracks[track]

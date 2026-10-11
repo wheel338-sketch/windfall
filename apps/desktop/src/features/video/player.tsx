@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react"
 import type { VideoPlacement } from "@/bindings"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { backend } from "@/lib/ipc"
+import { mediaDocumentGuard } from "@/features/performance-media/store"
 import { songTempoMap } from "@/lib/automation/tempo-map"
 import { useProjectStore } from "@/lib/store/project"
 import { useProjectGeneration } from "@/lib/store/replaced"
@@ -27,8 +28,12 @@ export function VideoPlayer({ placement }: { placement: VideoPlacement }) {
     let cancelled = false
     let owned: string | null = null
     follower.current.reset(); playPending.current = false
-    void backend.mediaVideoRead(placement.path, generation).then((bytes) => {
-      if (cancelled) return
+    void (async () => {
+      const guard = await mediaDocumentGuard(generation)
+      if (cancelled) return null
+      return backend.mediaVideoRead(placement.path, guard.generation)
+    })().then((bytes) => {
+      if (cancelled || bytes === null) return
       const extension = placement.path.split(".").pop()?.toLowerCase()
       const mime = extension === "webm" ? "video/webm" : extension === "ogv" ? "video/ogg" : extension === "mov" ? "video/quicktime" : "video/mp4"
       owned = URL.createObjectURL(new Blob([bytes], { type: mime }))

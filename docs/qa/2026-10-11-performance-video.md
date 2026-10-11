@@ -91,7 +91,8 @@ unknown) and one held-note pose per sounding channel, bounded to 128 channels.
   "selects the native analyzer spectrum and persists scene parameters through checked commands",
   "edits mute and source offset and removes saved timeline video with undo",
   "drops a media read that completes after unmount without allocating a Blob URL",
-  "animates the selected channel from the real note-pose feed and clears on replacement".
+  "animates the selected channel from the real note-pose feed and clears on replacement",
+  "refuses media work when the native revision or window lifetime changes during guard acquisition".
 
 All of the above are written, not executed. The mounted analyzer case hands in
 native-protocol fixtures; it is not evidence of a real webview/audio stream.
@@ -175,3 +176,8 @@ policy, variable frame-rate media and AVI player behavior need external checks.
 New implementation logic and tests live in owned stage_media, performance and
 performance_media modules plus the performance/video/visualizer feature folders.
 No tracker, dependency, generated artifact, main checkout or other worktree edits.
+
+Media IPC guards are acquired from native timelineState rather than treating the
+window replacement counter as a native generation. Mounted launch tests deliberately
+use native generation 55, covering a window reload with a different local counter.
+The local counter still cancels in-flight reads/exports across replacement.

@@ -13,7 +13,7 @@ import type { MockBackend } from "@/lib/ipc/mock"
 import { useProjectStore } from "@/lib/store/project"
 import { announceProjectReplaced, getProjectGeneration } from "@/lib/store/replaced"
 import { startTestApp } from "@/test/harness"
-import { changeStageMedia, DEFAULT_STAGE_MEDIA, useMediaWindows } from "./store"
+import { changeStageMedia, DEFAULT_STAGE_MEDIA, mediaDocumentGuard, useMediaWindows } from "./store"
 
 let backend: MockBackend
 let stop: () => void
@@ -48,19 +48,21 @@ describe("mounted performance and media editors", () => {
     vi.spyOn(backend, "performanceState").mockResolvedValue({ available: true, tick: 2, droppedNotes: "0", tracks: Array.from({ length: 32 }, () => ({ active: null, queued: null, queuedStop: false })) })
     vi.spyOn(backend, "performancePad").mockResolvedValue()
     vi.spyOn(backend, "performanceScene").mockResolvedValue()
+    // A reloaded window can be on cancellation counter 0 while native is 55.
+    vi.spyOn(backend, "timelineState").mockResolvedValue({ generation: 55, revision: useProjectStore.getState().revision, request: 0, region: null, navigationOverflows: 0 })
     render(<PerformancePanel />)
     act(() => useMediaWindows.setState({ performance: true }))
     const user = userEvent.setup()
     const pad = await screen.findByRole("button", { name: "Launch track 1 scene 1" })
     await user.click(pad)
     const revision = useProjectStore.getState().revision
-    expect(backend.performancePad).toHaveBeenCalledWith(0, 0, getProjectGeneration(), revision)
+    expect(backend.performancePad).toHaveBeenCalledWith(0, 0, 55, revision)
     pad.focus(); await user.keyboard("{Enter}")
     expect(backend.performancePad).toHaveBeenCalledTimes(2)
     await user.click(screen.getByRole("button", { name: "Scene 1" }))
-    expect(backend.performanceScene).toHaveBeenCalledWith(0, getProjectGeneration(), revision)
+    expect(backend.performanceScene).toHaveBeenCalledWith(0, 55, revision)
     await user.click(screen.getByRole("button", { name: "Stop 1" }))
-    expect(backend.performancePad).toHaveBeenLastCalledWith(0, null, getProjectGeneration(), revision)
+    expect(backend.performancePad).toHaveBeenLastCalledWith(0, null, 55, revision)
     act(() => announceProjectReplaced())
     await waitFor(() => expect(screen.queryByRole("dialog", { name: "Performance grid" })).toBeNull())
   })
@@ -126,9 +128,19 @@ describe("mounted performance and media editors", () => {
     vi.stubGlobal("URL", class extends URL { static createObjectURL = create; static revokeObjectURL = vi.fn() })
     vi.spyOn(HTMLMediaElement.prototype, "pause").mockImplementation(() => {})
     const view = render(<VideoPlayer placement={{ path: "C:/clip.webm", startTick: 0, lengthTicks: 3840, offsetSeconds: 0, muted: true }} />)
+    await waitFor(() => expect(backend.mediaVideoRead).toHaveBeenCalled())
     view.unmount()
     await act(async () => resolve(new ArrayBuffer(8)))
     expect(create).not.toHaveBeenCalled()
+  })
+
+  it("refuses media work when the native revision or window lifetime changes during guard acquisition", async () => {
+    const revision = useProjectStore.getState().revision
+    vi.spyOn(backend, "timelineState").mockResolvedValue({ generation: 55, revision: revision + 1, request: 0, region: null, navigationOverflows: 0 })
+    await expect(mediaDocumentGuard()).rejects.toThrow("changed")
+    const generation = getProjectGeneration()
+    act(() => announceProjectReplaced())
+    await expect(mediaDocumentGuard(generation, revision)).rejects.toThrow("changed")
   })
 
   it("animates the selected channel from the real note-pose feed and clears on replacement", async () => {

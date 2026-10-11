@@ -9,7 +9,7 @@ import { AnalyzerSourceSelect } from "@/features/analyzers/source-select"
 import { AnalyzerStatusLine } from "@/features/analyzers/status"
 import type { AnalyzerFrame, AnalyzerSource } from "@/features/analyzers/types"
 import { MediaChoice, MediaNumber } from "@/features/performance-media/controls"
-import { changeStageMedia, DEFAULT_STAGE_MEDIA, useMediaWindows } from "@/features/performance-media/store"
+import { changeStageMedia, DEFAULT_STAGE_MEDIA, mediaDocumentGuard, useMediaWindows } from "@/features/performance-media/store"
 import { backend } from "@/lib/ipc"
 import { songTempoMap } from "@/lib/automation/tempo-map"
 import { getProjectGeneration } from "@/lib/store/replaced"
@@ -66,7 +66,8 @@ function VisualizerBody() {
     const generation = getProjectGeneration()
     const visual = state.project.settings.stageMedia?.visual ?? DEFAULT_STAGE_MEDIA.visual
     try {
-      const audio = await backend.mediaRenderAudio({ start, end }, generation, state.revision)
+      const guard = await mediaDocumentGuard(generation, state.revision)
+      const audio = await backend.mediaRenderAudio({ start, end }, guard.generation, guard.revision)
       if (cancel.current || generation !== getProjectGeneration()) throw new Error("Video export cancelled")
       const phase = visualSongFrame(songTempoMap(state.project).secondsAt(start))
       const result = await exportVisualAvi(audio.samples, audio.sampleRate, visual, 320, 180, () => cancel.current, setProgress, phase)
