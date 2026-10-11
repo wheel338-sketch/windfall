@@ -204,6 +204,13 @@ fn check_settings(project: &Project) -> Result<(), String> {
     if !within(settings.swing, 0.0, 1.0) {
         return Err(format!("swing {} is outside 0 to 1", settings.swing));
     }
+    if !crate::timebase::is_timebase(settings.timebase_ppq) {
+        return Err(format!(
+            "timebase {} is not one of {:?} ticks per quarter note",
+            settings.timebase_ppq,
+            crate::timebase::TIMEBASES
+        ));
+    }
     Ok(())
 }
 

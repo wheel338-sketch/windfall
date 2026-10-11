@@ -248,6 +248,8 @@ impl Project {
                     denominator: 4,
                 },
                 swing: 0.0,
+                pan_law: crate::PanLaw::default(),
+                timebase_ppq: crate::timebase::DEFAULT_TIMEBASE_PPQ,
             },
             samples: Vec::new(),
             notebook: crate::Notebook::default(),
@@ -339,6 +341,20 @@ pub struct ProjectSettings {
     /// At 1 that step lands two thirds of the way through its pair of steps,
     /// which is a full triplet feel.
     pub swing: f32,
+    /// How panning changes level in playback and export. A file that names
+    /// none has [`PanLaw::Balance`](crate::PanLaw::Balance).
+    #[serde(default, skip_serializing_if = "crate::PanLaw::is_default")]
+    #[ts(as = "Option<crate::PanLaw>", optional)]
+    pub pan_law: crate::PanLaw,
+    /// Ticks per quarter note that playback and export count time in: one
+    /// of [`TIMEBASES`](crate::timebase::TIMEBASES). Stored positions stay
+    /// at 960; see [`crate::timebase`]. A file that names none has 960.
+    #[serde(
+        default = "crate::timebase::default_ppq",
+        skip_serializing_if = "crate::timebase::is_default_ppq"
+    )]
+    #[ts(as = "Option<u16>", optional)]
+    pub timebase_ppq: u16,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]

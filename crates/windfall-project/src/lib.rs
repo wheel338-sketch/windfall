@@ -54,3 +54,12 @@ pub use note_timing::{ChannelTiming, MAX_CHANNEL_SHIFT_TICKS};
 pub use windfall_dsp::{NoteArticulation, NoteExpression};
 pub use patch::*;
 pub use piano_tools::{NoteEdge, NoteGroove, NoteTransform};
+pub mod preset;
+pub use preset::{
+    ChannelPreset, PluginPreset, PluginPresetState, Preset, PresetAsset, PresetKind,
+};
+mod project_settings;
+pub use project_settings::PanLaw;
+pub mod score;
+pub use score::{Score, ScoreLoadMode, ScoreNote};
+pub mod timebase;
