@@ -3,7 +3,11 @@ import type { ChannelId } from "./ChannelId";
 import type { MidiHardwareSettings } from "./MidiHardwareSettings";
 import type { MidiPort } from "./MidiPort";
 
-export type MidiHardwareState = { settings: MidiHardwareSettings, inputs: Array<MidiPort>, outputs: Array<MidiPort>, inputConnected: boolean, outputConnected: boolean, 
+export type MidiHardwareState = { settings: MidiHardwareSettings, inputs: Array<MidiPort>, outputs: Array<MidiPort>, 
+/**
+ * The main input is open.
+ */
+inputConnected: boolean, outputConnected: boolean, 
 /**
  * Runtime-only explicit audition destination, cleared on project replacement/removal.
  */
@@ -11,4 +15,21 @@ target: ChannelId | null,
 /**
  * Session document identity for guarded destination requests.
  */
-generation: number, droppedEvents: number, error: string | null, };
+generation: number, droppedEvents: number, error: string | null, 
+/**
+ * The IDs of every input that is open, the main one included.
+ */
+connectedInputs: Array<string>, 
+/**
+ * MIDI clock is being sent right now.
+ */
+clockRunning: boolean, 
+/**
+ * Messages of MIDI output channels that were lost before they could
+ * be sent.
+ */
+outputDropped: number, 
+/**
+ * The tempo of the clock an input is sending, while one is.
+ */
+externalBpm: number | null, };

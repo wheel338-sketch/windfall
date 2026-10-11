@@ -7,4 +7,9 @@ export type MidiImportOptions = {
 /**
  * Zero means one pattern per part, split only at the model limit.
  */
-bars: number, sharePatterns: boolean, factoryDrums: boolean, tempo: boolean, timeSignature: boolean, channelMix: boolean, };
+bars: number, sharePatterns: boolean, factoryDrums: boolean, tempo: boolean, timeSignature: boolean, channelMix: boolean, 
+/**
+ * Pitch bend, controller 74 and the modulation wheel at each note's
+ * start become its fine pitch and modulation. Omitted means on.
+ */
+noteExpression?: boolean, };
