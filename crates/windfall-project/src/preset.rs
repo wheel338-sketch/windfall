@@ -159,8 +159,10 @@ pub struct ChannelPreset {
         default,
         deserialize_with = "crate::channel_voice::deserialize_settings"
     )]
+    #[ts(as = "Option<ChannelVoiceSettings>", optional)]
     pub voice: ChannelVoiceSettings,
     #[serde(default)]
+    #[ts(as = "Option<ChannelTiming>", optional)]
     pub timing: ChannelTiming,
     /// The sound. A sampler's `sample` is always empty here: its audio is
     /// the asset `sample_asset` names.

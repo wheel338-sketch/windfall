@@ -349,6 +349,51 @@ const EVERY_COMMAND: { [Type in Command["type"]]: (ids: Ids) => Command } = {
       plugins: [],
     },
   }),
+  applyChannelPreset: (ids) => {
+    const channel = ids.project.channels.find(
+      (candidate) => candidate.id === ids.channel
+    )!
+    return {
+      type: "applyChannelPreset",
+      id: ids.channel,
+      expected: channel,
+      nameColor: false,
+      preset: {
+        name: "Preset",
+        color: 0x112233,
+        // A level the channel does not have, so the preset changes it.
+        volume: channel.volume === 0.25 ? 0.5 : 0.25,
+        pan: 0,
+        // A preset never names a project sample: its sampler is empty
+        // until audio is given with the command.
+        source:
+          channel.source.type === "sampler"
+            ? { ...channel.source, sample: null }
+            : channel.source,
+      },
+    }
+  },
+  applyPluginPreset: (ids) => {
+    const bound = ids.project.plugins!.find(
+      (plugin) =>
+        plugin.target.type === "effect" &&
+        plugin.target.effect === ids.pluginEffect
+    )!
+    // A preset holds a hosted plugin against a placeholder target.
+    const binding = { ...bound, target: { type: "effect" as const, effect: 0 } }
+    return {
+      type: "applyPluginPreset",
+      target: { type: "effect", effect: ids.pluginEffect },
+      expected: { type: "hosted", instrument: false, binding },
+      preset: {
+        state: {
+          type: "hosted",
+          instrument: false,
+          binding: { ...binding, state: [9, 9, 9] },
+        },
+      },
+    }
+  },
   moveMixerTracks: (ids) => ({
     type: "moveMixerTracks",
     expected: ids.project.mixer.tracks.map((track) => track.id),

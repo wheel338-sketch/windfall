@@ -15,6 +15,7 @@ mod effects;
 mod export;
 mod export_formats;
 mod files;
+mod files_qa;
 mod flp;
 mod import_formats;
 mod import_recording;
