@@ -88,7 +88,14 @@ function BoundEditor({ trackId, slot, Editor, descriptor }: BoundEditorProps) {
     setParam,
     ...automation,
   })
-  return <Editor effect={slot.id} params={slot.params} bind={bind} />
+  return (
+    <Editor
+      effect={slot.id}
+      track={trackId}
+      params={slot.params}
+      bind={bind}
+    />
+  )
 }
 
 function FallbackEditor({
