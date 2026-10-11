@@ -185,3 +185,6 @@ pub mod recording;
 
 #[cfg(test)]
 mod qa_recording_mixer;
+
+/// Saturating tail sums and memory admission for effects with long histories.
+mod effect_host;

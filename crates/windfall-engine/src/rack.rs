@@ -102,16 +102,21 @@ impl EffectUnit {
     /// Builds and prepares an effect with its settings in force from its
     /// first frame. Allocates, so it is for the control side. Also returns
     /// the meter of a compressor or limiter.
+    ///
+    /// An effect with large histories is prepared within `budget` and can
+    /// be refused. The half-built effect is then dropped here, on the
+    /// control side, and nothing of it reaches the audio thread.
     pub fn build(
         effect: &PlanEffect,
         track: TrackId,
         sample_rate: u32,
         tempo_bpm: f64,
-    ) -> (Self, Option<GainReductionMeter>) {
+        budget: windfall_dsp::echo_bank::PreparationBudget,
+    ) -> Result<(Self, Option<GainReductionMeter>), windfall_dsp::echo_bank::PreparationError> {
         let processor = AnyEffect::new(&effect.params);
         let meter = processor.gain_reduction();
         let mut slot = EffectSlot::new(processor);
-        slot.prepare(sample_rate as f32, MAX_BLOCK);
+        slot.try_prepare(sample_rate as f32, MAX_BLOCK, budget)?;
         slot.set_tempo(tempo_bpm as f32);
         slot.set_params(&effect.params);
         slot.set_enabled(effect.enabled);
@@ -131,7 +136,7 @@ impl EffectUnit {
             life: effect.life.clone(),
             heard: false,
         };
-        (unit, meter)
+        Ok((unit, meter))
     }
 
     pub fn kind(&self) -> EffectKind {
