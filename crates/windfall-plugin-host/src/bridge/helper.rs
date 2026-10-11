@@ -233,7 +233,30 @@ impl Native {
             processor.reset();
             for (key, velocity) in input.notes.iter().enumerate() {
                 if *velocity > 0.0 {
-                    let accepted = processor.note_on(0, key as u8, *velocity);
+                    let accepted = processor.push_recovery_event(HostEvent::NoteOn {
+                        time: 0,
+                        key: (key % 128) as u8,
+                        channel: (key / 128) as u8,
+                        velocity: *velocity,
+                    });
+                    admitted &= accepted;
+                    if !accepted {
+                        output.native_drops = output.native_drops.saturating_add(1);
+                    }
+                }
+            }
+        }
+        if discontinuity || needs_parameters || self.notes_uncertain {
+            let masks =
+                std::array::from_fn(|channel| processor.note_expression_mask(channel as u8));
+            for note in &input.instances[..input.instance_count] {
+                if !processor.supports_note_instances() {
+                    return Err(error("instance snapshot for key-only native plugin"));
+                }
+                let mut events = [HostEvent::AllNotesOff { time: 0 }; 5];
+                let count = note.events(&masks, &mut events);
+                for event in &events[..count] {
+                    let accepted = processor.push_recovery_event(*event);
                     admitted &= accepted;
                     if !accepted {
                         output.native_drops = output.native_drops.saturating_add(1);
@@ -658,6 +681,9 @@ fn run(address: SocketAddr) -> io::Result<()> {
         return Err(error(message));
     }
     let tail = u64::from(processor.tail_samples().unwrap_or(config.sample_rate * 10));
+    let note_instances = processor.supports_note_instances();
+    let expression_masks =
+        std::array::from_fn(|channel| processor.note_expression_mask(channel as u8));
     let mut native = Native {
         instance,
         processor: Some(processor),
@@ -677,6 +703,8 @@ fn run(address: SocketAddr) -> io::Result<()> {
         dirty: false,
     };
     let ready = Message::Ready {
+        note_instances,
+        expression_masks,
         native_latency: latency as u32,
         tail,
         parameters: parameters.clone(),

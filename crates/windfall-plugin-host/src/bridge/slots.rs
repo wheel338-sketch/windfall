@@ -188,7 +188,15 @@ impl Region {
         }
     }
     pub fn submit(&self, sequence: u64, block: &InputBlock) -> bool {
-        if block.parameter_count > PARAM_CAPACITY
+        if block.instance_count > crate::MAX_NOTE_INSTANCES
+            || block.instances[..block.instance_count]
+                .iter()
+                .any(|note| !note.valid())
+            || block
+                .notes
+                .iter()
+                .any(|v| !v.is_finite() || !(0.0..=1.0).contains(v))
+            || block.parameter_count > PARAM_CAPACITY
             || block.sidechain_input.is_some_and(|index| index >= 64)
             || block.event_count > EVENT_CAPACITY
             || self.timeline_epoch() != Ok(block.epoch)
@@ -217,6 +225,7 @@ impl Region {
         self.put(slot, PARAM_COUNT, block.parameter_count as u32);
         self.put(slot, FLAGS, u32::from(!block.controls_complete));
         self.put(slot, NOTE_CHANNEL, 0);
+        self.put(slot, INSTANCE_COUNT, block.instance_count as u32);
         self.put(
             slot,
             SIDECHAIN_PORT,
@@ -253,6 +262,11 @@ impl Region {
         }
         for (index, velocity) in block.notes.iter().enumerate() {
             self.put(slot, NOTES + index, velocity.to_bits());
+        }
+        for (index, note) in block.instances[..block.instance_count].iter().enumerate() {
+            for (word, value) in note.encode().into_iter().enumerate() {
+                self.put(slot, INSTANCES + index * NOTE_SNAPSHOT_WORDS + word, value);
+            }
         }
         for (index, parameter) in block.parameters[..block.parameter_count].iter().enumerate() {
             let words = parameter.encode().expect("admitted parameter");
@@ -299,9 +313,11 @@ impl Region {
         let frames = self.get(slot, FRAMES) as usize;
         let events = self.get(slot, EVENT_COUNT) as usize;
         let params = self.get(slot, PARAM_COUNT) as usize;
+        let instances = self.get(slot, INSTANCE_COUNT) as usize;
         if frames != self.config.block
             || events > EVENT_CAPACITY
             || params > PARAM_CAPACITY
+            || instances > crate::MAX_NOTE_INSTANCES
             || self.get(slot, FLAGS) > 1
             || self.get(slot, NOTE_CHANNEL) != 0
         {
@@ -335,6 +351,19 @@ impl Region {
                 return Err(ProtocolError::Event);
             }
         }
+        for index in 0..instances {
+            let note = NoteSnapshot::decode(std::array::from_fn(|word| {
+                self.get(slot, INSTANCES + index * NOTE_SNAPSHOT_WORDS + word)
+            }))?;
+            if block.instances[..index]
+                .iter()
+                .any(|other| other.id == note.id)
+            {
+                return Err(ProtocolError::Event);
+            }
+            block.instances[index] = note;
+        }
+        block.instance_count = instances;
         for index in 0..params {
             block.parameters[index] = Parameter::decode(std::array::from_fn(|word| {
                 self.get(slot, PARAMETERS + index * 3 + word)
@@ -494,6 +523,104 @@ pub fn finite_input(value: f32) -> f32 {
     }
 }
 
+/// Held ownership at the first frame, before this block's timed events.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct NoteSnapshot {
+    pub id: u32,
+    pub key: u8,
+    pub channel: u8,
+    pub velocity: f32,
+    pub controls: crate::PluginNoteControls,
+}
+impl NoteSnapshot {
+    pub const EMPTY: Self = Self {
+        id: 0,
+        key: 0,
+        channel: 0,
+        velocity: 0.0,
+        controls: crate::PluginNoteControls {
+            pan: 0.0,
+            pitch: 0.0,
+            modulation_x: 0.5,
+            modulation_y: 0.5,
+        },
+    };
+    pub fn valid(self) -> bool {
+        (crate::FIRST_NOTE_INSTANCE_ID..=i32::MAX as u32).contains(&self.id)
+            && self.key <= 127
+            && self.channel <= 15
+            && self.velocity.is_finite()
+            && (0.0..=1.0).contains(&self.velocity)
+            && self.controls.valid(self.key)
+    }
+    fn encode(self) -> [u32; NOTE_SNAPSHOT_WORDS] {
+        [
+            self.id,
+            u32::from(self.key),
+            u32::from(self.channel),
+            self.velocity.to_bits(),
+            self.controls.pan.to_bits(),
+            self.controls.pitch.to_bits(),
+            self.controls.modulation_x.to_bits(),
+            self.controls.modulation_y.to_bits(),
+        ]
+    }
+    fn decode(words: [u32; NOTE_SNAPSHOT_WORDS]) -> Result<Self, ProtocolError> {
+        let note = Self {
+            id: words[0],
+            key: u8::try_from(words[1]).map_err(|_| ProtocolError::Event)?,
+            channel: u8::try_from(words[2]).map_err(|_| ProtocolError::Event)?,
+            velocity: f32::from_bits(words[3]),
+            controls: crate::PluginNoteControls {
+                pan: f32::from_bits(words[4]),
+                pitch: f32::from_bits(words[5]),
+                modulation_x: f32::from_bits(words[6]),
+                modulation_y: f32::from_bits(words[7]),
+            },
+        };
+        if !note.valid() {
+            return Err(ProtocolError::Event);
+        }
+        Ok(note)
+    }
+    pub fn events(self, masks: &[u32; 16], out: &mut [HostEvent; 5]) -> usize {
+        out[0] = HostEvent::NoteOnInstance {
+            time: 0,
+            id: self.id,
+            key: self.key,
+            channel: self.channel,
+            velocity: self.velocity,
+        };
+        1 + self.expression_events(masks, &mut out[1..])
+    }
+    pub fn expression_events(self, masks: &[u32; 16], out: &mut [HostEvent]) -> usize {
+        use crate::NoteExpressionKind as K;
+        let mut count = 0;
+        for (kind, value) in [
+            (K::Pan, (f64::from(self.controls.pan) + 1.0) / 2.0),
+            (
+                K::Tuning,
+                f64::from(self.controls.pitch) - f64::from(self.key),
+            ),
+            (K::Brightness, f64::from(self.controls.modulation_x)),
+            (K::Expression, f64::from(self.controls.modulation_y)),
+        ] {
+            if masks[self.channel as usize] & kind.mask() != 0 {
+                out[count] = HostEvent::NoteExpression {
+                    time: 0,
+                    id: self.id,
+                    key: self.key,
+                    channel: self.channel,
+                    kind,
+                    value,
+                };
+                count += 1;
+            }
+        }
+        count
+    }
+}
+
 pub struct InputBlock {
     pub epoch: u64,
     pub control_start: u64,
@@ -504,7 +631,9 @@ pub struct InputBlock {
     pub key: [[f32; 2]; MAX_BLOCK],
     pub sidechain_input: Option<u32>,
     pub transport: Transport,
-    pub notes: [f32; 128],
+    pub notes: [f32; NOTE_KEYS],
+    pub instances: Box<[NoteSnapshot]>,
+    pub instance_count: usize,
     pub parameters: Box<[Parameter]>,
     pub parameter_count: usize,
     pub events: Box<[HostEvent]>,
@@ -522,7 +651,9 @@ impl InputBlock {
             key: [[0.0; 2]; MAX_BLOCK],
             sidechain_input: None,
             transport: Transport::default(),
-            notes: [0.0; 128],
+            notes: [0.0; NOTE_KEYS],
+            instances: vec![NoteSnapshot::EMPTY; crate::MAX_NOTE_INSTANCES].into_boxed_slice(),
+            instance_count: 0,
             parameters: vec![Parameter { id: 0, value: 0.0 }; PARAM_CAPACITY].into_boxed_slice(),
             parameter_count: 0,
             events: vec![HostEvent::AllNotesOff { time: 0 }; EVENT_CAPACITY].into_boxed_slice(),
@@ -592,7 +723,7 @@ mod tests {
         assert_eq!((TRANSPORT, EPOCH, REPLY_IDENTITY), (16, 30, 32));
         assert_eq!(
             (HEADER_WORDS * 4, SLOT_WORDS * 4, REGION_BYTES),
-            (256, 226_112, 904_704)
+            (256, 266_560, 1_066_496)
         );
         let before: Vec<_> = region
             .storage

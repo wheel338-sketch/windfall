@@ -504,6 +504,8 @@ pub fn launch(options: Launch) -> Result<(Control, Audio, usize), String> {
         return Err(message.clone());
     }
     let Message::Ready {
+        note_instances,
+        expression_masks,
         native_latency,
         tail,
         parameters,
@@ -516,7 +518,10 @@ pub fn launch(options: Launch) -> Result<(Control, Audio, usize), String> {
         .negotiate_latency(native_latency as usize)
         .map_err(|error| error.to_string())?;
     let signals = Arc::new(Signals::default());
-    let audio = Audio::new(region.clone(), signals.clone(), &parameters)
+    let mut audio = Audio::new(region.clone(), signals.clone(), &parameters)
+        .map_err(|error| error.to_string())?;
+    audio
+        .configure_note_capabilities(note_instances, expression_masks)
         .map_err(|error| error.to_string())?;
     let status = Arc::new(Mutex::new(Status {
         process_id: process.0.id(),

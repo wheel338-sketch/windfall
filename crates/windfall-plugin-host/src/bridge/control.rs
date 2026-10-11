@@ -165,6 +165,8 @@ pub enum Message {
         offline: bool,
     },
     Ready {
+        note_instances: bool,
+        expression_masks: [u32; 16],
         native_latency: u32,
         tail: u64,
         parameters: Vec<ControlParameter>,

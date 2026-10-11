@@ -33,7 +33,8 @@ pub const EVENT_CAPACITY: usize = 1024;
 /// The instrument adapter releases channel/key pairs at frame zero. Once
 /// ordinary admission stops, no new note-ons can intervene, so at most one
 /// release per channel/key pair and one global panic need extra space.
-pub(crate) const IMMEDIATE_RELEASE_CAPACITY: usize = 16 * 128 + 2 * crate::events::MAX_NOTE_INSTANCES + 1;
+pub(crate) const IMMEDIATE_RELEASE_CAPACITY: usize =
+    16 * 128 + 2 * crate::events::MAX_NOTE_INSTANCES + 1;
 
 /// A tail length that stands for "never ends".
 pub(crate) const ENDLESS_TAIL: u32 = u32::MAX;
@@ -95,8 +96,12 @@ pub(crate) struct ProcessFailed;
 /// One plugin format's way of running a block. The processor calls these
 /// on the audio thread only, never two at once.
 pub(crate) trait ProcessorBackend: Send + 'static {
-    fn supports_note_instances(&self) -> bool { false }
-    fn note_expression_mask(&self, _channel: u8) -> u32 { 0 }
+    fn supports_note_instances(&self) -> bool {
+        false
+    }
+    fn note_expression_mask(&self, _channel: u8) -> u32 {
+        0
+    }
     fn set_sidechain_input(&mut self, _input: Option<u32>) {}
     /// Processes one block of at most the block size the plugin was
     /// activated with. `events` are sorted by time and all lie inside the
@@ -111,7 +116,15 @@ pub(crate) trait ProcessorBackend: Send + 'static {
     ) -> Result<BlockResult, ProcessFailed>;
 
     /// Optional auxiliary audio, copied into format-owned input buffers.
-    fn process_sidechain(&mut self, audio: AudioIo<'_>, _key: Option<&[[f32; 2]]>, events: &[HostEvent], transport: &Transport, steady_time: u64, out: &mut dyn FnMut(PluginEvent)) -> Result<BlockResult, ProcessFailed> {
+    fn process_sidechain(
+        &mut self,
+        audio: AudioIo<'_>,
+        _key: Option<&[[f32; 2]]>,
+        events: &[HostEvent],
+        transport: &Transport,
+        steady_time: u64,
+        out: &mut dyn FnMut(PluginEvent),
+    ) -> Result<BlockResult, ProcessFailed> {
         self.process(audio, events, transport, steady_time, out)
     }
 
@@ -159,6 +172,7 @@ pub struct PluginProcessor {
     max_block: usize,
     /// Events for the next block, sorted by time.
     pending: Vec<HostEvent>,
+    recovery_events: usize,
     from_main: rtrb::Consumer<HostEvent>,
     to_main: rtrb::Producer<PluginEvent>,
     transport: Transport,
@@ -182,19 +196,40 @@ pub(crate) struct ProcessorParts {
 }
 
 impl PluginProcessor {
-    pub fn supports_note_instances(&self) -> bool { self.backend.supports_note_instances() }
-    pub fn note_expression_mask(&self, channel: u8) -> u32 { self.backend.note_expression_mask(channel.min(15)) }
+    pub fn supports_note_instances(&self) -> bool {
+        self.backend.supports_note_instances()
+    }
+    pub fn note_expression_mask(&self, channel: u8) -> u32 {
+        self.backend.note_expression_mask(channel.min(15))
+    }
     /// All-or-nothing admission keeps a note-on and its initial controls on
     /// the same frame without exposing a partially initialized voice.
     pub fn push_events(&mut self, events: &[HostEvent]) -> bool {
-        if events.iter().any(|event| !event.valid()) || self.pending.len().saturating_add(events.len()) > EVENT_CAPACITY {
-            self.shared.health.dropped_events.fetch_add(events.len().min(u32::MAX as usize) as u32, Ordering::Relaxed);
+        if events.iter().any(|event| !event.valid())
+            || self
+                .pending
+                .len()
+                .saturating_sub(self.recovery_events)
+                .saturating_add(events.len())
+                > EVENT_CAPACITY
+        {
+            self.shared.health.dropped_events.fetch_add(
+                events.len().min(u32::MAX as usize) as u32,
+                Ordering::Relaxed,
+            );
             return false;
         }
-        for event in events { let at = self.pending.partition_point(|queued| queued.time() <= event.time()); self.pending.insert(at, *event); }
+        for event in events {
+            let at = self
+                .pending
+                .partition_point(|queued| queued.time() <= event.time());
+            self.pending.insert(at, *event);
+        }
         true
     }
-    pub fn set_sidechain_input(&mut self, input: Option<u32>) { self.backend.set_sidechain_input(input); }
+    pub fn set_sidechain_input(&mut self, input: Option<u32>) {
+        self.backend.set_sidechain_input(input);
+    }
     pub(crate) fn backend_mut(&mut self) -> &mut dyn ProcessorBackend {
         self.backend.as_mut()
     }
@@ -206,7 +241,13 @@ impl PluginProcessor {
             shape: parts.shape,
             sample_rate: parts.sample_rate,
             max_block,
-            pending: Vec::with_capacity(EVENT_CAPACITY + IMMEDIATE_RELEASE_CAPACITY),
+            recovery_events: 0,
+            pending: Vec::with_capacity(
+                EVENT_CAPACITY
+                    + IMMEDIATE_RELEASE_CAPACITY
+                    + 5 * crate::MAX_NOTE_INSTANCES
+                    + 16 * 128,
+            ),
             from_main: parts.from_main,
             to_main: parts.to_main,
             transport: Transport::default(),
@@ -261,7 +302,9 @@ impl PluginProcessor {
     /// counts a dropped event, if the queue is full or the event has invalid
     /// key/channel, non-finite values or an invalid parameter id.
     pub fn push_event(&mut self, event: HostEvent) -> bool {
-        if !event.valid() || self.pending.len() >= EVENT_CAPACITY {
+        if !event.valid()
+            || self.pending.len().saturating_sub(self.recovery_events) >= EVENT_CAPACITY
+        {
             self.shared
                 .health
                 .dropped_events
@@ -275,21 +318,39 @@ impl PluginProcessor {
         true
     }
 
+    /// Owner-side recovery replay after reset; bounded separately from timed admission.
+    pub(crate) fn push_recovery_event(&mut self, event: HostEvent) -> bool {
+        if !event.valid() || self.pending.len() >= 5 * crate::MAX_NOTE_INSTANCES + 16 * 128 + 1 {
+            return false;
+        }
+        self.pending.push(event);
+        self.recovery_events += 1;
+        true
+    }
+
     /// Guaranteed admission for the adapter's immediate releases. The public
     /// timed-event API keeps its ordinary capacity and rejection semantics.
     /// Under pressure, a repeated release is redundant only if no matching
     /// note-on follows the previous release at the same frame.
     fn push_immediate_release(&mut self, event: HostEvent) {
         let at = self.pending.partition_point(|queued| queued.time() == 0);
-        if self.pending.len() >= EVENT_CAPACITY {
+        if self.pending.len().saturating_sub(self.recovery_events) >= EVENT_CAPACITY {
             let released =
                 self.pending[..at]
                     .iter()
                     .rev()
                     .find_map(|queued| match (event, *queued) {
-                        (HostEvent::NoteOffInstance { id, .. }, HostEvent::NoteOnInstance { id: other, .. }) if id == other => Some(false),
-                        (HostEvent::NoteOffInstance { id, .. }, HostEvent::NoteOffInstance { id: other, .. }) if id == other => Some(true),
-                        (HostEvent::AllNotesOff { .. }, HostEvent::NoteOnInstance { .. }) => Some(false),
+                        (
+                            HostEvent::NoteOffInstance { id, .. },
+                            HostEvent::NoteOnInstance { id: other, .. },
+                        ) if id == other => Some(false),
+                        (
+                            HostEvent::NoteOffInstance { id, .. },
+                            HostEvent::NoteOffInstance { id: other, .. },
+                        ) if id == other => Some(true),
+                        (HostEvent::AllNotesOff { .. }, HostEvent::NoteOnInstance { .. }) => {
+                            Some(false)
+                        }
                         (
                             HostEvent::NoteOff { key, channel, .. },
                             HostEvent::NoteOn {
@@ -316,7 +377,7 @@ impl PluginProcessor {
         }
         // Every additional event is a distinct channel/key release or a panic, and
         // ordinary push_event cannot add note-ons while this reserve is used.
-        debug_assert!(self.pending.len() < EVENT_CAPACITY + IMMEDIATE_RELEASE_CAPACITY);
+        debug_assert!(self.pending.len() < self.pending.capacity());
         self.pending.insert(at, event);
     }
 
@@ -338,8 +399,16 @@ impl PluginProcessor {
     }
 
     pub fn release_note_instance(&mut self, id: u32, key: u8, channel: u8, velocity: f32) -> bool {
-        let event = HostEvent::NoteOffInstance { time: 0, id, key, channel, velocity };
-        if !event.valid() || !self.supports_note_instances() { return false; }
+        let event = HostEvent::NoteOffInstance {
+            time: 0,
+            id,
+            key,
+            channel,
+            velocity,
+        };
+        if !event.valid() || !self.supports_note_instances() {
+            return false;
+        }
         self.push_immediate_release(event);
         true
     }
@@ -433,6 +502,7 @@ impl PluginProcessor {
     /// forgets the events that were queued.
     pub fn reset(&mut self) {
         self.pending.clear();
+        self.recovery_events = 0;
         if !self.shared.health.failed.load(Ordering::Relaxed) {
             self.backend.reset();
         }
@@ -451,7 +521,9 @@ impl PluginProcessor {
         // queue. Leave excess there until a block has room, including after
         // a zero-frame boundary or while immediate releases use the reserve.
         // This also bounds work if the producer keeps filling concurrently.
-        for _ in 0..EVENT_CAPACITY.saturating_sub(self.pending.len()) {
+        for _ in 0..EVENT_CAPACITY
+            .saturating_sub(self.pending.len().saturating_sub(self.recovery_events))
+        {
             let Ok(event) = self.from_main.pop() else {
                 break;
             };
@@ -468,9 +540,16 @@ impl PluginProcessor {
     /// [`max_block`](Self::max_block) is handed to the plugin in pieces.
     /// Events queued with a time at or past the end of the block take
     /// effect on its last frame.
-    pub fn process(&mut self, left: &mut [f32], right: &mut [f32]) -> ProcessStatus { self.process_sidechain(left, right, None) }
+    pub fn process(&mut self, left: &mut [f32], right: &mut [f32]) -> ProcessStatus {
+        self.process_sidechain(left, right, None)
+    }
 
-    pub fn process_sidechain(&mut self, left: &mut [f32], right: &mut [f32], key: Option<&[[f32; 2]]>) -> ProcessStatus {
+    pub fn process_sidechain(
+        &mut self,
+        left: &mut [f32],
+        right: &mut [f32],
+        key: Option<&[[f32; 2]]>,
+    ) -> ProcessStatus {
         let frames = left.len().min(right.len());
         let (left, right) = (&mut left[..frames], &mut right[..frames]);
         self.take_main_thread_events();
@@ -479,6 +558,7 @@ impl PluginProcessor {
         }
         if self.shared.health.failed.load(Ordering::Relaxed) {
             self.pending.clear();
+            self.recovery_events = 0;
             if !self.shape.has_input {
                 left.fill(0.0);
                 right.fill(0.0);
@@ -491,6 +571,7 @@ impl PluginProcessor {
             shared,
             shape,
             pending,
+            recovery_events,
             to_main,
             scratch,
             ..
@@ -569,6 +650,7 @@ impl PluginProcessor {
                     .fetch_add(backend.failure_dropped_events(), Ordering::Relaxed);
                 shared.health.failed.store(true, Ordering::Relaxed);
                 pending.clear();
+                *recovery_events = 0;
                 // What the plugin left in its output cannot be trusted. An
                 // effect's input is still at hand if it was copied aside.
                 if shape.has_input && separate {
@@ -614,6 +696,7 @@ impl PluginProcessor {
                 .fetch_add(result.dropped_events, Ordering::Relaxed);
             self.status = result.status;
 
+            *recovery_events = recovery_events.saturating_sub(due);
             pending.drain(..due);
             for event in pending.iter_mut() {
                 event.set_time(event.time() - length as u32);

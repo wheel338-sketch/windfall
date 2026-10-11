@@ -2093,3 +2093,95 @@ fn clap_instrument_measures_real_native_plus_bridge_latency_and_note_release() {
     drop(audio);
     drop(control);
 }
+
+#[test]
+fn native_clap_instance_expression_audio_matches_reference_after_bridge_latency() {
+    use windfall_plugin_host::{PluginNoteControls, bridge::slots::NoteSnapshot};
+    let mut opts = options(
+        "clap",
+        common::SINE,
+        Kind::Instrument,
+        vec![],
+        Duration::from_secs(2),
+    );
+    opts.offline = true;
+    let (control, mut audio, _) = supervisor::launch(opts).unwrap();
+    let host = PluginHost::windfall();
+    let module = host.load(&fixture("clap")).unwrap();
+    let mut instance = module.create(common::SINE).unwrap();
+    let mut reference = instance.prepare_instrument(48_000.0, 64).unwrap();
+    assert!(audio.supports_note_instances());
+    assert!(audio.supports_note_pitch());
+    let controls = PluginNoteControls {
+        pan: -0.5,
+        pitch: 69.5,
+        modulation_x: 0.5,
+        modulation_y: 0.5,
+    };
+    let a = NoteSnapshot {
+        id: windfall_plugin_host::FIRST_NOTE_INSTANCE_ID,
+        key: 69,
+        channel: 2,
+        velocity: 0.5,
+        controls,
+    };
+    let b = NoteSnapshot {
+        id: a.id + 1,
+        controls: PluginNoteControls {
+            pan: 0.5,
+            pitch: 81.0,
+            ..controls
+        },
+        ..a
+    };
+    assert_eq!(
+        guarded(|| {
+            assert!(audio.note_on_instance(a));
+            assert!(audio.note_on_instance(b));
+        }),
+        0
+    );
+    assert!(reference.note_on_instance(a.id, a.key, a.channel, a.velocity, a.controls));
+    assert!(reference.note_on_instance(b.id, b.key, b.channel, b.velocity, b.controls));
+    let mut expected = Vec::new();
+    let mut actual = Vec::new();
+    for block in 0..12 {
+        if block == 4 {
+            assert_eq!(
+                guarded(|| {
+                    assert!(audio.note_off_instance(a.id, 0.25));
+                }),
+                0
+            );
+            assert!(reference.note_off_instance(a.id, 0.25));
+        }
+        let mut left = [0.0; 64];
+        let mut right = left;
+        reference.process(&mut left, &mut right);
+        expected.extend(left.into_iter().zip(right));
+        audio
+            .process_offline(
+                &mut left,
+                &mut right,
+                Instant::now() + Duration::from_secs(2),
+                &std::sync::atomic::AtomicBool::new(false),
+            )
+            .unwrap();
+        actual.extend(left.into_iter().zip(right));
+    }
+    assert_eq!(audio.voices(), 1);
+    for ((left, right), (el, er)) in actual[128..].iter().zip(expected.iter()) {
+        assert!(
+            (left - el).abs() < 1e-6 && (right - er).abs() < 1e-6,
+            "bridge expression PCM {left}/{right}, expected {el}/{er}"
+        );
+    }
+    assert!(
+        expected[320..]
+            .iter()
+            .any(|(l, r)| l.abs() + r.abs() > 0.01)
+    );
+    instance.release_instrument(reference).unwrap();
+    drop(audio);
+    assert!(control.terminate().reaped);
+}

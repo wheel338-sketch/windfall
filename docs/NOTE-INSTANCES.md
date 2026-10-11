@@ -55,3 +55,12 @@ updates and musical-tick slide/portamento playback.
 The [curve pass](NOTE-CURVES.md) now carries stable saved source IDs and
 independent occurrence clocks into held records and sampler voices, with
 per-instance musical-clock control sampling and owner/tempo preservation.
+
+## 2026-10-11 bridge source update
+
+The bridge provider now negotiates native instance/expression support, maps
+engine owners, and replays complete bounded channel/instance/control snapshots
+through ABI 7 recovery. This supersedes the source gap above, subject to
+integrator execution of the authored regressions in
+[the hosting hand-off](qa/2026-10-11-plugin-hosting.md). No new native success
+or cross-platform readiness is claimed.

@@ -217,7 +217,24 @@ struct Equivalence {
     sequence: u64,
     desired: u64,
 }
+#[derive(Clone, Copy)]
+struct NoteOwner {
+    engine: windfall_dsp::NoteInstanceId,
+    note: windfall_plugin_host::bridge::slots::NoteSnapshot,
+    release: f32,
+    fine_pitch: f32,
+}
+impl NoteOwner {
+    const EMPTY: Self = Self {
+        engine: windfall_dsp::NoteInstanceId(0),
+        note: windfall_plugin_host::bridge::slots::NoteSnapshot::EMPTY,
+        release: 0.0,
+        fine_pitch: 0.0,
+    };
+}
 pub(super) struct Audio {
+    notes: Box<[NoteOwner]>,
+    next_note: u32,
     process: ProcessAudio,
     controls: ParameterControls,
     equivalence: Box<[Equivalence]>,
@@ -273,6 +290,8 @@ pub(super) fn launch(
         specs,
     };
     let audio = Audio {
+        notes: vec![NoteOwner::EMPTY; windfall_plugin_host::MAX_NOTE_INSTANCES].into_boxed_slice(),
+        next_note: windfall_plugin_host::FIRST_NOTE_INSTANCE_ID,
         process,
         controls,
         equivalence,
@@ -432,7 +451,165 @@ impl HostedEffect for Audio {
         self.tail
     }
 }
+impl Audio {
+    fn end_note(&mut self, id: windfall_dsp::NoteInstanceId) {
+        if let Some(slot) = self
+            .notes
+            .iter()
+            .position(|n| n.engine == id && n.note.id != 0)
+        {
+            let note = self.notes[slot];
+            self.process.note_off_instance(note.note.id, note.release);
+            self.notes[slot] = NoteOwner::EMPTY;
+            self.publish(false);
+        }
+    }
+}
 impl HostedInstrument for Audio {
+    fn supports_note_instances(&self) -> bool {
+        self.process.supports_note_instances()
+    }
+    fn supports_note_channels(&self) -> bool {
+        true
+    }
+    fn supports_note_pitch(&self) -> bool {
+        self.process.supports_note_pitch()
+    }
+    fn note_on_instance(
+        &mut self,
+        id: windfall_dsp::NoteInstanceId,
+        key: u8,
+        velocity: f32,
+        pan: f32,
+        expression: windfall_dsp::NoteExpression,
+    ) {
+        let expression = expression.clamped();
+        if !self.process.supports_note_instances() {
+            self.process.note_on_channel(
+                key.min(127),
+                expression.color_group.unwrap_or(0),
+                velocity,
+            );
+            self.publish(false);
+            return;
+        }
+        if id.0 == 0 || !velocity.is_finite() {
+            return;
+        }
+        self.end_note(id);
+        if velocity <= 0.0 {
+            return;
+        }
+        let Some(slot) = self.notes.iter().position(|n| n.note.id == 0) else {
+            return;
+        };
+        // IDs remain unique among live owners, including after the bounded wrap.
+        let native = loop {
+            let native = self.next_note;
+            self.next_note = if native == i32::MAX as u32 {
+                windfall_plugin_host::FIRST_NOTE_INSTANCE_ID
+            } else {
+                native + 1
+            };
+            if self.notes.iter().all(|n| n.note.id != native) {
+                break native;
+            }
+        };
+        let key = key.min(127);
+        let note = windfall_plugin_host::bridge::slots::NoteSnapshot {
+            id: native,
+            key,
+            channel: expression.color_group.unwrap_or(0),
+            velocity: velocity.clamp(0.0, 1.0),
+            controls: windfall_plugin_host::PluginNoteControls {
+                pan: if pan.is_finite() {
+                    pan.clamp(-1.0, 1.0)
+                } else {
+                    0.0
+                },
+                pitch: f32::from(key) + expression.fine_pitch_cents / 100.0,
+                modulation_x: expression.modulation_x,
+                modulation_y: expression.modulation_y,
+            },
+        };
+        // A refused timed admission still owns desired intent: the next full
+        // snapshot reconstructs it after the helper's uncertain-block reset.
+        self.notes[slot] = NoteOwner {
+            engine: id,
+            note,
+            release: expression.release,
+            fine_pitch: expression.fine_pitch_cents,
+        };
+        self.process.note_on_instance(note);
+        self.publish(false);
+    }
+    fn note_off_instance(&mut self, id: windfall_dsp::NoteInstanceId, key: u8) {
+        if self.process.supports_note_instances() {
+            self.end_note(id);
+        } else {
+            self.note_off(key);
+        }
+    }
+    fn note_off_on_channel(&mut self, id: windfall_dsp::NoteInstanceId, key: u8, channel: u8) {
+        if self.process.supports_note_instances() {
+            self.end_note(id);
+        } else {
+            self.process.note_off_channel(key, channel);
+            self.publish(false);
+        }
+    }
+    fn set_note_expression(
+        &mut self,
+        id: windfall_dsp::NoteInstanceId,
+        pan: f32,
+        expression: windfall_dsp::NoteExpression,
+    ) {
+        let Some(slot) = self
+            .notes
+            .iter()
+            .position(|n| n.engine == id && n.note.id != 0)
+        else {
+            return;
+        };
+        let expression = expression.clamped();
+        let owner = &mut self.notes[slot];
+        owner.note.controls.pitch = (owner.note.controls.pitch
+            + (expression.fine_pitch_cents - owner.fine_pitch) / 100.0)
+            .clamp(
+                f32::from(owner.note.key) - 120.0,
+                f32::from(owner.note.key) + 120.0,
+            );
+        owner.fine_pitch = expression.fine_pitch_cents;
+        owner.release = expression.release;
+        owner.note.controls.pan = if pan.is_finite() {
+            pan.clamp(-1.0, 1.0)
+        } else {
+            0.0
+        };
+        owner.note.controls.modulation_x = expression.modulation_x;
+        owner.note.controls.modulation_y = expression.modulation_y;
+        self.process
+            .set_note_controls(owner.note.id, owner.note.controls);
+        self.publish(false);
+    }
+    fn set_note_pitch(&mut self, id: windfall_dsp::NoteInstanceId, pitch: f32) {
+        if !pitch.is_finite() {
+            return;
+        }
+        let Some(slot) = self
+            .notes
+            .iter()
+            .position(|n| n.engine == id && n.note.id != 0)
+        else {
+            return;
+        };
+        let owner = &mut self.notes[slot];
+        let key = f32::from(owner.note.key);
+        owner.note.controls.pitch = pitch.clamp(key - 120.0, key + 120.0);
+        self.process
+            .set_note_controls(owner.note.id, owner.note.controls);
+        self.publish(false);
+    }
     fn note_on(&mut self, key: u8, velocity: f32) {
         self.process.note_on(key, velocity);
         self.publish(false);
@@ -443,6 +620,7 @@ impl HostedInstrument for Audio {
     }
     fn all_notes_off(&mut self) {
         self.process.all_notes_off();
+        self.notes.fill(NoteOwner::EMPTY);
         self.publish(false);
     }
     fn voices(&self) -> usize {
@@ -636,6 +814,9 @@ mod tests {
         )
         .unwrap();
         let mut audio = Audio {
+            notes: vec![NoteOwner::EMPTY; windfall_plugin_host::MAX_NOTE_INSTANCES]
+                .into_boxed_slice(),
+            next_note: windfall_plugin_host::FIRST_NOTE_INSTANCE_ID,
             process,
             controls: controls.clone(),
             equivalence: vec![Equivalence {

@@ -5,7 +5,8 @@
 //! carries more events than any block before it.
 
 use clack_host::events::event_types::{
-    MidiEvent, NoteChokeEvent, NoteOffEvent, NoteOnEvent, ParamValueEvent, NoteExpressionEvent, NoteExpressionType,
+    MidiEvent, NoteChokeEvent, NoteExpressionEvent, NoteExpressionType, NoteOffEvent, NoteOnEvent,
+    ParamValueEvent,
 };
 use clack_host::events::io::{InputEventBuffer, OutputEventBuffer, TryPushError};
 use clack_host::events::spaces::CoreEventSpace;
@@ -68,7 +69,12 @@ impl EventList {
     pub fn new(dialect: Dialect) -> Self {
         let capacity = match dialect {
             Dialect::None => EVENT_CAPACITY,
-            Dialect::Clap => EVENT_CAPACITY + IMMEDIATE_RELEASE_CAPACITY,
+            Dialect::Clap => {
+                EVENT_CAPACITY
+                    + IMMEDIATE_RELEASE_CAPACITY
+                    + 5 * crate::MAX_NOTE_INSTANCES
+                    + 16 * 128
+            }
             // Every ordinary event could be a panic. The adapter reserve
             // adds at most 2048 channel/key note-offs and one further 32-message panic.
             // Translation must not silently drop an admitted release.
@@ -107,24 +113,72 @@ impl EventList {
                     }
                 }
                 (_, Dialect::None) => {}
-                (HostEvent::NoteOnInstance { time, id, key, channel, velocity }, Dialect::Clap) => {
+                (
+                    HostEvent::NoteOnInstance {
+                        time,
+                        id,
+                        key,
+                        channel,
+                        velocity,
+                    },
+                    Dialect::Clap,
+                ) => {
                     let target = Pckn::new(0_u16, u16::from(channel), u16::from(key), id);
-                    self.push(Slot::NoteOn(NoteOnEvent::new(time, target, f64::from(velocity))));
+                    self.push(Slot::NoteOn(NoteOnEvent::new(
+                        time,
+                        target,
+                        f64::from(velocity),
+                    )));
                 }
-                (HostEvent::NoteOffInstance { time, id, key, channel, velocity }, Dialect::Clap) => {
+                (
+                    HostEvent::NoteOffInstance {
+                        time,
+                        id,
+                        key,
+                        channel,
+                        velocity,
+                    },
+                    Dialect::Clap,
+                ) => {
                     let target = Pckn::new(0_u16, u16::from(channel), u16::from(key), id);
-                    self.push(Slot::NoteOff(NoteOffEvent::new(time, target, f64::from(velocity))));
+                    self.push(Slot::NoteOff(NoteOffEvent::new(
+                        time,
+                        target,
+                        f64::from(velocity),
+                    )));
                 }
-                (HostEvent::NoteExpression { time, id, key, channel, kind, value }, Dialect::Clap) => {
+                (
+                    HostEvent::NoteExpression {
+                        time,
+                        id,
+                        key,
+                        channel,
+                        kind,
+                        value,
+                    },
+                    Dialect::Clap,
+                ) => {
                     use crate::events::NoteExpressionKind as Kind;
-                    let expression = match kind { Kind::Volume => NoteExpressionType::Volume, Kind::Pan => NoteExpressionType::Pan,
-                        Kind::Tuning => NoteExpressionType::Tuning, Kind::Vibrato => NoteExpressionType::Vibrato,
-                        Kind::Expression => NoteExpressionType::Expression, Kind::Brightness => NoteExpressionType::Brightness,
-                        Kind::Pressure => NoteExpressionType::Pressure };
+                    let expression = match kind {
+                        Kind::Volume => NoteExpressionType::Volume,
+                        Kind::Pan => NoteExpressionType::Pan,
+                        Kind::Tuning => NoteExpressionType::Tuning,
+                        Kind::Vibrato => NoteExpressionType::Vibrato,
+                        Kind::Expression => NoteExpressionType::Expression,
+                        Kind::Brightness => NoteExpressionType::Brightness,
+                        Kind::Pressure => NoteExpressionType::Pressure,
+                    };
                     let target = Pckn::new(0_u16, u16::from(channel), u16::from(key), id);
-                    self.push(Slot::Expression(NoteExpressionEvent::new(time, target, expression, value)));
+                    self.push(Slot::Expression(NoteExpressionEvent::new(
+                        time, target, expression, value,
+                    )));
                 }
-                (HostEvent::NoteOnInstance { .. } | HostEvent::NoteOffInstance { .. } | HostEvent::NoteExpression { .. }, Dialect::Midi) => {
+                (
+                    HostEvent::NoteOnInstance { .. }
+                    | HostEvent::NoteOffInstance { .. }
+                    | HostEvent::NoteExpression { .. },
+                    Dialect::Midi,
+                ) => {
                     self.dropped = self.dropped.saturating_add(1);
                 }
                 (
