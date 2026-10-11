@@ -13,14 +13,14 @@ Product/test tree: `1239e096` (the following commits update this report only). A
 | `node scripts/parity.mjs --check` | Exit 0; 342 rows; generated PARITY.md current | CLI result; parity files unchanged |
 | `node scripts/check-sim.mjs` | Exit 0; current 4,323,400-byte WASM | Regenerated WASM/provenance committed in `1239e096` |
 | `node --test scripts/check-bindings.test.mjs` | Exit 0; 10 passed, 0 failed, 0 skipped | CLI result |
-| `scripts/gen-bindings.sh target/round1-binding-inventory` then `node scripts/check-bindings.mjs target/round1-binding-inventory` | Both exit 0; all 458 files match | `target/round1-binding-inventory.log`; fresh inventory comparison |
+| `scripts/gen-bindings.sh target/round1-binding-inventory` then `node scripts/check-bindings.mjs target/round1-binding-inventory` | Both exit 0; all 458 files match | `target/round1-binding-inventory.log`; fresh inventory comparison; 455 type exports + barrel + 2 JSON fixtures |
 | `nat.sh round1-native` | Fixture 0; desktop build 0; tests 0; **3,509 passed, 0 failed, 36 ignored**; zero warnings | `target/round1-native.log` (134 result summaries, including doctests) |
 | `pnpm.cmd test --maxWorkers=4` | Exit 0; **5,801 passed, 0 failed, 0 skipped; 448 files passed** | `target/round1-frontend.log`; 389.15 s |
 | `pnpm.cmd typecheck` | Exit 0; zero diagnostics | `target/round1-typecheck.log` |
 | `pnpm.cmd lint` | Exit 0; zero errors/warnings | `target/round1-lint.log` |
-| `pnpm.cmd build` | Pending final run | — |
+| `pnpm.cmd build` | Exit 0; production bundle emitted; nonblocking Vite large-chunk advisory | `target/round1-build.log` |
 
-All nonignored native and frontend evidence below now passes in the full suites. The seven `done` recommendations await the final typecheck/lint/build gates before publication as final acceptance. The earlier eight-file frontend repair run passed 126 tests. Ignored/hardware tests are not passing evidence.
+All requested gates exit 0. All nonignored native and frontend evidence below passes in the clean full suites. Final recommendations: **7 done, 63 in-progress, 1 todo** across all 71 mentioned parity rows. The earlier eight-file frontend repair run passed 126 tests. Ignored/hardware tests are not passing evidence. The production build retains its large-chunk advisory; no warning limit was changed.
 
 Coverage notation: the named groups resolve to exact test files in the evidence index below. Each table cell names representative assertions or the complete row-specific cases in those files. Passing software evidence does not mean an ignored device case ran. `done` means no required summary or design gate remains; `in-progress` preserves missing behavior, UI, joined workflow, listening or hardware gates; `todo` identifies the unimplemented thumbnail picker.
 
@@ -102,7 +102,7 @@ Inputs: [mixer](2026-10-10-mixer.md), [recording](2026-10-10-recording.md), [pla
 
 ## Exact test-file index
 
-All listed nonignored test cases must pass in the final full suites before this report is published. Rust source files below contain the named unit tests; engine integration submodules run within the `engine` test target; desktop source/session modules run within the desktop library target. UI files run in the full Vitest suite.
+All listed nonignored test cases pass in the final full suites. Rust source files below contain the named unit tests; engine integration submodules run within the `engine` test target; desktop source/session modules run within the desktop library target. UI files run in the full Vitest suite.
 
 **Mixer taps** — [crates/windfall-engine/tests/mixer_effect_outputs_qa.rs](../../crates/windfall-engine/tests/mixer_effect_outputs_qa.rs), [crates/windfall-project/tests/effect_outputs.rs](../../crates/windfall-project/tests/effect_outputs.rs), [apps/desktop/src/features/mixer/effect-outputs.qa.test.tsx](../../apps/desktop/src/features/mixer/effect-outputs.qa.test.tsx).
 
