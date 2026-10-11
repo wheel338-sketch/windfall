@@ -18,6 +18,7 @@
 - Simulator generation passed: 4,955,235 bytes with provenance for all seven Rust source crates. Next: frontend typecheck/lint and focused measured tests, then full gates and final row table.
 - Frontend typecheck passed after removing unused test imports and unsupported `exact` role-query options (string role names already match exactly). All four added Command variants have small examples in EVERY_COMMAND; their execution remains pending.
 - Frontend lint passed with zero errors/warnings. Starting focused DSP tests; final native/frontend suites and acceptance reconciliation remain outstanding.
+- First focused DSP library run: 609 passed, 11 failed, 0 ignored (exit 101). Failures under diagnosis: inverted repeat energy; guitar latency ramp; drum pad difference; eqbank metadata toggle handling; granular/default registry disagreement; Finger Bass endpoint and old polyphony expectations; Pocket Synth short echo probe; bucket frame integration timing; MIDI harmony spectral projection. Full details: `target/round2-dsp-lib.log`. No tolerance/skip changes made.
 - Build/test commands will run sequentially with eight Cargo jobs and four Vitest workers. No devices/ignored tests, parity inventory edits, pushes or delegation.
 
 ## Verified execution record
@@ -37,6 +38,7 @@
 | `bash scripts/build-sim.sh` | Exit 0; 4,955,235 bytes/provenance generated | `target/round2-sim-build.log` |
 | `pnpm.cmd typecheck` | Exit 0; zero diagnostics | `target/round2-typecheck.log` |
 | `pnpm.cmd lint` | Exit 0; zero errors/warnings | `target/round2-lint.log` |
+| First `cargo test -p windfall-dsp --lib -j 8` | Exit 101; 609 passed, 11 failed, 0 ignored; diagnosis ongoing | `target/round2-dsp-lib.log` |
 
 ## Row acceptance
 
