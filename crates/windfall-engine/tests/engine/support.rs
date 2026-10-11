@@ -643,6 +643,7 @@ pub fn idle_limiter(lookahead_ms: f32) -> EffectParams {
         input_gain_db: 0.0,
         release_ms: 100.0,
         lookahead_ms,
+        ..LimiterParams::default()
     })
 }
 
@@ -654,6 +655,7 @@ pub fn limiter(ceiling_db: f32) -> EffectParams {
         input_gain_db: 0.0,
         release_ms: 100.0,
         lookahead_ms: 5.0,
+        ..LimiterParams::default()
     })
 }
 

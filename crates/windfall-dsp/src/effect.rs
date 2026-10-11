@@ -1619,6 +1619,22 @@ impl AnyEffect {
             _ => None,
         }
     }
+
+    /// What the effect measured over the block it processed last, for the
+    /// kinds that measure anything. Reading takes nothing away from
+    /// [`gain_reduction`](Self::gain_reduction)'s meter.
+    pub fn observation(&self) -> Option<crate::observe::EffectObservation> {
+        match self {
+            AnyEffect::Limiter(effect) => effect
+                .observation()
+                .map(crate::observe::EffectObservation::Dynamics),
+            AnyEffect::Tuner(effect) => {
+                let (serial, readout) = effect.observation();
+                Some(crate::observe::EffectObservation::Tuner { serial, readout })
+            }
+            _ => None,
+        }
+    }
 }
 
 /// Time the slot takes to fade an effect in or out, and to follow its mix.

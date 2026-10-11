@@ -4896,6 +4896,7 @@ fn set_effect_params_replaces_every_setting() {
         input_gain_db: 6.0,
         release_ms: 50.0,
         lookahead_ms: 2.0,
+        ..LimiterParams::default()
     };
 
     let applied = run(&mut doc, set(EffectParams::Limiter(preset)));
@@ -4913,6 +4914,7 @@ fn set_effect_params_replaces_every_setting() {
         input_gain_db: -100.0,
         release_ms: f32::INFINITY,
         lookahead_ms: -0.0,
+        ..LimiterParams::default()
     };
     run(&mut doc, set(EffectParams::Limiter(wild)));
     assert_eq!(
@@ -4922,6 +4924,7 @@ fn set_effect_params_replaces_every_setting() {
             input_gain_db: -12.0,
             release_ms: 1000.0,
             lookahead_ms: 0.1,
+            ..LimiterParams::default()
         })
     );
 

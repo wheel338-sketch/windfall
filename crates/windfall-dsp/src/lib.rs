@@ -99,7 +99,7 @@ pub use filter_family::{
 };
 pub use instrument::{AnyInstrument, Instrument, InstrumentKind, InstrumentParams};
 pub use note_expression::{NoteArticulation, NoteExpression, NoteInstanceId};
-pub use limiter::{Limiter, LimiterParams};
+pub use limiter::{GATE_OFF_DB, Limiter, LimiterMode, LimiterParams};
 pub use lofi::{FilterPlacement, Lofi, LofiParams, RunRelation};
 pub use modulation::{Chorus, ChorusParams, Flanger, FlangerParams, Phaser, PhaserParams};
 pub use param::{ParamChoice, ParamInfo, ParamKind, ParamScale, ParamSet, ParamUnit};
@@ -132,6 +132,9 @@ pub mod lush;
 pub mod speech;
 
 pub mod tuner;
+
+pub mod observe;
+pub use observe::{DynamicsObservation, EffectObservation, GATE_FLOOR_DB};
 
 pub mod mastering;
 

@@ -7,6 +7,7 @@ mod delay;
 mod eq;
 mod examples;
 mod limiter;
+mod limiter_dynamics;
 mod modulation;
 mod params;
 mod properties;

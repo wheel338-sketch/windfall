@@ -598,10 +598,15 @@ impl Controller {
                 processor.set_spectrum(tap);
                 reader
             });
+        let captures = super::capture_control::attach(rate).map(|(audio, control)| {
+            processor.set_captures(audio);
+            control
+        });
         let mut link = Some(Link {
             messages: message_tx,
             garbage: garbage_rx,
             spectrum,
+            captures,
         });
         let mut retirement = ProjectRetirement::default();
         let admission;
@@ -1080,6 +1085,7 @@ mod tests {
                     messages: producer,
                     garbage,
                     spectrum: None,
+                    captures: None,
                 });
                 state.stream_phase = StreamPhase::Running;
                 state.sequence = u32::MAX;
@@ -1190,7 +1196,7 @@ mod tests {
             let displaced;
             {
                 let mut state = controller.lock();
-                displaced = state.link.replace(Link { messages, garbage, spectrum: None });
+                displaced = state.link.replace(Link { messages, garbage, spectrum: None, captures: None });
                 state.plan = restored.clone();
                 state.hosted = Some(Arc::new(ledger));
             }
