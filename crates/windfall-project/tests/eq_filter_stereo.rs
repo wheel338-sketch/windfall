@@ -6,7 +6,7 @@ use windfall_dsp::{EffectKind, EffectParams, ParamKind};
 use windfall_project::*;
 
 /// The registered kinds this stream owns. A kind added later is appended.
-const KINDS: [EffectKind; 7] = [
+const KINDS: [EffectKind; 9] = [
     EffectKind::SevenBand,
     EffectKind::Spreader,
     EffectKind::StereoEnhancer,
@@ -14,6 +14,8 @@ const KINDS: [EffectKind; 7] = [
     EffectKind::MorphEq,
     EffectKind::FilterBank,
     EffectKind::BandSplit,
+    EffectKind::SelectableFilter,
+    EffectKind::Eq,
 ];
 
 fn add(doc: &mut Document, kind: EffectKind) -> EffectId {

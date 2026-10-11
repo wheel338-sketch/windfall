@@ -263,3 +263,17 @@ fn morph_eq_curves_and_morph_reach_native_audio_history_files_and_automation() {
         "morph",
     );
 }
+#[test]
+fn resonant_sweep_reaches_native_audio_history_files_and_automation() {
+    accept(EffectParams::SelectableFilter(windfall_dsp::filter_family::SelectableFilterParams::default()),
+        &[("frequencyHz", 5_000.0), ("q", 6.0), ("mode", 1.0)], "frequencyHz");
+}
+
+#[test]
+fn seven_movable_eq_bands_reach_native_audio_history_files_and_automation() {
+    let mut p = windfall_dsp::EqParams::default();
+    p.peak2.gain_db = 12.0;
+    accept(EffectParams::Eq(p), &[("peak2.frequencyHz", 440.0),
+        ("peak2.q", 4.0), ("lowCut.enabled", 1.0), ("highShelf.gainDb", -12.0)],
+        "peak2.frequencyHz");
+}

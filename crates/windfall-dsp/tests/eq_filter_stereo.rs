@@ -1065,3 +1065,80 @@ fn band_split_recombination_matches_independent_allpass_level_and_phase() {
         }
     }
 }
+
+#[test]
+fn resonant_sweep_filter_matches_independent_frequency_phase_and_level_response() {
+    use windfall_dsp::filter_family::{SelectableFilterMode, SelectableFilterParams};
+    for rate in RATES {
+        for (mode, shape) in [
+            (SelectableFilterMode::Lowpass, Shape::Lowpass),
+            (SelectableFilterMode::Highpass, Shape::Highpass),
+            (SelectableFilterMode::Bandpass, Shape::Bandpass),
+            (SelectableFilterMode::Notch, Shape::Notch),
+        ] {
+            for q in [0.707, 2.0, 8.0] {
+                let settings = EffectParams::SelectableFilter(SelectableFilterParams {
+                    mode, frequency_hz: 1_000.0, q, ..Default::default()
+                });
+                for hz in [100.0, 500.0, 800.0, 1_200.0, 4_000.0, 10_000.0] {
+                    let reference = section(shape, 1_000.0, f64::from(q), 0.0, hz, f64::from(rate));
+                    let heard = measured(&settings, rate, hz);
+                    assert!((magnitude_db(heard) - magnitude_db(reference)).abs() < 0.05);
+                    assert!(phase_gap(phase(heard), phase(reference)) < 0.01);
+                }
+            }
+        }
+    }
+}
+
+#[test]
+fn resonant_sweep_is_block_invariant_and_bypasses_continuously() {
+    use windfall_dsp::filter_family::SelectableFilterParams;
+    let start = EffectParams::SelectableFilter(SelectableFilterParams::default());
+    let end = EffectParams::SelectableFilter(SelectableFilterParams {
+        frequency_hz: 8_000.0, q: 5.0, ..Default::default()
+    });
+    assert_block_invariant(&start, &end);
+    assert_bypass_is_continuous(&start, 0.05);
+}
+
+#[test]
+fn seven_movable_eq_bands_match_an_independent_complex_response() {
+    use windfall_dsp::EqParams;
+    for rate in RATES {
+        let mut p = EqParams::default();
+        p.low_cut.enabled = true;
+        p.low_cut.frequency_hz = 80.0;
+        p.low_shelf.gain_db = 6.0;
+        p.peak1.gain_db = -9.0;
+        p.peak1.frequency_hz = 600.0;
+        p.peak2.gain_db = 5.0;
+        p.peak3.gain_db = -3.0;
+        p.high_shelf.gain_db = 4.0;
+        p.high_cut.enabled = true;
+        p.high_cut.frequency_hz = 12_000.0;
+        let mut parts = vec![(Shape::Highpass, p.low_cut.frequency_hz, p.low_cut.q, 0.0)];
+        parts.push((Shape::LowShelf, p.low_shelf.frequency_hz, p.low_shelf.q, p.low_shelf.gain_db));
+        for b in [p.peak1, p.peak2, p.peak3] { parts.push((Shape::Peak, b.frequency_hz, b.q, b.gain_db)); }
+        parts.push((Shape::HighShelf, p.high_shelf.frequency_hz, p.high_shelf.q, p.high_shelf.gain_db));
+        parts.push((Shape::Lowpass, p.high_cut.frequency_hz, p.high_cut.q, 0.0));
+        for hz in [100.0, 400.0, 600.0, 1_000.0, 3_000.0, 8_000.0, 16_000.0] {
+            let reference = parts.iter().fold((1.0, 0.0), |sum, &(shape, f, q, g)|
+                multiply(sum, section(shape, f64::from(f), f64::from(q), f64::from(g), hz, f64::from(rate))));
+            let heard = measured(&EffectParams::Eq(p), rate, hz);
+            assert!((magnitude_db(heard) - magnitude_db(reference)).abs() < 0.05);
+            assert!(phase_gap(phase(heard), phase(reference)) < 0.01);
+        }
+    }
+}
+
+#[test]
+fn movable_eq_is_block_invariant_and_bypasses_continuously() {
+    let mut p = windfall_dsp::EqParams::default();
+    p.peak2.gain_db = 12.0;
+    let start = EffectParams::Eq(p);
+    p.peak2.frequency_hz = 5_000.0;
+    p.peak2.q = 4.0;
+    assert_block_invariant(&start, &EffectParams::Eq(p));
+    assert_bypass_is_continuous(&start, 0.05);
+}

@@ -23,8 +23,8 @@ been started.
 | `fx-fruity-panomatic` | Pan Motion (`panLfo`) | shapes and tempo sync added, editor and tests written; candidate for done once they pass |
 | `fx-equo` | Morph EQ (`morphEq`) | graphic curves, morph across up to four, editor and tests written; candidate for done once they pass |
 | `fx-fruity-love-philter` | Filter Bank (`filterBank`) | not started |
-| `fx-fruity-filter` | new kind | not started |
-| `fx-fruity-parametric-eq` | new kind | not started |
+| `fx-fruity-filter` | Selectable filter (`selectableFilter`) | full-row candidate; dedicated sweep editor and row-specific tests written, not executed |
+| `fx-fruity-parametric-eq` | baseline EQ (`eq`) | full-row candidate for the seven-band summary; measured complex response and host/mounted cases written, not executed |
 | `fx-frequency-splitter` | Band Split (`bandSplit`) | full-row candidate; integrated real low/mid/high mixer routes and editor; tests written, not executed |
 
 ## Test files (all written, not executed)
@@ -216,3 +216,42 @@ Regenerate descriptors (`effectOutputs.bandSplit`), simulator and ordinary
 bindings. No new type/command for Band Split. Check third-buffer borrowing,
 expanded engine route capacity, test fixture render length and exact float
 comparisons first. All validation remains unexecuted as required.
+
+## Resonant sweep and seven-band parametric EQ — source reuse
+
+The exact summaries do not require separate persisted alias kinds. The existing
+Selectable filter is a real resonant SVF with audio-rate-safe smoothing and
+host automation. A new `filter/filter-editor.tsx` exposes its mode, frequency,
+resonance and gain beside the actual transfer, with existing parameter context
+menus for drawing automation. This maps `fx-fruity-filter` to `selectableFilter`
+without creating another copy of the Free Filter processor. It supplies actual
+sweeps, not a neutral preset. Existing descriptor indices and saved settings stay
+unchanged.
+
+The baseline `eq` is seven independently movable bands: low cut, low shelf,
+three bells, high shelf, high cut. Its existing purpose-built node editor is the
+freely placed interface distinct from Seven Band's fixed faders and Morph EQ's
+stored graphic curves. This satisfies the supplied `fx-fruity-parametric-eq`
+summary (seven-band parametric equalizer); it does not claim seven arbitrary
+switchable band shapes or proprietary DSP. No alias or duplicate editor is
+added. Live spectrum comes from the merged analyzer work; the legacy row's
+summary does not require spectrum acceptance (EQ2 retains that wider gate).
+
+Tests added (written, not executed): DSP
+`resonant_sweep_filter_matches_independent_frequency_phase_and_level_response`,
+`resonant_sweep_is_block_invariant_and_bypasses_continuously`,
+`seven_movable_eq_bands_match_an_independent_complex_response`,
+`movable_eq_is_block_invariant_and_bypasses_continuously` in `eq_filter_stereo.rs`.
+Engine `resonant_sweep_reaches_native_audio_history_files_and_automation` and
+`seven_movable_eq_bands_reach_native_audio_history_files_and_automation` in the
+existing stream acceptance target. Both kinds join the project's all-control,
+legacy/default, history/disk and automation tests. Mounted `describe("Resonant
+filter")` and `describe("Seven movable EQ bands")` exercise the real WASM document.
+Existing `editors.test.tsx` has the richer EQ pointer/Q/selection gestures.
+
+Integrator: existing stream commands cover these additions; also run
+`pnpm --dir apps/desktop test src/features/effects/editors.test.tsx src/features/effects/filter-family.test.tsx --maxWorkers=4`.
+No new generated types. Regenerate simulator for the complete stream. Check
+measured shelf-phase tolerances and live/export exactness first. Existing EQ
+allocator and SVF reference/automation suites remain applicable. Source reuse
+is an explicit mapping decision for the overseer's row acceptance.

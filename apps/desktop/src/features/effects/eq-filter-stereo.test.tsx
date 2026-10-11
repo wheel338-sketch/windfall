@@ -464,3 +464,34 @@ describe("Band Split", () => {
     expect(screen.getByRole("slider", { name: "Mid gain" })).toBeVisible()
   })
 })
+
+describe("Resonant filter", () => {
+  it("has a sweep editor with automatable frequency and resonance and a response", async () => {
+    const effect = await open("selectableFilter")
+    expect(customEditor("selectableFilter")).toBeDefined()
+    expect(screen.getByRole("img", { name: /Resonant filter: Lowpass/ })).toBeVisible()
+    await expectSliders("selectableFilter", effect, ["frequencyHz", "q", "gainDb"])
+  })
+})
+
+describe("Seven movable EQ bands", () => {
+  it("exposes seven independently positioned nodes with a distinct parametric editor", async () => {
+    const effect = await open("eq")
+    const curve = screen.getByRole("group", { name: "Equaliser curve" })
+    expect(within(curve).getAllByRole("slider")).toHaveLength(7)
+    const before = structuredClone(slotOf(effect).params)
+    const cursor = history().cursor
+    const node = within(curve).getByRole("slider", { name: "Peak 2" })
+    fireEvent.keyDown(node, { key: "ArrowRight" })
+    fireEvent.keyUp(node, { key: "ArrowRight" })
+    await flush()
+    expect(slotOf(effect).params).not.toEqual(before)
+    expect(history().cursor).toBe(cursor + 1)
+    await undo()
+    await flush()
+    expect(slotOf(effect).params).toEqual(before)
+    await redo()
+    await flush()
+    expect(slotOf(effect).params).not.toEqual(before)
+  })
+})
