@@ -18,6 +18,7 @@ import type { EditorProps } from "./editor-props"
 import { EqEditor } from "./eq/eq-editor"
 import { LimiterEditor } from "./limiter/limiter-editor"
 import { ReverbEditor } from "./reverb/reverb-editor"
+import { TunerEditor } from "./tuner/tuner-editor"
 
 type Editors = {
   [Kind in EffectKind]?: ComponentType<EditorProps<EffectParamsOf<Kind>>>
@@ -34,6 +35,7 @@ const EDITORS: Editors = {
   limiter: LimiterEditor,
   reverb: ReverbEditor,
   delay: DelayEditor,
+  tuner: TunerEditor,
 }
 
 type AnyEditor = ComponentType<EditorProps<EffectParams>>
