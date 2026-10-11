@@ -77,7 +77,8 @@ In Git Bash, `source scripts/msvc-env.sh`; put node/pnpm on PATH; set
 ## Generation and seams
 
 Regenerate rack graph/node/edge/endpoint/processor/preset/channel-rack types,
-note-module configs, ProjectSettings.modularRacks and Command.setChannelRack
+note-module configs (including SequenceMode), array-view TS note-map/chord/grid
+tables while Rust still checks fixed lengths, ProjectSettings.modularRacks and Command.setChannelRack
 (including optional expected graph), then simulator WASM. No generated edits.
 Shared seams: DSP lib.rs; project lib/model/check/command/lower/automation;
 engine lib/plan/state/project_preparation/rack/automation/layout; inspector,
@@ -97,3 +98,7 @@ automation targets and EVERY_COMMAND. Exact final inventory is maintained in git
 
 Do not promote tracker rows based on this hand-off. Listening and executed
 acceptance remain integrator gates.
+
+Generation compatibility: note-map table, step-grid and chord fields explicitly
+export as TS arrays so immutable editor copies type-check without tuple casts.
+Number-field integer commits round before Rust deserialization.

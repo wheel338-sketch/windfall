@@ -12,7 +12,7 @@ export function NumberField({ label, value, min, max, step = 1, onChange }: {
   const id = useId()
   return <Field><FieldLabel htmlFor={id}>{label}</FieldLabel>
     <Input key={value} id={id} type="number" defaultValue={value} min={min} max={max} step={step}
-      onBlur={(event) => { const next = Number(event.target.value); if (Number.isFinite(next) && next !== value) onChange(Math.min(max, Math.max(min, next))) }}
+      onBlur={(event) => { const next = Number(event.target.value); if (Number.isFinite(next) && next !== value) onChange(Math.min(max, Math.max(min, step === 1 ? Math.round(next) : next))) }}
       onKeyDown={(event) => { if (event.key === "Enter") event.currentTarget.blur() }} />
   </Field>
 }

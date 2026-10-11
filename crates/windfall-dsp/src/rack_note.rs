@@ -153,6 +153,7 @@ pub enum RackNoteModule {
     },
     KeyMapper {
         params: KeyMapParams,
+        #[ts(as = "Vec<i8>")]
         chord: [i8; 4],
         voices: u8,
     },

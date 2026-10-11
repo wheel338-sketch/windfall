@@ -7,6 +7,7 @@ use ts_rs::TS;
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase", default)]
 pub struct ColorMapParams {
+    #[ts(as = "Vec<u8>")]
     pub table: [u8; 16],
 }
 impl Default for ColorMapParams {

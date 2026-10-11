@@ -8,7 +8,7 @@ use ts_rs::TS;
 #[serde(rename_all = "camelCase", default)]
 pub struct KeyMapParams {
     #[serde(with = "key_table")]
-    #[ts(as = "[u8; 128]")]
+    #[ts(as = "Vec<u8>")]
     pub table: [u8; 128],
 }
 impl Default for KeyMapParams {
