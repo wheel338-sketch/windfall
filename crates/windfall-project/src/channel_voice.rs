@@ -237,6 +237,10 @@ pub enum LfoTarget {
     Filter,
     Pitch,
     Pan,
+    /// Tremolo. Appended after the original three targets.
+    Volume,
+    /// Filter resonance, the second modulation target.
+    Resonance,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, TS)]
@@ -271,14 +275,156 @@ impl ChannelLfoSettings {
     }
 }
 
+/// One LFO that always drives the target named by its field.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase", default)]
+#[ts(export)]
+pub struct TargetLfo {
+    pub enabled: bool,
+    pub shape: LfoShape,
+    pub rate_hz: f32,
+    /// Normalized bipolar amount; see [`ChannelTargetLfos`] for full scale.
+    pub depth: f32,
+}
+impl Default for TargetLfo {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            shape: LfoShape::Sine,
+            rate_hz: 5.0,
+            depth: 0.0,
+        }
+    }
+}
+impl TargetLfo {
+    pub fn sanitized(self) -> Self {
+        Self {
+            rate_hz: finite(self.rate_hz, 0.01, 30.0, 5.0),
+            depth: finite(self.depth, -1.0, 1.0, 0.0),
+            ..self
+        }
+    }
+}
+
+/// An independent LFO for each sampler modulation target. Full depth is a
+/// tremolo down to silence, full pan travel, 2400 cents, 8 cutoff octaves
+/// and the whole resonance range. They add to the assignable `lfo`.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase", default)]
+#[ts(export)]
+pub struct ChannelTargetLfos {
+    pub volume: TargetLfo,
+    pub pan: TargetLfo,
+    pub pitch: TargetLfo,
+    pub cutoff: TargetLfo,
+    pub resonance: TargetLfo,
+}
+impl ChannelTargetLfos {
+    pub fn sanitized(self) -> Self {
+        Self {
+            volume: self.volume.sanitized(),
+            pan: self.pan.sanitized(),
+            pitch: self.pitch.sanitized(),
+            cutoff: self.cutoff.sanitized(),
+            resonance: self.resonance.sanitized(),
+        }
+    }
+    pub fn any_enabled(self) -> bool {
+        self.volume.enabled
+            || self.pan.enabled
+            || self.pitch.enabled
+            || self.cutoff.enabled
+            || self.resonance.enabled
+    }
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub enum VoiceFilterMode {
+    #[default]
+    LowPass,
+    HighPass,
+    BandPass,
+    Notch,
+}
+
+pub const MIN_VOICE_CUTOFF_HZ: f32 = 20.0;
+pub const MAX_VOICE_CUTOFF_HZ: f32 = 20_000.0;
+/// Octaves of Q added by full resonance: Q runs from 0.707 to about 22.6.
+pub const VOICE_RESONANCE_OCTAVES: f32 = 5.0;
+
+/// The sampler channel's own filter. Cutoff is modulation target X and
+/// resonance is target Y. Off leaves the sample unfiltered unless a cutoff
+/// or resonance modulation is active, as before this setting existed.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase", default)]
+#[ts(export)]
+pub struct VoiceFilter {
+    pub enabled: bool,
+    pub mode: VoiceFilterMode,
+    pub cutoff_hz: f32,
+    /// 0 has no resonant peak; 1 is the sharpest peak.
+    pub resonance: f32,
+}
+impl Default for VoiceFilter {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            mode: VoiceFilterMode::LowPass,
+            cutoff_hz: 2000.0,
+            resonance: 0.0,
+        }
+    }
+}
+impl VoiceFilter {
+    pub fn sanitized(self) -> Self {
+        Self {
+            cutoff_hz: finite(
+                self.cutoff_hz,
+                MIN_VOICE_CUTOFF_HZ,
+                MAX_VOICE_CUTOFF_HZ,
+                2000.0,
+            ),
+            resonance: finite(self.resonance, 0.0, 1.0, 0.0),
+            ..self
+        }
+    }
+    /// Filter Q for a resonance amount, clamped to the supported range.
+    pub fn q(resonance: f32) -> f32 {
+        std::f32::consts::FRAC_1_SQRT_2
+            * (finite(resonance, 0.0, 1.0, 0.0) * VOICE_RESONANCE_OCTAVES).exp2()
+    }
+}
+
+
 #[derive(Debug, Clone, Copy, Default, PartialEq, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase", default)]
 #[ts(export)]
 pub struct ChannelEnvelopes {
+    /// Cutoff envelope (modulation target X), in octaves.
     pub filter: ModulationEnvelope,
     pub pitch: ModulationEnvelope,
     pub pan: ModulationEnvelope,
+    /// One LFO that can be pointed at any target.
     pub lfo: ChannelLfoSettings,
+    /// Resonance envelope (modulation target Y); depth is a resonance amount.
+    /// Like the two fields after it, absent in older files and written only
+    /// when it is not the default, so those files save back unchanged.
+    #[serde(skip_serializing_if = "is_default")]
+    #[ts(as = "Option<ModulationEnvelope>", optional)]
+    pub resonance: ModulationEnvelope,
+    /// A dedicated LFO per target.
+    #[serde(skip_serializing_if = "is_default")]
+    #[ts(as = "Option<ChannelTargetLfos>", optional)]
+    pub lfos: ChannelTargetLfos,
+    /// The channel filter that the cutoff and resonance targets move.
+    #[serde(skip_serializing_if = "is_default")]
+    #[ts(as = "Option<VoiceFilter>", optional)]
+    pub filter_settings: VoiceFilter,
+}
+fn is_default<T: Default + PartialEq>(value: &T) -> bool {
+    *value == T::default()
 }
 impl ChannelEnvelopes {
     pub fn sanitized(self) -> Self {
@@ -287,8 +433,96 @@ impl ChannelEnvelopes {
             pitch: self.pitch.sanitized(2400.0),
             pan: self.pan.sanitized(1.0),
             lfo: self.lfo.sanitized(),
+            resonance: self.resonance.sanitized(1.0),
+            lfos: self.lfos.sanitized(),
+            filter_settings: self.filter_settings.sanitized(),
         }
     }
+}
+
+/// The most child channels one layer can play. A bound, so fanning a note
+/// out on the audio thread is a fixed amount of work.
+pub const MAX_LAYER_CHILDREN: usize = 16;
+
+/// The channels a layer passes its notes to, in order, without repeats.
+/// Stored inline so the enclosing settings stay `Copy`; written as a plain
+/// list of channel ids.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, TS)]
+#[ts(export, as = "Vec<crate::ChannelId>")]
+pub struct LayerChildren {
+    ids: [u32; MAX_LAYER_CHILDREN],
+    len: u8,
+}
+impl LayerChildren {
+    /// Keeps the first [`MAX_LAYER_CHILDREN`] distinct ids in order.
+    pub fn new(children: impl IntoIterator<Item = crate::ChannelId>) -> Self {
+        let mut out = Self::default();
+        for child in children {
+            out.push(child);
+        }
+        out
+    }
+    /// False when the list is full or already holds the channel.
+    pub fn push(&mut self, child: crate::ChannelId) -> bool {
+        let len = usize::from(self.len);
+        if len == MAX_LAYER_CHILDREN || self.contains(child) {
+            return false;
+        }
+        self.ids[len] = child.0;
+        self.len += 1;
+        true
+    }
+    pub fn remove(&mut self, child: crate::ChannelId) -> bool {
+        let len = usize::from(self.len);
+        let Some(index) = self.ids[..len].iter().position(|&id| id == child.0) else {
+            return false;
+        };
+        self.ids.copy_within(index + 1..len, index);
+        self.ids[len - 1] = 0;
+        self.len -= 1;
+        true
+    }
+    pub fn contains(&self, child: crate::ChannelId) -> bool {
+        self.ids[..usize::from(self.len)].contains(&child.0)
+    }
+    pub fn len(&self) -> usize {
+        usize::from(self.len)
+    }
+    pub fn is_empty(&self) -> bool {
+        self.len == 0
+    }
+    pub fn iter(&self) -> impl Iterator<Item = crate::ChannelId> + '_ {
+        self.ids[..usize::from(self.len)]
+            .iter()
+            .map(|&id| crate::ChannelId(id))
+    }
+}
+impl Serialize for LayerChildren {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        serializer.collect_seq(self.iter())
+    }
+}
+impl<'de> Deserialize<'de> for LayerChildren {
+    fn deserialize<D: serde::Deserializer<'de>>(de: D) -> Result<Self, D::Error> {
+        let children = Vec::<crate::ChannelId>::deserialize(de)?;
+        if children.len() > MAX_LAYER_CHILDREN {
+            return Err(serde::de::Error::custom(format!(
+                "a layer plays at most {MAX_LAYER_CHILDREN} channels"
+            )));
+        }
+        Ok(Self::new(children))
+    }
+}
+
+/// Makes the channel a layer: it makes no sound of its own and plays every
+/// note it is given on each child channel instead. Checked against the
+/// project by [`crate::layer`].
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase", default)]
+#[ts(export)]
+pub struct LayerSettings {
+    pub enabled: bool,
+    pub children: LayerChildren,
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Serialize, Deserialize, TS)]
@@ -299,6 +533,10 @@ pub struct ChannelVoiceSettings {
     pub echo: NoteEchoSettings,
     pub polyphony: PolyphonySettings,
     pub envelopes: ChannelEnvelopes,
+    /// Absent in older files and on every channel that is not a layer.
+    #[serde(skip_serializing_if = "is_default")]
+    #[ts(as = "Option<LayerSettings>", optional)]
+    pub layer: LayerSettings,
 }
 impl ChannelVoiceSettings {
     pub fn sanitized(self) -> Self {
@@ -307,6 +545,7 @@ impl ChannelVoiceSettings {
             echo: self.echo.sanitized(),
             polyphony: self.polyphony.sanitized(),
             envelopes: self.envelopes.sanitized(),
+            layer: self.layer,
         }
     }
 }

@@ -395,6 +395,7 @@ fn check_channels(project: &Project) -> Result<(), String> {
         check_id(project, "channel", channel.id, &mut ids)?;
         check_channel(project, channel)?;
     }
+    crate::layer::check(&project.channels)?;
     Ok(())
 }
 

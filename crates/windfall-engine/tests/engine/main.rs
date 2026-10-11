@@ -10,6 +10,7 @@ mod instruments;
 mod lofi;
 mod mixer;
 mod modulation;
+mod rack_voice;
 mod realtime;
 mod rendering;
 mod sampler;

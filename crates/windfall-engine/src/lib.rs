@@ -142,6 +142,7 @@ pub mod recording_clock;
 pub mod recording_monitor;
 pub mod recording_disk;
 mod render;
+pub mod sample_preprocess;
 pub mod sampler_processing;
 mod sequencer;
 mod shared;

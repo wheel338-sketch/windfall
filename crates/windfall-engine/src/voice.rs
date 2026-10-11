@@ -22,7 +22,9 @@ use windfall_dsp::{
 };
 use windfall_project::{ChannelId, Envelope, SamplerLoopMode, TrackId};
 
-use crate::channel_voice::{ModulationBlock, PreparedChannelEnvelopes};
+use crate::channel_voice::{
+    ModulationBlock, PreparedChannelEnvelopes, VoiceFilter, VoiceFilterMode,
+};
 use crate::message::{Garbage, retire};
 use crate::mixer::{Frame, Mixer};
 use crate::note_glide::NoteGlide;
@@ -502,6 +504,12 @@ struct Voice {
     /// `None` plays the sample to its end at full level.
     envelope: Option<EnvelopeState>,
     expression_filter: Option<SvfCoeffs>,
+    /// The channel's own filter, when it is switched on.
+    channel_filter: Option<VoiceFilter>,
+    /// The last modulated coefficients with the cutoff offset, resonance
+    /// offset and note expression they were made from, so a filter that is
+    /// not moving is not designed again on every frame.
+    filter_cache: Option<([f32; 4], SvfCoeffs)>,
     filters: [Svf; 2],
     /// Frames left of an early fade-out. Zero means the voice is not fading.
     fade: u32,
@@ -549,6 +557,8 @@ impl Voice {
             pan: 0.0,
             envelope: None,
             expression_filter: None,
+            channel_filter: None,
+            filter_cache: None,
             filters: [Svf::default(); 2],
             fade: 0,
             fade_in: 0,
@@ -634,6 +644,8 @@ impl Voice {
             let cutoff_offset = modulation.filter_cutoff_offset[mod_index];
             let pitch_cents = modulation.pitch_cents[mod_index];
             let pan_offset = modulation.pan[mod_index];
+            let resonance_offset = modulation.resonance[mod_index];
+            let tremolo = modulation.volume[mod_index];
             if let Some(source) = self.source.filter(|source| source.active) {
                 let (pan, expression) = source.controls(plan, clock.tick_at(frame));
                 let moved =
@@ -701,7 +713,7 @@ impl Voice {
                     (strip.pan.at(frame) + self.pan + pan_offset).clamp(-1.0, 1.0),
                 );
             }
-            let mut level = self.gain;
+            let mut level = self.gain * tremolo;
             if let Some(envelope) = &mut self.envelope {
                 if frame >= release_at {
                     envelope.release();
@@ -724,20 +736,57 @@ impl Voice {
                 }
                 None => self.region.read(sample, self.position),
             };
-            let modulated_filter = (cutoff_offset != 0.0).then(|| {
-                SvfCoeffs::new(
-                    (20_000.0 * (self.expression.cutoff_octaves() + cutoff_offset).exp2())
-                        .clamp(20.0, sample_rate as f32 * 0.45),
-                    std::f32::consts::FRAC_1_SQRT_2 * self.expression.resonance_multiplier(),
-                    sample_rate as f32,
-                )
-            });
+            // The channel filter, with cutoff and resonance moved by their
+            // envelopes and LFOs and by the note's own expression. With the
+            // filter off, a modulation still sweeps the 20 kHz low-pass that
+            // note expression uses.
+            let modulated_filter = if self.channel_filter.is_some()
+                || cutoff_offset != 0.0
+                || resonance_offset != 0.0
+            {
+                let key = [
+                    cutoff_offset,
+                    resonance_offset,
+                    self.expression.modulation_x,
+                    self.expression.modulation_y,
+                ];
+                let coeffs = match self.filter_cache {
+                    Some((made_from, coeffs)) if made_from == key => coeffs,
+                    _ => {
+                        let (base, amount) = self
+                            .channel_filter
+                            .map_or((20_000.0, 0.0), |filter| (filter.cutoff_hz, filter.resonance));
+                        let coeffs = SvfCoeffs::new(
+                            (base * (self.expression.cutoff_octaves() + cutoff_offset).exp2())
+                                .clamp(20.0, sample_rate as f32 * 0.45),
+                            VoiceFilter::q((amount + resonance_offset).clamp(0.0, 1.0))
+                                * self.expression.resonance_multiplier(),
+                            sample_rate as f32,
+                        );
+                        self.filter_cache = Some((key, coeffs));
+                        coeffs
+                    }
+                };
+                Some(coeffs)
+            } else {
+                None
+            };
             if let Some(coeffs) = modulated_filter
                 .as_ref()
                 .or(self.expression_filter.as_ref())
             {
-                sample_left = self.filters[0].tick(coeffs, sample_left).low;
-                sample_right = self.filters[1].tick(coeffs, sample_right).low;
+                let mode = self
+                    .channel_filter
+                    .map_or(VoiceFilterMode::LowPass, |filter| filter.mode);
+                let left = self.filters[0].tick(coeffs, sample_left);
+                let right = self.filters[1].tick(coeffs, sample_right);
+                (sample_left, sample_right) = match mode {
+                    VoiceFilterMode::LowPass => (left.low, right.low),
+                    VoiceFilterMode::HighPass => (left.high, right.high),
+                    // Scaled by the damping, so the peak passes at unity.
+                    VoiceFilterMode::BandPass => (left.band * coeffs.k, right.band * coeffs.k),
+                    VoiceFilterMode::Notch => (left.low + left.high, right.low + right.high),
+                };
             }
             out[0] += sample_left * level * left;
             out[1] += sample_right * level * right;
@@ -905,8 +954,11 @@ impl VoicePool {
         let instance = NoteInstanceId(self.next_instance);
         self.next_instance = self.next_instance.wrapping_add(1);
         channel_envelopes.gate_on();
+        let channel_filter = Some(channel_envelopes.filter()).filter(|filter| filter.enabled);
         self.voices[slot] = Voice {
             instance,
+            channel_filter,
+            filter_cache: None,
             channel_envelopes: channel_envelopes.enabled().then_some(channel_envelopes),
             modulation_released: false,
             channel_pitch: if glide_coefficient < 1.0 {
