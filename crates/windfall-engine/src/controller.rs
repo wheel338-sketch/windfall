@@ -894,6 +894,7 @@ impl Controller {
             voices: shared.voices(),
             audio_clips: shared.audio_clips(),
             dropped_clips: shared.dropped_clips(),
+            rejected_rack_events: Some(shared.rejected_rack_events.load(Ordering::Relaxed)).filter(|count| *count != 0),
             gain_reductions: meters
                 .iter()
                 .map(|(effect, meter)| GainReduction {

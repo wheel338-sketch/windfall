@@ -220,6 +220,11 @@ impl Processor {
         self.finish_count_in();
         self.apply_navigation(&mut navigation_left);
         self.publish_automation();
+        let rejected = self.state.instrument_units().fold(0u64, |total, unit| total.saturating_add(unit.take_rack_rejections()));
+        if rejected > 0 {
+            let counter = &self.shared.rejected_rack_events;
+            counter.store(counter.load(Ordering::Relaxed).saturating_add(rejected.min(u64::from(u32::MAX)) as u32), Ordering::Relaxed);
+        }
         self.collect_midi_out();
         self.shared.publish_transport(
             self.transport_sequence,

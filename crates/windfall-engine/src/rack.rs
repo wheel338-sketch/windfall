@@ -560,6 +560,8 @@ impl InstrumentUnit {
         self.voice_envelopes = envelopes.enabled().then_some(envelopes); self.voice_glide = glide;
     }
 
+    pub fn take_rack_rejections(&mut self) -> u64 { self.modular.as_mut().map_or(0, |rack| rack.take_rejected_events()) }
+
     pub fn install_rack(&mut self, rack: crate::modular::ModularRack) { self.modular = Some(rack); }
 
     /// Prepared replacements replay current parent occurrences. The old DSP
@@ -571,6 +573,7 @@ impl InstrumentUnit {
             let note = self.notes[index]; if !note.active { continue; }
             let controls = self.controls(note.pan, note.expression);
             self.instrument.note_on_instance(note.id, note.key, note.velocity, controls.pan, controls.expression);
+            self.instrument.set_note_gain(note.id, controls.gain);
             if let Some(rack) = &mut self.modular { rack.note_on(note.id, windfall_dsp::rack_note::RackNote {
                 key: note.key, velocity: note.velocity, pan: controls.pan, expression: controls.expression,
                 channel: note.expression.color_group.unwrap_or(0), gain: controls.gain, envelope: None,

@@ -16,6 +16,8 @@ import { Section } from "../channel-rack/inspector/parts"
 import { CONTROL_IN, defaultModule, graphAt, initialGraph, nestedGraph, node, ports, rackPreset, replaceGraph, sameEndpoint } from "./model"
 import { ChoiceField, NoteModuleEditor, NumberField } from "./note-editor"
 
+import { RackOverflow } from "./overflow"
+
 const MODULES = ["colorRouter", "envelope", "propertyScaler", "keySplitter", "keyMapper", "sequencer"] as const
 const TYPES = ["instrument", "effect", ...MODULES, "rack", "audioInput", "audioOutput", "noteInput", "noteOutput", "controlInput"] as const
 type AddType = typeof TYPES[number]
@@ -129,6 +131,7 @@ export function ModularEditor({ channel, root }: { channel: Channel; root: RackG
       <Button variant="outline" disabled={busy} onClick={() => void redo()}>Redo rack edit</Button>
       {activePath.length > 0 && <Button variant="outline" onClick={() => { setPath(activePath.slice(0, -1)); setSelected(null); setFrom(null) }}>Parent rack</Button>}
     </div>
+    <RackOverflow />
     {error && <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}
     <div className="max-h-64 overflow-auto rounded-md border">
       <svg viewBox={`0 0 800 ${height}`} className="min-w-[700px] text-primary" style={{ height }} role="img" aria-label="Rack signal wires">

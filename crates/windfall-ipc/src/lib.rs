@@ -145,6 +145,10 @@ pub struct RealtimeFrame {
     /// playing. No more than 1,024 are counted.
     #[serde(default)]
     pub dropped_clips: u32,
+    /// Cumulative bounded modular-rack note/event refusals since engine start.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub rejected_rack_events: Option<u32>,
     /// How far each compressor and limiter of the project turned its
     /// signal down since the last frame, in mixer order and, on one track,
     /// in chain order. Effects of other kinds are not listed.

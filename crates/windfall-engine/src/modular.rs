@@ -498,6 +498,10 @@ impl ModularRack {
     pub fn latency_samples(&self) -> usize {
         self.latency
     }
+    /// Drained once per callback into the engine-wide observable counter.
+    pub fn take_rejected_events(&mut self) -> u64 {
+        std::mem::take(&mut self.rejected)
+    }
     pub fn rejected_events(&self) -> u64 {
         self.rejected
     }
@@ -1036,9 +1040,13 @@ impl ModularRack {
                         sample[0] += source[0] * edge.gain;
                         sample[1] += source[1] * edge.gain;
                     } else if edge.signal == RackSignal::Control {
-                        let value = match self.nodes[edge.from].unit {
-                            Unit::Control { value, .. } => value,
-                            _ => 0.0,
+                        let value = if self.nodes[edge.from].muted {
+                            0.0
+                        } else {
+                            match self.nodes[edge.from].unit {
+                                Unit::Control { value, .. } => value,
+                                _ => 0.0,
+                            }
                         };
                         if let Some(parameter) = edge.parameter {
                             match &mut self.nodes[index].unit {
