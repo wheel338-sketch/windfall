@@ -3,6 +3,10 @@ import type { TransportMode } from "./TransportMode";
 
 export type TimeTransportParams = { 
 /**
+ * Automatic onset capture/reloop. Manual Trigger remains available.
+ */
+autoTrigger: boolean, thresholdDb: number, sensitivity: number, refractoryMs: number, 
+/**
  * False records/passes live audio; a rising edge captures preceding audio.
  */
 trigger: boolean, mode: TransportMode, 

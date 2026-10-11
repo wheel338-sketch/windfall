@@ -9,4 +9,12 @@ bandCount: number,
 /**
  * Envelope-to-carrier band offset, -1..1 maps to +/-4 bands.
  */
-color: number, attackMs: number, releaseMs: number, gain: number, mix: number, };
+color: number, attackMs: number, releaseMs: number, gain: number, mix: number, 
+/**
+ * Main carrier + key modulator, or main modulator + key carrier.
+ */
+keyIsCarrier: boolean, 
+/**
+ * An explicitly selected built-in harmonic carrier, driven by carrier_hz.
+ */
+synthCarrier: boolean, carrierHz: number, };

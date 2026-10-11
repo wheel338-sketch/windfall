@@ -4,12 +4,17 @@ import type { ChannelSource } from "./ChannelSource";
 import type { ChannelTiming } from "./ChannelTiming";
 import type { ChannelVoiceSettings } from "./ChannelVoiceSettings";
 import type { ExpressionMap } from "./ExpressionMap";
+import type { SamplePlayback } from "./SamplePlayback";
 import type { TrackId } from "./TrackId";
 
 /**
  * One row of the channel rack.
  */
 export type Channel = { 
+/**
+ * Immutable source/marker/curve authoring data, separate from Copy controls.
+ */
+samplePlayback?: SamplePlayback, 
 /**
  * Additional note generators and modulation; absent in older files.
  */

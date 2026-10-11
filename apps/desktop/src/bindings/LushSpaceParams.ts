@@ -35,4 +35,16 @@ width: number,
 /**
  * Dry/wet balance, 0..1, default 0.3.
  */
-mix: number, };
+mix: number, 
+/**
+ * Wet feed-forward pitch voice, -12..12 semitones. No pitch feedback.
+ */
+pitchSemitones: number, 
+/**
+ * Share of pitched wet sound. Zero preserves the legacy hall exactly.
+ */
+pitchAmount: number, 
+/**
+ * Acoustic spacing, 0..1; 0.5 preserves the original tank dimensions.
+ */
+size: number, };

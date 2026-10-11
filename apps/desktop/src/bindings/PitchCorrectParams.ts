@@ -17,4 +17,4 @@ amount: number,
 /**
  * A4 tuning, 400..480 Hz.
  */
-tuningHz: number, mix: number, };
+tuningHz: number, mix: number, harmonyChannel?: number, harmonyMix: number, };

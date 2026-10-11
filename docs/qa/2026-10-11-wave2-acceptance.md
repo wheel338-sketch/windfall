@@ -13,6 +13,8 @@
 - Branch 7 additive/physical/drum merged at `bebb7b01`; `chk.sh` now exit 0, zero errors/warnings. Registry is 43 kinds: original 27, nine subtractive/FM, seven additive/drum. All command, preset, editor and allocator-test additions retained; corrected four dispatch arms whose common bodies/braces were shared by conflict hunks.
 - Branch 8 slices/grains merged at `1bc20964`; `chk.sh` now exit 0, zero errors/warnings. Both asset identities participate in reuse and persist in every ledger. Fixed source patterns and fixtures for the separate instrument asset, and a worker's misplaced stems helper field. All command examples/editor/test additions retained.
 - Branch 9 formats merged at `6855ca84`; `chk.sh` now exit 0, zero errors/warnings. Kept worker glide-duration/omission reporting and both engine modules; fixed SendTapParams module path. All nine are merged. Next: generated bindings/WASM, focused tests and full gates; row acceptance and wave 1 classification remain pending.
+- Deliverable 3 committed at `42d74bc4`: Open-row classification covers exactly the original 64 open wave 1 IDs once (63 in-progress plus one todo), checked by set comparison.
+- Binding generation passed: 511 files. Simulator rebuild and fresh inventory comparison are next; no focused/full wave 2 test evidence yet.
 - Build/test commands will run sequentially with eight Cargo jobs and four Vitest workers. No devices/ignored tests, parity inventory edits, pushes or delegation.
 
 ## Verified execution record
@@ -28,6 +30,7 @@
 | Branch 7 `chk.sh` | Cargo exit 0; zero errors/warnings | `target/round2-branch7-check.log` |
 | Branch 8 `chk.sh` | Cargo exit 0; zero errors/warnings | `target/round2-branch8-check.log` |
 | Branch 9 `chk.sh` | Cargo exit 0; zero errors/warnings | `target/round2-branch9-check.log` |
+| `bash scripts/gen-bindings.sh` | Exit 0; 511 files generated | `target/round2-bindings.log` |
 
 ## Row acceptance
 

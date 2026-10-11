@@ -2,6 +2,7 @@
 import type { BitDepth } from "./BitDepth";
 import type { ExportFormat } from "./ExportFormat";
 import type { ExportStems } from "./ExportStems";
+import type { MasteringOptions } from "./MasteringOptions";
 import type { Mp3Settings } from "./Mp3Settings";
 import type { PlayMode } from "./PlayMode";
 import type { TickRange } from "./TickRange";
@@ -59,4 +60,9 @@ mp3?: Mp3Settings,
 /**
  * Exports stems instead of one file. Absent means one file, the mix.
  */
-stems?: ExportStems, };
+stems?: ExportStems, 
+/**
+ * Masters the mix to a loudness target before it is written. Absent
+ * means the mix is written as it was rendered. Not with `stems`.
+ */
+mastering?: MasteringOptions, };

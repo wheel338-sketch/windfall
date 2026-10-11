@@ -19,4 +19,4 @@ tone: number,
 /**
  * Share of noise versus membrane modes, 0..1, default 0.1.
  */
-noiseMix: number, };
+noiseMix: number, strikePosition: number, damping: number, body: number, };

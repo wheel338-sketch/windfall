@@ -3,4 +3,4 @@
 /**
  * How the two channels' echoes relate.
  */
-export type DelayMode = "stereo" | "pingPong";
+export type DelayMode = "stereo" | "pingPong" | "inverted";

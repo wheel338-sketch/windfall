@@ -3,4 +3,4 @@
 /**
  * Which instrument an [`AnyInstrument`] or an [`InstrumentParams`] holds.
  */
-export type InstrumentKind = "subtractiveSynth" | "fourOp" | "matrixFm" | "ringHybrid" | "harmonicStack" | "partialMorph" | "inharmonic" | "resynth" | "seedPatch" | "scanSynth" | "pluck" | "fingerBass" | "acousticString" | "membrane" | "drumRack" | "kick" | "drumVoice" | "sliceMap" | "sliceDeck" | "grainCloud" | "waveRide" | "acidLine" | "tripleOsc" | "waveLane" | "macroVoice" | "speechVoice" | "midiOut";
+export type InstrumentKind = "subtractiveSynth" | "fourOp" | "matrixFm" | "ringHybrid" | "harmonicStack" | "partialMorph" | "inharmonic" | "resynth" | "seedPatch" | "scanSynth" | "pluck" | "fingerBass" | "acousticString" | "membrane" | "drumRack" | "kick" | "drumVoice" | "sliceMap" | "sliceDeck" | "grainCloud" | "waveRide" | "acidLine" | "tripleOsc" | "waveLane" | "macroVoice" | "speechVoice" | "midiOut" | "vintagePoly" | "dualPoly" | "compactSynth" | "vintageSaw" | "pocketSynth" | "grooveSynth" | "hybridSeq" | "matrixSynth" | "packSynth" | "layerKick" | "snapshotMorph" | "harmonicFilter" | "metalVoice" | "numberVoice" | "spectralResynth" | "colorScan";

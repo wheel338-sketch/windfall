@@ -12,12 +12,14 @@ import type { Channel } from "./Channel";
 import type { ChannelId } from "./ChannelId";
 import type { ChannelPatch } from "./ChannelPatch";
 import type { ChannelPreset } from "./ChannelPreset";
+import type { ChannelSource } from "./ChannelSource";
 import type { ChannelVoiceSettings } from "./ChannelVoiceSettings";
 import type { Clip } from "./Clip";
 import type { ClipId } from "./ClipId";
 import type { ClipInit } from "./ClipInit";
 import type { ClipUpdate } from "./ClipUpdate";
 import type { ControllerLink } from "./ControllerLink";
+import type { ConvolverImpulse } from "./ConvolverImpulse";
 import type { CurveLfo } from "./CurveLfo";
 import type { EffectId } from "./EffectId";
 import type { EffectKind } from "./EffectKind";
@@ -26,6 +28,7 @@ import type { EffectSlotPatch } from "./EffectSlotPatch";
 import type { Envelope } from "./Envelope";
 import type { ExpressionMap } from "./ExpressionMap";
 import type { ExternalOutputRoute } from "./ExternalOutputRoute";
+import type { InstrumentAsset } from "./InstrumentAsset";
 import type { InstrumentKind } from "./InstrumentKind";
 import type { InstrumentParams } from "./InstrumentParams";
 import type { MarkerKind } from "./MarkerKind";
@@ -54,6 +57,7 @@ import type { PluginTarget } from "./PluginTarget";
 import type { PresetAudio } from "./PresetAudio";
 import type { SampleId } from "./SampleId";
 import type { SamplePath } from "./SamplePath";
+import type { SamplePlayback } from "./SamplePlayback";
 import type { SamplerPatch } from "./SamplerPatch";
 import type { SettingsPatch } from "./SettingsPatch";
 import type { TakeCompRange } from "./TakeCompRange";
@@ -117,4 +121,4 @@ points?: Array<AutomationPoint>, } | { "type": "removeAutomation", id: Automatio
 /**
  * History label. Defaults to the label of the first command.
  */
-label?: string, commands: Array<Command>, };
+label?: string, commands: Array<Command>, } | { "type": "setConvolverImpulse", track: TrackId, effect: EffectId, impulse: ConvolverImpulse | null, } | { "type": "setInstrumentAsset", channel: ChannelId, expected: ChannelSource, asset: InstrumentAsset | null, } | { "type": "setSamplePlayback", channel: ChannelId, asset: SamplePlayback | null, } | { "type": "generateSlicePattern", channel: ChannelId, pattern: PatternId, };
