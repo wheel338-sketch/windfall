@@ -268,6 +268,7 @@ impl Session {
         #[cfg(test)]
         self.pause("save:write");
         project = self.capture_plugins(project, plugin_revision)?;
+        self.pin_derived_project(&project);
 
         let prepare = |project: &mut Project, target: &Path| -> Result<_, String> {
             // Where this exact filename will look for its samples on reopen.
@@ -379,6 +380,7 @@ impl Session {
         #[cfg(test)]
         self.pause("backup:write");
         let project = self.capture_plugins(project, plugin_revision)?;
+        self.pin_derived_project(&project);
         file::write_backup_with(
             &project,
             Some(&played),

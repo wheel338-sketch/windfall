@@ -59,6 +59,8 @@ export function SamplePreprocessSection({
 }
 
 function PreprocessForm({ channel }: { channel: SamplerChannel }) {
+  const [preview, setPreview] = useState<import("@/bindings").SampleInfo | null>(null)
+  const [collected, setCollected] = useState<number | null>(null)
   const [choices, setChoices] = useState<PreprocessChoices>(NO_PREPROCESSING)
   const [pending, setPending] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -78,12 +80,41 @@ function PreprocessForm({ channel }: { channel: SamplerChannel }) {
     return () => {
       mounted.current = false
       unsubscribe()
+      void backend.previewStop().catch(() => {})
     }
   }, [])
 
   const set = (patch: Partial<PreprocessChoices>) => {
     setError(null)
+    setPreview(null)
+    void backend.previewStop().catch(() => {})
     setChoices((current) => ({ ...current, ...patch }))
+  }
+
+  async function audition() {
+    const built = preprocessRequest(channel, choices)
+    if ("error" in built) { setError(built.error); return }
+    const generation = getProjectGeneration()
+    setPending(true)
+    setError(null)
+    try {
+      const result = await backend.samplerPreprocessPreview(built.request)
+      if (mounted.current && generation === getProjectGeneration()) setPreview(result)
+    } catch (reason) {
+      if (mounted.current && generation === getProjectGeneration())
+        setError(reason instanceof Error ? reason.message : String(reason))
+    } finally { if (mounted.current) setPending(false) }
+  }
+
+  async function collect() {
+    setPending(true)
+    setError(null)
+    try {
+      const count = await backend.collectDerivedAssets()
+      if (mounted.current) setCollected(count)
+    } catch (reason) {
+      if (mounted.current) setError(reason instanceof Error ? reason.message : String(reason))
+    } finally { if (mounted.current) setPending(false) }
   }
 
   async function apply() {
@@ -198,6 +229,9 @@ function PreprocessForm({ channel }: { channel: SamplerChannel }) {
         </p>
       )}
       <div className="flex gap-2">
+        <Button size="sm" variant="outline" disabled={pending || empty} onClick={() => void audition()}>
+          Preview prepared sample
+        </Button>
         <Button
           size="sm"
           disabled={pending || empty}
@@ -206,6 +240,16 @@ function PreprocessForm({ channel }: { channel: SamplerChannel }) {
           Apply to sample
         </Button>
       </div>
+      {preview && <div>
+        <output aria-label="Prepared sample duration">{preview.frames} frames · {preview.durationSecs.toFixed(3)} s · {preview.sampleRate} Hz</output>
+        <svg role="img" aria-label="Prepared sample waveform" viewBox="0 0 512 100" className="h-24 w-full">
+          <path stroke="currentColor" d={preview.peaks.map((value, i) => `${i % 2 ? "L" : "M"}${Math.floor(i / 2) * 512 / Math.max(1, preview.peaks.length / 2 - 1)},${50 - value * 45}`).join(" ")} />
+        </svg>
+        <Button size="sm" variant="outline" onClick={() => void backend.previewStop()}>Stop prepared preview</Button>
+      </div>}
+      <Button size="sm" variant="ghost" disabled={pending} onClick={() => void collect()}>Collect unused sample edits</Button>
+      <p className="text-xs text-muted-foreground">Cleanup retains current sources, undo/redo and saved assets. Only files created in this session are eligible.</p>
+      {collected !== null && <output aria-label="Collected sample edits">Removed {collected} unused file{collected === 1 ? "" : "s"}.</output>}
     </Section>
   )
 }

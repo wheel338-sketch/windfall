@@ -69,6 +69,7 @@ mod analyzers;
 mod archive;
 mod audio;
 mod audio_editor;
+mod derived_assets;
 mod audio_logger;
 mod autosave;
 mod clip_processing;
@@ -196,6 +197,7 @@ struct Inner {
     controllers_wake: std::sync::Condvar,
     /// Serializes editor workers and retains at most one bounded clip view.
     audio_editor: Mutex<audio_editor::Editor>,
+    derived_assets: Mutex<derived_assets::Assets>,
     library: crate::library::Library,
     plugins: Mutex<Option<Arc<crate::plugins::PluginManager>>>,
     /// Held by a save or a backup from before it copies the project until
@@ -430,6 +432,7 @@ impl Session {
                 controllers: Mutex::new(controller_hub),
                 controllers_wake: std::sync::Condvar::new(),
                 audio_editor: Mutex::new(audio_editor::Editor::default()),
+                derived_assets: Mutex::new(derived_assets::Assets::default()),
                 library,
                 plugins: Mutex::new(None),
                 save: Mutex::new(()),

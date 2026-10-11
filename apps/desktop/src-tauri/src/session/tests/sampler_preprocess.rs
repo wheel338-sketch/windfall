@@ -141,7 +141,10 @@ fn preprocess_renders_a_new_sample_as_one_undo_step_and_survives_save_and_reopen
         .samples()
         .iter()
         .fold(0.0_f32, |peak, sample| peak.max(sample.abs()));
-    assert!((peak - 10.0_f32.powf(-1.0 / 20.0)).abs() < 1e-6, "normalized to −1 dBFS");
+    assert!(
+        (peak - 10.0_f32.powf(-1.0 / 20.0)).abs() < 1e-6,
+        "normalized to −1 dBFS"
+    );
 
     // One history entry: the channel now plays the new sample, the trim is
     // baked, the loop points follow the audio and the playback crossfade
@@ -381,4 +384,125 @@ fn a_result_for_a_changed_project_is_dropped_with_its_file() {
         .unwrap();
     assert_eq!(processed_files(&rig), 1);
     assert_eq!(sampler(&rig, channel).gain, 0.5);
+}
+
+#[test]
+fn prepared_preview_has_the_apply_waveform_and_duration_without_files_or_history() {
+    let rig = Rig::new();
+    let (channel, _, _, _) = add(&rig);
+    patch(
+        &rig,
+        channel,
+        SamplerPatch {
+            start: Some(0.1),
+            end: Some(0.9),
+            ..Default::default()
+        },
+    );
+    let request = SamplerPreprocessRequest {
+        trim: Some(true),
+        normalize: Some(true),
+        ..request(channel)
+    };
+    let before = rig.session.document_snapshot();
+    let preview = rig.session.sampler_preprocess_preview(request).unwrap();
+    assert_eq!(preview.frames, 1600);
+    assert!((preview.duration_secs - 1600.0 / 48000.0).abs() < 1e-12);
+    assert_eq!(rig.session.document_snapshot(), before);
+    assert_eq!(processed_files(&rig), 0);
+    let result = rig.session.sampler_preprocess(request).unwrap();
+    let rendered = audio(&rig, SampleId(result.created[0]));
+    assert_eq!(
+        preview.peaks,
+        windfall_engine::audio_edit::overview(&rendered, 512)
+    );
+    assert_eq!(preview.frames as usize, rendered.frames());
+}
+
+#[test]
+fn a_stale_prepared_preview_is_refused_before_audition_or_history() {
+    let rig = Rig::new();
+    let (channel, _, _, _) = add(&rig);
+    let hold = rig.session.hold("sampler-preprocess:preview");
+    let worker = rig.session.background(move |session| {
+        session.sampler_preprocess_preview(SamplerPreprocessRequest {
+            normalize: Some(true),
+            ..request(channel)
+        })
+    });
+    hold.wait();
+    rig.session.project_new().unwrap();
+    let before = rig.session.document_snapshot();
+    hold.release();
+    assert!(worker.join().unwrap().unwrap_err().contains("changed"));
+    assert_eq!(rig.session.document_snapshot(), before);
+    assert_eq!(processed_files(&rig), 0);
+}
+
+#[test]
+fn derived_collection_retains_history_saved_and_original_sources_and_removes_only_abandoned_owned_audio()
+ {
+    let rig = Rig::new();
+    let (channel, _, original, bytes) = add(&rig);
+    let make = || {
+        rig.session
+            .sampler_preprocess(SamplerPreprocessRequest {
+                normalize: Some(true),
+                ..request(channel)
+            })
+            .unwrap()
+    };
+    let first = make();
+    let id = SampleId(first.created[0]);
+    let SamplePath::External(derived) = rig.project().sample(id).unwrap().path.clone() else {
+        panic!("external")
+    };
+    rig.session.undo().unwrap();
+    assert_eq!(
+        rig.session.collect_derived_assets().unwrap(),
+        0,
+        "redo root"
+    );
+    assert!(std::path::Path::new(&derived).exists());
+    rig.session.redo().unwrap();
+    assert_eq!(
+        rig.session.collect_derived_assets().unwrap(),
+        0,
+        "live root"
+    );
+    let untouched = rig
+        .folder
+        .path()
+        .join("recordings/Sample edits/unknown.wav");
+    std::fs::write(&untouched, b"not owned by this session").unwrap();
+    rig.session.project_new().unwrap();
+    assert_eq!(rig.session.collect_derived_assets().unwrap(), 1);
+    assert!(!std::path::Path::new(&derived).exists());
+    assert!(untouched.exists());
+    assert_eq!(std::fs::read(&original).unwrap(), bytes);
+
+    let (channel, _, _, _) = add(&rig);
+    let result = rig
+        .session
+        .sampler_preprocess(SamplerPreprocessRequest {
+            normalize: Some(true),
+            ..request(channel)
+        })
+        .unwrap();
+    let id = SampleId(result.created[0]);
+    let SamplePath::External(saved_asset) = rig.project().sample(id).unwrap().path.clone() else {
+        panic!("external")
+    };
+    let path = rig.file("saved.windfall");
+    rig.session.project_save(Some(&path)).unwrap();
+    rig.session.project_new().unwrap();
+    assert_eq!(
+        rig.session.collect_derived_assets().unwrap(),
+        0,
+        "saved project pins source"
+    );
+    rig.session.project_open(&path).unwrap();
+    rig.wait_until_loaded_or_failed(id);
+    assert!(rig.has_audio(id));
+    assert!(std::path::Path::new(&saved_asset).exists());
 }

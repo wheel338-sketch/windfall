@@ -336,6 +336,7 @@ impl Session {
             state.pool.insert(sample, decoded);
             state.loaded.insert(sample);
             state.failed.remove(&sample);
+            self.own_derived(&owned.0);
             owned.0 = PathBuf::new(); // Doc + exact ready install now own the persistent source
             DispatchResult {
                 created: applied.created,

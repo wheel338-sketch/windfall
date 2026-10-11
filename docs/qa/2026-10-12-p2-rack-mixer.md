@@ -87,3 +87,24 @@ pnpm --dir apps/desktop test src/features/export/playlist-tracks.qa.test.tsx --m
 ```
 Check exact sidechain detector attenuation and selected-region endpoint lengths
 first. One-frame timing is a bounded-work smoke test, not a driver deadline.
+
+Fourth piece (written, not executed): prepared-result Preview renders through
+the very same options/kernel as Apply, auditions the rendered audio, returns
+its waveform/duration, and makes no file or history entry. Stale previews
+refuse before publication. Cleanup tracks only successful outputs created by
+this session; document/undo/redo roots, imported files and saved/backup assets
+are retained. Unknown files and older-session assets are never deleted.
+Tests in session/tests/sampler_preprocess.rs cover preview equivalence, stale
+preview refusal, undo/redo retention, saved reopen, abandoned output cleanup
+and preservation of imported/unowned files. The real inspector has Preview,
+Stop and cleanup controls plus mounted WASM no-history assertions.
+
+Run sequentially:
+```bash
+cargo test -p windfall-desktop --lib session::tests::sampler_preprocess
+pnpm --dir apps/desktop test src/features/channel-rack/sampler-second-pass.qa.test.tsx --maxWorkers=4
+```
+New native commands: sampler_preprocess_preview, collect_derived_assets.
+No dependency or persisted type changed. Cleanup is intentionally conservative
+across app restarts: it cannot prove another saved document stopped using an
+older asset. No arbitrary-directory scan is offered.

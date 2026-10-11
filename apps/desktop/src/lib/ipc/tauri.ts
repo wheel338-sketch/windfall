@@ -294,6 +294,8 @@ export function createTauriBackend(): Backend {
     prepareSamplerCommand: (command, request) =>
       call("prepare_sampler_command", { command, request }),
     samplerPreprocess: (request) => call("sampler_preprocess", { request }),
+    samplerPreprocessPreview: (request) => call("sampler_preprocess_preview", { request }),
+    collectDerivedAssets: () => call("collect_derived_assets"),
     detectClipTempo: (sample) => call("detect_clip_tempo", { sample }),
     sampleInfoById: (sample) => call("sample_info_by_id", { sample }),
     addChannelFromFile: (path, index, browser) =>

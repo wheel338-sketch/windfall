@@ -1142,6 +1142,8 @@ export function createMockBackend(options: MockOptions = {}): MockBackend {
         )
       ),
     audioEditorDiscard: () => Promise.resolve(),
+    samplerPreprocessPreview: () => Promise.reject(new Error("Prepared sample preview requires the desktop audio engine.")),
+    collectDerivedAssets: () => Promise.reject(new Error("Derived file cleanup requires the desktop app.")),
     detectClipTempo: () =>
       Promise.reject(
         new Error(

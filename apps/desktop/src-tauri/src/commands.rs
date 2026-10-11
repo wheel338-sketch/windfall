@@ -768,6 +768,18 @@ async fn sampler_preprocess(
 }
 
 #[tauri::command]
+async fn sampler_preprocess_preview(session: State<'_, Session>, request: windfall_ipc::SamplerPreprocessRequest) -> Result<windfall_ipc::SampleInfo, String> {
+    let session = session.inner().clone();
+    blocking(move || session.sampler_preprocess_preview(request)).await
+}
+
+#[tauri::command]
+async fn collect_derived_assets(session: State<'_, Session>) -> Result<u32, String> {
+    let session = session.inner().clone();
+    blocking(move || session.collect_derived_assets()).await
+}
+
+#[tauri::command]
 fn export_cancel(session: State<'_, Session>) {
     session.export_cancel();
 }
@@ -1061,6 +1073,8 @@ pub fn handler() -> impl Fn(Invoke) -> bool + Send + Sync + 'static {
         consolidate_playlist_tracks,
         export_playlist_tracks,
         sampler_preprocess,
+        sampler_preprocess_preview,
+        collect_derived_assets,
         export_audio,
         export_cancel,
         midi_preview,

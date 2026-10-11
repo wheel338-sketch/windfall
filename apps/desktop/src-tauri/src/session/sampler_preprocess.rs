@@ -12,7 +12,7 @@ use std::path::PathBuf;
 
 use windfall_core::AudioBuffer;
 use windfall_engine::sample_preprocess::{LoopSeam, SamplePreprocess, preprocess};
-use windfall_ipc::SamplerPreprocessRequest;
+use windfall_ipc::{SampleInfo, SamplerPreprocessRequest};
 use windfall_project::{
     ChannelSource, Command, DispatchResult, SampleId, SamplePath, SamplerLoopMode, SamplerPatch,
 };
@@ -51,11 +51,31 @@ fn amount(value: Option<f32>, what: &str) -> Result<f32, String> {
 }
 
 impl Session {
+    /// Audition and Apply deliberately share rendering and stale validation.
+    pub fn sampler_preprocess_preview(
+        &self,
+        request: SamplerPreprocessRequest,
+    ) -> Result<SampleInfo, String> {
+        match self.sampler_preprocess_job(request, true)? {
+            PreprocessReply::Preview(info) => Ok(info),
+            PreprocessReply::Applied(_) => unreachable!(),
+        }
+    }
     /// Called on a worker: snapshot, render, write, then commit one batch.
     pub fn sampler_preprocess(
         &self,
         request: SamplerPreprocessRequest,
     ) -> Result<DispatchResult, String> {
+        match self.sampler_preprocess_job(request, false)? {
+            PreprocessReply::Applied(result) => Ok(result),
+            PreprocessReply::Preview(_) => unreachable!(),
+        }
+    }
+    fn sampler_preprocess_job(
+        &self,
+        request: SamplerPreprocessRequest,
+        preview: bool,
+    ) -> Result<PreprocessReply, String> {
         let fade_in_ms = amount(request.fade_in_ms, "The fade-in")?;
         let fade_out_ms = amount(request.fade_out_ms, "The fade-out")?;
         let crossfade = amount(request.loop_crossfade, "The loop crossfade")?;
@@ -127,6 +147,44 @@ impl Session {
             return Err("Choose at least one treatment to apply.".into());
         }
         let processed = preprocess(&source, &options)?;
+
+        if preview {
+            let info = SampleInfo {
+                path: String::new(),
+                name: format!("{name} (prepared preview)"),
+                sample_rate: processed.audio.sample_rate(),
+                channels: processed.audio.channels(),
+                frames: processed.audio.frames() as u64,
+                duration_secs: processed.audio.duration_secs(),
+                peaks: windfall_engine::audio_edit::overview(&processed.audio, 512),
+            };
+            #[cfg(test)]
+            self.pause("sampler-preprocess:preview");
+            let _recording = self.recording_idle()?;
+            let state = self.state();
+            let current =
+                state.document.project().channel(request.channel).and_then(
+                    |channel| match &channel.source {
+                        ChannelSource::Sampler(now) => Some(now),
+                        _ => None,
+                    },
+                );
+            if state.generation != generation
+                || state.edits != edits
+                || state.replacements != replacements
+                || state.loading != loading
+                || current != Some(&settings)
+                || !state
+                    .pool
+                    .get(sample)
+                    .is_some_and(|now| same_audio(now, &source))
+            {
+                return Err(STALE.into());
+            }
+            drop(state);
+            self.controller().preview(processed.audio);
+            return Ok(PreprocessReply::Preview(info));
+        }
 
         // Persistent app-owned storage works before the project has a save
         // path. Completed files stay for undo, redo and saved documents.
@@ -210,7 +268,13 @@ impl Session {
             self.sample_edit_ticket(&state, command, None, vec![(new_sample, decoded)])?
         };
         let result = self.finish_sample_edit(ticket)?;
+        self.own_derived(&file.0);
         file.0 = PathBuf::new(); // The document and its history now own the file.
-        Ok(result)
+        Ok(PreprocessReply::Applied(result))
     }
+}
+
+enum PreprocessReply {
+    Applied(DispatchResult),
+    Preview(SampleInfo),
 }

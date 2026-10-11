@@ -188,6 +188,8 @@ export interface Backend extends AnalysisBackend, MixerPresetLibraryBackend, Ana
   samplerPreprocess(
     request: import("@/bindings").SamplerPreprocessRequest
   ): Promise<DispatchResult>
+  samplerPreprocessPreview(request: import("@/bindings").SamplerPreprocessRequest): Promise<import("@/bindings").SampleInfo>
+  collectDerivedAssets(): Promise<number>
   detectClipTempo(
     sample: SampleId
   ): Promise<{ bpm: number; confidence: number }[]>

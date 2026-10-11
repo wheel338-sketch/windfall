@@ -75,3 +75,26 @@ it("clicks Fit to tempo then publishes its exact spectral ratio in one persisted
   await act(async () => { await redo() })
   expect(samplerOf("Kick").stretch).toEqual(stretch)
 })
+
+it("auditions a prepared result without changing the WASM document and exposes conservative cleanup", async () => {
+  const preview = vi.spyOn(app.backend, "samplerPreprocessPreview").mockResolvedValue({
+    path: "", name: "Prepared", frames: 1600, sampleRate: 48000, channels: 2,
+    durationSecs: 1600 / 48000, peaks: [-0.8912509, 0.8912509],
+  })
+  const cleanup = vi.spyOn(app.backend, "collectDerivedAssets").mockResolvedValue(2)
+  render(<ChannelInspector />)
+  await settle()
+  const before = structuredClone(project())
+  const cursor = history().cursor
+  await userEvent.click(screen.getByRole("checkbox", { name: "Normalize to −1 dBFS" }))
+  await userEvent.click(screen.getByRole("button", { name: "Preview prepared sample" }))
+  await waitFor(() => expect(preview).toHaveBeenCalledWith(expect.objectContaining({ channel: channel("Kick").id, normalize: true })))
+  expect(screen.getByLabelText("Prepared sample duration")).toHaveTextContent("1600 frames")
+  expect(screen.getByRole("img", { name: "Prepared sample waveform" })).toBeVisible()
+  expect(project()).toEqual(before)
+  expect(history().cursor).toBe(cursor)
+  await userEvent.click(screen.getByRole("button", { name: "Collect unused sample edits" }))
+  await waitFor(() => expect(cleanup).toHaveBeenCalledOnce())
+  expect(screen.getByLabelText("Collected sample edits")).toHaveTextContent("Removed 2 unused files")
+  expect(history().cursor).toBe(cursor)
+})
