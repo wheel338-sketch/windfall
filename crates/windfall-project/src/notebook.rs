@@ -1,4 +1,4 @@
-//! Saved plain-text song notes. Pages have no playback or executable behavior.
+//! Saved song notes. HTML is inert project data; only the shell may render it.
 
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
@@ -9,12 +9,24 @@ pub const MAX_NOTEBOOK_PAGES: usize = 8;
 pub const MAX_NOTEBOOK_TITLE_BYTES: usize = 128;
 pub const MAX_NOTEBOOK_BODY_BYTES: usize = 16_384;
 
+fn is_false(value: &bool) -> bool {
+    !*value
+}
+
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
 #[ts(export)]
 pub struct NotebookPage {
     pub title: String,
     pub body: String,
+    /// Opt-in safe HTML preview. Omitted in legacy/plain-text pages.
+    #[serde(default, skip_serializing_if = "is_false")]
+    #[ts(optional)]
+    pub html: bool,
+    /// Song tick at which this page becomes visible in playback-follow mode.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub start_tick: Option<u32>,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, TS)]
@@ -35,6 +47,14 @@ impl Notebook {
             return Err(CommandError::invalid("a notebook can have at most 8 pages"));
         }
         for page in &self.pages {
+            if page
+                .start_tick
+                .is_some_and(|tick| tick > crate::MAX_SONG_TICKS)
+            {
+                return Err(CommandError::invalid(
+                    "notebook cue exceeds the song tick limit",
+                ));
+            }
             if page.title.len() > MAX_NOTEBOOK_TITLE_BYTES {
                 return Err(CommandError::invalid(
                     "a notebook page title must be at most 128 UTF-8 bytes",
@@ -94,6 +114,7 @@ mod tests {
             vec![NotebookPage {
                 title: "Verse".into(),
                 body: "  First line\nSecond line  ".into(),
+                ..Default::default()
             }],
         )
         .unwrap();
@@ -111,6 +132,7 @@ mod tests {
         let page = NotebookPage {
             title: format!("  {}  ", "é".repeat(MAX_NOTEBOOK_TITLE_BYTES / 2)),
             body: "é".repeat(MAX_NOTEBOOK_BODY_BYTES / 2),
+            ..Default::default()
         };
         replace(&mut document, vec![page.clone()]).unwrap();
         assert_eq!(
@@ -143,6 +165,7 @@ mod tests {
             vec![NotebookPage {
                 title: "  Verse  ".into(),
                 body: "  \n<script>plain text</script>  ".into(),
+                ..Default::default()
             }],
         )
         .unwrap();
@@ -189,10 +212,12 @@ mod tests {
                 NotebookPage {
                     title: "Verse".into(),
                     body: "Lyrics".into(),
+                    ..Default::default()
                 },
                 NotebookPage {
                     title: "Mix".into(),
                     body: "Notes".into(),
+                    ..Default::default()
                 },
             ],
         )
