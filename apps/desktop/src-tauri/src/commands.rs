@@ -1011,6 +1011,14 @@ pub fn handler() -> impl Fn(Invoke) -> bool + Send + Sync + 'static {
         analyzer_select,
         analyzer_ack,
         analyzer_unsubscribe,
+        proposal_stamp,
+        assistant_respond,
+        proposal_apply,
+        proposal_undo,
+        script_begin,
+        script_cancel,
+        script_parameters,
+        script_preview,
         engine_status,
         process_memory,
         engine_devices,
@@ -1300,4 +1308,36 @@ fn analyzer_ack(session: State<'_, Session>, window: WebviewWindow, ack: windfal
 #[tauri::command]
 fn analyzer_unsubscribe(session: State<'_, Session>, window: WebviewWindow, slot: String) {
     session.analyzer_unsubscribe(window.label(), &slot);
+}
+
+#[tauri::command]
+fn proposal_stamp(session: State<'_, Session>) -> windfall_project::proposal::ProposalStamp { session.proposal_stamp() }
+#[tauri::command]
+async fn assistant_respond(session: State<'_, Session>, prompt: String) -> Result<windfall_project::assistant::AssistantReply, String> {
+    let session = session.inner().clone();
+    blocking(move || session.assistant_respond(&prompt)).await
+}
+#[tauri::command]
+async fn proposal_apply(session: State<'_, Session>, proposal: windfall_project::proposal::CommandProposal) -> Result<DispatchResult, String> {
+    let session = session.inner().clone();
+    blocking(move || session.proposal_apply(proposal)).await
+}
+#[tauri::command]
+async fn proposal_undo(session: State<'_, Session>, stamp: windfall_project::proposal::ProposalStamp) -> Result<ProjectPatch, String> {
+    let session = session.inner().clone();
+    blocking(move || session.proposal_undo(stamp)).await
+}
+#[tauri::command]
+fn script_begin(session: State<'_, Session>) -> u64 { session.script_begin() }
+#[tauri::command]
+fn script_cancel(session: State<'_, Session>, request: u64) { session.script_cancel(request); }
+#[tauri::command]
+async fn script_parameters(session: State<'_, Session>, source: String) -> Result<Vec<windfall_project::scripting::ScriptParameter>, String> {
+    let session = session.inner().clone();
+    blocking(move || session.script_parameters(&source)).await
+}
+#[tauri::command]
+async fn script_preview(session: State<'_, Session>, request: u64, input: windfall_project::scripting::PianoScriptRequest) -> Result<windfall_project::scripting::PianoScriptPreview, String> {
+    let session = session.inner().clone();
+    blocking(move || session.script_preview(request, input)).await
 }

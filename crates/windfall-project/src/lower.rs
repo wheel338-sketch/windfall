@@ -1493,6 +1493,18 @@ impl Transaction<'_> {
                         return Err(CommandError::invalid("saved script revision is immutable; increment revision"));
                     }
                 }
+                for binding in &library.channels {
+                    if self.project.channel(binding.channel).is_none() && !old.scripts.channels.contains(binding) {
+                        return Err(CommandError::not_found("channel", binding.channel));
+                    }
+                }
+                for binding in &library.controllers {
+                    if !old.scripts.controllers.contains(binding)
+                        && let Some(target) = binding.target {
+                        let link = crate::ControllerLink { source: binding.source.clone(), target, map: Default::default() };
+                        if let Some(problem) = crate::controller_links::links_problem(&[link], Some(self.project)) { return Err(CommandError::invalid(problem)); }
+                    }
+                }
                 let mut new = old.clone();
                 new.scripts = library;
                 self.push(Edit::Settings(Change { old, new }));

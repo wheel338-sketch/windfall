@@ -166,6 +166,14 @@ export interface Backend extends AnalysisBackend, MixerPresetLibraryBackend, Ana
   pluginEditor(target: PluginTarget, open: boolean): Promise<void>
 
   documentSnapshot(): Promise<DocumentSnapshot>
+  proposalStamp(): Promise<import("@/bindings").ProposalStamp>
+  assistantRespond(prompt: string): Promise<import("@/bindings").AssistantReply>
+  proposalApply(proposal: import("@/bindings").CommandProposal): Promise<DispatchResult>
+  proposalUndo(stamp: import("@/bindings").ProposalStamp): Promise<ProjectPatch>
+  scriptBegin(): Promise<number>
+  scriptCancel(request: number): Promise<void>
+  scriptParameters(source: string): Promise<import("@/bindings").ScriptParameter[]>
+  scriptPreview(request: number, input: import("@/bindings").PianoScriptRequest): Promise<import("@/bindings").PianoScriptPreview>
   dispatch(command: Command, gesture?: number): Promise<DispatchResult>
   prepareClipCommand(command: Command): Promise<DispatchResult>
   samplerPreparationBegin(): Promise<number>

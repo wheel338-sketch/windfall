@@ -206,6 +206,7 @@ impl Hub {
             self.log.clear();
             self.bank = 0;
             self.stamp = None;
+            self.queue.clear();
         }
         if self.stamp != Some((generation, revision)) {
             self.stamp = Some((generation, revision));
@@ -220,6 +221,9 @@ impl Hub {
                 if !self.sources.contains(&link.source) {
                     self.sources.push(link.source.clone());
                 }
+            }
+            for binding in &project.settings.scripts.controllers {
+                if !self.sources.contains(&binding.source) { self.sources.push(binding.source.clone()); }
             }
         }
     }
@@ -252,7 +256,7 @@ impl Hub {
 }
 
 /// True when a link from `link` takes a message that came as `from`.
-fn source_matches(link: &ControlSource, from: &ControlSource) -> bool {
+pub(super) fn source_matches(link: &ControlSource, from: &ControlSource) -> bool {
     match (link, from) {
         (
             ControlSource::Midi {
@@ -326,6 +330,9 @@ fn load_profiles(dir: &Path) -> Vec<ControllerProfile> {
 #[derive(Default)]
 struct Plan {
     generation: u64,
+    revision: u64,
+    script_events: Vec<(ControlSource, f32, u8)>,
+    script_bank: u32,
     /// The targets to move, each with the value it had, the value it gets
     /// (both 0 to 1) and the link that moves it.
     writes: Vec<Write>,
@@ -545,7 +552,15 @@ impl Session {
                 state.document.project(),
             );
         }
-        if !plan.commands.is_empty() {
+        if !plan.script_events.is_empty() {
+            let stamp = windfall_project::proposal::ProposalStamp { generation: plan.generation, revision: plan.revision };
+            let events = std::mem::take(&mut plan.script_events);
+            let commands = std::mem::take(&mut plan.commands);
+            match self.controller_scripts(events, stamp, plan.script_bank, commands) {
+                Ok(()) => self.controllers_wrote(&plan, now),
+                Err(error) => lock(&self.inner.controllers).error = Some(error),
+            }
+        } else if !plan.commands.is_empty() {
             let command = if plan.commands.len() == 1 {
                 plan.commands.remove(0)
             } else {
@@ -581,6 +596,8 @@ impl Session {
         hub.sync(state.generation, state.document.revision(), project);
         let mut plan = Plan {
             generation: state.generation,
+            revision: state.document.revision(),
+            script_bank: hub.bank,
             stopped: std::mem::take(&mut hub.stopped),
             clock: hub.clock_events.drain(..).collect(),
             ..Plan::default()
@@ -666,6 +683,16 @@ impl Session {
                     if !learn.multi {
                         hub.learn = None;
                     }
+                }
+                continue;
+            }
+            if project.settings.scripts.controllers.iter().any(|binding| source_matches(&binding.source, &event.source)) {
+                if plan.script_events.len() < 32 {
+                    let number = match &event.source { ControlSource::Midi { control: MidiControl::Cc { number }, .. } => *number, _ => 0 };
+                    plan.script_events.push((event.source.clone(), event.input.value, number));
+                } else {
+                    hub.dropped = hub.dropped.saturating_add(1);
+                    hub.error = Some("controller script event budget exceeded".into());
                 }
                 continue;
             }

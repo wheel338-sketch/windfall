@@ -798,6 +798,28 @@ export function createMockBackend(options: MockOptions = {}): MockBackend {
         return timelineState()
       }),
     documentSnapshot: () => ipc(() => doc.snapshot(path)),
+    proposalStamp: () => ipc(() => {
+      const { generation, revision } = timelineState()
+      return { generation, revision }
+    }),
+    assistantRespond: (prompt) => ipc(() => doc.assistant(prompt, timelineState().generation)),
+    proposalApply: (proposal) => ipc(() => {
+      const result = doc.applyProposal(proposal, timelineState().generation, false)
+      // Ordinary mock dispatch uses the same patch stream and transport sync.
+      publish(result.patch)
+      return result
+    }),
+    proposalUndo: (stamp) => ipc(() => {
+      const current = timelineState()
+      if (stamp.generation !== current.generation || stamp.revision !== current.revision) throw new Error("Batch undo is stale.")
+      const patch = doc.undo()
+      if (!patch) throw new Error("No batch to undo.")
+      return publish(patch)
+    }),
+    scriptBegin: () => Promise.reject(new Error("Script execution requires the native bounded worker.")),
+    scriptCancel: async () => {},
+    scriptParameters: (source) => ipc(() => sim.call<import("@/bindings").ScriptParameter[]>("script_parameters", 0, source)),
+    scriptPreview: () => Promise.reject(new Error("Script execution requires the native bounded worker.")),
     dispatch: (command, gesture) => ipc(() => dispatchNow(command, gesture)),
     undo: () =>
       ipc(() => {

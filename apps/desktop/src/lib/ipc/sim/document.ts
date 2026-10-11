@@ -101,6 +101,17 @@ export class SimDocument {
     return this.follow(this.call<ProjectPatch | null>("doc_undo"))
   }
 
+  assistant(prompt: string, generation: number): import("@/bindings").AssistantReply {
+    return this.call("doc_assistant", { prompt, generation })
+  }
+
+  applyProposal(proposal: import("@/bindings").CommandProposal, generation: number, recording: boolean): DispatchResult {
+    const result = this.call<DispatchResult>("doc_proposal_apply", { proposal, generation, recording })
+    this.follow(result.patch)
+    this.mirror.nextId = this.call<number>("doc_next_id")
+    return result
+  }
+
   importMidi(bytes: number[], options: MidiImportOptions): DispatchResult {
     const result = this.call<DispatchResult>("doc_midi_import", {
       bytes,

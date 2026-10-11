@@ -256,6 +256,13 @@ impl Session {
         self.prepare_history(HistoryMove::Undo)
     }
 
+    /// Review UI's Undo applies only to the exact latest applied batch. Never
+    /// retry against a newer edit while native history preparation is pending.
+    pub fn proposal_undo(&self, stamp: windfall_project::proposal::ProposalStamp) -> Result<ProjectPatch, String> {
+        self.prepare_history_guarded(HistoryMove::Undo, Some(stamp))
+            .ok_or_else(|| "batch undo was refused: project changed, recording is active, or preparation failed".into())
+    }
+
     /// Applies the last undone edit again. `None` when there is none.
     pub fn redo(&self) -> Option<ProjectPatch> {
         self.prepare_history(HistoryMove::Redo)
@@ -365,6 +372,10 @@ impl Session {
     // History can refer to a variant evicted from the bounded cache. Compile
     // its target snapshot before reacquiring the session lock as well.
     fn prepare_history(&self, action: HistoryMove) -> Option<ProjectPatch> {
+        self.prepare_history_guarded(action, None)
+    }
+
+    fn prepare_history_guarded(&self, action: HistoryMove, expected: Option<windfall_project::proposal::ProposalStamp>) -> Option<ProjectPatch> {
         drop(self.recording_idle().ok()?);
         for _ in 0..8 {
             let (
@@ -378,6 +389,7 @@ impl Session {
                 preparation,
             ) = {
                 let state = self.state();
+                if expected.is_some_and(|stamp| stamp.generation != state.generation || stamp.revision != state.document.revision()) { return None; }
                 (
                     state.document.clone(),
                     state.pool.clone(),
@@ -418,6 +430,7 @@ impl Session {
             let result = {
                 let _recording = self.recording_idle().ok()?;
                 let mut state = self.state();
+                if expected.is_some_and(|stamp| stamp.generation != state.generation || stamp.revision != state.document.revision()) { return None; }
                 if state.generation != generation || state.replacements != replacements {
                     return None;
                 }

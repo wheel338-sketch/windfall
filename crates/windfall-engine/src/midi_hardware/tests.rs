@@ -406,3 +406,37 @@ fn hardware_runtime_keeps_ports_on_one_worker_and_reports_open_send_failures() {
     assert!(worker.state().error.is_some());
     assert_ne!(worker.epoch, controller.hardware_epoch());
 }
+
+#[test]
+fn installed_script_feedback_is_bounded_owned_by_worker_and_epoch_guarded() {
+    let (_processor, controller) = engine();
+    let fake = Arc::new(Mutex::new(FakeState { present: true, ..Default::default() }));
+    let ports = fake.clone();
+    let runtime = Runtime::start_with(controller.clone(), Arc::new(Target(controller.clone())), MidiHardwareSettings::default(), move || Box::new(FakePorts(ports))).unwrap();
+    assert!(runtime.feedback(vec![[0xb0, 7, 64]]).is_err());
+    runtime.configure(MidiHardwareSettings { output: Some("port".into()), ..Default::default() }).unwrap();
+    // Configure replies are synchronous, while state publication follows later
+    // in the service turn. Refresh establishes the same publication boundary.
+    let deadline = Instant::now() + Duration::from_secs(2);
+    while !runtime.state().output_connected {
+        assert!(Instant::now() < deadline); thread::sleep(Duration::from_millis(2));
+    }
+    fake.lock().unwrap().messages.clear();
+    assert!(runtime.feedback(vec![[0xf0, 7, 64]]).is_err());
+    assert!(runtime.feedback(vec![[0xb0, 7, 64]; 129]).is_err());
+    runtime.feedback(vec![[0xb0, 7, 64], [0xb1, 8, 127]]).unwrap();
+    while fake.lock().unwrap().messages.len() < 2 {
+        assert!(Instant::now() < deadline); thread::sleep(Duration::from_millis(2));
+    }
+    assert_eq!(fake.lock().unwrap().messages, vec![[0xb0,7,64], [0xb1,8,127]]);
+    drop(runtime);
+    assert!(fake.lock().unwrap().owners.iter().all(|owner| *owner != thread::current().id()));
+    let (_, controller, mut worker, fake) = rig();
+    fake.lock().unwrap().messages.clear();
+    let epoch = controller.hardware_epoch();
+    controller.panic_hardware();
+    worker.feedback(epoch, vec![[0xb0,7,64]]);
+    assert!(fake.lock().unwrap().messages.is_empty());
+    assert_eq!(worker.state().output_dropped, 1);
+    assert!(worker.state().error.as_deref().unwrap().contains("stale"));
+}

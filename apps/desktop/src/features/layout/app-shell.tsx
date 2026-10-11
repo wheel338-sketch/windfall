@@ -33,6 +33,8 @@ import { useAppBoot, useWindowTitle } from "./use-app-boot"
 import { Workspace } from "./workspace"
 import { PluginManager } from "@/features/plugins/manager"
 import { TouchControllersWindow } from "@/features/touch-controllers/window"
+import { AssistantPanel } from "@/features/assistant/panel"
+import { ScriptEditor } from "@/features/assistant/script-editor"
 
 /** The most room a toast takes across, however long its message. */
 const TOAST_WIDTH = 340
@@ -73,6 +75,8 @@ export function Overlays() {
       <SpectrogramPanel />
       <ScopePanel />
       <TouchControllersWindow />
+      <AssistantPanel />
+      <ScriptEditor />
       <Toaster
         theme={theme}
         position="bottom-right"

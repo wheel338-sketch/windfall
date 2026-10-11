@@ -243,6 +243,10 @@ type Ids = ReturnType<typeof fullProject>["ids"]
  * for a new entry when the Rust `Command` gains a variant.
  */
 const EVERY_COMMAND: { [Type in Command["type"]]: (ids: Ids) => Command } = {
+  setScriptLibrary: () => ({
+    type: "setScriptLibrary",
+    library: { assets: [{ reference: { id: "piano-fixture", revision: 1 }, languageVersion: 1, kind: "piano", name: "Fixture", source: "emit" }], channels: [], controllers: [] },
+  }),
   addArrangement: (ids) => ({
     type: "addArrangement",
     name: "New",
