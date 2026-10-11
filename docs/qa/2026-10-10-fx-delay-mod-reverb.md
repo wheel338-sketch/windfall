@@ -37,7 +37,7 @@ their declared `spatial::model_tests` module absent; this resumption completes i
 | `fx-vintage-chorus` | full-row candidate; nothing executed | Clocked bucket modes, tempo/free controls and mode-aware editor |
 | `fx-vintage-phaser` | full-row candidate; nothing executed | Four-stage pedal circuit and expanded stages/stagger, notch-aware editor |
 | `fx-hyper-chorus` | full-row candidate; nothing executed | Two to sixteen actual detuned voices and grouped voice/motion editor |
-| `fx-fruity-flangus` | DSP/test candidate; editor integration in progress | One to four serial swept combs, correct four-comb warmup, tempo sync |
+| `fx-fruity-flangus` | full-row candidate; nothing executed | One to four actual serial combs, tempo controls and comb-chain editor |
 
 ## `fx-fruity-delay`: basic echo with ping-pong, inverted stereo and a lowpass
 
@@ -291,7 +291,7 @@ feed-forward and adds no feedback cycle. Zero amount keeps plain hall audio.
 | `fx-vintage-chorus` | full-row candidate; nothing executed | Clocked bucket modes, tempo/free controls and mode-aware editor |
 | `fx-vintage-phaser` | full-row candidate; nothing executed | Four-stage pedal circuit and expanded stages/stagger, notch-aware editor |
 | `fx-hyper-chorus` | full-row candidate; nothing executed | Two to sixteen actual detuned voices and grouped voice/motion editor |
-| `fx-fruity-flangus` | `stacked_combs_match_an_independent_difference_equation_for_every_order` | `four_stacked_combs_change_native_audio_and_roundtrip` |
+| `fx-fruity-flangus` | full-row candidate; nothing executed | One to four actual serial combs, tempo controls and comb-chain editor |
 
 All modulation direct cases are in `crates/windfall-dsp/src/spatial/model_tests.rs`.
 Its shared cases `model_extrema_partition_edits_empty_blocks_and_tails_are_stable`,
