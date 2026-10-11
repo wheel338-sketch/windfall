@@ -897,6 +897,10 @@ fn the_feed_a_window_is_sent_tells_tracks_apart_for_the_large_meter_and_the_wave
 
     // The meters: two per mixer track in mixer order, the master first.
     // Track A is hard left, track B hard right, the master has both.
+    // A pan set before the first block still glides to its place, so the
+    // first feed is let go by and the settled one is read.
+    bench.rig.run(24_000);
+    sent_frame(&bench.rig, &wire);
     bench.rig.run(4_800);
     let frame = sent_frame(&bench.rig, &wire);
     assert!(frame.meters[a * 2] > 1.0e-3, "{:?}", frame.meters);
