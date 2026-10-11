@@ -69,3 +69,10 @@ pub use scan::SCAN_STEPS;
 pub use scan_synth::{ScanSynth, ScanSynthParams};
 pub use seed_patch::{MAX_SEED, SeedPatch, SeedPatchParams};
 pub use voicing::VoicingParams;
+
+mod prepared;
+mod snapshot_morph;
+pub use snapshot_morph::{SnapshotMorph,SnapshotMorphParams};
+
+#[cfg(test)]
+mod prepared_tests;

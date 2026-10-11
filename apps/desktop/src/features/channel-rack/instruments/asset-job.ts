@@ -16,6 +16,6 @@ export function prepareAsset(request: AssetRequest, signal: AbortSignal): Promis
       else if (event.data.asset) { clean(); resolve(event.data.asset) }
       else fail(new Error("Instrument worker returned no data"))
     }
-    worker.postMessage(request, [request.bytes])
+    worker.postMessage(request, request.type === "layer" ? [request.bytes] : [])
   })
 }

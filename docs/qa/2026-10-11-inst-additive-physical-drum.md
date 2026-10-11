@@ -10,7 +10,7 @@ benchmarks, generators or audio-device checks were run. Every test below is
 | --- | --- | --- |
 | inst-boobass | Full-row candidate: Finger Bass now replaces its sole string on every positive note, including releases; 4 ms endpoint correction prevents retrigger discontinuities. Existing pluck, damping, pick position and two body resonances provide the bass-guitar tone contract. Six automatable controls retain descriptor indices. | Fresh integration execution and listening. |
 | inst-harmor | Pending this stream. | Audio/image preparation and asset editor. |
-| inst-morphine | Pending this stream. | Immutable harmonic snapshots and editor. |
+| inst-morphine | Full-row candidate: new Snapshot Morph kind uses immutable worker-prepared 32-harmonic A/B spectra, phase/pan-aware interpolation, polyphony/envelope controls and a two-spectrum harmonic editor. | Fresh integration execution and listening. |
 | inst-ogun | Pending this stream. | Metallic spectrum and editor acceptance. |
 | inst-harmless | Pending this stream. | Subtractive harmonic controls and editor acceptance. |
 | inst-autogun | Pending this stream. | Full number domain and preset-only workflow. |
@@ -132,3 +132,21 @@ plus engine/project commands above. Include frontend
 `src/features/params/access.test.ts`, and `src/lib/ipc/sim/document.test.ts`.
 Regenerate InstrumentKind/InstrumentParams, LayerKickParams, descriptors/WASM.
 Check new enum arms and sample-only/missing-layer exact PCM first.
+
+### Snapshot Morph checkpoint
+
+Appends SnapshotMorph (29 kinds here). `SpectralBank`/`SpectralFrame`/
+`SpectralPartial` are immutable heap assets, not Copy controls. Prepared playback
+only reads them and updates oscillator/envelope state. Morph/filter gain arithmetic
+is bounded playback arithmetic; no FFT, image decoding or spectral-table generation
+runs on audio. All events/process/reset allocate/free nothing. Legacy PartialMorph,
+Resynth, ScanSynth and HarmonicStack remain loadable foundation kinds; these new
+full-row workflows do not use their old inline arrays.
+
+Written, not executed: DSP `prepared_morph_is_exact_linear_interpolation_of_measured_pcm`,
+`prepared_partial_amplitude_phase_and_pan_match_independent_sine_reference`, engine
+`immutable_snapshot_morph_reaches_history_disk_and_live_offline_pcm`, snapshot
+worker mapping/refusal case, mounted two-spectrum/morph/undo case.
+Run `cargo test -p windfall-dsp --lib additive` with existing family commands.
+Regenerate SnapshotMorphParams plus the three spectral asset types, union and
+descriptors/WASM. Check phase/pan/reference and per-sample partition arithmetic.

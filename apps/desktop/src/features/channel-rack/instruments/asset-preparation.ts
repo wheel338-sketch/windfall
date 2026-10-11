@@ -1,8 +1,12 @@
 import type { InstrumentAsset } from "@/bindings"
 
-export type AssetRequest = { type: "layer"; bytes: ArrayBuffer }
+export type AssetRequest = { type: "layer"; bytes: ArrayBuffer } | { type: "snapshots"; a: number[]; b: number[] }
 /** Bounded worker-side WAV decoding; no WebAudio device or audio callback. */
 export function prepareInstrumentAsset(request: AssetRequest): InstrumentAsset {
+  if (request.type === "snapshots") {
+    if (request.a.length !== 32 || request.b.length !== 32 || [...request.a,...request.b].some(level => !Number.isFinite(level) || level<0 || level>1)) throw new Error("Snapshots need 32 harmonic levels from zero to one")
+    return { type: "spectra", frameSeconds: 0.1, rootHz: 440, frames: [request.a,request.b].map(levels => ({ partials: levels.map((level,index) => ({ ratio: index+1,level,phase: 0,pan: 0 })) })) }
+  }
   const view = new DataView(request.bytes)
   const text = (at: number, count: number) => Array.from({ length: count }, (_, i) => String.fromCharCode(view.getUint8(at + i))).join("")
   if (view.byteLength < 44 || text(0,4) !== "RIFF" || text(8,4) !== "WAVE") throw new Error("Choose a PCM or float WAV file")

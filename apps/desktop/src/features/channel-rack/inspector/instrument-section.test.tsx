@@ -254,6 +254,17 @@ describe("instrument settings panels", () => {
     expect(channelOf(channel).source.asset?.type).toBe("pcm")
   })
 
+  it("mounts both harmonic snapshot spectra and automatable morph with history", async () => {
+    const channel=await open("snapshotMorph"), original=channelOf(channel).source.params
+    expect(screen.getByRole("img",{name:"Snapshot A spectrum"})).toBeVisible()
+    expect(screen.getByRole("img",{name:"Snapshot B spectrum"})).toBeVisible()
+    expect(screen.getByRole("spinbutton",{name:"Snapshot A harmonic level"})).toBeVisible()
+    const morph=screen.getByRole("slider",{name:"Morph"})
+    fireEvent.keyDown(morph,{key:"End"});fireEvent.keyUp(morph,{key:"End"});await flush()
+    expect(channelOf(channel).source.params).not.toEqual(original)
+    await act(() => undo());expect(channelOf(channel).source.params).toEqual(original)
+  })
+
   it("keeps hosted plugin controls ahead of the built-in panel", async () => {
     const channel = await open("acidLine")
     const plugin: PluginBinding = {

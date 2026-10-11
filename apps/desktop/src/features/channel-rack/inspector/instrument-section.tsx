@@ -5,6 +5,7 @@ import type { InstrumentChannel } from "@/lib/channel-source"
 import { colorToCss } from "@/lib/units"
 
 import { useProjectGeneration } from "@/lib/store"
+import { SnapshotEditor } from "../instruments/snapshot-editor"
 import { LayerKickEditor } from "../instruments/layer-kick-editor"
 import { KeyDrumEditor } from "../instruments/key-drum-editor"
 import { DrumRackEditor } from "../instruments/drum-rack-editor"
@@ -45,6 +46,8 @@ export function InstrumentSection({ channel }: { channel: InstrumentChannel }) {
           params={params}
           color={colorToCss(channel.color)}
         />
+      ) : params.type === "snapshotMorph" ? (
+        <SnapshotEditor channel={channel} />
       ) : params.type === "layerKick" ? (
         <LayerKickEditor channel={channel} />
       ) : params.type === "drumVoice" ? (

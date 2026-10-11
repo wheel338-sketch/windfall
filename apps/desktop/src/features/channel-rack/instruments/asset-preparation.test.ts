@@ -19,3 +19,12 @@ describe("instrument worker WAV preparation", () => {
     expect(() => prepareInstrumentAsset({ type: "layer",bytes: wav([100],4000) })).toThrow("Supported WAV")
   })
 })
+
+it("prepares independent immutable harmonic snapshots and refuses invalid levels", () => {
+  const a=Array.from({length:32},(_,i) => i===0 ? 1 : 0),b=Array.from({length:32},(_,i) => 1/(i+1))
+  const asset=prepareInstrumentAsset({type:"snapshots",a,b})
+  if(asset.type!=="spectra") throw new Error("wrong asset")
+  expect(asset.frames[0].partials[4]).toEqual({ratio:5,level:0,phase:0,pan:0})
+  expect(asset.frames[1].partials[4].level).toBe(0.2)
+  expect(() => prepareInstrumentAsset({type:"snapshots",a:[-1],b})).toThrow("Snapshots")
+})

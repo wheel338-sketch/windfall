@@ -29,6 +29,97 @@ pub struct DrumKeyPatch {
     pub params: DrumVoiceParams,
 }
 
+/// One prepared oscillator contribution, never stored in Copy parameters.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct SpectralPartial {
+    pub ratio: f32,
+    pub level: f32,
+    pub phase: f32,
+    pub pan: f32,
+}
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct SpectralFrame {
+    pub partials: Vec<SpectralPartial>,
+}
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct SpectralBank {
+    pub frames: Vec<SpectralFrame>,
+    pub frame_seconds: f32,
+    pub root_hz: f32,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub preset_number: Option<u32>,
+}
+impl SpectralBank {
+    pub fn check(&self) -> Result<(), &'static str> {
+        if self.frames.is_empty() || self.frames.len() > 256 {
+            return Err("a spectral bank holds 1 to 256 frames");
+        }
+        if !(0.001..=10.0).contains(&self.frame_seconds) || !(8.0..=20000.0).contains(&self.root_hz)
+        {
+            return Err("invalid spectral timing or root pitch");
+        }
+        let count = self.frames[0].partials.len();
+        if count == 0 || count > 64 {
+            return Err("a spectral frame holds 1 to 64 partials");
+        }
+        for frame in &self.frames {
+            if frame.partials.len() != count {
+                return Err("spectral frames must have equal partial counts");
+            }
+            for partial in &frame.partials {
+                if !(0.001..=10000.0).contains(&partial.ratio)
+                    || !(0.0..=1.0).contains(&partial.level)
+                    || !(0.0..=1.0).contains(&partial.phase)
+                    || !(-1.0..=1.0).contains(&partial.pan)
+                {
+                    return Err("invalid spectral partial");
+                }
+            }
+        }
+        Ok(())
+    }
+    pub fn harmonic_snapshots() -> Self {
+        Self {
+            frames: vec![
+                SpectralFrame {
+                    partials: (0..32)
+                        .map(|i| SpectralPartial {
+                            ratio: (i + 1) as f32,
+                            level: if i == 0 { 1.0 } else { 0.0 },
+                            phase: 0.0,
+                            pan: 0.0,
+                        })
+                        .collect(),
+                },
+                SpectralFrame {
+                    partials: (0..32)
+                        .map(|i| SpectralPartial {
+                            ratio: (i + 1) as f32,
+                            level: if i % 2 == 0 {
+                                1.0 / (i + 1) as f32
+                            } else {
+                                0.0
+                            },
+                            phase: 0.0,
+                            pan: 0.0,
+                        })
+                        .collect(),
+                },
+            ],
+            frame_seconds: 0.1,
+            root_hz: 440.0,
+            preset_number: None,
+        }
+    }
+}
+
 /// Most steps in time a [`SpectralGrid`] can hold.
 pub const MAX_GRID_COLUMNS: usize = 256;
 
@@ -60,6 +151,7 @@ pub enum InstrumentAsset {
     Grid(SpectralGrid),
     /// A short mono recording, layered under a synthesized drum.
     Pcm(LayerPcm),
+    Spectra(SpectralBank),
     DrumKeys {
         patches: Vec<DrumKeyPatch>,
     },
@@ -71,6 +163,9 @@ impl InstrumentAsset {
         match (self, kind) {
             (Self::DrumKeys { .. }, InstrumentKind::DrumVoice) => Ok(()),
             (Self::Pcm(_), InstrumentKind::LayerKick) => Ok(()),
+            (Self::Spectra(bank), InstrumentKind::SnapshotMorph) if bank.frames.len() == 2 => {
+                Ok(())
+            }
             _ => Err("this instrument cannot play that asset type"),
         }
     }
@@ -80,6 +175,7 @@ impl InstrumentAsset {
         match self {
             InstrumentAsset::Grid(grid) => grid.check(),
             InstrumentAsset::Pcm(pcm) => pcm.check(),
+            InstrumentAsset::Spectra(bank) => bank.check(),
             InstrumentAsset::DrumKeys { patches } => {
                 if patches.len() > 128 {
                     return Err("a drum bank holds at most 128 keys");

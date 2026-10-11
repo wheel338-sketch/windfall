@@ -300,3 +300,23 @@ fn layer_kick_sample_changes_history_disk_and_live_offline_pcm() {
         Some(asset),
     );
 }
+
+#[test]
+fn immutable_snapshot_morph_reaches_history_disk_and_live_offline_pcm() {
+    let initial = SnapshotMorphParams::default();
+    let changed = SnapshotMorphParams {
+        morph: 1.0,
+        ..initial
+    };
+    let bank = Some(InstrumentAsset::Spectra(
+        windfall_dsp::instrument_asset::SpectralBank::harmonic_snapshots(),
+    ));
+    acceptance_data(
+        InstrumentKind::SnapshotMorph,
+        InstrumentParams::SnapshotMorph(initial),
+        InstrumentParams::SnapshotMorph(changed),
+        60,
+        bank.clone(),
+        bank,
+    );
+}
