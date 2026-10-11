@@ -2249,6 +2249,12 @@ impl Transaction<'_> {
         if params.kind() != current.kind() {
             return Err(other_kind(params.kind().name(), current.kind().name()));
         }
+        let params = match (params, current) {
+            (InstrumentParams::SliceMap(p), InstrumentParams::SliceMap(old)) => InstrumentParams::SliceMap(p.with_legacy_changes(&old)),
+            (InstrumentParams::SliceDeck(p), InstrumentParams::SliceDeck(old)) => InstrumentParams::SliceDeck(p.with_legacy_changes(&old)),
+            (InstrumentParams::WaveRide(p), InstrumentParams::WaveRide(old)) => InstrumentParams::WaveRide(p.with_legacy_changes(&old)),
+            (p, _) => p,
+        };
         self.set_instrument(index, checked_instrument(params)?);
         Ok("Change instrument settings")
     }
@@ -4468,9 +4474,25 @@ fn checked_effect(mut params: EffectParams) -> Result<EffectParams, CommandError
 /// Brings every setting of an instrument into its range, the way setting
 /// them one by one would.
 fn checked_instrument(mut params: InstrumentParams) -> Result<InstrumentParams, CommandError> {
+    let legacy_edits = match params {
+        InstrumentParams::SliceMap(p) => Some(p.legacy_edits),
+        InstrumentParams::SliceDeck(p) => Some(p.legacy_edits),
+        InstrumentParams::WaveRide(p) => Some(p.legacy_edits),
+        _ => None,
+    };
     for index in 0..params.kind().descriptors().len() {
         if let Some(value) = params.get(index) {
             params.set(index, checked_setting(value)?);
+        }
+    }
+    // Range checking visits every index; that is not an explicit edit to
+    // every retained marker/curve control in an otherwise unrelated command.
+    if let Some(edits) = legacy_edits {
+        match &mut params {
+            InstrumentParams::SliceMap(p) => p.legacy_edits = edits,
+            InstrumentParams::SliceDeck(p) => p.legacy_edits = edits,
+            InstrumentParams::WaveRide(p) => p.legacy_edits = edits,
+            _ => {}
         }
     }
     let params = params.sanitized();

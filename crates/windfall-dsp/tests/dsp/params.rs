@@ -524,8 +524,10 @@ fn slice_grain_curve_parameter_prefixes_are_stable_and_sources_are_assets() {
         (InstrumentKind::GrainCloud, vec!["rootKey", "grainSizeMs", "density", "position", "spray", "pitch", "seed", "level", "releaseMs"]),
         (InstrumentKind::WaveRide, vec!["rootKey", "durationMs", "pitch", "level", "releaseMs"]),
     ] {
-        assert_eq!(kind.descriptors().iter().map(|p|p.id).collect::<Vec<_>>(),ids);
+        assert_eq!(kind.descriptors()[..ids.len()].iter().map(|p|p.id).collect::<Vec<_>>(),ids);
         let json=serde_json::to_value(kind.default_params()).unwrap();
-        for key in ["table","sliceStarts","slices","positions"] {assert!(json.get(key).is_none());}
+        assert!(json.get("table").is_none());
+        let count = match kind { InstrumentKind::SliceMap => 19, InstrumentKind::SliceDeck => 67, InstrumentKind::WaveRide => 13, _ => 9 };
+        assert_eq!(kind.descriptors().len(), count);
     }
 }

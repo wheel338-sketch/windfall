@@ -53,9 +53,9 @@ impl<'de> Deserialize<'de> for Channel {
                     Some("sliceMap" | "sliceDeck" | "grainCloud" | "waveRide")
                 )
             })
-            && (raw.get("table").is_some()
-                || raw.get("sliceStarts").is_some()
-                || raw.get("positions").is_some())
+            // Only the old embedded PCM payload distinguishes a legacy source.
+            // Retained scalar marker/curve controls alone are current params.
+            && raw.get("table").is_some()
         {
             let mut migrated = SamplePlayback::default();
             if let Some(table) = raw.get("table") {

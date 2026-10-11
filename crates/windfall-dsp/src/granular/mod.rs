@@ -68,7 +68,7 @@ macro_rules! instrument {
                 self.moving = false;
             }
             fn set_params(&mut self, params: &$params) {
-                self.params = params.sanitized();
+                self.params = params.sanitized().with_legacy_changes(&self.params);
 
                 if self.engine.fresh {
                     self.current = self.params;
@@ -184,6 +184,8 @@ impl SliceMapParams {
         Settings {
             key: self.base_key,
             level: self.level,
+            legacy_starts: self.slice_starts,
+            legacy_edits: self.legacy_edits,
             ..Settings::default()
         }
     }
@@ -193,6 +195,9 @@ impl SliceDeckParams {
         Settings {
             key: self.base_key,
             level: self.level,
+            legacy_starts: self.slice_starts,
+            legacy_slices: self.slices,
+            legacy_edits: self.legacy_edits,
             ..Settings::default()
         }
     }
@@ -219,6 +224,8 @@ impl WaveRideParams {
             duration_ms: self.duration_ms,
             pitch: self.pitch,
             level: self.level,
+            legacy_positions: self.positions,
+            legacy_edits: self.legacy_edits,
             ..Settings::default()
         }
     }

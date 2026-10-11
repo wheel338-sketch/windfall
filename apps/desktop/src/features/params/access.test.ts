@@ -342,8 +342,9 @@ describe("sample instrument scalar controls", () => {
       ["waveRide", ["rootKey", "durationMs", "pitch", "level", "releaseMs"]],
     ] as const) {
       const descriptor = instrumentDescriptor(kind)
-      expect(descriptor.params.map((p) => p.id)).toEqual(expected)
-      for (const key of ["table", "sliceStarts", "slices", "positions"]) expect(descriptor.defaults).not.toHaveProperty(key)
+      expect(descriptor.params.slice(0, expected.length).map((p) => p.id)).toEqual(expected)
+      expect(descriptor.defaults).not.toHaveProperty("table")
+      expect(descriptor.params).toHaveLength({ sliceMap: 19, sliceDeck: 67, grainCloud: 9, waveRide: 13 }[kind])
     }
   })
 })

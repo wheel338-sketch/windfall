@@ -270,16 +270,14 @@ fn per_note_curves_release_and_partition_invariance() {
 fn scalar_params_exclude_assets_and_keep_prefix_indices() {
     assert!(std::mem::size_of::<GrainCloudParams>() <= 40);
     for (kind, count) in [
-        (crate::InstrumentKind::SliceMap, 3),
-        (crate::InstrumentKind::SliceDeck, 3),
+        (crate::InstrumentKind::SliceMap, 19),
+        (crate::InstrumentKind::SliceDeck, 67),
         (crate::InstrumentKind::GrainCloud, 9),
-        (crate::InstrumentKind::WaveRide, 5),
+        (crate::InstrumentKind::WaveRide, 13),
     ] {
         let p = kind.default_params();
         let json = serde_json::to_value(p).unwrap();
         assert!(json.get("table").is_none());
-        assert!(json.get("sliceStarts").is_none());
-        assert!(json.get("positions").is_none());
         assert_eq!(kind.descriptors().len(), count);
         for (index, info) in kind.descriptors().iter().enumerate() {
             assert_eq!(p.get(index), Some(info.default));
@@ -326,6 +324,56 @@ fn invalid_assets_fail_before_publication() {
         .validate()
         .is_err()
     );
+}
+
+#[test]
+fn original_slice_scalar_indices_override_only_the_edited_asset_controls() {
+    let a = asset(vec![SliceRegion { start: 0.25, end: 0.75, gain: 0.6, ..Default::default() }], PlaybackCurve::default());
+    let mut i = SliceDeck::default();
+    i.prepare(RATE, 64);
+    i.set_asset(a.clone());
+    let mut p = SliceDeckParams { level: 1.0, ..Default::default() };
+    // Writing the original default is still an explicit edit: asset start .25
+    // must become zero without overwriting its unrelated gain/end controls.
+    assert!(p.set(3, 0.0));
+    i.set_params(&p);
+    i.note_on(60, 1.0);
+    let pcm = render(&mut i, 1000, 7);
+    for frame in 8..990 {
+        let expected = frame as f32 / 15999.0 * SCALE * 0.6;
+        assert!((pcm[frame] - expected).abs() < 1e-6, "frame {frame}");
+    }
+    // The original pad gain index remains audible on a held voice.
+    assert!(p.set(20, 0.2));
+    i.set_params(&p);
+    render(&mut i, 2000, 17);
+    let pcm = render(&mut i, 100, 7);
+    assert!((pcm[50] - 3050.0 / 15999.0 * SCALE * 0.2).abs() < 1e-6);
+    let encoded = serde_json::to_string(&p).unwrap();
+    assert_eq!(serde_json::from_str::<SliceDeckParams>(&encoded).unwrap(), p);
+    assert!(p.sanitized().legacy_edits[0] & 1 != 0);
+}
+
+#[test]
+fn original_position_indices_overlay_authored_curves_and_are_partition_invariant() {
+    let curve = PlaybackCurve { points: vec![PlaybackPoint { time: 0.0, value: 0.8 }, PlaybackPoint { time: 1.0, value: 0.8 }], ..Default::default() };
+    let sound = |block| {
+        let mut i = WaveRide::default();
+        i.prepare(RATE, 64);
+        i.set_asset(asset(vec![SliceRegion::default()], curve.clone()));
+        let mut p = WaveRideParams { level: 1.0, ..Default::default() };
+        assert!(p.set(5, 0.0));
+        i.set_params(&p);
+        i.note_on(60, 1.0);
+        render(&mut i, 4000, block)
+    };
+    let pcm = sound(1);
+    assert_eq!(pcm, sound(257));
+    for n in [100, 500, 1000] {
+        let position = 0.8 * (n as f64 / 8000.0 * 7.0);
+        assert!((f64::from(pcm[n]) - position * f64::from(SCALE)).abs() < 1e-6);
+    }
+    assert!((pcm[3000] - 0.8 * SCALE).abs() < 1e-6);
 }
 
 #[test]

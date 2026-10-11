@@ -1,6 +1,6 @@
 use super::params::clean;
 use super::{MAX_GRAINS_PER_VOICE, MAX_POLYPHONY};
-use super::{PlaybackAsset, SliceRegion};
+use super::{PlaybackAsset, SliceRegion, SliceSettings, SLICE_COUNT};
 use crate::{NoteExpression, NoteInstanceId};
 use windfall_core::AudioBuffer;
 
@@ -23,6 +23,10 @@ pub(super) struct Settings {
     pub spray: f32,
     pub seed: u32,
     pub duration_ms: f32,
+    pub legacy_starts: [f32; SLICE_COUNT],
+    pub legacy_slices: [SliceSettings; SLICE_COUNT],
+    pub legacy_positions: [f32; 8],
+    pub legacy_edits: [u16; 4],
 }
 impl Default for Settings {
     fn default() -> Self {
@@ -36,6 +40,10 @@ impl Default for Settings {
             spray: 1.0,
             seed: 1,
             duration_ms: 1000.0,
+            legacy_starts: std::array::from_fn(|i| i as f32 / SLICE_COUNT as f32),
+            legacy_slices: [SliceSettings::default(); SLICE_COUNT],
+            legacy_positions: std::array::from_fn(|i| i as f32 / 7.0),
+            legacy_edits: [0; 4],
         }
     }
 }
@@ -84,6 +92,7 @@ struct Voice {
     release_left: u32,
     release_total: u32,
     deck: usize,
+    slice: Option<usize>,
     region: Option<Region>,
     start: usize,
     end: usize,
@@ -109,6 +118,7 @@ impl Default for Voice {
             release_left: 0,
             release_total: 0,
             deck: 0,
+            slice: None,
             region: None,
             start: 0,
             end: 0,
@@ -214,6 +224,7 @@ impl Engine {
         }
         let key = key.min(127);
         let mut deck = 0;
+        let mut slice = None;
         let region =
             if let Some(asset) = asset.filter(|_| matches!(self.mode, Mode::Map | Mode::Deck)) {
                 let index = key as i16 - settings.key as i16;
@@ -225,6 +236,7 @@ impl Engine {
                 if index < 0 || index as usize >= asset.slices.len() {
                     return;
                 }
+                slice = Some(index as usize);
                 let region = &asset.slices[index as usize];
                 deck = region.deck as usize;
                 Some(region)
@@ -272,6 +284,7 @@ impl Engine {
             velocity: velocity.min(1.0),
             pan: pan_gains(pan),
             deck,
+            slice,
             region: region.map(Region::from),
             start,
             end,
@@ -347,6 +360,26 @@ impl Engine {
         for voice in &mut self.voices {
             if !voice.active {
                 continue;
+            }
+            if let Some(index) = voice.slice
+                && let Some(region) = asset.and_then(|a| a.slices.get(index))
+            {
+                let mut region = region.clone();
+                if index < SLICE_COUNT {
+                    let edited = |bit: usize| settings.legacy_edits[bit / 16] & (1 << (bit % 16)) != 0;
+                    if edited(index) { region.start = settings.legacy_starts[index]; }
+                    if index + 1 < SLICE_COUNT && edited(index + 1) { region.end = settings.legacy_starts[index + 1]; }
+                    if self.mode == Mode::Deck {
+                        let base = SLICE_COUNT + index * 3;
+                        if edited(base) { region.pitch = settings.legacy_slices[index].pitch; }
+                        if edited(base + 1) { region.gain = settings.legacy_slices[index].gain; }
+                        if edited(base + 2) { region.reverse = settings.legacy_slices[index].reverse; }
+                    }
+                }
+                let len = Source::new(asset, voice.deck).len();
+                voice.start = (f64::from(region.start) * len as f64).floor() as usize;
+                voice.end = (f64::from(region.end) * len as f64).floor() as usize;
+                voice.region = Some(Region::from(&region));
             }
             let source = Source::new(asset, voice.deck);
             let len = source.len();
@@ -439,8 +472,20 @@ impl Engine {
                         voice.active = false;
                         continue;
                     }
-                    let position =
+                    let mut position =
                         asset.map_or(voice.scan, |a| a.curve(voice.key).position(voice.scan));
+                    // An old eight-knot control changes only its adjacent
+                    // intervals; unedited authored/per-key curves stay exact.
+                    let at = (voice.scan * 7.0).clamp(0.0, 7.0);
+                    let first = (at.floor() as usize).min(6);
+                    for (index, weight) in [(first, 1.0 - (at - first as f64)), (first + 1, at - first as f64)] {
+                        if settings.legacy_edits[0] & (1 << index) != 0 {
+                            let time = index as f64 / 7.0;
+                            let baseline = asset.map_or(time, |a| a.curve(voice.key).position(time));
+                            position += (f64::from(settings.legacy_positions[index]) - baseline) * weight;
+                        }
+                    }
+                    position = position.clamp(0.0, 1.0);
                     let delta =
                         ratio / (settings.duration_ms as f64 * 0.001 * self.sample_rate as f64);
                     let edge = ((1.0 - voice.scan) / (delta * attack as f64)).min(1.0) as f32;

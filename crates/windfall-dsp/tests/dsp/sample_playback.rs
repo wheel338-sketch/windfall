@@ -36,6 +36,14 @@ fn populated_sample_instrument_callbacks_never_allocate_or_free() {
             for _ in 0..20 {
                 i.process(&mut l, &mut r);
             }
+            // Retained marker/per-slice/curve indices must remain safe even
+            // when an explicit edit writes the original default value.
+            for (index, info) in kind.descriptors().iter().enumerate() {
+                params.set(index, info.default);
+                i.set_params(&params);
+                i.note_on_instance(NoteInstanceId(32), 60, 1.0, 0.0, NoteExpression::default());
+                i.process(&mut l, &mut r);
+            }
             params.set(1, kind.descriptors()[1].max);
             i.set_params(&params);
             i.set_note_pitch(NoteInstanceId(32), 72.0);

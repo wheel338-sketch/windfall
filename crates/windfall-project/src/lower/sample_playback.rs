@@ -15,6 +15,27 @@ impl Transaction<'_> {
         }
         let mut new = old.clone();
         new.sample_playback = asset;
+        // Explicit asset authoring supersedes legacy scalar overrides, in the
+        // same history step. Existing automation can still activate them later.
+        if let ChannelSource::Instrument { params, .. } = &mut new.source {
+            match params {
+                InstrumentParams::SliceMap(p) => {
+                    p.slice_starts = windfall_dsp::granular::SliceMapParams::default().slice_starts;
+                    p.legacy_edits = [0; 4];
+                }
+                InstrumentParams::SliceDeck(p) => {
+                    let defaults = windfall_dsp::granular::SliceDeckParams::default();
+                    p.slice_starts = defaults.slice_starts;
+                    p.slices = defaults.slices;
+                    p.legacy_edits = [0; 4];
+                }
+                InstrumentParams::WaveRide(p) => {
+                    p.positions = windfall_dsp::granular::WaveRideParams::default().positions;
+                    p.legacy_edits = [0; 4];
+                }
+                _ => {}
+            }
+        }
         self.push(Edit::SetChannel(Box::new(Change { old, new })));
         Ok("Edit sample playback")
     }
