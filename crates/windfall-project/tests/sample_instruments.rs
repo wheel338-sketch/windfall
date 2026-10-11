@@ -152,3 +152,54 @@ fn stale_missing_invalid_pad_and_player_mapping_edits_are_atomic() {
             .is_err()
     );
 }
+
+#[test]
+fn incompatible_instrument_changes_clear_bank_references_and_undo_restores_them() {
+    let mut doc = Document::new(Project::new("Bank kind change"));
+    let source = sample(&mut doc);
+    let id = channel(&mut doc, InstrumentKind::MultiSampler);
+    doc.dispatch(
+        Command::SetSampleInstrumentAsset {
+            channel: id,
+            expected: None,
+            asset: Some(SampleInstrumentAsset::Zones {
+                zones: vec![SampleZone {
+                    sample: source.0,
+                    ..Default::default()
+                }],
+            }),
+        },
+        None,
+    )
+    .unwrap();
+    let before = doc.project().clone();
+    assert!(
+        ChannelPreset::capture(doc.project(), id).is_err(),
+        "unsupported export must not silently lose mappings"
+    );
+    let current = PluginPreset::capture(doc.project(), PluginTarget::Instrument { channel: id })
+        .unwrap()
+        .state;
+    doc.dispatch(
+        Command::ApplyPluginPreset {
+            target: PluginTarget::Instrument { channel: id },
+            expected: current,
+            preset: PluginPreset {
+                state: PluginPresetState::Instrument {
+                    params: InstrumentKind::PianoKeys.default_params(),
+                },
+            },
+        },
+        None,
+    )
+    .unwrap();
+    assert!(
+        doc.project()
+            .channel(id)
+            .unwrap()
+            .sample_instrument
+            .is_none()
+    );
+    doc.undo().unwrap();
+    assert_eq!(doc.project(), &before);
+}

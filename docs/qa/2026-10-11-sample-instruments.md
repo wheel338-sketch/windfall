@@ -119,10 +119,14 @@ All are written, not executed:
 - `crates/windfall-engine/src/midi_hardware/general_midi.rs`: fresh software-synth
   route resolution and no external-device fallback.
 
-Next narrow fixes identified by inspection: preparation must resolve a newly
-opened project's SF2 relative paths against its new source folder; preset capture
-must refuse unsupported bank export instead of silently losing references; changing
-instrument kind must clear incompatible bank references; asynchronous speech UI
-patches must be guarded against project replacement. All nine rows remain partial
+Inspection fixes now resolve incoming SF2 references against the new project
+folder, refuse unsupported bank channel-preset export, clear incompatible bank
+references on processor changes (undo restores them), and guard asynchronous speech
+patches and editor state by project generation. Native direct zone/pad source import
+decodes off-guard, reuses existing source IDs, and adds source plus mapping as one
+stale-guarded history step without creating an unrelated sampler channel. Added
+written tests cover duplicate-source import/undo, replacement during speech work
+and temporary-file cleanup, preset kind-change history, and sampled octave pitch
+measured by independent zero crossings at four output rates. All nine rows remain partial
 until those gaps, held-voice bank replacement, portable bank loading, broader SF2
 interoperability and registered peripheral workflows are closed and verified.

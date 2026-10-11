@@ -9,6 +9,8 @@ import type { MockBackend } from "@/lib/ipc/mock"
 import { dispatch, undo, useProjectStore } from "@/lib/store"
 import { settle, startTestApp } from "@/test/harness"
 
+vi.mock("../channel-rack/actions", () => ({ synthSoundActionId: (id: string) => `channel.synthSound.${id}` }))
+
 let backend: MockBackend
 let stop: () => void
 beforeEach(async()=>{({backend,stop}=await startTestApp())})

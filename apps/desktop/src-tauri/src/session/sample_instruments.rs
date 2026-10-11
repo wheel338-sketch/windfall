@@ -32,6 +32,95 @@ impl Drop for RenderedFile {
     }
 }
 impl Session {
+    /// Decode a source and attach one mapping/layer in one undo step. No sampler
+    /// channel is created as a side effect, and existing source IDs are reused.
+    pub fn sample_instrument_import_zone(
+        &self,
+        channel: ChannelId,
+        expected: Option<SampleInstrumentAsset>,
+        path: String,
+        pad: Option<u8>,
+    ) -> Result<DispatchResult, String> {
+        let (generation, edits, replacements, mut zones) = {
+            let _recording = self.recording_idle()?;
+            let state = self.state();
+            let current = state
+                .document
+                .project()
+                .channel(channel)
+                .ok_or("channel no longer exists")?;
+            let ChannelSource::Instrument { params } = current.source else {
+                return Err("choose a sample-bank instrument".into());
+            };
+            if current.sample_instrument != expected {
+                return Err("zone bank changed; retry the import".into());
+            }
+            match params.kind() {
+                InstrumentKind::MultiSampler if pad.is_none() => {}
+                InstrumentKind::PadBank if pad.is_some_and(|key| (36..=51).contains(&key)) => {}
+                _ => return Err(
+                    "source import requires a multisampler zone or one of the sixteen drum pads"
+                        .into(),
+                ),
+            }
+            let zones = match &expected {
+                Some(SampleInstrumentAsset::Zones { zones }) => zones.clone(),
+                None => Vec::new(),
+                _ => return Err("this instrument has no editable zone bank".into()),
+            };
+            if zones.len() >= windfall_dsp::sample_bank::MAX_BANK_ZONES {
+                return Err("a bank may have at most 256 zones".into());
+            }
+            (state.generation, state.edits, state.replacements, zones)
+        };
+        let file = crate::paths::absolute(&path)?;
+        let audio = self.inner.cache.decode(&file)?;
+        #[cfg(test)]
+        self.pause("sample-zone:decoded");
+        let ticket = {
+            let _recording = self.recording_idle()?;
+            let state = self.state();
+            if state.generation != generation
+                || state.edits != edits
+                || state.replacements != replacements
+            {
+                return Err("project changed while the source was decoded".into());
+            }
+            let path = SamplePath::External(crate::paths::display(&file));
+            let source = state
+                .document
+                .project()
+                .samples
+                .iter()
+                .find(|sample| sample.path == path)
+                .map_or(SampleId(state.document.project().next_id), |sample| {
+                    sample.id
+                });
+            zones.push(windfall_dsp::sample_bank::SampleZone {
+                sample: source.0,
+                key_low: pad.unwrap_or(0),
+                key_high: pad.unwrap_or(127),
+                root_key: pad.unwrap_or(60),
+                ..Default::default()
+            });
+            let command = Command::Batch {
+                label: Some("Import sample-bank source".into()),
+                commands: vec![
+                    Command::AddSample {
+                        name: crate::paths::stem(&file),
+                        path,
+                    },
+                    Command::SetSampleInstrumentAsset {
+                        channel,
+                        expected,
+                        asset: Some(SampleInstrumentAsset::Zones { zones }),
+                    },
+                ],
+            };
+            self.sample_edit_ticket(&state, command, None, vec![(source, audio)])?
+        };
+        self.finish_sample_edit(ticket)
+    }
     pub fn soundfont_presets(&self, path: &str) -> Result<Vec<soundfont::SoundFontPreset>, String> {
         let file = crate::paths::absolute(path)?;
         soundfont::presets(&read_soundfont(&file)?).map_err(|e| e.to_string())

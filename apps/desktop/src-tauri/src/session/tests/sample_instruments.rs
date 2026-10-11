@@ -113,3 +113,87 @@ fn unsupported_speech_and_stale_recipe_do_not_change_document_or_history() {
     );
     assert_eq!(rig.session.document_snapshot(), before);
 }
+
+#[test]
+fn import_zone_reuses_sources_and_undo_removes_the_layer_without_extra_channels() {
+    let rig = Rig::new();
+    let channel = ChannelId(
+        rig.session
+            .dispatch(
+                Command::AddChannel {
+                    name: None,
+                    sample: None,
+                    instrument: Some(InstrumentKind::PadBank),
+                    index: None,
+                    mixer_track: None,
+                },
+                None,
+            )
+            .unwrap()
+            .created[0],
+    );
+    let before = rig.project();
+    let path = rig.file("pad.wav");
+    windfall_codec::write_wav(
+        &path,
+        &windfall_core::AudioBuffer::from_interleaved(48000, 1, vec![0.25; 4800]),
+        windfall_codec::WavSampleFormat::Float32,
+    )
+    .unwrap();
+    rig.session
+        .sample_instrument_import_zone(channel, None, path.clone(), Some(37))
+        .unwrap();
+    let first = rig.project();
+    let expected = first.channel(channel).unwrap().sample_instrument.clone();
+    rig.session
+        .sample_instrument_import_zone(channel, expected, path, Some(37))
+        .unwrap();
+    let second = rig.project();
+    assert_eq!(second.channels.len(), before.channels.len());
+    assert_eq!(second.samples.len(), before.samples.len() + 1);
+    let Some(SampleInstrumentAsset::Zones { zones }) =
+        &second.channel(channel).unwrap().sample_instrument
+    else {
+        panic!("missing mappings")
+    };
+    assert_eq!(zones.len(), 2);
+    assert_eq!(zones[0].sample, zones[1].sample);
+    assert_eq!((zones[0].key_low, zones[0].key_high), (37, 37));
+    assert!(rig.has_audio(windfall_project::SampleId(zones[0].sample)));
+    rig.session.undo().unwrap();
+    assert_eq!(rig.project(), first);
+    rig.session.undo().unwrap();
+    assert_eq!(rig.project(), before);
+}
+
+#[test]
+fn replacement_during_speech_render_refuses_commit_and_cleans_the_saved_source() {
+    let rig = Rig::new();
+    let channel = ChannelId(
+        rig.session
+            .dispatch(
+                Command::AddChannel {
+                    name: None,
+                    sample: None,
+                    instrument: Some(InstrumentKind::TextVoice),
+                    index: None,
+                    mixer_track: None,
+                },
+                None,
+            )
+            .unwrap()
+            .created[0],
+    );
+    let hold = rig.session.hold("sample-speech:rendered");
+    let job = rig.session.background(move |session| {
+        session.sample_instrument_speech(channel, None, "Hello".into(), 48.0, 1.0)
+    });
+    hold.wait();
+    rig.session.project_new().unwrap();
+    let replacement = rig.session.document_snapshot();
+    hold.release();
+    assert!(job.join().unwrap().is_err());
+    assert_eq!(rig.session.document_snapshot(), replacement);
+    let folder = rig.session.store().recordings_dir().join("Text voice");
+    assert_eq!(std::fs::read_dir(folder).unwrap().count(), 0);
+}

@@ -4353,7 +4353,13 @@ impl Transaction<'_> {
 
     fn set_source(&mut self, index: usize, source: ChannelSource) {
         let old = self.project.channels[index].clone();
+        let sample_instrument = match (&old.source, &source) {
+            (ChannelSource::Instrument { params: before }, ChannelSource::Instrument { params: after })
+                if before.kind() == after.kind() => old.sample_instrument.clone(),
+            _ => None,
+        };
         let new = Channel {
+            sample_instrument,
             source,
             ..old.clone()
         };

@@ -301,7 +301,7 @@ pub mod windows {
     }
     #[link(name = "Xinput9_1_0")]
     unsafe extern "system" {
-        fn XInputSetState(index: u32, vibration: *const Vibration) -> u32;
+        fn XInputSetState(index: u32, vibration: *mut Vibration) -> u32;
     }
     pub struct XInputAdapter;
     impl PeripheralAdapter for XInputAdapter {
@@ -310,10 +310,10 @@ pub mod windows {
                 if controller >= 4 {
                     return Err("XInput controller must be 0..3".into());
                 }
-                let vibration = Vibration { low, high };
+                let mut vibration = Vibration { low, high };
                 // SAFETY: POD ABI matches public XINPUT_VIBRATION; pointer is
                 // valid through this synchronous worker-only call.
-                let code = unsafe { XInputSetState(u32::from(controller), &vibration) };
+                let code = unsafe { XInputSetState(u32::from(controller), &mut vibration) };
                 if code == 0 {
                     Ok(())
                 } else {

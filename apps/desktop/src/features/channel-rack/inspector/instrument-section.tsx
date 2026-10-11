@@ -3,6 +3,7 @@ import { instrumentDescriptor } from "@/features/params"
 import { PluginControls } from "@/features/plugins/controls"
 import { usePluginBinding } from "@/features/plugins/store"
 import type { InstrumentChannel } from "@/lib/channel-source"
+import { useProjectGeneration } from "@/lib/store/replaced"
 import { colorToCss } from "@/lib/units"
 
 import { SoundMenu } from "../synth/sound-menu"
@@ -15,6 +16,7 @@ import { Section } from "./parts"
  * its name, with starting sounds beside the subtractive synth's panel.
  */
 export function InstrumentSection({ channel }: { channel: InstrumentChannel }) {
+  const generation = useProjectGeneration()
   const plugin = usePluginBinding({ type: "instrument", channel: channel.id })
   if (plugin)
     return (
@@ -39,7 +41,7 @@ export function InstrumentSection({ channel }: { channel: InstrumentChannel }) {
           color={colorToCss(channel.color)}
         />
       ) : ["multiSampler","samplePlayer","soundFont","padBank","pianoKeys","textVoice"].includes(params.type) ? (
-        <SampleInstrumentEditor key={channel.id} channel={channel} />
+        <SampleInstrumentEditor key={`${generation}:${channel.id}:${params.type}`} channel={channel} />
       ) : (
         <GenericInstrumentEditor channel={channel.id} params={params} />
       )}

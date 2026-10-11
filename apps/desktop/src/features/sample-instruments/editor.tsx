@@ -12,6 +12,7 @@ import type { InstrumentChannel } from "@/lib/channel-source"
 import { backend, errorMessage } from "@/lib/ipc"
 import { dispatch, useProjectStore } from "@/lib/store"
 import { receivePatch } from "@/lib/store/project"
+import { getProjectGeneration } from "@/lib/store/replaced"
 
 import { GenericInstrumentEditor } from "../channel-rack/inspector/generic-instrument-editor"
 
@@ -45,6 +46,8 @@ function ZonesEditor({ channel, pads }: { channel: InstrumentChannel; pads: bool
   const zones = channel.sampleInstrument?.type === "zones" ? channel.sampleInstrument.zones : []
   const [sample, setSample] = useState<number | null>(null)
   const [pad, setPad] = useState(36)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
   const source = sample ?? samples[0]?.id ?? null
   const replace = (next: SampleZone[]) => void dispatch({ type: "editSampleZones", channel: channel.id, expected: zones, zones: next })
   const change = (index: number, patch: Partial<SampleZone>) => replace(zones.map((zone, i) => i === index ? { ...zone, ...patch } : zone))
@@ -67,8 +70,21 @@ function ZonesEditor({ channel, pads }: { channel: InstrumentChannel; pads: bool
         <SelectTrigger aria-label="Source sample"><SelectValue /></SelectTrigger>
         <SelectContent><SelectGroup>{samples.map(item=><SelectItem key={item.id} value={String(item.id)}>{item.name}</SelectItem>)}</SelectGroup></SelectContent>
       </Select>
-      <FieldDescription>Sources use project sample references. Import audio through the browser, then choose it here.</FieldDescription>
+      <FieldDescription>Choose an existing project source or import audio directly as one undo step.</FieldDescription>
     </Field>
+    <Button variant="outline" disabled={busy || !backend.sampleInstrumentImportZone || zones.length >= 256} onClick={async () => {
+      const generation = getProjectGeneration()
+      setBusy(true)
+      try {
+        const file = await backend.pickAudioFile()
+        if (file && generation === getProjectGeneration()) {
+          const result = await backend.sampleInstrumentImportZone!(channel.id, channel.sampleInstrument ?? null, file, pads ? pad : null)
+          if (generation === getProjectGeneration()) { receivePatch(result.patch); setError(null) }
+        }
+      } catch(error) { if(generation === getProjectGeneration())setError(errorMessage(error)) }
+      finally { setBusy(false) }
+    }}>{busy ? "Importing…" : pads ? "Import pad source" : "Import zone source"}</Button>
+    {error && <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}
     <Button disabled={source === null || zones.length >= 256} onClick={() => { if(source!==null) replace([...zones,newZone(source,pads?pad:undefined)]) }}>
       {pads ? "Add pad layer" : "Add zone"}
     </Button>
@@ -169,8 +185,9 @@ function SpeechEditor({ channel }: { channel: InstrumentChannel }) {
     <Field><FieldLabel>Voice pitch (MIDI key)</FieldLabel><Input aria-label="Voice pitch" type="number" min={24} max={84} value={pitch} onChange={event=>setPitch(event.target.valueAsNumber)} /></Field>
     <Field><FieldLabel>Duration (seconds)</FieldLabel><Input aria-label="Speech duration" type="number" min={0.1} max={60} step={0.1} value={duration} onChange={event=>setDuration(event.target.valueAsNumber)} /></Field>
     <Button disabled={busy || !backend.sampleInstrumentSpeech || !text.trim()} onClick={async()=>{
+      const generation = getProjectGeneration()
       setBusy(true)
-      try { const result=await backend.sampleInstrumentSpeech!(channel.id,channel.sampleInstrument??null,text,pitch,duration);receivePatch(result.patch);setError(null) }
+      try { const result=await backend.sampleInstrumentSpeech!(channel.id,channel.sampleInstrument??null,text,pitch,duration);if(generation===getProjectGeneration()){receivePatch(result.patch);setError(null)} }
       catch(error){setError(errorMessage(error))}finally{setBusy(false)}
     }}>{busy ? "Renderingâ€¦" : "Render and save source"}</Button>
     <FieldDescription>Own robotic English rule voice. Rendering saves audio for project reopen and undo. Notes transpose the saved phrase from key 60.</FieldDescription>

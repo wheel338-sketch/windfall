@@ -377,3 +377,34 @@ fn sf2_envelopes_tuning_and_preset_offsets_reach_resolved_zone() {
     assert!((z.sustain - 0.001).abs() < 1e-6);
     assert_eq!(z.tune_cents, 197.0);
 }
+
+#[test]
+fn sampled_pitch_matches_independent_frequency_measurement_at_multiple_rates() {
+    // A mathematical 440 Hz source at root 60 must become 880 Hz at key 72.
+    // Count rising zero crossings rather than consulting the resampler state.
+    let pcm = (0..48000)
+        .map(|frame| (std::f32::consts::TAU * 440.0 * frame as f32 / 48000.0).sin() * 0.25)
+        .collect();
+    let bank = Arc::new(
+        SampleBank::new(vec![LoadedZone {
+            mapping: SampleZone::default(),
+            audio: AudioBuffer::from_interleaved(48000, 1, pcm),
+        }])
+        .unwrap(),
+    );
+    for rate in [24000, 44100, 48000, 96000] {
+        let mut unit = MultiSampler::default();
+        unit.prepare(rate as f32, 127);
+        unit.install_bank(bank.clone());
+        unit.note_on(72, 1.0);
+        let pcm = render(&mut unit, rate / 4, 127);
+        let crossings = pcm
+            .windows(2)
+            .filter(|pair| pair[0] <= 0.0 && pair[1] > 0.0)
+            .count();
+        assert!(
+            (crossings as i32 - 220).abs() <= 1,
+            "{rate} Hz output yielded {crossings} crossings"
+        );
+    }
+}

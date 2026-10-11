@@ -48,6 +48,12 @@ impl Session {
 }
 
 impl ProjectPreparation {
+    /// Replacement references belong to the incoming project, not the old document.
+    pub(super) fn with_sample_dir(mut self, dir: Option<std::path::PathBuf>) -> Self {
+        self.sample_dir = dir;
+        self
+    }
+
     /// SF2 IO/parser work belongs to this unlocked worker phase.
     pub(super) fn load_sample_instruments(&self, project: &Project, pool: &SamplePool) -> Result<SamplePool,String> {
         let mut pool = pool.clone();

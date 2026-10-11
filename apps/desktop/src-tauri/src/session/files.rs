@@ -477,6 +477,7 @@ impl Session {
             },
         };
         let mut prepared = preparation
+            .with_sample_dir(sample_dir.clone())
             .prepare(
                 project,
                 &decoded.pool,
@@ -604,6 +605,7 @@ impl Session {
             ]));
             prepared = next
                 .expect("retry admitted")
+                .with_sample_dir(candidate.as_ref().expect("uncommitted replacement").sample_dir.clone())
                 .prepare(
                     candidate
                         .as_ref()

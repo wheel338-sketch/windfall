@@ -518,6 +518,9 @@ impl ChannelPreset {
         let channel = project
             .channel(id)
             .ok_or("The preset's channel no longer exists")?;
+        if channel.sample_instrument.is_some() {
+            return Err("Save this sample-bank instrument in its project; portable bank preset export is not supported yet".into());
+        }
         let mut source = channel.source.clone();
         let mut sample = None;
         if let ChannelSource::Sampler(sampler) = &mut source {
@@ -558,7 +561,13 @@ impl ChannelPreset {
         if let ChannelSource::Sampler(sampler) = &mut source {
             sampler.sample = sample;
         }
+        let sample_instrument = match (&base.source, &source) {
+            (ChannelSource::Instrument { params: old }, ChannelSource::Instrument { params: new })
+                if old.kind() == new.kind() => base.sample_instrument.clone(),
+            _ => None,
+        };
         Channel {
+            sample_instrument,
             volume: self.volume,
             pan: self.pan,
             voice: self.voice.clone(),
