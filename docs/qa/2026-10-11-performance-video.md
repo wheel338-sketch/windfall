@@ -82,6 +82,7 @@ unknown) and one held-note pose per sounding channel, bounded to 128 channels.
   "renders every authored scene reproducibly from deterministic audio",
   "maps real note keys and velocities to newly authored character poses".
 - `apps/desktop/src/features/visualizer/avi.test.ts`:
+  "retains song-time animation phase for a range export instead of restarting the scene",
   "declares exact stream rates, ceil frame count, PCM length and index offsets",
   "rejects malformed, over-budget or cancelled inputs before publishing a file".
 - `apps/desktop/src/features/performance-media/panels.test.tsx`:
@@ -150,10 +151,10 @@ Risk order: generated enum/payload shapes and Rust ownership/typecheck first;
 then processor allocator and note-off/tempo take-over cases; partition equality;
 then simulator persistence/mounted cases and analytic FFT/pixel/RIFF checks;
 then exported-file memory and webview interoperability. Native analyzer bands and
-levels are f32 on the wire; offline analysis mirrors that quantization. Raster
-animation phase in live view is the stream's absolute sample count, while offline
-export begins at phase zero for the requested range: audio energy is synchronized,
-but orbit/ribbon rotation phase is not currently a song-position replay contract.
+levels are f32 on the wire; offline analysis mirrors that quantization. Live seeks/loops and range exports now derive animation phase from the same
+song tempo-map seconds, retaining the range start in firstVisualFrame metadata.
+Analyzer window alignment across PDC, seeks and tempo changes remains a native
+comparison gate (offline range analysis has a fresh 1024-frame startup window).
 Native audio export conservatively caps the range at 4800 ticks (30 seconds at
 10 BPM), so the available duration can be much shorter at ordinary tempos.
 HTML play rejection and unsupported files are visible errors; real autoplay

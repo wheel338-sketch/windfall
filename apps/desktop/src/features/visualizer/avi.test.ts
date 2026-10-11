@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest"
 import { exportVisualAvi } from "./avi"
+import { offlineSignal } from "./offline"
+import { frameHash, renderVisual, visualSongFrame } from "./render"
 
 type Entry = { id: string; at: number; size: number; kind?: string; children: Entry[] }
 const text = (bytes: Uint8Array, at: number) => String.fromCharCode(...bytes.subarray(at, at + 4))
@@ -18,6 +20,16 @@ function entries(bytes: Uint8Array, begin: number, end: number): Entry[] {
 const settings = { scene: "bars", hue: 180, intensity: 1 } as const
 
 describe("raw AVI audiovisual export", () => {
+  it("retains song-time animation phase for a range export instead of restarting the scene", async () => {
+    const pcm = Float32Array.from({ length: 4801 * 2 }, (_, i) => Math.sin(i / 19) * 0.2)
+    const visual = { scene: "orbit", hue: 180, intensity: 1 } as const
+    const phase = visualSongFrame(7 / 24)
+    const result = await exportVisualAvi(pcm, 48000, visual, 32, 18, () => false, () => {}, phase)
+    expect(result.metadata.firstVisualFrame).toBe(7)
+    expect(result.metadata.frameHashes[2]).toBe(frameHash(renderVisual(32, 18, visual, offlineSignal(pcm, 4000), 9)))
+    expect(result.metadata.frameHashes[2]).not.toBe(frameHash(renderVisual(32, 18, visual, offlineSignal(pcm, 4000), 2)))
+    await expect(exportVisualAvi(pcm, 48000, visual, 32, 18, () => false, () => {}, -1)).rejects.toThrow("phase")
+  })
   it("declares exact stream rates, ceil frame count, PCM length and index offsets", async () => {
     // A partial final frame must retain all audio, never silently truncate it.
     const pcm = Float32Array.from({ length: 4801 * 2 }, (_, i) => Math.sin(i / 19) * 0.2)

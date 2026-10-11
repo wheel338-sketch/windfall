@@ -32,12 +32,13 @@ function streamHeader(type: string, handler: string, scale: number, rate: number
   return header
 }
 
-export type AviMetadata = { width: number; height: number; fps: number; videoFrames: number; audioFrames: number; sampleRate: number; frameHashes: string[] }
+export type AviMetadata = { width: number; height: number; fps: number; firstVisualFrame: number; videoFrames: number; audioFrames: number; sampleRate: number; frameHashes: string[] }
 export type AviExport = { bytes: Uint8Array; metadata: AviMetadata }
 
 /** RIFF AVI 1.0: bottom-up padded BGR24 BI_RGB frames and interleaved
  * signed 16-bit stereo PCM. No compressed codec or native library. */
-export async function exportVisualAvi(samples: ArrayLike<number>, sampleRate: number, settings: VisualSettings, width = 320, height = 180, cancelled: () => boolean = () => false, progress: (fraction: number) => void = () => {}): Promise<AviExport> {
+export async function exportVisualAvi(samples: ArrayLike<number>, sampleRate: number, settings: VisualSettings, width = 320, height = 180, cancelled: () => boolean = () => false, progress: (fraction: number) => void = () => {}, firstVisualFrame = 0): Promise<AviExport> {
+  if (!Number.isSafeInteger(firstVisualFrame) || firstVisualFrame < 0) throw new Error("Invalid visual phase")
   if (samples.length % 2 !== 0 || !Number.isInteger(sampleRate) || sampleRate < 8000 || sampleRate > 192000 || samples.length === 0) throw new Error("Export needs nonempty stereo PCM at a supported sample rate")
   if (samples.length / 2 > sampleRate * 30 || width < 1 || height < 1 || width > 640 || height > 360 || !Number.isInteger(width) || !Number.isInteger(height)) throw new Error("Export exceeds the 30-second or 640×360 limit")
   const audioFrames = samples.length / 2
@@ -68,7 +69,7 @@ export async function exportVisualAvi(samples: ArrayLike<number>, sampleRate: nu
     if (cancelled()) throw new Error("Video export cancelled")
     const first = Math.floor(frame * sampleRate / VISUAL_FPS)
     const end = Math.min(audioFrames, Math.floor((frame + 1) * sampleRate / VISUAL_FPS))
-    const rgba = renderVisual(width, height, settings, offlineSignal(samples, first), frame)
+    const rgba = renderVisual(width, height, settings, offlineSignal(samples, first), firstVisualFrame + frame)
     frameHashes.push(frameHash(rgba))
     const bgr = new Uint8Array(frameBytes)
     for (let y = 0; y < height; y += 1) {
@@ -91,5 +92,5 @@ export async function exportVisualAvi(samples: ArrayLike<number>, sampleRate: nu
     if (frame % 8 === 7) await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()))
   }
   const body = join([ascii("AVI "), header, list("movi", chunks), chunk("idx1", join(indexes))])
-  return { bytes: chunk("RIFF", body), metadata: { width, height, fps: VISUAL_FPS, videoFrames, audioFrames, sampleRate, frameHashes } }
+  return { bytes: chunk("RIFF", body), metadata: { width, height, fps: VISUAL_FPS, firstVisualFrame, videoFrames, audioFrames, sampleRate, frameHashes } }
 }

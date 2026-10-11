@@ -4,6 +4,12 @@ import type { AnalyzerFrame } from "@/features/analyzers/types"
 export type VisualSignal = { rms: number; bands: readonly number[] }
 export const VISUAL_FPS = 24
 
+/** Shared song-time phase for live seeks/loops and range export. */
+export function visualSongFrame(seconds: number): number {
+  if (!Number.isFinite(seconds) || seconds < 0) throw new Error("Invalid visual song time")
+  return Math.floor(seconds * VISUAL_FPS)
+}
+
 export function signalFromAnalyzer(frame: AnalyzerFrame | null): VisualSignal | null {
   if (!frame || frame.gap || frame.levels.some((level) => !level.valid || level.rms === null || level.invalid !== 0)) return null
   const rms = Math.sqrt(((frame.levels[0].rms ?? 0) ** 2 + (frame.levels[1].rms ?? 0) ** 2) / 2)

@@ -11,11 +11,12 @@ import type { AnalyzerFrame, AnalyzerSource } from "@/features/analyzers/types"
 import { MediaChoice, MediaNumber } from "@/features/performance-media/controls"
 import { changeStageMedia, DEFAULT_STAGE_MEDIA, useMediaWindows } from "@/features/performance-media/store"
 import { backend } from "@/lib/ipc"
+import { songTempoMap } from "@/lib/automation/tempo-map"
 import { getProjectGeneration } from "@/lib/store/replaced"
 import { useProjectStore } from "@/lib/store/project"
 import { exportVisualAvi } from "./avi"
 import { NoteCharacter } from "./character"
-import { renderVisual, signalFromAnalyzer, visualFrameNumber } from "./render"
+import { renderVisual, signalFromAnalyzer, visualSongFrame } from "./render"
 
 const SLOT = "visualizer"
 export function downloadMedia(bytes: Uint8Array, mime: string, name: string) {
@@ -38,7 +39,8 @@ export function VisualizerCanvas({ settings }: { settings: VisualSettings }) {
     const context = element.getContext("2d")
     if (!context) return
     const data = context.createImageData(320, 180)
-    data.data.set(renderVisual(320, 180, settings, signalFromAnalyzer(frame), frame ? visualFrameNumber(frame.clock.endFrame, frame.clock.sampleRate) : 0))
+    const phase = frame ? visualSongFrame(songTempoMap(useProjectStore.getState().project).secondsAt(frame.tick)) : 0
+    data.data.set(renderVisual(320, 180, settings, signalFromAnalyzer(frame), phase))
     context.putImageData(data, 0, 0)
   }
   useAnalyzerFrames(SLOT, { paint: draw, onClear: () => draw(null) })
@@ -66,7 +68,8 @@ function VisualizerBody() {
     try {
       const audio = await backend.mediaRenderAudio({ start, end }, generation, state.revision)
       if (cancel.current || generation !== getProjectGeneration()) throw new Error("Video export cancelled")
-      const result = await exportVisualAvi(audio.samples, audio.sampleRate, visual, 320, 180, () => cancel.current, setProgress)
+      const phase = visualSongFrame(songTempoMap(state.project).secondsAt(start))
+      const result = await exportVisualAvi(audio.samples, audio.sampleRate, visual, 320, 180, () => cancel.current, setProgress, phase)
       if (cancel.current || generation !== getProjectGeneration()) throw new Error("Video export cancelled")
       downloadMedia(result.bytes, "video/x-msvideo", "windfall-visual.avi")
       downloadMedia(new TextEncoder().encode(JSON.stringify({ ...result.metadata, range: { start, end }, visual }, null, 2)), "application/json", "windfall-visual.json")
