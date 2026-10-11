@@ -18,6 +18,10 @@ struct Voice {
     zone: usize,
     position: f64,
     pitch: f32,
+    source_pitch: f32,
+    source_rate_ratio: f64,
+    step: f64,
+    pan_gains: [f32; 2],
     velocity: f32,
     pan: f32,
     gain: f32,
@@ -37,6 +41,10 @@ impl Default for Voice {
             zone: 0,
             position: 0.0,
             pitch: 0.0,
+            source_pitch: 0.0,
+            source_rate_ratio: 1.0,
+            step: 1.0,
+            pan_gains: [1.0; 2],
             velocity: 0.0,
             pan: 0.0,
             gain: 1.0,
@@ -47,6 +55,22 @@ impl Default for Voice {
             releasing: false,
             filtered: [0.0; 2],
         }
+    }
+}
+
+impl Voice {
+    fn configure_pitch(&mut self, map: SampleZone, source_rate: u32, rate: f32) {
+        self.source_pitch = (self.pitch - f32::from(map.root_key)) * map.scale_tuning / 100.0
+            + map.tune_cents / 100.0;
+        self.source_rate_ratio = f64::from(source_rate) / f64::from(rate);
+        // The global transpose spans +/-48 semitones. Any source pitch outside
+        // +/-144 is always saturated at the playback +/-96 bound.
+        self.step = self.source_rate_ratio
+            * f64::from((self.source_pitch.clamp(-144.0, 144.0) / 12.0).exp2());
+    }
+    fn configure_pan(&mut self, map: SampleZone) {
+        let (left, right) = windfall_core::pan_gains((map.pan + self.pan).clamp(-1.0, 1.0));
+        self.pan_gains = [left, right];
     }
 }
 
@@ -202,6 +226,8 @@ impl Engine {
                 age: self.sequence,
                 ..Voice::default()
             };
+            self.voices[slot].configure_pitch(map, zone.audio.sample_rate(), self.rate);
+            self.voices[slot].configure_pan(map);
         }
         for (group, count) in counts.iter().enumerate() {
             if *count > 0 {
@@ -219,10 +245,17 @@ impl Engine {
             return;
         };
         let glide = 1.0 - (-1.0 / (0.01 * self.rate)).exp();
+        let cutoff = (40.0 + self.brightness.powi(2) * 19960.0).min(self.rate * 0.45);
+        let coefficient = 1.0 - (-std::f32::consts::TAU * cutoff / self.rate).exp();
         for (l, r) in left.iter_mut().zip(right.iter_mut()) {
             self.started = true;
             self.level += (self.target_level - self.level) * glide;
             self.tune += (self.target_tune - self.tune) * glide;
+            let transpose = if self.tune == 0.0 {
+                1.0
+            } else {
+                f64::from((self.tune / 12.0).exp2())
+            };
             for voice in &mut self.voices {
                 if !voice.active {
                     continue;
@@ -269,21 +302,19 @@ impl Engine {
                 let (a, b) = zone.audio.stereo_frame(frame);
                 let (c, d) = zone.audio.stereo_frame(next);
                 let fraction = (voice.position - frame as f64) as f32;
-                let cutoff = (40.0 + self.brightness.powi(2) * 19960.0).min(self.rate * 0.45);
-                let coefficient = 1.0 - (-std::f32::consts::TAU * cutoff / self.rate).exp();
                 voice.filtered[0] += (a + (c - a) * fraction - voice.filtered[0]) * coefficient;
                 voice.filtered[1] += (b + (d - b) * fraction - voice.filtered[1]) * coefficient;
-                let (pl, pr) = windfall_core::pan_gains((map.pan + voice.pan).clamp(-1.0, 1.0));
                 let gain = voice.velocity * voice.gain * map.gain * voice.envelope * self.level;
-                *l += voice.filtered[0] * gain * pl;
-                *r += voice.filtered[1] * gain * pr;
-                let semitones = ((voice.pitch - f32::from(map.root_key)) * map.scale_tuning
-                    / 100.0
-                    + self.tune
-                    + map.tune_cents / 100.0)
-                    .clamp(-96.0, 96.0);
-                voice.position += f64::from(zone.audio.sample_rate()) / f64::from(self.rate)
-                    * f64::from((semitones / 12.0).exp2());
+                *l += voice.filtered[0] * gain * voice.pan_gains[0];
+                *r += voice.filtered[1] * gain * voice.pan_gains[1];
+                let pitch = voice.source_pitch + self.tune;
+                voice.position += if pitch >= 96.0 {
+                    voice.source_rate_ratio * 256.0
+                } else if pitch <= -96.0 {
+                    voice.source_rate_ratio / 256.0
+                } else {
+                    voice.step * transpose
+                };
             }
         }
     }
@@ -385,6 +416,14 @@ macro_rules! instrument {
                     for v in &mut self.engine.voices {
                         if v.id == id {
                             v.pitch = pitch.clamp(-48.0, 175.0);
+                            if let Some(bank) = &self.engine.bank {
+                                let zone = &bank.zones()[v.zone];
+                                v.configure_pitch(
+                                    zone.mapping,
+                                    zone.audio.sample_rate(),
+                                    self.engine.rate,
+                                );
+                            }
                         }
                     }
                 }
@@ -399,6 +438,9 @@ macro_rules! instrument {
                     for v in &mut self.engine.voices {
                         if v.id == id {
                             v.pan = pan.clamp(-1.0, 1.0);
+                            if let Some(bank) = &self.engine.bank {
+                                v.configure_pan(bank.zones()[v.zone].mapping);
+                            }
                         }
                     }
                 }

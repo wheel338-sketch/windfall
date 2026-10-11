@@ -204,3 +204,12 @@ switching/undo and native portable-bank failure leaving the player unchanged.
 `special-output-editor.test.tsx` covers unavailable routes without hardware fallback,
 advertised system-synth/controller selection preserving settings, and worker failure.
 The native adapters and mock route tests do not fabricate hardware evidence.
+
+## Sample callback cost group
+
+Voice source ratios and pan gains are cached when notes/pitch/pan change. The
+brightness filter coefficient is computed once per block, and global transpose
+once per frame, rather than repeating exponential/trigonometric work for each
+layer on every frame. Saturated pitch bounds remain explicit. The existing
+written independent octave-frequency, block-partition equality and callback
+allocation tests cover this path; playback CPU still needs integrator measurement.
