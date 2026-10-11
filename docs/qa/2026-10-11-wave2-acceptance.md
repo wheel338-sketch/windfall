@@ -6,6 +6,7 @@
 - Integration order: dynamics/mastering; EQ/filter/stereo; delay/modulation/reverb; nonlinear/performance; spectral; subtractive/FM; additive/physical/drum; slices/grains; formats.
 - Branch 1 dynamics/mastering merged at `b0f06187`. `chk.sh` now reports exit 0, zero errors, zero warnings. Resolved registrations without duplicating existing audio logger modules; retained existing exhaustive cases and appended MasterLimiter. Fixed test block-size type inference and removed an unused helper. Targeted audio/UI tests and row reconciliation remain pending.
 - Branch 2 EQ/filter/stereo merged at `649c3f1f`; `chk.sh` exit 0, zero errors/warnings. Kept both routing/editor additions. Expanded the transient test's scratch storage to three outputs and cleared Transient Shaper's newly unused third output. Targeted audio/UI tests remain pending.
+- Branch 3 delay/modulation/reverb merged at `a8e14789`; `chk.sh` exit 0, zero errors/warnings on its first run. Preserved editor registrations and unconditionally registered effect history admission while retaining both existing QA modules.
 - Build/test commands will run sequentially with eight Cargo jobs and four Vitest workers. No devices/ignored tests, parity inventory edits, pushes or delegation.
 
 ## Verified execution record
@@ -14,6 +15,7 @@
 | --- | --- | --- |
 | Branch 1 `chk.sh` | Cargo exit 0; zero errors/warnings | `target/round2-branch1-check.log` |
 | Branch 2 `chk.sh` | Cargo exit 0; zero errors/warnings | `target/round2-branch2-check.log` |
+| Branch 3 `chk.sh` | Cargo exit 0; zero errors/warnings | `target/round2-branch3-check.log` |
 
 ## Row acceptance
 
@@ -28,3 +30,4 @@ Pending integration and execution.
 
 - Dynamics/mastering: registration/format conflicts preserved both intents; test-only closure needed explicit `usize`; unused test helper removed. No assertion or tolerance changed.
 - EQ/filter/stereo: shared routing tests and editors retain both additions. AuxBlock grew from two to three buffers; transient test supplies all three. Product integration fix clears the unused third Transient Shaper output; test now asserts silence there.
+- Delay/modulation/reverb: editor and module-registration conflicts only; no post-merge compiler fixes needed. Fallible preparation retains the integrated slot scratch layout.
