@@ -1112,6 +1112,7 @@ mod tests {
     fn project_with(steps: u32, notes: &[(u32, u8)]) -> Project {
         let mut project = Project::new("t");
         project.channels.push(Channel {
+                sample_playback: None,
             id: ChannelId(10),
             name: String::new(),
             color: 0,

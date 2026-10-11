@@ -1,375 +1,374 @@
 use super::*;
-
-const RATE: f32 = 8_000.0;
-
-fn ramp() -> SampleTable {
-    let data: [f32; MAX_SAMPLE_FRAMES] = std::array::from_fn(|i| i as f32 / 4095.0);
-    SampleTable::from_slice(&data, RATE).unwrap()
+use windfall_core::AudioBuffer;
+const RATE: f32 = 8000.0;
+const SCALE: f32 = std::f32::consts::FRAC_1_SQRT_2 * 0.25;
+fn source() -> AudioBuffer {
+    AudioBuffer::from_interleaved(
+        RATE as u32,
+        1,
+        (0..16000).map(|i| i as f32 / 15999.0).collect(),
+    )
+}
+fn asset(slices: Vec<SliceRegion>, curve: PlaybackCurve) -> Arc<PlaybackAsset> {
+    Arc::new(PlaybackAsset::new([Some(source()), None], slices, curve, vec![]).unwrap())
 }
 fn render<I: Instrument>(instrument: &mut I, count: usize, block: usize) -> Vec<f32> {
     let mut left = vec![0.0; count];
     let mut right = vec![0.0; count];
-    for (left, right) in left.chunks_mut(block).zip(right.chunks_mut(block)) {
-        instrument.process(left, right);
+    for (l, r) in left.chunks_mut(block).zip(right.chunks_mut(block)) {
+        instrument.process(l, r);
     }
-    assert!(left.iter().chain(&right).all(|x| x.is_finite()));
+    assert!(left.iter().chain(&right).all(|v| v.is_finite()));
     left
 }
-
 #[test]
-fn slice_keys_address_distinct_ramp_regions_without_bleeding() {
-    let params = SliceMapParams {
-        table: ramp(),
+fn immutable_sources_exceed_4096_frames_and_slice_boundaries_never_bleed() {
+    let slices = vec![
+        SliceRegion {
+            start: 0.25,
+            end: 0.375,
+            ..Default::default()
+        },
+        SliceRegion {
+            start: 0.75,
+            end: 1.0,
+            ..Default::default()
+        },
+    ];
+    let mut i = SliceMap::default();
+    i.prepare(RATE, 64);
+    i.set_asset(asset(slices, PlaybackCurve::default()));
+    i.set_params(&SliceMapParams {
         level: 1.0,
-        ..Default::default()
-    };
-    let mut instrument = SliceMap::default();
-    instrument.prepare(RATE, 512);
-    instrument.set_params(&params);
-    for slice in 0..SLICE_COUNT {
-        instrument.reset();
-        instrument.note_on(60 + slice as u8, 1.0);
-        let audio = render(&mut instrument, 280, 37);
-        let scale = std::f32::consts::FRAC_1_SQRT_2 * 0.25;
-        for (frame, &sample) in audio.iter().enumerate().take(240).skip(8) {
-            let expected = params.table.data[slice * 256 + frame] * scale;
-            assert!((sample - expected).abs() < 1e-6);
-        }
-        assert!(audio[256..].iter().all(|x| *x == 0.0));
-        assert_eq!(instrument.active_voices(), 0);
-    }
-}
-
-#[test]
-fn deck_reverse_flips_the_ramp_and_pitch_gain_apply_per_slice() {
-    let mut params = SliceDeckParams {
-        table: ramp(),
-        level: 1.0,
-        ..Default::default()
-    };
-    params.slices[0] = SliceSettings {
-        pitch: 12.0,
-        gain: 0.5,
-        reverse: true,
-    };
-    let mut instrument = SliceDeck::default();
-    instrument.prepare(RATE, 512);
-    instrument.set_params(&params);
-    instrument.note_on(60, 1.0);
-    let reverse = render(&mut instrument, 150, 23);
-    let scale = std::f32::consts::FRAC_1_SQRT_2 * 0.25 * 0.5;
-    for (frame, &sample) in reverse.iter().enumerate().take(110).skip(8) {
-        assert!((sample - params.table.data[255 - 2 * frame] * scale).abs() < 1e-6);
-    }
-    assert!(reverse[8] > reverse[80]);
-    assert!(reverse[128..].iter().all(|x| *x == 0.0));
-    instrument.reset();
-    params.slices[0].reverse = false;
-    instrument.set_params(&params);
-    instrument.note_on(60, 1.0);
-    let forward = render(&mut instrument, 150, 29);
-    assert!(forward[8] < forward[80]);
-}
-
-#[test]
-fn grain_density_changes_actual_event_count() {
-    let mut cloud = GrainCloud::default();
-    cloud.prepare(RATE, 512);
-    let mut params = GrainCloudParams {
-        table: ramp(),
-        density: 8.0,
-        grain_size_ms: 20.0,
-        ..Default::default()
-    };
-    cloud.set_params(&params);
-    cloud.note_on(60, 1.0);
-    let low = render(&mut cloud, 8000, 127);
-    let low_events = cloud.grains_spawned();
-    cloud.reset();
-    params.density = 64.0;
-    cloud.set_params(&params);
-    cloud.note_on(60, 1.0);
-    let high = render(&mut cloud, 8000, 113);
-    assert!((7..=9).contains(&low_events));
-    assert!((63..=65).contains(&cloud.grains_spawned()));
-    assert!(cloud.grains_spawned() > low_events * 6);
-    assert_ne!(low, high);
-}
-
-#[test]
-fn identical_seeds_repeat_across_reset_and_different_seeds_change_audio() {
-    let mut cloud = GrainCloud::default();
-    let mut params = GrainCloudParams {
-        table: ramp(),
-        seed: 12345,
-        ..Default::default()
-    };
-    cloud.prepare(RATE, 512);
-    cloud.set_params(&params);
-    cloud.note_on(60, 1.0);
-    let original = render(&mut cloud, 8000, 512);
-    cloud.reset();
-    cloud.note_on(60, 1.0);
-    assert_eq!(original, render(&mut cloud, 8000, 1));
-    cloud.reset();
-    params.seed += 1;
-    cloud.set_params(&params);
-    cloud.note_on(60, 1.0);
-    assert_ne!(original, render(&mut cloud, 8000, 47));
-}
-
-#[test]
-fn wave_position_envelope_scans_and_can_reverse_direction() {
-    let mut ride = WaveRide::default();
-    let mut params = WaveRideParams {
-        table: ramp(),
-        duration_ms: 128.0,
-        level: 1.0,
-        ..Default::default()
-    };
-    ride.prepare(RATE, 512);
-    ride.set_params(&params);
-    ride.note_on(60, 1.0);
-    let forward = render(&mut ride, 1100, 103);
-    assert!(forward[100] < forward[800]);
-    assert!((forward[512] - 0.5 * 0.25 * std::f32::consts::FRAC_1_SQRT_2).abs() < 1e-6);
-    assert!(forward[1025..].iter().all(|x| *x == 0.0));
-    ride.reset();
-    params.positions = [1.0, 0.8, 0.4, 0.1, 0.6, 0.9, 0.3, 0.0];
-    ride.set_params(&params);
-    ride.note_on(60, 1.0);
-    let scratch = render(&mut ride, 1100, 71);
-    assert!(scratch[20] > scratch[400]);
-    assert!(scratch[400] < scratch[700]);
-    assert!(scratch[700] > scratch[980]);
-}
-
-fn release_and_bounds<I: Instrument>(mut instrument: I, params: I::Params) {
-    instrument.prepare(RATE, 512);
-    instrument.set_params(&params);
-    for _ in 0..100 {
-        instrument.note_on(60, 1.0);
-    }
-    assert_eq!(instrument.active_voices(), MAX_POLYPHONY);
-    let audio = render(&mut instrument, 32, 7);
-    assert!(audio.iter().any(|x| *x != 0.0));
-    instrument.note_off(60);
-    render(&mut instrument, 8001, 31);
-    assert_eq!(instrument.active_voices(), 0);
-    assert!(render(&mut instrument, 64, 13).iter().all(|x| *x == 0.0));
-    instrument.reset();
-    instrument.note_on(60, 1.0);
-    render(&mut instrument, 11, 3);
-    instrument.all_notes_off();
-    render(&mut instrument, 33, 1);
-    assert_eq!(instrument.active_voices(), 0);
-    assert!(render(&mut instrument, 64, 13).iter().all(|x| *x == 0.0));
-}
-#[test]
-fn all_instruments_have_bounded_polyphony_and_exact_release_silence() {
-    release_and_bounds(
-        SliceMap::default(),
-        SliceMapParams {
-            table: ramp(),
-            ..Default::default()
-        },
-    );
-    release_and_bounds(
-        SliceDeck::default(),
-        SliceDeckParams {
-            table: ramp(),
-            ..Default::default()
-        },
-    );
-    release_and_bounds(
-        GrainCloud::default(),
-        GrainCloudParams {
-            table: ramp(),
-            ..Default::default()
-        },
-    );
-    release_and_bounds(
-        WaveRide::default(),
-        WaveRideParams {
-            table: ramp(),
-            ..Default::default()
-        },
-    );
-}
-
-fn partition_run<I: Instrument>(
-    mut instrument: I,
-    mut params: I::Params,
-    block: usize,
-) -> Vec<f32> {
-    instrument.prepare(RATE, 512);
-    instrument.set_params(&params);
-    instrument.note_on_instance(NoteInstanceId(1), 60, 0.8, -0.3, NoteExpression::default());
-    let mut audio = render(&mut instrument, 113, block);
-    for index in 0..I::Params::descriptors().len() {
-        let info = &I::Params::descriptors()[index];
-        if info.kind == crate::ParamKind::Float {
-            params.set(index, info.max);
-        }
-    }
-    instrument.set_params(&params);
-    audio.extend(render(&mut instrument, 239, block));
-    instrument.set_note_pitch(NoteInstanceId(1), 62.5);
-    instrument.note_on_instance(NoteInstanceId(2), 62, 0.4, 0.5, NoteExpression::default());
-    audio.extend(render(&mut instrument, 101, block));
-    instrument.note_off_instance(NoteInstanceId(1), 60);
-    audio.extend(render(&mut instrument, 4096, block));
-    instrument.all_notes_off();
-    audio.extend(render(&mut instrument, 64, block));
-    audio
-}
-#[test]
-fn notes_automation_and_release_are_exactly_block_invariant() {
-    macro_rules! check {
-        ($instrument:ident, $params:ident) => {{
-            let params = $params {
-                table: ramp(),
-                ..Default::default()
-            };
-            let reference = partition_run($instrument::default(), params, 512);
-            for block in [1, 7, 127] {
-                assert_eq!(
-                    reference,
-                    partition_run($instrument::default(), params, block)
-                );
-            }
-        }};
-    }
-    check!(SliceMap, SliceMapParams);
-    check!(SliceDeck, SliceDeckParams);
-    check!(GrainCloud, GrainCloudParams);
-    check!(WaveRide, WaveRideParams);
-}
-
-#[test]
-fn instance_release_does_not_release_another_occurrence_of_the_same_key() {
-    let mut cloud = GrainCloud::default();
-    cloud.prepare(RATE, 512);
-    cloud.set_params(&GrainCloudParams {
-        table: ramp(),
-        release_ms: 1.0,
         ..Default::default()
     });
-    for id in [1, 2] {
-        cloud.note_on_instance(NoteInstanceId(id), 60, 1.0, 0.0, NoteExpression::default());
+    i.note_on(60, 1.0);
+    let pcm = render(&mut i, 2100, 7);
+    for frame in 8..1992 {
+        let expected = (4000 + frame) as f32 / 15999.0 * SCALE;
+        assert!((pcm[frame] - expected).abs() < 1e-6);
     }
-    cloud.note_off_instance(NoteInstanceId(1), 60);
-    render(&mut cloud, 32, 7);
-    assert_eq!(cloud.active_voices(), 1);
-    cloud.note_off(60);
-    render(&mut cloud, 32, 7);
-    assert_eq!(cloud.active_voices(), 0);
+    assert!(pcm[2000..].iter().all(|v| *v == 0.0));
+    i.note_on(59, 1.0);
+    i.note_on(62, 1.0);
+    assert_eq!(i.active_voices(), 0);
 }
-
-fn parameter_contract<P: ParamSet + serde::Serialize + serde::de::DeserializeOwned + ts_rs::TS>() {
-    let default = P::default();
-    assert_eq!(
-        serde_json::from_str::<P>(&serde_json::to_string(&default).unwrap()).unwrap(),
-        default
+#[test]
+fn reverse_pitch_gain_overlaps_reorder_and_second_deck_are_independent() {
+    let slices = vec![
+        SliceRegion {
+            start: 0.25,
+            end: 0.5,
+            pitch: 12.0,
+            gain: 0.5,
+            reverse: true,
+            ..Default::default()
+        },
+        SliceRegion {
+            start: 0.375,
+            end: 0.625,
+            ..Default::default()
+        },
+        SliceRegion {
+            deck: 1,
+            ..Default::default()
+        },
+    ];
+    let other = AudioBuffer::from_interleaved(RATE as u32, 2, vec![0.2, -0.4].repeat(16000));
+    let a = Arc::new(
+        PlaybackAsset::new(
+            [Some(source()), Some(other)],
+            slices,
+            PlaybackCurve::default(),
+            vec![],
+        )
+        .unwrap(),
     );
-    assert_eq!(serde_json::from_str::<P>("{}").unwrap(), default);
-    assert!(!P::decl(&ts_rs::Config::default()).is_empty());
-    let mut params = default;
-    for (i, info) in P::descriptors().iter().enumerate() {
-        assert_eq!(default.get(i), Some(info.default));
-        assert_eq!(P::index_of(info.id), Some(i));
-        for value in [
-            f32::NAN,
-            f32::INFINITY,
-            f32::NEG_INFINITY,
-            f32::MAX,
-            -f32::MAX,
-        ] {
-            assert!(params.set(i, value));
-            let current = params.get(i).unwrap();
-            assert!(current.is_finite() && current >= info.min && current <= info.max);
-        }
+    let mut i = SliceDeck::default();
+    i.prepare(RATE, 64);
+    i.set_asset(a);
+    i.set_params(&SliceDeckParams {
+        level: 1.0,
+        ..Default::default()
+    });
+    i.note_on(60, 1.0);
+    let pcm = render(&mut i, 2100, 31);
+    for frame in 8..1980 {
+        assert!((pcm[frame] - (7999 - 2 * frame) as f32 / 15999.0 * SCALE * 0.5).abs() < 1e-6);
     }
-    assert_eq!(params.get(P::descriptors().len()), None);
-    assert!(!params.set(P::descriptors().len(), 0.0));
+    assert!(pcm[2000..].iter().all(|v| *v == 0.0));
+    i.reset();
+    i.note_on(60, 1.0);
+    i.note_on(61, 1.0);
+    assert_eq!(i.active_voices(), 2);
+    i.reset();
+    i.note_on(62, 1.0);
+    let mut l = [0.0; 32];
+    let mut r = [0.0; 32];
+    i.process(&mut l, &mut r);
+    assert!((l[16] - 0.2 * SCALE).abs() < 1e-6);
+    assert!((r[16] + 0.4 * SCALE).abs() < 1e-6);
 }
 #[test]
-fn copy_params_defaults_serialization_and_descriptors_agree() {
-    parameter_contract::<SliceMapParams>();
-    parameter_contract::<SliceDeckParams>();
-    parameter_contract::<GrainCloudParams>();
-    parameter_contract::<WaveRideParams>();
-}
-
-#[test]
-fn hostile_tables_controls_and_source_replacement_remain_finite() {
-    let mut table = ramp();
-    table.data[0] = f32::NAN;
-    table.data[1] = f32::INFINITY;
-    table.data[2] = f32::MAX;
-    table.len = u16::MAX;
-    table.sample_rate = f32::NAN;
-    macro_rules! check {
-        ($instrument:ident, $params:ident) => {{
-            let mut params = $params {
-                table,
-                ..Default::default()
-            };
-            for index in 0..$params::descriptors().len() {
-                params.set(index, $params::descriptors()[index].max);
-            }
-            let mut instrument = $instrument::default();
-            instrument.prepare(f32::NAN, 512);
-            instrument.set_params(&params);
-            for key in 0..128 {
-                instrument.note_on(key, 1.0);
-            }
-            render(&mut instrument, 1000, 19);
-            params.table = SampleTable::from_slice(&[0.25], 1000.0).unwrap();
-            instrument.set_params(&params);
-            render(&mut instrument, 1000, 11);
-            params.table = SampleTable::default();
-            instrument.set_params(&params);
-            assert!(render(&mut instrument, 64, 11).iter().all(|x| *x == 0.0));
-            assert_eq!(instrument.active_voices(), 0);
-        }};
-    }
-    check!(SliceMap, SliceMapParams);
-    check!(SliceDeck, SliceDeckParams);
-    check!(GrainCloud, GrainCloudParams);
-    check!(WaveRide, WaveRideParams);
-}
-
-#[test]
-fn source_table_enforces_capacity_and_short_json_is_zero_padded() {
-    assert!(SampleTable::from_slice(&[0.0; 4097], RATE).is_err());
-    let table: SampleTable =
-        serde_json::from_str(r#"{"data":[0.2,0.5],"len":2,"sampleRate":8000}"#).unwrap();
-    assert_eq!(table.data[0..3], [0.2, 0.5, 0.0]);
-    let mut value = serde_json::to_value(table).unwrap();
-    value["data"] = serde_json::json!(vec![0.0; 4097]);
-    assert!(serde_json::from_value::<SampleTable>(value).is_err());
-}
-
-#[test]
-fn markers_sanitize_in_order_and_empty_slices_are_silent() {
-    let mut params = SliceMapParams {
-        table: ramp(),
+fn seeded_grain_schedules_repeat_and_respect_density_capacity() {
+    let mut i = GrainCloud::default();
+    i.prepare(RATE, 64);
+    i.set_asset(asset(
+        vec![SliceRegion::default()],
+        PlaybackCurve::default(),
+    ));
+    let mut p = GrainCloudParams {
+        seed: 12345,
+        density: 64.0,
+        grain_size_ms: 40.0,
         ..Default::default()
     };
-    params.slice_starts = [1.0; SLICE_COUNT];
-    params.slice_starts[0] = f32::NAN;
-    params.slice_starts[1] = -1.0;
-    let clean = params.sanitized();
-    assert!(clean.slice_starts.windows(2).all(|p| p[0] <= p[1]));
+    i.set_params(&p);
+    i.note_on(60, 1.0);
+    let first = render(&mut i, 8000, 127);
+    assert!((63..=65).contains(&i.grains_spawned()));
+    assert_eq!(i.grains_dropped(), 0);
+    i.reset();
+    i.note_on(60, 1.0);
+    assert_eq!(first, render(&mut i, 8000, 1));
+    i.reset();
+    p.seed += 1;
+    i.set_params(&p);
+    i.note_on(60, 1.0);
+    assert_ne!(first, render(&mut i, 8000, 31));
+    i.reset();
+    p.density = 128.0;
+    p.grain_size_ms = 250.0;
+    i.set_params(&p);
+    i.note_on(60, 1.0);
+    let pcm = render(&mut i, 16000, 17);
+    assert!(i.grains_spawned() <= 257);
+    assert!(pcm.iter().all(|v| v.abs() <= 4.0));
+    for n in 1..=32 {
+        i.note_on_instance(NoteInstanceId(n), 60, 1.0, 0.0, NoteExpression::default());
+    }
+    assert_eq!(i.active_voices(), MAX_POLYPHONY);
+    assert!(i.voices_stolen() > 0);
+    i.all_notes_off();
+    let pcm = render(&mut i, 64, 1);
+    assert!(pcm[32..].iter().all(|v| *v == 0.0));
+}
+#[test]
+fn drawn_position_and_integrated_speed_curves_match_independent_reference() {
+    let curve = PlaybackCurve {
+        points: vec![
+            PlaybackPoint {
+                time: 0.0,
+                value: 0.2,
+            },
+            PlaybackPoint {
+                time: 0.5,
+                value: 0.8,
+            },
+            PlaybackPoint {
+                time: 1.0,
+                value: 0.3,
+            },
+        ],
+        ..Default::default()
+    };
+    let mut i = WaveRide::default();
+    i.prepare(RATE, 64);
+    i.set_asset(asset(vec![SliceRegion::default()], curve));
+    i.set_params(&WaveRideParams {
+        duration_ms: 1000.0,
+        level: 1.0,
+        ..Default::default()
+    });
+    i.note_on(60, 1.0);
+    let pcm = render(&mut i, 8000, 43);
+    for frame in [100, 1000, 2000, 4000, 5000, 7000] {
+        let t = frame as f64 / 8000.0;
+        let expected = if t <= 0.5 {
+            0.2 + 1.2 * t
+        } else {
+            0.8 - (t - 0.5)
+        };
+        assert!((pcm[frame] - expected as f32 * SCALE).abs() < 1e-5);
+    }
+    let speed = PlaybackCurve {
+        mode: PlaybackCurveMode::Speed,
+        origin: 0.4,
+        points: vec![
+            PlaybackPoint {
+                time: 0.0,
+                value: 1.0,
+            },
+            PlaybackPoint {
+                time: 1.0,
+                value: -1.0,
+            },
+        ],
+    };
+    for t in [0.0, 0.1, 0.25, 0.5, 0.9, 1.0] {
+        assert!((speed.position(t) - (0.4 + t - t * t)).abs() < 1e-7);
+    }
+    i.reset();
+    i.set_asset(asset(vec![SliceRegion::default()], speed));
+    i.note_on(60, 1.0);
+    let pcm = render(&mut i, 8000, 13);
+    assert!((pcm[4000] - 0.65 * SCALE).abs() < 1e-6);
+}
+#[test]
+fn per_note_curves_release_and_partition_invariance() {
+    let a = Arc::new(
+        PlaybackAsset::new(
+            [Some(source()), None],
+            vec![SliceRegion::default()],
+            PlaybackCurve::default(),
+            vec![(
+                60,
+                PlaybackCurve {
+                    points: vec![
+                        PlaybackPoint {
+                            time: 0.0,
+                            value: 0.7,
+                        },
+                        PlaybackPoint {
+                            time: 1.0,
+                            value: 0.7,
+                        },
+                    ],
+                    ..Default::default()
+                },
+            )],
+        )
+        .unwrap(),
+    );
+    let run = |block| {
+        let mut i = WaveRide::default();
+        i.prepare(RATE, 64);
+        i.set_asset(a.clone());
+        i.set_params(&WaveRideParams {
+            release_ms: 1.0,
+            level: 1.0,
+            ..Default::default()
+        });
+        i.note_on_instance(NoteInstanceId(1), 60, 1.0, 0.0, NoteExpression::default());
+        let mut pcm = render(&mut i, 400, block);
+        i.note_on_instance(NoteInstanceId(2), 60, 1.0, 0.0, NoteExpression::default());
+        i.note_off_instance(NoteInstanceId(1), 60);
+        pcm.extend(render(&mut i, 64, block));
+        assert_eq!(i.active_voices(), 1);
+        i.all_notes_off();
+        pcm.extend(render(&mut i, 64, block));
+        assert_eq!(i.active_voices(), 0);
+        pcm
+    };
+    let first = run(512);
+    for block in [1, 7, 127] {
+        assert_eq!(first, run(block));
+    }
+    assert!((first[100] - 0.7 * SCALE).abs() < 1e-6);
+}
+#[test]
+fn scalar_params_exclude_assets_and_keep_prefix_indices() {
+    assert!(std::mem::size_of::<GrainCloudParams>() <= 40);
+    for (kind, count) in [
+        (crate::InstrumentKind::SliceMap, 3),
+        (crate::InstrumentKind::SliceDeck, 3),
+        (crate::InstrumentKind::GrainCloud, 9),
+        (crate::InstrumentKind::WaveRide, 5),
+    ] {
+        let p = kind.default_params();
+        let json = serde_json::to_value(p).unwrap();
+        assert!(json.get("table").is_none());
+        assert!(json.get("sliceStarts").is_none());
+        assert!(json.get("positions").is_none());
+        assert_eq!(kind.descriptors().len(), count);
+        for (index, info) in kind.descriptors().iter().enumerate() {
+            assert_eq!(p.get(index), Some(info.default));
+        }
+        assert_eq!(
+            serde_json::from_value::<crate::InstrumentParams>(json).unwrap(),
+            p
+        );
+    }
+}
+#[test]
+fn invalid_assets_fail_before_publication() {
+    assert!(
+        PlaybackAsset::new(
+            [
+                Some(AudioBuffer::from_interleaved(8000, 1, vec![f32::NAN])),
+                None
+            ],
+            vec![SliceRegion::default()],
+            PlaybackCurve::default(),
+            vec![]
+        )
+        .is_err()
+    );
+    assert!(
+        validate_slices(&[SliceRegion {
+            start: 0.9,
+            end: 0.2,
+            ..Default::default()
+        }])
+        .is_err()
+    );
+    assert!(
+        PlaybackCurve {
+            points: vec![
+                PlaybackPoint {
+                    time: 0.0,
+                    value: 0.0
+                };
+                2
+            ],
+            ..Default::default()
+        }
+        .validate()
+        .is_err()
+    );
+}
+
+#[test]
+fn migrated_maps_preserve_modulo_keys_and_global_release_without_changing_new_maps() {
+    let regions = (0..16)
+        .map(|index| SliceRegion {
+            start: index as f32 / 16.0,
+            end: (index + 1) as f32 / 16.0,
+            release_ms: 30.0,
+            ..Default::default()
+        })
+        .collect();
+    let prepared = PlaybackAsset::new(
+        [Some(source()), None],
+        regions,
+        PlaybackCurve::default(),
+        vec![],
+    )
+    .unwrap()
+    .with_legacy_key_wrap(true);
     let mut instrument = SliceMap::default();
-    instrument.prepare(RATE, 512);
-    instrument.set_params(&params);
-    instrument.note_on(61, 1.0);
-    assert_eq!(instrument.active_voices(), 1);
-    render(&mut instrument, 10, 1);
+    instrument.prepare(RATE, 64);
+    instrument.set_asset(Arc::new(prepared));
+    instrument.set_params(&SliceMapParams {
+        level: 1.0,
+        ..Default::default()
+    });
+    instrument.note_on(59, 1.0);
+    let below = render(&mut instrument, 128, 17);
+    assert!((below[64] - 15064.0 / 15999.0 * SCALE).abs() < 1e-6);
+    instrument.note_off(59);
+    let release = render(&mut instrument, 300, 13);
+    assert!(release[64] > 0.0);
+    assert!(release[240..].iter().all(|value| *value == 0.0));
     instrument.reset();
-    instrument.note_on(62, 1.0);
+    instrument.note_on(75, 1.0);
+    assert_eq!(below, render(&mut instrument, 128, 1));
+    // The standard asset path remains bounded; key 59 cannot choose the last slice.
+    instrument.reset();
+    instrument.set_asset(asset(
+        vec![SliceRegion::default()],
+        PlaybackCurve::default(),
+    ));
+    instrument.note_on(59, 1.0);
     assert_eq!(instrument.active_voices(), 0);
-    assert!(render(&mut instrument, 64, 1).iter().all(|x| *x == 0.0));
 }

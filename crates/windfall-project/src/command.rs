@@ -833,6 +833,10 @@ pub enum Command {
         asset: Option<windfall_dsp::InstrumentAsset>,
     },
 
+    /// One undoable replacement of a sample instrument's immutable assets.
+    SetSamplePlayback { channel: ChannelId, asset: Option<crate::SamplePlayback> },
+    /// Generates source-length notes in the saved slice order in one history step.
+    GenerateSlicePattern { channel: ChannelId, pattern: PatternId },
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, TS)]

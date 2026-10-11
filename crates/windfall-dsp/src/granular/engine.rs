@@ -1,6 +1,8 @@
 use super::params::clean;
-use super::{MAX_GRAINS_PER_VOICE, MAX_POLYPHONY, SLICE_COUNT, SampleTable, SliceSettings};
+use super::{MAX_GRAINS_PER_VOICE, MAX_POLYPHONY};
+use super::{PlaybackAsset, SliceRegion};
 use crate::{NoteExpression, NoteInstanceId};
+use windfall_core::AudioBuffer;
 
 #[derive(Clone, Copy, PartialEq)]
 pub(super) enum Mode {
@@ -13,8 +15,6 @@ pub(super) enum Mode {
 #[derive(Clone, Copy)]
 pub(super) struct Settings {
     pub key: u8,
-    pub starts: [f32; SLICE_COUNT],
-    pub slices: [SliceSettings; SLICE_COUNT],
     pub level: f32,
     pub pitch: f32,
     pub grain_ms: f32,
@@ -22,15 +22,12 @@ pub(super) struct Settings {
     pub position: f32,
     pub spray: f32,
     pub seed: u32,
-    pub positions: [f32; 8],
     pub duration_ms: f32,
 }
 impl Default for Settings {
     fn default() -> Self {
         Self {
             key: 60,
-            starts: [0.0; SLICE_COUNT],
-            slices: [SliceSettings::default(); SLICE_COUNT],
             level: 0.5,
             pitch: 0.0,
             grain_ms: 80.0,
@@ -38,7 +35,6 @@ impl Default for Settings {
             position: 0.5,
             spray: 1.0,
             seed: 1,
-            positions: [0.0; 8],
             duration_ms: 1000.0,
         }
     }
@@ -50,6 +46,26 @@ struct Grain {
     position: f64,
     age: u32,
     length: u32,
+}
+
+#[derive(Clone, Copy)]
+struct Region {
+    gain: f32,
+    pitch: f32,
+    reverse: bool,
+    attack_ms: f32,
+    release_ms: f32,
+}
+impl From<&SliceRegion> for Region {
+    fn from(s: &SliceRegion) -> Self {
+        Self {
+            gain: s.gain,
+            pitch: s.pitch,
+            reverse: s.reverse,
+            attack_ms: s.attack_ms,
+            release_ms: s.release_ms,
+        }
+    }
 }
 
 #[derive(Clone, Copy)]
@@ -67,7 +83,8 @@ struct Voice {
     age: u64,
     release_left: u32,
     release_total: u32,
-    slice: usize,
+    deck: usize,
+    region: Option<Region>,
     start: usize,
     end: usize,
     cursor: f64,
@@ -91,7 +108,8 @@ impl Default for Voice {
             age: 0,
             release_left: 0,
             release_total: 0,
-            slice: 0,
+            deck: 0,
+            region: None,
             start: 0,
             end: 0,
             cursor: 0.0,
@@ -127,6 +145,8 @@ pub(super) struct Engine {
     pub fresh: bool,
     pub smoothing: f32,
     pub grains_spawned: u64,
+    pub grains_dropped: u64,
+    pub voices_stolen: u64,
 }
 impl Engine {
     pub fn new(mode: Mode) -> Self {
@@ -139,7 +159,19 @@ impl Engine {
             fresh: true,
             smoothing: 0.0328,
             grains_spawned: 0,
+            grains_dropped: 0,
+            voices_stolen: 0,
         }
+    }
+    pub fn adopt(&mut self, previous: &Self) {
+        // Preserve the newly prepared output rate and smoothing coefficient.
+        self.voices = previous.voices;
+        self.control_left = previous.control_left;
+        self.legacy = previous.legacy;
+        self.fresh = previous.fresh;
+        self.grains_spawned = previous.grains_spawned;
+        self.grains_dropped = previous.grains_dropped;
+        self.voices_stolen = previous.voices_stolen;
     }
     pub fn prepare(&mut self, sample_rate: f32) {
         self.sample_rate = clean(sample_rate, 1000.0, 384000.0, 48000.0);
@@ -150,6 +182,8 @@ impl Engine {
         self.control_left = 0;
         self.legacy = 0;
         self.grains_spawned = 0;
+        self.grains_dropped = 0;
+        self.voices_stolen = 0;
         self.fresh = true;
     }
     pub fn legacy_id(&mut self) -> NoteInstanceId {
@@ -172,20 +206,41 @@ impl Engine {
         velocity: f32,
         pan: f32,
         expression: NoteExpression,
-        table: &SampleTable,
         settings: Settings,
+        asset: Option<&PlaybackAsset>,
     ) {
-        if id.0 == 0 || !velocity.is_finite() || velocity <= 0.0 || table.len == 0 {
+        if id.0 == 0 || !velocity.is_finite() || velocity <= 0.0 {
             return;
         }
         let key = key.min(127);
-        let slice = (key as i16 - settings.key as i16).rem_euclid(SLICE_COUNT as i16) as usize;
-        let len = usize::from(table.len);
-        let start = (settings.starts[slice] as f64 * len as f64).floor() as usize;
-        let end = if slice + 1 == SLICE_COUNT {
-            len
+        let mut deck = 0;
+        let region =
+            if let Some(asset) = asset.filter(|_| matches!(self.mode, Mode::Map | Mode::Deck)) {
+                let index = key as i16 - settings.key as i16;
+                let index = if asset.legacy_key_wrap {
+                    index.rem_euclid(asset.slices.len() as i16)
+                } else {
+                    index
+                };
+                if index < 0 || index as usize >= asset.slices.len() {
+                    return;
+                }
+                let region = &asset.slices[index as usize];
+                deck = region.deck as usize;
+                Some(region)
+            } else {
+                None
+            };
+        let source = Source::new(asset, deck);
+        let len = source.len();
+        if len == 0 {
+            return;
+        }
+        let start = (region.map_or(0.0, |s| s.start) as f64 * len as f64).floor() as usize;
+        let end = if let Some(region) = region {
+            (region.end as f64 * len as f64).floor() as usize
         } else {
-            (settings.starts[slice + 1] as f64 * len as f64).floor() as usize
+            len
         };
         if matches!(self.mode, Mode::Map | Mode::Deck) && end <= start {
             return;
@@ -203,6 +258,9 @@ impl Engine {
                     .unwrap()
                     .0
             });
+        if self.voices[index].active {
+            self.voices_stolen = self.voices_stolen.saturating_add(1);
+        }
         let expression = expression.clamped();
         self.voices[index] = Voice {
             active: true,
@@ -213,7 +271,8 @@ impl Engine {
             release_multiplier: expression.release_multiplier(),
             velocity: velocity.min(1.0),
             pan: pan_gains(pan),
-            slice,
+            deck,
+            region: region.map(Region::from),
             start,
             end,
             rng: settings.seed ^ (u32::from(key).wrapping_mul(0x9e3779b9)),
@@ -223,14 +282,22 @@ impl Engine {
     pub fn release_key(&mut self, key: u8, ms: f32) {
         for voice in &mut self.voices {
             if voice.key == key {
-                voice.release(samples(ms * voice.release_multiplier, self.sample_rate));
+                voice.release(samples(
+                    voice.region.map_or(ms, |s| s.release_ms * ms / 30.0)
+                        * voice.release_multiplier,
+                    self.sample_rate,
+                ));
             }
         }
     }
     pub fn release_instance(&mut self, id: NoteInstanceId, ms: f32) {
         for voice in &mut self.voices {
             if voice.id == id {
-                voice.release(samples(ms * voice.release_multiplier, self.sample_rate));
+                voice.release(samples(
+                    voice.region.map_or(ms, |s| s.release_ms * ms / 30.0)
+                        * voice.release_multiplier,
+                    self.sample_rate,
+                ));
             }
         }
     }
@@ -269,7 +336,7 @@ impl Engine {
             voice.release(samples(4.0, self.sample_rate));
         }
     }
-    pub fn tick(&mut self, table: &SampleTable, settings: Settings) -> (f32, f32) {
+    pub fn tick(&mut self, settings: Settings, asset: Option<&PlaybackAsset>) -> (f32, f32) {
         self.fresh = false;
         if self.control_left == 0 {
             self.control_left = 16;
@@ -281,46 +348,46 @@ impl Engine {
             if !voice.active {
                 continue;
             }
-            if table.len == 0 {
+            let source = Source::new(asset, voice.deck);
+            let len = source.len();
+            if len == 0 {
                 voice.active = false;
                 continue;
             }
             let semitones = match self.mode {
                 Mode::Map => voice.pitch - voice.key as f32 + voice.fine,
                 Mode::Deck => {
-                    voice.pitch - voice.key as f32 + voice.fine + settings.slices[voice.slice].pitch
+                    voice.pitch - voice.key as f32
+                        + voice.fine
+                        + voice.region.map_or(0.0, |s| s.pitch)
                 }
                 _ => voice.pitch - settings.key as f32 + voice.fine + settings.pitch,
             };
             let ratio = 2.0f64.powf(semitones.clamp(-96.0, 96.0) as f64 / 12.0);
-            let increment = ratio * table.sample_rate as f64 / self.sample_rate as f64;
+            let increment = ratio * source.rate() as f64 / self.sample_rate as f64;
             let signal = match self.mode {
                 Mode::Map | Mode::Deck => {
-                    let end = voice.end.min(table.len as usize);
+                    let end = voice.end.min(len);
                     let span = end.saturating_sub(voice.start);
                     if voice.cursor >= span as f64 || span == 0 {
                         voice.active = false;
                         continue;
                     }
-                    let reverse = self.mode == Mode::Deck && settings.slices[voice.slice].reverse;
+                    let reverse = voice.region.map_or(false, |s| s.reverse);
                     let position = if reverse {
                         end as f64 - 1.0 - voice.cursor
                     } else {
                         voice.start as f64 + voice.cursor
                     };
-                    let signal = read_region(table, position, voice.start, end);
+                    let signal = read_region(source, position, voice.start, end);
                     let edge = ((span as f64 - voice.cursor) / (increment * attack as f64)).min(1.0)
                         as f32;
                     voice.cursor += increment;
                     if voice.cursor >= span as f64 {
                         voice.active = false;
                     }
-                    let gain = if self.mode == Mode::Deck {
-                        settings.slices[voice.slice].gain
-                    } else {
-                        1.0
-                    };
-                    signal * gain * edge
+                    let gain = voice.region.map_or(1.0, |s| s.gain);
+                    signal.map(|v| v * gain * edge)
                 }
                 Mode::Cloud => {
                     if voice.release_total == 0 {
@@ -330,7 +397,7 @@ impl Engine {
                             let position = (settings.position as f64
                                 + (random - 0.5) * settings.spray as f64)
                                 .rem_euclid(1.0)
-                                * table.len as f64;
+                                * len as f64;
                             if let Some(grain) = voice.grains.iter_mut().find(|g| !g.active) {
                                 *grain = Grain {
                                     active: true,
@@ -339,38 +406,41 @@ impl Engine {
                                     length: samples(settings.grain_ms, self.sample_rate).max(3),
                                 };
                                 self.grains_spawned = self.grains_spawned.saturating_add(1);
+                            } else {
+                                self.grains_dropped = self.grains_dropped.saturating_add(1);
                             }
                         }
                         voice.phase += settings.density as f64 / self.sample_rate as f64;
                     }
-                    let mut sum = 0.0;
+                    let mut sum = [0.0; 2];
                     for grain in &mut voice.grains {
                         if !grain.active {
                             continue;
                         }
                         let phase = grain.age as f64 / (grain.length - 1) as f64;
                         let window = (0.5 - 0.5 * (std::f64::consts::TAU * phase).cos()) as f32;
-                        sum += read_wrapped(table, grain.position) * window;
-                        grain.position = (grain.position + increment).rem_euclid(table.len as f64);
+                        let sample = read_wrapped(source, grain.position);
+                        for channel in 0..2 {
+                            sum[channel] += sample[channel] * window;
+                        }
+                        grain.position = (grain.position + increment).rem_euclid(len as f64);
                         grain.age += 1;
                         if grain.age >= grain.length {
                             grain.active = false;
                         }
                     }
-                    sum / (settings.density * settings.grain_ms * 0.001)
+                    let scale = (settings.density * settings.grain_ms * 0.001)
                         .max(1.0)
-                        .sqrt()
+                        .sqrt();
+                    sum.map(|v| v / scale)
                 }
                 Mode::Wave => {
                     if voice.scan >= 1.0 {
                         voice.active = false;
                         continue;
                     }
-                    let point = voice.scan * 7.0;
-                    let index = (point.floor() as usize).min(6);
-                    let fraction = point - index as f64;
-                    let position = settings.positions[index] as f64 * (1.0 - fraction)
-                        + settings.positions[index + 1] as f64 * fraction;
+                    let position =
+                        asset.map_or(voice.scan, |a| a.curve(voice.key).position(voice.scan));
                     let delta =
                         ratio / (settings.duration_ms as f64 * 0.001 * self.sample_rate as f64);
                     let edge = ((1.0 - voice.scan) / (delta * attack as f64)).min(1.0) as f32;
@@ -378,15 +448,13 @@ impl Engine {
                     if voice.scan >= 1.0 {
                         voice.active = false;
                     }
-                    read_region(
-                        table,
-                        position * (table.len as f64 - 1.0),
-                        0,
-                        table.len as usize,
-                    ) * edge
+                    read_region(source, position * (len as f64 - 1.0), 0, len).map(|v| v * edge)
                 }
             };
-            let mut envelope = (voice.age.saturating_add(1) as f32 / attack).min(1.0);
+            let voice_attack = voice.region.map_or(attack, |s| {
+                (s.attack_ms * 0.001 * self.sample_rate).max(1.0)
+            });
+            let mut envelope = (voice.age.saturating_add(1) as f32 / voice_attack).min(1.0);
             if voice.release_total != 0 {
                 envelope *= voice.release_left as f32 / voice.release_total as f32;
                 voice.release_left -= 1;
@@ -395,9 +463,9 @@ impl Engine {
                 }
             }
             voice.age = voice.age.saturating_add(1);
-            let signal = signal * envelope * voice.velocity * settings.level * 0.25 * voice.gain;
-            for (out, gain) in bus.iter_mut().zip(voice.pan) {
-                *out += signal * gain;
+            let scale = envelope * voice.velocity * settings.level * 0.25 * voice.gain;
+            for channel in 0..2 {
+                bus[channel] += signal[channel] * scale * voice.pan[channel];
             }
         }
         (bus[0], bus[1])
@@ -410,18 +478,59 @@ fn pan_gains(pan: f32) -> [f32; 2] {
     let angle = (clean(pan, -1.0, 1.0, 0.0) + 1.0) * std::f32::consts::FRAC_PI_4;
     [angle.cos(), angle.sin()]
 }
-fn read_region(table: &SampleTable, position: f64, start: usize, end: usize) -> f32 {
+#[derive(Clone, Copy)]
+enum Source<'a> {
+    Audio(&'a AudioBuffer),
+    Empty,
+}
+impl<'a> Source<'a> {
+    fn new(asset: Option<&'a PlaybackAsset>, deck: usize) -> Self {
+        match asset {
+            Some(a) => a.sources[deck].as_ref().map_or(Self::Empty, Self::Audio),
+            None => Self::Empty,
+        }
+    }
+    fn len(self) -> usize {
+        match self {
+            Self::Audio(a) => a.frames(),
+            Self::Empty => 0,
+        }
+    }
+    fn rate(self) -> f32 {
+        match self {
+            Self::Audio(a) => a.sample_rate() as f32,
+            Self::Empty => 48000.0,
+        }
+    }
+    fn frame(self, frame: usize) -> [f32; 2] {
+        match self {
+            Self::Audio(a) => {
+                let channels = usize::from(a.channels());
+                let at = frame * channels;
+                [a.samples()[at], a.samples()[at + usize::from(channels > 1)]]
+            }
+            Self::Empty => [0.0; 2],
+        }
+    }
+}
+fn read_region(source: Source<'_>, position: f64, start: usize, end: usize) -> [f32; 2] {
     let position = position.clamp(start as f64, (end - 1) as f64);
     let a = position.floor() as usize;
     let b = (a + 1).min(end - 1);
-    let fraction = (position - a as f64) as f32;
-    table.data[a] * (1.0 - fraction) + table.data[b] * fraction
+    interpolate(source, a, b, (position - a as f64) as f32)
 }
-fn read_wrapped(table: &SampleTable, position: f64) -> f32 {
-    // A table may be replaced with a shorter source while grains are sounding.
-    let position = position.rem_euclid(table.len as f64);
+fn read_wrapped(source: Source<'_>, position: f64) -> [f32; 2] {
+    let position = position.rem_euclid(source.len() as f64);
     let a = position.floor() as usize;
-    let b = (a + 1) % table.len as usize;
-    let fraction = (position - a as f64) as f32;
-    table.data[a] * (1.0 - fraction) + table.data[b] * fraction
+    interpolate(
+        source,
+        a,
+        (a + 1) % source.len(),
+        (position - a as f64) as f32,
+    )
+}
+fn interpolate(source: Source<'_>, a: usize, b: usize, fraction: f32) -> [f32; 2] {
+    let a = source.frame(a);
+    let b = source.frame(b);
+    std::array::from_fn(|channel| a[channel] * (1.0 - fraction) + b[channel] * fraction)
 }

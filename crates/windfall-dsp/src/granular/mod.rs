@@ -1,5 +1,11 @@
-//! Bounded sample-table slice, granular and position-envelope instruments.
+//! Prepared-source slice, granular and drawn-position/speed instruments.
+mod asset;
 mod engine;
+pub use asset::{
+    MAX_ASSET_SLICES, MAX_CURVE_POINTS, MAX_SOURCE_FRAMES, PlaybackAsset, PlaybackCurve,
+    PlaybackCurveMode, PlaybackPoint, SliceRegion, validate_slices,
+};
+use std::sync::Arc;
 mod params;
 
 use crate::instrument::Instrument;
@@ -23,6 +29,7 @@ macro_rules! instrument {
             params: $params,
             current: $params,
             moving: bool,
+            asset: Option<Arc<PlaybackAsset>>,
         }
         impl Default for $name {
             fn default() -> Self {
@@ -31,7 +38,22 @@ macro_rules! instrument {
                     params: $params::default(),
                     current: $params::default(),
                     moving: false,
+                    asset: None,
                 }
+            }
+        }
+        impl $name {
+            /// Control-thread only: install before publishing the prepared unit.
+            pub fn set_asset(&mut self, asset: Arc<PlaybackAsset>) {
+                self.asset = Some(asset);
+            }
+            pub fn voices_stolen(&self) -> u64 {
+                self.engine.voices_stolen
+            }
+            pub(crate) fn adopt(&mut self, previous: &Self) {
+                self.engine.adopt(&previous.engine);
+                self.current = previous.current;
+                self.moving = true;
             }
         }
         impl Instrument for $name {
@@ -47,7 +69,7 @@ macro_rules! instrument {
             }
             fn set_params(&mut self, params: &$params) {
                 self.params = params.sanitized();
-                self.current.table = self.params.table;
+
                 if self.engine.fresh {
                     self.current = self.params;
                     self.moving = false;
@@ -93,8 +115,8 @@ macro_rules! instrument {
                     velocity,
                     pan,
                     expression,
-                    &self.current.table,
                     self.current.settings(),
+                    self.asset.as_deref(),
                 );
             }
             fn note_off(&mut self, key: u8) {
@@ -130,7 +152,7 @@ macro_rules! instrument {
                     }
                     let (l, r) = self
                         .engine
-                        .tick(&self.current.table, self.current.settings());
+                        .tick(self.current.settings(), self.asset.as_deref());
                     *left = l;
                     *right = r;
                 }
@@ -147,6 +169,9 @@ instrument!(GrainCloud, GrainCloudParams, Cloud);
 instrument!(WaveRide, WaveRideParams, Wave);
 
 impl GrainCloud {
+    pub fn grains_dropped(&self) -> u64 {
+        self.engine.grains_dropped
+    }
     /// Successfully scheduled grain events since prepare/reset, across all voices.
     /// Excess events at the fixed overlap limit drop without being deferred.
     pub fn grains_spawned(&self) -> u64 {
@@ -158,7 +183,6 @@ impl SliceMapParams {
     fn settings(&self) -> Settings {
         Settings {
             key: self.base_key,
-            starts: self.slice_starts,
             level: self.level,
             ..Settings::default()
         }
@@ -168,8 +192,6 @@ impl SliceDeckParams {
     fn settings(&self) -> Settings {
         Settings {
             key: self.base_key,
-            starts: self.slice_starts,
-            slices: self.slices,
             level: self.level,
             ..Settings::default()
         }
@@ -195,7 +217,6 @@ impl WaveRideParams {
         Settings {
             key: self.root_key,
             duration_ms: self.duration_ms,
-            positions: self.positions,
             pitch: self.pitch,
             level: self.level,
             ..Settings::default()

@@ -34,3 +34,4 @@ mod nonlinear_performance;
 static ALLOCATOR: realtime::CountingAllocator = realtime::CountingAllocator;
 
 mod spectral;
+mod sample_playback;

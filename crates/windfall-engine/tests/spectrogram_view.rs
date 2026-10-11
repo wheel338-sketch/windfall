@@ -30,6 +30,7 @@ fn publication_packs_existing_history_oldest_first_without_audio_allocation() {
         ),
     );
     project.channels.push(Channel {
+                sample_playback: None,
         id: ChannelId(901),
         name: "History source".into(),
         color: 0,

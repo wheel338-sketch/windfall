@@ -7,6 +7,8 @@ import type {
   SliceReview,
 } from "@/features/slicer/types"
 import { sim } from "./wasm"
+import { detectInWorker } from "@/features/sample-playback/analyze"
+import type { SamplePlayback } from "@/bindings"
 import type { SimDocument } from "./document"
 
 export type SlicerMockOptions = {
@@ -34,7 +36,8 @@ export function createSlicerMock(
   options: SlicerMockOptions,
   document: () => SimDocument,
   dispatch: (command: Command) => DispatchResult,
-  info: (sample: SampleId) => SampleInfo
+  info: (sample: SampleId) => SampleInfo,
+  guard?: () => { generation: number; revision: number }
 ) {
   let ticket = 0
   let pending: {
@@ -57,6 +60,22 @@ export function createSlicerMock(
     return audio.get(sample)!
   }
   return {
+    async samplePlaybackDetect(channel: number, options: SliceOptions, generation: number, revision: number): Promise<DispatchResult> {
+      const original = document()
+      const current = guard?.()
+      if (original.snapshot(null).revision !== revision || (current && current.generation !== generation))
+        throw new Error("The project changed before slice detection started.")
+      const settings = original.project().channels.find((c) => c.id === channel)?.samplePlayback
+      if (!settings?.sample) throw new Error("Load a source sample first.")
+      const buffer = source(settings.sample)
+      const request = { ...buffer, sample: settings.sample, bpm: settings.sourceBpm, options }
+      const detected = typeof Worker === "undefined"
+        ? sim.call<SamplePlayback>("sample_playback_detect", 0, request)
+        : await detectInWorker(request)
+      if (document() !== original || original.snapshot(null).revision !== revision || source(settings.sample) !== buffer)
+        throw new Error("The project or source changed during slice detection. Try again.")
+      return dispatch({ type: "setSamplePlayback", channel, asset: { ...settings, legacyKeyWrap: false, slices: detected.slices, sourceBeats: detected.sourceBeats } })
+    },
     async sliceAnalyze(
       id: number,
       settings: SliceOptions

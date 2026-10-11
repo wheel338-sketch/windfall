@@ -581,6 +581,15 @@ pub(crate) struct InstrumentUnit {
 }
 
 impl InstrumentUnit {
+    pub fn inherit_playback_notes(&mut self, previous: &Self) {
+        if self.instrument.inherit_playback_state(&previous.instrument) {
+            self.notes.copy_from_slice(&previous.notes); self.next_instance = previous.next_instance;
+            self.held = previous.held; self.last_sound = previous.last_sound;
+        }
+    }
+    pub fn set_playback_asset(&mut self, asset: std::sync::Arc<windfall_dsp::granular::PlaybackAsset>) {
+        self.instrument.set_playback_asset(asset);
+    }
     /// Builds and prepares an instrument. Allocates, so it is for the
     /// control side.
     pub fn build(params: &InstrumentParams, asset: Option<&windfall_dsp::InstrumentAsset>, sample_rate: u32, tempo_bpm: f64) -> Self {

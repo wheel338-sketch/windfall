@@ -2,9 +2,9 @@ import { instrumentDescriptor } from "@/features/params"
 import { PluginControls } from "@/features/plugins/controls"
 import { usePluginBinding } from "@/features/plugins/store"
 import type { InstrumentChannel } from "@/lib/channel-source"
+import { useProjectGeneration } from "@/lib/store/replaced"
 import { colorToCss } from "@/lib/units"
 
-import { useProjectGeneration } from "@/lib/store"
 import { ResynthesisEditor } from "../instruments/resynthesis-editor"
 import { NumberEditor } from "../instruments/number-editor"
 import { MetalEditor } from "../instruments/metal-editor"
@@ -18,6 +18,7 @@ import { MembraneEditor } from "../instruments/membrane-editor"
 import { SoundMenu } from "../synth/sound-menu"
 import { SynthEditor } from "../synth/synth-editor"
 import { POLYSYNTH_PANELS, PolysynthEditor } from "../synth/polysynth-editor"
+import { SamplePlaybackEditor } from "@/features/sample-playback/editor"
 import { GenericInstrumentEditor } from "./generic-instrument-editor"
 import { Section } from "./parts"
 
@@ -73,6 +74,8 @@ export function InstrumentSection({ channel }: { channel: InstrumentChannel }) {
         <DrumRackEditor channel={channel.id} params={params} />
       ) : params.type === "membrane" ? (
         <MembraneEditor channel={channel.id} params={params} />
+      ) : ["sliceMap", "sliceDeck", "grainCloud", "waveRide"].includes(params.type) ? (
+        <SamplePlaybackEditor key={`${generation}:${channel.id}:${params.type}`} channel={channel} />
       ) : (
         <GenericInstrumentEditor channel={channel.id} params={params} />
       )}

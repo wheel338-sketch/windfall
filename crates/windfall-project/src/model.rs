@@ -443,10 +443,14 @@ pub(crate) fn relative_path_problem(path: &str) -> Option<&'static str> {
 }
 
 /// One row of the channel rack.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
+#[derive(Debug, Clone, PartialEq, Serialize, TS)]
 #[serde(rename_all = "camelCase")]
 #[ts(export)]
 pub struct Channel {
+    /// Immutable source/marker/curve authoring data, separate from Copy controls.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub sample_playback: Option<crate::SamplePlayback>,
     /// Additional note generators and modulation; absent in older files.
     #[serde(
         default,

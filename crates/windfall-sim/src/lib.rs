@@ -142,7 +142,7 @@ pub mod ops {
         super::json(&windfall_ipc::normalize_tags(&tags)?)
     }
     pub use crate::midi::{doc_midi_export, doc_midi_import, midi_preview};
-    pub use crate::slicer::{slice_analyze, slice_command};
+    pub use crate::slicer::{slice_analyze, slice_command, sample_playback_detect};
     pub use crate::timeline::{timeline_position, timeline_range};
     use serde::Deserialize;
     use windfall_project::file;
@@ -405,6 +405,7 @@ export_ops! {
     timeline_range
     slice_analyze
     slice_command
+    sample_playback_detect
     browser_query
     browser_tags
     project_new

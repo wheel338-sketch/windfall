@@ -729,7 +729,8 @@ export function createMockBackend(options: MockOptions = {}): MockBackend {
         const asset = doc.project().samples.find((s) => s.id === id)
         if (!asset) throw new Error("The clip's source no longer exists.")
         return sampleInfoFor(roots, sampleFile(asset))
-      }
+      },
+      timelineState
     ),
     ...createMidiMock(options, () => doc, publish, dialogs.exportPath),
     pluginsState: async () => ({

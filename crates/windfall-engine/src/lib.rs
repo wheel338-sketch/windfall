@@ -206,3 +206,4 @@ mod qa_mixer_pdc_ports;
 mod effect_host;
 #[cfg(test)]
 mod qa_recording_mixer;
+mod sample_playback;

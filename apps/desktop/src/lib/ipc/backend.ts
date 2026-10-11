@@ -129,6 +129,7 @@ export interface Backend extends AnalysisBackend, MixerPresetLibraryBackend, Ana
     request: import("@/features/audio-editor/types").AudioEditRequest
   ): Promise<DispatchResult>
   audioEditorDiscard(token: number): Promise<void>
+  samplePlaybackDetect(channel: ChannelId, options: import("@/features/slicer/types").SliceOptions, generation: number, revision: number): Promise<DispatchResult>
   sliceAnalyze(
     clip: number,
     options: import("@/features/slicer/types").SliceOptions

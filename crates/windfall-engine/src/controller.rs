@@ -1111,6 +1111,7 @@ mod tests {
             AudioBuffer::from_interleaved(48_000, 1, vec![1.0]),
         );
         project.channels.push(Channel {
+                sample_playback: None,
             id: ChannelId(901),
             name: String::new(),
             color: 0,

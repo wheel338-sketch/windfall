@@ -530,6 +530,9 @@ impl ChannelPreset {
         let channel = project
             .channel(id)
             .ok_or("The preset's channel no longer exists")?;
+        if channel.sample_playback.is_some() {
+            return Err("Sample playback sources, maps and curves cannot be bundled in a channel preset yet. Save a project or duplicate the channel to retain them.".into());
+        }
         let mut source = channel.source.clone();
         let mut sample = None;
         if let ChannelSource::Sampler(sampler) = &mut source {
@@ -571,6 +574,8 @@ impl ChannelPreset {
             sampler.sample = sample;
         }
         Channel {
+            sample_playback: if matches!(&source, ChannelSource::Instrument { params }
+                if crate::sample_playback::supported(params.kind())) { base.sample_playback.clone() } else { None },
             volume: self.volume,
             pan: self.pan,
             voice: self.voice,
@@ -653,6 +658,7 @@ impl ChannelPreset {
         }
         let id = ChannelId(take());
         let base = Channel {
+                sample_playback: None,
             voice: ChannelVoiceSettings::default(),
             id,
             name: "Preset".to_owned(),

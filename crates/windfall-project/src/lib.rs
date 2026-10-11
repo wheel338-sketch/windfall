@@ -82,3 +82,8 @@ pub mod timebase;
 
 mod convolver;
 pub use convolver::ConvolverImpulse;
+pub mod sample_playback;
+pub use sample_playback::{SamplePlayback, KeyPlaybackCurve};
+
+mod legacy_sample_playback;
+pub use sample_playback::InlinePlaybackSource;
