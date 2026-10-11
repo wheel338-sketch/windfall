@@ -622,11 +622,13 @@ fn shaper_saved_aux_routes_remove_only_the_routed_parts_and_ignore_listen() {
                 let mut right: Vec<_> = input.iter().map(|x| -*x).collect();
                 let mut attack = vec![[99.0; 2]; input.len()];
                 let mut sustain = attack.clone();
-                for (((l, r), a), s) in left
+                let mut unused = attack.clone();
+                for ((((l, r), a), s), u) in left
                     .chunks_mut(block)
                     .zip(right.chunks_mut(block))
                     .zip(attack.chunks_mut(block))
                     .zip(sustain.chunks_mut(block))
+                    .zip(unused.chunks_mut(block))
                 {
                     effect.process_aux(
                         l,
@@ -634,10 +636,11 @@ fn shaper_saved_aux_routes_remove_only_the_routed_parts_and_ignore_listen() {
                         None,
                         &mut windfall_dsp::AuxBlock {
                             routed: mask,
-                            outputs: [a, s],
+                            outputs: [a, s, u],
                         },
                     );
                 }
+                assert!(unused.iter().all(|frame| *frame == [0.0; 2]));
                 (left, right, attack, sustain)
             };
             let output = render(257);

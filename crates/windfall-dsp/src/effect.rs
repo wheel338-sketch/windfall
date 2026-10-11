@@ -1754,6 +1754,7 @@ impl AnyEffect {
             AnyEffect::TransientShaper(effect) => {
                 let routed = [aux.routed & 1 != 0, aux.routed & 2 != 0];
                 effect.process_routed(left, right, routed, first, second);
+                third.fill([0.0; 2]);
             }
             AnyEffect::TransientSplit(effect) => {
                 let routed = [aux.routed & 1 != 0, aux.routed & 2 != 0];
