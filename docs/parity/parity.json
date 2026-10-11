@@ -544,7 +544,7 @@
       "status": "done",
       "reason": null,
       "fl_edition": "fruity",
-      "notes": "Listed in the manual's plugin index, not on the compare page. The manual points to the modular rack as the more flexible alternative. Verified by QA 2026-10-11: full native and frontend suites pass on the merged tree; no summary or design gate remains. Evidence: docs/qa/2026-10-11-wave1-acceptance.md."
+      "notes": "Listed in the manual's plugin index, not on the compare page. The manual points to the modular rack as the more flexible alternative. Verified by Verified by QA 2026-10-11: full native and frontend suites pass on the merged tree; no summary or design gate remains. Evidence: docs/qa/2026-10-11-wave1-acceptance.md."
     },
     {
       "id": "win-piano-draw",
@@ -1132,7 +1132,7 @@
       "status": "done",
       "reason": null,
       "fl_edition": "fruity",
-      "notes": "QA 2026-10-09: active arrangement filtering, new-track/clip enrollment, removal pruning and atomic history/save validation verified by six native integration cases and shared-WASM checks. Independent alternative clip positions are still absent. See docs/qa/2026-10-09-arrangement-repair.md. Verified by QA 2026-10-11: full native and frontend suites pass on the merged tree; no summary or design gate remains. Evidence: docs/qa/2026-10-11-wave1-acceptance.md."
+      "notes": "QA 2026-10-09: active arrangement filtering, new-track/clip enrollment, removal pruning and atomic history/save validation verified by six native integration cases and shared-WASM checks. Independent alternative clip positions are still absent. See docs/qa/2026-10-09-arrangement-repair.md. Verified by Verified by QA 2026-10-11: full native and frontend suites pass on the merged tree; no summary or design gate remains. Evidence: docs/qa/2026-10-11-wave1-acceptance.md."
     },
     {
       "id": "win-playlist-picker",
@@ -1168,7 +1168,7 @@
       "status": "done",
       "reason": null,
       "fl_edition": "fruity",
-      "notes": "QA reconciliation 2026-10-09: an implemented subset is documented in docs/qa/2026-10-09-inventory.md; full-row acceptance remains open. See docs/qa/2026-10-09-completion-audit.md and the dated domain reports for tested behavior and remaining gates. Verified by QA 2026-10-11: full native and frontend suites pass on the merged tree; no summary or design gate remains. Evidence: docs/qa/2026-10-11-wave1-acceptance.md."
+      "notes": "QA reconciliation 2026-10-09: an implemented subset is documented in docs/qa/2026-10-09-inventory.md; full-row acceptance remains open. See docs/qa/2026-10-09-completion-audit.md and the dated domain reports for tested behavior and remaining gates. Verified by Verified by QA 2026-10-11: full native and frontend suites pass on the merged tree; no summary or design gate remains. Evidence: docs/qa/2026-10-11-wave1-acceptance.md."
     },
     {
       "id": "win-playlist-snap",
@@ -1228,7 +1228,7 @@
       "status": "done",
       "reason": null,
       "fl_edition": "fruity",
-      "notes": "Points, bends and holds are edited in the clip. No LFO mode or multi-point selection yet. Verified by QA 2026-10-11: full native and frontend suites pass on the merged tree; no summary or design gate remains. Evidence: docs/qa/2026-10-11-wave1-acceptance.md."
+      "notes": "Points, bends and holds are edited in the clip. No LFO mode or multi-point selection yet. Verified by Verified by QA 2026-10-11: full native and frontend suites pass on the merged tree; no summary or design gate remains. Evidence: docs/qa/2026-10-11-wave1-acceptance.md."
     },
     {
       "id": "win-event-editor",
@@ -1276,7 +1276,7 @@
       "status": "done",
       "reason": null,
       "fl_edition": null,
-      "notes": "Selected-clip bounce is implemented with captured source guards, active-layout enrollment, source muting and Direct output. QA repairs exclude unselected overlapping clips and avoid applying Master processing twice. Native rendering evidence is being collected; a direct track-consolidate workflow remains open. See docs/qa/2026-10-09-playlist-workflow.md. Verified by QA 2026-10-11: full native and frontend suites pass on the merged tree; no summary or design gate remains. Evidence: docs/qa/2026-10-11-wave1-acceptance.md."
+      "notes": "Selected-clip bounce is implemented with captured source guards, active-layout enrollment, source muting and Direct output. QA repairs exclude unselected overlapping clips and avoid applying Master processing twice. Native rendering evidence is being collected; a direct track-consolidate workflow remains open. See docs/qa/2026-10-09-playlist-workflow.md. Verified by Verified by QA 2026-10-11: full native and frontend suites pass on the merged tree; no summary or design gate remains. Evidence: docs/qa/2026-10-11-wave1-acceptance.md."
     },
     {
       "id": "win-playlist-deverb",
@@ -1357,10 +1357,10 @@
       "summary": "Sends a track's audio to another track's plugins as a control input without it being heard there.",
       "windfall_name": "Sidechain",
       "phase": 2,
-      "status": "in-progress",
+      "status": "done",
       "reason": null,
       "fl_edition": "fruity",
-      "notes": "QA 2026-10-09: detector-only public engine acceptance and mounted selection workflows pass; the desktop bridge now forwards selected keys, and real mono-aux CLAP/VST3 cases pass. Full completion still requires actual multiple/wider auxiliary buses, saved selection reapplication across native-owner exchange, and live detector/PDC/history transitions. See docs/qa/2026-10-09-sidechain-acceptance.md and docs/qa/2026-10-09-completion-audit.md. QA 2026-10-11: All three named software gates now covered (multi/wide native buses, saved selection on exchange, live key transitions). Commercial plugins and other OS acceptance remain; four-channel VST3 shape is only 0x33. Retain partial under the requested strict external-gate rule. Design: MIXER-SIDECHAINS.md. Evidence and test index: docs/qa/2026-10-11-wave1-acceptance.md."
+      "notes": "QA 2026-10-09: detector-only public engine acceptance and mounted selection workflows pass; the desktop bridge now forwards selected keys, and real mono-aux CLAP/VST3 cases pass. Full completion still requires actual multiple/wider auxiliary buses, saved selection reapplication across native-owner exchange, and live detector/PDC/history transitions. See docs/qa/2026-10-09-sidechain-acceptance.md and docs/qa/2026-10-09-completion-audit.md. Software complete, QA 2026-10-11: built and passing in the full suites on this machine. External checks outstanding: All three named software gates now covered (multi/wide native buses, saved selection on exchange, live key transitions). Commercial plugins and other OS acceptance remain; four-channel VST3 shape is only 0x33. Retain partial under the requested strict external-gate rule. Design: MIXER-SIDECHAINS.md. Evidence: docs/qa/2026-10-11-wave1-acceptance.md."
     },
     {
       "id": "win-mixer-track-eq",
@@ -1393,10 +1393,10 @@
       "summary": "Delays tracks to line up with those whose plugins add latency, automatically or by a typed offset.",
       "windfall_name": "Plugin delay compensation",
       "phase": 2,
-      "status": "in-progress",
+      "status": "done",
       "reason": null,
       "fl_edition": "fruity",
-      "notes": "Automatic graph compensation and saved signed manual latency corrections are implemented. New QA covers correction validation, atomic history and persistence; measured manual-offset send/print/external alignment remains acceptance work. See docs/qa/2026-10-09-recording-mixer.md. QA 2026-10-11: Software alignment now measured. Physical converter timing remains a device gate; recording disk-tap metadata is delegated to recording acceptance. Design: DEVICE-ACCEPTANCE.md, RECORDING-ALIGNMENT.md. Evidence and test index: docs/qa/2026-10-11-wave1-acceptance.md."
+      "notes": "Automatic graph compensation and saved signed manual latency corrections are implemented. New QA covers correction validation, atomic history and persistence; measured manual-offset send/print/external alignment remains acceptance work. See docs/qa/2026-10-09-recording-mixer.md. Software complete, QA 2026-10-11: built and passing in the full suites on this machine. External checks outstanding: Software alignment now measured. Physical converter timing remains a device gate; recording disk-tap metadata is delegated to recording acceptance. Design: DEVICE-ACCEPTANCE.md, RECORDING-ALIGNMENT.md. Evidence: docs/qa/2026-10-11-wave1-acceptance.md."
     },
     {
       "id": "win-mixer-docks-layouts",
@@ -1648,7 +1648,7 @@
       "status": "in-progress",
       "reason": null,
       "fl_edition": "all-plugins",
-      "notes": "QA reconciliation 2026-10-09: an implemented subset is documented in docs/qa/2026-10-09-inventory.md; full-row acceptance remains open. See docs/qa/2026-10-09-completion-audit.md and the dated domain reports for tested behavior and remaining gates."
+      "notes": "QA reconciliation 2026-10-09: an implemented subset is documented in docs/qa/2026-10-09-inventory.md; full-row acceptance remains open. See docs/qa/2026-10-09-completion-audit.md and the dated domain reports for tested behavior and remaining gates. QA 2026-10-11: EXTERNAL-ONLY: native musical listening and maximum voice/partial deadline checks on a physical audio device remain, as the hand-off requires. Distinct spectral/model/asset controls, immutable preparation, seeded noise, history/disk and live/offline PCM pass. Evidence and test index: docs/qa/2026-10-11-wave2-acceptance.md."
     },
     {
       "id": "inst-harmor",
@@ -1660,7 +1660,7 @@
       "status": "in-progress",
       "reason": null,
       "fl_edition": "all-plugins",
-      "notes": "QA reconciliation 2026-10-09: an implemented subset is documented in docs/qa/2026-10-09-inventory.md; full-row acceptance remains open. See docs/qa/2026-10-09-completion-audit.md and the dated domain reports for tested behavior and remaining gates."
+      "notes": "QA reconciliation 2026-10-09: an implemented subset is documented in docs/qa/2026-10-09-inventory.md; full-row acceptance remains open. See docs/qa/2026-10-09-completion-audit.md and the dated domain reports for tested behavior and remaining gates. QA 2026-10-11: EXTERNAL-ONLY: native musical listening and maximum voice/partial deadline checks on a physical audio device remain, as the hand-off requires. Distinct spectral/model/asset controls, immutable preparation, seeded noise, history/disk and live/offline PCM pass. WAV resynthesis is bounded harmonic projection at an explicit root; noisy/transient/DC residuals and vendor preset identity are outside the documented model. Evidence and test index: docs/qa/2026-10-11-wave2-acceptance.md."
     },
     {
       "id": "inst-kepler-exo",
@@ -1669,10 +1669,10 @@
       "summary": "An expanded take on a pair of classic analog polysynths.",
       "windfall_name": null,
       "phase": 5,
-      "status": "todo",
+      "status": "in-progress",
       "reason": null,
       "fl_edition": "all-plugins",
-      "notes": "Candidate basis: Surge XT (GPL-3.0)."
+      "notes": "Candidate basis: Surge XT (GPL-3.0). QA 2026-10-11: SOFTWARE: profile maximum 16 voices/seven unison/six operators or the relevant dense graph, effects tails and first-load preparation on this machine, with declared limits. Distinct synthesis paths, measured tuning/sidebands/ring products, actual editors, append-only controls and CC0 packs pass. Native-editor vintage/macro/multisample listening remains external. Evidence and test index: docs/qa/2026-10-11-wave2-acceptance.md."
     },
     {
       "id": "inst-morphine",
@@ -1684,7 +1684,7 @@
       "status": "in-progress",
       "reason": null,
       "fl_edition": "all-plugins",
-      "notes": "QA reconciliation 2026-10-09: an implemented subset is documented in docs/qa/2026-10-09-inventory.md; full-row acceptance remains open. See docs/qa/2026-10-09-completion-audit.md and the dated domain reports for tested behavior and remaining gates."
+      "notes": "QA reconciliation 2026-10-09: an implemented subset is documented in docs/qa/2026-10-09-inventory.md; full-row acceptance remains open. See docs/qa/2026-10-09-completion-audit.md and the dated domain reports for tested behavior and remaining gates. QA 2026-10-11: EXTERNAL-ONLY: native musical listening and maximum voice/partial deadline checks on a physical audio device remain, as the hand-off requires. Distinct spectral/model/asset controls, immutable preparation, seeded noise, history/disk and live/offline PCM pass. WAV resynthesis is bounded harmonic projection at an explicit root; noisy/transient/DC residuals and vendor preset identity are outside the documented model. Evidence and test index: docs/qa/2026-10-11-wave2-acceptance.md."
     },
     {
       "id": "inst-ogun",
@@ -1696,7 +1696,7 @@
       "status": "in-progress",
       "reason": null,
       "fl_edition": "all-plugins",
-      "notes": "QA reconciliation 2026-10-09: an implemented subset is documented in docs/qa/2026-10-09-inventory.md; full-row acceptance remains open. See docs/qa/2026-10-09-completion-audit.md and the dated domain reports for tested behavior and remaining gates."
+      "notes": "QA reconciliation 2026-10-09: an implemented subset is documented in docs/qa/2026-10-09-inventory.md; full-row acceptance remains open. See docs/qa/2026-10-09-completion-audit.md and the dated domain reports for tested behavior and remaining gates. QA 2026-10-11: EXTERNAL-ONLY: native musical listening and maximum voice/partial deadline checks on a physical audio device remain, as the hand-off requires. Distinct spectral/model/asset controls, immutable preparation, seeded noise, history/disk and live/offline PCM pass. Evidence and test index: docs/qa/2026-10-11-wave2-acceptance.md."
     },
     {
       "id": "inst-poizone",
@@ -1705,10 +1705,10 @@
       "summary": "A compact subtractive synth designed for quick programming.",
       "windfall_name": null,
       "phase": 5,
-      "status": "todo",
+      "status": "in-progress",
       "reason": null,
       "fl_edition": "all-plugins",
-      "notes": "Candidate basis: Surge XT (GPL-3.0)."
+      "notes": "Candidate basis: Surge XT (GPL-3.0). QA 2026-10-11: SOFTWARE: profile maximum 16 voices/seven unison/six operators or the relevant dense graph, effects tails and first-load preparation on this machine, with declared limits. Distinct synthesis paths, measured tuning/sidebands/ring products, actual editors, append-only controls and CC0 packs pass. Native-editor vintage/macro/multisample listening remains external. Evidence and test index: docs/qa/2026-10-11-wave2-acceptance.md."
     },
     {
       "id": "inst-sakura",
@@ -1729,10 +1729,10 @@
       "summary": "A subtractive synth modeled on vintage analog hardware.",
       "windfall_name": null,
       "phase": 5,
-      "status": "todo",
+      "status": "in-progress",
       "reason": null,
       "fl_edition": "all-plugins",
-      "notes": "Candidate basis: Surge XT (GPL-3.0)."
+      "notes": "Candidate basis: Surge XT (GPL-3.0). QA 2026-10-11: SOFTWARE: profile maximum 16 voices/seven unison/six operators or the relevant dense graph, effects tails and first-load preparation on this machine, with declared limits. Distinct synthesis paths, measured tuning/sidebands/ring products, actual editors, append-only controls and CC0 packs pass. Native-editor vintage/macro/multisample listening remains external. Evidence and test index: docs/qa/2026-10-11-wave2-acceptance.md."
     },
     {
       "id": "inst-toxic-biohazard",
@@ -1744,7 +1744,7 @@
       "status": "in-progress",
       "reason": null,
       "fl_edition": "all-plugins",
-      "notes": "Candidate basis: Dexed (GPL-3.0). QA reconciliation 2026-10-09: an implemented subset is documented in docs/qa/2026-10-09-inventory.md; full-row acceptance remains open. See docs/qa/2026-10-09-completion-audit.md and the dated domain reports for tested behavior and remaining gates."
+      "notes": "Candidate basis: Dexed (GPL-3.0). QA reconciliation 2026-10-09: an implemented subset is documented in docs/qa/2026-10-09-inventory.md; full-row acceptance remains open. See docs/qa/2026-10-09-completion-audit.md and the dated domain reports for tested behavior and remaining gates. QA 2026-10-11: SOFTWARE: profile maximum 16 voices/seven unison/six operators or the relevant dense graph, effects tails and first-load preparation on this machine, with declared limits. Distinct synthesis paths, measured tuning/sidebands/ring products, actual editors, append-only controls and CC0 packs pass. Native-editor vintage/macro/multisample listening remains external. Evidence and test index: docs/qa/2026-10-11-wave2-acceptance.md."
     },
     {
       "id": "inst-transistor-bass",
@@ -1780,7 +1780,7 @@
       "status": "in-progress",
       "reason": null,
       "fl_edition": "signature",
-      "notes": "QA reconciliation 2026-10-09: an implemented subset is documented in docs/qa/2026-10-09-inventory.md; full-row acceptance remains open. See docs/qa/2026-10-09-completion-audit.md and the dated domain reports for tested behavior and remaining gates."
+      "notes": "QA reconciliation 2026-10-09: an implemented subset is documented in docs/qa/2026-10-09-inventory.md; full-row acceptance remains open. See docs/qa/2026-10-09-completion-audit.md and the dated domain reports for tested behavior and remaining gates. QA 2026-10-11: EXTERNAL-ONLY: native musical listening and maximum voice/partial deadline checks on a physical audio device remain, as the hand-off requires. Distinct spectral/model/asset controls, immutable preparation, seeded noise, history/disk and live/offline PCM pass. Evidence and test index: docs/qa/2026-10-11-wave2-acceptance.md."
     },
     {
       "id": "inst-kepler",
@@ -1789,10 +1789,10 @@
       "summary": "An emulation of a classic analog polysynth.",
       "windfall_name": null,
       "phase": 5,
-      "status": "todo",
+      "status": "in-progress",
       "reason": null,
       "fl_edition": "producer",
-      "notes": "Candidate basis: Surge XT (GPL-3.0)."
+      "notes": "Candidate basis: Surge XT (GPL-3.0). QA 2026-10-11: SOFTWARE: profile maximum 16 voices/seven unison/six operators or the relevant dense graph, effects tails and first-load preparation on this machine, with declared limits. Distinct synthesis paths, measured tuning/sidebands/ring products, actual editors, append-only controls and CC0 packs pass. Native-editor vintage/macro/multisample listening remains external. Evidence and test index: docs/qa/2026-10-11-wave2-acceptance.md."
     },
     {
       "id": "inst-slicex",
@@ -1804,7 +1804,7 @@
       "status": "in-progress",
       "reason": null,
       "fl_edition": "producer",
-      "notes": "QA reconciliation 2026-10-09: an implemented subset is documented in docs/qa/2026-10-09-inventory.md; full-row acceptance remains open. See docs/qa/2026-10-09-completion-audit.md and the dated domain reports for tested behavior and remaining gates."
+      "notes": "QA reconciliation 2026-10-09: an implemented subset is documented in docs/qa/2026-10-09-inventory.md; full-row acceptance remains open. See docs/qa/2026-10-09-completion-audit.md and the dated domain reports for tested behavior and remaining gates. QA 2026-10-11: SOFTWARE: join the actual native-window import/select/detect/edit/keyboard/pattern/curve/save/reopen/undo/export workflow for this kind; mounted WASM and separate native PCM/session tests pass but do not substitute for that joined native workflow. Listening remains external; Grain Cloud also needs physical audio deadline evidence. Worker legacy-index removal/refusal was repaired: all original scalar marker/pad/curve indices remain audible and saved with explicit edit masks. PCM assets remain immutable; bounded voices/grains, no mid-note seek chase and explicit sample-bearing preset refusal are documented. Evidence and test index: docs/qa/2026-10-11-wave2-acceptance.md."
     },
     {
       "id": "inst-soundfont-player",
@@ -1828,7 +1828,7 @@
       "status": "in-progress",
       "reason": null,
       "fl_edition": "producer",
-      "notes": "Candidate basis: Dexed (GPL-3.0). QA reconciliation 2026-10-09: an implemented subset is documented in docs/qa/2026-10-09-inventory.md; full-row acceptance remains open. See docs/qa/2026-10-09-completion-audit.md and the dated domain reports for tested behavior and remaining gates."
+      "notes": "Candidate basis: Dexed (GPL-3.0). QA reconciliation 2026-10-09: an implemented subset is documented in docs/qa/2026-10-09-inventory.md; full-row acceptance remains open. See docs/qa/2026-10-09-completion-audit.md and the dated domain reports for tested behavior and remaining gates. QA 2026-10-11: SOFTWARE: profile maximum 16 voices/seven unison/six operators or the relevant dense graph, effects tails and first-load preparation on this machine, with declared limits. Distinct synthesis paths, measured tuning/sidebands/ring products, actual editors, append-only controls and CC0 packs pass. Native-editor vintage/macro/multisample listening remains external. Evidence and test index: docs/qa/2026-10-11-wave2-acceptance.md."
     },
     {
       "id": "inst-3x-osc",
@@ -1852,7 +1852,7 @@
       "status": "in-progress",
       "reason": null,
       "fl_edition": "fruity",
-      "notes": "QA reconciliation 2026-10-09: an implemented subset is documented in docs/qa/2026-10-09-inventory.md; full-row acceptance remains open. See docs/qa/2026-10-09-completion-audit.md and the dated domain reports for tested behavior and remaining gates."
+      "notes": "QA reconciliation 2026-10-09: an implemented subset is documented in docs/qa/2026-10-09-inventory.md; full-row acceptance remains open. See docs/qa/2026-10-09-completion-audit.md and the dated domain reports for tested behavior and remaining gates. QA 2026-10-11: EXTERNAL-ONLY: native musical listening and maximum voice/partial deadline checks on a physical audio device remain, as the hand-off requires. Distinct spectral/model/asset controls, immutable preparation, seeded noise, history/disk and live/offline PCM pass. Evidence and test index: docs/qa/2026-10-11-wave2-acceptance.md."
     },
     {
       "id": "inst-bassdrum",
@@ -1861,10 +1861,10 @@
       "summary": "A kick drum synth with an optional sample layer.",
       "windfall_name": null,
       "phase": 5,
-      "status": "todo",
+      "status": "in-progress",
       "reason": null,
       "fl_edition": "fruity",
-      "notes": null
+      "notes": "QA 2026-10-11: EXTERNAL-ONLY: native musical listening and maximum voice/partial deadline checks on a physical audio device remain, as the hand-off requires. Distinct spectral/model/asset controls, immutable preparation, seeded noise, history/disk and live/offline PCM pass. Evidence and test index: docs/qa/2026-10-11-wave2-acceptance.md."
     },
     {
       "id": "inst-beepmap",
@@ -1876,7 +1876,7 @@
       "status": "in-progress",
       "reason": null,
       "fl_edition": "fruity",
-      "notes": "QA reconciliation 2026-10-09: an implemented subset is documented in docs/qa/2026-10-09-inventory.md; full-row acceptance remains open. See docs/qa/2026-10-09-completion-audit.md and the dated domain reports for tested behavior and remaining gates."
+      "notes": "QA reconciliation 2026-10-09: an implemented subset is documented in docs/qa/2026-10-09-inventory.md; full-row acceptance remains open. See docs/qa/2026-10-09-completion-audit.md and the dated domain reports for tested behavior and remaining gates. QA 2026-10-11: EXTERNAL-ONLY: native musical listening and maximum voice/partial deadline checks on a physical audio device remain, as the hand-off requires. Distinct spectral/model/asset controls, immutable preparation, seeded noise, history/disk and live/offline PCM pass. Images resize to a documented 256×64 spectral grid. Evidence and test index: docs/qa/2026-10-11-wave2-acceptance.md."
     },
     {
       "id": "inst-boobass",
@@ -1888,7 +1888,7 @@
       "status": "in-progress",
       "reason": null,
       "fl_edition": "fruity",
-      "notes": "QA reconciliation 2026-10-09: an implemented subset is documented in docs/qa/2026-10-09-inventory.md; full-row acceptance remains open. See docs/qa/2026-10-09-completion-audit.md and the dated domain reports for tested behavior and remaining gates."
+      "notes": "QA reconciliation 2026-10-09: an implemented subset is documented in docs/qa/2026-10-09-inventory.md; full-row acceptance remains open. See docs/qa/2026-10-09-completion-audit.md and the dated domain reports for tested behavior and remaining gates. QA 2026-10-11: EXTERNAL-ONLY: native musical listening and maximum voice/partial deadline checks on a physical audio device remain, as the hand-off requires. Distinct spectral/model/asset controls, immutable preparation, seeded noise, history/disk and live/offline PCM pass. Finger Bass is monophonic; its corrected endpoint-difference retrigger passes continuity rather than summing endpoints. Evidence and test index: docs/qa/2026-10-11-wave2-acceptance.md."
     },
     {
       "id": "inst-channel-sampler",
@@ -1924,7 +1924,7 @@
       "status": "in-progress",
       "reason": null,
       "fl_edition": "fruity",
-      "notes": "QA reconciliation 2026-10-09: an implemented subset is documented in docs/qa/2026-10-09-inventory.md; full-row acceptance remains open. See docs/qa/2026-10-09-completion-audit.md and the dated domain reports for tested behavior and remaining gates."
+      "notes": "QA reconciliation 2026-10-09: an implemented subset is documented in docs/qa/2026-10-09-inventory.md; full-row acceptance remains open. See docs/qa/2026-10-09-completion-audit.md and the dated domain reports for tested behavior and remaining gates. QA 2026-10-11: EXTERNAL-ONLY: native musical listening and maximum voice/partial deadline checks on a physical audio device remain, as the hand-off requires. Distinct spectral/model/asset controls, immutable preparation, seeded noise, history/disk and live/offline PCM pass. Evidence and test index: docs/qa/2026-10-11-wave2-acceptance.md."
     },
     {
       "id": "inst-flex",
@@ -1933,10 +1933,10 @@
       "summary": "A preset-driven synth with macro controls, built on subtractive, wavetable, multisample and FM engines.",
       "windfall_name": null,
       "phase": 5,
-      "status": "todo",
+      "status": "in-progress",
       "reason": null,
       "fl_edition": "fruity",
-      "notes": "Its preset packs are Image-Line content; a Windfall equivalent needs its own. Candidate basis: Vital or Surge XT (GPL-3.0)."
+      "notes": "Its preset packs are Image-Line content; a Windfall equivalent needs its own. Candidate basis: Vital or Surge XT (GPL-3.0). QA 2026-10-11: SOFTWARE: profile maximum 16 voices/seven unison/six operators or the relevant dense graph, effects tails and first-load preparation on this machine, with declared limits. Distinct synthesis paths, measured tuning/sidebands/ring products, actual editors, append-only controls and CC0 packs pass. Native-editor vintage/macro/multisample listening remains external. Evidence and test index: docs/qa/2026-10-11-wave2-acceptance.md."
     },
     {
       "id": "inst-fruity-drumsynth-live",
@@ -1948,7 +1948,7 @@
       "status": "in-progress",
       "reason": null,
       "fl_edition": "fruity",
-      "notes": "QA reconciliation 2026-10-09: an implemented subset is documented in docs/qa/2026-10-09-inventory.md; full-row acceptance remains open. See docs/qa/2026-10-09-completion-audit.md and the dated domain reports for tested behavior and remaining gates."
+      "notes": "QA reconciliation 2026-10-09: an implemented subset is documented in docs/qa/2026-10-09-inventory.md; full-row acceptance remains open. See docs/qa/2026-10-09-completion-audit.md and the dated domain reports for tested behavior and remaining gates. QA 2026-10-11: EXTERNAL-ONLY: native musical listening and maximum voice/partial deadline checks on a physical audio device remain, as the hand-off requires. Distinct spectral/model/asset controls, immutable preparation, seeded noise, history/disk and live/offline PCM pass. Evidence and test index: docs/qa/2026-10-11-wave2-acceptance.md."
     },
     {
       "id": "inst-fruity-dx10",
@@ -1972,7 +1972,7 @@
       "status": "in-progress",
       "reason": null,
       "fl_edition": "fruity",
-      "notes": "QA reconciliation 2026-10-09: an implemented subset is documented in docs/qa/2026-10-09-inventory.md; full-row acceptance remains open. See docs/qa/2026-10-09-completion-audit.md and the dated domain reports for tested behavior and remaining gates."
+      "notes": "QA reconciliation 2026-10-09: an implemented subset is documented in docs/qa/2026-10-09-inventory.md; full-row acceptance remains open. See docs/qa/2026-10-09-completion-audit.md and the dated domain reports for tested behavior and remaining gates. QA 2026-10-11: SOFTWARE: join the actual native-window import/select/detect/edit/keyboard/pattern/curve/save/reopen/undo/export workflow for this kind; mounted WASM and separate native PCM/session tests pass but do not substitute for that joined native workflow. Listening remains external; Grain Cloud also needs physical audio deadline evidence. Worker legacy-index removal/refusal was repaired: all original scalar marker/pad/curve indices remain audible and saved with explicit edit masks. PCM assets remain immutable; bounded voices/grains, no mid-note seek chase and explicit sample-bearing preset refusal are documented. Evidence and test index: docs/qa/2026-10-11-wave2-acceptance.md."
     },
     {
       "id": "inst-fruity-kick",
@@ -2008,7 +2008,7 @@
       "status": "in-progress",
       "reason": null,
       "fl_edition": "fruity",
-      "notes": "May share one Windfall plugin with the phase-3 slicer. QA reconciliation 2026-10-09: an implemented subset is documented in docs/qa/2026-10-09-inventory.md; full-row acceptance remains open. See docs/qa/2026-10-09-completion-audit.md and the dated domain reports for tested behavior and remaining gates."
+      "notes": "May share one Windfall plugin with the phase-3 slicer. QA reconciliation 2026-10-09: an implemented subset is documented in docs/qa/2026-10-09-inventory.md; full-row acceptance remains open. See docs/qa/2026-10-09-completion-audit.md and the dated domain reports for tested behavior and remaining gates. QA 2026-10-11: SOFTWARE: join the actual native-window import/select/detect/edit/keyboard/pattern/curve/save/reopen/undo/export workflow for this kind; mounted WASM and separate native PCM/session tests pass but do not substitute for that joined native workflow. Listening remains external; Grain Cloud also needs physical audio deadline evidence. Worker legacy-index removal/refusal was repaired: all original scalar marker/pad/curve indices remain audible and saved with explicit edit masks. PCM assets remain immutable; bounded voices/grains, no mid-note seek chase and explicit sample-bearing preset refusal are documented. Evidence and test index: docs/qa/2026-10-11-wave2-acceptance.md."
     },
     {
       "id": "inst-fruity-slicer-2",
@@ -2020,7 +2020,7 @@
       "status": "in-progress",
       "reason": null,
       "fl_edition": "fruity",
-      "notes": "Shared Rust grid/transient analysis and reviewed linked-source playlist slices provide the detector foundation. Independent note triggering, playable slice mapping and a slicer instrument remain pending. Fades, spectral stretch, swing and tempo-automated projects are explicitly refused. See docs/SLICER.md."
+      "notes": "Shared Rust grid/transient analysis and reviewed linked-source playlist slices provide the detector foundation. Independent note triggering, playable slice mapping and a slicer instrument remain pending. Fades, spectral stretch, swing and tempo-automated projects are explicitly refused. See docs/SLICER.md. QA 2026-10-11: SOFTWARE: join the actual native-window import/select/detect/edit/keyboard/pattern/curve/save/reopen/undo/export workflow for this kind; mounted WASM and separate native PCM/session tests pass but do not substitute for that joined native workflow. Listening remains external; Grain Cloud also needs physical audio deadline evidence. Worker legacy-index removal/refusal was repaired: all original scalar marker/pad/curve indices remain audible and saved with explicit edit masks. PCM assets remain immutable; bounded voices/grains, no mid-note seek chase and explicit sample-bearing preset refusal are documented. Evidence and test index: docs/qa/2026-10-11-wave2-acceptance.md."
     },
     {
       "id": "inst-gms",
@@ -2029,10 +2029,10 @@
       "summary": "A hybrid synth and effects channel taken from a groove-box instrument.",
       "windfall_name": null,
       "phase": 5,
-      "status": "todo",
+      "status": "in-progress",
       "reason": null,
       "fl_edition": "fruity",
-      "notes": "The manual names it Groove Machine Synth."
+      "notes": "The manual names it Groove Machine Synth. QA 2026-10-11: SOFTWARE: profile maximum 16 voices/seven unison/six operators or the relevant dense graph, effects tails and first-load preparation on this machine, with declared limits. Distinct synthesis paths, measured tuning/sidebands/ring products, actual editors, append-only controls and CC0 packs pass. Native-editor vintage/macro/multisample listening remains external. Evidence and test index: docs/qa/2026-10-11-wave2-acceptance.md."
     },
     {
       "id": "inst-minisynth",
@@ -2041,10 +2041,10 @@
       "summary": "A light subtractive synth laid out in tabs, originally from the mobile app.",
       "windfall_name": null,
       "phase": 5,
-      "status": "todo",
+      "status": "in-progress",
       "reason": null,
       "fl_edition": "fruity",
-      "notes": "Candidate basis: Surge XT (GPL-3.0)."
+      "notes": "Candidate basis: Surge XT (GPL-3.0). QA 2026-10-11: SOFTWARE: profile maximum 16 voices/seven unison/six operators or the relevant dense graph, effects tails and first-load preparation on this machine, with declared limits. Distinct synthesis paths, measured tuning/sidebands/ring products, actual editors, append-only controls and CC0 packs pass. Native-editor vintage/macro/multisample listening remains external. Evidence and test index: docs/qa/2026-10-11-wave2-acceptance.md."
     },
     {
       "id": "inst-plucked",
@@ -2092,7 +2092,7 @@
       "status": "in-progress",
       "reason": null,
       "fl_edition": "fruity",
-      "notes": "QA reconciliation 2026-10-09: an implemented subset is documented in docs/qa/2026-10-09-inventory.md; full-row acceptance remains open. See docs/qa/2026-10-09-completion-audit.md and the dated domain reports for tested behavior and remaining gates."
+      "notes": "QA reconciliation 2026-10-09: an implemented subset is documented in docs/qa/2026-10-09-inventory.md; full-row acceptance remains open. See docs/qa/2026-10-09-completion-audit.md and the dated domain reports for tested behavior and remaining gates. QA 2026-10-11: SOFTWARE: join the actual native-window import/select/detect/edit/keyboard/pattern/curve/save/reopen/undo/export workflow for this kind; mounted WASM and separate native PCM/session tests pass but do not substitute for that joined native workflow. Listening remains external; Grain Cloud also needs physical audio deadline evidence. Worker legacy-index removal/refusal was repaired: all original scalar marker/pad/curve indices remain audible and saved with explicit edit masks. PCM assets remain immutable; bounded voices/grains, no mid-note seek chase and explicit sample-bearing preset refusal are documented. Evidence and test index: docs/qa/2026-10-11-wave2-acceptance.md."
     },
     {
       "id": "inst-fl-keys",
@@ -2140,7 +2140,7 @@
       "status": "done",
       "reason": null,
       "fl_edition": "all-plugins",
-      "notes": "New in FL Studio 2026. QA reconciliation 2026-10-09: an implemented subset is documented in docs/qa/2026-10-09-inventory.md; full-row acceptance remains open. See docs/qa/2026-10-09-completion-audit.md and the dated domain reports for tested behavior and remaining gates. Verified by QA 2026-10-11: full native and frontend suites pass on the merged tree; no summary or design gate remains. Evidence: docs/qa/2026-10-11-wave1-acceptance.md."
+      "notes": "New in FL Studio 2026. QA reconciliation 2026-10-09: an implemented subset is documented in docs/qa/2026-10-09-inventory.md; full-row acceptance remains open. See docs/qa/2026-10-09-completion-audit.md and the dated domain reports for tested behavior and remaining gates. Verified by Verified by QA 2026-10-11: full native and frontend suites pass on the merged tree; no summary or design gate remains. Evidence: docs/qa/2026-10-11-wave1-acceptance.md."
     },
     {
       "id": "fx-luxeverb",
@@ -2149,10 +2149,10 @@
       "summary": "An algorithmic reverb covering realistic rooms through to pitch-shifted, modulated spaces.",
       "windfall_name": null,
       "phase": 5,
-      "status": "todo",
+      "status": "done",
       "reason": null,
       "fl_edition": "all-plugins",
-      "notes": null
+      "notes": "Software complete, QA 2026-10-11: built and passing in the full suites on this machine. External checks outstanding: roadmap section 9 phase-5 human musical listening remains. Independent timing/notch/comb/pitch references, persistence, automation, live/offline, continuity, mounted controls and allocator cases pass. Original CC0 family examples are in docs/examples/e3; proprietary sound identity is not claimed. Evidence: docs/qa/2026-10-11-wave2-acceptance.md."
     },
     {
       "id": "fx-pitch-shifter",
@@ -2164,7 +2164,7 @@
       "status": "in-progress",
       "reason": null,
       "fl_edition": "all-plugins",
-      "notes": "Candidate basis: Signalsmith Stretch (MIT). QA reconciliation 2026-10-09: an implemented subset is documented in docs/qa/2026-10-09-inventory.md; full-row acceptance remains open. See docs/qa/2026-10-09-completion-audit.md and the dated domain reports for tested behavior and remaining gates."
+      "notes": "Candidate basis: Signalsmith Stretch (MIT). QA reconciliation 2026-10-09: an implemented subset is documented in docs/qa/2026-10-09-inventory.md; full-row acceptance remains open. See docs/qa/2026-10-09-completion-audit.md and the dated domain reports for tested behavior and remaining gates. QA 2026-10-11: SOFTWARE: widen measured cent/formant accuracy coverage beyond the current 375 Hz octave probe to non-period-aligned fundamentals, both voice/mix modes and supported rates; establish CPU budget on representative vocal/mix material. Current independent centroid/reference and fixed latency pass; vocal listening remains external. Evidence and test index: docs/qa/2026-10-11-wave2-acceptance.md."
     },
     {
       "id": "fx-transient-processor",
@@ -2176,7 +2176,7 @@
       "status": "in-progress",
       "reason": null,
       "fl_edition": "all-plugins",
-      "notes": "QA reconciliation 2026-10-09: an implemented subset is documented in docs/qa/2026-10-09-inventory.md; full-row acceptance remains open. See docs/qa/2026-10-09-completion-audit.md and the dated domain reports for tested behavior and remaining gates."
+      "notes": "QA reconciliation 2026-10-09: an implemented subset is documented in docs/qa/2026-10-09-inventory.md; full-row acceptance remains open. See docs/qa/2026-10-09-completion-audit.md and the dated domain reports for tested behavior and remaining gates. QA 2026-10-11: SOFTWARE: provide named original, licensed example patches/projects and a load/save round-trip for the E2 family example-content gate; measured test programmes alone are not a user-loadable example library. Physical-output/listening and other-OS runtime checks from the hand-off also remain. Software processor/reference, automation, PDC, live/export and mounted-control gates pass. Evidence and test index: docs/qa/2026-10-11-wave2-acceptance.md."
     },
     {
       "id": "fx-emphasis",
@@ -2185,10 +2185,10 @@
       "summary": "A multi-stage mastering limiter that raises loudness while keeping dynamics and tonal balance.",
       "windfall_name": null,
       "phase": 5,
-      "status": "todo",
+      "status": "in-progress",
       "reason": null,
       "fl_edition": "all-plugins",
-      "notes": null
+      "notes": "QA 2026-10-11: SOFTWARE: provide named original, licensed example patches/projects and a load/save round-trip for the E2 family example-content gate; measured test programmes alone are not a user-loadable example library. Physical-output/listening and other-OS runtime checks from the hand-off also remain. Software processor/reference, automation, PDC, live/export and mounted-control gates pass. Evidence and test index: docs/qa/2026-10-11-wave2-acceptance.md."
     },
     {
       "id": "fx-transporter",
@@ -2200,7 +2200,7 @@
       "status": "in-progress",
       "reason": null,
       "fl_edition": "all-plugins",
-      "notes": "QA reconciliation 2026-10-09: an implemented subset is documented in docs/qa/2026-10-09-inventory.md; full-row acceptance remains open. See docs/qa/2026-10-09-completion-audit.md and the dated domain reports for tested behavior and remaining gates."
+      "notes": "QA reconciliation 2026-10-09: an implemented subset is documented in docs/qa/2026-10-09-inventory.md; full-row acceptance remains open. See docs/qa/2026-10-09-completion-audit.md and the dated domain reports for tested behavior and remaining gates. QA 2026-10-11: SOFTWARE: measure maximum-rate reset/capture callback time against a budget and detector behavior on representative musical transients. Constant-time onset bookkeeping and synthetic thresholds pass; physical MIDI/listening remain external. Evidence and test index: docs/qa/2026-10-11-wave2-acceptance.md."
     },
     {
       "id": "fx-gross-beat",
@@ -2212,7 +2212,7 @@
       "status": "in-progress",
       "reason": null,
       "fl_edition": "signature",
-      "notes": "QA reconciliation 2026-10-09: an implemented subset is documented in docs/qa/2026-10-09-inventory.md; full-row acceptance remains open. See docs/qa/2026-10-09-completion-audit.md and the dated domain reports for tested behavior and remaining gates."
+      "notes": "QA reconciliation 2026-10-09: an implemented subset is documented in docs/qa/2026-10-09-inventory.md; full-row acceptance remains open. See docs/qa/2026-10-09-completion-audit.md and the dated domain reports for tested behavior and remaining gates. QA 2026-10-11: SOFTWARE: add safe curve-store reclamation at project replacement/history release. Corrected sample-exact host trigger/wrap/release and phase restoration pass. Real MIDI pad timing/hotplug and musical listening remain external. Evidence and test index: docs/qa/2026-10-11-wave2-acceptance.md."
     },
     {
       "id": "fx-hardcore-11-guitar-fx",
@@ -2224,7 +2224,7 @@
       "status": "in-progress",
       "reason": null,
       "fl_edition": "signature",
-      "notes": "QA reconciliation 2026-10-09: an implemented subset is documented in docs/qa/2026-10-09-inventory.md; full-row acceptance remains open. See docs/qa/2026-10-09-completion-audit.md and the dated domain reports for tested behavior and remaining gates."
+      "notes": "QA reconciliation 2026-10-09: an implemented subset is documented in docs/qa/2026-10-09-inventory.md; full-row acceptance remains open. See docs/qa/2026-10-09-completion-audit.md and the dated domain reports for tested behavior and remaining gates. QA 2026-10-11: SOFTWARE: profile all eleven pedals plus cabinet at maximum quality/rate and set a CPU budget. Distinct pedal behavior, cabinet provenance, alias/headroom and exact native capture pass; listening remains external. Evidence and test index: docs/qa/2026-10-11-wave2-acceptance.md."
     },
     {
       "id": "fx-low-lifter",
@@ -2236,7 +2236,7 @@
       "status": "in-progress",
       "reason": null,
       "fl_edition": "signature",
-      "notes": "QA reconciliation 2026-10-09: an implemented subset is documented in docs/qa/2026-10-09-inventory.md; full-row acceptance remains open. See docs/qa/2026-10-09-completion-audit.md and the dated domain reports for tested behavior and remaining gates."
+      "notes": "QA reconciliation 2026-10-09: an implemented subset is documented in docs/qa/2026-10-09-inventory.md; full-row acceptance remains open. See docs/qa/2026-10-09-completion-audit.md and the dated domain reports for tested behavior and remaining gates. QA 2026-10-11: SOFTWARE: provide named original, licensed example patches/projects and a load/save round-trip for the E2 family example-content gate; measured test programmes alone are not a user-loadable example library. Physical-output/listening and other-OS runtime checks from the hand-off also remain. Software processor/reference, automation, PDC, live/export and mounted-control gates pass. Dry LR4 recombination has allpass phase, checked independently; it is not phase-transparent bypass. Evidence and test index: docs/qa/2026-10-11-wave2-acceptance.md."
     },
     {
       "id": "fx-pitcher",
@@ -2248,7 +2248,7 @@
       "status": "in-progress",
       "reason": null,
       "fl_edition": "signature",
-      "notes": "Needs real-time pitch detection. QA reconciliation 2026-10-09: an implemented subset is documented in docs/qa/2026-10-09-inventory.md; full-row acceptance remains open. See docs/qa/2026-10-09-completion-audit.md and the dated domain reports for tested behavior and remaining gates."
+      "notes": "Needs real-time pitch detection. QA reconciliation 2026-10-09: an implemented subset is documented in docs/qa/2026-10-09-inventory.md; full-row acceptance remains open. See docs/qa/2026-10-09-completion-audit.md and the dated domain reports for tested behavior and remaining gates. QA 2026-10-11: SOFTWARE: measure correction and four-harmony cents over the declared 60–1000 Hz range at all supported rates, including low fundamentals where even-period span is capped; measure callback cost. Fixed latency, antiphase detection, unchanged measured C5 harmony projection, short MIDI edges/release and native capture pass. Human vocal/hardware review remains external. Evidence and test index: docs/qa/2026-10-11-wave2-acceptance.md."
     },
     {
       "id": "fx-vintage-chorus",
@@ -2257,10 +2257,10 @@
       "summary": "A chorus modeled on the one built into a classic analog polysynth.",
       "windfall_name": null,
       "phase": 5,
-      "status": "in-progress",
+      "status": "done",
       "reason": null,
       "fl_edition": "signature",
-      "notes": "QA reconciliation 2026-10-09: an implemented subset is documented in docs/qa/2026-10-09-inventory.md; full-row acceptance remains open. See docs/qa/2026-10-09-completion-audit.md and the dated domain reports for tested behavior and remaining gates."
+      "notes": "QA reconciliation 2026-10-09: an implemented subset is documented in docs/qa/2026-10-09-inventory.md; full-row acceptance remains open. See docs/qa/2026-10-09-completion-audit.md and the dated domain reports for tested behavior and remaining gates. Software complete, QA 2026-10-11: built and passing in the full suites on this machine. External checks outstanding: roadmap section 9 phase-5 human musical listening remains. Independent timing/notch/comb/pitch references, persistence, automation, live/offline, continuity, mounted controls and allocator cases pass. Original CC0 family examples are in docs/examples/e3; proprietary sound identity is not claimed. Evidence: docs/qa/2026-10-11-wave2-acceptance.md."
     },
     {
       "id": "fx-vintage-phaser",
@@ -2269,10 +2269,10 @@
       "summary": "A phaser modeled on a classic analog pedal.",
       "windfall_name": null,
       "phase": 5,
-      "status": "in-progress",
+      "status": "done",
       "reason": null,
       "fl_edition": "signature",
-      "notes": "QA reconciliation 2026-10-09: an implemented subset is documented in docs/qa/2026-10-09-inventory.md; full-row acceptance remains open. See docs/qa/2026-10-09-completion-audit.md and the dated domain reports for tested behavior and remaining gates."
+      "notes": "QA reconciliation 2026-10-09: an implemented subset is documented in docs/qa/2026-10-09-inventory.md; full-row acceptance remains open. See docs/qa/2026-10-09-completion-audit.md and the dated domain reports for tested behavior and remaining gates. Software complete, QA 2026-10-11: built and passing in the full suites on this machine. External checks outstanding: roadmap section 9 phase-5 human musical listening remains. Independent timing/notch/comb/pitch references, persistence, automation, live/offline, continuity, mounted controls and allocator cases pass. Original CC0 family examples are in docs/examples/e3; proprietary sound identity is not claimed. Evidence: docs/qa/2026-10-11-wave2-acceptance.md."
     },
     {
       "id": "fx-frequency-shifter",
@@ -2281,10 +2281,10 @@
       "summary": "Moves every frequency by a fixed amount in hertz, giving metallic and inharmonic tones.",
       "windfall_name": null,
       "phase": 5,
-      "status": "in-progress",
+      "status": "done",
       "reason": null,
       "fl_edition": "producer",
-      "notes": "QA reconciliation 2026-10-09: an implemented subset is documented in docs/qa/2026-10-09-inventory.md; full-row acceptance remains open. See docs/qa/2026-10-09-completion-audit.md and the dated domain reports for tested behavior and remaining gates."
+      "notes": "QA reconciliation 2026-10-09: an implemented subset is documented in docs/qa/2026-10-09-inventory.md; full-row acceptance remains open. See docs/qa/2026-10-09-completion-audit.md and the dated domain reports for tested behavior and remaining gates. Software complete, QA 2026-10-11: built and passing in the full suites on this machine. External checks outstanding: musical listening near DC/Nyquist and for out-of-band shifts remains. Additive-Hz translation, image rejection, stereo balance and 127-frame latency pass; finite Hilbert-kernel limits are documented. Evidence: docs/qa/2026-10-11-wave2-acceptance.md."
     },
     {
       "id": "fx-hyper-chorus",
@@ -2293,10 +2293,10 @@
       "summary": "An extreme multi-voice chorus for supersaw-style thickening.",
       "windfall_name": null,
       "phase": 5,
-      "status": "in-progress",
+      "status": "done",
       "reason": null,
       "fl_edition": "producer",
-      "notes": "QA reconciliation 2026-10-09: an implemented subset is documented in docs/qa/2026-10-09-inventory.md; full-row acceptance remains open. See docs/qa/2026-10-09-completion-audit.md and the dated domain reports for tested behavior and remaining gates."
+      "notes": "QA reconciliation 2026-10-09: an implemented subset is documented in docs/qa/2026-10-09-inventory.md; full-row acceptance remains open. See docs/qa/2026-10-09-completion-audit.md and the dated domain reports for tested behavior and remaining gates. Software complete, QA 2026-10-11: built and passing in the full suites on this machine. External checks outstanding: roadmap section 9 phase-5 human musical listening remains. Independent timing/notch/comb/pitch references, persistence, automation, live/offline, continuity, mounted controls and allocator cases pass. Original CC0 family examples are in docs/examples/e3; proprietary sound identity is not claimed. Evidence: docs/qa/2026-10-11-wave2-acceptance.md."
     },
     {
       "id": "fx-maximus",
@@ -2308,7 +2308,7 @@
       "status": "in-progress",
       "reason": null,
       "fl_edition": "producer",
-      "notes": "QA reconciliation 2026-10-09: an implemented subset is documented in docs/qa/2026-10-09-inventory.md; full-row acceptance remains open. See docs/qa/2026-10-09-completion-audit.md and the dated domain reports for tested behavior and remaining gates."
+      "notes": "QA reconciliation 2026-10-09: an implemented subset is documented in docs/qa/2026-10-09-inventory.md; full-row acceptance remains open. See docs/qa/2026-10-09-completion-audit.md and the dated domain reports for tested behavior and remaining gates. QA 2026-10-11: SOFTWARE: provide named original, licensed example patches/projects and a load/save round-trip for the E2 family example-content gate; measured test programmes alone are not a user-loadable example library. Physical-output/listening and other-OS runtime checks from the hand-off also remain. Software processor/reference, automation, PDC, live/export and mounted-control gates pass. Evidence and test index: docs/qa/2026-10-11-wave2-acceptance.md."
     },
     {
       "id": "fx-multiband-delay",
@@ -2320,7 +2320,7 @@
       "status": "in-progress",
       "reason": null,
       "fl_edition": "producer",
-      "notes": "QA 2026-10-09: registered FrequencyDelay has sixteen independent delay/level/pan bands; measured DSP and public native integration verified. Dedicated drawn sixteen-band editor, fallible host admission and saturating aggregate-tail acceptance remain open under DELAY-FAMILY.md. This is distinct from the three-band BandDelay. See docs/qa/2026-10-09-delay-bank.md."
+      "notes": "QA 2026-10-09: registered FrequencyDelay has sixteen independent delay/level/pan bands; measured DSP and public native integration verified. Dedicated drawn sixteen-band editor, fallible host admission and saturating aggregate-tail acceptance remain open under DELAY-FAMILY.md. This is distinct from the three-band BandDelay. See docs/qa/2026-10-09-delay-bank.md. QA 2026-10-11: SOFTWARE: account for installed/fading/retiring echo-history owners in a shared retained/peak admission budget before preparing replacement plans, with refusal preserving old PCM. DELAY-FAMILY explicitly requires charging those owners; current HistoryAdmission.of excludes leaving effects and limits one candidate plan. Saturating tails, candidate 1 GiB refusal, fallible preparation and eight/sixteen independent controls pass. Oversampling/granulation or curve snapshots are outside this row summary. Evidence and test index: docs/qa/2026-10-11-wave2-acceptance.md."
     },
     {
       "id": "fx-spreader",
@@ -2332,7 +2332,7 @@
       "status": "in-progress",
       "reason": null,
       "fl_edition": "producer",
-      "notes": "QA reconciliation 2026-10-09: an implemented subset is documented in docs/qa/2026-10-09-inventory.md; full-row acceptance remains open. See docs/qa/2026-10-09-completion-audit.md and the dated domain reports for tested behavior and remaining gates."
+      "notes": "QA reconciliation 2026-10-09: an implemented subset is documented in docs/qa/2026-10-09-inventory.md; full-row acceptance remains open. See docs/qa/2026-10-09-completion-audit.md and the dated domain reports for tested behavior and remaining gates. QA 2026-10-11: SOFTWARE: record target-machine CPU measurements required by E1, including active/extreme settings and a declared budget; allocation-free operation alone does not measure time. Hardware/listening review is also unrun. Evidence and test index: docs/qa/2026-10-11-wave2-acceptance.md."
     },
     {
       "id": "fx-vocodex",
@@ -2341,10 +2341,10 @@
       "summary": "A many-band vocoder with a built-in carrier synth.",
       "windfall_name": null,
       "phase": 5,
-      "status": "in-progress",
+      "status": "done",
       "reason": null,
       "fl_edition": "producer",
-      "notes": "QA reconciliation 2026-10-09: an implemented subset is documented in docs/qa/2026-10-09-inventory.md; full-row acceptance remains open. See docs/qa/2026-10-09-completion-audit.md and the dated domain reports for tested behavior and remaining gates."
+      "notes": "QA reconciliation 2026-10-09: an implemented subset is documented in docs/qa/2026-10-09-inventory.md; full-row acceptance remains open. See docs/qa/2026-10-09-completion-audit.md and the dated domain reports for tested behavior and remaining gates. Software complete, QA 2026-10-11: built and passing in the full suites on this machine. External checks outstanding: listening to voiced modulation and physical input/key disconnect/reconnect remain. Detailed 32-band mode, actual built-in carrier, independent modulator envelopes, stereo balance, zero transport latency and real mixer-key capture pass. Evidence: docs/qa/2026-10-11-wave2-acceptance.md."
     },
     {
       "id": "fx-control-surface",
@@ -2368,7 +2368,7 @@
       "status": "in-progress",
       "reason": null,
       "fl_edition": "fruity",
-      "notes": "QA reconciliation 2026-10-09: an implemented subset is documented in docs/qa/2026-10-09-inventory.md; full-row acceptance remains open. See docs/qa/2026-10-09-completion-audit.md and the dated domain reports for tested behavior and remaining gates."
+      "notes": "QA reconciliation 2026-10-09: an implemented subset is documented in docs/qa/2026-10-09-inventory.md; full-row acceptance remains open. See docs/qa/2026-10-09-completion-audit.md and the dated domain reports for tested behavior and remaining gates. QA 2026-10-11: SOFTWARE: profile the maximum modular distortion/filter/chorus/cabinet graph and declare E4 CPU limits. Actual separate modules/order and measured alias/headroom pass; listening remains external. Evidence and test index: docs/qa/2026-10-11-wave2-acceptance.md."
     },
     {
       "id": "fx-effector-12-fx",
@@ -2380,7 +2380,7 @@
       "status": "in-progress",
       "reason": null,
       "fl_edition": "fruity",
-      "notes": "QA reconciliation 2026-10-09: an implemented subset is documented in docs/qa/2026-10-09-inventory.md; full-row acceptance remains open. See docs/qa/2026-10-09-completion-audit.md and the dated domain reports for tested behavior and remaining gates."
+      "notes": "QA reconciliation 2026-10-09: an implemented subset is documented in docs/qa/2026-10-09-inventory.md; full-row acceptance remains open. See docs/qa/2026-10-09-completion-audit.md and the dated domain reports for tested behavior and remaining gates. QA 2026-10-11: SOFTWARE: measure all twelve models at maximum rate/block/reset conditions and declare a callback time budget; allocation-free storage is not a time measurement. Both XY axes, grouped history, captured-loop latency and exact host partitions pass. Musical listening remains external; buffered speed/pitch paths do not promise duration-preserving formants. Evidence and test index: docs/qa/2026-10-11-wave2-acceptance.md."
     },
     {
       "id": "fx-equo",
@@ -2389,10 +2389,10 @@
       "summary": "A graphic equalizer that can morph between stored curve shapes.",
       "windfall_name": null,
       "phase": 5,
-      "status": "todo",
+      "status": "in-progress",
       "reason": null,
       "fl_edition": "fruity",
-      "notes": null
+      "notes": "QA 2026-10-11: SOFTWARE: record target-machine CPU measurements required by E1, including active/extreme settings and a declared budget; allocation-free operation alone does not measure time. Hardware/listening review is also unrun. Snapshot settings morph; audio analysis/capture and per-band sends are outside this summary. Evidence and test index: docs/qa/2026-10-11-wave2-acceptance.md."
     },
     {
       "id": "fx-frequency-splitter",
@@ -2404,7 +2404,7 @@
       "status": "in-progress",
       "reason": null,
       "fl_edition": "fruity",
-      "notes": "QA reconciliation 2026-10-09: an implemented subset is documented in docs/qa/2026-10-09-inventory.md; full-row acceptance remains open. See docs/qa/2026-10-09-completion-audit.md and the dated domain reports for tested behavior and remaining gates."
+      "notes": "QA reconciliation 2026-10-09: an implemented subset is documented in docs/qa/2026-10-09-inventory.md; full-row acceptance remains open. See docs/qa/2026-10-09-completion-audit.md and the dated domain reports for tested behavior and remaining gates. QA 2026-10-11: SOFTWARE: record target-machine CPU measurements required by E1, including active/extreme settings and a declared budget; allocation-free operation alone does not measure time. Hardware/listening review is also unrun. Evidence and test index: docs/qa/2026-10-11-wave2-acceptance.md."
     },
     {
       "id": "fx-fruity-balance",
@@ -2428,7 +2428,7 @@
       "status": "in-progress",
       "reason": null,
       "fl_edition": "fruity",
-      "notes": "QA reconciliation 2026-10-09: an implemented subset is documented in docs/qa/2026-10-09-inventory.md; full-row acceptance remains open. See docs/qa/2026-10-09-completion-audit.md and the dated domain reports for tested behavior and remaining gates."
+      "notes": "QA reconciliation 2026-10-09: an implemented subset is documented in docs/qa/2026-10-09-inventory.md; full-row acceptance remains open. See docs/qa/2026-10-09-completion-audit.md and the dated domain reports for tested behavior and remaining gates. QA 2026-10-11: SOFTWARE: measure maximum-quality CPU cost and declare an E4 budget; measured transfer, headroom and alias rejection already pass. Listening remains external. Evidence and test index: docs/qa/2026-10-11-wave2-acceptance.md."
     },
     {
       "id": "fx-fruity-chorus",
@@ -2464,7 +2464,7 @@
       "status": "in-progress",
       "reason": null,
       "fl_edition": "fruity",
-      "notes": "Impulse responses shipped with FL are Image-Line content; needs own. QA reconciliation 2026-10-09: an implemented subset is documented in docs/qa/2026-10-09-inventory.md; full-row acceptance remains open. See docs/qa/2026-10-09-completion-audit.md and the dated domain reports for tested behavior and remaining gates."
+      "notes": "Impulse responses shipped with FL are Image-Line content; needs own. QA reconciliation 2026-10-09: an implemented subset is documented in docs/qa/2026-10-09-inventory.md; full-row acceptance remains open. See docs/qa/2026-10-09-completion-audit.md and the dated domain reports for tested behavior and remaining gates. QA 2026-10-11: SOFTWARE: join actual native Session IR command publication/repeated replacement, save/reopen and host-rate-expanded refusal to document/history preservation and the mounted import workflow. Engine-controller refusal/FIR/PDC, project assets and portable preset tests already pass. Imported/lower-rate IR listening remains external; linear resampling is a documented quality limit. Evidence and test index: docs/qa/2026-10-11-wave2-acceptance.md."
     },
     {
       "id": "fx-fruity-delay-2",
@@ -2500,7 +2500,7 @@
       "status": "in-progress",
       "reason": null,
       "fl_edition": "fruity",
-      "notes": "QA 2026-10-09: registered eight-unit EchoBank with chaining/filtering, saved controls and public native runtime integration verified. Dedicated linked eight-unit editing, fallible host admission and saturating aggregate-tail acceptance remain open under DELAY-FAMILY.md. See docs/qa/2026-10-09-delay-bank.md."
+      "notes": "QA 2026-10-09: registered eight-unit EchoBank with chaining/filtering, saved controls and public native runtime integration verified. Dedicated linked eight-unit editing, fallible host admission and saturating aggregate-tail acceptance remain open under DELAY-FAMILY.md. See docs/qa/2026-10-09-delay-bank.md. QA 2026-10-11: SOFTWARE: account for installed/fading/retiring echo-history owners in a shared retained/peak admission budget before preparing replacement plans, with refusal preserving old PCM. DELAY-FAMILY explicitly requires charging those owners; current HistoryAdmission.of excludes leaving effects and limits one candidate plan. Saturating tails, candidate 1 GiB refusal, fallible preparation and eight/sixteen independent controls pass. Oversampling/granulation or curve snapshots are outside this row summary. Evidence and test index: docs/qa/2026-10-11-wave2-acceptance.md."
     },
     {
       "id": "fx-fruity-fast-dist",
@@ -2521,10 +2521,10 @@
       "summary": "A resonant filter effect meant to be swept by automation.",
       "windfall_name": null,
       "phase": 5,
-      "status": "todo",
+      "status": "in-progress",
       "reason": null,
       "fl_edition": "fruity",
-      "notes": null
+      "notes": "QA 2026-10-11: SOFTWARE: record target-machine CPU measurements required by E1, including active/extreme settings and a declared budget; allocation-free operation alone does not measure time. Hardware/listening review is also unrun. Evidence and test index: docs/qa/2026-10-11-wave2-acceptance.md."
     },
     {
       "id": "fx-fruity-flanger",
@@ -2545,10 +2545,10 @@
       "summary": "Stacked flangers that widen the stereo field and imitate unison voices.",
       "windfall_name": null,
       "phase": 5,
-      "status": "in-progress",
+      "status": "done",
       "reason": null,
       "fl_edition": "fruity",
-      "notes": "QA reconciliation 2026-10-09: an implemented subset is documented in docs/qa/2026-10-09-inventory.md; full-row acceptance remains open. See docs/qa/2026-10-09-completion-audit.md and the dated domain reports for tested behavior and remaining gates."
+      "notes": "QA reconciliation 2026-10-09: an implemented subset is documented in docs/qa/2026-10-09-inventory.md; full-row acceptance remains open. See docs/qa/2026-10-09-completion-audit.md and the dated domain reports for tested behavior and remaining gates. Software complete, QA 2026-10-11: built and passing in the full suites on this machine. External checks outstanding: roadmap section 9 phase-5 human musical listening remains. Independent timing/notch/comb/pitch references, persistence, automation, live/offline, continuity, mounted controls and allocator cases pass. Original CC0 family examples are in docs/examples/e3; proprietary sound identity is not claimed. Evidence: docs/qa/2026-10-11-wave2-acceptance.md."
     },
     {
       "id": "fx-fruity-formula-controller",
@@ -2593,10 +2593,10 @@
       "summary": "Eight filter units, usable in series or parallel, with drawn envelopes for gating and filter patterns.",
       "windfall_name": null,
       "phase": 5,
-      "status": "todo",
+      "status": "in-progress",
       "reason": null,
       "fl_edition": "fruity",
-      "notes": null
+      "notes": "QA 2026-10-11: SOFTWARE: record target-machine CPU measurements required by E1, including active/extreme settings and a declared budget; allocation-free operation alone does not measure time. Hardware/listening review is also unrun. Processing-relative phase and bounded repeating envelopes are documented limits, not omitted summary features. Evidence and test index: docs/qa/2026-10-11-wave2-acceptance.md."
     },
     {
       "id": "fx-fruity-lsd",
@@ -2620,7 +2620,7 @@
       "status": "in-progress",
       "reason": null,
       "fl_edition": "fruity",
-      "notes": "QA reconciliation 2026-10-09: an implemented subset is documented in docs/qa/2026-10-09-inventory.md; full-row acceptance remains open. See docs/qa/2026-10-09-completion-audit.md and the dated domain reports for tested behavior and remaining gates."
+      "notes": "QA reconciliation 2026-10-09: an implemented subset is documented in docs/qa/2026-10-09-inventory.md; full-row acceptance remains open. See docs/qa/2026-10-09-completion-audit.md and the dated domain reports for tested behavior and remaining gates. QA 2026-10-11: SOFTWARE: provide named original, licensed example patches/projects and a load/save round-trip for the E2 family example-content gate; measured test programmes alone are not a user-loadable example library. Physical-output/listening and other-OS runtime checks from the hand-off also remain. Software processor/reference, automation, PDC, live/export and mounted-control gates pass. Evidence and test index: docs/qa/2026-10-11-wave2-acceptance.md."
     },
     {
       "id": "fx-fruity-notebook",
@@ -2653,10 +2653,10 @@
       "summary": "Pan and volume control with a built-in LFO for automatic movement.",
       "windfall_name": null,
       "phase": 5,
-      "status": "todo",
+      "status": "in-progress",
       "reason": null,
       "fl_edition": "fruity",
-      "notes": null
+      "notes": "QA 2026-10-11: SOFTWARE: record target-machine CPU measurements required by E1, including active/extreme settings and a declared budget; allocation-free operation alone does not measure time. Hardware/listening review is also unrun. Processing-relative phase and bounded repeating envelopes are documented limits, not omitted summary features. Evidence and test index: docs/qa/2026-10-11-wave2-acceptance.md."
     },
     {
       "id": "fx-fruity-parametric-eq",
@@ -2665,10 +2665,10 @@
       "summary": "A seven-band parametric equalizer.",
       "windfall_name": null,
       "phase": 5,
-      "status": "todo",
+      "status": "in-progress",
       "reason": null,
       "fl_edition": "fruity",
-      "notes": null
+      "notes": "QA 2026-10-11: SOFTWARE: record target-machine CPU measurements required by E1, including active/extreme settings and a declared budget; allocation-free operation alone does not measure time. Hardware/listening review is also unrun. Evidence and test index: docs/qa/2026-10-11-wave2-acceptance.md."
     },
     {
       "id": "fx-fruity-parametric-eq2",
@@ -2716,7 +2716,7 @@
       "status": "in-progress",
       "reason": null,
       "fl_edition": "fruity",
-      "notes": "QA reconciliation 2026-10-09: an implemented subset is documented in docs/qa/2026-10-09-inventory.md; full-row acceptance remains open. See docs/qa/2026-10-09-completion-audit.md and the dated domain reports for tested behavior and remaining gates."
+      "notes": "QA reconciliation 2026-10-09: an implemented subset is documented in docs/qa/2026-10-09-inventory.md; full-row acceptance remains open. See docs/qa/2026-10-09-completion-audit.md and the dated domain reports for tested behavior and remaining gates. QA 2026-10-11: SOFTWARE: reclaim curve/source assets at project replacement/history release rather than requiring application restart at the bounded global-store limit. Missing-source and budget refusal paths are visible; real loaded-source listening remains external. Portable sample-bearing plugin presets are explicitly refused, not falsely claimed. Evidence and test index: docs/qa/2026-10-11-wave2-acceptance.md."
     },
     {
       "id": "fx-fruity-send",
@@ -2728,7 +2728,7 @@
       "status": "done",
       "reason": null,
       "fl_edition": "fruity",
-      "notes": "Verified by QA 2026-10-11: full native and frontend suites pass on the merged tree; no summary or design gate remains. Evidence: docs/qa/2026-10-11-wave1-acceptance.md."
+      "notes": "Verified by Verified by QA 2026-10-11: full native and frontend suites pass on the merged tree; no summary or design gate remains. Evidence: docs/qa/2026-10-11-wave1-acceptance.md."
     },
     {
       "id": "fx-fruity-soft-clipper",
@@ -2764,7 +2764,7 @@
       "status": "in-progress",
       "reason": null,
       "fl_edition": "fruity",
-      "notes": "QA reconciliation 2026-10-09: an implemented subset is documented in docs/qa/2026-10-09-inventory.md; full-row acceptance remains open. See docs/qa/2026-10-09-completion-audit.md and the dated domain reports for tested behavior and remaining gates."
+      "notes": "QA reconciliation 2026-10-09: an implemented subset is documented in docs/qa/2026-10-09-inventory.md; full-row acceptance remains open. See docs/qa/2026-10-09-completion-audit.md and the dated domain reports for tested behavior and remaining gates. QA 2026-10-11: SOFTWARE: record target-machine CPU measurements required by E1, including active/extreme settings and a declared budget; allocation-free operation alone does not measure time. Hardware/listening review is also unrun. A moving phase delay temporarily bends pitch as documented; stationary offset, inversion and balance pass. Evidence and test index: docs/qa/2026-10-11-wave2-acceptance.md."
     },
     {
       "id": "fx-fruity-stereo-shaper",
@@ -2785,10 +2785,10 @@
       "summary": "A classic vocoder that imposes the character of one sound onto another.",
       "windfall_name": null,
       "phase": 5,
-      "status": "in-progress",
+      "status": "done",
       "reason": null,
       "fl_edition": "fruity",
-      "notes": "QA reconciliation 2026-10-09: an implemented subset is documented in docs/qa/2026-10-09-inventory.md; full-row acceptance remains open. See docs/qa/2026-10-09-completion-audit.md and the dated domain reports for tested behavior and remaining gates."
+      "notes": "QA reconciliation 2026-10-09: an implemented subset is documented in docs/qa/2026-10-09-inventory.md; full-row acceptance remains open. See docs/qa/2026-10-09-completion-audit.md and the dated domain reports for tested behavior and remaining gates. Software complete, QA 2026-10-11: built and passing in the full suites on this machine. External checks outstanding: voiced-material listening and physical carrier/modulator input review remain. Classic 16-band carrier/key routing, swapped ports, absent-key silence, independent envelopes/balance and native capture pass. Evidence: docs/qa/2026-10-11-wave2-acceptance.md."
     },
     {
       "id": "fx-fruity-waveshaper",
@@ -2800,7 +2800,7 @@
       "status": "in-progress",
       "reason": null,
       "fl_edition": "fruity",
-      "notes": "QA reconciliation 2026-10-09: an implemented subset is documented in docs/qa/2026-10-09-inventory.md; full-row acceptance remains open. See docs/qa/2026-10-09-completion-audit.md and the dated domain reports for tested behavior and remaining gates."
+      "notes": "QA reconciliation 2026-10-09: an implemented subset is documented in docs/qa/2026-10-09-inventory.md; full-row acceptance remains open. See docs/qa/2026-10-09-completion-audit.md and the dated domain reports for tested behavior and remaining gates. QA 2026-10-11: SOFTWARE: retire immutable curve assets safely on project replacement/history release instead of retaining the bounded global store until process exit; measure E4 CPU cost. Drawing/transfer/automation pass; listening remains external. Evidence and test index: docs/qa/2026-10-11-wave2-acceptance.md."
     },
     {
       "id": "fx-fruity-x-y-controller",
@@ -2872,7 +2872,7 @@
       "status": "in-progress",
       "reason": null,
       "fl_edition": "fruity",
-      "notes": "QA reconciliation 2026-10-09: an implemented subset is documented in docs/qa/2026-10-09-inventory.md; full-row acceptance remains open. See docs/qa/2026-10-09-completion-audit.md and the dated domain reports for tested behavior and remaining gates."
+      "notes": "QA reconciliation 2026-10-09: an implemented subset is documented in docs/qa/2026-10-09-inventory.md; full-row acceptance remains open. See docs/qa/2026-10-09-completion-audit.md and the dated domain reports for tested behavior and remaining gates. QA 2026-10-11: SOFTWARE: provide named original, licensed example patches/projects and a load/save round-trip for the E2 family example-content gate; measured test programmes alone are not a user-loadable example library. Physical-output/listening and other-OS runtime checks from the hand-off also remain. Software processor/reference, automation, PDC, live/export and mounted-control gates pass. Evidence and test index: docs/qa/2026-10-11-wave2-acceptance.md."
     },
     {
       "id": "fx-tuner",
@@ -2965,10 +2965,10 @@
       "summary": "A simplified two-stage limiter and saturator derived from the larger mastering limiter.",
       "windfall_name": null,
       "phase": 5,
-      "status": "todo",
+      "status": "in-progress",
       "reason": null,
       "fl_edition": "fruity",
-      "notes": null
+      "notes": "QA 2026-10-11: SOFTWARE: provide named original, licensed example patches/projects and a load/save round-trip for the E2 family example-content gate; measured test programmes alone are not a user-loadable example library. Physical-output/listening and other-OS runtime checks from the hand-off also remain. Software processor/reference, automation, PDC, live/export and mounted-control gates pass. Evidence and test index: docs/qa/2026-10-11-wave2-acceptance.md."
     },
     {
       "id": "fx-vfx-script",
@@ -2989,10 +2989,10 @@
       "summary": "A seven-band equalizer with fixed frequencies and low CPU cost.",
       "windfall_name": null,
       "phase": 5,
-      "status": "todo",
+      "status": "in-progress",
       "reason": null,
       "fl_edition": null,
-      "notes": "manual-only: listed in the online manual's plugin index, not on the compare-editions page, so outside its 39/71/6 totals."
+      "notes": "manual-only: listed in the online manual's plugin index, not on the compare-editions page, so outside its 39/71/6 totals. QA 2026-10-11: SOFTWARE: record target-machine CPU measurements required by E1, including active/extreme settings and a declared budget; allocation-free operation alone does not measure time. Hardware/listening review is also unrun. The authored timing comparison is ignored and was not run; the summary explicitly requires low CPU cost. Evidence and test index: docs/qa/2026-10-11-wave2-acceptance.md."
     },
     {
       "id": "fx-fruity-bass-boost",
@@ -3025,10 +3025,10 @@
       "summary": "A basic echo with ping-pong and inverted stereo modes and a low-pass filter.",
       "windfall_name": null,
       "phase": 5,
-      "status": "todo",
+      "status": "done",
       "reason": null,
       "fl_edition": null,
-      "notes": "manual-only: listed in the online manual's plugin index, not on the compare-editions page, so outside its 39/71/6 totals."
+      "notes": "manual-only: listed in the online manual's plugin index, not on the compare-editions page, so outside its 39/71/6 totals. Software complete, QA 2026-10-11: built and passing in the full suites on this machine. External checks outstanding: roadmap section 9 phase-5 musical listening remains. The basic-echo summary software gates pass: ping-pong, inverted side swap, lowpass, independent filtered-feedback reference, mounted controls and routing/history/native capture. The E3 family has original CC0 example content. Evidence: docs/qa/2026-10-11-wave2-acceptance.md."
     },
     {
       "id": "fx-fruity-fast-lp",
@@ -3085,10 +3085,10 @@
       "summary": "The earlier algorithmic room reverb.",
       "windfall_name": null,
       "phase": 5,
-      "status": "in-progress",
+      "status": "done",
       "reason": null,
       "fl_edition": null,
-      "notes": "manual-only: listed in the online manual's plugin index, not on the compare-editions page, so outside its 39/71/6 totals. The manual calls it a legacy plugin and recommends its successor. QA reconciliation 2026-10-09: an implemented subset is documented in docs/qa/2026-10-09-inventory.md; full-row acceptance remains open. See docs/qa/2026-10-09-completion-audit.md and the dated domain reports for tested behavior and remaining gates."
+      "notes": "manual-only: listed in the online manual's plugin index, not on the compare-editions page, so outside its 39/71/6 totals. The manual calls it a legacy plugin and recommends its successor. QA reconciliation 2026-10-09: an implemented subset is documented in docs/qa/2026-10-09-inventory.md; full-row acceptance remains open. See docs/qa/2026-10-09-completion-audit.md and the dated domain reports for tested behavior and remaining gates. Software complete, QA 2026-10-11: built and passing in the full suites on this machine. External checks outstanding: roadmap section 9 phase-5 human musical listening remains. Independent timing/notch/comb/pitch references, persistence, automation, live/offline, continuity, mounted controls and allocator cases pass. Original CC0 family examples are in docs/examples/e3; proprietary sound identity is not claimed. Evidence: docs/qa/2026-10-11-wave2-acceptance.md."
     },
     {
       "id": "vis-fruity-video-player",
@@ -3280,7 +3280,7 @@
       "status": "in-progress",
       "reason": null,
       "fl_edition": null,
-      "notes": "Desktop picker prepares a reviewed conversion with category reports, bounded sample searches, missing-audio warnings, unsaved-project confirmation and stale-request guards. Unsupported plugin bytes and metadata persist in .windfall files and an Imported sounds report. Two real FL 20.8.4 reader projects verified; other versions remain unverified. Sound mappings and some timing/automation are approximate; proprietary restoration and identical playback remain unavailable. See docs/flp/coverage.md."
+      "notes": "Desktop picker prepares a reviewed conversion with category reports, bounded sample searches, missing-audio warnings, unsaved-project confirmation and stale-request guards. Unsupported plugin bytes and metadata persist in .windfall files and an Imported sounds report. Two real FL 20.8.4 reader projects verified; other versions remain unverified. Sound mappings and some timing/automation are approximate; proprietary restoration and identical playback remain unavailable. See docs/flp/coverage.md. QA 2026-10-11: SOFTWARE: decode supported source processor state/automation, nonlinear timing and remaining alternate-timeline semantics; add lawful real-version corpus acceptance beyond verified FL 20.8.4. Mapped notes/arrangements/controls and opaque-state retention pass; sound stand-ins remain reported approximations. Private corpus access may also require external authorization. Evidence and test index: docs/qa/2026-10-11-wave2-acceptance.md."
     },
     {
       "id": "fmt-cloud-backup",
@@ -3385,10 +3385,10 @@
       "summary": "Loads sliced loop files, keeping their slice points.",
       "windfall_name": "REX loop import",
       "phase": 6,
-      "status": "todo",
-      "reason": null,
+      "status": "wont-do",
+      "reason": "REX is a proprietary format and its SDK licence is not compatible with GPL-3.0; no lawful, GPL-compatible reader exists and the plan rules out reverse engineering. Decided 2026-10-11.",
       "fl_edition": null,
-      "notes": "Not in the plan. REX decoding normally relies on a proprietary SDK; check its license against GPL-3.0 (may become wont-do)."
+      "notes": "Not in the plan. REX decoding normally relies on a proprietary SDK; check its license against GPL-3.0 (may become wont-do). QA 2026-10-11: SOFTWARE: review lawful public permissive reader provenance/licenses/corpus, then implement slice/audio import and native/editor round trips. SDK scope/licensing requires a decision; no reader is registered. Evidence and test index: docs/qa/2026-10-11-wave2-acceptance.md."
     },
     {
       "id": "fmt-import-legacy-presets",
@@ -3397,10 +3397,10 @@
       "summary": "Renders small synth or speech preset files into a sampler channel as if they were samples.",
       "windfall_name": "Synth-preset sample sources",
       "phase": 6,
-      "status": "todo",
+      "status": "in-progress",
       "reason": null,
       "fl_edition": null,
-      "notes": "Not in the plan; legacy formats."
+      "notes": "Not in the plan; legacy formats. QA 2026-10-11: SOFTWARE: add native sampler import UI, complete supported DrumSynth synthesis and research lawful public SYN/speech layouts plus readers/renderers. Current bounded text/tone/white-noise subset honestly refuses unsupported active sections. Evidence and test index: docs/qa/2026-10-11-wave2-acceptance.md."
     },
     {
       "id": "fmt-import-zgr",
@@ -3409,10 +3409,10 @@
       "summary": "Opens slice-grid files written by two older beat-slicing tools.",
       "windfall_name": "ZGR import",
       "phase": 6,
-      "status": "todo",
-      "reason": null,
+      "status": "wont-do",
+      "reason": "No public byte-level description of the format exists, and the plan rules out reverse engineering the reference product. Decided 2026-10-11.",
       "fl_edition": null,
-      "notes": "Not in the plan; legacy format."
+      "notes": "Not in the plan; legacy format. QA 2026-10-11: SOFTWARE: research lawful byte-level ZGR evidence/corpus, implement a bounded reader and join slice-grid/audio import to editor/project/native playback. Public workflow description alone does not specify a parser. Evidence and test index: docs/qa/2026-10-11-wave2-acceptance.md."
     },
     {
       "id": "fmt-export-wav",
@@ -3517,10 +3517,10 @@
       "summary": "Renders to AAC audio in an M4A file.",
       "windfall_name": "M4A export",
       "phase": 6,
-      "status": "todo",
+      "status": "in-progress",
       "reason": null,
       "fl_edition": null,
-      "notes": "Not in the plan's export list. AAC encoder licensing must be checked against GPL-3.0."
+      "notes": "Not in the plan's export list. AAC encoder licensing must be checked against GPL-3.0. QA 2026-10-11: SOFTWARE: implement/adopt a reviewed AAC encoder, expose desktop M4A export and verify independently decoded audio/trim/tags. Encoder/license selection needs a user decision; the current AAC-LC MP4 muxer/adapter tests only supplied packets, not actual encoded audio. Evidence and test index: docs/qa/2026-10-11-wave2-acceptance.md."
     },
     {
       "id": "fmt-export-wav-markers",
@@ -3529,10 +3529,10 @@
       "summary": "Embeds loop points and markers from the timeline or notes into rendered WAV files.",
       "windfall_name": "WAV marker export",
       "phase": 6,
-      "status": "todo",
+      "status": "in-progress",
       "reason": null,
       "fl_edition": null,
-      "notes": "Not named in the plan's phase table, so placed in phase 6."
+      "notes": "Not named in the plan's phase table, so placed in phase 6. QA 2026-10-11: SOFTWARE: join slice-instrument WAV metadata import/export and pattern-note marker export to their native/editor workflows; verify navigation mappings end to end. Codec cue/label/loop/slice/tempo bytes and desktop song marker export pass, not the missing producer/consumer paths. Evidence and test index: docs/qa/2026-10-11-wave2-acceptance.md."
     },
     {
       "id": "fmt-wavpack",
@@ -3544,7 +3544,7 @@
       "status": "todo",
       "reason": null,
       "fl_edition": null,
-      "notes": "Not in the plan."
+      "notes": "Not in the plan. QA 2026-10-11: SOFTWARE: implement reviewed WavPack decode/encode registration, editor integration and independent lossless audio round trips after the official BSD C versus independent Rust dependency decision. No codec is registered. Evidence and test index: docs/qa/2026-10-11-wave2-acceptance.md."
     },
     {
       "id": "fmt-host-vst3",
@@ -3589,8 +3589,8 @@
       "summary": "Loads instruments and effects in the older VST2 format.",
       "windfall_name": "VST2 hosting",
       "phase": 4,
-      "status": "todo",
-      "reason": null,
+      "status": "wont-do",
+      "reason": "Steinberg no longer licenses VST2 and its SDK cannot be used; the plan covers CLAP, VST3 and Audio Unit. Decided 2026-10-11.",
       "fl_edition": null,
       "notes": "unverified: licensing path. Not in the plan; Steinberg no longer issues VST2 SDK licenses, so this needs a decision and may become wont-do."
     },
@@ -3781,10 +3781,10 @@
       "summary": "One snap setting shared by the editors, also used to quantize live input.",
       "windfall_name": "Global snap",
       "phase": 2,
-      "status": "in-progress",
+      "status": "done",
       "reason": null,
       "fl_edition": null,
-      "notes": "QA reconciliation 2026-10-09: an implemented subset is documented in docs/qa/2026-10-09-inventory.md; full-row acceptance remains open. See docs/qa/2026-10-09-completion-audit.md and the dated domain reports for tested behavior and remaining gates. QA 2026-10-11: Physical MIDI quantization remains unverified. New/Open resetting the shared snap to bar is documented policy, not a defect. Design: integration/seams/global-snap.md. Evidence and test index: docs/qa/2026-10-11-wave1-acceptance.md."
+      "notes": "QA reconciliation 2026-10-09: an implemented subset is documented in docs/qa/2026-10-09-inventory.md; full-row acceptance remains open. See docs/qa/2026-10-09-completion-audit.md and the dated domain reports for tested behavior and remaining gates. Software complete, QA 2026-10-11: built and passing in the full suites on this machine. External checks outstanding: Physical MIDI quantization remains unverified. New/Open resetting the shared snap to bar is documented policy, not a defect. Design: integration/seams/global-snap.md. Evidence: docs/qa/2026-10-11-wave1-acceptance.md."
     },
     {
       "id": "wf-detached-windows",
@@ -4057,10 +4057,10 @@
       "summary": "An on-screen keyboard and pads for touch screens.",
       "windfall_name": "Touch keyboard and pads",
       "phase": 6,
-      "status": "in-progress",
+      "status": "done",
       "reason": null,
       "fl_edition": null,
-      "notes": "Not named in the plan's phase table, so placed in phase 6. QA 2026-10-11: No real touch-screen run; mounted pointer simulation does not satisfy that hardware gate. Evidence and test index: docs/qa/2026-10-11-wave1-acceptance.md."
+      "notes": "Not named in the plan's phase table, so placed in phase 6. Software complete, QA 2026-10-11: built and passing in the full suites on this machine. External checks outstanding: No real touch-screen run; mounted pointer simulation does not satisfy that hardware gate. Evidence: docs/qa/2026-10-11-wave1-acceptance.md."
     },
     {
       "id": "wf-chord-detection",
@@ -4081,10 +4081,10 @@
       "summary": "Passes the exported mix through an automated mastering service set to a loudness target.",
       "windfall_name": "Automatic mastering",
       "phase": 6,
-      "status": "todo",
+      "status": "done",
       "reason": null,
       "fl_edition": null,
-      "notes": "Runs as Image-Line's online service; a Windfall version would have to run locally. Not named in the plan's phase table, so placed in phase 6."
+      "notes": "Runs as Image-Line's online service; a Windfall version would have to run locally. Not named in the plan's phase table, so placed in phase 6. Software complete, QA 2026-10-11: built and passing in the full suites on this machine. External checks outstanding: physical-output/listening and other-OS runtime checks retained by the hand-off have not run. Software references, saved automation, PDC, live/export and mounted controls pass. Roadmap §X4 explicitly authorizes local mastering in place of Image-Line service integration; review measures stereo PCM before encoding, and float WAV readback passes. Lossy/mono target matching is not promised. Evidence: docs/qa/2026-10-11-wave2-acceptance.md."
     },
     {
       "id": "wf-languages",

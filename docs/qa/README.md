@@ -51,3 +51,43 @@ The tracker reconciliation moved 85 ledger-mapped rows from `todo` to
 acceptance. This is not a QA pass or a completion promotion. Together with the
 eight earlier scope corrections, it removes stale accounting while retaining
 the actual remaining gates. Final accepted promotions are recorded separately.
+
+## Completion rule and decisions — 2026-10-11
+
+The user delegated the open product, licensing and tracker-policy decisions to
+the overseer on 2026-10-11. This section records them; it supersedes the
+stricter rule above where the two differ.
+
+**When a row is `done`.** A row is done when everything that can be verified
+on the development machine is built and passes in the full suites, and the only
+checks left need something the machine does not have: a physical audio
+interface or MIDI controller, another operating system, a person listening, or
+the operator's credentials. Those rows carry a note beginning "Software
+complete" that lists the external checks still outstanding. A row stays
+`in-progress` when any software item is missing, when part of its code has
+never been compiled or run here (the macOS-only Audio Unit host, for example),
+or when it needs an asset the project does not have (a trained model).
+
+**Decisions.**
+
+- `fmt-import-rex`, `fmt-host-vst2`, `fmt-import-zgr`: won't do; the reasons
+  are in the tracker.
+- `fmt-export-m4a`: encode with the operating system's own encoder (Media
+  Foundation on Windows); no encoder is bundled.
+- `fmt-wavpack`: an in-repository decoder and encoder written from the public
+  specification; no new dependency. Checking against files from the reference
+  tool is an external check.
+- `fmt-cloud-backup`: the provider-neutral folder backup is the product; no
+  cloud SDK or account.
+- `core-gopher`: an offline rule-based provider plus a bring-your-own-key
+  provider that is off until the user enters a key; no provider SDK.
+- `win-playlist-deverb`: classical two-mode dereverberation, judged on measured
+  tail reduction and dry-signal damage, not on using a neural network.
+- `core-denoising`, `editor-newtone`, `editor-newtime`, `wf-audio-to-midi`:
+  the classical implementations are the product.
+- `core-stem-separation`, `wf-remix-a-song`: stay open until a trained
+  separation model is run end to end. Direction: ONNX Runtime with model packs
+  the user imports; no weights in the repository.
+- Sample pre-processing normalizes to −1 dBFS, as the audio editor does. An
+  instrument track's pattern clips play only the linked channel, in playback
+  and in MIDI export.
