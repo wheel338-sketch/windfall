@@ -142,3 +142,5 @@ pub mod sendtap;
 pub mod notemap;
 
 pub mod zones;
+
+pub mod polysynth;
