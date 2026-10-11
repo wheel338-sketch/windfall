@@ -103,9 +103,14 @@ impl CommandProposal {
         }
         let batch = self.batch()?;
         let mut candidate = document.clone();
-        candidate
+        let applied = candidate
             .dispatch(batch.clone(), None)
             .map_err(|e| e.to_string())?;
+        if applied.touched.is_empty() {
+            return Err(
+                "proposal produces no changes; the requested values are already set".into(),
+            );
+        }
         candidate.project().check()?;
         Ok(batch)
     }

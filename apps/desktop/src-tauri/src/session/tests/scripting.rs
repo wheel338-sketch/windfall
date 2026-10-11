@@ -12,13 +12,13 @@ fn assistant_review_apply_guarded_undo_and_stale_preparation_are_atomic() {
     let original = rig.project();
     let proposal = rig
         .session
-        .assistant_respond("set tempo 120")
+        .assistant_respond("set tempo 127")
         .unwrap()
         .proposal
         .unwrap();
     assert_eq!(rig.project(), original);
     let applied = rig.session.proposal_apply(proposal.clone()).unwrap();
-    assert_eq!(rig.project().settings.tempo_bpm, 120.0);
+    assert_eq!(rig.project().settings.tempo_bpm, 127.0);
     assert!(rig.session.proposal_apply(proposal.clone()).is_err());
     rig.session
         .proposal_undo(windfall_project::proposal::ProposalStamp {
@@ -75,7 +75,7 @@ fn invalid_proposal_rolls_back_ids_history_and_replacement_invalidates_approval(
     assert_eq!(rig.session.document_snapshot(), before);
     let proposal = rig
         .session
-        .assistant_respond("set tempo 120")
+        .assistant_respond("set tempo 127")
         .unwrap()
         .proposal
         .unwrap();
@@ -206,8 +206,39 @@ fn controller_script_pump_maps_actions_and_refuses_partial_output() {
     rig.session
         .dispatch(Command::SetScriptLibrary { library }, None)
         .unwrap();
+    let ordinary = rig.channel(0);
+    rig.session
+        .dispatch(
+            Command::SetControllerLinks {
+                links: vec![windfall_project::ControllerLink {
+                    source: windfall_project::ControlSource::Midi {
+                        device: None,
+                        channel: Some(1),
+                        control: windfall_project::MidiControl::Cc { number: 8 },
+                    },
+                    target: windfall_project::LinkTarget::Param {
+                        target: windfall_project::AutomationTarget::ChannelVolume {
+                            channel: ordinary,
+                        },
+                    },
+                    map: Default::default(),
+                }],
+            },
+            None,
+        )
+        .unwrap();
     rig.session.controllers_pump(std::time::Instant::now());
     let before = rig.session.document_snapshot();
+    rig.session.controller_message(InputMessage {
+        device: 0,
+        message: MidiMessage::Controller {
+            channel: 0,
+            number: 8,
+            value: 127,
+        },
+        at: std::time::Instant::now(),
+        stamp_micros: 0,
+    });
     assert!(rig.session.controller_message(InputMessage {
         device: 0,
         message: MidiMessage::Controller {
@@ -221,6 +252,10 @@ fn controller_script_pump_maps_actions_and_refuses_partial_output() {
     rig.session.controllers_pump(std::time::Instant::now());
     assert_eq!(rig.project().settings.tempo_bpm, 160.0);
     assert_eq!(
+        rig.project().channel(ordinary).unwrap().volume,
+        windfall_project::MAX_GAIN
+    );
+    assert_eq!(
         rig.session.document_snapshot().history.cursor,
         before.history.cursor + 1
     );
@@ -229,15 +264,29 @@ fn controller_script_pump_maps_actions_and_refuses_partial_output() {
         rig.project().settings.tempo_bpm,
         before.project.settings.tempo_bpm
     );
+    assert_eq!(
+        rig.project().channel(ordinary),
+        before.project.channel(ordinary)
+    );
     let mut library = rig.project().settings.scripts;
     library.assets[0].reference.revision = 2;
     library.controllers[0].script.revision = 2;
-    library.assets[0].source = "tempo 120\nmap 1 0 /".into();
+    library.assets[0].source = "tempo 140\nmap 1 0 /".into();
     rig.session
         .dispatch(Command::SetScriptLibrary { library }, None)
         .unwrap();
     rig.session.controllers_pump(std::time::Instant::now());
     let before = rig.session.document_snapshot();
+    rig.session.controller_message(InputMessage {
+        device: 0,
+        message: MidiMessage::Controller {
+            channel: 0,
+            number: 8,
+            value: 0,
+        },
+        at: std::time::Instant::now(),
+        stamp_micros: 0,
+    });
     rig.session.controller_message(InputMessage {
         device: 0,
         message: MidiMessage::Controller {
@@ -264,7 +313,7 @@ fn recording_and_worker_busy_exclusions_are_explicit() {
         .store(true, std::sync::atomic::Ordering::Release);
     let p = rig
         .session
-        .assistant_respond("set tempo 120")
+        .assistant_respond("set tempo 127")
         .unwrap()
         .proposal
         .unwrap();
@@ -292,4 +341,33 @@ fn recording_and_worker_busy_exclusions_are_explicit() {
             .unwrap_err()
             .contains("already running")
     );
+}
+
+#[test]
+fn proposal_recording_admission_is_rechecked_after_engine_preparation() {
+    let rig = Rig::new();
+    let proposal = rig
+        .session
+        .assistant_respond("create pattern Locked")
+        .unwrap()
+        .proposal
+        .unwrap();
+    let before = rig.session.document_snapshot();
+    let hold = rig.session.hold("proposal:prepared");
+    let worker = rig
+        .session
+        .background(move |session| session.proposal_apply(proposal));
+    hold.wait();
+    rig.session
+        .inner
+        .recording_finishing
+        .store(true, std::sync::atomic::Ordering::Release);
+    hold.release();
+    let result = worker.join().unwrap();
+    rig.session
+        .inner
+        .recording_finishing
+        .store(false, std::sync::atomic::Ordering::Release);
+    assert!(result.is_err());
+    assert_eq!(rig.session.document_snapshot(), before);
 }

@@ -6,7 +6,7 @@ describe("proposal WASM authority", () => {
   it("rejects reused approval, malformed capability, oversized batch, recording and generation mismatch without edits", () => {
     const doc = SimDocument.create(emptyProject())
     try {
-      const proposal = doc.assistant("set tempo 120", 9).proposal!
+      const proposal = doc.assistant("set tempo 127", 9).proposal!
       const before = doc.snapshot(null)
       for (const apply of [
         () => doc.applyProposal(proposal, 10, false),
@@ -19,7 +19,7 @@ describe("proposal WASM authority", () => {
         expect(doc.snapshot(null)).toEqual(before)
       }
       doc.applyProposal(proposal, 9, false)
-      expect(doc.project().settings.tempoBpm).toBe(120)
+      expect(doc.project().settings.tempoBpm).toBe(127)
       expect(doc.snapshot(null).history.cursor).toBe(1)
       const after = doc.snapshot(null)
       expect(() => doc.applyProposal(proposal, 9, false)).toThrow(/stale/)

@@ -23,6 +23,10 @@ const EXAMPLES: Record<ScriptKind, string> = {
   controller: "map 1 value -\nfeedback 7 value 127 *",
 }
 
+function cancelRun(request: number | null) {
+  if (request !== null) void backend.scriptCancel(request).catch(() => {})
+}
+
 function ScriptForm() {
   const project = useProjectStore((state) => state.project)
   const [kind, setKind] = useState<ScriptKind>("piano")
@@ -43,12 +47,12 @@ function ScriptForm() {
   const [generation] = useState(getProjectGeneration)
   useEffect(() => () => {
     operation.current += 1
-    if (run.current !== null) void backend.scriptCancel(run.current)
+    cancelRun(run.current)
   }, [])
 
   function editSource(next: string) {
     operation.current += 1
-    if (run.current !== null) void backend.scriptCancel(run.current)
+    cancelRun(run.current)
     setSource(next); setParameters([]); setValues([]); setPreview(null); setProposal(null)
   }
   function changeKind(next: ScriptKind) { setKind(next); editSource(EXAMPLES[next]) }
@@ -84,9 +88,20 @@ function ScriptForm() {
     if (!current(token) || stamp.revision !== useProjectStore.getState().revision) throw new Error("The project changed; preview again.")
     const request = await backend.scriptBegin()
     run.current = request
-    const result = await backend.scriptPreview(request, { stamp, pattern: context.pattern.id, channel: context.channel, selected, source, parameters: parameterValues(), replace })
-    if (current(token)) { setPreview(result); setProposal(result.proposal) }
-    run.current = null
+    try {
+      const result = await backend.scriptPreview(request, { stamp, pattern: context.pattern.id, channel: context.channel, selected, source, parameters: parameterValues(), replace })
+      if (current(token)) { setPreview(result); setProposal(result.proposal) }
+    } finally { run.current = null }
+  }) }
+
+  function unassign(channel: number | null, controllerIndex: number | null) { return work(async (token) => {
+    const stamp = await backend.proposalStamp()
+    const state = useProjectStore.getState()
+    if (!current(token) || stamp.revision !== state.revision) throw new Error("The project changed; review again.")
+    const saved = state.project.settings.scripts
+    if (!saved) throw new Error("The script assignment no longer exists.")
+    const library: ScriptLibrary = { ...saved, channels: saved.channels.filter((binding) => binding.channel !== channel), controllers: saved.controllers.filter((_binding, index) => index !== controllerIndex) }
+    setProposal({ stamp, label: "Remove script assignment", explanation: "Remove this installed assignment. Saved script revisions remain available; Undo restores the assignment.", commands: [{ type: "setScriptLibrary", library }] })
   }) }
 
   function saveAndAssign(assign: boolean) { return work(async (token) => {
@@ -138,12 +153,16 @@ function ScriptForm() {
       {kind === "piano" && <Button disabled={busy || backend.kind !== "tauri"} onClick={() => void previewNotes()}>Preview notes</Button>}
       <Button variant="outline" disabled={busy} onClick={() => void saveAndAssign(false)}>Review save revision</Button>
       {kind !== "piano" && <Button disabled={busy || (kind === "controller" && backend.kind !== "tauri")} onClick={() => void saveAndAssign(true)}>Review save and assign</Button>}
-      <Button variant="ghost" disabled={!busy} onClick={() => { operation.current += 1; if (run.current !== null) void backend.scriptCancel(run.current); setBusy(false) }}>Cancel run</Button>
+      <Button variant="ghost" disabled={!busy} onClick={() => { operation.current += 1; cancelRun(run.current); setBusy(false) }}>Cancel run</Button>
     </div>
     {error && <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}
     {preview && <details open><summary>{preview.notes.length} emitted notes</summary><pre className="max-h-48 overflow-auto">{preview.notes.slice(0, 24).map((n) => `tick ${n.start} · length ${n.length} · key ${n.key} · velocity ${n.velocity}`).join("\n")}</pre></details>}
     {proposal && <ProposalReview key={`${proposal.stamp.revision}:${proposal.label}:${JSON.stringify(proposal.commands)}`} proposal={proposal} generation={generation} cancel={() => { setProposal(null); setPreview(null) }} />}
     <details><summary>Saved revisions</summary>{project.settings.scripts?.assets.map((asset) => <Button key={`${asset.reference.id}:${asset.reference.revision}`} variant="ghost" disabled={busy} onClick={() => { setId(asset.reference.id); setKind(asset.kind); editSource(asset.source) }}>{asset.name} r{asset.reference.revision}</Button>)}</details>
+    <details><summary>Installed assignments</summary>
+      {project.settings.scripts?.channels.map((binding) => <div key={binding.channel} className="flex items-center gap-2"><span>Channel {binding.channel}: {binding.script.id} r{binding.script.revision}</span><Button variant="outline" disabled={busy} onClick={() => void unassign(binding.channel, null)}>Review remove channel {binding.channel}</Button></div>)}
+      {project.settings.scripts?.controllers.map((binding, index) => <div key={index} className="flex items-center gap-2"><span>Controller {index + 1}: {binding.script.id} r{binding.script.revision}{binding.feedbackChannel ? " · feedback enabled" : ""}</span><Button variant="outline" disabled={busy} onClick={() => void unassign(null, index)}>Review remove controller {index + 1}</Button></div>)}
+    </details>
   </div>
 }
 

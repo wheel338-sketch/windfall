@@ -34,11 +34,11 @@ describe("offline assistant mounted against the Rust document", () => {
   it("reviews exact commands and applies/undoes one batch", async () => {
     await open()
     const before = useProjectStore.getState()
-    await ask("set tempo 120")
+    await ask("set tempo 127")
     expect(screen.getByText("updateSettings")).toBeVisible()
     expect(useProjectStore.getState().project.settings.tempoBpm).toBe(before.project.settings.tempoBpm)
     fireEvent.click(screen.getByRole("button", { name: "Apply batch" }))
-    await waitFor(() => expect(useProjectStore.getState().project.settings.tempoBpm).toBe(120))
+    await waitFor(() => expect(useProjectStore.getState().project.settings.tempoBpm).toBe(127))
     expect(useProjectStore.getState().history.cursor).toBe(before.history.cursor + 1)
     fireEvent.click(screen.getByRole("button", { name: "Undo batch" }))
     await waitFor(() => expect(useProjectStore.getState().project.settings.tempoBpm).toBe(before.project.settings.tempoBpm))
@@ -53,7 +53,7 @@ describe("offline assistant mounted against the Rust document", () => {
     expect(await app.backend.documentSnapshot()).toEqual(before)
   })
   it("surfaces recording admission errors and ignores a cancelled provider response", async () => {
-    await open(); await ask("set tempo 120")
+    await open(); await ask("set tempo 127")
     vi.spyOn(app.backend, "proposalApply").mockRejectedValueOnce(new Error("Stop or cancel recording first."))
     fireEvent.click(screen.getByRole("button", { name: "Apply batch" }))
     expect(await screen.findByText("Stop or cancel recording first.")).toBeVisible()

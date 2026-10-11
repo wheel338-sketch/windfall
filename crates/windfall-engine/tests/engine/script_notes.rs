@@ -60,7 +60,10 @@ fn channel_script_matches_manual_score_live_offline_irregular_blocks_and_saved_r
     controller.play();
     let mut output = [0.0; 502];
     for _ in 0..64 {
-        assert_eq!(crate::realtime::allocator_calls(|| processor.process(&mut output)), 0);
+        assert_eq!(
+            crate::realtime::allocator_calls(|| processor.process(&mut output)),
+            0
+        );
         controller.frame();
     }
     let json = windfall_project::file::to_json(&rig.project).unwrap();

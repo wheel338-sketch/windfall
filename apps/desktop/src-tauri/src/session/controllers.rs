@@ -688,7 +688,7 @@ impl Session {
             }
             if project.settings.scripts.controllers.iter().any(|binding| source_matches(&binding.source, &event.source)) {
                 if plan.script_events.len() < 32 {
-                    let number = match &event.source { ControlSource::Midi { control: MidiControl::Cc { number }, .. } => *number, _ => 0 };
+                    let number = match &event.source { ControlSource::Midi { control: MidiControl::Cc { number } | MidiControl::Note { key: number }, .. } => *number, _ => 0 };
                     plan.script_events.push((event.source.clone(), event.input.value, number));
                 } else {
                     hub.dropped = hub.dropped.saturating_add(1);

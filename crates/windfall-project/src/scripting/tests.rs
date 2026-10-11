@@ -269,7 +269,7 @@ fn successful_proposal_is_one_undo_step_and_cannot_replay_after_patch() {
             Command::AddPattern { name: None },
             Command::UpdateSettings {
                 patch: SettingsPatch {
-                    tempo_bpm: Some(120.0),
+                    tempo_bpm: Some(127.0),
                     ..Default::default()
                 },
             },
@@ -283,7 +283,7 @@ fn successful_proposal_is_one_undo_step_and_cannot_replay_after_patch() {
     assert_eq!(document.project().patterns, original.patterns);
     assert_eq!(document.project().settings, original.settings);
     document.redo().unwrap();
-    assert_eq!(document.project().settings.tempo_bpm, 120.0);
+    assert_eq!(document.project().settings.tempo_bpm, 127.0);
 }
 
 #[test]
@@ -335,5 +335,189 @@ fn script_revisions_save_reopen_undo_and_reject_unknown_language() {
             .settings
             .scripts
             .is_empty()
+    );
+}
+
+#[test]
+fn ineffective_proposal_preserves_prior_history_and_redo() {
+    let mut document = Document::new(Project::new("No-op"));
+    document
+        .dispatch(Command::AddPattern { name: None }, None)
+        .unwrap();
+    document.undo().unwrap();
+    let before = document.snapshot(None);
+    let p = proposal(
+        &document,
+        vec![Command::UpdateSettings {
+            patch: SettingsPatch {
+                tempo_bpm: Some(document.project().settings.tempo_bpm),
+                ..Default::default()
+            },
+        }],
+    );
+    assert!(
+        p.apply(&mut document, p.stamp, false)
+            .unwrap_err()
+            .contains("no changes")
+    );
+    assert_eq!(document.snapshot(None), before);
+    assert!(document.redo().is_some());
+}
+
+#[test]
+fn controller_adapter_checks_target_range_opt_in_and_message_budget() {
+    let reference = ScriptReference {
+        id: "device-fixture".into(),
+        revision: 1,
+    };
+    let mut project = Project::new("Controller");
+    let mut binding = ControllerScript {
+        source: crate::ControlSource::Midi {
+            device: None,
+            channel: Some(1),
+            control: crate::MidiControl::Cc { number: 7 },
+        },
+        script: reference.clone(),
+        parameters: vec![],
+        target: Some(crate::LinkTarget::Slot {
+            slot: crate::SlotTarget::MasterVolume,
+        }),
+        feedback_channel: None,
+    };
+    project.settings.scripts.assets.push(ScriptAsset {
+        reference,
+        language_version: SCRIPT_VERSION,
+        kind: ScriptKind::Controller,
+        name: "Device".into(),
+        source: "map 1 value -\nfeedback 7 value 127 *".into(),
+    });
+    let disabled = controller_event(&project, &binding, 1.0, 7, 0, || false).unwrap();
+    assert!(disabled.feedback.is_empty());
+    let mut document = Document::new(project.clone());
+    document
+        .dispatch(
+            Command::Batch {
+                label: None,
+                commands: disabled.commands,
+            },
+            None,
+        )
+        .unwrap();
+    assert_eq!(
+        document
+            .project()
+            .mixer
+            .track(crate::TrackId::MASTER)
+            .unwrap()
+            .volume,
+        0.0
+    );
+    binding.feedback_channel = Some(16);
+    assert_eq!(
+        controller_event(&project, &binding, 0.5, 7, 0, || false)
+            .unwrap()
+            .feedback,
+        vec![[0xbf, 7, 64]]
+    );
+    binding.feedback_channel = Some(0);
+    assert!(controller_event(&project, &binding, 0.5, 7, 0, || false).is_err());
+    binding.feedback_channel = None;
+    binding.target = None;
+    assert!(controller_event(&project, &binding, 0.5, 7, 0, || false).is_err());
+    project.settings.scripts.assets[0].source = "repeat 17\nfeedback 7 0\nend".into();
+    assert!(
+        controller_event(&project, &binding, 0.5, 7, 0, || false)
+            .unwrap_err()
+            .contains("memory limit")
+    );
+}
+
+#[test]
+fn assigned_transform_rejects_invalid_notes_rolls_back_ids_and_suspends_on_delete() {
+    let mut document = Document::new(Project::new("Transform admission"));
+    let created = document
+        .dispatch(
+            Command::AddChannel {
+                name: None,
+                sample: None,
+                instrument: Some(crate::InstrumentKind::SubtractiveSynth),
+                index: None,
+                mixer_track: None,
+            },
+            None,
+        )
+        .unwrap()
+        .created;
+    let channel = crate::ChannelId(created[0]);
+    let pattern = document.project().patterns[0].id;
+    let reference = ScriptReference {
+        id: "unsafe-octave".into(),
+        revision: 1,
+    };
+    let library = ScriptLibrary {
+        assets: vec![ScriptAsset {
+            reference: reference.clone(),
+            language_version: SCRIPT_VERSION,
+            kind: ScriptKind::NoteTransform,
+            name: "Octave".into(),
+            source: "set key key 12 +\nemit".into(),
+        }],
+        channels: vec![ChannelScript {
+            channel,
+            script: reference,
+            parameters: vec![],
+        }],
+        ..Default::default()
+    };
+    document
+        .dispatch(
+            Command::SetScriptLibrary {
+                library: library.clone(),
+            },
+            None,
+        )
+        .unwrap();
+    let before = document.snapshot(None);
+    let notes = vec![crate::NoteInit {
+        start: 0,
+        length: 240,
+        key: 126,
+        velocity: None,
+        pan: None,
+        expression: None,
+    }];
+    assert!(
+        document
+            .dispatch(
+                Command::Batch {
+                    label: None,
+                    commands: vec![
+                        Command::AddPattern { name: None },
+                        Command::AddNotes {
+                            pattern,
+                            channel,
+                            notes
+                        }
+                    ]
+                },
+                None
+            )
+            .is_err()
+    );
+    assert_eq!(document.snapshot(None), before);
+    document
+        .dispatch(Command::RemoveChannel { id: channel }, None)
+        .unwrap();
+    assert_eq!(document.project().settings.scripts, library);
+    document.project().check().unwrap();
+    document.undo().unwrap();
+    assert!(document.project().channel(channel).is_some());
+    assert_eq!(document.project().settings.scripts, library);
+    let mut invalid = library;
+    invalid.channels[0].channel = crate::ChannelId(u32::MAX);
+    assert!(
+        document
+            .dispatch(Command::SetScriptLibrary { library: invalid }, None)
+            .is_err()
     );
 }

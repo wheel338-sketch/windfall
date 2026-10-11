@@ -60,9 +60,17 @@ impl Session {
                 }
             }
         }
-        let feedback_runtime = if feedback.is_empty() { None } else {
-            let runtime = crate::sync::lock(&self.inner.midi_hardware).clone().ok_or("native MIDI output is unavailable for feedback")?;
-            if !runtime.state().output_connected { return Err("controller feedback output is disconnected; no project batch applied".into()); }
+        let feedback_runtime = if feedback.is_empty() {
+            None
+        } else {
+            let runtime = crate::sync::lock(&self.inner.midi_hardware)
+                .clone()
+                .ok_or("native MIDI output is unavailable for feedback")?;
+            if !runtime.state().output_connected {
+                return Err(
+                    "controller feedback output is disconnected; no project batch applied".into(),
+                );
+            }
             Some(runtime)
         };
         let changed = !commands.is_empty();
@@ -84,13 +92,26 @@ impl Session {
             let queued: Result<(), String> = (|| {
                 let _recording = self.recording_idle()?;
                 let state = self.state();
-                if applied != (ProposalStamp { generation: state.generation, revision: state.document.revision() }) { return Err("controller feedback became stale".into()); }
+                if applied
+                    != (ProposalStamp {
+                        generation: state.generation,
+                        revision: state.document.revision(),
+                    })
+                {
+                    return Err("controller feedback became stale".into());
+                }
                 // Enqueue while the stamp is current; the native worker sends.
-                feedback_runtime.expect("feedback preflight").feedback(feedback)
+                feedback_runtime
+                    .expect("feedback preflight")
+                    .feedback(feedback)
             })();
             if let Err(error) = queued {
-                if !changed { return Err(error); }
-                self.emit(crate::events::Event::ProjectWarnings(vec![format!("Controller command batch applied; MIDI feedback failed: {error}")]));
+                if !changed {
+                    return Err(error);
+                }
+                self.emit(crate::events::Event::ProjectWarnings(vec![format!(
+                    "Controller command batch applied; MIDI feedback failed: {error}"
+                )]));
             }
         }
         Ok(())

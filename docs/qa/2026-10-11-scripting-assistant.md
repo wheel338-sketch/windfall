@@ -2,9 +2,10 @@
 
 Branch: `gpt/w3-scripting-assistant`, base `87b87bc2439ec076d0f75c5b4d997c9db1faba95`.
 
-Implementation checkpoint after application restart. All tests in this stream are **written, not executed**.
+Source checkpoint after application restart. All tests in this stream are **written, not executed**.
 The worker is edit-only: no build, test, dependency installation, generation,
-device access or network request was performed. No provider was selected.
+device access or network request was performed. The user has now selected an
+optional BYOK chat-completions adapter; that addition is the next file group.
 
 Implementation scope: checked, revision/generation guarded command proposals;
 offline help/intent provider; bounded Rust scripting with piano/controller
@@ -62,4 +63,4 @@ Regenerate Rust TS exports and the WASM simulator, including `Command::SetScript
 2. Check strict lint and mounted component conventions, then batch atomicity, revision races, worker admission/cancellation and recording exclusions.
 3. Native feedback can fail after the internal command transaction committed. It emits a warning; physical MIDI cannot be rolled back. Disconnected feedback is preflighted and queued packets are hardware-epoch guarded.
 4. Note transformation currently runs while preparing immutable sequenced event plans, not on hardware audition; rack integration remains another worker's responsibility. Invalid transforms are rejected on checked project edits; unchecked engine fixtures fail open.
-5. Finish the script API documentation and source-only fixture review at the next checkpoint. Validate real MIDI feedback, actual recording races and provider decisions externally. No network, audio device or other-OS evidence exists.
+5. `docs/SCRIPTING.md` now documents grammar, limits, IO policy and rack hookup. Ineffective proposals are rejected before apply; script assignments support reviewed removal. Added fixtures cover combined ordinary-link/script rollback, feedback opt-in, invalid transformed-note admission, suspended assignment undo and the recording gate after preparation. All remain written, not executed. Validate real MIDI feedback and actual recording races externally. No network, audio device or other-OS evidence exists.

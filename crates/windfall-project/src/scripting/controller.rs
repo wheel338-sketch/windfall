@@ -3,6 +3,7 @@
 use super::{ControllerScript, Program, RunLimits, ScriptInput};
 use crate::{Command, LinkTarget, Project, SettingsPatch};
 
+#[derive(Debug)]
 pub struct ControllerScriptResult {
     pub commands: Vec<Command>,
     pub feedback: Vec<[u8; 3]>,
@@ -16,13 +17,22 @@ pub fn controller_event(
     bank: u32,
     cancelled: impl FnMut() -> bool,
 ) -> Result<ControllerScriptResult, String> {
-    if binding.feedback_channel.is_some_and(|c| !(1..=16).contains(&c)) { return Err("invalid feedback channel".into()); }
+    if binding
+        .feedback_channel
+        .is_some_and(|c| !(1..=16).contains(&c))
+    {
+        return Err("invalid feedback channel".into());
+    }
     let asset = project
         .settings
         .scripts
         .asset(&binding.script)
         .ok_or("controller script revision is missing")?;
-    if asset.kind != super::ScriptKind::Controller || asset.language_version != super::SCRIPT_VERSION { return Err("invalid controller script kind/version".into()); }
+    if asset.kind != super::ScriptKind::Controller
+        || asset.language_version != super::SCRIPT_VERSION
+    {
+        return Err("invalid controller script kind/version".into());
+    }
     let program = Program::compile(&asset.source).map_err(|e| e.to_string())?;
     let output = program
         .run(
