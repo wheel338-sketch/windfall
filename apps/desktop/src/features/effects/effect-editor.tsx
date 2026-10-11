@@ -19,7 +19,7 @@ import { EqEditor } from "./eq/eq-editor"
 import { LimiterEditor } from "./limiter/limiter-editor"
 import { ReverbEditor } from "./reverb/reverb-editor"
 import { TunerEditor } from "./tuner/tuner-editor"
-import { GuitarRackEditor, OverdriveEditor, WaveshaperEditor } from "./nonlinear/editors"
+import { DriveChainEditor, GuitarRackEditor, OverdriveEditor, WaveshaperEditor } from "./nonlinear/editors"
 
 type Editors = {
   [Kind in EffectKind]?: ComponentType<EditorProps<EffectParamsOf<Kind>>>
@@ -40,6 +40,7 @@ const EDITORS: Editors = {
   overdrive: OverdriveEditor,
   waveshaper: WaveshaperEditor,
   guitarRack: GuitarRackEditor,
+  driveChain: DriveChainEditor,
 }
 
 type AnyEditor = ComponentType<EditorProps<EffectParams>>

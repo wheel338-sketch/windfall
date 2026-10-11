@@ -185,3 +185,26 @@ completed in this stream, not treated as a passing integrated feature.
   run against the expanded pedalboard; cabinet response thresholds; direct
   1,024-tap FIR CPU at high rates (no performance measurement was executed).
   Existing callback guards will exercise prepared cabinet processing.
+
+## Checkpoint 3 — Drive Chain
+
+- Three reorderable modules now independently select bypass, asymmetric drive,
+  cubic shape, fuzz, resonant lowpass/highpass, stereo modulated chorus, or one
+  of four synthetic cabinets. Existing model/gain descriptor pairs and output
+  index 6 remain stable; all filter/chorus/cabinet/quality controls append.
+- Every stage has a constant 32-frame oversampled path (including bypass), so
+  total latency is 96 frames and quality/model automation does not reallocate.
+  Module weights ramp in 5 ms; cabinet changes crossfade in 5 ms. Filter,
+  chorus and cabinet histories run continuously. The stage's `gainDb` remains
+  the drive gain for the three nonlinear modes, preserving its old meaning.
+- Purpose-built editor shows the ordered modules and applicable controls;
+  Move earlier swaps complete module settings in one undoable command.
+- Tests **written, not executed**: `drive/chain.rs::tests` actual filter,
+  chorus/cabinet participation, ordering, partition invariance, old descriptor
+  identities and independently written static transfer reference. Inherited
+  chain tests adjusted for widened settings and constant latency.
+- Candidate after verification. Commands: `cargo test -p windfall-dsp --lib drive`,
+  `cargo test -p windfall-dsp --test dsp`; checkpoint 1 project/engine/UI commands.
+- Regenerate DriveStage, DriveStageParams, DriveChainParams and descriptors.
+  Risks: new multi-stage resampler reference tolerances; three FIR cabinets
+  plus three oversamplers worst-case CPU; numerical thresholds remain unmeasured.

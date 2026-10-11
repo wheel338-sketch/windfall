@@ -1,4 +1,5 @@
-import type { EffectParams, GuitarRackParams, OverdriveParams, WaveshaperParams } from "@/bindings"
+import type { DriveChainParams, EffectParams, GuitarRackParams, OverdriveParams, WaveshaperParams } from "@/bindings"
+import { Button } from "@/components/ui/button"
 import type { CurvePoint } from "@/bindings/CurvePoint"
 import { ParamControl, ParamRow } from "@/features/params"
 import { dispatch, useProjectStore } from "@/lib/store"
@@ -39,5 +40,26 @@ export function GuitarRackEditor({ bind }: EditorProps<GuitarRackParams>) {
         <ParamRow columns={2}><ParamControl {...bind(`pedals.${index}.amount`)} /><ParamControl {...bind(`pedals.${index}.tone`)} /></ParamRow>
       </div>)}
     </div>
+  </div>
+}
+
+export function DriveChainEditor({ effect, track, params, bind }: EditorProps<DriveChainParams>) {
+  return <div role="group" aria-label="Drive Chain settings" className="flex flex-col gap-2">
+    <ParamRow columns={2}><ParamControl {...bind("outputDb")} /><ParamControl {...bind("oversampling")} /></ParamRow>
+    {params.stages.map((stage, index) => <div key={index} role="group" aria-label={`Module ${index + 1}`} className="flex flex-col gap-2 rounded border border-border p-2">
+      <div className="flex items-center gap-2"><ParamControl {...bind(`stages.${index}.model`)} />
+        <Button size="sm" variant="outline" disabled={index === 0} onClick={() => {
+          const stages = [...params.stages]
+          ;[stages[index - 1], stages[index]] = [stages[index], stages[index - 1]]
+          commitAsset(effect, track, "driveChain", "stages", stages)
+        }}>Move module {index + 1} earlier</Button>
+      </div>
+      <ParamRow columns={3}>
+        <ParamControl {...bind(`stages.${index}.gainDb`)} />
+        {["lowpass", "highpass"].includes(stage.model) && <><ParamControl {...bind(`stages.${index}.cutoffHz`)} /><ParamControl {...bind(`stages.${index}.resonance`)} /></>}
+        {stage.model === "chorus" && <><ParamControl {...bind(`stages.${index}.depth`)} /><ParamControl {...bind(`stages.${index}.rateHz`)} /></>}
+        {stage.model === "cabinet" && <ParamControl {...bind(`stages.${index}.cabinet`)} />}
+      </ParamRow>
+    </div>)}
   </div>
 }

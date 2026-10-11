@@ -11,7 +11,7 @@ mod overdrive;
 mod oversample;
 mod waveshaper;
 
-pub use chain::{DriveChain, DriveChainParams, DriveStage, DriveStageParams};
+pub use chain::{CHAIN_LATENCY_SAMPLES, DriveChain, DriveChainParams, DriveStage, DriveStageParams};
 pub use cabinet::{Cabinet, MAX_CABINET_TAPS, cabinet_response, cabinet_taps};
 pub use guitar::{GuitarModel, GuitarRack, GuitarRackParams, PedalParams};
 pub use overdrive::{Overdrive, OverdriveParams};

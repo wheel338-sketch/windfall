@@ -159,8 +159,16 @@ fn spring_has_a_delayed_tail_and_cabinet_attenuates_treble() {
         &impulse,
     );
     assert!(slap[..DRIVE_LATENCY_SAMPLES].iter().all(|x| *x == 0.0));
-    assert!(slap[DRIVE_LATENCY_SAMPLES + 1..DRIVE_LATENCY_SAMPLES + 1_776].iter().all(|x| *x == 0.0));
-    assert!(slap[DRIVE_LATENCY_SAMPLES + 1_776..].iter().any(|x| x.abs() > 0.001));
+    assert!(
+        slap[DRIVE_LATENCY_SAMPLES + 1..DRIVE_LATENCY_SAMPLES + 1_776]
+            .iter()
+            .all(|x| *x == 0.0)
+    );
+    assert!(
+        slap[DRIVE_LATENCY_SAMPLES + 1_776..]
+            .iter()
+            .any(|x| x.abs() > 0.001)
+    );
     let high: Vec<_> = (0..8_192)
         .map(|n| 0.3 * (std::f32::consts::TAU * 12_000.0 * n as f32 / RATE).sin())
         .collect();
@@ -201,18 +209,31 @@ fn gate_closes_on_quiet_audio_and_compressor_squashes_loud_audio() {
 fn drive_chain_order_changes_the_result_and_bypass_is_unity() {
     let input = sine(4_096, 0.65);
     assert_eq!(
-        render::<DriveChain>(DriveChainParams::default(), &input),
-        input
+        render::<DriveChain>(
+            DriveChainParams {
+                oversampling: Oversampling::Off,
+                ..Default::default()
+            },
+            &input
+        ),
+        {
+            let mut delayed = vec![0.0; CHAIN_LATENCY_SAMPLES];
+            delayed.extend_from_slice(&input[..input.len() - CHAIN_LATENCY_SAMPLES]);
+            delayed
+        }
     );
     let mut first = DriveChainParams {
+        oversampling: Oversampling::Off,
         stages: [
             DriveStageParams {
                 model: DriveStage::Overdrive,
                 gain_db: 12.0,
+                ..Default::default()
             },
             DriveStageParams {
                 model: DriveStage::Waveshape,
                 gain_db: 3.0,
+                ..Default::default()
             },
             DriveStageParams::default(),
         ],
@@ -222,7 +243,7 @@ fn drive_chain_order_changes_the_result_and_bypass_is_unity() {
     first.stages.swap(0, 1);
     let b = render::<DriveChain>(first, &input);
     assert!(difference(&a, &b) > 0.1);
-    for (x, y) in input.iter().zip(b) {
+    for (x, y) in input.iter().zip(&b[CHAIN_LATENCY_SAMPLES..]) {
         assert!((first.transfer(*x) - y).abs() < 1.0e-6);
     }
 }
@@ -311,17 +332,21 @@ fn partition_invariance_including_automation_and_model_retargeting() {
                 DriveStageParams {
                     model: DriveStage::Fuzz,
                     gain_db: 12.0,
+                    ..Default::default()
                 },
                 DriveStageParams {
                     model: DriveStage::Overdrive,
                     gain_db: -3.0,
+                    ..Default::default()
                 },
                 DriveStageParams {
                     model: DriveStage::Waveshape,
                     gain_db: 6.0,
+                    ..Default::default()
                 },
             ],
             output_db: -6.0,
+            ..Default::default()
         },
     );
 }
@@ -466,8 +491,10 @@ fn damaged_parameters_extreme_audio_and_sample_rates_never_produce_nan() {
             stages: [DriveStageParams {
                 model,
                 gain_db: f32::MAX,
+                ..Default::default()
             }; 3],
             output_db: f32::MAX,
+            ..Default::default()
         });
     }
 }
