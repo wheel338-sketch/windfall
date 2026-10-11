@@ -1,7 +1,7 @@
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { afterEach, beforeEach, expect, it, vi } from "vitest"
-import { dispatch, redo, undo, useProjectStore } from "@/lib/store/project"
+import { redo, undo, useProjectStore } from "@/lib/store/project"
 import { announceProjectReplaced } from "@/lib/store/replaced"
 import { automatedNow } from "@/features/automation/now"
 import { settle } from "@/test/harness"

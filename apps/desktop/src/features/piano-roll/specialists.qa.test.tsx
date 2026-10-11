@@ -13,6 +13,7 @@ import { closeRiffGenerator, openRiffGenerator } from "./riff-generator"
 import { SheetExportDialog } from "./score/export-dialog"
 import { closeSheetExport, exportSheetMusic } from "./sheet-export"
 import { heldKeys } from "./chords/held-keys"
+import { NoteCurvesDialog, openNoteCurves, closeNoteCurves } from "./note-curves"
 
 let roll: Awaited<ReturnType<typeof startRoll>>
 beforeEach(async () => {
@@ -22,9 +23,9 @@ beforeEach(async () => {
     notes: [{ start: 0, length: 480, key: 60 }, { start: 960, length: 480, key: 72 }] })
   roll.show("Lead")
   roll.editor.setSelection(notesOf("Lead").map((note) => note.id))
-  render(<><NoteToolsDialog /><LfoDialog /><RiffGeneratorDialog /><SheetExportDialog /></>)
+  render(<><NoteToolsDialog /><LfoDialog /><RiffGeneratorDialog /><SheetExportDialog /><NoteCurvesDialog /></>)
 })
-afterEach(() => { cleanup(); closeNoteTools(); closeLfoDialog(); closeRiffGenerator(); closeSheetExport(); roll.stop(); vi.useRealTimers(); vi.restoreAllMocks() })
+afterEach(() => { cleanup(); closeNoteTools(); closeLfoDialog(); closeRiffGenerator(); closeSheetExport(); closeNoteCurves(); roll.stop(); vi.useRealTimers(); vi.restoreAllMocks() })
 const field = (label: string, value: string) => fireEvent.change(screen.getByLabelText(label), { target: { value } })
 async function click(label: string) { await act(async () => { fireEvent.click(screen.getByRole("button", { name: label, exact: true })); await settle() }) }
 async function choose(label: string, value: string) {
@@ -32,6 +33,44 @@ async function choose(label: string, value: string) {
   await user.click(screen.getByRole("combobox", { name: label }))
   await user.click(screen.getByRole("option", { name: value, exact: true }))
 }
+
+it.each([
+  { source: "wheel", parameter: "finePitchCents" as const, label: "Fine pitch (cents)", values: [0, 100, 200], changed: 125 },
+  { source: "pressure", parameter: "modulationY" as const, label: "Modulation Y", values: [.2, .5, .8], changed: .7 },
+  { source: "CC1", parameter: "modulationY" as const, label: "Modulation Y", values: [.1, .4, .6], changed: .7 },
+  { source: "CC74", parameter: "modulationX" as const, label: "Modulation X", values: [.1, .5, .9], changed: .7 },
+])("displays and edits canonical recorded $source expression with one undo and save/reopen", async ({ parameter, label, values, changed }) => {
+  // The capture worker supplies the same canonical data/command as MIDI import.
+  // No separate piano-roll hardware recorder or private expression model.
+  const expected = structuredClone(notesOf("Lead"))
+  await act(async () => {
+    await dispatch({ type: "setNoteExpressionCurves", pattern: currentPattern().id, channel: channel("Lead").id,
+      expected, expectedCurves: [], curves: [{ note: expected[0].id, parameter,
+        points: values.map((value, index) => ({ position: index / 2, value, curve: 0, hold: false })) }] })
+    await settle()
+  })
+  const captured = structuredClone(currentPattern().noteCurves)
+  const before = undoSteps()
+  act(openNoteCurves)
+  await choose("Note curve property", label)
+  const graph = screen.getByRole("group", { name: `${label} note curve` })
+  expect(graph.querySelectorAll("circle")).toHaveLength(3)
+  expect(graph.querySelectorAll("circle")[1].getAttribute("cx")).toBe("300")
+  fireEvent.focus(screen.getByRole("button", { name: /Curve point 2:/ }))
+  expect(screen.getByLabelText("Value")).toHaveValue(values[1])
+  field("Value", String(changed))
+  await click("Apply curves")
+  expect(currentPattern().noteCurves![0].points[1].value).toBeCloseTo(changed)
+  expect(undoSteps()).toBe(before + 1)
+  const edited = structuredClone(currentPattern())
+  await roll.backend.projectSave("/projects/recorded-expression.windfall")
+  await act(async () => { await undo(); await settle() })
+  expect(currentPattern().noteCurves).toEqual(captured)
+  await act(async () => { await redo(); await settle() })
+  expect(currentPattern()).toEqual(edited)
+  await act(async () => { await undo(); await roll.backend.projectOpen("/projects/recorded-expression.windfall"); await settle() })
+  expect(currentPattern()).toEqual(edited)
+})
 
 it("mounted Portamento captures phrasing, applies once and survives undo/redo/reopen", async () => {
   const original = structuredClone(notesOf("Lead"))

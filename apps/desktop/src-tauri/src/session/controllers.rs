@@ -122,6 +122,7 @@ pub(super) struct Hub {
     notes: NoteTake,
     automation_armed: bool,
     automation: AutomationTake,
+    automation_destination: Option<super::pattern_movement::Destination>,
     log: ScoreLog,
     clock_in: ClockIn,
     clock_events: VecDeque<ClockInEvent>,
@@ -157,6 +158,7 @@ impl Hub {
             notes: NoteTake::default(),
             automation_armed: false,
             automation: AutomationTake::default(),
+            automation_destination: None,
             log: ScoreLog::default(),
             clock_in: ClockIn::default(),
             clock_events: VecDeque::new(),
@@ -168,6 +170,22 @@ impl Hub {
         let mut profiles = builtin_profiles();
         profiles.extend(self.user_profiles.iter().cloned());
         profiles
+    }
+
+    fn record_movement(&mut self, project: &Project, place: super::controller_capture::Position,
+        target: AutomationTarget, before: f32, value: f32) {
+        if place.mode == PlayMode::Pattern && target == AutomationTarget::Tempo {
+            self.error = Some("Record tempo movement in song mode.".into());
+            return;
+        }
+        if self.automation_destination.is_none() {
+            self.automation_destination = super::pattern_movement::Destination::capture(project, place);
+        }
+        if !self.automation_destination.as_ref().is_some_and(|destination| destination.matches(place)) {
+            self.error = Some("Recording destination changed. Stop and start a new automation pass.".into());
+            return;
+        }
+        self.automation.record(target, before, place.tick, value);
     }
 
     /// Reads which inputs are open and what profiles they have.
@@ -203,6 +221,7 @@ impl Hub {
             self.last_tweaked = None;
             self.notes = NoteTake::default();
             self.automation = AutomationTake::default();
+            self.automation_destination = None;
             self.log.clear();
             self.bank = 0;
             self.stamp = None;
@@ -744,7 +763,7 @@ impl Session {
         let place = hub
             .clock
             .position_at(now, 0.0)
-            .filter(|place| place.mode == PlayMode::Song && hub.automation_armed);
+            .filter(|_| hub.automation_armed);
         for write in &plan.writes {
             let Some(stored) = project
                 .automation_range(&write.target)
@@ -757,8 +776,7 @@ impl Session {
                 link_state.wrote(stored);
             }
             if let Some(place) = place {
-                hub.automation
-                    .record(write.target, write.before, place.tick, stored);
+                hub.record_movement(project, place, write.target, write.before, stored);
             }
         }
     }
@@ -953,7 +971,7 @@ impl Session {
         let place = hub
             .clock
             .position_at(now, 0.0)
-            .filter(|place| place.mode == PlayMode::Song && hub.automation_armed);
+            .filter(|_| hub.automation_armed);
         if let Some(place) = place {
             for (target, before) in tweaks {
                 let stored = project
@@ -961,7 +979,7 @@ impl Session {
                     .zip(project.automation_stored_value(target))
                     .map(|(range, value)| range.normalized(value));
                 if let Some(stored) = stored.filter(|stored| stored != before) {
-                    hub.automation.record(*target, *before, place.tick, stored);
+                    hub.record_movement(project, place, *target, *before, stored);
                 }
             }
         }
@@ -1135,18 +1153,15 @@ impl Session {
 
     /// Writes the movements of the pass as automation, as one undo step.
     fn commit_automation_take(&self) {
-        let lanes = lock(&self.inner.controllers).automation.take();
+        let (lanes, destination, generation) = {
+            let mut hub = lock(&self.inner.controllers);
+            (hub.automation.take(), hub.automation_destination.take(), hub.generation)
+        };
         if lanes.is_empty() {
             return;
         }
-        let command = {
-            let state = self.state();
-            recorded_automation_command(state.document.project(), &lanes)
-        };
-        let Some(command) = command else {
-            return;
-        };
-        if let Err(error) = self.dispatch_quiet(command, None) {
+        let Some(destination) = destination else { return; };
+        if let Err(error) = self.write_recorded_movements(generation, &destination, &lanes) {
             lock(&self.inner.controllers).error = Some(error);
         }
     }
