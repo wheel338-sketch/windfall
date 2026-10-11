@@ -1,6 +1,8 @@
 # Nonlinear, guitar and buffered performance effects — hand-off
 
-Branch `worktree-agent-a3f88402660322a72`, branched from `feat/parity-100` at `fd60cdde`.
+Branch `worktree-agent-a3f88402660322a72`. Resumed implementation starts at the
+merged `feat/parity-100` checkpoint `8e946db2`; the earlier DSP notes below are
+retained as design history. Latest checkpoint: MIDI trigger completion, 2026-10-11.
 
 **Nothing in this document has been compiled or run.** The stream was edit-only by instruction. Every test listed is "written, not executed". The parent builds, tests and fixes after merging.
 
@@ -8,18 +10,20 @@ Rows: `fx-fruity-blood-overdrive`, `fx-fruity-waveshaper`, `fx-hardcore-11-guita
 
 ## Status at a glance
 
-This table is updated at every commit. "Not started" means the row is still exactly as `fd60cdde` left it.
+Every row is a **full-row candidate**, pending integrator execution and listening.
+All eight have purpose-built editors and written DSP/project/engine/mounted UI
+acceptance. This is an implementation claim, not passing-test evidence.
 
-| Row | Effect kind | DSP | Persistence / engine | Editor | Tests written | State |
-| --- | --- | --- | --- | --- | --- | --- |
-| `fx-fruity-blood-overdrive` | `overdrive` | done | no model change needed | generic editor only | DSP yes; project, engine, UI no | DSP committed |
-| `fx-fruity-waveshaper` | `waveshaper` | done | no model change needed (shape saved inline) | generic editor only; curve editor not written | DSP yes; project, engine, UI no | DSP committed |
-| `fx-hardcore-11-guitar-fx` | `guitarRack` | not started | — | — | — | not started |
-| `fx-distructor` | `driveChain` | not started | — | — | — | not started |
-| `fx-gross-beat` | `volumeGate` | not started | — | — | — | not started |
-| `fx-transporter` | `timeTransport` | not started | — | — | — | not started |
-| `fx-effector-12-fx` | `performanceRack` | not started | — | — | — | not started |
-| `fx-fruity-scratcher` | `scratch` | not started | — | — | — | not started |
+| Row | Effect kind | Implemented distinct behavior | Remaining gates |
+| --- | --- | --- | --- |
+| `fx-fruity-blood-overdrive` | `overdrive` | Oversampled asymmetric guitar drive, pre-band, hot mode and tone controls. | Transfer/harmonic/alias tolerances, live/offline and editor checks. |
+| `fx-fruity-waveshaper` | `waveshaper` | Freely drawn bent transfer curve, immutable lookup table, bipolar mode, legacy automatable knots. | Curve editor, alias/headroom and shape-change crossfade checks. |
+| `fx-hardcore-11-guitar-fx` | `guitarRack` | Eleven simultaneous distinct pedals and four original synthetic cabinet IRs. | Registered inherited guitar tests, FIR/reference tolerances and maximum-rate CPU/listening. |
+| `fx-distructor` | `driveChain` | Three reorderable distortion/filter/chorus/cabinet modules. | Order/reference/latency tests and worst-case CPU. |
+| `fx-gross-beat` | `volumeGate` | Drawn time/volume replay and MIDI-linkable capture/restart/hold/release. | Exact host/recorded-trigger capture tests, curve editor and real-device MIDI/listening. |
+| `fx-transporter` | `timeTransport` | Live onset detection, tempo-sized capture/reloop and MIDI-linkable manual triggering. | Musical detector tuning, onset/recorded-trigger tests, reset CPU and real-device MIDI/listening. |
+| `fx-effector-12-fx` | `performanceRack` | Twelve actual treatments with independent XY steering and grouped history. | XY tests, partition checks and listening. |
+| `fx-fruity-scratcher` | `scratch` | Loaded project-source manual/drawn scratching with immutable audio ownership. | Reload/persistence/editor tests, missing-file/budget UX, listening; preset sample portability belongs to its subsystem. |
 
 ## Design decisions that hold for every row
 
@@ -40,7 +44,11 @@ These were settled from reading the source before any edit. They explain why the
 - A reference serializes **as its points** and deserializes by publishing them. So a drawn curve is saved inside the effect's settings JSON, travels through the existing `setEffectParams` command, is undone by the existing history, and is duplicated with the effect, all with no change to the project model, commands, edits or patches. The frontend sees `CurvePoint[]`.
 - Ids are a 64-bit FNV-1a hash of the cleaned, sorted points, so equal curves are one asset.
 - Publishing locks a mutex that only publishers take. Lookup (`CurveRef::asset`, `asset::source`) reads `OnceLock` slots: no lock, allocation or wait. A found asset is `&'static`.
-- Scratch sources are keyed by the project's sample id. `asset::publish_source(key, &AudioBuffer)` stores a clone of the shared buffer; the newest audio for a key wins; `asset::source_epoch()` tells a processor to look again.
+- Scratch saves a project sample id, but its prepared `SourceRef` identifies the
+  decoded audio allocation. `asset::publish_audio(&AudioBuffer)` deduplicates
+  shared allocations off-thread and returns a static immutable audio handle.
+  Reused ids in other projects cannot redirect it. The legacy keyed publication
+  API remains available; the loaded Scratch callback does not use it.
 - Bounds: 32,768 curves, 64 MiB of curve data, 1,024 source entries, 1 GiB of source audio. Past a bound `publish` returns `AssetError::Full`, which a command reports as "the effect asset memory is full; restart to free it". `asset::stats()` exposes the counts.
 
 **Deliberate limit:** the store only grows. Nothing is reclaimed until the process exits. This is what lets lookups be free of reference counting and lets undo history hold any id. An editor should commit a curve on pointer release, not on every pointer move, so an edit costs one asset. Reclaiming at project replacement is a remaining gate.
@@ -67,7 +75,8 @@ Implemented in `drive/overdrive.rs`:
 
 Tests in `drive/shaping_tests.rs` (written, not executed): `the_overdrive_curve_matches_its_description_and_hot_adds_twenty_decibels`, `overdrive_asymmetry_adds_even_harmonics_and_matches_the_curve`, `the_pre_band_sets_where_the_emphasis_starts`, `old_overdrive_settings_load_with_the_new_controls_at_their_defaults`, and its halves of `oversampling_lowers_the_aliasing_of_a_drawn_clip_and_of_the_overdrive` and `a_bounded_curve_keeps_its_headroom_at_every_quality`. Existing tests in `drive/tests.rs` were updated for the new fields.
 
-Not done: a purpose-built editor (it gets the generic one, which shows all eight controls), project-level and engine-level tests.
+The purpose-built editor and project/engine/mounted acceptance were completed
+in resumed checkpoint 1 below; all tests remain unexecuted.
 
 ### `fx-fruity-waveshaper` — Waveshaper
 
@@ -80,7 +89,8 @@ Implemented in `drive/waveshaper.rs`:
 
 Tests in `drive/shaping_tests.rs` (written, not executed): `a_drawn_shape_is_the_transfer_curve_in_both_readings`, `harmonics_of_a_drawn_clip_match_the_curve_and_follow_its_symmetry`, `mix_blends_with_the_delayed_input_and_a_shape_edit_crossfades`, `old_waveshaper_settings_load_and_a_shape_is_saved_as_its_points`, plus the shared aliasing and headroom tests above. `identity_waveshape_is_unity` and `bent_curve_changes_amplitude_and_interpolates_knots` in `drive/tests.rs` were rewritten for the latency.
 
-Not done: the drawn-curve editor in the frontend. Until it exists the shape can only be set by a `setEffectParams` command; the generic editor shows the 33 knots and the three new controls.
+The drawn-curve editor and project/engine/mounted acceptance were completed
+in resumed checkpoint 1 below; all tests remain unexecuted.
 
 ## Shared seam files touched
 
@@ -88,9 +98,14 @@ Updated at every commit.
 
 | File | Change |
 | --- | --- |
-| `crates/windfall-dsp/src/lib.rs` | one line, `pub mod asset;`, after `pub mod additive;` |
-| `crates/windfall-dsp/src/effect.rs` | four arms changed in place: `EffectKind::{Waveshaper, Overdrive}` in `max_latency_samples` and `EffectParams::{Waveshaper, Overdrive}` in `latency_samples` now give `crate::drive::DRIVE_LATENCY_SAMPLES` |
-| `crates/windfall-dsp/tests/dsp/slot.rs` | `Waveshaper` and `Overdrive` added to the `has_latency` list of `any_effect_reports_what_it_holds_and_refuses_other_settings` |
+| `crates/windfall-dsp/src/effect.rs` | GuitarRack/DriveChain latency and default/forwarded built-in transport method. Overdrive/Waveshaper latency and lib.rs asset declaration are inherited. |
+| `crates/windfall-dsp/src/drive/mod.rs` | Cabinet module/export and guitar rack test registration. |
+| `crates/windfall-dsp/tests/dsp/{main,slot}.rs` | Acceptance module registration; GuitarRack/DriveChain added to expected latency kinds. |
+| `crates/windfall-engine/src/{controller,plan,project_preparation,rack}.rs` | Prepare immutable Scratch audio handles/refuse asset budget failures; forward transport to built-ins. |
+| `crates/windfall-engine/tests/engine/main.rs` | Nonlinear/performance acceptance module registration. |
+| `crates/windfall-project/src/{check,lower}.rs` | Validate Scratch source ids and refuse removal of used sources. |
+| `apps/desktop/src/features/effects/effect-editor.tsx` | Eight purpose-built editor registrations. |
+| `apps/desktop/src-tauri/src/session/tests/mod.rs` | Native MIDI-link acceptance module registration only; controller runtime is reused. |
 
 ## What the parent must regenerate
 
@@ -217,8 +232,8 @@ compiler check, benchmark or test was invoked by this worker.
 
 | Row | Implementation and current claim | Remaining gates |
 | --- | --- | --- |
-| `fx-gross-beat` | Full-row software candidate: immutable drawn time and volume curves over a bounded stereo replay ring, segment bends/steps, curve editor, host position sync and seek crossfades. | Integrator checks, tempo-map/seek listening, direct MIDI note-to-trigger adapter remains outside the existing scalar controller mapping. |
-| `fx-transporter` | Full-row software candidate: dual-envelope onset detector; threshold/contrast/holdoff; captures from detected onset for a tempo-derived slice and reloops/reverses/holds; manual trigger retained. | Detector thresholds on musical material, callback time at maximum rate/reset, mapped MIDI trigger integration acceptance. |
+| `fx-gross-beat` | Full-row software candidate: immutable drawn time and volume curves over a bounded stereo replay ring, segment bends/steps, curve editor, host position sync and seek crossfades. MIDI completion below adds capture/restart/hold/release. | Integrator checks, tempo-map/seek listening, real-device MIDI validation. |
+| `fx-transporter` | Full-row software candidate: dual-envelope onset detector; threshold/contrast/holdoff; captures from detected onset for a tempo-derived slice and reloops/reverses/holds; manual trigger retained. | Detector thresholds on musical material, callback time at maximum rate/reset, MIDI acceptance execution/real-device validation. |
 | `fx-effector-12-fx` | Full-row software candidate: twelve actual treatments, both independent XY axes have model-specific meanings, keyboard/pointer XY pad writes one grouped history gesture. | Integrator tests and performance/listening. Buffered pitch/speed paths interpolate linearly; no duration-preserving pitch/formant claim. |
 | `fx-fruity-scratcher` | Full-row software candidate: chooses a loaded project source, manual platter position plus drawn position curve; immutable runtime audio identity prepared off-thread; mono/stereo fractional interpolation; exact source/history/file persistence. | Missing-file and budget-refusal native UX, loaded-source listening, preset portability of project sample references is a separate subsystem gate. |
 
@@ -333,6 +348,50 @@ Risk order for integration:
 - Integrator should run the same commands above. Only touched owned Rust files
   were rustfmt-ed; git whitespace inspection found no whitespace errors. No
   executable validation, tests or build commands were run.
-- Full-row candidates are implementation claims only. Gross Beat/Transporter
-  still need the roadmap's mapped MIDI-trigger acceptance (the automatable
-  Trigger parameter exists, but no new direct note adapter was added).
+- Full-row candidates are implementation claims only. The mapped MIDI-trigger
+  gap identified here is addressed in the checkpoint below using the existing
+  native controller link runtime. Its acceptance still needs execution.
+
+## MIDI trigger completion — 2026-10-11
+
+- Existing `ControlSource::Midi` / `MidiControl::Note` already maps key-down to
+  1 and release to 0 through `session/controllers.rs`, with source/channel
+  filtering, persisted checked commands and automation recording. Reused this
+  accepted path rather than adding another MIDI event/model contract.
+- Volume Gate now appends `trigger` at descriptor **21** (indices 0..20 retain
+  their meanings). Legacy files default it to false. Like other descriptor
+  controls it serializes explicitly: `readParam` and the JSON/descriptor contract
+  require the path to exist. Default-project JSON is unchanged (no effect slots);
+  no pinned per-effect default string was found. Rising edges
+  capture preceding audio and restart both envelopes; a held trigger freezes
+  input history so arbitrarily long relooping cannot overwrite the slice. Release
+  resumes capture. Without a drawn time curve, the held record plays forward
+  at unity. A retained clock offset preserves the restart across host block
+  boundaries. Head transitions remain two milliseconds; held tail is infinite.
+- The Volume Gate editor exposes Trigger with the existing parameter context
+  menu's controller linking. Time Transport's existing Trigger uses the same
+  menu and native map. No new Command, IPC operation, device code or dependency.
+- Tests **written, not executed**:
+  - `performance/extended_tests.rs::mapped_gate_trigger_restarts_curves_and_preserves_a_held_capture_across_host_blocks`
+    verifies exact independent envelopes, frozen storage beyond ring capacity,
+    host-offset preservation, 1/7/64/137/512 partitions, release and old indices.
+  - `performance/extended_tests.rs::a_gate_trigger_without_a_drawn_time_curve_repeats_the_original_input_at_unity`.
+  - DSP callback allocator test now toggles the actual Volume Gate trigger.
+  - `engine/nonlinear_performance.rs::recorded_trigger_edges_replay_the_exact_history_in_live_and_offline_capture`
+    compares both buffered effects against the original input slice and release,
+    including all live block partitions. Edges sit on the engine's existing
+    64-frame automation grid; off-grid recording retains that existing granularity.
+  - `session/tests/nonlinear_performance.rs::midi_notes_capture_and_release_both_buffered_processors_through_saved_controller_links`
+    uses production note mapping and pump, actual synth PCM capture/release,
+    channel/key filtering, repeated-down no-op, save/open, removed-target undo
+    and project replacement. It opens no hardware port.
+  - Mounted `nonlinear_performance.test.tsx` adds both Trigger controls' actual
+    commands, exact undo/redo and saved reopen.
+- Additional integrator command (after the commands already listed):
+  `cargo test -p windfall-desktop --lib session::tests::nonlinear_performance`.
+  Regenerate widened VolumeGateParams/descriptors/automation fixtures/WASM.
+- Check native-session capture/tail thresholds and startup/adoption timing,
+  the recorded automation edge/reference assertions, then mounted Trigger roles.
+  Real Windows MIDI pad/key timing, hotplug and listening remain external gates.
+- Restart audit found the earlier worktree clean at `59cbfe90`; nothing was
+  redone. No build, test, package runner, generator or real-device check was run.

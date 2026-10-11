@@ -53,6 +53,7 @@ fn immutable_curve_source_swaps_and_transient_reloops_have_zero_callback_heap_ac
                 let mut edited = params;
                 match &mut edited {
                     EffectParams::VolumeGate(p) => {
+                        p.trigger = n % 2 == 0;
                         p.time_curve = curves[n % 2];
                         p.volume_curve = curves[(n + 1) % 2];
                     }

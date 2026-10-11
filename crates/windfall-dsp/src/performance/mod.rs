@@ -72,6 +72,8 @@ pub struct VolumeGate {
     curve_length: usize,
     curve_ready: bool,
     last_position: Option<f64>,
+    trigger_down: bool,
+    phase_offset: usize,
 }
 impl VolumeGate {
     pub fn new() -> Self {
@@ -106,6 +108,8 @@ impl Effect for VolumeGate {
         self.feedback = [0.0; 2];
         self.curve_ready = false;
         self.last_position = None;
+        self.trigger_down = false;
+        self.phase_offset = 0;
     }
     fn set_params(&mut self, params: &Self::Params) {
         if params.time_curve != self.controls.target.time_curve
@@ -123,12 +127,13 @@ impl Effect for VolumeGate {
     }
     fn set_transport(&mut self, playing: bool, beats: f64) {
         if playing {
-            let next = song_phase(
+            let next = (song_phase(
                 beats,
                 self.history.rate,
                 self.history.bpm,
                 self.history.length,
-            );
+            ) + self.phase_offset)
+                % self.history.length;
             if next != self.phase {
                 self.history.fade.jump();
                 self.curve_ready = false;
@@ -141,6 +146,21 @@ impl Effect for VolumeGate {
         for (l, r) in left.iter_mut().zip(right) {
             let p = self.controls.tick();
             let dry = [finite(*l), finite(*r)];
+            if p.trigger != self.trigger_down {
+                self.history.fade.jump();
+                self.curve_ready = false;
+                self.last_position = None;
+                if p.trigger {
+                    // Retain the restart offset under block-boundary host sync.
+                    self.phase_offset = (self.phase_offset + self.history.length - self.phase)
+                        % self.history.length;
+                    self.phase = 0;
+                    self.last_step = None;
+                } else {
+                    self.phase_offset = 0;
+                }
+                self.trigger_down = p.trigger;
+            }
             let step = self.phase * 16 / self.history.length;
             if self.last_step != Some(step) {
                 // Fixed seed and exactly one random draw per visited step: block invariant.
@@ -165,16 +185,24 @@ impl Effect for VolumeGate {
                 self.last_step = Some(step);
             }
             let curve = self.controls.target.time_curve.asset();
-            let replay = if let Some(curve) = curve {
-                if self.phase == 0 || !self.curve_ready {
+            let replay = if curve.is_some() || p.trigger {
+                if !self.curve_ready || (self.phase == 0 && !p.trigger) {
                     self.curve_length = self.history.length.min(self.history.ring.filled);
                     self.curve_start = self.history.ring.start(self.curve_length);
                     self.curve_ready = true;
                     self.last_position = None;
                     self.history.fade.jump();
                 }
-                let position = curve.value(self.phase as f32 / self.history.length as f32) as f64
-                    * self.curve_length.saturating_sub(1) as f64;
+                let normalized = self.phase as f32 / self.history.length as f32;
+                let position = curve.map_or_else(
+                    || self.phase as f64 % self.curve_length.max(1) as f64,
+                    |curve| {
+                        curve.value(normalized) as f64 * self.curve_length.saturating_sub(1) as f64
+                    },
+                );
+                if p.trigger && self.phase == 0 {
+                    self.history.fade.jump();
+                }
                 if self.last_position.is_some_and(|last| {
                     (position - last).abs() > (self.curve_length as f64 * 0.05).max(2.0)
                 }) {
@@ -205,9 +233,11 @@ impl Effect for VolumeGate {
                     curve.value(self.phase as f32 / self.history.length as f32)
                 });
             let wet = self.history.fade.tick(replay).map(|v| finite(v * gain));
-            self.history.ring.push(std::array::from_fn(|c| {
-                finite(dry[c] + self.feedback[c] * p.feedback)
-            }));
+            if !p.trigger {
+                self.history.ring.push(std::array::from_fn(|c| {
+                    finite(dry[c] + self.feedback[c] * p.feedback)
+                }));
+            }
             self.feedback = wet;
             let out = blend(dry, wet, p.mix);
             *l = out[0];
@@ -219,7 +249,9 @@ impl Effect for VolumeGate {
         0
     }
     fn tail_samples(&self) -> usize {
-        if self.controls.target.feedback > 0.0 {
+        if self.controls.target.trigger {
+            usize::MAX
+        } else if self.controls.target.feedback > 0.0 {
             self.history.ring.data.len().saturating_mul(280)
         } else {
             self.history.ring.data.len()

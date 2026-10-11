@@ -1,4 +1,5 @@
 use super::*;
+use crate::ParamSet;
 use crate::asset::{CurvePoint, CurveRef};
 
 fn run<E: Effect>(effect: &mut E, input: &[f32], block: usize) -> Vec<f32> {
@@ -60,6 +61,94 @@ fn host_position_sets_exact_phase_and_seeks_preserve_history() {
     assert_eq!(gate.phase, 6137);
     gate.set_transport(true, f64::NAN);
     assert_eq!(gate.phase, 0);
+}
+
+#[test]
+fn mapped_gate_trigger_restarts_curves_and_preserves_a_held_capture_across_host_blocks() {
+    let p = VolumeGateParams {
+        loop_beats: 0.125,
+        time_curve: CurveRef::new(&[CurvePoint::new(0.0, 0.0), CurvePoint::new(1.0, 1.0)]).unwrap(),
+        volume_curve: CurveRef::new(&[CurvePoint::new(0.0, 0.0), CurvePoint::new(1.0, 1.0)])
+            .unwrap(),
+        ..Default::default()
+    };
+    let render = |block| {
+        let mut gate = VolumeGate::new();
+        gate.prepare(1000.0, 512);
+        gate.set_tempo(60.0);
+        gate.set_params(&p);
+        let history: Vec<_> = (0..503).map(|n| n as f32 * 0.001).collect();
+        run(&mut gate, &history, block);
+        let filled = gate.history.ring.filled;
+        let write = gate.history.ring.write;
+        let mut mapped = p.sanitized();
+        let trigger = VolumeGateParams::descriptors()
+            .iter()
+            .position(|d| d.id == "trigger")
+            .unwrap();
+        assert_eq!(trigger, 21, "old descriptor indices must not move");
+        assert!(mapped.set(trigger, 1.0));
+        gate.set_params(&mapped);
+        let mut output = vec![0.9; 5000];
+        let mut right = output.clone();
+        let mut elapsed = 0;
+        for (left, right) in output.chunks_mut(block).zip(right.chunks_mut(block)) {
+            gate.set_transport(true, (503 + elapsed) as f64 / 1000.0);
+            gate.process(left, right);
+            elapsed += left.len();
+        }
+        assert_eq!(gate.history.ring.filled, filled);
+        assert_eq!(
+            gate.history.ring.write, write,
+            "held capture must never be overwritten"
+        );
+        assert_eq!(gate.tail_samples(), usize::MAX);
+        for (n, got) in output.iter().enumerate() {
+            let phase = n % 125;
+            if phase < 3 {
+                continue;
+            }
+            let normalized = phase as f32 / 125.0;
+            let expected = (378.0 + normalized * 124.0) * 0.001 * normalized;
+            assert!((*got - expected).abs() < 1e-6, "frame {n}");
+        }
+        gate.set_params(&p);
+        run(&mut gate, &[0.7; 3], 1);
+        assert_eq!(gate.history.ring.filled, filled + 3);
+        gate.set_transport(true, 5.506);
+        assert_eq!(gate.phase, 6, "release restores the song clock");
+        output
+    };
+    let expected = render(137);
+    for block in [1, 7, 64, 512] {
+        assert_eq!(expected, render(block));
+    }
+    assert_eq!(
+        serde_json::to_value(VolumeGateParams::default()).unwrap()["trigger"],
+        false
+    );
+}
+
+#[test]
+fn a_gate_trigger_without_a_drawn_time_curve_repeats_the_original_input_at_unity() {
+    let mut gate = VolumeGate::new();
+    gate.prepare(1000.0, 512);
+    gate.set_tempo(60.0);
+    let p = VolumeGateParams {
+        loop_beats: 0.125,
+        ..Default::default()
+    };
+    gate.set_params(&p);
+    let history: Vec<_> = (0..503).map(|n| n as f32 * 0.001).collect();
+    run(&mut gate, &history, 7);
+    gate.set_params(&VolumeGateParams { trigger: true, ..p });
+    let output = run(&mut gate, &vec![0.9; 5000], 137);
+    for (n, got) in output.iter().enumerate() {
+        if n % 125 < 3 {
+            continue;
+        }
+        assert!((*got - history[378 + n % 125]).abs() < 1e-6);
+    }
 }
 
 #[test]

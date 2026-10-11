@@ -157,3 +157,81 @@ fn scratch_source_reload_reuses_project_ids_without_redirecting_another_engine()
     let again = original.play(48_000, 4096, 137);
     assert!(again[2048..].iter().all(|x| (*x - 0.2).abs() < 1e-6));
 }
+
+#[test]
+fn recorded_trigger_edges_replay_the_exact_history_in_live_and_offline_capture() {
+    use windfall_project::AutomationTarget;
+    for kind in [EffectKind::VolumeGate, EffectKind::TimeTransport] {
+        let mut rig = Rig::new();
+        let track = rig.track();
+        let source: Vec<f32> = (0..48_000).map(|n| (n % 997) as f32 * 0.0005).collect();
+        let lane = rig.playlist_track();
+        rig.audio_clip(
+            lane,
+            AudioBuffer::from_interleaved(48_000, 1, source.clone()),
+            track,
+            0,
+            1920,
+        );
+        let mut params = kind.default_params();
+        let loop_index = kind
+            .descriptors()
+            .iter()
+            .position(|d| d.id == "loopBeats")
+            .unwrap();
+        params.set(loop_index, 0.125);
+        let effect = rig.effect(track, params);
+        let trigger_index = kind
+            .descriptors()
+            .iter()
+            .position(|d| d.id == "trigger")
+            .unwrap();
+        let target = AutomationTarget::EffectParam {
+            track,
+            effect,
+            param: trigger_index as u32,
+        };
+        // These edges are on the existing engine's 64-frame automation grid.
+        // A MIDI-recorded Trigger lane uses this same saved automation path.
+        let automation = rig.automation(
+            target,
+            &[(0, 0.0), (256, 0.0), (256, 1.0), (768, 1.0), (768, 0.0)],
+        );
+        let control_lane = rig.playlist_track();
+        rig.automation_clip(control_lane, automation, 0, 1920);
+        let options = RenderOptions {
+            sample_rate: 48_000,
+            mode: PlayMode::Song,
+            block_frames: 101,
+            tail_secs: 0.0,
+            ..Default::default()
+        };
+        let captured = render(&rig.project, &rig.pool, &options, &mut |_| true);
+        let output = captured.samples();
+        for frame in 6500..19200 {
+            let position = (frame - 6400) % 3000;
+            if position < 100 {
+                continue;
+            } // two-ms head transition
+            let expected = source[3400 + position];
+            assert!(
+                (output[frame * 2] - expected).abs() < 1e-6,
+                "{kind:?} frame {frame}"
+            );
+            assert!((output[frame * 2 + 1] - expected).abs() < 1e-6);
+        }
+        for frame in 19300..40000 {
+            assert!(
+                (output[frame * 2] - source[frame]).abs() < 1e-6,
+                "{kind:?} release frame {frame}"
+            );
+        }
+        for block in [1, 7, 64, 137, 512] {
+            assert_eq!(
+                output,
+                rig.play_song(48_000, captured.frames(), block),
+                "{kind:?} block {block}"
+            );
+        }
+    }
+}

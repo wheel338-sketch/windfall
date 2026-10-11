@@ -6,6 +6,9 @@ use ts_rs::TS;
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase", default)]
 pub struct VolumeGateParams {
+    /// A rising edge captures preceding audio and restarts both envelopes.
+    /// While held the captured slice is immutable; release resumes live capture.
+    pub trigger: bool,
     #[ts(as = "Vec<crate::asset::CurvePoint>")]
     pub time_curve: CurveRef,
     #[ts(as = "Vec<crate::asset::CurvePoint>")]
@@ -27,6 +30,7 @@ pub struct VolumeGateParams {
 impl Default for VolumeGateParams {
     fn default() -> Self {
         Self {
+            trigger: false,
             time_curve: CurveRef::NONE,
             volume_curve: CurveRef::NONE,
             steps: [1.0; 16],
@@ -61,6 +65,7 @@ param_set!(VolumeGateParams, "Volume Gate", {
     int [retrigger_steps] "retriggerSteps" "Retrigger Steps" { None, 1, 16, 1 }
     float [feedback] "feedback" "Feedback" { Fraction, Linear, 0.0, 0.95, 0.0 }
     float [mix] "mix" "Mix" { Fraction, Linear, 0.0, 1.0, 1.0 }
+    toggle [trigger] "trigger" "Trigger" { false }
 });
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize, TS)]

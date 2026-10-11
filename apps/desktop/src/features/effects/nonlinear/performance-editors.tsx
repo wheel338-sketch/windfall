@@ -16,7 +16,8 @@ export function VolumeGateEditor({ effect, track, params, bind }: EditorProps<Vo
     <CurveEditor key={`volume:${effect}`} label="Replay volume" points={params.volumeCurve} fallback={[{ x: 0, y: 1, tension: 0 }, { x: 1, y: 1, tension: 0 }]} onCommit={(curve) => commitAsset(effect, track, "volumeGate", "volumeCurve", curve)} />
     <div className="flex gap-2"><Button size="sm" variant="outline" onClick={() => commitAsset(effect,track,"volumeGate","timeCurve",[])}>Use live replay clock</Button><Button size="sm" variant="outline" onClick={() => commitAsset(effect,track,"volumeGate","volumeCurve",[])}>Use automatable volume steps</Button></div>
     {params.volumeCurve.length === 0 && <ParamRow columns={8}>{params.steps.map((_,index) => <ParamControl key={index} {...bind(`steps.${index}`)} />)}</ParamRow>}
-    <ParamRow columns={5}>{["loopBeats", "retriggerChance", "retriggerSteps", "feedback", "mix"].map((id) => <ParamControl key={id} {...bind(id)} />)}</ParamRow>
+    <ParamRow columns={3}>{["loopBeats", "retriggerChance", "retriggerSteps", "feedback", "mix", "trigger"].map((id) => <ParamControl key={id} {...bind(id)} />)}</ParamRow>
+    <p className="text-xs text-muted-foreground">Trigger captures the preceding slice and restarts both envelopes. Hold it to replay that record; release to resume capture. Link Trigger to a MIDI key or pad through its control menu.</p>
   </div>
 }
 

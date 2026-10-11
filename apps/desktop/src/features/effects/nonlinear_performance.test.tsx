@@ -199,6 +199,21 @@ describe("nonlinear and buffered effects with the shared Rust WASM document", ()
     await redo(); await flush(); expect(chain("Clap")[0].params).toMatchObject({ sourceId: sample.id })
   })
 
+  it.each(["volumeGate", "timeTransport"] as const)("%s exposes an undoable persisted MIDI-linkable trigger", async (kind) => {
+    const { editor, user } = await open(kind)
+    const before = structuredClone(chain("Clap")[0].params)
+    await user.click(editor.getByRole("button", { name: "Trigger", exact: true }))
+    await flush()
+    expect(chain("Clap")[0].params).toMatchObject({ trigger: true })
+    await undo(); await flush(); expect(chain("Clap")[0].params).toEqual(before)
+    await redo(); await flush()
+    const saved = (await app.backend.documentSnapshot()).project
+    const path = await app.backend.projectSave(`/projects/${kind}-trigger.windfall`)
+    await act(async () => { await app.backend.projectOpen(path) }); await flush()
+    expect(project()).toEqual(saved)
+    expect(chain("Clap")[0].params).toMatchObject({ trigger: true })
+  })
+
   it.each(KINDS)(
     "%s resolves every automation index and defaults through actual WASM",
     (kind) => {
