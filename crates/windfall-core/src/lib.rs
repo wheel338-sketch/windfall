@@ -191,6 +191,11 @@ impl PanLaw {
 
 #[inline]
 fn constant_power(pan: f32) -> (f32, f32) {
+    // Keep centered material bit-identical through any number of pan stages;
+    // evaluating sin/cos at pi/4 otherwise loses a little unity to rounding.
+    if pan == 0.0 {
+        return (1.0, 1.0);
+    }
     // The ends are exact, so a hard pan leaves nothing on the far side.
     if pan <= -1.0 {
         return (std::f32::consts::SQRT_2, 0.0);
@@ -218,7 +223,7 @@ mod tests {
             PanLaw::Linear,
         ] {
             let (left, right) = law.gains(0.0);
-            assert!((left - 1.0).abs() < 1e-6 && (right - 1.0).abs() < 1e-6, "{law:?}");
+            assert_eq!((left, right), (1.0, 1.0), "{law:?}");
             assert_eq!(law.gains(1.0).0, 0.0, "{law:?}");
             assert_eq!(law.gains(-1.0).1, 0.0, "{law:?}");
             // Mirrored positions swap the sides.
