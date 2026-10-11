@@ -281,3 +281,30 @@ Shared seams touched:
 7. Installed-model quality and redistribution remain external. Deterministic
    test outputs prove cancellation/checksum/staleness/review/layout only,
    never separation, dereverb or neural transcription.
+
+## Follow-up dereverb kernel (written, not executed)
+
+`crates/windfall-analysis/src/dereverb.rs` implements canonical overlapping
+2-second windows / 1-second hops independent of incoming block partitions.
+Vocal WPE solves jointly across channels with 35 ms prediction delay, eight
+past taps, three desired-power reweighting iterations and regularized complex
+Cholesky. General mode uses a fitted/clamped RT60 (0.15–2.5 s), exponentially
+decaying delayed power, shared stereo gain, 0.38 gain floor and transient
+protection. Vocal mode also bounds residual amplification and uses a 0.22
+floor late-power gain. Low-confidence/no-decay material bypasses; natural
+musical releases remain intrinsically ambiguous. No formant/room inversion
+claim. Exact zero-amount bypass; output frame origin and length are preserved.
+Streaming retains at most two input seconds plus one output overlap;
+segment spectra/synthesis scratch remain bounded at 192 kHz stereo.
+Algorithm written independently; no upstream implementation/package copied.
+WPE origin: [NTT research](https://www.rd.ntt/cs/team_project/media/signal/wpe/),
+Nakatani et al., DOI 10.1109/TASL.2010.2052251. No NTT p-code downloaded.
+
+`crates/windfall-analysis/tests/dereverb.rs` acceptance cases, all **written,
+not executed**: authored impulse/vibrato/music convolved with seeded noise
+room response; late-tail energy reduction >10%, direct-region damage bounded,
+already-dry relative error <1e-6, exact silence/zero wet, proportional stereo
+image, exact output across input block partitions, modes differ, cancellation
+and stream lifecycle. These are targets, not measured results.
+Integrator additionally run: `cargo test -p windfall-analysis --locked --offline --test dereverb`.
+Native adapter/UI hookup is the next file group.

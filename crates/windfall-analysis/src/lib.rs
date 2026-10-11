@@ -8,6 +8,7 @@ mod jobs;
 mod model;
 pub mod pitch;
 pub mod classical;
+pub mod dereverb;
 mod work;
 
 pub use artifacts::{ArtifactMetadata, ArtifactWriter, RelativeName};
