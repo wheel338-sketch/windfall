@@ -1,43 +1,17 @@
-//! Arrangement identities and references into the one audible playlist.
+//! Independent clip/track layouts; timeline navigation remains shared by the project.
 use super::Builder;
 use crate::report::{Outcome, ReportSection};
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeMap;
 use windfall_project::{ClipId, Command, PlaylistTrackId};
 
-/// IDs returned by successful playlist commands, aligned with source items.
 pub(super) struct PlaylistReferences {
     pub tracks: BTreeMap<u16, PlaylistTrackId>,
     pub items: Vec<Vec<ClipId>>,
     pub legacy_items: Vec<Vec<ClipId>>,
 }
 
-/// Reuse only identical source placements, once per occurrence. Sharing a
-/// pattern/channel alone does not establish the same clip layout.
-fn matching_clips<T: PartialEq>(
-    items: &[T],
-    selected: &[T],
-    references: &[Vec<ClipId>],
-) -> (Vec<ClipId>, usize) {
-    let mut used = BTreeSet::new();
-    let mut clips = Vec::new();
-    let mut missing = 0;
-    for item in items {
-        let found = selected.iter().enumerate().find(|(index, candidate)| {
-            !used.contains(index) && item == *candidate && !references[*index].is_empty()
-        });
-        if let Some((index, _)) = found {
-            used.insert(index);
-            clips.extend_from_slice(&references[index]);
-        } else {
-            missing += 1;
-        }
-    }
-    (clips, missing)
-}
-
 fn arrangement_name(source: Option<&str>, index: u16) -> String {
-    let mut name = source.unwrap_or_default().to_owned();
-    name.retain(|ch| ch != '\0');
+    let mut name = source.unwrap_or_default().replace('\0', "");
     let mut end = name.len().min(256);
     while !name.is_char_boundary(end) {
         end -= 1;
@@ -51,101 +25,79 @@ fn arrangement_name(source: Option<&str>, index: u16) -> String {
 }
 
 impl Builder<'_> {
-    pub(super) fn arrangements(&mut self, references: PlaylistReferences) {
-        // Retain the legacy empty book and allocator for one-arrangement files.
-        if self.flp.arrangements.len() <= 1 {
-            return;
-        }
-        let Some(selected) = self.flp.main_arrangement() else {
+    pub(super) fn arrangements(&mut self) {
+        let flp = self.flp;
+        let Some(selected) = flp.main_arrangement() else {
             return;
         };
+        if flp.arrangements.len() <= 1 {
+            self.playlist_arrangement(selected);
+            return;
+        }
         let section = ReportSection::Other;
         let mut selected_id = None;
-        for arrangement in &self.flp.arrangements {
-            let is_selected = std::ptr::eq(arrangement, selected);
-            let name = arrangement_name(arrangement.name.as_deref(), arrangement.index);
-            let name_changed = arrangement.name.as_deref() != Some(name.as_str());
-            let (clips, missing) = if is_selected {
-                (
-                    self.project()
-                        .playlist
-                        .clips
-                        .iter()
-                        .map(|clip| clip.id)
-                        .collect(),
-                    0,
-                )
-            } else {
-                let (mut clips, missing) =
-                    matching_clips(&arrangement.items, &selected.items, &references.items);
-                let (legacy, legacy_missing) = matching_clips(
-                    &arrangement.legacy_items,
-                    &selected.legacy_items,
-                    &references.legacy_items,
-                );
-                clips.extend(legacy);
-                (clips, missing + legacy_missing)
-            };
-            let mut used: BTreeSet<u16> = arrangement.items.iter().map(|item| item.track).collect();
-            used.extend(
-                arrangement
-                    .tracks
-                    .iter()
-                    .filter_map(|track| u16::try_from(track.iid.checked_sub(1)?).ok()),
-            );
-            if !arrangement.legacy_items.is_empty() {
-                used.insert(0);
-            }
-            let tracks = used
-                .iter()
-                .filter_map(|index| references.tracks.get(index).copied())
-                .collect();
-            let id = self.create(
-                section,
-                "An arrangement entry",
+        for (index, source) in flp.arrangements.iter().enumerate() {
+            let name = arrangement_name(source.name.as_deref(), source.index);
+            let changed = source.name.as_deref() != Some(name.as_str());
+            let command = if index == 0 {
                 Command::AddArrangement {
                     name,
-                    clips,
-                    tracks,
+                    clips: Vec::new(),
+                    tracks: Vec::new(),
+                }
+            } else {
+                Command::AddArrangementLayout { name, copy: false }
+            };
+            let Some(id) = self.create(section, "An arrangement layout", command) else {
+                self.report.count(section, Outcome::Dropped, 1);
+                continue;
+            };
+            self.apply(
+                section,
+                "The arrangement being imported",
+                Command::SwitchArrangement { id },
+            );
+            let references = self.playlist_arrangement(source);
+            // AddArrangementLayout inherits tracks from its source; replace those
+            // references with this arrangement's own lanes after conversion.
+            self.apply(
+                section,
+                "The independent arrangement layout",
+                Command::SetArrangementReferences {
+                    id,
+                    clips: references
+                        .items
+                        .into_iter()
+                        .chain(references.legacy_items)
+                        .flatten()
+                        .collect(),
+                    tracks: references.tracks.into_values().collect(),
                 },
             );
             self.report.count(
                 section,
-                if id.is_none() {
-                    Outcome::Dropped
-                } else if name_changed || !is_selected {
+                if changed {
                     Outcome::Approximated
                 } else {
                     Outcome::Exact
                 },
                 1,
             );
-            if name_changed && id.is_some() {
-                self.report.say(section, Outcome::Approximated, "An arrangement name was given a fallback or brought within Windfall's name limits.");
-            }
-            if is_selected {
-                selected_id = id;
-            } else {
-                let losses = missing + arrangement.markers.len();
-                self.report.count(section, Outcome::Dropped, losses as u32);
-                if losses > 0 {
-                    let saved = if id.is_some() {
-                        " Its name and identity are saved."
-                    } else {
-                        ""
-                    };
-                    self.report.say(section, Outcome::Dropped, format!("Arrangement {} has {missing} clip placements without matching playlist references and {} timeline markers that were left out.{saved}", u32::from(arrangement.index) + 1, arrangement.markers.len()));
-                }
+            if std::ptr::eq(source, selected) {
+                selected_id = Some(id);
+            } else if !source.markers.is_empty() {
+                self.report
+                    .count(section, Outcome::Dropped, source.markers.len() as u32);
+                self.report.say(section, Outcome::Dropped, "Alternate arrangement markers and meters are retained in the original import file, but Windfall currently has one shared project timeline.");
             }
         }
         if let Some(id) = selected_id {
             self.apply(
                 section,
-                "The selected arrangement identity",
+                "The selected arrangement",
                 Command::SwitchArrangement { id },
             );
         }
-        self.report.say(section, Outcome::Approximated, "Imported arrangement entries retain names and identities with references to matching clips and tracks in the selected playlist. Windfall playback still uses one playlist; switching arrangements does not apply alternate clip layouts, track settings, markers or meter.");
     }
 }
 

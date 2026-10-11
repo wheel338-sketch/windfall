@@ -154,7 +154,7 @@ impl Builder<'_> {
                             } else {
                                 windfall_dsp::NoteArticulation::Normal
                             },
-                            glide_ticks: 240,
+                            glide_ticks: length.ticks.clamp(1, u64::from(MAX_PATTERN_TICKS)) as u32,
                             color_group: Some(note.midi_channel.min(15)),
                         }),
                     };

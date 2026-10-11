@@ -114,7 +114,28 @@ impl WavWriter {
         format: WavSampleFormat,
         tags: &AudioTags<'_>,
     ) -> Result<Self, CodecError> {
+        Self::create_with_metadata(
+            path,
+            sample_rate,
+            channels,
+            format,
+            tags,
+            &crate::WavMetadata::default(),
+        )
+    }
+
+    /// Starts a WAV with bounded cue/loop/slice/tempo metadata before audio.
+    pub fn create_with_metadata(
+        path: impl AsRef<Path>,
+        sample_rate: u32,
+        channels: u16,
+        format: WavSampleFormat,
+        tags: &AudioTags<'_>,
+        metadata: &crate::WavMetadata,
+    ) -> Result<Self, CodecError> {
         let mut layout = Layout::new(sample_rate, channels, format)?;
+        layout.marker_chunks = metadata.chunks(sample_rate)?;
+        layout.metadata = metadata.clone();
         layout.info_chunk = info_chunk(tags, layout.max_data_bytes())?;
         let final_path = path.as_ref().to_path_buf();
         let name = final_path.file_name().ok_or_else(|| {
@@ -221,6 +242,9 @@ impl WavWriter {
         if self.broken {
             return Err(Self::broken_error());
         }
+        self.layout
+            .metadata
+            .validate(Some(self.data_bytes / u64::from(self.layout.block_align)))?;
         let mut buffered = self.file.take().ok_or_else(Self::broken_error)?;
         // Chunks are word-aligned: odd-length data is followed by a pad byte
         // that the chunk size does not count.
@@ -272,6 +296,8 @@ struct Layout {
     block_align: u16,
     byte_rate: u32,
     info_chunk: Vec<u8>,
+    marker_chunks: Vec<u8>,
+    metadata: crate::WavMetadata,
 }
 
 impl Layout {
@@ -298,6 +324,8 @@ impl Layout {
             block_align,
             byte_rate,
             info_chunk: Vec::new(),
+            marker_chunks: Vec::new(),
+            metadata: crate::WavMetadata::default(),
         })
     }
 
@@ -378,6 +406,7 @@ impl Layout {
             chunks.extend_from_slice(&(frames as u32).to_le_bytes());
         }
         chunks.extend_from_slice(&self.info_chunk);
+        chunks.extend_from_slice(&self.marker_chunks);
         chunks.extend_from_slice(b"data");
         chunks.extend_from_slice(&(data_bytes as u32).to_le_bytes());
 

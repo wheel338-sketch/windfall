@@ -90,6 +90,8 @@ impl Builder<'_> {
                     },
                     1,
                 );
+            } else {
+                self.report.count(section, Outcome::Dropped, 1);
             }
         }
     }
@@ -104,6 +106,7 @@ impl Builder<'_> {
         for marker in markers {
             let scaled = crate::units::rescale(marker.position, self.ppq);
             let Ok(tick) = u32::try_from(scaled.ticks) else {
+                self.report.count(section, Outcome::Dropped, 1);
                 self.report.say(
                     section,
                     Outcome::Dropped,
@@ -116,6 +119,7 @@ impl Builder<'_> {
                     let (Some(numerator), Some(denominator)) =
                         (marker.numerator, marker.denominator)
                     else {
+                        self.report.count(section, Outcome::Dropped, 1);
                         self.report.say(
                             section,
                             Outcome::Dropped,
@@ -140,6 +144,7 @@ impl Builder<'_> {
                     kind: MarkerKind::Named,
                 },
                 kind => {
+                    self.report.count(section, Outcome::Dropped, 1);
                     self.report.say(section, Outcome::Dropped, format!("Arrangement marker kind {kind} is not mapped: its navigation semantics are not supported by this importer."));
                     continue;
                 }
@@ -157,6 +162,8 @@ impl Builder<'_> {
                     },
                     1,
                 );
+            } else {
+                self.report.count(section, Outcome::Dropped, 1);
             }
         }
     }

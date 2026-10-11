@@ -468,7 +468,7 @@ fn source_unknowns_and_metadata_are_losses_while_named_markers_survive() {
     assert_eq!(c.report.category(ReportSection::Other).dropped, 1);
     let marker = &c.project.patterns[0].timeline.markers[0];
     assert_eq!((marker.tick, marker.name.as_str()), (0, "Original marker"));
-    assert!(c.report.category(ReportSection::Project).dropped >= 1);
+    assert_eq!(c.project.settings.author, "Original author");
 }
 #[test]
 fn master_volume_is_converted_even_without_insert_events() {
@@ -570,4 +570,96 @@ fn the_panning_law_a_file_names_becomes_the_projects_law() {
         // The file's own resolution is converted, not adopted.
         assert_eq!(with.project.settings.timebase_ppq, 960);
     }
+}
+
+#[test]
+fn channel_swing_docks_sidechains_send_destinations_and_opaque_state_survive() {
+    let mut p = fixture(96);
+    p.channels[0].swing = Some(32);
+    p.channels[0].time_shift = Some(64);
+    p.mixer.inserts.push(Insert {
+        name: Some("Detector".into()),
+        flags: Some(0x8c),
+        ..Default::default()
+    });
+    p.mixer.inserts[1].flags = Some(0x4c);
+    p.mixer.inserts[1].routes.push(Route {
+        target: 2,
+        level: Some(0),
+    });
+    let state = common::numbers(&[0, 256, 256, 2]);
+    p.mixer.inserts[1].slots.push(Slot {
+        plugin: Plugin {
+            internal_name: "Fruity Send".into(),
+            state: state.clone(),
+            ..Default::default()
+        },
+        ..Default::default()
+    });
+    let c = converted(&p);
+    assert_eq!(c.project.channels[0].timing.swing_mix, 0.25);
+    assert_eq!(c.project.settings.timebase_ppq, 96);
+    let bus = &c.project.mixer.tracks[1];
+    let detector = &c.project.mixer.tracks[2];
+    assert_eq!(bus.dock, windfall_project::MixerDock::Middle);
+    assert_eq!(detector.dock, windfall_project::MixerDock::Right);
+    assert_eq!(bus.sidechains[0].target, detector.id);
+    assert_eq!(c.project.mixer.effect_outputs[0].target, detector.id);
+    assert!(c.project.retained_plugins.iter().any(|p| p.state == state));
+    assert!(format!("{:?}", c.report).contains("Nonlinear channel time shift"));
+    let json = windfall_project::file::to_json(&c.project).unwrap();
+    assert_eq!(windfall_project::file::from_json(&json).unwrap(), c.project);
+}
+#[test]
+fn unknown_version_bad_event_length_and_unknown_marker_counts_remain_honest() {
+    let mut p = fixture(96);
+    p.version_text = Some("999.7.1".into());
+    p.arrangements[0].markers.push(TimeMarker {
+        kind: 127,
+        position: 96,
+        ..Default::default()
+    });
+    let c = converted(&p);
+    assert!(c.report.category(ReportSection::Other).dropped >= 1);
+    assert!(!c.project.patterns[0].lanes[0].notes.is_empty());
+    let mut events = common::Events::new(true);
+    events.bytes.extend([213, 255, 255, 255, 255, 15]);
+    let bytes = common::file(p.header.unwrap(), &events.bytes);
+    assert!(parse(&bytes).is_err());
+}
+
+#[test]
+fn effects_beyond_chain_capacity_keep_their_opaque_state_and_count_the_loss() {
+    let mut source = fixture(96);
+    source.mixer.inserts[1].slots = (0..=windfall_project::MAX_EFFECT_SLOTS)
+        .map(|index| Slot {
+            index: index as u8,
+            plugin: Plugin {
+                internal_name: "Fruity Balance".into(),
+                state: vec![index as u8, 90],
+                ..Default::default()
+            },
+            ..Default::default()
+        })
+        .collect();
+    // Direct hostile model: a public parser need not admit out-of-format slot counts.
+    let imported = convert(&source, &ConvertOptions::default());
+    imported.project.check().unwrap();
+    assert_eq!(
+        imported.project.mixer.tracks[1].effects.len(),
+        windfall_project::MAX_EFFECT_SLOTS
+    );
+    assert_eq!(
+        imported.plugins.len(),
+        windfall_project::MAX_EFFECT_SLOTS + 1
+    );
+    assert!(imported.report.category(ReportSection::Effects).dropped >= 1);
+    let last = windfall_project::MAX_EFFECT_SLOTS as u8;
+    assert!(
+        imported
+            .project
+            .retained_plugins
+            .iter()
+            .any(|entry| entry.state == [last, 90])
+    );
 }

@@ -807,7 +807,11 @@ mod tests {
                 kind.default_params().sanitized(),
                 "{name}"
             );
-            assert!(imported.plugins.is_empty(), "{name}");
+            assert_eq!(
+                imported.plugins.len(),
+                1,
+                "{name}: the undecoded original state is retained"
+            );
             let report = imported.report.category(ReportSection::Effects);
             assert_eq!(report.approximated, 1, "{name}");
             assert!(

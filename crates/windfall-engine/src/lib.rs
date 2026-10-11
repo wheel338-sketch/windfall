@@ -207,3 +207,5 @@ mod effect_host;
 #[cfg(test)]
 mod qa_recording_mixer;
 mod sample_playback;
+mod export_positions;
+pub use export_positions::SongFrameMap;

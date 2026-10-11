@@ -229,8 +229,10 @@ impl Builder<'_> {
         ids
     }
 
-    pub(super) fn playlist(&mut self) -> Option<PlaylistReferences> {
-        let arrangement = self.flp.main_arrangement()?;
+    pub(super) fn playlist_arrangement(
+        &mut self,
+        arrangement: &crate::model::Arrangement,
+    ) -> PlaylistReferences {
         let mut references = PlaylistReferences {
             items: vec![Vec::new(); arrangement.items.len()],
             legacy_items: vec![Vec::new(); arrangement.legacy_items.len()],
@@ -278,17 +280,23 @@ impl Builder<'_> {
                             name: None,
                             muted: Some(!source.enabled),
                             solo: None,
-                            color: None,
-                            height: None,
+                            color: super::chosen_color(source.color),
+                            height: if source.height == 1.0 {
+                                None
+                            } else {
+                                Some((48.0 * source.height).round().clamp(18.0, 160.0) as u32)
+                            },
                         },
                     },
                 );
-                if source.color.is_some() || source.height != 1.0 {
+                if !source.height.is_finite()
+                    || !(18.0 / 48.0..=160.0 / 48.0).contains(&source.height)
+                {
                     track_outcome = Outcome::Approximated;
                     self.report.say(
                         ReportSection::Playlist,
                         Outcome::Dropped,
-                        "Playlist track colour and height have no Windfall fields.",
+                        "Playlist track height was brought within Windfall's limits.",
                     );
                 }
             }
@@ -443,6 +451,6 @@ impl Builder<'_> {
             }
         }
         references.tracks = tracks;
-        Some(references)
+        references
     }
 }

@@ -13,3 +13,18 @@ The browser/mock uses the same Rust reader/converter compiled into `windfall-sim
 ## Verification
 
 Native synthetic-container integration tests exercise successful checked/unsaved import, diagnostics, missing samples, unique/ambiguous sample searches, cancellation and parse failures, intervening edits, source-byte preservation, and opaque-state save/reopen. Frontend tests run generated FL bytes through the wasm importer and cover review, replacement, save/reopen, picker cancellation, malformed files, discard cancellation and stale previews. Historical, property and hostile-input coverage remains in `coverage.md`. No additional third-party package is needed; existing dependencies retain their prior licenses.
+
+## Fidelity extension awaiting integration (2026-10-11)
+
+Import conversion now builds independent arrangement clip/lane layouts and
+retains original native states for mapped sounds, as well as placeholders.
+The Imported sounds report can therefore include an archival original state
+beside a playable approximate Windfall instrument/effect. These bytes are not
+restored to the approximate processor. Selected-arrangement meters/labels remain
+shared timeline data. Desktop review now resolves requested WAV smpl loop
+metadata after decoding; only the first forward/alternating loop is represented,
+with approximate seam/release behavior and warnings. Browser conversion does not
+resolve external loop files. Absolute stretch-time resolution and broader
+real-version acceptance remain open. See
+[coverage](coverage.md) and [worker hand-off](../qa/2026-10-11-formats.md).
+No desktop acceptance was run by the edit-only worker.

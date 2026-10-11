@@ -288,6 +288,10 @@ pub struct Channel {
     pub insert: Option<i8>,
     /// The cut groups. Event 132. One source (PyFLP).
     pub cut: Option<CutGroups>,
+    /// Per-channel share of rack swing, 0..128. Event 97 (PyFLP).
+    pub swing: Option<u16>,
+    /// Nonlinear fine shift. Event 89 (PyFLP); retained, not guessed.
+    pub time_shift: Option<u16>,
     /// The key that plays a sample at its own pitch, where 60 is the key
     /// FL Studio calls C5. Event 135. Agreed (PyFLP, DawVert).
     pub root_note: Option<u32>,

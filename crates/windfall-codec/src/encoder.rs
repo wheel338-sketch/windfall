@@ -135,6 +135,33 @@ impl Encoder {
         channels: u16,
         tags: &AudioTags<'_>,
     ) -> Result<Self, CodecError> {
+        Self::open_with_wav_metadata(
+            path,
+            settings,
+            sample_rate,
+            channels,
+            tags,
+            &crate::WavMetadata::default(),
+        )
+    }
+
+    /// WAV writes the supplied metadata. Other formats reject nonempty WAV
+    /// metadata instead of reporting successful preservation.
+    pub fn open_with_wav_metadata(
+        path: impl AsRef<Path>,
+        settings: &EncoderSettings,
+        sample_rate: u32,
+        channels: u16,
+        tags: &AudioTags<'_>,
+        metadata: &crate::WavMetadata,
+    ) -> Result<Self, CodecError> {
+        if !matches!(settings, EncoderSettings::Wav { .. })
+            && *metadata != crate::WavMetadata::default()
+        {
+            return Err(CodecError::InvalidInput(
+                "WAV markers require WAV export".into(),
+            ));
+        }
         let inner = match *settings {
             EncoderSettings::Mp3 { settings } => Inner::Mp3(Mp3Writer::create_with_tags(
                 path,
@@ -143,12 +170,13 @@ impl Encoder {
                 settings,
                 tags,
             )?),
-            EncoderSettings::Wav { format } => Inner::Wav(WavWriter::create_with_tags(
+            EncoderSettings::Wav { format } => Inner::Wav(WavWriter::create_with_metadata(
                 path,
                 sample_rate,
                 channels,
                 format,
                 tags,
+                metadata,
             )?),
             EncoderSettings::Flac { depth, level } => {
                 let writer =

@@ -349,3 +349,83 @@ fn an_export_says_how_many_audio_clips_it_had_no_room_for() {
     }
     assert!(Path::new(&song.path).is_file());
 }
+
+#[test]
+fn song_wav_export_writes_named_cues_and_rebased_sampler_loops() {
+    use windfall_project::{MarkerKind, TickRange};
+    let rig = Rig::new();
+    kick_on_the_beat(&rig);
+    let lane = rig
+        .session
+        .dispatch(
+            Command::AddPlaylistTrack {
+                name: None,
+                index: None,
+            },
+            None,
+        )
+        .unwrap()
+        .created[0];
+    rig.session
+        .dispatch(
+            Command::AddClips {
+                clips: vec![ClipInit {
+                    track: PlaylistTrackId(lane),
+                    start: 0,
+                    length: Some(3840),
+                    offset: None,
+                    muted: None,
+                    content: ClipContent::Pattern {
+                        pattern: rig.pattern(),
+                    },
+                }],
+            },
+            None,
+        )
+        .unwrap();
+    rig.session
+        .dispatch(
+            Command::AddTimelineMarker {
+                tick: 960,
+                name: "Original loop".into(),
+                kind: MarkerKind::Loop { end: 2880 },
+            },
+            None,
+        )
+        .unwrap();
+    rig.session
+        .dispatch(
+            Command::AddTimelineMarker {
+                tick: 1920,
+                name: "Original cue".into(),
+                kind: MarkerKind::Named,
+            },
+            None,
+        )
+        .unwrap();
+    let export = ExportOptions {
+        mode: PlayMode::Song,
+        region: Some(TickRange {
+            start: 960,
+            end: 3840,
+        }),
+        ..options(&rig, "own-markers.wav")
+    };
+    rig.session.export_audio(export.clone()).unwrap();
+    assert_eq!(rig.events.wait_for_export().error, None);
+    let metadata = windfall_codec::read_wav_metadata_file(&export.path).unwrap();
+    assert_eq!(
+        metadata
+            .cues
+            .iter()
+            .map(|cue| (cue.frame, cue.label.as_str()))
+            .collect::<Vec<_>>(),
+        vec![(0, "Original loop"), (24000, "Original cue")]
+    );
+    assert_eq!((metadata.loops[0].start, metadata.loops[0].end), (0, 48000));
+    assert_eq!(metadata.tempo.unwrap().beats, 3);
+    assert_eq!(
+        windfall_codec::decode_file(export.path).unwrap().frames(),
+        72000
+    );
+}

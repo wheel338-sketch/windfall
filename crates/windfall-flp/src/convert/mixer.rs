@@ -173,6 +173,15 @@ impl Builder<'_> {
             solo: Some(insert.solo()),
             processing: Some(track_processing(insert)),
             recording: None,
+            dock: insert.flags.map(|flags| {
+                if flags & (1 << 6) != 0 {
+                    windfall_project::MixerDock::Middle
+                } else if flags & (1 << 7) != 0 {
+                    windfall_project::MixerDock::Right
+                } else {
+                    windfall_project::MixerDock::Left
+                }
+            }),
             ..MixerTrackPatch::default()
         };
         let command = Command::UpdateMixerTrack { id: track, patch };
@@ -288,14 +297,28 @@ impl Builder<'_> {
                 continue;
             }
             let level = route.level.unwrap_or(FULL);
-            let command = Command::SetSend {
-                from: track,
-                to: self.tracks[&route.target],
-                gain: Some(fader_gain(level)),
+            // Public parsers represent sidechain-only connections as enabled
+            // routes at zero audible level. Keep the detector route at unity.
+            let command = if level == 0 {
+                Command::SetSidechain {
+                    from: track,
+                    to: self.tracks[&route.target],
+                    gain: Some(1.0),
+                }
+            } else {
+                Command::SetSend {
+                    from: track,
+                    to: self.tracks[&route.target],
+                    gain: Some(fader_gain(level)),
+                }
             };
             match self.run(command) {
                 Ok(_) => {
-                    self.sends.insert((index, route.target));
+                    if level != 0 {
+                        self.sends.insert((index, route.target));
+                    } else {
+                        self.report.say(section, Outcome::Approximated, "A zero-level enabled route became a unity detector-only sidechain. Dynamic transitions between audible send and sidechain require review.");
+                    }
                     if !fader_is_exact(level) {
                         self.report
                             .say(section, Outcome::Approximated, FITTED_FADER);
@@ -358,6 +381,19 @@ impl Builder<'_> {
                 .unwrap_or_else(|| plugin.internal_name.clone())
         });
 
+        self.plugins.push(PluginPlaceholder {
+            place: PluginPlace::Effect {
+                track,
+                slot: slot.index,
+            },
+            internal_name: plugin.internal_name.clone(),
+            name: hosted.as_ref().and_then(|hosted| hosted.name.clone()),
+            vendor: hosted.as_ref().and_then(|hosted| hosted.vendor.clone()),
+            format: hosted.as_ref().map(|hosted| hosted.format),
+            path: hosted.as_ref().and_then(|hosted| hosted.path.clone()),
+            state: plugin.state.clone(),
+        });
+
         let Some(translated) =
             effects::translate(&plugin.internal_name, &plugin.state, self.tempo_bpm)
         else {
@@ -381,18 +417,6 @@ impl Builder<'_> {
                 )
             };
             self.report.say(section, Outcome::Placeholder, what);
-            self.plugins.push(PluginPlaceholder {
-                place: PluginPlace::Effect {
-                    track,
-                    slot: slot.index,
-                },
-                internal_name: plugin.internal_name.clone(),
-                name: hosted.as_ref().and_then(|hosted| hosted.name.clone()),
-                vendor: hosted.as_ref().and_then(|hosted| hosted.vendor.clone()),
-                format: hosted.as_ref().map(|hosted| hosted.format),
-                path: hosted.as_ref().and_then(|hosted| hosted.path.clone()),
-                state: plugin.state.clone(),
-            });
             return;
         };
 
@@ -434,6 +458,48 @@ impl Builder<'_> {
             &format!("The settings of {}", lower_first(&what)),
             command,
         );
+        if kind == windfall_dsp::EffectKind::SendTap && plugin.state.len() == 16 {
+            let destination = i32::from_le_bytes(
+                plugin.state[12..16]
+                    .try_into()
+                    .expect("checked state length"),
+            );
+            // PyFLP documents an insert index, but notes it depends on routing.
+            // Only an explicit nonnegative index is safe to associate here.
+            if let Ok(destination) = u16::try_from(destination)
+                && let Some(&target) = self.tracks.get(&destination)
+            {
+                self.apply(
+                    section,
+                    "The send tap destination",
+                    Command::SetEffectOutput {
+                        effect: id,
+                        output: 0,
+                        target: Some(target),
+                    },
+                );
+            } else {
+                self.report.say(section, Outcome::Dropped, "The send tap destination is relative, negative or unavailable and was not guessed.");
+            }
+            let volume = u32::from_le_bytes(
+                plugin.state[8..12]
+                    .try_into()
+                    .expect("checked state length"),
+            );
+            self.apply(
+                section,
+                "The send tap level",
+                Command::SetEffectParams {
+                    track,
+                    effect: id,
+                    params: windfall_dsp::EffectParams::SendTap(windfall_dsp::SendTapParams {
+                        level: (volume as f32 / 256.0).clamp(0.0, 1.0),
+                        ..Default::default()
+                    }),
+                },
+            );
+            self.report.say(section, Outcome::Approximated, "Send tap level uses a linear approximation of the source logarithmic level; source pan and dry controls are not mapped.");
+        }
         let mix = slot.mix.unwrap_or(FULL);
         let patch = EffectSlotPatch {
             // Switching all of an insert's slots off is one button in FL

@@ -97,6 +97,9 @@ pub struct Conversion {
     /// with everything the file says about them, for a plugin host to pick
     /// up later.
     pub plugins: Vec<PluginPlaceholder>,
+    /// Samplers requesting loop points from the referenced audio file.
+    /// The desktop resolves these only after decoding the exact sample.
+    pub sampler_loops: Vec<(ChannelId, SampleId)>,
 }
 
 /// A plugin the Windfall project could not hold.
@@ -153,11 +156,8 @@ pub fn convert(flp: &FlpProject, options: &ConvertOptions) -> Conversion {
     builder.mixer();
     builder.channels();
     builder.patterns();
-    let playlist = builder.playlist();
+    builder.arrangements();
     builder.timeline();
-    if let Some(playlist) = playlist {
-        builder.arrangements(playlist);
-    }
     builder.leftovers();
     builder.finish()
 }
@@ -217,6 +217,7 @@ struct Builder<'a> {
     document: Document,
     report: ImportReport,
     plugins: Vec<PluginPlaceholder>,
+    sampler_loops: Vec<(ChannelId, SampleId)>,
     name: String,
     ppq: u16,
     version: Option<FlVersion>,
@@ -262,6 +263,7 @@ impl<'a> Builder<'a> {
             document: Document::new(project),
             report,
             plugins: Vec::new(),
+            sampler_loops: Vec::new(),
             name,
             ppq: flp.ppq(),
             version: flp.version(),
@@ -395,6 +397,9 @@ impl<'a> Builder<'a> {
             );
         }
         patch.time_signature = Some(signature);
+        if windfall_project::timebase::is_timebase(self.ppq) {
+            patch.timebase_ppq = Some(self.ppq);
+        }
         let outcome = if exact {
             Outcome::Exact
         } else {
@@ -417,9 +422,23 @@ impl<'a> Builder<'a> {
         // names its law changes anything, and what it names is kept as the
         // nearest law Windfall has rather than counted as a difference.
         match settings.pan_law {
-            Some(0) => patch.pan_law = Some(windfall_project::PanLaw::ConstantPower),
-            Some(2) => patch.pan_law = Some(windfall_project::PanLaw::Balance),
-            _ => {}
+            Some(0) => {
+                patch.pan_law = Some(windfall_project::PanLaw::ConstantPower);
+                self.report.count(section, Outcome::Exact, 1);
+            }
+            Some(2) => {
+                patch.pan_law = Some(windfall_project::PanLaw::Balance);
+                self.report.count(section, Outcome::Exact, 1);
+            }
+            Some(_) => {
+                self.report.count(section, Outcome::Dropped, 1);
+                self.report.say(
+                    section,
+                    Outcome::Dropped,
+                    "An unknown panning law was left at Windfall's default.",
+                );
+            }
+            None => {}
         }
         if settings.main_pitch.is_some_and(|pitch| pitch != 0) {
             self.report.count(section, Outcome::Dropped, 1);
@@ -430,15 +449,51 @@ impl<'a> Builder<'a> {
             );
         }
         let filled = |text: &Option<String>| text.as_deref().is_some_and(|t| !t.trim().is_empty());
-        let texts: Vec<&str> = [
-            (filled(&settings.author), "author"),
-            (filled(&settings.genre), "genre"),
-            (filled(&settings.comments), "comments"),
-            (filled(&settings.url), "web link"),
-        ]
-        .into_iter()
-        .filter_map(|(present, what)| present.then_some(what))
-        .collect();
+        let bounded = |value: &Option<String>, cap: usize| {
+            value.as_deref().map(|text| {
+                let text = text.trim();
+                let mut end = text.len().min(cap);
+                while !text.is_char_boundary(end) {
+                    end -= 1;
+                }
+                text[..end].to_owned()
+            })
+        };
+        patch.author = bounded(&settings.author, 256);
+        patch.genre = bounded(&settings.genre, 128);
+        patch.comments = bounded(&settings.comments, 16384);
+        for (original, mapped) in [
+            (&settings.author, &patch.author),
+            (&settings.genre, &patch.genre),
+            (&settings.comments, &patch.comments),
+        ] {
+            if original.as_deref().map(str::trim) != mapped.as_deref() {
+                self.report.count(section, Outcome::Approximated, 1);
+                self.report.say(
+                    section,
+                    Outcome::Approximated,
+                    "Project metadata was brought within Windfall's UTF-8 byte limits.",
+                );
+            }
+        }
+        self.report.count(
+            section,
+            Outcome::Exact,
+            [
+                (&settings.author, &patch.author),
+                (&settings.genre, &patch.genre),
+                (&settings.comments, &patch.comments),
+            ]
+            .into_iter()
+            .filter(|(original, mapped)| {
+                filled(original) && original.as_deref().map(str::trim) == mapped.as_deref()
+            })
+            .count() as u32,
+        );
+        let texts: Vec<&str> = [(filled(&settings.url), "web link")]
+            .into_iter()
+            .filter_map(|(present, what)| present.then_some(what))
+            .collect();
         if !texts.is_empty() {
             self.report
                 .count(section, Outcome::Dropped, texts.len() as u32);
@@ -517,6 +572,7 @@ impl<'a> Builder<'a> {
             document,
             mut report,
             plugins,
+            sampler_loops,
             name,
             ..
         } = self;
@@ -547,6 +603,7 @@ impl<'a> Builder<'a> {
                 project,
                 report,
                 plugins,
+                sampler_loops,
             },
             // The commands keep a project valid, so this cannot happen.
             // If it ever does, an empty project is still better than one
@@ -567,6 +624,7 @@ impl<'a> Builder<'a> {
                     project: empty,
                     report,
                     plugins,
+                    sampler_loops: Vec::new(),
                 }
             }
         }
