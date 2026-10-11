@@ -21,6 +21,7 @@ import { ReverbEditor } from "./reverb/reverb-editor"
 import { EchoBankEditor } from "./echo-bank/echo-bank-editor"
 import { FrequencyDelayEditor } from "./frequency-delay/frequency-delay-editor"
 import { TunerEditor } from "./tuner/tuner-editor"
+import { RoomEditor } from "./circuits/room-editor"
 
 type Editors = {
   [Kind in EffectKind]?: ComponentType<EditorProps<EffectParamsOf<Kind>>>
@@ -40,6 +41,7 @@ const EDITORS: Editors = {
   echoBank: EchoBankEditor,
   frequencyDelay: FrequencyDelayEditor,
   tuner: TunerEditor,
+  room: RoomEditor,
 }
 
 type AnyEditor = ComponentType<EditorProps<EffectParams>>

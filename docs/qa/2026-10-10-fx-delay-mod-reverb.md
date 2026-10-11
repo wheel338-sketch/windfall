@@ -33,7 +33,7 @@ their declared `spatial::model_tests` module absent; this resumption completes i
 | `fx-fruity-delay-bank` | all four named gates addressed in source (`7ecea4c7`, `ef0ce026`, editor commit); nothing run | Linked eight-unit editor, fallible host admission, saturating tails |
 | `fx-multiband-delay` | all four named gates addressed in source; nothing run | Drawn sixteen-band delay/level/pan editor, same host gates |
 | `fx-luxeverb` | DSP/test candidate; editor integration in progress | Feed-forward pitched wet voice, variable size, modulated tanks |
-| `fx-fruity-reeverb` | DSP/test candidate; editor integration in progress | Existing distinct compact room plus independent reflection timing |
+| `fx-fruity-reeverb` | full-row candidate; nothing executed | Existing room, reflection readout and grouped room/decay editor |
 | `fx-vintage-chorus` | DSP/test candidate; editor integration in progress | Clocked bucket modes and free voices, tempo sync |
 | `fx-vintage-phaser` | DSP/test candidate; editor integration in progress | Four-stage equal-corner pedal circuit, stage/stagger controls, tempo sync |
 | `fx-hyper-chorus` | DSP/test candidate; editor integration in progress | Two to sixteen actual detuned voices per side, tempo sync |
@@ -286,7 +286,7 @@ feed-forward and adds no feedback cycle. Zero amount keeps plain hall audio.
 
 | Row | Direct DSP measurement | Native PCM/history/file case |
 | --- | --- | --- |
-| `fx-fruity-reeverb` | `spatial::model_tests::legacy_room_first_reflection_matches_its_fractional_delay_and_signed_level`; existing `spatial::tests` room decay | `room_size_changes_native_reflections_and_roundtrips` |
+| `fx-fruity-reeverb` | full-row candidate; nothing executed | Existing room, reflection readout and grouped room/decay editor |
 | `fx-luxeverb` | `lush::pitch::tests::an_octave_voice_moves_the_measured_spectral_peak_and_preserves_stereo`, `lush::tests::size_moves_early_arrivals_without_changing_their_signed_gain`, `zero_pitch_amount_preserves_plain_audio_and_legacy_defaults`; existing lush decay/modulation tests; partition test now edits pitch/size | `lush_pitched_space_changes_native_audio_and_roundtrips` |
 | `fx-vintage-chorus` | `bucket_clock_has_128_samples_in_transit_and_a_bounded_work_limit`, `bucket_sweeps_have_opposed_triangles_and_the_both_mode_stays_mono`, `bucket_modes_ignore_free_controls_and_have_distinct_audio` | `bucket_mode_changes_native_character_and_roundtrips` |
 | `fx-vintage-phaser` | `four_equal_allpasses_produce_two_measured_pedal_notches` | `pedal_stage_configuration_changes_native_notches_and_roundtrips` |
