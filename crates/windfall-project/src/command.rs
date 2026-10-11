@@ -440,6 +440,10 @@ pub enum Command {
     SetChannelExpressionMap {
         id: ChannelId,
         map: crate::ExpressionMap,
+        /// Optional captured map; refuses a raced review without editing.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        #[ts(optional)]
+        expected: Option<crate::ExpressionMap>,
     },
     /// Moves every listed channel to a named group in one undo entry.
     /// An empty group name means ungrouped. All channel ids are checked

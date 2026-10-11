@@ -1306,12 +1306,15 @@ impl Transaction<'_> {
                 "Set channel voice settings"
             }
             Command::UpdateChannel { id, patch } => self.update_channel(id, patch)?,
-            Command::SetChannelExpressionMap { id, map } => {
+            Command::SetChannelExpressionMap { id, map, expected } => {
                 let old = self
                     .project
                     .channel(id)
                     .ok_or_else(|| CommandError::not_found("channel", id))?
                     .clone();
+                if expected.is_some_and(|expected| expected != old.expression_map) {
+                    return Err(CommandError::invalid("the channel expression map changed"));
+                }
                 let new = crate::expression_map::applied(&old, map)?;
                 self.push(Edit::SetChannel(Box::new(Change { old, new })));
                 "Set channel expression mapping"

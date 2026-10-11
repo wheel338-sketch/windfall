@@ -42,6 +42,30 @@ async function prepare() {
 }
 
 describe("MIDI dialogs", () => {
+  it("exports chosen expression routing and validates bend/spacing options", async () => {
+    const exported = vi.spyOn(app.backend, "exportMidi").mockResolvedValue("/exports/phrase.mid")
+    open("midiExport")
+    const user = userEvent.setup()
+    await user.click(screen.getByLabelText("Expression routing"))
+    await user.click(screen.getByRole("option", { name: "MPE · one channel per note" }))
+    const bend = screen.getByLabelText("Pitch-bend range (semitones; 0 = automatic)")
+    await user.clear(bend)
+    await user.type(bend, "97")
+    expect(screen.getByRole("button", { name: "Choose file and export…" })).toBeDisabled()
+    await user.clear(bend)
+    await user.type(bend, "48")
+    const spacing = screen.getByLabelText("Expression spacing (ticks; 0 = automatic)")
+    await user.clear(spacing)
+    await user.type(spacing, "30")
+    await user.click(screen.getByRole("button", { name: "Choose file and export…" }))
+    expect(exported).toHaveBeenCalledWith(expect.any(String), expect.objectContaining({ expression: { mode: "mpe", bendRange: 48, step: 30 } }))
+  })
+
+  it("reviews MIDI again when note-expression import is disabled", async () => {
+    const user = await prepare()
+    await user.click(screen.getByRole("checkbox", { name: "Import pitch bend and controllers as note expression" }))
+    await waitFor(() => expect(app.backend.midiPreview).toHaveBeenLastCalledWith("fixture.mid", expect.objectContaining({ noteExpression: false })))
+  })
   it("imports synthetic MIDI through the dialog and removes it with one undo", async () => {
     const before = useProjectStore.getState().project
     open("midiImport")

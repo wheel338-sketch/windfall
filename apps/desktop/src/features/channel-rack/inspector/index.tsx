@@ -13,6 +13,7 @@ import { colorToCss } from "@/lib/units"
 
 import { INSPECTOR_MENU } from "../menus"
 import { EnvelopeSection } from "./envelope-section"
+import { ExpressionSection } from "./expression-section"
 import { InstrumentSection } from "./instrument-section"
 import { KeyboardSection } from "./keyboard-section"
 import { LayerSection } from "./layer-section"
@@ -98,6 +99,7 @@ export function ChannelInspector() {
               )
             )}
             <LayerSection channel={channel} />
+            <ExpressionSection channel={channel} />
             {/* The panel shows the saved settings whenever none of its own
                 edits is on its way, so undo and redo show through. */}
             <ChannelVoicePanel

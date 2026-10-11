@@ -12,6 +12,7 @@ export const DEFAULT_IMPORT: MidiImportOptions = {
   tempo: true,
   timeSignature: true,
   channelMix: true,
+  noteExpression: true,
 }
 
 export function midiExportOptions(

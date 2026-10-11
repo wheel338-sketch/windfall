@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from "react"
 import { toast } from "sonner"
 
-import type { MidiImportOptions, MidiImportPreview } from "@/bindings"
+import type { MidiExpressionMode, MidiImportOptions, MidiImportPreview } from "@/bindings"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
+import { Input } from "@/components/ui/input"
 import {
   Dialog,
   DialogContent,
@@ -221,6 +222,7 @@ function ImportForm({ done, busy }: FormProps) {
           disabled={importing}
           onChange={(value) => change("channelMix", value)}
         />
+        <Check id="midi-note-expression" label="Import pitch bend and controllers as note expression" checked={options.noteExpression ?? true} disabled={importing} onChange={(value) => change("noteExpression", value)} />
       </FieldSet>
       <div role="status" aria-live="polite">
         {reading && "Reading MIDI…"}
@@ -273,6 +275,7 @@ function ExportForm({ done, busy }: FormProps) {
   const [working, setWorking] = useState(false)
   const [error, setError] = useState<string | null>(null)
   async function save() {
+    if (!expressionValid) return
     setWorking(true)
     busy(true)
     setError(null)
@@ -289,6 +292,9 @@ function ExportForm({ done, busy }: FormProps) {
       busy(false)
     }
   }
+  const expression = options.expression ?? { mode: "off", bendRange: 0, step: 0 }
+  const expressionValid = Number.isInteger(expression.bendRange) && expression.bendRange >= 0 && expression.bendRange <= 96
+    && Number.isInteger(expression.step) && expression.step >= 0 && expression.step <= 245760
   return (
     <FieldGroup>
       <Field>
@@ -351,6 +357,19 @@ function ExportForm({ done, busy }: FormProps) {
           }
         />
       </FieldSet>
+      <FieldSet><FieldLegend>Note expression</FieldLegend>
+        <Field><FieldLabel htmlFor="midi-expression-mode">Expression routing</FieldLabel>
+          <Choice<MidiExpressionMode> id="midi-expression-mode" value={expression.mode} disabled={working}
+            options={[{ value: "off", label: "Notes only" }, { value: "channelVoice", label: "Color-group channels" }, { value: "mpe", label: "MPE · one channel per note" }]}
+            onChange={(mode) => setOptions({ ...options, expression: { ...expression, mode } })} /></Field>
+        <Field><FieldLabel htmlFor="midi-expression-bend">Pitch-bend range (semitones; 0 = automatic)</FieldLabel>
+          <Input id="midi-expression-bend" type="number" min={0} max={96} value={Number.isFinite(expression.bendRange) ? expression.bendRange : ""} disabled={working || expression.mode === "off"}
+            onChange={(event) => setOptions({ ...options, expression: { ...expression, bendRange: event.target.valueAsNumber } })} /></Field>
+        <Field><FieldLabel htmlFor="midi-expression-step">Expression spacing (ticks; 0 = automatic)</FieldLabel>
+          <Input id="midi-expression-step" type="number" min={0} max={245760} value={Number.isFinite(expression.step) ? expression.step : ""} disabled={working || expression.mode === "off"}
+            onChange={(event) => setOptions({ ...options, expression: { ...expression, step: event.target.valueAsNumber } })} /></Field>
+        <FieldDescription>Color-group channels share bends and controllers. MPE assigns member channels and overrides note colors. Pitch bend, modulation, pan and saved curves are sampled; match the receiving instrument’s bend range.</FieldDescription>
+      </FieldSet>
       <FieldDescription>
         Exports notes, tempo and meter. Audio clips, instrument sounds and
         effects are omitted. Tempo glides are sampled; more than 15 melodic
@@ -361,7 +380,7 @@ function ExportForm({ done, busy }: FormProps) {
         <Button variant="outline" disabled={working} onClick={done}>
           Cancel
         </Button>
-        <Button disabled={working} onClick={() => void save()}>
+        <Button disabled={working || !expressionValid} onClick={() => void save()}>
           {working ? "Exporting…" : "Choose file and export…"}
         </Button>
       </DialogFooter>
