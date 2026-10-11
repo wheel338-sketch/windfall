@@ -50,6 +50,8 @@ mod transport_acceptance;
 mod versions;
 mod mastering_qa;
 mod nonlinear_performance;
+#[cfg(windows)]
+mod mixer_preset_native;
 
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};

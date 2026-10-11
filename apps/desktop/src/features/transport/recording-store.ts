@@ -3,6 +3,7 @@ import { toast } from "sonner"
 import type { RecordingInput, RecordingState } from "@/bindings"
 import { backend, errorMessage } from "@/lib/ipc"
 import { receivePatch } from "@/lib/store/project"
+import { getProjectGeneration } from "@/lib/store/replaced"
 
 export const useRecordingStore = create(() => ({
   open: false,
@@ -36,6 +37,7 @@ export const useRecordingStore = create(() => ({
   error: "",
 }))
 async function work(action: () => Promise<void>) {
+  if (useRecordingStore.getState().busy) return
   useRecordingStore.setState({ busy: true, error: "" })
   try {
     await action()
@@ -88,10 +90,13 @@ export function startRecording() {
 }
 export function stopRecording() {
   return work(async () => {
+    const generation = getProjectGeneration()
     const s = useRecordingStore.getState()
     const result = await backend.recordingStop(s.state.takes
       ? s.keepLatest ? { type: "latest" } : { type: "except", indices: s.excludedTakes }
       : undefined)
+    if (generation !== getProjectGeneration())
+      throw new Error("The project changed while the take was being attached. Reopen recording.")
     receivePatch(result.patch)
     toast.success("Recording added to playlist")
   })

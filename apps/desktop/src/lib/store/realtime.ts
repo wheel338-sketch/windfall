@@ -42,6 +42,7 @@ function receive(frame: RealtimeFrame) {
   latest.cpu = frame.cpu
   latest.xruns = frame.xruns
   latest.voices = frame.voices
+  latest.rejectedEchoes = frame.rejectedEchoes
   latest.correlation = frame.correlation
   latest.waveforms = frame.waveforms ?? []
   latest.spectrum = frame.spectrum ?? []
@@ -75,6 +76,7 @@ function receive(frame: RealtimeFrame) {
 // and its tracks and effects share ids with the new one's.
 onProjectReplaced(() => {
   latest.meters = []
+  latest.rejectedEchoes = undefined
   latest.correlation = undefined
   latest.waveforms = []
   latest.spectrum = []

@@ -885,6 +885,7 @@ impl Controller {
             shared.automated(&mut automated);
         }
         RealtimeFrame {
+            rejected_echoes: Some(shared.rejected_echoes.load(Ordering::Relaxed)),
             correlation,
             spectrum,
             spectrogram,

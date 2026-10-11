@@ -28,6 +28,42 @@ pnpm --dir apps/desktop test src/features/channel-rack/rack-voice.qa.test.tsx --
 
 ## Remaining work
 
+Second coherent piece (written, not executed):
+
+- `session/tests/mixer_preset_native.rs`: CLAP and VST3
+  `*_running_helper_preset_restores_pcm_history_and_reopen` join real scanner,
+  running helper, native state, library file, new-track restoration, independent
+  steady-PCM reference, zero callback allocation, history and reopen. Requires
+  `WINDFALL_BRIDGE_FIXTURE` and `WINDFALL_DESKTOP_BRIDGE_HELPER` pointing at the
+  integrator's explicitly built fixture and current desktop executable.
+- `session/tests/audio_logger.rs`:
+  `enable_song_play_dump_preserves_sample_alignment_through_playlist_and_reopen`
+  compares nonperiodic signed bursts and recovered PCM frame for frame after
+  enable/play/dump, then checks one undo, redo and fresh reopen.
+- `sampler-second-pass.qa.test.tsx`: real inspector envelope/LFO knob drags,
+  one gesture/history step, undo/redo and WASM JSON reopen; mounted tempo-fit
+  draft/apply/history/reopen. Device preparation is a fixture adapter; native
+  spectral DSP remains covered by the existing sampler preparation suite.
+- `transport/recording.qa.test.tsx`: real transport panel Record/start/keep
+  through synthetic device capture and real WASM attachment/history/reopen.
+  The native transport acceptance now also saves/reopens its actual take.
+  A late stop reply is refused by frontend project-generation guard.
+- `RealtimeFrame.rejectedEchoes?` carries the engine's actual refused-repeat
+  counter into an imperatively updated accessible rack output. Regenerate
+  this binding; no generated file was edited.
+
+Additional sequential integrator commands:
+
+```bash
+cargo test -p windfall-desktop --lib session::tests::mixer_preset_native
+cargo test -p windfall-desktop --lib enable_song_play_dump_preserves_sample_alignment
+cargo test -p windfall-desktop --lib session::tests::transport_acceptance
+pnpm --dir apps/desktop test src/features/channel-rack/sampler-second-pass.qa.test.tsx src/features/transport/recording.qa.test.tsx --maxWorkers=4
+```
+
+Check fixture control ID 7, gain interpretation and helper scheduling first;
+then mounted knob roles, tempo-fit sample metadata and action accessible names.
+
 This document is updated at each coherent commit. Rack preview/GC, mounted
 gesture/tempo-fit, echo telemetry/runtime cases, joined native mixer preset,
 logger and transport cases, sidechain/region stems and the expanded editor

@@ -107,6 +107,10 @@ pub struct TransportPatch {
 #[serde(rename_all = "camelCase")]
 #[ts(export)]
 pub struct RealtimeFrame {
+    /// Cumulative notes whose repeats exceeded the bounded echo queues.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub rejected_echoes: Option<u32>,
     /// Existing analyzer's uncentered, normalized zero-lag stereo correlation,
     /// finite and in -1..=1. Absent when no valid correlation is available.
     #[serde(default, skip_serializing_if = "Option::is_none")]

@@ -12,7 +12,7 @@ use windfall_ipc::{
 };
 use windfall_project::{ClipContent, PlaylistTrackId, SamplePath, TrackId};
 
-use super::{Rig, SAMPLE_RATE, rms};
+use super::{rms, Rig, SAMPLE_RATE};
 use crate::session::audio_logger::InputBackend;
 use crate::session::recording::{CaptureHandle, Sink};
 use crate::settings::SETTINGS_FILE;
@@ -20,6 +20,130 @@ use crate::sync::lock;
 
 const MASTER: AudioLoggerSource = AudioLoggerSource::Master;
 const INPUT: AudioLoggerSource = AudioLoggerSource::Input;
+
+#[test]
+fn enable_song_play_dump_preserves_sample_alignment_through_playlist_and_reopen() {
+    use windfall_ipc::{PlayMode, TransportPatch};
+    use windfall_project::{Command, MixerTrackPatch};
+    let mut rig = Rig::new();
+    // Nonperiodic signed bursts provide an independent frame alignment oracle.
+    let mut pcm = vec![0.0_f32; 48_000 * 2];
+    for (frame, value) in [(1001, 0.2), (7237, -0.3), (17003, 0.4), (23119, -0.25)] {
+        pcm[frame * 2] = value;
+        pcm[frame * 2 + 1] = -value * 0.5;
+    }
+    let stimulus = rig.file("logger-stimulus.wav");
+    windfall_codec::write_wav(
+        Path::new(&stimulus),
+        &windfall_core::AudioBuffer::from_interleaved(SAMPLE_RATE, 2, pcm),
+        windfall_codec::WavSampleFormat::Float32,
+    )
+    .unwrap();
+    rig.session
+        .add_audio_clip_from_file(
+            &stimulus,
+            crate::session::ClipPlace {
+                track: None,
+                start: 0,
+                mixer_track: None,
+            },
+        )
+        .unwrap();
+    rig.session
+        .dispatch(
+            Command::UpdateMixerTrack {
+                id: TrackId::MASTER,
+                patch: MixerTrackPatch {
+                    volume: Some(1.0),
+                    ..Default::default()
+                },
+            },
+            None,
+        )
+        .unwrap();
+    rig.session
+        .transport_set(TransportPatch {
+            mode: Some(PlayMode::Song),
+            loop_song: Some(false),
+            ..Default::default()
+        })
+        .unwrap();
+    rig.session.audio_logger_configure(settings()).unwrap();
+    rig.session.transport_play().unwrap();
+    let mut played = Vec::new();
+    for _ in 0..50 {
+        played.extend(rig.run(480));
+        rig.session.audio_logger_state();
+    }
+    assert!(rms(&played) > 0.0001);
+    let before = rig.session.document_snapshot();
+    let result = rig
+        .session
+        .audio_logger_dump(AudioLoggerDumpRequest {
+            source: MASTER,
+            seconds: None,
+            start: Some(3840),
+            track: None,
+        })
+        .unwrap();
+    let clip_id = windfall_project::ClipId(*result.created.last().unwrap());
+    let project = rig.project();
+    let clip = project
+        .playlist
+        .clips
+        .iter()
+        .find(|clip| clip.id == clip_id)
+        .unwrap();
+    assert_eq!(clip.start, 3840);
+    let ClipContent::Audio { sample, .. } = clip.content else {
+        panic!("dump is audio")
+    };
+    let recovered = rig.session.state().pool.get(sample).unwrap().clone();
+    assert_eq!(recovered.samples(), played);
+    let bursts = |audio: &[f32]| {
+        audio
+            .chunks_exact(2)
+            .enumerate()
+            .filter(|(_, frame)| frame[0].abs() > 1e-4)
+            .map(|(frame, _)| frame)
+            .collect::<Vec<_>>()
+    };
+    assert_eq!(
+        bursts(recovered.samples()),
+        bursts(&played),
+        "zero sample lag, including native PDC"
+    );
+    assert_eq!(
+        rig.session.document_snapshot().history.cursor,
+        before.history.cursor + 1
+    );
+    rig.session.undo().unwrap();
+    assert!(rig
+        .project()
+        .playlist
+        .clips
+        .iter()
+        .all(|clip| clip.id != clip_id));
+    rig.session.redo().unwrap();
+    rig.session.transport_stop();
+    let path = rig.file("aligned-logger.windfall");
+    rig.session.project_save(Some(&path)).unwrap();
+    let rig = rig.restart();
+    rig.session.project_open(&path).unwrap();
+    let reopened = rig.project();
+    assert_eq!(
+        reopened
+            .playlist
+            .clips
+            .iter()
+            .find(|clip| clip.id == clip_id),
+        Some(clip)
+    );
+    assert_eq!(
+        rig.session.state().pool.get(sample).unwrap().samples(),
+        played
+    );
+}
 
 fn settings() -> AudioLoggerSettings {
     AudioLoggerSettings {
@@ -330,13 +454,11 @@ fn the_last_seconds_of_the_master_become_a_clip_of_exactly_what_was_played() {
     let clips = project.playlist.clips.len();
     let project = rig.project();
     assert_eq!(project.playlist.clips.len(), clips + 1);
-    assert!(
-        project
-            .playlist
-            .clips
-            .iter()
-            .any(|clip| (clip.start, clip.track) == (0, track))
-    );
+    assert!(project
+        .playlist
+        .clips
+        .iter()
+        .any(|clip| (clip.start, clip.track) == (0, track)));
     assert_eq!(logged_files(&rig).len(), 2);
 
     // More seconds than there are gives all there is.
@@ -677,13 +799,11 @@ fn the_logged_input_makes_way_for_a_recording_take_and_comes_back() {
     let state = rig.session.audio_logger_state();
     let logged = status(&state, INPUT);
     assert!(!logged.active);
-    assert!(
-        logged
-            .error
-            .as_deref()
-            .unwrap()
-            .contains("Paused while a recording take")
-    );
+    assert!(logged
+        .error
+        .as_deref()
+        .unwrap()
+        .contains("Paused while a recording take"));
     assert_eq!(logged.available_frames, 2_400);
 
     // It stays closed for as long as the take lasts, whatever is asked.
@@ -899,12 +1019,10 @@ fn logger_settings_are_remembered_and_an_older_settings_file_gives_the_defaults(
     let state = rig.session.audio_logger_state();
     assert!(state.running);
     assert_eq!(state.sources.len(), 2);
-    assert!(
-        state
-            .sources
-            .iter()
-            .all(|status| status.capacity_seconds == 300.0)
-    );
+    assert!(state
+        .sources
+        .iter()
+        .all(|status| status.capacity_seconds == 300.0));
 
     // A file edited by hand to hold more than the logger takes is cut to
     // what it can run, not trusted and not thrown away.
