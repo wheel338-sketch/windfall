@@ -561,3 +561,107 @@ fn real_ports_are_listed_and_the_first_output_takes_a_second_of_clock() {
     );
     assert!(pulses.len() >= 40, "about 48 pulses in a second");
 }
+
+#[test]
+fn injected_audio_clock_and_port_measure_compensated_notes_and_clock_jitter() {
+    use crate::recording_clock::OutputClock;
+    use std::sync::atomic::AtomicU64;
+    struct Measured {
+        now: Arc<AtomicU64>,
+        sent: Arc<Mutex<Vec<(u64, Vec<u8>)>>>,
+    }
+    impl Output for Measured {
+        fn latency_nanos(&self) -> u64 {
+            3_000_000
+        }
+        fn send(&mut self, bytes: &[u8]) -> Result<(), String> {
+            self.sent
+                .lock()
+                .unwrap()
+                .push((self.now.load(Ordering::Relaxed), bytes.to_vec()));
+            Ok(())
+        }
+    }
+    let (_, controller) = Processor::new(48_000);
+    let fake = fake(&["out"]);
+    let (mut worker, _) = worker(
+        &controller,
+        &fake,
+        MidiHardwareSettings {
+            output: Some("out".into()),
+            send_clock: true,
+            ..Default::default()
+        },
+    );
+    let now = Arc::new(AtomicU64::new(0));
+    let sent = Arc::new(Mutex::new(Vec::new()));
+    worker.output = Some(Box::new(Measured {
+        now: now.clone(),
+        sent: sent.clone(),
+    }));
+    let base = Instant::now();
+    // Callback frame zero is heard at 10 ms. Its note must be submitted at
+    // 7 ms so the surface's reported 3 ms delay lands it with the DAC.
+    let clock = OutputClock {
+        generation: 1,
+        frame: 0,
+        nanos: 10_000_000,
+        sample_rate: 48_000,
+        nanos_per_frame: 1e9 / 48_000.0,
+        latency_nanos: 10_000_000,
+        measured: true,
+    };
+    controller.shared().push_midi_out(0, [0x90, 60, 100], 3);
+    controller.shared().push_midi_out(4800, [0x80, 60, 0], 3);
+    let mut head = controller.playhead();
+    head.playing = true;
+    head.tick = 0.0;
+    head.ticks_per_second = 1920.0;
+    // Inject bounded irregular wake-ups, without sleeping or real ports.
+    for step in 0..=550_u64 {
+        let ns = step * 1_000_000 + [0, 125_000, 80_000][step as usize % 3];
+        now.store(ns, Ordering::Relaxed);
+        worker.outputs_at(base + Duration::from_nanos(ns), &head, ns, Some(clock));
+    }
+    let sent = sent.lock().unwrap();
+    let on = sent
+        .iter()
+        .find(|(_, bytes)| bytes == &[0x90, 60, 100])
+        .unwrap()
+        .0;
+    let off = sent
+        .iter()
+        .find(|(_, bytes)| bytes == &[0x80, 60, 0])
+        .unwrap()
+        .0;
+    assert!((7_000_000..8_125_001).contains(&on));
+    assert!((107_000_000..108_125_001).contains(&off));
+    let pulses: Vec<_> = sent
+        .iter()
+        .filter(|(_, bytes)| bytes == &[0xf8])
+        .map(|(ns, _)| *ns)
+        .collect();
+    assert!(pulses.len() >= 24);
+    let errors: Vec<_> = pulses
+        .iter()
+        .enumerate()
+        .map(|(index, ns)| {
+            let reference = 7_000_000.0 + index as f64 * 1e9 / 48.0;
+            *ns as f64 - reference
+        })
+        .collect();
+    assert!(
+        errors
+            .iter()
+            .all(|error| *error >= -20_000.0 && *error <= 1_125_000.0),
+        "deadline errors: {errors:?}"
+    );
+    let mean = errors.iter().sum::<f64>() / errors.len() as f64;
+    let rms = (errors
+        .iter()
+        .map(|error| (error - mean).powi(2))
+        .sum::<f64>()
+        / errors.len() as f64)
+        .sqrt();
+    assert!(rms < 600_000.0, "synthetic clock jitter RMS {rms} ns");
+}

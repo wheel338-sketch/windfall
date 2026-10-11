@@ -723,6 +723,11 @@ impl Controller {
         }
     }
 
+    /// Frame corresponding to the published playhead in the DAC clock.
+    pub fn playhead_output_frame(&self) -> u64 {
+        self.inner.shared.position_frame.load(Ordering::Acquire)
+    }
+
     /// Takes the messages MIDI output channels have queued, oldest first,
     /// each with the engine frame it belongs to. One thread at a time may
     /// call this: it is the MIDI worker's. Never blocks the audio thread.

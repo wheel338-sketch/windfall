@@ -236,6 +236,9 @@ impl Processor {
             self.sequencer.start(),
             self.voices.active() + self.state.instrument_voices(),
         );
+        self.shared
+            .position_frame
+            .store(self.frame, Ordering::Release);
         let missing = self.clips.missing(self.sequencer.clock(), self.frame);
         self.shared
             .publish_clips(self.clips.playing() as u32, missing as u32);

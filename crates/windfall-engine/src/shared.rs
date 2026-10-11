@@ -44,6 +44,7 @@ pub(crate) struct Shared {
     transport: AtomicU64,
     /// Playhead in ticks, as `f64` bits.
     tick: AtomicU64,
+    pub position_frame: AtomicU64,
     /// Where stopping returns the playhead to, in ticks, as `f64` bits.
     start: AtomicU64,
     voices: AtomicU32,
@@ -96,6 +97,7 @@ impl Shared {
             hardware_epoch: AtomicU64::new(0),
             transport: AtomicU64::new(0),
             tick: AtomicU64::new(0.0_f64.to_bits()),
+            position_frame: AtomicU64::new(0),
             start: AtomicU64::new(0.0_f64.to_bits()),
             voices: AtomicU32::new(0),
             audio_clips: AtomicU32::new(0),

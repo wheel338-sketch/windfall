@@ -13,6 +13,7 @@ mod message;
 mod native;
 #[cfg(test)]
 mod routing_tests;
+mod scheduling;
 #[cfg(test)]
 mod tests;
 
@@ -37,7 +38,6 @@ const POLL: Duration = Duration::from_millis(500);
 const SERVICE: Duration = Duration::from_millis(2);
 /// A MIDI output message due later than this is not believed: the audio
 /// clock it was timed against has gone away. It is sent at once.
-const MAX_AHEAD_NANOS: u64 = 2_000_000_000;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 enum Event {
@@ -182,6 +182,10 @@ pub trait Audition: Send + Sync + 'static {
 
 pub trait Output: Send {
     fn send(&mut self, bytes: &[u8]) -> Result<(), String>;
+    /// Reported driver/surface output delay. Unknown drivers report zero.
+    fn latency_nanos(&self) -> u64 {
+        0
+    }
 }
 
 /// Device API seam. Construction and all calls happen on the owning worker.
@@ -581,7 +585,21 @@ impl Worker {
     fn outputs(&mut self, now: Instant, playhead: &Playhead) {
         let recording_clock = self.controller.recording_clock();
         let now_nanos = recording_clock.now_nanos();
-        let output_clock = recording_clock.output();
+        self.outputs_at(now, playhead, now_nanos, recording_clock.output());
+    }
+
+    /// Injected monotonic/audio clocks drive the same scheduler used by real ports.
+    fn outputs_at(
+        &mut self,
+        now: Instant,
+        playhead: &Playhead,
+        now_nanos: u64,
+        output_clock: Option<crate::recording_clock::OutputClock>,
+    ) {
+        let latency = self
+            .output
+            .as_ref()
+            .map_or(0, |output| output.latency_nanos());
         let connected = self.output.is_some();
         let pending = &mut self.pending;
         let last_due = &mut self.last_due;
@@ -591,12 +609,7 @@ impl Worker {
             if !connected || pending.len() >= OUTPUT_PENDING || bytes.is_empty() {
                 return;
             }
-            let timed = output_clock.map_or(now_nanos, |clock| clock.nanos_at(frame));
-            let believed = if timed > now_nanos.saturating_add(MAX_AHEAD_NANOS) {
-                now_nanos
-            } else {
-                timed
-            };
+            let believed = scheduling::deadline(output_clock, frame, now_nanos, latency);
             // A message never goes before one made earlier.
             let due = believed.max(*last_due);
             *last_due = due;
@@ -631,7 +644,30 @@ impl Worker {
         // continue and a short run of pulses.
         let mut wanted = [([0_u8; 3], 0_usize); 8];
         let mut count = 0;
-        self.clock.poll(playhead, now, &mut |bytes| {
+        // When DAC playback is still ahead, wait for the compensated start rather
+        // than sending tick-zero pulses immediately at callback time.
+        if !self.clock.running()
+            && playhead.playing
+            && let Some(clock) = output_clock
+        {
+            let elapsed =
+                (playhead.tick.max(0.0) / playhead.ticks_per_second.max(1.0) * 1e9) as u64;
+            let start = clock
+                .nanos_at(self.controller.playhead_output_frame())
+                .saturating_sub(elapsed)
+                .saturating_sub(latency);
+            if now_nanos < start {
+                return;
+            }
+        }
+        let aligned = scheduling::aligned_head(
+            playhead,
+            self.controller.playhead_output_frame(),
+            output_clock,
+            now_nanos,
+            latency,
+        );
+        self.clock.poll(&aligned, now, &mut |bytes| {
             if count < wanted.len() && bytes.len() <= 3 {
                 wanted[count].0[..bytes.len()].copy_from_slice(bytes);
                 wanted[count].1 = bytes.len();
