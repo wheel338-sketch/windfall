@@ -5,6 +5,19 @@ use windfall_dsp::{EffectKind, EffectParams};
 use windfall_engine::{RenderOptions, render};
 use windfall_ipc::PlayMode;
 
+/// Export removes PDC latency; align the live capture by the same reported
+/// latency, retaining exact PCM equality and callback allocation checks.
+fn aligned_song(rig: &Rig, frames: usize, block: usize) -> Vec<f32> {
+    let (mut processor, controller) = rig.song_processor(48_000);
+    let latency = controller.latency_frames() as usize;
+    controller.play();
+    let mut output = vec![0.0; (frames + latency) * 2];
+    for chunk in output.chunks_mut(block * 2) {
+        assert_eq!(crate::realtime::allocator_calls(|| processor.process(chunk)), 0);
+    }
+    output[latency * 2..].to_vec()
+}
+
 #[test]
 fn all_eight_processors_capture_the_same_pcm_live_offline_and_under_block_partitions() {
     for kind in [
@@ -92,13 +105,13 @@ fn all_eight_processors_capture_the_same_pcm_live_offline_and_under_block_partit
         assert!(captured.samples().iter().all(|x| x.is_finite()), "{kind:?}");
         assert_eq!(
             captured.samples(),
-            rig.play_song(48_000, captured.frames(), 137),
+            aligned_song(&rig, captured.frames(), 137),
             "{kind:?}"
         );
         for block in [1, 7, 64, 512] {
             assert_eq!(
                 captured.samples(),
-                rig.play_song(48_000, captured.frames(), block),
+                aligned_song(&rig, captured.frames(), block),
                 "{kind:?} block {block}"
             );
         }
@@ -192,6 +205,8 @@ fn recorded_trigger_edges_replay_the_exact_history_in_live_and_offline_capture()
             param: trigger_index as u32,
         };
         // These edges are on the existing engine's 64-frame automation grid.
+        // Effect parameters are aimed at the NEXT grid value, so boolean
+        // controls take effect one grid step before the curve's edge.
         // A MIDI-recorded Trigger lane uses this same saved automation path.
         let automation = rig.automation(
             target,
@@ -208,28 +223,42 @@ fn recorded_trigger_edges_replay_the_exact_history_in_live_and_offline_capture()
         };
         let captured = render(&rig.project, &rig.pool, &options, &mut |_| true);
         let output = captured.samples();
-        for frame in 6500..19200 {
-            let position = (frame - 6400) % 3000;
-            if position < 100 {
-                continue;
-            } // two-ms head transition
-            let expected = source[3400 + position];
+        let start = 6400 - 64;
+        let end = 19200 - 64;
+        let mut previous = source[4999];
+        let mut transition_from = previous;
+        let mut transition_left = 0;
+        // Independent captured-slice + two-ms endpoint blend reference,
+        // including every wrap and the release rather than omitting seams.
+        for frame in 5000..40000 {
+            let held = (start..end).contains(&frame);
+            if frame == end || (held && (frame - start) % 3000 == 0) {
+                transition_from = previous;
+                transition_left = 96;
+            }
+            let next = if held {
+                source[start - 3000 + (frame - start) % 3000]
+            } else {
+                source[frame]
+            };
+            let expected = if transition_left > 0 {
+                transition_left -= 1;
+                let mix = 1.0 - transition_left as f32 / 96.0;
+                transition_from * (1.0 - mix) + next * mix
+            } else {
+                next
+            };
             assert!(
                 (output[frame * 2] - expected).abs() < 1e-6,
-                "{kind:?} frame {frame}"
+                "{kind:?} frame {frame}: {} != {expected}", output[frame * 2]
             );
             assert!((output[frame * 2 + 1] - expected).abs() < 1e-6);
-        }
-        for frame in 19300..40000 {
-            assert!(
-                (output[frame * 2] - source[frame]).abs() < 1e-6,
-                "{kind:?} release frame {frame}"
-            );
+            previous = expected;
         }
         for block in [1, 7, 64, 137, 512] {
             assert_eq!(
                 output,
-                rig.play_song(48_000, captured.frames(), block),
+                aligned_song(&rig, captured.frames(), block),
                 "{kind:?} block {block}"
             );
         }

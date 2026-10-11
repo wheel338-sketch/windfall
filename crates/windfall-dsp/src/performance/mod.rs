@@ -157,7 +157,13 @@ impl Effect for VolumeGate {
                     self.phase = 0;
                     self.last_step = None;
                 } else {
+                    // Return to the absolute song phase at the release sample.
+                    // Waiting for the next host transport update would start a
+                    // second jump fade at an arbitrary callback boundary.
+                    self.phase = (self.phase + self.history.length - self.phase_offset)
+                        % self.history.length;
                     self.phase_offset = 0;
+                    self.last_step = None;
                 }
                 self.trigger_down = p.trigger;
             }
