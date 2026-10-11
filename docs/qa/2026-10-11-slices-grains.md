@@ -36,6 +36,8 @@ Legacy v1 mono tables/maps/curves migrate into immutable saved assets. Existing
 Legacy map modulo-key selection/global release are retained through an optional
 legacyKeyWrap asset flag (omitted by default) and migrated region release values.
 Editor/detection authoring switches those assets to the bounded map contract.
+Assigning deck B retains a migrated inline deck A; the mounted regression case
+is written, not executed. The editor labels that retained inline source explicitly.
 The independent DSP migration test and project assertions are written, not executed.
 scalar descriptor prefixes retain their indices. Former marker/per-slice/curve
 suffix automation is refused with a migration diagnostic; it is not silently

@@ -88,7 +88,7 @@ export function SamplePlaybackEditor({ channel }: { channel: InstrumentChannel }
         <Select<string> value={String((deck ? asset.sampleB : asset.sample) ?? "none")} onValueChange={(value) => {
           if (value === null) return
           const source = value === "none" ? null : Number(value)
-          save({ ...asset, inlineSource: undefined, ...(deck ? { sampleB: source } : { sample: source }) })
+          save({ ...asset, ...(deck ? { sampleB: source } : { sample: source, inlineSource: undefined }) })
         }}><SelectTrigger aria-label={`Source ${deck === 0 ? "A" : "B"}`}><SelectValue /></SelectTrigger>
           <SelectContent><SelectGroup><SelectItem value="none">No source</SelectItem>
             {samples.map((sample) => <SelectItem key={sample.id} value={String(sample.id)}>{sample.name}</SelectItem>)}
@@ -97,6 +97,7 @@ export function SamplePlaybackEditor({ channel }: { channel: InstrumentChannel }
       </Field>)}
     </FieldGroup>
     <p className="text-xs text-muted-foreground">Choose an imported sample from the project. Browser mode uses simulated audio fixtures.</p>
+    {asset.inlineSource && asset.sample == null && <p className="text-xs text-muted-foreground">The migrated source is retained inside this project. Choosing Source A replaces it.</p>}
     <PlaybackControls channel={channel.id} params={params} />
     {params.type === "grainCloud" && <p className="text-xs text-muted-foreground">Grain spacing is 1000 ÷ density milliseconds. Size controls overlap; spray randomizes source positions. The same seed reproduces the schedule after reset.</p>}
     {slicing && <>

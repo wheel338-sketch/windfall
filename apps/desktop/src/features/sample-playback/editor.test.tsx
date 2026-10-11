@@ -35,6 +35,21 @@ async function open(kind: InstrumentKind) {
 const asset = (id: number) => useProjectStore.getState().project.channels.find((c) => c.id === id)!.samplePlayback!
 
 describe("purpose-built sample instrument editors", () => {
+  it("retains migrated source A when assigning the second deck", async () => {
+    const id = await open("sliceDeck")
+    const source = { sampleRate: 8000, data: [0.2, 0.4, 0.6, 0.8] }
+    await act(() => dispatch({ type: "setSamplePlayback", channel: id,
+      asset: { ...defaultAsset(), inlineSource: source } }))
+    await flush()
+    const sample = useProjectStore.getState().project.samples[0]
+    const user = userEvent.setup()
+    await user.click(screen.getByRole("combobox", { name: "Source B" }))
+    await user.click(await screen.findByRole("option", { name: sample.name, exact: true }))
+    await flush()
+    expect(asset(id).inlineSource).toEqual(source)
+    expect(asset(id).sample).toBeNull()
+    expect(asset(id).sampleB).toBe(sample.id)
+  })
   it("splits, edits, reverses and reorders slices with exact undo", async () => {
     const id = await open("sliceDeck")
     const cursor = useProjectStore.getState().history.cursor
