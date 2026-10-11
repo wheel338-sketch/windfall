@@ -227,7 +227,13 @@ impl PreparedEngine {
                     let shape = match self.target.shape {
                         1 if i % 2 == 1 => 0.0,
                         2 if i % 2 == 1 => 0.0,
-                        2 => 1.0 / n,
+                        2 => {
+                            if (i / 2) % 2 == 0 {
+                                1.0 / n
+                            } else {
+                                -1.0 / n
+                            }
+                        }
                         _ => 1.0,
                     };
                     let filter = 1.0 / (1.0 + (hz / c.cutoff).powi(4));

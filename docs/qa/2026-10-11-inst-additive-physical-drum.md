@@ -12,7 +12,7 @@ benchmarks, generators or audio-device checks were run. Every test below is
 | inst-harmor | Pending this stream. | Audio/image preparation and asset editor. |
 | inst-morphine | Full-row candidate: new Snapshot Morph kind uses immutable worker-prepared 32-harmonic A/B spectra, phase/pan-aware interpolation, polyphony/envelope controls and a two-spectrum harmonic editor. | Fresh integration execution and listening. |
 | inst-ogun | Pending this stream. | Metallic spectrum and editor acceptance. |
-| inst-harmless | Pending this stream. | Subtractive harmonic controls and editor acceptance. |
+| inst-harmless | Full-row candidate: Harmonic Filter plays an immutable 64-harmonic bank through saw/square/triangle weighting, spectral cutoff/resonance and envelope/polyphony controls; dedicated oscillator/filter/envelope editor. | Fresh integration execution and listening. |
 | inst-autogun | Pending this stream. | Full number domain and preset-only workflow. |
 | inst-beepmap | Pending this stream. | Color/brightness image scan. |
 | inst-drumaxx | Full-row candidate: sixteen independent modal membrane/cavity patches, fixed MIDI 36–51, per-pad strike/damping/body controls, selection grid and hold-to-audition editor; shared passive model with single Membrane. | Fresh integration execution and listening. |
@@ -150,3 +150,13 @@ worker mapping/refusal case, mounted two-spectrum/morph/undo case.
 Run `cargo test -p windfall-dsp --lib additive` with existing family commands.
 Regenerate SnapshotMorphParams plus the three spectral asset types, union and
 descriptors/WASM. Check phase/pan/reference and per-sample partition arithmetic.
+
+### Harmonic Filter checkpoint
+
+Appends HarmonicFilter (30 kinds here); waveform/cutoff/resonance are scalar
+controls applied to immutable base harmonics. No callback-created partial bank.
+Written, not executed: DSP `subtractive_controls_shape_an_additive_harmonic_spectrum`
+measures even-harmonic rejection, square/triangle harmonic ratios, low-pass loss
+and resonant gain; engine `harmonic_filter_cutoff_reaches_history_disk_and_live_offline_pcm`;
+mounted response/cutoff/history case. Regenerate HarmonicShape/HarmonicFilterParams
+and union/descriptors/WASM. Run additive, engine and mounted suites above.

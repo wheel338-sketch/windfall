@@ -161,3 +161,5 @@ pub use instrument_asset::{DrumKeyPatch, InstrumentAsset};
 pub use drums::{LayerKick, LayerKickParams};
 
 pub use additive::{SnapshotMorph,SnapshotMorphParams};
+
+pub use additive::{HarmonicFilter,HarmonicFilterParams,HarmonicShape};

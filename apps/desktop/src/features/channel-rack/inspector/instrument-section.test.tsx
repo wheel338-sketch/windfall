@@ -265,6 +265,13 @@ describe("instrument settings panels", () => {
     await act(() => undo());expect(channelOf(channel).source.params).toEqual(original)
   })
 
+  it("mounts subtractive harmonic controls and undoes a cutoff edit",async()=>{
+    const channel=await open("harmonicFilter"),original=channelOf(channel).source.params
+    expect(screen.getByRole("img",{name:"Harmonic low-pass response"})).toBeVisible()
+    const cutoff=screen.getByRole("slider",{name:"Cutoff"});fireEvent.keyDown(cutoff,{key:"Home"});fireEvent.keyUp(cutoff,{key:"Home"});await flush()
+    expect(channelOf(channel).source.params).not.toEqual(original);await act(()=>undo());expect(channelOf(channel).source.params).toEqual(original)
+  })
+
   it("keeps hosted plugin controls ahead of the built-in panel", async () => {
     const channel = await open("acidLine")
     const plugin: PluginBinding = {

@@ -320,3 +320,21 @@ fn immutable_snapshot_morph_reaches_history_disk_and_live_offline_pcm() {
         bank,
     );
 }
+
+#[test]
+fn harmonic_filter_cutoff_reaches_history_disk_and_live_offline_pcm() {
+    let initial = HarmonicFilterParams {
+        cutoff_hz: 20000.0,
+        ..Default::default()
+    };
+    let changed = HarmonicFilterParams {
+        cutoff_hz: 300.0,
+        resonance: 0.7,
+        ..initial
+    };
+    acceptance(
+        InstrumentKind::HarmonicFilter,
+        InstrumentParams::HarmonicFilter(initial),
+        InstrumentParams::HarmonicFilter(changed),
+    );
+}

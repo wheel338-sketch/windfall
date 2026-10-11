@@ -76,3 +76,6 @@ pub use snapshot_morph::{SnapshotMorph,SnapshotMorphParams};
 
 #[cfg(test)]
 mod prepared_tests;
+
+mod harmonic_filter;
+pub use harmonic_filter::{HarmonicFilter,HarmonicFilterParams,HarmonicShape};

@@ -5,6 +5,7 @@ import type { InstrumentChannel } from "@/lib/channel-source"
 import { colorToCss } from "@/lib/units"
 
 import { useProjectGeneration } from "@/lib/store"
+import { HarmonicFilterEditor } from "../instruments/harmonic-filter-editor"
 import { SnapshotEditor } from "../instruments/snapshot-editor"
 import { LayerKickEditor } from "../instruments/layer-kick-editor"
 import { KeyDrumEditor } from "../instruments/key-drum-editor"
@@ -46,6 +47,8 @@ export function InstrumentSection({ channel }: { channel: InstrumentChannel }) {
           params={params}
           color={colorToCss(channel.color)}
         />
+      ) : params.type === "harmonicFilter" ? (
+        <HarmonicFilterEditor channel={channel.id} params={params} />
       ) : params.type === "snapshotMorph" ? (
         <SnapshotEditor channel={channel} />
       ) : params.type === "layerKick" ? (
