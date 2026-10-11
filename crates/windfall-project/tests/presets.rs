@@ -1172,13 +1172,9 @@ fn settings_from_another_build_are_renamed_dropped_defaulted_and_clamped_with_a_
         .as_object()
         .unwrap()
         .clone();
-    // The first two numeric settings the limiter has in this build.
-    let numeric: Vec<String> = params
-        .iter()
-        .filter(|(key, value)| key.as_str() != "type" && value.is_number())
-        .map(|(key, _)| key.clone())
-        .collect();
-    let (renamed, missing) = (numeric[0].clone(), numeric[1].clone());
+    // Choose named settings whose ranges admit the migration probe. Alphabetic
+    // order also includes positive-only compressor settings added to the limiter.
+    let (renamed, missing) = ("ceilingDb".to_owned(), "inputGainDb".to_owned());
     let renames = [ParamRename {
         processor: Box::leak(kind.clone().into_boxed_str()),
         from: "nameBeforeTheRename",
