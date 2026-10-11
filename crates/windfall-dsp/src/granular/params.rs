@@ -339,7 +339,7 @@ impl Default for GrainCloudParams {
             pitch: 0.0,
             seed: 1,
             level: 0.5,
-            release_ms: 30.0,
+            release_ms: 80.0,
         }
     }
 }

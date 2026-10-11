@@ -478,6 +478,8 @@ fn metadata<P: ParamSet + serde::Serialize + serde::de::DeserializeOwned + ts_rs
                 item.as_str(),
                 Some(descriptor.choices[descriptor.default as usize].value)
             );
+        } else if descriptor.kind == ParamKind::Toggle {
+            assert_eq!(item.as_bool(), Some(descriptor.default != 0.0));
         } else {
             assert!((item.as_f64().unwrap() - f64::from(descriptor.default)).abs() < 1.0e-5);
         }

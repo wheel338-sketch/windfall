@@ -20,6 +20,7 @@
 - Frontend lint passed with zero errors/warnings. Starting focused DSP tests; final native/frontend suites and acceptance reconciliation remain outstanding.
 - First focused DSP library run: 609 passed, 11 failed, 0 ignored (exit 101). Failures under diagnosis: inverted repeat energy; guitar latency ramp; drum pad difference; eqbank metadata toggle handling; granular/default registry disagreement; Finger Bass endpoint and old polyphony expectations; Pocket Synth short echo probe; bucket frame integration timing; MIDI harmony spectral projection. Full details: `target/round2-dsp-lib.log`. No tolerance/skip changes made.
 - Build/test commands will run sequentially with eight Cargo jobs and four Vitest workers. No devices/ignored tests, parity inventory edits, pushes or delegation.
+- Verified DSP repairs: restored the pre-merge GrainCloud 80 ms release default (product regression), checked boolean metadata as booleans (test error), and asserted FingerBass's one-voice lifecycle alongside the two eight-voice instruments (test error). Four focused commands passed: metadata 2/2, granular defaults 1/1, all-instrument dispatch 1/1, physical lifecycle 1/1; zero failures/ignored. Seven other original DSP failures remain under diagnosis.
 
 ## Verified execution record
 

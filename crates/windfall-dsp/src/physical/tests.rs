@@ -285,7 +285,7 @@ fn physical_partition_invariance_includes_automation_and_note_events() {
     check!(AcousticString);
 }
 
-fn assert_lifecycle<I: Instrument + Default>() {
+fn assert_lifecycle<I: Instrument + Default>(expected_polyphony: usize) {
     let mut instrument = I::default();
     instrument.note_on(60, 1.0);
     assert_eq!(instrument.active_voices(), 0);
@@ -293,7 +293,7 @@ fn assert_lifecycle<I: Instrument + Default>() {
     for key in 20..40 {
         instrument.note_on(key, 1.0);
     }
-    assert_eq!(instrument.active_voices(), MAX_POLYPHONY);
+    assert_eq!(instrument.active_voices(), expected_polyphony);
     instrument.reset();
     instrument.note_on(40, 1.0);
     let first = render(&mut instrument, 2048, &[256]);
@@ -314,9 +314,10 @@ fn assert_lifecycle<I: Instrument + Default>() {
 
 #[test]
 fn physical_polyphony_reset_repeatability_and_unprepared_silence() {
-    assert_lifecycle::<Pluck>();
-    assert_lifecycle::<FingerBass>();
-    assert_lifecycle::<AcousticString>();
+    assert_lifecycle::<Pluck>(MAX_POLYPHONY);
+    // FingerBass deliberately replaces its one string on each note-on.
+    assert_lifecycle::<FingerBass>(1);
+    assert_lifecycle::<AcousticString>(MAX_POLYPHONY);
 }
 
 fn assert_params<P: ParamSet + Serialize + DeserializeOwned>() {
