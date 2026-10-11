@@ -1,5 +1,36 @@
 # Drum synthesis seam
 
+## Current application checkpoint — 2026-10-11
+
+All foundation kinds below are registered/hosted/persisted. Membrane and all
+sixteen Drum Rack pads now play an original passive circular modal/cavity model:
+normalized Bessel-zero frequency ratios, radial strike position, positive
+frequency-dependent damping, bounded excitation and a cavity body contribution.
+Membrane appends strikePosition/damping/body at indices 7-9; Drum Rack preserves
+indices 0-64 and appends those three controls per pad at indices 65-112.
+
+`LayerKick` / **Layer Kick** is a separate append-only kind for inst-bassdrum:
+pitchHz, decayMs, pitchDropSemitones, pitchDecayMs, click, level, sampleMix,
+sampleTune and sampleStart. Optional InstrumentAsset::Pcm data is decoded,
+downmixed and bounded on a worker, held immutable, and played by eight sample
+voices alongside the swept Kick core. Sample-only measured reference, missing-
+layer core identity, fixed-storage voice-steal/stop continuity and real public
+history/disk/live-offline acceptance are written. Core Kick remains distinct.
+
+Drum Voice now accepts InstrumentAsset::DrumKeys: sorted unique MIDI 0-127
+patches, one four-recipe patch per programmed key. Keys select patches with
+absolute tuning; a missing key uses channel defaults and key tracking. Mode
+and key-program controls latch on hits; channel master level remains live.
+The eight-voice cap and deterministic reset seeds are preserved.
+
+Purpose-built single membrane, sixteen-pad, per-key drum and sample-layer
+editors use the existing controls/history/automation and audition contracts.
+Prepared arrays/PCM live outside Copy parameters. Assets save/reopen in projects,
+channel presets and instrument plugin presets. All acceptance is **written,
+not executed**; see [hand-off](../../qa/2026-10-11-inst-additive-physical-drum.md).
+The remaining text is the historical foundation reference; its two-mode
+model and BassDrum exclusion are superseded by this checkpoint.
+
 Implemented in `crates/windfall-dsp/src/drums/`. All four processors implement
 the existing `Instrument` trait; all parameter types implement `ParamSet`.
 Registry, project/command persistence, UI and parity accounting are integration
@@ -8,7 +39,7 @@ owner work and were not changed by this module.
 ## Public types and suggested registry names
 
 - `drums::Membrane`, `MembraneParams`: suggested `InstrumentKind::Membrane`,
-  product name **Membrane**. One tunable voice with two inharmonic sine modes,
+  product name **Membrane**. One tunable voice with eight circular membrane modes and a cavity,
   pitch decay, body decay, tone and noisy snap. MIDI 60 gives `pitchHz`;
   other keys transpose in semitones. Retriggers replace the single voice.
 - `drums::DrumRack`, `DrumRackParams`, `DrumPadParams`: suggested
@@ -44,7 +75,7 @@ mix. Index 64 is master level. JSON paths are `pads.0.pitchHz` through
 
 - `inst-drumaxx`: Membrane supplies the single synthesized voice;
   Drum Rack supplies the sixteen-pad synthesized workflow.
-- `inst-drumpad`: Drum Rack's independently edited synthesized pads.
+- `inst-drumpad`: the single Membrane editing/audition workflow.
 - `inst-fruity-kick`: Kick's measured pitch-drop/body/click behavior.
 - `inst-fruity-drumsynth-live`: Drum Voice's four distinct selectable recipes.
 

@@ -3,8 +3,8 @@
 use std::alloc::{GlobalAlloc, Layout, System};
 use std::cell::Cell;
 
-use windfall_dsp::LofiParams;
 use windfall_dsp::blocks::noise::Rng;
+use windfall_dsp::LofiParams;
 use windfall_dsp::{
     AnyEffect, AnyInstrument, BalanceParams, BassShelfParams, ChannelMuteParams, ChorusParams,
     CompressorParams, DcBlockParams, DelayParams, DistortionParams, EffectKind, EffectParams,
@@ -420,5 +420,105 @@ fn subtractive_hybrid_matrix_and_pack_callbacks_do_not_allocate_or_free() {
         });
         assert_eq!(calls,0,"{kind:?} callback allocation/reallocation/free");
         assert!(l.iter().chain(&r).all(|x|x.is_finite()));
+    }
+}
+
+#[test]
+fn prepared_i3_i4_assets_events_extremes_and_reset_never_allocate_or_free() {
+    use windfall_dsp::instrument_asset::{LayerPcm, SpectralBank};
+    use windfall_dsp::{DrumKeyPatch, InstrumentAsset};
+    let cases = [
+        InstrumentKind::FingerBass,
+        InstrumentKind::Membrane,
+        InstrumentKind::DrumRack,
+        InstrumentKind::DrumVoice,
+        InstrumentKind::LayerKick,
+        InstrumentKind::SnapshotMorph,
+        InstrumentKind::HarmonicFilter,
+        InstrumentKind::MetalVoice,
+        InstrumentKind::NumberVoice,
+        InstrumentKind::SpectralResynth,
+        InstrumentKind::ColorScan,
+    ];
+    for kind in cases {
+        let asset = match kind {
+            InstrumentKind::LayerKick => Some(InstrumentAsset::Pcm(LayerPcm::from_samples(
+                48000,
+                &[0.0, 0.5, -0.5, 0.25, 0.0],
+            ))),
+            InstrumentKind::DrumVoice => Some(InstrumentAsset::DrumKeys {
+                patches: vec![DrumKeyPatch {
+                    key: 36,
+                    params: Default::default(),
+                }],
+            }),
+            InstrumentKind::SnapshotMorph => {
+                Some(InstrumentAsset::Spectra(SpectralBank::harmonic_snapshots()))
+            }
+            InstrumentKind::NumberVoice => {
+                Some(InstrumentAsset::Spectra(SpectralBank::numbered(u32::MAX)))
+            }
+            InstrumentKind::MetalVoice => Some(InstrumentAsset::Spectra(SpectralBank::metallic())),
+            InstrumentKind::HarmonicFilter
+            | InstrumentKind::SpectralResynth
+            | InstrumentKind::ColorScan => {
+                Some(InstrumentAsset::Spectra(SpectralBank::harmonics()))
+            }
+            _ => None,
+        };
+        let mut synth = AnyInstrument::new_with_asset(&kind.default_params(), asset.as_ref());
+        synth.prepare(48000.0, 257);
+        let mut l = [0.0; 257];
+        let mut r = [0.0; 257];
+        let mut finite = true;
+        let mut peak = 0.0f32;
+        let settings: Vec<_> = [
+            -f32::MAX,
+            f32::MAX,
+            f32::NAN,
+            f32::INFINITY,
+            f32::NEG_INFINITY,
+        ]
+        .into_iter()
+        .map(|value| {
+            let mut p = kind.default_params();
+            for i in 0..kind.descriptors().len() {
+                p.set(i, value);
+            }
+            p
+        })
+        .collect();
+        let calls = allocator_calls(|| {
+            for step in 0..96 {
+                synth.set_params(&settings[step % settings.len()]);
+                for key in 36..52 {
+                    synth.note_on(key, 1.0);
+                }
+                synth.note_on(255, f32::NAN);
+                synth.note_on(60, 0.0);
+                let frames = [1, 7, 31, 257][step % 4];
+                synth.process(&mut l[..frames], &mut r[..frames]);
+                for x in l[..frames].iter().chain(&r[..frames]) {
+                    finite &= x.is_finite();
+                    peak = peak.max(x.abs());
+                }
+                synth.note_off(36);
+                if step % 7 == 0 {
+                    synth.all_notes_off();
+                }
+                if step % 13 == 0 {
+                    synth.reset();
+                }
+            }
+            synth.all_notes_off();
+            for _ in 0..16 {
+                synth.process(&mut l, &mut r);
+            }
+            synth.reset();
+            synth.process(&mut l, &mut r);
+        });
+        assert_eq!(calls, 0, "{kind:?} touched the callback allocator");
+        assert!(finite && peak < 20000.0, "{kind:?} unbounded PCM");
+        assert!(l.iter().chain(&r).all(|x| *x == 0.0));
     }
 }

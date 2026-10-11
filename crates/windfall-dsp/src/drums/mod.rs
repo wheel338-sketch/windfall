@@ -5,6 +5,9 @@
 //! selects among four distinct percussion recipes. All callback state is inline.
 
 mod engine;
+mod modal;
+mod layer_kick;
+pub use layer_kick::{LayerKick, LayerKickParams};
 mod params;
 
 pub use params::{
@@ -14,7 +17,7 @@ pub use params::{
 use crate::instrument::Instrument;
 use engine::{Engine, Recipe};
 
-/// A tunable two-mode membrane with a noisy strike. MIDI 60 is its base pitch.
+/// A tunable eight-mode membrane and coupled cavity with a noisy strike. MIDI 60 is its base pitch.
 #[derive(Default)]
 pub struct Membrane(Engine<MembraneParams, 1>);
 
@@ -76,3 +79,10 @@ instrument!(DrumVoice, DrumVoiceParams, 8, Recipe::Selected, false);
 
 #[cfg(test)]
 mod tests;
+
+impl DrumVoice {
+    /// Control-side preparation only; never replace this owner on audio.
+    pub(crate) fn set_key_patches(&mut self, patches: &[crate::DrumKeyPatch]) {
+        self.0.set_key_patches(patches);
+    }
+}

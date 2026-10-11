@@ -267,6 +267,9 @@ pub(super) struct Engine {
     pub fresh: bool,
     pub until_control: usize,
     pub smoothing: f32,
+    last_output: f32,
+    retrigger: f32,
+    retrigger_remaining: usize,
 }
 
 impl Engine {
@@ -280,6 +283,9 @@ impl Engine {
             fresh: true,
             until_control: 0,
             smoothing: 1.0,
+            last_output: 0.0,
+            retrigger: 0.0,
+            retrigger_remaining: 0,
         }
     }
 
@@ -305,23 +311,33 @@ impl Engine {
         self.serial = 0;
         self.fresh = true;
         self.until_control = 0;
+        self.last_output = 0.0;
+        self.retrigger = 0.0;
+        self.retrigger_remaining = 0;
     }
 
     pub fn note_on(&mut self, key: u8, velocity: f32, settings: Settings) {
         if !self.prepared {
             return;
         }
-        let index = self
-            .voices
-            .iter()
-            .position(|voice| !voice.active)
-            .unwrap_or_else(|| {
-                self.voices
-                    .iter()
-                    .enumerate()
-                    .min_by_key(|(_, voice)| voice.serial)
-                    .map_or(0, |(i, _)| i)
-            });
+        // Bass is one string: a new key replaces the held/releasing string.
+        // A bounded endpoint correction avoids a discontinuity on retrigger.
+        let index = if self.model == Model::FingerBass {
+            self.retrigger = self.last_output;
+            self.retrigger_remaining = (self.sample_rate * 0.004).ceil() as usize;
+            0
+        } else {
+            self.voices
+                .iter()
+                .position(|voice| !voice.active)
+                .unwrap_or_else(|| {
+                    self.voices
+                        .iter()
+                        .enumerate()
+                        .min_by_key(|(_, voice)| voice.serial)
+                        .map_or(0, |(i, _)| i)
+                })
+        };
         self.serial = self.serial.wrapping_add(1);
         let voice = &mut self.voices[index];
         voice.reset();
@@ -369,7 +385,14 @@ impl Engine {
             }
         }
         // Fixed headroom at the eight-voice cap; stereo is centered mono.
-        output * settings.level * 0.25
+        let mut output = output * settings.level * 0.25;
+        if self.retrigger_remaining > 0 {
+            let total = (self.sample_rate * 0.004).ceil().max(1.0);
+            output += self.retrigger * self.retrigger_remaining as f32 / total;
+            self.retrigger_remaining -= 1;
+        }
+        self.last_output = output;
+        output
     }
 
     pub fn active_voices(&self) -> usize {

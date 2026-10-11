@@ -37,6 +37,7 @@ type Label = &'static str;
 mod playlist_layouts;
 /// Preset commands, lowered beside the rest so they share its transaction.
 mod preset_apply;
+mod instrument_assets;
 
 /// What a command did to the project.
 pub(crate) struct Outcome {
@@ -1349,6 +1350,9 @@ impl Transaction<'_> {
                 param,
                 value,
             } => return self.set_instrument_param(channel, param, value),
+            Command::SetInstrumentAsset { channel, expected, asset } => {
+                self.set_instrument_asset(channel, expected, asset)?
+            }
             Command::SetInstrumentParams { channel, params } => {
                 self.set_instrument_params(channel, params)?
             }
@@ -1790,6 +1794,7 @@ impl Transaction<'_> {
         }
         let source = match instrument {
             Some(kind) => ChannelSource::Instrument {
+                asset: None,
                 params: kind.default_params(),
             },
             None => ChannelSource::Sampler(SamplerSettings {
@@ -4165,7 +4170,7 @@ impl Transaction<'_> {
                 }
                 let source = project.channel(id).map(|channel| &channel.source);
                 let name = match source {
-                    Some(ChannelSource::Instrument { params }) => {
+                    Some(ChannelSource::Instrument { params, .. }) => {
                         setting(params.kind().descriptors(), param)
                     }
                     _ => "setting",
@@ -4323,7 +4328,7 @@ impl Transaction<'_> {
     fn instrument(&self, index: usize) -> Result<InstrumentParams, CommandError> {
         let channel = &self.project.channels[index];
         match &channel.source {
-            ChannelSource::Instrument { params } => Ok(*params),
+            ChannelSource::Instrument { params, .. } => Ok(*params),
             ChannelSource::Sampler(_) => Err(CommandError::invalid(format!(
                 "the channel \"{}\" is a sampler, so it has no instrument settings",
                 channel.name
@@ -4332,7 +4337,11 @@ impl Transaction<'_> {
     }
 
     fn set_instrument(&mut self, index: usize, params: InstrumentParams) {
-        self.set_source(index, ChannelSource::Instrument { params });
+        let asset = match &self.project.channels[index].source {
+            ChannelSource::Instrument { asset, .. } => asset.clone(),
+            ChannelSource::Sampler(_) => None,
+        };
+        self.set_source(index, ChannelSource::Instrument { params, asset });
     }
 
     fn set_source(&mut self, index: usize, source: ChannelSource) {

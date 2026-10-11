@@ -206,6 +206,9 @@ pub enum PluginPresetState {
     },
     Instrument {
         params: InstrumentParams,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        #[ts(optional)]
+        asset: Option<windfall_dsp::InstrumentAsset>,
     },
     /// The binding's target is a placeholder: loading points it at the
     /// destination.
@@ -284,14 +287,14 @@ impl Processor {
         match (source, binding) {
             (ChannelSource::Sampler(_), _) => Processor::Sampler,
             (ChannelSource::Instrument { .. }, Some(binding)) => Self::hosted(binding),
-            (ChannelSource::Instrument { params }, None) => Processor::Instrument(params.kind()),
+            (ChannelSource::Instrument { params, .. }, None) => Processor::Instrument(params.kind()),
         }
     }
 
     pub(crate) fn of_state(state: &PluginPresetState) -> Self {
         match state {
             PluginPresetState::Effect { params, .. } => Processor::Effect(params.kind()),
-            PluginPresetState::Instrument { params } => Processor::Instrument(params.kind()),
+            PluginPresetState::Instrument { params, .. } => Processor::Instrument(params.kind()),
             PluginPresetState::Hosted { binding, .. } => Self::hosted(binding),
         }
     }
@@ -380,7 +383,7 @@ impl PluginPresetState {
                 id: tag(serde_json::to_value(params)),
                 instrument: false,
             },
-            PluginPresetState::Instrument { params } => PresetPluginIdentity {
+            PluginPresetState::Instrument { params, .. } => PresetPluginIdentity {
                 format: "builtin".to_owned(),
                 id: tag(serde_json::to_value(params)),
                 instrument: true,
@@ -434,7 +437,8 @@ impl PluginPresetState {
                     return Err("The preset has effect settings outside their ranges".to_owned());
                 }
             }
-            PluginPresetState::Instrument { params } => {
+            PluginPresetState::Instrument { params, asset } => {
+                if let Some(asset) = asset { asset.validate(params.kind()).map_err(str::to_owned)?; }
                 if params.sanitized() != *params {
                     return Err(
                         "The preset has instrument settings outside their ranges".to_owned()
@@ -471,7 +475,7 @@ impl PluginPreset {
                 let channel = project
                     .channel(channel)
                     .ok_or("The preset's channel no longer exists")?;
-                let ChannelSource::Instrument { params } = &channel.source else {
+                let ChannelSource::Instrument { params, asset } = &channel.source else {
                     return Err(format!(
                         "\"{}\" is a sampler: save it as a channel preset",
                         channel.name
@@ -482,7 +486,7 @@ impl PluginPreset {
                         instrument: true,
                         binding,
                     },
-                    None => PluginPresetState::Instrument { params: *params },
+                    None => PluginPresetState::Instrument { params: *params, asset: asset.clone() },
                 }
             }
             PluginTarget::Effect { effect } => {
@@ -613,7 +617,7 @@ impl ChannelPreset {
             (ChannelSource::Instrument { .. }, Some(_), _) => {
                 return Err("The preset has audio on an instrument channel".to_owned());
             }
-            (ChannelSource::Instrument { params }, None, plugin) => {
+            (ChannelSource::Instrument { params, .. }, None, plugin) => {
                 if params.sanitized() != *params {
                     return Err(
                         "The preset has instrument settings outside their ranges".to_owned()
@@ -735,8 +739,8 @@ impl Preset {
                 id: binding.id.clone(),
                 instrument: true,
             }),
-            (ChannelSource::Instrument { params }, None) => {
-                Some(PluginPresetState::Instrument { params: *params }.identity())
+            (ChannelSource::Instrument { params, .. }, None) => {
+                Some(PluginPresetState::Instrument { params: *params, asset: None }.identity())
             }
         }
     }

@@ -26,6 +26,9 @@ pub(super) struct Patch {
     drop: f32,
     pitch_decay: f32,
     level: f32,
+    strike: f32,
+    damping: f32,
+    body: f32,
 }
 
 pub(super) trait Settings: ParamSet {
@@ -50,6 +53,9 @@ impl Settings for MembraneParams {
             drop: self.pitch_drop_semitones,
             pitch_decay: self.pitch_decay_ms,
             level: self.level,
+            strike: self.strike_position,
+            damping: self.damping,
+            body: self.body,
         }
     }
 }
@@ -64,6 +70,9 @@ impl Settings for KickParams {
             drop: self.pitch_drop_semitones,
             pitch_decay: self.pitch_decay_ms,
             level: self.level,
+            strike: 0.25,
+            damping: 0.35,
+            body: 0.4,
         }
     }
 }
@@ -79,6 +88,9 @@ impl Settings for DrumRackParams {
             drop: 5.0,
             pitch_decay: 45.0,
             level: self.level,
+            strike: pad.strike_position,
+            damping: pad.damping,
+            body: pad.body,
         }
     }
 }
@@ -107,6 +119,9 @@ impl Settings for DrumVoiceParams {
             drop,
             pitch_decay,
             level: self.level,
+            strike: 0.25,
+            damping: 0.35,
+            body: 0.4,
         }
     }
 }
@@ -130,6 +145,8 @@ struct Voice {
     release: LinearRamp,
     correction: LinearRamp,
     last: f32,
+    membrane: super::modal::ModalDrum,
+    key_patch: Option<DrumVoiceParams>,
 }
 
 impl Default for Voice {
@@ -152,6 +169,8 @@ impl Default for Voice {
             release: LinearRamp::new(1.0),
             correction: LinearRamp::new(0.0),
             last: 0.0,
+            membrane: super::modal::ModalDrum::default(),
+            key_patch: None,
         }
     }
 }
@@ -230,8 +249,15 @@ impl Voice {
                     + 0.07 * patch.snap * filtered.low * self.transient
             }
             _ => {
-                let body =
-                    (first + 0.5 * patch.tone * second * self.modal_env) / (1.0 + 0.5 * patch.tone);
+                let body = self.membrane.tick(
+                    pitch,
+                    patch.decay,
+                    patch.tone,
+                    patch.strike,
+                    patch.damping,
+                    patch.body,
+                    rate,
+                );
                 (1.0 - patch.noise_mix) * body
                     + patch.noise_mix * filtered.low
                     + 0.35 * patch.snap * filtered.low * self.transient
@@ -278,6 +304,7 @@ pub(super) struct Engine<P: Settings, const N: usize> {
     rate: f32,
     smoothing: f32,
     seed: u32,
+    key_patches: Option<Box<[Option<DrumVoiceParams>; 128]>>,
 }
 
 impl<P: Settings, const N: usize> Default for Engine<P, N> {
@@ -291,11 +318,21 @@ impl<P: Settings, const N: usize> Default for Engine<P, N> {
             rate: 48000.0,
             smoothing: smoothing_coefficient(10.0, 48000.0),
             seed: 0,
+            key_patches: None,
         }
     }
 }
 
 impl<P: Settings, const N: usize> Engine<P, N> {
+    pub fn set_key_patches(&mut self, patches: &[crate::DrumKeyPatch]) {
+        let mut bank = Box::new([None; 128]);
+        for patch in patches {
+            if patch.key < 128 {
+                bank[usize::from(patch.key)] = Some(patch.params);
+            }
+        }
+        self.key_patches = Some(bank);
+    }
     pub fn prepare(&mut self, rate: f32) {
         self.rate = clean(rate, 8000.0, 384000.0, 48000.0);
         self.smoothing = smoothing_coefficient(10.0, self.rate);
@@ -340,13 +377,18 @@ impl<P: Settings, const N: usize> Engine<P, N> {
                         .map_or(0, |(i, _)| i)
                 })
         };
+        let key_patch = self
+            .key_patches
+            .as_ref()
+            .and_then(|bank| bank[usize::from(key)]);
         let recipe = if recipe == Recipe::Selected {
-            self.target.recipe()
+            key_patch.map_or_else(|| self.target.recipe(), |params| params.recipe())
         } else {
             recipe
         };
         self.seed = self.seed.wrapping_add(1);
         self.voices[index].start(key, pad, recipe, velocity.min(1.0), self.seed, self.rate);
+        self.voices[index].key_patch = key_patch;
     }
     pub fn note_off(&mut self, key: u8) {
         for voice in &mut self.voices {
@@ -372,7 +414,15 @@ impl<P: Settings, const N: usize> Engine<P, N> {
             let mut sum = 0.0;
             for voice in &mut self.voices {
                 if voice.active {
-                    let patch = self.current.patch(voice.key, voice.pad, voice.recipe);
+                    let patch = if let Some(params) = voice.key_patch {
+                        // Key programs have absolute tuning; they are not
+                        // transposed by the key that selects the program.
+                        let mut patch = params.patch(36, 0, voice.recipe);
+                        patch.level *= self.current.get(5).unwrap_or(1.0);
+                        patch
+                    } else {
+                        self.current.patch(voice.key, voice.pad, voice.recipe)
+                    };
                     sum += voice.tick(patch, self.rate);
                 }
             }

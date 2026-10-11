@@ -129,6 +129,7 @@ pub(crate) struct PlanChannel {
     pub sampler: PlanSampler,
     /// The settings of the instrument an instrument channel plays.
     pub instrument: Option<InstrumentParams>,
+    pub instrument_asset: Option<Arc<windfall_dsp::InstrumentAsset>>,
     /// For a layer channel, the indexes of the channels its notes play on,
     /// nested layers already followed. `None` for every other channel. A
     /// layer never sounds itself, so an empty list is silence.
@@ -604,6 +605,7 @@ impl Plan {
                 pan: channel.pan,
                 sampler: PlanSampler::silent(),
                 instrument,
+                instrument_asset: channel.instrument_asset.clone(),
                 layer: None,
                 leaving: true,
             });
@@ -764,6 +766,7 @@ impl Plan {
                     pan: channel.pan,
                     sampler: PlanSampler::silent(),
                     instrument: Some(instrument),
+                    instrument_asset: channel.instrument_asset.clone(),
                     layer: None,
                     leaving: true,
                 });
@@ -1000,7 +1003,7 @@ fn compile_channel(
 ) -> PlanChannel {
     let (sampler, instrument) = match &channel.source {
         ChannelSource::Sampler(settings) => (compile_sampler(settings, pool), None),
-        ChannelSource::Instrument { params } => (PlanSampler::silent(), Some(params.sanitized())),
+        ChannelSource::Instrument { params, .. } => (PlanSampler::silent(), Some(params.sanitized())),
     };
     let audible = !channel.muted && solo_audible;
     PlanChannel {
@@ -1014,6 +1017,10 @@ fn compile_channel(
         pan: pan(channel.pan),
         sampler,
         instrument,
+        instrument_asset: match &channel.source {
+            ChannelSource::Instrument { asset, .. } => asset.as_ref().map(|asset| Arc::new(asset.clone())),
+            ChannelSource::Sampler(_) => None,
+        },
         layer: None,
         leaving: false,
     }

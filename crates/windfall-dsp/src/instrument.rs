@@ -1,6 +1,13 @@
 //! The interface every built-in instrument implements, and one type that
 //! can hold any of them.
 
+use crate::drums::{LayerKick, LayerKickParams};
+use crate::additive::{SnapshotMorph, SnapshotMorphParams};
+use crate::additive::{HarmonicFilter, HarmonicFilterParams};
+use crate::additive::{MetalVoice, MetalVoiceParams};
+use crate::additive::{NumberVoice, NumberVoiceParams};
+use crate::additive::{SpectralResynth, SpectralResynthParams};
+use crate::additive::{ColorScan, ColorScanParams};
 use crate::analog::{AcidLine, AcidLineParams};
 use crate::analog::{MacroVoice, MacroVoiceParams};
 use crate::analog::{TripleOsc, TripleOscParams};
@@ -193,10 +200,17 @@ pub enum InstrumentKind {
     HybridSeq,
     MatrixSynth,
     PackSynth,
+    LayerKick,
+    SnapshotMorph,
+    HarmonicFilter,
+    MetalVoice,
+    NumberVoice,
+    SpectralResynth,
+    ColorScan,
 }
 
 impl InstrumentKind {
-    pub const ALL: [InstrumentKind; 36] = [
+    pub const ALL: [InstrumentKind; 43] = [
         InstrumentKind::SubtractiveSynth,
         InstrumentKind::FourOp,
         InstrumentKind::MatrixFm,
@@ -233,6 +247,13 @@ impl InstrumentKind {
         InstrumentKind::HybridSeq,
         InstrumentKind::MatrixSynth,
         InstrumentKind::PackSynth,
+        InstrumentKind::LayerKick,
+        InstrumentKind::SnapshotMorph,
+        InstrumentKind::HarmonicFilter,
+        InstrumentKind::MetalVoice,
+        InstrumentKind::NumberVoice,
+        InstrumentKind::SpectralResynth,
+        InstrumentKind::ColorScan,
     ];
 
     /// The instrument's name as shown to the user.
@@ -274,6 +295,13 @@ impl InstrumentKind {
             InstrumentKind::HybridSeq => HybridSeqParams::NAME,
             InstrumentKind::MatrixSynth => MatrixSynthParams::NAME,
             InstrumentKind::PackSynth => PackSynthParams::NAME,
+            InstrumentKind::LayerKick => LayerKickParams::NAME,
+            InstrumentKind::SnapshotMorph => SnapshotMorphParams::NAME,
+            InstrumentKind::HarmonicFilter => HarmonicFilterParams::NAME,
+            InstrumentKind::MetalVoice => MetalVoiceParams::NAME,
+            InstrumentKind::NumberVoice => NumberVoiceParams::NAME,
+            InstrumentKind::SpectralResynth => SpectralResynthParams::NAME,
+            InstrumentKind::ColorScan => ColorScanParams::NAME,
         }
     }
 
@@ -316,6 +344,13 @@ impl InstrumentKind {
             InstrumentKind::HybridSeq => HybridSeqParams::descriptors(),
             InstrumentKind::MatrixSynth => MatrixSynthParams::descriptors(),
             InstrumentKind::PackSynth => PackSynthParams::descriptors(),
+            InstrumentKind::LayerKick => LayerKickParams::descriptors(),
+            InstrumentKind::SnapshotMorph => SnapshotMorphParams::descriptors(),
+            InstrumentKind::HarmonicFilter => HarmonicFilterParams::descriptors(),
+            InstrumentKind::MetalVoice => MetalVoiceParams::descriptors(),
+            InstrumentKind::NumberVoice => NumberVoiceParams::descriptors(),
+            InstrumentKind::SpectralResynth => SpectralResynthParams::descriptors(),
+            InstrumentKind::ColorScan => ColorScanParams::descriptors(),
         }
     }
 
@@ -368,6 +403,13 @@ impl InstrumentKind {
             InstrumentKind::HybridSeq => InstrumentParams::HybridSeq(HybridSeqParams::default()),
             InstrumentKind::MatrixSynth => InstrumentParams::MatrixSynth(MatrixSynthParams::default()),
             InstrumentKind::PackSynth => InstrumentParams::PackSynth(PackSynthParams::default()),
+            InstrumentKind::LayerKick => InstrumentParams::LayerKick(LayerKickParams::default()),
+            InstrumentKind::SnapshotMorph => InstrumentParams::SnapshotMorph(SnapshotMorphParams::default()),
+            InstrumentKind::HarmonicFilter => InstrumentParams::HarmonicFilter(HarmonicFilterParams::default()),
+            InstrumentKind::MetalVoice => InstrumentParams::MetalVoice(MetalVoiceParams::default()),
+            InstrumentKind::NumberVoice => InstrumentParams::NumberVoice(NumberVoiceParams::default()),
+            InstrumentKind::SpectralResynth => InstrumentParams::SpectralResynth(SpectralResynthParams::default()),
+            InstrumentKind::ColorScan => InstrumentParams::ColorScan(ColorScanParams::default()),
         }
     }
 }
@@ -414,6 +456,13 @@ pub enum InstrumentParams {
     HybridSeq(HybridSeqParams),
     MatrixSynth(MatrixSynthParams),
     PackSynth(PackSynthParams),
+    LayerKick(LayerKickParams),
+    SnapshotMorph(SnapshotMorphParams),
+    HarmonicFilter(HarmonicFilterParams),
+    MetalVoice(MetalVoiceParams),
+    NumberVoice(NumberVoiceParams),
+    SpectralResynth(SpectralResynthParams),
+    ColorScan(ColorScanParams),
 }
 
 impl InstrumentParams {
@@ -455,6 +504,13 @@ impl InstrumentParams {
             InstrumentParams::HybridSeq(_) => InstrumentKind::HybridSeq,
             InstrumentParams::MatrixSynth(_) => InstrumentKind::MatrixSynth,
             InstrumentParams::PackSynth(_) => InstrumentKind::PackSynth,
+            InstrumentParams::LayerKick(_) => InstrumentKind::LayerKick,
+            InstrumentParams::SnapshotMorph(_) => InstrumentKind::SnapshotMorph,
+            InstrumentParams::HarmonicFilter(_) => InstrumentKind::HarmonicFilter,
+            InstrumentParams::MetalVoice(_) => InstrumentKind::MetalVoice,
+            InstrumentParams::NumberVoice(_) => InstrumentKind::NumberVoice,
+            InstrumentParams::SpectralResynth(_) => InstrumentKind::SpectralResynth,
+            InstrumentParams::ColorScan(_) => InstrumentKind::ColorScan,
         }
     }
 
@@ -517,6 +573,13 @@ impl InstrumentParams {
             InstrumentParams::HybridSeq(params) => InstrumentParams::HybridSeq(params.sanitized()),
             InstrumentParams::MatrixSynth(params) => InstrumentParams::MatrixSynth(params.sanitized()),
             InstrumentParams::PackSynth(params) => InstrumentParams::PackSynth(params.sanitized()),
+            InstrumentParams::LayerKick(params) => InstrumentParams::LayerKick(params.sanitized()),
+            InstrumentParams::SnapshotMorph(params) => InstrumentParams::SnapshotMorph(params.sanitized()),
+            InstrumentParams::HarmonicFilter(params) => InstrumentParams::HarmonicFilter(params.sanitized()),
+            InstrumentParams::MetalVoice(params) => InstrumentParams::MetalVoice(params.sanitized()),
+            InstrumentParams::NumberVoice(params) => InstrumentParams::NumberVoice(params.sanitized()),
+            InstrumentParams::SpectralResynth(params) => InstrumentParams::SpectralResynth(params.sanitized()),
+            InstrumentParams::ColorScan(params) => InstrumentParams::ColorScan(params.sanitized()),
         }
     }
 
@@ -563,6 +626,13 @@ impl InstrumentParams {
             InstrumentParams::HybridSeq(_) => 0,
             InstrumentParams::MatrixSynth(_) => 0,
             InstrumentParams::PackSynth(_) => 0,
+            InstrumentParams::LayerKick(_) => 0,
+            InstrumentParams::SnapshotMorph(_) => 0,
+            InstrumentParams::HarmonicFilter(_) => 0,
+            InstrumentParams::MetalVoice(_) => 0,
+            InstrumentParams::NumberVoice(_) => 0,
+            InstrumentParams::SpectralResynth(_) => 0,
+            InstrumentParams::ColorScan(_) => 0,
         }
     }
 
@@ -606,6 +676,13 @@ impl InstrumentParams {
             InstrumentParams::HybridSeq(params) => params.get(index),
             InstrumentParams::MatrixSynth(params) => params.get(index),
             InstrumentParams::PackSynth(params) => params.get(index),
+            InstrumentParams::LayerKick(params) => params.get(index),
+            InstrumentParams::SnapshotMorph(params) => params.get(index),
+            InstrumentParams::HarmonicFilter(params) => params.get(index),
+            InstrumentParams::MetalVoice(params) => params.get(index),
+            InstrumentParams::NumberVoice(params) => params.get(index),
+            InstrumentParams::SpectralResynth(params) => params.get(index),
+            InstrumentParams::ColorScan(params) => params.get(index),
         }
     }
 
@@ -649,6 +726,13 @@ impl InstrumentParams {
             InstrumentParams::HybridSeq(params) => params.set(index, value),
             InstrumentParams::MatrixSynth(params) => params.set(index, value),
             InstrumentParams::PackSynth(params) => params.set(index, value),
+            InstrumentParams::LayerKick(params) => params.set(index, value),
+            InstrumentParams::SnapshotMorph(params) => params.set(index, value),
+            InstrumentParams::HarmonicFilter(params) => params.set(index, value),
+            InstrumentParams::MetalVoice(params) => params.set(index, value),
+            InstrumentParams::NumberVoice(params) => params.set(index, value),
+            InstrumentParams::SpectralResynth(params) => params.set(index, value),
+            InstrumentParams::ColorScan(params) => params.set(index, value),
         }
     }
 }
@@ -696,6 +780,13 @@ pub enum AnyInstrument {
     HybridSeq(Box<HybridSeq>),
     MatrixSynth(Box<MatrixSynth>),
     PackSynth(Box<PackSynth>),
+    LayerKick(Box<LayerKick>),
+    SnapshotMorph(Box<SnapshotMorph>),
+    HarmonicFilter(Box<HarmonicFilter>),
+    MetalVoice(Box<MetalVoice>),
+    NumberVoice(Box<NumberVoice>),
+    SpectralResynth(Box<SpectralResynth>),
+    ColorScan(Box<ColorScan>),
 }
 
 impl AnyInstrument {
@@ -713,6 +804,23 @@ impl AnyInstrument {
         if let AnyInstrument::MidiOut(unit) = self {
             unit.drain(out);
         }
+    }
+
+    /// Build with immutable data on the control/worker side.
+    pub fn new_with_asset(params: &InstrumentParams, asset: Option<&crate::InstrumentAsset>) -> Self {
+        let asset = asset.filter(|asset| asset.validate(params.kind()).is_ok());
+        let mut instrument = Self::new(params);
+        if let (Self::DrumVoice(unit), Some(crate::InstrumentAsset::DrumKeys { patches })) = (&mut instrument, asset) {
+            unit.set_key_patches(patches);
+        }
+        if let (Self::LayerKick(unit), Some(crate::InstrumentAsset::Pcm(pcm))) = (&mut instrument, asset) { unit.set_layer(pcm); }
+        if let (Self::SnapshotMorph(unit), Some(crate::InstrumentAsset::Spectra(bank))) = (&mut instrument, asset) { unit.set_bank(bank); }
+        if let (Self::HarmonicFilter(unit), Some(crate::InstrumentAsset::Spectra(bank))) = (&mut instrument, asset) { unit.set_bank(bank); }
+        if let (Self::MetalVoice(unit), Some(crate::InstrumentAsset::Spectra(bank))) = (&mut instrument, asset) { unit.set_bank(bank); }
+        if let (Self::NumberVoice(unit), Some(crate::InstrumentAsset::Spectra(bank))) = (&mut instrument, asset) { unit.set_bank(bank); }
+        if let (Self::SpectralResynth(unit), Some(crate::InstrumentAsset::Spectra(bank))) = (&mut instrument, asset) { unit.set_bank(bank); }
+        if let (Self::ColorScan(unit), Some(crate::InstrumentAsset::Spectra(bank))) = (&mut instrument, asset) { unit.set_bank(bank); }
+        instrument
     }
 
     /// Builds the instrument `params` belongs to, with those settings. It
@@ -898,6 +1006,40 @@ impl AnyInstrument {
                 let mut synth = Box::<PackSynth>::default();
                 synth.set_params(params);
                 AnyInstrument::PackSynth(synth)
+            InstrumentParams::LayerKick(params) => {
+                let mut synth = Box::<LayerKick>::default();
+                synth.set_params(params);
+                AnyInstrument::LayerKick(synth)
+            }
+            InstrumentParams::SnapshotMorph(params) => {
+                let mut synth = Box::<SnapshotMorph>::default();
+                synth.set_params(params);
+                AnyInstrument::SnapshotMorph(synth)
+            }
+            InstrumentParams::HarmonicFilter(params) => {
+                let mut synth = Box::<HarmonicFilter>::default();
+                synth.set_params(params);
+                AnyInstrument::HarmonicFilter(synth)
+            }
+            InstrumentParams::MetalVoice(params) => {
+                let mut synth = Box::<MetalVoice>::default();
+                synth.set_params(params);
+                AnyInstrument::MetalVoice(synth)
+            }
+            InstrumentParams::NumberVoice(params) => {
+                let mut synth = Box::<NumberVoice>::default();
+                synth.set_params(params);
+                AnyInstrument::NumberVoice(synth)
+            }
+            InstrumentParams::SpectralResynth(params) => {
+                let mut synth = Box::<SpectralResynth>::default();
+                synth.set_params(params);
+                AnyInstrument::SpectralResynth(synth)
+            }
+            InstrumentParams::ColorScan(params) => {
+                let mut synth = Box::<ColorScan>::default();
+                synth.set_params(params);
+                AnyInstrument::ColorScan(synth)
             }
         }
     }
@@ -940,6 +1082,13 @@ impl AnyInstrument {
             AnyInstrument::HybridSeq(_) => InstrumentKind::HybridSeq,
             AnyInstrument::MatrixSynth(_) => InstrumentKind::MatrixSynth,
             AnyInstrument::PackSynth(_) => InstrumentKind::PackSynth,
+            AnyInstrument::LayerKick(_) => InstrumentKind::LayerKick,
+            AnyInstrument::SnapshotMorph(_) => InstrumentKind::SnapshotMorph,
+            AnyInstrument::HarmonicFilter(_) => InstrumentKind::HarmonicFilter,
+            AnyInstrument::MetalVoice(_) => InstrumentKind::MetalVoice,
+            AnyInstrument::NumberVoice(_) => InstrumentKind::NumberVoice,
+            AnyInstrument::SpectralResynth(_) => InstrumentKind::SpectralResynth,
+            AnyInstrument::ColorScan(_) => InstrumentKind::ColorScan,
         }
     }
 
@@ -982,6 +1131,13 @@ impl AnyInstrument {
             AnyInstrument::HybridSeq(synth) => synth.prepare(sample_rate, max_block),
             AnyInstrument::MatrixSynth(synth) => synth.prepare(sample_rate, max_block),
             AnyInstrument::PackSynth(synth) => synth.prepare(sample_rate, max_block),
+            AnyInstrument::LayerKick(synth) => synth.prepare(sample_rate, max_block),
+            AnyInstrument::SnapshotMorph(synth) => synth.prepare(sample_rate, max_block),
+            AnyInstrument::HarmonicFilter(synth) => synth.prepare(sample_rate, max_block),
+            AnyInstrument::MetalVoice(synth) => synth.prepare(sample_rate, max_block),
+            AnyInstrument::NumberVoice(synth) => synth.prepare(sample_rate, max_block),
+            AnyInstrument::SpectralResynth(synth) => synth.prepare(sample_rate, max_block),
+            AnyInstrument::ColorScan(synth) => synth.prepare(sample_rate, max_block),
         }
     }
 
@@ -1024,6 +1180,13 @@ impl AnyInstrument {
             AnyInstrument::HybridSeq(synth) => synth.reset(),
             AnyInstrument::MatrixSynth(synth) => synth.reset(),
             AnyInstrument::PackSynth(synth) => synth.reset(),
+            AnyInstrument::LayerKick(synth) => synth.reset(),
+            AnyInstrument::SnapshotMorph(synth) => synth.reset(),
+            AnyInstrument::HarmonicFilter(synth) => synth.reset(),
+            AnyInstrument::MetalVoice(synth) => synth.reset(),
+            AnyInstrument::NumberVoice(synth) => synth.reset(),
+            AnyInstrument::SpectralResynth(synth) => synth.reset(),
+            AnyInstrument::ColorScan(synth) => synth.reset(),
         }
     }
 
@@ -1140,6 +1303,25 @@ impl AnyInstrument {
                 synth.set_params(params);
             }
             (AnyInstrument::PackSynth(synth), InstrumentParams::PackSynth(params)) => {
+            (AnyInstrument::LayerKick(synth), InstrumentParams::LayerKick(params)) => {
+                synth.set_params(params);
+            }
+            (AnyInstrument::SnapshotMorph(synth), InstrumentParams::SnapshotMorph(params)) => {
+                synth.set_params(params);
+            }
+            (AnyInstrument::HarmonicFilter(synth), InstrumentParams::HarmonicFilter(params)) => {
+                synth.set_params(params);
+            }
+            (AnyInstrument::MetalVoice(synth), InstrumentParams::MetalVoice(params)) => {
+                synth.set_params(params);
+            }
+            (AnyInstrument::NumberVoice(synth), InstrumentParams::NumberVoice(params)) => {
+                synth.set_params(params);
+            }
+            (AnyInstrument::SpectralResynth(synth), InstrumentParams::SpectralResynth(params)) => {
+                synth.set_params(params);
+            }
+            (AnyInstrument::ColorScan(synth), InstrumentParams::ColorScan(params)) => {
                 synth.set_params(params);
             }
             _ => return false,
@@ -1186,6 +1368,13 @@ impl AnyInstrument {
             AnyInstrument::HybridSeq(synth) => synth.set_tempo(bpm),
             AnyInstrument::MatrixSynth(synth) => synth.set_tempo(bpm),
             AnyInstrument::PackSynth(synth) => synth.set_tempo(bpm),
+            AnyInstrument::LayerKick(synth) => synth.set_tempo(bpm),
+            AnyInstrument::SnapshotMorph(synth) => synth.set_tempo(bpm),
+            AnyInstrument::HarmonicFilter(synth) => synth.set_tempo(bpm),
+            AnyInstrument::MetalVoice(synth) => synth.set_tempo(bpm),
+            AnyInstrument::NumberVoice(synth) => synth.set_tempo(bpm),
+            AnyInstrument::SpectralResynth(synth) => synth.set_tempo(bpm),
+            AnyInstrument::ColorScan(synth) => synth.set_tempo(bpm),
         }
     }
 
@@ -1228,6 +1417,13 @@ impl AnyInstrument {
             AnyInstrument::HybridSeq(synth) => synth.note_on(key, velocity),
             AnyInstrument::MatrixSynth(synth) => synth.note_on(key, velocity),
             AnyInstrument::PackSynth(synth) => synth.note_on(key, velocity),
+            AnyInstrument::LayerKick(synth) => synth.note_on(key, velocity),
+            AnyInstrument::SnapshotMorph(synth) => synth.note_on(key, velocity),
+            AnyInstrument::HarmonicFilter(synth) => synth.note_on(key, velocity),
+            AnyInstrument::MetalVoice(synth) => synth.note_on(key, velocity),
+            AnyInstrument::NumberVoice(synth) => synth.note_on(key, velocity),
+            AnyInstrument::SpectralResynth(synth) => synth.note_on(key, velocity),
+            AnyInstrument::ColorScan(synth) => synth.note_on(key, velocity),
         }
     }
 
@@ -1341,6 +1537,25 @@ impl AnyInstrument {
                 synth.note_on_expression(key, velocity, pan, expression)
             }
             AnyInstrument::PackSynth(synth) => {
+            AnyInstrument::LayerKick(synth) => {
+                synth.note_on_expression(key, velocity, pan, expression)
+            }
+            AnyInstrument::SnapshotMorph(synth) => {
+                synth.note_on_expression(key, velocity, pan, expression)
+            }
+            AnyInstrument::HarmonicFilter(synth) => {
+                synth.note_on_expression(key, velocity, pan, expression)
+            }
+            AnyInstrument::MetalVoice(synth) => {
+                synth.note_on_expression(key, velocity, pan, expression)
+            }
+            AnyInstrument::NumberVoice(synth) => {
+                synth.note_on_expression(key, velocity, pan, expression)
+            }
+            AnyInstrument::SpectralResynth(synth) => {
+                synth.note_on_expression(key, velocity, pan, expression)
+            }
+            AnyInstrument::ColorScan(synth) => {
                 synth.note_on_expression(key, velocity, pan, expression)
             }
         }
@@ -1385,6 +1600,13 @@ impl AnyInstrument {
             AnyInstrument::HybridSeq(synth) => synth.note_off(key),
             AnyInstrument::MatrixSynth(synth) => synth.note_off(key),
             AnyInstrument::PackSynth(synth) => synth.note_off(key),
+            AnyInstrument::LayerKick(synth) => synth.note_off(key),
+            AnyInstrument::SnapshotMorph(synth) => synth.note_off(key),
+            AnyInstrument::HarmonicFilter(synth) => synth.note_off(key),
+            AnyInstrument::MetalVoice(synth) => synth.note_off(key),
+            AnyInstrument::NumberVoice(synth) => synth.note_off(key),
+            AnyInstrument::SpectralResynth(synth) => synth.note_off(key),
+            AnyInstrument::ColorScan(synth) => synth.note_off(key),
         }
     }
 
@@ -1426,6 +1648,13 @@ impl AnyInstrument {
             AnyInstrument::HybridSeq(synth) => synth.supports_note_instances(),
             AnyInstrument::MatrixSynth(synth) => synth.supports_note_instances(),
             AnyInstrument::PackSynth(synth) => synth.supports_note_instances(),
+            AnyInstrument::LayerKick(synth) => synth.supports_note_instances(),
+            AnyInstrument::SnapshotMorph(synth) => synth.supports_note_instances(),
+            AnyInstrument::HarmonicFilter(synth) => synth.supports_note_instances(),
+            AnyInstrument::MetalVoice(synth) => synth.supports_note_instances(),
+            AnyInstrument::NumberVoice(synth) => synth.supports_note_instances(),
+            AnyInstrument::SpectralResynth(synth) => synth.supports_note_instances(),
+            AnyInstrument::ColorScan(synth) => synth.supports_note_instances(),
         }
     }
 
@@ -1544,6 +1773,25 @@ impl AnyInstrument {
                 synth.note_on_instance(id, key, velocity, pan, expression)
             }
             AnyInstrument::PackSynth(synth) => {
+            AnyInstrument::LayerKick(synth) => {
+                synth.note_on_instance(id, key, velocity, pan, expression)
+            }
+            AnyInstrument::SnapshotMorph(synth) => {
+                synth.note_on_instance(id, key, velocity, pan, expression)
+            }
+            AnyInstrument::HarmonicFilter(synth) => {
+                synth.note_on_instance(id, key, velocity, pan, expression)
+            }
+            AnyInstrument::MetalVoice(synth) => {
+                synth.note_on_instance(id, key, velocity, pan, expression)
+            }
+            AnyInstrument::NumberVoice(synth) => {
+                synth.note_on_instance(id, key, velocity, pan, expression)
+            }
+            AnyInstrument::SpectralResynth(synth) => {
+                synth.note_on_instance(id, key, velocity, pan, expression)
+            }
+            AnyInstrument::ColorScan(synth) => {
                 synth.note_on_instance(id, key, velocity, pan, expression)
             }
         }
@@ -1587,6 +1835,13 @@ impl AnyInstrument {
             AnyInstrument::HybridSeq(synth) => synth.note_off_instance(id, key),
             AnyInstrument::MatrixSynth(synth) => synth.note_off_instance(id, key),
             AnyInstrument::PackSynth(synth) => synth.note_off_instance(id, key),
+            AnyInstrument::LayerKick(synth) => synth.note_off_instance(id, key),
+            AnyInstrument::SnapshotMorph(synth) => synth.note_off_instance(id, key),
+            AnyInstrument::HarmonicFilter(synth) => synth.note_off_instance(id, key),
+            AnyInstrument::MetalVoice(synth) => synth.note_off_instance(id, key),
+            AnyInstrument::NumberVoice(synth) => synth.note_off_instance(id, key),
+            AnyInstrument::SpectralResynth(synth) => synth.note_off_instance(id, key),
+            AnyInstrument::ColorScan(synth) => synth.note_off_instance(id, key),
         }
     }
 
@@ -1635,6 +1890,13 @@ impl AnyInstrument {
             AnyInstrument::HybridSeq(synth) => synth.set_note_expression(id, pan, expression),
             AnyInstrument::MatrixSynth(synth) => synth.set_note_expression(id, pan, expression),
             AnyInstrument::PackSynth(synth) => synth.set_note_expression(id, pan, expression),
+            AnyInstrument::LayerKick(synth) => synth.set_note_expression(id, pan, expression),
+            AnyInstrument::SnapshotMorph(synth) => synth.set_note_expression(id, pan, expression),
+            AnyInstrument::HarmonicFilter(synth) => synth.set_note_expression(id, pan, expression),
+            AnyInstrument::MetalVoice(synth) => synth.set_note_expression(id, pan, expression),
+            AnyInstrument::NumberVoice(synth) => synth.set_note_expression(id, pan, expression),
+            AnyInstrument::SpectralResynth(synth) => synth.set_note_expression(id, pan, expression),
+            AnyInstrument::ColorScan(synth) => synth.set_note_expression(id, pan, expression),
         }
     }
 
@@ -1676,6 +1938,13 @@ impl AnyInstrument {
             AnyInstrument::HybridSeq(synth) => synth.set_note_pitch(id, pitch),
             AnyInstrument::MatrixSynth(synth) => synth.set_note_pitch(id, pitch),
             AnyInstrument::PackSynth(synth) => synth.set_note_pitch(id, pitch),
+            AnyInstrument::LayerKick(synth) => synth.set_note_pitch(id, pitch),
+            AnyInstrument::SnapshotMorph(synth) => synth.set_note_pitch(id, pitch),
+            AnyInstrument::HarmonicFilter(synth) => synth.set_note_pitch(id, pitch),
+            AnyInstrument::MetalVoice(synth) => synth.set_note_pitch(id, pitch),
+            AnyInstrument::NumberVoice(synth) => synth.set_note_pitch(id, pitch),
+            AnyInstrument::SpectralResynth(synth) => synth.set_note_pitch(id, pitch),
+            AnyInstrument::ColorScan(synth) => synth.set_note_pitch(id, pitch),
         }
     }
 
@@ -1731,6 +2000,13 @@ impl AnyInstrument {
             AnyInstrument::HybridSeq(synth) => synth.all_notes_off(),
             AnyInstrument::MatrixSynth(synth) => synth.all_notes_off(),
             AnyInstrument::PackSynth(synth) => synth.all_notes_off(),
+            AnyInstrument::LayerKick(synth) => synth.all_notes_off(),
+            AnyInstrument::SnapshotMorph(synth) => synth.all_notes_off(),
+            AnyInstrument::HarmonicFilter(synth) => synth.all_notes_off(),
+            AnyInstrument::MetalVoice(synth) => synth.all_notes_off(),
+            AnyInstrument::NumberVoice(synth) => synth.all_notes_off(),
+            AnyInstrument::SpectralResynth(synth) => synth.all_notes_off(),
+            AnyInstrument::ColorScan(synth) => synth.all_notes_off(),
         }
     }
 
@@ -1773,6 +2049,13 @@ impl AnyInstrument {
             AnyInstrument::HybridSeq(synth) => synth.process(left, right),
             AnyInstrument::MatrixSynth(synth) => synth.process(left, right),
             AnyInstrument::PackSynth(synth) => synth.process(left, right),
+            AnyInstrument::LayerKick(synth) => synth.process(left, right),
+            AnyInstrument::SnapshotMorph(synth) => synth.process(left, right),
+            AnyInstrument::HarmonicFilter(synth) => synth.process(left, right),
+            AnyInstrument::MetalVoice(synth) => synth.process(left, right),
+            AnyInstrument::NumberVoice(synth) => synth.process(left, right),
+            AnyInstrument::SpectralResynth(synth) => synth.process(left, right),
+            AnyInstrument::ColorScan(synth) => synth.process(left, right),
         }
     }
 
@@ -1815,6 +2098,13 @@ impl AnyInstrument {
             AnyInstrument::HybridSeq(synth) => synth.active_voices(),
             AnyInstrument::MatrixSynth(synth) => synth.active_voices(),
             AnyInstrument::PackSynth(synth) => synth.active_voices(),
+            AnyInstrument::LayerKick(synth) => synth.active_voices(),
+            AnyInstrument::SnapshotMorph(synth) => synth.active_voices(),
+            AnyInstrument::HarmonicFilter(synth) => synth.active_voices(),
+            AnyInstrument::MetalVoice(synth) => synth.active_voices(),
+            AnyInstrument::NumberVoice(synth) => synth.active_voices(),
+            AnyInstrument::SpectralResynth(synth) => synth.active_voices(),
+            AnyInstrument::ColorScan(synth) => synth.active_voices(),
         }
     }
 
@@ -1857,6 +2147,13 @@ impl AnyInstrument {
             AnyInstrument::HybridSeq(synth) => synth.latency_samples(),
             AnyInstrument::MatrixSynth(synth) => synth.latency_samples(),
             AnyInstrument::PackSynth(synth) => synth.latency_samples(),
+            AnyInstrument::LayerKick(synth) => synth.latency_samples(),
+            AnyInstrument::SnapshotMorph(synth) => synth.latency_samples(),
+            AnyInstrument::HarmonicFilter(synth) => synth.latency_samples(),
+            AnyInstrument::MetalVoice(synth) => synth.latency_samples(),
+            AnyInstrument::NumberVoice(synth) => synth.latency_samples(),
+            AnyInstrument::SpectralResynth(synth) => synth.latency_samples(),
+            AnyInstrument::ColorScan(synth) => synth.latency_samples(),
         }
     }
 
@@ -1899,6 +2196,13 @@ impl AnyInstrument {
             AnyInstrument::HybridSeq(synth) => synth.tail_samples(),
             AnyInstrument::MatrixSynth(synth) => synth.tail_samples(),
             AnyInstrument::PackSynth(synth) => synth.tail_samples(),
+            AnyInstrument::LayerKick(synth) => synth.tail_samples(),
+            AnyInstrument::SnapshotMorph(synth) => synth.tail_samples(),
+            AnyInstrument::HarmonicFilter(synth) => synth.tail_samples(),
+            AnyInstrument::MetalVoice(synth) => synth.tail_samples(),
+            AnyInstrument::NumberVoice(synth) => synth.tail_samples(),
+            AnyInstrument::SpectralResynth(synth) => synth.tail_samples(),
+            AnyInstrument::ColorScan(synth) => synth.tail_samples(),
         }
     }
 }

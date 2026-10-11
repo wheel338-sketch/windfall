@@ -825,6 +825,13 @@ pub enum Command {
     /// Replace/clear a portable IR in one undo transaction. PCM is decoded
     /// before dispatch and FFT partitions are prepared before plan publication.
     SetConvolverImpulse { track: TrackId, effect: EffectId, impulse: Option<crate::ConvolverImpulse> },
+    /// Attaches validated worker-prepared instrument data as one undo step.
+    /// The complete captured source guards asynchronous work from stale edits.
+    SetInstrumentAsset {
+        channel: ChannelId,
+        expected: crate::ChannelSource,
+        asset: Option<windfall_dsp::InstrumentAsset>,
+    },
 
 }
 

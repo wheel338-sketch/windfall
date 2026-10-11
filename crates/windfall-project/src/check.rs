@@ -524,7 +524,8 @@ fn check_channel(project: &Project, channel: &Channel) -> Result<(), String> {
     }
     match &channel.source {
         ChannelSource::Sampler(sampler) => check_sampler(project, &owner, sampler),
-        ChannelSource::Instrument { params } => {
+        ChannelSource::Instrument { params, asset } => {
+            if let Some(asset) = asset { asset.validate(params.kind()).map_err(|error| format!("{owner}: {error}"))?; }
             if params.sanitized() != *params {
                 return Err(format!(
                     "{owner} has an instrument setting outside its range"

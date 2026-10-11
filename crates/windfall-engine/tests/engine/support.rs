@@ -169,6 +169,7 @@ impl Rig {
             timing: windfall_project::ChannelTiming::default(),
             mixer_track: track,
             source: ChannelSource::Instrument {
+                asset: None,
                 params: InstrumentParams::SubtractiveSynth(params),
             },
         });
@@ -176,7 +177,7 @@ impl Rig {
     }
 
     pub fn synth_mut(&mut self, id: ChannelId) -> &mut SynthParams {
-        let ChannelSource::Instrument { params } = &mut self.channel_mut(id).source else {
+        let ChannelSource::Instrument { params, .. } = &mut self.channel_mut(id).source else {
             panic!("the channel is not an instrument");
         };
         match params {

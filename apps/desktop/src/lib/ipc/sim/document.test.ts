@@ -22,6 +22,7 @@ function fullProject() {
     spareSample: 0,
     channel: 0,
     synth: 0,
+    keyDrum: 0,
     effect: 0,
     tap: 0,
     convolver: 0,
@@ -58,6 +59,7 @@ function fullProject() {
     ;[ids.sparePattern] = run({ type: "addPattern" })
     ;[ids.track] = run({ type: "addMixerTrack" })
     ;[ids.synth] = run({ type: "addChannel", instrument: "subtractiveSynth" })
+    ;[ids.keyDrum] = run({ type: "addChannel", instrument: "drumVoice" })
     ;[ids.effect] = run({
       type: "addEffect",
       track: ids.track,
@@ -612,6 +614,11 @@ const EVERY_COMMAND: { [Type in Command["type"]]: (ids: Ids) => Command } = {
     channel: ids.synth,
     param: 1,
     value: 0.5,
+  }),
+  setInstrumentAsset: (ids) => ({
+    type: "setInstrumentAsset", channel: ids.keyDrum,
+    expected: ids.project.channels.find(channel => channel.id === ids.keyDrum)!.source,
+    asset: { type: "drumKeys", patches: [{ key: 36, params: { mode: "snare", pitchHz: 170, decayMs: 400, tone: 0.6, snap: 0.8, level: 0.8 } }] },
   }),
   setInstrumentParams: (ids) => ({
     type: "setInstrumentParams",

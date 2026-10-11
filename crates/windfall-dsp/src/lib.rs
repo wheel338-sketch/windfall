@@ -186,3 +186,19 @@ pub use polysynth::{GrooveSynth, GrooveSynthParams};
 pub use polysynth::{HybridSeq, HybridSeqParams};
 pub use polysynth::{MatrixSynth, MatrixSynthParams};
 pub use polysynth::{PackSynth, PackSynthParams};
+pub mod instrument_asset;
+pub use instrument_asset::{DrumKeyPatch, InstrumentAsset};
+
+pub use drums::{LayerKick, LayerKickParams};
+
+pub use additive::{SnapshotMorph,SnapshotMorphParams};
+
+pub use additive::{HarmonicFilter,HarmonicFilterParams,HarmonicShape};
+
+pub use additive::{MetalVoice,MetalVoiceParams};
+
+pub use additive::{NumberVoice,NumberVoiceParams};
+
+pub use additive::{SpectralResynth,SpectralResynthParams};
+
+pub use additive::{ColorScan,ColorScanParams};

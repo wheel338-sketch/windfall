@@ -499,6 +499,10 @@ pub enum ChannelSource {
         /// The instrument and its settings, with every value inside its
         /// range.
         params: InstrumentParams,
+        /// Prepared immutable spectra, key programs or sample-layer PCM.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        #[ts(optional)]
+        asset: Option<windfall_dsp::InstrumentAsset>,
     },
 }
 

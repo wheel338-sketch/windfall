@@ -29,18 +29,19 @@ The mapping follows the registered kinds and the documented DSP stand-ins in
 | Fruity DX10 | `FourOp` |
 | Sytrus | `MatrixFm` |
 | Toxic Biohazard | `RingHybrid` |
-| Harmless | `HarmonicStack` |
-| Morphine | `PartialMorph` |
-| Ogun | `Inharmonic` |
-| Harmor | `Resynth` |
-| Autogun | `SeedPatch` |
-| BeepMap | `ScanSynth` |
+| Harmless | `HarmonicFilter` |
+| Morphine | `SnapshotMorph` |
+| Ogun | `MetalVoice` |
+| Harmor | `SpectralResynth` |
+| Autogun | `NumberVoice` |
+| BeepMap | `ColorScan` |
 | Plucked! | `Pluck` |
 | BooBass | `FingerBass` |
 | Sakura | `AcousticString` |
 | Fruity Kick | `Kick` |
+| BassDrum | `LayerKick` |
 | Drumaxx | `DrumRack` |
-| Drumpad | `DrumRack` |
+| Drumpad | `Membrane` |
 | Fruity DrumSynth Live | `DrumVoice` |
 | Fruity Slicer | `SliceMap` |
 | Slicex | `SliceDeck` |
@@ -50,18 +51,19 @@ The mapping follows the registered kinds and the documented DSP stand-ins in
 The stored name for Plucked is `Plucked!`, including the exclamation mark,
 as used by [DawVert's FL converter](https://github.com/SatyrDiamond/DawVert/blob/main/plugins/plugconv/lmms__n_flstudio.py).
 Drumaxx selects the documented sixteen-pad workflow rather than a single
-`Membrane` voice; Drumpad follows the drum seam's `DrumRack` mapping.
+`Membrane` voice; Drumpad selects the single modal `Membrane` workflow.
 
-Harmor and BeepMap have only partial DSP stand-ins: image/audio analysis and
-image mapping are not imported. The four granular stand-ins have empty sample
+Harmor and BeepMap now select the prepared-source workflows. The original
+source recording/image and vendor patch data are not recovered from opaque FL
+state; users supply sources in the Windfall editor. The four granular stand-ins have empty sample
 tables at their defaults and therefore remain silent until supplied with
 source audio. Their mapping recognizes the instrument workflow but does not
 recover samples, slice markers or playback settings.
 
 ## Silent placeholders
 
-BassDrum remains unsupported: the drum seam explicitly excludes it from the
-Membrane mapping and documents no BassDrum-specific stand-in. DirectWave,
+BassDrum selects LayerKick defaults; its source sample and patch settings are
+not recovered. DirectWave,
 SoundFont / Fruity Soundfont Player, FL Keys, FPC, Kepler, Poizone, Sawer,
 Transistor Bass, FLEX, GMS, MiniSynth, SimSynth and Speech Synthesizer also
 remain silent placeholders. No unregistered analog, zones, speech or surface
@@ -102,6 +104,13 @@ These mappings supersede their entries in the silent-placeholder list above:
 
 Each uses `kind.default_params().sanitized()`. Patch settings are still not
 decoded; the report stays "its patch settings were not decoded, so it starts
-from Windfall's defaults". The 3x Osc numeric decoder is unchanged. BassDrum,
-DirectWave, SoundFont, Fruity Soundfont Player, FL Keys, FPC, Kepler, MiniSynth
+from Windfall's defaults". The 3x Osc numeric decoder is unchanged. DirectWave, SoundFont, Fruity Soundfont Player, FL Keys, FPC, Kepler, MiniSynth
 and Fruity Slicer 2 remain placeholders.
+
+## I3/I4 implementation update — 2026-10-11
+
+The mappings above now use the seven prepared/full-row instrument kinds and
+single membrane introduced by this stream. Existing project kind tags remain
+loadable. Focused default/opaque-state/case tests were updated, **written, not
+executed**; the 2026-10-08 execution note describes historical code only.
+Run `cargo test -p windfall-flp --lib convert::synth` after integration.
