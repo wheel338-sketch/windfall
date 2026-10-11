@@ -122,6 +122,19 @@ impl ArrangementBook {
         self == &Self::default()
     }
 
+    /// Whether the layout that is active now shows this clip: it lists the
+    /// clip and the lane the clip sits on. Without an active layout every
+    /// clip is shown. Playback, export and consolidation follow this rule.
+    pub fn shows(&self, clip: &Clip) -> bool {
+        let Some(active) = self.active else {
+            return true;
+        };
+        self.arrangements
+            .iter()
+            .find(|item| item.id == active)
+            .is_none_or(|item| item.clips.contains(&clip.id) && item.tracks.contains(&clip.track))
+    }
+
     /// Structural validation. The parent also validates references against project pools.
     pub fn check(&self) -> Result<(), ArrangementError> {
         distinct(self.arrangements.iter().map(|item| item.id), "arrangement")?;

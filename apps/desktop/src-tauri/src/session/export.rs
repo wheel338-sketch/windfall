@@ -13,7 +13,8 @@ use windfall_codec::{
 };
 use windfall_core::samples_per_tick;
 use windfall_engine::{
-    RenderOptions, SamplePool, StemOptions, Streamed, render_stems, render_streaming_checked, stems,
+    PlaylistStemOptions, RenderOptions, SamplePool, StemOptions, Streamed, render_playlist_stems,
+    render_stems, render_streaming_checked, stems,
 };
 use windfall_ipc::{BitDepth, ExportFormat, ExportOptions, ExportProgress, ExportedFile, PlayMode};
 use windfall_project::{AutomationRange, AutomationTarget, PatternId, Project, TrackId};
@@ -131,6 +132,8 @@ struct Target {
     path: PathBuf,
     /// The mixer track the file is the stem of. `None` for the mix.
     track: Option<TrackId>,
+    /// The playlist track the file is the stem of, for playlist stems.
+    playlist_track: Option<windfall_project::PlaylistTrackId>,
 }
 
 /// Everything an export needs, copied out of the session so the project can
@@ -146,6 +149,8 @@ struct Job {
     folder: Option<PathBuf>,
     settings: EncoderSettings,
     stems: Option<StemOptions>,
+    /// Set for an export of the playlist tracks; `stems` is then `None`.
+    playlist_stems: Option<PlaylistStemOptions>,
     project: Project,
     pool: SamplePool,
     pattern: PatternId,
@@ -238,7 +243,18 @@ impl Session {
     /// Progress events carry the path as it was given here, which is what
     /// the UI matches them by.
     pub fn export_audio(&self, options: ExportOptions) -> Result<(), String> {
+        self.start_export(options, None)
+    }
+
+    /// [`Session::export_audio`], or with `playlist` the export of the
+    /// playlist tracks that [`Session::export_playlist_tracks`] describes.
+    pub(super) fn start_export(
+        &self,
+        options: ExportOptions,
+        playlist: Option<windfall_ipc::ExportPlaylistStems>,
+    ) -> Result<(), String> {
         let _recording = self.recording_idle()?;
+        super::playlist_export::check(&options, playlist.as_ref())?;
         if options.region_generation.is_some() != options.region_revision.is_some() {
             return Err(
                 "A timeline export source requires both generation and revision.".to_owned(),
@@ -323,7 +339,22 @@ impl Session {
             include_mix: stems.include_mix,
             numbered: stems.numbered,
         });
+        let playlist_stems = playlist.as_ref().map(super::playlist_export::stem_options);
         let (targets, folder) = match (&options.stems, &stem_options) {
+            _ if playlist.is_some() => {
+                let asked = playlist.as_ref().expect("checked by the guard");
+                let list = super::playlist_export::list(&project, asked)?;
+                let folder = asked.folder.then(|| path.with_extension(""));
+                let targets = list
+                    .into_iter()
+                    .map(|stem| Target {
+                        path: stem_path(&path, folder.as_deref(), &stem.name),
+                        track: None,
+                        playlist_track: stem.track,
+                    })
+                    .collect();
+                (targets, folder)
+            }
             (Some(asked), Some(stem_options)) => {
                 let list = stems(&project, stem_options).map_err(|error| error.to_string())?;
                 let folder = asked.folder.then(|| path.with_extension(""));
@@ -332,6 +363,7 @@ impl Session {
                     .map(|stem| Target {
                         path: stem_path(&path, folder.as_deref(), &stem.name),
                         track: stem.track,
+                        playlist_track: None,
                     })
                     .collect();
                 (targets, folder)
@@ -340,6 +372,7 @@ impl Session {
                 let mix = Target {
                     path: path.clone(),
                     track: None,
+                    playlist_track: None,
                 };
                 (vec![mix], None)
             }
@@ -355,6 +388,7 @@ impl Session {
             folder,
             settings,
             stems: stem_options,
+            playlist_stems,
             project,
             pool,
             pattern,
@@ -690,6 +724,15 @@ fn write_files(
         !cancelled() && prepared_pool.plugin_render_error().is_none()
     };
     let streamed: Streamed = match &job.stems {
+        _ if job.playlist_stems.is_some() => render_playlist_stems(
+            &job.project,
+            &prepared_pool,
+            &render,
+            job.playlist_stems.as_ref().expect("checked by the guard"),
+            &mut write,
+            &mut report,
+        )
+        .map_err(|error| error.to_string())?,
         Some(stems) => render_stems(
             &job.project,
             &prepared_pool,
@@ -745,6 +788,7 @@ fn write_files(
     let files = job.targets.iter().map(|target| ExportedFile {
         path: paths::display(&target.path),
         track: target.track,
+        playlist_track: target.playlist_track,
         frames: streamed.frames,
         bytes: fs::metadata(&target.path).map_or(0, |file| file.len()),
     });

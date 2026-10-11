@@ -702,6 +702,25 @@ async fn bounce_selected_clips(
 }
 
 #[tauri::command]
+async fn consolidate_playlist_tracks(
+    session: State<'_, Session>,
+    tracks: Vec<windfall_project::PlaylistTrackId>,
+) -> Result<DispatchResult, String> {
+    let session = session.inner().clone();
+    blocking(move || session.consolidate_playlist_tracks(tracks)).await
+}
+
+#[tauri::command]
+async fn export_playlist_tracks(
+    session: State<'_, Session>,
+    options: ExportOptions,
+    stems: windfall_ipc::ExportPlaylistStems,
+) -> Result<(), String> {
+    let session = session.inner().clone();
+    blocking(move || session.export_playlist_tracks(options, stems)).await
+}
+
+#[tauri::command]
 fn export_cancel(session: State<'_, Session>) {
     session.export_cancel();
 }
@@ -971,6 +990,8 @@ pub fn handler() -> impl Fn(Invoke) -> bool + Send + Sync + 'static {
         add_audio_clip_from_file,
         add_audio_clip_from_sample,
         bounce_selected_clips,
+        consolidate_playlist_tracks,
+        export_playlist_tracks,
         export_audio,
         export_cancel,
         midi_preview,
