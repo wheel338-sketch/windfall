@@ -74,7 +74,7 @@ float [crunch] "crunch" "Crunch" { Fraction, Linear, 0.0, 1.0, 0.0 }
 float [echo] "echo" "Echo" { Fraction, Linear, 0.0, 1.0, 0.0 }
 float [space] "space" "Space" { Fraction, Linear, 0.0, 1.0, 0.0 }
 float [glide_ms] "glideMs" "Glide" { Milliseconds, Linear, 0.0, 2000.0, 0.0 }
-int [polyphony] "polyphony" "Polyphony" { None, 1.0, 16.0, 8.0 }
+int [polyphony] "polyphony" "Polyphony" { None, 1, 16, 8 }
 float [gain] "gain" "Output level" { Gain, Linear, 0.0, 1.0, 0.5 }
 });
 impl PackPatch {

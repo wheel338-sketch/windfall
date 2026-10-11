@@ -362,7 +362,6 @@ pub(super) fn oscillator(
 // Public types have distinct parameter contracts and monomorphized synthesis graphs.
 macro_rules! instrument {
     ($name:ident, $params:ident) => {
-        use crate::Instrument as _;
         #[derive(Default)]
         pub struct $name(super::runtime::Runtime<$params>);
         impl crate::Instrument for $name {

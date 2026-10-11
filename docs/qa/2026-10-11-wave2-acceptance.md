@@ -9,6 +9,7 @@
 - Branch 3 delay/modulation/reverb merged at `a8e14789`; `chk.sh` exit 0, zero errors/warnings on its first run. Preserved editor registrations and unconditionally registered effect history admission while retaining both existing QA modules.
 - Branch 4 nonlinear/performance merged at `4da6d6c7`; `chk.sh` exit 0, zero errors/warnings on its first run. Preserved all editor/test registrations, with existing audio logger registrations kept once.
 - Branch 5 spectral merged at `0e7a9f93`; `chk.sh` now exit 0, zero errors/warnings. Combined prepared IR creation with existing delay admission/error mapping; retained transport plus harmony methods and both preset validations. Fixed two optional TS scalar annotations and the native preset-name pattern.
+- Branch 6 subtractive/FM merged at `08a4a941`; `chk.sh` now exit 0, zero errors/warnings. Nine kinds appended after the existing 27; corrected integer descriptor literals and removed an unused macro import.
 - Build/test commands will run sequentially with eight Cargo jobs and four Vitest workers. No devices/ignored tests, parity inventory edits, pushes or delegation.
 
 ## Verified execution record
@@ -20,6 +21,7 @@
 | Branch 3 `chk.sh` | Cargo exit 0; zero errors/warnings | `target/round2-branch3-check.log` |
 | Branch 4 `chk.sh` | Cargo exit 0; zero errors/warnings | `target/round2-branch4-check.log` |
 | Branch 5 `chk.sh` | Cargo exit 0; zero errors/warnings | `target/round2-branch5-check.log` |
+| Branch 6 `chk.sh` | Cargo exit 0; zero errors/warnings | `target/round2-branch6-check.log` |
 
 ## Row acceptance
 
@@ -37,3 +39,4 @@ Pending integration and execution.
 - Delay/modulation/reverb: editor and module-registration conflicts only; no post-merge compiler fixes needed. Fallible preparation retains the integrated slot scratch layout.
 - Nonlinear/performance: editor/test-registration conflicts only; no post-merge compiler fixes needed.
 - Spectral: merged IR preparation with delay history admission into one fallible build; preserved transport/harmony and preset validations. ts-rs optional scalar fields need `as = "Option<u32>"`; native preset naming ignores the new embedded impulse field. No audio assertions changed.
+- Subtractive/FM: duplicate import conflict resolved; 33 integer descriptor rows used float literals incompatible with integer clamp. Corrected literal types without changing values/ranges/order; removed redundant trait import.

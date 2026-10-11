@@ -88,11 +88,11 @@ param_set!(VintagePolyParams, "Vintage poly", {
     float [filter_envelope.decay_ms] "filterEnvelope.decayMs" "Filter decay" { Milliseconds, Linear, 1.0, 4000.0, 200.0 }
     float [filter_envelope.sustain] "filterEnvelope.sustain" "Filter sustain" { Fraction, Linear, 0.0, 1.0, 0.8 }
     float [filter_envelope.release_ms] "filterEnvelope.releaseMs" "Filter release" { Milliseconds, Linear, 1.0, 4000.0, 150.0 }
-    int [unison] "unison" "Unison voices" { None, 1.0, 7.0, 1.0 }
+    int [unison] "unison" "Unison voices" { None, 1, 7, 1 }
     float [detune_cents] "detuneCents" "Unison detune" { Cents, Linear, 0.0, 60.0, 12.0 }
     float [spread] "spread" "Stereo spread" { Fraction, Linear, 0.0, 1.0, 0.6 }
     float [glide_ms] "glideMs" "Glide" { Milliseconds, Linear, 0.0, 2000.0, 0.0 }
-    int [polyphony] "polyphony" "Polyphony" { None, 1.0, 16.0, 8.0 }
+    int [polyphony] "polyphony" "Polyphony" { None, 1, 16, 8 }
     float [chorus] "chorus" "Stereo chorus" { Fraction, Linear, 0.0, 1.0, 0.0 }
     float [gain] "gain" "Output level" { Gain, Linear, 0.0, 1.0, 0.5 }
 });
