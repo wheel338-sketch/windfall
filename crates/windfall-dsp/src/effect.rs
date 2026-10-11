@@ -42,6 +42,7 @@ use crate::eqbank::{SevenBand, SevenBandParams};
 use crate::frequency_delay::{FrequencyDelay, FrequencyDelayParams};
 use crate::lush::{LushSpace, LushSpaceParams};
 use crate::mastering::{StageStack, StageStackParams};
+use crate::mastering::{MasterLimiter, MasterLimiterParams, master_limiter_latency};
 use crate::polarity::{Polarity, PolarityParams};
 use crate::sendtap::{SendTap, SendTapParams};
 use crate::soft_clipper::{SoftClipper, SoftClipperParams};
@@ -281,10 +282,11 @@ pub enum EffectKind {
     StageStack,
     ControlSurface,
     SendTap,
+    MasterLimiter,
 }
 
 impl EffectKind {
-    pub const ALL: [EffectKind; 63] = [
+    pub const ALL: [EffectKind; 64] = [
         EffectKind::Eq,
         EffectKind::Compressor,
         EffectKind::Limiter,
@@ -348,6 +350,7 @@ impl EffectKind {
         EffectKind::StageStack,
         EffectKind::ControlSurface,
         EffectKind::SendTap,
+        EffectKind::MasterLimiter,
     ];
 
     /// The effect's name as shown to the user.
@@ -416,6 +419,7 @@ impl EffectKind {
             EffectKind::StageStack => StageStackParams::NAME,
             EffectKind::ControlSurface => ControlSurfaceParams::NAME,
             EffectKind::SendTap => SendTapParams::NAME,
+            EffectKind::MasterLimiter => MasterLimiterParams::NAME,
         }
     }
 
@@ -485,6 +489,7 @@ impl EffectKind {
             EffectKind::StageStack => StageStackParams::descriptors(),
             EffectKind::ControlSurface => ControlSurfaceParams::descriptors(),
             EffectKind::SendTap => SendTapParams::descriptors(),
+            EffectKind::MasterLimiter => MasterLimiterParams::descriptors(),
         }
     }
 
@@ -562,6 +567,7 @@ impl EffectKind {
             EffectKind::StageStack => 0,
             EffectKind::ControlSurface => 0,
             EffectKind::SendTap => 0,
+            EffectKind::MasterLimiter => master_limiter_latency(sample_rate),
         }
     }
 
@@ -663,6 +669,9 @@ impl EffectKind {
                 EffectParams::ControlSurface(ControlSurfaceParams::default())
             }
             EffectKind::SendTap => EffectParams::SendTap(SendTapParams::default()),
+            EffectKind::MasterLimiter => {
+                EffectParams::MasterLimiter(MasterLimiterParams::default())
+            }
         }
     }
 }
@@ -739,6 +748,7 @@ pub enum EffectParams {
     StageStack(StageStackParams),
     ControlSurface(ControlSurfaceParams),
     SendTap(SendTapParams),
+    MasterLimiter(MasterLimiterParams),
 }
 
 /// Runs `$body` with `$params` bound to the settings inside an
@@ -809,6 +819,7 @@ macro_rules! each_params {
             EffectParams::StageStack($params) => $body,
             EffectParams::ControlSurface($params) => $body,
             EffectParams::SendTap($params) => $body,
+            EffectParams::MasterLimiter($params) => $body,
         }
     };
 }
@@ -879,6 +890,7 @@ impl EffectParams {
             EffectParams::StageStack(_) => EffectKind::StageStack,
             EffectParams::ControlSurface(_) => EffectKind::ControlSurface,
             EffectParams::SendTap(_) => EffectKind::SendTap,
+            EffectParams::MasterLimiter(_) => EffectKind::MasterLimiter,
         }
     }
 
@@ -972,6 +984,9 @@ impl EffectParams {
                 EffectParams::ControlSurface(params.sanitized())
             }
             EffectParams::SendTap(params) => EffectParams::SendTap(params.sanitized()),
+            EffectParams::MasterLimiter(params) => {
+                EffectParams::MasterLimiter(params.sanitized())
+            }
         }
     }
 
@@ -1068,6 +1083,7 @@ impl EffectParams {
                 EffectKind::ControlSurface.max_latency_samples(sample_rate)
             }
             EffectParams::SendTap(_) => EffectKind::SendTap.max_latency_samples(sample_rate),
+            EffectParams::MasterLimiter(_) => master_limiter_latency(sample_rate),
         }
     }
 
@@ -1156,6 +1172,7 @@ pub enum AnyEffect {
     StageStack(Box<StageStack>),
     ControlSurface(Box<ControlSurface>),
     SendTap(Box<SendTap>),
+    MasterLimiter(Box<MasterLimiter>),
 }
 
 /// Runs `$body` with `$effect` bound to the effect inside an [`AnyEffect`].
@@ -1225,6 +1242,7 @@ macro_rules! each_effect {
             AnyEffect::StageStack($effect) => $body,
             AnyEffect::ControlSurface($effect) => $body,
             AnyEffect::SendTap($effect) => $body,
+            AnyEffect::MasterLimiter($effect) => $body,
         }
     };
 }
@@ -1297,6 +1315,7 @@ impl AnyEffect {
             EffectKind::StageStack => AnyEffect::StageStack(Box::default()),
             EffectKind::ControlSurface => AnyEffect::ControlSurface(Box::default()),
             EffectKind::SendTap => AnyEffect::SendTap(Box::default()),
+            EffectKind::MasterLimiter => AnyEffect::MasterLimiter(Box::default()),
         };
         effect.set_params(params);
         effect
@@ -1367,6 +1386,7 @@ impl AnyEffect {
             AnyEffect::StageStack(_) => EffectKind::StageStack,
             AnyEffect::ControlSurface(_) => EffectKind::ControlSurface,
             AnyEffect::SendTap(_) => EffectKind::SendTap,
+            AnyEffect::MasterLimiter(_) => EffectKind::MasterLimiter,
         }
     }
 
@@ -1552,6 +1572,9 @@ impl AnyEffect {
             (AnyEffect::SendTap(effect), EffectParams::SendTap(params)) => {
                 effect.set_params(params)
             }
+            (AnyEffect::MasterLimiter(effect), EffectParams::MasterLimiter(params)) => {
+                effect.set_params(params)
+            }
             _ => return false,
         }
         true
@@ -1621,6 +1644,7 @@ impl AnyEffect {
             AnyEffect::MultibandMaximizer(effect) => Some(effect.meter()),
             AnyEffect::OneKnob(effect) => Some(effect.meter()),
             AnyEffect::StageStack(effect) => Some(effect.meter()),
+            AnyEffect::MasterLimiter(effect) => Some(effect.meter()),
             _ => None,
         }
     }

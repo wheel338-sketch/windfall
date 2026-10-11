@@ -441,6 +441,7 @@ fn names_are_plain_descriptions() {
             "Stage Stack",
             "Control Surface",
             "Send Tap",
+            "Mastering Limiter",
             "Subtractive synth",
             "Four Operator",
             "Matrix FM",

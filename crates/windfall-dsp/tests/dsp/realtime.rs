@@ -163,6 +163,7 @@ fn random_effect_params(kind: EffectKind, rng: &mut Rng) -> EffectParams {
         EffectKind::StageStack => EffectParams::StageStack(random_params::<windfall_dsp::mastering::StageStackParams>(rng)),
         EffectKind::ControlSurface => EffectParams::ControlSurface(random_params::<windfall_dsp::surface::ControlSurfaceParams>(rng)),
         EffectKind::SendTap => EffectParams::SendTap(random_params::<windfall_dsp::sendtap::SendTapParams>(rng)),
+        EffectKind::MasterLimiter => EffectParams::MasterLimiter(random_params::<windfall_dsp::mastering::MasterLimiterParams>(rng)),
 
     }
 }
