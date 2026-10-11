@@ -200,3 +200,72 @@ Each original failure has targeted passing evidence and is included in the final
 | Automation target engine-range agreement case | **Test**: limiter numeric-setting count predated eleven-setting descriptor. | Expect eleven; retain all range-agreement checks including the new MIDI-out instrument. `apps/desktop/src/lib/automation/targets.test.ts`. |
 
 The eight repaired frontend files passed all 126 focused tests before the full frontend run. Formatting was applied to the merged Rust files; strict Clippy was repaired with typed frame slices, direct iterators/copies, local type aliases and a stack-only grouping of mixer recording sinks. No lint suppression or dependency was added.
+
+## Open-row classification
+
+Classification of the original 63 `in-progress` rows and one `todo` row for worker dispatch. `SOFTWARE` includes implementable missing behavior and missing mounted/native joined tests; external gates can coexist with that work. A native window walkthrough or large-file test is software work available on Windows, even when hardware/listening acceptance remains separately owed. This section does not promote statuses or rewrite the original execution evidence.
+
+- `core-audio-recording` — EXTERNAL-ONLY: physical capture, latency/drift, device-removal and listening acceptance.
+- `core-audio-logger` — SOFTWARE: join enable/play/dump into a native session-to-playlist test; measure recovered clip alignment and save/reopen before the separate listening gate.
+- `core-piano-roll` — SOFTWARE: complete hosted/live expression recording/replay; mount the loaded-source waveform grid, notation export and eight-stage riff workflows; connect hardware held-note events to chord state.
+- `core-mixer` — SOFTWARE: capture a running native helper's track preset, apply it to another track and measure restored PCM/history; physical IO/arming remains external.
+- `core-automation-clips` — SOFTWARE: implement pattern-mode movement recording; test audible overdub and grouped gesture history through the editor and linked-target runtime.
+- `core-midi-support` — SOFTWARE: record wheel/pressure/CC expression into notes; implement and measure audio-aligned output scheduling before hardware timing acceptance.
+- `core-midi-out` — SOFTWARE: add plugin destinations and multiple port routing; release a sounding removed channel without requiring global Stop/Panic; test those joins.
+- `win-rack-sampler-precomputed` — SOFTWARE: add prepared-result preview and derived-file garbage collection with undo/source retention tests; resolve normalization target policy before pinning its UI/reference.
+- `win-rack-channel-envelopes` — SOFTWARE: mount envelope/LFO controls and prove one knob drag creates one undo step with audible native publication.
+- `win-rack-echo-delay` — SOFTWARE: surface refused-echo count; test instrument-channel echoes, seek/loop discard and one-frame subblock cost.
+- `win-rack-sampler-stretch` — SOFTWARE: mount and click Fit to tempo against the Rust document; assert prepared duration, undo and save/reopen.
+- `win-piano-event-editor` — SOFTWARE: record wheel/pressure/CC1/CC74 expression; implement hosted expression negotiation and instance replay; add expression-map and MIDI-export option UI/tests.
+- `win-piano-slide-porta` — SOFTWARE: implement hosted/MIDI-only pitch-bend fallback and test sequenced slide/portamento through the native helper.
+- `win-piano-note-colors` — SOFTWARE: join color/group MIDI-channel routing and owner-exchange expression replay in native tests.
+- `win-piano-waveform-helper` — SOFTWARE: mount the real loaded-source waveform with the note grid; test timing alignment, project replacement and native interactions.
+- `win-piano-articulate` — SOFTWARE: mount Portamento dialog apply/undo and measure the transformed phrase through the engine.
+- `win-piano-lfo` — SOFTWARE: mount all three writer modes and shape choices; implement/test pattern movement recording.
+- `win-piano-riff-machine` — SOFTWARE: mount eight-stage generation, audition and one-step apply/undo; test stale refusal and released audition notes.
+- `win-piano-score-sheet` — SOFTWARE: add rhythm/accidental/beaming/voice layout cases; mount export dialog; render and inspect an engraved page and its PDF in a reader.
+- `win-playlist-instrument-audio-tracks` — SOFTWARE: honor linked-channel filtering in MIDI song export and test exported notes; physical linked-track recording remains external.
+- `win-event-editor` — SOFTWARE: mount WASM edit/undo/save/reopen; add playhead/snap, FLP event import, playlist event overview and event-driven control readouts.
+- `win-mixer-sidechain` — EXTERNAL-ONLY: third-party plugin compatibility and other-OS native acceptance.
+- `win-mixer-pdc` — EXTERNAL-ONLY: physical converter timing and recording-device alignment acceptance.
+- `win-mixer-track-presets` — SOFTWARE: capture a running native helper's plugin state, apply the preset to another track and measure restored audio, including undo/reopen.
+- `win-mixer-waveform-view` — SOFTWARE: join native session waveform interest/source switching, window updates and project replacement in a visible native acceptance test.
+- `win-mixer-audio-io` — EXTERNAL-ONLY: physical input monitoring, output ports and feedback/latency listening.
+- `win-mixer-record-arm` — EXTERNAL-ONLY: physical mixed hardware/post-fader/post-effects multitrack capture and second-input acceptance.
+- `win-browser-current-project` — SOFTWARE: list controller links and add target navigation/removal actions with mounted history tests.
+- `win-browser-project-picker` — SOFTWARE: build the full-screen clip/channel relationship overview with selection/navigation tests.
+- `win-browser-plugin-database` — SOFTWARE: wire native catalog, favorites, categories and preset children into browsable UI; mount add/select/history flows.
+- `win-browser-plugin-picker` — SOFTWARE: build full-screen thumbnail grid with drag and double-click insertion and mounted tests.
+- `inst-channel-sampler` — SOFTWARE: complete envelope one-drag/one-undo, prepared-result preview/GC and mounted Fit to tempo coverage inherited from sampler rows.
+- `fx-fruity-limiter` — SOFTWARE: join the native history feed to the actual scrolling editor and verify level/decay updates and source lifecycle.
+- `fx-fruity-parametric-eq2` — SOFTWARE: verify the actual native post-fader FFT/response overlay and lifecycle; add the per-slot tap if required by the accepted source-selection design.
+- `fx-tuner` — SOFTWARE: feed a calibrated synthetic tone through the native session/window join and assert displayed note/cents and source changes; instrument listening remains external.
+- `vis-fruity-big-clock` — SOFTWARE: run the actual native clock window through play/seek/loop and verify displayed bars/time.
+- `vis-fruity-db-meter` — SOFTWARE: join native callback/session/window peak updates; test source deletion/replacement/seek/rate/PDC, invalid PCM and stalled-UI recovery.
+- `vis-fruity-spectroman` — SOFTWARE: join native callback/session/window spectrum/spectrogram updates; test source deletion/replacement/seek/rate/PDC, invalid PCM and stalled-UI recovery.
+- `vis-wave-candy` — SOFTWARE: join native callback/session/window scope/spectrum/vectorscope/meter modes and all source/transport/stall lifecycle cases.
+- `editor-edison` — SOFTWARE: add effect-slot recording and chain-position tap; keep editor open across edits; implement missing spectral/region/script, advanced processing/repair/tuning/stretch and sampler-drag workflows.
+- `fmt-project-zip` — SOFTWARE: test large-project archive extraction and interrupted filesystem publication locally; cross-machine/other-OS/physical power-loss acceptance remains external.
+- `fmt-save-new-version` — SOFTWARE: test filesystem publication faults and process interruption at reservation/copy/rename boundaries; other-OS and physical power-loss acceptance remains external.
+- `fmt-project-templates` — SOFTWARE: expose native template list/load/save through backend and browser UI; test extracted-file GC and direct stale/race guards.
+- `fmt-state-fst` — SOFTWARE: expose channel/plugin preset capture/read/write/apply in backend/browser UI; join running native state capture to preset application; add audio-preset disk browsing.
+- `fmt-score-fsc` — SOFTWARE: add score read/write/apply backend/UI; retain color/articulation and pattern events in reusable scores and MIDI conversion; test round trips/history.
+- `fmt-export-playlist-tracks` — SOFTWARE: measure sidechain-driven stems and selected-region export with decoded-file comparisons and mounted requests.
+- `fmt-host-plugin-manager` — SOFTWARE: wire rescan/status catalog into dialog and test a real rescan/removal regression; other-OS compatibility remains external.
+- `wf-audio-settings` — EXTERNAL-ONLY: actual smaller buffers, ASIO/multichannel devices and other-OS driver acceptance.
+- `wf-transport` — SOFTWARE: mount recording start/stop and join it to session/project attachment/history, before separate hardware latency/drift acceptance.
+- `wf-global-snap` — EXTERNAL-ONLY: physical MIDI input quantization/timing acceptance.
+- `wf-project-settings` — SOFTWARE: expose panning-law/timebase and all supported MIDI resolutions; apply the law to synth/hosted per-note pan and editor balance; ramp live law changes and test PCM.
+- `wf-midi-settings` — SOFTWARE: add extra-input and recording-offset UI; mount each profile/clock control against native configuration.
+- `wf-midi-recording` — SOFTWARE: add transport MIDI-arm control and count-in integration; mount start/record/stop and verify recorded/quantized notes/history.
+- `wf-score-logger` — SOFTWARE: implement browser note logging and restart persistence; mount native dump-to-pattern/history and project-replacement flows.
+- `wf-count-in` — EXTERNAL-ONLY: real pre-roll exclusion, capture-start alignment and device transport/region restoration.
+- `wf-loop-recording` — EXTERNAL-ONLY: real pass lengths, equal burst positions and captured take attachment/undo.
+- `wf-automation-recording` — SOFTWARE: implement pattern-mode writes, define/test audible overdub during capture, group recorded movements into intended undo gestures and mount recording controls.
+- `wf-controller-linking` — SOFTWARE: add range/formula/smoothing/mode, link-list and global-link UI; implement/test internal-source runtime and source-removal validation.
+- `wf-multilink` — SOFTWARE: mount menu/action workflow and join ordered tweaks to saved link creation/history; hardware pass remains external.
+- `wf-pickup` — SOFTWARE: show held-control pickup state and mount hold/cross/release indicator transitions.
+- `wf-midi-sync` — SOFTWARE: compensate output scheduling relative to audio and measure synthetic scheduling/jitter before physical clock acceptance.
+- `wf-preconfigured-controllers` — SOFTWARE: implement the design's script/LED/motor-fader feedback protocol and test emitted feedback with a synthetic controller; named-device acceptance remains external.
+- `wf-touch-controllers` — EXTERNAL-ONLY: physical touch-screen interaction acceptance.
+- `wf-chord-detection` — SOFTWARE: join native held-note down/up events to chord held-key state; test sustain, repeated keys, filtering and project replacement.
