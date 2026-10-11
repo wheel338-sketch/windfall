@@ -1,10 +1,15 @@
 //! Fixed storage shared by the family; each patch supplies its own synthesis graph.
-use std::f32::consts::TAU;
-use crate::{EnvelopeParams, Instrument, ParamSet};
-use crate::blocks::{adsr::Adsr, noise::Rng, oscillator::{Oscillator, Waveform}};
-use super::core::{self, Controls, Drift, Ladder, Notes, SatSvf, MAX_VOICES};
+use super::core::{self, Controls, Drift, Ladder, MAX_VOICES, Notes, SatSvf};
 use super::fx::{Chorus, Phaser, Reverb, StereoDelay};
 use super::pack_assets::PackAssets;
+use crate::blocks::{
+    adsr::Adsr,
+    noise::{PinkNoise, Rng},
+    oscillator::{Oscillator, Waveform},
+};
+use crate::{EnvelopeParams, Instrument, ParamSet};
+use std::f32::consts::TAU;
+use std::sync::Arc;
 
 pub(super) const UNISON: usize = 7;
 
@@ -27,10 +32,22 @@ pub(super) struct Frame {
 }
 impl Default for Frame {
     fn default() -> Self {
-        Self { amp: EnvelopeParams::default(), filter_env: EnvelopeParams::default(),
-            cutoff: 4000.0, env_amount: 0.0, key_track: 0.0,
-            lfo_rate: 1.0, lfo_filter: 0.0, gain: 0.5, glide: 0.0,
-            polyphony: MAX_VOICES, chorus: 0.0, delay: 0.0, phaser: 0.0, reverb: 0.0 }
+        Self {
+            amp: EnvelopeParams::default(),
+            filter_env: EnvelopeParams::default(),
+            cutoff: 4000.0,
+            env_amount: 0.0,
+            key_track: 0.0,
+            lfo_rate: 1.0,
+            lfo_filter: 0.0,
+            gain: 0.5,
+            glide: 0.0,
+            polyphony: MAX_VOICES,
+            chorus: 0.0,
+            delay: 0.0,
+            phaser: 0.0,
+            reverb: 0.0,
+        }
     }
 }
 
@@ -44,6 +61,7 @@ pub(super) struct Tone {
     pub highpass: [SatSvf; 2],
     pub drift: Drift,
     pub noise: Rng,
+    pub pink: [[PinkNoise; 6]; UNISON],
     pub amp: Adsr,
     pub filter_env: Adsr,
     pub elapsed: u64,
@@ -54,11 +72,25 @@ pub(super) struct Tone {
 }
 impl Default for Tone {
     fn default() -> Self {
-        Self { oscillators: [[Oscillator::default(); 6]; UNISON], previous: [[0.0; 6]; UNISON],
-            operators: [Adsr::default(); 6], levels: [0.0; 6], ladder: [Ladder::default(); 2],
-            svf: [SatSvf::default(); 2], highpass: [SatSvf::default(); 2], drift: Drift::default(),
-            noise: Rng::new(0x5746), amp: Adsr::default(), filter_env: Adsr::default(), elapsed: 0,
-            sample_phase: [0.0; UNISON], sequence_step: u64::MAX, sequence_open: false, sequence_env: Adsr::default() }
+        Self {
+            oscillators: [[Oscillator::default(); 6]; UNISON],
+            previous: [[0.0; 6]; UNISON],
+            operators: [Adsr::default(); 6],
+            levels: [0.0; 6],
+            ladder: [Ladder::default(); 2],
+            svf: [SatSvf::default(); 2],
+            highpass: [SatSvf::default(); 2],
+            drift: Drift::default(),
+            noise: Rng::new(0x5746),
+            pink: [[PinkNoise::new(); 6]; UNISON],
+            amp: Adsr::default(),
+            filter_env: Adsr::default(),
+            elapsed: 0,
+            sample_phase: [0.0; UNISON],
+            sequence_step: u64::MAX,
+            sequence_open: false,
+            sequence_env: Adsr::default(),
+        }
     }
 }
 pub(super) fn envelope(env: &mut Adsr, p: EnvelopeParams, rate: f32) {
@@ -96,64 +128,114 @@ pub(super) struct Runtime<P: Patch> {
     phaser: Phaser,
     reverb: Reverb,
     tail: usize,
-    assets: Option<Box<PackAssets>>,
+    assets: Option<Arc<PackAssets>>,
+    effects_clean: bool,
 }
 impl<P: Patch> Default for Runtime<P> {
     fn default() -> Self {
-        Self { rate: 48000.0, bpm: 120.0, controls: Controls::default(), notes: Notes::default(),
-            tones: std::array::from_fn(|_| Tone::default()), lfo_phase: 0.0, chorus: Chorus::default(),
-            delay: StereoDelay::default(), phaser: Phaser::default(), reverb: Reverb::default(), tail: 0, assets: None }
+        Self {
+            rate: 48000.0,
+            bpm: 120.0,
+            controls: Controls::default(),
+            notes: Notes::default(),
+            tones: std::array::from_fn(|_| Tone::default()),
+            lfo_phase: 0.0,
+            chorus: Chorus::default(),
+            delay: StereoDelay::default(),
+            phaser: Phaser::default(),
+            reverb: Reverb::default(),
+            tail: 0,
+            assets: None,
+            effects_clean: true,
+        }
     }
 }
 impl<P: Patch> Instrument for Runtime<P> {
     type Params = P;
     fn prepare(&mut self, rate: f32, _max_block: usize) {
         self.rate = core::rate(rate);
-        if P::NEEDS_ASSETS && self.assets.is_none() { self.assets = Some(Box::new(PackAssets::prepare())); }
+        if P::NEEDS_ASSETS && self.assets.is_none() {
+            self.assets = Some(PackAssets::shared());
+        }
         self.controls.prepare(self.rate);
-        self.chorus.prepare(self.rate); self.delay.prepare(self.rate);
-        self.phaser.prepare(self.rate); self.reverb.prepare(self.rate);
+        self.chorus.prepare(self.rate);
+        self.delay.prepare(self.rate);
+        self.phaser.prepare(self.rate);
+        self.reverb.prepare(self.rate);
         self.reset();
     }
     fn reset(&mut self) {
-        self.controls.reset(); self.notes.reset(); self.lfo_phase = 0.0; self.tail = 0;
-        for tone in &mut self.tones { *tone = Tone::default(); }
-        self.chorus.reset(); self.delay.reset(); self.phaser.reset(); self.reverb.reset();
+        self.controls.reset();
+        self.notes.reset();
+        self.lfo_phase = 0.0;
+        self.tail = 0;
+        self.effects_clean = true;
+        for tone in &mut self.tones {
+            *tone = Tone::default();
+        }
+        self.chorus.reset();
+        self.delay.reset();
+        self.phaser.reset();
+        self.reverb.reset();
     }
-    fn set_params(&mut self, params: &P) { self.controls.set(params); }
-    fn set_tempo(&mut self, bpm: f32) { self.bpm = core::tempo(bpm); }
+    fn set_params(&mut self, params: &P) {
+        self.controls.set(params);
+    }
+    fn set_tempo(&mut self, bpm: f32) {
+        self.bpm = core::tempo(bpm);
+    }
     fn note_on(&mut self, key: u8, velocity: f32) {
         let frame = self.controls.target().frame();
-        self.notes.note_on(key, velocity, frame.polyphony, frame.glide, self.rate);
+        self.notes
+            .note_on(key, velocity, frame.polyphony, frame.glide, self.rate);
     }
-    fn note_off(&mut self, key: u8) { self.notes.note_off(key); }
-    fn all_notes_off(&mut self) { self.notes.stop(self.rate); }
-    fn active_voices(&self) -> usize { self.notes.active() }
+    fn note_off(&mut self, key: u8) {
+        self.notes.note_off(key);
+    }
+    fn all_notes_off(&mut self) {
+        self.notes.stop(self.rate);
+    }
+    fn active_voices(&self) -> usize {
+        self.notes.active()
+    }
     fn tail_samples(&self) -> usize {
         let f = self.controls.target().frame();
         let mut tail = 0;
-        if f.chorus > 0.0 { tail = tail.max(self.chorus.tail_samples()); }
-        if f.delay > 0.0 { tail = tail.max(self.delay.tail_samples()); }
-        if f.reverb > 0.0 { tail = tail.max(self.reverb.tail_samples()); }
+        if f.chorus > 0.0 {
+            tail = tail.max(self.chorus.tail_samples());
+        }
+        if f.delay > 0.0 {
+            tail = tail.max(self.delay.tail_samples());
+        }
+        if f.reverb > 0.0 {
+            tail = tail.max(self.reverb.tail_samples());
+        }
         // Phaser has recursive allpass state; clear it at this bounded tail.
-        if f.phaser > 0.0 { tail = tail.max(self.rate as usize * 2); }
+        if f.phaser > 0.0 {
+            tail = tail.max(self.rate as usize * 2);
+        }
         tail
     }
     fn process(&mut self, left: &mut [f32], right: &mut [f32]) {
         for (left, right) in left.iter_mut().zip(right) {
-            let (p, changed) = self.controls.tick(); let f = p.frame();
+            let (p, changed) = self.controls.tick();
+            let f = p.frame();
             let lfo = (TAU * self.lfo_phase).sin();
             core::advance(&mut self.lfo_phase, f.lfo_rate / self.rate);
             let mut sum = (0.0, 0.0);
             let sounding = self.notes.active() > 0;
-            for (slot, (note, tone)) in self.notes.slots.iter_mut().zip(&mut self.tones).enumerate() {
-                if !note.active { continue; }
+            for (slot, (note, tone)) in self.notes.slots.iter_mut().zip(&mut self.tones).enumerate()
+            {
+                if !note.active {
+                    continue;
+                }
                 if note.start {
                     *tone = Tone::default();
                     tone.noise = Rng::new(0x5746 + slot as u32);
                     for (u, oscillators) in tone.oscillators.iter_mut().enumerate() {
                         for (op, oscillator) in oscillators.iter_mut().enumerate() {
-                            *oscillator = Oscillator::new((u as f32 * 0.137 + op as f32 * 0.071) % 1.0);
+                            *oscillator =
+                                Oscillator::new((u as f32 * 0.137 + op as f32 * 0.071) % 1.0);
                         }
                     }
                 }
@@ -163,41 +245,114 @@ impl<P: Patch> Instrument for Runtime<P> {
                     p.configure(tone, self.rate);
                 }
                 if note.start {
-                    tone.amp.gate_on(); tone.filter_env.gate_on();
-                    for op in &mut tone.operators { op.gate_on(); }
+                    tone.amp.gate_on();
+                    tone.filter_env.gate_on();
+                    for op in &mut tone.operators {
+                        op.gate_on();
+                    }
                     note.start = false;
                 }
                 if note.release {
-                    tone.amp.gate_off(); tone.filter_env.gate_off();
-                    for op in &mut tone.operators { op.gate_off(); }
+                    tone.amp.gate_off();
+                    tone.filter_env.gate_off();
+                    for op in &mut tone.operators {
+                        op.gate_off();
+                    }
                     note.release = false;
                 }
-                let amp = tone.amp.tick(); let filter = tone.filter_env.tick();
-                for (level, op) in tone.levels.iter_mut().zip(&mut tone.operators) { *level = op.tick(); }
+                let amp = tone.amp.tick();
+                let filter = tone.filter_env.tick();
+                for (level, op) in tone.levels.iter_mut().zip(&mut tone.operators) {
+                    *level = op.tick();
+                }
                 let pitch = note.glide();
-                let cutoff = core::swept(f.cutoff, f.env_amount * filter + f.key_track * (pitch - 60.0) / 12.0 + lfo * f.lfo_filter, self.rate * 2.0);
-                let ctx = Context { pitch, key: note.key, held: note.held, slot, lfo, cutoff, rate: self.rate * 2.0, bpm: self.bpm, assets:self.assets.as_deref() };
+                let cutoff = core::swept(
+                    f.cutoff,
+                    f.env_amount * filter
+                        + f.key_track * (pitch - 60.0) / 12.0
+                        + lfo * f.lfo_filter,
+                    self.rate * 2.0,
+                );
+                let ctx = Context {
+                    pitch,
+                    key: note.key,
+                    held: note.held,
+                    slot,
+                    lfo,
+                    cutoff,
+                    rate: self.rate * 2.0,
+                    bpm: self.bpm,
+                    assets: self.assets.as_deref(),
+                };
                 // Two substeps keep nonlinear filters/FM comfortably below the host Nyquist.
-                let a = p.sample(tone, &ctx); let b = p.sample(tone, &ctx);
+                let a = p.sample(tone, &ctx);
+                let b = p.sample(tone, &ctx);
                 tone.elapsed = tone.elapsed.wrapping_add(1);
                 let gain = amp * note.velocity * f.gain * 0.25;
-                let out = note.finish((a.0 + b.0) * 0.5 * gain, (a.1 + b.1) * 0.5 * gain, !tone.amp.is_idle());
-                sum.0 += out.0; sum.1 += out.1;
+                let out = note.finish(
+                    (a.0 + b.0) * 0.5 * gain,
+                    (a.1 + b.1) * 0.5 * gain,
+                    !tone.amp.is_idle(),
+                );
+                sum.0 += out.0;
+                sum.1 += out.1;
             }
-            if sounding { self.tail = self.tail_samples(); }
-            if !sounding && self.tail == 0 { *left = 0.0; *right = 0.0; continue; }
+            if sounding {
+                self.tail = self.tail_samples();
+                self.effects_clean = false;
+            }
+            if !sounding && self.tail == 0 {
+                if !self.effects_clean {
+                    self.chorus.reset();
+                    self.delay.reset();
+                    self.phaser.reset();
+                    self.reverb.reset();
+                    self.effects_clean = true;
+                }
+                *left = 0.0;
+                *right = 0.0;
+                continue;
+            }
             self.tail = self.tail.saturating_sub(usize::from(!sounding));
             let out = self.chorus.tick(sum.0, sum.1, 0.37, 0.8, f.chorus);
             let out = self.phaser.tick(out.0, out.1, 0.2, 0.6, f.phaser);
-            let out = self.delay.tick(out.0, out.1, core::division_seconds(0.5, self.bpm) * self.rate, 0.35, f.delay, true);
+            let out = self.delay.tick(
+                out.0,
+                out.1,
+                core::division_seconds(0.5, self.bpm) * self.rate,
+                0.35,
+                f.delay,
+                true,
+            );
             let out = self.reverb.tick(out.0, out.1, 0.5, f.reverb);
-            *left = core::guard(out.0); *right = core::guard(out.1);
-            if !sounding && self.tail == 0 { self.chorus.reset(); self.delay.reset(); self.phaser.reset(); self.reverb.reset(); }
+            *left = core::guard(out.0);
+            *right = core::guard(out.1);
+            if !sounding && self.tail == 0 {
+                self.chorus.reset();
+                self.delay.reset();
+                self.phaser.reset();
+                self.reverb.reset();
+                self.effects_clean = true;
+            }
         }
     }
 }
 
-pub(super) fn oscillator(tone: &mut Tone, u: usize, op: usize, pitch: f32, rate: f32, wave: Waveform, width: f32) -> f32 {
+pub(super) fn oscillator(
+    tone: &mut Tone,
+    u: usize,
+    op: usize,
+    pitch: f32,
+    rate: f32,
+    wave: Waveform,
+    width: f32,
+) -> f32 {
+    if wave == Waveform::WhiteNoise {
+        return tone.noise.bipolar();
+    }
+    if wave == Waveform::PinkNoise {
+        return tone.pink[u][op].tick(&mut tone.noise);
+    }
     tone.oscillators[u][op].tick(wave, core::increment(pitch, rate), width.clamp(0.05, 0.95))
 }
 
@@ -209,18 +364,37 @@ macro_rules! instrument {
         pub struct $name(super::runtime::Runtime<$params>);
         impl crate::Instrument for $name {
             type Params = $params;
-            fn prepare(&mut self, rate: f32, block: usize) { self.0.prepare(rate, block); }
-            fn reset(&mut self) { self.0.reset(); }
-            fn set_params(&mut self, p: &$params) { self.0.set_params(p); }
-            fn set_tempo(&mut self, bpm: f32) { self.0.set_tempo(bpm); }
-            fn note_on(&mut self, key: u8, velocity: f32) { self.0.note_on(key, velocity); }
-            fn note_off(&mut self, key: u8) { self.0.note_off(key); }
-            fn all_notes_off(&mut self) { self.0.all_notes_off(); }
-            fn process(&mut self, l: &mut [f32], r: &mut [f32]) { self.0.process(l, r); }
-            fn active_voices(&self) -> usize { self.0.active_voices() }
-            fn tail_samples(&self) -> usize { self.0.tail_samples() }
+            fn prepare(&mut self, rate: f32, block: usize) {
+                self.0.prepare(rate, block);
+            }
+            fn reset(&mut self) {
+                self.0.reset();
+            }
+            fn set_params(&mut self, p: &$params) {
+                self.0.set_params(p);
+            }
+            fn set_tempo(&mut self, bpm: f32) {
+                self.0.set_tempo(bpm);
+            }
+            fn note_on(&mut self, key: u8, velocity: f32) {
+                self.0.note_on(key, velocity);
+            }
+            fn note_off(&mut self, key: u8) {
+                self.0.note_off(key);
+            }
+            fn all_notes_off(&mut self) {
+                self.0.all_notes_off();
+            }
+            fn process(&mut self, l: &mut [f32], r: &mut [f32]) {
+                self.0.process(l, r);
+            }
+            fn active_voices(&self) -> usize {
+                self.0.active_voices()
+            }
+            fn tail_samples(&self) -> usize {
+                self.0.tail_samples()
+            }
         }
     };
 }
 pub(super) use instrument;
-

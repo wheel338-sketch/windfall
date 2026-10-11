@@ -1,11 +1,19 @@
-use crate::{EnvelopeParams, Waveform};
+use super::{
+    core,
+    runtime::{Context, Frame, Patch, Tone, instrument, oscillator},
+};
 use crate::param::param_set;
+use crate::{EnvelopeParams, Waveform};
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
-use super::{core, runtime::{Context, Frame, Patch, Tone, instrument, oscillator}};
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
-pub enum GrooveMode { Analog, Phase, Ring, Table }
+pub enum GrooveMode {
+    Analog,
+    Phase,
+    Ring,
+    Table,
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase", default)]
@@ -40,37 +48,41 @@ pub struct GrooveSynthParams {
     pub polyphony: u8,
     pub gain: f32,
 }
-impl Default for GrooveSynthParams { fn default() -> Self { Self {
-    mode: GrooveMode::Analog,
-    mix: 0.5,
-    coarse: 0.0,
-    ratio: 2.0,
-    shape: 0.3,
-    index: 1.0,
-    motion: 0.5,
-    drive: 0.2,
-    sync: true,
-    division: 0.5,
-    gate: 0.0,
-    chorus: 0.0,
-    delay: 0.0,
-    phaser: 0.0,
-    reverb: 0.0,
-    cutoff_hz: 4000.0,
-    resonance: 0.2,
-    filter_amount: 2.0,
-    key_track: 0.5,
-    envelope: EnvelopeParams::default(),
-    filter_envelope: EnvelopeParams::default(),
-    lfo_rate_hz: 0.8,
-    lfo_filter: 0.0,
-    unison: 1,
-    detune_cents: 12.0,
-    spread: 0.6,
-    glide_ms: 0.0,
-    polyphony: 8,
-    gain: 0.5,
-} } }
+impl Default for GrooveSynthParams {
+    fn default() -> Self {
+        Self {
+            mode: GrooveMode::Analog,
+            mix: 0.5,
+            coarse: 0.0,
+            ratio: 2.0,
+            shape: 0.3,
+            index: 1.0,
+            motion: 0.5,
+            drive: 0.2,
+            sync: true,
+            division: 0.5,
+            gate: 0.0,
+            chorus: 0.0,
+            delay: 0.0,
+            phaser: 0.0,
+            reverb: 0.0,
+            cutoff_hz: 4000.0,
+            resonance: 0.2,
+            filter_amount: 2.0,
+            key_track: 0.5,
+            envelope: EnvelopeParams::default(),
+            filter_envelope: EnvelopeParams::default(),
+            lfo_rate_hz: 0.8,
+            lfo_filter: 0.0,
+            unison: 1,
+            detune_cents: 12.0,
+            spread: 0.6,
+            glide_ms: 0.0,
+            polyphony: 8,
+            gain: 0.5,
+        }
+    }
+}
 param_set!(GrooveSynthParams, "Groove synth", {
 choice [mode] "mode" "Synthesis mode" { GrooveMode, Analog, [Analog "analog" "Analog", Phase "phase" "Phase modulation", Ring "ring" "Ring modulation", Table "table" "Harmonic scan"] }
 float [mix] "mix" "Oscillator mix" { Fraction, Linear, 0.0, 1.0, 0.5 }
@@ -109,48 +121,103 @@ int [polyphony] "polyphony" "Polyphony" { None, 1.0, 16.0, 8.0 }
 float [gain] "gain" "Output level" { Gain, Linear, 0.0, 1.0, 0.5 }
 });
 impl Patch for GrooveSynthParams {
-    fn frame(&self)->Frame { Frame { amp:self.envelope,filter_env:self.filter_envelope,cutoff:self.cutoff_hz,env_amount:self.filter_amount,key_track:self.key_track,lfo_rate:self.lfo_rate_hz,lfo_filter:self.lfo_filter,gain:self.gain,glide:self.glide_ms,polyphony:self.polyphony as usize,chorus:self.chorus,delay:self.delay,phaser:self.phaser,reverb:self.reverb,..Frame::default() } }
-    fn sample(&self,t:&mut Tone,c:&Context)->(f32,f32) {
-        let seconds=t.elapsed as f32*2.0/c.rate;
-        let motion=if self.sync { (std::f32::consts::TAU*seconds/core::division_seconds(self.division,c.bpm)).sin() } else { c.lfo };
-        let mut sum=(0.0,0.0);
+    fn frame(&self) -> Frame {
+        Frame {
+            amp: self.envelope,
+            filter_env: self.filter_envelope,
+            cutoff: self.cutoff_hz,
+            env_amount: self.filter_amount,
+            key_track: self.key_track,
+            lfo_rate: self.lfo_rate_hz,
+            lfo_filter: self.lfo_filter,
+            gain: self.gain,
+            glide: self.glide_ms,
+            polyphony: self.polyphony as usize,
+            chorus: self.chorus,
+            delay: self.delay,
+            phaser: self.phaser,
+            reverb: self.reverb,
+            ..Frame::default()
+        }
+    }
+    fn sample(&self, t: &mut Tone, c: &Context) -> (f32, f32) {
+        let seconds = t.elapsed as f32 * 2.0 / c.rate;
+        let motion = if self.sync {
+            (std::f32::consts::TAU * seconds / core::division_seconds(self.division, c.bpm)).sin()
+        } else {
+            c.lfo
+        };
+        let mut sum = (0.0, 0.0);
         for u in 0..self.unison as usize {
-            let pos=core::unison_position(u,self.unison as usize);
-            let pitch=c.pitch+pos*self.detune_cents/100.0;
-            let a=oscillator(t,u,0,pitch,c.rate,Waveform::Saw,0.5);
-            let phase=t.oscillators[u][2].phase();
-            let b=oscillator(t,u,1,pitch+self.coarse,c.rate,Waveform::Pulse,0.1+self.shape*0.8);
-            let modulator=oscillator(t,u,2,pitch+12.0*self.ratio.log2(),c.rate,Waveform::Sine,0.5);
-            let raw=match self.mode {
-                GrooveMode::Analog=>a*(1.0-self.mix)+b*self.mix,
-                GrooveMode::Phase=>{
-                    let carrier=t.oscillators[u][3].phase();
-                    oscillator(t,u,3,pitch,c.rate,Waveform::Sine,0.5);
-                    (std::f32::consts::TAU*carrier+modulator*self.index*(0.25+self.shape)).sin()
-                },
-                GrooveMode::Ring=>a*(1.0-self.mix)+a*modulator*self.mix,
-                GrooveMode::Table=>{
+            let pos = core::unison_position(u, self.unison as usize);
+            let pitch = c.pitch + pos * self.detune_cents / 100.0;
+            let a = oscillator(t, u, 0, pitch, c.rate, Waveform::Saw, 0.5);
+            let b = oscillator(
+                t,
+                u,
+                1,
+                pitch + self.coarse,
+                c.rate,
+                Waveform::Pulse,
+                0.1 + self.shape * 0.8,
+            );
+            let modulator = oscillator(
+                t,
+                u,
+                2,
+                pitch + 12.0 * self.ratio.log2(),
+                c.rate,
+                Waveform::Sine,
+                0.5,
+            );
+            let raw = match self.mode {
+                GrooveMode::Analog => a * (1.0 - self.mix) + b * self.mix,
+                GrooveMode::Phase => {
+                    let carrier = t.oscillators[u][3].phase();
+                    oscillator(t, u, 3, pitch, c.rate, Waveform::Sine, 0.5);
+                    (std::f32::consts::TAU * carrier + modulator * self.index * (0.25 + self.shape))
+                        .sin()
+                }
+                GrooveMode::Ring => a * (1.0 - self.mix) + a * modulator * self.mix,
+                GrooveMode::Table => {
                     // Scan two original harmonic spectra, dropping every partial
                     // above the *host* Nyquist rather than folding it back.
-                    let inc=core::increment(pitch,c.rate);let mut total=0.0;
-                    let carrier=t.oscillators[u][4].phase();
-                    oscillator(t,u,4,pitch,c.rate,Waveform::Sine,0.5);
+                    let inc = core::increment(pitch, c.rate);
+                    let mut total = 0.0;
+                    let carrier = t.oscillators[u][4].phase();
+                    oscillator(t, u, 4, pitch, c.rate, Waveform::Sine, 0.5);
                     for h in 1..=16 {
-                        if inc*h as f32>=0.24 { break; }
-                        let odd=if h%2==1 { 1.0/(h*h) as f32 } else { 0.0 };
-                        let bright=1.0/h as f32;
-                        total+=(std::f32::consts::TAU*carrier*h as f32).sin()*(odd+(bright-odd)*self.shape);
+                        if inc * h as f32 >= 0.24 {
+                            break;
+                        }
+                        let odd = if h % 2 == 1 {
+                            1.0 / (h * h) as f32
+                        } else {
+                            0.0
+                        };
+                        let bright = 1.0 / h as f32;
+                        total += (std::f32::consts::TAU * carrier * h as f32).sin()
+                            * (odd + (bright - odd) * self.shape);
                     }
-                    total*0.6
+                    total * 0.6
                 }
             };
-            let _=phase; // all mode clocks advance, so switching never restarts a held voice.
-            let gate=1.0-self.gate*(0.5-0.5*motion);
-            let pan=core::pan_gains(pos*self.spread);sum.0+=raw*gate*pan.0;sum.1+=raw*gate*pan.1;
+            let gate = 1.0 - self.gate * (0.5 - 0.5 * motion);
+            let pan = core::pan_gains(pos * self.spread);
+            sum.0 += raw * gate * pan.0;
+            sum.1 += raw * gate * pan.1;
         }
-        let cutoff=core::swept(c.cutoff,motion*self.motion,c.rate);
-        let filter=|t:&mut Tone,side:usize,input:f32| t.svf[side].tick(core::drive(input/self.unison as f32,self.drive),core::swept_gain(cutoff,0.0,c.rate),core::svf_damping(self.resonance)).0;
-        (filter(t,0,sum.0),filter(t,1,sum.1))
+        let cutoff = core::swept(c.cutoff, motion * self.motion, c.rate);
+        let filter = |t: &mut Tone, side: usize, input: f32| {
+            t.svf[side]
+                .tick(
+                    core::drive(input / self.unison as f32, self.drive),
+                    core::swept_gain(cutoff, 0.0, c.rate),
+                    core::svf_damping(self.resonance),
+                )
+                .0
+        };
+        (filter(t, 0, sum.0), filter(t, 1, sum.1))
     }
 }
-instrument!(GrooveSynth,GrooveSynthParams);
+instrument!(GrooveSynth, GrooveSynthParams);

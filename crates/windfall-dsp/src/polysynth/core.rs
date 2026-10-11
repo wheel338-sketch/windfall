@@ -280,7 +280,14 @@ impl Notes {
 
     /// Starts a note. `limit` is the polyphony, `glide_ms` the time a new
     /// note takes to arrive from the pitch of the one before.
-    pub fn note_on(&mut self, key: u8, velocity: f32, limit: usize, glide_ms: f32, sample_rate: f32) {
+    pub fn note_on(
+        &mut self,
+        key: u8,
+        velocity: f32,
+        limit: usize,
+        glide_ms: f32,
+        sample_rate: f32,
+    ) {
         let key = key.min(127);
         let velocity = clean(velocity, 0.0, 1.0, 0.0);
         if velocity <= 0.0 {
@@ -393,10 +400,6 @@ pub(crate) struct Ladder {
 }
 
 impl Ladder {
-    pub fn reset(&mut self) {
-        self.s = [0.0; 4];
-    }
-
     /// Filters one sample. `g` is the integrator gain of the cutoff and
     /// `k` the feedback, where 4 is the edge of self-oscillation. Returns
     /// the input node and the output of each of the four stages, which mix
@@ -471,10 +474,6 @@ pub(crate) struct SatSvf {
 }
 
 impl SatSvf {
-    pub fn reset(&mut self) {
-        *self = Self::default();
-    }
-
     /// Returns the low, band and high responses. `k` is the damping, one
     /// over Q.
     #[inline]
@@ -547,10 +546,6 @@ pub(crate) struct Drift {
 }
 
 impl Drift {
-    pub fn reset(&mut self) {
-        self.phase = 0.0;
-    }
-
     /// Cents of detune for `slot` this sample, at most 7 either way.
     #[inline]
     pub fn tick(&mut self, slot: usize, sample_rate: f32) -> f32 {

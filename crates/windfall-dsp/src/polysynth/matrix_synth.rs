@@ -1,17 +1,20 @@
-use crate::{EnvelopeParams, Waveform};
+use super::operators::{self, MatrixOperator, OperatorWave};
+use super::{
+    core,
+    runtime::{Context, Frame, Patch, Tone, instrument},
+};
+use crate::EnvelopeParams;
 use crate::param::param_set;
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
-use super::{core, runtime::{Context, Frame, Patch, Tone, instrument, oscillator}};
-use super::operators::{self, MatrixOperator};
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase", default)]
 pub struct MatrixSynthParams {
-    pub operators: [MatrixOperator;6],
-    pub fm: [[f32;6];6],
-    pub ring: [[f32;6];6],
-    pub output: [f32;6],
+    pub operators: [MatrixOperator; 6],
+    pub fm: [[f32; 6]; 6],
+    pub ring: [[f32; 6]; 6],
+    pub output: [f32; 6],
     pub filter_mix: f32,
     pub lfo_pitch: f32,
     pub lfo_index: f32,
@@ -34,40 +37,44 @@ pub struct MatrixSynthParams {
     pub polyphony: u8,
     pub gain: f32,
 }
-impl Default for MatrixSynthParams { fn default() -> Self { Self {
-    operators: [MatrixOperator::default();6],
-    fm: [[0.0;6];6],
-    ring: [[0.0;6];6],
-    output: [1.0,0.0,0.0,0.0,0.0,0.0],
-    filter_mix: 1.0,
-    lfo_pitch: 0.0,
-    lfo_index: 0.0,
-    drive: 0.0,
-    chorus: 0.0,
-    delay: 0.0,
-    reverb: 0.0,
-    cutoff_hz: 4000.0,
-    resonance: 0.2,
-    filter_amount: 2.0,
-    key_track: 0.5,
-    envelope: EnvelopeParams::default(),
-    filter_envelope: EnvelopeParams::default(),
-    lfo_rate_hz: 0.8,
-    lfo_filter: 0.0,
-    unison: 1,
-    detune_cents: 12.0,
-    spread: 0.6,
-    glide_ms: 0.0,
-    polyphony: 8,
-    gain: 0.5,
-} } }
+impl Default for MatrixSynthParams {
+    fn default() -> Self {
+        Self {
+            operators: [MatrixOperator::default(); 6],
+            fm: [[0.0; 6]; 6],
+            ring: [[0.0; 6]; 6],
+            output: [1.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+            filter_mix: 1.0,
+            lfo_pitch: 0.0,
+            lfo_index: 0.0,
+            drive: 0.0,
+            chorus: 0.0,
+            delay: 0.0,
+            reverb: 0.0,
+            cutoff_hz: 4000.0,
+            resonance: 0.2,
+            filter_amount: 2.0,
+            key_track: 0.5,
+            envelope: EnvelopeParams::default(),
+            filter_envelope: EnvelopeParams::default(),
+            lfo_rate_hz: 0.8,
+            lfo_filter: 0.0,
+            unison: 1,
+            detune_cents: 12.0,
+            spread: 0.6,
+            glide_ms: 0.0,
+            polyphony: 8,
+            gain: 0.5,
+        }
+    }
+}
 param_set!(MatrixSynthParams, "Matrix synth", {
 float [operators[0].ratio] "operators.0.ratio" "Operator 1 ratio" { Ratio, Linear, 0.125, 32.0, 1.0 }
 float [operators[0].detune_cents] "operators.0.detuneCents" "Operator 1 detune" { Cents, Linear, -100.0, 100.0, 0.0 }
 float [operators[0].level] "operators.0.level" "Operator 1 level" { Gain, Linear, 0.0, 1.0, 0.5 }
 float [operators[0].feedback] "operators.0.feedback" "Operator 1 feedback" { Ratio, Linear, 0.0, 6.0, 0.0 }
 float [operators[0].key_scale] "operators.0.keyScale" "Operator 1 key scaling" { Octaves, Linear, -2.0, 2.0, 0.0 }
-choice [operators[0].waveform] "operators.0.waveform" "Operator 1 shape" { Waveform, Sine, [Sine "sine" "Sine", Triangle "triangle" "Triangle", Saw "saw" "Saw", Square "square" "Square"] }
+choice [operators[0].waveform] "operators.0.waveform" "Operator 1 shape" { OperatorWave, Sine, [Sine "sine" "Sine", Triangle "triangle" "Triangle", Saw "saw" "Saw", Square "square" "Square"] }
 float [operators[0].envelope.attack_ms] "operators.0.envelope.attackMs" "Operator 1 attack" { Milliseconds, Linear, 0.0, 4000.0, 2.0 }
 float [operators[0].envelope.decay_ms] "operators.0.envelope.decayMs" "Operator 1 decay" { Milliseconds, Linear, 1.0, 4000.0, 200.0 }
 float [operators[0].envelope.sustain] "operators.0.envelope.sustain" "Operator 1 sustain" { Fraction, Linear, 0.0, 1.0, 0.8 }
@@ -77,7 +84,7 @@ float [operators[1].detune_cents] "operators.1.detuneCents" "Operator 2 detune" 
 float [operators[1].level] "operators.1.level" "Operator 2 level" { Gain, Linear, 0.0, 1.0, 0.5 }
 float [operators[1].feedback] "operators.1.feedback" "Operator 2 feedback" { Ratio, Linear, 0.0, 6.0, 0.0 }
 float [operators[1].key_scale] "operators.1.keyScale" "Operator 2 key scaling" { Octaves, Linear, -2.0, 2.0, 0.0 }
-choice [operators[1].waveform] "operators.1.waveform" "Operator 2 shape" { Waveform, Sine, [Sine "sine" "Sine", Triangle "triangle" "Triangle", Saw "saw" "Saw", Square "square" "Square"] }
+choice [operators[1].waveform] "operators.1.waveform" "Operator 2 shape" { OperatorWave, Sine, [Sine "sine" "Sine", Triangle "triangle" "Triangle", Saw "saw" "Saw", Square "square" "Square"] }
 float [operators[1].envelope.attack_ms] "operators.1.envelope.attackMs" "Operator 2 attack" { Milliseconds, Linear, 0.0, 4000.0, 2.0 }
 float [operators[1].envelope.decay_ms] "operators.1.envelope.decayMs" "Operator 2 decay" { Milliseconds, Linear, 1.0, 4000.0, 200.0 }
 float [operators[1].envelope.sustain] "operators.1.envelope.sustain" "Operator 2 sustain" { Fraction, Linear, 0.0, 1.0, 0.8 }
@@ -87,7 +94,7 @@ float [operators[2].detune_cents] "operators.2.detuneCents" "Operator 3 detune" 
 float [operators[2].level] "operators.2.level" "Operator 3 level" { Gain, Linear, 0.0, 1.0, 0.5 }
 float [operators[2].feedback] "operators.2.feedback" "Operator 3 feedback" { Ratio, Linear, 0.0, 6.0, 0.0 }
 float [operators[2].key_scale] "operators.2.keyScale" "Operator 3 key scaling" { Octaves, Linear, -2.0, 2.0, 0.0 }
-choice [operators[2].waveform] "operators.2.waveform" "Operator 3 shape" { Waveform, Sine, [Sine "sine" "Sine", Triangle "triangle" "Triangle", Saw "saw" "Saw", Square "square" "Square"] }
+choice [operators[2].waveform] "operators.2.waveform" "Operator 3 shape" { OperatorWave, Sine, [Sine "sine" "Sine", Triangle "triangle" "Triangle", Saw "saw" "Saw", Square "square" "Square"] }
 float [operators[2].envelope.attack_ms] "operators.2.envelope.attackMs" "Operator 3 attack" { Milliseconds, Linear, 0.0, 4000.0, 2.0 }
 float [operators[2].envelope.decay_ms] "operators.2.envelope.decayMs" "Operator 3 decay" { Milliseconds, Linear, 1.0, 4000.0, 200.0 }
 float [operators[2].envelope.sustain] "operators.2.envelope.sustain" "Operator 3 sustain" { Fraction, Linear, 0.0, 1.0, 0.8 }
@@ -97,7 +104,7 @@ float [operators[3].detune_cents] "operators.3.detuneCents" "Operator 4 detune" 
 float [operators[3].level] "operators.3.level" "Operator 4 level" { Gain, Linear, 0.0, 1.0, 0.5 }
 float [operators[3].feedback] "operators.3.feedback" "Operator 4 feedback" { Ratio, Linear, 0.0, 6.0, 0.0 }
 float [operators[3].key_scale] "operators.3.keyScale" "Operator 4 key scaling" { Octaves, Linear, -2.0, 2.0, 0.0 }
-choice [operators[3].waveform] "operators.3.waveform" "Operator 4 shape" { Waveform, Sine, [Sine "sine" "Sine", Triangle "triangle" "Triangle", Saw "saw" "Saw", Square "square" "Square"] }
+choice [operators[3].waveform] "operators.3.waveform" "Operator 4 shape" { OperatorWave, Sine, [Sine "sine" "Sine", Triangle "triangle" "Triangle", Saw "saw" "Saw", Square "square" "Square"] }
 float [operators[3].envelope.attack_ms] "operators.3.envelope.attackMs" "Operator 4 attack" { Milliseconds, Linear, 0.0, 4000.0, 2.0 }
 float [operators[3].envelope.decay_ms] "operators.3.envelope.decayMs" "Operator 4 decay" { Milliseconds, Linear, 1.0, 4000.0, 200.0 }
 float [operators[3].envelope.sustain] "operators.3.envelope.sustain" "Operator 4 sustain" { Fraction, Linear, 0.0, 1.0, 0.8 }
@@ -107,7 +114,7 @@ float [operators[4].detune_cents] "operators.4.detuneCents" "Operator 5 detune" 
 float [operators[4].level] "operators.4.level" "Operator 5 level" { Gain, Linear, 0.0, 1.0, 0.5 }
 float [operators[4].feedback] "operators.4.feedback" "Operator 5 feedback" { Ratio, Linear, 0.0, 6.0, 0.0 }
 float [operators[4].key_scale] "operators.4.keyScale" "Operator 5 key scaling" { Octaves, Linear, -2.0, 2.0, 0.0 }
-choice [operators[4].waveform] "operators.4.waveform" "Operator 5 shape" { Waveform, Sine, [Sine "sine" "Sine", Triangle "triangle" "Triangle", Saw "saw" "Saw", Square "square" "Square"] }
+choice [operators[4].waveform] "operators.4.waveform" "Operator 5 shape" { OperatorWave, Sine, [Sine "sine" "Sine", Triangle "triangle" "Triangle", Saw "saw" "Saw", Square "square" "Square"] }
 float [operators[4].envelope.attack_ms] "operators.4.envelope.attackMs" "Operator 5 attack" { Milliseconds, Linear, 0.0, 4000.0, 2.0 }
 float [operators[4].envelope.decay_ms] "operators.4.envelope.decayMs" "Operator 5 decay" { Milliseconds, Linear, 1.0, 4000.0, 200.0 }
 float [operators[4].envelope.sustain] "operators.4.envelope.sustain" "Operator 5 sustain" { Fraction, Linear, 0.0, 1.0, 0.8 }
@@ -117,7 +124,7 @@ float [operators[5].detune_cents] "operators.5.detuneCents" "Operator 6 detune" 
 float [operators[5].level] "operators.5.level" "Operator 6 level" { Gain, Linear, 0.0, 1.0, 0.5 }
 float [operators[5].feedback] "operators.5.feedback" "Operator 6 feedback" { Ratio, Linear, 0.0, 6.0, 0.0 }
 float [operators[5].key_scale] "operators.5.keyScale" "Operator 6 key scaling" { Octaves, Linear, -2.0, 2.0, 0.0 }
-choice [operators[5].waveform] "operators.5.waveform" "Operator 6 shape" { Waveform, Sine, [Sine "sine" "Sine", Triangle "triangle" "Triangle", Saw "saw" "Saw", Square "square" "Square"] }
+choice [operators[5].waveform] "operators.5.waveform" "Operator 6 shape" { OperatorWave, Sine, [Sine "sine" "Sine", Triangle "triangle" "Triangle", Saw "saw" "Saw", Square "square" "Square"] }
 float [operators[5].envelope.attack_ms] "operators.5.envelope.attackMs" "Operator 6 attack" { Milliseconds, Linear, 0.0, 4000.0, 2.0 }
 float [operators[5].envelope.decay_ms] "operators.5.envelope.decayMs" "Operator 6 decay" { Milliseconds, Linear, 1.0, 4000.0, 200.0 }
 float [operators[5].envelope.sustain] "operators.5.envelope.sustain" "Operator 6 sustain" { Fraction, Linear, 0.0, 1.0, 0.8 }
@@ -229,23 +236,59 @@ int [polyphony] "polyphony" "Polyphony" { None, 1.0, 16.0, 8.0 }
 float [gain] "gain" "Output level" { Gain, Linear, 0.0, 1.0, 0.5 }
 });
 impl Patch for MatrixSynthParams {
-    fn frame(&self)->Frame { Frame { amp:self.envelope,filter_env:self.filter_envelope,cutoff:self.cutoff_hz,env_amount:self.filter_amount,key_track:self.key_track,lfo_rate:self.lfo_rate_hz,lfo_filter:self.lfo_filter,gain:self.gain,glide:self.glide_ms,polyphony:self.polyphony as usize,chorus:self.chorus,delay:self.delay,reverb:self.reverb,..Frame::default() } }
-    fn configure(&self,t:&mut Tone,rate:f32) { operators::configure(&self.operators,t,rate); }
-    fn sample(&self,t:&mut Tone,c:&Context)->(f32,f32) {
-        let mut sum=(0.0,0.0);
-        for u in 0..self.unison as usize {
-            let pos=core::unison_position(u,self.unison as usize);
-            let pitch=c.pitch+pos*self.detune_cents/100.0+c.lfo*self.lfo_pitch;
-            let ops=operators::matrix(t,c,&self.operators,&self.fm,&self.ring,u,pitch,self.lfo_index);
-            let raw=ops.iter().zip(self.output).map(|(v,g)|v*g).sum::<f32>();
-            let pan=core::pan_gains(pos*self.spread);sum.0+=raw*pan.0;sum.1+=raw*pan.1;
+    fn frame(&self) -> Frame {
+        Frame {
+            amp: self.envelope,
+            filter_env: self.filter_envelope,
+            cutoff: self.cutoff_hz,
+            env_amount: self.filter_amount,
+            key_track: self.key_track,
+            lfo_rate: self.lfo_rate_hz,
+            lfo_filter: self.lfo_filter,
+            gain: self.gain,
+            glide: self.glide_ms,
+            polyphony: self.polyphony as usize,
+            chorus: self.chorus,
+            delay: self.delay,
+            reverb: self.reverb,
+            ..Frame::default()
         }
-        let filter=|t:&mut Tone,side:usize,input:f32| {
-            let dry=core::drive(input/self.unison as f32,self.drive);
-            let low=t.svf[side].tick(dry,core::swept_gain(c.cutoff,0.0,c.rate),core::svf_damping(self.resonance)).0;
-            dry+(low-dry)*self.filter_mix
+    }
+    fn configure(&self, t: &mut Tone, rate: f32) {
+        operators::configure(&self.operators, t, rate);
+    }
+    fn sample(&self, t: &mut Tone, c: &Context) -> (f32, f32) {
+        let mut sum = (0.0, 0.0);
+        for u in 0..self.unison as usize {
+            let pos = core::unison_position(u, self.unison as usize);
+            let pitch = c.pitch + pos * self.detune_cents / 100.0 + c.lfo * self.lfo_pitch;
+            let ops = operators::matrix(
+                t,
+                c,
+                &self.operators,
+                &self.fm,
+                &self.ring,
+                u,
+                pitch,
+                self.lfo_index,
+            );
+            let raw = ops.iter().zip(self.output).map(|(v, g)| v * g).sum::<f32>();
+            let pan = core::pan_gains(pos * self.spread);
+            sum.0 += raw * pan.0;
+            sum.1 += raw * pan.1;
+        }
+        let filter = |t: &mut Tone, side: usize, input: f32| {
+            let dry = core::drive(input / self.unison as f32, self.drive);
+            let low = t.svf[side]
+                .tick(
+                    dry,
+                    core::swept_gain(c.cutoff, 0.0, c.rate),
+                    core::svf_damping(self.resonance),
+                )
+                .0;
+            dry + (low - dry) * self.filter_mix
         };
-        (filter(t,0,sum.0),filter(t,1,sum.1))
+        (filter(t, 0, sum.0), filter(t, 1, sum.1))
     }
 }
-instrument!(MatrixSynth,MatrixSynthParams);
+instrument!(MatrixSynth, MatrixSynthParams);

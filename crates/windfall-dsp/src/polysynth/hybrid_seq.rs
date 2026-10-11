@@ -1,21 +1,41 @@
-use crate::{EnvelopeParams, Waveform};
+use super::operators::{self, MatrixOperator, OperatorWave};
+use super::{
+    core,
+    runtime::{Context, Frame, Patch, Tone, instrument},
+};
+use crate::EnvelopeParams;
 use crate::param::param_set;
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
-use super::{core, runtime::{Context, Frame, Patch, Tone, instrument, oscillator}};
-use super::operators::{self, MatrixOperator};
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, TS)]
-#[serde(rename_all="camelCase")]
-pub enum HybridAlgorithm { Serial, Pairs, Stack, Parallel }
+#[serde(rename_all = "camelCase")]
+pub enum HybridAlgorithm {
+    Serial,
+    Pairs,
+    Stack,
+    Parallel,
+}
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, TS)]
-#[serde(rename_all="camelCase",default)]
-pub struct HybridStep { pub pitch:i8, pub velocity:f32, pub enabled:bool }
-impl Default for HybridStep { fn default()->Self { Self { pitch:0,velocity:1.0,enabled:true } } }
+#[serde(rename_all = "camelCase", default)]
+pub struct HybridStep {
+    pub pitch: i8,
+    pub velocity: f32,
+    pub enabled: bool,
+}
+impl Default for HybridStep {
+    fn default() -> Self {
+        Self {
+            pitch: 0,
+            velocity: 1.0,
+            enabled: true,
+        }
+    }
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase", default)]
 pub struct HybridSeqParams {
-    pub operators: [MatrixOperator;6],
+    pub operators: [MatrixOperator; 6],
     pub algorithm: HybridAlgorithm,
     pub index: f32,
     pub saw_mix: f32,
@@ -27,7 +47,7 @@ pub struct HybridSeqParams {
     pub length: u8,
     pub division: f32,
     pub gate: f32,
-    pub steps: [HybridStep;16],
+    pub steps: [HybridStep; 16],
     pub cutoff_hz: f32,
     pub resonance: f32,
     pub filter_amount: f32,
@@ -43,42 +63,46 @@ pub struct HybridSeqParams {
     pub polyphony: u8,
     pub gain: f32,
 }
-impl Default for HybridSeqParams { fn default() -> Self { Self {
-    operators: [MatrixOperator::default();6],
-    algorithm: HybridAlgorithm::Pairs,
-    index: 1.0,
-    saw_mix: 0.2,
-    drive: 0.0,
-    chorus: 0.0,
-    delay: 0.0,
-    reverb: 0.0,
-    sequencer: false,
-    length: 16,
-    division: 0.25,
-    gate: 0.8,
-    steps: [HybridStep::default();16],
-    cutoff_hz: 4000.0,
-    resonance: 0.2,
-    filter_amount: 2.0,
-    key_track: 0.5,
-    envelope: EnvelopeParams::default(),
-    filter_envelope: EnvelopeParams::default(),
-    lfo_rate_hz: 0.8,
-    lfo_filter: 0.0,
-    unison: 1,
-    detune_cents: 12.0,
-    spread: 0.6,
-    glide_ms: 0.0,
-    polyphony: 8,
-    gain: 0.5,
-} } }
+impl Default for HybridSeqParams {
+    fn default() -> Self {
+        Self {
+            operators: [MatrixOperator::default(); 6],
+            algorithm: HybridAlgorithm::Pairs,
+            index: 1.0,
+            saw_mix: 0.2,
+            drive: 0.0,
+            chorus: 0.0,
+            delay: 0.0,
+            reverb: 0.0,
+            sequencer: false,
+            length: 16,
+            division: 0.25,
+            gate: 0.8,
+            steps: [HybridStep::default(); 16],
+            cutoff_hz: 4000.0,
+            resonance: 0.2,
+            filter_amount: 2.0,
+            key_track: 0.5,
+            envelope: EnvelopeParams::default(),
+            filter_envelope: EnvelopeParams::default(),
+            lfo_rate_hz: 0.8,
+            lfo_filter: 0.0,
+            unison: 1,
+            detune_cents: 12.0,
+            spread: 0.6,
+            glide_ms: 0.0,
+            polyphony: 8,
+            gain: 0.5,
+        }
+    }
+}
 param_set!(HybridSeqParams, "Hybrid sequencer", {
 float [operators[0].ratio] "operators.0.ratio" "Operator 1 ratio" { Ratio, Linear, 0.125, 32.0, 1.0 }
 float [operators[0].detune_cents] "operators.0.detuneCents" "Operator 1 detune" { Cents, Linear, -100.0, 100.0, 0.0 }
 float [operators[0].level] "operators.0.level" "Operator 1 level" { Gain, Linear, 0.0, 1.0, 0.5 }
 float [operators[0].feedback] "operators.0.feedback" "Operator 1 feedback" { Ratio, Linear, 0.0, 6.0, 0.0 }
 float [operators[0].key_scale] "operators.0.keyScale" "Operator 1 key scaling" { Octaves, Linear, -2.0, 2.0, 0.0 }
-choice [operators[0].waveform] "operators.0.waveform" "Operator 1 shape" { Waveform, Sine, [Sine "sine" "Sine", Triangle "triangle" "Triangle", Saw "saw" "Saw", Square "square" "Square"] }
+choice [operators[0].waveform] "operators.0.waveform" "Operator 1 shape" { OperatorWave, Sine, [Sine "sine" "Sine", Triangle "triangle" "Triangle", Saw "saw" "Saw", Square "square" "Square"] }
 float [operators[0].envelope.attack_ms] "operators.0.envelope.attackMs" "Operator 1 attack" { Milliseconds, Linear, 0.0, 4000.0, 2.0 }
 float [operators[0].envelope.decay_ms] "operators.0.envelope.decayMs" "Operator 1 decay" { Milliseconds, Linear, 1.0, 4000.0, 200.0 }
 float [operators[0].envelope.sustain] "operators.0.envelope.sustain" "Operator 1 sustain" { Fraction, Linear, 0.0, 1.0, 0.8 }
@@ -88,7 +112,7 @@ float [operators[1].detune_cents] "operators.1.detuneCents" "Operator 2 detune" 
 float [operators[1].level] "operators.1.level" "Operator 2 level" { Gain, Linear, 0.0, 1.0, 0.5 }
 float [operators[1].feedback] "operators.1.feedback" "Operator 2 feedback" { Ratio, Linear, 0.0, 6.0, 0.0 }
 float [operators[1].key_scale] "operators.1.keyScale" "Operator 2 key scaling" { Octaves, Linear, -2.0, 2.0, 0.0 }
-choice [operators[1].waveform] "operators.1.waveform" "Operator 2 shape" { Waveform, Sine, [Sine "sine" "Sine", Triangle "triangle" "Triangle", Saw "saw" "Saw", Square "square" "Square"] }
+choice [operators[1].waveform] "operators.1.waveform" "Operator 2 shape" { OperatorWave, Sine, [Sine "sine" "Sine", Triangle "triangle" "Triangle", Saw "saw" "Saw", Square "square" "Square"] }
 float [operators[1].envelope.attack_ms] "operators.1.envelope.attackMs" "Operator 2 attack" { Milliseconds, Linear, 0.0, 4000.0, 2.0 }
 float [operators[1].envelope.decay_ms] "operators.1.envelope.decayMs" "Operator 2 decay" { Milliseconds, Linear, 1.0, 4000.0, 200.0 }
 float [operators[1].envelope.sustain] "operators.1.envelope.sustain" "Operator 2 sustain" { Fraction, Linear, 0.0, 1.0, 0.8 }
@@ -98,7 +122,7 @@ float [operators[2].detune_cents] "operators.2.detuneCents" "Operator 3 detune" 
 float [operators[2].level] "operators.2.level" "Operator 3 level" { Gain, Linear, 0.0, 1.0, 0.5 }
 float [operators[2].feedback] "operators.2.feedback" "Operator 3 feedback" { Ratio, Linear, 0.0, 6.0, 0.0 }
 float [operators[2].key_scale] "operators.2.keyScale" "Operator 3 key scaling" { Octaves, Linear, -2.0, 2.0, 0.0 }
-choice [operators[2].waveform] "operators.2.waveform" "Operator 3 shape" { Waveform, Sine, [Sine "sine" "Sine", Triangle "triangle" "Triangle", Saw "saw" "Saw", Square "square" "Square"] }
+choice [operators[2].waveform] "operators.2.waveform" "Operator 3 shape" { OperatorWave, Sine, [Sine "sine" "Sine", Triangle "triangle" "Triangle", Saw "saw" "Saw", Square "square" "Square"] }
 float [operators[2].envelope.attack_ms] "operators.2.envelope.attackMs" "Operator 3 attack" { Milliseconds, Linear, 0.0, 4000.0, 2.0 }
 float [operators[2].envelope.decay_ms] "operators.2.envelope.decayMs" "Operator 3 decay" { Milliseconds, Linear, 1.0, 4000.0, 200.0 }
 float [operators[2].envelope.sustain] "operators.2.envelope.sustain" "Operator 3 sustain" { Fraction, Linear, 0.0, 1.0, 0.8 }
@@ -108,7 +132,7 @@ float [operators[3].detune_cents] "operators.3.detuneCents" "Operator 4 detune" 
 float [operators[3].level] "operators.3.level" "Operator 4 level" { Gain, Linear, 0.0, 1.0, 0.5 }
 float [operators[3].feedback] "operators.3.feedback" "Operator 4 feedback" { Ratio, Linear, 0.0, 6.0, 0.0 }
 float [operators[3].key_scale] "operators.3.keyScale" "Operator 4 key scaling" { Octaves, Linear, -2.0, 2.0, 0.0 }
-choice [operators[3].waveform] "operators.3.waveform" "Operator 4 shape" { Waveform, Sine, [Sine "sine" "Sine", Triangle "triangle" "Triangle", Saw "saw" "Saw", Square "square" "Square"] }
+choice [operators[3].waveform] "operators.3.waveform" "Operator 4 shape" { OperatorWave, Sine, [Sine "sine" "Sine", Triangle "triangle" "Triangle", Saw "saw" "Saw", Square "square" "Square"] }
 float [operators[3].envelope.attack_ms] "operators.3.envelope.attackMs" "Operator 4 attack" { Milliseconds, Linear, 0.0, 4000.0, 2.0 }
 float [operators[3].envelope.decay_ms] "operators.3.envelope.decayMs" "Operator 4 decay" { Milliseconds, Linear, 1.0, 4000.0, 200.0 }
 float [operators[3].envelope.sustain] "operators.3.envelope.sustain" "Operator 4 sustain" { Fraction, Linear, 0.0, 1.0, 0.8 }
@@ -118,7 +142,7 @@ float [operators[4].detune_cents] "operators.4.detuneCents" "Operator 5 detune" 
 float [operators[4].level] "operators.4.level" "Operator 5 level" { Gain, Linear, 0.0, 1.0, 0.5 }
 float [operators[4].feedback] "operators.4.feedback" "Operator 5 feedback" { Ratio, Linear, 0.0, 6.0, 0.0 }
 float [operators[4].key_scale] "operators.4.keyScale" "Operator 5 key scaling" { Octaves, Linear, -2.0, 2.0, 0.0 }
-choice [operators[4].waveform] "operators.4.waveform" "Operator 5 shape" { Waveform, Sine, [Sine "sine" "Sine", Triangle "triangle" "Triangle", Saw "saw" "Saw", Square "square" "Square"] }
+choice [operators[4].waveform] "operators.4.waveform" "Operator 5 shape" { OperatorWave, Sine, [Sine "sine" "Sine", Triangle "triangle" "Triangle", Saw "saw" "Saw", Square "square" "Square"] }
 float [operators[4].envelope.attack_ms] "operators.4.envelope.attackMs" "Operator 5 attack" { Milliseconds, Linear, 0.0, 4000.0, 2.0 }
 float [operators[4].envelope.decay_ms] "operators.4.envelope.decayMs" "Operator 5 decay" { Milliseconds, Linear, 1.0, 4000.0, 200.0 }
 float [operators[4].envelope.sustain] "operators.4.envelope.sustain" "Operator 5 sustain" { Fraction, Linear, 0.0, 1.0, 0.8 }
@@ -128,7 +152,7 @@ float [operators[5].detune_cents] "operators.5.detuneCents" "Operator 6 detune" 
 float [operators[5].level] "operators.5.level" "Operator 6 level" { Gain, Linear, 0.0, 1.0, 0.5 }
 float [operators[5].feedback] "operators.5.feedback" "Operator 6 feedback" { Ratio, Linear, 0.0, 6.0, 0.0 }
 float [operators[5].key_scale] "operators.5.keyScale" "Operator 6 key scaling" { Octaves, Linear, -2.0, 2.0, 0.0 }
-choice [operators[5].waveform] "operators.5.waveform" "Operator 6 shape" { Waveform, Sine, [Sine "sine" "Sine", Triangle "triangle" "Triangle", Saw "saw" "Saw", Square "square" "Square"] }
+choice [operators[5].waveform] "operators.5.waveform" "Operator 6 shape" { OperatorWave, Sine, [Sine "sine" "Sine", Triangle "triangle" "Triangle", Saw "saw" "Saw", Square "square" "Square"] }
 float [operators[5].envelope.attack_ms] "operators.5.envelope.attackMs" "Operator 6 attack" { Milliseconds, Linear, 0.0, 4000.0, 2.0 }
 float [operators[5].envelope.decay_ms] "operators.5.envelope.decayMs" "Operator 6 decay" { Milliseconds, Linear, 1.0, 4000.0, 200.0 }
 float [operators[5].envelope.sustain] "operators.5.envelope.sustain" "Operator 6 sustain" { Fraction, Linear, 0.0, 1.0, 0.8 }
@@ -214,59 +238,115 @@ int [polyphony] "polyphony" "Polyphony" { None, 1.0, 16.0, 8.0 }
 float [gain] "gain" "Output level" { Gain, Linear, 0.0, 1.0, 0.5 }
 });
 impl Patch for HybridSeqParams {
-    fn frame(&self)->Frame { Frame { amp:self.envelope,filter_env:self.filter_envelope,cutoff:self.cutoff_hz,env_amount:self.filter_amount,key_track:self.key_track,lfo_rate:self.lfo_rate_hz,lfo_filter:self.lfo_filter,gain:self.gain,glide:self.glide_ms,polyphony:self.polyphony as usize,chorus:self.chorus,delay:self.delay,reverb:self.reverb,..Frame::default() } }
-    fn configure(&self,t:&mut Tone,rate:f32) {
-        operators::configure(&self.operators,t,rate);
-        super::runtime::envelope(&mut t.sequence_env,self.envelope,rate*2.0);
+    fn frame(&self) -> Frame {
+        Frame {
+            amp: self.envelope,
+            filter_env: self.filter_envelope,
+            cutoff: self.cutoff_hz,
+            env_amount: self.filter_amount,
+            key_track: self.key_track,
+            lfo_rate: self.lfo_rate_hz,
+            lfo_filter: self.lfo_filter,
+            gain: self.gain,
+            glide: self.glide_ms,
+            polyphony: self.polyphony as usize,
+            chorus: self.chorus,
+            delay: self.delay,
+            reverb: self.reverb,
+            ..Frame::default()
+        }
     }
-    fn sample(&self,t:&mut Tone,c:&Context)->(f32,f32) {
-        let mut pitch=c.pitch;let mut velocity=1.0;
+    fn configure(&self, t: &mut Tone, rate: f32) {
+        operators::configure(&self.operators, t, rate);
+        super::runtime::envelope(&mut t.sequence_env, self.envelope, rate * 2.0);
+    }
+    fn sample(&self, t: &mut Tone, c: &Context) -> (f32, f32) {
+        let mut pitch = c.pitch;
+        let mut velocity = 1.0;
         if self.sequencer {
-            let samples=core::division_seconds(self.division,c.bpm)*c.rate*0.5;
-            let position=t.elapsed as f64/samples as f64;
-            let step=position.floor() as u64;
-            if c.held && step!=t.sequence_step {
-                t.sequence_step=step;
-                let s=&self.steps[step as usize%self.length as usize];
-                t.sequence_open=s.enabled && s.velocity>0.0;
+            let samples = core::division_seconds(self.division, c.bpm) * c.rate * 0.5;
+            let position = t.elapsed as f64 / samples as f64;
+            let step = position.floor() as u64;
+            if c.held && step != t.sequence_step {
+                t.sequence_step = step;
+                let s = &self.steps[step as usize % self.length as usize];
+                t.sequence_open = s.enabled && s.velocity > 0.0;
                 if t.sequence_open {
                     t.sequence_env.gate_on();
-                    for op in &mut t.operators { op.gate_on(); }
+                    for op in &mut t.operators {
+                        op.gate_on();
+                    }
                 } else {
                     t.sequence_env.gate_off();
-                    for op in &mut t.operators { op.gate_off(); }
+                    for op in &mut t.operators {
+                        op.gate_off();
+                    }
                 }
             }
-            if t.sequence_open && (!c.held || position.fract()>=self.gate as f64) {
-                t.sequence_open=false;t.sequence_env.gate_off();
-                for op in &mut t.operators { op.gate_off(); }
+            if t.sequence_open && (!c.held || position.fract() >= self.gate as f64) {
+                t.sequence_open = false;
+                t.sequence_env.gate_off();
+                for op in &mut t.operators {
+                    op.gate_off();
+                }
             }
-            let s=&self.steps[t.sequence_step.wrapping_rem(self.length as u64) as usize];
-            pitch+=s.pitch as f32;
-            velocity=s.velocity*t.sequence_env.tick();
+            let s = &self.steps[t.sequence_step.wrapping_rem(self.length as u64) as usize];
+            pitch += s.pitch as f32;
+            velocity = s.velocity * t.sequence_env.tick();
         }
-        let mut fm=[[0.0;6];6];let ring=[[0.0;6];6];let mut outputs=[0.0;6];
+        let mut fm = [[0.0; 6]; 6];
+        let ring = [[0.0; 6]; 6];
+        let mut outputs = [0.0; 6];
         match self.algorithm {
-            HybridAlgorithm::Serial=> { outputs[0]=1.0;for (to,row) in fm.iter_mut().enumerate().take(5) { row[to+1]=self.index; } },
-            HybridAlgorithm::Pairs=> { for to in [0,2,4] { outputs[to]=1.0/3.0;fm[to][to+1]=self.index; } },
-            HybridAlgorithm::Stack=> { outputs[0]=0.5;outputs[3]=0.5;fm[0][1]=self.index;fm[1][2]=self.index;fm[3][4]=self.index;fm[4][5]=self.index; },
-            HybridAlgorithm::Parallel=>outputs=[1.0/6.0;6],
+            HybridAlgorithm::Serial => {
+                outputs[0] = 1.0;
+                for (to, row) in fm.iter_mut().enumerate().take(5) {
+                    row[to + 1] = self.index;
+                }
+            }
+            HybridAlgorithm::Pairs => {
+                for to in [0, 2, 4] {
+                    outputs[to] = 1.0 / 3.0;
+                    fm[to][to + 1] = self.index;
+                }
+            }
+            HybridAlgorithm::Stack => {
+                outputs[0] = 0.5;
+                outputs[3] = 0.5;
+                fm[0][1] = self.index;
+                fm[1][2] = self.index;
+                fm[3][4] = self.index;
+                fm[4][5] = self.index;
+            }
+            HybridAlgorithm::Parallel => outputs = [1.0 / 6.0; 6],
         }
-        let mut sum=(0.0,0.0);
+        let mut sum = (0.0, 0.0);
         for u in 0..self.unison as usize {
-            let pos=core::unison_position(u,self.unison as usize);let p=pitch+pos*self.detune_cents/100.0;
-            let ops=operators::matrix(t,c,&self.operators,&fm,&ring,u,p,0.0);
-            let fm=ops.iter().zip(outputs).map(|(v,g)|v*g).sum::<f32>();
+            let pos = core::unison_position(u, self.unison as usize);
+            let p = pitch + pos * self.detune_cents / 100.0;
+            let ops = operators::matrix(t, c, &self.operators, &fm, &ring, u, p, 0.0);
+            let fm = ops.iter().zip(outputs).map(|(v, g)| v * g).sum::<f32>();
             // A separate BLEP saw lives beside the operator bank, never masquerading
             // as an FM preset. Its phase is not one of the operator phases.
-            let phase=t.sample_phase[u];let inc=core::increment(p,c.rate);
-            let saw=crate::blocks::oscillator::saw(phase,inc);
-            core::advance(&mut t.sample_phase[u],inc);
-            let raw=(fm*(1.0-self.saw_mix)+saw*self.saw_mix)*velocity;
-            let pan=core::pan_gains(pos*self.spread);sum.0+=raw*pan.0;sum.1+=raw*pan.1;
+            let phase = t.sample_phase[u];
+            let inc = core::increment(p, c.rate);
+            let saw = crate::blocks::oscillator::saw(phase, inc);
+            core::advance(&mut t.sample_phase[u], inc);
+            let raw = (fm * (1.0 - self.saw_mix) + saw * self.saw_mix) * velocity;
+            let pan = core::pan_gains(pos * self.spread);
+            sum.0 += raw * pan.0;
+            sum.1 += raw * pan.1;
         }
-        let filter=|t:&mut Tone,side:usize,input:f32| t.svf[side].tick(core::drive(input/self.unison as f32,self.drive),core::swept_gain(c.cutoff,0.0,c.rate),core::svf_damping(self.resonance)).0;
-        (filter(t,0,sum.0),filter(t,1,sum.1))
+        let filter = |t: &mut Tone, side: usize, input: f32| {
+            t.svf[side]
+                .tick(
+                    core::drive(input / self.unison as f32, self.drive),
+                    core::swept_gain(c.cutoff, 0.0, c.rate),
+                    core::svf_damping(self.resonance),
+                )
+                .0
+        };
+        (filter(t, 0, sum.0), filter(t, 1, sum.1))
     }
 }
-instrument!(HybridSeq,HybridSeqParams);
+instrument!(HybridSeq, HybridSeqParams);

@@ -1,8 +1,11 @@
-use crate::{EnvelopeParams, Waveform};
+use super::{
+    core,
+    runtime::{Context, Frame, Patch, Tone, instrument, oscillator},
+};
 use crate::param::param_set;
+use crate::{EnvelopeParams, Waveform};
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
-use super::{core, runtime::{Context, Frame, Patch, Tone, instrument, oscillator}};
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase", default)]
@@ -34,34 +37,38 @@ pub struct VintageSawParams {
     pub polyphony: u8,
     pub gain: f32,
 }
-impl Default for VintageSawParams { fn default() -> Self { Self {
-    pulse: 0.15,
-    sub: 0.1,
-    pulse_width: 0.5,
-    pwm: 0.0,
-    drift: 0.3,
-    asymmetry: 0.2,
-    drive: 0.3,
-    pitch_drop: 0.0,
-    pitch_decay_ms: 120.0,
-    chorus: 0.0,
-    delay: 0.0,
-    phaser: 0.0,
-    cutoff_hz: 4000.0,
-    resonance: 0.2,
-    filter_amount: 2.0,
-    key_track: 0.5,
-    envelope: EnvelopeParams::default(),
-    filter_envelope: EnvelopeParams::default(),
-    lfo_rate_hz: 0.8,
-    lfo_filter: 0.0,
-    unison: 1,
-    detune_cents: 12.0,
-    spread: 0.6,
-    glide_ms: 0.0,
-    polyphony: 8,
-    gain: 0.5,
-} } }
+impl Default for VintageSawParams {
+    fn default() -> Self {
+        Self {
+            pulse: 0.15,
+            sub: 0.1,
+            pulse_width: 0.5,
+            pwm: 0.0,
+            drift: 0.3,
+            asymmetry: 0.2,
+            drive: 0.3,
+            pitch_drop: 0.0,
+            pitch_decay_ms: 120.0,
+            chorus: 0.0,
+            delay: 0.0,
+            phaser: 0.0,
+            cutoff_hz: 4000.0,
+            resonance: 0.2,
+            filter_amount: 2.0,
+            key_track: 0.5,
+            envelope: EnvelopeParams::default(),
+            filter_envelope: EnvelopeParams::default(),
+            lfo_rate_hz: 0.8,
+            lfo_filter: 0.0,
+            unison: 1,
+            detune_cents: 12.0,
+            spread: 0.6,
+            glide_ms: 0.0,
+            polyphony: 8,
+            gain: 0.5,
+        }
+    }
+}
 param_set!(VintageSawParams, "Vintage saw", {
 float [pulse] "pulse" "Pulse blend" { Fraction, Linear, 0.0, 1.0, 0.15 }
 float [sub] "sub" "Sub level" { Fraction, Linear, 0.0, 1.0, 0.1 }
@@ -97,26 +104,59 @@ int [polyphony] "polyphony" "Polyphony" { None, 1.0, 16.0, 8.0 }
 float [gain] "gain" "Output level" { Gain, Linear, 0.0, 1.0, 0.5 }
 });
 impl Patch for VintageSawParams {
-    fn frame(&self)->Frame { Frame { amp:self.envelope,filter_env:self.filter_envelope,cutoff:self.cutoff_hz,env_amount:self.filter_amount,key_track:self.key_track,lfo_rate:self.lfo_rate_hz,lfo_filter:self.lfo_filter,gain:self.gain,glide:self.glide_ms,polyphony:self.polyphony as usize,chorus:self.chorus,delay:self.delay,phaser:self.phaser,..Frame::default() } }
-    fn sample(&self,t:&mut Tone,c:&Context)->(f32,f32) {
-        let drift=t.drift.tick(c.slot,c.rate)*self.drift;
-        let pitch_env=self.pitch_drop*(-(t.elapsed as f32)*2000.0/(c.rate*self.pitch_decay_ms)).exp();
-        let mut sum=(0.0,0.0);
+    fn frame(&self) -> Frame {
+        Frame {
+            amp: self.envelope,
+            filter_env: self.filter_envelope,
+            cutoff: self.cutoff_hz,
+            env_amount: self.filter_amount,
+            key_track: self.key_track,
+            lfo_rate: self.lfo_rate_hz,
+            lfo_filter: self.lfo_filter,
+            gain: self.gain,
+            glide: self.glide_ms,
+            polyphony: self.polyphony as usize,
+            chorus: self.chorus,
+            delay: self.delay,
+            phaser: self.phaser,
+            ..Frame::default()
+        }
+    }
+    fn sample(&self, t: &mut Tone, c: &Context) -> (f32, f32) {
+        let drift = t.drift.tick(c.slot, c.rate) * self.drift;
+        let pitch_env =
+            self.pitch_drop * (-(t.elapsed as f32) * 2000.0 / (c.rate * self.pitch_decay_ms)).exp();
+        let mut sum = (0.0, 0.0);
         for u in 0..self.unison as usize {
-            let pos=core::unison_position(u,self.unison as usize);
-            let pitch=c.pitch+pitch_env+(pos*self.detune_cents+drift)/100.0;
-            let saw=oscillator(t,u,0,pitch,c.rate,Waveform::Saw,0.5);
+            let pos = core::unison_position(u, self.unison as usize);
+            let pitch = c.pitch + pitch_env + (pos * self.detune_cents + drift) / 100.0;
+            let saw = oscillator(t, u, 0, pitch, c.rate, Waveform::Saw, 0.5);
             // Unequal charge/discharge response: quadratic even harmonics with
             // their DC term removed, evaluated at the oversampled rate.
-            let shaped=saw+self.asymmetry*(saw*saw-1.0/3.0)*0.5;
-            let pulse=oscillator(t,u,1,pitch,c.rate,Waveform::Pulse,self.pulse_width+c.lfo*self.pwm*0.4);
-            let sub=oscillator(t,u,2,pitch-12.0,c.rate,Waveform::Triangle,0.5);
-            let raw=shaped*(1.0-self.pulse)+pulse*self.pulse+sub*self.sub;
-            let pan=core::pan_gains(pos*self.spread);sum.0+=raw*pan.0;sum.1+=raw*pan.1;
+            let shaped = saw + self.asymmetry * (saw * saw - 1.0 / 3.0) * 0.5;
+            let pulse = oscillator(
+                t,
+                u,
+                1,
+                pitch,
+                c.rate,
+                Waveform::Pulse,
+                self.pulse_width + c.lfo * self.pwm * 0.4,
+            );
+            let sub = oscillator(t, u, 2, pitch - 12.0, c.rate, Waveform::Triangle, 0.5);
+            let raw = shaped * (1.0 - self.pulse) + pulse * self.pulse + sub * self.sub;
+            let pan = core::pan_gains(pos * self.spread);
+            sum.0 += raw * pan.0;
+            sum.1 += raw * pan.1;
         }
-        let g=core::swept_gain(c.cutoff,0.0,c.rate);let k=core::svf_damping(self.resonance);
-        let filter=|t:&mut Tone,side:usize,input:f32| t.svf[side].tick(core::drive(input/self.unison as f32,self.drive),g,k).0;
-        (filter(t,0,sum.0),filter(t,1,sum.1))
+        let g = core::swept_gain(c.cutoff, 0.0, c.rate);
+        let k = core::svf_damping(self.resonance);
+        let filter = |t: &mut Tone, side: usize, input: f32| {
+            t.svf[side]
+                .tick(core::drive(input / self.unison as f32, self.drive), g, k)
+                .0
+        };
+        (filter(t, 0, sum.0), filter(t, 1, sum.1))
     }
 }
-instrument!(VintageSaw,VintageSawParams);
+instrument!(VintageSaw, VintageSawParams);

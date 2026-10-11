@@ -1,9 +1,9 @@
 //! Windfall's subtractive, hybrid and matrix instruments.
 //!
-//! Each one is its own instrument with its own settings, voice structure
-//! and tests; what they share is in [`core`] (voice allocation, glide,
-//! smoothed controls, the ladder and saturating filters) and [`fx`] (the
-//! built-in chorus, delay, phaser and reverb). Voices live in fixed arrays,
+//! Each one is its own instrument with its own settings and synthesis graph
+//! and tests; the fixed voice memory is shared by typed runtime instances.
+//! Shared core blocks provide glide, smoothing and filters; effects provide
+//! chorus, delay, phaser and reverb. Voices live in fixed arrays,
 //! and every table a patch needs is built in `prepare`, so nothing here
 //! allocates, locks or waits on the audio thread.
 //!
@@ -26,7 +26,7 @@ mod pack_assets;
 mod pack_synth;
 pub use pack_synth::{PackSynth, PackSynthParams, PackPatch};
 pub use matrix_synth::{MatrixSynth, MatrixSynthParams};
-pub use operators::MatrixOperator;
+pub use operators::{MatrixOperator,OperatorWave};
 pub use hybrid_seq::{HybridSeq, HybridSeqParams, HybridAlgorithm, HybridStep};
 pub use groove_synth::{GrooveSynth, GrooveSynthParams, GrooveMode};
 pub use pocket_synth::{PocketSynth, PocketSynthParams};
@@ -39,3 +39,4 @@ pub use vintage_poly::{VintagePoly, VintagePolyParams};
 mod tests;
 
 pub use core::MAX_VOICES;
+

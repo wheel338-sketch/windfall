@@ -1,11 +1,19 @@
-use crate::{EnvelopeParams, Waveform};
+use super::{
+    core,
+    runtime::{Context, Frame, Patch, Tone, instrument, oscillator},
+};
 use crate::param::param_set;
+use crate::{EnvelopeParams, Waveform};
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
-use super::{core, runtime::{Context, Frame, Patch, Tone, instrument, oscillator}};
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
-pub enum PolyResponse { Low4, Low2, Band, High }
+pub enum PolyResponse {
+    Low4,
+    Low2,
+    Band,
+    High,
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase", default)]
@@ -41,41 +49,45 @@ pub struct DualPolyParams {
     pub polyphony: u8,
     pub gain: f32,
 }
-impl Default for DualPolyParams { fn default() -> Self { Self {
-    wave_a: Waveform::Saw,
-    wave_b: Waveform::Pulse,
-    balance: 0.5,
-    coarse_b: 0.0,
-    fine_b: 7.0,
-    pulse_width: 0.5,
-    pwm: 0.0,
-    cross_mod: 0.0,
-    sub: 0.2,
-    noise: 0.0,
-    drift: 0.2,
-    response: PolyResponse::Low4,
-    drive: 0.2,
-    chorus: 0.0,
-    delay: 0.0,
-    reverb: 0.0,
-    cutoff_hz: 4000.0,
-    resonance: 0.2,
-    filter_amount: 2.0,
-    key_track: 0.5,
-    envelope: EnvelopeParams::default(),
-    filter_envelope: EnvelopeParams::default(),
-    lfo_rate_hz: 0.8,
-    lfo_filter: 0.0,
-    unison: 1,
-    detune_cents: 12.0,
-    spread: 0.6,
-    glide_ms: 0.0,
-    polyphony: 8,
-    gain: 0.5,
-} } }
+impl Default for DualPolyParams {
+    fn default() -> Self {
+        Self {
+            wave_a: Waveform::Saw,
+            wave_b: Waveform::Pulse,
+            balance: 0.5,
+            coarse_b: 0.0,
+            fine_b: 7.0,
+            pulse_width: 0.5,
+            pwm: 0.0,
+            cross_mod: 0.0,
+            sub: 0.2,
+            noise: 0.0,
+            drift: 0.2,
+            response: PolyResponse::Low4,
+            drive: 0.2,
+            chorus: 0.0,
+            delay: 0.0,
+            reverb: 0.0,
+            cutoff_hz: 4000.0,
+            resonance: 0.2,
+            filter_amount: 2.0,
+            key_track: 0.5,
+            envelope: EnvelopeParams::default(),
+            filter_envelope: EnvelopeParams::default(),
+            lfo_rate_hz: 0.8,
+            lfo_filter: 0.0,
+            unison: 1,
+            detune_cents: 12.0,
+            spread: 0.6,
+            glide_ms: 0.0,
+            polyphony: 8,
+            gain: 0.5,
+        }
+    }
+}
 param_set!(DualPolyParams, "Dual vintage poly", {
-choice [wave_a] "waveA" "Bank A waveform" { Waveform, Saw, [Saw "saw" "Saw", Pulse "pulse" "Pulse", Triangle "triangle" "Triangle", Sine "sine" "Sine", Square "square" "Square"] }
-choice [wave_b] "waveB" "Bank B waveform" { Waveform, Pulse, [Saw "saw" "Saw", Pulse "pulse" "Pulse", Triangle "triangle" "Triangle", Sine "sine" "Sine", Square "square" "Square"] }
+choice [wave_a] "waveA" "Bank A waveform" { Waveform, Saw, [Saw "saw" "Saw", Pulse "pulse" "Pulse", Triangle "triangle" "Triangle", Sine "sine" "Sine", Square "square" "Square", WhiteNoise "whiteNoise" "White noise", PinkNoise "pinkNoise" "Pink noise"] }
+choice [wave_b] "waveB" "Bank B waveform" { Waveform, Pulse, [Saw "saw" "Saw", Pulse "pulse" "Pulse", Triangle "triangle" "Triangle", Sine "sine" "Sine", Square "square" "Square", WhiteNoise "whiteNoise" "White noise", PinkNoise "pinkNoise" "Pink noise"] }
 float [balance] "balance" "Bank balance" { Fraction, Linear, 0.0, 1.0, 0.5 }
 float [coarse_b] "coarseB" "Bank B pitch" { Semitones, Linear, -24.0, 24.0, 0.0 }
 float [fine_b] "fineB" "Bank B detune" { Cents, Linear, -100.0, 100.0, 7.0 }
@@ -114,34 +126,67 @@ float [gain] "gain" "Output level" { Gain, Linear, 0.0, 1.0, 0.5 }
 
 impl Patch for DualPolyParams {
     fn frame(&self) -> Frame {
-        Frame { amp:self.envelope, filter_env:self.filter_envelope, cutoff:self.cutoff_hz,
-            env_amount:self.filter_amount, key_track:self.key_track, lfo_rate:self.lfo_rate_hz,
-            lfo_filter:self.lfo_filter, gain:self.gain, glide:self.glide_ms, polyphony:self.polyphony as usize,
-            chorus:self.chorus, delay:self.delay, reverb:self.reverb, ..Frame::default() }
+        Frame {
+            amp: self.envelope,
+            filter_env: self.filter_envelope,
+            cutoff: self.cutoff_hz,
+            env_amount: self.filter_amount,
+            key_track: self.key_track,
+            lfo_rate: self.lfo_rate_hz,
+            lfo_filter: self.lfo_filter,
+            gain: self.gain,
+            glide: self.glide_ms,
+            polyphony: self.polyphony as usize,
+            chorus: self.chorus,
+            delay: self.delay,
+            reverb: self.reverb,
+            ..Frame::default()
+        }
     }
-    fn sample(&self,t:&mut Tone,c:&Context)->(f32,f32) {
-        let drift=t.drift.tick(c.slot,c.rate)*self.drift;
-        let mut sum=(0.0,0.0); let noise=t.noise.bipolar()*self.noise;
+    fn sample(&self, t: &mut Tone, c: &Context) -> (f32, f32) {
+        let drift = t.drift.tick(c.slot, c.rate) * self.drift;
+        let mut sum = (0.0, 0.0);
+        let noise = t.noise.bipolar() * self.noise;
         for u in 0..self.unison as usize {
-            let pos=core::unison_position(u,self.unison as usize);
-            let pitch=c.pitch+(pos*self.detune_cents+drift)/100.0;
-            let a=oscillator(t,u,0,pitch,c.rate,self.wave_a,self.pulse_width+c.lfo*self.pwm);
+            let pos = core::unison_position(u, self.unison as usize);
+            let pitch = c.pitch + (pos * self.detune_cents + drift) / 100.0;
+            let a = oscillator(
+                t,
+                u,
+                0,
+                pitch,
+                c.rate,
+                self.wave_a,
+                self.pulse_width + c.lfo * self.pwm,
+            );
             // Linear frequency modulation from bank A into bank B. The positive
             // frequency bound prevents runaway at extreme cross-mod settings.
-            let inc=core::increment(pitch+self.coarse_b+self.fine_b/100.0,c.rate);
-            let b=t.oscillators[u][1].tick(self.wave_b,(inc*(1.0+self.cross_mod*a)).clamp(0.0,0.249),self.pulse_width);
-            let sub=oscillator(t,u,2,pitch-12.0,c.rate,Waveform::Square,0.5);
-            let raw=a*(1.0-self.balance)+b*self.balance+sub*self.sub+noise;
-            let pan=core::pan_gains(pos*self.spread);sum.0+=raw*pan.0;sum.1+=raw*pan.1;
+            let inc = core::increment(pitch + self.coarse_b + self.fine_b / 100.0, c.rate);
+            let b = t.oscillators[u][1].tick(
+                self.wave_b,
+                (inc * (1.0 + self.cross_mod * a)).clamp(0.0, 0.249),
+                self.pulse_width,
+            );
+            let sub = oscillator(t, u, 2, pitch - 12.0, c.rate, Waveform::Square, 0.5);
+            let raw = a * (1.0 - self.balance) + b * self.balance + sub * self.sub + noise;
+            let pan = core::pan_gains(pos * self.spread);
+            sum.0 += raw * pan.0;
+            sum.1 += raw * pan.1;
         }
-        let k=core::ladder_feedback(self.resonance);
-        let g=core::swept_gain(c.cutoff,0.0,c.rate);
-        let filter=|t:&mut Tone,side:usize,input:f32| {
-            let stages=t.ladder[side].tick(core::drive(input/self.unison as f32,self.drive),g,k);
-            let response=match self.response { PolyResponse::Low4=>core::ladder_low4(&stages),PolyResponse::Low2=>core::ladder_low2(&stages),PolyResponse::Band=>core::ladder_band2(&stages),PolyResponse::High=>core::ladder_high2(&stages) };
-            response*core::ladder_makeup(k)
+        let k = core::ladder_feedback(self.resonance);
+        let g = core::swept_gain(c.cutoff, 0.0, c.rate);
+        let filter = |t: &mut Tone, side: usize, input: f32| {
+            let stages =
+                t.ladder[side].tick(core::drive(input / self.unison as f32, self.drive), g, k);
+            let response = match self.response {
+                PolyResponse::Low4 => core::ladder_low4(&stages),
+                PolyResponse::Low2 => core::ladder_low2(&stages),
+                PolyResponse::Band => core::ladder_band2(&stages),
+                PolyResponse::High => core::ladder_high2(&stages),
+            };
+            response * core::ladder_makeup(k)
         };
-        (filter(t,0,sum.0),filter(t,1,sum.1))
+        (filter(t, 0, sum.0), filter(t, 1, sum.1))
     }
 }
-instrument!(DualPoly,DualPolyParams);
+instrument!(DualPoly, DualPolyParams);
