@@ -288,13 +288,13 @@ impl Instance {
         let adapter = if self.instrument {
             Adapter::Instrument(
                 self.plugin
-                    .prepare_instrument(self.rate as f32, self.block)
+                    .prepare_instrument_with_options(self.rate as f32, super::wrapper::max_block(&self.binding, self.block), &super::wrapper::native(&self.binding)?)
                     .map_err(|error| error.to_string())?,
             )
         } else {
             Adapter::Effect(
                 self.plugin
-                    .prepare_effect(self.rate as f32, self.block)
+                    .prepare_effect_with_options(self.rate as f32, super::wrapper::max_block(&self.binding, self.block), &super::wrapper::native(&self.binding)?)
                     .map_err(|error| error.to_string())?,
             )
         };
@@ -1216,10 +1216,13 @@ impl Runtime {
                 #[cfg(windows)]
                 if let Some(record) = owner.bridges.get_mut(&request.token).filter(|record| record.playback && record.revision == request.revision
                     && binding_identity(&record.binding) == request.binding && record.dirty_serial >= serial && record.dirty_serial > record.acknowledged_serial) {
-                    if lifetime.cancelled() { return Err("Plugin capture was cancelled".into()); }
+                    if lifetime.cancelled() { record.capture_sent = false; return Err("Plugin capture was cancelled".into()); }
                     let serial = record.dirty_serial;
-                    let (bytes, parameters) = record.capture(&desired)?;
-                    if lifetime.cancelled() || revision.load(std::sync::atomic::Ordering::Acquire) != request.revision { return Err("Plugin capture ownership changed".into()); }
+                    let (bytes, parameters) = match record.capture(&desired) {
+                        Ok(captured) => captured,
+                        Err(error) => { record.capture_sent = false; return Err(error); }
+                    };
+                    if lifetime.cancelled() || revision.load(std::sync::atomic::Ordering::Acquire) != request.revision { record.capture_sent = false; return Err("Plugin capture ownership changed".into()); }
                     return Ok(Some(CapturedState { bytes, parameters, restart: false, serial }));
                 }
                 let Some(record) = owner.instances.get_mut(&request.token).filter(|record| {
@@ -1357,6 +1360,11 @@ impl Runtime {
         binding: Option<PluginBinding>,
         open: bool,
     ) -> Result<(), String> {
+        self.editor_binding_with_parent(target, binding, open, None)
+    }
+    pub fn editor_binding_with_parent(
+        &self, target: PluginTarget, binding: Option<PluginBinding>, open: bool, parent: Option<usize>,
+    ) -> Result<(), String> {
         let revision = self.revision.load(std::sync::atomic::Ordering::Relaxed);
         self.call(move |owner| {
             #[cfg(windows)]
@@ -1369,9 +1377,10 @@ impl Runtime {
                         && binding.id == record.binding.id
                         && binding.format == record.binding.format
                         && binding.state == record.binding.state
+                        && binding.wrapper == record.binding.wrapper
                 })
             {
-                return record.control.editor(open);
+                return record.control.editor_with_options(open, super::wrapper::editor(&record.binding, parent));
             }
             let record = selected(&owner.selection, target)
                 .and_then(|token| owner.instances.get_mut(&token))
@@ -1382,16 +1391,14 @@ impl Runtime {
                             && record.binding.id == binding.id
                             && record.binding.format == binding.format
                             && record.binding.state == binding.state
+                            && record.binding.wrapper == binding.wrapper
                     })
                 })
                 .ok_or_else(|| "This plugin is missing or has not been prepared".to_owned())?;
             let instance = &mut record.plugin;
             if open {
                 instance
-                    .open_editor(&windfall_plugin_host::gui::EditorOptions {
-                        title: record.binding.name.clone(),
-                        ..Default::default()
-                    })
+                    .open_editor(&super::wrapper::editor(&record.binding, parent))
                     .map_err(|error| error.to_string())?;
             } else {
                 instance.close_editor();
@@ -2182,7 +2189,12 @@ impl PluginFactory for Runtime {
         block: usize,
     ) -> Result<Box<dyn HostedEffect>, String> {
         #[cfg(windows)]
-        if self.bridge_enabled {
+        let default_bridge = self.bridge_enabled;
+        #[cfg(not(windows))]
+        let default_bridge = false;
+        let bridged = self.record(binding.target, super::wrapper::use_bridge(binding, default_bridge))?;
+        #[cfg(windows)]
+        if bridged {
             let result = self.bridge_audio(binding, rate);
             if self.rendering
                 && let Err(error) = &result
@@ -2196,6 +2208,8 @@ impl PluginFactory for Runtime {
                 .record(binding.target, result)
                 .map(|audio| Box::new(audio) as Box<dyn HostedEffect>);
         }
+        #[cfg(not(windows))]
+        let _ = bridged;
         let binding = binding.clone();
         let target = binding.target;
         let jobs = self.jobs.clone();
@@ -2208,7 +2222,7 @@ impl PluginFactory for Runtime {
             self.call(move |owner| {
                 let mut instance = Self::create(owner, &binding)?;
                 let adapter = instance
-                    .prepare_effect(rate as f32, block)
+                    .prepare_effect_with_options(rate as f32, super::wrapper::max_block(&binding, block), &super::wrapper::native(&binding)?)
                     .map_err(|error| error.to_string())?;
                 if adapter.latency_samples() > rate as usize {
                     let _ = instance.release_effect(adapter);
@@ -2318,7 +2332,12 @@ impl PluginFactory for Runtime {
         block: usize,
     ) -> Result<Box<dyn HostedInstrument>, String> {
         #[cfg(windows)]
-        if self.bridge_enabled {
+        let default_bridge = self.bridge_enabled;
+        #[cfg(not(windows))]
+        let default_bridge = false;
+        let bridged = self.record(binding.target, super::wrapper::use_bridge(binding, default_bridge))?;
+        #[cfg(windows)]
+        if bridged {
             let result = self.bridge_audio(binding, rate);
             if self.rendering
                 && let Err(error) = &result
@@ -2332,6 +2351,8 @@ impl PluginFactory for Runtime {
                 .record(binding.target, result)
                 .map(|audio| Box::new(audio) as Box<dyn HostedInstrument>);
         }
+        #[cfg(not(windows))]
+        let _ = bridged;
         let binding = binding.clone();
         let target = binding.target;
         let jobs = self.jobs.clone();
@@ -2344,7 +2365,7 @@ impl PluginFactory for Runtime {
             self.call(move |owner| {
                 let mut instance = Self::create(owner, &binding)?;
                 let adapter = instance
-                    .prepare_instrument(rate as f32, block)
+                    .prepare_instrument_with_options(rate as f32, super::wrapper::max_block(&binding, block), &super::wrapper::native(&binding)?)
                     .map_err(|error| error.to_string())?;
                 if adapter.latency_samples() > rate as usize {
                     let _ = instance.release_instrument(adapter);

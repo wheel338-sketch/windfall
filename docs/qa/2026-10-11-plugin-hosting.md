@@ -190,3 +190,24 @@ helper_fixed_buffer_policy_reports_and_measures_its_added_latency (independent
 stereo PCM ramp, 128 bridge + 32 wrapper samples). Run the bridge test command
 above. Desktop saved-policy conversion is the next group, not yet claimed wired.
 Parent/helper must both use this new Load shape; old controls reject new metadata.
+
+## Saved wrapper runtime checkpoint
+
+Desktop preparation now selects automatic/in-process/bridged owners from the
+saved policy, passes smart-disable/fixed buffers to both native adapters and
+helpers, and preserves policy on owner reactivation after capture. Threaded
+selection returns an explicit unsupported-provider error; it is not simulated.
+Native editor open applies saved scale/detachment and the current main HWND
+through a narrow plugin_editor command addition. The HWND is transient, never
+persisted. Attach means an owned top-level window; floating-only native editors
+can still refuse attachment. Failed/cancelled bridge dirty capture now releases
+its delivery latch so a later capture can retry.
+
+Test written, not executed: plugins::wrapper::tests::
+saved_policy_selects_real_owners_and_preserves_native_buffer_and_editor_settings.
+Integrator: cargo test -p windfall-desktop --lib plugins::wrapper::;
+run existing ownership/capture_ack and native editor tests too. Least certain:
+Tauri HWND return type, attached editor across helper-process ownership, dirty
+capture retry races and preserved wrapper delay after inactive reconciliation.
+Shared seam commands.rs has only the injected AppHandle/parent lookup; IPC
+pluginEditor arguments are unchanged. UI policy controls are the next group.
