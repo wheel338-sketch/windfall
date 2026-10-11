@@ -17,6 +17,7 @@ import { CompressorEditor } from "./compressor/compressor-editor"
 import { DelayEditor } from "./delay/delay-editor"
 import type { EditorProps } from "./editor-props"
 import { EqEditor } from "./eq/eq-editor"
+import { FilterBankEditor } from "./filter-bank/filter-bank-editor"
 import { FilterEditor } from "./filter/filter-editor"
 import { MorphEqEditor } from "./graphic/morph-eq-editor"
 import { SevenBandEditor } from "./graphic/seven-band-editor"
@@ -50,6 +51,7 @@ const EDITORS: Editors = {
   tuner: TunerEditor,
   bandSplit: BandSplitEditor,
   selectableFilter: FilterEditor,
+  filterBank: FilterBankEditor,
 }
 
 type AnyEditor = ComponentType<EditorProps<EffectParams>>

@@ -495,3 +495,42 @@ describe("Seven movable EQ bands", () => {
     expect(slotOf(effect).params).not.toEqual(before)
   })
 })
+
+describe("Filter Bank", () => {
+  it("exposes eight real units with independently stored drawn gate/cutoff points", async () => {
+    const user = userEvent.setup()
+    const effect = await open("filterBank")
+    expect(customEditor("filterBank")).toBeDefined()
+    const tabs = screen.getByRole("tablist", { name: "Filter units" })
+    expect(within(tabs).getAllByRole("tab")).toHaveLength(8)
+    for (let unit = 0; unit < 8; unit += 1) {
+      await user.click(within(tabs).getByRole("tab", { name: `Unit ${unit + 1}` }))
+      await flush()
+      expect(screen.getByRole("img", { name: new RegExp(`Unit ${unit + 1} gate envelope:`) })).toBeVisible()
+      await expectSliders("filterBank", effect, [`patterns.${unit}.gate.0`, `patterns.${unit}.cutoff.7`])
+    }
+  })
+
+  it("draws a whole stroke as one undo step and restores it through redo", async () => {
+    const effect = await open("filterBank")
+    const graph = screen.getByRole("img", { name: /Unit 1 gate envelope:/ })
+    vi.spyOn(graph, "getBoundingClientRect").mockReturnValue({
+      x: 0, y: 0, left: 0, top: 0, right: 320, bottom: 100, width: 320, height: 100, toJSON: () => ({}),
+    })
+    const before = structuredClone(slotOf(effect).params)
+    const cursor = history().cursor
+    fireEvent.pointerDown(graph, { pointerId: 1, button: 0, clientX: 10, clientY: 90 })
+    fireEvent.pointerMove(graph, { pointerId: 1, clientX: 290, clientY: 50 })
+    fireEvent.pointerUp(graph, { pointerId: 1 })
+    await flush()
+    expect(stored(effect, "filterBank", "patterns.0.gate.0")).toBe(0)
+    expect(stored(effect, "filterBank", "patterns.0.gate.7")).toBeCloseTo(0.5)
+    expect(history().cursor).toBe(cursor + 1)
+    await undo()
+    await flush()
+    expect(slotOf(effect).params).toEqual(before)
+    await redo()
+    await flush()
+    expect(stored(effect, "filterBank", "patterns.0.gate.0")).toBe(0)
+  })
+})

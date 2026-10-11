@@ -204,7 +204,11 @@ fn accept(params: EffectParams, edits: &[(&str, f32)], automated: &str) {
 fn seven_band_faders_reach_native_audio_history_files_and_automation() {
     accept(
         EffectParams::SevenBand(SevenBandParams::default()),
-        &[("gainsDb.3", 12.0), ("gainsDb.6", -15.0), ("gainsDb.2", -9.0)],
+        &[
+            ("gainsDb.3", 12.0),
+            ("gainsDb.6", -15.0),
+            ("gainsDb.2", -9.0),
+        ],
         "gainsDb.3",
     );
 }
@@ -265,15 +269,52 @@ fn morph_eq_curves_and_morph_reach_native_audio_history_files_and_automation() {
 }
 #[test]
 fn resonant_sweep_reaches_native_audio_history_files_and_automation() {
-    accept(EffectParams::SelectableFilter(windfall_dsp::filter_family::SelectableFilterParams::default()),
-        &[("frequencyHz", 5_000.0), ("q", 6.0), ("mode", 1.0)], "frequencyHz");
+    accept(
+        EffectParams::SelectableFilter(
+            windfall_dsp::filter_family::SelectableFilterParams::default(),
+        ),
+        &[("frequencyHz", 5_000.0), ("q", 6.0), ("mode", 1.0)],
+        "frequencyHz",
+    );
 }
 
 #[test]
 fn seven_movable_eq_bands_reach_native_audio_history_files_and_automation() {
     let mut p = windfall_dsp::EqParams::default();
     p.peak2.gain_db = 12.0;
-    accept(EffectParams::Eq(p), &[("peak2.frequencyHz", 440.0),
-        ("peak2.q", 4.0), ("lowCut.enabled", 1.0), ("highShelf.gainDb", -12.0)],
-        "peak2.frequencyHz");
+    accept(
+        EffectParams::Eq(p),
+        &[
+            ("peak2.frequencyHz", 440.0),
+            ("peak2.q", 4.0),
+            ("lowCut.enabled", 1.0),
+            ("highShelf.gainDb", -12.0),
+        ],
+        "peak2.frequencyHz",
+    );
+}
+
+#[test]
+fn eight_unit_drawn_filter_patterns_reach_native_audio_history_files_and_automation() {
+    use windfall_dsp::eqbank::{FilterBankParams, FilterSlotMode};
+    let mut p = FilterBankParams::default();
+    p.slots[0].mode = FilterSlotMode::Lowpass;
+    p.slots[0].frequency_hz = 1_000.0;
+    p.slots[1].mode = FilterSlotMode::Highpass;
+    p.slots[1].frequency_hz = 300.0;
+    p.patterns[0].enabled = true;
+    p.patterns[0].beats = 0.5;
+    p.patterns[0].gate = [1.0, 0.1, 0.8, 0.2, 0.7, 0.3, 0.6, 0.4];
+    p.patterns[0].cutoff = [-1.0, -0.5, 0.0, 0.5, 1.0, 0.5, 0.0, -0.5];
+    accept(
+        EffectParams::FilterBank(p),
+        &[
+            ("routing", 1.0),
+            ("patterns.0.depthOctaves", 4.0),
+            ("patterns.0.beats", 4.0),
+            ("patterns.0.gate.0", 0.0),
+            ("patterns.0.cutoff.0", 1.0),
+        ],
+        "patterns.0.depthOctaves",
+    );
 }

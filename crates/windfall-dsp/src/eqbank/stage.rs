@@ -97,19 +97,20 @@ impl Stage {
 
     /// Conservative decay estimate, including both ends of a live transition.
     pub(super) fn tail_samples(&self) -> usize {
-        fn decay(c: &BiquadCoeffs) -> usize {
-            let d = c.a1 * c.a1 - 4.0 * c.a2;
-            let radius = if d < 0.0 {
-                c.a2.abs().sqrt()
-            } else {
-                (c.a1.abs() + d.sqrt()) * 0.5
-            };
-            if radius > 0.0 && radius < 1.0 {
-                ((1.0e-6_f64).ln() / radius.ln()).ceil() as usize
-            } else {
-                0
-            }
-        }
-        decay(self.coeffs.current()).max(decay(&self.target))
+        coefficient_tail(self.coeffs.current()).max(coefficient_tail(&self.target))
+    }
+}
+
+pub(super) fn coefficient_tail(c: &BiquadCoeffs) -> usize {
+    let d = c.a1 * c.a1 - 4.0 * c.a2;
+    let radius = if d < 0.0 {
+        c.a2.abs().sqrt()
+    } else {
+        (c.a1.abs() + d.sqrt()) * 0.5
+    };
+    if radius > 0.0 && radius < 1.0 {
+        ((1.0e-6_f64).ln() / radius.ln()).ceil() as usize
+    } else {
+        0
     }
 }

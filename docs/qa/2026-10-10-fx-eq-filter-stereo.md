@@ -22,7 +22,7 @@ been started.
 | `fx-fruity-stereo-enhancer` | Stereo Enhancer (`stereoEnhancer`) | phase offset and inversion added, editor and tests written; candidate for done once they pass |
 | `fx-fruity-panomatic` | Pan Motion (`panLfo`) | shapes and tempo sync added, editor and tests written; candidate for done once they pass |
 | `fx-equo` | Morph EQ (`morphEq`) | graphic curves, morph across up to four, editor and tests written; candidate for done once they pass |
-| `fx-fruity-love-philter` | Filter Bank (`filterBank`) | not started |
+| `fx-fruity-love-philter` | Filter Bank (`filterBank`) | full-row candidate; real eight-unit routing and drawn gate/cutoff envelopes; tests written, not executed |
 | `fx-fruity-filter` | Selectable filter (`selectableFilter`) | full-row candidate; dedicated sweep editor and row-specific tests written, not executed |
 | `fx-fruity-parametric-eq` | baseline EQ (`eq`) | full-row candidate for the seven-band summary; measured complex response and host/mounted cases written, not executed |
 | `fx-frequency-splitter` | Band Split (`bandSplit`) | full-row candidate; integrated real low/mid/high mixer routes and editor; tests written, not executed |
@@ -177,7 +177,7 @@ Least sure: the 61 generated `param_set!` rows compile as written (array-of-stru
 Remaining gate: no per-band pan or send, and no analysis-driven curve capture; "Store what is
 heard" captures the morphed setting, not the audio.
 
-## 2026-10-11 continuation — merge and Band Split
+## 2026-10-11 continuation - merge and Band Split
 
 Merged `feat/parity-100` at `07753e49`, retaining all stereo/graphic editors and
 Tuner. Generated artifacts in that merge came from integration; no generated
@@ -217,7 +217,7 @@ bindings. No new type/command for Band Split. Check third-buffer borrowing,
 expanded engine route capacity, test fixture render length and exact float
 comparisons first. All validation remains unexecuted as required.
 
-## Resonant sweep and seven-band parametric EQ — source reuse
+## Resonant sweep and seven-band parametric EQ - source reuse
 
 The exact summaries do not require separate persisted alias kinds. The existing
 Selectable filter is a real resonant SVF with audio-rate-safe smoothing and
@@ -255,3 +255,61 @@ No new generated types. Regenerate simulator for the complete stream. Check
 measured shelf-phase tolerances and live/export exactness first. Existing EQ
 allocator and SVF reference/automation suites remain applicable. Source reuse
 is an explicit mapping decision for the overseer's row acceptance.
+
+## Eight-unit drawn Filter Bank - 2026-10-11
+
+Implemented `eqbank/pattern.rs`, exposed as `FilterPatternParams` and
+`FILTER_PATTERN_POINTS`. Each unit has an enabled toggle, 0.25-32 quarter-note
+cycle length, 0-8 octave cutoff depth and eight fixed, equally spaced points
+for each of gate (0-1) and cutoff (-1 to 1). Cycles wrap continuously to point 1.
+Base cutoff times `2^(point * depth)` is clamped to 20-20000 Hz and Nyquist.
+Parameter writes prepare eight coefficient endpoints; audio only interpolates
+endpoints and smooths continuously moving targets over a nominal 5 ms.
+Interpolation is in coefficient space, not logarithmic Hz between points.
+Volume gates use the same continuously retargeted 5 ms ramp. Static edits land
+in 5 ms; continuously moving curves have smoothing lag. No sample-path
+transcendentals, allocations, frees, IO or locks.
+
+Serial applies each filter and gate to the preceding unit's audio. Parallel
+feeds the source to independent filter/gate histories, averages active branches
+and crossfades routing without resetting histories. The existing first 25
+indices are unchanged; pattern controls occupy 25-176. `FilterSlotMode::Dry`
+is appended to each mode's choice list (index 4); it is an active unfiltered
+branch, while Bypass skips/excludes a unit. Bypassed units ignore their patterns.
+Tail includes the worst stored cutoff endpoint; gap reserves that memory so a
+closed gate cannot cause premature retirement before reopening.
+
+`FilterBankParams.patterns` has a legacy default and is omitted when entirely
+default. Desktop `params/default-fields.ts` materializes that one known omitted
+field for read/optimistic editing, via two narrow calls in `params/access.ts`;
+it does not mutate the snapshot or default data. New mounted editor
+`filter-bank/filter-bank-editor.tsx` has eight unit tabs, real routing selection,
+unit filters, tempo cycle/depth, SVG stroke drawing and accessible point faders.
+Whole strokes and Open gate/Center cutoff use single history gestures.
+
+Tests (written, not executed):
+- DSP `filter_bank_real_series_and_parallel_routes_match_independent_complex_transfers`;
+  `filter_bank_eight_gate_envelopes_follow_tempo_and_really_process_audio`;
+  `filter_bank_drawn_cutoff_and_gate_patterns_are_block_invariant_and_bypass_continuously`;
+  `filter_bank_patterns_default_out_of_legacy_json_and_descriptor_indices_stay_stable`;
+  `drawn_cutoff_audio_matches_an_independent_time_varying_iir_reference`.
+- Existing eqbank metadata/hostile/allocation cases now traverse 177 controls;
+  default JSON metadata is explicitly materialized for its path assertions.
+- Engine `eight_unit_drawn_filter_patterns_reach_native_audio_history_files_and_automation`.
+- Existing project all-control/history/disk/default/automation cases cover all
+  new controls. Mounted `describe("Filter Bank")` covers all eight units, point
+  edits, a whole stroke, undo and redo; `default-fields.test.ts` covers omitted
+  defaults without wrong-kind fallback or mutation.
+
+Integrator commands: existing stream suites plus
+`pnpm --dir apps/desktop test src/features/params/default-fields.test.ts --maxWorkers=4`.
+Regenerate `FilterBankParams`, `FilterSlotMode`, new `FilterPatternParams`,
+`EffectParams` dependency exports, descriptor table and simulator. No new
+Command or IPC method. Check macro array paths, optional-field TS output,
+expanded ParamSet snapshots and exact independent-reference tolerances first.
+
+Limits: fixed eight-point repeating curves; no arbitrary-size envelope assets,
+MIDI-triggered retrigger or song-position lock. The supplied summary requires
+drawn gate/filter patterns and eight series/parallel units, which this exposes;
+the cycle is processor-relative, following tempo, as with Pan Motion.
+No executed evidence or proprietary sonic identity is claimed.

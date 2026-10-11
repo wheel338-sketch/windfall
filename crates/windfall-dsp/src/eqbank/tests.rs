@@ -455,7 +455,12 @@ fn metadata<P: ParamSet + serde::Serialize + serde::de::DeserializeOwned + ts_rs
 ) {
     let params = P::default();
     assert_eq!(P::descriptors().len(), count);
-    let json = serde_json::to_value(params).unwrap();
+    let mut json = serde_json::to_value(params).unwrap();
+    // Default pattern storage is intentionally absent in legacy-compatible JSON.
+    if P::NAME == FilterBankParams::NAME {
+        json["patterns"] =
+            serde_json::to_value([super::FilterPatternParams::default(); 8]).unwrap();
+    }
     for (index, descriptor) in P::descriptors().iter().enumerate() {
         assert_eq!(params.get(index), Some(descriptor.default));
         assert_eq!(P::index_of(descriptor.id), Some(index));
@@ -498,7 +503,7 @@ fn parameter_metadata_serde_and_ts_agree() {
     metadata::<MorphSnapshotParams>(12);
     metadata::<MorphEqParams>(86);
     metadata::<FilterSlotParams>(3);
-    metadata::<FilterBankParams>(25);
+    metadata::<FilterBankParams>(177);
 }
 
 fn run(command: &mut Command) {

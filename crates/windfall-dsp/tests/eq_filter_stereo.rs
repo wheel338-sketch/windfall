@@ -182,7 +182,13 @@ fn assert_block_invariant(start: &EffectParams, end: &EffectParams) {
         assert_eq!(whole.0, pieces.0, "left differs for blocks {blocks:?}");
         assert_eq!(whole.1, pieces.1, "right differs for blocks {blocks:?}");
     }
-    assert!(whole.0.iter().chain(&whole.1).all(|sample| sample.is_finite()));
+    assert!(
+        whole
+            .0
+            .iter()
+            .chain(&whole.1)
+            .all(|sample| sample.is_finite())
+    );
 }
 
 /// Switching the slot off and on never jumps by more than `largest_step`
@@ -231,7 +237,14 @@ fn seven_reference(gains_db: [f32; 7], hz: f64, rate: f64) -> Complex {
     for (center, gain) in SEVEN_BAND_FREQUENCIES_HZ.iter().zip(gains_db) {
         total = multiply(
             total,
-            section(Shape::Peak, f64::from(*center), 1.4, f64::from(gain), hz, rate),
+            section(
+                Shape::Peak,
+                f64::from(*center),
+                1.4,
+                f64::from(gain),
+                hz,
+                rate,
+            ),
         );
     }
     total
@@ -247,8 +260,8 @@ fn seven_band_matches_seven_fixed_bells_in_level_and_phase() {
     for rate in RATES {
         for gains in curves {
             for hz in [
-                30.0, 64.0, 100.0, 160.0, 250.0, 400.0, 640.0, 1_000.0, 1_600.0, 2_500.0,
-                4_000.0, 6_300.0, 10_000.0, 16_000.0,
+                30.0, 64.0, 100.0, 160.0, 250.0, 400.0, 640.0, 1_000.0, 1_600.0, 2_500.0, 4_000.0,
+                6_300.0, 10_000.0, 16_000.0,
             ] {
                 let measured = measured(&seven(gains), rate, hz);
                 let expected = seven_reference(gains, hz, f64::from(rate));
@@ -405,8 +418,7 @@ fn spreader_matches_a_mid_side_reference_and_folds_to_the_same_mono() {
     let mut expected_right = Vec::new();
     for n in 0..4_800 {
         let earlier = if n >= 480 { mid[n - 480] } else { 0.0 };
-        let side =
-            width * (0.5 * (dry_left[n] - dry_right[n]) + amount * 0.5 * (mid[n] - earlier));
+        let side = width * (0.5 * (dry_left[n] - dry_right[n]) + amount * 0.5 * (mid[n] - earlier));
         expected_left.push(mid[n] + side);
         expected_right.push(mid[n] - side);
     }
@@ -502,8 +514,7 @@ fn through(params: &EffectParams, frames: usize) -> [Vec<f32>; 4] {
 #[test]
 fn stereo_enhancer_phase_offset_holds_one_side_back_by_exactly_its_time() {
     // 5 ms is 240 frames at 48 kHz.
-    let [dry_left, dry_right, left, right] =
-        through(&enhancer(|p| p.phase_offset_ms = 5.0), 4_800);
+    let [dry_left, dry_right, left, right] = through(&enhancer(|p| p.phase_offset_ms = 5.0), 4_800);
     assert_close(&left, &dry_left, 2.0e-6, "right late: left");
     assert_close(&right, &later(&dry_right, 240), 2.0e-6, "right late: right");
 
@@ -545,11 +556,21 @@ fn stereo_enhancer_width_balance_and_inversion_match_their_arithmetic() {
 
     // Balance turns the other side down and leaves the favored one.
     let [dry_left, dry_right, left, right] = through(&enhancer(|p| p.balance = 0.5), 2_400);
-    assert_close(&left, &scaled(&dry_left, 0.5), 2.0e-6, "balance right: left");
+    assert_close(
+        &left,
+        &scaled(&dry_left, 0.5),
+        2.0e-6,
+        "balance right: left",
+    );
     assert_close(&right, &dry_right, 2.0e-6, "balance right: right");
     let [dry_left, dry_right, left, right] = through(&enhancer(|p| p.balance = -1.0), 2_400);
     assert_close(&left, &dry_left, 2.0e-6, "balance left: left");
-    assert_close(&right, &scaled(&dry_right, 0.0), 2.0e-6, "balance left: right");
+    assert_close(
+        &right,
+        &scaled(&dry_right, 0.0),
+        2.0e-6,
+        "balance left: right",
+    );
 
     // Inversion flips one side and only that side.
     let [dry_left, dry_right, left, right] =
@@ -559,7 +580,12 @@ fn stereo_enhancer_width_balance_and_inversion_match_their_arithmetic() {
     let [dry_left, dry_right, left, right] =
         through(&enhancer(|p| p.invert = StereoInvert::Right), 2_400);
     assert_close(&left, &dry_left, 2.0e-6, "invert right: left");
-    assert_close(&right, &scaled(&dry_right, -1.0), 2.0e-6, "invert right: right");
+    assert_close(
+        &right,
+        &scaled(&dry_right, -1.0),
+        2.0e-6,
+        "invert right: right",
+    );
 }
 
 #[test]
@@ -615,7 +641,10 @@ fn pan_motion_draws_each_shape_at_its_rate() {
     let triangle = pan_of(&shaped(LfoShape::Triangle, 2.0), 120.0, 48_000);
     for n in (0..48_000).step_by(37) {
         let angle = TAU * (n as f64 * 2.0 / 48_000.0).fract();
-        assert!((f64::from(sine[n]) - angle.sin()).abs() < 2.0e-4, "sine {n}");
+        assert!(
+            (f64::from(sine[n]) - angle.sin()).abs() < 2.0e-4,
+            "sine {n}"
+        );
         // A triangle is the arcsine of a sine, scaled to reach 1.
         let expected = angle.sin().asin() * 2.0 / PI;
         assert!(
@@ -643,7 +672,9 @@ fn pan_motion_draws_each_shape_at_its_rate() {
 
     let random = pan_of(&shaped(LfoShape::Random, 4.0), 120.0, 48_000);
     // One level per cycle of 12000 frames, read once it has been reached.
-    let levels: Vec<f32> = (0..4).map(|cycle| random[cycle * 12_000 + 11_000]).collect();
+    let levels: Vec<f32> = (0..4)
+        .map(|cycle| random[cycle * 12_000 + 11_000])
+        .collect();
     for (cycle, level) in levels.iter().enumerate() {
         assert!((-1.0..=1.0).contains(level));
         assert!((random[cycle * 12_000 + 6_000] - level).abs() < 1.0e-3);
@@ -739,7 +770,14 @@ fn bells(centers: &[f32], gains_db: &[f32], q: f64, hz: f64, rate: f64) -> Compl
     for (center, gain) in centers.iter().zip(gains_db) {
         total = multiply(
             total,
-            section(Shape::Peak, f64::from(*center), q, f64::from(*gain), hz, rate),
+            section(
+                Shape::Peak,
+                f64::from(*center),
+                q,
+                f64::from(*gain),
+                hz,
+                rate,
+            ),
         );
     }
     total
@@ -923,7 +961,9 @@ fn band_split_outputs_are_the_three_bands_of_a_fourth_order_crossover() {
         high_crossover_hz: 3_000.0,
         ..Default::default()
     };
-    for hz in [60.0, 150.0, 300.0, 600.0, 1_000.0, 3_000.0, 6_000.0, 12_000.0] {
+    for hz in [
+        60.0, 150.0, 300.0, 600.0, 1_000.0, 3_000.0, 6_000.0, 12_000.0,
+    ] {
         let sine: Vec<f32> = (0..48_000)
             .map(|n| (0.1 * (TAU * hz * n as f64 / 48_000.0).sin()) as f32)
             .collect();
@@ -1017,7 +1057,10 @@ fn band_split_in_two_bands_has_a_silent_mid_and_a_high_from_the_crossover_up() {
         assert!(mid.iter().all(|frame| *frame == [0.0; 2]));
         let (expected_low, expected_high) = crossover_db(500.0, hz);
         assert!((level_db(&low, hz) - expected_low).abs() < 0.05, "low {hz}");
-        assert!((level_db(&high, hz) - expected_high).abs() < 0.05, "high {hz}");
+        assert!(
+            (level_db(&high, hz) - expected_high).abs() < 0.05,
+            "high {hz}"
+        );
     }
 }
 
@@ -1045,13 +1088,30 @@ fn band_split_is_block_invariant_and_bypasses_without_a_click() {
 fn band_split_recombination_matches_independent_allpass_level_and_phase() {
     for rate in RATES {
         for bands in [BandCount::Two, BandCount::Three] {
-            let params = EffectParams::BandSplit(BandSplitParams { bands,
-                low_crossover_hz: 300.0, high_crossover_hz: 3_000.0,
-                ..Default::default() });
+            let params = EffectParams::BandSplit(BandSplitParams {
+                bands,
+                low_crossover_hz: 300.0,
+                high_crossover_hz: 3_000.0,
+                ..Default::default()
+            });
             for hz in [100.0, 300.0, 1_000.0, 3_000.0, 8_000.0] {
                 let pair = |corner| {
-                    let l = section(Shape::Lowpass, corner, 1.0 / 2.0_f64.sqrt(), 0.0, hz, f64::from(rate));
-                    let h = section(Shape::Highpass, corner, 1.0 / 2.0_f64.sqrt(), 0.0, hz, f64::from(rate));
+                    let l = section(
+                        Shape::Lowpass,
+                        corner,
+                        1.0 / 2.0_f64.sqrt(),
+                        0.0,
+                        hz,
+                        f64::from(rate),
+                    );
+                    let h = section(
+                        Shape::Highpass,
+                        corner,
+                        1.0 / 2.0_f64.sqrt(),
+                        0.0,
+                        hz,
+                        f64::from(rate),
+                    );
                     let (l, h) = (multiply(l, l), multiply(h, h));
                     (l.0 + h.0, l.1 + h.1)
                 };
@@ -1078,7 +1138,10 @@ fn resonant_sweep_filter_matches_independent_frequency_phase_and_level_response(
         ] {
             for q in [0.707, 2.0, 8.0] {
                 let settings = EffectParams::SelectableFilter(SelectableFilterParams {
-                    mode, frequency_hz: 1_000.0, q, ..Default::default()
+                    mode,
+                    frequency_hz: 1_000.0,
+                    q,
+                    ..Default::default()
                 });
                 for hz in [100.0, 500.0, 800.0, 1_200.0, 4_000.0, 10_000.0] {
                     let reference = section(shape, 1_000.0, f64::from(q), 0.0, hz, f64::from(rate));
@@ -1096,7 +1159,9 @@ fn resonant_sweep_is_block_invariant_and_bypasses_continuously() {
     use windfall_dsp::filter_family::SelectableFilterParams;
     let start = EffectParams::SelectableFilter(SelectableFilterParams::default());
     let end = EffectParams::SelectableFilter(SelectableFilterParams {
-        frequency_hz: 8_000.0, q: 5.0, ..Default::default()
+        frequency_hz: 8_000.0,
+        q: 5.0,
+        ..Default::default()
     });
     assert_block_invariant(&start, &end);
     assert_bypass_is_continuous(&start, 0.05);
@@ -1118,13 +1183,36 @@ fn seven_movable_eq_bands_match_an_independent_complex_response() {
         p.high_cut.enabled = true;
         p.high_cut.frequency_hz = 12_000.0;
         let mut parts = vec![(Shape::Highpass, p.low_cut.frequency_hz, p.low_cut.q, 0.0)];
-        parts.push((Shape::LowShelf, p.low_shelf.frequency_hz, p.low_shelf.q, p.low_shelf.gain_db));
-        for b in [p.peak1, p.peak2, p.peak3] { parts.push((Shape::Peak, b.frequency_hz, b.q, b.gain_db)); }
-        parts.push((Shape::HighShelf, p.high_shelf.frequency_hz, p.high_shelf.q, p.high_shelf.gain_db));
+        parts.push((
+            Shape::LowShelf,
+            p.low_shelf.frequency_hz,
+            p.low_shelf.q,
+            p.low_shelf.gain_db,
+        ));
+        for b in [p.peak1, p.peak2, p.peak3] {
+            parts.push((Shape::Peak, b.frequency_hz, b.q, b.gain_db));
+        }
+        parts.push((
+            Shape::HighShelf,
+            p.high_shelf.frequency_hz,
+            p.high_shelf.q,
+            p.high_shelf.gain_db,
+        ));
         parts.push((Shape::Lowpass, p.high_cut.frequency_hz, p.high_cut.q, 0.0));
         for hz in [100.0, 400.0, 600.0, 1_000.0, 3_000.0, 8_000.0, 16_000.0] {
-            let reference = parts.iter().fold((1.0, 0.0), |sum, &(shape, f, q, g)|
-                multiply(sum, section(shape, f64::from(f), f64::from(q), f64::from(g), hz, f64::from(rate))));
+            let reference = parts.iter().fold((1.0, 0.0), |sum, &(shape, f, q, g)| {
+                multiply(
+                    sum,
+                    section(
+                        shape,
+                        f64::from(f),
+                        f64::from(q),
+                        f64::from(g),
+                        hz,
+                        f64::from(rate),
+                    ),
+                )
+            });
             let heard = measured(&EffectParams::Eq(p), rate, hz);
             assert!((magnitude_db(heard) - magnitude_db(reference)).abs() < 0.05);
             assert!(phase_gap(phase(heard), phase(reference)) < 0.01);
@@ -1141,4 +1229,206 @@ fn movable_eq_is_block_invariant_and_bypasses_continuously() {
     p.peak2.q = 4.0;
     assert_block_invariant(&start, &EffectParams::Eq(p));
     assert_bypass_is_continuous(&start, 0.05);
+}
+
+#[test]
+fn filter_bank_real_series_and_parallel_routes_match_independent_complex_transfers() {
+    use windfall_dsp::eqbank::{FilterBankParams, FilterRouting, FilterSlotMode, FilterSlotParams};
+    for rate in RATES {
+        for routing in [FilterRouting::Serial, FilterRouting::Parallel] {
+            let mut p = FilterBankParams {
+                routing,
+                ..Default::default()
+            };
+            p.slots[0] = FilterSlotParams {
+                mode: FilterSlotMode::Lowpass,
+                frequency_hz: 1_000.0,
+                q: 0.8,
+            };
+            p.slots[7] = FilterSlotParams {
+                mode: FilterSlotMode::Highpass,
+                frequency_hz: 400.0,
+                q: 1.2,
+            };
+            p.patterns[0].enabled = true;
+            p.patterns[0].cutoff = [0.5; 8]; // one octave above the base
+            p.patterns[0].gate = [0.5; 8];
+            p.patterns[7].enabled = true;
+            p.patterns[7].gate = [0.75; 8];
+            for hz in [100.0, 400.0, 1_000.0, 2_000.0, 8_000.0] {
+                let a = multiply(
+                    (0.5, 0.0),
+                    section(Shape::Lowpass, 2_000.0, 0.8, 0.0, hz, f64::from(rate)),
+                );
+                let b = multiply(
+                    (0.75, 0.0),
+                    section(Shape::Highpass, 400.0, 1.2, 0.0, hz, f64::from(rate)),
+                );
+                let reference = if routing == FilterRouting::Serial {
+                    multiply(a, b)
+                } else {
+                    ((a.0 + b.0) / 2.0, (a.1 + b.1) / 2.0)
+                };
+                let heard = measured(&EffectParams::FilterBank(p), rate, hz);
+                assert!(
+                    (magnitude_db(heard) - magnitude_db(reference)).abs() < 0.05,
+                    "{routing:?} at {hz}, {rate}"
+                );
+                assert!(phase_gap(phase(heard), phase(reference)) < 0.01);
+            }
+        }
+    }
+}
+
+#[test]
+fn filter_bank_eight_gate_envelopes_follow_tempo_and_really_process_audio() {
+    use windfall_dsp::eqbank::{FilterBank, FilterBankParams, FilterRouting, FilterSlotMode};
+    for bpm in [60.0, 120.0, 180.0] {
+        for routing in [FilterRouting::Serial, FilterRouting::Parallel] {
+            let mut p = FilterBankParams {
+                routing,
+                ..Default::default()
+            };
+            for unit in 0..8 {
+                p.slots[unit].mode = FilterSlotMode::Dry;
+                p.patterns[unit].enabled = true;
+                p.patterns[unit].beats = 0.5 + unit as f32 * 0.25;
+                p.patterns[unit].gate = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8];
+            }
+            let mut effect = FilterBank::default();
+            effect.prepare(48_000.0, 512);
+            effect.set_params(&p);
+            effect.set_tempo(bpm);
+            let mut left = vec![0.2; 48_000];
+            let mut right = vec![-0.1; 48_000];
+            effect.process(&mut left, &mut right);
+            // Independent sampled linear curves with the documented 5 ms
+            // continuously retargeted smoothing. No DSP smoother is called.
+            let mut gates = [0.1_f32; 8];
+            for n in 0..48_000 {
+                for (unit, gate) in gates.iter_mut().enumerate() {
+                    let position = ((n as f64 * f64::from(bpm) / (60.0 * 48_000.0))
+                        / f64::from(p.patterns[unit].beats))
+                    .fract()
+                        * 8.0;
+                    let i = position.floor() as usize;
+                    let j = (i + 1) % 8;
+                    let a = f64::from(p.patterns[unit].gate[i]);
+                    let b = f64::from(p.patterns[unit].gate[j]);
+                    let target = (a + (position - i as f64) * (b - a)) as f32;
+                    if n > 0 {
+                        *gate += (target - *gate) / 240.0;
+                    }
+                }
+                let gain = if routing == FilterRouting::Serial {
+                    gates.iter().map(|&g| f64::from(g)).product::<f64>()
+                } else {
+                    gates.iter().map(|&g| f64::from(g)).sum::<f64>() / 8.0
+                };
+                assert!(
+                    (left[n] - (0.2 * gain) as f32).abs() < 3e-6,
+                    "{bpm}, {routing:?}, {n}"
+                );
+                assert!((right[n] + (0.1 * gain) as f32).abs() < 3e-6);
+            }
+            effect.reset();
+            effect.set_tempo(bpm);
+            let mut restarted = vec![0.2; 48_000];
+            let mut other = vec![-0.1; 48_000];
+            effect.process(&mut restarted, &mut other);
+            assert_eq!(restarted, left);
+        }
+    }
+}
+
+#[test]
+fn filter_bank_drawn_cutoff_and_gate_patterns_are_block_invariant_and_bypass_continuously() {
+    use windfall_dsp::eqbank::{FilterBankParams, FilterRouting, FilterSlotMode};
+    let mut p = FilterBankParams::default();
+    for unit in 0..8 {
+        p.slots[unit].mode = if unit % 2 == 0 {
+            FilterSlotMode::Lowpass
+        } else {
+            FilterSlotMode::Dry
+        };
+        p.slots[unit].frequency_hz = 800.0 + unit as f32 * 200.0;
+        p.patterns[unit].enabled = true;
+        p.patterns[unit].beats = 0.5;
+        p.patterns[unit].gate = [1.0, 0.9, 0.6, 0.2, 0.1, 0.3, 0.5, 0.8];
+        p.patterns[unit].cutoff = [-1.0, -0.5, 0.0, 0.5, 1.0, 0.5, 0.0, -0.5];
+    }
+    let start = EffectParams::FilterBank(p);
+    p.routing = FilterRouting::Parallel;
+    p.patterns[7].beats = 1.0;
+    assert_block_invariant(&start, &EffectParams::FilterBank(p));
+    assert_bypass_is_continuous(&start, 0.05);
+}
+
+#[test]
+fn filter_bank_patterns_default_out_of_legacy_json_and_descriptor_indices_stay_stable() {
+    use windfall_dsp::{ParamSet, eqbank::FilterBankParams};
+    let p = FilterBankParams::default();
+    let json = serde_json::to_value(p).unwrap();
+    assert!(json.get("patterns").is_none());
+    let loaded: FilterBankParams = serde_json::from_value(json).unwrap();
+    assert_eq!(p, loaded);
+    assert_eq!(FilterBankParams::index_of("routing"), Some(24));
+    assert_eq!(FilterBankParams::index_of("patterns.0.enabled"), Some(25));
+    assert_eq!(FilterBankParams::descriptors().len(), 177);
+}
+
+#[test]
+fn drawn_cutoff_audio_matches_an_independent_time_varying_iir_reference() {
+    use windfall_dsp::eqbank::{FilterBankParams, FilterSlotMode};
+    let mut p = FilterBankParams::default();
+    p.slots[0].mode = FilterSlotMode::Lowpass;
+    p.slots[0].frequency_hz = 1_000.0;
+    p.patterns[0].enabled = true;
+    p.patterns[0].beats = 0.5;
+    p.patterns[0].cutoff = [-1.0, -0.5, 0.0, 0.5, 1.0, 0.5, 0.0, -0.5];
+    let source: Vec<f32> = (0..24_000)
+        .map(|n| {
+            (0.1 * (TAU * 800.0 * n as f64 / 48_000.0).sin()
+                + 0.1 * (TAU * 8_000.0 * n as f64 / 48_000.0).sin()) as f32
+        })
+        .collect();
+    let mut heard = source.clone();
+    let mut right = source.clone();
+    let mut processor = effect(&EffectParams::FilterBank(p), 48_000.0, 512);
+    processor.set_tempo(120.0);
+    processor.process(&mut heard, &mut right);
+    // Bilinear transform of the analog lowpass; independent coefficient
+    // algebra, direct-form histories and smoothing, with no crate blocks.
+    let table: [[f64; 5]; 8] = std::array::from_fn(|i| {
+        let hz = (1_000.0_f32 * 2.0_f32.powf(p.patterns[0].cutoff[i] * 2.0)).clamp(20.0, 20_000.0);
+        let g = (PI * f64::from(hz) / 48_000.0).tan();
+        let k = 1.0 / f64::from(p.slots[0].q);
+        let d = 1.0 + k * g + g * g;
+        [
+            g * g / d,
+            2.0 * g * g / d,
+            g * g / d,
+            2.0 * (g * g - 1.0) / d,
+            (1.0 - k * g + g * g) / d,
+        ]
+    });
+    let mut current = table[0];
+    let (mut s1, mut s2) = (0.0, 0.0);
+    for n in 0..24_000 {
+        let position = (n as f64 / 12_000.0).fract() * 8.0;
+        let i = position.floor() as usize;
+        let j = (i + 1) % 8;
+        if n > 0 {
+            for coefficient in 0..5 {
+                let target = table[i][coefficient]
+                    + (position - i as f64) * (table[j][coefficient] - table[i][coefficient]);
+                current[coefficient] += (target - current[coefficient]) / 240.0;
+            }
+        }
+        let x = f64::from(source[n]);
+        let y = current[0] * x + s1;
+        s1 = current[1] * x - current[3] * y + s2;
+        s2 = current[2] * x - current[4] * y;
+        assert!((f64::from(heard[n]) - y).abs() < 1e-5, "frame {n}");
+    }
 }

@@ -1,4 +1,5 @@
 import type { ParamInfo } from "@/bindings"
+import { defaultFields } from "./default-fields"
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null
@@ -22,7 +23,7 @@ export function clampParam(info: ParamInfo, value: number): number {
  * which means it belongs to another kind.
  */
 export function readParam(params: object, info: ParamInfo): number {
-  let at: unknown = params
+  let at: unknown = defaultFields(params)
   for (const key of info.id.split(".")) {
     if (!isRecord(at) || !(key in at)) throw missing(info)
     at = at[key]
@@ -75,7 +76,7 @@ export function writeParam<Params extends object>(
   value: number
 ): Params {
   return writeAt(
-    params,
+    defaultFields(params),
     info.id.split("."),
     stored(info, value),
     info
