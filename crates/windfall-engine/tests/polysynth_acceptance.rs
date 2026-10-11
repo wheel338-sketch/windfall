@@ -55,3 +55,13 @@ fn grooveSynth_musical_edit_reaches_history_disk_and_live_offline_pcm() {
     assert!(changed.set(param, if info.default == info.max { info.min } else { info.max }));
     acceptance(InstrumentKind::GrooveSynth, initial, changed);
 }
+
+#[test]
+fn hybridSeq_musical_edit_reaches_history_disk_and_live_offline_pcm() {
+    let initial = InstrumentKind::HybridSeq.default_params();
+    let mut changed = initial;
+    let param = InstrumentKind::HybridSeq.descriptors().iter().position(|p| p.id == "cutoffHz").unwrap();
+    let info = &InstrumentKind::HybridSeq.descriptors()[param];
+    assert!(changed.set(param, if info.default == info.max { info.min } else { info.max }));
+    acceptance(InstrumentKind::HybridSeq, initial, changed);
+}

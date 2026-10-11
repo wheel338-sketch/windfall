@@ -164,3 +164,17 @@ per-graph DSP tests in `polysynth/tests.rs` (names below).
 Use the integrator commands in the Vintage Poly section, after regenerating
 bindings/descriptors and WASM. Check strict Clippy and numerical thresholds first;
 no measured sound/performance claim is made. No external proprietary content.
+
+## 2026-10-11 continuation — HybridSeq / inst-toxic-biohazard
+
+Full-row software candidate, awaiting execution. Six individually enveloped operators, four real operator algorithms, feedback/key scaling and a separate BLEP saw feed the subtractive filter. A native 16-step pitch/velocity/enable grid supplies tempo divisions, length and envelope-gated steps. Chorus, echo and room are real effect stages. DSP tests: hybrid_sequence_algorithms_feedback_key_scaling_and_subtractive_path; hybrid_sequence_step_pitch_gate_velocity_and_tempo_are_real.
+Purpose-built editor group: FM and subtractive graph. Uses the existing checked instrument
+commands, tagged project persistence, engine hosting and live/offline processor.
+New generated types: `HybridSeq`, `HybridSeqParams`, `hybridSeq` tag and descriptors.
+Tests **written, not executed**: `hybridSeq_musical_edit_reaches_history_disk_and_live_offline_pcm`
+in registered `polysynth_acceptance.rs`; the `hybridSeq` mounted editor case
+(edit and undo); complete descriptor/serde/default/range tests in DSP params;
+per-graph DSP tests in `polysynth/tests.rs` (names below).
+Use the integrator commands in the Vintage Poly section, after regenerating
+bindings/descriptors and WASM. Check strict Clippy and numerical thresholds first;
+no measured sound/performance claim is made. No external proprietary content.

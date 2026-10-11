@@ -158,3 +158,33 @@ fn groove_synth_real_analog_phase_ring_table_paths_and_tempo_motion() {
     assert!(energy(&x.iter().zip(y).map(|(a,b)|a-b).collect::<Vec<_>>())>1e-6);
 }
 
+#[test]
+fn hybrid_sequence_algorithms_feedback_key_scaling_and_subtractive_path() {
+    contract(InstrumentKind::HybridSeq);
+    let mut p=HybridSeqParams::default();
+    p.operators[1].ratio=2.0;p.operators[3].ratio=3.0;p.operators[5].ratio=5.0;
+    for algorithm in [HybridAlgorithm::Serial,HybridAlgorithm::Stack,HybridAlgorithm::Parallel] {
+        different(InstrumentParams::HybridSeq(p),InstrumentParams::HybridSeq(HybridSeqParams { algorithm,..p }));
+    }
+    let mut feedback=p;feedback.operators[1].feedback=2.0;
+    different(InstrumentParams::HybridSeq(p),InstrumentParams::HybridSeq(feedback));
+    different(InstrumentParams::HybridSeq(p),InstrumentParams::HybridSeq(HybridSeqParams { saw_mix:1.0,..p }));
+    let mut scaled=p;scaled.operators[0].key_scale=1.0;
+    let a=render(InstrumentParams::HybridSeq(p),72,12000,64).0;
+    let b=render(InstrumentParams::HybridSeq(scaled),72,12000,64).0;
+    assert!(energy(&b)>energy(&a)*1.1);
+}
+
+#[test]
+fn hybrid_sequence_step_pitch_gate_velocity_and_tempo_are_real() {
+    let p=HybridSeqParams { sequencer:true,..Default::default() };
+    let mut changed=p;changed.steps[1].pitch=12;changed.steps[2].velocity=0.15;changed.steps[3].enabled=false;
+    different(InstrumentParams::HybridSeq(p),InstrumentParams::HybridSeq(changed));
+    let a=render(InstrumentParams::HybridSeq(changed),60,36000,1);
+    let b=render(InstrumentParams::HybridSeq(changed),60,36000,257);assert_eq!(a,b);
+    let mut synth=AnyInstrument::new(&InstrumentParams::HybridSeq(changed));synth.prepare(48000.0,64);synth.set_tempo(240.0);synth.note_on(60,1.0);
+    let mut x=vec![0.0;36000];let mut r=x.clone();synth.process(&mut x,&mut r);
+    assert!(energy(&x.iter().zip(a.0).map(|(a,b)|a-b).collect::<Vec<_>>())>1e-6);
+    synth.note_off(60);synth.process(&mut [0.0;8000],&mut [0.0;8000]);assert_eq!(synth.active_voices(),0);
+}
+

@@ -47,6 +47,9 @@ pub(super) struct Tone {
     pub filter_env: Adsr,
     pub elapsed: u64,
     pub sample_phase: [f32; UNISON],
+    pub sequence_step: u64,
+    pub sequence_open: bool,
+    pub sequence_env: Adsr,
 }
 impl Default for Tone {
     fn default() -> Self {
@@ -54,7 +57,7 @@ impl Default for Tone {
             operators: [Adsr::default(); 6], levels: [0.0; 6], ladder: [Ladder::default(); 2],
             svf: [SatSvf::default(); 2], highpass: [SatSvf::default(); 2], drift: Drift::default(),
             noise: Rng::new(0x5746), amp: Adsr::default(), filter_env: Adsr::default(), elapsed: 0,
-            sample_phase: [0.0; UNISON] }
+            sample_phase: [0.0; UNISON], sequence_step: u64::MAX, sequence_open: false, sequence_env: Adsr::default() }
     }
 }
 pub(super) fn envelope(env: &mut Adsr, p: EnvelopeParams, rate: f32) {
@@ -64,6 +67,7 @@ pub(super) fn envelope(env: &mut Adsr, p: EnvelopeParams, rate: f32) {
 pub(super) struct Context {
     pub pitch: f32,
     pub key: u8,
+    pub held: bool,
     pub slot: usize,
     pub lfo: f32,
     pub cutoff: f32,
@@ -167,7 +171,7 @@ impl<P: Patch> Instrument for Runtime<P> {
                 for (level, op) in tone.levels.iter_mut().zip(&mut tone.operators) { *level = op.tick(); }
                 let pitch = note.glide();
                 let cutoff = core::swept(f.cutoff, f.env_amount * filter + f.key_track * (pitch - 60.0) / 12.0 + lfo * f.lfo_filter, self.rate * 2.0);
-                let ctx = Context { pitch, key: note.key, slot, lfo, cutoff, rate: self.rate * 2.0, bpm: self.bpm };
+                let ctx = Context { pitch, key: note.key, held: note.held, slot, lfo, cutoff, rate: self.rate * 2.0, bpm: self.bpm };
                 // Two substeps keep nonlinear filters/FM comfortably below the host Nyquist.
                 let a = p.sample(tone, &ctx); let b = p.sample(tone, &ctx);
                 tone.elapsed = tone.elapsed.wrapping_add(1);

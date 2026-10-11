@@ -201,6 +201,7 @@ fn every_parameter_struct_agrees_with_its_description() {
     check::<FlangerParams>();
     check::<PhaserParams>();
     check::<SynthParams>();
+    check::<windfall_dsp::HybridSeqParams>();
     check::<windfall_dsp::GrooveSynthParams>();
     check::<windfall_dsp::PocketSynthParams>();
     check::<windfall_dsp::VintageSawParams>();
@@ -481,6 +482,7 @@ fn names_are_plain_descriptions() {
             "Vintage saw",
             "Pocket synth",
             "Groove synth",
+            "Hybrid sequencer",
         ]
     );
 }

@@ -7,7 +7,15 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 
 const amp = ["envelope.attackMs", "envelope.decayMs", "envelope.sustain", "envelope.releaseMs"]
 const filterEnv = ["filterEnvelope.attackMs", "filterEnvelope.decayMs", "filterEnvelope.sustain", "filterEnvelope.releaseMs"]
+const operators: (readonly [string, readonly string[]])[] = Array.from({ length: 6 }, (_, i) => [`Operator ${i + 1}`, ["ratio", "detuneCents", "level", "feedback", "keyScale", "waveform", "envelope.attackMs", "envelope.decayMs", "envelope.sustain", "envelope.releaseMs"].map((field) => `operators.${i}.${field}`)] as const)
 export const POLYSYNTH_PANELS: Record<string, readonly (readonly [string, readonly string[]])[]> = {
+  hybridSeq: [
+    ["FM and subtractive graph", ["algorithm", "index", "sawMix"]], ...operators,
+    ["Sequence clock", ["sequencer", "length", "division", "gate"]],
+    ["Filter", ["cutoffHz", "resonance", "drive", "filterAmount", "keyTrack"]],
+    ["Amp contour", amp], ["Filter contour", filterEnv], ["LFO", ["lfoRateHz", "lfoFilter"]],
+    ["Voices and effects", ["unison", "detuneCents", "spread", "glideMs", "polyphony", "chorus", "delay", "reverb", "gain"]],
+  ],
   grooveSynth: [
     ["Groove engine", ["mode", "mix", "coarse", "ratio", "shape", "index"]],
     ["Rhythm and motion", ["sync", "division", "gate", "motion", "lfoRateHz", "lfoFilter"]],
@@ -64,5 +72,14 @@ export function PolysynthEditor({ channel, params }: { channel: ChannelId; param
     {POLYSYNTH_PANELS[params.type].map(([title, ids]) => <ParamGroup key={title} title={title}>
       <ParamRow>{ids.map((id) => <ParamControl key={id} {...bind(id)} />)}</ParamRow>
     </ParamGroup>)}
+    {params.type === "hybridSeq" && <ParamGroup title="Sixteen-step sequence">
+      <div className="overflow-auto"><table aria-label="Hybrid note sequence">
+        <thead><tr><th scope="col">Step</th><th scope="col">Pitch</th><th scope="col">Velocity</th><th scope="col">Enabled</th></tr></thead>
+        <tbody>{Array.from({ length: 16 }, (_, step) => <tr key={step}>
+          <th scope="row">{step + 1}</th>
+          {["pitch", "velocity", "enabled"].map((field) => <td key={field}><ParamControl size="sm" {...bind(`steps.${step}.${field}`)} /></td>)}
+        </tr>)}</tbody>
+      </table></div>
+    </ParamGroup>}
   </div>
 }

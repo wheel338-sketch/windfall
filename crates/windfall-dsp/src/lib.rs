@@ -162,3 +162,4 @@ pub use polysynth::{CompactSynth, CompactSynthParams};
 pub use polysynth::{VintageSaw, VintageSawParams};
 pub use polysynth::{PocketSynth, PocketSynthParams};
 pub use polysynth::{GrooveSynth, GrooveSynthParams};
+pub use polysynth::{HybridSeq, HybridSeqParams};
