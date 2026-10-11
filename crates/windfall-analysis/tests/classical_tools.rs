@@ -258,3 +258,131 @@ fn learned_profile_improves_independent_snr_and_dry_is_exact() {
     );
     assert_eq!(audio.samples(), noisy);
 }
+
+// Independent waveform reference: interpolated positive-going crossings.
+// Evaluated well away from the transformed onset and phase-crossfade seams.
+fn crossing_hz(audio: &AudioBuffer, start: usize, end: usize) -> f64 {
+    let channels = usize::from(audio.channels());
+    let mut crossings = Vec::new();
+    for i in start + 1..end {
+        let a = f64::from(audio.samples()[(i - 1) * channels]);
+        let b = f64::from(audio.samples()[i * channels]);
+        if a <= 0.0 && b > 0.0 {
+            crossings.push((i - 1) as f64 - a / (b - a));
+        }
+    }
+    assert!(crossings.len() > 10);
+    (crossings.len() - 1) as f64 * f64::from(audio.sample_rate())
+        / (crossings.last().unwrap() - crossings[0])
+}
+
+#[test]
+fn corrected_note_duration_pitch_and_stereo_seams_match_waveform_reference() {
+    let mono = signal(&[440.0], 32000);
+    let stereo = AudioBuffer::from_interleaved(
+        16000,
+        2,
+        mono.samples().iter().flat_map(|x| [*x, -*x]).collect(),
+    );
+    let mut r = recipe(&stereo);
+    r.analysis.notes = vec![
+        windfall_project::DetectedAudioNote {
+            start_frame: 0,
+            end_frame: 16000,
+            midi_pitch: 69.0,
+            confidence: 1.0,
+            rms: 0.2 / 2.0_f64.sqrt(),
+        },
+        windfall_project::DetectedAudioNote {
+            start_frame: 16000,
+            end_frame: 32000,
+            midi_pitch: 69.0,
+            confidence: 1.0,
+            rms: 0.2 / 2.0_f64.sqrt(),
+        },
+    ];
+    r.markers.last_mut().unwrap().target_frame = 48000;
+    r.overrides = vec![
+        AudioNoteOverride {
+            note: 0,
+            midi_pitch: 74.0,
+            start_frame: 0,
+            end_frame: 24000,
+        },
+        AudioNoteOverride {
+            note: 1,
+            midi_pitch: 66.0,
+            start_frame: 24000,
+            end_frame: 48000,
+        },
+    ];
+    let out = classical::render(&stereo, &r, &mut work()).unwrap();
+    assert_eq!(out.frames(), 48000);
+    assert_eq!(out.channels(), 2);
+    for (from, to, pitch) in [(6000, 20000, 74.0), (29000, 43000, 66.0)] {
+        let expected = 440.0 * 2.0_f64.powf((pitch - 69.0) / 12.0);
+        assert!((1200.0 * (crossing_hz(&out, from, to) / expected).log2()).abs() < 10.0);
+    }
+    let max_step = (23500..24500)
+        .map(|i| (out.samples()[i * 2] - out.samples()[(i - 1) * 2]).abs())
+        .fold(0.0_f32, f32::max);
+    assert!(max_step < 0.1, "seam adjacent-sample step {max_step}");
+    assert!(out
+        .samples()
+        .chunks_exact(2)
+        .all(|f| (f[0] + f[1]).abs() < 1e-4));
+    assert_eq!(stereo.samples()[100], -stereo.samples()[101]);
+    let review = classical::reviewed_notes(&r).unwrap();
+    assert_eq!((review[0].start_frame, review[0].end_frame), (0, 24000));
+    assert_eq!((review[1].start_frame, review[1].end_frame), (24000, 48000));
+}
+
+#[test]
+fn stationary_hum_profile_preserves_tone_stereo_and_linear_wet_mix() {
+    let mut clean = Vec::new();
+    let mut noisy = Vec::new();
+    for i in 0..32000 {
+        let t = i as f64 / 16000.0;
+        let tone = if i < 8000 {
+            0.0
+        } else {
+            0.2 * (std::f64::consts::TAU * 440.0 * t).sin()
+        };
+        let hum = 0.08 * (std::f64::consts::TAU * 60.0 * t).sin()
+            + 0.04 * (std::f64::consts::TAU * 120.0 * t).sin();
+        clean.extend([tone as f32, -tone as f32]);
+        noisy.extend([(tone + hum) as f32, (-tone - hum) as f32]);
+    }
+    let audio = AudioBuffer::from_interleaved(16000, 2, noisy.clone());
+    let settings = AudioDenoiseSettings {
+        profile_start: 0,
+        profile_end: 8000,
+        reduction_db: 30.0,
+        wet: 1.0,
+    };
+    let wet = classical::denoise(&audio, settings, &mut work()).unwrap();
+    let mix = classical::denoise(
+        &audio,
+        AudioDenoiseSettings {
+            wet: 0.35,
+            ..settings
+        },
+        &mut work(),
+    )
+    .unwrap();
+    let error = |pcm: &[f32]| {
+        (12000 * 2..28000 * 2)
+            .map(|i| f64::from(pcm[i] - clean[i]).powi(2))
+            .sum::<f64>()
+    };
+    assert!(10.0 * (error(&noisy) / error(wet.samples())).log10() > 8.0);
+    assert!((1200.0 * (crossing_hz(&wet, 12000, 28000) / 440.0).log2()).abs() < 10.0);
+    for (i, value) in mix.samples().iter().enumerate() {
+        assert!((*value - (wet.samples()[i] * 0.35 + noisy[i] * 0.65)).abs() < 1e-6);
+    }
+    assert!(wet
+        .samples()
+        .chunks_exact(2)
+        .all(|f| (f[0] + f[1]).abs() < 1e-6));
+    assert_eq!(audio.samples(), noisy);
+}

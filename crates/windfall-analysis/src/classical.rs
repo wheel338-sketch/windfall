@@ -2,13 +2,13 @@
 //! Spectral polyphony is a heuristic for sparse tonal audio, not source separation.
 use crate::pitch::{PitchAnalyzer, PitchConfig, PitchLimits, PitchSource};
 use crate::{AnalysisError, AudioShape, FrameRange, Result, Work};
-use rustfft::{FftPlanner, num_complex::Complex};
+use rustfft::{num_complex::Complex, FftPlanner};
 use windfall_core::AudioBuffer;
 use windfall_project::{
     AudioAnalysisData, AudioDenoiseSettings, AudioEditRecipe, AudioWarpMarker, DetectedAudioNote,
     MAX_AUDIO_NOTES, MAX_WARP_MARKERS,
 };
-use windfall_stretch::{Quality, stretch_with_formants_cancellable};
+use windfall_stretch::{stretch_with_formants_cancellable, Quality};
 
 fn invalid(message: &'static str) -> AnalysisError {
     AnalysisError::Invalid(message)
@@ -35,22 +35,21 @@ fn checked(audio: &AudioBuffer, work: &mut Work) -> Result<()> {
 fn hz_key(hz: f64) -> f64 {
     69.0 + 12.0 * (hz / 440.0).log2()
 }
-fn strongest(audio: &AudioBuffer) -> usize {
+fn strongest(audio: &AudioBuffer, work: &mut Work) -> Result<usize> {
     let channels = audio.channels() as usize;
-    let energy = |ch| {
-        audio
-            .samples()
-            .iter()
-            .skip(ch)
-            .step_by(channels)
-            .map(|x| f64::from(*x).powi(2))
-            .sum::<f64>()
-    };
-    if channels == 2 && energy(1) > energy(0) {
-        1
-    } else {
-        0
+    if channels == 1 {
+        return Ok(0);
     }
+    let mut energies = [0.0_f64; 2];
+    for chunk in audio.samples().chunks(4096) {
+        work.checkpoint(chunk.len() as u64)?;
+        for frame in chunk.chunks_exact(channels) {
+            for ch in 0..channels {
+                energies[ch] += f64::from(frame[ch]).powi(2);
+            }
+        }
+    }
+    Ok(usize::from(energies[1] > energies[0]))
 }
 
 /// RMS novelty with a silence gate and 40 ms refractory period. No phase
@@ -58,7 +57,7 @@ fn strongest(audio: &AudioBuffer) -> usize {
 pub fn transients(audio: &AudioBuffer, work: &mut Work) -> Result<Vec<u32>> {
     checked(audio, work)?;
     let hop = (audio.sample_rate() as usize / 200).max(1);
-    let channel = strongest(audio);
+    let channel = strongest(audio, work)?;
     let channels = audio.channels() as usize;
     let mut out = Vec::new();
     let (mut previous, mut last) = (0.0_f64, 0_usize);
@@ -186,7 +185,7 @@ fn spectral_notes(
     let n = (rate / 10).next_power_of_two().clamp(1024, 16384);
     let hop = (rate / 100).max(1);
     let channels = audio.channels() as usize;
-    let channel = strongest(audio);
+    let channel = strongest(audio, work)?;
     let mut planner = FftPlanner::<f64>::new();
     let fft = planner.plan_fft_forward(n);
     let mut bins = vec![Complex::default(); n];
@@ -448,8 +447,27 @@ pub fn render(
         .iter()
         .map(|m| (m.source_frame, m.target_frame))
         .collect();
+    // Avoid phase preparation and all seam arithmetic for a neutral recipe.
+    if recipe
+        .overrides
+        .iter()
+        .all(|edit| edit.midi_pitch == recipe.analysis.notes[edit.note as usize].midi_pitch)
+        && points.iter().all(|(source, target)| source == target)
+    {
+        work.check()?;
+        return Ok(source);
+    }
     let mut result = vec![0.0; frames * channels];
+    // Each independently transformed interval receives one full analysis
+    // window of source context. Its core stays at the exact anchor frames.
+    // Linear 8 ms crossfades bridge independently reconstructed phases;
+    // widths shrink to a quarter of either neighbouring interval.
+    let context = (audio.sample_rate() as usize * 120 / 1000).max(1);
+    let fade_limit = (audio.sample_rate() as usize * 8 / 1000).max(1);
+    let mut previous_tail = Vec::<f32>::new();
+    let mut previous_core = 0_usize;
     for pair in points.windows(2) {
+        work.checkpoint(4096)?;
         let (a, b) = (pair[0], pair[1]);
         if a.0 >= b.0 || a.1 >= b.1 {
             return Err(invalid("combined note/warp anchors cross"));
@@ -467,10 +485,14 @@ pub fn render(
                     .then_some(edit.midi_pitch - note.midi_pitch)
             })
             .unwrap_or(0.0);
+        let first = (a.0 as usize).saturating_sub(context);
+        let last = (b.0 as usize + context).min(source.frames());
+        let core = (b.1 - a.1) as usize;
+        let core_offset = (((a.0 as usize - first) as f64) * ratio).round() as usize;
         let buffer = AudioBuffer::from_interleaved(
             audio.sample_rate(),
             audio.channels(),
-            source.samples()[a.0 as usize * channels..b.0 as usize * channels].to_vec(),
+            source.samples()[first * channels..last * channels].to_vec(),
         );
         let mut failure = None;
         let rendered = stretch_with_formants_cancellable(
@@ -491,14 +513,43 @@ pub fn render(
             return Err(error);
         }
         let rendered = rendered.ok_or(AnalysisError::Cancelled)?;
-        if rendered.frames() != (b.1 - a.1) as usize {
-            return Err(invalid("stretch length mismatch"));
+        if rendered.frames() < core_offset + core {
+            return Err(invalid("stretch context length mismatch"));
         }
-        result[a.1 as usize * channels..b.1 as usize * channels]
-            .copy_from_slice(rendered.samples());
+        result[a.1 as usize * channels..b.1 as usize * channels].copy_from_slice(
+            &rendered.samples()[core_offset * channels..(core_offset + core) * channels],
+        );
+        let blend = fade_limit
+            .min(previous_core / 4)
+            .min(core / 4)
+            .min(previous_tail.len() / channels)
+            .min(core_offset);
+        let boundary = a.1 as usize;
+        for i in 0..blend * 2 {
+            let frame = boundary - blend + i;
+            let weight = (i + 1) as f64 / (blend * 2 + 1) as f64;
+            for ch in 0..channels {
+                let left = if i < blend {
+                    result[frame * channels + ch]
+                } else {
+                    previous_tail[(i - blend) * channels + ch]
+                };
+                let right = rendered.samples()[(core_offset - blend + i) * channels + ch];
+                result[frame * channels + ch] =
+                    (f64::from(left) * (1.0 - weight) + f64::from(right) * weight) as f32;
+            }
+        }
+        let tail = (rendered.frames() - core_offset - core).min(fade_limit);
+        previous_tail = rendered.samples()
+            [(core_offset + core) * channels..(core_offset + core + tail) * channels]
+            .to_vec();
+        previous_core = core;
     }
-    if result.iter().any(|v| !v.is_finite()) {
-        return Err(invalid("nonfinite render"));
+    for chunk in result.chunks(4096) {
+        work.checkpoint(chunk.len() as u64)?;
+        if chunk.iter().any(|v| !v.is_finite()) {
+            return Err(invalid("nonfinite render"));
+        }
     }
     Ok(AudioBuffer::from_interleaved(
         audio.sample_rate(),

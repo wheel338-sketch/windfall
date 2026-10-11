@@ -24,6 +24,14 @@ Written, not executed: `crates/windfall-analysis/tests/classical_tools.rs`:
 `glide_vibrato_and_noise_keep_bounded_estimates`,
 `warp_order_bounds_overrides_and_cancel_are_explicit`,
 `learned_profile_improves_independent_snr_and_dry_is_exact`.
+Added `corrected_note_duration_pitch_and_stereo_seams_match_waveform_reference`
+and `stationary_hum_profile_preserves_tone_stereo_and_linear_wet_mix`.
+Written, not executed: pitch checks use interpolated waveform crossings,
+independent of the pitch detector, with a <10-cent target; hum SNR target is
+>8 dB, and a transformed boundary has a <0.1 adjacent-sample-step target.
+Render intervals now use 120 ms source context and up to 8 ms linear
+crossfades, shrinking for short neighbouring intervals. Neutral render is an
+exact buffer bypass. Strongest-channel and output scans checkpoint Work.
 
 These assertions are acceptance targets, not measurements. The SNR fixture
 requires >5 dB improvement and <1.5 dB tone RMS error; no result is claimed.
