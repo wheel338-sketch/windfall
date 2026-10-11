@@ -1019,6 +1019,11 @@ pub fn handler() -> impl Fn(Invoke) -> bool + Send + Sync + 'static {
         script_cancel,
         script_parameters,
         script_preview,
+        assistant_connection,
+        assistant_configure,
+        assistant_request_begin,
+        assistant_request_cancel,
+        assistant_remote,
         engine_status,
         process_memory,
         engine_devices,
@@ -1340,4 +1345,24 @@ async fn script_parameters(session: State<'_, Session>, source: String) -> Resul
 async fn script_preview(session: State<'_, Session>, request: u64, input: windfall_project::scripting::PianoScriptRequest) -> Result<windfall_project::scripting::PianoScriptPreview, String> {
     let session = session.inner().clone();
     blocking(move || session.script_preview(request, input)).await
+}
+
+#[tauri::command]
+async fn assistant_connection(session: State<'_, Session>) -> Result<windfall_ipc::AssistantConnection, String> {
+    let session = session.inner().clone();
+    blocking(move || session.assistant_connection()).await
+}
+#[tauri::command]
+async fn assistant_configure(session: State<'_, Session>, update: windfall_ipc::AssistantConnectionUpdate) -> Result<windfall_ipc::AssistantConnection, String> {
+    let session = session.inner().clone();
+    blocking(move || session.assistant_configure(update)).await
+}
+#[tauri::command]
+fn assistant_request_begin(session: State<'_, Session>) -> u64 { session.assistant_request_begin() }
+#[tauri::command]
+fn assistant_request_cancel(session: State<'_, Session>, request: u64) { session.assistant_request_cancel(request); }
+#[tauri::command]
+async fn assistant_remote(session: State<'_, Session>, request: u64, prompt: String) -> Result<windfall_project::assistant::AssistantReply, String> {
+    let session = session.inner().clone();
+    blocking(move || session.assistant_remote(request, &prompt)).await
 }

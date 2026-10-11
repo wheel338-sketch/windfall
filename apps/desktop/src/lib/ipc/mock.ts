@@ -803,6 +803,11 @@ export function createMockBackend(options: MockOptions = {}): MockBackend {
       return { generation, revision }
     }),
     assistantRespond: (prompt) => ipc(() => doc.assistant(prompt, timelineState().generation)),
+    assistantConnection: () => Promise.resolve({ baseUrl: "", model: "", enabled: false, hasKey: false }),
+    assistantConfigure: () => Promise.reject(new Error("BYOK credentials require the native per-user settings store.")),
+    assistantRequestBegin: () => Promise.reject(new Error("BYOK HTTP requests require the native assistant worker.")),
+    assistantRequestCancel: () => Promise.resolve(),
+    assistantRemote: () => Promise.reject(new Error("BYOK HTTP requests require the native assistant worker.")),
     proposalApply: (proposal) => ipc(() => {
       const result = doc.applyProposal(proposal, timelineState().generation, false)
       // Ordinary mock dispatch uses the same patch stream and transport sync.

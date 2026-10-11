@@ -31,8 +31,13 @@ Fake loopback tests (all written, not executed):
 `connection_is_off_without_key_and_atomic_private_file_roundtrips_without_exposing_it`.
 Project `assistant_protocol` test:
 `schema_and_parser_bound_strict_commands_and_keep_authoritative_stamp`.
-Native request returns only a proposal and rechecks the document stamp; UI/IPC
-configuration and explicit Ask BYOK wiring is the next file-group.
+Native request returns only a proposal and rechecks the document stamp. UI/IPC
+now exposes connection status/save/remove-key and explicit **Ask BYOK assistant**
+alongside offline help. Neither mount nor save sends a request. Browser mode
+refuses BYOK credentials/HTTP instead of storing keys in localStorage. Mounted
+`byok-panel.test.tsx` fixtures cover OFF/save/no-send, password clearing,
+review/apply, cancellation/late replies, malformed/timeout errors and key removal;
+all written, not executed, with remote HTTP responses explicitly mocked.
 
 ## Row claims at this checkpoint
 

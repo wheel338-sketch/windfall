@@ -174,6 +174,11 @@ export interface Backend extends AnalysisBackend, MixerPresetLibraryBackend, Ana
   scriptCancel(request: number): Promise<void>
   scriptParameters(source: string): Promise<import("@/bindings").ScriptParameter[]>
   scriptPreview(request: number, input: import("@/bindings").PianoScriptRequest): Promise<import("@/bindings").PianoScriptPreview>
+  assistantConnection(): Promise<import("@/bindings").AssistantConnection>
+  assistantConfigure(update: import("@/bindings").AssistantConnectionUpdate): Promise<import("@/bindings").AssistantConnection>
+  assistantRequestBegin(): Promise<number>
+  assistantRequestCancel(request: number): Promise<void>
+  assistantRemote(request: number, prompt: string): Promise<import("@/bindings").AssistantReply>
   dispatch(command: Command, gesture?: number): Promise<DispatchResult>
   prepareClipCommand(command: Command): Promise<DispatchResult>
   samplerPreparationBegin(): Promise<number>

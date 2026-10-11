@@ -74,6 +74,11 @@ export function createTauriBackend(): Backend {
     scriptCancel: (request) => call("script_cancel", { request }),
     scriptParameters: (source) => call("script_parameters", { source }),
     scriptPreview: (request, input) => call("script_preview", { request, input }),
+    assistantConnection: () => call("assistant_connection"),
+    assistantConfigure: (update) => call("assistant_configure", { update }),
+    assistantRequestBegin: () => call("assistant_request_begin"),
+    assistantRequestCancel: (request) => call("assistant_request_cancel", { request }),
+    assistantRemote: (request, prompt) => call("assistant_remote", { request, prompt }),
     analyzerCapability: () => call("analyzer_capability"),
     analyzerSubscribe: (slot, handler) => {
       // One channel per slot. Events that arrive after the slot stopped
