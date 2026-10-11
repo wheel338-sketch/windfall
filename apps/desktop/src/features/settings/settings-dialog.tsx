@@ -255,7 +255,7 @@ function AppearanceSection() {
           />
           <FieldDescription>
             {scalable
-              ? "Scales panels, controls, menus and plugin parameter editors. Native plugin windows are not scaled yet."
+              ? t("Scales panels, controls, menus and supported native plugin content. Plugins that refuse scaling keep their current size.")
               : "This webview does not support interface scaling. The interface uses 100%."}
           </FieldDescription>
           <Button variant="outline" size="sm" onClick={() => setUiScale(100)}>

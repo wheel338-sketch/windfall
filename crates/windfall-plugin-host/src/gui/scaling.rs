@@ -3,8 +3,10 @@
 use super::EditorError;
 
 pub(crate) fn content_scale(application: f64, monitor: f64) -> Result<f64, EditorError> {
-    if !application.is_finite() || !(0.75..=2.0).contains(&application)
-        || !monitor.is_finite() || monitor <= 0.0
+    if !application.is_finite()
+        || !(0.75..=2.0).contains(&application)
+        || !monitor.is_finite()
+        || monitor <= 0.0
     {
         return Err(EditorError::InvalidScale);
     }

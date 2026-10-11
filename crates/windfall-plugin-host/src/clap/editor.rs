@@ -106,7 +106,7 @@ impl Editor {
             let factor = crate::gui::scaling::content_scale(application, crate::gui::win32::window_scale(window.window.handle()))?;
             let plugin = instance.plugin_handle();
             self.gui.set_scale(&plugin, factor).map_err(|_| EditorError::UnsupportedScale)?;
-            let size = self.gui.get_size(&plugin).map_err(failed("scaled editor did not supply a size"))?;
+            let size = self.gui.get_size(&plugin).ok_or_else(|| EditorError::Failed("scaled editor did not supply a size".into()))?;
             if !(1..=32768).contains(&size.width) || !(1..=32768).contains(&size.height) {
                 return Err(EditorError::Failed("invalid scaled editor dimensions".into()));
             }

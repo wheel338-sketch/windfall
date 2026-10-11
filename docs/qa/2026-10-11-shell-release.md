@@ -279,10 +279,22 @@ and honor their reported dimensions/normal frame callbacks. Monitor DPI comes
 from the editor HWND and is combined exactly once with the application factor.
 Unsupported/refused scaling reports an error and keeps the editor alive.
 
-Restart reconciliation: this implementation file group is committed before
-adding its mounted and native acceptance fixtures. `gui/scaling.rs` already has
-the written, not executed, factor validation/once-only DPI combination unit case.
-Native GUI tests and mounted preference/serialization tests follow separately.
+Written, not executed: `gui/scaling.rs` test
+`application_and_monitor_scaling_are_combined_once`;
+`tests/editor.rs` test
+`native_content_scale_resizes_restores_reopens_and_keeps_refused_editor_alive`;
+`features/plugins/editor-scale.test.tsx` real mounted Settings preference/no
+document-or-audio change/persist/cleanup, slow native call coalescing and refusal
+recovery. The existing gain test plugin now supports scale negotiation; Invert
+mode also injects a scale refusal solely for the fixture. No proprietary plugin
+is used. Source/API review corrected get_size to its Option contract and repaired
+the two message catalog files from Windows-1252 to UTF-8.
+
+```powershell
+cargo test -p windfall-plugin-host --lib gui::scaling
+cargo test -p windfall-plugin-host --test editor
+pnpm --dir apps/desktop test src/features/plugins/editor-scale.test.tsx src/lib/ui-scale.test.tsx src/features/piano-roll/layer-scaling.test.tsx src/features/browser/layout-scaling.test.tsx src/lib/i18n/catalogs.test.tsx --maxWorkers=2
+```
 
 **Partial:** the existing release audio/state bridge explicitly refuses native
 editors. This work does not invent a bridge GUI protocol or bypass containment.
@@ -292,9 +304,13 @@ editor-monitor DPI transitions are read on scale change/reopen, not yet wired
 to WM_DPICHANGED. Required physical Windows/WebView2 pointer/touch/trackpad and
 detached monitor transitions, macOS WKWebView, Linux WebKitGTK, real WebGPU
 device-loss, and scale-specific 10k/50k performance checks remain external.
-First compile checks: CLAP gui.set_scale result signature, VST3 generated COM
+First compile checks: pinned CLAP gui signatures, VST3 generated COM
 scale trait, Win32 GetDpiForWindow availability, runtime clone/preferences and
 backend interface additions. No new generated IPC types or dependencies.
 
 Primary native API reference:
 [VST3 content-scale contract](https://steinbergmedia.github.io/vst3_doc/base/classSteinberg_1_1IPlugViewContentScaleSupport.html).
+CLAP source API reference:
+[Clack GUI host wrappers](https://raw.githubusercontent.com/prokopyl/clack/main/extensions/src/gui/host.rs).
+VST3 has no independent native editor fixture yet (its existing fixture returns
+no view); write/execute a real COM-view resize/refusal case before accepting it.

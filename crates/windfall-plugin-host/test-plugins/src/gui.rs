@@ -140,8 +140,17 @@ unsafe extern "C" fn destroy(plugin: *const clap_plugin) {
     }
 }
 
-unsafe extern "C" fn set_scale(_plugin: *const clap_plugin, _scale: f64) -> bool {
-    false
+unsafe extern "C" fn set_scale(plugin: *const clap_plugin, scale: f64) -> bool {
+    if !scale.is_finite() || !(0.1..=16.0).contains(&scale) { return false; }
+    // SAFETY: normal CLAP gui main-thread call with the live fixture instance.
+    unsafe {
+        let plugin = Plugin::from_raw(plugin);
+        // Existing Invert mode also injects GUI scale refusal for this fixture.
+        if plugin.value(crate::plugin::slot::MODE) >= 0.5 { return false; }
+        let (width, height) = snap((320.0 * scale).round() as u32, (200.0 * scale).round() as u32);
+        apply_size(plugin, width, height);
+    }
+    true
 }
 
 unsafe extern "C" fn get_size(

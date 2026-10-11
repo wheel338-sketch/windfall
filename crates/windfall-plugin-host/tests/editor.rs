@@ -9,6 +9,49 @@ use windows_sys::Win32::UI::WindowsAndMessaging::{
 };
 
 #[test]
+fn native_content_scale_resizes_restores_reopens_and_keeps_refused_editor_alive() {
+    let (_module, mut instance) = common::create(common::GAIN);
+    assert_eq!(instance.set_editor_scale(1.25), Err(EditorError::NoEditor));
+    instance
+        .open_editor(&EditorOptions {
+            take_focus: false,
+            ..Default::default()
+        })
+        .unwrap();
+    let original = instance.set_editor_scale(1.0).unwrap();
+    let enlarged = instance.set_editor_scale(2.0).unwrap();
+    assert_eq!(enlarged.window, original.window);
+    assert!(enlarged.width >= original.width * 2 - 20);
+    assert!(enlarged.height >= original.height * 2 - 20);
+    assert_eq!(instance.set_editor_scale(1.0).unwrap(), original);
+    assert_eq!(
+        instance.set_editor_scale(f64::NAN),
+        Err(EditorError::InvalidScale)
+    );
+    assert_eq!(instance.editor(), Some(original));
+    assert!(instance.set_param(common::gain::MODE, 1.0));
+    assert_eq!(
+        instance.set_editor_scale(1.5),
+        Err(EditorError::UnsupportedScale)
+    );
+    assert_eq!(instance.editor(), Some(original));
+    assert!(instance.set_param(common::gain::MODE, 0.0));
+    instance.close_editor();
+    instance
+        .open_editor(&EditorOptions {
+            take_focus: false,
+            ..Default::default()
+        })
+        .unwrap();
+    let reopened = instance.set_editor_scale(2.0).unwrap();
+    assert_eq!(
+        (reopened.width, reopened.height),
+        (enlarged.width, enlarged.height)
+    );
+    instance.close_editor();
+}
+
+#[test]
 fn native_editor_opens_pumps_resizes_and_closes() {
     let (_module, mut instance) = common::create(common::GAIN);
     let info = instance
