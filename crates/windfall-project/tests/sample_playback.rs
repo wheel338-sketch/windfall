@@ -241,6 +241,8 @@ fn legacy_v1_source_map_and_curve_migrate_without_pcm_in_copy_controls() {
         [0.2, 0.4, 0.6, 0.8]
     );
     assert_eq!(asset.slices.len(), 16);
+    assert!(asset.legacy_key_wrap);
+    assert!(asset.slices.iter().all(|slice| slice.release_ms == 30.0));
     assert!(!file::to_json(&loaded).unwrap().contains("sliceStarts"));
     assert!(!file::to_json(&loaded).unwrap().contains("\"table\""));
     let (d, _, _) = fixture(InstrumentKind::WaveRide);
@@ -264,6 +266,11 @@ fn old_v1_channels_without_assets_keep_exact_json_and_defaults() {
     let (d, _, _) = fixture(InstrumentKind::SubtractiveSynth);
     let text = file::to_json(d.project()).unwrap();
     assert!(!text.contains("samplePlayback"));
+    assert!(
+        !serde_json::to_string(&SamplePlayback::default())
+            .unwrap()
+            .contains("legacyKeyWrap")
+    );
     assert_eq!(
         file::to_json(&file::from_json(&text).unwrap()).unwrap(),
         text

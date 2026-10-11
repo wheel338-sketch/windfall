@@ -217,6 +217,11 @@ impl Engine {
         let region =
             if let Some(asset) = asset.filter(|_| matches!(self.mode, Mode::Map | Mode::Deck)) {
                 let index = key as i16 - settings.key as i16;
+                let index = if asset.legacy_key_wrap {
+                    index.rem_euclid(asset.slices.len() as i16)
+                } else {
+                    index
+                };
                 if index < 0 || index as usize >= asset.slices.len() {
                     return;
                 }

@@ -55,7 +55,7 @@ export function SamplePlaybackEditor({ channel }: { channel: InstrumentChannel }
   const availableKeys = params.type === "sliceMap" || params.type === "sliceDeck" ? 128 - params.baseKey : 128
   const index = Math.min(selected, asset.slices.length - 1)
   const region = asset.slices[index]
-  const save = (next: SamplePlayback) => { void dispatch({ type: "setSamplePlayback", channel: channel.id, asset: next }) }
+  const save = (next: SamplePlayback) => { void dispatch({ type: "setSamplePlayback", channel: channel.id, asset: { ...next, legacyKeyWrap: false } }) }
   const setRegion = (patch: Partial<SliceRegion>) => save({ ...asset, slices: asset.slices.map((s, i) => i === index ? { ...s, ...patch } : s) })
   useEffect(() => {
     let alive = true

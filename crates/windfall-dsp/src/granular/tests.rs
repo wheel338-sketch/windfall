@@ -327,3 +327,48 @@ fn invalid_assets_fail_before_publication() {
         .is_err()
     );
 }
+
+#[test]
+fn migrated_maps_preserve_modulo_keys_and_global_release_without_changing_new_maps() {
+    let regions = (0..16)
+        .map(|index| SliceRegion {
+            start: index as f32 / 16.0,
+            end: (index + 1) as f32 / 16.0,
+            release_ms: 30.0,
+            ..Default::default()
+        })
+        .collect();
+    let prepared = PlaybackAsset::new(
+        [Some(source()), None],
+        regions,
+        PlaybackCurve::default(),
+        vec![],
+    )
+    .unwrap()
+    .with_legacy_key_wrap(true);
+    let mut instrument = SliceMap::default();
+    instrument.prepare(RATE, 64);
+    instrument.set_asset(Arc::new(prepared));
+    instrument.set_params(&SliceMapParams {
+        level: 1.0,
+        ..Default::default()
+    });
+    instrument.note_on(59, 1.0);
+    let below = render(&mut instrument, 128, 17);
+    assert!((below[64] - 15064.0 / 15999.0 * SCALE).abs() < 1e-6);
+    instrument.note_off(59);
+    let release = render(&mut instrument, 300, 13);
+    assert!(release[64] > 0.0);
+    assert!(release[240..].iter().all(|value| *value == 0.0));
+    instrument.reset();
+    instrument.note_on(75, 1.0);
+    assert_eq!(below, render(&mut instrument, 128, 1));
+    // The standard asset path remains bounded; key 59 cannot choose the last slice.
+    instrument.reset();
+    instrument.set_asset(asset(
+        vec![SliceRegion::default()],
+        PlaybackCurve::default(),
+    ));
+    instrument.note_on(59, 1.0);
+    assert_eq!(instrument.active_voices(), 0);
+}

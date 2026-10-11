@@ -159,6 +159,7 @@ pub fn validate_slices(slices: &[SliceRegion]) -> Result<(), &'static str> {
 
 #[derive(Debug)]
 pub struct PlaybackAsset {
+    pub(crate) legacy_key_wrap: bool,
     pub(crate) sources: [Option<AudioBuffer>; 2],
     pub(crate) slices: Box<[SliceRegion]>,
     pub(crate) curve: PlaybackCurve,
@@ -197,6 +198,7 @@ impl PlaybackAsset {
             }
         }
         Ok(Self {
+            legacy_key_wrap: false,
             sources,
             slices: slices.into_boxed_slice(),
             curve,
@@ -208,5 +210,10 @@ impl PlaybackAsset {
             .iter()
             .find(|(k, _)| *k == key)
             .map_or(&self.curve, |(_, c)| c)
+    }
+    /// Control-side migration only; new maps keep bounded key selection.
+    pub fn with_legacy_key_wrap(mut self, enabled: bool) -> Self {
+        self.legacy_key_wrap = enabled;
+        self
     }
 }

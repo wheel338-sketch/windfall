@@ -96,6 +96,7 @@ impl<'de> Deserialize<'de> for Channel {
                 if settings.len() != 16 {
                     return Err(D::Error::custom("Invalid legacy slice settings."));
                 }
+                migrated.legacy_key_wrap = true;
                 migrated.slices = starts
                     .iter()
                     .enumerate()
@@ -108,6 +109,7 @@ impl<'de> Deserialize<'de> for Channel {
                             gain: if end > start { settings[i].gain } else { 0.0 },
                             pitch: settings[i].pitch,
                             reverse: settings[i].reverse,
+                            release_ms: 30.0,
                             ..Default::default()
                         }
                     })

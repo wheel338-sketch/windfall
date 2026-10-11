@@ -74,7 +74,7 @@ export function createSlicerMock(
         : await detectInWorker(request)
       if (document() !== original || original.snapshot(null).revision !== revision || source(settings.sample) !== buffer)
         throw new Error("The project or source changed during slice detection. Try again.")
-      return dispatch({ type: "setSamplePlayback", channel, asset: { ...settings, slices: detected.slices, sourceBeats: detected.sourceBeats } })
+      return dispatch({ type: "setSamplePlayback", channel, asset: { ...settings, legacyKeyWrap: false, slices: detected.slices, sourceBeats: detected.sourceBeats } })
     },
     async sliceAnalyze(
       id: number,

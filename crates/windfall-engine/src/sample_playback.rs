@@ -47,7 +47,8 @@ pub(crate) fn prepare(
             .iter()
             .map(|item| (item.key, item.curve.clone()))
             .collect(),
-    )?;
+    )?
+    .with_legacy_key_wrap(settings.legacy_key_wrap);
     Ok(Arc::new(Prepared {
         asset: Arc::new(asset),
         identity,

@@ -72,6 +72,9 @@ eight-position suffixes are not reassigned. Projects automating those suffixes a
 refused with a specific diagnostic so users retain the original file and resolve
 those lanes before importing. Custom Channel deserialization migrates old tables,
 maps and curves into saved assets; old ordinary channels keep exact default JSON.
+Migrated maps retain the old modulo-key mapping and global release through an
+optional legacyKeyWrap asset flag and 30 ms region release. Authored editor/detection
+edits clear that flag and use bounded mappings. New/default assets omit the flag.
 Standalone SampleTable/SliceSettings remain legacy helpers outside Copy params.
 
 Current channel-preset export explicitly refuses playback assets because its

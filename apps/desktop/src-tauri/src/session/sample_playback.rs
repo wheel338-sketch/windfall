@@ -47,6 +47,7 @@ impl Session {
             options,
         )?;
         let mut asset = settings;
+        asset.legacy_key_wrap = false;
         asset.slices = detected.slices;
         asset.source_beats = detected.source_beats;
         let command = Command::SetSamplePlayback {

@@ -28,6 +28,10 @@ pub struct InlinePlaybackSource {
 #[serde(rename_all = "camelCase", default)]
 #[ts(export)]
 pub struct SamplePlayback {
+    /// Pre-asset files mapped all keys modulo sixteen; new maps are bounded.
+    #[serde(default, skip_serializing_if = "legacy_wrap_is_false")]
+    #[ts(as = "Option<bool>", optional)]
+    pub legacy_key_wrap: bool,
     /// Only used to migrate pre-asset v1 sample tables without losing their audio.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(optional)]
@@ -44,6 +48,7 @@ pub struct SamplePlayback {
 impl Default for SamplePlayback {
     fn default() -> Self {
         Self {
+            legacy_key_wrap: false,
             inline_source: None,
             sample: None,
             sample_b: None,
@@ -54,6 +59,9 @@ impl Default for SamplePlayback {
             source_beats: 4.0,
         }
     }
+}
+fn legacy_wrap_is_false(value: &bool) -> bool {
+    !*value
 }
 pub fn supported(kind: InstrumentKind) -> bool {
     matches!(
