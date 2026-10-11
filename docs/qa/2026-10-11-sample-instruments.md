@@ -186,3 +186,13 @@ output selection is the existing app-wide persisted MIDI preference, not an
 undoable per-instrument destination. That limitation remains material for the
 special rows. The piano editor now exposes the active source recipe, and the zone
 editor exposes hold and scale tuning as well as its other envelopes/mappings.
+
+## SF2 multi-preset acceptance group
+
+Written, not executed:
+`sf2_selects_only_the_requested_preset_and_resolves_global_instrument_zones`
+constructs a real two-preset/two-instrument/two-source SF2 in Rust and checks
+preset selection isolation, preset/instrument range intersections, inherited
+root tuning, distinct signed PCM, catalog enumeration and missing-program refusal.
+This supplements hostile/truncated files, generator offsets, envelopes and loops;
+it does not establish broad third-party SF2 interoperability.

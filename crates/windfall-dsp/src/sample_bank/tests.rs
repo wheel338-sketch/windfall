@@ -408,3 +408,83 @@ fn sampled_pitch_matches_independent_frequency_measurement_at_multiple_rates() {
         );
     }
 }
+
+#[test]
+fn sf2_selects_only_the_requested_preset_and_resolves_global_instrument_zones() {
+    let mut fixture = Bank::new(256);
+    fixture.phdr = vec![0; 114];
+    fixture.phdr[..4].copy_from_slice(b"Keys");
+    fixture.phdr[38..43].copy_from_slice(b"Drums");
+    fixture.phdr[76..79].copy_from_slice(b"EOP");
+    put16(&mut fixture.phdr, 20, 7);
+    put16(&mut fixture.phdr, 22, 3);
+    put16(&mut fixture.phdr, 38 + 20, 8);
+    put16(&mut fixture.phdr, 38 + 22, 3);
+    put16(&mut fixture.phdr, 38 + 24, 2);
+    put16(&mut fixture.phdr, 76 + 24, 3);
+    fixture.pbag = gens(&[(0, 0), (1, 0), (3, 0), (5, 0)]);
+    fixture.pgen = gens(&[
+        (43, 48 | (63 << 8)),
+        (44, 10 | (90 << 8)),
+        (41, 0),
+        (43, 60 | (72 << 8)),
+        (41, 1),
+        (0, 0),
+    ]);
+    fixture.inst = vec![0; 66];
+    fixture.inst[..4].copy_from_slice(b"Tone");
+    fixture.inst[22..26].copy_from_slice(b"Drum");
+    fixture.inst[44..47].copy_from_slice(b"EOI");
+    put16(&mut fixture.inst, 22 + 20, 2);
+    put16(&mut fixture.inst, 44 + 20, 3);
+    fixture.ibag = gens(&[(0, 0), (1, 0), (4, 0), (7, 0)]);
+    fixture.igen = gens(&[
+        (58, 55),
+        (43, 55 | (72 << 8)),
+        (44, 64 | (100 << 8)),
+        (53, 0),
+        (43, 62 | (67 << 8)),
+        (58, 65),
+        (53, 1),
+        (0, 0),
+    ]);
+    fixture.shdr.resize(138, 0);
+    fixture.shdr[46..92].fill(0);
+    fixture.shdr[46..50].copy_from_slice(b"Drum");
+    fixture.shdr[92..95].copy_from_slice(b"EOS");
+    put32(&mut fixture.shdr, 46 + 20, 256);
+    put32(&mut fixture.shdr, 46 + 24, 512);
+    put32(&mut fixture.shdr, 46 + 28, 257);
+    put32(&mut fixture.shdr, 46 + 32, 511);
+    put32(&mut fixture.shdr, 46 + 36, 48000);
+    fixture.shdr[46 + 40] = 64;
+    put16(&mut fixture.shdr, 46 + 44, 1);
+    fixture
+        .smpl
+        .extend((0..256).flat_map(|_| (-1000i16).to_le_bytes()));
+    let bytes = fixture.bytes();
+    let keys = soundfont::parse_soundfont_preset(&bytes, 3, 7).unwrap();
+    let drums = soundfont::parse_soundfont_preset(&bytes, 3, 8).unwrap();
+    assert_eq!(soundfont::presets(&bytes).unwrap().len(), 2);
+    assert_eq!(keys.zones().len(), 1);
+    assert_eq!(drums.zones().len(), 1);
+    let key = keys.zones()[0].mapping;
+    assert_eq!(
+        (
+            key.key_low,
+            key.key_high,
+            key.velocity_low,
+            key.velocity_high,
+            key.root_key
+        ),
+        (55, 63, 64, 90, 55)
+    );
+    let drum = drums.zones()[0].mapping;
+    assert_eq!((drum.key_low, drum.key_high, drum.root_key), (62, 67, 65));
+    assert!(keys.zones()[0].audio.samples()[0] > 0.0);
+    assert_eq!(drums.zones()[0].audio.samples()[0], -1000.0 / 32768.0);
+    assert!(matches!(
+        soundfont::parse_soundfont_preset(&bytes, 3, 9),
+        Err(soundfont::SoundFontError::PresetNotFound { .. })
+    ));
+}
