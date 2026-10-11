@@ -1365,12 +1365,14 @@ fn backpressured_startup_cancellation_and_deadline_reclaim_the_mapping() {
                 std::thread::spawn(move || {
                     while !waiting.is_file() {
                         if done.load(Ordering::Acquire) {
-                            return;
+                            return None;
                         }
                         std::thread::sleep(Duration::from_millis(1));
                     }
                     std::thread::sleep(Duration::from_millis(100));
+                    let cancelled_at = Instant::now();
                     flag.store(true, Ordering::Release);
+                    Some(cancelled_at)
                 })
             });
             let started = Instant::now();
@@ -1379,9 +1381,7 @@ fn backpressured_startup_cancellation_and_deadline_reclaim_the_mapping() {
                 Err(error) => error,
             };
             finished.store(true, Ordering::Release);
-            if let Some(canceller) = canceller {
-                canceller.join().unwrap();
-            }
+            let cancelled_at = canceller.and_then(|canceller| canceller.join().unwrap());
             let reached_load = ready.is_file();
             if reached_load {
                 std::fs::remove_file(&ready).unwrap();
@@ -1404,6 +1404,13 @@ fn backpressured_startup_cancellation_and_deadline_reclaim_the_mapping() {
                 started.elapsed() < Duration::from_secs(if cancel { 6 } else { 2 }),
                 "startup bound: {error}"
             );
+            if cancel {
+                // Keep the original two-second cancellation/reap bound; its
+                // clock starts at the request, after the fixture is ready.
+                assert!(
+                    cancelled_at.expect("Load was cancelled").elapsed() < Duration::from_secs(2)
+                );
+            }
             assert!(
                 error.contains(if cancel {
                     "startup cancelled"
