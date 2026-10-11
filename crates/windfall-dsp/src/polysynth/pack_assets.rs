@@ -121,7 +121,7 @@ impl PackAssets {
         let index = *position as usize;
         let fraction = *position - index as f32;
         *position += step;
-        if index + 1 >= PCM {
+        if index >= PCM - 1 {
             return 0.0;
         }
         let a = self.samples[offset + index];

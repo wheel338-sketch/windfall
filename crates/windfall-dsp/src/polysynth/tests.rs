@@ -786,3 +786,114 @@ fn every_family_row_filter_sweep_and_live_controls_are_partition_invariant() {
         );
     }
 }
+
+#[test]
+fn high_note_phase_engines_roll_off_sidebands_without_changing_tuning() {
+    let p = GrooveSynthParams {
+        mode: GrooveMode::Phase,
+        ratio: 4.0,
+        index: 0.0,
+        motion: 0.0,
+        filter_amount: 0.0,
+        key_track: 0.0,
+        drive: 0.0,
+        ..Default::default()
+    };
+    // At this pitch the first estimated sideband exceeds host Nyquist. The
+    // safety budget leaves the carrier, rather than folding that sideband.
+    assert_eq!(
+        render(InstrumentParams::GrooveSynth(p), 120, 12000, 1),
+        render(
+            InstrumentParams::GrooveSynth(GrooveSynthParams { index: 6.0, ..p }),
+            120,
+            12000,
+            257,
+        )
+    );
+    different(
+        InstrumentParams::GrooveSynth(p),
+        InstrumentParams::GrooveSynth(GrooveSynthParams { index: 2.0, ..p }),
+    );
+    for patch in [
+        PackPatch::EmberBell,
+        PackPatch::PrismChime,
+        PackPatch::MeadowMetal,
+    ] {
+        let p = PackSynthParams {
+            patch,
+            shape: 0.0,
+            width: 0.0,
+            motion: 0.0,
+            ..Default::default()
+        };
+        assert_eq!(
+            render(InstrumentParams::PackSynth(p), 120, 12000, 1),
+            render(
+                InstrumentParams::PackSynth(PackSynthParams { shape: 1.0, ..p }),
+                120,
+                12000,
+                257,
+            )
+        );
+        different(
+            InstrumentParams::PackSynth(p),
+            InstrumentParams::PackSynth(PackSynthParams { shape: 1.0, ..p }),
+        );
+    }
+}
+
+#[test]
+fn feedback_effect_bounds_cover_repeated_echoes_and_room_decay() {
+    let mut delay = super::fx::StereoDelay::default();
+    delay.prepare(8000.0);
+    let bound = delay.tail_samples(0.35);
+    let mut second = 0.0_f32;
+    let mut third = 0.0_f32;
+    for frame in 0..=bound + 64 {
+        let out = delay.tick(
+            if frame == 0 { 1.0 } else { 0.0 },
+            0.0,
+            2000.0,
+            0.35,
+            1.0,
+            true,
+        );
+        if (4000..4100).contains(&frame) {
+            second = second.max(out.1.abs());
+        }
+        if (6000..6100).contains(&frame) {
+            third = third.max(out.0.abs());
+        }
+        if frame > bound {
+            assert_eq!(out, (0.0, 0.0));
+        }
+    }
+    assert!(second > 0.1, "second ping-pong arrival must survive");
+    assert!(third > 0.01, "third arrival must survive");
+    let mut room = super::fx::Reverb::default();
+    room.prepare(8000.0);
+    let bound = room.tail_samples(0.5);
+    let mut late = 0.0_f32;
+    for frame in 0..=bound + 64 {
+        let out = room.tick(if frame == 0 { 1.0 } else { 0.0 }, 0.0, 0.5, 1.0);
+        if (8000..16000).contains(&frame) {
+            late = late.max(out.0.abs());
+        }
+        if frame > bound {
+            assert_eq!(out, (0.0, 0.0));
+        }
+    }
+    assert!(
+        late > 1e-8,
+        "room must not be truncated after a few comb trips"
+    );
+    let params = DualPolyParams {
+        chorus: 1.0,
+        delay: 1.0,
+        reverb: 1.0,
+        ..Default::default()
+    };
+    let mut hosted = AnyInstrument::new(&InstrumentParams::DualPoly(params));
+    hosted.prepare(8000.0, 64);
+    assert!(hosted.tail_samples() >= delay.tail_samples(0.35) + room.tail_samples(0.5));
+}

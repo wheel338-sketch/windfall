@@ -30,6 +30,13 @@ pub(crate) fn increment(key: f32, sample_rate: f32) -> f32 {
     (key_to_hz(key.clamp(-36.0, 160.0)) / sample_rate).clamp(1.0e-7, MAX_INCREMENT)
 }
 
+/// Rolls phase modulation down before its estimated sidebands reach the host
+/// Nyquist. Increments are measured at the family's doubled internal rate.
+pub(crate) fn phase_index(carrier: f32, modulator: f32, index: f32) -> f32 {
+    let budget = ((0.24 - carrier) / modulator.max(1.0e-7) - 1.0).max(0.0);
+    index.clamp(-budget, budget)
+}
+
 /// Keeps a broken sample out of the mix bus.
 #[inline]
 pub(crate) fn guard(value: f32) -> f32 {

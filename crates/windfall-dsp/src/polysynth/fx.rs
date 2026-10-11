@@ -31,6 +31,15 @@ fn slew(current: f32, target: f32, coefficient: f32) -> f32 {
     }
 }
 
+/// A conservative -180 dB decay bound, with headroom for summed voices/taps.
+fn decay_repeats(feedback: f32) -> usize {
+    if feedback <= 0.0 {
+        1
+    } else {
+        (1.0e-9_f32.ln() / feedback.clamp(0.001, 0.95).ln()).ceil() as usize + 1
+    }
+}
+
 /// Two modulated delay taps, one a side, swept in opposite directions by a
 /// triangle: the stereo chorus of a string machine. With a short centre
 /// delay and feedback it is a flanger.
@@ -90,7 +99,14 @@ impl Chorus {
 
     /// The chorus proper: an 8 ms tap swept by up to 4 ms.
     #[inline]
-    pub fn tick(&mut self, left: f32, right: f32, rate_hz: f32, depth: f32, mix: f32) -> (f32, f32) {
+    pub fn tick(
+        &mut self,
+        left: f32,
+        right: f32,
+        rate_hz: f32,
+        depth: f32,
+        mix: f32,
+    ) -> (f32, f32) {
         self.tick_shaped(left, right, rate_hz, 8.0, 4.0 * depth, 0.0, mix)
     }
 
@@ -176,10 +192,10 @@ impl StereoDelay {
         self.damp = [0.0; 2];
     }
 
-    /// Samples after silent input within which the next echo, if there is
-    /// one, has started.
-    pub fn tail_samples(&self) -> usize {
-        self.max as usize + 8
+    /// Covers feedback repeats, not just the first arrival. A changed tempo
+    /// may leave the tap at its previous time, so use the maximum line length.
+    pub fn tail_samples(&self, feedback: f32) -> usize {
+        (self.max as usize + 8) * decay_repeats(feedback)
     }
 
     /// One sample. `delay_samples` is the echo time, `feedback` the share
@@ -257,14 +273,21 @@ impl Phaser {
     }
 
     #[inline]
-    pub fn tick(&mut self, left: f32, right: f32, rate_hz: f32, depth: f32, mix: f32) -> (f32, f32) {
+    pub fn tick(
+        &mut self,
+        left: f32,
+        right: f32,
+        rate_hz: f32,
+        depth: f32,
+        mix: f32,
+    ) -> (f32, f32) {
         let sweep = (TAU * self.phase).sin();
         self.phase += (rate_hz / self.sample_rate).clamp(0.0, 0.5);
         if self.phase >= 1.0 {
             self.phase -= 1.0;
         }
-        let centre = (700.0 * (2.0 * depth.clamp(0.0, 1.0) * sweep).exp2())
-            .min(self.sample_rate * 0.4);
+        let centre =
+            (700.0 * (2.0 * depth.clamp(0.0, 1.0) * sweep).exp2()).min(self.sample_rate * 0.4);
         let tangent = (PI * centre / self.sample_rate).tan();
         let a = (tangent - 1.0) / (tangent + 1.0);
         let mut out = [left, right];
@@ -347,10 +370,12 @@ impl Reverb {
         self.damp = [[0.0; 4]; 2];
     }
 
-    /// Samples after silent input within which the room, if it still
-    /// rings, has sounded again.
-    pub fn tail_samples(&self) -> usize {
-        self.longest * 4
+    /// Comb decay plus the two serial allpass decays. Runtime adds the other
+    /// effects' bounds because the room receives their delayed outputs.
+    pub fn tail_samples(&self, size: f32) -> usize {
+        let feedback = 0.7 + 0.25 * size.clamp(0.0, 1.0);
+        self.longest * decay_repeats(feedback)
+            + self.allpass_lengths[1].iter().sum::<usize>() * decay_repeats(0.5)
     }
 
     /// One sample. `size` from 0 to 1 sets how long the room rings.

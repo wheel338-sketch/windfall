@@ -66,6 +66,7 @@ pub(super) struct Tone {
     pub filter_env: Adsr,
     pub elapsed: u64,
     pub sample_phase: [f32; UNISON],
+    pub sample_key: u8,
     pub sequence_step: u64,
     pub sequence_open: bool,
     pub sequence_env: Adsr,
@@ -87,6 +88,7 @@ impl Default for Tone {
             filter_env: Adsr::default(),
             elapsed: 0,
             sample_phase: [0.0; UNISON],
+            sample_key: 60,
             sequence_step: u64::MAX,
             sequence_open: false,
             sequence_env: Adsr::default(),
@@ -202,17 +204,17 @@ impl<P: Patch> Instrument for Runtime<P> {
         let f = self.controls.target().frame();
         let mut tail = 0;
         if f.chorus > 0.0 {
-            tail = tail.max(self.chorus.tail_samples());
+            tail += self.chorus.tail_samples();
         }
         if f.delay > 0.0 {
-            tail = tail.max(self.delay.tail_samples());
+            tail += self.delay.tail_samples(0.35);
         }
         if f.reverb > 0.0 {
-            tail = tail.max(self.reverb.tail_samples());
+            tail += self.reverb.tail_samples(0.5);
         }
         // Phaser has recursive allpass state; clear it at this bounded tail.
         if f.phaser > 0.0 {
-            tail = tail.max(self.rate as usize * 2);
+            tail += self.rate as usize * 2;
         }
         tail
     }
@@ -231,6 +233,7 @@ impl<P: Patch> Instrument for Runtime<P> {
                 }
                 if note.start {
                     *tone = Tone::default();
+                    tone.sample_key = note.key;
                     tone.noise = Rng::new(0x5746 + slot as u32);
                     for (u, oscillators) in tone.oscillators.iter_mut().enumerate() {
                         for (op, oscillator) in oscillators.iter_mut().enumerate() {
@@ -284,7 +287,7 @@ impl<P: Patch> Instrument for Runtime<P> {
                     bpm: self.bpm,
                     assets: self.assets.as_deref(),
                 };
-                // Two substeps keep nonlinear filters/FM comfortably below the host Nyquist.
+                // Two substeps reduce folding from the nonlinear synthesis/filter stages.
                 let a = p.sample(tone, &ctx);
                 let b = p.sample(tone, &ctx);
                 tone.elapsed = tone.elapsed.wrapping_add(1);

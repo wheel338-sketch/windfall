@@ -320,3 +320,26 @@ The immutable asset contract and own-content provenance are in
    one-shot key/mallet/pluck sounds. Subjective vintage behavior, macro usefulness,
    sustained-note transitions and effects tails still need listening. No
    proprietary content, copied third-party engine or dependency was added.
+
+## Final DSP continuity correction, 2026-10-11
+
+Source review found two remaining implementation defects and corrected them:
+held multisample voices now keep the note-on root zone while mono pitch glides;
+feedback effects report their full decay bounds, and the serial runtime adds
+those bounds instead of truncating after the first echo or a few comb trips.
+Longer echo/room tails therefore increase offline output duration compared with
+the earlier candidates. The bank itself remains shared and immutable.
+
+Groove phase mode and all three pack FM patches now reduce high-note modulation
+using the same conservative host-Nyquist budget. Matrix graph behavior is
+unchanged. Product matrix help describes routing direction without exposing
+internal callback terminology.
+
+Additional tests **written, not executed**, in `polysynth/tests.rs`:
+`high_note_phase_engines_roll_off_sidebands_without_changing_tuning` (high-note
+carrier equality and low-note modulation differences for Groove and every pack
+FM bank), and `feedback_effect_bounds_cover_repeated_echoes_and_room_decay`
+(independent second/third echo arrivals, late room output, exact silence after
+the declared decay bound, and serial hosted-tail coverage). Existing focused
+commands above include these cases. Longer-tail timing/CPU and multisample
+legato listening still need the integrator's measurements.

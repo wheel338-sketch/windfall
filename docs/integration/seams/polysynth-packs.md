@@ -12,7 +12,8 @@ PCM is 48 kHz, 0.5 seconds per zone, with a short attack and tapered decay/end.
 These are original synthetic key/mallet/pluck multisamples, not recordings of a
 commercial instrument. Wavetable scans interpolate between original soft and bright
 spectra. The runtime owns the prepared asset bank independently of Copy parameters;
-reset and patch changes retain it. Runtime strong references are acquired only in
+reset and patch changes retain it. A sounding multisample voice keeps its note-on
+root zone through mono legato and transposes that zone continuously during glide. Runtime strong references are acquired only in
 prepare; a control-side OnceLock shares the original immutable bank across hosts.
 The callback reads its existing reference and never initializes, clones, drops or
 locks the bank. Only prepare/construction/destruction own memory.

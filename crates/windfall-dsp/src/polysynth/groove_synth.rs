@@ -175,8 +175,12 @@ impl Patch for GrooveSynthParams {
                 GrooveMode::Phase => {
                     let carrier = t.oscillators[u][3].phase();
                     oscillator(t, u, 3, pitch, c.rate, Waveform::Sine, 0.5);
-                    (std::f32::consts::TAU * carrier + modulator * self.index * (0.25 + self.shape))
-                        .sin()
+                    let index = core::phase_index(
+                        core::increment(pitch, c.rate),
+                        core::increment(pitch + 12.0 * self.ratio.log2(), c.rate),
+                        self.index * (0.25 + self.shape),
+                    );
+                    (std::f32::consts::TAU * carrier + modulator * index).sin()
                 }
                 GrooveMode::Ring => a * (1.0 - self.mix) + a * modulator * self.mix,
                 GrooveMode::Table => {

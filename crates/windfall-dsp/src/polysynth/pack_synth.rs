@@ -158,7 +158,7 @@ impl Patch for PackSynthParams {
                 }
                 2 => {
                     c.assets.map_or(0.0, |a| {
-                        a.sample(bank, c.key, &mut t.sample_phase[u], pitch, c.rate)
+                        a.sample(bank, t.sample_key, &mut t.sample_phase[u], pitch, c.rate)
                     }) * (0.6 + 0.8 * self.shape)
                 }
                 _ => {
@@ -174,7 +174,11 @@ impl Patch for PackSynthParams {
                         Waveform::Sine,
                         0.5,
                     );
-                    let index = 0.1 + 4.0 * self.shape + c.lfo * self.motion;
+                    let index = core::phase_index(
+                        core::increment(pitch, c.rate),
+                        core::increment(pitch + 12.0 * ratio.log2(), c.rate),
+                        0.1 + 4.0 * self.shape + c.lfo * self.motion,
+                    );
                     (std::f32::consts::TAU * carrier + modulator * index).sin()
                 }
             };
