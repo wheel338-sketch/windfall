@@ -50,3 +50,5 @@ UI follow-up: destination menu now resolves both removal and source choices agai
 Mounted acceptance now arms the real automation recorder and checks X/Y keyboard edits for XY and XYZ pads write normalized points into actual document curves. Realtime transport delivery is simulated for this UI-only case. A right-click history regression case is also written. Not executed. Native simultaneous multi-axis recording remains an integrator acceptance check.
 
 Reference fixture review: mounted XYZ recording begins Y at 0.5 and allows f32 serialization tolerance. Sidechain-gain dependencies are conservatively included because they can alter upstream compressor audio seen by a peak source.
+
+Plan adoption now carries unchanged internal fader ramps and restores linked native parameters after stored plan settings apply, without advancing link smoothing outside its grid. Added an unrelated-edit-between-grid-boundaries gain continuity case; written, not executed.

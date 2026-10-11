@@ -597,6 +597,60 @@ impl Runtime {
     }
 }
 
+/// Preserve an unchanged link across unrelated plan edits. Native parameters
+/// are restored after the new plan applies its stored settings; fader ramps are
+/// carried exactly, without taking another smoothing step between grid boundaries.
+pub(crate) fn take_over(
+    plan: &Plan,
+    state: &mut PlanState,
+    old_plan: &Plan,
+    old: &PlanState,
+    now: u64,
+) {
+    for (index, link) in plan.control_links.iter().enumerate() {
+        let Some(before) = old_plan
+            .control_links
+            .iter()
+            .find(|before| before.key == link.key)
+        else {
+            continue;
+        };
+        automation::set(
+            plan,
+            state,
+            link.target,
+            link.range.value(state.controls.values[index]),
+            now,
+            automation::GRID,
+        );
+        match (link.target, before.target) {
+            (Target::ChannelGain(new), Target::ChannelGain(was)) => {
+                state.channels[new].gain = old.channels[was].gain
+            }
+            (Target::ChannelPan(new), Target::ChannelPan(was)) => {
+                state.channels[new].pan = old.channels[was].pan
+            }
+            (Target::TrackGain(new), Target::TrackGain(was)) => {
+                state.tracks[new].gain = old.tracks[was].gain
+            }
+            (Target::TrackPan(new), Target::TrackPan(was)) => {
+                state.tracks[new].pan = old.tracks[was].pan
+            }
+            (
+                Target::Send { track, edge },
+                Target::Send {
+                    track: was,
+                    edge: at,
+                },
+            ) => {
+                state.edges[plan.tracks[track].edges[edge].slot] =
+                    old.edges[old_plan.tracks[was].edges[at].slot]
+            }
+            _ => {}
+        }
+    }
+}
+
 /// Links override ordinary automation deterministically in stored list order.
 /// The source's preceding grid endpoint drives the following grid with smoothing.
 pub(crate) fn step(plan: &Plan, state: &mut PlanState, now: u64) {

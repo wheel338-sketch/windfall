@@ -1966,6 +1966,7 @@ impl PlanState {
         );
         self.controls.take_over(plan, &mut old.controls, old_plan);
         automation::take_over(plan, self, old_plan, old);
+        crate::internal_controllers::take_over(plan, self, old_plan, old, now);
         // Conditional preparation can reserve an effect row whose native
         // owner has already departed when the callback adopts the plan.
         // Only the resolved owner/delay paths require a shaped scalar route.

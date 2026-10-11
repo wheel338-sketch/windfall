@@ -351,3 +351,30 @@ fn note_triggered_envelope_modulates_real_audio_identically_for_callback_partiti
     assert!((left(&a)[2000] - 0.25).abs() < 1e-6);
     assert!(left(&a)[6000].abs() < 1e-6);
 }
+
+#[test]
+fn unchanged_link_survives_unrelated_plan_edit_between_grid_boundaries_without_a_gain_dip() {
+    let (mut rig, target) = carrier();
+    let controls = rig.track();
+    let source = rig.effect(
+        controls,
+        EffectParams::ControlSurface(ControlSurfaceParams {
+            knob1: 0.4,
+            ..Default::default()
+        }),
+    );
+    connect(
+        &mut rig,
+        source,
+        0,
+        AutomationTarget::TrackVolume { track: target },
+        5.0,
+    );
+    let (mut processor, controller) = rig.song_processor(RATE);
+    controller.play();
+    run(&mut processor, 4801, 37);
+    rig.project.name = "Unrelated edit".into();
+    controller.set_project(&rig.project, &rig.pool);
+    let out = run(&mut processor, 256, 37);
+    assert!(left(&out).iter().all(|value| (*value - 0.16).abs() < 1e-6));
+}
