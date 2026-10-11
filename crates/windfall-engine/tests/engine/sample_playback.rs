@@ -24,6 +24,7 @@ fn prepared_assets_adopt_active_notes_and_retire_without_callback_allocation_or_
         let c = rig.channel_mut(channel);
         c.source = ChannelSource::Instrument {
             params: kind.default_params(),
+            asset: None,
         };
         c.sample_playback = Some(SamplePlayback {
             sample: Some(sample),

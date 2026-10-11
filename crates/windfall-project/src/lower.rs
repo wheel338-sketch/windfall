@@ -4351,7 +4351,7 @@ impl Transaction<'_> {
     fn set_source(&mut self, index: usize, source: ChannelSource) {
         let old = self.project.channels[index].clone();
         let new = Channel {
-            sample_playback: if matches!(&source, ChannelSource::Instrument { params }
+            sample_playback: if matches!(&source, ChannelSource::Instrument { params, .. }
                 if crate::sample_playback::supported(params.kind())) { old.sample_playback.clone() } else { None },
             source,
             ..old.clone()

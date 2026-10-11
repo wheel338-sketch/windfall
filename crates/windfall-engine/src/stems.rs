@@ -799,7 +799,6 @@ mod tests {
     }
 
     fn channel(id: u32, track: u32) -> Channel {
-                sample_playback: None,
         Channel {
                 sample_playback: None,
             id: ChannelId(id),

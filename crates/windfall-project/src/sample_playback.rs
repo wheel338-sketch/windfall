@@ -110,7 +110,7 @@ impl SamplePlayback {
     }
     pub fn check(&self, project: &Project, channel: &Channel) -> Result<(), String> {
         self.validate()?;
-        if !matches!(channel.source, ChannelSource::Instrument { params } if supported(params.kind()))
+        if !matches!(channel.source, ChannelSource::Instrument { params, .. } if supported(params.kind()))
         {
             return Err(
                 "Sample playback assets require a slice, grain or curve instrument.".into(),

@@ -1302,9 +1302,9 @@ impl PlanState {
                 None
             } else {
                 ledger.instruments.insert(channel.id, (kind, channel.instrument_asset.clone()));
+                if let Some(asset) = &channel.sample_playback { ledger.sample_playback.insert(channel.id, asset.identity.clone()); }
                 (!known).then(|| {
                     let mut unit = InstrumentUnit::build(params, channel.instrument_asset.as_deref(), sample_rate, plan.tempo_bpm);
-                if let Some(asset) = &channel.sample_playback { ledger.sample_playback.insert(channel.id, asset.identity.clone()); }
                     if let Some(asset) = &channel.sample_playback { unit.set_playback_asset(asset.asset.clone()); }
                     unit.configure_voice(
                         crate::channel_voice::PreparedChannelEnvelopes::prepare(

@@ -574,7 +574,7 @@ impl ChannelPreset {
             sampler.sample = sample;
         }
         Channel {
-            sample_playback: if matches!(&source, ChannelSource::Instrument { params }
+            sample_playback: if matches!(&source, ChannelSource::Instrument { params, .. }
                 if crate::sample_playback::supported(params.kind())) { base.sample_playback.clone() } else { None },
             volume: self.volume,
             pan: self.pan,

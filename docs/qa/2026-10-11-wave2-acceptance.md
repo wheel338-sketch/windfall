@@ -11,6 +11,7 @@
 - Branch 5 spectral merged at `0e7a9f93`; `chk.sh` now exit 0, zero errors/warnings. Combined prepared IR creation with existing delay admission/error mapping; retained transport plus harmony methods and both preset validations. Fixed two optional TS scalar annotations and the native preset-name pattern.
 - Branch 6 subtractive/FM merged at `08a4a941`; `chk.sh` now exit 0, zero errors/warnings. Nine kinds appended after the existing 27; corrected integer descriptor literals and removed an unused macro import.
 - Branch 7 additive/physical/drum merged at `bebb7b01`; `chk.sh` now exit 0, zero errors/warnings. Registry is 43 kinds: original 27, nine subtractive/FM, seven additive/drum. All command, preset, editor and allocator-test additions retained; corrected four dispatch arms whose common bodies/braces were shared by conflict hunks.
+- Branch 8 slices/grains merged at `1bc20964`; `chk.sh` now exit 0, zero errors/warnings. Both asset identities participate in reuse and persist in every ledger. Fixed source patterns and fixtures for the separate instrument asset, and a worker's misplaced stems helper field. All command examples/editor/test additions retained.
 - Build/test commands will run sequentially with eight Cargo jobs and four Vitest workers. No devices/ignored tests, parity inventory edits, pushes or delegation.
 
 ## Verified execution record
@@ -24,6 +25,7 @@
 | Branch 5 `chk.sh` | Cargo exit 0; zero errors/warnings | `target/round2-branch5-check.log` |
 | Branch 6 `chk.sh` | Cargo exit 0; zero errors/warnings | `target/round2-branch6-check.log` |
 | Branch 7 `chk.sh` | Cargo exit 0; zero errors/warnings | `target/round2-branch7-check.log` |
+| Branch 8 `chk.sh` | Cargo exit 0; zero errors/warnings | `target/round2-branch8-check.log` |
 
 ## Row acceptance
 
@@ -43,3 +45,4 @@ Pending integration and execution.
 - Spectral: merged IR preparation with delay history admission into one fallible build; preserved transport/harmony and preset validations. ts-rs optional scalar fields need `as = "Option<u32>"`; native preset naming ignores the new embedded impulse field. No audio assertions changed.
 - Subtractive/FM: duplicate import conflict resolved; 33 integer descriptor rows used float literals incompatible with integer clamp. Corrected literal types without changing values/ranges/order; removed redundant trait import.
 - Additive/physical/drum: joined registries in merge order, exhaustive metadata/dispatch, editor routing, allocator tests and both preset asset patterns. Restored shared dispatch bodies/braces after initial union resolution; no worker implementation or tolerance change needed.
+- Slices/grains: retained both immutable asset identities in reuse/ledger publication; joined source guards, command examples, editors and tests. Widened four source patterns and two test constructors. Removed a misplaced field preceding the stems helper's actual Channel literal. No assertions weakened.
