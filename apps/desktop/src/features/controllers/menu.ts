@@ -63,39 +63,50 @@ export async function learnTargets(
   }
 }
 
-/**
- * What the menu of a control offers about hardware controllers: link it,
- * and remove the links it has. Nothing in a plain browser, where there is
- * no MIDI hardware.
- */
+/** Source choices are read when the menu opens, so newly created controllers appear. */
 export function controllerEntries(target: AutomationTarget): ContextItem[] {
-  const links = useProjectStore.getState().project.settings.controllerLinks ?? []
-  const linked = linksOf(links, target)
-  const items: ContextItem[] = [{
+  return [{
     dynamic: () => {
-      const sources = internalSources(useProjectStore.getState().project)
-      return [{ submenu: "Link to internal controller", items: sources.length ? sources.map((source) => ({ submenu: source.name, items: source.ports.map((port, output) => ({ title: port, disabled: (useProjectStore.getState().project.settings.controllerLinks ?? []).some((link) => link.source.type === "internal" && link.source.controller === source.id && link.source.output === output && link.target.type === "param" && sameShape(link.target.target, target)), run: () => addInternalLink(source.id, output, target) })) })) : [{ title: "Add a controller in a mixer effect slot or add a Dashboard channel", disabled: true, run: () => {} }] }]
+      const project = useProjectStore.getState().project
+      const links = project.settings.controllerLinks ?? []
+      const linked = linksOf(links, target)
+      const sources = internalSources(project)
+      const items: ContextItem[] = target.type === "tempo" ? [{
+        title: "Internal tempo links are unavailable",
+        disabled: true,
+        reason: "Tempo uses the song clock map",
+        run: () => {},
+      }] : [{
+        submenu: "Link to internal controller",
+        items: sources.length ? sources.map((source) => ({
+          submenu: source.name,
+          items: source.ports.map((port, output) => ({
+            title: port,
+            disabled: linked.some((link) => link.source.type === "internal" && link.source.controller === source.id && link.source.output === output),
+            run: () => addInternalLink(source.id, output, target),
+          })),
+        })) : [{
+          title: "Add a controller in a mixer effect slot or add a Dashboard channel",
+          disabled: true,
+          run: () => {},
+        }],
+      }]
+      if (backend.kind === "tauri") items.push({
+        title: linked.length > 0 ? "Link to another controller…" : "Link to controller…",
+        run: () => learnTargets([{ type: "param", target }], false),
+      })
+      if (linked.length > 0) items.push({
+        title: "Remove controller link",
+        destructive: true,
+        run: () => {
+          const current = useProjectStore.getState().project.settings.controllerLinks ?? []
+          return dispatch({
+            type: "setControllerLinks",
+            links: current.filter((link) => link.target.type !== "param" || !sameShape(link.target.target, target)),
+          })
+        },
+      })
+      return items
     },
   }]
-  if (backend.kind === "tauri") items.push(
-    {
-      title: linked.length > 0 ? "Link to another controller…" : "Link to controller…",
-      run: () => {
-        void learnTargets([{ type: "param", target }], false)
-      },
-    },
-  )
-  if (linked.length > 0) {
-    items.push({
-      title: "Remove controller link",
-      destructive: true,
-      run: () => {
-        void dispatch({
-          type: "setControllerLinks",
-          links: links.filter((link) => !linked.includes(link)),
-        })
-      },
-    })
-  }
-  return items
 }

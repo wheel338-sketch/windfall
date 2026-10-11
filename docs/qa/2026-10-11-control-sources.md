@@ -44,3 +44,5 @@ Host sources now pass carrier audio through and declare no audio tail; standalon
 Added engine acceptance for reversed formula mapping with independently calculated grid smoothing, and note-triggered envelope modulation equality across 1/127-frame callback partitions. Written, not executed.
 
 Registry seam review: new Command and effect parameter/processor variants are appended after existing entries; old kind and descriptor indices remain intact. No generated files were edited.
+
+UI follow-up: destination menu now resolves both removal and source choices against the current document; internal Tempo shows its concrete disabled reason. Pad/drawn-envelope right-click opens context without moving values. Surface controls respect disabled bindings and slider gestures end on capture loss/blur/commit. Formula editor shows the installed expression while editing a draft.
