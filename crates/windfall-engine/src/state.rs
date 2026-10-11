@@ -461,6 +461,7 @@ pub(crate) struct Ledger {
     pub sample_rate: u32,
     effects: HashMap<EffectId, (EffectKind, u64)>,
     instruments: HashMap<ChannelId, InstrumentKind>,
+    sample_banks: HashMap<ChannelId, Arc<windfall_dsp::sample_bank::SampleBank>>,
     /// The length each compensation delay is set to and the longest its
     /// line can give, plus the identity and prepared bounds of its stages.
     delays: HashMap<DelayKey, (usize, usize, Vec<DelayStage>)>,
@@ -1096,6 +1097,7 @@ impl PlanState {
             sample_rate,
             effects: HashMap::new(),
             instruments: HashMap::new(),
+            sample_banks: HashMap::new(),
             delays: HashMap::new(),
             meters: Vec::new(),
             latency: u32::try_from(output_latency).unwrap_or(u32::MAX),
@@ -1268,7 +1270,11 @@ impl PlanState {
             let target = windfall_project::PluginTarget::Instrument {
                 channel: channel.id,
             };
-            let known = held.and_then(|held| held.instruments.get(&channel.id)) == Some(&kind)
+            let same_bank = match (channel.sample_bank.as_ref(), held.and_then(|held| held.sample_banks.get(&channel.id))) {
+                (Some(a),Some(b)) => Arc::ptr_eq(a,b), (None,None) => true, _ => false,
+            };
+            if let Some(bank) = &channel.sample_bank { ledger.sample_banks.insert(channel.id,bank.clone()); }
+            let known = same_bank && held.and_then(|held| held.instruments.get(&channel.id)) == Some(&kind)
                 && held
                     .is_some_and(|held| held.plugins.get(&target) == ledger.plugins.get(&target));
             let unit = if channel.leaving {
@@ -1280,6 +1286,7 @@ impl PlanState {
                 ledger.instruments.insert(channel.id, kind);
                 (!known).then(|| {
                     let mut unit = InstrumentUnit::build(params, sample_rate, plan.tempo_bpm);
+                    if let Some(bank) = &channel.sample_bank { unit.install_sample_bank(bank.clone()); }
                     unit.configure_voice(
                         crate::channel_voice::PreparedChannelEnvelopes::prepare(
                             channel.voice.envelopes,
@@ -2140,6 +2147,7 @@ mod tests {
             group: String::new(),
             voice: Default::default(),
             expression_map: Default::default(),
+            sample_instrument: None,
             timing: windfall_project::ChannelTiming::default(),
             mixer_track: TrackId(track),
             source,

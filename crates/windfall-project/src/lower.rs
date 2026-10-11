@@ -1349,6 +1349,34 @@ impl Transaction<'_> {
                 param,
                 value,
             } => return self.set_instrument_param(channel, param, value),
+            Command::SetSampleInstrumentAsset { channel, expected, asset } => {
+                let index = self.channel_index(channel)?;
+                let old = self.project.channels[index].clone();
+                if old.sample_instrument != expected { return Err(CommandError::invalid("sample instrument changed; reload its editor")); }
+                let kind = self.instrument(index)?.kind();
+                if let Some(asset) = &asset { asset.validate(self.project,kind).map_err(CommandError::invalid)?; }
+                let mut new = old.clone(); new.sample_instrument = asset;
+                self.push(Edit::SetChannel(Box::new(Change { old, new })));
+                "Load sample instrument"
+            }
+            Command::EditSampleZones { channel, expected, zones } => {
+                let index = self.channel_index(channel)?;
+                let kind = self.instrument(index)?.kind();
+                if !matches!(kind, InstrumentKind::MultiSampler | InstrumentKind::PadBank) {
+                    return Err(CommandError::invalid("this is a playback-only instrument; load a bank instead"));
+                }
+                let old = self.project.channels[index].clone();
+                let current = match &old.sample_instrument {
+                    Some(crate::SampleInstrumentAsset::Zones { zones }) => zones.as_slice(),
+                    None => &[], _ => return Err(CommandError::invalid("this instrument does not have editable zones")),
+                };
+                if current != expected { return Err(CommandError::invalid("zone mapping changed; reload its editor")); }
+                let asset = crate::SampleInstrumentAsset::Zones { zones };
+                asset.validate(self.project,kind).map_err(CommandError::invalid)?;
+                let mut new = old.clone(); new.sample_instrument = Some(asset);
+                self.push(Edit::SetChannel(Box::new(Change { old, new })));
+                "Edit sample zones"
+            }
             Command::SetInstrumentParams { channel, params } => {
                 self.set_instrument_params(channel, params)?
             }
@@ -1736,7 +1764,7 @@ impl Transaction<'_> {
     fn remove_sample(&mut self, id: SampleId) -> Result<Label, CommandError> {
         let index = self.sample_index(id)?;
         let channels = &self.project.channels;
-        let user = channels.iter().find(|c| c.source.sample() == Some(id));
+        let user = channels.iter().find(|c| c.source.sample() == Some(id) || c.sample_instrument.as_ref().is_some_and(|a| a.samples().any(|sample| sample == id)));
         if let Some(channel) = user {
             return Err(CommandError::invalid(format!(
                 "the sample is still used by the channel \"{}\"",
@@ -1829,6 +1857,7 @@ impl Transaction<'_> {
                 group: String::new(),
                 voice: Default::default(),
                 expression_map: Default::default(),
+            sample_instrument: None,
                 timing: crate::ChannelTiming::default(),
                 color,
                 volume: DEFAULT_CHANNEL_VOLUME,

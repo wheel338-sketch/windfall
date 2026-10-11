@@ -20,6 +20,7 @@ pub enum SamplerPreparationError {
         limit: usize,
     },
     Unsupported(&'static str),
+    Asset(String),
 }
 impl std::fmt::Display for SamplerPreparationError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -34,6 +35,7 @@ impl std::fmt::Display for SamplerPreparationError {
                 "Sampler preparation needs {requested} bytes with {retained} retained; the strict budget is {limit} bytes. Reduce duration or the prepared key range, and let old voices retire."
             ),
             Self::Unsupported(reason) => f.write_str(reason),
+            Self::Asset(reason) => f.write_str(reason),
         }
     }
 }

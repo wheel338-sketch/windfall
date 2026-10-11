@@ -132,6 +132,12 @@ describe("descriptors", () => {
       macroVoice: true,
       speechVoice: true,
       midiOut: true,
+      multiSampler: true,
+      samplePlayer: true,
+      soundFont: true,
+      padBank: true,
+      pianoKeys: true,
+      textVoice: true,
     }
     expect([...EFFECT_KINDS].sort()).toEqual(Object.keys(effects).sort())
     expect([...INSTRUMENT_KINDS].sort()).toEqual(

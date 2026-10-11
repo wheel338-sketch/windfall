@@ -554,6 +554,11 @@ impl InstrumentUnit {
         }
     }
 
+    /// Control side only, before the unit is published.
+    pub fn install_sample_bank(&mut self, bank: std::sync::Arc<windfall_dsp::sample_bank::SampleBank>) {
+        let _ = self.instrument.install_sample_bank(bank);
+    }
+
     pub fn configure_voice(&mut self, envelopes: crate::channel_voice::PreparedChannelEnvelopes, glide: f64) {
         self.voice_envelopes = envelopes.enabled().then_some(envelopes); self.voice_glide = glide;
     }

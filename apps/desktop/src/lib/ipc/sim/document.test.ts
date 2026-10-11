@@ -22,6 +22,7 @@ function fullProject() {
     spareSample: 0,
     channel: 0,
     synth: 0,
+    sampleInstrument: 0,
     effect: 0,
     tap: 0,
     sparePattern: 0,
@@ -57,6 +58,7 @@ function fullProject() {
     ;[ids.sparePattern] = run({ type: "addPattern" })
     ;[ids.track] = run({ type: "addMixerTrack" })
     ;[ids.synth] = run({ type: "addChannel", instrument: "subtractiveSynth" })
+    ;[ids.sampleInstrument] = run({ type: "addChannel", instrument: "multiSampler" })
     ;[ids.effect] = run({
       type: "addEffect",
       track: ids.track,
@@ -610,6 +612,13 @@ const EVERY_COMMAND: { [Type in Command["type"]]: (ids: Ids) => Command } = {
     channel: ids.synth,
     param: 1,
     value: 0.5,
+  }),
+  setSampleInstrumentAsset: (ids) => ({
+    type: "setSampleInstrumentAsset", channel: ids.sampleInstrument,
+    expected: null, asset: { type: "zones", zones: [] },
+  }),
+  editSampleZones: (ids) => ({
+    type: "editSampleZones", channel: ids.sampleInstrument, expected: [], zones: [],
   }),
   setInstrumentParams: (ids) => ({
     type: "setInstrumentParams",

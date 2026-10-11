@@ -35,6 +35,7 @@ fn mix_power_reaches_frames_without_cancellation_or_callback_allocation() {
         group: String::new(),
         voice: Default::default(),
         expression_map: Default::default(),
+            sample_instrument: None,
         timing: Default::default(),
         mixer_track: TrackId::MASTER,
         source: ChannelSource::Sampler(SamplerSettings {

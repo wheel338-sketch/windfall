@@ -79,3 +79,6 @@ pub use project_settings::PanLaw;
 pub mod score;
 pub use score::{Score, ScoreLoadMode, ScoreNote};
 pub mod timebase;
+
+pub mod sample_instrument;
+pub use sample_instrument::SampleInstrumentAsset;

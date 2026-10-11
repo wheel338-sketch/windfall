@@ -469,6 +469,12 @@ fn names_are_plain_descriptions() {
             "Macro synth",
             "Speech Voice",
             "MIDI output",
+            "Multisampler",
+            "Sample player",
+            "SoundFont bank",
+            "Layered pads",
+            "Piano keys",
+            "Text voice",
         ]
     );
 }

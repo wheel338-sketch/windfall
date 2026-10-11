@@ -11,6 +11,8 @@ use windfall_project::{Project, SampleId};
 pub(super) struct ProjectPreparation {
     engine: PreparationSnapshot,
     pool: SamplePool,
+    sample_dir: Option<std::path::PathBuf>,
+    factory_dir: std::path::PathBuf,
     loading: HashSet<SampleId>,
     generation: u64,
     edits: u64,
@@ -28,6 +30,8 @@ impl Session {
         ProjectPreparation {
             engine: self.controller().preparation_snapshot(),
             pool: state.pool.clone(),
+            sample_dir: state.sample_dir.clone(),
+            factory_dir: self.inner.factory_dir.clone(),
             loading: state.loading.clone(),
             generation: state.generation,
             edits: state.edits,
@@ -44,6 +48,20 @@ impl Session {
 }
 
 impl ProjectPreparation {
+    /// SF2 IO/parser work belongs to this unlocked worker phase.
+    pub(super) fn load_sample_instruments(&self, project: &Project, pool: &SamplePool) -> Result<SamplePool,String> {
+        let mut pool = pool.clone();
+        for channel in &project.channels {
+            let Some(asset @ windfall_project::SampleInstrumentAsset::SoundFont { path, .. }) = &channel.sample_instrument else { continue; };
+            if pool.has_sample_instrument_asset(asset) { continue; }
+            let file = windfall_project::file::resolve_sample_path(path,self.sample_dir.as_deref(),&self.factory_dir)
+                .ok_or("SoundFont reference cannot be resolved")?;
+            let bytes = super::sample_instruments::read_soundfont(&file)?;
+            pool.insert_soundfont(asset.clone(),&bytes)?;
+        }
+        Ok(pool)
+    }
+
     pub(super) fn prepare(
         self,
         project: &Project,
@@ -51,7 +69,8 @@ impl ProjectPreparation {
         intent: ProjectPublicationIntent,
     ) -> Result<ReadyProject, windfall_engine::ProjectPreparationError> {
         // Keep the original source handles through commit and off-guard drop.
-        let ready = self.engine.clone().prepare(project, pool, intent)?;
+        let pool = self.load_sample_instruments(project,pool).map_err(|reason| windfall_engine::ProjectPreparationError::Sampler(windfall_engine::sampler_processing::SamplerPreparationError::Asset(reason)))?;
+        let ready = self.engine.clone().prepare(project, &pool, intent)?;
         Ok(ReadyProject {
             baseline: self,
             ready,

@@ -38,6 +38,7 @@ fn fixture(kind: Kind) -> (Project, SamplePool) {
         group: String::new(),
         voice: Default::default(),
         expression_map: Default::default(),
+            sample_instrument: None,
         timing: Default::default(),
         mixer_track: TrackId::MASTER,
         source: ChannelSource::Sampler(SamplerSettings {

@@ -48,6 +48,7 @@ fn soloed_playlist_span_renders_note_and_audio_into_a_buffer_and_excludes_other_
             group: String::new(),
             voice: Default::default(),
             expression_map: Default::default(),
+            sample_instrument: None,
             timing: Default::default(),
             mixer_track: TrackId::MASTER,
             source: ChannelSource::Sampler(SamplerSettings {

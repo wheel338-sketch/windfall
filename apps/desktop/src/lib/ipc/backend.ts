@@ -70,6 +70,10 @@ export type AudioClipPlace = {
  * plain text that can be shown to the user.
  */
 export interface Backend extends AnalysisBackend, MixerPresetLibraryBackend, AnalyzerBackend {
+  soundfontPresets?(path: string): Promise<import("@/bindings").SoundFontPreset[]>
+  sampleInstrumentSpeech?(channel: ChannelId, expected: import("@/bindings").SampleInstrumentAsset | null,
+    text: string, pitch: number, duration: number): Promise<DispatchResult>
+
   mixerWaveformTracks(tracks: TrackId[], generation: number, revision: number): Promise<void>
   mixerPresetCapture(id: TrackId, generation: number, revision: number): Promise<import("@/bindings").MixerTrackPreset>
   mixerPresetSave(preset: import("@/bindings").MixerTrackPreset): Promise<string | null>

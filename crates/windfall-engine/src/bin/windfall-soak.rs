@@ -342,6 +342,7 @@ fn drum_project() -> (Project, SamplePool) {
             group: String::new(),
             voice: Default::default(),
             expression_map: Default::default(),
+            sample_instrument: None,
             timing: windfall_project::ChannelTiming::default(),
             mixer_track: track,
             source: ChannelSource::Sampler(SamplerSettings {
@@ -441,6 +442,7 @@ fn add_effects(project: &mut Project) -> (ChannelId, TrackId) {
         group: String::new(),
         voice: Default::default(),
         expression_map: Default::default(),
+            sample_instrument: None,
         timing: windfall_project::ChannelTiming::default(),
         mixer_track: track,
         source: ChannelSource::Instrument {

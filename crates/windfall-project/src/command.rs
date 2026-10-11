@@ -497,6 +497,19 @@ pub enum Command {
         params: InstrumentParams,
     },
 
+    /// Loads/replaces a prepared bank as one checked history step.
+    SetSampleInstrumentAsset {
+        channel: ChannelId,
+        expected: Option<crate::SampleInstrumentAsset>,
+        asset: Option<crate::SampleInstrumentAsset>,
+    },
+    /// Mapping edits are exclusive to the editable multisampler and pad grid.
+    EditSampleZones {
+        channel: ChannelId,
+        expected: Vec<windfall_dsp::sample_bank::SampleZone>,
+        zones: Vec<windfall_dsp::sample_bank::SampleZone>,
+    },
+
     // Patterns
     /// Creates a [`PatternId`].
     AddPattern {

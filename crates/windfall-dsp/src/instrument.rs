@@ -1,3 +1,4 @@
+use crate::sample_bank::{MultiSampler, MultiSamplerParams, SamplePlayer, SamplePlayerParams, SoundFont, SoundFontParams, PadBank, PadBankParams, PianoKeys, PianoKeysParams, TextVoice, TextVoiceParams};
 //! The interface every built-in instrument implements, and one type that
 //! can hold any of them.
 
@@ -175,10 +176,16 @@ pub enum InstrumentKind {
     MacroVoice,
     SpeechVoice,
     MidiOut,
+    MultiSampler,
+    SamplePlayer,
+    SoundFont,
+    PadBank,
+    PianoKeys,
+    TextVoice,
 }
 
 impl InstrumentKind {
-    pub const ALL: [InstrumentKind; 27] = [
+    pub const ALL: [InstrumentKind; 33] = [
         InstrumentKind::SubtractiveSynth,
         InstrumentKind::FourOp,
         InstrumentKind::MatrixFm,
@@ -206,6 +213,12 @@ impl InstrumentKind {
         InstrumentKind::MacroVoice,
         InstrumentKind::SpeechVoice,
         InstrumentKind::MidiOut,
+        InstrumentKind::MultiSampler,
+        InstrumentKind::SamplePlayer,
+        InstrumentKind::SoundFont,
+        InstrumentKind::PadBank,
+        InstrumentKind::PianoKeys,
+        InstrumentKind::TextVoice,
     ];
 
     /// The instrument's name as shown to the user.
@@ -238,6 +251,12 @@ impl InstrumentKind {
             InstrumentKind::MacroVoice => MacroVoiceParams::NAME,
             InstrumentKind::SpeechVoice => SpeechVoiceParams::NAME,
             InstrumentKind::MidiOut => MidiOutParams::NAME,
+            InstrumentKind::MultiSampler => MultiSamplerParams::NAME,
+            InstrumentKind::SamplePlayer => SamplePlayerParams::NAME,
+            InstrumentKind::SoundFont => SoundFontParams::NAME,
+            InstrumentKind::PadBank => PadBankParams::NAME,
+            InstrumentKind::PianoKeys => PianoKeysParams::NAME,
+            InstrumentKind::TextVoice => TextVoiceParams::NAME,
         }
     }
 
@@ -271,6 +290,12 @@ impl InstrumentKind {
             InstrumentKind::MacroVoice => MacroVoiceParams::descriptors(),
             InstrumentKind::SpeechVoice => SpeechVoiceParams::descriptors(),
             InstrumentKind::MidiOut => MidiOutParams::descriptors(),
+            InstrumentKind::MultiSampler => MultiSamplerParams::descriptors(),
+            InstrumentKind::SamplePlayer => SamplePlayerParams::descriptors(),
+            InstrumentKind::SoundFont => SoundFontParams::descriptors(),
+            InstrumentKind::PadBank => PadBankParams::descriptors(),
+            InstrumentKind::PianoKeys => PianoKeysParams::descriptors(),
+            InstrumentKind::TextVoice => TextVoiceParams::descriptors(),
         }
     }
 
@@ -312,6 +337,12 @@ impl InstrumentKind {
             InstrumentKind::MacroVoice => InstrumentParams::MacroVoice(MacroVoiceParams::default()),
             InstrumentKind::SpeechVoice => InstrumentParams::SpeechVoice(SpeechVoiceParams::default()),
             InstrumentKind::MidiOut => InstrumentParams::MidiOut(MidiOutParams::default()),
+            InstrumentKind::MultiSampler => InstrumentParams::MultiSampler(MultiSamplerParams::default()),
+            InstrumentKind::SamplePlayer => InstrumentParams::SamplePlayer(SamplePlayerParams::default()),
+            InstrumentKind::SoundFont => InstrumentParams::SoundFont(SoundFontParams::default()),
+            InstrumentKind::PadBank => InstrumentParams::PadBank(PadBankParams::default()),
+            InstrumentKind::PianoKeys => InstrumentParams::PianoKeys(PianoKeysParams::default()),
+            InstrumentKind::TextVoice => InstrumentParams::TextVoice(TextVoiceParams::default()),
         }
     }
 }
@@ -349,6 +380,12 @@ pub enum InstrumentParams {
     MacroVoice(MacroVoiceParams),
     SpeechVoice(SpeechVoiceParams),
     MidiOut(MidiOutParams),
+    MultiSampler(MultiSamplerParams),
+    SamplePlayer(SamplePlayerParams),
+    SoundFont(SoundFontParams),
+    PadBank(PadBankParams),
+    PianoKeys(PianoKeysParams),
+    TextVoice(TextVoiceParams),
 }
 
 impl InstrumentParams {
@@ -381,6 +418,12 @@ impl InstrumentParams {
             InstrumentParams::MacroVoice(_) => InstrumentKind::MacroVoice,
             InstrumentParams::SpeechVoice(_) => InstrumentKind::SpeechVoice,
             InstrumentParams::MidiOut(_) => InstrumentKind::MidiOut,
+            InstrumentParams::MultiSampler(_) => InstrumentKind::MultiSampler,
+            InstrumentParams::SamplePlayer(_) => InstrumentKind::SamplePlayer,
+            InstrumentParams::SoundFont(_) => InstrumentKind::SoundFont,
+            InstrumentParams::PadBank(_) => InstrumentKind::PadBank,
+            InstrumentParams::PianoKeys(_) => InstrumentKind::PianoKeys,
+            InstrumentParams::TextVoice(_) => InstrumentKind::TextVoice,
         }
     }
 
@@ -428,6 +471,12 @@ impl InstrumentParams {
             InstrumentParams::MacroVoice(params) => InstrumentParams::MacroVoice(params.sanitized()),
             InstrumentParams::SpeechVoice(params) => InstrumentParams::SpeechVoice(params.sanitized()),
             InstrumentParams::MidiOut(params) => InstrumentParams::MidiOut(params.sanitized()),
+            InstrumentParams::MultiSampler(params) => InstrumentParams::MultiSampler(params.sanitized()),
+            InstrumentParams::SamplePlayer(params) => InstrumentParams::SamplePlayer(params.sanitized()),
+            InstrumentParams::SoundFont(params) => InstrumentParams::SoundFont(params.sanitized()),
+            InstrumentParams::PadBank(params) => InstrumentParams::PadBank(params.sanitized()),
+            InstrumentParams::PianoKeys(params) => InstrumentParams::PianoKeys(params.sanitized()),
+            InstrumentParams::TextVoice(params) => InstrumentParams::TextVoice(params.sanitized()),
         }
     }
 
@@ -465,6 +514,12 @@ impl InstrumentParams {
             InstrumentParams::MacroVoice(_) => 0,
             InstrumentParams::SpeechVoice(_) => 0,
             InstrumentParams::MidiOut(_) => 0,
+            InstrumentParams::MultiSampler(_) => 0,
+            InstrumentParams::SamplePlayer(_) => 0,
+            InstrumentParams::SoundFont(_) => 0,
+            InstrumentParams::PadBank(_) => 0,
+            InstrumentParams::PianoKeys(_) => 0,
+            InstrumentParams::TextVoice(_) => 0,
         }
     }
 
@@ -499,6 +554,12 @@ impl InstrumentParams {
             InstrumentParams::MacroVoice(params) => params.get(index),
             InstrumentParams::SpeechVoice(params) => params.get(index),
             InstrumentParams::MidiOut(params) => params.get(index),
+            InstrumentParams::MultiSampler(params) => params.get(index),
+            InstrumentParams::SamplePlayer(params) => params.get(index),
+            InstrumentParams::SoundFont(params) => params.get(index),
+            InstrumentParams::PadBank(params) => params.get(index),
+            InstrumentParams::PianoKeys(params) => params.get(index),
+            InstrumentParams::TextVoice(params) => params.get(index),
         }
     }
 
@@ -533,6 +594,12 @@ impl InstrumentParams {
             InstrumentParams::MacroVoice(params) => params.set(index, value),
             InstrumentParams::SpeechVoice(params) => params.set(index, value),
             InstrumentParams::MidiOut(params) => params.set(index, value),
+            InstrumentParams::MultiSampler(params) => params.set(index, value),
+            InstrumentParams::SamplePlayer(params) => params.set(index, value),
+            InstrumentParams::SoundFont(params) => params.set(index, value),
+            InstrumentParams::PadBank(params) => params.set(index, value),
+            InstrumentParams::PianoKeys(params) => params.set(index, value),
+            InstrumentParams::TextVoice(params) => params.set(index, value),
         }
     }
 }
@@ -571,9 +638,29 @@ pub enum AnyInstrument {
     MacroVoice(Box<MacroVoice>),
     SpeechVoice(Box<SpeechVoice>),
     MidiOut(Box<MidiOut>),
+    MultiSampler(Box<MultiSampler>),
+    SamplePlayer(Box<SamplePlayer>),
+    SoundFont(Box<SoundFont>),
+    PadBank(Box<PadBank>),
+    PianoKeys(Box<PianoKeys>),
+    TextVoice(Box<TextVoice>),
 }
 
 impl AnyInstrument {
+    /// Worker-side asset installation before publication. Does not run on audio.
+    pub fn install_sample_bank(&mut self, bank: std::sync::Arc<crate::sample_bank::SampleBank>) -> bool {
+        match self {
+            Self::MultiSampler(unit) => unit.install_bank(bank),
+            Self::SamplePlayer(unit) => unit.install_bank(bank),
+            Self::SoundFont(unit) => unit.install_bank(bank),
+            Self::PadBank(unit) => unit.install_bank(bank),
+            Self::PianoKeys(unit) => unit.install_bank(bank),
+            Self::TextVoice(unit) => unit.install_bank(bank),
+            _ => return false,
+        }
+        true
+    }
+
     /// Gives the messages a MIDI output channel made since the last block
     /// the frame of the block about to be processed. Nothing for the rest.
     pub fn stamp_midi(&mut self, frame: u64) {
@@ -729,6 +816,36 @@ impl AnyInstrument {
                 synth.set_params(params);
                 AnyInstrument::MidiOut(synth)
             }
+            InstrumentParams::MultiSampler(params) => {
+                let mut synth = Box::<MultiSampler>::default();
+                synth.set_params(params);
+                AnyInstrument::MultiSampler(synth)
+            }
+            InstrumentParams::SamplePlayer(params) => {
+                let mut synth = Box::<SamplePlayer>::default();
+                synth.set_params(params);
+                AnyInstrument::SamplePlayer(synth)
+            }
+            InstrumentParams::SoundFont(params) => {
+                let mut synth = Box::<SoundFont>::default();
+                synth.set_params(params);
+                AnyInstrument::SoundFont(synth)
+            }
+            InstrumentParams::PadBank(params) => {
+                let mut synth = Box::<PadBank>::default();
+                synth.set_params(params);
+                AnyInstrument::PadBank(synth)
+            }
+            InstrumentParams::PianoKeys(params) => {
+                let mut synth = Box::<PianoKeys>::default();
+                synth.set_params(params);
+                AnyInstrument::PianoKeys(synth)
+            }
+            InstrumentParams::TextVoice(params) => {
+                let mut synth = Box::<TextVoice>::default();
+                synth.set_params(params);
+                AnyInstrument::TextVoice(synth)
+            }
         }
     }
 
@@ -761,6 +878,12 @@ impl AnyInstrument {
             AnyInstrument::MacroVoice(_) => InstrumentKind::MacroVoice,
             AnyInstrument::SpeechVoice(_) => InstrumentKind::SpeechVoice,
             AnyInstrument::MidiOut(_) => InstrumentKind::MidiOut,
+            AnyInstrument::MultiSampler(_) => InstrumentKind::MultiSampler,
+            AnyInstrument::SamplePlayer(_) => InstrumentKind::SamplePlayer,
+            AnyInstrument::SoundFont(_) => InstrumentKind::SoundFont,
+            AnyInstrument::PadBank(_) => InstrumentKind::PadBank,
+            AnyInstrument::PianoKeys(_) => InstrumentKind::PianoKeys,
+            AnyInstrument::TextVoice(_) => InstrumentKind::TextVoice,
         }
     }
 
@@ -794,6 +917,12 @@ impl AnyInstrument {
             AnyInstrument::MacroVoice(synth) => synth.prepare(sample_rate, max_block),
             AnyInstrument::SpeechVoice(synth) => synth.prepare(sample_rate, max_block),
             AnyInstrument::MidiOut(synth) => synth.prepare(sample_rate, max_block),
+            AnyInstrument::MultiSampler(synth) => synth.prepare(sample_rate, max_block),
+            AnyInstrument::SamplePlayer(synth) => synth.prepare(sample_rate, max_block),
+            AnyInstrument::SoundFont(synth) => synth.prepare(sample_rate, max_block),
+            AnyInstrument::PadBank(synth) => synth.prepare(sample_rate, max_block),
+            AnyInstrument::PianoKeys(synth) => synth.prepare(sample_rate, max_block),
+            AnyInstrument::TextVoice(synth) => synth.prepare(sample_rate, max_block),
         }
     }
 
@@ -827,6 +956,12 @@ impl AnyInstrument {
             AnyInstrument::MacroVoice(synth) => synth.reset(),
             AnyInstrument::SpeechVoice(synth) => synth.reset(),
             AnyInstrument::MidiOut(synth) => synth.reset(),
+            AnyInstrument::MultiSampler(synth) => synth.reset(),
+            AnyInstrument::SamplePlayer(synth) => synth.reset(),
+            AnyInstrument::SoundFont(synth) => synth.reset(),
+            AnyInstrument::PadBank(synth) => synth.reset(),
+            AnyInstrument::PianoKeys(synth) => synth.reset(),
+            AnyInstrument::TextVoice(synth) => synth.reset(),
         }
     }
 
@@ -918,6 +1053,24 @@ impl AnyInstrument {
             (AnyInstrument::MidiOut(synth), InstrumentParams::MidiOut(params)) => {
                 synth.set_params(params);
             }
+            (AnyInstrument::MultiSampler(synth), InstrumentParams::MultiSampler(params)) => {
+                synth.set_params(params);
+            }
+            (AnyInstrument::SamplePlayer(synth), InstrumentParams::SamplePlayer(params)) => {
+                synth.set_params(params);
+            }
+            (AnyInstrument::SoundFont(synth), InstrumentParams::SoundFont(params)) => {
+                synth.set_params(params);
+            }
+            (AnyInstrument::PadBank(synth), InstrumentParams::PadBank(params)) => {
+                synth.set_params(params);
+            }
+            (AnyInstrument::PianoKeys(synth), InstrumentParams::PianoKeys(params)) => {
+                synth.set_params(params);
+            }
+            (AnyInstrument::TextVoice(synth), InstrumentParams::TextVoice(params)) => {
+                synth.set_params(params);
+            }
             _ => return false,
         }
         true
@@ -953,6 +1106,12 @@ impl AnyInstrument {
             AnyInstrument::MacroVoice(synth) => synth.set_tempo(bpm),
             AnyInstrument::SpeechVoice(synth) => synth.set_tempo(bpm),
             AnyInstrument::MidiOut(synth) => synth.set_tempo(bpm),
+            AnyInstrument::MultiSampler(synth) => synth.set_tempo(bpm),
+            AnyInstrument::SamplePlayer(synth) => synth.set_tempo(bpm),
+            AnyInstrument::SoundFont(synth) => synth.set_tempo(bpm),
+            AnyInstrument::PadBank(synth) => synth.set_tempo(bpm),
+            AnyInstrument::PianoKeys(synth) => synth.set_tempo(bpm),
+            AnyInstrument::TextVoice(synth) => synth.set_tempo(bpm),
         }
     }
 
@@ -986,6 +1145,12 @@ impl AnyInstrument {
             AnyInstrument::MacroVoice(synth) => synth.note_on(key, velocity),
             AnyInstrument::SpeechVoice(synth) => synth.note_on(key, velocity),
             AnyInstrument::MidiOut(synth) => synth.note_on(key, velocity),
+            AnyInstrument::MultiSampler(synth) => synth.note_on(key, velocity),
+            AnyInstrument::SamplePlayer(synth) => synth.note_on(key, velocity),
+            AnyInstrument::SoundFont(synth) => synth.note_on(key, velocity),
+            AnyInstrument::PadBank(synth) => synth.note_on(key, velocity),
+            AnyInstrument::PianoKeys(synth) => synth.note_on(key, velocity),
+            AnyInstrument::TextVoice(synth) => synth.note_on(key, velocity),
         }
     }
 
@@ -1074,6 +1239,24 @@ impl AnyInstrument {
             AnyInstrument::MidiOut(synth) => {
                 synth.note_on_expression(key, velocity, pan, expression)
             }
+            AnyInstrument::MultiSampler(synth) => {
+                synth.note_on_expression(key, velocity, pan, expression)
+            }
+            AnyInstrument::SamplePlayer(synth) => {
+                synth.note_on_expression(key, velocity, pan, expression)
+            }
+            AnyInstrument::SoundFont(synth) => {
+                synth.note_on_expression(key, velocity, pan, expression)
+            }
+            AnyInstrument::PadBank(synth) => {
+                synth.note_on_expression(key, velocity, pan, expression)
+            }
+            AnyInstrument::PianoKeys(synth) => {
+                synth.note_on_expression(key, velocity, pan, expression)
+            }
+            AnyInstrument::TextVoice(synth) => {
+                synth.note_on_expression(key, velocity, pan, expression)
+            }
         }
     }
 
@@ -1107,6 +1290,12 @@ impl AnyInstrument {
             AnyInstrument::MacroVoice(synth) => synth.note_off(key),
             AnyInstrument::SpeechVoice(synth) => synth.note_off(key),
             AnyInstrument::MidiOut(synth) => synth.note_off(key),
+            AnyInstrument::MultiSampler(synth) => synth.note_off(key),
+            AnyInstrument::SamplePlayer(synth) => synth.note_off(key),
+            AnyInstrument::SoundFont(synth) => synth.note_off(key),
+            AnyInstrument::PadBank(synth) => synth.note_off(key),
+            AnyInstrument::PianoKeys(synth) => synth.note_off(key),
+            AnyInstrument::TextVoice(synth) => synth.note_off(key),
         }
     }
 
@@ -1139,6 +1328,12 @@ impl AnyInstrument {
             AnyInstrument::MacroVoice(synth) => synth.supports_note_instances(),
             AnyInstrument::SpeechVoice(synth) => synth.supports_note_instances(),
             AnyInstrument::MidiOut(synth) => synth.supports_note_instances(),
+            AnyInstrument::MultiSampler(synth) => synth.supports_note_instances(),
+            AnyInstrument::SamplePlayer(synth) => synth.supports_note_instances(),
+            AnyInstrument::SoundFont(synth) => synth.supports_note_instances(),
+            AnyInstrument::PadBank(synth) => synth.supports_note_instances(),
+            AnyInstrument::PianoKeys(synth) => synth.supports_note_instances(),
+            AnyInstrument::TextVoice(synth) => synth.supports_note_instances(),
         }
     }
 
@@ -1232,6 +1427,24 @@ impl AnyInstrument {
             AnyInstrument::MidiOut(synth) => {
                 synth.note_on_instance(id, key, velocity, pan, expression)
             }
+            AnyInstrument::MultiSampler(synth) => {
+                synth.note_on_instance(id, key, velocity, pan, expression)
+            }
+            AnyInstrument::SamplePlayer(synth) => {
+                synth.note_on_instance(id, key, velocity, pan, expression)
+            }
+            AnyInstrument::SoundFont(synth) => {
+                synth.note_on_instance(id, key, velocity, pan, expression)
+            }
+            AnyInstrument::PadBank(synth) => {
+                synth.note_on_instance(id, key, velocity, pan, expression)
+            }
+            AnyInstrument::PianoKeys(synth) => {
+                synth.note_on_instance(id, key, velocity, pan, expression)
+            }
+            AnyInstrument::TextVoice(synth) => {
+                synth.note_on_instance(id, key, velocity, pan, expression)
+            }
         }
     }
 
@@ -1264,6 +1477,12 @@ impl AnyInstrument {
             AnyInstrument::MacroVoice(synth) => synth.note_off_instance(id, key),
             AnyInstrument::SpeechVoice(synth) => synth.note_off_instance(id, key),
             AnyInstrument::MidiOut(synth) => synth.note_off_instance(id, key),
+            AnyInstrument::MultiSampler(synth) => synth.note_off_instance(id, key),
+            AnyInstrument::SamplePlayer(synth) => synth.note_off_instance(id, key),
+            AnyInstrument::SoundFont(synth) => synth.note_off_instance(id, key),
+            AnyInstrument::PadBank(synth) => synth.note_off_instance(id, key),
+            AnyInstrument::PianoKeys(synth) => synth.note_off_instance(id, key),
+            AnyInstrument::TextVoice(synth) => synth.note_off_instance(id, key),
         }
     }
 
@@ -1303,6 +1522,12 @@ impl AnyInstrument {
             AnyInstrument::MacroVoice(synth) => synth.set_note_expression(id, pan, expression),
             AnyInstrument::SpeechVoice(synth) => synth.set_note_expression(id, pan, expression),
             AnyInstrument::MidiOut(synth) => synth.set_note_expression(id, pan, expression),
+            AnyInstrument::MultiSampler(synth) => synth.set_note_expression(id, pan, expression),
+            AnyInstrument::SamplePlayer(synth) => synth.set_note_expression(id, pan, expression),
+            AnyInstrument::SoundFont(synth) => synth.set_note_expression(id, pan, expression),
+            AnyInstrument::PadBank(synth) => synth.set_note_expression(id, pan, expression),
+            AnyInstrument::PianoKeys(synth) => synth.set_note_expression(id, pan, expression),
+            AnyInstrument::TextVoice(synth) => synth.set_note_expression(id, pan, expression),
         }
     }
 
@@ -1335,6 +1560,12 @@ impl AnyInstrument {
             AnyInstrument::MacroVoice(synth) => synth.set_note_pitch(id, pitch),
             AnyInstrument::SpeechVoice(synth) => synth.set_note_pitch(id, pitch),
             AnyInstrument::MidiOut(synth) => synth.set_note_pitch(id, pitch),
+            AnyInstrument::MultiSampler(synth) => synth.set_note_pitch(id, pitch),
+            AnyInstrument::SamplePlayer(synth) => synth.set_note_pitch(id, pitch),
+            AnyInstrument::SoundFont(synth) => synth.set_note_pitch(id, pitch),
+            AnyInstrument::PadBank(synth) => synth.set_note_pitch(id, pitch),
+            AnyInstrument::PianoKeys(synth) => synth.set_note_pitch(id, pitch),
+            AnyInstrument::TextVoice(synth) => synth.set_note_pitch(id, pitch),
         }
     }
 
@@ -1347,6 +1578,12 @@ impl AnyInstrument {
             AnyInstrument::SliceDeck(synth) => synth.set_note_gain(id, gain),
             AnyInstrument::GrainCloud(synth) => synth.set_note_gain(id, gain),
             AnyInstrument::WaveRide(synth) => synth.set_note_gain(id, gain),
+            AnyInstrument::MultiSampler(synth) => synth.set_note_gain(id, gain),
+            AnyInstrument::SamplePlayer(synth) => synth.set_note_gain(id, gain),
+            AnyInstrument::SoundFont(synth) => synth.set_note_gain(id, gain),
+            AnyInstrument::PadBank(synth) => synth.set_note_gain(id, gain),
+            AnyInstrument::PianoKeys(synth) => synth.set_note_gain(id, gain),
+            AnyInstrument::TextVoice(synth) => synth.set_note_gain(id, gain),
             _ => {}
         }
     }
@@ -1381,6 +1618,12 @@ impl AnyInstrument {
             AnyInstrument::MacroVoice(synth) => synth.all_notes_off(),
             AnyInstrument::SpeechVoice(synth) => synth.all_notes_off(),
             AnyInstrument::MidiOut(synth) => synth.all_notes_off(),
+            AnyInstrument::MultiSampler(synth) => synth.all_notes_off(),
+            AnyInstrument::SamplePlayer(synth) => synth.all_notes_off(),
+            AnyInstrument::SoundFont(synth) => synth.all_notes_off(),
+            AnyInstrument::PadBank(synth) => synth.all_notes_off(),
+            AnyInstrument::PianoKeys(synth) => synth.all_notes_off(),
+            AnyInstrument::TextVoice(synth) => synth.all_notes_off(),
         }
     }
 
@@ -1414,6 +1657,12 @@ impl AnyInstrument {
             AnyInstrument::MacroVoice(synth) => synth.process(left, right),
             AnyInstrument::SpeechVoice(synth) => synth.process(left, right),
             AnyInstrument::MidiOut(synth) => synth.process(left, right),
+            AnyInstrument::MultiSampler(synth) => synth.process(left, right),
+            AnyInstrument::SamplePlayer(synth) => synth.process(left, right),
+            AnyInstrument::SoundFont(synth) => synth.process(left, right),
+            AnyInstrument::PadBank(synth) => synth.process(left, right),
+            AnyInstrument::PianoKeys(synth) => synth.process(left, right),
+            AnyInstrument::TextVoice(synth) => synth.process(left, right),
         }
     }
 
@@ -1447,6 +1696,12 @@ impl AnyInstrument {
             AnyInstrument::MacroVoice(synth) => synth.active_voices(),
             AnyInstrument::SpeechVoice(synth) => synth.active_voices(),
             AnyInstrument::MidiOut(synth) => synth.active_voices(),
+            AnyInstrument::MultiSampler(synth) => synth.active_voices(),
+            AnyInstrument::SamplePlayer(synth) => synth.active_voices(),
+            AnyInstrument::SoundFont(synth) => synth.active_voices(),
+            AnyInstrument::PadBank(synth) => synth.active_voices(),
+            AnyInstrument::PianoKeys(synth) => synth.active_voices(),
+            AnyInstrument::TextVoice(synth) => synth.active_voices(),
         }
     }
 
@@ -1480,6 +1735,12 @@ impl AnyInstrument {
             AnyInstrument::MacroVoice(synth) => synth.latency_samples(),
             AnyInstrument::SpeechVoice(synth) => synth.latency_samples(),
             AnyInstrument::MidiOut(synth) => synth.latency_samples(),
+            AnyInstrument::MultiSampler(synth) => synth.latency_samples(),
+            AnyInstrument::SamplePlayer(synth) => synth.latency_samples(),
+            AnyInstrument::SoundFont(synth) => synth.latency_samples(),
+            AnyInstrument::PadBank(synth) => synth.latency_samples(),
+            AnyInstrument::PianoKeys(synth) => synth.latency_samples(),
+            AnyInstrument::TextVoice(synth) => synth.latency_samples(),
         }
     }
 
@@ -1513,6 +1774,12 @@ impl AnyInstrument {
             AnyInstrument::MacroVoice(synth) => synth.tail_samples(),
             AnyInstrument::SpeechVoice(synth) => synth.tail_samples(),
             AnyInstrument::MidiOut(synth) => synth.tail_samples(),
+            AnyInstrument::MultiSampler(synth) => synth.tail_samples(),
+            AnyInstrument::SamplePlayer(synth) => synth.tail_samples(),
+            AnyInstrument::SoundFont(synth) => synth.tail_samples(),
+            AnyInstrument::PadBank(synth) => synth.tail_samples(),
+            AnyInstrument::PianoKeys(synth) => synth.tail_samples(),
+            AnyInstrument::TextVoice(synth) => synth.tail_samples(),
         }
     }
 }

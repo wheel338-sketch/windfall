@@ -1,0 +1,379 @@
+use super::*;
+use windfall_core::AudioBuffer;
+
+const RATE: f32 = 48000.0;
+fn zone(value: f32, mapping: SampleZone) -> LoadedZone {
+    LoadedZone {
+        mapping,
+        audio: AudioBuffer::from_interleaved(48000, 1, vec![value; 4096]),
+    }
+}
+fn sampler(zones: Vec<LoadedZone>) -> MultiSampler {
+    let mut unit = MultiSampler::default();
+    unit.prepare(RATE, 64);
+    unit.install_bank(Arc::new(SampleBank::new(zones).unwrap()));
+    unit
+}
+fn render(unit: &mut impl Instrument, frames: usize, block: usize) -> Vec<f32> {
+    let mut pcm = vec![0.0; frames];
+    let mut right = vec![0.0; block];
+    for chunk in pcm.chunks_mut(block) {
+        unit.process(chunk, &mut right[..chunk.len()]);
+    }
+    pcm
+}
+#[test]
+fn inclusive_key_velocity_edges_and_independent_fades() {
+    let map = SampleZone {
+        key_low: 48,
+        key_high: 60,
+        velocity_low: 32,
+        velocity_high: 96,
+        key_fade: 4,
+        velocity_fade: 8,
+        ..Default::default()
+    };
+    assert_eq!(map.weight(47, 64), 0.0);
+    assert_eq!(map.weight(61, 64), 0.0);
+    assert_eq!(map.weight(54, 31), 0.0);
+    assert_eq!(map.weight(54, 97), 0.0);
+    assert_eq!(map.weight(48, 32), 1.0 / 32.0);
+    assert_eq!(map.weight(60, 96), 1.0 / 32.0);
+    assert_eq!(map.weight(54, 64), 1.0);
+}
+#[test]
+fn overlapping_layers_add_and_missing_keys_are_silent() {
+    let map = SampleZone {
+        key_low: 60,
+        key_high: 60,
+        ..Default::default()
+    };
+    let mut unit = sampler(vec![zone(0.2, map), zone(0.4, map)]);
+    unit.note_on(59, 1.0);
+    assert_eq!(unit.active_voices(), 0);
+    assert!(render(&mut unit, 64, 7).iter().all(|x| *x == 0.0));
+    assert_eq!(unit.missed_notes(), 1);
+    unit.note_on(60, 1.0);
+    assert_eq!(unit.active_voices(), 2);
+    let pcm = render(&mut unit, 64, 7);
+    assert!((pcm[63] - 0.3).abs() < 1e-5);
+}
+#[test]
+fn round_robin_advances_only_matching_groups_and_chokes_all_old_layers() {
+    let mut unit = sampler(vec![
+        zone(
+            0.2,
+            SampleZone {
+                key_low: 36,
+                key_high: 36,
+                root_key: 36,
+                round_robin: 1,
+                choke_group: 3,
+                ..Default::default()
+            },
+        ),
+        zone(
+            0.4,
+            SampleZone {
+                key_low: 36,
+                key_high: 36,
+                root_key: 36,
+                round_robin: 1,
+                choke_group: 3,
+                ..Default::default()
+            },
+        ),
+        zone(
+            0.6,
+            SampleZone {
+                key_low: 37,
+                key_high: 37,
+                root_key: 37,
+                choke_group: 3,
+                ..Default::default()
+            },
+        ),
+    ]);
+    unit.note_on(36, 1.0);
+    let a = render(&mut unit, 64, 64)[63];
+    unit.note_on(35, 1.0);
+    unit.note_on(36, 1.0);
+    let b = render(&mut unit, 64, 7)[63];
+    assert!((b - 2.0 * a).abs() < 1e-5);
+    assert_eq!(unit.active_voices(), 1);
+    unit.note_on(37, 1.0);
+    assert_eq!(unit.active_voices(), 1);
+    assert!((render(&mut unit, 64, 1)[63] - 0.3).abs() < 1e-5);
+}
+#[test]
+fn instances_release_independently_and_stop_retires_bounded_voices() {
+    let mut unit = sampler(vec![zone(0.3, SampleZone::default())]);
+    for id in 0..200 {
+        unit.note_on_instance(NoteInstanceId(id), 60, 1.0, 0.0, NoteExpression::default());
+    }
+    assert_eq!(unit.active_voices(), BANK_VOICES);
+    assert_eq!(unit.stolen_layers(), 72);
+    render(&mut unit, 64, 64);
+    unit.all_notes_off();
+    render(&mut unit, 512, 17);
+    assert_eq!(unit.active_voices(), 0);
+}
+#[test]
+fn live_style_partitions_match_offline_pcm_with_loops_and_envelopes() {
+    let map = SampleZone {
+        loop_mode: BankLoop::UntilRelease,
+        loop_start: 7,
+        loop_end: 43,
+        attack_ms: 4.0,
+        hold_ms: 2.0,
+        decay_ms: 8.0,
+        sustain: 0.4,
+        ..Default::default()
+    };
+    let bank = Arc::new(SampleBank::new(vec![zone(0.3, map)]).unwrap());
+    let play = |block| {
+        let mut unit = MultiSampler::default();
+        unit.prepare(RATE, 128);
+        unit.install_bank(bank.clone());
+        unit.note_on(60, 1.0);
+        let mut pcm = render(&mut unit, 4096, block);
+        unit.note_off(60);
+        pcm.extend(render(&mut unit, 6000, block));
+        pcm
+    };
+    assert_eq!(play(1), play(127));
+    assert_eq!(play(7), play(64));
+}
+#[test]
+fn invalid_pcm_mapping_and_loops_fail_before_publication() {
+    assert!(SampleBank::new(vec![zone(f32::NAN, SampleZone::default())]).is_err());
+    assert!(
+        SampleBank::new(vec![zone(
+            0.0,
+            SampleZone {
+                key_low: 100,
+                key_high: 2,
+                ..Default::default()
+            }
+        )])
+        .is_err()
+    );
+    assert!(
+        SampleBank::new(vec![zone(
+            0.0,
+            SampleZone {
+                loop_mode: BankLoop::Continuous,
+                loop_end: 5000,
+                ..Default::default()
+            }
+        )])
+        .is_err()
+    );
+}
+#[test]
+fn speech_render_is_deterministic_bounded_and_cancellable() {
+    let a = sources::render_text("Hello world!", 48.0, 2.0, &mut || true).unwrap();
+    let b = sources::render_text("Hello world!", 48.0, 2.0, &mut || true).unwrap();
+    assert_eq!(a.samples(), b.samples());
+    assert_eq!(a.frames(), 48000);
+    assert!(a.samples().iter().any(|x| x.abs() > 0.01));
+    assert_eq!(
+        sources::render_text("", 48.0, 2.0, &mut || true).unwrap_err(),
+        sources::SpeechError::Empty
+    );
+    assert_eq!(
+        sources::render_text("hello", f32::NAN, 2.0, &mut || true).unwrap_err(),
+        sources::SpeechError::InvalidControls
+    );
+    assert_eq!(
+        sources::render_text("hello", 48.0, 2.0, &mut || false).unwrap_err(),
+        sources::SpeechError::Cancelled
+    );
+    assert!(matches!(
+        sources::render_text("你好", 48.0, 2.0, &mut || true),
+        Err(sources::SpeechError::UnsupportedCharacter(_))
+    ));
+}
+#[test]
+fn generated_piano_has_multiple_keys_and_velocity_sources() {
+    let bank = sources::piano_bank(false);
+    assert_eq!(bank.zones().len(), 30);
+    assert!(bank.zones().iter().all(|z| z.audio.frames() == 72000));
+    assert_ne!(
+        bank.zones()[0].audio.samples(),
+        bank.zones()[1].audio.samples()
+    );
+    for key in 0..=127 {
+        for velocity in [1, 63, 64, 127] {
+            assert_eq!(
+                bank.zones()
+                    .iter()
+                    .filter(|z| z.mapping.weight(key, velocity) > 0.0)
+                    .count(),
+                1
+            );
+        }
+    }
+}
+
+fn chunk(id: &[u8; 4], data: &[u8]) -> Vec<u8> {
+    let mut result = id.to_vec();
+    result.extend_from_slice(&(data.len() as u32).to_le_bytes());
+    result.extend_from_slice(data);
+    if !data.len().is_multiple_of(2) {
+        result.push(0);
+    }
+    result
+}
+fn list(id: &[u8; 4], leaves: &[(&[u8; 4], &[u8])]) -> Vec<u8> {
+    let mut data = id.to_vec();
+    for (id, bytes) in leaves {
+        data.extend(chunk(id, bytes));
+    }
+    chunk(b"LIST", &data)
+}
+fn put16(data: &mut [u8], offset: usize, value: u16) {
+    data[offset..offset + 2].copy_from_slice(&value.to_le_bytes());
+}
+fn put32(data: &mut [u8], offset: usize, value: u32) {
+    data[offset..offset + 4].copy_from_slice(&value.to_le_bytes());
+}
+fn gens(entries: &[(u16, u16)]) -> Vec<u8> {
+    entries
+        .iter()
+        .flat_map(|(op, amount)| op.to_le_bytes().into_iter().chain(amount.to_le_bytes()))
+        .collect()
+}
+struct Bank {
+    phdr: Vec<u8>,
+    pbag: Vec<u8>,
+    pgen: Vec<u8>,
+    pmod: Vec<u8>,
+    inst: Vec<u8>,
+    ibag: Vec<u8>,
+    igen: Vec<u8>,
+    imod: Vec<u8>,
+    shdr: Vec<u8>,
+    smpl: Vec<u8>,
+}
+impl Bank {
+    fn new(frames: usize) -> Self {
+        let mut phdr = vec![0; 76];
+        phdr[..4].copy_from_slice(b"Test");
+        phdr[38..41].copy_from_slice(b"EOP");
+        put16(&mut phdr, 20, 7);
+        put16(&mut phdr, 22, 3);
+        put16(&mut phdr, 38 + 24, 1);
+        let mut inst = vec![0; 44];
+        inst[..4].copy_from_slice(b"Tone");
+        inst[22..25].copy_from_slice(b"EOI");
+        put16(&mut inst, 42, 1);
+        let mut shdr = vec![0; 92];
+        shdr[..4].copy_from_slice(b"Wave");
+        shdr[46..49].copy_from_slice(b"EOS");
+        put32(&mut shdr, 24, frames as u32);
+        put32(&mut shdr, 28, 1);
+        put32(&mut shdr, 32, (frames - 1) as u32);
+        put32(&mut shdr, 36, RATE as u32);
+        shdr[40] = 60;
+        shdr[41] = (-3_i8) as u8;
+        put16(&mut shdr, 44, 1);
+        let smpl = (0..frames)
+            .flat_map(|index| (((index % 200) as i16 + 1) * 100).to_le_bytes())
+            .collect();
+        Self {
+            phdr,
+            inst,
+            shdr,
+            smpl,
+            pbag: gens(&[(0, 0), (1, 0)]),
+            pgen: gens(&[(41, 0), (0, 0)]),
+            pmod: vec![0; 10],
+            ibag: gens(&[(0, 0), (4, 0)]),
+            igen: gens(&[
+                (43, 48 | (72 << 8)),
+                (44, 32 | (100 << 8)),
+                (54, 3),
+                (53, 0),
+                (0, 0),
+            ]),
+            imod: vec![0; 10],
+        }
+    }
+    fn bytes(&self) -> Vec<u8> {
+        let mut data = b"sfbk".to_vec();
+        data.extend(list(
+            b"INFO",
+            &[(b"ifil", &[2, 0, 4, 0]), (b"INAM", b"Test\0")],
+        ));
+        data.extend(list(b"sdta", &[(b"smpl", &self.smpl)]));
+        data.extend(list(
+            b"pdta",
+            &[
+                (b"phdr", &self.phdr),
+                (b"pbag", &self.pbag),
+                (b"pmod", &self.pmod),
+                (b"pgen", &self.pgen),
+                (b"inst", &self.inst),
+                (b"ibag", &self.ibag),
+                (b"imod", &self.imod),
+                (b"igen", &self.igen),
+                (b"shdr", &self.shdr),
+            ],
+        ));
+        chunk(b"RIFF", &data)
+    }
+}
+
+#[test]
+fn sf2_real_pcm_and_preset_ranges_are_not_limited_to_1024_frames() {
+    let bytes = Bank::new(8192).bytes();
+    let presets = soundfont::presets(&bytes).unwrap();
+    assert_eq!((presets[0].bank, presets[0].program), (3, 7));
+    let bank = soundfont::parse_soundfont_preset(&bytes, 3, 7).unwrap();
+    let z = &bank.zones()[0];
+    assert_eq!(z.audio.frames(), 8192);
+    assert_eq!((z.mapping.key_low, z.mapping.key_high), (48, 72));
+    assert_eq!((z.mapping.velocity_low, z.mapping.velocity_high), (32, 100));
+    assert_eq!(z.mapping.loop_mode, BankLoop::UntilRelease);
+    assert_eq!(z.mapping.tune_cents, -3.0);
+    assert_eq!(z.audio.samples()[0], 100.0 / 32768.0);
+}
+#[test]
+fn sf2_every_truncated_prefix_and_forged_link_fails_without_panicking() {
+    let bytes = Bank::new(64).bytes();
+    for end in 0..bytes.len() {
+        assert!(soundfont::parse_soundfont(&bytes[..end]).is_err(), "{end}");
+    }
+    let mut forged = Bank::new(64);
+    put16(&mut forged.pgen, 2, 999);
+    assert!(soundfont::parse_soundfont(&forged.bytes()).is_err());
+    for position in (0..bytes.len()).step_by(17) {
+        let mut damaged = bytes.clone();
+        damaged[position] = 255;
+        let _ = soundfont::parse_soundfont(&damaged);
+    }
+}
+#[test]
+fn sf2_envelopes_tuning_and_preset_offsets_reach_resolved_zone() {
+    let mut fixture = Bank::new(2048);
+    fixture.igen = gens(&[
+        (43, 48 | (72 << 8)),
+        (34, (-1200i16) as u16),
+        (36, 0),
+        (37, 600),
+        (38, 0),
+        (51, 1),
+        (53, 0),
+        (0, 0),
+    ]);
+    put16(&mut fixture.ibag, 4, 7);
+    fixture.pgen = gens(&[(51, 1), (41, 0), (0, 0)]);
+    put16(&mut fixture.pbag, 4, 2);
+    let bank = soundfont::parse_soundfont(&fixture.bytes()).unwrap();
+    let z = bank.zones()[0].mapping;
+    assert!((z.attack_ms - 500.0).abs() < 0.01);
+    assert!((z.decay_ms - 1000.0).abs() < 0.01);
+    assert!((z.sustain - 0.001).abs() < 1e-6);
+    assert_eq!(z.tune_cents, 197.0);
+}

@@ -203,3 +203,5 @@ pub mod audio_logger;
 mod qa_recording_mixer;
 #[cfg(test)]
 mod qa_mixer_pdc_ports;
+
+mod sample_instruments;

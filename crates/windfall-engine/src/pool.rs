@@ -15,6 +15,7 @@ use windfall_project::{ClipStretch, SampleId};
 /// until one of them is changed, and the audio itself is always shared.
 #[derive(Debug, Clone, Default)]
 pub struct SamplePool {
+    pub(crate) sample_banks: Arc<Vec<crate::sample_instruments::PreparedSampleBank>>,
     samples: Arc<HashMap<SampleId, AudioBuffer>>,
     clip_audio: Arc<Mutex<ClipAudioCache>>,
     sampler_audio: Arc<Mutex<SamplerAudioCache>>,
@@ -148,12 +149,13 @@ impl SamplePool {
         }
         let mut result = self.clone();
         result.sampler_audio = Arc::new(Mutex::new(cache));
-        Ok(result)
+        result.prepare_sample_instruments(project, keep_going).map_err(SamplerPreparationError::Asset)
     }
 
     /// Installs worker results only after the session has checked its tickets.
     pub fn install_sampler_preparation(&mut self, prepared: &Self) {
         self.sampler_audio = prepared.sampler_audio.clone();
+        self.sample_banks = prepared.sample_banks.clone();
     }
     /// Installs the control-side native plugin provider used by playback and render.
     pub fn set_plugin_factory(&mut self, factory: Arc<dyn crate::plugins::PluginFactory>) {

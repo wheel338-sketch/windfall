@@ -90,6 +90,7 @@ impl Rig {
             group: String::new(),
             voice: Default::default(),
             expression_map: Default::default(),
+            sample_instrument: None,
             timing: windfall_project::ChannelTiming::default(),
             mixer_track: track,
             source: ChannelSource::Sampler(SamplerSettings {
@@ -165,6 +166,7 @@ impl Rig {
             group: String::new(),
             voice: Default::default(),
             expression_map: Default::default(),
+            sample_instrument: None,
             timing: windfall_project::ChannelTiming::default(),
             mixer_track: track,
             source: ChannelSource::Instrument {

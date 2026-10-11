@@ -56,6 +56,8 @@ impl SampleEditTicket {
     /// Slow DSP/compilation; call only after dropping State/library guards.
     /// Does not acquire recording exclusion, including for recording-finish imports.
     pub(super) fn prepare(mut self) -> Result<PreparedSampleEdit, String> {
+        self.candidate_pool = self.preparation.as_ref().expect("unprepared edit")
+            .load_sample_instruments(self.document.project(),&self.candidate_pool)?;
         let pool = self
             .candidate_pool
             .prepare_samplers(

@@ -29,6 +29,16 @@ use windfall_ipc::{MidiExportOptions, MidiImportOptions, MidiImportPreview};
 // Native analysis controls. Slow preparation, cleanup and joining stay on
 // blocking tasks; cancellation itself never waits for the preparation gate.
 #[tauri::command]
+async fn soundfont_presets(session: State<'_,Session>, path: String) -> Result<Vec<windfall_dsp::sample_bank::soundfont::SoundFontPreset>,String> {
+    let session = session.inner().clone(); blocking(move || session.soundfont_presets(&path)).await
+}
+#[tauri::command]
+async fn sample_instrument_speech(session: State<'_,Session>, channel: ChannelId,
+    expected: Option<windfall_project::SampleInstrumentAsset>, text: String, pitch: f32, duration: f32) -> Result<DispatchResult,String> {
+    let session = session.inner().clone(); blocking(move || session.sample_instrument_speech(channel,expected,text,pitch,duration)).await
+}
+
+#[tauri::command]
 fn analysis_capability(session: State<'_, Session>) -> windfall_ipc::AnalysisCapability {
     session.analysis_capability()
 }
@@ -1045,6 +1055,8 @@ pub fn handler() -> impl Fn(Invoke) -> bool + Send + Sync + 'static {
         slice_apply,
         slice_discard,
         samples_reload,
+        soundfont_presets,
+        sample_instrument_speech,
         add_channel_from_file,
         set_channel_sample_from_file,
         add_audio_clip_from_file,

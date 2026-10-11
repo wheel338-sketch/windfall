@@ -508,3 +508,5 @@ impl Session {
         self.inner.events.emit(event);
     }
 }
+
+mod sample_instruments;
