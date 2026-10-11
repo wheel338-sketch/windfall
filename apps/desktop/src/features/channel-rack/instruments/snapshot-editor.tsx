@@ -5,6 +5,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 import { ParamControl, ParamGroup, ParamRow } from "@/features/params"
 import type { InstrumentChannel } from "@/lib/channel-source"
 import { dispatch } from "@/lib/store"
+import { onHistoryNavigation } from "@/lib/store/project"
 import { getProjectGeneration, onProjectReplaced } from "@/lib/store/replaced"
 import { prepareAsset } from "./asset-job"
 import { useInstrumentBinding } from "./use-instrument-binding"
@@ -12,7 +13,7 @@ import { useInstrumentBinding } from "./use-instrument-binding"
 export function SnapshotEditor({ channel }: { channel: InstrumentChannel }) {
   const [harmonic,setHarmonic] = useState(1), [busy,setBusy] = useState(false), [error,setError] = useState<string | null>(null)
   const job = useRef<AbortController | null>(null)
-  useEffect(() => { const cancel = () => job.current?.abort(); const off = onProjectReplaced(cancel); return () => { off();cancel() } }, [])
+  useEffect(() => { const cancel = () => { job.current?.abort(); setBusy(false) }; const off = onProjectReplaced(cancel), historyOff = onHistoryNavigation(cancel); return () => { off();historyOff();cancel() } }, [])
   const bind = useInstrumentBinding(channel.id,channel.source.params)
   const stored = channel.source.asset
   const frames = stored?.type === "spectra" ? stored.frames : undefined
@@ -23,7 +24,7 @@ export function SnapshotEditor({ channel }: { channel: InstrumentChannel }) {
     const expected=channel.source, generation=getProjectGeneration(), a=levels(0), b=levels(1)
     if (snapshot === 0) a[harmonic-1]=value; else b[harmonic-1]=value
     setBusy(true);setError(null)
-    try { const asset = await prepareAsset({ type: "snapshots",a,b },request.signal); if (!request.signal.aborted && generation===getProjectGeneration()) await dispatch({ type: "setInstrumentAsset",channel: channel.id,expected,asset }) }
+    try { const asset = await prepareAsset({ type: "snapshots",a,b },request.signal); if (!request.signal.aborted && generation===getProjectGeneration()) if (!await dispatch({ type: "setInstrumentAsset",channel: channel.id,expected,asset })) throw new Error("The instrument changed; prepare the snapshot again") }
     catch (error) { if (!request.signal.aborted) setError(error instanceof Error ? error.message : String(error)) }
     finally { if (!request.signal.aborted) setBusy(false) }
   }

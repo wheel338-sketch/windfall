@@ -2,7 +2,7 @@ import { act, fireEvent, render, screen, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
-import type { ChannelId, InstrumentKind, PluginBinding } from "@/bindings"
+import type { ChannelId, InstrumentAsset, InstrumentKind, PluginBinding } from "@/bindings"
 import { ValueContextMenus } from "@/components/value-context-menu"
 import { instrumentDescriptor, paramIndex } from "@/features/params"
 import { isInstrumentChannel } from "@/lib/channel-source"
@@ -11,6 +11,10 @@ import { dispatch, undo, useProjectStore } from "@/lib/store/project"
 import { settle, startTestApp } from "@/test/harness"
 
 import { InstrumentSection } from "./instrument-section"
+import { prepareAsset } from "../instruments/asset-job"
+import { prepareInstrumentAsset } from "../instruments/asset-preparation"
+
+vi.mock("../instruments/asset-job",()=>({prepareAsset:vi.fn()}))
 
 // The section only needs this naming helper, not the rack's action registration.
 vi.mock("../actions", () => ({
@@ -21,6 +25,7 @@ let backend: MockBackend
 let stop: () => void
 
 beforeEach(async () => {
+  vi.mocked(prepareAsset).mockReset().mockImplementation(async request=>prepareInstrumentAsset(request))
   ;({ backend, stop } = await startTestApp())
 })
 
@@ -301,6 +306,38 @@ describe("instrument settings panels", () => {
     expect(screen.queryByRole("spinbutton",{name:"WAV source root Hz"})).toBeNull()
     const width=screen.getByRole("slider",{name:"Color Stereo Width"});fireEvent.keyDown(width,{key:"Home"});fireEvent.keyUp(width,{key:"Home"});await flush()
     expect(channelOf(channel).source.params).not.toEqual(original);await act(()=>undo());expect(channelOf(channel).source.params).toEqual(original)
+  })
+
+
+  it("loads full-width worker patches through the mounted editor and undo",async()=>{
+    const channel=await open("numberVoice")
+    fireEvent.change(screen.getByRole("spinbutton",{name:"Patch number"}),{target:{value:"4294967295"}})
+    await userEvent.setup().click(screen.getByRole("button",{name:"Load numbered patch"}));await flush()
+    expect(channelOf(channel).source.asset).toMatchObject({type:"spectra",presetNumber:4294967295})
+    await act(()=>undo());expect(channelOf(channel).source.asset).toBeUndefined()
+  })
+  it("persists a worker-prepared harmonic edit and restores it with history",async()=>{
+    const channel=await open("snapshotMorph")
+    fireEvent.change(screen.getByRole("spinbutton",{name:"Harmonic"}),{target:{value:"3"}})
+    fireEvent.change(screen.getByRole("spinbutton",{name:"Snapshot A harmonic level"}),{target:{value:"0.65"}});await flush()
+    const asset=channelOf(channel).source.asset;if(asset?.type!=="spectra")throw new Error("missing spectra")
+    expect(asset.frames[0]!.partials[2]!.level).toBeCloseTo(0.65);expect(asset.frames[1]!.partials[2]!.level).toBeCloseTo(1/3)
+    await act(()=>undo());expect(channelOf(channel).source.asset).toBeUndefined()
+  })
+  it("reports worker refusal without changing source or history",async()=>{
+    const channel=await open("numberVoice"),source=channelOf(channel).source,before=history()
+    vi.mocked(prepareAsset).mockRejectedValueOnce(new Error("Patch analysis refused"))
+    await userEvent.setup().click(screen.getByRole("button",{name:"Load numbered patch"}));await flush()
+    expect(screen.getByText("Patch analysis refused")).toBeVisible();expect(channelOf(channel).source).toEqual(source);expect(history()).toEqual(before)
+  })
+  it("cancels pending prepared data when undo navigates history",async()=>{
+    const channel=await open("numberVoice")
+    let complete:((asset:InstrumentAsset)=>void)|undefined,signal:AbortSignal|undefined
+    vi.mocked(prepareAsset).mockImplementationOnce((_request,abort)=>{signal=abort;return new Promise(resolve=>{complete=resolve})})
+    await userEvent.setup().click(screen.getByRole("button",{name:"Load numbered patch"}))
+    await act(()=>undo());expect(signal?.aborted).toBe(true)
+    await act(async()=>{complete?.(prepareInstrumentAsset({type:"number",number:4294967295}));await settle()})
+    expect(useProjectStore.getState().project.channels.find(item=>item.id===channel)?.source).not.toHaveProperty("asset")
   })
 
   it("keeps hosted plugin controls ahead of the built-in panel", async () => {

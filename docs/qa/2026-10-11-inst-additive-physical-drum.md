@@ -264,3 +264,14 @@ scan interpolates the last column back into the first column. This avoids a
 spurious half-cycle inversion for analyzed phases near 0/1 and a hard spectrum
 jump on image scan wrap. Written, not executed:
 `snapshot_phase_interpolation_takes_the_short_path_across_cycle_zero`.
+
+### Mounted preparation/history checkpoint
+
+All preparation editors cancel on history navigation as well as project
+replacement/unmount. An Undo cannot accept an older worker job after an ABA
+source restoration. Cancel also restores editor usability; null dispatch results
+show a retry message (dispatch already reports the backend error). Written, not
+executed: mounted full-width patch load/undo, snapshot harmonic load/undo,
+worker refusal leaving history unchanged, and undo cancellation ignoring a late
+result. These replace only the worker boundary in mounted tests; pure preparation,
+worker retirement and real simulator/document mutation are tested separately.

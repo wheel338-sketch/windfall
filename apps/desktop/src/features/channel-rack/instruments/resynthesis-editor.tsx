@@ -6,6 +6,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 import { ParamControl, ParamGroup, ParamRow } from "@/features/params"
 import type { InstrumentChannel } from "@/lib/channel-source"
 import { dispatch } from "@/lib/store"
+import { onHistoryNavigation } from "@/lib/store/project"
 import { getProjectGeneration, onProjectReplaced } from "@/lib/store/replaced"
 import { useInstrumentBinding } from "./use-instrument-binding"
 import { prepareAsset } from "./asset-job"
@@ -13,7 +14,7 @@ import { prepareAsset } from "./asset-job"
 export function ResynthesisEditor({ channel, colorScan = false }: { channel: InstrumentChannel; colorScan?: boolean }) {
   const [busy,setBusy] = useState(false), [error,setError] = useState<string | null>(null)
   const request = useRef<AbortController | null>(null)
-  useEffect(() => { const cancel = () => request.current?.abort(); const off = onProjectReplaced(cancel); return () => { off(); cancel() } }, [])
+  useEffect(() => { const cancel = () => { request.current?.abort(); setBusy(false) }; const off = onProjectReplaced(cancel), historyOff = onHistoryNavigation(cancel); return () => { off(); historyOff(); cancel() } }, [])
   const bind = useInstrumentBinding(channel.id,channel.source.params)
   const asset = channel.source.asset
   const root = useRef<HTMLInputElement>(null)
@@ -39,7 +40,7 @@ export function ResynthesisEditor({ channel, colorScan = false }: { channel: Ins
         } finally { image.close() }
       }
       if (generation !== getProjectGeneration() || job.signal.aborted) return
-      await dispatch({ type: "setInstrumentAsset",channel: channel.id,expected,asset })
+      if (!await dispatch({ type: "setInstrumentAsset",channel: channel.id,expected,asset })) throw new Error("The instrument changed; prepare the source again")
     } catch (error) { if (!job.signal.aborted) setError(error instanceof Error ? error.message : String(error)) }
     finally { if (request.current === job && !job.signal.aborted) setBusy(false) }
   }
