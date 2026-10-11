@@ -1,6 +1,8 @@
 import type { CSSProperties, KeyboardEvent } from "react"
 
 import type { EqParams } from "@/bindings"
+import { useEffectAnalyzer } from "@/features/analyzers/effect-slot"
+import { AnalyzerStatusLine } from "@/features/analyzers/status"
 import { effectDescriptor, ParamControl, ParamRow } from "@/features/params"
 import { cn } from "@/lib/utils"
 
@@ -12,6 +14,7 @@ import { EqDisplay } from "./eq-display"
 import type { EqBandId, EqBandShape } from "./eq-response"
 import { selectEqBand, setEqRange, useEqBand, useEqRange } from "./eq-view"
 import { DB_RANGES } from "./geometry"
+import { EqLiveSpectrum } from "./live-spectrum"
 
 const descriptor = effectDescriptor("eq")
 
@@ -243,8 +246,19 @@ function BandControls({ spec, bind }: BandControlsProps) {
  * controls are under the curve; given 26rem or more they stand beside it,
  * so the whole editor is in view in a mixer of ordinary height.
  */
-export function EqEditor({ effect, params, bind }: EditorProps<EqParams>) {
+export function EqEditor({
+  effect,
+  track,
+  params,
+  bind,
+}: EditorProps<EqParams>) {
   const sampleRate = useSampleRate()
+  // The spectrum is the track's own audio after its fader, analyzed
+  // natively. The curve stays what the settings work out to.
+  const slot = useEffectAnalyzer(track, effect, {
+    bound: false,
+    want: { spectrum: true },
+  })
   const band = useEqBand(effect)
   const range = useEqRange(effect)
   const shown = shownParams(descriptor, params, bind)
@@ -268,6 +282,7 @@ export function EqEditor({ effect, params, bind }: EditorProps<EqParams>) {
         selected={band}
         onSelect={select}
         bind={bind}
+        underlay={<EqLiveSpectrum slot={slot} />}
         className={cn("col-span-2", WIDE.display)}
       />
       <BandTabs params={shown} selected={band} onSelect={select} />
@@ -292,6 +307,11 @@ export function EqEditor({ effect, params, bind }: EditorProps<EqParams>) {
           description="Gain applied after all the bands"
         />
       </div>
+      <AnalyzerStatusLine
+        slot={slot}
+        location="spectrum of this track's output, −90 to 0 dB"
+        className="col-span-full"
+      />
     </div>
   )
 }
