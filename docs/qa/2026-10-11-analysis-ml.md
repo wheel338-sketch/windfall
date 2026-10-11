@@ -61,6 +61,10 @@ is the future typed score seam. No production adapter is installed.
 the lease restores Ready after audition. Selected role import can create
 separate aligned playlist rows and mixer inserts, optionally muting the original
 mix, as one batch. UI exposes role preview/selection and a remix layout step.
+Model-job capture and partial-range placement now use the same tempo-aware
+view/clock as classical editors. Complete outputs retain the original clip
+edges; partial outputs retain aligned source-frame origins. Missing-adapter UX
+explicitly names licensed model/runtime requirements.
 
 Additional tests, all **written, not executed**:
 

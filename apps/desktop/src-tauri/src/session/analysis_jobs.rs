@@ -10,18 +10,17 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use windfall_analysis as native;
-use windfall_core::samples_per_tick;
 use windfall_engine::{ProjectPublicationIntent, SamplePool};
 use windfall_ipc::{
     AnalysisApply, AnalysisArtifact, AnalysisCapability, AnalysisJob, AnalysisModel,
     AnalysisOutputRole, AnalysisProvenance, AnalysisReview, AnalysisStatus, AnalysisSubmit,
 };
 use windfall_project::{
-    AutomationTarget, Clip, ClipContent, ClipInit, Command, DispatchResult, MAX_SONG_TICKS,
+    Clip, ClipContent, ClipInit, Command, DispatchResult, MAX_SONG_TICKS,
     SampleAsset, SampleId, SamplePath,
 };
 
-pub(super) const UNAVAILABLE: &str = "No inference algorithm is installed. Local model import does not install an algorithm. M1 provides job and review infrastructure only.";
+pub(super) const UNAVAILABLE: &str = "No production inference adapter is installed. Stem separation and both dereverb modes require a licensed supported model and runtime. Local model import does not install an algorithm.";
 const PCM_LIMIT: u64 = 16 * 1024 * 1024;
 const OUTPUT_PCM_LIMIT: u64 = 32 * 1024 * 1024;
 const MODEL_LIMIT: u64 = 64 * 1024 * 1024;
@@ -356,6 +355,7 @@ struct Binding {
     stamp: native::CaptureStamp,
     file_identity: u64,
     tempo: f64,
+    clock: windfall_engine::SongClock,
 }
 impl Binding {
     fn current(&self, state: &State) -> bool {
@@ -488,20 +488,10 @@ impl Session {
         };
         let preparation = service.begin_preparation();
         let mut work = work(preparation.cancel.clone())?;
-        let (clip, sample, source, generation, edits, replacements, project_path, directory, tempo) = {
+        let (clip, sample, source, generation, edits, replacements, project_path, directory, project) = {
             let _recording = self.recording_idle()?;
             let state = self.state();
             let project = state.document.project();
-            if project
-                .automations
-                .iter()
-                .any(|a| matches!(a.target, AutomationTarget::Tempo))
-            {
-                return Err(error(
-                    "invalid",
-                    "Analysis with tempo automation is unavailable.",
-                ));
-            }
             let clip = project
                 .playlist
                 .clips
@@ -531,7 +521,7 @@ impl Session {
                 state.replacements,
                 state.path.clone(),
                 state.sample_dir.clone(),
-                project.settings.tempo_bpm,
+                project.clone(),
             )
         };
         if native::AudioShape::of(&source)
@@ -573,12 +563,12 @@ impl Session {
         drop(bytes);
         let mut render_pool = SamplePool::new();
         render_pool.insert(sample.id, source.clone());
+        let tempo = project.settings.tempo_bpm;
+        let clock = windfall_engine::SongClock::new(&project)?;
+        let timing = windfall_engine::audio_edit::view_timing(&render_pool, &clip, tempo, &clock)?;
         // Preflight the existing render helper before any derived PCM allocation.
         // Its broader editor bound is intentionally left unchanged.
-        let rendered_frames = (f64::from(clip.length)
-            * samples_per_tick(tempo, f64::from(source.sample_rate()))
-            - 1e-6)
-            .ceil();
+        let rendered_frames = (timing.duration_frames - 1e-6).ceil();
         let bounded_frames = |frames: f64, channels: u16| {
             frames.is_finite()
                 && frames >= 1.0
@@ -608,10 +598,10 @@ impl Session {
                 selection.frames().map_err(native_error)?,
             )
             .map_err(native_error)?;
-        let view = windfall_engine::audio_edit::render_view(&render_pool, &clip, tempo)?;
+        let view = windfall_engine::audio_edit::render_view_timed(&render_pool, &clip, &timing)?;
         work.check().map_err(native_error)?;
         let encoded_binding =
-            serde_json::to_vec(&(&clip, &sample, tempo, &directory, &project_path))
+            serde_json::to_vec(&(&clip, &sample, tempo, timing, &directory, &project_path))
                 .map_err(|e| error("invalid", e))?;
         let binding_digest = native::ContentFingerprint::reader(
             std::io::Cursor::new(encoded_binding),
@@ -645,6 +635,7 @@ impl Session {
             stamp,
             file_identity: crate::library::file_identity(&path).map_err(|e| error("io", e))?,
             tempo,
+            clock,
         };
         let output_pcm = model
             .outputs
@@ -912,17 +903,18 @@ impl Session {
                 }
             }] });
         }
-        let per_tick = samples_per_tick(binding.tempo, f64::from(model.sample_rate));
-        let shift = (binding.stamp.selection.start as f64 / per_tick).round() as u32;
-        let start = binding
-            .clip
-            .start
-            .checked_add(shift)
-            .ok_or_else(|| error("invalid", "Placement overflow."))?;
-        let length = ((binding.stamp.selection.frames().map_err(native_error)? as f64 / per_tick)
-            .ceil()
-            .max(1.0) as u32)
-            .min(binding.clip.length);
+        let rate = f64::from(model.sample_rate);
+        let start = binding.clock.tick_after(binding.clip.start,
+            binding.stamp.selection.start as f64 / rate)?;
+        let length = if binding.stamp.selection.start == 0
+            && binding.stamp.selection.end == binding.stamp.input_shape.frames {
+            binding.clip.length
+        } else {
+            let end = binding.clock.tick_after_precise(start,
+                binding.stamp.selection.frames().map_err(native_error)? as f64 / rate)?.ceil();
+            (end as u32).checked_sub(start).filter(|length| *length > 0)
+                .ok_or_else(|| error("invalid", "Invalid output duration."))?
+        };
         if start
             .checked_add(length)
             .is_none_or(|end| end > MAX_SONG_TICKS)
