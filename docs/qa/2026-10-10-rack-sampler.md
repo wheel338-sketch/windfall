@@ -274,7 +274,47 @@ Remaining:
 
 ### `wf-transport`
 
-Not yet assessed in this report. See the end of the file.
+Summary: start and stop playback and recording, and switch between playing
+one pattern and the whole song.
+
+No product code was changed for this row. Reading the source and the
+existing tests found the summary's behaviour already implemented:
+`session/transport.rs` (`transport_play`, `transport_stop`,
+`transport_toggle`, `transport_seek`, `transport_set`) and
+`session/recording.rs` (`recording_start`, `recording_stop`,
+`recording_cancel`), with parts tested in `session/tests/playback.rs`,
+`session/tests/recording.rs` and
+`features/transport/transport-bar.test.tsx` (`starts and stops playback
+through the backend`, `switches between pattern and song`).
+
+What was missing was the row's summary proven as one flow. Written, not
+executed, `apps/desktop/src-tauri/src/session/tests/transport_acceptance.rs`
+(registered in `tests/mod.rs`):
+
+- `the_transport_plays_stops_records_and_switches_between_pattern_and_song`:
+  pattern playback is heard and the position moves; stop silences and
+  returns the playhead; a take is recorded from a synthetic input at bar two
+  while edits and mode changes are refused; song mode is silent before the
+  take, plays it at its tick and reports the song position; pattern mode
+  plays the pattern again; every state change is announced in order; the
+  take is one undo step.
+- `a_cancelled_recording_leaves_the_transport_and_the_project_as_they_were`.
+
+Least sure in that test: the exact list of announced transport states, the
+`rms == 0.0` checks after a stop, and the size of the synthetic take (the
+sink is fed twice the frames the handle reports, as `recording.rs` does).
+
+Remaining:
+
+- Recording from a real input device, with real latency and drift. The test
+  uses a synthetic capture. This needs hardware and stays external.
+- The row's note says multitrack workflows remain. `recording_multitrack.rs`
+  exists and belongs to the recording rows; it was not assessed here.
+- Tap tempo (`docs/TAP-TEMPO.md`) and the toolbar memory readout
+  (`docs/TOOLBAR-MEMORY.md`) have their own earlier evidence and were not
+  touched.
+- No mounted UI test drives record start and stop from the transport bar
+  against the session; `recording-dialog.test.tsx` covers the dialog.
 
 ## Least sure to compile or pass
 

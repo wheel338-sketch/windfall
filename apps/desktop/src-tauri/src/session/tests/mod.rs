@@ -35,6 +35,7 @@ mod sampler_processing;
 mod slicer;
 mod song;
 mod timeline;
+mod transport_acceptance;
 mod versions;
 
 use std::collections::HashMap;
