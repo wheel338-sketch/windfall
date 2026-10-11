@@ -47,6 +47,8 @@ impl Project {
         }
         check_settings(self)?;
         self.notebook.check().map_err(|error| error.to_string())?;
+        self.settings.scripts.check()?;
+        self.settings.scripts.check_notes(self)?;
         if let Some(problem) =
             crate::controller_links::links_problem(&self.settings.controller_links, Some(self))
         {

@@ -251,6 +251,7 @@ impl Project {
                 pan_law: crate::PanLaw::default(),
                 timebase_ppq: crate::timebase::DEFAULT_TIMEBASE_PPQ,
                 controller_links: Vec::new(),
+                scripts: crate::scripting::ScriptLibrary::default(),
             },
             samples: Vec::new(),
             notebook: crate::Notebook::default(),
@@ -364,6 +365,11 @@ pub struct ProjectSettings {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     #[ts(as = "Option<Vec<crate::ControllerLink>>", optional)]
     pub controller_links: Vec<crate::ControllerLink>,
+    /// Saved script revisions and explicit note/controller assignments. Missing
+    /// targets suspend an assignment (retained for undo), never reuse its ID.
+    #[serde(default, skip_serializing_if = "crate::scripting::ScriptLibrary::is_empty")]
+    #[ts(as = "Option<crate::scripting::ScriptLibrary>", optional)]
+    pub scripts: crate::scripting::ScriptLibrary,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]

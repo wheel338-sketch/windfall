@@ -1,0 +1,7 @@
+undo|history|redo	Every checked edit enters history. Undo restores the previous musical state; Redo restores the same IDs. An assistant or script batch is one undo step.
+record|recording	Choose an input and arm the destination before recording. Project-edit proposals are refused while audio recording or its completion is in progress; generate a fresh preview after stopping.
+script|scripting	Windfall Script v1 runs bounded note and controller scripts offline on a worker. Preview the resulting command batch, then Apply. It is a Windfall language, not Python. See docs/SCRIPTING.md for the API and examples.
+route|routing|mixer	Each channel has a mixer destination. Use route channel ID to track ID with the IDs listed in this panel. Track 0 is Master. Mixer sends and effects are edited in the mixer.
+tempo|bpm	Tempo is in beats per minute. Use set tempo BPM to preview a checked change. Pattern and playlist positions stay in musical ticks.
+pattern|playlist	A pattern contains channel note lanes. Create a pattern, draw notes in the piano roll, then place a pattern clip on the playlist for song playback.
+channel|instrument	A channel holds an instrument or sampler and plays into a mixer track. Add channel NAME previews a Windfall subtractive synth; choose other instruments in the channel rack.

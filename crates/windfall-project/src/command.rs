@@ -822,6 +822,11 @@ pub enum Command {
         label: Option<String>,
         commands: Vec<Command>,
     },
+    /// Replaces saved script revisions/assignments atomically. Existing revision
+    /// identities are immutable; edit a script by storing a new revision.
+    SetScriptLibrary {
+        library: crate::scripting::ScriptLibrary,
+    },
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, TS)]

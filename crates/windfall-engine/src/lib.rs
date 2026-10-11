@@ -145,6 +145,7 @@ mod render;
 pub mod sample_preprocess;
 pub mod sampler_processing;
 mod sequencer;
+mod script_notes;
 mod shared;
 mod spectrum;
 mod capture;

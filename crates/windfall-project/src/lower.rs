@@ -68,6 +68,8 @@ pub(crate) fn execute(project: &mut Project, command: Command) -> Result<Outcome
             transaction.prune_arrangement_references();
         }
         transaction.settle_linked_tracks();
+        transaction.project.settings.scripts.check_notes(transaction.project)
+            .map_err(CommandError::invalid)?;
         crate::check::check_arrangement_references(
             transaction.project,
             &transaction.project.playlist.arrangement_book,
@@ -1482,6 +1484,20 @@ impl Transaction<'_> {
                 "Write automation LFO"
             }
             Command::DuplicateAutomation { id } => self.duplicate_automation(id)?,
+            Command::SetScriptLibrary { library } => {
+                library.check().map_err(CommandError::invalid)?;
+                let old = self.project.settings.clone();
+                for asset in &library.assets {
+                    if let Some(previous) = old.scripts.asset(&asset.reference)
+                        && previous != asset {
+                        return Err(CommandError::invalid("saved script revision is immutable; increment revision"));
+                    }
+                }
+                let mut new = old.clone();
+                new.scripts = library;
+                self.push(Edit::Settings(Change { old, new }));
+                "Change scripts"
+            }
             Command::Batch { label, commands } => {
                 let mut first = None;
                 for command in commands {

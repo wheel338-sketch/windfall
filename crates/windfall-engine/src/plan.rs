@@ -883,10 +883,11 @@ pub(crate) fn compile(project: &Project, pool: &SamplePool) -> Plan {
         .collect();
     let channel_ids = IdIndex::new(channels.iter().map(|channel| channel.id.0));
 
+    let script_notes = crate::script_notes::prepare(&project.settings.scripts, &project.channels);
     let patterns: Vec<PlanPattern> = project
         .patterns
         .iter()
-        .map(|pattern| compile_pattern(pattern, &channel_ids, &project.channels, swing, project.settings.time_signature))
+        .map(|pattern| compile_pattern(pattern, &channel_ids, &project.channels, swing, project.settings.time_signature, &script_notes))
         .collect();
     let pattern_ids = IdIndex::new(patterns.iter().map(|pattern| pattern.id.0));
 
@@ -1058,7 +1059,7 @@ fn compile_sampler(settings: &SamplerSettings, pool: &SamplePool) -> PlanSampler
     }
 }
 
-fn compile_pattern(pattern: &Pattern, channel_ids: &IdIndex, source_channels: &[Channel], swing: f64, legacy: windfall_project::TimeSignature) -> PlanPattern {
+fn compile_pattern(pattern: &Pattern, channel_ids: &IdIndex, source_channels: &[Channel], swing: f64, legacy: windfall_project::TimeSignature, script_notes: &[Option<windfall_project::scripting::NoteTransform>]) -> PlanPattern {
     let length = pattern.length_steps.max(1).saturating_mul(TICKS_PER_STEP);
 
     let mut events = Vec::new();
@@ -1068,15 +1069,16 @@ fn compile_pattern(pattern: &Pattern, channel_ids: &IdIndex, source_channels: &[
         };
         let timing = source_channels[channel].timing;
         for note in lane.notes.iter().filter(|note| note.start < length) {
-            let Some((tick, duration)) = timing.place(note.start, note.length, length, swing) else { continue; };
+            let transformed = crate::script_notes::transform(script_notes.get(channel).and_then(Option::as_ref), note);
+            let Some((tick, duration)) = timing.place(transformed.start, transformed.length, length, swing) else { continue; };
             events.push(NoteEvent {
                 source: note.id,
                 tick,
                 length: duration,
                 channel,
-                key: note.key.min(MAX_KEY),
-                velocity: unit(note.velocity),
-                pan: pan(note.pan),
+                key: transformed.key.min(MAX_KEY),
+                velocity: unit(transformed.velocity),
+                pan: pan(transformed.pan),
                 expression: note.expression.clamped(),
             });
         }
