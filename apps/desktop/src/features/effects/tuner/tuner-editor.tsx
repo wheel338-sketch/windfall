@@ -81,6 +81,7 @@ export function TunerEditor({
 
   useAnalyzerFrames(slot, {
     onFrame(frame) {
+      newest.current = null
       for (const observation of frame.observations) {
         if (observation.type === "tuner") newest.current = observation
       }
@@ -109,6 +110,9 @@ export function TunerEditor({
         }
       }
       if (root.current) {
+        root.current.dataset.note = shown.note
+        root.current.dataset.cents = newest.current?.cents?.toFixed(2) ?? ""
+        root.current.dataset.frequencyHz = newest.current?.frequencyHz?.toFixed(2) ?? ""
         root.current.toggleAttribute("data-in-tune", shown.inTune)
         root.current.toggleAttribute("data-pitched", shown.needle !== null)
       }

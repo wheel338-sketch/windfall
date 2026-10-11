@@ -56,6 +56,14 @@ export function LimiterHistory({ slot, className }: HistoryProps) {
       ])
       deepest = Math.max(deepest, observation.reductionDb)
       count.current += 1
+      const element = root.current
+      if (element) {
+        element.dataset.inputDb = String(levelToDb(observation.inputPeak))
+        element.dataset.outputDb = String(levelToDb(observation.outputPeak))
+        element.dataset.lastReductionDb = String(observation.reductionDb)
+        element.dataset.gateDb = String(observation.gateDb)
+        element.dataset.endFrame = String(BigInt(observation.firstFrame) + BigInt(observation.frames))
+      }
     }
     const element = root.current
     if (element) {
@@ -71,6 +79,9 @@ export function LimiterHistory({ slot, className }: HistoryProps) {
     if (element) {
       element.dataset.blocks = "0"
       delete element.dataset.reductionDb
+      for (const key of ["inputDb", "outputDb", "lastReductionDb", "gateDb", "endFrame"]) {
+        delete element.dataset[key]
+      }
     }
   }
 

@@ -37,7 +37,10 @@ export function EqLiveSpectrum({ slot }: LiveSpectrumProps) {
 
   const onFrame = (frame: AnalyzerFrame) => {
     const spectrum = frame.spectrum
-    if (!spectrum) return
+    if (!spectrum || !frame.levels.some((level) => level.valid && !level.silent)) {
+      onClear()
+      return
+    }
     const next = spectrumCurve(
       spectrum.left,
       spectrum.right,
