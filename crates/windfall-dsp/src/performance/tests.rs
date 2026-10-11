@@ -10,6 +10,31 @@ fn run<E: Effect>(effect: &mut E, input: &[f32]) -> Vec<f32> {
 }
 
 #[test]
+fn gate_release_after_loop_shrink_returns_to_absolute_phase() {
+    let mut gate = VolumeGate::new();
+    gate.prepare(1000.0, 1);
+    gate.set_tempo(60.0);
+    let p = VolumeGateParams {
+        loop_beats: 1.0,
+        ..Default::default()
+    };
+    gate.set_params(&p);
+    gate.set_transport(true, 0.3);
+    gate.set_params(&VolumeGateParams { trigger: true, ..p });
+    run(&mut gate, &[1.0]);
+    assert_eq!(gate.phase_offset, 700);
+    gate.set_params(&VolumeGateParams {
+        loop_beats: 0.125,
+        ..p
+    });
+    run(&mut gate, &[1.0]);
+    // Absolute sample 301 resumes modulo the new 125-frame loop, then advances.
+    assert_eq!(gate.phase, 52);
+    assert_eq!(gate.phase_offset, 0);
+    assert!(!gate.trigger_down);
+}
+
+#[test]
 fn zero_volume_step_silences_its_sine_slice() {
     let mut gate = VolumeGate::new();
     gate.prepare(1600.0, 1600);

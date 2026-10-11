@@ -2336,7 +2336,26 @@ mod registry_tests {
                 assert_eq!(params.get(index), Some(info.default));
                 let mut changed = params;
                 assert!(changed.set(index, info.default));
-                assert_eq!(changed, params);
+                // Explicit marker/pad/curve writes override immutable assets,
+                // including a write of the original scalar default. Check the
+                // exact activation bit as well as all unchanged scalar values.
+                let mut expected = params;
+                let edit = match &mut expected {
+                    InstrumentParams::SliceMap(p) if index >= 3 => {
+                        Some((&mut p.legacy_edits, index - 3))
+                    }
+                    InstrumentParams::SliceDeck(p) if index >= 3 => {
+                        Some((&mut p.legacy_edits, index - 3))
+                    }
+                    InstrumentParams::WaveRide(p) if index >= 5 => {
+                        Some((&mut p.legacy_edits, index - 5))
+                    }
+                    _ => None,
+                };
+                if let Some((mask, bit)) = edit {
+                    mask[bit / 16] |= 1 << (bit % 16);
+                }
+                assert_eq!(changed, expected);
             }
             let mut instrument = AnyInstrument::new(&params);
             assert_eq!(instrument.kind(), kind);

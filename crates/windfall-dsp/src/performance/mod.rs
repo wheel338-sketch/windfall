@@ -85,6 +85,9 @@ impl VolumeGate {
             !self.controls.target.time_curve.is_none(),
         ) {
             self.phase %= self.history.length;
+            // The trigger offset is a phase in this same loop. Retaining an
+            // old, longer-loop offset makes release subtraction underflow.
+            self.phase_offset %= self.history.length;
             self.last_step = None;
             self.curve_ready = false;
         }
