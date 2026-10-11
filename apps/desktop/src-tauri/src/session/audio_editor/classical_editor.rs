@@ -113,6 +113,7 @@ impl Session {
         Ok(AudioAnalysisPreview {
             token,
             recipe: prepared.recipe.clone().expect("detected"),
+            source_peaks: windfall_engine::audio_edit::overview(&prepared.analysis_view, 512),
         })
     }
     pub fn audio_analysis_audition(

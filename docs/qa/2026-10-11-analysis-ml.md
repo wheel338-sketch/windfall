@@ -89,6 +89,9 @@ Additional tests, all **written, not executed**:
   renderer; conflicting shared boundaries and combined ratios fail before
   audition. New markers inherit the current mapping. A selected note can reset
   to its estimate. The added mapping/shared-boundary case is written, not executed.
+  Native previews now expose an optional preserved-source envelope via
+  `AudioAnalysisPreview.sourcePeaks`, so the frontend can select source
+  coordinates independently of a reopened derived clip.
 
 ## Remaining work
 

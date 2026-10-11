@@ -22,6 +22,10 @@ pub struct AudioEditPreview {
 pub struct AudioAnalysisPreview {
     pub token: u32,
     pub recipe: windfall_project::AudioEditRecipe,
+    /// Envelope of the preserved analysis input, not the derived clip view.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[ts(optional)]
+    pub source_peaks: Vec<f32>,
 }
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]

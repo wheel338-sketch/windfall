@@ -41,4 +41,4 @@ export type AudioEditRecipe = {
   } | null
 }
 export type AudioAnalysisEdit = { token: number; recipe: AudioEditRecipe }
-export type AudioAnalysisPreview = AudioAnalysisEdit
+export type AudioAnalysisPreview = AudioAnalysisEdit & { sourcePeaks?: number[] }
