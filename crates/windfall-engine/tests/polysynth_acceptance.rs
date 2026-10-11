@@ -75,3 +75,13 @@ fn matrixSynth_musical_edit_reaches_history_disk_and_live_offline_pcm() {
     assert!(changed.set(param, if info.default == info.max { info.min } else { info.max }));
     acceptance(InstrumentKind::MatrixSynth, initial, changed);
 }
+
+#[test]
+fn packSynth_musical_edit_reaches_history_disk_and_live_offline_pcm() {
+    let initial = InstrumentKind::PackSynth.default_params();
+    let mut changed = initial;
+    let param = InstrumentKind::PackSynth.descriptors().iter().position(|p| p.id == "tone").unwrap();
+    let info = &InstrumentKind::PackSynth.descriptors()[param];
+    assert!(changed.set(param, if info.default == info.max { info.min } else { info.max }));
+    acceptance(InstrumentKind::PackSynth, initial, changed);
+}

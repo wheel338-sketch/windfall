@@ -4,11 +4,16 @@ import { useParamAutomation } from "@/features/automation/live"
 import { instrumentDescriptor, ParamControl, ParamGroup, ParamRow, useParamBinding, type SetParam } from "@/features/params"
 import { dispatch } from "@/lib/store"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { PackBrowser } from "./pack-browser"
 
 const amp = ["envelope.attackMs", "envelope.decayMs", "envelope.sustain", "envelope.releaseMs"]
 const filterEnv = ["filterEnvelope.attackMs", "filterEnvelope.decayMs", "filterEnvelope.sustain", "filterEnvelope.releaseMs"]
 const operators: (readonly [string, readonly string[]])[] = Array.from({ length: 6 }, (_, i) => [`Operator ${i + 1}`, ["ratio", "detuneCents", "level", "feedback", "keyScale", "waveform", "envelope.attackMs", "envelope.decayMs", "envelope.sustain", "envelope.releaseMs"].map((field) => `operators.${i}.${field}`)] as const)
 export const POLYSYNTH_PANELS: Record<string, readonly (readonly [string, readonly string[]])[]> = {
+  packSynth: [
+    ["Performance macros", ["tone", "shape", "motion", "attack", "decay", "width", "air", "crunch"]],
+    ["Space and voices", ["echo", "space", "glideMs", "polyphony", "gain"]],
+  ],
   matrixSynth: [
     ["Matrix modulation", ["lfoRateHz", "lfoPitch", "lfoIndex", "lfoFilter"]], ...operators,
     ["Carrier outputs", Array.from({ length: 6 }, (_, i) => `output.${i}`)],
@@ -76,6 +81,7 @@ export function PolysynthEditor({ channel, params }: { channel: ChannelId; param
     </TabsContent>)}
   </Tabs>
   return <div data-slot="polysynth-editor" role="group" aria-label={`${descriptor.name} settings`} className="flex flex-col gap-2">
+    {params.type === "packSynth" && <PackBrowser bind={bind} />}
     {params.type === "matrixSynth" && (["fm", "ring"] as const).map((matrix) => <ParamGroup key={matrix} title={matrix === "fm" ? "FM routing matrix" : "Ring routing matrix"}>
       <p className="text-muted-foreground">Columns send operators into the destination rows. Cycles use the previous synthesis substep.</p>
       <div className="overflow-auto"><table aria-label={`${matrix.toUpperCase()} operator routing`}>

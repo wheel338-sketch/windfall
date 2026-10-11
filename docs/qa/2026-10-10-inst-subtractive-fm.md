@@ -192,3 +192,17 @@ per-graph DSP tests in `polysynth/tests.rs` (names below).
 Use the integrator commands in the Vintage Poly section, after regenerating
 bindings/descriptors and WASM. Check strict Clippy and numerical thresholds first;
 no measured sound/performance claim is made. No external proprietary content.
+
+## 2026-10-11 continuation — PackSynth / inst-flex
+
+Full-row software candidate, awaiting execution. Three original CC0 content packs, twelve named patches and real subtractive/wavetable/multisample/FM engines share performance macros and searchable native browsing. Immutable mip tables and six root-key PCM zones with mip levels are prepared off-thread and held outside Copy settings. DSP tests: pack_synth_own_banks_use_real_subtractive_wavetable_multisample_and_fm; own_pack_assets_are_mip_limited_and_multisamples_have_independent_roots. See integration/seams/polysynth-packs.md for content provenance and asset contract.
+Purpose-built editor group: Windfall patch browser. Uses the existing checked instrument
+commands, tagged project persistence, engine hosting and live/offline processor.
+New generated types: `PackSynth`, `PackSynthParams`, `packSynth` tag and descriptors.
+Tests **written, not executed**: `packSynth_musical_edit_reaches_history_disk_and_live_offline_pcm`
+in registered `polysynth_acceptance.rs`; the `packSynth` mounted editor case
+(edit and undo); complete descriptor/serde/default/range tests in DSP params;
+per-graph DSP tests in `polysynth/tests.rs` (names below).
+Use the integrator commands in the Vintage Poly section, after regenerating
+bindings/descriptors and WASM. Check strict Clippy and numerical thresholds first;
+no measured sound/performance claim is made. No external proprietary content.

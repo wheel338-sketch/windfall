@@ -226,3 +226,39 @@ fn matrix_synth_cycles_feedback_key_scaling_modulation_and_filter_are_audible() 
     assert!((energy(&b)/energy(&a)-4.0).abs()<0.02);
 }
 
+#[test]
+fn pack_synth_own_banks_use_real_subtractive_wavetable_multisample_and_fm() {
+    contract(InstrumentKind::PackSynth);
+    let p=PackSynthParams { width:0.0,motion:0.0,..Default::default() };
+    for bank in [[PackPatch::EmberBass,PackPatch::EmberGlass,PackPatch::EmberKeys,PackPatch::EmberBell],
+                 [PackPatch::PrismLead,PackPatch::PrismSweep,PackPatch::PrismMallet,PackPatch::PrismChime],
+                 [PackPatch::MeadowPad,PackPatch::MeadowAir,PackPatch::MeadowPluck,PackPatch::MeadowMetal]] {
+        for patch in bank {
+            let initial=PackSynthParams { patch,..p };
+            let x=render(InstrumentParams::PackSynth(initial),69,12000,64).0;
+            assert!(energy(&x)>1e-8);
+            different(InstrumentParams::PackSynth(initial),InstrumentParams::PackSynth(PackSynthParams { tone:0.1,shape:0.9,..initial }));
+        }
+        for pair in bank.windows(2) {
+            different(InstrumentParams::PackSynth(PackSynthParams { patch:pair[0],..p }),InstrumentParams::PackSynth(PackSynthParams { patch:pair[1],..p }));
+        }
+    }
+}
+
+#[test]
+fn own_pack_assets_are_mip_limited_and_multisamples_have_independent_roots() {
+    let assets=super::pack_assets::PackAssets::prepare();
+    for bank in 0..3 {
+        for key in [36,48,60,72,84,96] {
+            let mut position=0.0;let x:Vec<_>=(0..12000).map(|_|assets.sample(bank,key,&mut position,key as f32,48000.0)).collect();
+            let hz=440.0*2.0_f64.powf((key as f64-69.0)/12.0);
+            assert!(amplitude(&x,hz)>amplitude(&x,hz*1.05)*3.0);
+            assert!(x.iter().all(|x|x.is_finite()));
+        }
+        let hz=6000.0;let inc=hz/96000.0;let mut phase=0.0;
+        let x:Vec<_>=(0..48000).map(|_| { let a=assets.table(bank,phase,inc,1.0);core::advance(&mut phase,inc);let b=assets.table(bank,phase,inc,1.0);core::advance(&mut phase,inc);(a+b)*0.5 }).collect();
+        assert!(amplitude(&x,6000.0)>0.1);
+        assert!(amplitude(&x,3000.0)<0.001);
+    }
+}
+

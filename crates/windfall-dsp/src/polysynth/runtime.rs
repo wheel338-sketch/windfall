@@ -4,6 +4,7 @@ use crate::{EnvelopeParams, Instrument, ParamSet};
 use crate::blocks::{adsr::Adsr, noise::Rng, oscillator::{Oscillator, Waveform}};
 use super::core::{self, Controls, Drift, Ladder, Notes, SatSvf, MAX_VOICES};
 use super::fx::{Chorus, Phaser, Reverb, StereoDelay};
+use super::pack_assets::PackAssets;
 
 pub(super) const UNISON: usize = 7;
 
@@ -64,7 +65,7 @@ pub(super) fn envelope(env: &mut Adsr, p: EnvelopeParams, rate: f32) {
     env.configure(p.attack_ms, p.decay_ms, p.sustain, p.release_ms, rate);
 }
 
-pub(super) struct Context {
+pub(super) struct Context<'a> {
     pub pitch: f32,
     pub key: u8,
     pub held: bool,
@@ -73,9 +74,11 @@ pub(super) struct Context {
     pub cutoff: f32,
     pub rate: f32,
     pub bpm: f32,
+    pub assets: Option<&'a PackAssets>,
 }
 
 pub(super) trait Patch: ParamSet {
+    const NEEDS_ASSETS: bool = false;
     fn frame(&self) -> Frame;
     fn configure(&self, _tone: &mut Tone, _rate: f32) {}
     fn sample(&self, tone: &mut Tone, context: &Context) -> (f32, f32);
@@ -93,18 +96,20 @@ pub(super) struct Runtime<P: Patch> {
     phaser: Phaser,
     reverb: Reverb,
     tail: usize,
+    assets: Option<Box<PackAssets>>,
 }
 impl<P: Patch> Default for Runtime<P> {
     fn default() -> Self {
         Self { rate: 48000.0, bpm: 120.0, controls: Controls::default(), notes: Notes::default(),
             tones: std::array::from_fn(|_| Tone::default()), lfo_phase: 0.0, chorus: Chorus::default(),
-            delay: StereoDelay::default(), phaser: Phaser::default(), reverb: Reverb::default(), tail: 0 }
+            delay: StereoDelay::default(), phaser: Phaser::default(), reverb: Reverb::default(), tail: 0, assets: None }
     }
 }
 impl<P: Patch> Instrument for Runtime<P> {
     type Params = P;
     fn prepare(&mut self, rate: f32, _max_block: usize) {
         self.rate = core::rate(rate);
+        if P::NEEDS_ASSETS && self.assets.is_none() { self.assets = Some(Box::new(PackAssets::prepare())); }
         self.controls.prepare(self.rate);
         self.chorus.prepare(self.rate); self.delay.prepare(self.rate);
         self.phaser.prepare(self.rate); self.reverb.prepare(self.rate);
@@ -171,7 +176,7 @@ impl<P: Patch> Instrument for Runtime<P> {
                 for (level, op) in tone.levels.iter_mut().zip(&mut tone.operators) { *level = op.tick(); }
                 let pitch = note.glide();
                 let cutoff = core::swept(f.cutoff, f.env_amount * filter + f.key_track * (pitch - 60.0) / 12.0 + lfo * f.lfo_filter, self.rate * 2.0);
-                let ctx = Context { pitch, key: note.key, held: note.held, slot, lfo, cutoff, rate: self.rate * 2.0, bpm: self.bpm };
+                let ctx = Context { pitch, key: note.key, held: note.held, slot, lfo, cutoff, rate: self.rate * 2.0, bpm: self.bpm, assets:self.assets.as_deref() };
                 // Two substeps keep nonlinear filters/FM comfortably below the host Nyquist.
                 let a = p.sample(tone, &ctx); let b = p.sample(tone, &ctx);
                 tone.elapsed = tone.elapsed.wrapping_add(1);
@@ -199,6 +204,7 @@ pub(super) fn oscillator(tone: &mut Tone, u: usize, op: usize, pitch: f32, rate:
 // Public types have distinct parameter contracts and monomorphized synthesis graphs.
 macro_rules! instrument {
     ($name:ident, $params:ident) => {
+        use crate::Instrument as _;
         #[derive(Default)]
         pub struct $name(super::runtime::Runtime<$params>);
         impl crate::Instrument for $name {
