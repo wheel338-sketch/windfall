@@ -40,7 +40,9 @@ order-16 LPC, Mix uses order eight for nonneutral formants. Pitch Correct tracks
 60–1000 Hz through a decimated 256-frame direct-YIN window; shared first-trough
 and parabolic helpers also serve the existing FFT analysis detector. At 48 kHz,
 correction centre latency is 3074 frames. Four harmony voices are bounded to two
-octaves and have 5 ms gain smoothing. Missing MIDI sources release voices. Engine
+octaves and have 5 ms gain smoothing. The disabled harmony source is omitted from JSON and optional in generated TS;
+descriptor controls remain present for the strict parameter binder. Missing MIDI
+sources release voices. Engine
 records admitted held keys per frame, so short notes do not become block snapshots.
 
 Vocoders require real external carrier/modulator inputs unless the user explicitly
