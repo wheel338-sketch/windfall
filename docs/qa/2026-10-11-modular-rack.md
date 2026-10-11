@@ -231,3 +231,7 @@ to the root before replacement. These changes are uncompiled.
 Bounded refusals now drain into a cumulative engine counter and an optional IPC
 field, with ref-backed editor output. Muted control inlets produce zero. Replay
 also reapplies expression-map gain to the parent AudioInput instrument.
+
+Realtime store mirrors and clears rejectedRackEvents. Mounted acceptance also
+includes retention of a final processor parameter drag as one undo gesture
+(written, not executed).

@@ -59,7 +59,7 @@ describe("mounted modular rack", () => {
     await add("rack"); const root = stored()
     fireEvent.click(screen.getByRole("button", { name: "Open nested rack" })); await settle()
     fireEvent.click(screen.getByRole("button", { name: "Write preset text" })); await settle()
-    const preset = screen.getByRole("textbox", { name: "Rack preset" }); const text = (preset as HTMLTextAreaElement).value
+    const preset = screen.getByRole("textbox", { name: "Rack preset" }); if (!(preset instanceof HTMLTextAreaElement)) throw new Error("Expected preset textarea"); const text = preset.value
     expect(JSON.parse(text)).toMatchObject({ schema: "windfall.rack", version: 1, graph: { nextId: 5 } })
     fireEvent.click(screen.getByRole("button", { name: "Load rack preset" })); await settle(); expect(stored()).toEqual(root)
     fireEvent.click(screen.getByRole("button", { name: "Parent rack" })); await settle()
@@ -86,6 +86,18 @@ describe("mounted modular rack", () => {
     if (processor?.type !== "note") throw new Error("Expected note module")
     expect(processor.module.type).toBe(type satisfies RackNoteModule["type"])
     fireEvent.click(screen.getByRole("button", { name: "Undo rack edit" })); await settle(); expect(stored()).toEqual(before)
+  })
+  it("retains the final parameter drag value as one undoable gesture", async () => {
+    await add("effect"); const before = stored()
+    await choose("Effect module", "balance")
+    await add("effect")
+    const initial = stored(); const cutoff = screen.getByRole("slider", { name: "Gain" })
+    fireEvent.pointerDown(cutoff, { pointerId: 1, button: 0, clientY: 300 })
+    for (const clientY of [310, 340, 380, 420]) fireEvent.pointerMove(cutoff, { pointerId: 1, clientY })
+    fireEvent.pointerUp(cutoff, { pointerId: 1 }); await settle()
+    expect(stored()).not.toEqual(initial)
+    fireEvent.click(screen.getByRole("button", { name: "Undo rack edit" })); await settle(); expect(stored()).toEqual(initial)
+    expect(before.nodes).toHaveLength(4)
   })
   it("exposes held-chord sequence modes and persists the selection", async () => {
     await add("sequencer"); await choose("Sequence mode", "down")
