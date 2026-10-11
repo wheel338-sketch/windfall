@@ -4,6 +4,7 @@ import { announceProjectReplaced } from "@/lib/store/replaced"
 
 import {
   heldKeys,
+  hardwareHeldKey,
   holdKey,
   releaseHeldKeys,
   releaseKey,
@@ -13,6 +14,25 @@ import {
 afterEach(() => releaseHeldKeys())
 
 describe("held keys", () => {
+  it("keeps sounding hardware keys through sustain, repeated down and independent audition releases", () => {
+    hardwareHeldKey(1, 60, 100)
+    hardwareHeldKey(1, 60, 90)
+    holdKey(1, 60)
+    releaseKey(1, 60)
+    // Physical key-up under sustain does not produce an accepted sounding up.
+    expect(heldKeys(1)).toEqual([60])
+    hardwareHeldKey(2, 67, 100)
+    expect(heldKeys(1)).toEqual([60])
+    hardwareHeldKey(1, 60, 0)
+    expect(heldKeys(1)).toEqual([])
+    expect(heldKeys(2)).toEqual([67])
+    hardwareHeldKey(1, 128, 100)
+    hardwareHeldKey(1, -1, 100)
+    hardwareHeldKey(1, 60, NaN)
+    expect(heldKeys(1)).toEqual([])
+    announceProjectReplaced()
+    expect(heldKeys(2)).toEqual([])
+  })
   it("lists a channel's held keys in ascending order and keeps channels apart", () => {
     holdKey(1, 67)
     holdKey(1, 60)

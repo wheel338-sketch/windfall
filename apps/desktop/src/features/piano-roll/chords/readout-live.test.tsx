@@ -70,6 +70,27 @@ function display() {
 }
 
 describe("chord readout over the mounted piano roll", () => {
+  it("names accepted native MIDI notes, filters destinations and clears on project replacement", async () => {
+    const before = undoSteps()
+    const send = (key: number, velocity: number, channelId = kick()) => {
+      act(() => roll.backend.playMidiHardwareNote({ channel: channelId, key, velocity }))
+    }
+    send(60, 100)
+    send(64, 100)
+    send(67, 100)
+    send(60, 110)
+    expect(readout()).toHaveTextContent("C major")
+    send(72, 100, channel("Clap").id)
+    expect(readout()).toHaveTextContent("C major")
+    // Accepted ups arrive after the native sustain latch releases them.
+    send(60, 0)
+    send(64, 0)
+    expect(heldKeys(kick())).toEqual([67])
+    act(() => announceProjectReplaced())
+    expect(heldKeys(kick())).toEqual([])
+    expect(heldKeys(channel("Clap").id)).toEqual([])
+    expect(undoSteps()).toBe(before)
+  })
   it("names typing-keyboard keys as they go down and up, in the toolbar and the display", async () => {
     await act(async () => {
       await dispatch({
