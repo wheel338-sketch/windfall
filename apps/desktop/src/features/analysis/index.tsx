@@ -50,6 +50,7 @@ export function AnalysisButton() {
       }}
     >
       <ActionButton action="analysis.open" size="sm" variant="outline" />
+      <ActionButton action="analysis.remix" size="sm" variant="outline" />
       <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle>Native analysis</DialogTitle>
@@ -63,6 +64,7 @@ export function AnalysisButton() {
             key={`${target.generation}/${target.id}`}
             clip={target.id}
             capture={target}
+            initialTask={target.task ?? "audio"}
           />
         )}
       </DialogContent>
@@ -73,9 +75,11 @@ export function AnalysisButton() {
 export function AnalysisPanel({
   clip,
   capture,
+  initialTask = "audio",
 }: {
   clip: number
   capture?: ReturnType<typeof captureAnalysisClip>
+  initialTask?: AnalysisTask
 }) {
   const [capability, setCapability] = useState<AnalysisCapability | null>(null)
   const [job, setJob] = useState<AnalysisJob | null>(null)
@@ -89,7 +93,7 @@ export function AnalysisPanel({
   const [manifest, setManifest] = useState("")
   const [localPath, setLocalPath] = useState("")
   const [replace, setReplace] = useState(false)
-  const [task, setTask] = useState<AnalysisTask>("audio")
+  const [task, setTask] = useState<AnalysisTask>(initialTask)
   const [selectedRoles, setSelectedRoles] = useState<string[]>([])
   const [separateTracks, setSeparateTracks] = useState(false)
   const [muteOriginal, setMuteOriginal] = useState(true)
@@ -107,6 +111,7 @@ export function AnalysisPanel({
     const invalidate = () => {
       setStale(true)
       sequence.current += 1
+      void backend.previewStop().catch(() => {})
     }
     let retired = false
     let offProject = () => {}
@@ -126,6 +131,7 @@ export function AnalysisPanel({
       const id = retained.current
       retained.current = null
       if (id) void retireTrackedJob(id)
+      void backend.previewStop().catch(() => {})
     }
     offProject = onProjectReplaced(() => {
       invalidate()
@@ -353,6 +359,13 @@ export function AnalysisPanel({
   return (
     <div className="flex flex-col gap-3 text-sm">
       <RecoveryControls />
+      {initialTask === "stemSeparation" && <section aria-label="Remix song workflow">
+        <p>1. Song loaded onto the playlist. 2. Choose a licensed local model and rendered frame range.
+          3. Review and audition drums, bass, vocals and other. 4. Import chosen stems onto aligned
+          playlist rows and mixer inserts.</p>
+        <p>The original song remains available. Loading it and importing reviewed stems are separate
+          undo steps. Separation requires an installed compatible inference adapter; importing weights alone cannot run it.</p>
+      </section>}
       {!capability && <p>Checking native availability…</p>}
       {capability && !capability.available && (
         <p role="status">

@@ -5,6 +5,7 @@ import { getProjectGeneration, onProjectReplaced } from "@/lib/store/replaced"
 import { useUiStore } from "@/lib/store/ui"
 import { usePlaylistStore } from "@/features/playlist/store"
 import { useRecordingStore } from "@/features/transport/recording-store"
+import { loadRemixSong, useRemixLoader } from "./remix"
 import {
   hasRecoveryCapacity,
   recoverJob,
@@ -57,7 +58,7 @@ type Capture = NonNullable<ReturnType<typeof captureAnalysisClip>>
 
 /** One dialog target and one mounted panel; no retained job map or audio. */
 export const useAnalysisDialog = create(() => ({
-  target: null as Capture | null,
+  target: null as (Capture & { task?: AnalysisTask }) | null,
 }))
 export function closeAnalysis() {
   useAnalysisDialog.setState({ target: null })
@@ -270,6 +271,26 @@ export const ANALYSIS_ACTIONS: Action[] = [
     whyDisabled: () => "No retained analysis job",
     run: selectNextRecoveryJob,
   },
+  {
+    id: "analysis.remix",
+    title: "Remix a song",
+    section: "Analysis",
+    keywords: "load song stems drums bass vocals separate playlist mixer",
+    enabled: () => !recording() && !useRemixLoader.getState().busy &&
+      useAnalysisDialog.getState().target === null,
+    whyDisabled: () => recording() ? "Finish recording first" :
+      useRemixLoader.getState().busy ? "Song import in progress" : "Close Analysis first",
+    run: async () => {
+      const current = () => !recording() && useAnalysisDialog.getState().target === null
+      const id = await loadRemixSong(current)
+      if (id === null || !current()) return
+      const target = captureAnalysisClip(id)
+      if (!target) return
+      useUiStore.getState().showCenterTab("playlist")
+      usePlaylistStore.setState({ inspectorOpen: true })
+      useAnalysisDialog.setState({ target: { ...target, task: "stemSeparation" } })
+    },
+  },
 ]
 
 /** Startup registration and state invalidation share the app registry lifecycle. */
@@ -277,6 +298,7 @@ export function registerAnalysisActions(): () => void {
   const stops = [
     registry.register(ANALYSIS_ACTIONS),
     invalidateActionsOn(useAnalysisDialog, (state) => [state.target]),
+    invalidateActionsOn(useRemixLoader, (state) => [state.busy]),
     invalidateActionsOn(useAnalysisRecovery, (state) => [
       state.jobs,
       state.pending,

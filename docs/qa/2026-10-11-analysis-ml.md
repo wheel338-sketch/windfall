@@ -67,6 +67,12 @@ edges; partial outputs retain aligned source-frame origins. Missing-adapter UX
 explicitly names licensed model/runtime requirements.
 Canonical actions also validate task/model roles and empty stem selections
 before submission/apply; native validation remains final.
+The `analysis.remix` canonical action starts a wizard by explicitly choosing
+and importing a song through the existing audio-import path, then opens the
+stem task and guides model/range, preview/select and aligned layout review.
+Source load and final stem import are separate undo steps. Cancellation or
+project replacement during the file picker cannot attach a stale dialog.
+Closing/invalidating the analysis panel stops its audition.
 
 Additional tests, all **written, not executed**:
 
