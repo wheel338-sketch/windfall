@@ -90,3 +90,8 @@ fn one_knob_amount_is_audible_and_matches_live_render_without_callback_allocatio
 fn bass_harmonic_amount_automation_matches_live_render_with_compensated_latency() {
     verify(EffectKind::BassHarmonics, "amount", 13);
 }
+
+#[test]
+fn mastering_limiter_gain_automation_matches_live_export_and_fixed_true_peak_latency() {
+    verify(EffectKind::MasterLimiter, "gainDb", 78);
+}

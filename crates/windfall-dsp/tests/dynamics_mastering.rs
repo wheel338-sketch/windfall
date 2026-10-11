@@ -741,3 +741,70 @@ fn bass_octave_survives_fundamental_removal_and_amount_is_additive_after_aligned
     let dc = wet[RATE as usize..].iter().map(|x| f64::from(*x)).sum::<f64>() / f64::from(2*RATE);
     assert!(dc.abs() < 1e-5, "generated path DC {dc}");
 }
+
+
+/// Independent 16x reconstruction with a 32-tap Hann-windowed sinc, not
+/// the product's 4x/12-tap Lanczos detector or LoudnessMeter.
+fn reference_true_peak(samples: &[f32]) -> f64 {
+    let mut maximum = samples.iter().map(|x| f64::from(x.abs())).fold(0.0, f64::max);
+    let sinc = |x: f64| if x.abs() < 1e-12 { 1.0 } else { (std::f64::consts::PI*x).sin() / (std::f64::consts::PI*x) };
+    for n in 0..samples.len() {
+        for phase in 1..16 {
+            let time = n as f64 + f64::from(phase)/16.0;
+            let (mut sum, mut norm) = (0.0, 0.0);
+            for offset in -15..=16 {
+                let at = n as isize + offset;
+                let delta = time - at as f64;
+                let window = 0.5 + 0.5 * (std::f64::consts::PI * delta / 16.0).cos();
+                let weight = sinc(delta) * window;
+                norm += weight;
+                if at >= 0 && at < samples.len() as isize { sum += f64::from(samples[at as usize]) * weight; }
+            }
+            maximum = maximum.max((sum/norm).abs());
+        }
+    }
+    maximum
+}
+
+#[test]
+fn mastering_limiter_true_peak_is_checked_by_a_different_dense_reconstructor() {
+    for rate in [44_100, 48_000, 96_000] {
+        let input = faded(sine(f64::from(rate)/4.0, 1.4, TAU/8.0, 4_096, rate));
+        assert!(reference_true_peak(&input) > 1.3);
+        let mut effect = MasterLimiter::default();
+        effect.prepare(rate as f32, 512);
+        effect.set_params(&MasterLimiterParams { ceiling_db: -1.0, leveling: 0.0,
+            saturation: 0.0, true_peak: true, ..Default::default() });
+        let mut padded = input.clone();
+        padded.resize(input.len() + effect.latency_samples() + 32, 0.0);
+        let output = run(&mut effect, &padded, 53);
+        let peak = db(reference_true_peak(&output));
+        // A moving gain is allowed 0.3 dB reconstruction tolerance, as
+        // documented; stationary signals are covered by the analytic test.
+        assert!(peak <= -0.7, "{rate}: independent true peak {peak} dBTP");
+        assert!(output.iter().all(|x| x.abs() <= db_to_gain(-1.0) + 1e-6));
+    }
+}
+
+#[test]
+fn slow_leveling_keeps_shared_stereo_gain_and_tonal_balance() {
+    let mut effect = master_limiter(MasterLimiterParams { gain_db: 6.0, leveling: 1.0,
+        saturation: 0.0, ceiling_db: 0.0, ..Default::default() });
+    let mut left: Vec<_> = (0..4 * RATE).map(|n| {
+        let t = f64::from(n)/f64::from(RATE);
+        (0.2*(TAU*60.0*t).sin() + 0.15*(TAU*1_000.0*t).sin() + 0.1*(TAU*8_000.0*t).sin()) as f32
+    }).collect();
+    let input = left.clone();
+    let mut right: Vec<_> = left.iter().map(|x| -*x * 0.25).collect();
+    for (l,r) in left.chunks_mut(137).zip(right.chunks_mut(137)) { effect.process(l,r); }
+    for (l,r) in left.iter().zip(&right) { assert!((r + 0.25*l).abs() < 1e-7); }
+    let mut gains = Vec::new();
+    for hz in [60.0, 1_000.0, 8_000.0] {
+        gains.push(amplitude_at(&left[3 * RATE as usize..], hz, RATE)
+            / amplitude_at(&input[3 * RATE as usize..], hz, RATE));
+    }
+    let smallest = gains.iter().copied().fold(f64::INFINITY, f64::min);
+    let largest = gains.iter().copied().fold(0.0, f64::max);
+    assert!(db(largest/smallest) < 0.15, "tonal balance {gains:?}");
+    assert!(effect.stage_meters()[0].take_db() > 1.0);
+}

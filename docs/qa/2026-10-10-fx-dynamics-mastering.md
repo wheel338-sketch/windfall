@@ -132,3 +132,21 @@ linearity of additive amount, even-harmonic polarity, removed DC and exact
 `bass_harmonic_amount_automation_matches_live_render_with_compensated_latency`
 adds RT/automation/live/export/partition/tail evidence to existing DSP spectrum,
 partition, finite-input and mounted/persistence tests. No alias-free claim.
+
+
+### `fx-emphasis` — full-row candidate
+
+Previous work supplies a distinct Mastering Limiter: slow shared RMS leveler,
+DC-filtered saturation/color, 4x-detected look-ahead peak stage, stage meters,
+fixed PDC and dedicated ordered-stage editor. Added written, not executed:
+`mastering_limiter_true_peak_is_checked_by_a_different_dense_reconstructor`
+uses an independent 16x Hann/sinc reconstructor at 44.1/48/96 kHz;
+`slow_leveling_keeps_shared_stereo_gain_and_tonal_balance` measures linked
+stereo gain and three-tone balance with leveling active;
+`mastering_limiter_gain_automation_matches_live_export_and_fixed_true_peak_latency`
+adds native RT/automation/render/partition/tail acceptance (78 frames at 48 kHz).
+Existing tests measure stage workload, calibrated level, true-peak on/off,
+latency, live parameter invariance, persistence and mounted ordered controls.
+True-peak reconstruction is an estimate: moving gain has a documented 0.3 dB
+DSP tolerance. The offline mastering chain remeasures/corrects to its tighter
+requested ceiling tolerance. Stationary analytic sine cases are separate.
