@@ -168,7 +168,8 @@ describe("event editor", () => {
     expect((second as { expected: AutomationPoint[] }).expected).toEqual(
       (first as { points: AutomationPoint[] }).points
     )
-    expect((second as { points: AutomationPoint[] }).points[1].tick).toBe(960 + 60)
+    // A key press moves by a sixteenth: a quarter of the beat.
+    expect((second as { points: AutomationPoint[] }).points[1].tick).toBe(960 + 240)
     expect(typeof firstGesture).toBe("number")
     expect(secondGesture).toBe(firstGesture)
     fireEvent.keyUp(middle, { key: "ArrowRight" })
