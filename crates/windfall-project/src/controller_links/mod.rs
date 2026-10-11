@@ -14,8 +14,9 @@
 //! automation point's value means for the same
 //! [`AutomationTarget`](crate::AutomationTarget): its
 //! [`AutomationRange`](crate::AutomationRange) turns it into the target's
-//! unit. Anything that can be automated can therefore be linked, and nothing
-//! about a link depends on what kind of source feeds it.
+//! unit. Internal signals currently require project parameter targets and
+//! absolute maps without pickup; Tempo is refused pending a clock feedback
+//! contract. Hardware sources retain their slot/action and relative modes.
 //!
 //! - [`ControlSource::Midi`] is fed by hardware, away from the audio thread.
 //! - [`ControlSource::Internal`] is evaluated by the engine at its owning
@@ -89,8 +90,8 @@ pub enum ControlSource {
         control: MidiControl,
     },
     /// A control signal produced inside the project: output `output` of the
-    /// effect or channel with the id `controller`. Reserved; see the module
-    /// documentation.
+    /// effect or Dashboard channel with the id `controller`. The checked
+    /// project validates its owner and output; the audio engine evaluates it.
     Internal { controller: u32, output: u8 },
 }
 

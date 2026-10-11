@@ -56,3 +56,5 @@ Plan adoption now carries unchanged internal fader ramps and restores linked nat
 Adoption reference fixture uses ProjectSettings.name; gain continuity transfer respects mute/solo audibility changes, and cached values are read before mutably borrowing PlanState.
 
 Final UI review: source-owned link edits/removal identify the source and target against the latest document rather than a potentially shifted list position. Smoothing input advertises the checked contract's 5000 ms maximum. No build or test was run.
+
+Controller contract documentation now records real internal source ports, ownership/deletion semantics, callback evaluation, cycle refusal, and the Tempo/DC limits. The Rust ControlSource documentation no longer describes Internal as reserved. No generated files were touched.
