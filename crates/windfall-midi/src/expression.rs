@@ -284,7 +284,10 @@ pub fn bend_from_semitones(semitones: f64, range: u8) -> (u16, bool) {
     } else {
         center
     };
-    (raw.clamp(0.0, 16_383.0) as u16, !(0.0..=16_383.0).contains(&raw))
+    (
+        raw.clamp(0.0, 16_383.0) as u16,
+        !(0.0..=16_383.0).contains(&raw),
+    )
 }
 
 /// The semitones a pitch bend moves a note when a full bend is `range`.
@@ -426,8 +429,16 @@ impl Voice<'_> {
     /// What the note wants its channel to say on `tick`.
     fn wants(&self, tick: u32, range: u8) -> Wanted {
         let (bend, bend_clamped) = bend_from_semitones(self.offset(tick), range);
-        let x = self.curve(self.source.curves.x, tick, self.source.expression.modulation_x);
-        let y = self.curve(self.source.curves.y, tick, self.source.expression.modulation_y);
+        let x = self.curve(
+            self.source.curves.x,
+            tick,
+            self.source.expression.modulation_x,
+        );
+        let y = self.curve(
+            self.source.curves.y,
+            tick,
+            self.source.expression.modulation_y,
+        );
         let (y, y_clamped) = pressure_to_midi(y);
         let pan = (self.wants_pan() && !self.pan_ambiguous).then(|| {
             let own = self.curve(self.source.curves.pan, tick, self.source.pan);
@@ -614,7 +625,9 @@ pub(crate) fn render(
             let start = voice.source.start;
             let free = MPE_MEMBERS
                 .filter(|&channel| busy_until[usize::from(channel)] <= start)
-                .min_by_key(|&channel| (used[usize::from(channel)], busy_until[usize::from(channel)]));
+                .min_by_key(|&channel| {
+                    (used[usize::from(channel)], busy_until[usize::from(channel)])
+                });
             let channel = free.unwrap_or_else(|| {
                 report.mpe_shared_notes += 1;
                 MPE_MEMBERS
@@ -857,10 +870,19 @@ fn breaks(voice: &Voice<'_>, step: u32) -> Vec<u32> {
             grid(pair[0].0, pair[1].0, &mut ticks);
         }
     }
-    ticks.extend(voice.pitch.iter().map(|point| point.0).filter(|&tick| inside(tick)));
+    ticks.extend(
+        voice
+            .pitch
+            .iter()
+            .map(|point| point.0)
+            .filter(|&tick| inside(tick)),
+    );
     let curves = voice.source.curves;
     let mut moving = false;
-    for curve in [curves.pan, curves.fine, curves.x, curves.y].into_iter().flatten() {
+    for curve in [curves.pan, curves.fine, curves.x, curves.y]
+        .into_iter()
+        .flatten()
+    {
         if curve.points.len() < 2 {
             continue;
         }
@@ -885,7 +907,11 @@ fn breaks(voice: &Voice<'_>, step: u32) -> Vec<u32> {
 /// while it does. Marks every note for which that is not so.
 fn mark_ambiguous_pans(voices: &mut [Voice<'_>], by_channel: &[Vec<usize>; 16]) {
     let pan_of = |voice: &Voice<'_>| {
-        let curve = voice.source.curves.pan.map(|curve| curve as *const NoteExpressionCurve);
+        let curve = voice
+            .source
+            .curves
+            .pan
+            .map(|curve| curve as *const NoteExpressionCurve);
         (
             voice.source.pan.to_bits(),
             voice.source.base_pan.to_bits(),

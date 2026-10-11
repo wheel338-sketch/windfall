@@ -726,7 +726,13 @@ fn add_channel_plays_into_the_master_when_the_mixer_is_full() {
     assert_eq!(applied.created.len(), 1);
     assert_eq!(doc.project().channels[0].mixer_track, TrackId::MASTER);
     assert_eq!(doc.project().mixer.tracks.len(), MAX_MIXER_SIGNAL_TRACKS);
-    assert!(doc.project().mixer.tracks.iter().all(|track| !track.current));
+    assert!(
+        doc.project()
+            .mixer
+            .tracks
+            .iter()
+            .all(|track| !track.current)
+    );
     doc.project().check().unwrap();
 }
 

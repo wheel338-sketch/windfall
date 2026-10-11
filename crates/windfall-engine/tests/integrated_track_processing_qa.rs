@@ -3,7 +3,7 @@
 #[path = "engine/support.rs"]
 mod support;
 
-use support::{rms, run, sine, Rig};
+use support::{Rig, rms, run, sine};
 use windfall_core::AudioBuffer;
 use windfall_dsp::{
     ChannelMuteParams, DistortionParams, EffectParams, EqBand, EqParams, TrackParams,
@@ -48,10 +48,12 @@ fn three_independent_eq_bands_boost_their_region_and_bypass_is_neutral() {
         );
         params.eq_enabled = false;
         let bypass = rendered(params, vec![], frequency);
-        assert!(bypass
-            .iter()
-            .zip(&neutral)
-            .all(|(a, b)| (a - b).abs() < 1e-6));
+        assert!(
+            bypass
+                .iter()
+                .zip(&neutral)
+                .all(|(a, b)| (a - b).abs() < 1e-6)
+        );
     }
 }
 

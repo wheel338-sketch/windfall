@@ -33,9 +33,19 @@ use windfall_project::{AutomationId, EffectId, PatternId, TrackId};
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase", default)]
 #[ts(export)]
-pub struct MetronomeSettings { pub enabled: bool, pub gain: f32, pub accent: bool }
+pub struct MetronomeSettings {
+    pub enabled: bool,
+    pub gain: f32,
+    pub accent: bool,
+}
 impl Default for MetronomeSettings {
-    fn default() -> Self { Self { enabled: false, gain: 0.25, accent: true } }
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            gain: 0.25,
+            accent: true,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, TS)]
@@ -648,7 +658,10 @@ pub struct RecordingSource {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
 #[ts(export)]
-pub struct RecordingMixerTap { pub track: windfall_project::TrackId, pub mode: windfall_project::MixerRecordMode }
+pub struct RecordingMixerTap {
+    pub track: windfall_project::TrackId,
+    pub mode: windfall_project::MixerRecordMode,
+}
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
 #[ts(export)]
@@ -663,7 +676,11 @@ pub struct RecordingTrackInfo {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
 #[ts(export)]
-pub struct RecordingMonitorSettings { pub track: windfall_project::TrackId, pub gain: f32, pub buffer_ms: u16 }
+pub struct RecordingMonitorSettings {
+    pub track: windfall_project::TrackId,
+    pub gain: f32,
+    pub buffer_ms: u16,
+}
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
 #[ts(export)]
@@ -677,7 +694,9 @@ pub struct RecordingMonitorStatus {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
 #[ts(export)]
-pub struct RecordingLoopOptions { pub region: windfall_project::TickRange }
+pub struct RecordingLoopOptions {
+    pub region: windfall_project::TickRange,
+}
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
 #[serde(tag = "type", rename_all = "camelCase")]
 #[ts(export)]
@@ -707,7 +726,14 @@ pub struct RecordingAlignment {
     pub input_sample_rate: Option<u32>,
 }
 impl Default for RecordingAlignment {
-    fn default() -> Self { Self { synchronize: false, drift_correction: true, offset_ms: 0.0, input_sample_rate: None } }
+    fn default() -> Self {
+        Self {
+            synchronize: false,
+            drift_correction: true,
+            offset_ms: 0.0,
+            input_sample_rate: None,
+        }
+    }
 }
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]

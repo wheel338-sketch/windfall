@@ -53,7 +53,10 @@ impl Mixer {
         let frames = |count: usize| vec![[0.0; 2]; count].into_boxed_slice();
         let side = || vec![0.0; MAX_BLOCK].into_boxed_slice();
         Self {
-            waveforms: (0..MAX_MIXER_TRACKS).map(|_| crate::waveform_meter::WaveAccumulator::new()).collect::<Vec<_>>().into_boxed_slice(),
+            waveforms: (0..MAX_MIXER_TRACKS)
+                .map(|_| crate::waveform_meter::WaveAccumulator::new())
+                .collect::<Vec<_>>()
+                .into_boxed_slice(),
             buffers: frames(MAX_MIXER_TRACKS * MAX_BLOCK),
             inbox: frames(MAX_MIXER_TRACKS * MAX_BLOCK),
             keys: frames(MAX_MIXER_TRACKS * MAX_BLOCK),
@@ -124,10 +127,18 @@ impl Mixer {
         for &index in &plan.order {
             let track = &plan.tracks[index];
             if track.current {
-                let id = shared.current_track.load(std::sync::atomic::Ordering::Acquire);
-                if let Some(source) = plan.track_ids.get(id).filter(|&source| !plan.tracks[source].current) {
-                    self.scratch[..frames].copy_from_slice(&self.buffers[source * MAX_BLOCK..][..frames]);
-                    self.buffers[index * MAX_BLOCK..][..frames].copy_from_slice(&self.scratch[..frames]);
+                let id = shared
+                    .current_track
+                    .load(std::sync::atomic::Ordering::Acquire);
+                if let Some(source) = plan
+                    .track_ids
+                    .get(id)
+                    .filter(|&source| !plan.tracks[source].current)
+                {
+                    self.scratch[..frames]
+                        .copy_from_slice(&self.buffers[source * MAX_BLOCK..][..frames]);
+                    self.buffers[index * MAX_BLOCK..][..frames]
+                        .copy_from_slice(&self.scratch[..frames]);
                 }
             }
             let buffer = &mut self.buffers[index * MAX_BLOCK..][..frames];
@@ -151,11 +162,20 @@ impl Mixer {
                     let Some(unit) = &mut state.chains[index][place] else {
                         continue;
                     };
-                    self.scratch[..frames].copy_from_slice(&self.keys[index * MAX_BLOCK..][..frames]);
-                    if let Some(line) = &mut state.key_delays[index][place].line { line.process(&mut self.scratch[..frames]); }
+                    self.scratch[..frames]
+                        .copy_from_slice(&self.keys[index * MAX_BLOCK..][..frames]);
+                    if let Some(line) = &mut state.key_delays[index][place].line {
+                        line.process(&mut self.scratch[..frames]);
+                    }
                     let routed = track.routed_outputs(place);
                     if routed == 0 {
-                        unit.process_sidechain(left, right, &mut self.dry_left, &mut self.dry_right, Some(&self.scratch[..frames]));
+                        unit.process_sidechain(
+                            left,
+                            right,
+                            &mut self.dry_left,
+                            &mut self.dry_right,
+                            Some(&self.scratch[..frames]),
+                        );
                         continue;
                     }
                     // The effect's own outputs leave the track here, before
@@ -167,7 +187,14 @@ impl Mixer {
                         routed,
                         outputs: [&mut first[..frames], &mut second[..frames]],
                     };
-                    unit.process_routed(left, right, &mut self.dry_left, &mut self.dry_right, Some(&self.scratch[..frames]), &mut aux);
+                    unit.process_routed(
+                        left,
+                        right,
+                        &mut self.dry_left,
+                        &mut self.dry_right,
+                        Some(&self.scratch[..frames]),
+                        &mut aux,
+                    );
                     for edge in &track.edges {
                         let Some(tap) = edge.tap.filter(|tap| tap.place == place) else {
                             continue;
@@ -181,27 +208,52 @@ impl Mixer {
                         } else {
                             &mut self.buffers
                         };
-                        add_scaled(sent, &mut feeds[edge.target * MAX_BLOCK..][..frames], &state.edges[edge.slot], base);
+                        add_scaled(
+                            sent,
+                            &mut feeds[edge.target * MAX_BLOCK..][..frames],
+                            &state.edges[edge.slot],
+                            base,
+                        );
                     }
                 }
                 let buffer = &mut self.buffers[index * MAX_BLOCK..][..frames];
-                for (frame, (left, right)) in buffer.iter_mut().zip(self.left[..frames].iter().zip(&self.right[..frames])) {
+                for (frame, (left, right)) in buffer
+                    .iter_mut()
+                    .zip(self.left[..frames].iter().zip(&self.right[..frames]))
+                {
                     *frame = [*left, *right];
                 }
                 state.activity[index].hear_output(base, buffer, state.silence);
             }
             let buffer = &mut self.buffers[index * MAX_BLOCK..][..frames];
 
-            let left = &mut self.left[..frames]; let right = &mut self.right[..frames];
-            for (frame, (left, right)) in buffer.iter().zip(left.iter_mut().zip(right.iter_mut())) { *left = frame[0]; *right = frame[1]; }
+            let left = &mut self.left[..frames];
+            let right = &mut self.right[..frames];
+            for (frame, (left, right)) in buffer.iter().zip(left.iter_mut().zip(right.iter_mut())) {
+                *left = frame[0];
+                *right = frame[1];
+            }
             state.track_processing[index].process(left, right);
-            for (frame, (left, right)) in buffer.iter_mut().zip(left.iter().zip(right.iter())) { *frame = [*left, *right]; }
+            for (frame, (left, right)) in buffer.iter_mut().zip(left.iter().zip(right.iter())) {
+                *frame = [*left, *right];
+            }
             state.activity[index].hear_output(base, buffer, state.silence);
-            for tap in taps.iter_mut().filter(|tap| tap.tap.track == track.id) { tap.copy(base, state.latency, state.behind[index], windfall_project::MixerRecordMode::PostEffects, buffer); }
-            if let Some(logger) = logger.as_mut() { logger.track(track.id, buffer); }
+            for tap in taps.iter_mut().filter(|tap| tap.tap.track == track.id) {
+                tap.copy(
+                    base,
+                    state.latency,
+                    state.behind[index],
+                    windfall_project::MixerRecordMode::PostEffects,
+                    buffer,
+                );
+            }
+            if let Some(logger) = logger.as_mut() {
+                logger.track(track.id, buffer);
+            }
             let strip = &state.tracks[index];
             let steady = strip.gain.settled(base) && strip.pan.settled(base);
-            let (mut left, mut right) = fader_gains(strip.law, strip.gain.at(base), strip.pan.at(base));
+            let (mut left, mut right) =
+                fader_gains(strip.law, strip.gain.at(base), strip.pan.at(base));
             let (mut peak_left, mut peak_right) = (0.0_f32, 0.0_f32);
             for (offset, frame) in buffer.iter_mut().enumerate() {
                 if !steady {
@@ -214,7 +266,15 @@ impl Mixer {
                 peak_right = peak_right.max(frame[1].abs());
             }
             shared.raise_meter(index, peak_left, peak_right);
-            for tap in taps.iter_mut().filter(|tap| tap.tap.track == track.id) { tap.copy(base, state.latency, state.behind[index], windfall_project::MixerRecordMode::PostFader, buffer); }
+            for tap in taps.iter_mut().filter(|tap| tap.tap.track == track.id) {
+                tap.copy(
+                    base,
+                    state.latency,
+                    state.behind[index],
+                    windfall_project::MixerRecordMode::PostFader,
+                    buffer,
+                );
+            }
 
             for edge in &track.edges {
                 if edge.tap.is_some() {
@@ -226,8 +286,15 @@ impl Mixer {
                 if edge.sidechain {
                     let source = &self.buffers[index * MAX_BLOCK..][..frames];
                     self.scratch[..frames].copy_from_slice(source);
-                    if let Some(line) = delayed { line.process(&mut self.scratch[..frames]); }
-                    add_scaled(&self.scratch[..frames], &mut self.keys[edge.target * MAX_BLOCK..][..frames], gain, base);
+                    if let Some(line) = delayed {
+                        line.process(&mut self.scratch[..frames]);
+                    }
+                    add_scaled(
+                        &self.scratch[..frames],
+                        &mut self.keys[edge.target * MAX_BLOCK..][..frames],
+                        gain,
+                        base,
+                    );
                     continue;
                 }
                 let split = state.direct[edge.target].line.is_some();
@@ -257,9 +324,13 @@ impl Mixer {
             }
         }
         out.copy_from_slice(&self.track_mut(0)[..frames]);
-        if let Some(line) = &mut state.master_output.line { line.process(out); }
+        if let Some(line) = &mut state.master_output.line {
+            line.process(out);
+        }
         let printed = &mut self.printed[..frames];
-        state.printed_activity.hear_input(base, printed, state.silence);
+        state
+            .printed_activity
+            .hear_input(base, printed, state.silence);
         if let Some(line) = &mut state.printed.line {
             line.process(printed);
         }
@@ -271,16 +342,38 @@ impl Mixer {
             out[0] += apart[0];
             out[1] += apart[1];
         }
-        let peaks = out.iter().fold([0.0_f32; 2], |peak, frame| [peak[0].max(frame[0].abs()), peak[1].max(frame[1].abs())]);
+        let peaks = out.iter().fold([0.0_f32; 2], |peak, frame| {
+            [peak[0].max(frame[0].abs()), peak[1].max(frame[1].abs())]
+        });
         shared.raise_meter(0, peaks[0], peaks[1]);
     }
 
     /// Called after mixing, before metronome/device output gain. Master includes prints.
-    pub fn publish_waveforms(&mut self, plan: &Plan, shared: &Shared, base: u64, rate: u32, out: &[Frame]) {
-        let epoch = shared.waveform_epoch.load(std::sync::atomic::Ordering::Acquire);
+    pub fn publish_waveforms(
+        &mut self,
+        plan: &Plan,
+        shared: &Shared,
+        base: u64,
+        rate: u32,
+        out: &[Frame],
+    ) {
+        let epoch = shared
+            .waveform_epoch
+            .load(std::sync::atomic::Ordering::Acquire);
         for (index, track) in plan.tracks.iter().enumerate() {
-            let frames = if index == 0 { out } else { &self.buffers[index * MAX_BLOCK..][..out.len()] };
-            self.waveforms[index].capture(&shared.waveforms[index], track.id, epoch, base, rate, frames);
+            let frames = if index == 0 {
+                out
+            } else {
+                &self.buffers[index * MAX_BLOCK..][..out.len()]
+            };
+            self.waveforms[index].capture(
+                &shared.waveforms[index],
+                track.id,
+                epoch,
+                base,
+                rate,
+                frames,
+            );
         }
     }
 

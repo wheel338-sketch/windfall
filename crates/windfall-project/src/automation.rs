@@ -34,8 +34,8 @@ use ts_rs::TS;
 use windfall_dsp::{ParamInfo, ParamKind, ParamScale};
 
 use crate::model::{
-    AutomationPoint, AutomationTarget, ChannelSource, Project, MAX_GAIN, MAX_TEMPO_BPM,
-    MIN_TEMPO_BPM,
+    AutomationPoint, AutomationTarget, ChannelSource, MAX_GAIN, MAX_TEMPO_BPM, MIN_TEMPO_BPM,
+    Project,
 };
 
 /// How strongly a `curve` of 1 bends a segment. See [`curve_shape`].

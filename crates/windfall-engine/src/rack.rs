@@ -7,14 +7,17 @@
 //! inside the state they were last in to be dropped off the audio thread.
 
 use windfall_dsp::blocks::tap_crossfade::TapCrossfade;
-use windfall_dsp::{AnyEffect, AnyInstrument, EffectSlot, ExpressionMap, GainReductionMeter, NoteArticulation, NoteExpression, NoteInstanceId, VoiceControls};
+use windfall_dsp::{
+    AnyEffect, AnyInstrument, EffectSlot, ExpressionMap, GainReductionMeter, NoteArticulation,
+    NoteExpression, NoteInstanceId, VoiceControls,
+};
 use windfall_project::{EffectKind, EffectParams, InstrumentKind, InstrumentParams, TrackId};
 
 use crate::mixer::{Frame, MAX_BLOCK};
-use crate::plan::{EffectLife, PlanEffect, Plan};
+use crate::note_glide::NoteGlide;
+use crate::plan::{EffectLife, Plan, PlanEffect};
 use crate::sequencer::Clock;
 use crate::voice::Origin;
-use crate::note_glide::NoteGlide;
 
 /// Logical note owners, allocated before entering the audio callback.
 const MAX_HELD_NOTES: usize = 1024;
@@ -364,7 +367,13 @@ impl EffectUnit {
     /// Processes one block in place. `dry_left` and `dry_right` are scratch
     /// space at least as long as the block.
     #[cfg(test)]
-    pub fn process(&mut self, left: &mut [f32], right: &mut [f32], dry_left: &mut [f32], dry_right: &mut [f32]) {
+    pub fn process(
+        &mut self,
+        left: &mut [f32],
+        right: &mut [f32],
+        dry_left: &mut [f32],
+        dry_right: &mut [f32],
+    ) {
         self.process_sidechain(left, right, dry_left, dry_right, None);
     }
 
@@ -504,8 +513,23 @@ struct HeldInstrumentNote {
 }
 
 impl HeldInstrumentNote {
-    const EMPTY: Self = Self { channel_envelopes: None, channel_pitch: 0.0, source: None, active: false, id: NoteInstanceId(0), key: 0, velocity: 0.0,
-        pan: 0.0, expression: NoteExpression::NEUTRAL, end: f64::INFINITY, origin: Origin::Sequenced, pitch: 0.0, glide: None, map_gain: 1.0, map_cents: 0.0 };
+    const EMPTY: Self = Self {
+        channel_envelopes: None,
+        channel_pitch: 0.0,
+        source: None,
+        active: false,
+        id: NoteInstanceId(0),
+        key: 0,
+        velocity: 0.0,
+        pan: 0.0,
+        expression: NoteExpression::NEUTRAL,
+        end: f64::INFINITY,
+        origin: Origin::Sequenced,
+        pitch: 0.0,
+        glide: None,
+        map_gain: 1.0,
+        map_cents: 0.0,
+    };
 }
 
 pub(crate) struct InstrumentUnit {
@@ -539,7 +563,8 @@ impl InstrumentUnit {
         instrument.set_tempo(tempo_bpm as f32);
         instrument.set_params(params);
         Self {
-            voice_envelopes: None, voice_glide: 1.0,
+            voice_envelopes: None,
+            voice_glide: 1.0,
             map: ExpressionMap::DEFAULT,
             external: None,
             plugin_params: Box::new([]),
@@ -554,8 +579,13 @@ impl InstrumentUnit {
         }
     }
 
-    pub fn configure_voice(&mut self, envelopes: crate::channel_voice::PreparedChannelEnvelopes, glide: f64) {
-        self.voice_envelopes = envelopes.enabled().then_some(envelopes); self.voice_glide = glide;
+    pub fn configure_voice(
+        &mut self,
+        envelopes: crate::channel_voice::PreparedChannelEnvelopes,
+        glide: f64,
+    ) {
+        self.voice_envelopes = envelopes.enabled().then_some(envelopes);
+        self.voice_glide = glide;
     }
 
     /// Takes the channel's expression map. Notes already held follow it at
@@ -623,9 +653,15 @@ impl InstrumentUnit {
         self.next_instance = before.next_instance;
         self.held = before.held;
         if let Some(Some(unit)) = &mut self.external {
-            for note in self.notes.iter().filter(|note| note.active && note.end != f64::NEG_INFINITY) {
+            for note in self
+                .notes
+                .iter()
+                .filter(|note| note.active && note.end != f64::NEG_INFINITY)
+            {
                 unit.note_on_instance(note.id, note.key, note.velocity, note.pan, note.expression);
-                if unit.supports_note_pitch() { unit.set_note_pitch(note.id, note.pitch as f32); }
+                if unit.supports_note_pitch() {
+                    unit.set_note_pitch(note.id, note.pitch as f32);
+                }
             }
         }
     }
@@ -710,41 +746,96 @@ impl InstrumentUnit {
     // This internal realtime seam accepts note data plus its clock/glide and
     // curve ownership; retain explicit values without changing note scheduling.
     #[allow(clippy::too_many_arguments)]
-    pub fn start_note_source(&mut self, key: u8, velocity: f32, pan: f32, expression: NoteExpression, end: f64, origin: Origin, at: f64, glide_end: f64, source: Option<crate::note_curves::CurveSource>) -> Option<NoteInstanceId> {
-        if !velocity.is_finite() || velocity <= 0.0 || end.is_nan() { return None; }
+    pub fn start_note_source(
+        &mut self,
+        key: u8,
+        velocity: f32,
+        pan: f32,
+        expression: NoteExpression,
+        end: f64,
+        origin: Origin,
+        at: f64,
+        glide_end: f64,
+        source: Option<crate::note_curves::CurveSource>,
+    ) -> Option<NoteInstanceId> {
+        if !velocity.is_finite() || velocity <= 0.0 || end.is_nan() {
+            return None;
+        }
         let expression = expression.clamped();
-        let pan = if pan.is_finite() { pan.clamp(-1.0, 1.0) } else { 0.0 };
+        let pan = if pan.is_finite() {
+            pan.clamp(-1.0, 1.0)
+        } else {
+            0.0
+        };
         let controls = self.controls(pan, expression);
-        let target_pitch = f64::from(key.min(127)) + f64::from(expression.fine_pitch_cents) / 100.0
+        let target_pitch = f64::from(key.min(127))
+            + f64::from(expression.fine_pitch_cents) / 100.0
             + f64::from(controls.pitch_cents) / 100.0;
-        let from = self.notes.iter().filter(|note| note.active && note.origin == origin && note.expression.color_group.unwrap_or(0) == expression.color_group.unwrap_or(0) && note.end > at)
-            .max_by_key(|note| note.id.0).map(|note| note.glide.map_or(note.pitch, |glide| glide.at(at)));
+        let from = self
+            .notes
+            .iter()
+            .filter(|note| {
+                note.active
+                    && note.origin == origin
+                    && note.expression.color_group.unwrap_or(0)
+                        == expression.color_group.unwrap_or(0)
+                    && note.end > at
+            })
+            .max_by_key(|note| note.id.0)
+            .map(|note| note.glide.map_or(note.pitch, |glide| glide.at(at)));
         let glide = if expression.articulation == NoteArticulation::Portamento {
             from.map(|from| NoteGlide::new(at, glide_end, from, target_pitch))
-        } else { None };
-        let slot = if let Some(slot) = self.notes.iter().position(|note| !note.active) { slot }
-        else {
+        } else {
+            None
+        };
+        let slot = if let Some(slot) = self.notes.iter().position(|note| !note.active) {
+            slot
+        } else {
             // At the fixed ownership ceiling, release the oldest owner first.
-            let slot = self.notes.iter().enumerate().min_by_key(|(_, note)| note.id.0).map(|(slot, _)| slot)?;
+            let slot = self
+                .notes
+                .iter()
+                .enumerate()
+                .min_by_key(|(_, note)| note.id.0)
+                .map(|(slot, _)| slot)?;
             self.release_slot(slot);
             slot
         };
         let id = loop {
             self.next_instance = self.next_instance.wrapping_add(1) & (u64::MAX >> 1);
-            if self.next_instance != 0 && !self.notes.iter().any(|note| note.active && note.id.0 == self.next_instance) {
+            if self.next_instance != 0
+                && !self
+                    .notes
+                    .iter()
+                    .any(|note| note.active && note.id.0 == self.next_instance)
+            {
                 break NoteInstanceId(self.next_instance);
             }
         };
         let mut channel_envelopes = self.voice_envelopes;
-        if let Some(envelopes) = &mut channel_envelopes { envelopes.gate_on(); }
+        if let Some(envelopes) = &mut channel_envelopes {
+            envelopes.gate_on();
+        }
         let note = HeldInstrumentNote {
             channel_envelopes,
-            channel_pitch: if self.voice_glide < 1.0 { from.unwrap_or(target_pitch) } else { glide.map_or(target_pitch, |g| g.from) },
+            channel_pitch: if self.voice_glide < 1.0 {
+                from.unwrap_or(target_pitch)
+            } else {
+                glide.map_or(target_pitch, |g| g.from)
+            },
             source,
-            active: true, id, key: key.min(127), velocity: velocity.min(1.0),
-            pan, expression, end, origin,
-            pitch: glide.map_or(target_pitch, |glide| glide.from), glide,
-            map_gain: controls.gain, map_cents: controls.pitch_cents,
+            active: true,
+            id,
+            key: key.min(127),
+            velocity: velocity.min(1.0),
+            pan,
+            expression,
+            end,
+            origin,
+            pitch: glide.map_or(target_pitch, |glide| glide.from),
+            glide,
+            map_gain: controls.gain,
+            map_cents: controls.pitch_cents,
         };
         self.notes[slot] = note;
         self.held += 1;
@@ -753,36 +844,81 @@ impl InstrumentUnit {
                 unit.note_on_instance(note.id, note.key, note.velocity, note.pan, note.expression);
             }
         } else {
-            self.instrument.note_on_instance(note.id, note.key, note.velocity, controls.pan, controls.expression);
-            if controls.gain != 1.0 { self.instrument.set_note_gain(note.id, controls.gain); }
+            self.instrument.note_on_instance(
+                note.id,
+                note.key,
+                note.velocity,
+                controls.pan,
+                controls.expression,
+            );
+            if controls.gain != 1.0 {
+                self.instrument.set_note_gain(note.id, controls.gain);
+            }
         }
         // The instrument knows the key and fine pitch; a glide or a control
         // mapped to pitch has to be told.
-        if note.glide.is_some() || controls.pitch_cents != 0.0 { self.set_pitch(note.id, note.pitch); }
+        if note.glide.is_some() || controls.pitch_cents != 0.0 {
+            self.set_pitch(note.id, note.pitch);
+        }
         Some(id)
     }
 
     /// A slide transposes the held chord from the most recent owner's pitch.
     /// It starts no new note, retains source envelopes and original endings.
-    pub fn slide_notes(&mut self, key: u8, expression: NoteExpression, at: f64, end: f64, origin: Origin) {
+    pub fn slide_notes(
+        &mut self,
+        key: u8,
+        expression: NoteExpression,
+        at: f64,
+        end: f64,
+        origin: Origin,
+    ) {
         let group = expression.color_group.unwrap_or(0);
-        let Some(anchor) = self.notes.iter().filter(|note| note.active && note.origin == origin && note.expression.color_group.unwrap_or(0) == group && note.end > at)
-            .max_by_key(|note| note.id.0) else { return; };
-        let delta = f64::from(key.min(127)) + f64::from(expression.clamped().fine_pitch_cents) / 100.0
+        let Some(anchor) = self
+            .notes
+            .iter()
+            .filter(|note| {
+                note.active
+                    && note.origin == origin
+                    && note.expression.color_group.unwrap_or(0) == group
+                    && note.end > at
+            })
+            .max_by_key(|note| note.id.0)
+        else {
+            return;
+        };
+        let delta = f64::from(key.min(127))
+            + f64::from(expression.clamped().fine_pitch_cents) / 100.0
             - anchor.glide.map_or(anchor.pitch, |glide| glide.at(at));
-        for note in self.notes.iter_mut().filter(|note| note.active && note.origin == origin && note.expression.color_group.unwrap_or(0) == group && note.end > at) {
+        for note in self.notes.iter_mut().filter(|note| {
+            note.active
+                && note.origin == origin
+                && note.expression.color_group.unwrap_or(0) == group
+                && note.end > at
+        }) {
             let from = note.glide.map_or(note.pitch, |glide| glide.at(at));
             note.pitch = from;
-            note.glide = Some(NoteGlide::new(at, end, from, (from + delta).clamp(-12.0, 139.0)));
+            note.glide = Some(NoteGlide::new(
+                at,
+                end,
+                from,
+                (from + delta).clamp(-12.0, 139.0),
+            ));
         }
     }
 
     pub fn silence_hardware(&mut self) {
-        let any = self.notes.iter().any(|note| note.active && note.origin == Origin::Hardware);
+        let any = self
+            .notes
+            .iter()
+            .any(|note| note.active && note.origin == Origin::Hardware);
         if !any {
             return;
         }
-        let others = self.notes.iter().any(|note| note.active && note.origin != Origin::Hardware);
+        let others = self
+            .notes
+            .iter()
+            .any(|note| note.active && note.origin != Origin::Hardware);
         if !others {
             self.silence();
         } else {
@@ -812,7 +948,10 @@ impl InstrumentUnit {
     /// short fade; otherwise each is let go, so the hand-held notes carry
     /// on.
     pub fn end_sequenced(&mut self) {
-        let any_live = self.notes.iter().any(|note| note.active && note.origin != Origin::Sequenced);
+        let any_live = self
+            .notes
+            .iter()
+            .any(|note| note.active && note.origin != Origin::Sequenced);
         if !any_live {
             self.silence();
             return;
@@ -830,8 +969,12 @@ impl InstrumentUnit {
         if self.held > 0 {
             for note in self.notes.iter_mut().filter(|note| note.active) {
                 note.end += ticks;
-                if let Some(source) = &mut note.source { source.shift(ticks); }
-                if let Some(glide) = &mut note.glide { glide.shift(ticks); }
+                if let Some(source) = &mut note.source {
+                    source.shift(ticks);
+                }
+                if let Some(glide) = &mut note.glide {
+                    glide.shift(ticks);
+                }
             }
         }
     }
@@ -843,8 +986,12 @@ impl InstrumentUnit {
         if self.held > 0 {
             for note in self.notes.iter_mut().filter(|note| note.active) {
                 note.end = moved(note.end);
-                if let Some(source) = &mut note.source { source.move_clock(&moved); }
-                if let Some(glide) = &mut note.glide { glide.move_clock(&moved); }
+                if let Some(source) = &mut note.source {
+                    source.move_clock(&moved);
+                }
+                if let Some(glide) = &mut note.glide {
+                    glide.move_clock(&moved);
+                }
             }
         }
     }
@@ -854,10 +1001,19 @@ impl InstrumentUnit {
     }
     pub fn refresh_curve_sources(&mut self, plan: &Plan) {
         for note in self.notes.iter_mut().filter(|note| note.active) {
-            if let Some(source) = &mut note.source { source.refresh(plan); }
+            if let Some(source) = &mut note.source {
+                source.refresh(plan);
+            }
         }
     }
-    fn render_with_plan(&mut self, plan: Option<&Plan>, clock: Clock, base: u64, from: usize, to: usize) {
+    fn render_with_plan(
+        &mut self,
+        plan: Option<&Plan>,
+        clock: Clock,
+        base: u64,
+        from: usize,
+        to: usize,
+    ) {
         let mut at = from;
         while self.held > 0 {
             // The note that ends first. Of notes that end on one frame the
@@ -868,7 +1024,11 @@ impl InstrumentUnit {
                     continue;
                 }
                 let frame = clock.frame_of(note.end);
-                if frame < base + to as u64 && next.is_none_or(|(first, before)| (frame, note.id.0) < (first, self.notes[before].id.0)) {
+                if frame < base + to as u64
+                    && next.is_none_or(|(first, before)| {
+                        (frame, note.id.0) < (first, self.notes[before].id.0)
+                    })
+                {
                     next = Some((frame, slot));
                 }
             }
@@ -882,12 +1042,18 @@ impl InstrumentUnit {
             // Evaluate the boundary too: a held last segment may jump at 100%,
             // and its release value must be installed before key-up.
             let note = self.notes[slot];
-            if let Some((pan, expression)) = note.source.filter(|source| source.active)
-                .and_then(|source| plan.map(|plan| source.controls(plan, clock.tick_at(base + split as u64))))
+            if let Some((pan, expression)) =
+                note.source
+                    .filter(|source| source.active)
+                    .and_then(|source| {
+                        plan.map(|plan| source.controls(plan, clock.tick_at(base + split as u64)))
+                    })
                 && (pan != note.pan || expression != note.expression)
             {
                 self.set_note_expression(note.id, pan, expression);
-                if !self.external.as_ref().is_some_and(|unit| unit.as_ref().is_none_or(|unit| !unit.supports_note_pitch())) {
+                if !self.external.as_ref().is_some_and(|unit| {
+                    unit.as_ref().is_none_or(|unit| !unit.supports_note_pitch())
+                }) {
                     self.set_pitch(note.id, self.notes[slot].pitch);
                 }
             }
@@ -897,8 +1063,17 @@ impl InstrumentUnit {
     }
 
     fn process(&mut self, plan: Option<&Plan>, clock: Clock, base: u64, from: usize, to: usize) {
-        let pitch_supported = !self.external.as_ref().is_some_and(|unit| unit.as_ref().is_none_or(|unit| !unit.supports_note_pitch()));
-        if !self.notes.iter().any(|note| note.active && (note.channel_envelopes.is_some() || self.voice_glide < 1.0 || pitch_supported && note.glide.is_some() || plan.is_some() && note.source.is_some_and(|source| source.active))) {
+        let pitch_supported = !self
+            .external
+            .as_ref()
+            .is_some_and(|unit| unit.as_ref().is_none_or(|unit| !unit.supports_note_pitch()));
+        if !self.notes.iter().any(|note| {
+            note.active
+                && (note.channel_envelopes.is_some()
+                    || self.voice_glide < 1.0
+                    || pitch_supported && note.glide.is_some()
+                    || plan.is_some() && note.source.is_some_and(|source| source.active))
+        }) {
             self.process_audio(base, from, to);
             return;
         }
@@ -910,8 +1085,13 @@ impl InstrumentUnit {
             let tick = clock.tick_at(base + frame as u64);
             for slot in 0..self.notes.len() {
                 let before = self.notes[slot];
-                if !before.active { continue; }
-                let controls = before.source.filter(|source| source.active).and_then(|source| plan.map(|plan| source.controls(plan, tick)));
+                if !before.active {
+                    continue;
+                }
+                let controls = before
+                    .source
+                    .filter(|source| source.active)
+                    .and_then(|source| plan.map(|plan| source.controls(plan, tick)));
                 let mut pitch_changed = false;
                 if let Some((pan, expression)) = controls
                     && (pan != before.pan || expression != before.expression)
@@ -922,7 +1102,9 @@ impl InstrumentUnit {
                 let gliding = pitch_supported && note.glide.is_some();
                 if let Some(glide) = note.glide.filter(|_| pitch_supported) {
                     note.pitch = glide.at(tick);
-                    if tick >= glide.end { note.glide = None; }
+                    if tick >= glide.end {
+                        note.glide = None;
+                    }
                 }
                 let mut modulated_controls = None;
                 let mut pitch_offset = 0.0;
@@ -932,7 +1114,9 @@ impl InstrumentUnit {
                     // themselves, on top of what the map made of the note.
                     let base = voice_controls(map, hosted, note.pan, note.expression);
                     let mut expression = base.expression;
-                    expression.modulation_x = (expression.modulation_x + modulation.filter_cutoff_offset[0] / 8.0).clamp(0.0, 1.0);
+                    expression.modulation_x = (expression.modulation_x
+                        + modulation.filter_cutoff_offset[0] / 8.0)
+                        .clamp(0.0, 1.0);
                     let pan = (base.pan + modulation.pan[0]).clamp(-1.0, 1.0);
                     modulated_controls = Some((pan, expression));
                     pitch_offset = f64::from(modulation.pitch_cents[0]) / 100.0;
@@ -941,18 +1125,31 @@ impl InstrumentUnit {
                 let (id, pitch) = (note.id, note.channel_pitch + pitch_offset);
                 if let Some((pan, expression)) = modulated_controls {
                     // Send through the existing per-instance expression API; don't overwrite base musical curves.
-                    if let Some(Some(unit)) = &mut self.external { unit.set_note_expression(id, pan, expression); }
-                    else if self.external.is_none() { self.instrument.set_note_expression(id, pan, expression); }
+                    if let Some(Some(unit)) = &mut self.external {
+                        unit.set_note_expression(id, pan, expression);
+                    } else if self.external.is_none() {
+                        self.instrument.set_note_expression(id, pan, expression);
+                    }
                 }
-                if pitch_supported && (gliding || pitch_changed || modulated_controls.is_some() || self.voice_glide < 1.0) { self.set_pitch(id, pitch); }
+                if pitch_supported
+                    && (gliding
+                        || pitch_changed
+                        || modulated_controls.is_some()
+                        || self.voice_glide < 1.0)
+                {
+                    self.set_pitch(id, pitch);
+                }
             }
             self.process_audio(base, frame, frame + 1);
         }
     }
 
     fn set_pitch(&mut self, id: NoteInstanceId, pitch: f64) {
-        if let Some(Some(unit)) = &mut self.external { unit.set_note_pitch(id, pitch as f32); }
-        else if self.external.is_none() { self.instrument.set_note_pitch(id, pitch as f32); }
+        if let Some(Some(unit)) = &mut self.external {
+            unit.set_note_pitch(id, pitch as f32);
+        } else if self.external.is_none() {
+            self.instrument.set_note_pitch(id, pitch as f32);
+        }
     }
 
     fn process_audio(&mut self, base: u64, from: usize, to: usize) {
@@ -989,22 +1186,39 @@ impl InstrumentUnit {
     }
 
     fn release_slot(&mut self, slot: usize) {
-        if let Some(envelopes) = &mut self.notes[slot].channel_envelopes { envelopes.gate_off(); }
+        if let Some(envelopes) = &mut self.notes[slot].channel_envelopes {
+            envelopes.gate_off();
+        }
         let note = self.notes[slot];
-        if !note.active { return; }
+        if !note.active {
+            return;
+        }
         self.notes[slot].active = false;
         self.held -= 1;
-        let other_on_key = self.notes.iter().any(|other| other.active && other.key == note.key);
+        let other_on_key = self
+            .notes
+            .iter()
+            .any(|other| other.active && other.key == note.key);
         if let Some(external) = &mut self.external {
             if let Some(unit) = external {
                 let other_on_key = if unit.supports_note_channels() {
-                    self.notes.iter().any(|other| other.active && other.key == note.key
-                        && other.expression.color_group.unwrap_or(0) == note.expression.color_group.unwrap_or(0))
-                } else { other_on_key };
+                    self.notes.iter().any(|other| {
+                        other.active
+                            && other.key == note.key
+                            && other.expression.color_group.unwrap_or(0)
+                                == note.expression.color_group.unwrap_or(0)
+                    })
+                } else {
+                    other_on_key
+                };
                 // A key-only provider cannot address the shorter overlap.
                 // Keep that key down until its final logical owner ends.
                 if unit.supports_note_instances() || !other_on_key {
-                    unit.note_off_on_channel(note.id, note.key, note.expression.color_group.unwrap_or(0));
+                    unit.note_off_on_channel(
+                        note.id,
+                        note.key,
+                        note.expression.color_group.unwrap_or(0),
+                    );
                 }
             }
         } else {
@@ -1015,20 +1229,39 @@ impl InstrumentUnit {
     }
 
     /// Returns true when the note's pitch moved, which the caller sends on.
-    pub fn set_note_expression(&mut self, id: NoteInstanceId, pan: f32, expression: NoteExpression) -> bool {
+    pub fn set_note_expression(
+        &mut self,
+        id: NoteInstanceId,
+        pan: f32,
+        expression: NoteExpression,
+    ) -> bool {
         self.apply_expression(id, pan, expression) != 0.0
     }
 
     /// Stores a note's controls and sends them on through the expression map.
     /// Returns the keys its pitch moved by.
-    fn apply_expression(&mut self, id: NoteInstanceId, pan: f32, expression: NoteExpression) -> f64 {
+    fn apply_expression(
+        &mut self,
+        id: NoteInstanceId,
+        pan: f32,
+        expression: NoteExpression,
+    ) -> f64 {
         let expression = expression.clamped();
-        let pan = if pan.is_finite() { pan.clamp(-1.0, 1.0) } else { 0.0 };
+        let pan = if pan.is_finite() {
+            pan.clamp(-1.0, 1.0)
+        } else {
+            0.0
+        };
         let controls = self.controls(pan, expression);
         let mut moved = 0.0;
         let mut gain_changed = false;
-        if let Some(note) = self.notes.iter_mut().find(|note| note.active && note.id == id) {
-            moved = f64::from(expression.fine_pitch_cents - note.expression.fine_pitch_cents) / 100.0
+        if let Some(note) = self
+            .notes
+            .iter_mut()
+            .find(|note| note.active && note.id == id)
+        {
+            moved = f64::from(expression.fine_pitch_cents - note.expression.fine_pitch_cents)
+                / 100.0
                 + f64::from(controls.pitch_cents - note.map_cents) / 100.0;
             note.pitch += moved;
             if let Some(glide) = &mut note.glide {
@@ -1041,25 +1274,47 @@ impl InstrumentUnit {
             note.map_gain = controls.gain;
             note.map_cents = controls.pitch_cents;
         }
-        if let Some(Some(unit)) = &mut self.external { unit.set_note_expression(id, pan, expression); }
-        else if self.external.is_none() {
-            self.instrument.set_note_expression(id, controls.pan, controls.expression);
-            if gain_changed { self.instrument.set_note_gain(id, controls.gain); }
+        if let Some(Some(unit)) = &mut self.external {
+            unit.set_note_expression(id, pan, expression);
+        } else if self.external.is_none() {
+            self.instrument
+                .set_note_expression(id, controls.pan, controls.expression);
+            if gain_changed {
+                self.instrument.set_note_gain(id, controls.gain);
+            }
         }
         moved
     }
 
-    pub fn retarget_instance(&mut self, id: NoteInstanceId, note: crate::voice::Note, at: f64, glide_end: f64) -> bool {
+    pub fn retarget_instance(
+        &mut self,
+        id: NoteInstanceId,
+        note: crate::voice::Note,
+        at: f64,
+        glide_end: f64,
+    ) -> bool {
         let controls = self.controls(note.pan, note.expression.clamped());
-        let Some(held) = self.notes.iter_mut().find(|held| held.active && held.id == id) else { return false; };
-        held.key = note.key; held.end = note.end; held.source = note.source; held.origin = note.origin;
-        held.pitch = f64::from(note.key) + f64::from(note.expression.fine_pitch_cents) / 100.0
+        let Some(held) = self
+            .notes
+            .iter_mut()
+            .find(|held| held.active && held.id == id)
+        else {
+            return false;
+        };
+        held.key = note.key;
+        held.end = note.end;
+        held.source = note.source;
+        held.origin = note.origin;
+        held.pitch = f64::from(note.key)
+            + f64::from(note.expression.fine_pitch_cents) / 100.0
             + f64::from(controls.pitch_cents) / 100.0;
         held.map_cents = controls.pitch_cents;
         let target = held.pitch;
         held.glide = if note.expression.articulation == NoteArticulation::Portamento {
             Some(NoteGlide::new(at, glide_end, held.channel_pitch, target))
-        } else { None };
+        } else {
+            None
+        };
         held.pitch = held.glide.map_or(target, |glide| glide.from);
         let pitch = held.channel_pitch;
         held.expression = note.expression.clamped();
@@ -1070,13 +1325,19 @@ impl InstrumentUnit {
 
     pub fn reset_channel_modulation(&mut self) {
         for note in self.notes.iter_mut() {
-            if let Some(envelopes) = &mut note.channel_envelopes { envelopes.reset(); }
+            if let Some(envelopes) = &mut note.channel_envelopes {
+                envelopes.reset();
+            }
         }
     }
 
     /// Schedule a release without touching any sibling occurrence on its key.
     pub fn release_instance(&mut self, id: NoteInstanceId) {
-        if let Some(note) = self.notes.iter_mut().find(|note| note.active && note.id == id) {
+        if let Some(note) = self
+            .notes
+            .iter_mut()
+            .find(|note| note.active && note.id == id)
+        {
             note.end = f64::NEG_INFINITY;
         }
     }
@@ -1661,9 +1922,19 @@ mod tests {
 }
 
 /// A note's controls for a built-in instrument, or untouched for a hosted one.
-fn voice_controls(map: ExpressionMap, hosted: bool, pan: f32, expression: NoteExpression) -> VoiceControls {
+fn voice_controls(
+    map: ExpressionMap,
+    hosted: bool,
+    pan: f32,
+    expression: NoteExpression,
+) -> VoiceControls {
     if hosted {
-        VoiceControls { expression, pan, gain: 1.0, pitch_cents: 0.0 }
+        VoiceControls {
+            expression,
+            pan,
+            gain: 1.0,
+            pitch_cents: 0.0,
+        }
     } else {
         map.resolve(pan, expression)
     }

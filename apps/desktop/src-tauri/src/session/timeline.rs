@@ -122,8 +122,14 @@ impl Session {
         patch: TransportPatch,
         guard: TimelinePlaybackState,
     ) -> Result<TransportState, String> {
-        if patch.count_in_bars.is_some_and(|bars| bars > 8) { return Err("Count-in must be 0 to 8 bars.".into()); }
-        if patch.metronome.is_some_and(|settings| !settings.gain.is_finite() || !(0.0..=1.0).contains(&settings.gain)) { return Err("Metronome gain must be between 0 and 1.".into()); }
+        if patch.count_in_bars.is_some_and(|bars| bars > 8) {
+            return Err("Count-in must be 0 to 8 bars.".into());
+        }
+        if patch.metronome.is_some_and(|settings| {
+            !settings.gain.is_finite() || !(0.0..=1.0).contains(&settings.gain)
+        }) {
+            return Err("Metronome gain must be between 0 and 1.".into());
+        }
         let _recording = self.recording_idle()?;
         let state = self.state();
         self.check_timeline_guard(&state, guard, self.controller().timeline_region())?;

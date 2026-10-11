@@ -1112,8 +1112,7 @@ impl PlanState {
             for edge in &track.edges {
                 edges[edge.slot] = Ramp::at_rest(edge.gain);
                 let key = DelayKey::of_edge(track.id, edge);
-                let delay =
-                    layout.arrival[edge.target].saturating_sub(layout.edge_out[edge.slot]);
+                let delay = layout.arrival[edge.target].saturating_sub(layout.edge_out[edge.slot]);
                 let reach = layout.reach[edge.target];
                 let path = if edge.tap.is_some() {
                     Vec::new()
@@ -1460,7 +1459,11 @@ impl PlanState {
             }
             for edge in &plan.tracks[index].edges {
                 let gain = self.edges[edge.slot].at(now);
-                let sum = if edge.tap.is_some() { &mut tapped } else { &mut onward };
+                let sum = if edge.tap.is_some() {
+                    &mut tapped
+                } else {
+                    &mut onward
+                };
                 sum[0] += gain * gains[edge.target][0];
                 sum[1] += gain * gains[edge.target][1];
             }
@@ -1824,8 +1827,8 @@ impl PlanState {
                     self.sample_rate as usize,
                 );
                 for edge in &track.edges {
-                    let delay = layout.arrival[edge.target]
-                        .saturating_sub(layout.edge_out[edge.slot]);
+                    let delay =
+                        layout.arrival[edge.target].saturating_sub(layout.edge_out[edge.slot]);
                     if edge.tap.is_some() {
                         self.edge_delays[edge.slot].resolve_scalar(delay);
                         continue;

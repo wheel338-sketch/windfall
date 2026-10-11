@@ -1544,12 +1544,8 @@ impl Transaction<'_> {
             }
             // The route being replaced is not part of the loop test.
             let mut without = self.project.mixer.clone();
-            without.effect_outputs = crate::effect_outputs::with_route(
-                &without.effect_outputs,
-                effect,
-                output,
-                None,
-            );
+            without.effect_outputs =
+                crate::effect_outputs::with_route(&without.effect_outputs, effect, output, None);
             if reaches(&without, to, from) {
                 return Err(CommandError::invalid(
                     "The route would make routing loop back on itself",

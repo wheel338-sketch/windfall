@@ -506,7 +506,10 @@ pub fn import(song: &MidiSong, options: &ImportOptions) -> ImportPlan {
     if options.note_expression {
         builder.mpe_members = import_expression::mpe_members(&song.tracks);
         if builder.mpe_members > 0 {
-            let setup = song.tracks.iter().map(import_expression::mpe_setup_messages);
+            let setup = song
+                .tracks
+                .iter()
+                .map(import_expression::mpe_setup_messages);
             builder.fitted.controllers_kept += setup.sum::<usize>();
         }
     }

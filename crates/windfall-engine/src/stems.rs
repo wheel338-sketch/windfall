@@ -259,7 +259,12 @@ fn sources(project: &Project, through: bool) -> Vec<bool> {
                 .iter()
                 .filter(|route| track.effects.iter().any(|slot| slot.id == route.effect))
                 .map(|route| route.target);
-            for target in output.into_iter().chain(sends).chain(effect_outputs).filter_map(place) {
+            for target in output
+                .into_iter()
+                .chain(sends)
+                .chain(effect_outputs)
+                .filter_map(place)
+            {
                 gives[target] = true;
             }
         }

@@ -12,7 +12,11 @@ use crate::support::{Rig, plain_synth, sine};
 
 const RATE: u32 = 48_000;
 
-fn curve(note: NoteId, parameter: NoteCurveParameter, values: &[(f32, f32)]) -> NoteExpressionCurve {
+fn curve(
+    note: NoteId,
+    parameter: NoteCurveParameter,
+    values: &[(f32, f32)],
+) -> NoteExpressionCurve {
     NoteExpressionCurve {
         note,
         parameter,
@@ -101,7 +105,11 @@ fn expressive() -> (Rig, ChannelId, ChannelId) {
             NoteCurveParameter::ModulationY,
             &[(0.0, 0.9), (1.0, 0.2)],
         ));
-        curves.push(curve(pair[1], NoteCurveParameter::Pan, &[(0.0, -1.0), (1.0, 1.0)]));
+        curves.push(curve(
+            pair[1],
+            NoteCurveParameter::Pan,
+            &[(0.0, -1.0), (1.0, 1.0)],
+        ));
         curves.push(curve(
             pair[2],
             NoteCurveParameter::Release,
@@ -156,7 +164,11 @@ fn live(rig: &Rig, block: usize) -> Vec<f32> {
 fn print_the_reference_fingerprints() {
     let (rig, _, _) = expressive();
     let live = live(&rig, 64);
-    println!("BLOCKS 37={:#018x} 512={:#018x}", fingerprint(&self::live(&rig, 37)), fingerprint(&self::live(&rig, 512)));
+    println!(
+        "BLOCKS 37={:#018x} 512={:#018x}",
+        fingerprint(&self::live(&rig, 37)),
+        fingerprint(&self::live(&rig, 512))
+    );
     assert!(crate::support::peak(&live) > 0.05, "the fixture must sound");
     println!(
         "REFERENCE live={:#018x} offline={:#018x}",

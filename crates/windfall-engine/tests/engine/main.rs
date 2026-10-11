@@ -2,6 +2,7 @@
 //! device: they drive a `Processor` directly or use the offline renderer.
 
 mod audio_clips;
+mod audio_logger;
 mod automation;
 mod device;
 mod effects;
@@ -13,8 +14,8 @@ mod mixer;
 mod modulation;
 mod playlist_layouts;
 mod playlist_stems;
-mod rack_voice;
 mod project_settings;
+mod rack_voice;
 mod realtime;
 mod rendering;
 mod sampler;
@@ -24,7 +25,6 @@ mod stems;
 mod support;
 mod timeline;
 mod utility_effects;
-mod audio_logger;
 
 /// Counts allocator calls for the realtime tests. It does nothing on a
 /// thread that is not being watched, so the other tests are unaffected.

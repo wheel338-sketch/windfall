@@ -139,7 +139,11 @@ impl ExpressionRoute {
     }
 
     fn depth(&self) -> f32 {
-        if self.invert { -self.amount } else { self.amount }
+        if self.invert {
+            -self.amount
+        } else {
+            self.amount
+        }
     }
 
     /// The control as a signed offset from neutral, -0.5 to 0.5.
@@ -399,7 +403,9 @@ impl ExpressionMap {
 
     /// The plugin kinds this map drives besides pan and tuning.
     pub fn plugin_mask(&self) -> u32 {
-        self.modulation_x.plugin.mask() | self.modulation_y.plugin.mask() | self.release.plugin.mask()
+        self.modulation_x.plugin.mask()
+            | self.modulation_y.plugin.mask()
+            | self.release.plugin.mask()
     }
 }
 
@@ -438,7 +444,10 @@ mod tests {
             assert_eq!(controls.gain.to_bits(), 1.0_f32.to_bits());
             assert_eq!(controls.pitch_cents.to_bits(), 0.0_f32.to_bits());
             let plugin = map.plugin_controls(pan, 0.125, expression);
-            assert_eq!(plugin.mask, 0b0110110, "pan, tuning, expression, brightness");
+            assert_eq!(
+                plugin.mask, 0b0110110,
+                "pan, tuning, expression, brightness"
+            );
             assert_eq!(plugin.values[1], (f64::from(pan) + 1.0) / 2.0);
             assert_eq!(plugin.values[2], 0.125);
             assert_eq!(plugin.values[5], f64::from(x), "modulation X is brightness");
@@ -458,15 +467,24 @@ mod tests {
         };
         let neutral = with(ExpressionDestination::None).resolve(0.25, expression);
         assert_eq!(neutral.expression.modulation_x, 0.5);
-        assert_eq!((neutral.pan, neutral.gain, neutral.pitch_cents), (0.25, 1.0, 0.0));
+        assert_eq!(
+            (neutral.pan, neutral.gain, neutral.pitch_cents),
+            (0.25, 1.0, 0.0)
+        );
         let volume = with(ExpressionDestination::Volume).resolve(0.25, expression);
-        assert_eq!(volume.expression.modulation_x, 0.5, "the filter stays where it was");
+        assert_eq!(
+            volume.expression.modulation_x, 0.5,
+            "the filter stays where it was"
+        );
         assert!((20.0 * volume.gain.log10() - 24.0).abs() < 1.0e-3);
         let pan = with(ExpressionDestination::Pan).resolve(0.25, expression);
         assert_eq!((pan.pan, pan.gain), (1.0, 1.0));
         let pitch = with(ExpressionDestination::Pitch).resolve(0.25, expression);
         assert_eq!(pitch.pitch_cents, 1200.0);
-        assert_eq!(pitch.expression.fine_pitch_cents, 12.5, "fine pitch is the note's own");
+        assert_eq!(
+            pitch.expression.fine_pitch_cents, 12.5,
+            "fine pitch is the note's own"
+        );
         let resonance = with(ExpressionDestination::Resonance).resolve(0.25, expression);
         assert_eq!(resonance.expression.modulation_y, 1.0);
         assert_eq!(resonance.expression.modulation_x, 0.5);
@@ -491,7 +509,10 @@ mod tests {
         assert_eq!(controls.pitch_cents, -100.0);
         let plugin = map.plugin_controls(0.0, 0.25, note(1.0, 0.5, 0.5));
         assert_eq!(plugin.values[2], 0.25 - 1.0, "half of two semitones down");
-        assert_eq!(plugin.mask & PluginExpressionDestination::Brightness.mask(), 0);
+        assert_eq!(
+            plugin.mask & PluginExpressionDestination::Brightness.mask(),
+            0
+        );
         let both = ExpressionMap {
             modulation_y: ExpressionRoute {
                 destination: ExpressionDestination::Cutoff,
@@ -521,7 +542,10 @@ mod tests {
         assert_eq!(quiet.values[0], 1.0, "neutral is unity gain");
         assert_eq!(quiet.values[1], 0.5);
         let loud = map.plugin_controls(0.0, 0.0, note(1.0, 1.0, 0.5));
-        assert_eq!(loud.values[0], 4.0, "24 dB up is past the standard ceiling of 4");
+        assert_eq!(
+            loud.values[0], 4.0,
+            "24 dB up is past the standard ceiling of 4"
+        );
         assert_eq!(loud.values[1], 1.0);
         assert_eq!(loud.mask, 0b0000111);
     }

@@ -6,10 +6,10 @@ use windfall_engine::{Controller, Processor, SamplePool};
 use windfall_ipc::{PlayMode, TransportPatch};
 use windfall_project::{Automation, AutomationId, AutomationPoint, AutomationTarget};
 use windfall_project::{
-    Channel, ChannelId, ChannelSource, Clip, ClipContent, ClipId, EffectId, EffectParams,
-    EffectSlot, InstrumentParams, Lane, MixerTrack, Note, NoteId, Pattern, PatternId,
+    Channel, ChannelId, ChannelSource, Clip, ClipContent, ClipId, DEFAULT_KEY, EffectId,
+    EffectParams, EffectSlot, InstrumentParams, Lane, MixerTrack, Note, NoteId, Pattern, PatternId,
     PlaylistTrack, PlaylistTrackId, Project, SampleAsset, SampleId, SamplePath, SamplerSettings,
-    TrackId, DEFAULT_KEY,
+    TrackId,
 };
 
 /// A project under construction together with its decoded samples.

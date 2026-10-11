@@ -59,7 +59,9 @@ fn lane(
         target,
         points: points(curve),
     });
-    rig.project.check().expect("the project is one a file could hold");
+    rig.project
+        .check()
+        .expect("the project is one a file could hold");
     id
 }
 
@@ -288,7 +290,11 @@ fn live_playback_is_the_same_for_every_block_size_and_matches_offline_render() {
     let (pattern_rig, _, _) = held_pattern();
     let reference = pattern_rig.play(RATE, PASS * 2, 64);
     for block in [1, 7, 480, 1_024] {
-        assert_eq!(pattern_rig.play(RATE, PASS * 2, block), reference, "block {block}");
+        assert_eq!(
+            pattern_rig.play(RATE, PASS * 2, block),
+            reference,
+            "block {block}"
+        );
     }
     let options = RenderOptions {
         mode: PlayMode::Pattern,
@@ -298,7 +304,12 @@ fn live_playback_is_the_same_for_every_block_size_and_matches_offline_render() {
         block_frames: 37,
         ..Default::default()
     };
-    let audio = render(&pattern_rig.project, &pattern_rig.pool, &options, &mut |_| true);
+    let audio = render(
+        &pattern_rig.project,
+        &pattern_rig.pool,
+        &options,
+        &mut |_| true,
+    );
     assert_eq!(audio.frames(), PASS * 2);
     assert_eq!(audio.samples(), &reference[..]);
 
@@ -308,7 +319,11 @@ fn live_playback_is_the_same_for_every_block_size_and_matches_offline_render() {
     let frames = 30_720 * TICK;
     let reference = song_rig.play_song(RATE, frames, 64);
     for block in [7, 1_024] {
-        assert_eq!(song_rig.play_song(RATE, frames, block), reference, "block {block}");
+        assert_eq!(
+            song_rig.play_song(RATE, frames, block),
+            reference,
+            "block {block}"
+        );
     }
     let options = RenderOptions {
         mode: PlayMode::Song,
@@ -398,7 +413,10 @@ fn every_kind_of_target_is_moved_and_the_callback_never_allocates() {
             processor.process(chunk);
         }
     });
-    assert_eq!(calls, 0, "the audio callback allocated or freed in the song");
+    assert_eq!(
+        calls, 0,
+        "the audio callback allocated or freed in the song"
+    );
     assert_eq!(controller.frame().automated.len(), ids.len());
 }
 

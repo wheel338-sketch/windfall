@@ -292,7 +292,11 @@ fn a_portamento_starts_at_the_note_before_and_glides_to_its_own_pitch() {
         ],
     );
     let (song, report) = round(&document, &voice());
-    assert_eq!(song.tracks[0].notes.len(), 2, "the destination is a real note");
+    assert_eq!(
+        song.tracks[0].notes.len(),
+        2,
+        "the destination is a real note"
+    );
     assert_eq!(report.glides, 1);
     let channel = song.tracks[0].notes[1].channel;
     let bend = points(&song, channel, ControlKind::PitchBend);
@@ -326,12 +330,22 @@ fn colour_groups_choose_the_channel_and_each_channel_has_its_own_bend() {
         ],
     );
     let (song, report) = round(&document, &voice());
-    let channels: Vec<u8> = song.tracks[0].notes.iter().map(|note| note.channel).collect();
+    let channels: Vec<u8> = song.tracks[0]
+        .notes
+        .iter()
+        .map(|note| note.channel)
+        .collect();
     assert_eq!(channels, [3, 9, 15]);
     let up = bend_from_semitones(2.0, DEFAULT_BEND_RANGE).0;
     let down = bend_from_semitones(-2.0, DEFAULT_BEND_RANGE).0;
-    assert_eq!(value_at(&points(&song, 3, ControlKind::PitchBend), 0), Some(up));
-    assert_eq!(value_at(&points(&song, 9, ControlKind::PitchBend), 0), Some(down));
+    assert_eq!(
+        value_at(&points(&song, 3, ControlKind::PitchBend), 0),
+        Some(up)
+    );
+    assert_eq!(
+        value_at(&points(&song, 9, ControlKind::PitchBend), 0),
+        Some(down)
+    );
     assert!(points(&song, 15, ControlKind::PitchBend).is_empty());
     // Three notes at once on three channels overlap nothing.
     assert_eq!(report.overlap_notes, 0);
@@ -520,8 +534,14 @@ fn a_file_with_expression_imports_its_fine_pitch_and_modulation() {
         .flat_map(|lane| &lane.notes)
         .collect();
     assert_eq!(notes.len(), 2);
-    let first = notes.iter().find(|note| note.key == 60).expect("the bent note");
-    let second = notes.iter().find(|note| note.key == 62).expect("the plain note");
+    let first = notes
+        .iter()
+        .find(|note| note.key == 60)
+        .expect("the bent note");
+    let second = notes
+        .iter()
+        .find(|note| note.key == 62)
+        .expect("the plain note");
     assert!((first.expression.fine_pitch_cents - 50.0).abs() < 0.2);
     assert_eq!(
         first.expression.modulation_x,

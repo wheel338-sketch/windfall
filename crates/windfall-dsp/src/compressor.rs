@@ -226,7 +226,13 @@ impl Compressor {
         let peak_mode = self.params.detector == DetectorMode::Peak;
         let mut deepest = 0.0_f32;
         for (index, (left, right)) in left.iter_mut().zip(right.iter_mut()).enumerate() {
-            let input = if self.params.sidechain { key.and_then(|key| key.get(index)).copied().unwrap_or([0.0; 2]) } else { [*left, *right] };
+            let input = if self.params.sidechain {
+                key.and_then(|key| key.get(index))
+                    .copied()
+                    .unwrap_or([0.0; 2])
+            } else {
+                [*left, *right]
+            };
             // The RMS average runs in both modes so that switching to it
             // does not start from a stale value.
             let rms = self.rms.tick_db(input[0], input[1]);
@@ -249,7 +255,6 @@ impl Compressor {
         }
         self.meter.raise(deepest);
     }
-
 }
 
 impl Effect for Compressor {
@@ -273,8 +278,12 @@ impl Effect for Compressor {
         self.apply();
     }
 
-    fn process(&mut self, left: &mut [f32], right: &mut [f32]) { self.process_detector(left, right, None); }
-    fn process_sidechain(&mut self, left: &mut [f32], right: &mut [f32], key: Option<&[[f32; 2]]>) { self.process_detector(left, right, key); }
+    fn process(&mut self, left: &mut [f32], right: &mut [f32]) {
+        self.process_detector(left, right, None);
+    }
+    fn process_sidechain(&mut self, left: &mut [f32], right: &mut [f32], key: Option<&[[f32; 2]]>) {
+        self.process_detector(left, right, key);
+    }
 
     fn gap_samples(&self) -> usize {
         // While the compressor lets go, a tail that is dying away can get

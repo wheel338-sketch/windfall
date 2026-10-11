@@ -1,8 +1,8 @@
 //! Saved recording associations; source audio remains ordinary playlist clips.
-use serde::{Deserialize, Serialize};
-use ts_rs::TS;
-use std::collections::HashSet;
 use crate::{ClipContent, ClipId, Project};
+use serde::{Deserialize, Serialize};
+use std::collections::HashSet;
+use ts_rs::TS;
 
 pub const MAX_TAKE_GROUPS: usize = 256;
 pub const MAX_TAKE_GROUP_LANES: usize = crate::MAX_MIXER_TRACKS;
@@ -23,25 +23,44 @@ pub struct AudioTakeGroup {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
 #[ts(export)]
-pub struct AudioTakeLane { pub name: String, pub takes: Vec<AudioTakeRef> }
+pub struct AudioTakeLane {
+    pub name: String,
+    pub takes: Vec<AudioTakeRef>,
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
 #[ts(export)]
-pub struct AudioTakeRef { pub pass: u16, pub clip: ClipId }
+pub struct AudioTakeRef {
+    pub pass: u16,
+    pub clip: ClipId,
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
 #[ts(export)]
-pub struct TakeCompRange { pub pass: u16, pub start: u32, pub end: u32 }
+pub struct TakeCompRange {
+    pub pass: u16,
+    pub start: u32,
+    pub end: u32,
+}
 
 pub(crate) fn check_group(project: &Project, group: &AudioTakeGroup) -> Result<(), String> {
-    if group.name.len() > 128 || group.name.contains('\0') || group.lanes.len() > MAX_TAKE_GROUP_LANES
-        || group.lanes.is_empty() && group.comp.is_empty() || group.comp.len() > 2048 * MAX_TAKE_GROUP_LANES
-    { return Err("Take group name, lane count or composite exceeds its bounds".into()); }
+    if group.name.len() > 128
+        || group.name.contains('\0')
+        || group.lanes.len() > MAX_TAKE_GROUP_LANES
+        || group.lanes.is_empty() && group.comp.is_empty()
+        || group.comp.len() > 2048 * MAX_TAKE_GROUP_LANES
+    {
+        return Err("Take group name, lane count or composite exceeds its bounds".into());
+    }
     let mut clips = HashSet::new();
     for lane in &group.lanes {
-        if lane.name.len() > 128 || lane.name.contains('\0') || lane.takes.is_empty() || lane.takes.len() > 256 {
+        if lane.name.len() > 128
+            || lane.name.contains('\0')
+            || lane.takes.is_empty()
+            || lane.takes.len() > 256
+        {
             return Err("Take lanes need a bounded name and 1–256 retained passes".into());
         }
         let mut passes = HashSet::new();
@@ -52,19 +71,35 @@ pub(crate) fn check_group(project: &Project, group: &AudioTakeGroup) -> Result<(
         }
     }
     for clip in &group.comp {
-        if !clips.insert(*clip) { return Err("A composite cannot repeat or reuse a take source ID".into()); }
+        if !clips.insert(*clip) {
+            return Err("A composite cannot repeat or reuse a take source ID".into());
+        }
     }
-    if clips.iter().any(|id| !project.playlist.clips.iter().any(|clip| clip.id == *id && matches!(clip.content, ClipContent::Audio { .. }))) {
+    if clips.iter().any(|id| {
+        !project
+            .playlist
+            .clips
+            .iter()
+            .any(|clip| clip.id == *id && matches!(clip.content, ClipContent::Audio { .. }))
+    }) {
         return Err("Take group audio clips must exist in the playlist".into());
     }
     Ok(())
 }
 
 pub(crate) fn prune(project: &Project) -> Vec<AudioTakeGroup> {
-    let live: HashSet<_> = project.playlist.clips.iter().filter(|clip| matches!(clip.content, ClipContent::Audio { .. })).map(|clip| clip.id).collect();
+    let live: HashSet<_> = project
+        .playlist
+        .clips
+        .iter()
+        .filter(|clip| matches!(clip.content, ClipContent::Audio { .. }))
+        .map(|clip| clip.id)
+        .collect();
     let mut groups = project.playlist.take_groups.clone();
     for group in &mut groups {
-        for lane in &mut group.lanes { lane.takes.retain(|take| live.contains(&take.clip)); }
+        for lane in &mut group.lanes {
+            lane.takes.retain(|take| live.contains(&take.clip));
+        }
         group.lanes.retain(|lane| !lane.takes.is_empty());
         group.comp.retain(|clip| live.contains(clip));
     }

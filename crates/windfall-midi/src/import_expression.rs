@@ -129,7 +129,11 @@ pub(crate) fn read(
             let after = ranges.partition_point(|&(at, _)| at <= tick);
             after.checked_sub(1).map(|index| ranges[index].1)
         });
-        let default = if member { MPE_BEND_RANGE } else { DEVICE_BEND_RANGE };
+        let default = if member {
+            MPE_BEND_RANGE
+        } else {
+            DEVICE_BEND_RANGE
+        };
         set.unwrap_or(default).clamp(1, MAX_BEND_RANGE)
     };
 
@@ -165,7 +169,12 @@ pub(crate) fn read(
     }
     if ranges.is_some() {
         // The messages that set the bend range were put to use.
-        let setup = [CC_RPN_COARSE, CC_RPN_FINE, CC_DATA_ENTRY, CC_DATA_ENTRY_FINE];
+        let setup = [
+            CC_RPN_COARSE,
+            CC_RPN_FINE,
+            CC_DATA_ENTRY,
+            CC_DATA_ENTRY_FINE,
+        ];
         part.controllers_kept += setup
             .into_iter()
             .map(|controller| points(ControlKind::Controller(controller)).len())

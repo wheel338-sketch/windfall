@@ -49,36 +49,36 @@
 
 pub mod additive;
 mod balance;
-pub mod drums;
-pub mod drive;
-pub mod fm;
-pub mod multiband;
-pub mod physical;
-pub mod spatial;
-pub mod performance;
-pub mod granular;
-pub mod spectral;
 pub mod blocks;
 mod channel_mute;
 mod compressor;
 mod dc_block;
 mod delay;
 mod distortion;
+pub mod drive;
+pub mod drums;
 pub mod echo_bank;
 mod effect;
 mod eq;
-pub mod filter_family;
-pub mod frequency_delay;
-mod instrument;
-mod note_expression;
 pub mod expression_map;
+pub mod filter_family;
+pub mod fm;
+pub mod frequency_delay;
+pub mod granular;
+mod instrument;
 mod limiter;
 pub mod lofi;
 pub mod modulation;
+pub mod multiband;
+mod note_expression;
 mod param;
+pub mod performance;
+pub mod physical;
 mod polarity;
 mod reverb;
 mod soft_clipper;
+pub mod spatial;
+pub mod spectral;
 mod stereo_matrix;
 mod synth;
 mod track;
@@ -95,19 +95,19 @@ pub use distortion::{DISTORTION_LATENCY_SAMPLES, Distortion, DistortionParams};
 pub use effect::{AnyEffect, Effect, EffectKind, EffectParams, EffectSlot, GainReductionMeter};
 pub use effect::{AuxBlock, AuxOutputInfo, MAX_AUX_OUTPUTS};
 pub use eq::{CutSlope, EqBand, EqCutBand, EqParams, ParametricEq};
+pub use expression_map::{
+    ExpressionDestination, ExpressionMap, ExpressionRoute, PluginControls,
+    PluginExpressionDestination, VoiceControls,
+};
 pub use filter_family::{
     BassShelf, BassShelfParams, FastLowpass, FastLowpassParams, SelectableFilter,
     SelectableFilterMode, SelectableFilterParams,
 };
 pub use instrument::{AnyInstrument, Instrument, InstrumentKind, InstrumentParams};
-pub use note_expression::{NoteArticulation, NoteExpression, NoteInstanceId};
-pub use expression_map::{
-    ExpressionDestination, ExpressionMap, ExpressionRoute, PluginControls,
-    PluginExpressionDestination, VoiceControls,
-};
 pub use limiter::{GATE_OFF_DB, Limiter, LimiterMode, LimiterParams};
 pub use lofi::{FilterPlacement, Lofi, LofiParams, RunRelation};
 pub use modulation::{Chorus, ChorusParams, Flanger, FlangerParams, Phaser, PhaserParams};
+pub use note_expression::{NoteArticulation, NoteExpression, NoteInstanceId};
 pub use param::{ParamChoice, ParamInfo, ParamKind, ParamScale, ParamSet, ParamUnit};
 pub use polarity::{Polarity, PolarityParams};
 pub use reverb::{Reverb, ReverbParams};
@@ -118,14 +118,34 @@ pub use synth::{
     OscillatorParams, SubtractiveSynth, SynthParams, VoiceMode,
 };
 
+pub use additive::{
+    HarmonicStack, HarmonicStackParams, Inharmonic, InharmonicParams, PartialMorph,
+    PartialMorphParams, Resynth, ResynthParams, ScanSynth, ScanSynthParams, SeedPatch,
+    SeedPatchParams,
+};
+pub use drive::{
+    DriveChain, DriveChainParams, GuitarRack, GuitarRackParams, Overdrive, OverdriveParams,
+    Waveshaper, WaveshaperParams,
+};
+pub use drums::{
+    DrumRack, DrumRackParams, DrumVoice, DrumVoiceParams, Kick, KickParams, Membrane,
+    MembraneParams,
+};
 pub use fm::{FourOp, FourOpParams, MatrixFm, MatrixFmParams, RingHybrid, RingHybridParams};
-pub use additive::{HarmonicStack, HarmonicStackParams, PartialMorph, PartialMorphParams, Inharmonic, InharmonicParams, Resynth, ResynthParams, SeedPatch, SeedPatchParams, ScanSynth, ScanSynthParams};
-pub use physical::{Pluck, PluckParams, FingerBass, FingerBassParams, AcousticString, AcousticStringParams};
-pub use drums::{Membrane, MembraneParams, DrumRack, DrumRackParams, Kick, KickParams, DrumVoice, DrumVoiceParams};
-pub use multiband::{BandSplit, BandSplitParams, MultibandCompressor, MultibandCompressorParams, MultibandMaximizer, MultibandMaximizerParams, TransientShaper, TransientShaperParams, TransientSplit, TransientSplitParams, OneKnob, OneKnobParams, BassHarmonics, BassHarmonicsParams, Exciter, ExciterParams};
-pub use drive::{Waveshaper, WaveshaperParams, Overdrive, OverdriveParams, GuitarRack, GuitarRackParams, DriveChain, DriveChainParams};
-pub use spatial::{VintageChorus, VintageChorusParams, HyperChorus, HyperChorusParams, VintagePhaser, VintagePhaserParams, StackedFlanger, StackedFlangerParams, BandDelay, BandDelayParams, Room, RoomParams, Spreader, SpreaderParams, StereoEnhancer, StereoEnhancerParams};
-
+pub use multiband::{
+    BandSplit, BandSplitParams, BassHarmonics, BassHarmonicsParams, Exciter, ExciterParams,
+    MultibandCompressor, MultibandCompressorParams, MultibandMaximizer, MultibandMaximizerParams,
+    OneKnob, OneKnobParams, TransientShaper, TransientShaperParams, TransientSplit,
+    TransientSplitParams,
+};
+pub use physical::{
+    AcousticString, AcousticStringParams, FingerBass, FingerBassParams, Pluck, PluckParams,
+};
+pub use spatial::{
+    BandDelay, BandDelayParams, HyperChorus, HyperChorusParams, Room, RoomParams, Spreader,
+    SpreaderParams, StackedFlanger, StackedFlangerParams, StereoEnhancer, StereoEnhancerParams,
+    VintageChorus, VintageChorusParams, VintagePhaser, VintagePhaserParams,
+};
 
 pub mod control;
 

@@ -5,8 +5,8 @@
 
 pub mod arrangement;
 pub use arrangement::ArrangementBook;
-pub mod automation;
 mod audio_comp;
+pub mod automation;
 pub use audio_comp::AudioCompSegment;
 mod take_groups;
 pub use take_groups::{AudioTakeGroup, AudioTakeLane, AudioTakeRef, TakeCompRange};
@@ -14,8 +14,8 @@ pub mod curve_lfo;
 pub use curve_lfo::{CurveLfo, CurveLfoWave};
 pub mod channel_voice;
 pub use channel_voice::*;
-pub mod layer;
 pub mod controller_links;
+pub mod layer;
 pub use controller_links::{
     ControlAction, ControlMap, ControlSource, ControllerLink, ControllerProfile, LinkTarget,
     MidiControl, PickupMode, ProfileControl, SlotTarget, SourceMode,
@@ -35,13 +35,13 @@ pub use effect_outputs::EffectOutputRoute;
 pub mod model;
 pub mod notebook;
 pub use notebook::{Notebook, NotebookPage};
-pub mod note_timing;
-pub mod note_curves;
 mod note_curve_lfo;
+pub mod note_curves;
+pub mod note_timing;
 pub use note_curves::{NoteCurveInsert, NoteCurveParameter, NoteCurvePoint, NoteExpressionCurve};
 pub mod patch;
-pub mod piano_tools;
 pub mod pattern_timeline;
+pub mod piano_tools;
 pub use pattern_timeline::PatternTimelineEdit;
 pub mod pattern_events;
 pub use pattern_events::{MAX_PATTERN_EVENT_LANES, PatternEventLane};
@@ -63,12 +63,12 @@ pub use error::CommandError;
 pub use file::{LoadError, ProjectSession, SaveError};
 pub use model::*;
 pub use note_timing::{ChannelTiming, MAX_CHANNEL_SHIFT_TICKS};
-pub use windfall_dsp::{NoteArticulation, NoteExpression};
+pub use patch::*;
+pub use piano_tools::{NoteEdge, NoteGroove, NoteTransform};
 pub use windfall_dsp::{
     ExpressionDestination, ExpressionMap, ExpressionRoute, PluginExpressionDestination,
 };
-pub use patch::*;
-pub use piano_tools::{NoteEdge, NoteGroove, NoteTransform};
+pub use windfall_dsp::{NoteArticulation, NoteExpression};
 pub mod preset;
 pub use preset::{
     ChannelPreset, PluginPreset, PluginPresetState, Preset, PresetAsset, PresetAudio, PresetKind,

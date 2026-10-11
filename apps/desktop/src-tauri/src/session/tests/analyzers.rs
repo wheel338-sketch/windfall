@@ -562,7 +562,10 @@ fn a_seek_a_deleted_track_a_new_project_and_a_new_stream_each_end_what_was_shown
             break;
         }
         drop(processor);
-        assert!(Instant::now() < deadline, "no reopened stream with capture seats");
+        assert!(
+            Instant::now() < deadline,
+            "no reopened stream with capture seats"
+        );
         std::thread::sleep(Duration::from_millis(20));
     }
     let events = bench.until_frame(&wire, "scope", 6);

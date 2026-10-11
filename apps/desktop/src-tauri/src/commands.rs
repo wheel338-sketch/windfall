@@ -1294,7 +1294,11 @@ fn analyzer_select(
     session.analyzer_select(window.label(), select)
 }
 #[tauri::command]
-fn analyzer_ack(session: State<'_, Session>, window: WebviewWindow, ack: windfall_ipc::AnalyzerAck) {
+fn analyzer_ack(
+    session: State<'_, Session>,
+    window: WebviewWindow,
+    ack: windfall_ipc::AnalyzerAck,
+) {
     session.analyzer_ack(window.label(), ack);
 }
 #[tauri::command]

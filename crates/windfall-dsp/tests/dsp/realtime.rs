@@ -119,51 +119,136 @@ fn random_effect_params(kind: EffectKind, rng: &mut Rng) -> EffectParams {
         EffectKind::Chorus => EffectParams::Chorus(random_params::<ChorusParams>(rng)),
         EffectKind::Flanger => EffectParams::Flanger(random_params::<FlangerParams>(rng)),
         EffectKind::Phaser => EffectParams::Phaser(random_params::<PhaserParams>(rng)),
-        EffectKind::BandSplit => EffectParams::BandSplit(random_params::<windfall_dsp::BandSplitParams>(rng)),
-        EffectKind::MultibandCompressor => EffectParams::MultibandCompressor(random_params::<windfall_dsp::MultibandCompressorParams>(rng)),
-        EffectKind::MultibandMaximizer => EffectParams::MultibandMaximizer(random_params::<windfall_dsp::MultibandMaximizerParams>(rng)),
-        EffectKind::TransientShaper => EffectParams::TransientShaper(random_params::<windfall_dsp::TransientShaperParams>(rng)),
-        EffectKind::TransientSplit => EffectParams::TransientSplit(random_params::<windfall_dsp::TransientSplitParams>(rng)),
-        EffectKind::OneKnob => EffectParams::OneKnob(random_params::<windfall_dsp::OneKnobParams>(rng)),
-        EffectKind::BassHarmonics => EffectParams::BassHarmonics(random_params::<windfall_dsp::BassHarmonicsParams>(rng)),
-        EffectKind::Exciter => EffectParams::Exciter(random_params::<windfall_dsp::ExciterParams>(rng)),
-        EffectKind::Waveshaper => EffectParams::Waveshaper(random_params::<windfall_dsp::WaveshaperParams>(rng)),
-        EffectKind::Overdrive => EffectParams::Overdrive(random_params::<windfall_dsp::OverdriveParams>(rng)),
-        EffectKind::GuitarRack => EffectParams::GuitarRack(random_params::<windfall_dsp::GuitarRackParams>(rng)),
-        EffectKind::DriveChain => EffectParams::DriveChain(random_params::<windfall_dsp::DriveChainParams>(rng)),
-        EffectKind::VintageChorus => EffectParams::VintageChorus(random_params::<windfall_dsp::VintageChorusParams>(rng)),
-        EffectKind::HyperChorus => EffectParams::HyperChorus(random_params::<windfall_dsp::HyperChorusParams>(rng)),
-        EffectKind::VintagePhaser => EffectParams::VintagePhaser(random_params::<windfall_dsp::VintagePhaserParams>(rng)),
-        EffectKind::StackedFlanger => EffectParams::StackedFlanger(random_params::<windfall_dsp::StackedFlangerParams>(rng)),
-        EffectKind::BandDelay => EffectParams::BandDelay(random_params::<windfall_dsp::BandDelayParams>(rng)),
+        EffectKind::BandSplit => {
+            EffectParams::BandSplit(random_params::<windfall_dsp::BandSplitParams>(rng))
+        }
+        EffectKind::MultibandCompressor => EffectParams::MultibandCompressor(random_params::<
+            windfall_dsp::MultibandCompressorParams,
+        >(rng)),
+        EffectKind::MultibandMaximizer => EffectParams::MultibandMaximizer(random_params::<
+            windfall_dsp::MultibandMaximizerParams,
+        >(rng)),
+        EffectKind::TransientShaper => {
+            EffectParams::TransientShaper(random_params::<windfall_dsp::TransientShaperParams>(rng))
+        }
+        EffectKind::TransientSplit => {
+            EffectParams::TransientSplit(random_params::<windfall_dsp::TransientSplitParams>(rng))
+        }
+        EffectKind::OneKnob => {
+            EffectParams::OneKnob(random_params::<windfall_dsp::OneKnobParams>(rng))
+        }
+        EffectKind::BassHarmonics => {
+            EffectParams::BassHarmonics(random_params::<windfall_dsp::BassHarmonicsParams>(rng))
+        }
+        EffectKind::Exciter => {
+            EffectParams::Exciter(random_params::<windfall_dsp::ExciterParams>(rng))
+        }
+        EffectKind::Waveshaper => {
+            EffectParams::Waveshaper(random_params::<windfall_dsp::WaveshaperParams>(rng))
+        }
+        EffectKind::Overdrive => {
+            EffectParams::Overdrive(random_params::<windfall_dsp::OverdriveParams>(rng))
+        }
+        EffectKind::GuitarRack => {
+            EffectParams::GuitarRack(random_params::<windfall_dsp::GuitarRackParams>(rng))
+        }
+        EffectKind::DriveChain => {
+            EffectParams::DriveChain(random_params::<windfall_dsp::DriveChainParams>(rng))
+        }
+        EffectKind::VintageChorus => {
+            EffectParams::VintageChorus(random_params::<windfall_dsp::VintageChorusParams>(rng))
+        }
+        EffectKind::HyperChorus => {
+            EffectParams::HyperChorus(random_params::<windfall_dsp::HyperChorusParams>(rng))
+        }
+        EffectKind::VintagePhaser => {
+            EffectParams::VintagePhaser(random_params::<windfall_dsp::VintagePhaserParams>(rng))
+        }
+        EffectKind::StackedFlanger => {
+            EffectParams::StackedFlanger(random_params::<windfall_dsp::StackedFlangerParams>(rng))
+        }
+        EffectKind::BandDelay => {
+            EffectParams::BandDelay(random_params::<windfall_dsp::BandDelayParams>(rng))
+        }
         EffectKind::Room => EffectParams::Room(random_params::<windfall_dsp::RoomParams>(rng)),
-        EffectKind::Spreader => EffectParams::Spreader(random_params::<windfall_dsp::SpreaderParams>(rng)),
-        EffectKind::StereoEnhancer => EffectParams::StereoEnhancer(random_params::<windfall_dsp::StereoEnhancerParams>(rng)),
-        EffectKind::VolumeGate => EffectParams::VolumeGate(random_params::<windfall_dsp::performance::VolumeGateParams>(rng)),
-        EffectKind::TimeTransport => EffectParams::TimeTransport(random_params::<windfall_dsp::performance::TimeTransportParams>(rng)),
-        EffectKind::Scratch => EffectParams::Scratch(random_params::<windfall_dsp::performance::ScratchParams>(rng)),
-        EffectKind::PerformanceRack => EffectParams::PerformanceRack(random_params::<windfall_dsp::performance::PerformanceRackParams>(rng)),
-        EffectKind::Convolver => EffectParams::Convolver(random_params::<windfall_dsp::spectral::ConvolverParams>(rng)),
-        EffectKind::FrequencyShifter => EffectParams::FrequencyShifter(random_params::<windfall_dsp::spectral::FrequencyShifterParams>(rng)),
-        EffectKind::PitchShift => EffectParams::PitchShift(random_params::<windfall_dsp::spectral::PitchShiftParams>(rng)),
-        EffectKind::PitchCorrect => EffectParams::PitchCorrect(random_params::<windfall_dsp::spectral::PitchCorrectParams>(rng)),
-        EffectKind::Vocoder => EffectParams::Vocoder(random_params::<windfall_dsp::spectral::VocoderParams>(rng)),
-        EffectKind::EchoBank => EffectParams::EchoBank(random_params::<windfall_dsp::echo_bank::EchoBankParams>(rng)),
-        EffectKind::FrequencyDelay => EffectParams::FrequencyDelay(random_params::<windfall_dsp::frequency_delay::FrequencyDelayParams>(rng)),
-        EffectKind::SevenBand => EffectParams::SevenBand(random_params::<windfall_dsp::eqbank::SevenBandParams>(rng)),
-        EffectKind::MorphEq => EffectParams::MorphEq(random_params::<windfall_dsp::eqbank::MorphEqParams>(rng)),
-        EffectKind::FilterBank => EffectParams::FilterBank(random_params::<windfall_dsp::eqbank::FilterBankParams>(rng)),
-        EffectKind::XyPad => EffectParams::XyPad(random_params::<windfall_dsp::control::XyPadParams>(rng)),
-        EffectKind::XyzPad => EffectParams::XyzPad(random_params::<windfall_dsp::control::XyzPadParams>(rng)),
-        EffectKind::PanLfo => EffectParams::PanLfo(random_params::<windfall_dsp::control::PanLfoParams>(rng)),
-        EffectKind::EnvelopeFollower => EffectParams::EnvelopeFollower(random_params::<windfall_dsp::control::EnvelopeFollowerParams>(rng)),
-        EffectKind::NoteEnvelope => EffectParams::NoteEnvelope(random_params::<windfall_dsp::control::NoteEnvelopeParams>(rng)),
-        EffectKind::LushSpace => EffectParams::LushSpace(random_params::<windfall_dsp::lush::LushSpaceParams>(rng)),
-        EffectKind::Tuner => EffectParams::Tuner(random_params::<windfall_dsp::tuner::TunerParams>(rng)),
-        EffectKind::StageStack => EffectParams::StageStack(random_params::<windfall_dsp::mastering::StageStackParams>(rng)),
-        EffectKind::ControlSurface => EffectParams::ControlSurface(random_params::<windfall_dsp::surface::ControlSurfaceParams>(rng)),
-        EffectKind::SendTap => EffectParams::SendTap(random_params::<windfall_dsp::sendtap::SendTapParams>(rng)),
-
+        EffectKind::Spreader => {
+            EffectParams::Spreader(random_params::<windfall_dsp::SpreaderParams>(rng))
+        }
+        EffectKind::StereoEnhancer => {
+            EffectParams::StereoEnhancer(random_params::<windfall_dsp::StereoEnhancerParams>(rng))
+        }
+        EffectKind::VolumeGate => EffectParams::VolumeGate(random_params::<
+            windfall_dsp::performance::VolumeGateParams,
+        >(rng)),
+        EffectKind::TimeTransport => EffectParams::TimeTransport(random_params::<
+            windfall_dsp::performance::TimeTransportParams,
+        >(rng)),
+        EffectKind::Scratch => EffectParams::Scratch(random_params::<
+            windfall_dsp::performance::ScratchParams,
+        >(rng)),
+        EffectKind::PerformanceRack => EffectParams::PerformanceRack(random_params::<
+            windfall_dsp::performance::PerformanceRackParams,
+        >(rng)),
+        EffectKind::Convolver => EffectParams::Convolver(random_params::<
+            windfall_dsp::spectral::ConvolverParams,
+        >(rng)),
+        EffectKind::FrequencyShifter => EffectParams::FrequencyShifter(random_params::<
+            windfall_dsp::spectral::FrequencyShifterParams,
+        >(rng)),
+        EffectKind::PitchShift => EffectParams::PitchShift(random_params::<
+            windfall_dsp::spectral::PitchShiftParams,
+        >(rng)),
+        EffectKind::PitchCorrect => EffectParams::PitchCorrect(random_params::<
+            windfall_dsp::spectral::PitchCorrectParams,
+        >(rng)),
+        EffectKind::Vocoder => {
+            EffectParams::Vocoder(random_params::<windfall_dsp::spectral::VocoderParams>(rng))
+        }
+        EffectKind::EchoBank => EffectParams::EchoBank(random_params::<
+            windfall_dsp::echo_bank::EchoBankParams,
+        >(rng)),
+        EffectKind::FrequencyDelay => EffectParams::FrequencyDelay(random_params::<
+            windfall_dsp::frequency_delay::FrequencyDelayParams,
+        >(rng)),
+        EffectKind::SevenBand => {
+            EffectParams::SevenBand(random_params::<windfall_dsp::eqbank::SevenBandParams>(rng))
+        }
+        EffectKind::MorphEq => {
+            EffectParams::MorphEq(random_params::<windfall_dsp::eqbank::MorphEqParams>(rng))
+        }
+        EffectKind::FilterBank => {
+            EffectParams::FilterBank(random_params::<windfall_dsp::eqbank::FilterBankParams>(rng))
+        }
+        EffectKind::XyPad => {
+            EffectParams::XyPad(random_params::<windfall_dsp::control::XyPadParams>(rng))
+        }
+        EffectKind::XyzPad => {
+            EffectParams::XyzPad(random_params::<windfall_dsp::control::XyzPadParams>(rng))
+        }
+        EffectKind::PanLfo => {
+            EffectParams::PanLfo(random_params::<windfall_dsp::control::PanLfoParams>(rng))
+        }
+        EffectKind::EnvelopeFollower => EffectParams::EnvelopeFollower(random_params::<
+            windfall_dsp::control::EnvelopeFollowerParams,
+        >(rng)),
+        EffectKind::NoteEnvelope => EffectParams::NoteEnvelope(random_params::<
+            windfall_dsp::control::NoteEnvelopeParams,
+        >(rng)),
+        EffectKind::LushSpace => {
+            EffectParams::LushSpace(random_params::<windfall_dsp::lush::LushSpaceParams>(rng))
+        }
+        EffectKind::Tuner => {
+            EffectParams::Tuner(random_params::<windfall_dsp::tuner::TunerParams>(rng))
+        }
+        EffectKind::StageStack => EffectParams::StageStack(random_params::<
+            windfall_dsp::mastering::StageStackParams,
+        >(rng)),
+        EffectKind::ControlSurface => EffectParams::ControlSurface(random_params::<
+            windfall_dsp::surface::ControlSurfaceParams,
+        >(rng)),
+        EffectKind::SendTap => {
+            EffectParams::SendTap(random_params::<windfall_dsp::sendtap::SendTapParams>(rng))
+        }
     }
 }
 

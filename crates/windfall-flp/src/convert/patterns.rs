@@ -149,7 +149,11 @@ impl Builder<'_> {
                             fine_pitch_cents: (f32::from(note.fine_pitch.min(240)) - 120.0) * 10.0,
                             modulation_x: f32::from(note.mod_x) / 256.0,
                             modulation_y: f32::from(note.mod_y) / 256.0,
-                            articulation: if note.flags & 8 != 0 { windfall_dsp::NoteArticulation::Slide } else { windfall_dsp::NoteArticulation::Normal },
+                            articulation: if note.flags & 8 != 0 {
+                                windfall_dsp::NoteArticulation::Slide
+                            } else {
+                                windfall_dsp::NoteArticulation::Normal
+                            },
                             glide_ticks: 240,
                             color_group: Some(note.midi_channel.min(15)),
                         }),

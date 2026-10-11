@@ -345,7 +345,13 @@ impl ClipPlayer {
     /// slots are bound to.
     pub fn destinations(&self) -> impl Iterator<Item = Heard> {
         let sounding = self.slots.iter().filter(|slot| slot.active);
-        sounding.map(|slot| if slot.direct_output { Heard::Printed } else { Heard::Track(slot.track) })
+        sounding.map(|slot| {
+            if slot.direct_output {
+                Heard::Printed
+            } else {
+                Heard::Track(slot.track)
+            }
+        })
     }
 
     /// Hands back audio that stopped slots could not return earlier.
@@ -517,7 +523,11 @@ impl ClipPlayer {
             if !slot.active {
                 continue;
             }
-            let buffer = if slot.direct_output { mixer.printed_mut() } else { mixer.track_mut(slot.track) };
+            let buffer = if slot.direct_output {
+                mixer.printed_mut()
+            } else {
+                mixer.track_mut(slot.track)
+            };
             let out = &mut buffer[frames.clone()];
             if slot.render(out, first, clock, self.declick) {
                 self.end(index, plan, garbage);

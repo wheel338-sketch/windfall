@@ -3,19 +3,14 @@
 
 mod analysis_jobs;
 mod analyzers;
-#[path = "../recording_completion_qa.rs"]
-mod recording_completion_qa;
-#[path = "../mixer_render_qa.rs"]
-mod mixer_render_qa;
-#[path = "../mixer_presets_qa.rs"]
-mod mixer_presets_qa;
 mod archive;
 mod audio_editor;
+mod audio_logger;
 mod beat;
 mod clip_recording;
 mod consolidate;
-mod device_acceptance;
 mod controllers;
+mod device_acceptance;
 mod document;
 mod effects;
 mod export;
@@ -28,6 +23,10 @@ mod import_recording;
 mod library;
 mod midi;
 mod midi_hardware;
+#[path = "../mixer_presets_qa.rs"]
+mod mixer_presets_qa;
+#[path = "../mixer_render_qa.rs"]
+mod mixer_render_qa;
 mod playback;
 mod playlist_bounce;
 mod playlist_export;
@@ -38,6 +37,8 @@ mod plugin_update;
 mod plugins;
 mod project_preparation;
 mod recording;
+#[path = "../recording_completion_qa.rs"]
+mod recording_completion_qa;
 mod sampler_preprocess;
 mod sampler_processing;
 #[cfg(windows)]
@@ -47,7 +48,6 @@ mod song;
 mod timeline;
 mod transport_acceptance;
 mod versions;
-mod audio_logger;
 
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};

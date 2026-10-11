@@ -124,14 +124,15 @@ mod clip_processing;
 mod clips;
 mod controller;
 pub(crate) use controller::preparation as project_preparation;
+mod capture;
 mod device;
+mod hardware_output;
 mod message;
 mod metronome;
 pub mod midi_hardware;
 mod mixer;
-mod hardware_output;
-mod note_glide;
 mod note_curves;
+mod note_glide;
 mod plan;
 pub mod plugins;
 mod pool;
@@ -139,50 +140,49 @@ mod processor;
 mod rack;
 mod ramp;
 pub mod recording_clock;
-pub mod recording_monitor;
 pub mod recording_disk;
+pub mod recording_monitor;
 mod render;
 pub mod sample_preprocess;
 pub mod sampler_processing;
 mod sequencer;
 mod shared;
 mod spectrum;
-mod capture;
-mod waveform_meter;
 mod state;
 mod stems;
 mod tempo;
 mod timeline;
+mod waveform_meter;
 pub use timeline::MAX_NAVIGATION_TRANSITIONS;
 #[cfg(test)]
 mod test_alloc;
 mod voice;
 
+pub use capture::{CAPTURE_OBSERVATIONS, CAPTURE_SEATS, CapturedObservation};
 pub use clips::MAX_AUDIO_CLIPS;
+pub use controller::Playhead;
+pub use controller::capture_control::{
+    CaptureCapability, CaptureRefusal, CaptureRequest, CaptureState, CaptureTicket, CaptureView,
+    SeatCounters,
+};
 pub use controller::{
     Controller, PreparationSnapshot, PreparedProject, PreparedPublication, ProjectPreparationError,
     ProjectPublicationIntent, ProjectPublicationLease, ProjectRetirement, PublicationRefusal,
     StreamStats,
 };
-pub use controller::Playhead;
 pub use device::Engine;
 pub use pool::SamplePool;
 pub use processor::Processor;
 pub use render::{RenderError, RenderOptions, Rendered, TAIL_SILENCE_DB, render, render_reporting};
 pub use stems::{
-    Stem, StemError, StemMode, StemOptions, Streamed, render_stems, render_streaming,
-    render_streaming_checked, stems,
-};
-pub use stems::{
     PlaylistStem, PlaylistStemError, PlaylistStemOptions, playlist_stem_project, playlist_stems,
     render_playlist_stems,
 };
-pub use voice::{PREVIEW_GAIN_DB, loop_crossfade_mix};
-pub use capture::{CAPTURE_OBSERVATIONS, CAPTURE_SEATS, CapturedObservation};
-pub use controller::capture_control::{
-    CaptureCapability, CaptureRefusal, CaptureRequest, CaptureState, CaptureTicket, CaptureView,
-    SeatCounters,
+pub use stems::{
+    Stem, StemError, StemMode, StemOptions, Streamed, render_stems, render_streaming,
+    render_streaming_checked, stems,
 };
+pub use voice::{PREVIEW_GAIN_DB, loop_crossfade_mix};
 
 /// Lets the unit tests of code that runs on the audio thread count its
 /// allocator calls.
@@ -192,14 +192,14 @@ static ALLOCATOR: test_alloc::CountingAllocator = test_alloc::CountingAllocator;
 
 /// Bounded offline sample editing; never used by an audio callback.
 pub mod audio_edit;
+/// Bounded background history of the output and of chosen mixer tracks.
+pub mod audio_logger;
 /// Bounded native audio input capture.
 pub mod recording;
 /// Capture endpoints and render-endpoint loopback inputs.
 pub mod recording_endpoint;
-/// Bounded background history of the output and of chosen mixer tracks.
-pub mod audio_logger;
 
 #[cfg(test)]
-mod qa_recording_mixer;
-#[cfg(test)]
 mod qa_mixer_pdc_ports;
+#[cfg(test)]
+mod qa_recording_mixer;

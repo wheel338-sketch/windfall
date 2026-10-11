@@ -146,7 +146,10 @@ fn portamento_ties_each_onset_into_the_next_and_glides_every_note_after_the_firs
     assert_eq!(by_key(40), untouched);
     for old in &selected {
         let new = after.iter().find(|note| note.id == old.id).unwrap();
-        assert_eq!((new.key, new.velocity, new.pan), (old.key, old.velocity, old.pan));
+        assert_eq!(
+            (new.key, new.velocity, new.pan),
+            (old.key, old.velocity, old.pan)
+        );
     }
 
     // It survives the file, and one undo puts every note back.
@@ -164,7 +167,11 @@ fn portamento_refuses_bad_settings_and_stale_selections_without_changing_anythin
     let selected = notes(&doc, channel);
     let project = doc.project().clone();
     let history = entries(&doc);
-    for (glide, overlap) in [(0, 0), (MAX_PATTERN_TICKS + 1, 0), (240, MAX_PATTERN_TICKS + 1)] {
+    for (glide, overlap) in [
+        (0, 0),
+        (MAX_PATTERN_TICKS + 1, 0),
+        (240, MAX_PATTERN_TICKS + 1),
+    ] {
         let tool = NoteTransform::Portamento { glide, overlap };
         assert!(transform(&mut doc, channel, selected.clone(), tool).is_err());
         assert_eq!(doc.project(), &project);
@@ -229,7 +236,13 @@ fn the_note_lfo_writes_one_value_per_note_read_at_its_start() {
         lfo: sine(960),
     };
 
-    transform(&mut doc, channel, selected.clone(), lfo(NoteLfoProperty::Velocity, 1.0)).unwrap();
+    transform(
+        &mut doc,
+        channel,
+        selected.clone(),
+        lfo(NoteLfoProperty::Velocity, 1.0),
+    )
+    .unwrap();
     assert_eq!(entries(&doc), before + 1);
     let written = notes(&doc, channel);
     let velocities: Vec<f32> = written.iter().map(|note| note.velocity).collect();
@@ -238,7 +251,10 @@ fn the_note_lfo_writes_one_value_per_note_read_at_its_start() {
     }
     // Only the property asked for moves.
     for (new, old) in written.iter().zip(&selected) {
-        assert_eq!((new.id, new.start, new.length, new.key), (old.id, old.start, old.length, old.key));
+        assert_eq!(
+            (new.id, new.start, new.length, new.key),
+            (old.id, old.start, old.length, old.key)
+        );
         assert_eq!(new.pan, old.pan);
         assert_eq!(new.expression, old.expression);
     }
@@ -247,14 +263,25 @@ fn the_note_lfo_writes_one_value_per_note_read_at_its_start() {
 
     // Each property covers its own whole range: pan -1 to 1, fine pitch
     // -1200 to 1200 cents, the others 0 to 1.
-    transform(&mut doc, channel, selected.clone(), lfo(NoteLfoProperty::Pan, 1.0)).unwrap();
+    transform(
+        &mut doc,
+        channel,
+        selected.clone(),
+        lfo(NoteLfoProperty::Pan, 1.0),
+    )
+    .unwrap();
     let pans: Vec<f32> = notes(&doc, channel).iter().map(|note| note.pan).collect();
     for (got, wanted) in pans.iter().zip([0.0, 1.0, 0.0, -1.0]) {
         assert!((got - wanted).abs() < 1e-6, "{pans:?}");
     }
     doc.undo().unwrap();
-    transform(&mut doc, channel, selected.clone(), lfo(NoteLfoProperty::FinePitchCents, 1.0))
-        .unwrap();
+    transform(
+        &mut doc,
+        channel,
+        selected.clone(),
+        lfo(NoteLfoProperty::FinePitchCents, 1.0),
+    )
+    .unwrap();
     let cents: Vec<f32> = notes(&doc, channel)
         .iter()
         .map(|note| note.expression.fine_pitch_cents)
@@ -265,7 +292,13 @@ fn the_note_lfo_writes_one_value_per_note_read_at_its_start() {
     doc.undo().unwrap();
 
     // Half strength goes half way from what the note had.
-    transform(&mut doc, channel, selected.clone(), lfo(NoteLfoProperty::Velocity, 0.5)).unwrap();
+    transform(
+        &mut doc,
+        channel,
+        selected.clone(),
+        lfo(NoteLfoProperty::Velocity, 0.5),
+    )
+    .unwrap();
     let second = notes(&doc, channel)[1];
     assert!((second.velocity - 0.8).abs() < 1e-6, "{}", second.velocity);
     doc.undo().unwrap();
@@ -367,7 +400,11 @@ fn curve_lfo(
 
 #[test]
 fn the_curve_lfo_gives_each_note_a_curve_along_its_length_in_one_edit() {
-    let (mut doc, channel) = fixture(vec![init(0, 960, 60), init(960, 480, 64), init(1_920, 240, 67)]);
+    let (mut doc, channel) = fixture(vec![
+        init(0, 960, 60),
+        init(960, 480, 64),
+        init(1_920, 240, 67),
+    ]);
     let all = notes(&doc, channel);
     let selected = all[..2].to_vec();
     let before = entries(&doc);
@@ -388,8 +425,14 @@ fn the_curve_lfo_gives_each_note_a_curve_along_its_length_in_one_edit() {
     assert_eq!(entries(&doc), before + 1);
     let curves = doc.project().pattern(PATTERN).unwrap().note_curves.clone();
     assert_eq!(curves.len(), 2, "one curve for each captured note");
-    let first = curves.iter().find(|curve| curve.note == selected[0].id).unwrap();
-    let second = curves.iter().find(|curve| curve.note == selected[1].id).unwrap();
+    let first = curves
+        .iter()
+        .find(|curve| curve.note == selected[0].id)
+        .unwrap();
+    let second = curves
+        .iter()
+        .find(|curve| curve.note == selected[1].id)
+        .unwrap();
     assert_eq!(first.parameter, NoteCurveParameter::FinePitchCents);
     // A whole cycle along the first note: up a quarter in, down three quarters in.
     assert!((first.value_at(0.25).unwrap() - 1200.0).abs() < 1e-2);
@@ -407,12 +450,27 @@ fn the_curve_lfo_gives_each_note_a_curve_along_its_length_in_one_edit() {
     assert_eq!(&loaded, doc.project());
 
     // A second property keeps the first one's curves; the capture must name them.
-    let stale = curve_lfo(channel, selected.clone(), Vec::new(), NoteCurveParameter::Pan, 1.0);
+    let stale = curve_lfo(
+        channel,
+        selected.clone(),
+        Vec::new(),
+        NoteCurveParameter::Pan,
+        1.0,
+    );
     let project = doc.project().clone();
-    assert!(doc.dispatch(stale, None).is_err(), "the captured curves changed");
+    assert!(
+        doc.dispatch(stale, None).is_err(),
+        "the captured curves changed"
+    );
     assert_eq!(doc.project(), &project);
     doc.dispatch(
-        curve_lfo(channel, selected.clone(), curves.clone(), NoteCurveParameter::Pan, 1.0),
+        curve_lfo(
+            channel,
+            selected.clone(),
+            curves.clone(),
+            NoteCurveParameter::Pan,
+            1.0,
+        ),
         None,
     )
     .unwrap();
@@ -426,13 +484,23 @@ fn the_curve_lfo_gives_each_note_a_curve_along_its_length_in_one_edit() {
         .find(|curve| curve.note == selected[0].id && curve.parameter == NoteCurveParameter::Pan)
         .unwrap();
     assert!((pan.value_at(0.25).unwrap() - 1.0).abs() < 1e-4);
-    assert!(pan.points.iter().all(|point| (-1.0..=1.0).contains(&point.value)));
+    assert!(
+        pan.points
+            .iter()
+            .all(|point| (-1.0..=1.0).contains(&point.value))
+    );
 
     // Each edit is one undo step.
     doc.undo().unwrap();
     assert_eq!(doc.project().pattern(PATTERN).unwrap().note_curves, curves);
     doc.undo().unwrap();
-    assert!(doc.project().pattern(PATTERN).unwrap().note_curves.is_empty());
+    assert!(
+        doc.project()
+            .pattern(PATTERN)
+            .unwrap()
+            .note_curves
+            .is_empty()
+    );
 
     // Changed notes, no notes and bad settings are refused.
     let project = doc.project().clone();
@@ -440,8 +508,20 @@ fn the_curve_lfo_gives_each_note_a_curve_along_its_length_in_one_edit() {
     moved[0].start += 1;
     for bad in [
         curve_lfo(channel, moved, Vec::new(), NoteCurveParameter::Pan, 1.0),
-        curve_lfo(channel, Vec::new(), Vec::new(), NoteCurveParameter::Pan, 1.0),
-        curve_lfo(channel, selected.clone(), Vec::new(), NoteCurveParameter::Pan, 2.0),
+        curve_lfo(
+            channel,
+            Vec::new(),
+            Vec::new(),
+            NoteCurveParameter::Pan,
+            1.0,
+        ),
+        curve_lfo(
+            channel,
+            selected.clone(),
+            Vec::new(),
+            NoteCurveParameter::Pan,
+            2.0,
+        ),
         Command::GenerateNoteCurveLfo {
             pattern: PATTERN,
             channel,

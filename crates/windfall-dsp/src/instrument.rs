@@ -2,11 +2,11 @@
 //! can hold any of them.
 
 use crate::analog::{AcidLine, AcidLineParams};
+use crate::analog::{MacroVoice, MacroVoiceParams};
 use crate::analog::{TripleOsc, TripleOscParams};
 use crate::analog::{WaveLane, WaveLaneParams};
-use crate::analog::{MacroVoice, MacroVoiceParams};
-use crate::speech::{SpeechVoice, SpeechVoiceParams};
 use crate::midi_out::{MidiOut, MidiOutEvent, MidiOutParams};
+use crate::speech::{SpeechVoice, SpeechVoiceParams};
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
@@ -21,8 +21,8 @@ use crate::drums::{
 };
 use crate::fm::{FourOp, FourOpParams, MatrixFm, MatrixFmParams, RingHybrid, RingHybridParams};
 use crate::granular::{
-    GrainCloud, GrainCloudParams, SliceDeck, SliceDeckParams, SliceMap, SliceMapParams,
-    WaveRide, WaveRideParams,
+    GrainCloud, GrainCloudParams, SliceDeck, SliceDeckParams, SliceMap, SliceMapParams, WaveRide,
+    WaveRideParams,
 };
 use crate::physical::{
     AcousticString, AcousticStringParams, FingerBass, FingerBassParams, Pluck, PluckParams,
@@ -310,7 +310,9 @@ impl InstrumentKind {
             InstrumentKind::TripleOsc => InstrumentParams::TripleOsc(TripleOscParams::default()),
             InstrumentKind::WaveLane => InstrumentParams::WaveLane(WaveLaneParams::default()),
             InstrumentKind::MacroVoice => InstrumentParams::MacroVoice(MacroVoiceParams::default()),
-            InstrumentKind::SpeechVoice => InstrumentParams::SpeechVoice(SpeechVoiceParams::default()),
+            InstrumentKind::SpeechVoice => {
+                InstrumentParams::SpeechVoice(SpeechVoiceParams::default())
+            }
             InstrumentKind::MidiOut => InstrumentParams::MidiOut(MidiOutParams::default()),
         }
     }
@@ -420,13 +422,19 @@ impl InstrumentParams {
             InstrumentParams::DrumVoice(params) => InstrumentParams::DrumVoice(params.sanitized()),
             InstrumentParams::SliceMap(params) => InstrumentParams::SliceMap(params.sanitized()),
             InstrumentParams::SliceDeck(params) => InstrumentParams::SliceDeck(params.sanitized()),
-            InstrumentParams::GrainCloud(params) => InstrumentParams::GrainCloud(params.sanitized()),
+            InstrumentParams::GrainCloud(params) => {
+                InstrumentParams::GrainCloud(params.sanitized())
+            }
             InstrumentParams::WaveRide(params) => InstrumentParams::WaveRide(params.sanitized()),
             InstrumentParams::AcidLine(params) => InstrumentParams::AcidLine(params.sanitized()),
             InstrumentParams::TripleOsc(params) => InstrumentParams::TripleOsc(params.sanitized()),
             InstrumentParams::WaveLane(params) => InstrumentParams::WaveLane(params.sanitized()),
-            InstrumentParams::MacroVoice(params) => InstrumentParams::MacroVoice(params.sanitized()),
-            InstrumentParams::SpeechVoice(params) => InstrumentParams::SpeechVoice(params.sanitized()),
+            InstrumentParams::MacroVoice(params) => {
+                InstrumentParams::MacroVoice(params.sanitized())
+            }
+            InstrumentParams::SpeechVoice(params) => {
+                InstrumentParams::SpeechVoice(params.sanitized())
+            }
             InstrumentParams::MidiOut(params) => InstrumentParams::MidiOut(params.sanitized()),
         }
     }

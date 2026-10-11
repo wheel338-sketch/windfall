@@ -81,7 +81,13 @@ impl PortSet {
         let mut pointers = Vec::new();
         let mut firsts = Vec::new();
         let mut main = None;
-        let key_port = if is_input { ports.iter().position(|port| !port.main && port.channels > 0) } else { None };
+        let key_port = if is_input {
+            ports
+                .iter()
+                .position(|port| !port.main && port.channels > 0)
+        } else {
+            None
+        };
         let mut key_owned = Vec::with_capacity(ports.len());
 
         for port in ports {
@@ -98,7 +104,9 @@ impl PortSet {
                     main_port.mono = Some(owned.len() - 1);
                     owned.len() - 1
                 } else if is_input && !port.main && channel < 2 {
-                    owned.push(buffer()); port_owned.push(owned.len() - 1); owned.len() - 1
+                    owned.push(buffer());
+                    port_owned.push(owned.len() - 1);
+                    owned.len() - 1
                 } else if callers || is_input {
                     0
                 } else {
@@ -143,22 +151,46 @@ impl PortSet {
     fn key_input(&mut self, key: Option<&[[f32; 2]]>, frames: usize) {
         self.owned[0][..frames].fill(0.0);
         for (port, owned_channels) in self.key_owned.iter().enumerate() {
-            if owned_channels.is_empty() { continue; }
+            if owned_channels.is_empty() {
+                continue;
+            }
             let selected = Some(port) == self.key_port;
             let mono = owned_channels.len() == 1;
             for (side, owned) in owned_channels.iter().copied().enumerate() {
                 for (index, output) in self.owned[owned][..frames].iter_mut().enumerate() {
-                    let pair = if selected { key.and_then(|key| key.get(index)).copied().unwrap_or([0.0; 2]) } else { [0.0; 2] };
-                    let value = if mono { (pair[0] + pair[1]) * 0.5 } else { pair[side] };
-                    *output = if value.is_finite() { value.clamp(-1.0e6, 1.0e6) } else { 0.0 };
+                    let pair = if selected {
+                        key.and_then(|key| key.get(index))
+                            .copied()
+                            .unwrap_or([0.0; 2])
+                    } else {
+                        [0.0; 2]
+                    };
+                    let value = if mono {
+                        (pair[0] + pair[1]) * 0.5
+                    } else {
+                        pair[side]
+                    };
+                    *output = if value.is_finite() {
+                        value.clamp(-1.0e6, 1.0e6)
+                    } else {
+                        0.0
+                    };
                 }
             }
-            self.buffers[port].constant_mask = if selected && key.is_some() { 0 } else { u64::MAX };
+            self.buffers[port].constant_mask = if selected && key.is_some() {
+                0
+            } else {
+                u64::MAX
+            };
         }
     }
     fn select_key(&mut self, input: Option<u32>) {
         self.key_port = match input {
-            Some(index) => self.key_owned.get(index as usize).filter(|owned| !owned.is_empty()).map(|_| index as usize),
+            Some(index) => self
+                .key_owned
+                .get(index as usize)
+                .filter(|owned| !owned.is_empty())
+                .map(|_| index as usize),
             None => self.key_owned.iter().position(|owned| !owned.is_empty()),
         };
     }
@@ -252,10 +284,27 @@ fn transport_event(transport: &Transport) -> Result<TransportEvent, ProcessFaile
 }
 
 impl ProcessorBackend for ClapProcessor {
-    fn supports_note_instances(&self) -> bool { self.dialect == Dialect::Clap }
-    fn note_expression_mask(&self, _channel: u8) -> u32 { if self.dialect == Dialect::Clap { 0x7f } else { 0 } }
-    fn set_sidechain_input(&mut self, input: Option<u32>) { self.inputs.select_key(input); }
-    fn process(&mut self, audio: AudioIo<'_>, events: &[HostEvent], transport: &Transport, steady_time: u64, out: &mut dyn FnMut(PluginEvent)) -> Result<BlockResult, ProcessFailed> {
+    fn supports_note_instances(&self) -> bool {
+        self.dialect == Dialect::Clap
+    }
+    fn note_expression_mask(&self, _channel: u8) -> u32 {
+        if self.dialect == Dialect::Clap {
+            0x7f
+        } else {
+            0
+        }
+    }
+    fn set_sidechain_input(&mut self, input: Option<u32>) {
+        self.inputs.select_key(input);
+    }
+    fn process(
+        &mut self,
+        audio: AudioIo<'_>,
+        events: &[HostEvent],
+        transport: &Transport,
+        steady_time: u64,
+        out: &mut dyn FnMut(PluginEvent),
+    ) -> Result<BlockResult, ProcessFailed> {
         self.process_sidechain(audio, None, events, transport, steady_time, out)
     }
     fn process_sidechain(

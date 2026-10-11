@@ -9,7 +9,8 @@ use vst3::{Class, ComPtr, ComWrapper, Steinberg::*};
 // note-on both its native event and a later expanded panic release. Explicit
 // reserved releases also need one slot each. Repeated panics cannot release
 // the same held note twice without another admitted note-on in between.
-const NOTE_CAPACITY: usize = 16 * 128 + crate::events::MAX_NOTE_INSTANCES + 2 * EVENT_CAPACITY + IMMEDIATE_RELEASE_CAPACITY;
+const NOTE_CAPACITY: usize =
+    16 * 128 + crate::events::MAX_NOTE_INSTANCES + 2 * EVENT_CAPACITY + IMMEDIATE_RELEASE_CAPACITY;
 
 pub(super) const PENDING_PARAMETER_CAPACITY: usize = 256;
 // All three input sources may be disjoint. Reserved instrument events cannot

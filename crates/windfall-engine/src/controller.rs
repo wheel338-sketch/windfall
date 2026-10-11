@@ -19,10 +19,10 @@ use crate::processor::Processor;
 use crate::shared::Shared;
 use crate::state::{Ledger, PlanState};
 
-#[path = "project_preparation.rs"]
-pub(crate) mod preparation;
 #[path = "capture_control.rs"]
 pub(crate) mod capture_control;
+#[path = "project_preparation.rs"]
+pub(crate) mod preparation;
 pub use preparation::{
     PreparationSnapshot, PreparedPublication, ProjectPreparationError, ProjectPublicationIntent,
     ProjectPublicationLease, ProjectRetirement, PublicationRefusal,
@@ -674,7 +674,11 @@ impl Controller {
             const SPAN: f64 = 0.01;
             let ahead = state.plan.unwarp(state.plan.warp(tick) + stored * SPAN);
             let rate = (ahead - tick) / SPAN;
-            if rate.is_finite() && rate > 0.0 { rate } else { stored }
+            if rate.is_finite() && rate > 0.0 {
+                rate
+            } else {
+                stored
+            }
         } else {
             stored
         };

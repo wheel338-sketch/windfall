@@ -56,9 +56,18 @@ impl Project {
             .timeline
             .check(self.settings.time_signature, self.next_id)?;
         let mut timeline_ids = HashSet::new();
-        for timeline in std::iter::once(&self.playlist.timeline).chain(self.patterns.iter().map(|pattern| &pattern.timeline)) {
-            for id in timeline.meters.iter().map(|meter| meter.id.0).chain(timeline.markers.iter().map(|marker| marker.id.0)) {
-                if !timeline_ids.insert(id) { return Err("timeline IDs must be unique across song and patterns".to_owned()); }
+        for timeline in std::iter::once(&self.playlist.timeline)
+            .chain(self.patterns.iter().map(|pattern| &pattern.timeline))
+        {
+            for id in timeline
+                .meters
+                .iter()
+                .map(|meter| meter.id.0)
+                .chain(timeline.markers.iter().map(|marker| marker.id.0))
+            {
+                if !timeline_ids.insert(id) {
+                    return Err("timeline IDs must be unique across song and patterns".to_owned());
+                }
             }
         }
         let entity_ids = self
@@ -89,23 +98,39 @@ impl Project {
         if entity_ids.iter().any(|id| timeline_ids.contains(id)) {
             return Err("a timeline ID collides with another project entity".to_owned());
         }
-        if self.playlist.take_groups.len() > crate::take_groups::MAX_TAKE_GROUPS { return Err("Too many saved take groups".into()); }
+        if self.playlist.take_groups.len() > crate::take_groups::MAX_TAKE_GROUPS {
+            return Err("Too many saved take groups".into());
+        }
         let mut groups = HashSet::new();
         let mut associated = HashSet::new();
         for group in &self.playlist.take_groups {
             check_id(self, "take group", group.id, &mut groups)?;
-            if entity_ids.contains(&group.id) || timeline_ids.contains(&group.id) { return Err("A take group ID collides with another entity".into()); }
+            if entity_ids.contains(&group.id) || timeline_ids.contains(&group.id) {
+                return Err("A take group ID collides with another entity".into());
+            }
             crate::take_groups::check_group(self, group)?;
-            for id in group.lanes.iter().flat_map(|lane| &lane.takes).map(|take| take.clip).chain(group.comp.iter().copied()) {
-                if !associated.insert(id) { return Err("An audio clip belongs to more than one take group".into()); }
+            for id in group
+                .lanes
+                .iter()
+                .flat_map(|lane| &lane.takes)
+                .map(|take| take.clip)
+                .chain(group.comp.iter().copied())
+            {
+                if !associated.insert(id) {
+                    return Err("An audio clip belongs to more than one take group".into());
+                }
             }
         }
         check_arrangement_references(self, &self.playlist.arrangement_book)?;
         let book = &self.playlist.arrangement_book;
         let mut metadata_ids = HashSet::new();
-        for id in book.arrangements.iter().map(|item| item.id)
+        for id in book
+            .arrangements
+            .iter()
+            .map(|item| item.id)
             .chain(book.track_groups.iter().map(|item| item.id))
-            .chain(book.clip_groups.iter().map(|item| item.id)) {
+            .chain(book.clip_groups.iter().map(|item| item.id))
+        {
             check_id(self, "arrangement metadata", id, &mut metadata_ids)?;
             if entity_ids.contains(&id) || timeline_ids.contains(&id) || groups.contains(&id) {
                 return Err("an arrangement metadata ID collides with another entity".into());
@@ -226,7 +251,6 @@ fn check_samples(project: &Project) -> Result<(), String> {
         if let Some(problem) = sample.path.problem() {
             return Err(format!("sample {}: {problem}", sample.id.0));
         }
-
     }
     Ok(())
 }
@@ -239,7 +263,10 @@ fn check_mixer(project: &Project) -> Result<(), String> {
     if master.id != TrackId::MASTER {
         return Err("the first mixer track is not the master".to_owned());
     }
-    if master.current || tracks.iter().filter(|track| track.current).count() > 1 || tracks.iter().filter(|track| !track.current).count() > crate::MAX_MIXER_SIGNAL_TRACKS {
+    if master.current
+        || tracks.iter().filter(|track| track.current).count() > 1
+        || tracks.iter().filter(|track| !track.current).count() > crate::MAX_MIXER_SIGNAL_TRACKS
+    {
         return Err("The mixer permits 500 inserts, Master and one Current utility".into());
     }
     if master.output.is_some() {
@@ -262,17 +289,51 @@ fn check_mixer(project: &Project) -> Result<(), String> {
     let mut effects = HashSet::new();
     for track in tracks {
         let owner = format!("mixer track {}", track.id.0);
-        { use windfall_dsp::ParamSet; if track.processing.sanitized() != track.processing { return Err(format!("{owner} has invalid integrated processing settings")); } }
-        if track.current && (track.output.is_some() || !track.sends.is_empty() || !track.sidechains.is_empty() || track.external_output.is_some() || track.recording.is_some() || track.solo) {
-            return Err("Current is a utility strip without output, sends, hardware input/output or solo".into());
+        {
+            use windfall_dsp::ParamSet;
+            if track.processing.sanitized() != track.processing {
+                return Err(format!(
+                    "{owner} has invalid integrated processing settings"
+                ));
+            }
         }
-        if track.output.is_some_and(|id| project.mixer.track(id).is_some_and(|target| target.current)) || track.sends.iter().chain(&track.sidechains).any(|send| project.mixer.track(send.target).is_some_and(|target| target.current)) {
+        if track.current
+            && (track.output.is_some()
+                || !track.sends.is_empty()
+                || !track.sidechains.is_empty()
+                || track.external_output.is_some()
+                || track.recording.is_some()
+                || track.solo)
+        {
+            return Err(
+                "Current is a utility strip without output, sends, hardware input/output or solo"
+                    .into(),
+            );
+        }
+        if track
+            .output
+            .is_some_and(|id| project.mixer.track(id).is_some_and(|target| target.current))
+            || track.sends.iter().chain(&track.sidechains).any(|send| {
+                project
+                    .mixer
+                    .track(send.target)
+                    .is_some_and(|target| target.current)
+            })
+        {
             return Err("Current cannot receive ordinary mixer routes".into());
         }
-        if let Some(recording) = &track.recording { recording.check().map_err(|error| format!("{owner}: {error}"))?; }
-        if let Some(route) = &track.external_output { route.check().map_err(|error| format!("{owner}: {error}"))?; }
+        if let Some(recording) = &track.recording {
+            recording
+                .check()
+                .map_err(|error| format!("{owner}: {error}"))?;
+        }
+        if let Some(route) = &track.external_output {
+            route.check().map_err(|error| format!("{owner}: {error}"))?;
+        }
         if !track.latency_offset_ms.is_finite() || track.latency_offset_ms.abs() > 1000.0 {
-            return Err(format!("{owner} has latency correction outside -1000 to 1000 ms"));
+            return Err(format!(
+                "{owner} has latency correction outside -1000 to 1000 ms"
+            ));
         }
         check_effects(project, &owner, track, &mut effects)?;
         check_color(&owner, track.color)?;
@@ -416,15 +477,24 @@ fn check_channels(project: &Project) -> Result<(), String> {
 
 fn check_channel(project: &Project, channel: &Channel) -> Result<(), String> {
     if channel.voice.sanitized() != channel.voice {
-        return Err(format!("channel {} has invalid voice settings", channel.id.0));
+        return Err(format!(
+            "channel {} has invalid voice settings",
+            channel.id.0
+        ));
     }
-    channel.timing.validate().map_err(|reason| format!("channel {}: {reason}", channel.id.0))?;
+    channel
+        .timing
+        .validate()
+        .map_err(|reason| format!("channel {}: {reason}", channel.id.0))?;
     crate::expression_map::check(channel)?;
     if channel.group.len() > crate::MAX_CHANNEL_GROUP_NAME_BYTES
         || channel.group.trim() != channel.group
         || channel.group.chars().any(char::is_control)
     {
-        return Err(format!("channel {} has an invalid group name", channel.id.0));
+        return Err(format!(
+            "channel {} has an invalid group name",
+            channel.id.0
+        ));
     }
     let owner = format!("channel {}", channel.id.0);
     check_color(&owner, channel.color)?;
@@ -766,26 +836,60 @@ fn check_playlist(project: &Project) -> Result<(), String> {
 }
 
 /// Resolves every arrangement reference against the single project entity pools.
-pub(crate) fn check_arrangement_references(project: &Project, book: &crate::ArrangementBook) -> Result<(), String> {
+pub(crate) fn check_arrangement_references(
+    project: &Project,
+    book: &crate::ArrangementBook,
+) -> Result<(), String> {
     book.check().map_err(|error| error.to_string())?;
     let clips: HashSet<_> = project.playlist.clips.iter().map(|clip| clip.id).collect();
-    let tracks: HashSet<_> = project.playlist.tracks.iter().map(|track| track.id).collect();
-    for clip in book.arrangements.iter().flat_map(|item| &item.clips)
-        .chain(book.clip_groups.iter().flat_map(|group| &group.clips)) {
-        if !clips.contains(clip) { return Err(format!("arrangement clip {} does not exist", clip.0)); }
+    let tracks: HashSet<_> = project
+        .playlist
+        .tracks
+        .iter()
+        .map(|track| track.id)
+        .collect();
+    for clip in book
+        .arrangements
+        .iter()
+        .flat_map(|item| &item.clips)
+        .chain(book.clip_groups.iter().flat_map(|group| &group.clips))
+    {
+        if !clips.contains(clip) {
+            return Err(format!("arrangement clip {} does not exist", clip.0));
+        }
     }
-    for track in book.arrangements.iter().flat_map(|item| &item.tracks)
-        .chain(book.track_parents.keys()).chain(book.linked_tracks.keys()) {
-        if !tracks.contains(track) { return Err(format!("arrangement playlist track {} does not exist", track.0)); }
+    for track in book
+        .arrangements
+        .iter()
+        .flat_map(|item| &item.tracks)
+        .chain(book.track_parents.keys())
+        .chain(book.linked_tracks.keys())
+    {
+        if !tracks.contains(track) {
+            return Err(format!(
+                "arrangement playlist track {} does not exist",
+                track.0
+            ));
+        }
     }
     for kind in book.linked_tracks.values() {
         match *kind {
-            crate::arrangement::TrackKind::Instrument { channel } if project.channel(channel).is_none() =>
-                return Err(format!("arrangement channel {} does not exist", channel.0)),
-            crate::arrangement::TrackKind::Audio { source } if project.sample(source).is_none() =>
-                return Err(format!("arrangement sample {} does not exist", source.0)),
-            crate::arrangement::TrackKind::AudioTrack { mixer } if project.mixer.track(mixer).is_none_or(|track| track.current) =>
-                return Err(format!("arrangement mixer track {} does not exist", mixer.0)),
+            crate::arrangement::TrackKind::Instrument { channel }
+                if project.channel(channel).is_none() =>
+            {
+                return Err(format!("arrangement channel {} does not exist", channel.0));
+            }
+            crate::arrangement::TrackKind::Audio { source } if project.sample(source).is_none() => {
+                return Err(format!("arrangement sample {} does not exist", source.0));
+            }
+            crate::arrangement::TrackKind::AudioTrack { mixer }
+                if project.mixer.track(mixer).is_none_or(|track| track.current) =>
+            {
+                return Err(format!(
+                    "arrangement mixer track {} does not exist",
+                    mixer.0
+                ));
+            }
             _ => {}
         }
     }

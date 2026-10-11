@@ -46,24 +46,50 @@ pub(super) fn nothing_to_play(project: &Project) -> Option<&'static str> {
 }
 
 impl Session {
-    pub fn mixer_waveform_tracks(&self, tracks: Vec<windfall_project::TrackId>, generation: u64, revision: u64) -> Result<(), String> {
+    pub fn mixer_waveform_tracks(
+        &self,
+        tracks: Vec<windfall_project::TrackId>,
+        generation: u64,
+        revision: u64,
+    ) -> Result<(), String> {
         let state = self.state();
-        if state.generation != generation || state.document.revision() != revision { return Err("The project changed before waveform selection could update".into()); }
-        if tracks.len() > 128 { return Err("Waveform meters support at most 128 visible tracks".into()); }
+        if state.generation != generation || state.document.revision() != revision {
+            return Err("The project changed before waveform selection could update".into());
+        }
+        if tracks.len() > 128 {
+            return Err("Waveform meters support at most 128 visible tracks".into());
+        }
         let mut ids = std::collections::HashSet::new();
-        if tracks.iter().any(|id| !ids.insert(*id) || state.document.project().mixer.track(*id).is_none()) { return Err("Waveform selection contains missing or repeated tracks".into()); }
+        if tracks
+            .iter()
+            .any(|id| !ids.insert(*id) || state.document.project().mixer.track(*id).is_none())
+        {
+            return Err("Waveform selection contains missing or repeated tracks".into());
+        }
         self.controller().set_waveform_tracks(&tracks);
         Ok(())
     }
 
-    pub fn current_mixer_target(&self, track: Option<windfall_project::TrackId>, generation: u64, revision: u64) -> Result<(), String> {
+    pub fn current_mixer_target(
+        &self,
+        track: Option<windfall_project::TrackId>,
+        generation: u64,
+        revision: u64,
+    ) -> Result<(), String> {
         let state = self.state();
         if state.generation != generation || state.document.revision() != revision {
             return Err("Project changed before the Current source could follow selection".into());
         }
         if let Some(id) = track {
-            let source = state.document.project().mixer.track(id).ok_or("Current source no longer exists")?;
-            if source.current { return Err("Current cannot follow itself".into()); }
+            let source = state
+                .document
+                .project()
+                .mixer
+                .track(id)
+                .ok_or("Current source no longer exists")?;
+            if source.current {
+                return Err("Current cannot follow itself".into());
+            }
         }
         self.controller().set_current_track(track);
         Ok(())
@@ -124,8 +150,12 @@ impl Session {
     /// Changes the play mode, the pattern that plays in pattern mode, or
     /// song looping. Fails for a pattern the project does not have.
     pub fn transport_set(&self, patch: TransportPatch) -> Result<TransportState, String> {
-        if patch.count_in_bars.is_some_and(|bars| bars > 8) { return Err("Count-in must be 0 to 8 bars.".into()); }
-        if patch.metronome.is_some_and(|settings| !settings.gain.is_finite() || !(0.0..=1.0).contains(&settings.gain)) {
+        if patch.count_in_bars.is_some_and(|bars| bars > 8) {
+            return Err("Count-in must be 0 to 8 bars.".into());
+        }
+        if patch.metronome.is_some_and(|settings| {
+            !settings.gain.is_finite() || !(0.0..=1.0).contains(&settings.gain)
+        }) {
             return Err("Metronome gain must be between 0 and 1.".into());
         }
         let _recording = self.recording_idle()?;

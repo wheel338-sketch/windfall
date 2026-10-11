@@ -117,7 +117,10 @@ fn a_lane_is_added_changed_and_cleared_as_single_undoable_edits() {
     let moved = vec![point(0, 0.5), point(480, 0.75)];
     let changed = set(doc, volume, curve.clone(), moved.clone()).unwrap();
     assert_eq!(changed.label, "Change event automation");
-    assert!(changed.created.is_empty(), "a lane that exists keeps its id");
+    assert!(
+        changed.created.is_empty(),
+        "a lane that exists keeps its id"
+    );
     assert_eq!(lanes(doc)[0].id, lane[0].id);
     assert_eq!(lanes(doc)[0].points, moved);
     assert_eq!(entries(doc), before + 2);
@@ -220,10 +223,16 @@ fn stale_and_invalid_requests_leave_project_history_and_ids_untouched() {
 
     // The editor captured something else than the pattern now holds.
     refuse(doc, events(volume, Vec::new(), vec![point(0, 0.1)]));
-    refuse(doc, events(volume, vec![point(0, 0.4)], vec![point(0, 0.1)]));
+    refuse(
+        doc,
+        events(volume, vec![point(0, 0.4)], vec![point(0, 0.1)]),
+    );
     refuse(doc, events(pan, vec![point(0, 0.5)], vec![point(0, 0.1)]));
     // The tempo belongs to the song.
-    refuse(doc, events(AutomationTarget::Tempo, Vec::new(), vec![point(0, 0.5)]));
+    refuse(
+        doc,
+        events(AutomationTarget::Tempo, Vec::new(), vec![point(0, 0.5)]),
+    );
     // What the lane would move is not in the project.
     let ghost = AutomationTarget::ChannelVolume {
         channel: ChannelId(9999),
@@ -235,8 +244,14 @@ fn stale_and_invalid_requests_leave_project_history_and_ids_untouched() {
     };
     refuse(doc, events(no_setting, Vec::new(), vec![point(0, 0.5)]));
     // Points out of order, past the longest pattern, not numbers, or too many.
-    refuse(doc, events(pan, Vec::new(), vec![point(10, 0.5), point(9, 0.5)]));
-    refuse(doc, events(pan, Vec::new(), vec![point(MAX_PATTERN_TICKS + 1, 0.5)]));
+    refuse(
+        doc,
+        events(pan, Vec::new(), vec![point(10, 0.5), point(9, 0.5)]),
+    );
+    refuse(
+        doc,
+        events(pan, Vec::new(), vec![point(MAX_PATTERN_TICKS + 1, 0.5)]),
+    );
     // JSON has no NaN, so the boundary itself turns one away; so does the command.
     let nan = events(pan, Vec::new(), vec![point(0, f32::NAN)]);
     assert!(serde_json::from_str::<Command>(&serde_json::to_string(&nan).unwrap()).is_err());
@@ -245,7 +260,11 @@ fn stale_and_invalid_requests_leave_project_history_and_ids_untouched() {
     assert_eq!(entries(doc), history);
     refuse(
         doc,
-        events(pan, Vec::new(), vec![point(0, 0.5); MAX_AUTOMATION_POINTS + 1]),
+        events(
+            pan,
+            Vec::new(),
+            vec![point(0, 0.5); MAX_AUTOMATION_POINTS + 1],
+        ),
     );
     // A pattern that is not there.
     refuse(
@@ -343,7 +362,13 @@ fn files_with_broken_lanes_are_refused() {
     let volume = AutomationTarget::ChannelVolume {
         channel: fixture.channel,
     };
-    set(doc, volume, Vec::new(), vec![point(0, 0.5), point(960, 1.0)]).unwrap();
+    set(
+        doc,
+        volume,
+        Vec::new(),
+        vec![point(0, 0.5), point(960, 1.0)],
+    )
+    .unwrap();
     doc.dispatch(
         Command::AddAutomation {
             name: None,
@@ -413,7 +438,11 @@ fn removing_what_a_lane_moves_removes_the_lane_and_undo_brings_it_back() {
     let left: Vec<_> = lanes(doc).iter().map(|lane| lane.target).collect();
     assert_eq!(left, vec![targets[0], targets[1], targets[4]]);
     doc.undo().unwrap();
-    assert_eq!(lanes(doc), all, "one undo restores the effect and its lanes");
+    assert_eq!(
+        lanes(doc),
+        all,
+        "one undo restores the effect and its lanes"
+    );
 
     doc.dispatch(Command::RemoveChannel { id: channel }, None)
         .unwrap();
@@ -435,7 +464,13 @@ fn a_lane_follows_its_effect_to_another_track() {
         effect,
         param: 1,
     };
-    set(doc, param, Vec::new(), vec![point(0, 0.5), point(240, 0.75)]).unwrap();
+    set(
+        doc,
+        param,
+        Vec::new(),
+        vec![point(0, 0.5), point(240, 0.75)],
+    )
+    .unwrap();
     let before = lanes(doc);
 
     doc.dispatch(
@@ -475,7 +510,13 @@ fn copies_of_a_pattern_get_lanes_with_ids_of_their_own() {
     let pan = AutomationTarget::ChannelPan {
         channel: fixture.channel,
     };
-    set(doc, volume, Vec::new(), vec![point(0, 0.2), point(480, 0.9)]).unwrap();
+    set(
+        doc,
+        volume,
+        Vec::new(),
+        vec![point(0, 0.2), point(480, 0.9)],
+    )
+    .unwrap();
     set(doc, pan, Vec::new(), vec![point(0, 0.5)]).unwrap();
     let source = lanes(doc);
 
@@ -504,7 +545,13 @@ fn copies_of_a_pattern_get_lanes_with_ids_of_their_own() {
     assert_eq!(lanes(doc), source);
 
     // Make unique copies a clip's pattern, lanes and all.
-    let track = PlaylistTrackId(created(doc, Command::AddPlaylistTrack { name: None, index: None }));
+    let track = PlaylistTrackId(created(
+        doc,
+        Command::AddPlaylistTrack {
+            name: None,
+            index: None,
+        },
+    ));
     let clip = ClipId(created(
         doc,
         Command::AddClips {
@@ -525,8 +572,7 @@ fn copies_of_a_pattern_get_lanes_with_ids_of_their_own() {
     assert_ne!(unique.id, PatternId(1));
     assert_eq!(unique.events.len(), 2);
     assert!(unique.events.iter().all(|lane| {
-        source.iter().all(|old| old.id != lane.id)
-            && copied.iter().all(|old| old.id != lane.id)
+        source.iter().all(|old| old.id != lane.id) && copied.iter().all(|old| old.id != lane.id)
     }));
     assert!(from_json(&to_json(doc.project()).unwrap()).is_ok());
 }
@@ -547,8 +593,8 @@ fn an_lfo_is_written_into_a_lane_in_one_edit() {
         width: 0.5,
         seed: 0,
     };
-    let generate = |expected: Vec<AutomationPoint>, start: u32, end: u32| {
-        Command::GeneratePatternEventLfo {
+    let generate =
+        |expected: Vec<AutomationPoint>, start: u32, end: u32| Command::GeneratePatternEventLfo {
             pattern: PatternId(1),
             target: pan,
             expected,
@@ -556,8 +602,7 @@ fn an_lfo_is_written_into_a_lane_in_one_edit() {
             end,
             resolution: 120,
             lfo,
-        }
-    };
+        };
     let before = entries(doc);
 
     // With no lane yet, the curve starts from what the pan is stored at.
@@ -572,7 +617,10 @@ fn an_lfo_is_written_into_a_lane_in_one_edit() {
     for tick in (0..=960).step_by(120) {
         let wanted = lfo.value_at(f64::from(tick));
         let got = curve_value(points, f64::from(tick));
-        assert!((got - wanted).abs() < 1e-5, "tick {tick}: {got} != {wanted}");
+        assert!(
+            (got - wanted).abs() < 1e-5,
+            "tick {tick}: {got} != {wanted}"
+        );
     }
     assert!((curve_value(points, 240.0) - 0.75).abs() < 1e-5);
     assert!((curve_value(points, 720.0) - 0.25).abs() < 1e-5);
@@ -592,7 +640,10 @@ fn an_lfo_is_written_into_a_lane_in_one_edit() {
     // A stale capture, a backward range and a range past the pattern are refused.
     let project = doc.project().clone();
     assert!(doc.dispatch(generate(captured, 0, 960), None).is_err());
-    assert!(doc.dispatch(generate(longer.clone(), 960, 960), None).is_err());
+    assert!(
+        doc.dispatch(generate(longer.clone(), 960, 960), None)
+            .is_err()
+    );
     assert!(
         doc.dispatch(generate(longer.clone(), 0, MAX_PATTERN_TICKS + 960), None)
             .is_err()

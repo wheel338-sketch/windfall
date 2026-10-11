@@ -255,7 +255,8 @@ mod tests {
         assert_eq!(added.len(), 1);
         assert_eq!(added[0].id, id);
         // A lane that exists keeps its id, whatever is offered.
-        let changed = replaced(&added, VOLUME, vec![point(0, 0.75)], Some(AutomationId(8))).unwrap();
+        let changed =
+            replaced(&added, VOLUME, vec![point(0, 0.75)], Some(AutomationId(8))).unwrap();
         assert_eq!(changed.len(), 1);
         assert_eq!(changed[0].id, id);
         assert_eq!(changed[0].points[0].value, 0.75);
@@ -265,12 +266,23 @@ mod tests {
         assert_eq!(removed.len(), 1);
         assert_eq!(removed[0].target, PAN);
         // Removing what is not there changes nothing.
-        assert_eq!(replaced(&removed, VOLUME, Vec::new(), None).unwrap(), removed);
+        assert_eq!(
+            replaced(&removed, VOLUME, Vec::new(), None).unwrap(),
+            removed
+        );
     }
 
     #[test]
     fn the_tempo_a_missing_id_and_a_full_pattern_are_refused() {
-        assert!(replaced(&[], AutomationTarget::Tempo, vec![point(0, 0.5)], Some(AutomationId(1))).is_err());
+        assert!(
+            replaced(
+                &[],
+                AutomationTarget::Tempo,
+                vec![point(0, 0.5)],
+                Some(AutomationId(1))
+            )
+            .is_err()
+        );
         assert!(replaced(&[], VOLUME, vec![point(0, 0.5)], None).is_err());
         let full: Vec<_> = (0..MAX_PATTERN_EVENT_LANES as u32)
             .map(|index| PatternEventLane {

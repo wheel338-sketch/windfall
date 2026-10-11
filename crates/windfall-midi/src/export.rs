@@ -13,11 +13,13 @@ use windfall_project::{
     Project, TICKS_PER_STEP, curve_value,
 };
 
-use crate::expression::{self, Curves, ExportReport, ExpressionMode, ExpressionOptions, Source as NoteSource};
+use crate::expression::{
+    self, Curves, ExportReport, ExpressionMode, ExpressionOptions, Source as NoteSource,
+};
 use crate::mix::{pan_to_midi, velocity_to_midi, volume_to_midi};
 use crate::song::{
-    CC_PAN, CC_VOLUME, ControlCurve, ControlKind, ControlPoint, DRUM_CHANNEL,
-    MidiNote, MidiSong, MidiTrack, TempoChange, TimeSignatureChange, micros_per_quarter,
+    CC_PAN, CC_VOLUME, ControlCurve, ControlKind, ControlPoint, DRUM_CHANNEL, MidiNote, MidiSong,
+    MidiTrack, TempoChange, TimeSignatureChange, micros_per_quarter,
 };
 
 /// The most notes one export holds. A clip that loops a short pattern for
@@ -140,26 +142,46 @@ pub fn export_pattern_reported(
         notes.add(played, played.start, end)?;
     }
     let tempo = TempoChange::from_bpm(0, project.settings.tempo_bpm);
-    let (mut result, mut report) = song(
-        project,
-        &pattern.name,
-        notes,
-        vec![tempo],
-        length,
-        options,
-    )?;
+    let (mut result, mut report) =
+        song(project, &pattern.name, notes, vec![tempo], length, options)?;
     if !expressive {
         report.unexported_notes = unexported(pattern);
     }
     let signature = pattern.effective_signature(project.settings.time_signature);
-    result.time_signatures = vec![crate::TimeSignatureChange { tick: 0, numerator: signature.numerator, denominator: signature.denominator }];
-    for meter in pattern.timeline.meters.iter().filter(|meter| meter.tick < length) {
-        if meter.tick == 0 { result.time_signatures.clear(); }
-        result.time_signatures.push(crate::TimeSignatureChange { tick: meter.tick, numerator: meter.signature.numerator, denominator: meter.signature.denominator });
+    result.time_signatures = vec![crate::TimeSignatureChange {
+        tick: 0,
+        numerator: signature.numerator,
+        denominator: signature.denominator,
+    }];
+    for meter in pattern
+        .timeline
+        .meters
+        .iter()
+        .filter(|meter| meter.tick < length)
+    {
+        if meter.tick == 0 {
+            result.time_signatures.clear();
+        }
+        result.time_signatures.push(crate::TimeSignatureChange {
+            tick: meter.tick,
+            numerator: meter.signature.numerator,
+            denominator: meter.signature.denominator,
+        });
     }
-    result.markers = pattern.timeline.markers.iter().filter(|marker| marker.tick <= length)
-        .map(|marker| crate::Marker { tick: marker.tick, text: marker.name.clone() }).collect();
-    Ok(Exported { song: result, report })
+    result.markers = pattern
+        .timeline
+        .markers
+        .iter()
+        .filter(|marker| marker.tick <= length)
+        .map(|marker| crate::Marker {
+            tick: marker.tick,
+            text: marker.name.clone(),
+        })
+        .collect();
+    Ok(Exported {
+        song: result,
+        report,
+    })
 }
 
 /// The playlist as a song, the way song mode plays it.
@@ -221,14 +243,12 @@ pub fn export_song_reported(
         let Some(pattern) = project.pattern(pattern) else {
             continue;
         };
-        let (pattern_length, played) = patterns
-            .entry(pattern.id)
-            .or_insert_with(|| {
-                (
-                    pattern_length(pattern),
-                    played_notes(project, pattern, swing, expressive),
-                )
-            });
+        let (pattern_length, played) = patterns.entry(pattern.id).or_insert_with(|| {
+            (
+                pattern_length(pattern),
+                played_notes(project, pattern, swing, expressive),
+            )
+        });
         if played.is_empty() {
             continue;
         }
@@ -280,10 +300,23 @@ pub fn export_song_reported(
             denominator: meter.signature.denominator,
         });
     }
-    result.markers = project.playlist.timeline.markers.iter()
-        .filter(|marker| marker.tick <= length && marker.kind == windfall_project::MarkerKind::Named)
-        .map(|marker| crate::Marker { tick: marker.tick, text: marker.name.clone() }).collect();
-    Ok(Exported { song: result, report })
+    result.markers = project
+        .playlist
+        .timeline
+        .markers
+        .iter()
+        .filter(|marker| {
+            marker.tick <= length && marker.kind == windfall_project::MarkerKind::Named
+        })
+        .map(|marker| crate::Marker {
+            tick: marker.tick,
+            text: marker.name.clone(),
+        })
+        .collect();
+    Ok(Exported {
+        song: result,
+        report,
+    })
 }
 
 /// How many notes of a pattern that play have expression a plain export
@@ -374,12 +407,20 @@ fn played_notes<'a>(
     }
     let mut played = Vec::new();
     for lane in &pattern.lanes {
-        let Some(channel) = project.channel(lane.channel) else { continue; };
+        let Some(channel) = project.channel(lane.channel) else {
+            continue;
+        };
         for note in lane.notes.iter().filter(|note| note.start < length) {
             // A slide is a control event, never an additional MIDI note-on.
             let slide = note.expression.articulation == windfall_project::NoteArticulation::Slide;
-            if slide && !expressive { continue; }
-            let Some((tick, duration)) = channel.timing.place(note.start, note.length, length, swing) else { continue; };
+            if slide && !expressive {
+                continue;
+            }
+            let Some((tick, duration)) =
+                channel.timing.place(note.start, note.length, length, swing)
+            else {
+                continue;
+            };
             let start = tick.round() as u32;
             let end = (tick + duration).round() as u32;
             played.push(Played {
@@ -388,10 +429,16 @@ fn played_notes<'a>(
                 end: end.max(start.saturating_add(1)),
                 key: note.key.min(127),
                 velocity: velocity_to_midi(note.velocity),
-                release: (note.expression.clamped().release * 128.0).round().min(127.0) as u8,
+                release: (note.expression.clamped().release * 128.0)
+                    .round()
+                    .min(127.0) as u8,
                 midi_channel: note.expression.color_group,
                 slide,
-                pan: if note.pan.is_finite() { note.pan.clamp(-1.0, 1.0) } else { 0.0 },
+                pan: if note.pan.is_finite() {
+                    note.pan.clamp(-1.0, 1.0)
+                } else {
+                    0.0
+                },
                 expression: note.expression.clamped(),
                 curves: curves.get(&note.id).copied().unwrap_or_default(),
             });
@@ -434,8 +481,8 @@ impl<'a> Notes<'a> {
         }
         self.count += 1;
         if let Some(expressive) = &mut self.expressive {
-            let note = (!played.slide)
-                .then(|| self.by_channel.get(&played.channel).map_or(0, Vec::len));
+            let note =
+                (!played.slide).then(|| self.by_channel.get(&played.channel).map_or(0, Vec::len));
             let pending = Pending {
                 note,
                 start,
@@ -489,7 +536,9 @@ fn song(
         };
         let midi_channel = midi_channel(tracks.len());
         for note in &mut notes {
-            if note.channel == u8::MAX { note.channel = midi_channel; }
+            if note.channel == u8::MAX {
+                note.channel = midi_channel;
+            }
         }
         let pending = all
             .expressive
@@ -505,7 +554,11 @@ fn song(
                 key: played.key,
                 channel: played.midi_channel.unwrap_or(midi_channel),
                 pan: played.pan,
-                base_pan: if options.channel_mix { channel.pan } else { 0.0 },
+                base_pan: if options.channel_mix {
+                    channel.pan
+                } else {
+                    0.0
+                },
                 expression: played.expression,
                 curves: played.curves,
             });
@@ -515,9 +568,14 @@ fn song(
             mix_controls(channel, 0)
         } else if options.channel_mix {
             let mut used = [false; 16];
-            for note in &notes { used[usize::from(note.channel.min(15))] = true; }
-            used.into_iter().enumerate().filter(|(_, used)| *used)
-                .flat_map(|(route, _)| mix_controls(channel, route as u8)).collect()
+            for note in &notes {
+                used[usize::from(note.channel.min(15))] = true;
+            }
+            used.into_iter()
+                .enumerate()
+                .filter(|(_, used)| *used)
+                .flat_map(|(route, _)| mix_controls(channel, route as u8))
+                .collect()
         } else {
             Vec::new()
         };
@@ -531,12 +589,8 @@ fn song(
     }
     let mut report = ExportReport::default();
     if let Some(expression) = &options.expression {
-        let rendered = expression::render(
-            &sources,
-            tracks.len(),
-            expression,
-            MAX_EXPRESSION_MESSAGES,
-        );
+        let rendered =
+            expression::render(&sources, tracks.len(), expression, MAX_EXPRESSION_MESSAGES);
         if rendered.overflow {
             return Err(ExportError::TooManyMessages);
         }

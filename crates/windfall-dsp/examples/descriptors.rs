@@ -8,7 +8,9 @@
 //! against the real processors.
 
 use serde_json::{Value, json};
-use windfall_dsp::{CompressorParams, EffectKind, EffectParams, EqParams, InstrumentKind, ParamSet, TrackParams};
+use windfall_dsp::{
+    CompressorParams, EffectKind, EffectParams, EqParams, InstrumentKind, ParamSet, TrackParams,
+};
 
 const FIXTURE_SAMPLE_RATE: f32 = 48_000.0;
 

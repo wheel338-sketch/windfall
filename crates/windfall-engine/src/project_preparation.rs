@@ -593,8 +593,8 @@ impl Controller {
             self.inner.shared.clone(),
         );
         // All analyzer allocation is outside the controller/document guards.
-        let spectrum = crate::spectrum::prepare(snapshot.plan_generation, rate)
-            .map(|(tap, reader)| {
+        let spectrum =
+            crate::spectrum::prepare(snapshot.plan_generation, rate).map(|(tap, reader)| {
                 processor.set_spectrum(tap);
                 reader
             });
@@ -1197,7 +1197,12 @@ mod tests {
             let displaced;
             {
                 let mut state = controller.lock();
-                displaced = state.link.replace(Link { messages, garbage, spectrum: None, captures: None });
+                displaced = state.link.replace(Link {
+                    messages,
+                    garbage,
+                    spectrum: None,
+                    captures: None,
+                });
                 state.plan = restored.clone();
                 state.hosted = Some(Arc::new(ledger));
             }

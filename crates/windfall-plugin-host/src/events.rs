@@ -14,17 +14,38 @@ pub const FIRST_NOTE_INSTANCE_ID: u32 = 16 * 128;
 /// controls are normalized, except volume which uses CLAP's linear 0..4 range.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(u32)]
-pub enum NoteExpressionKind { Volume, Pan, Tuning, Vibrato, Expression, Brightness, Pressure }
+pub enum NoteExpressionKind {
+    Volume,
+    Pan,
+    Tuning,
+    Vibrato,
+    Expression,
+    Brightness,
+    Pressure,
+}
 impl NoteExpressionKind {
     pub const fn from_raw(value: u32) -> Option<Self> {
-        match value { 0 => Some(Self::Volume), 1 => Some(Self::Pan), 2 => Some(Self::Tuning),
-            3 => Some(Self::Vibrato), 4 => Some(Self::Expression), 5 => Some(Self::Brightness),
-            6 => Some(Self::Pressure), _ => None }
+        match value {
+            0 => Some(Self::Volume),
+            1 => Some(Self::Pan),
+            2 => Some(Self::Tuning),
+            3 => Some(Self::Vibrato),
+            4 => Some(Self::Expression),
+            5 => Some(Self::Brightness),
+            6 => Some(Self::Pressure),
+            _ => None,
+        }
     }
-    pub const fn mask(self) -> u32 { 1 << self as u32 }
+    pub const fn mask(self) -> u32 {
+        1 << self as u32
+    }
     pub fn valid(self, value: f64) -> bool {
-        value.is_finite() && match self { Self::Tuning => (-120.0..=120.0).contains(&value),
-            Self::Volume => (0.0..=4.0).contains(&value), _ => (0.0..=1.0).contains(&value) }
+        value.is_finite()
+            && match self {
+                Self::Tuning => (-120.0..=120.0).contains(&value),
+                Self::Volume => (0.0..=4.0).contains(&value),
+                _ => (0.0..=1.0).contains(&value),
+            }
     }
 }
 
@@ -50,20 +71,66 @@ pub enum HostEvent {
     /// Set a parameter, by the plugin's own id and in its own units.
     Param { time: u32, id: u32, value: f64 },
     /// One sounding occurrence, independent of other notes on its key.
-    NoteOnInstance { time: u32, id: u32, key: u8, channel: u8, velocity: f32 },
-    NoteOffInstance { time: u32, id: u32, key: u8, channel: u8, velocity: f32 },
-    NoteExpression { time: u32, id: u32, key: u8, channel: u8, kind: NoteExpressionKind, value: f64 },
+    NoteOnInstance {
+        time: u32,
+        id: u32,
+        key: u8,
+        channel: u8,
+        velocity: f32,
+    },
+    NoteOffInstance {
+        time: u32,
+        id: u32,
+        key: u8,
+        channel: u8,
+        velocity: f32,
+    },
+    NoteExpression {
+        time: u32,
+        id: u32,
+        key: u8,
+        channel: u8,
+        kind: NoteExpressionKind,
+        value: f64,
+    },
 }
 
 impl HostEvent {
     pub(crate) fn valid(&self) -> bool {
         match *self {
-            Self::NoteOnInstance { id, key, channel, velocity, .. }
-            | Self::NoteOffInstance { id, key, channel, velocity, .. } =>
-                (FIRST_NOTE_INSTANCE_ID..=i32::MAX as u32).contains(&id) && key <= 127 && channel <= 15
-                    && velocity.is_finite() && (0.0..=1.0).contains(&velocity),
-            Self::NoteExpression { id, key, channel, kind, value, .. } =>
-                (FIRST_NOTE_INSTANCE_ID..=i32::MAX as u32).contains(&id) && key <= 127 && channel <= 15 && kind.valid(value),
+            Self::NoteOnInstance {
+                id,
+                key,
+                channel,
+                velocity,
+                ..
+            }
+            | Self::NoteOffInstance {
+                id,
+                key,
+                channel,
+                velocity,
+                ..
+            } => {
+                (FIRST_NOTE_INSTANCE_ID..=i32::MAX as u32).contains(&id)
+                    && key <= 127
+                    && channel <= 15
+                    && velocity.is_finite()
+                    && (0.0..=1.0).contains(&velocity)
+            }
+            Self::NoteExpression {
+                id,
+                key,
+                channel,
+                kind,
+                value,
+                ..
+            } => {
+                (FIRST_NOTE_INSTANCE_ID..=i32::MAX as u32).contains(&id)
+                    && key <= 127
+                    && channel <= 15
+                    && kind.valid(value)
+            }
             Self::NoteOn {
                 key,
                 channel,
@@ -92,7 +159,8 @@ impl HostEvent {
             | Self::NoteOff { time, .. }
             | Self::AllNotesOff { time }
             | Self::Param { time, .. } => time,
-            Self::NoteOnInstance { time, .. } | Self::NoteOffInstance { time, .. }
+            Self::NoteOnInstance { time, .. }
+            | Self::NoteOffInstance { time, .. }
             | Self::NoteExpression { time, .. } => time,
         }
     }
@@ -103,7 +171,8 @@ impl HostEvent {
             | Self::NoteOff { time, .. }
             | Self::AllNotesOff { time }
             | Self::Param { time, .. } => *time = new,
-            Self::NoteOnInstance { time, .. } | Self::NoteOffInstance { time, .. }
+            Self::NoteOnInstance { time, .. }
+            | Self::NoteOffInstance { time, .. }
             | Self::NoteExpression { time, .. } => *time = new,
         }
     }

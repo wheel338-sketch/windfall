@@ -63,23 +63,58 @@ fn fixture() -> (Document, PlaylistTrackId, Vec<ClipId>) {
 #[test]
 fn additions_join_only_active_arrangement_and_survive_undo_redo() {
     let (mut doc, track, _) = fixture();
-    let active = edit(&mut doc, Command::AddArrangement {
-        name: "Active".into(), clips: vec![], tracks: vec![],
-    })[0];
-    let alternate = edit(&mut doc, Command::AddArrangement {
-        name: "Alternate".into(), clips: vec![], tracks: vec![],
-    })[0];
+    let active = edit(
+        &mut doc,
+        Command::AddArrangement {
+            name: "Active".into(),
+            clips: vec![],
+            tracks: vec![],
+        },
+    )[0];
+    let alternate = edit(
+        &mut doc,
+        Command::AddArrangement {
+            name: "Alternate".into(),
+            clips: vec![],
+            tracks: vec![],
+        },
+    )[0];
     edit(&mut doc, Command::SwitchArrangement { id: active });
-    let new_track = PlaylistTrackId(edit(&mut doc, Command::AddPlaylistTrack {
-        name: None, index: None,
-    })[0]);
-    assert_eq!(doc.project().playlist.arrangement_book.arrangements[0].tracks, vec![new_track]);
-    let new_clips: Vec<_> = edit(&mut doc, Command::AddClips {
-        clips: [track, new_track, track].into_iter().enumerate().map(|(index, track)| ClipInit {
-            track, start: index as u32 * 3840, length: Some(3840), offset: None,
-            muted: None, content: ClipContent::Pattern { pattern: PatternId(1) },
-        }).collect(),
-    }).into_iter().map(ClipId).collect();
+    let new_track = PlaylistTrackId(
+        edit(
+            &mut doc,
+            Command::AddPlaylistTrack {
+                name: None,
+                index: None,
+            },
+        )[0],
+    );
+    assert_eq!(
+        doc.project().playlist.arrangement_book.arrangements[0].tracks,
+        vec![new_track]
+    );
+    let new_clips: Vec<_> = edit(
+        &mut doc,
+        Command::AddClips {
+            clips: [track, new_track, track]
+                .into_iter()
+                .enumerate()
+                .map(|(index, track)| ClipInit {
+                    track,
+                    start: index as u32 * 3840,
+                    length: Some(3840),
+                    offset: None,
+                    muted: None,
+                    content: ClipContent::Pattern {
+                        pattern: PatternId(1),
+                    },
+                })
+                .collect(),
+        },
+    )
+    .into_iter()
+    .map(ClipId)
+    .collect();
     let book = &doc.project().playlist.arrangement_book;
     assert_eq!(book.arrangements[0].clips, new_clips);
     assert_eq!(book.arrangements[0].tracks, vec![new_track, track]);
@@ -87,13 +122,33 @@ fn additions_join_only_active_arrangement_and_survive_undo_redo() {
     assert!(book.arrangements[1].clips.is_empty());
     assert!(book.arrangements[1].tracks.is_empty());
     let before = doc.snapshot(None);
-    assert!(doc.dispatch(Command::Batch { label: None, commands: vec![
-        Command::AddPlaylistTrack { name: None, index: None },
-        Command::AddClips { clips: vec![ClipInit {
-            track: PlaylistTrackId(999), start: 0, length: Some(3840), offset: None,
-            muted: None, content: ClipContent::Pattern { pattern: PatternId(1) },
-        }] },
-    ] }, None).is_err());
+    assert!(
+        doc.dispatch(
+            Command::Batch {
+                label: None,
+                commands: vec![
+                    Command::AddPlaylistTrack {
+                        name: None,
+                        index: None
+                    },
+                    Command::AddClips {
+                        clips: vec![ClipInit {
+                            track: PlaylistTrackId(999),
+                            start: 0,
+                            length: Some(3840),
+                            offset: None,
+                            muted: None,
+                            content: ClipContent::Pattern {
+                                pattern: PatternId(1)
+                            },
+                        }]
+                    },
+                ]
+            },
+            None
+        )
+        .is_err()
+    );
     assert_eq!(doc.snapshot(None), before);
 }
 
@@ -313,19 +368,73 @@ fn failures_preserve_book_history_dirty_state_and_allocator() {
 #[test]
 fn removing_material_prunes_layout_and_group_references_with_undo() {
     let (mut doc, track, clips) = fixture();
-    edit(&mut doc, Command::AddArrangement {
-        name: "Layout".into(), clips: clips.clone(), tracks: vec![track],
-    });
-    edit(&mut doc, Command::AddClipGroup { clips: clips.clone() });
-    let group = edit(&mut doc, Command::AddTrackGroup { name: "Group".into(), parent: None })[0];
-    edit(&mut doc, Command::MoveTrackToGroup { track, parent: Some(group) });
-    let channel = ChannelId(edit(&mut doc, serde_json::from_value(serde_json::json!({"type":"addChannel", "name":"Linked"})).unwrap())[0]);
-    edit(&mut doc, Command::LinkTrack { track, kind: Some(TrackKind::Instrument { channel }) });
-    edit(&mut doc, Command::RemoveClips { clips: vec![clips[0]] });
-    assert_eq!(doc.project().playlist.arrangement_book.arrangements[0].clips, vec![clips[1]]);
-    assert!(doc.project().playlist.arrangement_book.clip_groups.is_empty());
+    edit(
+        &mut doc,
+        Command::AddArrangement {
+            name: "Layout".into(),
+            clips: clips.clone(),
+            tracks: vec![track],
+        },
+    );
+    edit(
+        &mut doc,
+        Command::AddClipGroup {
+            clips: clips.clone(),
+        },
+    );
+    let group = edit(
+        &mut doc,
+        Command::AddTrackGroup {
+            name: "Group".into(),
+            parent: None,
+        },
+    )[0];
+    edit(
+        &mut doc,
+        Command::MoveTrackToGroup {
+            track,
+            parent: Some(group),
+        },
+    );
+    let channel = ChannelId(
+        edit(
+            &mut doc,
+            serde_json::from_value(serde_json::json!({"type":"addChannel", "name":"Linked"}))
+                .unwrap(),
+        )[0],
+    );
+    edit(
+        &mut doc,
+        Command::LinkTrack {
+            track,
+            kind: Some(TrackKind::Instrument { channel }),
+        },
+    );
+    edit(
+        &mut doc,
+        Command::RemoveClips {
+            clips: vec![clips[0]],
+        },
+    );
+    assert_eq!(
+        doc.project().playlist.arrangement_book.arrangements[0].clips,
+        vec![clips[1]]
+    );
+    assert!(
+        doc.project()
+            .playlist
+            .arrangement_book
+            .clip_groups
+            .is_empty()
+    );
     edit(&mut doc, Command::RemoveChannel { id: channel });
-    assert!(doc.project().playlist.arrangement_book.linked_tracks.is_empty());
+    assert!(
+        doc.project()
+            .playlist
+            .arrangement_book
+            .linked_tracks
+            .is_empty()
+    );
     edit(&mut doc, Command::RemovePlaylistTrack { id: track });
     let book = &doc.project().playlist.arrangement_book;
     assert!(book.arrangements[0].clips.is_empty());

@@ -77,7 +77,11 @@ impl Voice {
         let fraction = (self.position - index as f64) as f32;
         let a = self.zone.sample.data[index];
         let b = self.zone.sample.data[next];
-        let value = (a + (b - a) * fraction) * self.envelope * self.velocity_gain * self.zone.gain * self.gain;
+        let value = (a + (b - a) * fraction)
+            * self.envelope
+            * self.velocity_gain
+            * self.zone.gain
+            * self.gain;
         let pan = (self.zone.pan + self.pan).clamp(-1.0, 1.0);
         let left = ((1.0 - pan) * 0.5).sqrt();
         let right = ((1.0 + pan) * 0.5).sqrt();

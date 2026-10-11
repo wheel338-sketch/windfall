@@ -152,7 +152,10 @@ enum Target {
     /// The track at this index of [`Plan::tracks`].
     TrackGain(usize),
     TrackPan(usize),
-    TrackParam { track: usize, param: usize },
+    TrackParam {
+        track: usize,
+        param: usize,
+    },
     /// A send: the edge at index `edge` of track `track`.
     Send {
         track: usize,
@@ -272,7 +275,10 @@ impl Lane {
                     .binary_search_by_key(&index, |entry| entry.pattern)
                     .ok()?;
                 let entry = &self.patterns[at];
-                Some((curve_value(&self.curves[entry.curve], tick), entry.automation))
+                Some((
+                    curve_value(&self.curves[entry.curve], tick),
+                    entry.automation,
+                ))
             }
         }
     }
@@ -423,8 +429,13 @@ pub(crate) fn compile(project: &Project, playlist: &Playlist, plan: &Plan) -> Ve
         if automation.points.is_empty() {
             continue;
         }
-        let Some(at) = lane_of(&automation.target, project, plan, &mut lanes, &mut by_target)
-        else {
+        let Some(at) = lane_of(
+            &automation.target,
+            project,
+            plan,
+            &mut lanes,
+            &mut by_target,
+        ) else {
             continue;
         };
         let (lane, pieces, curves) = &mut lanes[at];
@@ -636,7 +647,10 @@ fn resolve(target: &AutomationTarget, plan: &Plan) -> Option<Target> {
         AutomationTarget::ChannelPan { channel: id } => Target::ChannelPan(channel(id)?),
         AutomationTarget::TrackVolume { track: id } => Target::TrackGain(track(id)?),
         AutomationTarget::TrackPan { track: id } => Target::TrackPan(track(id)?),
-        AutomationTarget::TrackParam { track: id, param } => Target::TrackParam { track: track(id)?, param: param as usize },
+        AutomationTarget::TrackParam { track: id, param } => Target::TrackParam {
+            track: track(id)?,
+            param: param as usize,
+        },
         AutomationTarget::SidechainGain {
             track: from,
             target: to,
@@ -648,7 +662,7 @@ fn resolve(target: &AutomationTarget, plan: &Plan) -> Option<Target> {
                 .position(|edge| edge.send && edge.sidechain && edge.target_id == to)?;
             Target::Send { track: from, edge }
         }
-            AutomationTarget::SendGain {
+        AutomationTarget::SendGain {
             track: from,
             target: to,
         } => {
@@ -860,7 +874,10 @@ fn stored(plan: &Plan, target: Target) -> Option<f32> {
         Target::ChannelPan(channel) => Some(plan.channels[channel].pan),
         Target::TrackGain(track) => Some(plan.tracks[track].gain),
         Target::TrackPan(track) => Some(plan.tracks[track].pan),
-        Target::TrackParam { track, param } => { use windfall_dsp::ParamSet; plan.tracks[track].processing.get(param) },
+        Target::TrackParam { track, param } => {
+            use windfall_dsp::ParamSet;
+            plan.tracks[track].processing.get(param)
+        }
         Target::Send { track, edge } => Some(plan.tracks[track].edges[edge].gain),
         Target::EffectParam { effect: id, param } => {
             if let Some(binding) = plan.plugins.iter().find(|binding| {

@@ -61,7 +61,10 @@ impl SendTap {
             *frame = if self.sent == 0.0 {
                 [0.0; 2]
             } else {
-                [crate::balance::audio(*left) * self.sent, crate::balance::audio(*right) * self.sent]
+                [
+                    crate::balance::audio(*left) * self.sent,
+                    crate::balance::audio(*right) * self.sent,
+                ]
             };
         }
     }

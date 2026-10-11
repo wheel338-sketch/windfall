@@ -1,43 +1,95 @@
 //! Only the selected arrangement's documented named/meter markers cross over.
 use super::Builder;
 use crate::report::{Outcome, ReportSection};
-use windfall_project::{Command, MarkerKind, PatternId, PatternTimelineEdit, TimeSignature, MAX_PATTERN_TICKS};
+use windfall_project::{
+    Command, MAX_PATTERN_TICKS, MarkerKind, PatternId, PatternTimelineEdit, TimeSignature,
+};
 
 impl Builder<'_> {
-    pub(super) fn pattern_timeline(&mut self, pattern: PatternId, markers: &[crate::model::TimeMarker]) {
+    pub(super) fn pattern_timeline(
+        &mut self,
+        pattern: PatternId,
+        markers: &[crate::model::TimeMarker],
+    ) {
         let section = ReportSection::Other;
         for marker in markers {
             let scaled = crate::units::rescale(marker.position, self.ppq);
             let Ok(tick) = u32::try_from(scaled.ticks) else {
                 self.report.count(section, Outcome::Dropped, 1);
-                self.report.say(section, Outcome::Dropped, "A pattern marker exceeds the pattern tick range.");
+                self.report.say(
+                    section,
+                    Outcome::Dropped,
+                    "A pattern marker exceeds the pattern tick range.",
+                );
                 continue;
             };
             if tick > MAX_PATTERN_TICKS {
                 self.report.count(section, Outcome::Dropped, 1);
-                self.report.say(section, Outcome::Dropped, "A pattern marker exceeds the pattern tick range.");
+                self.report.say(
+                    section,
+                    Outcome::Dropped,
+                    "A pattern marker exceeds the pattern tick range.",
+                );
                 continue;
             }
             let edit = match marker.kind {
                 8 => {
-                    let (Some(numerator), Some(denominator)) = (marker.numerator, marker.denominator) else {
+                    let (Some(numerator), Some(denominator)) =
+                        (marker.numerator, marker.denominator)
+                    else {
                         self.report.count(section, Outcome::Dropped, 1);
-                        self.report.say(section, Outcome::Dropped, "A pattern meter marker has no complete signature.");
+                        self.report.say(
+                            section,
+                            Outcome::Dropped,
+                            "A pattern meter marker has no complete signature.",
+                        );
                         continue;
                     };
-                    PatternTimelineEdit::AddMeter { tick, signature: TimeSignature { numerator, denominator } }
+                    PatternTimelineEdit::AddMeter {
+                        tick,
+                        signature: TimeSignature {
+                            numerator,
+                            denominator,
+                        },
+                    }
                 }
-                0 => PatternTimelineEdit::AddMarker { tick, name: marker.name.as_deref().filter(|name| !name.trim().is_empty()).unwrap_or("Marker").to_owned() },
+                0 => PatternTimelineEdit::AddMarker {
+                    tick,
+                    name: marker
+                        .name
+                        .as_deref()
+                        .filter(|name| !name.trim().is_empty())
+                        .unwrap_or("Marker")
+                        .to_owned(),
+                },
                 kind => {
                     self.report.count(section, Outcome::Dropped, 1);
                     self.report.say(section, Outcome::Dropped, format!("Pattern marker kind {kind} is not mapped: its navigation semantics are not supported by this importer."));
                     continue;
                 }
             };
-            let Some(source) = self.project().pattern(pattern) else { continue; };
-            let command = Command::EditPatternTimeline { pattern, expected: source.timeline.clone(), expected_signature: source.time_signature, edit };
-            if self.apply(section, "A pattern timeline marker", command).is_some() {
-                self.report.count(section, if scaled.exact { Outcome::Exact } else { Outcome::Approximated }, 1);
+            let Some(source) = self.project().pattern(pattern) else {
+                continue;
+            };
+            let command = Command::EditPatternTimeline {
+                pattern,
+                expected: source.timeline.clone(),
+                expected_signature: source.time_signature,
+                edit,
+            };
+            if self
+                .apply(section, "A pattern timeline marker", command)
+                .is_some()
+            {
+                self.report.count(
+                    section,
+                    if scaled.exact {
+                        Outcome::Exact
+                    } else {
+                        Outcome::Approximated
+                    },
+                    1,
+                );
             }
         }
     }

@@ -42,7 +42,11 @@ pub(crate) enum Message {
     Stop {
         sequence: u32,
     },
-    CountIn { sequence: u32, bars: u8, capture: Option<u64> },
+    CountIn {
+        sequence: u32,
+        bars: u8,
+        capture: Option<u64>,
+    },
     Seek(f64),
     SetRegion(Option<windfall_project::TickRange>),
     SetTransport {

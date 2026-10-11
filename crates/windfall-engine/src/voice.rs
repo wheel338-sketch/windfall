@@ -646,8 +646,11 @@ impl Voice {
         let (gliding, mut left, mut right) = match mix {
             Mix::Sides(left, right) => (None, left, right),
             Mix::Strip(strip) => {
-                let (left, right) =
-                    stereo_gains(strip.law, strip.gain.at(start), strip.pan.at(start) + self.pan);
+                let (left, right) = stereo_gains(
+                    strip.law,
+                    strip.gain.at(start),
+                    strip.pan.at(start) + self.pan,
+                );
                 let steady = strip.gain.settled(start)
                     && strip.pan.settled(start)
                     && !self.source.is_some_and(|source| source.active);
@@ -1198,9 +1201,8 @@ impl VoicePool {
                 return false;
             }
         } else {
-            voice.pitch = f64::from(note.key)
-                + f64::from(note.expression.fine_pitch_cents) / 100.0
-                + mapped;
+            voice.pitch =
+                f64::from(note.key) + f64::from(note.expression.fine_pitch_cents) / 100.0 + mapped;
         }
         let target = voice.pitch;
         voice.glide = if note.expression.articulation == NoteArticulation::Portamento {
@@ -1424,7 +1426,10 @@ impl VoicePool {
                     Mix::Strip(state.channels[channel]),
                     mixer.track_mut(plan.channels[channel].track),
                 ),
-                Route::Master => (Mix::Strip(Strip::at_rest(1.0, 0.0).under(plan.pan_law)), mixer.track_mut(0)),
+                Route::Master => (
+                    Mix::Strip(Strip::at_rest(1.0, 0.0).under(plan.pan_law)),
+                    mixer.track_mut(0),
+                ),
                 Route::Track {
                     track, left, right, ..
                 } => (Mix::Sides(left, right), mixer.track_mut(track)),

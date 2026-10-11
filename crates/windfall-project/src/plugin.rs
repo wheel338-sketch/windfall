@@ -68,8 +68,15 @@ impl PluginBinding {
     pub fn validate(&self) -> Result<(), &'static str> {
         if self.sidechain_input.is_some_and(|index| index >= 64)
             || self.auxiliary_inputs.len() > 64
-            || self.auxiliary_inputs.iter().any(|input| input.index >= 64 || input.channels == 0 || input.channels > 64)
-            || self.auxiliary_inputs.iter().enumerate().any(|(at, input)| self.auxiliary_inputs[..at].iter().any(|other| input.index == other.index))
+            || self
+                .auxiliary_inputs
+                .iter()
+                .any(|input| input.index >= 64 || input.channels == 0 || input.channels > 64)
+            || self.auxiliary_inputs.iter().enumerate().any(|(at, input)| {
+                self.auxiliary_inputs[..at]
+                    .iter()
+                    .any(|other| input.index == other.index)
+            })
         {
             return Err("the plugin auxiliary input list or selection is invalid");
         }

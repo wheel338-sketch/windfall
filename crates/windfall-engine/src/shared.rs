@@ -84,7 +84,10 @@ impl Shared {
     pub fn new() -> Self {
         Self {
             waveform_epoch: AtomicU64::new(1),
-            waveforms: (0..MAX_MIXER_TRACKS).map(|_| crate::waveform_meter::WaveSlot::new()).collect::<Vec<_>>().into_boxed_slice(),
+            waveforms: (0..MAX_MIXER_TRACKS)
+                .map(|_| crate::waveform_meter::WaveSlot::new())
+                .collect::<Vec<_>>()
+                .into_boxed_slice(),
             current_track: AtomicU32::new(u32::MAX),
             recording_clock: crate::recording_clock::RecordingClock::new(),
             count_in_remaining: AtomicU32::new(0),

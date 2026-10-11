@@ -35,7 +35,10 @@ fn offsets(start: u32, length: u32, origin: u32, resolution: u32, lfo: CurveLfo)
     offsets.push(length);
     let jumps = matches!(
         lfo.wave,
-        CurveLfoWave::SawUp | CurveLfoWave::SawDown | CurveLfoWave::Square | CurveLfoWave::SampleHold
+        CurveLfoWave::SawUp
+            | CurveLfoWave::SawDown
+            | CurveLfoWave::Square
+            | CurveLfoWave::SampleHold
     );
     if jumps {
         // Phase of the LFO, in cycles, at the note's start and end.
@@ -194,7 +197,11 @@ mod tests {
         assert!((points[6].value + 1200.0).abs() < 1e-3);
         assert!(points[0].value.abs() < 1e-3);
         assert!(points.iter().all(|point| !point.hold));
-        assert!(points.windows(2).all(|pair| pair[0].position < pair[1].position));
+        assert!(
+            points
+                .windows(2)
+                .all(|pair| pair[0].position < pair[1].position)
+        );
     }
 
     #[test]
@@ -219,23 +226,66 @@ mod tests {
             depth: 0.0,
             ..lfo(CurveLfoWave::Sine, 480)
         };
-        let half = generate(&[plain], &[], NoteCurveParameter::ModulationX, 0, 480, 0.5, high).unwrap();
-        assert!(half[0].points.iter().all(|point| (point.value - 0.6).abs() < 1e-6));
-        let none = generate(&[plain], &[], NoteCurveParameter::ModulationX, 0, 480, 0.0, high).unwrap();
-        assert!(none[0].points.iter().all(|point| (point.value - 0.2).abs() < 1e-6));
+        let half = generate(
+            &[plain],
+            &[],
+            NoteCurveParameter::ModulationX,
+            0,
+            480,
+            0.5,
+            high,
+        )
+        .unwrap();
+        assert!(
+            half[0]
+                .points
+                .iter()
+                .all(|point| (point.value - 0.6).abs() < 1e-6)
+        );
+        let none = generate(
+            &[plain],
+            &[],
+            NoteCurveParameter::ModulationX,
+            0,
+            480,
+            0.0,
+            high,
+        )
+        .unwrap();
+        assert!(
+            none[0]
+                .points
+                .iter()
+                .all(|point| (point.value - 0.2).abs() < 1e-6)
+        );
 
         let was = NoteExpressionCurve {
             note: NoteId(1),
             parameter: NoteCurveParameter::ModulationX,
             points: vec![
-                NoteCurvePoint { position: 0.0, value: 0.0, curve: 0.0, hold: false },
-                NoteCurvePoint { position: 1.0, value: 1.0, curve: 0.0, hold: false },
+                NoteCurvePoint {
+                    position: 0.0,
+                    value: 0.0,
+                    curve: 0.0,
+                    hold: false,
+                },
+                NoteCurvePoint {
+                    position: 1.0,
+                    value: 1.0,
+                    curve: 0.0,
+                    hold: false,
+                },
             ],
         };
         let other = NoteExpressionCurve {
             note: NoteId(1),
             parameter: NoteCurveParameter::Pan,
-            points: vec![NoteCurvePoint { position: 0.0, value: 0.25, curve: 0.0, hold: false }],
+            points: vec![NoteCurvePoint {
+                position: 0.0,
+                value: 0.25,
+                curve: 0.0,
+                hold: false,
+            }],
         };
         let kept = generate(
             &[plain],
@@ -270,11 +320,7 @@ mod tests {
         assert!(points[..points.len() - 1].iter().all(|point| point.hold));
         assert!(!points.last().unwrap().hold);
         // High for the first half of each cycle, low for the second.
-        let at = |offset: u32| {
-            square[0]
-                .value_at(f64::from(offset) / 960.0)
-                .unwrap()
-        };
+        let at = |offset: u32| square[0].value_at(f64::from(offset) / 960.0).unwrap();
         assert_eq!(at(0), 1.0);
         assert_eq!(at(239), 1.0);
         assert_eq!(at(240), 0.0);
@@ -303,13 +349,29 @@ mod tests {
         let curves = generate(&long, &[], NoteCurveParameter::Pan, 0, 1, 1.0, wave).unwrap();
         assert!(curves[0].points.len() <= MAX_NOTE_CURVE_POINTS);
         assert_eq!(curves[0].points.last().unwrap().position, 1.0);
-        assert!(curves[0].points.windows(2).all(|pair| pair[0].position < pair[1].position));
+        assert!(
+            curves[0]
+                .points
+                .windows(2)
+                .all(|pair| pair[0].position < pair[1].position)
+        );
 
         let one = [note(1, 0, 240)];
         let sine = lfo(CurveLfoWave::Sine, 240);
         assert!(generate(&[], &[], NoteCurveParameter::Pan, 0, 60, 1.0, sine).is_err());
         assert!(generate(&one, &[], NoteCurveParameter::Pan, 0, 0, 1.0, sine).is_err());
-        assert!(generate(&one, &[], NoteCurveParameter::Pan, MAX_PATTERN_TICKS + 1, 60, 1.0, sine).is_err());
+        assert!(
+            generate(
+                &one,
+                &[],
+                NoteCurveParameter::Pan,
+                MAX_PATTERN_TICKS + 1,
+                60,
+                1.0,
+                sine
+            )
+            .is_err()
+        );
         assert!(generate(&one, &[], NoteCurveParameter::Pan, 0, 60, 1.5, sine).is_err());
         assert!(generate(&one, &[], NoteCurveParameter::Pan, 0, 60, f64::NAN, sine).is_err());
         let broken = CurveLfo { period: 0, ..sine };
