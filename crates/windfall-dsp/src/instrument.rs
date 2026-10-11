@@ -1980,8 +1980,7 @@ impl AnyInstrument {
         }
     }
 
-    /// See [`Instrument::set_note_gain`]. Instruments without per-note
-    /// controls ignore it.
+    /// See [`Instrument::set_note_pan_law`].
     pub fn set_note_pan_law(&mut self, law: windfall_core::PanLaw) {
         match self {
             Self::SubtractiveSynth(unit) => unit.set_note_pan_law(law),
@@ -1993,6 +1992,7 @@ impl AnyInstrument {
         }
     }
 
+    /// See [`Instrument::set_note_gain`]. Instruments without per-note controls ignore it.
     pub fn set_note_gain(&mut self, id: NoteInstanceId, gain: f32) {
         match self {
             AnyInstrument::SubtractiveSynth(synth) => synth.set_note_gain(id, gain),
