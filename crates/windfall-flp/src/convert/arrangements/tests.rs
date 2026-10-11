@@ -4,7 +4,7 @@ use crate::model::{
     Arrangement, Channel, ChannelKind, FlpProject, LegacyPlaylistItem, Pattern, PlaylistItem,
     PlaylistSource, Plugin, TimeMarker, Track,
 };
-use windfall_project::{ArrangementBook, ChannelSource, Command, Document};
+use windfall_project::{ChannelSource, Command, Document};
 
 fn item(position: u32, track: u16) -> PlaylistItem {
     PlaylistItem {
@@ -75,7 +75,7 @@ fn source() -> FlpProject {
 }
 
 #[test]
-fn named_arrangements_keep_stable_ids_and_only_existing_references() {
+fn independent_arrangements_keep_distinct_clips_lanes_and_selected_timeline() {
     let source = source();
     let imported = convert(&source, &ConvertOptions::default());
     imported.project.check().unwrap();
@@ -88,60 +88,48 @@ fn named_arrangements_keep_stable_ids_and_only_existing_references() {
             .collect::<Vec<_>>(),
         ["Short version", "Full version"]
     );
-    assert_ne!(book.arrangements[0].id, book.arrangements[1].id);
     assert_eq!(book.active, Some(book.arrangements[1].id));
-    assert_eq!(book.arrangements[0].clips, [playlist.clips[0].id]);
-    assert_eq!(book.arrangements[0].tracks, [playlist.tracks[0].id]);
-    assert_eq!(
-        book.arrangements[1].clips,
-        playlist.clips.iter().map(|c| c.id).collect::<Vec<_>>()
+    assert_eq!(playlist.clips.len(), 4);
+    assert_eq!(book.arrangements[0].clips.len(), 2);
+    assert_eq!(book.arrangements[1].clips.len(), 2);
+    assert!(
+        book.arrangements[0]
+            .clips
+            .iter()
+            .all(|id| !book.arrangements[1].clips.contains(id))
     );
-    assert_eq!(book.arrangements[1].tracks, [playlist.tracks[0].id]);
-    assert_eq!(playlist.clips.len(), 2);
-    assert_eq!(
-        book,
-        &convert(&source, &ConvertOptions::default())
-            .project
-            .playlist
-            .arrangement_book
-    );
-    let report = format!("{:?}", imported.report);
-    assert!(report.contains("1 clip placements without matching playlist references"));
-    assert!(report.contains("1 timeline markers that were left out"));
-    assert!(report.contains("playback still uses one playlist"));
-    assert!(!report.contains("other 1 left out"));
-}
-
-#[test]
-fn selected_playlist_and_timeline_equal_a_single_arrangement_import_and_switching_keeps_them() {
-    let source = source();
-    let imported = convert(&source, &ConvertOptions::default());
-    let mut single = source.clone();
-    single.arrangements.remove(0);
-    let baseline = convert(&single, &ConvertOptions::default());
-    let mut playlist = imported.project.playlist.clone();
-    playlist.arrangement_book = ArrangementBook::default();
-    assert_eq!(playlist, baseline.project.playlist);
-    assert_eq!(
-        (playlist.clips[0].start, playlist.clips[1].start),
-        (3840, 7680)
-    );
+    assert_eq!(book.arrangements[0].tracks.len(), 2);
+    assert_eq!(book.arrangements[1].tracks.len(), 1);
+    let positions = |a: &windfall_project::arrangement::Arrangement| {
+        a.clips
+            .iter()
+            .map(|id| playlist.clips.iter().find(|c| c.id == *id).unwrap().start)
+            .collect::<Vec<_>>()
+    };
+    assert_eq!(positions(&book.arrangements[0]), [3840, 11520]);
+    assert_eq!(positions(&book.arrangements[1]), [3840, 7680]);
     assert_eq!(playlist.timeline.markers[0].name, "Chorus");
-    assert_eq!(playlist.timeline.markers[0].tick, 7680);
     assert_eq!(playlist.timeline.meters[0].signature.numerator, 3);
-    assert_eq!(playlist.timeline.meters[0].signature.denominator, 4);
-
-    let other_id = imported.project.playlist.arrangement_book.arrangements[0].id;
-    let mut document = Document::new(imported.project);
+    assert!(format!("{:?}", imported.report).contains("one shared project timeline"));
+    assert_eq!(imported, convert(&source, &ConvertOptions::default()));
+    let mut document = Document::new(imported.project.clone());
     document
-        .dispatch(Command::SwitchArrangement { id: other_id }, None)
+        .dispatch(
+            Command::SwitchArrangement {
+                id: book.arrangements[0].id,
+            },
+            None,
+        )
         .unwrap();
-    let switched = &document.project().playlist;
-    assert_eq!(switched.clips, playlist.clips);
-    assert_eq!(switched.tracks, playlist.tracks);
-    assert_eq!(switched.timeline, playlist.timeline);
-    assert_eq!(switched.arrangement_book.active, Some(other_id));
-    document.project().check().unwrap();
+    assert_eq!(
+        document.project().playlist.arrangement_book.active,
+        Some(book.arrangements[0].id)
+    );
+    assert_eq!(document.project().playlist.clips, playlist.clips);
+    let json = windfall_project::file::to_json(document.project()).unwrap();
+    let reopened: windfall_project::Project = windfall_project::file::from_json(&json).unwrap();
+    reopened.check().unwrap();
+    assert_eq!(reopened, *document.project());
 }
 
 #[test]
@@ -153,40 +141,26 @@ fn one_arrangement_keeps_legacy_book_and_allocator() {
     let unnamed = convert(&source, &ConvertOptions::default());
     assert!(named.project.playlist.arrangement_book.is_empty());
     assert_eq!(named, unnamed);
-    assert_eq!(named.project.next_id, unnamed.project.next_id);
 }
 
 #[test]
-fn distinct_layout_still_keeps_its_name_and_identity_without_dangling_references() {
+fn identical_and_legacy_placements_are_owned_independently() {
     let mut source = source();
-    source.arrangements[0].items = vec![item(1536, 9)];
-    source.arrangements[0].tracks.clear();
-    source.current_arrangement = Some(999); // Use the same first-arrangement fallback as playback.
+    for arrangement in &mut source.arrangements {
+        arrangement.items = vec![item(384, 1), item(384, 1)];
+        arrangement.legacy_items = vec![LegacyPlaylistItem { bar: 2, pattern: 1 }];
+    }
     let imported = convert(&source, &ConvertOptions::default());
-    let book = &imported.project.playlist.arrangement_book;
-    assert_eq!(book.active, Some(book.arrangements[0].id));
-    assert_eq!(book.arrangements[1].name, "Full version");
-    assert!(book.arrangements[1].clips.is_empty());
-    assert!(book.arrangements[1].tracks.is_empty());
-    assert_eq!(imported.project.playlist.clips[0].start, 15360);
-    imported.project.check().unwrap();
-}
-
-#[test]
-fn repeated_and_legacy_items_use_each_available_reference_once_and_skip_failed_clips() {
-    let mut source = source();
-    source.arrangements[1].items = vec![item(384, 1), item(384, 1), item(0, 1)];
-    source.arrangements[1].items[2].length = 0;
-    source.arrangements[0].items = vec![item(384, 1); 3];
-    let rejected = source.arrangements[1].items[2];
-    source.arrangements[0].items.push(rejected);
-    let legacy = LegacyPlaylistItem { bar: 2, pattern: 1 };
-    source.arrangements[1].legacy_items = vec![legacy];
-    source.arrangements[0].legacy_items = vec![legacy];
-    let imported = convert(&source, &ConvertOptions::default());
-    let playlist = &imported.project.playlist;
-    assert_eq!(playlist.clips.len(), 3);
-    assert_eq!(playlist.arrangement_book.arrangements[0].clips.len(), 3);
+    assert_eq!(imported.project.playlist.clips.len(), 6);
+    assert!(
+        imported
+            .project
+            .playlist
+            .arrangement_book
+            .arrangements
+            .iter()
+            .all(|a| a.clips.len() == 3)
+    );
     imported.project.check().unwrap();
 }
 

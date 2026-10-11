@@ -186,6 +186,10 @@ impl Builder<'_> {
                     id,
                     patch: ChannelPatch {
                         color: chosen_color(channel.color),
+                        timing: channel.swing.map(|swing| windfall_project::ChannelTiming {
+                            swing_mix: f32::from(swing.min(128)) / 128.0,
+                            ..Default::default()
+                        }),
                         volume: Some(volume),
                         pan: Some(pan),
                         muted: Some(!channel.enabled.unwrap_or(true)),
@@ -194,6 +198,13 @@ impl Builder<'_> {
                 },
             );
             let mut outcome = Outcome::Exact;
+            if channel.time_shift.is_some_and(|shift| shift != 0) {
+                outcome = Outcome::Approximated;
+                self.report.say(ReportSection::Channels, Outcome::Dropped, "Nonlinear channel time shift was not decoded; the source value requires review.");
+            }
+            if channel.swing.is_some_and(|swing| swing > 128) {
+                outcome = Outcome::Approximated;
+            }
             if let Some(translated) = translated {
                 self.apply(
                     ReportSection::Channels,
@@ -208,7 +219,7 @@ impl Builder<'_> {
                     ReportSection::Channels,
                     outcome,
                     format!(
-                        "\"{name}\" became Windfall's subtractive synth: {}.",
+                        "\"{name}\" became a Windfall instrument: {}.",
                         translated.notes.join("; ")
                     ),
                 );
@@ -246,7 +257,13 @@ impl Builder<'_> {
                         id,
                         patch: SamplerPatch {
                             root_key: Some(channel.root_note.unwrap_or(60).min(127) as u8),
-                            tune: Some(pitch),
+                            tune: Some(
+                                pitch
+                                    + channel.params.and_then(|p| p.stretch_pitch).unwrap_or(0)
+                                        as f32
+                                        / 100.0,
+                            ),
+                            stretch: sampler_stretch(channel),
                             gain: Some(f32::from(channel.preamp.unwrap_or(256)) / 256.0),
                             start: Some(start),
                             end: Some(end),
@@ -313,8 +330,43 @@ impl Builder<'_> {
                     });
                 }
             }
+            if outcome != Outcome::Placeholder
+                && let Some(plugin) = &channel.plugin
+            {
+                self.plugins.push(PluginPlaceholder {
+                    place: PluginPlace::Channel { channel: id },
+                    internal_name: plugin.internal_name.clone(),
+                    name: None,
+                    vendor: None,
+                    format: None,
+                    path: None,
+                    state: plugin.state.clone(),
+                });
+            }
             self.report
                 .count(ReportSection::Channels, outcome.max(voice_outcome), 1);
         }
     }
+}
+
+/// Only the documented speed multiplier is dimensionless. A requested time
+/// needs source audio duration, so it cannot be inferred by this converter.
+fn sampler_stretch(channel: &Channel) -> Option<windfall_project::SamplerStretch> {
+    let params = channel.params?;
+    if params.stretch_time.unwrap_or(0) != 0 || params.stretch_mode.unwrap_or(0) == 0 {
+        return None;
+    }
+    let ratio = 2.0_f64.powf(-f64::from(params.stretch_multiplier.unwrap_or(0)) / 10_000.0);
+    if !(0.25..=4.0).contains(&ratio) {
+        return None;
+    }
+    Some(windfall_project::SamplerStretch::Spectral {
+        ratio,
+        quality: Default::default(),
+        formants: false,
+        range: windfall_project::SamplerKeyRange {
+            first: 0,
+            last: 127,
+        },
+    })
 }

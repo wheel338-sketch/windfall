@@ -388,6 +388,12 @@ fn write_channel(events: &mut Events, project: &FlpProject, channel: &Channel) {
     if let Some(flags) = channel.fx_flags {
         events.word(70, flags);
     }
+    if let Some(swing) = channel.swing {
+        events.word(97, swing);
+    }
+    if let Some(shift) = channel.time_shift {
+        events.word(89, shift);
+    }
     if let Some(preamp) = channel.preamp {
         events.word(74, preamp);
     }

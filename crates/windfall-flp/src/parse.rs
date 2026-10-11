@@ -288,6 +288,8 @@ impl Parser {
             80 => self.project.settings.main_pitch = Some(value as i16),
             70 => return self.on_channel(|channel| channel.fx_flags = Some(value)),
             74 => return self.on_channel(|channel| channel.preamp = Some(value)),
+            97 => return self.on_channel(|channel| channel.swing = Some(value)),
+            89 => return self.on_channel(|channel| channel.time_shift = Some(value)),
             94 => {
                 let mut full = false;
                 let handled = self.on_channel(|channel| {

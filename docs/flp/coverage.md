@@ -76,11 +76,11 @@ for a multi-version real-project corpus.
 | Tempo/fine tempo, signature, text, master controls | Multiple sources; old denominator meaning from PyFLP | Tempo, signature and name imported via commands; unsupported metadata and main pitch reported; master volume folded into master gain |
 | Sampler controls, sample paths, cut groups, reverse, window/envelope | Multiple sources; envelope timing is a DawVert fit | External normalized references; variables resolve only from options; unresolved paths stay written; asymmetric groups, stretching, looping, LFOs and unsupported effects reported |
 | Generator/wrapper/layer | Wrapper records from PyFLP/DawVert; type 4 interpretation follows DawVert | Three-oscillator source synth maps approximately to subtractive synth; unsupported plugins are silent samplers with raw wrapper state in Conversion.plugins and Project.retainedPlugins; layers expand notes with cycle protection |
-| Notes/patterns/legacy steps | Modern 24-byte and historical 20-byte generated records; real 20.8.4 records | Exact ticks when representable; nearest-tick rounding otherwise; step-grid pattern lengths; fine pitch, slides, release, group/modulation and MIDI-channel expression reported as unsupported |
+| Notes/patterns/legacy steps | Modern 24-byte and historical 20-byte generated records; real 20.8.4 records | Exact ticks when representable; nearest-tick rounding otherwise; step-grid pattern lengths; fine pitch, release, modulation, slide duration and note-color MIDI channels mapped; source note-edit groups and exact slide chord targeting remain unsupported |
 | Mixer slots, mute/solo, routing/sends | Multiple implementations; generated controls and routing fixtures | Command-enforced cycles refused; 128 tracks, 10 effects per track; EQ/compressor/reverb/delay have partial parameter translations; limiter/delay 3 use defaults; unsupported effect states retained separately |
-| Playlist tracks/clips/audio | 32-byte and generated 60-byte records; real 20.8.4 | Pattern position/length/offset/mute imported; audio references, reverse, pitch, approximate fades/gain imported; track name/mute imported; colour/height unsupported; channel offsets disputed and reported |
+| Playlist tracks/clips/audio | 32-byte and generated 60-byte records; real 20.8.4 | Pattern position/length/offset/mute imported; audio references, reverse, pitch, approximate fades/gain imported; track name/mute/color imported; source relative height fitted to 48 CSS pixels per unit and clamped to 18..160; channel offsets disputed and reported |
 | Automation points/links | PyFLP/DawVert/FLParser layouts; generated link tests | Channel volume/pan, track volume/pan, existing send gain, effect mix, understood effect parameters and tempo; tension fitted/approximate, hold mode supported; unsupported targets/controllers/formulas/smoothing reported; instrument-parameter links currently unsupported |
-| Markers and extra arrangements | Generated layouts | Kept in source model, dropped with counts because Windfall has no marker fields and only one arrangement |
+| Markers and extra arrangements | Generated layouts | Selected named markers and meter changes mapped; independent clip/track layouts mapped through AddArrangementLayout; alternate timeline markers/meters remain omitted because the project timeline is shared |
 
 Automation and channel clip offsets remain a disputed area: open implementations
 use different units. Audio offsets follow DawVert's four units per quarter note
@@ -125,3 +125,30 @@ The browser mock uses the same converter through wasm. See
 This crate does not check referenced sample files itself or implement hosted
 plugin recovery; those responsibilities remain with the shell and a future
 compatible state decoder.
+
+## 2026-10-11 edit-only fidelity extension (not verified)
+
+Independent arrangements own distinct clip IDs and lane settings, including
+identical placements, and the selected arrangement is restored after import.
+Project author/genre/comments and supported source timebase are mapped.
+Dock bits follow [PyFLP mixer.py](https://github.com/demberto/PyFLP/blob/master/pyflp/mixer.py).
+Per-channel swing follows [PyFLP channel.py](https://github.com/demberto/PyFLP/blob/master/pyflp/channel.py);
+nonlinear time shift remains reported, not decoded. Enabled zero-level routes
+become unity detector-only sidechains (approximate; source automation that changes
+a zero-level route into audible routing is not preserved). A documented 16-byte
+send state can supply an explicit destination and approximate tap gain;
+negative/relative destinations, send pan and dry controls remain omitted.
+Mapped instruments/effects now retain their original opaque states too. They
+are archival data, never passed to an unrelated native plugin host.
+
+Sampler dimensionless stretch speed maps to prepared spectral duration when
+its mode is non-resampling, requested time is zero, and its ratio is 0.25..4.
+Stretch pitch is added to sampler tune. All MIDI keys are requested for preparation;
+the existing strict memory budget can refuse large sources. Requested duration,
+embedded sample loop bounds, source algorithms and sample FX remain open.
+No source-only loop bounds are guessed as whole-sample loops.
+
+Tests added/updated in windfall-flp: **written, not executed**. The historical
+real-file table above is unchanged evidence from earlier runs, not validation of
+this extension. Full-row claim remains partial; corpus, plugin-state decoding,
+controller mappings and precise nonlinear timing still need work.

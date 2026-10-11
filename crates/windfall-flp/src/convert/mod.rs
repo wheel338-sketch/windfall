@@ -153,11 +153,8 @@ pub fn convert(flp: &FlpProject, options: &ConvertOptions) -> Conversion {
     builder.mixer();
     builder.channels();
     builder.patterns();
-    let playlist = builder.playlist();
+    builder.arrangements();
     builder.timeline();
-    if let Some(playlist) = playlist {
-        builder.arrangements(playlist);
-    }
     builder.leftovers();
     builder.finish()
 }
@@ -395,6 +392,9 @@ impl<'a> Builder<'a> {
             );
         }
         patch.time_signature = Some(signature);
+        if windfall_project::timebase::is_timebase(self.ppq) {
+            patch.timebase_ppq = Some(self.ppq);
+        }
         let outcome = if exact {
             Outcome::Exact
         } else {
@@ -417,10 +417,32 @@ impl<'a> Builder<'a> {
         // names its law changes anything, and what it names is kept as the
         // nearest law Windfall has rather than counted as a difference.
         match settings.pan_law {
-            Some(0) => patch.pan_law = Some(windfall_project::PanLaw::ConstantPower),
-            Some(2) => patch.pan_law = Some(windfall_project::PanLaw::Balance),
-            _ => {}
+            Some(0) => {
+                patch.pan_law = Some(windfall_project::PanLaw::ConstantPower);
+                self.report.count(section, Outcome::Exact, 1);
+            }
+            Some(2) => {
+                patch.pan_law = Some(windfall_project::PanLaw::Balance);
+                self.report.count(section, Outcome::Exact, 1);
+            }
+            Some(_) => {
+                self.report.count(section, Outcome::Dropped, 1);
+                self.report.say(
+                    section,
+                    Outcome::Dropped,
+                    "An unknown panning law was left at Windfall's default.",
+                );
+            }
+            None => {}
         }
+        self.report.count(
+            section,
+            Outcome::Exact,
+            [&settings.author, &settings.genre, &settings.comments]
+                .into_iter()
+                .filter(|text| filled(text))
+                .count() as u32,
+        );
         if settings.main_pitch.is_some_and(|pitch| pitch != 0) {
             self.report.count(section, Outcome::Dropped, 1);
             self.report.say(
@@ -430,15 +452,13 @@ impl<'a> Builder<'a> {
             );
         }
         let filled = |text: &Option<String>| text.as_deref().is_some_and(|t| !t.trim().is_empty());
-        let texts: Vec<&str> = [
-            (filled(&settings.author), "author"),
-            (filled(&settings.genre), "genre"),
-            (filled(&settings.comments), "comments"),
-            (filled(&settings.url), "web link"),
-        ]
-        .into_iter()
-        .filter_map(|(present, what)| present.then_some(what))
-        .collect();
+        patch.author = settings.author.clone();
+        patch.genre = settings.genre.clone();
+        patch.comments = settings.comments.clone();
+        let texts: Vec<&str> = [(filled(&settings.url), "web link")]
+            .into_iter()
+            .filter_map(|(present, what)| present.then_some(what))
+            .collect();
         if !texts.is_empty() {
             self.report
                 .count(section, Outcome::Dropped, texts.len() as u32);
