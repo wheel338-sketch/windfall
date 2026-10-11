@@ -277,3 +277,13 @@ result. These replace only the worker boundary in mounted tests; pure preparatio
 worker retirement and real simulator/document mutation are tested separately.
 
 Mounted cancellation assertion accepts both a retained instrument and its removal by Undo; neither can receive the late asset. Written, not executed.
+
+### Import routing checkpoint
+
+Narrow I3/I4 import-name mappings now select the full workflows: harmonic filter,
+snapshot morph, metal voice, spectral resynth, number voice, color scan; Drumpad
+selects the single Membrane and BassDrum gets LayerKick. Fruity Kick remains core
+Kick. Existing opaque-state/case/default/loss-note tests updated, **written, not
+executed**. This recognizes the workflow and does not recover proprietary patch
+state or embedded sample/image sources. Shared additional seam:
+`windfall-flp/src/convert/synth.rs`; run `cargo test -p windfall-flp --lib convert::synth`.
