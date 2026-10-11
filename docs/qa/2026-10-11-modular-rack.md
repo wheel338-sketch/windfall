@@ -235,3 +235,7 @@ also reapplies expression-map gain to the parent AudioInput instrument.
 Realtime store mirrors and clears rejectedRackEvents. Mounted acceptance also
 includes retention of a final processor parameter drag as one undo gesture
 (written, not executed).
+
+Written, not executed: musical_gate_retimes_mid_note_and_arpeggio_clock_survives_leader_release
+and bounded_refusals_are_visible_in_realtime_frames_and_do_not_double_count.
+The mounted drag case checks the final numeric Gain as well as undo grouping.

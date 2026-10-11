@@ -673,3 +673,92 @@ fn graph_replacement_preserves_live_parent_release_and_retires_off_callback() {
     );
     controller.frame();
 }
+
+#[test]
+fn musical_gate_retimes_mid_note_and_arpeggio_clock_survives_leader_release() {
+    let sequence = NoteSequence::default();
+    let mut rack = ModularRack::prepare(
+        &graph(Some(RackNoteModule::Sequencer { params: sequence })),
+        RATE,
+        120.0,
+    )
+    .unwrap();
+    rack.note_on(NoteInstanceId(9), RackNote::default());
+    let mut dsp = synth();
+    start(&mut dsp, 1, RackNote::default());
+    close(&audio(&mut rack, 1000, 17), &reference(&mut dsp, 1000));
+    rack.set_tempo(240.0);
+    let mut expected = Vec::new();
+    for frame in 1000..5000 {
+        if frame == 2000 {
+            dsp.note_off_instance(NoteInstanceId(1), 60);
+        }
+        if frame == 3500 {
+            start(&mut dsp, 2, RackNote::default());
+        }
+        expected.extend(reference(&mut dsp, 1));
+    }
+    close(&audio(&mut rack, 4000, 127), &expected);
+    let sequence = NoteSequence {
+        mode: SequenceMode::Up,
+        ..Default::default()
+    };
+    let mut rack = ModularRack::prepare(
+        &graph(Some(RackNoteModule::Sequencer { params: sequence })),
+        RATE,
+        120.0,
+    )
+    .unwrap();
+    rack.note_on(NoteInstanceId(1), RackNote::default());
+    rack.note_on(
+        NoteInstanceId(2),
+        RackNote {
+            key: 67,
+            ..Default::default()
+        },
+    );
+    audio(&mut rack, 1000, 17);
+    rack.note_off(NoteInstanceId(1));
+    rack.set_tempo(240.0);
+    let rest = audio(&mut rack, 2400, 17);
+    assert!(
+        rest.iter()
+            .rev()
+            .take(256)
+            .all(|sample| sample.abs() < 1e-5)
+    );
+    assert!(
+        audio(&mut rack, 1000, 17)
+            .iter()
+            .any(|sample| sample.abs() > 0.01)
+    );
+    rack.note_off(NoteInstanceId(2));
+    audio(&mut rack, 2048, 17);
+    assert_eq!(rack.active_voices(), 0);
+}
+#[test]
+fn bounded_refusals_are_visible_in_realtime_frames_and_do_not_double_count() {
+    use super::support::Rig;
+    let mut rig = Rig::new();
+    let channel = rig.synth_on(plain_synth(), windfall_project::TrackId::MASTER);
+    rig.project
+        .settings
+        .modular_racks
+        .push(windfall_project::ChannelRack {
+            channel,
+            graph: graph(Some(RackNoteModule::Sequencer {
+                params: Default::default(),
+            })),
+        });
+    let (mut processor, controller) = rig.processor(RATE);
+    for index in 0..100 {
+        controller.note_on(channel, (48 + index % 12) as u8, 0.1);
+    }
+    let mut output = [0.0; 254];
+    assert_eq!(allocator_calls(|| processor.process(&mut output)), 0);
+    let refused = controller.frame().rejected_rack_events.unwrap();
+    assert!(refused >= 36);
+    assert_eq!(controller.frame().rejected_rack_events, Some(refused));
+    assert_eq!(allocator_calls(|| processor.process(&mut output)), 0);
+    assert_eq!(controller.frame().rejected_rack_events, Some(refused));
+}
