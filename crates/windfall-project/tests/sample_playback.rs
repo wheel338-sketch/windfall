@@ -269,3 +269,91 @@ fn old_v1_channels_without_assets_keep_exact_json_and_defaults() {
         text
     );
 }
+
+#[test]
+fn scalar_automation_survives_but_legacy_asset_suffix_is_explicitly_refused() {
+    for kind in [
+        InstrumentKind::SliceMap,
+        InstrumentKind::SliceDeck,
+        InstrumentKind::WaveRide,
+    ] {
+        let (mut d, channel, _) = fixture(kind);
+        d.dispatch(
+            Command::AddAutomation {
+                name: None,
+                target: AutomationTarget::InstrumentParam { channel, param: 1 },
+                points: None,
+            },
+            None,
+        )
+        .unwrap();
+        let text = file::to_json(d.project()).unwrap();
+        assert_eq!(file::from_json(&text).unwrap(), *d.project());
+        let mut json = serde_json::to_value(d.project()).unwrap();
+        json["automations"][0]["target"]["param"] = serde_json::json!(kind.descriptors().len());
+        let error = file::from_json(&serde_json::to_string(&json).unwrap())
+            .unwrap_err()
+            .to_string();
+        assert!(
+            error.contains("Legacy slice-marker/per-slice/curve automation"),
+            "{error}"
+        );
+        assert_eq!(file::to_json(d.project()).unwrap(), text);
+    }
+}
+
+#[test]
+fn replacing_instrument_kind_clears_incompatible_assets_and_undo_restores_them() {
+    let (mut d, channel, sample) = fixture(InstrumentKind::SliceDeck);
+    d.dispatch(
+        Command::SetSamplePlayback {
+            channel,
+            asset: Some(SamplePlayback {
+                sample: Some(sample),
+                ..Default::default()
+            }),
+        },
+        None,
+    )
+    .unwrap();
+    let before = d.project().clone();
+    assert!(
+        ChannelPreset::capture(d.project(), channel)
+            .unwrap_err()
+            .contains("cannot be bundled")
+    );
+    let target = PluginTarget::Instrument { channel };
+    let expected = PluginPreset::capture(d.project(), target).unwrap().state;
+    d.dispatch(
+        Command::ApplyPluginPreset {
+            target,
+            expected,
+            preset: PluginPreset {
+                state: PluginPresetState::Instrument {
+                    params: InstrumentKind::SubtractiveSynth.default_params(),
+                },
+            },
+        },
+        None,
+    )
+    .unwrap();
+    assert!(
+        d.project()
+            .channel(channel)
+            .unwrap()
+            .sample_playback
+            .is_none()
+    );
+    d.project().check().unwrap();
+    d.undo().unwrap();
+    assert_eq!(*d.project(), before);
+    let duplicate = ChannelId(
+        d.dispatch(Command::DuplicateChannel { id: channel }, None)
+            .unwrap()
+            .created[0],
+    );
+    assert_eq!(
+        d.project().channel(duplicate).unwrap().sample_playback,
+        d.project().channel(channel).unwrap().sample_playback
+    );
+}

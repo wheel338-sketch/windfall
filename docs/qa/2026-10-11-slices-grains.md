@@ -87,3 +87,20 @@ running; this worker has not executed any of these commands.
 5. Existing sequencer seek policy skips notes starting before seek (no note chase).
    Asset edits capture slice settings for subsequent notes; held notes retain their
    captured region/envelope while preserving playback progress.
+## Restart continuation — static corrections
+
+Native fixture selection now names the imported authored-loop channel. The mounted
+instrument section keys playback editors by generation/channel/kind; replacement
+cannot retain an obsolete busy state. Curve fields guard endpoints, finite values
+and no-op blur edits. New tests cover per-key curves, one pointer gesture/cancel,
+replacement remount, legacy automation suffix diagnostics, no-chase/boundary seek,
+and callback asset adoption/source replacement/retirement allocation/free guards.
+All remain **written, not executed**.
+
+An incompatible instrument/preset replacement clears the obsolete playback asset
+within the same undo step. Channel preset export now explicitly refuses these
+assets rather than silently losing sample/map/curve data: the existing preset
+asset format only carries one sampler source. Project save and channel duplication
+retain the complete asset. Portable sample-instrument channel presets remain a
+separate format-extension limitation; plugin presets carry scalar controls only.
+The integrator must also run `cargo test -p windfall-engine --test engine sample_playback`.

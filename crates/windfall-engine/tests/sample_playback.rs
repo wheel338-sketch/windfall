@@ -215,3 +215,33 @@ fn release_is_silent_at_export_tail_and_missing_sources_are_silent() {
             .all(|v| *v == 0.0)
     );
 }
+
+#[test]
+fn seeking_to_a_note_boundary_restarts_deterministically_and_mid_note_seek_does_not_chase() {
+    for kind in [
+        InstrumentKind::SliceMap,
+        InstrumentKind::SliceDeck,
+        InstrumentKind::GrainCloud,
+        InstrumentKind::WaveRide,
+    ] {
+        let (d, _, pool) = fixture(kind);
+        let expected = pcm(d.project(), &pool, 37);
+        let (mut processor, controller) = Processor::new(48000);
+        controller.set_project(d.project(), &pool);
+        controller.seek(480.0);
+        controller.play();
+        let mut silent = [0.0; 8192];
+        processor.process(&mut silent);
+        assert!(
+            silent.iter().all(|v| *v == 0.0),
+            "{kind:?}: existing no-chase policy"
+        );
+        controller.seek(0.0);
+        let latency = controller.latency_frames() as usize;
+        let mut restarted = vec![0.0; (6000 + latency) * 2];
+        for block in restarted.chunks_mut(146) {
+            processor.process(block);
+        }
+        assert_eq!(&restarted[latency * 2..], &expected[..12000], "{kind:?}");
+    }
+}

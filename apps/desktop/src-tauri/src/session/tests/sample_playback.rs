@@ -23,7 +23,8 @@ fn source(rig: &Rig) -> ChannelId {
         .project()
         .channels
         .iter()
-        .find_map(|c| c.source.sample())
+        .find(|c| c.name == "authored-loop")
+        .and_then(|c| c.source.sample())
         .unwrap();
     let c = ChannelId(
         rig.session

@@ -8,16 +8,19 @@ import { dispatch, undo, useProjectStore } from "@/lib/store/project"
 import { useTransportStore } from "@/lib/store/transport"
 import { settle, startTestApp } from "@/test/harness"
 import { instrumentDescriptor } from "@/features/params"
-import { SamplePlaybackEditor } from "./editor"
+import { InstrumentSection } from "@/features/channel-rack/inspector/instrument-section"
+import { announceProjectReplaced } from "@/lib/store/replaced"
+import type { MockBackend } from "@/lib/ipc/mock"
 import { defaultAsset } from "./settings"
 
 let stop: () => void
-beforeEach(async () => { ({ stop } = await startTestApp()) })
+let backend: MockBackend
+beforeEach(async () => { ({ stop, backend } = await startTestApp()) })
 afterEach(() => { stop(); vi.restoreAllMocks() })
 const flush = () => act(() => settle())
 function Panel({ id }: { id: number }) {
   const channel = useProjectStore((state) => state.project.channels.find((c) => c.id === id))
-  return channel && isInstrumentChannel(channel) ? <SamplePlaybackEditor channel={channel} /> : null
+  return channel && isInstrumentChannel(channel) ? <InstrumentSection channel={channel} /> : null
 }
 async function open(kind: InstrumentKind) {
   const created = await dispatch({ type: "addChannel", instrument: kind })
@@ -92,5 +95,32 @@ describe("purpose-built sample instrument editors", () => {
     expect(asset(id).curve.points[1].value).toBe(0.5)
     expect(useProjectStore.getState().history.cursor).toBe(before + 1)
     expect(screen.getByRole("img", { name: "Draw playback curve" })).toBeVisible()
+  })
+  it("stores a note-specific scratch curve separately from the shared curve", async () => {
+    const id = await open("waveRide")
+    const user = userEvent.setup()
+    await user.click(screen.getByRole("combobox", { name: "Curve note" }))
+    await user.click(await screen.findByRole("option", { name: "Key 60", exact: true }))
+    const end = screen.getByRole("spinbutton", { name: "Point 2 value" })
+    fireEvent.change(end, { target: { value: "0.2" } }); fireEvent.blur(end)
+    await flush()
+    expect(asset(id).curve.points[1].value).toBe(1)
+    expect(asset(id).keyCurves).toEqual([{ key: 60, curve: { ...asset(id).curve,
+      points: [{ time: 0, value: 0 }, { time: 1, value: 0.2 }] } }])
+    await act(() => undo()); await flush()
+    expect(asset(id).keyCurves).toEqual([])
+  })
+  it("remounts detection state on project replacement even when the channel ID repeats", async () => {
+    await open("sliceMap")
+    let rejectDetection: (error: Error) => void = () => {}
+    vi.spyOn(backend, "samplePlaybackDetect").mockImplementation(() => new Promise((_resolve, reject) => { rejectDetection = reject }))
+    await userEvent.setup().click(screen.getByRole("button", { name: "Detect transients" }))
+    await flush()
+    expect(screen.getByRole("button", { name: "Detect transients" })).toBeDisabled()
+    act(() => announceProjectReplaced())
+    expect(screen.getByRole("button", { name: "Detect transients" })).toBeEnabled()
+    rejectDetection(new Error("The old document changed"))
+    await flush()
+    expect(screen.queryByText("The old document changed")).toBeNull()
   })
 })

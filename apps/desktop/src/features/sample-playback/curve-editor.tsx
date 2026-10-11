@@ -69,17 +69,19 @@ export function CurveEditor({ curve, onChange }: { curve: PlaybackCurve; onChang
       <Input aria-label={`Point ${index + 1} time`} type="number" min={0} max={1} step={0.01} defaultValue={point.time}
         disabled={index === 0 || index === visible.points.length - 1} onBlur={(e) => {
           const time = Number(e.target.value)
-          if (time > visible.points[index - 1].time && time < visible.points[index + 1].time)
+          if (index > 0 && index < visible.points.length - 1 && Number.isFinite(time)
+            && time > visible.points[index - 1].time && time < visible.points[index + 1].time
+            && time !== point.time)
             onChange({ ...curve, points: curve.points.map((p, i) => i === index ? { ...p, time } : p) })
         }} />
       <Input aria-label={`Point ${index + 1} value`} type="number" min={minimum} max={minimum + span} step={0.01} defaultValue={point.value}
-        onBlur={(e) => { const value = Number(e.target.value); if (Number.isFinite(value) && value >= minimum && value <= minimum + span)
+        onBlur={(e) => { const value = Number(e.target.value); if (Number.isFinite(value) && value >= minimum && value <= minimum + span && value !== point.value)
           onChange({ ...curve, points: curve.points.map((p, i) => i === index ? { ...p, value } : p) }) }} />
       <Button size="sm" variant="outline" disabled={index === 0 || index === visible.points.length - 1}
         onClick={() => onChange({ ...curve, points: curve.points.filter((_, i) => i !== index) })}>Delete point {index + 1}</Button>
     </Field>)}
     {visible.mode === "speed" && <Field><FieldLabel>Starting position</FieldLabel><Input aria-label="Starting position" type="number" min={0} max={1} step={0.01}
-      key={curve.origin} defaultValue={curve.origin} onBlur={(e) => { const origin = Number(e.target.value); if (origin >= 0 && origin <= 1) onChange({ ...curve, origin }) }} /></Field>}
+      key={curve.origin} defaultValue={curve.origin} onBlur={(e) => { const origin = Number(e.target.value); if (Number.isFinite(origin) && origin >= 0 && origin <= 1 && origin !== curve.origin) onChange({ ...curve, origin }) }} /></Field>}
     <Button size="sm" variant="outline" disabled={curve.points.length >= 256} onClick={() => {
       const intervals = curve.points.slice(1).map((p, i) => ({ i, width: p.time - curve.points[i].time }))
       const { i } = intervals.reduce((a, b) => a.width >= b.width ? a : b)
