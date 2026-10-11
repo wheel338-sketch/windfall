@@ -118,6 +118,7 @@
 
 pub mod analyzers;
 mod automation;
+mod internal_controllers;
 pub mod channel_voice;
 mod channel_voice_runtime;
 mod clip_processing;

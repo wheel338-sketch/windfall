@@ -418,6 +418,11 @@ impl Controller {
     }
 
     /// Starts playback from the playhead. Does nothing while playing.
+    /// Source notes refused by the fixed 128-note table of an internal controller.
+    pub fn rejected_control_notes(&self) -> u32 {
+        self.inner.shared.rejected_control_notes.load(Ordering::Relaxed)
+    }
+
     pub fn play(&self) {
         self.start(None);
     }

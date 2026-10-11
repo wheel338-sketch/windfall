@@ -107,3 +107,17 @@ impl KeyboardSource {
         }
     }
 }
+
+impl crate::Effect for KeyboardSource {
+    type Params = KeyboardSourceParams;
+    fn prepare(&mut self, rate: f32, block: usize) {
+        KeyboardSource::prepare(self, rate, block);
+    }
+    fn reset(&mut self) {
+        KeyboardSource::reset(self);
+    }
+    fn set_params(&mut self, params: &Self::Params) {
+        KeyboardSource::set_params(self, params);
+    }
+    fn process(&mut self, _left: &mut [f32], _right: &mut [f32]) {}
+}

@@ -46,6 +46,7 @@ impl Project {
             ));
         }
         check_settings(self)?;
+        if let Some(problem) = crate::internal_controllers::settings_problem(self, &self.settings.internal_controllers) { return Err(problem); }
         self.notebook.check().map_err(|error| error.to_string())?;
         if let Some(problem) =
             crate::controller_links::links_problem(&self.settings.controller_links, Some(self))

@@ -145,7 +145,7 @@ fn looped(tick: f64, origin: f64, length: f64) -> f64 {
 
 /// What a lane moves, as the plan names it.
 #[derive(Debug, Clone, Copy)]
-enum Target {
+pub(crate) enum Target {
     /// The channel at this index of [`Plan::channels`].
     ChannelGain(usize),
     ChannelPan(usize),
@@ -639,7 +639,7 @@ fn flatten(pieces: &[Piece], curves: &[Vec<AutomationPoint>]) -> Vec<Span> {
 }
 
 /// Finds what an automation moves in a plan.
-fn resolve(target: &AutomationTarget, plan: &Plan) -> Option<Target> {
+pub(crate) fn resolve(target: &AutomationTarget, plan: &Plan) -> Option<Target> {
     let channel = |id: windfall_project::ChannelId| plan.channel(id);
     let track = |id: windfall_project::TrackId| plan.track_ids.get(id.0);
     Some(match *target {
@@ -803,7 +803,7 @@ fn let_go(plan: &Plan, state: &mut PlanState, index: usize, look: Look) -> bool 
 /// Sets a target on its way to `value`, to be there `frames` frames after
 /// `now`, or at once when that is none. A channel or track that mute or
 /// solo silences stays silent.
-fn set(plan: &Plan, state: &mut PlanState, target: Target, value: f32, now: u64, frames: u64) {
+pub(crate) fn set(plan: &Plan, state: &mut PlanState, target: Target, value: f32, now: u64, frames: u64) {
     let aim = |ramp: &mut Ramp, value: f32| {
         if frames == 0 {
             *ramp = Ramp::at_rest(value);

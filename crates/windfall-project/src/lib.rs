@@ -15,7 +15,12 @@ pub use curve_lfo::{CurveLfo, CurveLfoWave};
 pub mod channel_voice;
 pub use channel_voice::*;
 pub mod controller_links;
+<<<<<<< HEAD
 pub mod layer;
+=======
+pub mod internal_controllers;
+pub use internal_controllers::{ControlPoint, InternalControllerSettings, SurfaceControl, SurfaceControlKind, VoltageRoute};
+>>>>>>> gpt/w3-control-sources
 pub use controller_links::{
     ControlAction, ControlMap, ControlSource, ControllerLink, ControllerProfile, LinkTarget,
     MidiControl, PickupMode, ProfileControl, SlotTarget, SourceMode,

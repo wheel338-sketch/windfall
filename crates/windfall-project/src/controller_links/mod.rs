@@ -14,15 +14,15 @@
 //! automation point's value means for the same
 //! [`AutomationTarget`](crate::AutomationTarget): its
 //! [`AutomationRange`](crate::AutomationRange) turns it into the target's
-//! unit. Anything that can be automated can therefore be linked, and nothing
-//! about a link depends on what kind of source feeds it.
+//! unit. Internal signals currently require project parameter targets and
+//! absolute maps without pickup; Tempo is refused pending a clock feedback
+//! contract. Hardware sources retain their slot/action and relative modes.
 //!
 //! - [`ControlSource::Midi`] is fed by hardware, away from the audio thread.
-//! - [`ControlSource::Internal`] is reserved for sources inside the project
-//!   (peak, envelope and formula controllers). It is stored, checked, undone
-//!   and removed with its target like any link; the hardware runtime never
-//!   feeds it. Whoever adds such a source evaluates [`CompiledMap::shape`],
-//!   which is `Copy` and allocation free, wherever its signal is produced.
+//! - [`ControlSource::Internal`] is evaluated by the engine at its owning
+//!   mixer slot or Dashboard channel. Source ports, cycles and configuration
+//!   are checked by `internal_controllers`. Source and target deletion both
+//!   retire links in the same undo step. The hardware runtime never feeds it.
 //!
 //! A link to a [`LinkTarget::Param`] is removed in the same edit that
 //! removes what it points at, exactly as automations are, and comes back
@@ -90,8 +90,8 @@ pub enum ControlSource {
         control: MidiControl,
     },
     /// A control signal produced inside the project: output `output` of the
-    /// effect or channel with the id `controller`. Reserved; see the module
-    /// documentation.
+    /// effect or Dashboard channel with the id `controller`. The checked
+    /// project validates its owner and output; the audio engine evaluates it.
     Internal { controller: u32, output: u8 },
 }
 
@@ -373,6 +373,12 @@ pub fn links_problem(links: &[ControllerLink], project: Option<&Project>) -> Opt
             }
         }
     }
+    if let Some(project) = project {
+        return crate::internal_controllers::links_problem(project, links);
+    }
+    if links.iter().any(|link| matches!(link.source, ControlSource::Internal { .. })) {
+        return Some("internal sources cannot be kept outside a project".into());
+    }
     None
 }
 
@@ -623,6 +629,11 @@ pub(crate) fn following(project: &Project) -> Option<Vec<ControllerLink>> {
     let mut kept: Vec<ControllerLink> = Vec::with_capacity(links.len());
     for link in links {
         let mut link = link.clone();
+        if let ControlSource::Internal { controller, output } = link.source
+            && !crate::internal_controllers::source(project, controller).is_some_and(|(_, owner)| usize::from(output) < owner.ports().len()) {
+            changed = true;
+            continue;
+        }
         if let LinkTarget::Param { target } = &mut link.target {
             let before = *target;
             match target {

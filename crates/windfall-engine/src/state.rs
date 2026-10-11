@@ -923,6 +923,7 @@ pub(crate) struct PlanState {
     pub silence: f32,
     /// What each automation lane of the plan is doing.
     pub lanes: Vec<LaneState>,
+    pub controls: crate::internal_controllers::Runtime,
     /// How many of them have their target in hand.
     pub engaged: usize,
     /// How many of them are walking a setting back to its stored value.
@@ -1529,6 +1530,7 @@ impl PlanState {
             behind,
             silence: db_to_gain(TAIL_SILENCE_DB),
             lanes: vec![LaneState::default(); plan.lanes.len()],
+            controls: crate::internal_controllers::Runtime::new(plan, sample_rate),
             engaged: 0,
             returning: 0,
             tempo_told: plan.tempo_bpm,
@@ -2062,7 +2064,9 @@ impl PlanState {
             fades.delay,
             wait,
         );
+        self.controls.take_over(plan, &mut old.controls, old_plan);
         automation::take_over(plan, self, old_plan, old);
+        crate::internal_controllers::take_over(plan, self, old_plan, old, now);
         // Conditional preparation can reserve an effect row whose native
         // owner has already departed when the callback adopts the plan.
         // Only the resolved owner/delay paths require a shaped scalar route.

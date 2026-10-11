@@ -873,6 +873,10 @@ const EVERY_COMMAND: { [Type in Command["type"]]: (ids: Ids) => Command } = {
     output: 0,
     target: 0,
   }),
+  setInternalControllerSettings: () => ({
+    type: "setInternalControllerSettings",
+    settings: [],
+  }),
   setControllerLinks: (ids) => ({
     type: "setControllerLinks",
     links: [

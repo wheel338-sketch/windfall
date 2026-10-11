@@ -270,6 +270,13 @@ impl EffectUnit {
     /// A setting that changes how late the effect puts its output out, the
     /// limiter's look-ahead, is left alone: the delays that line the other
     /// paths up with the effect are made for the plan's value.
+    pub fn control_params(&self) -> EffectParams { self.params }
+    pub fn control_enabled(&self) -> bool { self.enabled }
+
+    fn control_only(&self) -> bool {
+        self.external.is_none() && !windfall_project::internal_controllers::outputs(self.params.kind()).is_empty()
+    }
+
     pub fn automate(&mut self, param: usize, value: f32) {
         if let Some(external) = &mut self.external {
             external.automate(param, value);
@@ -382,6 +389,7 @@ impl EffectUnit {
 
     /// Samples the effect can go on sounding for after its input stops.
     pub fn tail_samples(&self) -> usize {
+        if self.control_only() { return 0; }
         match self.splice {
             Splice::Gone => 0,
             Splice::Steady | Splice::In { .. } | Splice::Out(_) => self
@@ -394,6 +402,7 @@ impl EffectUnit {
     /// Samples for which the effect's output can fall silent and still
     /// come back with nothing new going in.
     pub fn gap_samples(&self) -> usize {
+        if self.control_only() { return 0; }
         match self.splice {
             Splice::Gone => 0,
             Splice::Steady | Splice::In { .. } | Splice::Out(_) => self
@@ -508,6 +517,7 @@ impl EffectUnit {
         key: Option<&[[f32; 2]]>,
         aux: Option<&mut windfall_dsp::AuxBlock<'_>>,
     ) {
+<<<<<<< HEAD
         if self.external.is_none() && matches!(self.params, EffectParams::PitchCorrect(_)) {
             for frame in 0..left.len().min(right.len()) {
                 self.slot.set_harmony_notes(self.harmony_frames[frame]);
@@ -519,6 +529,11 @@ impl EffectUnit {
             }
             return;
         }
+=======
+        // The engine evaluates these as sources at the slot input. Preserve the
+        // carrier audio; their standalone DSP audio applications remain available.
+        if self.control_only() { return; }
+>>>>>>> gpt/w3-control-sources
         if let Some(external) = &mut self.external {
             external.process_sidechain(left, right, key);
             if let Some(aux) = aux {
@@ -769,6 +784,8 @@ impl InstrumentUnit {
     }
 
     /// Moves one setting, as automation does. Sounding notes glide to it.
+    pub fn control_params(&self) -> InstrumentParams { self.params }
+
     pub fn automate(&mut self, param: usize, value: f32) {
         if let Some(external) = &mut self.external {
             if let Some(cached) = self.plugin_params.get_mut(param)

@@ -103,6 +103,8 @@ pub(crate) struct Plan {
     pub song_end: u32,
     /// What automation does to each of its targets along the song.
     pub lanes: Arc<[Lane]>,
+    pub control_sources: Vec<crate::internal_controllers::Source>,
+    pub control_links: Vec<crate::internal_controllers::Link>,
     /// Some pattern has an event lane, so a pattern playing by itself has
     /// automation to follow too.
     pub pattern_lanes: bool,
@@ -984,6 +986,8 @@ pub(crate) fn compile(project: &Project, pool: &SamplePool) -> Plan {
         audio_clip_ids,
         song_end,
         lanes: Arc::from([]),
+        control_sources: Vec::new(),
+        control_links: Vec::new(),
         pattern_lanes: false,
         tempo_map: None,
     };
@@ -992,6 +996,7 @@ pub(crate) fn compile(project: &Project, pool: &SamplePool) -> Plan {
     }
     plan.link();
     plan.lanes = automation::compile(project, &playlist, &plan).into();
+    (plan.control_sources, plan.control_links) = crate::internal_controllers::compile(project, &plan);
     plan.pattern_lanes = plan.lanes.iter().any(|lane| lane.in_patterns());
     let tempo_lane = plan.lanes.iter().find(|lane| lane.is_tempo());
     plan.tempo_map = tempo_lane.map(|lane| TempoMap::new(lane, tempo_bpm, f64::from(song_end)));

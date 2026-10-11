@@ -9,6 +9,8 @@ mod formula;
 mod keyboard;
 mod motion;
 mod pads;
+mod voltage;
+pub use voltage::{VoltageSource, VoltageSourceParams};
 
 pub use envelope::{EnvelopeFollower, EnvelopeFollowerParams, NoteEnvelope, NoteEnvelopeParams};
 pub use formula::{FormulaError, FormulaSource, FormulaSourceParams};
