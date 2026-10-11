@@ -18,6 +18,7 @@ import { openNoteLfo } from "@/features/automation/lfo-dialog"
 import { SNAP_OPTIONS } from "./snap"
 import { usePianoRollStore, type Tool } from "./store"
 import { openWaveformHelper } from "./waveform-helper"
+import { openChordDisplay } from "./chords/readout-panel"
 import { openPatternTimeline } from "./pattern-timeline"
 import { openRiffGenerator } from "./riff-generator"
 import { openProgressionGenerator } from "./progression"
@@ -125,7 +126,7 @@ const ACTIONS: Action[] = [
     id: "pianoRoll.exportSheetMusic",
     title: "Export sheet music…",
     section: SECTION,
-    keywords: "MusicXML notation score save channel",
+    keywords: "MusicXML PDF print notation score staff engrave save channel",
     enabled: (state) => inRoll(state) && !!editor()?.context,
     whyDisabled: () => "Open a pattern channel in the piano roll",
     run: exportSheetMusic,
@@ -161,6 +162,14 @@ const ACTIONS: Action[] = [
     keywords: "audio waveform background timing reference",
     enabled: inRoll,
     run: openWaveformHelper,
+  },
+  {
+    id: "pianoRoll.chordDisplay",
+    title: "Chord display",
+    section: SECTION,
+    keywords: "chord name detect played selected playhead symbol inversion",
+    enabled: inRoll,
+    run: openChordDisplay,
   },
   {
     id: "pianoRoll.lfo",

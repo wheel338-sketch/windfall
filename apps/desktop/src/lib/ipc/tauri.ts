@@ -165,11 +165,14 @@ export function createTauriBackend(): Backend {
     importMidi: (token) => call("import_midi", { token }),
     midiDiscard: (token) => call("midi_discard", { token }),
     exportMidi: (path, options) => call("export_midi", { path, options }),
-    sheetMusicSave: async (suggestedName, xml) => {
+    sheetMusicSave: async (suggestedName, xml, format = "musicxml") => {
       const path = await save({
         title: "Export sheet music",
-        defaultPath: `${suggestedName.replace(/[<>:"/\\|?*]/g, "_") || "Score"}.musicxml`,
-        filters: [{ name: "MusicXML score", extensions: ["musicxml", "xml"] }],
+        defaultPath: `${suggestedName.replace(/[<>:"/\\|?*]/g, "_") || "Score"}.${format === "pdf" ? "pdf" : "musicxml"}`,
+        filters:
+          format === "pdf"
+            ? [{ name: "PDF score", extensions: ["pdf"] }]
+            : [{ name: "MusicXML score", extensions: ["musicxml", "xml"] }],
       })
       return path ? call("write_sheet_music", { path, xml }) : null
     },

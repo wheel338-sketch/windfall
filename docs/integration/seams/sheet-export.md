@@ -1,51 +1,61 @@
 # Piano-roll sheet export
 
-Windfall's piano-roll action **Export sheet music…** (`pianoRoll.exportSheetMusic`)
-is enabled when a pattern channel is open, including an empty channel. It is
-available in the piano-roll menus and action registry. There is no engraved
-preview. The action writes MusicXML for a notation program to open and engrave.
+State: rewritten 2026-10-10. Everything described here is written and has
+not been built, run or looked at on a page. See
+[the QA hand-off](../../qa/2026-10-10-piano.md).
 
-## Score builder
+**Export sheet music…** (`pianoRoll.exportSheetMusic`) opens a dialog for the
+open pattern channel. It engraves the channel's notes as staff notation,
+shows the pages, and saves a PDF, prints, or saves MusicXML. It captures
+the pattern when it opens and edits nothing.
 
-`apps/desktop/src/features/piano-roll/sheet-music.ts` builds uncompressed
-score-partwise MusicXML 4.0 with one part, using only the open channel's lane.
-Divisions equal Windfall's project ticks per quarter note (`PPQ`, currently 960).
-MIDI key 60 becomes C4; chromatic pitches use sharp alterations. Start times and
-lengths retain their tick precision. Same-start notes become chords, gaps become
-rests, and different-start overlaps use independent voices with measure backups.
-Notes crossing bar lines are split with sounding and notation ties. Each measure
-is filled with rests through its end; an empty channel produces exactly one
-whole-measure rest. Notes beyond the pattern loop length are retained in export.
+## What is engraved
 
-The score uses the pattern's tick-zero meter override, otherwise its base time
-signature, otherwise 4/4. Later meter changes are not exported. Project-level
-meter inheritance does not replace the specified 4/4 fallback.
+`score/model.ts` turns the lane into measures:
 
-The chord ordering and tie elements follow the
-[MusicXML chord reference](https://www.w3.org/2021/06/musicxml40/musicxml-reference/elements/chord/)
-and [note reference](https://www.w3.org/2021/06/musicxml40/musicxml-reference/elements/note/).
-This is a pitch/duration export; expression curves, velocity, articulation,
-instrument rendering, and engraved layout are outside this seam.
+- Meter from the pattern's own signature and meter changes, else the
+  project's, else 4/4; a change of meter starts a measure with a new time
+  signature.
+- Starts and ends snap to a grid of eighths, sixteenths or thirty-seconds
+  (the dialog's choice), with eighth and sixteenth triplets recognised.
+  Notes that had to move are counted and the dialog says how many.
+- Same-start, same-length notes are a chord. At most two voices per staff;
+  further overlaps are merged or shortened and counted.
+- Durations are whole to thirty-second notes with one or two dots, tied
+  across beats and barlines; rests fill the gaps and an empty bar is a
+  whole-measure rest.
+- Grand staff split at middle C, or a single treble or bass staff.
+- Key signature chosen or detected from the notes; spelling follows the
+  key; an accidental holds for its bar and line, and naturals cancel.
+- Eighths and shorter are beamed within a beat.
 
-## Desktop save seam
+`score/layout.ts` breaks measures into justified systems and pages on A4 or
+US Letter, with title, channel name, author, tempo marking, measure numbers
+and page numbers. Glyphs are Windfall's own vector shapes in
+`score/glyphs.ts`; no music font is used.
 
-`sheet-export.ts` captures the open pattern channel before opening a dialog.
-`Backend.sheetMusicSave` uses the existing Tauri `save` dialog with a `.musicxml`
-default filename and MusicXML/XML filters. A cancelled dialog returns `null` and
-does not invoke a write. The native `write_sheet_music` command writes UTF-8 XML
-on a blocking task and reports write errors through the existing action error
-handling. It does not dispatch edits, change project history, or access the audio
-engine. The browser mock offers a MusicXML download after its export-path prompt.
+## Output
 
-## Focused verification
+A page is a list of drawing ops in points. `score/svg.ts` renders it for
+the preview and for printing; `score/pdf.ts` writes a PDF 1.4 file with
+vector pages and the standard Times and Helvetica fonts by name, nothing
+embedded, in plain ASCII. **Print…** puts one SVG per sheet in a print-only
+container, calls the system print dialog and removes the container again.
 
-Run from `apps/desktop`:
+`Backend.sheetMusicSave(suggestedName, text, format?)` takes `"musicxml"`
+(the default) or `"pdf"` to choose the extension and file filter. The
+native `write_sheet_music` command is unchanged: it writes the text as
+UTF-8, which an ASCII PDF survives.
 
-```text
-pnpm test src/features/piano-roll/sheet-music.test.ts
-```
+## Limits
 
-The builder tests cover C4 pitch/duration, channel isolation, same-start chords,
-leading/interior rests, an empty channel, initial meter selection, bar-crossing
-ties, overlapping voices, and escaped XML labels. The save dialog and Rust
-command are not exercised by this unit test.
+No lyrics, dynamics, articulations, slurs, grace notes, ottava lines or
+chord symbols. Two voices per staff. Tuplets other than eighth and
+sixteenth triplets are quantised to the straight grid. Velocity, pan,
+expression and slides are not shown. One channel per score.
+
+## Tests
+
+`score/render.test.ts` covers the SVG and PDF writers, pagination, page
+bounds and key detection. The notation rules above have no tests yet.
+`sheet-music.test.ts` still covers the MusicXML builder.

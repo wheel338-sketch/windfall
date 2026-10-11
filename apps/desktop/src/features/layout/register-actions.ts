@@ -1,6 +1,7 @@
 import { registerAnalysisActions } from "@/features/analysis/actions"
 import { registerBrowserActions } from "@/features/browser/actions"
 import { registerChannelRackActions } from "@/features/channel-rack/actions"
+import { registerEventEditorActions } from "@/features/event-editor/actions"
 import { registerMixerActions } from "@/features/mixer/actions"
 import { registerPianoRollActions } from "@/features/piano-roll/actions"
 import { registerPlaylistActions } from "@/features/playlist/actions"
@@ -33,6 +34,7 @@ export function registerAllActions(): () => void {
     registerPhaseMeterActions(),
     registerSpectrogramActions(),
     registerToolsActions(),
+    registerEventEditorActions(),
   ]
   return () => {
     for (const stop of stops) stop()

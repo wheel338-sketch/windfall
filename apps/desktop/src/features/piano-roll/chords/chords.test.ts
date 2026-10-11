@@ -28,10 +28,21 @@ describe("pitch-class chord detection", () => {
     })
   })
 
-  it("ignores inversion, input order and octave doublings without mutating input", () => {
-    const keys = [79, 52, 72, 64, 60]
+  it("ignores input order and octave doublings without mutating input", () => {
+    const keys = [79, 48, 72, 64, 60]
     expect(detectChord(keys)).toEqual(detectChord([60, 64, 67]))
-    expect(keys).toEqual([79, 52, 72, 64, 60])
+    expect(keys).toEqual([79, 48, 72, 64, 60])
+  })
+
+  it("keeps the triad of an inversion and names its bass", () => {
+    expect(detectChord([79, 52, 72, 64, 60])).toMatchObject({
+      kind: "triad",
+      label: "C major / E",
+      symbol: "C/E",
+      root: 0,
+      bass: 4,
+      quality: "major",
+    })
   })
 
   it("detects transposed major and minor triads in every key", () => {
@@ -46,14 +57,19 @@ describe("pitch-class chord detection", () => {
   })
 
   it("uses a deterministic root for symmetric and suspended ambiguities", () => {
+    // A symmetric triad is rooted on its lowest key.
     expect(detectChord([68, 64, 72])).toMatchObject({
+      root: 4,
+      quality: "augmented",
+    })
+    expect(detectChord([68, 64, 60])).toMatchObject({
       root: 0,
       quality: "augmented",
     })
     expect(detectChord([67, 62, 60])).toEqual(detectChord([60, 62, 67]))
   })
 
-  it("names empty, unmatched and non-triad selections", () => {
+  it("names empty and unmatched selections, and keeps triad quality for triads", () => {
     expect(detectChord([])).toMatchObject({
       kind: "empty",
       label: "No notes selected",
@@ -62,8 +78,11 @@ describe("pitch-class chord detection", () => {
       kind: "unknown",
       label: "Unknown chord (C, C♯, G)",
     })
-    expect(detectChord([60, 64, 67, 71]).kind).toBe("unknown")
-    expect(detectChord([60, 72]).kind).toBe("unknown")
+    expect(detectChord([60, 64, 67, 71])).toMatchObject({
+      kind: "chord",
+      quality: null,
+    })
+    expect(detectChord([60, 72])).toMatchObject({ kind: "note", quality: null })
   })
 })
 

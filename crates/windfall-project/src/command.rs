@@ -143,6 +143,51 @@ pub enum Command {
         expected_curves: Vec<crate::NoteExpressionCurve>,
         curves: Vec<crate::NoteExpressionCurve>,
     },
+    /// Replaces the event automation a pattern stores for `target`: a curve
+    /// in pattern ticks that moves the control wherever the pattern plays.
+    /// `expected` is the curve as the editor captured it, empty when the
+    /// pattern had none; the command fails when it no longer matches. No
+    /// points removes the lane. Values are brought into 0 to 1 and curves
+    /// into -1 to 1. Fails for the tempo, for a target the project does not
+    /// have, for points out of order or past the longest pattern, and past
+    /// 64 lanes in one pattern. A new lane creates an
+    /// [`AutomationId`]. Dispatched with a gesture id, a drag is one undo
+    /// step.
+    SetPatternEvents {
+        pattern: PatternId,
+        target: AutomationTarget,
+        expected: Vec<AutomationPoint>,
+        points: Vec<AutomationPoint>,
+    },
+    /// Writes a bounded musical LFO into a range of a pattern's event lane
+    /// in one edit, creating the lane at the target's stored value when the
+    /// pattern has none. `expected` is checked as for
+    /// [`Command::SetPatternEvents`].
+    GeneratePatternEventLfo {
+        pattern: PatternId,
+        target: AutomationTarget,
+        expected: Vec<AutomationPoint>,
+        start: u32,
+        end: u32,
+        resolution: u32,
+        lfo: crate::CurveLfo,
+    },
+    /// Writes a musical LFO into the expression curves of captured notes:
+    /// one continuous curve per note for `parameter`, sampled every
+    /// `resolution` ticks along the note from `origin`, and blended with the
+    /// value the note had there by `strength`. The captured notes and their
+    /// curves are checked as for [`Command::SetNoteExpressionCurves`].
+    GenerateNoteCurveLfo {
+        pattern: PatternId,
+        channel: ChannelId,
+        expected: Vec<crate::Note>,
+        expected_curves: Vec<crate::NoteExpressionCurve>,
+        parameter: crate::NoteCurveParameter,
+        origin: u32,
+        resolution: u32,
+        strength: f64,
+        lfo: crate::CurveLfo,
+    },
     SetPluginSidechainInput {
         target: crate::PluginTarget,
         input: Option<u32>,
@@ -351,6 +396,13 @@ pub enum Command {
     UpdateChannel {
         id: ChannelId,
         patch: ChannelPatch,
+    },
+    /// Replaces what the channel's per-note modulation X, modulation Y and
+    /// release drive, in one undoable edit. A map with an amount, pitch
+    /// range or bend range outside its range is refused.
+    SetChannelExpressionMap {
+        id: ChannelId,
+        map: crate::ExpressionMap,
     },
     /// Moves every listed channel to a named group in one undo entry.
     /// An empty group name means ungrouped. All channel ids are checked

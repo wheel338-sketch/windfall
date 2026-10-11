@@ -89,6 +89,7 @@ impl Rig {
             solo: false,
             group: String::new(),
             voice: Default::default(),
+            expression_map: Default::default(),
             timing: windfall_project::ChannelTiming::default(),
             mixer_track: track,
             source: ChannelSource::Sampler(SamplerSettings {
@@ -163,6 +164,7 @@ impl Rig {
             solo: false,
             group: String::new(),
             voice: Default::default(),
+            expression_map: Default::default(),
             timing: windfall_project::ChannelTiming::default(),
             mixer_track: track,
             source: ChannelSource::Instrument {
@@ -203,6 +205,7 @@ impl Rig {
         let id = PatternId(self.id());
         self.project.patterns.push(Pattern {
             note_curves: Vec::new(),
+            events: Vec::new(),
             time_signature: None,
             timeline: Default::default(),
             id,

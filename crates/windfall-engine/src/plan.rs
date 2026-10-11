@@ -101,6 +101,9 @@ pub(crate) struct Plan {
     pub song_end: u32,
     /// What automation does to each of its targets along the song.
     pub lanes: Arc<[Lane]>,
+    /// Some pattern has an event lane, so a pattern playing by itself has
+    /// automation to follow too.
+    pub pattern_lanes: bool,
     /// How long the song takes to get to each of its ticks, when
     /// automation moves the tempo. `None` when the tempo is steady.
     pub tempo_map: Option<TempoMap>,
@@ -109,6 +112,8 @@ pub(crate) struct Plan {
 #[derive(Debug, Clone)]
 pub(crate) struct PlanChannel {
     pub voice: windfall_project::ChannelVoiceSettings,
+    /// What the stored controls of a note drive in this channel's voices.
+    pub expression_map: windfall_dsp::ExpressionMap,
     pub id: ChannelId,
     /// Index of the mixer track the channel plays into.
     pub track: usize,
@@ -563,6 +568,7 @@ impl Plan {
             let track = previous.tracks[channel.track].id;
             self.channels.push(PlanChannel {
                 voice: channel.voice,
+                expression_map: channel.expression_map,
                 id: channel.id,
                 track: self.track_ids.get(track.0).unwrap_or(0),
                 gain: channel.gain,
@@ -717,6 +723,7 @@ impl Plan {
             {
                 self.channels.push(PlanChannel {
                 voice: channel.voice,
+                expression_map: channel.expression_map,
                     id: channel.id,
                     track: self
                         .track_ids
@@ -911,6 +918,7 @@ pub(crate) fn compile(project: &Project, pool: &SamplePool) -> Plan {
         audio_clip_ids,
         song_end,
         lanes: Arc::from([]),
+        pattern_lanes: false,
         tempo_map: None,
     };
     if plan.meters.is_ok() {
@@ -918,6 +926,7 @@ pub(crate) fn compile(project: &Project, pool: &SamplePool) -> Plan {
     }
     plan.link();
     plan.lanes = automation::compile(project, &playlist, &plan).into();
+    plan.pattern_lanes = plan.lanes.iter().any(|lane| lane.in_patterns());
     let tempo_lane = plan.lanes.iter().find(|lane| lane.is_tempo());
     plan.tempo_map = tempo_lane.map(|lane| TempoMap::new(lane, tempo_bpm, f64::from(song_end)));
     plan
@@ -946,6 +955,7 @@ fn compile_channel(
     let audible = !channel.muted && solo_audible;
     PlanChannel {
         voice: channel.voice.sanitized(),
+        expression_map: channel.expression_map.sanitized(),
         id: channel.id,
         // A channel whose track is gone plays into the master.
         track: track_ids.get(channel.mixer_track.0).unwrap_or(0),
@@ -2026,6 +2036,7 @@ mod tests {
             solo: false,
             group: String::new(),
             voice: Default::default(),
+            expression_map: Default::default(),
             timing: windfall_project::ChannelTiming::default(),
             mixer_track: TrackId::MASTER,
             source: ChannelSource::Sampler(SamplerSettings::default()),

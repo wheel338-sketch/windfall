@@ -8,6 +8,7 @@ import { FlpImportDialog } from "@/features/flp-import/import-dialog"
 import { ExportDialog } from "@/features/export/export-dialog"
 import { GettingStartedDialog } from "@/features/help/getting-started-dialog"
 import { LfoDialog } from "@/features/automation/lfo-dialog"
+import { EventEditorPanel } from "@/features/event-editor/panel"
 import { PatternTimelineDialog } from "@/features/piano-roll/pattern-timeline"
 import { MidiDialogs } from "@/features/midi/dialogs"
 import { CommandPalette } from "@/features/palette/command-palette"
@@ -60,6 +61,7 @@ export function Overlays() {
       <PromptHost />
       <ArchiveReport />
       <PluginManager />
+      <EventEditorPanel />
       <LfoDialog />
       <PatternTimelineDialog />
       <StageViews />

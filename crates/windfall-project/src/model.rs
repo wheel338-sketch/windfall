@@ -261,6 +261,7 @@ impl Project {
                 color: palette_color(0),
                 length_steps: DEFAULT_PATTERN_STEPS,
                 lanes: Vec::new(),
+                events: Vec::new(),
             }],
             mixer: Mixer {
                 effect_outputs: Vec::new(),
@@ -451,6 +452,11 @@ pub struct Channel {
     /// The mixer track this channel plays into.
     pub mixer_track: TrackId,
     pub source: ChannelSource,
+    /// What modulation X, modulation Y and release drive in this channel's
+    /// voices. Absent in older files, which is the fixed mapping they had.
+    #[serde(default, skip_serializing_if = "crate::ExpressionMap::is_default")]
+    #[ts(as = "Option<crate::ExpressionMap>", optional)]
+    pub expression_map: crate::ExpressionMap,
 }
 
 /// What makes the sound of a channel: a sample or an instrument. Hosted
@@ -686,6 +692,11 @@ pub struct Pattern {
     /// Notes per channel, sorted by channel id. Channels with no notes have
     /// no lane.
     pub lanes: Vec<Lane>,
+    /// Event automation: curves in pattern ticks that move a control
+    /// wherever this pattern plays. At most one lane per target.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[ts(as = "Option<Vec<crate::PatternEventLane>>", optional)]
+    pub events: Vec<crate::PatternEventLane>,
 }
 
 impl Pattern {

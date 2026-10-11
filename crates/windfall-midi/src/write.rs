@@ -86,7 +86,10 @@ impl Default for WriteOptions {
 /// key signatures, tempo changes, markers, the ends of notes, program
 /// changes, controllers and bends, and last the starts of notes. A note
 /// that ends where another begins is therefore let go first, and a
-/// channel's sound is set before a note plays on it.
+/// channel's sound is set before a note plays on it. Among the controllers
+/// of one tick, those that choose a registered parameter come first and
+/// those that set its value next, so that a bend range written on the tick
+/// of a bend is in force for it.
 ///
 /// # Limits of the format
 ///
@@ -348,7 +351,10 @@ impl Writer {
                 events.push(Event {
                     tick: tick(point.tick),
                     rank: RANK_CONTROL,
-                    order: (curve_index as u32, index as u32),
+                    order: (
+                        (parameter_step(curve.kind) << 16) | (curve_index as u32 & 0xFFFF),
+                        index as u32,
+                    ),
                     message: Message::Channel {
                         status: status | curve.channel,
                         first,
@@ -392,6 +398,22 @@ impl Writer {
         wait(&mut out, &mut now, end, &mut running);
         meta(&mut out, META_END_OF_TRACK, &[]);
         out
+    }
+}
+
+/// Where a controller stands among the controllers of one tick. A
+/// registered or non-registered parameter is set by four controllers in a
+/// row: which parameter (101 and 100, or 99 and 98), then its value (6 and
+/// 38). A device that hears the value first sets whatever parameter was
+/// chosen last, so on one tick they are written in that order, ahead of
+/// every other controller and of the bend a bend range is for.
+fn parameter_step(kind: ControlKind) -> u32 {
+    match kind {
+        ControlKind::Controller(101 | 99) => 0,
+        ControlKind::Controller(100 | 98) => 1,
+        ControlKind::Controller(6) => 2,
+        ControlKind::Controller(38) => 3,
+        _ => 4,
     }
 }
 

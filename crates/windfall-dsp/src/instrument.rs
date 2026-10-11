@@ -110,6 +110,12 @@ pub trait Instrument: Send {
         let _ = (id, pitch);
     }
 
+    /// Linear gain of one instance on top of its velocity, as the expression
+    /// map of its channel asks. 1 is unity, which every note starts at.
+    fn set_note_gain(&mut self, id: NoteInstanceId, gain: f32) {
+        let _ = (id, gain);
+    }
+
     /// Stops every note with a fade of a few milliseconds, skipping their
     /// releases. For stopping the transport without a click.
     fn all_notes_off(&mut self);
@@ -1276,6 +1282,19 @@ impl AnyInstrument {
             AnyInstrument::WaveLane(synth) => synth.set_note_pitch(id, pitch),
             AnyInstrument::MacroVoice(synth) => synth.set_note_pitch(id, pitch),
             AnyInstrument::SpeechVoice(synth) => synth.set_note_pitch(id, pitch),
+        }
+    }
+
+    /// See [`Instrument::set_note_gain`]. Instruments without per-note
+    /// controls ignore it.
+    pub fn set_note_gain(&mut self, id: NoteInstanceId, gain: f32) {
+        match self {
+            AnyInstrument::SubtractiveSynth(synth) => synth.set_note_gain(id, gain),
+            AnyInstrument::SliceMap(synth) => synth.set_note_gain(id, gain),
+            AnyInstrument::SliceDeck(synth) => synth.set_note_gain(id, gain),
+            AnyInstrument::GrainCloud(synth) => synth.set_note_gain(id, gain),
+            AnyInstrument::WaveRide(synth) => synth.set_note_gain(id, gain),
+            _ => {}
         }
     }
 

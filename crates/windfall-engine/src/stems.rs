@@ -804,6 +804,7 @@ mod tests {
             solo: false,
             group: String::new(),
             voice: Default::default(),
+            expression_map: Default::default(),
             timing: windfall_project::ChannelTiming::default(),
             mixer_track: TrackId(track),
             source: ChannelSource::Sampler(SamplerSettings::default()),

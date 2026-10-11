@@ -662,12 +662,12 @@ export function createMockBackend(options: MockOptions = {}): MockBackend {
       setTimeout(() => URL.revokeObjectURL(url), 1000)
       return name
     },
-    sheetMusicSave: async (suggestedName, xml) => {
-      const name = `${suggestedName.replace(/[<>:"/\\|?*]/g, "_") || "Score"}.musicxml`
+    sheetMusicSave: async (suggestedName, xml, format = "musicxml") => {
+      const name = `${suggestedName.replace(/[<>:"/\\|?*]/g, "_") || "Score"}.${format === "pdf" ? "pdf" : "musicxml"}`
       const path = await dialogs.exportPath(`/exports/${name}`)
       if (!path) return null
       if (typeof document === "undefined") throw new Error("Score downloads require a browser")
-      const url = URL.createObjectURL(new Blob([xml], { type: "application/vnd.recordare.musicxml+xml" }))
+      const url = URL.createObjectURL(new Blob([xml], { type: format === "pdf" ? "application/pdf" : "application/vnd.recordare.musicxml+xml" }))
       const anchor = document.createElement("a")
       anchor.href = url
       anchor.download = path.split(/[\\/]/).pop() || name

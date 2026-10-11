@@ -37,6 +37,7 @@ export const NOTE_MENU: ContextItem[] = [
     items: [
       "pianoRoll.legato",
       "pianoRoll.staccato",
+      "pianoRoll.portamento",
       "pianoRoll.chop",
       "pianoRoll.chopPattern",
       "pianoRoll.arpeggiate",
@@ -69,6 +70,7 @@ export const VIEW_MENU: ContextItem[] = [
   "pianoRoll.ghosts",
   "pianoRoll.editGhosts",
   "pianoRoll.waveformHelper",
+  "pianoRoll.chordDisplay",
   "pianoRoll.follow",
 ]
 

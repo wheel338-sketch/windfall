@@ -11,6 +11,7 @@ import { DEFAULT_VELOCITY, TICKS_PER_STEP } from "@/lib/units"
 import { LANE_KINDS, type LaneKind } from "./lane-math"
 import type { SnapId } from "./snap"
 import { isScaleId, isScaleRoot, type ScaleId } from "./scales"
+import type { RiffSettings } from "./riff/model"
 
 export type Tool = "draw" | "paint" | "select" | "erase" | "mute" | "slice" | "zoom" | "playback"
 
@@ -62,6 +63,9 @@ type PianoRollState = {
   setLaneKind(kind: LaneKind): void
   setLaneHeight(height: number): void
   rememberNote(length: number, velocity: number): void
+  /** The riff generator's last applied settings. Session-only, never saved. */
+  riffSettings: RiffSettings | null
+  setRiffSettings(settings: RiffSettings): void
 }
 
 /**
@@ -130,6 +134,8 @@ export const usePianoRollStore = create<PianoRollState>()(
           lastLength: Math.max(1, Math.round(length)),
           lastVelocity: Math.min(1, Math.max(0, velocity)),
         }),
+      riffSettings: null,
+      setRiffSettings: (riffSettings) => set({ riffSettings }),
     }),
     {
       name: "windfall.pianoRoll",

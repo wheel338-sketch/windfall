@@ -7,7 +7,7 @@ use rtrb::{Consumer, Producer};
 use windfall_core::AudioBuffer;
 use windfall_project::TrackId;
 
-use crate::automation::{self, GRID, Look};
+use crate::automation::{self, GRID, Look, Place};
 use crate::channel_voice::{ArpeggiatorMode, NoteEvent, NoteEventKind, admit_note};
 use crate::channel_voice_runtime::{Generator, Owner};
 use crate::clips::ClipPlayer;
@@ -71,7 +71,7 @@ pub struct Processor {
     /// The place in the song at which a song that has stopped keeps its
     /// automation, for as long as it is ringing out. See
     /// [`Processor::automate`].
-    hold: Option<f64>,
+    hold: Option<Place>,
     /// The offline renderer is what plays: nobody will use the transport
     /// again, so a hold lasts for good.
     hold_for_good: bool,
@@ -293,7 +293,11 @@ impl Processor {
     fn next_block(&mut self, left: usize) -> usize {
         let most = left.min(MAX_BLOCK);
         let at_work = self.state.engaged > 0 || self.state.returning > 0;
-        let automating = !self.plan.lanes.is_empty() && (self.sequencer.in_song() || at_work);
+        let in_pattern = self.plan.pattern_lanes
+            && self.sequencer.playing()
+            && self.sequencer.mode() == windfall_ipc::PlayMode::Pattern;
+        let automating =
+            !self.plan.lanes.is_empty() && (self.sequencer.in_song() || in_pattern || at_work);
         if !automating {
             return most;
         }
@@ -327,15 +331,12 @@ impl Processor {
         }
         let landed = std::mem::take(&mut self.landed);
         let until = (now / GRID + 1) * GRID;
-        let ahead = self.sequencer.song_tick_at(&self.plan, until);
+        let ahead = self.place_at(until);
         let look = Look {
             now,
             until,
             tick: ahead.or(self.hold),
-            landed: self
-                .sequencer
-                .song_tick_at(&self.plan, now)
-                .filter(|_| landed),
+            landed: self.place_at(now).filter(|_| landed),
             // With the song playing on, what starts next must find the
             // target where it belongs. With the transport stopped there is
             // only what still rings to hear the change.
@@ -351,10 +352,25 @@ impl Processor {
             self.hold = None;
         }
         let tempo = match (tick, &self.plan.tempo_map) {
-            (Some(tick), Some(map)) => map.tempo_at(tick),
+            (Some(Place::Song(tick)), Some(map)) => map.tempo_at(tick),
             _ => self.plan.tempo_bpm,
         };
         self.state.tell_tempo(tempo);
+    }
+
+    /// The place automation is read at for frame `frame`: in the song while
+    /// the playlist plays, in the pattern while a pattern plays by itself
+    /// and some pattern has event lanes.
+    fn place_at(&self, frame: u64) -> Option<Place> {
+        if let Some(tick) = self.sequencer.song_tick_at(&self.plan, frame) {
+            return Some(Place::Song(tick));
+        }
+        if !self.plan.pattern_lanes {
+            return None;
+        }
+        self.sequencer
+            .pattern_tick_at(&self.plan, frame)
+            .map(|(index, tick)| Place::Pattern { index, tick })
     }
 
     /// Publishes the value of every automation that has its target in
@@ -639,7 +655,7 @@ impl Processor {
     /// automation's hands. [`Processor::automate`] ends the hold.
     fn hold_if_stopped(&mut self, tick: f64) {
         if !self.sequencer.playing() && self.state.engaged > 0 {
-            self.hold = Some(tick);
+            self.hold = Some(Place::Song(tick));
         }
     }
 
@@ -1585,7 +1601,7 @@ mod tests {
     #[test]
     fn stale_hardware_notes_preserve_stopped_automation_hold() {
         let (mut processor, controller) = Processor::new(48_000);
-        processor.hold = Some(960.0);
+        processor.hold = Some(Place::Song(960.0));
         let epoch = controller.hardware_epoch();
         controller.panic_hardware();
 
@@ -1596,6 +1612,6 @@ mod tests {
             velocity: 127,
         });
 
-        assert_eq!(processor.hold, Some(960.0));
+        assert_eq!(processor.hold, Some(Place::Song(960.0)));
     }
 }

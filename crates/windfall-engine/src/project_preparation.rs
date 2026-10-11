@@ -970,6 +970,7 @@ mod tests {
             group: String::new(),
             timing: Default::default(),
             voice: Default::default(),
+            expression_map: Default::default(),
             source: ChannelSource::Sampler(SamplerSettings {
                 sample: Some(sample),
                 ..Default::default()

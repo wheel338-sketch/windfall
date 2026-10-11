@@ -190,7 +190,15 @@ export interface Backend extends AnalysisBackend, MixerPresetLibraryBackend {
   midiDiscard(token: number): Promise<void>
   exportMidi(path: string, options: MidiExportOptions): Promise<string>
   /** Native save dialog, then MusicXML write. Cancellation writes nothing. */
-  sheetMusicSave(suggestedName: string, xml: string): Promise<string | null>
+  /**
+   * Asks where to save a score and writes it as UTF-8 text. `format` picks
+   * the extension and file filter: MusicXML when omitted, or an ASCII PDF.
+   */
+  sheetMusicSave(
+    suggestedName: string,
+    xml: string,
+    format?: "musicxml" | "pdf"
+  ): Promise<string | null>
 
   transportPlay(
     guard?: import("@/bindings").TimelinePlaybackState

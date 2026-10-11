@@ -579,6 +579,67 @@ impl Transaction<'_> {
                 output,
                 target,
             } => self.set_effect_output(effect, output, target)?,
+            Command::SetPatternEvents {
+                pattern,
+                target,
+                expected,
+                points,
+            } => self.set_pattern_events(pattern, target, expected, points)?,
+            Command::GeneratePatternEventLfo {
+                pattern,
+                target,
+                expected,
+                start,
+                end,
+                resolution,
+                lfo,
+            } => {
+                self.pattern_index(pattern)?;
+                let (range, stored) = self.automation_target(&target)?;
+                // A pattern with no lane yet starts from what the control has.
+                let base = if expected.is_empty() {
+                    vec![AutomationPoint {
+                        tick: 0,
+                        value: range.normalized(stored),
+                        curve: 0.0,
+                        hold: false,
+                    }]
+                } else {
+                    expected.clone()
+                };
+                let points = crate::curve_lfo::write_lfo(&base, start, end, resolution, lfo)?;
+                self.set_pattern_events(pattern, target, expected, points)?;
+                "Write event LFO"
+            }
+            Command::GenerateNoteCurveLfo {
+                pattern,
+                channel,
+                expected,
+                expected_curves,
+                parameter,
+                origin,
+                resolution,
+                strength,
+                lfo,
+            } => {
+                let curves = crate::note_curve_lfo::generate(
+                    &expected,
+                    &expected_curves,
+                    parameter,
+                    origin,
+                    resolution,
+                    strength,
+                    lfo,
+                )?;
+                self.run(Command::SetNoteExpressionCurves {
+                    pattern,
+                    channel,
+                    expected,
+                    expected_curves,
+                    curves,
+                })?;
+                "Write note curve LFO"
+            }
             Command::SetSidechain { from, to, gain } => {
                 let index = self.signal_track_index(from)?;
                 self.signal_track_index(to)?;
@@ -1208,6 +1269,16 @@ impl Transaction<'_> {
                 "Set channel voice settings"
             }
             Command::UpdateChannel { id, patch } => self.update_channel(id, patch)?,
+            Command::SetChannelExpressionMap { id, map } => {
+                let old = self
+                    .project
+                    .channel(id)
+                    .ok_or_else(|| CommandError::not_found("channel", id))?
+                    .clone();
+                let new = crate::expression_map::applied(&old, map)?;
+                self.push(Edit::SetChannel(Box::new(Change { old, new })));
+                "Set channel expression mapping"
+            }
             Command::SetChannelGroup { channels, group } => {
                 self.set_channel_group(&channels, &group)?;
                 "Assign channel group"
@@ -1710,6 +1781,7 @@ impl Transaction<'_> {
                 name,
                 group: String::new(),
                 voice: Default::default(),
+                expression_map: Default::default(),
                 timing: crate::ChannelTiming::default(),
                 color,
                 volume: DEFAULT_CHANNEL_VOLUME,
@@ -2131,6 +2203,7 @@ impl Transaction<'_> {
             index: count,
             item: Pattern {
                 note_curves: Vec::new(),
+                events: Vec::new(),
                 time_signature: None,
                 timeline: Default::default(),
                 id,
@@ -2281,6 +2354,9 @@ impl Transaction<'_> {
         }
         for marker in &mut copy.timeline.markers {
             marker.id = crate::TimelineMarkerId(self.allocate()?);
+        }
+        for lane in &mut copy.events {
+            lane.id = AutomationId(self.allocate()?);
         }
         for lane in &mut copy.lanes {
             // Ids go out in lane order, so the copies sort the same way.
@@ -3138,8 +3214,96 @@ impl Transaction<'_> {
                 }
                 self.push(Edit::SetAutomation(Box::new(Change { old, new })));
             }
+            self.map_pattern_events(|lanes| {
+                let mut lanes = lanes.to_vec();
+                for lane in &mut lanes {
+                    if !targets_effect(&lane.target, effect) {
+                        continue;
+                    }
+                    match &mut lane.target {
+                        AutomationTarget::EffectParam { track, .. }
+                        | AutomationTarget::EffectMix { track, .. } => *track = home,
+                        _ => {}
+                    }
+                }
+                lanes
+            });
         }
         Ok("Move effect")
+    }
+
+    /// Replaces the event lane a pattern has for `target`, as
+    /// [`Command::SetPatternEvents`] describes.
+    fn set_pattern_events(
+        &mut self,
+        pattern: PatternId,
+        target: AutomationTarget,
+        expected: Vec<AutomationPoint>,
+        points: Vec<AutomationPoint>,
+    ) -> Result<Label, CommandError> {
+        let index = self.pattern_index(pattern)?;
+        let before = &self.project.patterns[index];
+        if crate::pattern_events::captured(before, &target) != expected {
+            return Err(CommandError::invalid(
+                "the captured event automation changed; reopen the event editor",
+            ));
+        }
+        let exists = before.event_lane(&target).is_some();
+        let points = crate::pattern_events::checked_points(points)?;
+        // What a lane moves has to be there. Taking a lane out needs nothing.
+        if !points.is_empty() && target != AutomationTarget::Tempo {
+            self.automation_target(&target)?;
+        }
+        let label = match (exists, points.is_empty()) {
+            (_, true) => "Clear event automation",
+            (false, false) => "Add event automation",
+            (true, false) => "Change event automation",
+        };
+        let fresh = if exists || points.is_empty() {
+            None
+        } else {
+            Some(AutomationId(self.allocate()?))
+        };
+        let old = PatternInfo::of(&self.project.patterns[index]);
+        let mut new = old.clone();
+        new.events = crate::pattern_events::replaced(&old.events, target, points, fresh)?;
+        if let Some(id) = fresh {
+            self.created.push(id.0);
+        }
+        self.push(Edit::PatternInfo {
+            id: pattern,
+            change: Change { old, new },
+        });
+        Ok(label)
+    }
+
+    /// Rewrites the event lanes of every pattern that has some.
+    fn map_pattern_events(
+        &mut self,
+        map: impl Fn(&[crate::PatternEventLane]) -> Vec<crate::PatternEventLane>,
+    ) {
+        let edits: Vec<Edit> = self
+            .project
+            .patterns
+            .iter()
+            .filter(|pattern| !pattern.events.is_empty())
+            .filter_map(|pattern| {
+                let events = map(&pattern.events);
+                if events == pattern.events {
+                    return None;
+                }
+                let old = PatternInfo::of(pattern);
+                let mut new = old.clone();
+                new.events = events;
+                Some(Edit::PatternInfo {
+                    id: pattern.id,
+                    change: Change { old, new },
+                })
+            })
+            .collect();
+        for edit in edits {
+            self.push(edit);
+        }
     }
 
     fn update_effect(
@@ -3709,6 +3873,7 @@ impl Transaction<'_> {
     /// Removes every automation whose target `gone` picks out, with its
     /// clips: what those automations move is about to leave the project.
     fn remove_automations_of(&mut self, gone: impl Fn(&AutomationTarget) -> bool) {
+        self.map_pattern_events(|lanes| crate::pattern_events::without(lanes, &gone));
         let automations = self.project.automations.iter();
         let ids: Vec<AutomationId> = automations
             .filter(|automation| gone(&automation.target))

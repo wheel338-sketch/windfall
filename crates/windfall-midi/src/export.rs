@@ -9,9 +9,11 @@ use std::fmt;
 
 use windfall_project::{
     AutomationPoint, AutomationRange, AutomationTarget, Channel, ChannelId, ClipContent, ClipId,
-    DEFAULT_CHANNEL_VOLUME, Pattern, PatternId, Project, TICKS_PER_STEP, curve_value,
+    DEFAULT_CHANNEL_VOLUME, NoteCurveParameter, NoteExpression, NoteId, Pattern, PatternId,
+    Project, TICKS_PER_STEP, curve_value,
 };
 
+use crate::expression::{self, Curves, ExportReport, ExpressionMode, ExpressionOptions, Source};
 use crate::mix::{pan_to_midi, velocity_to_midi, volume_to_midi};
 use crate::song::{
     CC_PAN, CC_VOLUME, ControlCurve, ControlKind, ControlPoint, DRUM_CHANNEL,
@@ -21,6 +23,10 @@ use crate::song::{
 /// The most notes one export holds. A clip that loops a short pattern for
 /// hours could ask for more memory than there is; such a song is refused.
 pub const MAX_EXPORTED_NOTES: usize = 4_000_000;
+
+/// The most messages note expression is written in. A song that would
+/// need more is refused.
+pub const MAX_EXPRESSION_MESSAGES: usize = 8_000_000;
 
 /// The most steps a gliding tempo is written in. A song long enough to
 /// need more at [`ExportOptions::tempo_step`] gets longer steps.
@@ -42,18 +48,33 @@ pub struct ExportOptions {
     /// 7) and pan (controller 10), where they are not the defaults a MIDI
     /// device has anyway.
     pub channel_mix: bool,
+    /// Writes what MIDI notes cannot say themselves as pitch bend and
+    /// controllers: fine pitch, slides, portamento, modulation X and Y, a
+    /// note's own pan and its saved curves. See
+    /// [`expression`](crate::expression) for where each goes. `None`, the
+    /// default, writes none of it and every file is what it was before the
+    /// option existed.
+    pub expression: Option<ExpressionOptions>,
 }
 
 impl Default for ExportOptions {
-    /// Swing as it plays, a tempo step of a sixteenth note, and the
-    /// channels' volumes and pans.
+    /// Swing as it plays, a tempo step of a sixteenth note, the channels'
+    /// volumes and pans, and no note expression.
     fn default() -> Self {
         Self {
             swing: true,
             tempo_step: TICKS_PER_STEP,
             channel_mix: true,
+            expression: None,
         }
     }
+}
+
+/// A song and what could not be said in it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Exported {
+    pub song: MidiSong,
+    pub report: ExportReport,
 }
 
 /// Why a project could not be exported.
@@ -63,6 +84,9 @@ pub enum ExportError {
     PatternNotFound(PatternId),
     /// The song plays more notes than [`MAX_EXPORTED_NOTES`].
     TooManyNotes,
+    /// The song's note expression needs more messages than
+    /// [`MAX_EXPRESSION_MESSAGES`].
+    TooManyMessages,
 }
 
 impl fmt::Display for ExportError {
@@ -72,6 +96,10 @@ impl fmt::Display for ExportError {
             ExportError::TooManyNotes => write!(
                 f,
                 "the song plays more than {MAX_EXPORTED_NOTES} notes, which is more than one MIDI export holds"
+            ),
+            ExportError::TooManyMessages => write!(
+                f,
+                "the song's note expression needs more than {MAX_EXPRESSION_MESSAGES} MIDI messages; export it without note expression or with a longer step"
             ),
         }
     }
@@ -92,24 +120,37 @@ pub fn export_pattern(
     pattern: PatternId,
     options: &ExportOptions,
 ) -> Result<MidiSong, ExportError> {
+    export_pattern_reported(project, pattern, options).map(|exported| exported.song)
+}
+
+/// [`export_pattern`], with the report of what the file does not say.
+pub fn export_pattern_reported(
+    project: &Project,
+    pattern: PatternId,
+    options: &ExportOptions,
+) -> Result<Exported, ExportError> {
     let pattern = project
         .pattern(pattern)
         .ok_or(ExportError::PatternNotFound(pattern))?;
     let length = pattern_length(pattern);
-    let mut notes = Notes::default();
-    for played in played_notes(project, pattern, swing(project, options)) {
+    let expressive = options.expression.is_some();
+    let mut notes = Notes::new(expressive);
+    for played in played_notes(project, pattern, swing(project, options), expressive) {
         let end = played.end.min(length);
         notes.add(played, played.start, end)?;
     }
     let tempo = TempoChange::from_bpm(0, project.settings.tempo_bpm);
-    let mut result = song(
+    let (mut result, mut report) = song(
         project,
         &pattern.name,
         notes,
         vec![tempo],
         length,
         options,
-    );
+    )?;
+    if !expressive {
+        report.unexported_notes = unexported(pattern);
+    }
     let signature = pattern.effective_signature(project.settings.time_signature);
     result.time_signatures = vec![crate::TimeSignatureChange { tick: 0, numerator: signature.numerator, denominator: signature.denominator }];
     for meter in pattern.timeline.meters.iter().filter(|meter| meter.tick < length) {
@@ -118,7 +159,7 @@ pub fn export_pattern(
     }
     result.markers = pattern.timeline.markers.iter().filter(|marker| marker.tick <= length)
         .map(|marker| crate::Marker { tick: marker.tick, text: marker.name.clone() }).collect();
-    Ok(result)
+    Ok(Exported { song: result, report })
 }
 
 /// The playlist as a song, the way song mode plays it.
@@ -148,6 +189,14 @@ pub fn export_pattern(
 /// A note's pan, a sampler's tuning, the mixer and every effect are not
 /// part of a MIDI file.
 pub fn export_song(project: &Project, options: &ExportOptions) -> Result<MidiSong, ExportError> {
+    export_song_reported(project, options).map(|exported| exported.song)
+}
+
+/// [`export_song`], with the report of what the file does not say.
+pub fn export_song_reported(
+    project: &Project,
+    options: &ExportOptions,
+) -> Result<Exported, ExportError> {
     let playlist = &project.playlist;
     let muted: HashSet<_> = playlist
         .tracks
@@ -156,8 +205,9 @@ pub fn export_song(project: &Project, options: &ExportOptions) -> Result<MidiSon
         .map(|track| track.id)
         .collect();
     let swing = swing(project, options);
-    let mut patterns: HashMap<PatternId, (u32, Vec<Played>)> = HashMap::new();
-    let mut notes = Notes::default();
+    let expressive = options.expression.is_some();
+    let mut patterns: HashMap<PatternId, (u32, Vec<Played<'_>>)> = HashMap::new();
+    let mut notes = Notes::new(expressive);
     let mut length = 0;
     for clip in &playlist.clips {
         let clip_end = clip.start.saturating_add(clip.length);
@@ -173,7 +223,12 @@ pub fn export_song(project: &Project, options: &ExportOptions) -> Result<MidiSon
         };
         let (pattern_length, played) = patterns
             .entry(pattern.id)
-            .or_insert_with(|| (pattern_length(pattern), played_notes(project, pattern, swing)));
+            .or_insert_with(|| {
+                (
+                    pattern_length(pattern),
+                    played_notes(project, pattern, swing, expressive),
+                )
+            });
         if played.is_empty() {
             continue;
         }
@@ -200,14 +255,21 @@ pub fn export_song(project: &Project, options: &ExportOptions) -> Result<MidiSon
         }
     }
     let tempos = tempo_changes(project, length, options.tempo_step);
-    let mut result = song(
+    let (mut result, mut report) = song(
         project,
         &project.settings.name,
         notes,
         tempos,
         length,
         options,
-    );
+    )?;
+    if !expressive {
+        report.unexported_notes = patterns
+            .keys()
+            .filter_map(|&id| project.pattern(id))
+            .map(unexported)
+            .sum();
+    }
     for meter in &project.playlist.timeline.meters {
         if meter.tick == 0 {
             result.time_signatures.clear();
@@ -221,7 +283,26 @@ pub fn export_song(project: &Project, options: &ExportOptions) -> Result<MidiSon
     result.markers = project.playlist.timeline.markers.iter()
         .filter(|marker| marker.tick <= length && marker.kind == windfall_project::MarkerKind::Named)
         .map(|marker| crate::Marker { tick: marker.tick, text: marker.name.clone() }).collect();
-    Ok(result)
+    Ok(Exported { song: result, report })
+}
+
+/// How many notes of a pattern that play have expression a plain export
+/// leaves out.
+fn unexported(pattern: &Pattern) -> usize {
+    let length = pattern_length(pattern);
+    let curved: HashSet<NoteId> = pattern
+        .note_curves
+        .iter()
+        .filter(|curve| curve.parameter != NoteCurveParameter::Release)
+        .map(|curve| curve.note)
+        .collect();
+    let notes = pattern.lanes.iter().flat_map(|lane| &lane.notes);
+    notes
+        .filter(|note| note.start < length)
+        .filter(|note| {
+            expression::has_expression(note.pan, &note.expression) || curved.contains(&note.id)
+        })
+        .count()
 }
 
 /// The project's swing as the engine applies it, or none when the export
@@ -250,8 +331,8 @@ fn swing_warp(tick: f64, swing: f64, swung_length: f64) -> f64 {
 }
 
 /// A note of a pattern as it plays in one pass of the pattern.
-#[derive(Debug, Clone, Copy)]
-struct Played {
+#[derive(Clone, Copy)]
+struct Played<'a> {
     channel: ChannelId,
     /// Ticks from the start of the pass, with swing applied. `end` is
     /// after `start`, and may lie past the end of the pattern.
@@ -261,17 +342,43 @@ struct Played {
     velocity: u8,
     release: u8,
     midi_channel: Option<u8>,
+    /// A slide plays no note. It is only kept when expression is written.
+    slide: bool,
+    pan: f32,
+    expression: NoteExpression,
+    curves: Curves<'a>,
 }
 
-/// The notes of a pattern that play, in order of their starts.
-fn played_notes(project: &Project, pattern: &Pattern, swing: f64) -> Vec<Played> {
+/// The notes of a pattern that play, in order of their starts. With
+/// `expressive`, slides are among them and every note has its curves.
+fn played_notes<'a>(
+    project: &Project,
+    pattern: &'a Pattern,
+    swing: f64,
+    expressive: bool,
+) -> Vec<Played<'a>> {
     let length = pattern_length(pattern);
+    let mut curves: HashMap<NoteId, Curves<'a>> = HashMap::new();
+    if expressive {
+        for curve in &pattern.note_curves {
+            let of_note = curves.entry(curve.note).or_default();
+            match curve.parameter {
+                NoteCurveParameter::Pan => of_note.pan = Some(curve),
+                NoteCurveParameter::FinePitchCents => of_note.fine = Some(curve),
+                NoteCurveParameter::ModulationX => of_note.x = Some(curve),
+                NoteCurveParameter::ModulationY => of_note.y = Some(curve),
+                // Release is the note-off velocity, which has no curve.
+                NoteCurveParameter::Release => {}
+            }
+        }
+    }
     let mut played = Vec::new();
     for lane in &pattern.lanes {
         let Some(channel) = project.channel(lane.channel) else { continue; };
         for note in lane.notes.iter().filter(|note| note.start < length) {
             // A slide is a control event, never an additional MIDI note-on.
-            if note.expression.articulation == windfall_project::NoteArticulation::Slide { continue; }
+            let slide = note.expression.articulation == windfall_project::NoteArticulation::Slide;
+            if slide && !expressive { continue; }
             let Some((tick, duration)) = channel.timing.place(note.start, note.length, length, swing) else { continue; };
             let start = tick.round() as u32;
             let end = (tick + duration).round() as u32;
@@ -283,6 +390,10 @@ fn played_notes(project: &Project, pattern: &Pattern, swing: f64) -> Vec<Played>
                 velocity: velocity_to_midi(note.velocity),
                 release: (note.expression.clamped().release * 128.0).round().min(127.0) as u8,
                 midi_channel: note.expression.color_group,
+                slide,
+                pan: if note.pan.is_finite() { note.pan.clamp(-1.0, 1.0) } else { 0.0 },
+                expression: note.expression.clamped(),
+                curves: curves.get(&note.id).copied().unwrap_or_default(),
             });
         }
     }
@@ -290,19 +401,52 @@ fn played_notes(project: &Project, pattern: &Pattern, swing: f64) -> Vec<Played>
     played
 }
 
+/// A note or a slide of an export that the expression pass has yet to see.
+struct Pending<'a> {
+    /// Where the note is in its channel's notes. A slide has none.
+    note: Option<usize>,
+    start: u32,
+    end: u32,
+    played: Played<'a>,
+}
+
 /// The notes of an export, by the channel that plays them.
-#[derive(Default)]
-struct Notes {
+struct Notes<'a> {
     by_channel: HashMap<ChannelId, Vec<MidiNote>>,
+    /// The same notes once more, and the slides, when expression is
+    /// written.
+    expressive: Option<HashMap<ChannelId, Vec<Pending<'a>>>>,
     count: usize,
 }
 
-impl Notes {
-    fn add(&mut self, played: Played, start: u32, end: u32) -> Result<(), ExportError> {
+impl<'a> Notes<'a> {
+    fn new(expressive: bool) -> Self {
+        Self {
+            by_channel: HashMap::new(),
+            expressive: expressive.then(HashMap::new),
+            count: 0,
+        }
+    }
+
+    fn add(&mut self, played: Played<'a>, start: u32, end: u32) -> Result<(), ExportError> {
         if self.count == MAX_EXPORTED_NOTES {
             return Err(ExportError::TooManyNotes);
         }
         self.count += 1;
+        if let Some(expressive) = &mut self.expressive {
+            let note = (!played.slide)
+                .then(|| self.by_channel.get(&played.channel).map_or(0, Vec::len));
+            let pending = Pending {
+                note,
+                start,
+                end: end.max(start.saturating_add(1)),
+                played,
+            };
+            expressive.entry(played.channel).or_default().push(pending);
+        }
+        if played.slide {
+            return Ok(());
+        }
         let notes = self.by_channel.entry(played.channel).or_default();
         notes.push(MidiNote {
             start,
@@ -329,21 +473,47 @@ fn midi_channel(index: usize) -> u8 {
 fn song(
     project: &Project,
     name: &str,
-    mut notes: Notes,
+    mut all: Notes<'_>,
     tempos: Vec<TempoChange>,
     length: u32,
     options: &ExportOptions,
-) -> MidiSong {
-    let mut tracks = Vec::new();
+) -> Result<(MidiSong, ExportReport), ExportError> {
+    let mut tracks: Vec<MidiTrack> = Vec::new();
+    let mut sources: Vec<Source<'_>> = Vec::new();
+    let mpe = options
+        .expression
+        .is_some_and(|expression| expression.mode == ExpressionMode::Mpe);
     for channel in &project.channels {
-        let Some(mut notes) = notes.by_channel.remove(&channel.id) else {
+        let Some(mut notes) = all.by_channel.remove(&channel.id) else {
             continue;
         };
         let midi_channel = midi_channel(tracks.len());
         for note in &mut notes {
             if note.channel == u8::MAX { note.channel = midi_channel; }
         }
-        let controls = if options.channel_mix {
+        let pending = all
+            .expressive
+            .as_mut()
+            .and_then(|expressive| expressive.remove(&channel.id));
+        for pending in pending.into_iter().flatten() {
+            let played = pending.played;
+            sources.push(Source {
+                track: tracks.len(),
+                note: pending.note,
+                start: pending.start,
+                end: pending.end,
+                key: played.key,
+                channel: played.midi_channel.unwrap_or(midi_channel),
+                pan: played.pan,
+                base_pan: if options.channel_mix { channel.pan } else { 0.0 },
+                expression: played.expression,
+                curves: played.curves,
+            });
+        }
+        let controls = if mpe && options.channel_mix {
+            // A zone has one volume and one pan, on its master channel.
+            mix_controls(channel, 0)
+        } else if options.channel_mix {
             let mut used = [false; 16];
             for note in &notes { used[usize::from(note.channel.min(15))] = true; }
             used.into_iter().enumerate().filter(|(_, used)| *used)
@@ -359,8 +529,30 @@ fn song(
             controls,
         });
     }
+    let mut report = ExportReport::default();
+    if let Some(expression) = &options.expression {
+        let rendered = expression::render(
+            &sources,
+            tracks.len(),
+            expression,
+            MAX_EXPRESSION_MESSAGES,
+        );
+        if rendered.overflow {
+            return Err(ExportError::TooManyMessages);
+        }
+        report = rendered.report;
+        // A slide on a channel that plays no note has nothing to slide.
+        let stranded = all.expressive.iter().flat_map(HashMap::values).flatten();
+        report.slides_without_target += stranded.filter(|pending| pending.played.slide).count();
+        for (track, note, channel) in rendered.channels {
+            tracks[track].notes[note].channel = channel;
+        }
+        for (track, controls) in tracks.iter_mut().zip(rendered.controls) {
+            track.controls.extend(controls);
+        }
+    }
     let signature = project.settings.time_signature;
-    MidiSong {
+    let song = MidiSong {
         name: Some(name.to_owned()),
         tracks,
         tempos,
@@ -373,7 +565,8 @@ fn song(
         markers: Vec::new(),
         length,
     }
-    .normalized()
+    .normalized();
+    Ok((song, report))
 }
 
 /// A channel's volume and pan as controller messages at the start of the
