@@ -190,6 +190,11 @@ Project replacement closes/resets the guide and releases its export listener.
 Panel-header Help opens contextual instructions for that panel, including in
 detached windows. All new guide/context instructions have Spanish messages.
 
+Restart reconciliation found the help dialog was initially mounted only in the
+main shell. It now belongs to shared window overlays (one instance per window).
+The additional mounted detached-header → actual dialog → project-replacement
+cleanup test is written, not executed.
+
 Written, not executed: `features/help/guided-tutorial.test.tsx` mounted real-WASM
 note gate and undoable clip placement, real picker cancellation, recording/export
 evidence predicates, active/detached context; existing getting-started tests must

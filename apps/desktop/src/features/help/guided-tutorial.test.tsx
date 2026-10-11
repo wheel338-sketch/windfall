@@ -9,6 +9,9 @@ import { TEST_DIALOGS, startTestApp } from "@/test/harness"
 import { GuidedTutorial } from "./guided-tutorial"
 import { baseline, TUTORIALS, type TutorialEvidence } from "./tutorials"
 import { ContextHelp } from "./context-help"
+import { Overlays } from "@/features/layout/app-shell"
+import { PanelFrame } from "@/features/layout/panel-frame"
+import { closeGettingStarted } from "./getting-started-store"
 import type { MockBackend } from "@/lib/ipc/mock"
 let backend: MockBackend; let stop: () => void
 beforeEach(async () => {
@@ -17,8 +20,19 @@ beforeEach(async () => {
   const unregister = registerChannelRackActions()
   stop = () => { unregister(); app.stop() }
 })
-afterEach(() => stop())
+afterEach(() => { closeGettingStarted(); stop() })
 describe("real-state guided tutorials", () => {
+  it("opens real contextual help from a detached header using the shared window overlays", async () => {
+    render(<TooltipProvider>
+      <PanelFrame title="Mixer" panel="mixer" detached><p>Detached mixer</p></PanelFrame>
+      <Overlays />
+    </TooltipProvider>)
+    fireEvent.click(screen.getByRole("button", { name: "Help" }))
+    expect(screen.getByRole("dialog", { name: "Getting started" })).toBeVisible()
+    expect(screen.getByText(/Each channel feeds a mixer track/)).toBeVisible()
+    await act(async () => { await backend.projectNew() })
+    expect(screen.queryByRole("dialog", { name: "Getting started" })).toBeNull()
+  })
   it("keeps Next disabled until real notes exist, then places an undoable pattern clip", async () => {
     render(<TooltipProvider><GuidedTutorial kind="beat" /></TooltipProvider>)
     // The existing playable factory kit satisfies the sound-channel step.

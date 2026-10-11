@@ -73,6 +73,7 @@ export function Overlays() {
       <SpectrogramPanel />
       <ScopePanel />
       <TouchControllersWindow />
+      <GettingStartedDialog />
       <Toaster
         theme={theme}
         position="bottom-right"
@@ -104,7 +105,6 @@ export function AppShell() {
         </div>
         <CommandPalette />
         <SettingsDialog />
-        <GettingStartedDialog />
         <ExportDialog />
         <MidiDialogs />
         <FlpImportDialog />
