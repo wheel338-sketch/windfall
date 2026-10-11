@@ -33,3 +33,24 @@ it("derives deterministic patches across the full unsigned number domain",()=>{
   for(const number of [0,1,16777216,2147483648,4294967295]) { const asset=prepareInstrumentAsset({type:"number",number});expect(asset).toEqual(prepareInstrumentAsset({type:"number",number}));expect(asset).toMatchObject({type:"spectra",presetNumber:number});expect(asset).not.toEqual(prepareInstrumentAsset({type:"number",number:number===0?1:0})); }
   for(const number of [-1,1.5,4294967296,NaN]) expect(()=>prepareInstrumentAsset({type:"number",number})).toThrow(/Patch number/)
 })
+
+it("reconstructs a coherent harmonic WAV within a measured error bound",()=>{
+  const samples=Array.from({length:1000},(_,i)=>Math.round(32767*(0.4*Math.sin(2*Math.PI*i/100+0.7)+0.2*Math.sin(2*Math.PI*3*i/100+1.1))))
+  const asset=prepareInstrumentAsset({type:"audioSpectrum",bytes:wav(samples),rootHz:480})
+  if(asset.type!=="spectra")throw new Error("wrong asset")
+  expect(asset.frames).toHaveLength(10)
+  const partials=asset.frames[0]!.partials
+  expect(partials[0]!.level).toBeCloseTo(0.4,3);expect(partials[2]!.level).toBeCloseTo(0.2,3)
+  const mse=samples.slice(0,100).reduce((error,x,i)=>{const y=partials.reduce((sum,p)=>sum+p.level*Math.sin(2*Math.PI*(p.ratio*i/100+p.phase)),0);return error+(y-x/32767)**2},0)/100
+  expect(Math.sqrt(mse)).toBeLessThan(0.001)
+  expect(()=>prepareInstrumentAsset({type:"audioSpectrum",bytes:wav(samples),rootHz:NaN})).toThrow("root pitch")
+})
+it("maps image columns, reversed rows, alpha and luminance independently",()=>{
+  const pixels=new Uint8Array([255,255,255,255,0,0,0,255,128,128,128,255,255,255,255,0]).buffer
+  const asset=prepareInstrumentAsset({type:"imageSpectrum",pixels,width:2,height:2,color:false})
+  if(asset.type!=="spectra")throw new Error("wrong asset")
+  expect(asset.frames[0]!.partials[0]!.level).toBeCloseTo((128/255)**2,6)
+  expect(asset.frames[0]!.partials[1]).toEqual({ratio:2,level:1,phase:0,pan:0})
+  expect(asset.frames[1]!.partials.map(p=>p.level)).toEqual([0,0])
+  expect(()=>prepareInstrumentAsset({type:"imageSpectrum",pixels,width:257,height:2,color:false})).toThrow("RGBA")
+})

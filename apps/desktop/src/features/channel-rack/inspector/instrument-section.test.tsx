@@ -287,6 +287,14 @@ describe("instrument settings panels", () => {
     expect(screen.getByRole("slider",{name:"Level"})).toBeVisible()
   })
 
+  it("mounts the harmonic WAV/image preparation workflow and undoes frame edits",async()=>{
+    const channel=await open("spectralResynth"),original=channelOf(channel).source.params
+    expect(screen.getByLabelText("Load WAV or image")).toBeVisible()
+    expect(screen.getByRole("spinbutton",{name:"WAV source root Hz"})).toBeVisible()
+    const position=screen.getByRole("slider",{name:"Frame Position"});fireEvent.keyDown(position,{key:"End"});fireEvent.keyUp(position,{key:"End"});await flush()
+    expect(channelOf(channel).source.params).not.toEqual(original);await act(()=>undo());expect(channelOf(channel).source.params).toEqual(original)
+  })
+
   it("keeps hosted plugin controls ahead of the built-in panel", async () => {
     const channel = await open("acidLine")
     const plugin: PluginBinding = {

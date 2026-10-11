@@ -5,6 +5,7 @@ import type { InstrumentChannel } from "@/lib/channel-source"
 import { colorToCss } from "@/lib/units"
 
 import { useProjectGeneration } from "@/lib/store"
+import { ResynthesisEditor } from "../instruments/resynthesis-editor"
 import { NumberEditor } from "../instruments/number-editor"
 import { MetalEditor } from "../instruments/metal-editor"
 import { HarmonicFilterEditor } from "../instruments/harmonic-filter-editor"
@@ -49,6 +50,8 @@ export function InstrumentSection({ channel }: { channel: InstrumentChannel }) {
           params={params}
           color={colorToCss(channel.color)}
         />
+      ) : params.type === "spectralResynth" ? (
+        <ResynthesisEditor channel={channel} />
       ) : params.type === "numberVoice" ? (
         <NumberEditor channel={channel} />
       ) : params.type === "metalVoice" ? (

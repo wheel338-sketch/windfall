@@ -167,3 +167,5 @@ pub use additive::{HarmonicFilter,HarmonicFilterParams,HarmonicShape};
 pub use additive::{MetalVoice,MetalVoiceParams};
 
 pub use additive::{NumberVoice,NumberVoiceParams};
+
+pub use additive::{SpectralResynth,SpectralResynthParams};

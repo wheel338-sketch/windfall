@@ -374,3 +374,23 @@ fn full_width_numbered_patch_reaches_history_disk_and_live_offline_pcm() {
         )),
     );
 }
+
+#[test]
+fn spectral_frame_edit_reaches_history_disk_and_live_offline_pcm() {
+    let a = SpectralResynthParams {
+        scan: false,
+        ..Default::default()
+    };
+    let b = SpectralResynthParams { position: 1.0, ..a };
+    let bank = Some(InstrumentAsset::Spectra(
+        windfall_dsp::instrument_asset::SpectralBank::harmonic_snapshots(),
+    ));
+    acceptance_data(
+        InstrumentKind::SpectralResynth,
+        InstrumentParams::SpectralResynth(a),
+        InstrumentParams::SpectralResynth(b),
+        60,
+        bank.clone(),
+        bank,
+    );
+}

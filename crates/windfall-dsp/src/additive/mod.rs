@@ -85,3 +85,6 @@ pub use metal_voice::{MetalVoice,MetalVoiceParams};
 
 mod number_voice;
 pub use number_voice::{NumberVoice,NumberVoiceParams};
+
+mod spectral_resynth;
+pub use spectral_resynth::{SpectralResynth,SpectralResynthParams};

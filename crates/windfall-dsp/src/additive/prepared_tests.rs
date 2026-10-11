@@ -207,3 +207,57 @@ fn numbered_patches_cover_full_u32_domain_and_reproduce_measured_pcm() {
         );
     }
 }
+
+#[test]
+fn resynthesis_static_frames_reconstruct_phase_and_scan_changes_measured_audio() {
+    let bank = SpectralBank {
+        frames: (0..3)
+            .map(|i| SpectralFrame {
+                partials: vec![SpectralPartial {
+                    ratio: 1.0,
+                    level: 0.5,
+                    phase: i as f32 * 0.125,
+                    pan: 0.0,
+                }],
+            })
+            .collect(),
+        frame_seconds: 0.05,
+        root_hz: 440.0,
+        preset_number: None,
+    };
+    let sound = |position, scan| {
+        let mut synth = SpectralResynth::default();
+        synth.set_bank(&bank);
+        synth.prepare(48000.0, 257);
+        synth.set_params(&SpectralResynthParams {
+            position,
+            scan,
+            level: 1.0,
+            attack_ms: 0.1,
+            ..Default::default()
+        });
+        synth.note_on(69, 1.0);
+        let mut l = vec![0.0; 12000];
+        let mut r = vec![0.0; 12000];
+        synth.process(&mut l, &mut r);
+        l
+    };
+    for (position, phase) in [(0.0, 0.0), (0.5, 0.125), (1.0, 0.25)] {
+        let pcm = sound(position, false);
+        for (i, x) in pcm.iter().enumerate().skip(10) {
+            let reference =
+                (std::f64::consts::TAU * (phase + 440.0 * i as f64 / 48000.0)).sin() * 0.25;
+            assert!((f64::from(*x) - reference).abs() < 0.0005);
+        }
+    }
+    let frozen = sound(0.0, false);
+    let scan = sound(0.0, true);
+    assert!(
+        frozen
+            .iter()
+            .zip(scan)
+            .map(|(a, b)| (*a - b).abs())
+            .sum::<f32>()
+            > 100.0
+    );
+}

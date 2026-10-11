@@ -243,7 +243,8 @@ impl PreparedEngine {
                         + c.shimmer_depth
                             * sine_turns((seconds * c.shimmer + i as f32 * 0.137).fract());
                     let pan = (pa.pan + (pb.pan - pa.pan) * mix).clamp(-1.0, 1.0);
-                    let phase_offset = (pb.phase - pa.phase) * mix;
+                    let phase_offset = pa.phase - self.bank.frames[0].partials[i].phase
+                        + (pb.phase - pa.phase) * mix;
                     let sample = sine_turns((v.phases[i] + phase_offset).rem_euclid(1.0))
                         * level
                         * shape

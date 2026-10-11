@@ -9,7 +9,7 @@ benchmarks, generators or audio-device checks were run. Every test below is
 | Row | Implementation / claim | Remaining |
 | --- | --- | --- |
 | inst-boobass | Full-row candidate: Finger Bass now replaces its sole string on every positive note, including releases; 4 ms endpoint correction prevents retrigger discontinuities. Existing pluck, damping, pick position and two body resonances provide the bass-guitar tone contract. Six automatable controls retain descriptor indices. | Fresh integration execution and listening. |
-| inst-harmor | Pending this stream. | Audio/image preparation and asset editor. |
+| inst-harmor | Full-row candidate: Spectral Resynth imports harmonic WAV analysis or luminance image spectra on a worker, stores amplitude/phase frames, provides manual position or timed scan and a spectral preview. | Fresh integration execution and listening. |
 | inst-morphine | Full-row candidate: new Snapshot Morph kind uses immutable worker-prepared 32-harmonic A/B spectra, phase/pan-aware interpolation, polyphony/envelope controls and a two-spectrum harmonic editor. | Fresh integration execution and listening. |
 | inst-ogun | Full-row candidate: Metal Voice has prepared inharmonic partials, partial stretch, independent phase-offset amplitude shimmer and exponential decay; dedicated spacing/shimmer editor. | Fresh integration execution and listening. |
 | inst-harmless | Full-row candidate: Harmonic Filter plays an immutable 64-harmonic bank through saw/square/triangle weighting, spectral cutoff/resonance and envelope/polyphony controls; dedicated oscillator/filter/envelope editor. | Fresh integration execution and listening. |
@@ -179,3 +179,20 @@ persisted partials are authoritative across platforms (pow rounding can differ
 by an ulp). Written, not executed: numbered DSP reproducibility/audio differences,
 engine full-width asset history/disk/live equality, worker boundary/refusal and
 mounted preset-only workflow. Regenerate NumberVoiceParams and union/descriptors.
+
+### Spectral Resynth checkpoint
+
+Appends SpectralResynth (33 kinds here). Dedicated worker performs bounded
+harmonic projection of PCM at an explicit source root; it also maps image
+luminance/alpha, bottom row to fundamental, columns to time. Source decoding
+uses browser image decoding off audio; worker owns all spectral preparation.
+No proprietary analysis or vendor preset compatibility claim. Analysis retains
+32768 mono samples, at most 256 frames and 64 partials; harmonic projection
+omits DC and unpitched/noisy residuals. Root mismatch/nonperiodic sources have
+higher reconstruction error; the acceptance bound applies to coherent in-band
+harmonic fixtures, not arbitrary recordings. Source files cap at 16 MiB.
+Written, not executed: worker independent three-harmonic reconstruction error
+and image row/alpha/luminance mapping; DSP static phase reconstruction and scan
+differences; engine frame edit history/disk/live equality; mounted source/frame
+workflow. Phase interpolation now honors every frame's base phase (not just
+frame zero). Regenerate SpectralResynthParams and union/descriptors/WASM.

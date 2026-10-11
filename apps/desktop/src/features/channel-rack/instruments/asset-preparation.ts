@@ -1,8 +1,38 @@
 import type { InstrumentAsset } from "@/bindings"
 
-export type AssetRequest = { type: "number"; number: number } | { type: "layer"; bytes: ArrayBuffer } | { type: "snapshots"; a: number[]; b: number[] }
+export type AssetRequest = { type: "audioSpectrum"; bytes: ArrayBuffer; rootHz: number } | { type: "imageSpectrum"; pixels: ArrayBuffer; width: number; height: number; color: boolean } | { type: "number"; number: number } | { type: "layer"; bytes: ArrayBuffer } | { type: "snapshots"; a: number[]; b: number[] }
 /** Bounded worker-side WAV decoding; no WebAudio device or audio callback. */
 export function prepareInstrumentAsset(request: AssetRequest): InstrumentAsset {
+  if (request.type === "imageSpectrum") {
+    const {width,height}=request
+    if (!Number.isInteger(width)||!Number.isInteger(height)||width<1||width>256||height<1||height>64||request.pixels.byteLength!==width*height*4) throw new Error("Image preparation needs 1-256 columns and 1-64 rows of RGBA pixels")
+    const pixels=new Uint8Array(request.pixels)
+    const frames=Array.from({length:width},(_,x)=>({partials:Array.from({length:height},(_,row)=>{
+      const at=((height-1-row)*width+x)*4,r=pixels[at]!/255,g=pixels[at+1]!/255,b=pixels[at+2]!/255,alpha=pixels[at+3]!/255
+      const brightness=(0.2126*r+0.7152*g+0.0722*b)*alpha,max=Math.max(r,g,b),min=Math.min(r,g,b),delta=max-min
+      let hue=0
+      if(delta>0) hue=(max===r?(g-b)/delta:max===g?2+(b-r)/delta:4+(r-g)/delta)/6
+      hue=(hue+1)%1
+      return {ratio:Math.fround(request.color?Math.pow(2,(row+2*hue)/12):row+1),level:Math.fround(brightness*brightness),phase:0,pan:Math.fround(request.color?b-r:0)}
+    })}))
+    return {type:"spectra",frames,frameSeconds:0.05,rootHz:440}
+  }
+  if (request.type === "audioSpectrum") {
+    if (!Number.isFinite(request.rootHz)||request.rootHz<8||request.rootHz>20000) throw new Error("Source root pitch must be 8-20000 Hz")
+    const pcm=prepareInstrumentAsset({type:"layer",bytes:request.bytes})
+    if(pcm.type!=="pcm") throw new Error("WAV preparation failed")
+    const {sampleRate,samples}=pcm,rootHz=request.rootHz
+    const window=Math.min(samples.length,Math.max(32,Math.round(sampleRate/rootHz))),columns=Math.min(256,Math.max(1,Math.floor(samples.length/window)))
+    const hop=columns===1?window:Math.max(window,Math.floor((samples.length-window)/(columns-1)))
+    const frames=Array.from({length:columns},(_,column)=>({partials:Array.from({length:64},(_,i)=>{
+      const ratio=i+1,hz=rootHz*ratio
+      if(hz>=sampleRate*0.49) return {ratio,level:0,phase:0,pan:0}
+      let re=0,im=0
+      for(let j=0;j<window;j++) { const at=column*hop+j,angle=2*Math.PI*hz*at/sampleRate,x=samples[at]!/32767;re+=x*Math.cos(angle);im+=x*Math.sin(angle) }
+      return {ratio,level:Math.fround(Math.min(1,2*Math.hypot(re,im)/window)),phase:Math.fround(((Math.atan2(re,im)/(2*Math.PI))%1+1)%1),pan:0}
+    })}))
+    return {type:"spectra",frames,frameSeconds:Math.max(0.001,hop/sampleRate),rootHz}
+  }
   if (request.type === "number") {
     if (!Number.isInteger(request.number) || request.number<0 || request.number>4294967295) throw new Error("Patch number must be an integer from 0 to 4294967295")
     let state=(request.number+0x9e3779b9)>>>0
