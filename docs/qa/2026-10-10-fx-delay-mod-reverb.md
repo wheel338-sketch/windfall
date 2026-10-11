@@ -32,7 +32,7 @@ their declared `spatial::model_tests` module absent; this resumption completes i
 | `fx-fruity-delay` | complete in source (`61cd12b6` and the test commit); nothing run | Inverted stereo mode in the core Delay, with DSP, importer, engine and UI tests |
 | `fx-fruity-delay-bank` | all four named gates addressed in source (`7ecea4c7`, `ef0ce026`, editor commit); nothing run | Linked eight-unit editor, fallible host admission, saturating tails |
 | `fx-multiband-delay` | all four named gates addressed in source; nothing run | Drawn sixteen-band delay/level/pan editor, same host gates |
-| `fx-luxeverb` | DSP/test candidate; editor integration in progress | Feed-forward pitched wet voice, variable size, modulated tanks |
+| `fx-luxeverb` | full-row candidate; nothing executed | Sized, pitch-shifted and modulated spaces with dedicated editor |
 | `fx-fruity-reeverb` | full-row candidate; nothing executed | Existing room, reflection readout and grouped room/decay editor |
 | `fx-vintage-chorus` | DSP/test candidate; editor integration in progress | Clocked bucket modes and free voices, tempo sync |
 | `fx-vintage-phaser` | DSP/test candidate; editor integration in progress | Four-stage equal-corner pedal circuit, stage/stagger controls, tempo sync |
@@ -287,7 +287,7 @@ feed-forward and adds no feedback cycle. Zero amount keeps plain hall audio.
 | Row | Direct DSP measurement | Native PCM/history/file case |
 | --- | --- | --- |
 | `fx-fruity-reeverb` | full-row candidate; nothing executed | Existing room, reflection readout and grouped room/decay editor |
-| `fx-luxeverb` | `lush::pitch::tests::an_octave_voice_moves_the_measured_spectral_peak_and_preserves_stereo`, `lush::tests::size_moves_early_arrivals_without_changing_their_signed_gain`, `zero_pitch_amount_preserves_plain_audio_and_legacy_defaults`; existing lush decay/modulation tests; partition test now edits pitch/size | `lush_pitched_space_changes_native_audio_and_roundtrips` |
+| `fx-luxeverb` | full-row candidate; nothing executed | Sized, pitch-shifted and modulated spaces with dedicated editor |
 | `fx-vintage-chorus` | `bucket_clock_has_128_samples_in_transit_and_a_bounded_work_limit`, `bucket_sweeps_have_opposed_triangles_and_the_both_mode_stays_mono`, `bucket_modes_ignore_free_controls_and_have_distinct_audio` | `bucket_mode_changes_native_character_and_roundtrips` |
 | `fx-vintage-phaser` | `four_equal_allpasses_produce_two_measured_pedal_notches` | `pedal_stage_configuration_changes_native_notches_and_roundtrips` |
 | `fx-hyper-chorus` | `swarm_count_measures_the_average_of_independently_delayed_voices` | `sixteen_voice_chorus_changes_native_detuning_and_roundtrips` |

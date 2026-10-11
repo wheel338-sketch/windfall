@@ -22,6 +22,7 @@ import { EchoBankEditor } from "./echo-bank/echo-bank-editor"
 import { FrequencyDelayEditor } from "./frequency-delay/frequency-delay-editor"
 import { TunerEditor } from "./tuner/tuner-editor"
 import { RoomEditor } from "./circuits/room-editor"
+import { LushSpaceEditor } from "./circuits/lush-space-editor"
 
 type Editors = {
   [Kind in EffectKind]?: ComponentType<EditorProps<EffectParamsOf<Kind>>>
@@ -42,6 +43,7 @@ const EDITORS: Editors = {
   frequencyDelay: FrequencyDelayEditor,
   tuner: TunerEditor,
   room: RoomEditor,
+  lushSpace: LushSpaceEditor,
 }
 
 type AnyEditor = ComponentType<EditorProps<EffectParams>>
