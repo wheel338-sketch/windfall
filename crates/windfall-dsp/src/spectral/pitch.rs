@@ -220,7 +220,7 @@ pub struct PitchCorrectParams {
     pub tuning_hz: f32,
     pub mix: f32,
     #[serde(default, skip_serializing_if = "is_zero_channel")]
-    #[ts(optional)]
+    #[ts(as = "Option<u32>", optional)]
     pub harmony_channel: u32,
     pub harmony_mix: f32,
 }

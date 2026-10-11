@@ -113,7 +113,7 @@ impl Session {
                 project.channel(channel).map(|channel| channel.name.clone())
             }
             PluginTarget::Effect { .. } => match &body.state {
-                PluginPresetState::Effect { params } => Some(params.kind().name().to_owned()),
+                PluginPresetState::Effect { params, .. } => Some(params.kind().name().to_owned()),
                 PluginPresetState::Hosted { binding, .. } => Some(binding.name.clone()),
                 PluginPresetState::Instrument { .. } => None,
             },

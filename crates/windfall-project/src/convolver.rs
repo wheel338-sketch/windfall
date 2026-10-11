@@ -10,7 +10,7 @@ pub struct ConvolverImpulse {
     pub name: String,
     pub sample_rate: u32,
     #[serde(default, skip_serializing_if = "is_zero_delay")]
-    #[ts(optional)]
+    #[ts(as = "Option<u32>", optional)]
     pub group_delay: u32,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(optional)]
