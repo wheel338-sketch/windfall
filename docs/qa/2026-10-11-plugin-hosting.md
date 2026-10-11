@@ -174,3 +174,19 @@ in the next group; persisted data alone is not claimed working DSP integration.
 Shared seams newly touched: project command.rs/lower.rs/plugin.rs, engine
 plugins.rs and binding literals in controller/device/render/preparation and
 session/mixer tests; only required field defaults were added to those literals.
+
+## Wrapper adapter/helper checkpoint
+
+Option-aware effect/instrument preparation now reaches activate_with_options.
+Helper Load carries validated DSP wrapper policy, and every inactive reconcile,
+describe/capture reactivation keeps that policy. Fixed native blocks may differ
+from IPC block size; native preparation reserves the larger bound. Ready reports
+combined native/wrapper latency. Threaded/bridged are owner choices and cannot
+be recursively selected inside an already launched helper. Existing Launch
+literals gain explicit defaults only.
+
+Test written, not executed: tests/bridge.rs::
+helper_fixed_buffer_policy_reports_and_measures_its_added_latency (independent
+stereo PCM ramp, 128 bridge + 32 wrapper samples). Run the bridge test command
+above. Desktop saved-policy conversion is the next group, not yet claimed wired.
+Parent/helper must both use this new Load shape; old controls reject new metadata.

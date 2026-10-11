@@ -171,6 +171,7 @@ pub(super) fn options(
     let identity = supervisor::fresh_identity(token, revision, binding_identity(binding))
         .map_err(|error| error.to_string())?;
     Ok(Launch {
+        wrapper: Default::default(),
         helper,
         plugin: PathBuf::from(&binding.path),
         id: binding.id.clone(),

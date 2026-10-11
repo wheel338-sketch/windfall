@@ -155,6 +155,8 @@ pub enum Message {
         layout: crate::PluginLayout,
     },
     Load {
+        #[serde(default)]
+        wrapper: crate::wrapper::WrapperOptions,
         mapping: String,
         settings: Settings,
         path: String,

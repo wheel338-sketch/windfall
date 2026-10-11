@@ -491,8 +491,17 @@ impl PluginInstance {
         sample_rate: f32,
         max_block: usize,
     ) -> Result<PluginEffect, PluginError> {
+        self.prepare_effect_with_options(sample_rate, max_block, &Default::default())
+    }
+
+    pub fn prepare_effect_with_options(
+        &mut self,
+        sample_rate: f32,
+        max_block: usize,
+        options: &crate::wrapper::WrapperOptions,
+    ) -> Result<PluginEffect, PluginError> {
         let params = slots(self);
-        let processor = self.activate(f64::from(sample_rate), max_block)?;
+        let processor = self.activate_with_options(f64::from(sample_rate), max_block, options)?;
         Ok(PluginEffect { processor, params })
     }
 
@@ -503,8 +512,17 @@ impl PluginInstance {
         sample_rate: f32,
         max_block: usize,
     ) -> Result<PluginInstrument, PluginError> {
+        self.prepare_instrument_with_options(sample_rate, max_block, &Default::default())
+    }
+
+    pub fn prepare_instrument_with_options(
+        &mut self,
+        sample_rate: f32,
+        max_block: usize,
+        options: &crate::wrapper::WrapperOptions,
+    ) -> Result<PluginInstrument, PluginError> {
         let params = slots(self);
-        let processor = self.activate(f64::from(sample_rate), max_block)?;
+        let processor = self.activate_with_options(f64::from(sample_rate), max_block, options)?;
         Ok(PluginInstrument {
             processor,
             params,

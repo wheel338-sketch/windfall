@@ -49,6 +49,7 @@ pub fn fresh_identity(token: u64, revision: u64, binding: u64) -> io::Result<Ide
 
 #[derive(Clone)]
 pub struct Launch {
+    pub wrapper: crate::wrapper::WrapperOptions,
     pub helper: PathBuf,
     pub plugin: PathBuf,
     pub id: String,
@@ -456,6 +457,7 @@ pub fn launch(options: Launch) -> Result<(Control, Audio, usize), String> {
         1,
         owner,
         Message::Load {
+            wrapper: options.wrapper.clone(),
             mapping: name,
             settings: options.config.into(),
             path: options.plugin.to_string_lossy().into_owned(),

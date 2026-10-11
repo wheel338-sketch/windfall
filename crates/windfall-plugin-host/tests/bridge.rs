@@ -85,6 +85,7 @@ fn options(
 ) -> Launch {
     let identity = supervisor::fresh_identity(1, 7, 99).unwrap();
     Launch {
+        wrapper: Default::default(),
         helper: PathBuf::from(env!("CARGO_BIN_EXE_windfall-plugin-audio")),
         plugin: fixture(format),
         id: id.into(),
@@ -649,6 +650,7 @@ fn unrelated_first_and_stalled_clients_receive_no_load_before_real_child_authent
         1,
         options.config.identity.into(),
         Message::Load {
+            wrapper: options.wrapper.clone(),
             mapping: name,
             settings: options.config.into(),
             path: options.plugin.to_string_lossy().into_owned(),
@@ -1606,6 +1608,7 @@ fn authenticated_new_helper_refuses_old_mapping_abis_before_native_activation() 
             1,
             settings.config.identity.into(),
             Message::Load {
+                wrapper: settings.wrapper.clone(),
                 mapping: name,
                 settings: settings.config.into(),
                 path: settings.plugin.to_string_lossy().into_owned(),
@@ -2183,6 +2186,30 @@ fn native_clap_instance_expression_audio_matches_reference_after_bridge_latency(
             .any(|(l, r)| l.abs() + r.abs() > 0.01)
     );
     instance.release_instrument(reference).unwrap();
+    drop(audio);
+    assert!(control.terminate().reaped);
+}
+
+#[test]
+fn helper_fixed_buffer_policy_reports_and_measures_its_added_latency() {
+    let mut options = options("clap", common::GAIN, Kind::Effect, vec![], Duration::from_secs(2));
+    options.offline = true;
+    options.wrapper.fixed_block = Some(32);
+    let (control, mut audio, _) = supervisor::launch(options).unwrap();
+    assert_eq!(audio.latency(), 128 + 32);
+    let cancelled = std::sync::atomic::AtomicBool::new(false);
+    let mut observed = Vec::new();
+    for block in 0..12 {
+        let mut left = std::array::from_fn::<_, 64, _>(|index| ((block * 64 + index) % 31) as f32 / 64.0);
+        let mut right = left.map(|value| -value);
+        audio.process_offline(&mut left, &mut right, Instant::now() + Duration::from_secs(2), &cancelled).unwrap();
+        observed.extend(left.into_iter().zip(right));
+    }
+    assert!(observed[..160].iter().all(|(l, r)| *l == 0.0 && *r == 0.0));
+    for (index, (left, right)) in observed[160..].iter().enumerate() {
+        let expected = (index % 31) as f32 / 64.0;
+        assert!((left - expected).abs() < 1e-7 && (right + expected).abs() < 1e-7);
+    }
     drop(audio);
     assert!(control.terminate().reaped);
 }

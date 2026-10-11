@@ -39,6 +39,7 @@ fn reply(socket: &mut TcpStream, packet: &Packet) -> io::Result<()> {
 }
 
 struct Native {
+    wrapper: crate::wrapper::WrapperOptions,
     processor: Option<PluginProcessor>,
     instance: PluginInstance,
     region: Region,
@@ -128,9 +129,10 @@ impl Native {
     fn activate(&mut self) -> io::Result<()> {
         let mut processor = self
             .instance
-            .activate(
+            .activate_with_options(
                 f64::from(self.region.config.sample_rate),
-                self.region.config.block,
+                self.region.config.block.max(self.wrapper.fixed_block.unwrap_or(0)),
+                &self.wrapper,
             )
             .map_err(error)?;
         processor.set_realtime(!self.offline);
@@ -567,6 +569,7 @@ fn run(address: SocketAddr) -> io::Result<()> {
     }
     drop(bootstrap); // Clear the launch key before any native module load.
     let Message::Load {
+        wrapper,
         mapping,
         settings,
         path,
@@ -590,6 +593,10 @@ fn run(address: SocketAddr) -> io::Result<()> {
         return Err(error("invalid helper binding"));
     }
     let config = settings.config().map_err(error)?;
+    wrapper.validate(config.block.max(wrapper.fixed_block.unwrap_or(0))).map_err(error)?;
+    if wrapper.processing != crate::wrapper::ProcessingMode::InProcess {
+        return Err(error("helper DSP policy must use its already selected owner"));
+    }
     if config.native_latency != 0 {
         return Err(error("native latency must be negotiated after load"));
     }
@@ -657,7 +664,7 @@ fn run(address: SocketAddr) -> io::Result<()> {
         specs.push(spec);
     }
     let mut processor = instance
-        .activate(f64::from(config.sample_rate), config.block)
+        .activate_with_options(f64::from(config.sample_rate), config.block.max(wrapper.fixed_block.unwrap_or(0)), wrapper)
         .map_err(error)?;
     processor.set_realtime(!offline);
     let latency = processor.latency_samples() as usize;
@@ -685,6 +692,7 @@ fn run(address: SocketAddr) -> io::Result<()> {
     let expression_masks =
         std::array::from_fn(|channel| processor.note_expression_mask(channel as u8));
     let mut native = Native {
+        wrapper: wrapper.clone(),
         instance,
         processor: Some(processor),
         region,
