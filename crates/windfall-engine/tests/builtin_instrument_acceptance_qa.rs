@@ -9,6 +9,9 @@ use windfall_project::*;
 
 static NEXT_FILE: AtomicU64 = AtomicU64::new(0);
 
+#[path = "polysynth_acceptance.rs"]
+mod polysynth_acceptance;
+
 struct SavedProject(PathBuf);
 impl SavedProject {
     fn new(project: &Project) -> Self {

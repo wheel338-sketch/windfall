@@ -1,0 +1,89 @@
+use crate::{AnyInstrument, InstrumentKind, InstrumentParams};
+use super::*;
+
+fn render(p: InstrumentParams, key: u8, count: usize, block: usize) -> (Vec<f32>, Vec<f32>) {
+    let mut synth = AnyInstrument::new(&p); synth.prepare(48000.0, 1024); synth.note_on(key, 1.0);
+    let mut l = vec![0.0; count]; let mut r = l.clone();
+    for (l, r) in l.chunks_mut(block).zip(r.chunks_mut(block)) { synth.process(l, r); }
+    (l, r)
+}
+fn energy(x: &[f32]) -> f64 { x.iter().map(|&v| (v as f64).powi(2)).sum::<f64>() / x.len() as f64 }
+fn amplitude(x: &[f32], hz: f64) -> f64 {
+    let mut re = 0.0; let mut im = 0.0; let mut weight = 0.0;
+    for (i, &v) in x.iter().enumerate() {
+        let w = 0.5 - 0.5 * (std::f64::consts::TAU * i as f64 / x.len() as f64).cos();
+        let a = std::f64::consts::TAU * hz * i as f64 / 48000.0;
+        re += v as f64 * w * a.cos(); im += v as f64 * w * a.sin(); weight += w;
+    }
+    2.0 * re.hypot(im) / weight
+}
+fn different(a: InstrumentParams, b: InstrumentParams) {
+    let a = render(a, 60, 12000, 64).0; let b = render(b, 60, 12000, 17).0;
+    let d: Vec<_> = a.iter().zip(&b).map(|(a,b)| a-b).collect();
+    assert!(energy(&d) > energy(&a).max(energy(&b)) * 1e-4);
+}
+fn contract(kind: InstrumentKind) {
+    let p = kind.default_params();
+    assert_eq!(render(p, 69, 12000, 1), render(p, 69, 12000, 257));
+    let (l, r) = render(p, 69, 12000, 64);
+    assert!(l.iter().chain(&r).all(|x| x.is_finite() && x.abs() <= 4.0));
+    assert!(energy(&l) > 1e-8);
+    let mut synth = AnyInstrument::new(&p); synth.prepare(48000.0, 64);
+    for key in 20..90 { synth.note_on(key, 1.0); synth.process(&mut [0.0;64], &mut [0.0;64]); }
+    assert!(synth.active_voices() <= 16);
+    synth.all_notes_off();
+    for _ in 0..(synth.tail_samples() / 64 + 20) { synth.process(&mut [0.0;64], &mut [0.0;64]); }
+    assert_eq!(synth.active_voices(), 0);
+    let mut l = [1.0;64]; let mut r = l; synth.process(&mut l, &mut r);
+    assert_eq!(l, [0.0;64]); assert_eq!(r, l);
+    synth.reset(); synth.note_on(60, 1.0); synth.process(&mut l, &mut r);
+    let mut other = AnyInstrument::new(&p); other.prepare(48000.0, 64); other.note_on(60,1.0);
+    let mut a = [0.0;64]; let mut b = a; other.process(&mut a,&mut b); assert_eq!((l,r),(a,b));
+}
+
+#[test]
+fn vintage_poly_tuning_filter_pwm_chorus_unison_and_partition() {
+    contract(InstrumentKind::VintagePoly);
+    let p = VintagePolyParams { drift: 0.0, sub: 0.0, pulse: 0.0, filter_amount: 0.0, key_track: 0.0, cutoff_hz: 18000.0, resonance: 0.0, ..Default::default() };
+    let x = render(InstrumentParams::VintagePoly(p),69,60000,64).0;
+    let steady = &x[12000..]; let fundamental = amplitude(steady,440.0);
+    assert!(fundamental > amplitude(steady,438.0) * 10.0);
+    assert!(fundamental > amplitude(steady,442.0) * 10.0);
+    let low = render(InstrumentParams::VintagePoly(VintagePolyParams { cutoff_hz: 300.0, ..p }),69,60000,64).0;
+    assert!(amplitude(&low[12000..],1760.0) < amplitude(steady,1760.0) * 0.1);
+    different(InstrumentParams::VintagePoly(p), InstrumentParams::VintagePoly(VintagePolyParams { pulse:1.0, saw:0.0, pwm:0.35, ..p }));
+    different(InstrumentParams::VintagePoly(p), InstrumentParams::VintagePoly(VintagePolyParams { chorus:0.8, ..p }));
+    let (l,r) = render(InstrumentParams::VintagePoly(VintagePolyParams { unison:5, ..p }),60,12000,64);
+    assert!(energy(&l.iter().zip(r).map(|(a,b)| a-b).collect::<Vec<_>>()) > 1e-6);
+}
+
+#[test]
+fn vintage_poly_glide_and_envelope_release_have_sample_duration() {
+    let p = VintagePolyParams { polyphony:1, glide_ms:100.0, drift:0.0, ..Default::default() };
+    let mut synth = VintagePoly::default();
+    use crate::Instrument;
+    synth.set_params(&p); synth.prepare(48000.0,64); synth.note_on(60,1.0);
+    synth.process(&mut [0.0;64],&mut [0.0;64]); synth.note_on(72,1.0);
+    let mut notes = core::Notes::default(); notes.note_on(60,1.0,1,100.0,48000.0); notes.slots[0].start = false; notes.note_on(72,1.0,1,100.0,48000.0); assert_eq!(notes.active(),1);
+    synth.process(&mut [0.0;2400],&mut [0.0;2400]);
+    for _ in 0..2400 { notes.slots[0].glide(); } let pitch = notes.slots[0].pitch;
+    assert!((pitch - 66.0).abs() < 0.02);
+    synth.process(&mut [0.0;2400],&mut [0.0;2400]);
+    for _ in 0..2400 { notes.slots[0].glide(); } assert_eq!(notes.slots[0].pitch,72.0);
+    synth.note_off(72); synth.process(&mut [0.0;7300],&mut [0.0;7300]);
+    assert_eq!(synth.active_voices(),0);
+}
+
+#[test]
+fn vintage_poly_high_saw_suppresses_folded_inharmonic_components() {
+    let p = VintagePolyParams { drift:0.0, saw:1.0, pulse:0.0, sub:0.0, cutoff_hz:20000.0, resonance:0.0, filter_amount:0.0, key_track:0.0, ..Default::default() };
+    let x = render(InstrumentParams::VintagePoly(p),108,60000,64).0;
+    let hz = 440.0 * 2.0_f64.powf((108.0-69.0)/12.0);
+    let base = amplitude(&x[12000..],hz);
+    assert!(base > 0.01);
+    for harmonic in [7.0, 9.0, 11.0] {
+        let folded = (48000.0 - hz * harmonic).abs();
+        assert!(amplitude(&x[12000..],folded) < base * 0.08);
+    }
+}
+

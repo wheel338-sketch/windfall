@@ -156,3 +156,4 @@ pub mod notemap;
 pub mod zones;
 
 pub mod polysynth;
+pub use polysynth::{VintagePoly, VintagePolyParams};

@@ -12,5 +12,11 @@
 
 mod core;
 mod fx;
+mod runtime;
+mod vintage_poly;
+pub use vintage_poly::{VintagePoly, VintagePolyParams};
+
+#[cfg(test)]
+mod tests;
 
 pub use core::MAX_VOICES;

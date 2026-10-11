@@ -6,6 +6,7 @@ import { colorToCss } from "@/lib/units"
 
 import { SoundMenu } from "../synth/sound-menu"
 import { SynthEditor } from "../synth/synth-editor"
+import { POLYSYNTH_PANELS, PolysynthEditor } from "../synth/polysynth-editor"
 import { GenericInstrumentEditor } from "./generic-instrument-editor"
 import { Section } from "./parts"
 
@@ -37,6 +38,8 @@ export function InstrumentSection({ channel }: { channel: InstrumentChannel }) {
           params={params}
           color={colorToCss(channel.color)}
         />
+      ) : POLYSYNTH_PANELS[params.type] ? (
+        <PolysynthEditor channel={channel.id} params={params} />
       ) : (
         <GenericInstrumentEditor channel={channel.id} params={params} />
       )}
