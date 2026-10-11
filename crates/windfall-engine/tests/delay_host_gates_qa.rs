@@ -118,7 +118,13 @@ fn a_plan_past_the_echo_history_limit_is_refused_and_the_old_one_plays_on() {
     assert_eq!(play(4_800, &mut processor), play(4_800, &mut twin));
 
     // Fourteen banks at 48 kHz keep a little over 1 GiB between them.
-    let refused = rig(&[bank(0.5); 14]);
+    // A track admits only ten slots, so put seven on each of two tracks:
+    // an overfull single-track fixture would prepare only its first ten.
+    let mut refused = rig(&[bank(0.5); 7]);
+    let track = refused.track();
+    for _ in 0..7 {
+        refused.effect(track, bank(0.5));
+    }
     controller.set_project(&refused.project, &refused.pool);
     let Some(ProjectPreparationError::MemoryLimit { required, limit }) =
         controller.project_preparation_error()

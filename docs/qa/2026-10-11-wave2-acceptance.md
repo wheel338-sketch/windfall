@@ -2,6 +2,8 @@
 
 ## Running progress
 
+- Engine focused checkpoint: echo admission now passes all 3 host gates after distributing fourteen banks across two legal seven-slot tracks (the original fixture exceeded the ten-slot track limit). The broader run passes engine library 238/0/1, built-in acceptance 18/0/0, delay bank 2/0/0, delay host 3/0/0, inverted delay 1/0/0 and E3 circuits 6/0/0; engine main has 363 passed/2 failed. Remaining failures are nonlinear live/offline latency alignment and recorded-trigger boundary expectations (`target/round2-engine-focused-repair.log`); still under diagnosis.
+
 - Starting checkpoint: `feat/parity-100` at `98b0bf2f`; clean, no merge in progress. Read the full integrator brief and dynamics/mastering hand-off. Process inventory found no stray Windfall build/test process.
 - Integration order: dynamics/mastering; EQ/filter/stereo; delay/modulation/reverb; nonlinear/performance; spectral; subtractive/FM; additive/physical/drum; slices/grains; formats.
 - Branch 1 dynamics/mastering merged at `b0f06187`. `chk.sh` now reports exit 0, zero errors, zero warnings. Resolved registrations without duplicating existing audio logger modules; retained existing exhaustive cases and appended MasterLimiter. Fixed test block-size type inference and removed an unused helper. Targeted audio/UI tests and row reconciliation remain pending.
@@ -141,3 +143,4 @@ Pending integration and execution.
 - Additive/physical/drum: joined registries in merge order, exhaustive metadata/dispatch, editor routing, allocator tests and both preset asset patterns. Restored shared dispatch bodies/braces after initial union resolution; no worker implementation or tolerance change needed.
 - Slices/grains: retained both immutable asset identities in reuse/ledger publication; joined source guards, command examples, editors and tests. Widened four source patterns and two test constructors. Removed a misplaced field preceding the stems helper's actual Channel literal. No assertions weakened.
 - Formats: retained source-length slide duration and unknown-marker loss accounting; joined engine module exports. Corrected SendTapParams to its public module path.
+
