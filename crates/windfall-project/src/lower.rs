@@ -1735,6 +1735,9 @@ impl Transaction<'_> {
 
     fn remove_sample(&mut self, id: SampleId) -> Result<Label, CommandError> {
         let index = self.sample_index(id)?;
+        if self.project.mixer.tracks.iter().flat_map(|track| &track.effects).any(|effect| matches!(effect.params, EffectParams::Scratch(p) if p.source_id == id.0)) {
+            return Err(CommandError::invalid("the sample is still used by a Scratch effect"));
+        }
         let channels = &self.project.channels;
         let user = channels.iter().find(|c| c.source.sample() == Some(id));
         if let Some(channel) = user {
@@ -3428,6 +3431,9 @@ impl Transaction<'_> {
             return Err(other_kind(params.kind().name(), kind.name()));
         }
         let params = checked_effect(params)?;
+        if let EffectParams::Scratch(p) = params {
+            if p.source_id != 0 { self.sample_index(SampleId(p.source_id))?; }
+        }
         self.change_track(track, |track| track.effects[slot].params = params);
         Ok("Change effect settings")
     }

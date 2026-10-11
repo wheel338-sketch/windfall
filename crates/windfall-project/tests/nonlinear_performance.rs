@@ -3,7 +3,16 @@
 use windfall_dsp::{EffectKind, EffectParams, ParamKind, ParamScale};
 use windfall_project::*;
 
-const KINDS: [EffectKind; 8] = [EffectKind::Overdrive, EffectKind::Waveshaper, EffectKind::GuitarRack, EffectKind::DriveChain, EffectKind::VolumeGate, EffectKind::TimeTransport, EffectKind::PerformanceRack, EffectKind::Scratch];
+const KINDS: [EffectKind; 8] = [
+    EffectKind::Overdrive,
+    EffectKind::Waveshaper,
+    EffectKind::GuitarRack,
+    EffectKind::DriveChain,
+    EffectKind::VolumeGate,
+    EffectKind::TimeTransport,
+    EffectKind::PerformanceRack,
+    EffectKind::Scratch,
+];
 
 #[test]
 fn old_v1_parameters_and_drawn_shapes_roundtrip_with_exact_history() {
@@ -11,7 +20,8 @@ fn old_v1_parameters_and_drawn_shapes_roundtrip_with_exact_history() {
         let mut doc = Document::new(Project::new("Legacy"));
         add(&mut doc, kind);
         let mut json = serde_json::to_value(doc.project()).unwrap();
-        json["mixer"]["tracks"][0]["effects"][0]["params"] = serde_json::json!({"type": serde_json::to_value(kind).unwrap()});
+        json["mixer"]["tracks"][0]["effects"][0]["params"] =
+            serde_json::json!({"type": serde_json::to_value(kind).unwrap()});
         assert_eq!(file::from_json(&json.to_string()).unwrap(), *doc.project());
     }
     let mut doc = Document::new(Project::new("Drawn transfer"));
@@ -21,15 +31,97 @@ fn old_v1_parameters_and_drawn_shapes_roundtrip_with_exact_history() {
         windfall_dsp::asset::CurvePoint::new(0.0, 0.1),
         windfall_dsp::asset::CurvePoint::new(0.5, 0.5),
         windfall_dsp::asset::CurvePoint::new(1.0, 0.9),
-    ]).unwrap();
-    let edited = EffectParams::Waveshaper(windfall_dsp::drive::WaveshaperParams { shape, ..Default::default() });
-    doc.dispatch(Command::SetEffectParams { track: TrackId::MASTER, effect: id, params: edited }, None).unwrap();
+    ])
+    .unwrap();
+    let edited = EffectParams::Waveshaper(windfall_dsp::drive::WaveshaperParams {
+        shape,
+        ..Default::default()
+    });
+    doc.dispatch(
+        Command::SetEffectParams {
+            track: TrackId::MASTER,
+            effect: id,
+            params: edited,
+        },
+        None,
+    )
+    .unwrap();
     assert_eq!(params(&doc, id), edited);
     doc.undo().unwrap();
     assert_eq!(params(&doc, id), before);
     doc.redo().unwrap();
     assert_eq!(params(&doc, id), edited);
-    assert_eq!(file::from_json(&file::to_json(doc.project()).unwrap()).unwrap(), *doc.project());
+    assert_eq!(
+        file::from_json(&file::to_json(doc.project()).unwrap()).unwrap(),
+        *doc.project()
+    );
+}
+
+#[test]
+fn replay_and_scratch_assets_save_reopen_undo_and_validate_sample_ownership() {
+    use windfall_dsp::asset::{CurvePoint, CurveRef};
+    use windfall_dsp::performance::{ScratchParams, VolumeGateParams};
+    let curve = CurveRef::new(&[
+        CurvePoint::new(0.0, 1.0),
+        CurvePoint::new(0.4, 0.2),
+        CurvePoint::new(1.0, 0.0),
+    ])
+    .unwrap();
+    let mut doc = Document::new(Project::new("Replay curves"));
+    let sample = SampleId(
+        doc.dispatch(
+            Command::AddSample {
+                name: "Own scratch".into(),
+                path: SamplePath::External("scratch.wav".into()),
+            },
+            None,
+        )
+        .unwrap()
+        .created[0],
+    );
+    for edited in [
+        EffectParams::VolumeGate(VolumeGateParams {
+            time_curve: curve,
+            volume_curve: curve,
+            ..Default::default()
+        }),
+        EffectParams::Scratch(ScratchParams {
+            source_id: sample.0,
+            position_curve: curve,
+            curve_enabled: true,
+            ..Default::default()
+        }),
+    ] {
+        let id = add(&mut doc, edited.kind());
+        let before = params(&doc, id);
+        doc.dispatch(
+            Command::SetEffectParams {
+                track: TrackId::MASTER,
+                effect: id,
+                params: edited,
+            },
+            None,
+        )
+        .unwrap();
+        assert_eq!(params(&doc, id), edited);
+        doc.undo().unwrap();
+        assert_eq!(params(&doc, id), before);
+        doc.redo().unwrap();
+        assert_eq!(params(&doc, id), edited);
+    }
+    let before = doc.project().clone();
+    let history = doc.history();
+    assert!(
+        doc.dispatch(Command::RemoveSample { id: sample }, None)
+            .is_err()
+    );
+    assert_eq!(doc.project(), &before);
+    assert_eq!(doc.history(), history);
+    assert_eq!(
+        file::from_json(&file::to_json(doc.project()).unwrap()).unwrap(),
+        before
+    );
+    doc.project().check().unwrap();
 }
 
 fn add(doc: &mut Document, kind: EffectKind) -> EffectId {
@@ -269,4 +361,3 @@ fn every_control_has_the_correct_automation_range_and_removal_history_restores_c
         assert_eq!(reopened, *doc.project());
     }
 }
-

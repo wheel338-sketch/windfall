@@ -1,3 +1,4 @@
+use crate::asset::CurveRef;
 use crate::param::param_set;
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
@@ -5,6 +6,10 @@ use ts_rs::TS;
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase", default)]
 pub struct VolumeGateParams {
+    #[ts(as = "Vec<crate::asset::CurvePoint>")]
+    pub time_curve: CurveRef,
+    #[ts(as = "Vec<crate::asset::CurvePoint>")]
+    pub volume_curve: CurveRef,
     /// Sixteen linear gains, 0..=1; default unity. These are the volume curve.
     pub steps: [f32; 16],
     /// Quarter-note beats per cycle, 0.125..=16; default 4. Capped at 2 seconds.
@@ -22,6 +27,8 @@ pub struct VolumeGateParams {
 impl Default for VolumeGateParams {
     fn default() -> Self {
         Self {
+            time_curve: CurveRef::NONE,
+            volume_curve: CurveRef::NONE,
             steps: [1.0; 16],
             loop_beats: 4.0,
             retrigger_chance: 0.0,
@@ -68,6 +75,11 @@ pub enum TransportMode {
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase", default)]
 pub struct TimeTransportParams {
+    /// Automatic onset capture/reloop. Manual Trigger remains available.
+    pub auto_trigger: bool,
+    pub threshold_db: f32,
+    pub sensitivity: f32,
+    pub refractory_ms: f32,
     /// False records/passes live audio; a rising edge captures preceding audio.
     pub trigger: bool,
     pub mode: TransportMode,
@@ -81,6 +93,10 @@ pub struct TimeTransportParams {
 impl Default for TimeTransportParams {
     fn default() -> Self {
         Self {
+            auto_trigger: false,
+            threshold_db: -24.0,
+            sensitivity: 1.8,
+            refractory_ms: 50.0,
             trigger: false,
             mode: TransportMode::Repeat,
             loop_beats: 1.0,
@@ -95,11 +111,25 @@ param_set!(TimeTransportParams, "Time Transport", {
     float [loop_beats] "loopBeats" "Slice" { None, Linear, 0.125, 16.0, 1.0 }
     float [rate] "rate" "Rate" { Ratio, Logarithmic, 0.25, 4.0, 1.0 }
     float [mix] "mix" "Mix" { Fraction, Linear, 0.0, 1.0, 1.0 }
+    toggle [auto_trigger] "autoTrigger" "Transient capture" { false }
+    float [threshold_db] "thresholdDb" "Onset threshold" { Decibels, Linear, -60.0, 0.0, -24.0 }
+    float [sensitivity] "sensitivity" "Onset contrast" { Ratio, Linear, 1.1, 8.0, 1.8 }
+    float [refractory_ms] "refractoryMs" "Retrigger holdoff" { Milliseconds, Linear, 1.0, 500.0, 50.0 }
 });
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase", default)]
 pub struct ScratchParams {
+    /// Project sample id; 0 retains the legacy live record.
+    pub source_id: u32,
+    /// Compiled allocation identity, never saved or exposed over IPC.
+    #[serde(skip)]
+    #[ts(skip)]
+    pub runtime_source: crate::asset::SourceRef,
+    #[ts(as = "Vec<crate::asset::CurvePoint>")]
+    pub position_curve: CurveRef,
+    /// Automatically follow the drawn position curve, synced to Record beats.
+    pub curve_enabled: bool,
     /// 0 is oldest, 1 newest, within the recent loop. Default 1.
     pub position: f32,
     /// Freeze the recording so position addresses a stable record. Default false.
@@ -112,6 +142,10 @@ pub struct ScratchParams {
 impl Default for ScratchParams {
     fn default() -> Self {
         Self {
+            source_id: 0,
+            runtime_source: crate::asset::SourceRef::NONE,
+            position_curve: CurveRef::NONE,
+            curve_enabled: false,
             position: 1.0,
             freeze: false,
             loop_beats: 4.0,
@@ -124,6 +158,7 @@ param_set!(ScratchParams, "Scratch", {
     toggle [freeze] "freeze" "Freeze" { false }
     float [loop_beats] "loopBeats" "Record" { None, Linear, 0.125, 16.0, 4.0 }
     float [mix] "mix" "Mix" { Fraction, Linear, 0.0, 1.0, 1.0 }
+    toggle [curve_enabled] "curveEnabled" "Follow scratch curve" { false }
 });
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize, TS)]
@@ -163,6 +198,10 @@ impl PerformanceModel {
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase", default)]
 pub struct PerformanceRackParams {
+    /// With XY enabled, X controls amount and Y the model's secondary axis.
+    pub xy_enabled: bool,
+    pub x: f32,
+    pub y: f32,
     pub model: PerformanceModel,
     /// Quarter-note beats in each captured slice, 0.125..=16; default 1.
     /// Capped at 1 second to leave an equally sized recording region.
@@ -179,6 +218,9 @@ pub struct PerformanceRackParams {
 impl Default for PerformanceRackParams {
     fn default() -> Self {
         Self {
+            xy_enabled: false,
+            x: 1.0,
+            y: 0.5,
             model: PerformanceModel::Stutter,
             loop_beats: 1.0,
             amount: 1.0,
@@ -201,4 +243,7 @@ param_set!(PerformanceRackParams, "Performance Rack", {
     float [pitch_semitones] "pitchSemitones" "Pitch Jump" { Semitones, Linear, -24.0, 24.0, 12.0 }
     float [feedback] "feedback" "Feedback" { Fraction, Linear, 0.0, 0.95, 0.0 }
     float [mix] "mix" "Mix" { Fraction, Linear, 0.0, 1.0, 1.0 }
+    toggle [xy_enabled] "xyEnabled" "XY control" { false }
+    float [x] "x" "X" { Fraction, Linear, 0.0, 1.0, 1.0 }
+    float [y] "y" "Y" { Fraction, Linear, 0.0, 1.0, 0.5 }
 });

@@ -208,3 +208,109 @@ completed in this stream, not treated as a passing integrated feature.
 - Regenerate DriveStage, DriveStageParams, DriveChainParams and descriptors.
   Risks: new multi-stage resampler reference tolerances; three FIR cabinets
   plus three oversamplers worst-case CPU; numerical thresholds remain unmeasured.
+
+## Checkpoint 4 — buffered performance and loaded scratching
+
+All four buffered processors now have purpose-built editors and persisted
+assets. Every test below is **written, not executed**; no build, package runner,
+compiler check, benchmark or test was invoked by this worker.
+
+| Row | Implementation and current claim | Remaining gates |
+| --- | --- | --- |
+| `fx-gross-beat` | Full-row software candidate: immutable drawn time and volume curves over a bounded stereo replay ring, segment bends/steps, curve editor, host position sync and seek crossfades. | Integrator checks, tempo-map/seek listening, direct MIDI note-to-trigger adapter remains outside the existing scalar controller mapping. |
+| `fx-transporter` | Full-row software candidate: dual-envelope onset detector; threshold/contrast/holdoff; captures from detected onset for a tempo-derived slice and reloops/reverses/holds; manual trigger retained. | Detector thresholds on musical material, callback time at maximum rate/reset, mapped MIDI trigger integration acceptance. |
+| `fx-effector-12-fx` | Full-row software candidate: twelve actual treatments, both independent XY axes have model-specific meanings, keyboard/pointer XY pad writes one grouped history gesture. | Integrator tests and performance/listening. Buffered pitch/speed paths interpolate linearly; no duration-preserving pitch/formant claim. |
+| `fx-fruity-scratcher` | Full-row software candidate: chooses a loaded project source, manual platter position plus drawn position curve; immutable runtime audio identity prepared off-thread; mono/stereo fractional interpolation; exact source/history/file persistence. | Missing-file and budget-refusal native UX, loaded-source listening, preset portability of project sample references is a separate subsystem gate. |
+
+Clock/ownership details:
+- Added default `Effect::set_transport`; AnyEffect/EffectSlot forward it. The
+  existing engine effect transport boundary now forwards song position to
+  built-ins, while preserving native forwarding.
+- Drawn replay uses at most a one-second slice with recording in the disjoint
+  remainder of the two-second ring (6,144,000 bytes at 384 kHz). Legacy step
+  gating retains its original two-second lookback.
+- Transient capture uses TWO preallocated two-second rings: maximum 12,288,000
+  bytes at 384 kHz. Onset resets write/filled metadata; completion swaps ring
+  owners in constant time. No onset-sized PCM copies or allocations. Reset
+  clears both rings in place, which still needs worst-case CPU measurement.
+- Curves are immutable CurveRef/ShapeRef assets. Loaded scratch audio is now
+  published as SourceRef by allocation identity, never project-local sample
+  number. SourceRef is skipped in JSON/TS; sourceId is saved. Different projects
+  sharing sourceId 1 cannot redirect one another. Pool publication shares PCM,
+  and callback set/reset/process retain plain static references.
+- Checked source edits refuse unknown sample ids; RemoveSample refuses sources
+  used by Scratch. Missing decoded audio is silent on Scratch's wet path and
+  the editor displays the existing sample-info error. Budget refusal is checked
+  by preparation/readiness and detached installation and reports an explicit
+  restart-to-release error. Asset storage is bounded, append-only until exit.
+
+Tests written, not executed:
+- `performance/extended_tests.rs`: `drawn_time_reverses_a_bounded_record_and_volume_follows_an_independent_line`,
+  `host_position_sets_exact_phase_and_seeks_preserve_history`,
+  `transient_capture_starts_at_the_onset_and_reloops_at_exact_tempo_length`,
+  `both_xy_axes_change_each_of_the_twelve_independent_treatments`,
+  `maximum_replay_storage_is_fixed_even_for_huge_host_blocks`,
+  `loaded_scratch_interpolates_a_stereo_source_and_follows_reverse_curves`,
+  `runtime_source_identity_cannot_leak_between_projects_that_reuse_an_id`,
+  `deliberate_source_discontinuities_follow_a_two_millisecond_crossfade`.
+- `tests/dsp/nonlinear_performance.rs` (registered in tests/dsp/main.rs): zero
+  callback allocations AND frees while swapping real curve/source handles,
+  triggering onset capture, changing XY and updating transport/reset.
+- `drive/shaping_tests.rs`: `guitar_and_modular_fuzz_reject_folded_harmonics_with_oversampling`
+  adds explicit alias-energy/headroom coverage for the other two E4 rows.
+- Project acceptance adds drawn replay/scratch save/reopen, exact history,
+  source deletion refusal. All eight rows share descriptor and automation tests.
+- Engine acceptance now exercises actual drawn replay, transient capture,
+  loaded scratch, XY reverse, simultaneous guitar pedals and a
+  distortion/chorus/cabinet chain, rather than only neutral defaults. It compares
+  public live/offline PCM under 1/7/64/101/137/512 partitions and guards callbacks.
+- `nonlinear_performance.test.tsx`: all eight mounted editor registration,
+  mixer mix/bypass/duplicate/replace/history and real-WASM descriptor coverage;
+  drawn waveshaper persistence, grouped XY history and loaded scratch selection.
+  `nonlinear/curve-editor.test.tsx`: drawing cancellation, release-only asset
+  publication, bend/keyboard edits, independent XY movement/capture release.
+
+Integrator commands (Git Bash after `source scripts/msvc-env.sh`, TS_RS_EXPORT_DIR
+pointing at a task-specific directory):
+```bash
+cargo test -p windfall-dsp --lib asset
+cargo test -p windfall-dsp --lib drive
+cargo test -p windfall-dsp --lib performance
+cargo test -p windfall-dsp --lib effect::registry_tests
+cargo test -p windfall-dsp --test dsp
+cargo test -p windfall-project --test nonlinear_performance
+cargo test -p windfall-engine --test engine nonlinear_performance
+```
+Regenerate bindings/descriptors/automation fixtures and simulator before:
+```bash
+pnpm --dir apps/desktop test src/features/effects/nonlinear src/features/effects/nonlinear_performance.test.tsx --maxWorkers=4
+pnpm --dir apps/desktop typecheck
+pnpm --dir apps/desktop lint
+```
+Then run the normal project/engine persistence, preset and realtime regressions,
+scoped strict Clippy and freshness checks. No generated files were edited here.
+
+New/widened generated types: CurvePoint, Cabinet, PedalParams, Oversampling,
+OverdriveParams, WaveshaperParams, GuitarRackParams, DriveStage,
+DriveStageParams, DriveChainParams, VolumeGateParams, TimeTransportParams,
+ScratchParams, PerformanceRackParams. No new Command variant or IPC operation.
+
+Shared seams additionally touched: DSP effect.rs, tests/dsp/main.rs;
+engine controller.rs, plan.rs, project_preparation.rs, rack.rs;
+project check.rs/lower.rs; effects/effect-editor.tsx. Model/command/IPC files,
+parity tracker, generated bindings and WASM are unchanged.
+
+Risk order for integration:
+1. Compile widened params/TS derives and generated sourceId/curve array shapes.
+   The inherited guitar implementation was unfinished on arrival; its formerly
+   unregistered cabinet tests now run.
+2. Numeric tolerances in inherited/new harmonic, alias, cabinet and onset tests
+   are reasoned, not measured. Check failures without weakening reference assertions.
+3. Engine block invariance under actual song-position updates, especially
+   noninteger tempo/loop periods and pattern wrap. Seek retains ring history.
+4. Mounted jsdom pointer/capture support, Base UI source picker role, and grouped
+   asynchronous history dispatch with regenerated WASM.
+5. CPU at maximum rate: direct cabinet FIRs (up to 1,024 taps), multiple
+   oversamplers, ring clearing on reset. Allocation safety does not establish
+   a deadline. Retained immutable source/curve budgets are process-wide and
+   reclaim only on exit; no project-replacement reclamation is claimed.

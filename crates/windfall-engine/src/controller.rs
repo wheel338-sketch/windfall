@@ -39,6 +39,11 @@ impl PreparedProject {
     pub fn sampler_pool(&self) -> &SamplePool {
         &self.sampler_pool
     }
+    fn scratch_asset_refused(&self) -> bool {
+        self.plan.tracks.iter().flat_map(|track| &track.effects).any(|effect| {
+            matches!(effect.params, windfall_project::EffectParams::Scratch(p) if p.source_id != 0 && p.runtime_source.is_none() && self.sampler_pool.get(windfall_project::SampleId(p.source_id)).is_some())
+        })
+    }
 }
 
 /// Sends requests to the audio thread and reads back what it publishes.
@@ -330,7 +335,11 @@ impl Controller {
             )
         })?;
         let pool = pool.prepare_samplers(project, &mut || true, &mut |_, _, _| {})?;
-        Ok(Self::compile_prepared_project(project, &pool))
+        let prepared = Self::compile_prepared_project(project, &pool);
+        if prepared.scratch_asset_refused() {
+            return Err(crate::sampler_processing::SamplerPreparationError::Unsupported("The scratch source exceeds the effect asset memory budget; restart to release retained sources."));
+        }
+        Ok(prepared)
     }
 
     /// Compile already prepared sampler banks; never performs sampler DSP.
@@ -343,6 +352,10 @@ impl Controller {
 
     /// Installs a precompiled snapshot. The caller must verify it still matches the project.
     pub fn set_prepared_project(&self, project: &Project, prepared: PreparedProject) {
+        if prepared.scratch_asset_refused() {
+            self.latch_preparation_error(ProjectPreparationError::Unsupported("The scratch source exceeds the effect asset memory budget; restart to release retained sources."));
+            return;
+        }
         if self.refuse_invalid_meters(&prepared.plan) {
             return;
         }

@@ -119,6 +119,10 @@ pub trait Effect: Send {
         let _ = bpm;
     }
 
+    /// Musical position of the next frame. Default keeps a processor's local
+    /// clock. Implementations must preserve history on ordinary block updates.
+    fn set_transport(&mut self, _playing: bool, _position_beats: f64) {}
+
     /// Processes one block in place. The two slices have the same length,
     /// which may be anything from 1 up.
     fn process(&mut self, left: &mut [f32], right: &mut [f32]);
@@ -1562,6 +1566,10 @@ impl AnyEffect {
         each_effect!(self, effect => effect.set_tempo(bpm));
     }
 
+    pub fn set_transport(&mut self, playing: bool, position_beats: f64) {
+        each_effect!(self, effect => effect.set_transport(playing, position_beats));
+    }
+
     /// See [`Effect::process`].
     pub fn process(&mut self, left: &mut [f32], right: &mut [f32]) {
         each_effect!(self, effect => effect.process(left, right));
@@ -1894,6 +1902,10 @@ impl EffectSlot {
     /// See [`Effect::set_tempo`].
     pub fn set_tempo(&mut self, bpm: f32) {
         self.effect.set_tempo(bpm);
+    }
+
+    pub fn set_transport(&mut self, playing: bool, position_beats: f64) {
+        self.effect.set_transport(playing, position_beats);
     }
 
     pub fn effect(&self) -> &AnyEffect {

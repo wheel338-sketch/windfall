@@ -70,11 +70,7 @@ pub struct CurvePoint {
 
 impl CurvePoint {
     pub const fn new(x: f32, y: f32) -> Self {
-        Self {
-            x,
-            y,
-            tension: 0.0,
-        }
+        Self { x, y, tension: 0.0 }
     }
 }
 
@@ -266,7 +262,9 @@ fn publish_curve(kind: CurveKind, points: &[CurvePoint]) -> Result<u64, AssetErr
     }
     let id = hash(kind, &points);
     let slots = curve_slots();
-    let mut usage = WRITER.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+    let mut usage = WRITER
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
     let mask = slots.len() - 1;
     let mut index = (id as usize) & mask;
     for _ in 0..slots.len() {
@@ -400,6 +398,54 @@ struct SourceEntry {
     audio: AudioBuffer,
 }
 
+/// A runtime source allocation, independent of project-local sample numbers.
+/// Plans publish it off-thread; callbacks only retain this small index.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct SourceRef(usize);
+impl SourceRef {
+    pub const NONE: Self = Self(0);
+    pub fn audio(self) -> Option<&'static AudioBuffer> {
+        SOURCES
+            .get()?
+            .get(self.0.checked_sub(1)?)?
+            .get()
+            .map(|entry| &entry.audio)
+    }
+    pub fn is_none(self) -> bool {
+        self.0 == 0
+    }
+}
+
+/// Publish by allocation identity, so two projects with SampleId(1) cannot
+/// change each other's prepared scratch sources. No PCM copy is made.
+pub fn publish_audio(audio: &AudioBuffer) -> Result<SourceRef, AssetError> {
+    let slots = source_slots();
+    let mut usage = WRITER.lock().unwrap_or_else(|e| e.into_inner());
+    for (index, slot) in slots.iter().enumerate() {
+        if let Some(entry) = slot.get() {
+            if entry.audio.identity() == audio.identity() {
+                return Ok(SourceRef(index + 1));
+            }
+        } else {
+            let bytes = std::mem::size_of_val(audio.samples());
+            if bytes > SOURCE_BYTE_BUDGET.saturating_sub(usage.source_bytes) {
+                REFUSED.fetch_add(1, Ordering::Relaxed);
+                return Err(AssetError::Full);
+            }
+            let _ = slot.set(SourceEntry {
+                key: 0,
+                audio: audio.clone(),
+            });
+            usage.sources += 1;
+            usage.source_bytes += bytes;
+            SOURCE_EPOCH.fetch_add(1, Ordering::Release);
+            return Ok(SourceRef(index + 1));
+        }
+    }
+    REFUSED.fetch_add(1, Ordering::Relaxed);
+    Err(AssetError::Full)
+}
+
 type SourceSlots = Box<[OnceLock<SourceEntry>]>;
 static SOURCES: OnceLock<SourceSlots> = OnceLock::new();
 
@@ -413,7 +459,9 @@ fn source_slots() -> &'static SourceSlots {
 /// and locks: not for the audio thread.
 pub fn publish_source(key: u32, audio: &AudioBuffer) -> Result<(), AssetError> {
     let slots = source_slots();
-    let mut usage = WRITER.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+    let mut usage = WRITER
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
     let mut latest: Option<&SourceEntry> = None;
     let mut free = None;
     for (index, slot) in slots.iter().enumerate() {
@@ -481,7 +529,9 @@ pub struct AssetStats {
 
 /// Locks, so not for the audio thread.
 pub fn stats() -> AssetStats {
-    let usage = WRITER.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+    let usage = WRITER
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
     AssetStats {
         curves: usage.curves,
         curve_bytes: usage.curve_bytes,
@@ -633,7 +683,10 @@ mod tests {
         let bare: CurveRef = serde_json::from_str(r#"[{"x":0,"y":1},{"x":0.5,"y":0.25}]"#).unwrap();
         assert_eq!(bare.points()[1].tension, 0.0);
         assert_eq!(serde_json::to_string(&CurveRef::NONE).unwrap(), "[]");
-        assert_eq!(serde_json::from_str::<CurveRef>("[]").unwrap(), CurveRef::NONE);
+        assert_eq!(
+            serde_json::from_str::<CurveRef>("[]").unwrap(),
+            CurveRef::NONE
+        );
         let too_many = serde_json::to_string(&vec![point(0.5, 0.5); MAX_CURVE_POINTS + 1]).unwrap();
         let error = serde_json::from_str::<CurveRef>(&too_many).unwrap_err();
         assert!(error.to_string().contains("at most 64 points"), "{error}");

@@ -20,6 +20,7 @@ import { LimiterEditor } from "./limiter/limiter-editor"
 import { ReverbEditor } from "./reverb/reverb-editor"
 import { TunerEditor } from "./tuner/tuner-editor"
 import { DriveChainEditor, GuitarRackEditor, OverdriveEditor, WaveshaperEditor } from "./nonlinear/editors"
+import { PerformanceRackEditor, ScratchEditor, TimeTransportEditor, VolumeGateEditor } from "./nonlinear/performance-editors"
 
 type Editors = {
   [Kind in EffectKind]?: ComponentType<EditorProps<EffectParamsOf<Kind>>>
@@ -41,6 +42,10 @@ const EDITORS: Editors = {
   waveshaper: WaveshaperEditor,
   guitarRack: GuitarRackEditor,
   driveChain: DriveChainEditor,
+  volumeGate: VolumeGateEditor,
+  timeTransport: TimeTransportEditor,
+  performanceRack: PerformanceRackEditor,
+  scratch: ScratchEditor,
 }
 
 type AnyEditor = ComponentType<EditorProps<EffectParams>>

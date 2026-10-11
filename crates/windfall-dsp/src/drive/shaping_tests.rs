@@ -10,6 +10,52 @@ use crate::param::ParamSet;
 const RATE: f64 = 48_000.0;
 const LATENCY: usize = DRIVE_LATENCY_SAMPLES;
 
+#[test]
+fn guitar_and_modular_fuzz_reject_folded_harmonics_with_oversampling() {
+    let input = sine(5000.0, 0.7, 24000);
+    let guitar = |quality| {
+        render::<GuitarRack>(
+            &GuitarRackParams {
+                model: GuitarModel::HardFuzz,
+                drive_db: 0.0,
+                output_db: 0.0,
+                oversampling: quality,
+                ..Default::default()
+            },
+            &input,
+        )
+    };
+    let chain = |quality| {
+        render::<DriveChain>(
+            &DriveChainParams {
+                stages: [
+                    DriveStageParams {
+                        model: DriveStage::Fuzz,
+                        ..Default::default()
+                    },
+                    DriveStageParams::default(),
+                    DriveStageParams::default(),
+                ],
+                oversampling: quality,
+                ..Default::default()
+            },
+            &input,
+        )
+    };
+    for (plain, oversampled) in [
+        (guitar(Oversampling::Off), guitar(Oversampling::X4)),
+        (chain(Oversampling::Off), chain(Oversampling::X4)),
+    ] {
+        let before = alias_energy(&plain);
+        let after = alias_energy(&oversampled);
+        assert!(
+            before > 1e-5 && after < before * 0.3,
+            "folded energy {before} -> {after}"
+        );
+        assert!(oversampled.iter().all(|x| x.abs() < 1.5));
+    }
+}
+
 fn sine(hz: f64, level: f64, frames: usize) -> Vec<f32> {
     (0..frames)
         .map(|n| (level * (std::f64::consts::TAU * hz * n as f64 / RATE).sin()) as f32)
@@ -67,7 +113,10 @@ fn alias_energy(signal: &[f32]) -> f64 {
 }
 
 fn shape(points: &[(f32, f32)]) -> ShapeRef {
-    let points: Vec<CurvePoint> = points.iter().map(|(x, y)| CurvePoint::new(*x, *y)).collect();
+    let points: Vec<CurvePoint> = points
+        .iter()
+        .map(|(x, y)| CurvePoint::new(*x, *y))
+        .collect();
     ShapeRef::new(&points).unwrap()
 }
 
@@ -98,8 +147,14 @@ fn a_drawn_shape_is_the_transfer_curve_in_both_readings() {
     };
     for n in -100..=100 {
         let x = n as f32 / 100.0;
-        assert!((bent.transfer(x) - expected(x)).abs() < 1.0e-3, "bipolar at {x}");
-        assert!((folded.transfer(x) - fold(x)).abs() < 2.0e-3, "unipolar at {x}");
+        assert!(
+            (bent.transfer(x) - expected(x)).abs() < 1.0e-3,
+            "bipolar at {x}"
+        );
+        assert!(
+            (folded.transfer(x) - fold(x)).abs() < 2.0e-3,
+            "unipolar at {x}"
+        );
         assert!((folded.transfer(-x) + folded.transfer(x)).abs() < 1.0e-6);
     }
     // Past the ends the curve holds its last value.
@@ -145,7 +200,10 @@ fn harmonics_of_a_drawn_clip_match_the_curve_and_follow_its_symmetry() {
         );
     }
     for even in [2_000.0, 4_000.0, 6_000.0] {
-        assert!(level(&output, even) < 1.0e-4, "{even} Hz in a symmetric clip");
+        assert!(
+            level(&output, even) < 1.0e-4,
+            "{even} Hz in a symmetric clip"
+        );
     }
     // A curve that treats the two polarities differently adds even ones.
     let lopsided = WaveshaperParams {
@@ -215,7 +273,10 @@ fn a_bounded_curve_keeps_its_headroom_at_every_quality() {
             &input,
         );
         let peak = output.iter().fold(0.0_f32, |peak, x| peak.max(x.abs()));
-        assert!((0.9..=1.25).contains(&peak), "{oversampling:?} peaks at {peak}");
+        assert!(
+            (0.9..=1.25).contains(&peak),
+            "{oversampling:?} peaks at {peak}"
+        );
         let driven = render::<Overdrive>(
             &OverdriveParams {
                 drive_db: 36.0,
@@ -344,7 +405,10 @@ fn the_overdrive_curve_matches_its_description_and_hot_adds_twenty_decibels() {
                 "asymmetry {asymmetry} at {x}"
             );
         }
-        let hot = OverdriveParams { hot: true, ..params };
+        let hot = OverdriveParams {
+            hot: true,
+            ..params
+        };
         let expected = clip_reference(0.05, 32.0, f64::from(asymmetry), -3.0);
         assert!((f64::from(hot.transfer(0.05)) - expected).abs() < 1.0e-5);
     }
@@ -371,7 +435,10 @@ fn overdrive_asymmetry_adds_even_harmonics_and_matches_the_curve() {
         ..Default::default()
     };
     let even = render::<Overdrive>(&settings(0.0), &input);
-    assert!(level(&even, 2_000.0) < 1.0e-4, "a symmetric clip has no second harmonic");
+    assert!(
+        level(&even, 2_000.0) < 1.0e-4,
+        "a symmetric clip has no second harmonic"
+    );
     let third = reference_harmonic(|x| clip_reference(0.5 * x, 18.0, 0.0, 0.0), 3);
     // The 18 kHz tone filter takes a little off 3 kHz.
     assert!((level(&even, 3_000.0) / third - 1.0).abs() < 0.05);
@@ -424,7 +491,10 @@ fn old_overdrive_settings_load_with_the_new_controls_at_their_defaults() {
     assert_eq!(loaded.pre_band_hz, 900.0);
     assert!(!loaded.hot);
     assert_eq!(loaded.oversampling, Oversampling::X4);
-    let names: Vec<&str> = OverdriveParams::descriptors().iter().map(|info| info.id).collect();
+    let names: Vec<&str> = OverdriveParams::descriptors()
+        .iter()
+        .map(|info| info.id)
+        .collect();
     assert_eq!(
         names,
         [

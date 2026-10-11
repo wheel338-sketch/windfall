@@ -25,7 +25,9 @@ export function CurveEditor({
   const point = shown[index]
   const sorted = [...shown].sort((a, b) => a.x - b.x)
   const commit = (next: readonly CurvePoint[]) => {
-    onCommit([...next].sort((a, b) => a.x - b.x))
+    const sorted = [...next].sort((a, b) => a.x - b.x)
+    setSelected(Math.max(0, sorted.indexOf(next[Math.min(index, next.length - 1)])))
+    onCommit(sorted)
     setDraft(null)
   }
   const coordinate = (event: PointerEvent<SVGSVGElement>) => {
@@ -40,7 +42,7 @@ export function CurveEditor({
         viewBox="0 0 100 100" preserveAspectRatio="none"
         className="h-48 w-full touch-none rounded border border-border bg-muted text-primary"
         onPointerDown={(event) => {
-          if (event.button !== 0) return
+          if (event.button !== 0 || drag.current) return
           const at = coordinate(event)
           const nearest = shown.reduce((best, p, i) => Math.hypot(p.x - at.x, p.y - at.y) < Math.hypot(shown[best].x - at.x, shown[best].y - at.y) ? i : best, 0)
           const next = [...shown]

@@ -3,6 +3,7 @@
 
 mod buffer;
 mod params;
+mod transient;
 pub use params::*;
 
 use crate::Effect;
@@ -14,6 +15,14 @@ struct History {
     rate: f32,
     bpm: f32,
     length: usize,
+}
+fn song_phase(beats: f64, rate: f32, bpm: f32, length: usize) -> usize {
+    if !beats.is_finite() {
+        return 0;
+    }
+    (beats.max(0.0) * rate as f64 * 60.0 / bpm as f64)
+        .round()
+        .rem_euclid(length.max(1) as f64) as usize
 }
 impl Default for History {
     fn default() -> Self {
@@ -59,15 +68,23 @@ pub struct VolumeGate {
     delay: usize,
     random: u32,
     feedback: Frame,
+    curve_start: usize,
+    curve_length: usize,
+    curve_ready: bool,
+    last_position: Option<f64>,
 }
 impl VolumeGate {
     pub fn new() -> Self {
         Self::default()
     }
     fn sync(&mut self) {
-        if self.history.sync(self.controls.target.loop_beats, false) {
+        if self.history.sync(
+            self.controls.target.loop_beats,
+            !self.controls.target.time_curve.is_none(),
+        ) {
             self.phase %= self.history.length;
             self.last_step = None;
+            self.curve_ready = false;
         }
     }
 }
@@ -87,14 +104,38 @@ impl Effect for VolumeGate {
         self.delay = 0;
         self.random = 0x6d2b_79f5;
         self.feedback = [0.0; 2];
+        self.curve_ready = false;
+        self.last_position = None;
     }
     fn set_params(&mut self, params: &Self::Params) {
+        if params.time_curve != self.controls.target.time_curve
+            || params.volume_curve != self.controls.target.volume_curve
+        {
+            self.history.fade.jump();
+            self.curve_ready = false;
+        }
         self.controls.set(params);
         self.sync();
     }
     fn set_tempo(&mut self, bpm: f32) {
         self.history.bpm = tempo(bpm);
         self.sync();
+    }
+    fn set_transport(&mut self, playing: bool, beats: f64) {
+        if playing {
+            let next = song_phase(
+                beats,
+                self.history.rate,
+                self.history.bpm,
+                self.history.length,
+            );
+            if next != self.phase {
+                self.history.fade.jump();
+                self.curve_ready = false;
+                self.last_step = None;
+            }
+            self.phase = next;
+        }
     }
     fn process(&mut self, left: &mut [f32], right: &mut [f32]) {
         for (l, r) in left.iter_mut().zip(right) {
@@ -123,7 +164,31 @@ impl Effect for VolumeGate {
                 self.delay = next;
                 self.last_step = Some(step);
             }
-            let replay = if self.delay > 0 {
+            let curve = self.controls.target.time_curve.asset();
+            let replay = if let Some(curve) = curve {
+                if self.phase == 0 || !self.curve_ready {
+                    self.curve_length = self.history.length.min(self.history.ring.filled);
+                    self.curve_start = self.history.ring.start(self.curve_length);
+                    self.curve_ready = true;
+                    self.last_position = None;
+                    self.history.fade.jump();
+                }
+                let position = curve.value(self.phase as f32 / self.history.length as f32) as f64
+                    * self.curve_length.saturating_sub(1) as f64;
+                if self.last_position.is_some_and(|last| {
+                    (position - last).abs() > (self.curve_length as f64 * 0.05).max(2.0)
+                }) {
+                    self.history.fade.jump();
+                }
+                self.last_position = Some(position);
+                if self.curve_length == 0 {
+                    [0.0; 2]
+                } else {
+                    self.history
+                        .ring
+                        .read(self.curve_start, self.curve_length, position)
+                }
+            } else if self.delay > 0 {
                 self.history
                     .ring
                     .read(self.history.ring.start(self.delay), self.delay, 0.0)
@@ -131,11 +196,15 @@ impl Effect for VolumeGate {
                 dry
             };
             // Apply the curve AFTER the head transition: a zero step is exactly silent.
-            let wet = self
-                .history
-                .fade
-                .tick(replay)
-                .map(|v| finite(v * p.steps[step]));
+            let gain = self
+                .controls
+                .target
+                .volume_curve
+                .asset()
+                .map_or(p.steps[step], |curve| {
+                    curve.value(self.phase as f32 / self.history.length as f32)
+                });
+            let wet = self.history.fade.tick(replay).map(|v| finite(v * gain));
             self.history.ring.push(std::array::from_fn(|c| {
                 finite(dry[c] + self.feedback[c] * p.feedback)
             }));
@@ -171,16 +240,87 @@ pub struct TimeTransport {
     start: usize,
     captured: usize,
     position: f64,
+    replay: Ring,
+    detector: transient::Transient,
+    automatic: bool,
+    collecting: bool,
+    replay_ready: bool,
+    capture_goal: usize,
 }
 impl TimeTransport {
     pub fn new() -> Self {
         Self::default()
+    }
+    fn auto_tick(&mut self, p: TimeTransportParams, dry: Frame) -> Frame {
+        let detected = self.detector.tick(
+            dry[0].abs().max(dry[1].abs()),
+            crate::blocks::math::db_to_gain(p.threshold_db),
+            p.sensitivity,
+            (self.history.rate * p.refractory_ms * 0.001).round() as usize,
+        ) || (p.trigger && !self.active);
+        self.active = p.trigger;
+        if p.mode != self.mode {
+            self.mode = p.mode;
+            self.history.fade.jump();
+            self.position = if p.mode == TransportMode::Repeat {
+                0.0
+            } else {
+                self.captured.saturating_sub(1) as f64
+            };
+        }
+        if detected {
+            // Start at the actual onset, then fill one tempo-derived slice.
+            // Metadata reset is O(1); stale PCM cannot be read before filled.
+            self.history.ring.write = 0;
+            self.history.ring.filled = 0;
+            self.capture_goal = self.history.length;
+            self.collecting = true;
+            self.history.fade.jump();
+        }
+        self.history.ring.push(dry);
+        let mut wrapped = false;
+        let next = if self.collecting || !self.replay_ready {
+            dry
+        } else {
+            let out = self.replay.read(self.start, self.captured, self.position);
+            let delta = match p.mode {
+                TransportMode::Hold => 0.0,
+                TransportMode::Reverse => -(p.rate as f64),
+                TransportMode::Repeat => p.rate as f64,
+            };
+            let next = self.position + delta;
+            wrapped = next < 0.0 || next >= self.captured as f64;
+            self.position = next.rem_euclid(self.captured as f64);
+            out
+        };
+        let wet = self.history.fade.tick(next);
+        if self.collecting && self.history.ring.filled >= self.capture_goal {
+            // Two preallocated rings exchange roles. No slice copies at onset.
+            std::mem::swap(&mut self.history.ring, &mut self.replay);
+            self.captured = self.capture_goal;
+            self.start = self.replay.start(self.captured);
+            self.position = if p.mode == TransportMode::Repeat {
+                0.0
+            } else {
+                (self.captured - 1) as f64
+            };
+            self.collecting = false;
+            self.replay_ready = true;
+            self.history.ring.write = 0;
+            self.history.ring.filled = 0;
+            self.history.fade.jump();
+        } else if wrapped {
+            self.history.fade.jump();
+        }
+        wet
     }
 }
 impl Effect for TimeTransport {
     type Params = TimeTransportParams;
     fn prepare(&mut self, rate: f32, _max_block: usize) {
         self.history.prepare(rate);
+        self.replay.prepare(self.history.rate);
+        self.detector.prepare(self.history.rate);
         self.controls.prepare(self.history.rate);
         self.history.sync(self.controls.target.loop_beats, false);
         self.reset();
@@ -193,6 +333,11 @@ impl Effect for TimeTransport {
         self.captured = 1;
         self.position = 0.0;
         self.mode = self.controls.target.mode;
+        self.replay.clear();
+        self.detector.reset();
+        self.automatic = self.controls.target.auto_trigger;
+        self.collecting = false;
+        self.replay_ready = false;
     }
     fn set_params(&mut self, params: &Self::Params) {
         self.controls.set(params);
@@ -207,6 +352,21 @@ impl Effect for TimeTransport {
         for (l, r) in left.iter_mut().zip(right) {
             let p = self.controls.tick();
             let dry = [finite(*l), finite(*r)];
+            if self.automatic != p.auto_trigger {
+                self.automatic = p.auto_trigger;
+                self.active = false;
+                self.collecting = false;
+                self.replay_ready = false;
+                self.detector.reset();
+                self.history.fade.jump();
+            }
+            if p.auto_trigger {
+                let wet = self.auto_tick(p, dry);
+                let out = blend(dry, wet, p.mix);
+                *l = out[0];
+                *r = out[1];
+                continue;
+            }
             if p.trigger != self.active {
                 self.history.fade.jump();
                 if p.trigger {
@@ -264,7 +424,7 @@ impl Effect for TimeTransport {
         self.history.length
     }
     fn tail_samples(&self) -> usize {
-        if self.controls.target.trigger {
+        if self.controls.target.trigger || self.controls.target.auto_trigger {
             usize::MAX
         } else {
             self.history.ring.data.len()
@@ -283,10 +443,24 @@ pub struct Scratch {
     frozen: bool,
     start: usize,
     captured: usize,
+    source: Option<&'static windfall_core::AudioBuffer>,
+    phase: usize,
+    last_position: Option<f64>,
 }
 impl Scratch {
     pub fn new() -> Self {
         Self::default()
+    }
+    fn read_source(audio: &windfall_core::AudioBuffer, position: f64) -> Frame {
+        if audio.frames() == 0 {
+            return [0.0; 2];
+        }
+        let position = position.clamp(0.0, 1.0) * audio.frames().saturating_sub(1) as f64;
+        let index = position as usize;
+        let next = (index + 1).min(audio.frames() - 1);
+        let (l, r) = audio.stereo_frame(index);
+        let (nl, nr) = audio.stereo_frame(next);
+        blend([l, r], [nl, nr], (position - index as f64) as f32)
     }
 }
 impl Effect for Scratch {
@@ -303,8 +477,18 @@ impl Effect for Scratch {
         self.frozen = false;
         self.start = 0;
         self.captured = 1;
+        self.phase = 0;
+        self.last_position = None;
     }
     fn set_params(&mut self, params: &Self::Params) {
+        if params.runtime_source != self.controls.target.runtime_source
+            || params.position_curve != self.controls.target.position_curve
+            || params.curve_enabled != self.controls.target.curve_enabled
+        {
+            self.history.fade.jump();
+            self.last_position = None;
+        }
+        self.source = params.runtime_source.audio();
         self.controls.set(params);
         if self.history.sync(self.controls.target.loop_beats, false) {
             self.history.fade.jump();
@@ -316,10 +500,53 @@ impl Effect for Scratch {
             self.history.fade.jump();
         }
     }
+    fn set_transport(&mut self, playing: bool, beats: f64) {
+        if playing {
+            let next = song_phase(
+                beats,
+                self.history.rate,
+                self.history.bpm,
+                self.history.length,
+            );
+            if next != self.phase {
+                self.history.fade.jump();
+                self.last_position = None;
+            }
+            self.phase = next;
+        }
+    }
     fn process(&mut self, left: &mut [f32], right: &mut [f32]) {
         for (l, r) in left.iter_mut().zip(right) {
             let p = self.controls.tick();
             let dry = [finite(*l), finite(*r)];
+            if self.controls.target.source_id != 0 {
+                let progress = self.phase as f32 / self.history.length as f32;
+                let position = if p.curve_enabled {
+                    self.controls
+                        .target
+                        .position_curve
+                        .asset()
+                        .map_or(progress, |curve| curve.value(progress))
+                } else {
+                    p.position
+                } as f64;
+                if self
+                    .last_position
+                    .is_some_and(|last| (position - last).abs() > 0.05)
+                {
+                    self.history.fade.jump();
+                }
+                self.last_position = Some(position);
+                let wet = self
+                    .source
+                    .map_or([0.0; 2], |audio| Self::read_source(audio, position));
+                let wet = self.history.fade.tick(wet);
+                let out = blend(dry, wet, p.mix);
+                *l = out[0];
+                *r = out[1];
+                self.phase = (self.phase + 1) % self.history.length;
+                continue;
+            }
             if p.freeze != self.frozen {
                 self.history.fade.jump();
                 self.frozen = p.freeze;
@@ -342,16 +569,21 @@ impl Effect for Scratch {
             let out = blend(dry, wet, p.mix);
             *l = out[0];
             *r = out[1];
+            self.phase = (self.phase + 1) % self.history.length;
         }
     }
     fn latency_samples(&self) -> usize {
         0
     }
     fn warm_up_samples(&self) -> usize {
-        self.history.length
+        if self.controls.target.source_id == 0 {
+            self.history.length
+        } else {
+            0
+        }
     }
     fn tail_samples(&self) -> usize {
-        if self.controls.target.freeze {
+        if self.controls.target.freeze || self.controls.target.source_id != 0 {
             usize::MAX
         } else {
             self.history.ring.data.len()
@@ -386,21 +618,56 @@ impl PerformanceRack {
             self.history.fade.jump();
         }
     }
-    fn treatment(&mut self, p: PerformanceRackParams, dry: Frame) -> Frame {
+    fn treatment(&mut self, mut p: PerformanceRackParams, dry: Frame) -> Frame {
+        if p.xy_enabled {
+            p.amount = p.x;
+            p.pitch_semitones = -24.0 + 48.0 * p.y;
+        }
+        let secondary = if p.xy_enabled { p.y as f64 } else { 0.5 };
+        let speed = (2.0 * secondary - 1.0).exp2();
         let n = self.history.length;
         let t = self.phase as f64;
         let progress = t / n as f64;
         let a = p.amount as f64;
         let sub = (n / (2 + (a * 14.0).round() as usize)).max(1);
         let position = match p.model {
-            PerformanceModel::Stutter => t.rem_euclid(sub as f64),
-            PerformanceModel::Reverse => (n - 1) as f64 - t,
-            PerformanceModel::TapeStop => t - a * t * t / (2.0 * n as f64),
-            PerformanceModel::HalfSpeed => t * 0.5,
-            PerformanceModel::DoubleSpeed => t * 2.0,
+            PerformanceModel::Stutter => {
+                (if p.xy_enabled {
+                    secondary * (n - sub) as f64
+                } else {
+                    0.0
+                }) + t.rem_euclid(sub as f64)
+            }
+            PerformanceModel::Reverse => (n - 1) as f64 - t * speed,
+            PerformanceModel::TapeStop => speed * (t - a * t * t / (2.0 * n as f64)),
+            PerformanceModel::HalfSpeed => {
+                t * 0.5
+                    + if p.xy_enabled {
+                        secondary * n as f64 * 0.5
+                    } else {
+                        0.0
+                    }
+            }
+            PerformanceModel::DoubleSpeed => {
+                t * 2.0
+                    + if p.xy_enabled {
+                        secondary * n as f64
+                    } else {
+                        0.0
+                    }
+            }
             // Repeat the LAST quarter beat, rather than stutter's first short slice.
             PerformanceModel::BeatRepeat => {
-                let beat = loop_length(self.history.rate, self.history.bpm, 0.25, n);
+                let beat = loop_length(
+                    self.history.rate,
+                    self.history.bpm,
+                    if p.xy_enabled {
+                        (0.125 * (16.0_f64.powf(secondary))) as f32
+                    } else {
+                        0.25
+                    },
+                    n,
+                );
                 (n - beat) as f64 + t.rem_euclid(beat as f64)
             }
             PerformanceModel::PitchJump => t * (p.pitch_semitones as f64 * a / 12.0).exp2(),
@@ -424,11 +691,13 @@ impl PerformanceRack {
         match p.model {
             PerformanceModel::TelephoneFilter => {
                 let hp = 1.0
-                    - (-std::f64::consts::TAU * 300.0_f64.min(self.history.rate as f64 * 0.1)
+                    - (-std::f64::consts::TAU
+                        * (300.0 * speed).min(self.history.rate as f64 * 0.1)
                         / self.history.rate as f64)
                         .exp();
                 let lp = 1.0
-                    - (-std::f64::consts::TAU * 3000.0_f64.min(self.history.rate as f64 * 0.45)
+                    - (-std::f64::consts::TAU
+                        * (3000.0 * speed).min(self.history.rate as f64 * 0.45)
                         / self.history.rate as f64)
                         .exp();
                 for (c, sample) in wet.iter_mut().enumerate() {
@@ -443,19 +712,41 @@ impl PerformanceRack {
             }
             PerformanceModel::Distortion => {
                 let drive = 1.0 + 19.0 * p.amount;
-                wet = wet.map(|v| (v * drive).tanh() / drive.tanh());
+                let bias = if p.xy_enabled { p.y - 0.5 } else { 0.0 };
+                wet = wet.map(|v| ((v * drive + bias).tanh() - bias.tanh()) / drive.tanh());
                 wet = blend(dry, wet, p.amount);
             }
             PerformanceModel::PanSpin => {
-                let pan = (std::f64::consts::TAU * progress).sin() as f32 * p.amount;
+                let pan = (std::f64::consts::TAU * progress * speed).sin() as f32 * p.amount;
                 wet[0] *= (1.0 - pan).sqrt();
                 wet[1] *= (1.0 + pan).sqrt();
             }
-            PerformanceModel::Fade => wet = wet.map(|v| v * (1.0 - p.amount * progress as f32)),
-            PerformanceModel::SilenceGate if self.phase >= n.div_ceil(2) => {
+            PerformanceModel::Fade => {
+                wet = wet.map(|v| v * (1.0 - p.amount * progress.powf(speed) as f32))
+            }
+            PerformanceModel::SilenceGate
+                if progress
+                    >= if p.xy_enabled {
+                        0.1 + 0.8 * secondary
+                    } else {
+                        0.5
+                    } =>
+            {
                 wet = wet.map(|v| v * (1.0 - p.amount));
             }
             _ => {}
+        }
+        if p.xy_enabled
+            && !matches!(
+                p.model,
+                PerformanceModel::TelephoneFilter
+                    | PerformanceModel::Distortion
+                    | PerformanceModel::PanSpin
+                    | PerformanceModel::Fade
+                    | PerformanceModel::SilenceGate
+            )
+        {
+            wet = blend(dry, wet, p.amount);
         }
         wet.map(finite)
     }
@@ -486,6 +777,22 @@ impl Effect for PerformanceRack {
     fn set_tempo(&mut self, bpm: f32) {
         self.history.bpm = tempo(bpm);
         self.sync();
+    }
+    fn set_transport(&mut self, playing: bool, beats: f64) {
+        if playing {
+            let next = song_phase(
+                beats,
+                self.history.rate,
+                self.history.bpm,
+                self.history.length,
+            );
+            if next != self.phase {
+                self.start = self.history.ring.start(self.history.length);
+                self.last_read = None;
+                self.history.fade.jump();
+            }
+            self.phase = next;
+        }
     }
     fn process(&mut self, left: &mut [f32], right: &mut [f32]) {
         for (l, r) in left.iter_mut().zip(right) {
@@ -553,5 +860,7 @@ impl Effect for PerformanceRack {
     }
 }
 
+#[cfg(test)]
+mod extended_tests;
 #[cfg(test)]
 mod tests;
