@@ -103,6 +103,7 @@ describe("descriptors", () => {
       stageStack: true,
       controlSurface: true,
       sendTap: true,
+      masterLimiter: true,
     }
     const instruments: Record<InstrumentKind, true> = {
       subtractiveSynth: true,

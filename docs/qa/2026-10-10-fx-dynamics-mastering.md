@@ -1,0 +1,302 @@
+# Dynamics, transient and mastering effects â€” 2026-10-10
+
+Stream: roadmap family E2 plus local mastering from X4. Branch `worktree-agent-a3639c5d4bc473d97`.
+
+**Nothing in this document was compiled or executed.** The stream was edit-only. Every test named below is "written, not executed". The parent builds, regenerates and runs.
+
+This file is kept current while the work proceeds, so an interruption leaves a usable hand-off. All candidates require the integrator's fresh execution; no parity tracker status was edited.
+
+## Status by row
+
+| Row | State | Summary |
+| --- | --- | --- |
+| `wf-cloud-mastering` | full-row candidate | Real local LUFS/dynamics/true-peak stereo render and before/after review; integrator execution pending. Metrics are before encoding. |
+| `fx-emphasis` | full-row candidate | Distinct three-stage Mastering Limiter, true-peak/tonal/latency references and editor. |
+| `fx-emphasizer` | full-row candidate | Two-stage saturation/safety workflow, independent sample reference and editor. |
+| `fx-fruity-multiband-compressor` | full-row candidate | Independent detectors, compensated crossover, phase/reference/native/editor/history cases. |
+| `fx-maximus` | full-row candidate | Editable multiband compression and independent band/sum limiting; native and editor cases. |
+| `fx-soundgoodizer` | full-row candidate | Constrained one-control enhancer with measured loudness/ceiling/latency and native/editor cases. |
+| `fx-transient-processor` | full-row candidate | Attack/sustain shaping plus saved independently routed outputs, listen, native and mounted/history cases. |
+| `fx-low-lifter` | full-row candidate | Additive bass octave generation, dry alignment, native/editor/history cases. |
+
+## What exists so far
+
+### Loudness and true peak (`crates/windfall-dsp/src/mastering/loudness.rs`)
+
+- `k_weighting(sample_rate)`: the two BS.1770-4 sections, derived from the analog prototype so they hold at every rate.
+- `LoudnessMeter`: streaming stereo meter. Integrated loudness with absolute (-70 LUFS) and relative (-10 LU) gates, momentary and short-term maxima, loudness range (EBU Tech 3342), sample peak and 4x true peak.
+- `PeakInterpolator`: twelve-tap Lanczos read at quarter-sample points. Six samples of delay. Reused by the limiter's detector.
+- `measure(interleaved, sample_rate)`.
+
+Unit tests in the same file, written, not executed:
+
+- `the_48_khz_weighting_is_the_table_of_the_standard`
+- `the_interpolator_reads_samples_exactly_and_constants_as_themselves`
+
+Calibration risk: the 48 kHz table comparison uses a 1e-6 tolerance. A failure
+must be investigated against the explicit coefficient reference and measured
+calibration tones; do not loosen acceptance merely to make it pass.
+
+## Continuation — 2026-10-11
+
+Merge `feat/parity-100` completed at `67c7096f`, preserving playlist export,
+mastering controls, tuner and both new module registrations. Incoming generated
+artifacts belong to the integration merge; this worker has not edited them.
+The earlier status table is stale: the previous worker also committed the chain,
+export hook, seven purpose-built editors, DSP tests, mounted editor tests and
+project/history tests. The following continuation entries supersede that table.
+
+### `fx-transient-processor` — full-row candidate, pending integrator execution
+
+Transient Shaper now advertises the same two auxiliary outputs as Transient
+Split. Its shaped attack/sustain use `AnyEffect::process_aux`, the existing
+prepared mixer buffers, `Mixer.effectOutputs` and `SetEffectOutput`. Routed
+parts leave the source chain; unrouted parts stay. Listen auditions the retained
+chain only, leaving routed parts independently audible. No new command or
+callback storage was needed. The existing inspector supplies both routing menus.
+
+Written, not executed:
+- DSP `shaper_saved_aux_routes_remove_only_the_routed_parts_and_ignore_listen`:
+  all four masks, all three listen settings, stereo polarity and 1/257-frame partitions.
+- Project `shaped_transient_routes_are_saved_undoable_pruned_and_checked_for_cycles`:
+  actual file reopen, undo/redo, rejected cycle atomicity, deletion/pruning/undo.
+- Mounted `effect-outputs.qa.test.tsx` now exercises both transient kinds through
+  actual menus, saved Rust document, target deletion and effect deletion/history.
+- Existing `dynamics.test.tsx` covers the attack/sustain editor and automation.
+
+Regenerate descriptors (Transient Shaper effectOutputs), Rust-derived TS and
+WASM before frontend execution. Run the dynamics DSP/project tests and mounted
+routing suite listed in the final command section. Engine audio acceptance is
+being added below. No tests or builds have run in this worker.
+
+
+### `fx-fruity-multiband-compressor` — full-row candidate
+
+Retained the three independent peak-detector bands, compensated LR4 crossover,
+external matched-band key, meter and purpose-built crossover/transfer editor.
+Added independent f64 hard-knee/attack/release reference trajectories at three
+rates: `three_detectors_match_independent_db_ballistics_without_cross_band_pumping`.
+Each detector transitions at different frames; stereo link and unaffected other
+band state are measured. Existing crossover magnitude, external-key, partition,
+finite-audio, editor and persistence/history tests remain in place.
+Added public engine acceptance module and registered it in `engine/main.rs`:
+`multiband_compressor_automation_is_audible_and_matches_live_render_without_allocations`
+measures audible automation, live/offline agreement after PDC, 17/251-frame
+partitions, finite samples, tail decay and zero callback allocations/frees.
+All tests written, not executed. Crossover phase reference follows below.
+
+
+### `fx-maximus` — full-row candidate
+
+Kept independently editable three-band compression, per-band limiters and sum
+limiter, matched external key and dedicated split/curve/band/ceiling editor.
+All reused LimiterParams literals retain `..LimiterParams::default()` so the
+integration branch's mode/compression/gate fields default correctly.
+Written, not executed: `maximizer_band_ceilings_protect_each_band_before_the_master_sum`
+checks separate low/mid/high ceilings on far-band probes and 96-frame latency;
+`unity_band_sum_matches_the_independent_cascaded_allpass_phase_reference` checks
+both unity magnitude AND complex phase at three rates and both crossover points.
+The latter also covers compressor recombination. Engine
+`maximizer_band_automation_matches_live_render_with_both_pdc_stages` uses real
+saved automation, renders/live comparison, partitioning, allocation guard and tail.
+Existing DSP independent detectors, external key, curves, partitions; mounted
+editor controls/automation; file/history tests apply to this distinct kind.
+This effect promises sample ceilings, not calibrated true-peak limiting; the
+Mastering Limiter and local mastering chain supply the true-peak workflow.
+
+
+### `fx-soundgoodizer` — full-row candidate
+
+The constrained One Knob workflow retains exactly one saved/automatable control
+and a separate editor, backed by its own fixed multiband compression/limiting
+recipe. Written, not executed:
+`one_knob_is_constrained_but_still_has_a_real_ceiling_latency_and_finite_tail`
+checks descriptor count, impulse onset after both look-aheads, decay, reset and
+sample ceiling for off/half/full amounts. Existing
+`the_one_knob_enhancer_gets_louder_all_the_way_up` measures actual calibrated
+programme loudness. Engine
+`one_knob_amount_is_audible_and_matches_live_render_without_callback_allocations`
+covers saved amount automation, RT guard, PDC, live/export and partitioning.
+Mounted distinct one-knob control and document/file/history cases already exist.
+Amount zero retains crossover phase and the fixed sample-safety limiter; it is
+not a phase-transparent bypass. No true-peak promise is made for this effect.
+
+
+### `fx-low-lifter` — full-row candidate
+
+Retained low-band harmonic generation, DC removal, 2x oversampling and aligned
+dry path, with dedicated cutoff/drive/amount editor. Written, not executed:
+`bass_octave_survives_fundamental_removal_and_amount_is_additive_after_aligned_dry`
+measures the newly generated 120 Hz octave of a 60 Hz tone (absent in dry),
+linearity of additive amount, even-harmonic polarity, removed DC and exact
+13-frame dry alignment. Engine
+`bass_harmonic_amount_automation_matches_live_render_with_compensated_latency`
+adds RT/automation/live/export/partition/tail evidence to existing DSP spectrum,
+partition, finite-input and mounted/persistence tests. No alias-free claim.
+
+
+### `fx-emphasis` — full-row candidate
+
+Previous work supplies a distinct Mastering Limiter: slow shared RMS leveler,
+DC-filtered saturation/color, 4x-detected look-ahead peak stage, stage meters,
+fixed PDC and dedicated ordered-stage editor. Added written, not executed:
+`mastering_limiter_true_peak_is_checked_by_a_different_dense_reconstructor`
+uses an independent 16x Hann/sinc reconstructor at 44.1/48/96 kHz;
+`slow_leveling_keeps_shared_stereo_gain_and_tonal_balance` measures linked
+stereo gain and three-tone balance with leveling active;
+`mastering_limiter_gain_automation_matches_live_export_and_fixed_true_peak_latency`
+adds native RT/automation/render/partition/tail acceptance (78 frames at 48 kHz).
+Existing tests measure stage workload, calibrated level, true-peak on/off,
+latency, live parameter invariance, persistence and mounted ordered controls.
+True-peak reconstruction is an estimate: moving gain has a documented 0.3 dB
+DSP tolerance. The offline mastering chain remeasures/corrects to its tighter
+requested ceiling tolerance. Stationary analytic sine cases are separate.
+
+
+### `fx-emphasizer` — full-row candidate
+
+Stage Stack exposes the larger limiter's saturation curve plus an intentionally
+simple immediate stereo-linked safety stage, separate from the three-stage
+workflow. Dedicated two-stage editor, meter, drive/color/ceiling/mix and saved
+history/automation were committed by the previous worker. Added written, not
+executed: `simplified_two_stages_match_independent_saturation_and_linked_release_reference`
+checks sample-by-sample f64 saturation, linked attack/recovery and dry/wet against
+an independent formula; `two_stage_drive_automation_matches_live_export_without_delay_or_callback_allocation`
+covers native DSP hosting and saved automation. Existing eight stage unit tests
+cover reset, extreme inputs, live control ramps, instant lowered ceiling and
+zero delay/tail. No true-peak claim; ceiling protects wet samples only.
+
+
+Transient host acceptance supplement (written, not executed):
+`transient_attack_automation_matches_live_export_without_callback_allocations`
+and `shaped_transient_outputs_recombine_in_the_real_mixer_and_destinations_process_independently`
+cover all four saved routing masks, real recombination, a disconnected ordinary
+source output, independently muted Attack destination, Sustain-listen reference,
+disabled-slot auxiliary silence, native automation, partitions and allocation
+guards. This closes the previously missing split-frame-to-mixer seam in software.
+
+
+### `wf-cloud-mastering` — full-row candidate for local stereo mastering
+
+The previous worker committed actual K-weighted gated LUFS/true-peak analysis,
+reference normalization, independent three-band dynamics, iterative peak/loudness
+correction, fixed-latency removal, streamed temporary spool and export encoder
+integration, with target/dynamics controls and measured before/after review.
+No cloud provider, service or renamed limiter preset is used.
+Continuation repairs the merge boundary: both UI and native admission refuse
+mastering together with mixer OR playlist stems; playlist-track export otherwise
+remains intact. Native admission now rejects finite out-of-range targets,
+ceilings and dynamics instead of silently sanitizing a caller's request.
+
+Written, not executed:
+- `local_mastering_passes_are_invariant_to_analysis_and_render_block_sizes`:
+  complete analysis/trial/final passes at 1/137/8192 frames, identical output and report.
+- `cancelling_during_mastering_and_encoder_failure_remove_the_spooled_mix`:
+  cancellation in the mastering phase and failed encoder, with spool cleanup.
+- `playlist_stems_and_out_of_range_mastering_are_refused_before_starting_a_job`:
+  real Session admission, unchanged project, no job/progress/output/spool.
+- Mounted `preserves playlist-track export while refusing mastering of separate playlist stems`.
+- Existing `mastering_qa` decodes the actual float WAV, compares its loudness/peak
+  to the review, tests reproducible export, silent failure and session recovery;
+  DSP calibration/gates/range/target/unreachable-target tests and mounted review
+  cases are retained.
+
+Review measures stereo PCM before encoding. The form now explicitly says WAV
+float preserves those samples while lossy encoding or mono conversion may change
+final levels. Exact decoded lossy/mono loudness matching is not claimed. Integrator
+must check codec-output requirements before extending that promise.
+
+
+Mastering peak-priority supplement: the best trial now prioritizes satisfying
+the peak ceiling ahead of loudness error. The prior weighted score could prefer
+a slight peak overshoot in exchange for a smaller LUFS miss. If no safe trial
+exists at the pass limit, the final limiter ceiling receives another measured
+peak correction. Added `an_unreachable_loudness_target_keeps_peak_safety_ahead_of_loudness_error`
+(written, not executed) against an impossible -6 LUFS/-9 dBTP request.
+
+
+## Final integration hand-off — 2026-10-11
+
+No builds, tests, generators, package commands or device checks ran. Rustfmt
+was used only on touched Rust modules/tests; git whitespace/conflict-marker
+inspection was clean. All tests above and below are **written, not executed**.
+No dependencies, generated artifacts, parity statuses, push or PR were added.
+
+### Integrator command sequence (Git Bash in the integrated checkout)
+
+Run generators first, then the focused Rust/desktop/UI checks against those new
+artifacts. The commands below are instructions, not execution evidence.
+
+```bash
+source scripts/msvc-env.sh
+task_bindings="$(mktemp -d)"
+export TS_RS_EXPORT_DIR="$(cygpath -w "$task_bindings")"
+scripts/gen-bindings.sh
+scripts/build-sim.sh
+cargo test -p windfall-dsp --lib multiband
+cargo test -p windfall-dsp --lib mastering
+cargo test -p windfall-dsp --test dynamics_mastering
+cargo test -p windfall-dsp --test dsp realtime
+cargo test -p windfall-project --test dynamics_mastering
+cargo test -p windfall-project --test effect_outputs
+cargo test -p windfall-engine --test engine dynamics_mastering
+cargo test -p windfall-desktop --lib mastering
+pnpm --dir apps/desktop test src/features/effects/dynamics.test.tsx src/features/export/mastering.test.tsx src/features/mixer/effect-outputs.qa.test.tsx src/features/export/playlist-tracks.qa.test.tsx --maxWorkers=4
+pnpm --dir apps/desktop typecheck
+pnpm --dir apps/desktop lint
+cargo fmt --all --check
+cargo clippy -p windfall-dsp -p windfall-project -p windfall-engine -p windfall-desktop --all-targets -- -D warnings
+```
+
+The default generator writes the fresh application bindings; the exported
+TS_RS_EXPORT_DIR keeps subsequent test-driven exports in the temporary directory.
+Use the integration owner's standard generator staging/review procedure; never
+copy stale generated types or WASM from this worker as validation. The merge
+commit includes incoming integration-generated artifacts without hand edits.
+
+### Shared seams and generated inventory
+
+Continuation merge resolutions: `session/tests/mod.rs`,
+`features/effects/effect-editor.tsx`, `features/export/export-dialog.tsx`,
+`windfall-ipc/src/lib.rs` retained both intents. Continuation source seams:
+`windfall-dsp/src/effect.rs` (Transient Shaper auxiliary metadata/dispatch),
+`windfall-project/src/effect_outputs.rs` (documentation only),
+`windfall-engine/tests/engine/main.rs` (module registration),
+`session/export.rs` (mastering vs playlist stems admission). Inspector routing
+logic is unchanged; its comments and mounted acceptance include the new kind.
+
+Regenerate the whole descriptor/binding/WASM set. Branch source introduces
+`EffectKind::MasterLimiter`, `EffectParams::MasterLimiter`, `MasterLimiterParams`,
+`TransientListen`, `TransientShaperParams.listen`, `MasteringOptions`,
+`LoudnessReading`, `MasteringReview`, `ExportOptions.mastering` and
+`ExportProgress.mastering`; incoming playlist exports use `ExportPlaylistStems`.
+The continuation adds Transient Shaper to descriptor `effectOutputs`; it adds
+no Command variant or persisted Mixer field and preserves descriptor indices.
+
+### Risks and gates in recommended order
+
+1. Regenerate before typechecking/mounted tests: incoming bindings/WASM cannot
+   contain this branch's MasterLimiter, listen and mastering shapes by assumption.
+2. Compile source/tests. Rustfmt parsed touched Rust, but no compiler has checked
+   imports, integration-generated unions or desktop test setup. Shared registry
+   and session merge additions deserve the first look.
+3. Run native dynamics tests: verify host PDC removal for 96/78/13-frame paths,
+   17/251-frame partitions, tail tolerances, allocator guards and split routing.
+   The short fixture uses a 960-tick song clip; impulse onset fixtures keep away
+   from clip-end ramps and DSP-only tests exercise exact delay separately.
+4. Check independent detector/allpass/true-peak and stage references before
+   considering status promotion. The dense 16x reconstructor checks a different
+   interpolation method; DSP moving-gain true peak has 0.3 dB tolerance. Local
+   mastering corrects its own final 4x reading to 0.05 dB tolerance.
+5. Check complete mastering pass invariance and impossible-target safety. If
+   all trials exceed the measured ceiling, a final correction is applied; the
+   report still truthfully says whether the loudness target was reached.
+6. Execute mounted editor/routing/export tests against the fresh Rust document.
+   Before-encoding stereo metrics are the current scope. Lossy/mono decoded
+   target verification remains an explicitly unclaimed extension, not fabricated
+   audio evidence. Physical devices and other-OS runtime execution are external
+   gates; these rows' headless native harnesses need no audio device.
+
+The historical seam documents describe source-only foundations. This hand-off
+records the later registered/editor/render/software acceptance candidates and
+never substitutes authored tests for successful evidence.

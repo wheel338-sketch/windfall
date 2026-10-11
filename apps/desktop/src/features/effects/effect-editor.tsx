@@ -14,6 +14,17 @@ import { dispatch } from "@/lib/store"
 
 import { CompressorEditor } from "./compressor/compressor-editor"
 import { DelayEditor } from "./delay/delay-editor"
+import {
+  BassHarmonicsEditor,
+  MasterLimiterEditor,
+  OneKnobEditor,
+  StageStackEditor,
+  TransientShaperEditor,
+} from "./dynamics/dynamics-editors"
+import {
+  MultibandCompressorEditor,
+  MultibandMaximizerEditor,
+} from "./dynamics/multiband-editor"
 import type { EditorProps } from "./editor-props"
 import { EqEditor } from "./eq/eq-editor"
 import { LimiterEditor } from "./limiter/limiter-editor"
@@ -35,6 +46,13 @@ const EDITORS: Editors = {
   limiter: LimiterEditor,
   reverb: ReverbEditor,
   delay: DelayEditor,
+  multibandCompressor: MultibandCompressorEditor,
+  multibandMaximizer: MultibandMaximizerEditor,
+  oneKnob: OneKnobEditor,
+  transientShaper: TransientShaperEditor,
+  bassHarmonics: BassHarmonicsEditor,
+  stageStack: StageStackEditor,
+  masterLimiter: MasterLimiterEditor,
   tuner: TunerEditor,
 }
 

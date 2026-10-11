@@ -2,7 +2,7 @@ use super::crossover::Crossover;
 use super::params::*;
 use crate::balance::{Controls, audio, rate};
 use crate::blocks::math::{db_to_gain_exp, flush, level_to_db, smoothing_coefficient};
-use crate::effect::Effect;
+use crate::effect::{Effect, GainReductionMeter};
 use crate::limiter::{Limiter, LimiterParams};
 use crate::param::ParamSet;
 
@@ -133,6 +133,8 @@ struct DynamicsCore {
     bands: [BandDynamics; 3],
     params: MultibandCompressorParams,
     sample_rate: f32,
+    /// Deepest band reduction in dB since it was last taken.
+    deepest: f32,
 }
 impl Default for DynamicsCore {
     fn default() -> Self {
@@ -142,6 +144,7 @@ impl Default for DynamicsCore {
             bands: std::array::from_fn(|_| BandDynamics::default()),
             params: MultibandCompressorParams::default(),
             sample_rate: 48_000.0,
+            deepest: 0.0,
         }
     }
 }
@@ -181,7 +184,7 @@ impl DynamicsCore {
     fn tick(&mut self, input: [f32; 2], key: [f32; 2]) -> [[f32; 2]; 3] {
         let bands = self.audio_split.tick(input);
         let key = self.key_split.tick(key);
-        std::array::from_fn(|i| {
+        let out = std::array::from_fn(|i| {
             self.bands[i].tick(
                 bands[i],
                 if self.params.sidechain {
@@ -190,7 +193,15 @@ impl DynamicsCore {
                     bands[i]
                 },
             )
-        })
+        });
+        for band in &self.bands {
+            self.deepest = self.deepest.max(band.reduction_db);
+        }
+        out
+    }
+    /// The deepest reduction any band applied since the last call, in dB.
+    fn take_deepest(&mut self) -> f32 {
+        std::mem::take(&mut self.deepest)
     }
     fn tail_samples(&self) -> usize {
         self.audio_split.tail_samples()
@@ -200,8 +211,14 @@ impl DynamicsCore {
 #[derive(Default)]
 pub struct MultibandCompressor {
     core: DynamicsCore,
+    meter: GainReductionMeter,
 }
 impl MultibandCompressor {
+    /// Reads the deepest reduction of any band. Take it before the effect
+    /// goes to the audio thread.
+    pub fn meter(&self) -> GainReductionMeter {
+        self.meter.clone()
+    }
     fn run(&mut self, left: &mut [f32], right: &mut [f32], key: Option<&[[f32; 2]]>) {
         for (i, (l, r)) in left.iter_mut().zip(right).enumerate() {
             let bands = self.core.tick(
@@ -211,6 +228,7 @@ impl MultibandCompressor {
             *l = audio(bands[0][0] + bands[1][0] + bands[2][0]);
             *r = audio(bands[0][1] + bands[1][1] + bands[2][1]);
         }
+        self.meter.raise(self.core.take_deepest());
     }
 }
 impl Effect for MultibandCompressor {
@@ -242,20 +260,35 @@ pub struct MultibandMaximizer {
     input_gain: Controls<1>,
     band_limiters: [Limiter; 3],
     sum_limiter: Limiter,
+    /// The limiters' own meters, read on the audio thread after each block.
+    band_meters: [GainReductionMeter; 3],
+    sum_meter: GainReductionMeter,
+    meter: GainReductionMeter,
 }
 impl Default for MultibandMaximizer {
     fn default() -> Self {
+        let band_limiters: [Limiter; 3] = std::array::from_fn(|_| Limiter::default());
+        let sum_limiter = Limiter::default();
         let mut effect = Self {
             core: DynamicsCore::default(),
             input_gain: Controls::new([1.0]),
-            band_limiters: std::array::from_fn(|_| Limiter::default()),
-            sum_limiter: Limiter::default(),
+            band_meters: std::array::from_fn(|i| band_limiters[i].meter()),
+            sum_meter: sum_limiter.meter(),
+            band_limiters,
+            sum_limiter,
+            meter: GainReductionMeter::default(),
         };
         effect.set_params(&MultibandMaximizerParams::default());
         effect
     }
 }
 impl MultibandMaximizer {
+    /// Reads how far the signal was turned down in all: the deepest band
+    /// compression, the deepest band limiting and the limiting of the sum,
+    /// added in dB. Take it before the effect goes to the audio thread.
+    pub fn meter(&self) -> GainReductionMeter {
+        self.meter.clone()
+    }
     fn run(&mut self, left: &mut [f32], right: &mut [f32], key: Option<&[[f32; 2]]>) {
         for (i, (l, r)) in left.iter_mut().zip(right).enumerate() {
             let gain = self.input_gain.tick()[0];
@@ -276,6 +309,12 @@ impl MultibandMaximizer {
             *l = audio(sum_l[0]);
             *r = audio(sum_r[0]);
         }
+        let mut band_limiting = 0.0_f32;
+        for meter in &self.band_meters {
+            band_limiting = band_limiting.max(meter.take_db());
+        }
+        self.meter
+            .raise(self.core.take_deepest() + band_limiting + self.sum_meter.take_db());
     }
 }
 impl Effect for MultibandMaximizer {
@@ -360,6 +399,11 @@ impl Default for OneKnob {
     }
 }
 impl OneKnob {
+    /// The meter of the maximizer inside. Take it before the effect goes to
+    /// the audio thread.
+    pub fn meter(&self) -> GainReductionMeter {
+        self.maximizer.meter()
+    }
     fn recipe(amount: f32) -> MultibandMaximizerParams {
         let band = |threshold: f32, ratio: f32, attack: f32, release: f32, makeup: f32| {
             BandDynamicsParams {
@@ -403,5 +447,80 @@ impl Effect for OneKnob {
     }
     fn tail_samples(&self) -> usize {
         self.maximizer.tail_samples()
+    }
+}
+
+#[cfg(test)]
+mod acceptance {
+    use super::*;
+
+    #[test]
+    fn three_detectors_match_independent_db_ballistics_without_cross_band_pumping() {
+        for rate in [44_100.0, 48_000.0, 96_000.0] {
+            let settings = [
+                BandDynamicsParams {
+                    threshold_db: -24.0,
+                    ratio: 2.0,
+                    attack_ms: 5.0,
+                    release_ms: 80.0,
+                    makeup_db: 2.0,
+                },
+                BandDynamicsParams {
+                    threshold_db: -18.0,
+                    ratio: 4.0,
+                    attack_ms: 10.0,
+                    release_ms: 120.0,
+                    makeup_db: -1.0,
+                },
+                BandDynamicsParams {
+                    threshold_db: -12.0,
+                    ratio: 100.0,
+                    attack_ms: 2.0,
+                    release_ms: 30.0,
+                    makeup_db: 0.0,
+                },
+            ];
+            let mut bands: [BandDynamics; 3] = std::array::from_fn(|i| {
+                let mut band = BandDynamics::default();
+                band.controls.prepare(rate);
+                band.set(&settings[i], rate);
+                band.reset();
+                band
+            });
+            let mut reference = [0.0_f64; 3];
+            for frame in 0..12_000 {
+                for i in 0..3 {
+                    // Each detector has its own transitions and amplitude.
+                    // Right is the louder key; the audible stereo ratio stays 2:1.
+                    let key_db = if (frame / (500 + i * 137)) % 2 == 0 {
+                        -3.0
+                    } else {
+                        -45.0
+                    };
+                    let key = 10.0_f64.powf(key_db / 20.0) as f32;
+                    let p = settings[i];
+                    let slope = if p.ratio >= 100.0 {
+                        1.0
+                    } else {
+                        1.0 - 1.0 / f64::from(p.ratio)
+                    };
+                    let wanted = (key_db - f64::from(p.threshold_db)).max(0.0) * slope;
+                    let milliseconds = if wanted > reference[i] {
+                        p.attack_ms
+                    } else {
+                        p.release_ms
+                    };
+                    let keep = (-1000.0 / (f64::from(milliseconds) * f64::from(rate))).exp();
+                    reference[i] = wanted + (reference[i] - wanted) * keep;
+                    let gain = 10.0_f64.powf((f64::from(p.makeup_db) - reference[i]) / 20.0);
+                    let out = bands[i].tick([0.125, -0.25], [key * 0.1, key]);
+                    assert!(
+                        (f64::from(out[0]) - 0.125 * gain).abs() < 2e-5,
+                        "band {i} frame {frame}"
+                    );
+                    assert!((out[1] + 2.0 * out[0]).abs() < 1e-7);
+                }
+            }
+        }
     }
 }

@@ -60,7 +60,7 @@ async function choose(
 }
 
 describe("effect output routing in the inspector", () => {
-  it("lists outputs from the engine's table: one copy for Send Tap, two parts for Transient Split, none for the rest", () => {
+  it("lists outputs from the engine's table: one copy for Send Tap and two parts for both transient processors", () => {
     expect(effectOutputsOf("sendTap")).toEqual([
       { id: "send", label: "Send", splits: false },
     ])
@@ -68,6 +68,9 @@ describe("effect output routing in the inspector", () => {
       { id: "transient", label: "Transient", splits: true },
       { id: "sustain", label: "Sustain", splits: true },
     ])
+    expect(effectOutputsOf("transientShaper")).toEqual(
+      effectOutputsOf("transientSplit")
+    )
     for (const kind of ["eq", "compressor", "bandSplit", "reverb"]) {
       expect(effectOutputsOf(kind)).toEqual([])
     }
@@ -136,86 +139,90 @@ describe("effect output routing in the inspector", () => {
     ).toBeVisible()
   })
 
-  it("routes the two parts of a Transient Split separately and retires the routes with the effect", async () => {
-    const user = userEvent.setup()
-    const kick = trackNamed("Kick").id
-    const clap = trackNamed("Clap").id
-    const hat = trackNamed("Hat").id
-    const split = await addEffect(kick, "transientSplit")
-    render(<Outputs track={kick} effect={split} />)
-    expect(
-      screen.getByRole("list", { name: "Transient Split output routing" })
-    ).toBeVisible()
+  it.each(["transientSplit", "transientShaper"] as const)(
+    "routes the two parts of %s separately and retires the routes with the effect",
+    async (kind) => {
+      const name = kind === "transientSplit" ? "Transient Split" : "Transient Shaper"
+      const user = userEvent.setup()
+      const kick = trackNamed("Kick").id
+      const clap = trackNamed("Clap").id
+      const hat = trackNamed("Hat").id
+      const split = await addEffect(kick, kind)
+      render(<Outputs track={kick} effect={split} />)
+      expect(
+        screen.getByRole("list", { name: `${name} output routing` })
+      ).toBeVisible()
 
-    await choose(
-      user,
-      "Transient output of Transient Split: not routed",
-      /Clap/
-    )
-    await choose(user, "Sustain output of Transient Split: not routed", /Hat/)
-    expect(routes()).toEqual([
-      { effect: split, output: 0, target: clap },
-      { effect: split, output: 1, target: hat },
-    ])
-    expect(
-      screen.getByRole("button", {
-        name: "Transient output of Transient Split: Clap",
-      })
-    ).toBeVisible()
-    expect(
-      screen.getByRole("button", {
-        name: "Sustain output of Transient Split: Hat",
-      })
-    ).toBeVisible()
-    // A part that is not routed stays in the chain, and the menu says so.
-    await user.click(
-      screen.getByRole("button", {
-        name: "Sustain output of Transient Split: Hat",
-      })
-    )
-    expect(
-      await screen.findByRole("menuitemradio", {
-        name: "Not routed (stays in the chain)",
-      })
-    ).toBeVisible()
-    await user.keyboard("{Escape}")
-    await waitFor(() => expect(screen.queryByRole("menu")).toBeNull())
-    await fileRoundTrip()
+      await choose(
+        user,
+        `Transient output of ${name}: not routed`,
+        /Clap/
+      )
+      await choose(user, `Sustain output of ${name}: not routed`, /Hat/)
+      expect(routes()).toEqual([
+        { effect: split, output: 0, target: clap },
+        { effect: split, output: 1, target: hat },
+      ])
+      expect(
+        screen.getByRole("button", {
+          name: `Transient output of ${name}: Clap`,
+        })
+      ).toBeVisible()
+      expect(
+        screen.getByRole("button", {
+          name: `Sustain output of ${name}: Hat`,
+        })
+      ).toBeVisible()
+      // A part that is not routed stays in the chain, and the menu says so.
+      await user.click(
+        screen.getByRole("button", {
+          name: `Sustain output of ${name}: Hat`,
+        })
+      )
+      expect(
+        await screen.findByRole("menuitemradio", {
+          name: "Not routed (stays in the chain)",
+        })
+      ).toBeVisible()
+      await user.keyboard("{Escape}")
+      await waitFor(() => expect(screen.queryByRole("menu")).toBeNull())
+      await fileRoundTrip()
 
-    // Deleting the destination of one part retires that route only.
-    const routed = structuredClone(project())
-    await act(async () => {
-      await dispatch({ type: "removeMixerTrack", id: hat })
-    })
-    await flush()
-    expect(routes()).toEqual([{ effect: split, output: 0, target: clap }])
-    expect(
-      screen.getByRole("button", {
-        name: "Sustain output of Transient Split: not routed",
+      // Deleting the destination of one part retires that route only.
+      const routed = structuredClone(project())
+      await act(async () => {
+        await dispatch({ type: "removeMixerTrack", id: hat })
       })
-    ).toBeVisible()
-    await act(async () => {
-      await undo()
-    })
-    expect(project()).toEqual(routed)
+      await flush()
+      expect(routes()).toEqual([{ effect: split, output: 0, target: clap }])
+      expect(
+        screen.getByRole("button", {
+          name: `Sustain output of ${name}: not routed`,
+        })
+      ).toBeVisible()
+      await act(async () => {
+        await undo()
+      })
+      expect(project()).toEqual(routed)
 
-    // Deleting the effect retires both, and one undo restores both.
-    await act(async () => {
-      await dispatch({ type: "removeEffect", track: kick, effect: split })
-    })
-    await flush()
-    expect(routes()).toEqual([])
-    expect(screen.queryByRole("list")).toBeNull()
-    await act(async () => {
-      await undo()
-    })
-    expect(project()).toEqual(routed)
-    expect(
-      screen.getByRole("button", {
-        name: "Transient output of Transient Split: Clap",
+      // Deleting the effect retires both, and one undo restores both.
+      await act(async () => {
+        await dispatch({ type: "removeEffect", track: kick, effect: split })
       })
-    ).toBeVisible()
-  })
+      await flush()
+      expect(routes()).toEqual([])
+      expect(screen.queryByRole("list")).toBeNull()
+      await act(async () => {
+        await undo()
+      })
+      expect(project()).toEqual(routed)
+      expect(
+        screen.getByRole("button", {
+          name: `Transient output of ${name}: Clap`,
+        })
+      ).toBeVisible()
+    }
+  )
 
   it("leaves out destinations that would loop, and the backend refuses loops in both directions without editing", async () => {
     const user = userEvent.setup()

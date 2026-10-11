@@ -187,10 +187,52 @@ macro_rules! small_params {
 small_params!(OneKnobParams, "One Knob", {
     amount "amount" "Amount" { Fraction, Linear, 0.0, 1.0, 0.0 }
 });
-small_params!(TransientShaperParams, "Transient Shaper", {
-    attack "attack" "Attack" { None, Linear, -1.0, 1.0, 0.0 }
-    sustain "sustain" "Sustain" { None, Linear, -1.0, 1.0, 0.0 }
-    sensitivity "sensitivity" "Sensitivity" { Gain, Linear, 0.25, 4.0, 1.0 }
+/// Which part of the shaped sound a [`TransientShaperParams`] lets out.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub enum TransientListen {
+    /// The whole shaped sound.
+    #[default]
+    Both,
+    /// Only what the detector calls attack.
+    Attack,
+    /// Only the rest: the body and the release.
+    Sustain,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase", default)]
+#[ts(export)]
+pub struct TransientShaperParams {
+    /// -1 softens the attack by 18 dB, 1 boosts it by 18 dB; default 0.
+    pub attack: f32,
+    /// The same for everything that is not attack; default 0.
+    pub sustain: f32,
+    /// How readily a rise counts as an attack, 0.25 to 4; default 1.
+    pub sensitivity: f32,
+    /// The part that is put out. The two parts add up to the whole, so two
+    /// instances on two tracks split a sound into its attack and its body.
+    pub listen: TransientListen,
+}
+impl Default for TransientShaperParams {
+    fn default() -> Self {
+        Self {
+            attack: 0.0,
+            sustain: 0.0,
+            sensitivity: 1.0,
+            listen: TransientListen::Both,
+        }
+    }
+}
+// `listen` is appended: automation addresses the first three by index.
+param_set!(TransientShaperParams, "Transient Shaper", {
+    float [attack] "attack" "Attack" { None, Linear, -1.0, 1.0, 0.0 }
+    float [sustain] "sustain" "Sustain" { None, Linear, -1.0, 1.0, 0.0 }
+    float [sensitivity] "sensitivity" "Sensitivity" { Gain, Linear, 0.25, 4.0, 1.0 }
+    choice [listen] "listen" "Output" {
+        TransientListen, Both, [Both "both" "Both", Attack "attack" "Attack only", Sustain "sustain" "Sustain only"]
+    }
 });
 small_params!(TransientSplitParams, "Transient Split", {
     transient_gain_db "transientGainDb" "Transient gain" { Decibels, Linear, -60.0, 24.0, 0.0 }

@@ -233,7 +233,7 @@ describe("the effect rack on a strip", () => {
     expect(steps()).toBe(2)
   })
 
-  it("shows a gain reduction bar only on a compressor and a limiter", async () => {
+  it("shows a gain reduction bar only on the effects that turn their signal down", async () => {
     render(<MixerPanel />)
     const withBar: EffectKind[] = []
     for (const kind of EFFECT_KINDS) {
@@ -242,7 +242,15 @@ describe("the effect rack on a strip", () => {
         withBar.push(kind)
       await undoAll(1)
     }
-    expect(withBar).toEqual(["compressor", "limiter"])
+    expect(withBar).toEqual([
+      "compressor",
+      "limiter",
+      "multibandCompressor",
+      "multibandMaximizer",
+      "oneKnob",
+      "stageStack",
+      "masterLimiter",
+    ])
   })
 })
 

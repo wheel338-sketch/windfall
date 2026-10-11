@@ -23,6 +23,8 @@ use super::Session;
 use crate::events::Event;
 use crate::paths;
 
+mod mastering;
+
 /// Sample rates an export may ask for.
 const SAMPLE_RATES: std::ops::RangeInclusive<u32> = 8_000..=384_000;
 
@@ -163,6 +165,8 @@ enum Outcome {
         files: Vec<ExportedFile>,
         /// Audio clips the render had no room to play.
         dropped_clips: u32,
+        /// What mastering measured, when the export asked for it.
+        mastering: Option<windfall_ipc::MasteringReview>,
     },
     Cancelled,
 }
@@ -190,13 +194,14 @@ impl Progress<'_> {
 
     /// `outcome` is for the event that ends an export that did not fail.
     fn send(&self, done: bool, error: Option<String>, outcome: Option<Outcome>) {
-        let (files, dropped_clips, cancelled) = match outcome {
+        let (files, dropped_clips, cancelled, mastering) = match outcome {
             Some(Outcome::Written {
                 files,
                 dropped_clips,
-            }) => (Some(files), dropped_clips, None),
-            Some(Outcome::Cancelled) => (None, 0, Some(true)),
-            None => (None, 0, None),
+                mastering,
+            }) => (Some(files), dropped_clips, None, mastering),
+            Some(Outcome::Cancelled) => (None, 0, Some(true), None),
+            None => (None, 0, None, None),
         };
         self.session.emit(Event::ExportProgress(ExportProgress {
             path: self.path.clone(),
@@ -206,6 +211,7 @@ impl Progress<'_> {
             dropped_clips,
             files,
             cancelled,
+            mastering,
         }));
     }
 }
@@ -283,6 +289,9 @@ impl Session {
         }
         if options.mode == PlayMode::Pattern && options.pattern_loops < 1 {
             return Err("Render the pattern at least once.".to_owned());
+        }
+        if let Some(asked) = &options.mastering {
+            mastering::check(asked, options.stems.is_some() || playlist.is_some())?;
         }
 
         // All three under one lock, so the pattern is one of this project's
@@ -694,9 +703,30 @@ fn write_files(
         encoders.push(encoder.map_err(|error| named(&target.path, job, &error.to_string()))?);
     }
 
+    // With mastering the render goes to a file beside the export first, and
+    // the encoder is given the master once the whole mix has been measured.
+    let mut master = match &options.mastering {
+        Some(asked) => Some(mastering::MasterJob::start(
+            &transaction.files[0].stage,
+            options.sample_rate,
+            asked,
+        )?),
+        None => None,
+    };
+    let mastered = master.is_some();
+
     let mut failure = None;
     let mut mono = Vec::with_capacity(render.block_frames);
     let mut write = |stream: usize, block: &[f32]| {
+        if let Some(master) = master.as_mut() {
+            return match master.take(block) {
+                Ok(()) => true,
+                Err(error) => {
+                    failure = Some(error);
+                    false
+                }
+            };
+        }
         let samples = if encoder_channels(&job.settings) == 1 {
             mono.clear();
             mono.extend(
@@ -719,7 +749,8 @@ fn write_files(
         }
     };
     let mut report = |fraction: f32| {
-        progress.report(fraction);
+        // Rendering is the first half of an export that is mastered.
+        progress.report(if mastered { fraction * 0.5 } else { fraction });
         !cancelled() && prepared_pool.plugin_render_error().is_none()
     };
     let streamed: Streamed = match (&job.playlist_stems, &job.stems) {
@@ -766,6 +797,35 @@ fn write_files(
         return Err("there is nothing to export".to_owned());
     }
 
+    let review = match master.as_mut() {
+        Some(master) => {
+            let mut mono = Vec::new();
+            let channels = encoder_channels(&job.settings);
+            let encoder = &mut encoders[0];
+            let mut sink = |block: &[f32]| {
+                let samples = if channels == 1 {
+                    mono.clear();
+                    mono.extend(block.chunks_exact(2).map(|pair| (pair[0] + pair[1]) * 0.5));
+                    mono.as_slice()
+                } else {
+                    block
+                };
+                encoder.write(samples).map_err(|error| error.to_string())
+            };
+            let mut advance = |fraction: f32| {
+                progress.report(0.5 + 0.5 * fraction);
+                !cancelled()
+            };
+            match master.finish(&mut sink, &mut advance)? {
+                Some(review) => Some(review),
+                None => return Ok(Outcome::Cancelled),
+            }
+        }
+        None => None,
+    };
+    // The mix that was set aside goes before the files are put in place.
+    drop(master);
+
     // Finalize under staging names so a later encoder failure cannot
     // replace an earlier destination. The transaction restores backups
     // if moving a completed set fails part way through.
@@ -794,6 +854,7 @@ fn write_files(
     Ok(Outcome::Written {
         files: files.collect(),
         dropped_clips: streamed.dropped_clips,
+        mastering: review,
     })
 }
 

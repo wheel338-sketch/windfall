@@ -64,7 +64,16 @@ fn any_effect_reports_what_it_holds_and_refuses_other_settings() {
                 assert!(!effect.set_params(&other.default_params()));
             }
         }
-        let has_meter = matches!(kind, EffectKind::Compressor | EffectKind::Limiter);
+        let has_meter = matches!(
+            kind,
+            EffectKind::Compressor
+                | EffectKind::Limiter
+                | EffectKind::MultibandCompressor
+                | EffectKind::MultibandMaximizer
+                | EffectKind::OneKnob
+                | EffectKind::StageStack
+                | EffectKind::MasterLimiter
+        );
         assert_eq!(effect.gain_reduction().is_some(), has_meter);
         let has_latency = matches!(
             kind,
@@ -79,6 +88,7 @@ fn any_effect_reports_what_it_holds_and_refuses_other_settings() {
                 | EffectKind::FrequencyShifter
                 | EffectKind::PitchShift
                 | EffectKind::PitchCorrect
+                | EffectKind::MasterLimiter
         );
         let can_delay = has_latency || kind == EffectKind::StereoMatrix;
         assert_eq!(effect.latency_samples() > 0, has_latency, "{}", kind.name());

@@ -1,11 +1,25 @@
 //! Stage Stack: soft harmonic shaping followed by a zero-delay safety clip.
+//!
+//! The submodules hold what a master is measured by ([`loudness`]) and the
+//! larger limiter this one is the short form of ([`master_limiter`]).
+
+pub mod chain;
+pub mod loudness;
+pub mod master_limiter;
+
+pub use chain::{
+    MASTERING_CEILING_RANGE, MASTERING_PEAK_TOLERANCE_DB, MASTERING_TARGET_RANGE,
+    MASTERING_TOLERANCE_LU, Mastering, MasteringError, MasteringReport, MasteringSettings, master,
+};
+pub use loudness::{LOUDNESS_FLOOR, LoudnessMeter, LoudnessMetrics, measure};
+pub use master_limiter::{MasterLimiter, MasterLimiterParams, master_limiter_latency};
 
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
 use crate::balance::{Controls, rate};
-use crate::blocks::math::{db_to_gain, smoothing_coefficient};
-use crate::effect::Effect;
+use crate::blocks::math::{db_to_gain, level_to_db, smoothing_coefficient};
+use crate::effect::{Effect, GainReductionMeter};
 use crate::param::{ParamSet, param_set};
 
 /// Fixed recovery time of the safety stage, in milliseconds.
@@ -52,6 +66,7 @@ pub struct StageStack {
     ceiling_target: f32,
     safety_gain: f32,
     release: f32,
+    meter: GainReductionMeter,
 }
 
 impl Default for StageStack {
@@ -61,7 +76,16 @@ impl Default for StageStack {
             ceiling_target: 1.0,
             safety_gain: 1.0,
             release: smoothing_coefficient(RELEASE_MS, 48_000.0),
+            meter: GainReductionMeter::default(),
         }
+    }
+}
+
+impl StageStack {
+    /// Reads how far the safety stage turned the saturated signal down.
+    /// Take it before the effect goes to the audio thread.
+    pub fn meter(&self) -> GainReductionMeter {
+        self.meter.clone()
     }
 }
 
@@ -118,6 +142,7 @@ impl Effect for StageStack {
     }
 
     fn process(&mut self, left: &mut [f32], right: &mut [f32]) {
+        let mut lowest = 1.0_f32;
         for (left, right) in left.iter_mut().zip(right) {
             let [drive, tone, ceiling, mix] = self.controls.tick();
             let tone = tone.clamp(0.0, 1.0);
@@ -136,10 +161,14 @@ impl Effect for StageStack {
             } else {
                 self.safety_gain + (needed - self.safety_gain) * self.release
             };
+            lowest = lowest.min(self.safety_gain);
             let wet_left = (wet_left * self.safety_gain).clamp(-ceiling, ceiling);
             let wet_right = (wet_right * self.safety_gain).clamp(-ceiling, ceiling);
             *left = blend(dry_left, wet_left, mix);
             *right = blend(dry_right, wet_right, mix);
+        }
+        if lowest < 1.0 {
+            self.meter.raise(-level_to_db(lowest));
         }
     }
 

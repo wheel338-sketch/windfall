@@ -570,7 +570,8 @@ fn effect_at(kind: EffectKind, step: u32) -> EffectParams {
         | EffectKind::Tuner
         | EffectKind::StageStack
         | EffectKind::ControlSurface
-        | EffectKind::SendTap => {
+        | EffectKind::SendTap
+        | EffectKind::MasterLimiter => {
             // Sweep each declared scalar across its range, including new
             // processors, while keeping this exhaustive for future variants.
             let mut params = kind.default_params();

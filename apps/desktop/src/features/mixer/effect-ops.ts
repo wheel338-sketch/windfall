@@ -405,5 +405,14 @@ export function effectName(kind: EffectKind): string {
 
 /** Whether an effect of this kind reports gain reduction. */
 export function hasGainReduction(kind: EffectKind): boolean {
-  return kind === "compressor" || kind === "limiter"
+  return (
+    kind === "compressor" ||
+    kind === "limiter" ||
+    // The multiband and mastering dynamics report through the same feed.
+    kind === "multibandCompressor" ||
+    kind === "multibandMaximizer" ||
+    kind === "oneKnob" ||
+    kind === "stageStack" ||
+    kind === "masterLimiter"
+  )
 }

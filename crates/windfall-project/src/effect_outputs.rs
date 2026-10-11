@@ -2,8 +2,8 @@
 //!
 //! Most effects have one output: the next place in their track's chain. A
 //! few also have outputs of their own. Send Tap has a copy of the signal at
-//! its place in the chain, and Transient Split has its transient and
-//! sustained parts. A route sends one such output to another mixer track,
+//! its place in the chain, and Transient Split and Transient Shaper have
+//! their transient and sustained parts. A route sends one such output to another mixer track,
 //! where it is summed with everything else that arrives there.
 //!
 //! Routes are stored by effect id, beside the tracks, so an effect keeps
