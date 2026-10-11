@@ -709,3 +709,35 @@ fn one_knob_is_constrained_but_still_has_a_real_ceiling_latency_and_finite_tail(
         assert!(limited.iter().all(|x| x.abs() <= ceiling + 1e-6));
     }
 }
+
+
+#[test]
+fn bass_octave_survives_fundamental_removal_and_amount_is_additive_after_aligned_dry() {
+    use windfall_dsp::multiband::{BassHarmonics, BassHarmonicsParams, HARMONICS_LATENCY_SAMPLES};
+    let input = sine(60.0, 0.3, 0.0, 3 * RATE as usize, RATE);
+    let render = |amount| {
+        let mut effect = BassHarmonics::default();
+        effect.prepare(RATE as f32, 512);
+        effect.set_params(&BassHarmonicsParams { amount, drive: 3.0, cutoff_hz: 180.0 });
+        assert_eq!(effect.latency_samples(), HARMONICS_LATENCY_SAMPLES);
+        let mut left = input.clone(); let mut right: Vec<_> = input.iter().map(|x| -*x).collect();
+        for (l,r) in left.chunks_mut(131).zip(right.chunks_mut(131)) { effect.process(l,r); }
+        (left,right)
+    };
+    let (dry, dry_r) = render(0.0);
+    assert!(dry[..13].iter().all(|x| *x == 0.0));
+    assert_eq!(&dry[13..], &input[..input.len()-13]);
+    let (full, full_r) = render(1.0);
+    let (quarter, _) = render(0.25);
+    let wet: Vec<_> = full.iter().zip(&dry).map(|(a,b)| a-b).collect();
+    for n in RATE as usize..input.len() {
+        assert!((quarter[n] - dry[n] - 0.25 * wet[n]).abs() < 2e-7);
+        // Squaring is even; inverse fundamentals receive the same new octave.
+        assert!((full_r[n] - dry_r[n] - wet[n]).abs() < 2e-7);
+    }
+    let octave = amplitude_at(&wet[RATE as usize..], 120.0, RATE);
+    assert!(octave > 0.01, "small-speaker octave {octave}");
+    assert!(amplitude_at(&dry[RATE as usize..], 120.0, RATE) < 1e-6);
+    let dc = wet[RATE as usize..].iter().map(|x| f64::from(*x)).sum::<f64>() / f64::from(2*RATE);
+    assert!(dc.abs() < 1e-5, "generated path DC {dc}");
+}

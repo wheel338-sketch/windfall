@@ -119,3 +119,16 @@ covers saved amount automation, RT guard, PDC, live/export and partitioning.
 Mounted distinct one-knob control and document/file/history cases already exist.
 Amount zero retains crossover phase and the fixed sample-safety limiter; it is
 not a phase-transparent bypass. No true-peak promise is made for this effect.
+
+
+### `fx-low-lifter` — full-row candidate
+
+Retained low-band harmonic generation, DC removal, 2x oversampling and aligned
+dry path, with dedicated cutoff/drive/amount editor. Written, not executed:
+`bass_octave_survives_fundamental_removal_and_amount_is_additive_after_aligned_dry`
+measures the newly generated 120 Hz octave of a 60 Hz tone (absent in dry),
+linearity of additive amount, even-harmonic polarity, removed DC and exact
+13-frame dry alignment. Engine
+`bass_harmonic_amount_automation_matches_live_render_with_compensated_latency`
+adds RT/automation/live/export/partition/tail evidence to existing DSP spectrum,
+partition, finite-input and mounted/persistence tests. No alias-free claim.

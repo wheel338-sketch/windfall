@@ -85,3 +85,8 @@ fn maximizer_band_automation_matches_live_render_with_both_pdc_stages() {
 fn one_knob_amount_is_audible_and_matches_live_render_without_callback_allocations() {
     verify(EffectKind::OneKnob, "amount", 96);
 }
+
+#[test]
+fn bass_harmonic_amount_automation_matches_live_render_with_compensated_latency() {
+    verify(EffectKind::BassHarmonics, "amount", 13);
+}
