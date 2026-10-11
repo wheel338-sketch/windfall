@@ -754,3 +754,39 @@ fn a_template_install_refuses_edits_and_project_replacement_without_leaking_audi
         );
     }
 }
+
+#[test]
+fn extracted_template_audio_is_reclaimed_only_after_replacement_and_captures_pin_it() {
+    let rig = Rig::new();
+    let template = rig.session.template_save("Cleanup").unwrap();
+    rig.session.template_new(&template.id).unwrap();
+    let first = rig.session.state().sample_dir.clone().unwrap();
+    assert!(first.is_dir());
+    // Active document/history sources keep the extraction, even across GC.
+    rig.session.prune_extractions();
+    assert!(first.is_dir());
+    rig.session.template_new(&template.id).unwrap();
+    assert!(!first.exists());
+    let second = rig.session.state().sample_dir.clone().unwrap();
+    let capture = capture_channel(&rig, 0);
+    rig.session.project_new().unwrap();
+    // A snapshot returned to the UI can still be saved after a replacement.
+    assert!(second.is_dir());
+    let preset = rig
+        .session
+        .preset_write(&rig.file("late.wfpreset"), capture)
+        .unwrap();
+    assert!(
+        rig.session
+            .preset_read(&preset)
+            .unwrap()
+            .missing_audio
+            .is_empty()
+    );
+    // An unrelated directory is never swept.
+    let untracked = rig.folder.path().join("projects/project-user-files");
+    fs::create_dir_all(&untracked).unwrap();
+    fs::write(untracked.join("keep"), b"keep").unwrap();
+    rig.session.prune_extractions();
+    assert!(untracked.join("keep").exists());
+}

@@ -245,7 +245,7 @@ impl Session {
                 decoded,
             )
             .map_err(|refusal| refusal.message(&format!("{what} was not opened")))?;
-        extracted.retain();
+        self.retain_extraction(extracted.retain());
         Ok(snapshot)
     }
 

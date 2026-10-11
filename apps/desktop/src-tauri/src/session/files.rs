@@ -594,6 +594,7 @@ impl Session {
                 if let Some(retirement) = &mut retirement {
                     self.retire_project(retirement);
                 }
+                self.prune_extractions();
                 return Ok(snapshot);
             }
             // A refused candidate cannot be selected/captured. Drop it before

@@ -54,6 +54,7 @@ impl Session {
             if state.generation != generation || state.document.revision() != revision {
                 return Err("The project changed before the preset was taken; try again".into());
             }
+            self.pin_extraction(state.project_dir());
             (
                 state.document.project().clone(),
                 self.plugin_revision(),
