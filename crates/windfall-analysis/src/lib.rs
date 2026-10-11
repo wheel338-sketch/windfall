@@ -20,7 +20,7 @@ pub use jobs::{
     JobSnapshot, JobStatus, ManagerConfig, PreparedApply, Review, TicketId, Usage, WorkerContext,
 };
 pub use model::{
-    ModelCache, ModelCacheLimits, ModelManifest, ModelProvenance, OutputRole, VerifiedModel,
+    ModelCache, ModelCacheLimits, ModelManifest, ModelProvenance, OutputRole, VerifiedModel, OnnxContract, TensorSpec, TensorDimension,
 };
 pub use work::{CancelToken, Work};
 

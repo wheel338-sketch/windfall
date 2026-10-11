@@ -1,4 +1,4 @@
-import { decimal, type AnalysisModel } from "./types"
+import { decimal, type AnalysisModel, type AnalysisOnnxContract, type AnalysisTensorSpec } from "./types"
 
 function record(value: unknown): Record<string, unknown> {
   if (!value || typeof value !== "object" || Array.isArray(value))
@@ -41,6 +41,7 @@ export function parseManifest(json: string): AnalysisModel {
   )
     throw new Error("Declare one to sixteen output roles.")
   return {
+    ...(m.onnx == null ? {} : { onnx: onnx(m.onnx) }),
     id: text(m.id),
     version: text(m.version),
     revision: count(m.revision),
@@ -65,4 +66,31 @@ export function parseManifest(json: string): AnalysisModel {
       return { role: text(o.role), channels: integer(o.channels) }
     }),
   }
+}
+
+function tensors(value: unknown): AnalysisTensorSpec[] {
+  if (!Array.isArray(value) || value.length < 1 || value.length > 16)
+    throw new Error("Declare one to sixteen named ONNX tensors.")
+  return value.map((item: unknown) => {
+    const t = record(item)
+    if (!Array.isArray(t.shape) || t.shape.length < 1 || t.shape.length > 8)
+      throw new Error("ONNX tensors need one to eight explicit dimensions.")
+    return { name: text(t.name), shape: t.shape.map((d: unknown) => {
+      if (typeof d === "number" && Number.isInteger(d) && d > 0 && d <= 16777216) return d
+      if (typeof d === "string" && /^[A-Za-z0-9_]{1,64}$/.test(d)) return d
+      throw new Error("Use positive dimensions or bounded symbolic names.")
+    }) }
+  })
+}
+function onnx(value: unknown): AnalysisOnnxContract {
+  const o = record(value)
+  if (!Array.isArray(o.stemRoles) || o.stemRoles.length < 1 || o.stemRoles.length > 16)
+    throw new Error("Declare the ONNX stem dimension order.")
+  if (typeof o.overlapFrames !== "number" || !Number.isSafeInteger(o.overlapFrames) || o.overlapFrames < 0)
+    throw new Error("ONNX overlap must be a nonnegative frame count.")
+  if (typeof o.segmentFrames !== "number" || !Number.isSafeInteger(o.segmentFrames) || o.segmentFrames <= o.overlapFrames || o.segmentFrames > 16777216)
+    throw new Error("ONNX segment must exceed overlap.")
+  return { opset: integer(o.opset), inputs: tensors(o.inputs), outputs: tensors(o.outputs),
+    sampleRate: integer(o.sampleRate), segmentFrames: o.segmentFrames,
+    overlapFrames: o.overlapFrames, stemRoles: o.stemRoles.map(text) }
 }

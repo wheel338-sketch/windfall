@@ -1347,6 +1347,7 @@ mod tests {
         let root = tempfile::tempdir().unwrap();
         let bytes = b"authored unit fixture only";
         let model = ModelManifest {
+        onnx: None,
             id: "test-only-unit".into(),
             version: "1".into(),
             revision: 1,
@@ -1414,6 +1415,7 @@ mod tests {
             selection: FrameRange { start: 0, end: 2 },
         };
         let model = ModelManifest {
+        onnx: None,
             id: "test-only-unit".into(),
             version: "1".into(),
             revision: 1,

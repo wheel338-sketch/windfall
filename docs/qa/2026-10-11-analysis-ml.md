@@ -166,51 +166,39 @@ listening, hardware, cross-platform, benchmark or measured quality result is
 claimed. The three trained-model rows remain open even if software lifecycle
 tests pass. Four classical rows are candidates within the bounds above.
 
-## Model/runtime decision required
+## Accepted product and runtime decisions (overseer follow-up)
 
-No production inference adapter or weights are installed. Importing a manifest
-does not install executable code. Existing explicit import checks checksum,
-licence metadata, roles and bounded sizes; missing adapter/model returns an
-offline failure, not copied audio. Deterministic copies exist only in tests.
-Model registrations currently need explicit manifest reimport after restart,
-although cache bytes are retained.
+- Denoising, pitch/time editors and audio-to-MIDI use the accepted classical
+  product scope above. Neural transcription/voice suppression are optional
+  future directions, not acceptance gates for these four rows.
+- Dereverb uses built-in classical DSP: vocal mode is multichannel STFT WPE,
+  general mode is conservative decay-model late-power suppression. No trained
+  weights or neural claim are required. Implementation is in progress in this
+  follow-up; independent measured-behaviour acceptance is still an integration
+  gate. Prior missing-model dereverb copy/claim is superseded by this decision.
+- Four-stem separation and remix remain open. ONNX Runtime is the selected
+  runtime direction; users import licensed, pinned packs and no weights ship
+  in the repository. No `ort` dependency/runtime implementation is added here.
+  The ONNX manifest now records opset, named input/output tensor shapes,
+  symbolic dimensions, sample rate, segment/overlap frames and ordered stem
+  roles. Pack metadata is atomically persisted beside the cache and restored
+  after restart with byte checksums reverified. A corrupt/absent pack reports
+  an offline error; it is never silently trusted or downloaded.
+- Exact four-stem model/export, licensed weight bytes, CPU runtime version,
+  preprocessing, stitching and memory/rate budgets still need implementation
+  and evaluation. Demucs upstream code is MIT, but its PyTorch reference does
+  not establish that a particular ONNX export or weight licence is suitable.
+  [Demucs](https://github.com/facebookresearch/demucs),
+  [ONNX Runtime MIT licence](https://github.com/microsoft/onnxruntime/blob/main/LICENSE).
+  RNNoise (BSD-3-Clause speech denoising) and Basic Pitch (Apache-2.0 note
+  transcription) are not four-stem or dereverb solutions and are not required
+  for the accepted classical products.
 
-- **Demucs v4**: upstream [repository](https://github.com/facebookresearch/demucs)
-  and [MIT licence](https://github.com/facebookresearch/demucs/blob/main/LICENSE).
-  The archived upstream uses Python/PyTorch; `htdemucs` targets four stereo
-  stems at 44.1 kHz. A packaged CPU implementation must pin preprocessing,
-  segment overlap, gain handling and output alignment. Per-stem automatic
-  rescaling must not silently change the reviewed mix balance. No ONNX export
-  compatibility is assumed. Decide exact fork/version, model bytes/checksum,
-  separate weight provenance/licence, runtime distribution and memory budget.
-  The current 64 MiB pack cap may need an audited increase for chosen weights.
-- **RNNoise**: [repository](https://github.com/xiph/rnnoise) and
-  [BSD-style three-clause licence](https://github.com/xiph/rnnoise/blob/main/COPYING).
-  Its C runtime targets 48 kHz mono speech noise suppression. It is a possible
-  optional voice denoiser, not a music separator or either dereverb mode.
-  Pin model provenance and frame contract, channel/resampling/gain policy,
-  distribution notices and music/stereo damage evaluation. Upstream setup
-  downloads model data; none of those scripts were run here.
-- **Basic Pitch**: [repository](https://github.com/spotify/basic-pitch) and
-  [Apache-2.0 licence](https://github.com/spotify/basic-pitch/blob/main/LICENSE).
-  TensorFlow reference models have ONNX/CoreML/TFLite conversions; upstream
-  Windows uses ONNX. Input is downmixed and resampled to 22.05 kHz. A selected
-  runtime must match the reference windowing, stitching, onset/note/contour
-  postprocessing and tested conversion. [ONNX Runtime's MIT licence](https://github.com/microsoft/onnxruntime/blob/main/LICENSE)
-  alone does not approve a particular binary, wrapper or model. Decide pinned
-  model/runtime versions, weight licence and redistribution notices. The
-  classical spectral heuristic makes no Basic Pitch quality claim.
-- **Dereverb**: no trained dereverb candidate is selected in the roadmap.
-  Supply licensed general and vocal weights (or a demonstrably mode-aware
-  model), preprocessing/output contracts and bounded CPU adapter. Evaluate
-  tail reduction, dry-signal damage and stereo coherence on authored dry/reverb
-  fixtures. Denoising cannot stand in for dereverberation.
-
-The user must select and approve exact redistributable model/runtime artefacts
-or explicitly import a supported licensed pack. An implementer must then add
-the corresponding production adapter and independent quality evaluation.
-`core-stem-separation`, `win-playlist-deverb` and `wf-remix-a-song`
-remain open until that happens. No dependency or weights were added.
+Follow-up registry test: `pack_registry_restart_keeps_onnx_contract_and_rechecks_checksum`
+in `session/analysis_jobs/pack_registry.rs`, **written, not executed**.
+Registration is bounded to eight packs / 128 KiB metadata. A malformed or
+corrupt registry fails closed with its error exposed in capability; explicit
+repair of that registry is required before imports can rewrite it.
 
 ## Integrator commands (worker has not run any of them)
 

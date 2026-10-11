@@ -80,6 +80,7 @@ fn work() -> Work {
 }
 fn manifest() -> ModelManifest {
     ModelManifest {
+        onnx: None,
         id: "test-only-lifecycle-copy".into(),
         version: "1".into(),
         revision: 1,
@@ -1112,6 +1113,7 @@ fn explicit_model_import_checks_cache_content_size_cancel_io_and_absent() {
     assert_eq!(fs::read(&path).unwrap(), vec![b'x'; MODEL.len()]);
     fs::write(&path, original).unwrap();
     let absent = ModelManifest {
+        onnx: None,
         sha256: [1; 32],
         ..model.clone()
     };

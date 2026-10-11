@@ -3,6 +3,7 @@
 //! model/worker waits and retirement always run outside recording/State guards.
 use super::{Session, State};
 mod source_namespace;
+mod pack_registry;
 use crate::sync::lock;
 use std::collections::BTreeMap;
 use std::io::Read;
@@ -87,6 +88,7 @@ fn input_limits() -> native::InputLimits {
 fn manifest(spec: AnalysisModel) -> Result<native::ModelManifest, String> {
     let p = spec.provenance;
     let model = native::ModelManifest {
+        onnx: spec.onnx.map(onnx_native),
         id: spec.id,
         version: spec.version,
         revision: number(&spec.revision)?,
@@ -125,7 +127,7 @@ fn manifest(spec: AnalysisModel) -> Result<native::ModelManifest, String> {
 fn model_wire(model: &native::ModelManifest) -> AnalysisModel {
     let p = &model.provenance;
     AnalysisModel {
-        id: model.id.clone(),
+        onnx: model.onnx.as_ref().map(onnx_wire),        id: model.id.clone(),
         version: model.version.clone(),
         revision: model.revision.to_string(),
         sha256: hex(&model.sha256),
@@ -153,6 +155,24 @@ fn model_wire(model: &native::ModelManifest) -> AnalysisModel {
             })
             .collect(),
     }
+}
+fn onnx_native(o: windfall_ipc::AnalysisOnnxContract) -> native::OnnxContract {
+    fn tensors(items: Vec<windfall_ipc::AnalysisTensorSpec>) -> Vec<native::TensorSpec> {
+        items.into_iter().map(|t| native::TensorSpec { name: t.name, shape: t.shape.into_iter().map(|d| match d {
+            windfall_ipc::AnalysisTensorDimension::Fixed(n) => native::TensorDimension::Fixed(n),
+            windfall_ipc::AnalysisTensorDimension::Symbol(s) => native::TensorDimension::Symbol(s),
+        }).collect() }).collect()
+    }
+    native::OnnxContract { opset: o.opset, inputs: tensors(o.inputs), outputs: tensors(o.outputs), sample_rate: o.sample_rate, segment_frames: o.segment_frames, overlap_frames: o.overlap_frames, stem_roles: o.stem_roles }
+}
+fn onnx_wire(o: &native::OnnxContract) -> windfall_ipc::AnalysisOnnxContract {
+    fn tensors(items: &[native::TensorSpec]) -> Vec<windfall_ipc::AnalysisTensorSpec> {
+        items.iter().map(|t| windfall_ipc::AnalysisTensorSpec { name: t.name.clone(), shape: t.shape.iter().map(|d| match d {
+            native::TensorDimension::Fixed(n) => windfall_ipc::AnalysisTensorDimension::Fixed(*n),
+            native::TensorDimension::Symbol(s) => windfall_ipc::AnalysisTensorDimension::Symbol(s.clone()),
+        }).collect() }).collect()
+    }
+    windfall_ipc::AnalysisOnnxContract { opset: o.opset, inputs: tensors(&o.inputs), outputs: tensors(&o.outputs), sample_rate: o.sample_rate, segment_frames: o.segment_frames, overlap_frames: o.overlap_frames, stem_roles: o.stem_roles.clone() }
 }
 fn job_wire(job: native::JobSnapshot) -> AnalysisJob {
     AnalysisJob {
@@ -192,6 +212,7 @@ fn task_wire(task: native::InferenceTask) -> windfall_ipc::AnalysisTask {
 }
 
 struct Owned {
+    registry_loaded: bool,
     cache: Option<native::ModelCache>,
     manager: Option<Arc<native::JobManager>>,
     models: BTreeMap<(String, String), native::ModelManifest>,
@@ -214,6 +235,7 @@ impl Service {
             root,
             gate: Mutex::new(()),
             owned: Mutex::new(Owned {
+                registry_loaded: false,
                 cache: None,
                 manager: None,
                 models: BTreeMap::new(),
@@ -412,12 +434,15 @@ fn file_bytes(file: &mut impl Read, work: &mut native::Work) -> Result<Vec<u8>, 
 
 impl Session {
     pub fn analysis_capability(&self) -> AnalysisCapability {
-        let owned = lock(&self.inner.analysis.owned);
+        let service = &self.inner.analysis;
+        let _gate = lock(&service.gate);
+        let registry_error = service.restore_packs().err();
+        let owned = lock(&service.owned);
         let available = owned.adapter.is_some() && !owned.closed;
         AnalysisCapability {
             native: true,
             available,
-            reason: (!available).then(|| UNAVAILABLE.into()),
+            reason: registry_error.or_else(|| (!available).then(|| UNAVAILABLE.into())),
             models: owned.models.values().map(model_wire).collect(),
         }
     }
@@ -437,6 +462,7 @@ impl Session {
         if lock(&service.owned).closed {
             return Err(error("shutdown", "Analysis service is shut down."));
         }
+        service.restore_packs()?;
         let model = manifest(spec)?;
         let key = (model.id.clone(), model.version.clone());
         {
@@ -467,12 +493,16 @@ impl Session {
             )
             .map_err(native_error)?;
         let response = model_wire(&model);
-        lock(&service.owned).models.insert(key, model);
+        let mut models = lock(&service.owned).models.clone();
+        models.insert(key, model);
+        service.persist_packs(&models)?;
+        lock(&service.owned).models = models;
         Ok(response)
     }
     pub fn analysis_submit(&self, request: AnalysisSubmit) -> Result<AnalysisJob, String> {
         let service = &self.inner.analysis;
         let _gate = lock(&service.gate);
+        service.restore_packs()?;
         let manager = service.ensure_manager()?;
         let model = lock(&service.owned)
             .models

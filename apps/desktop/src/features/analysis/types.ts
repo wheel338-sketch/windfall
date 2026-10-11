@@ -9,7 +9,13 @@ export type AnalysisProvenance = {
   adapterVersion: string
   device: string
 }
+export type AnalysisTensorSpec = { name: string; shape: (number | string)[] }
+export type AnalysisOnnxContract = {
+  opset: number; inputs: AnalysisTensorSpec[]; outputs: AnalysisTensorSpec[]
+  sampleRate: number; segmentFrames: number; overlapFrames: number; stemRoles: string[]
+}
 export type AnalysisModel = {
+  onnx?: AnalysisOnnxContract | null
   id: string
   version: string
   revision: string

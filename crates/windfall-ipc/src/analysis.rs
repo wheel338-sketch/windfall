@@ -24,10 +24,39 @@ pub struct AnalysisOutputRole {
     pub role: String,
     pub channels: u16,
 }
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(untagged)]
+#[ts(export)]
+pub enum AnalysisTensorDimension {
+    Fixed(u32),
+    Symbol(String),
+}
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct AnalysisTensorSpec {
+    pub name: String,
+    pub shape: Vec<AnalysisTensorDimension>,
+}
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct AnalysisOnnxContract {
+    pub opset: u32,
+    pub inputs: Vec<AnalysisTensorSpec>,
+    pub outputs: Vec<AnalysisTensorSpec>,
+    pub sample_rate: u32,
+    pub segment_frames: u32,
+    pub overlap_frames: u32,
+    pub stem_roles: Vec<String>,
+}
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
 #[ts(export)]
 pub struct AnalysisModel {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub onnx: Option<AnalysisOnnxContract>,
     pub id: String,
     pub version: String,
     pub revision: String,
