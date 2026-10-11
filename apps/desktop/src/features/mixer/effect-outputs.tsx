@@ -28,8 +28,8 @@ import { outputChoices, type RoutingChoices } from "./routing"
 /*
  * Routing of the outputs some effects have beside the next place in their
  * chain: Send Tap's copy of the signal, and the transient and sustained
- * parts of Transient Split and Transient Shaper. The engine sends a routed output to its track
- * from the effect's place in the chain, before the fader.
+ * parts of Transient Split and Transient Shaper. The engine sends a routed
+ * output to its track from the effect's place in the chain, before the fader.
  */
 
 /** One separately routable output of an effect kind. */

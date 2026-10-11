@@ -231,7 +231,7 @@ artifacts. The commands below are instructions, not execution evidence.
 source scripts/msvc-env.sh
 task_bindings="$(mktemp -d)"
 export TS_RS_EXPORT_DIR="$(cygpath -w "$task_bindings")"
-scripts/gen-bindings.sh "$task_bindings"
+scripts/gen-bindings.sh
 scripts/build-sim.sh
 cargo test -p windfall-dsp --lib multiband
 cargo test -p windfall-dsp --lib mastering
@@ -248,6 +248,8 @@ cargo fmt --all --check
 cargo clippy -p windfall-dsp -p windfall-project -p windfall-engine -p windfall-desktop --all-targets -- -D warnings
 ```
 
+The default generator writes the fresh application bindings; the exported
+TS_RS_EXPORT_DIR keeps subsequent test-driven exports in the temporary directory.
 Use the integration owner's standard generator staging/review procedure; never
 copy stale generated types or WASM from this worker as validation. The merge
 commit includes incoming integration-generated artifacts without hand edits.

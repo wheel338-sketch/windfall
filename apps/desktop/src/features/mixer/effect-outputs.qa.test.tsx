@@ -223,6 +223,7 @@ describe("effect output routing in the inspector", () => {
       ).toBeVisible()
     }
   )
+
   it("leaves out destinations that would loop, and the backend refuses loops in both directions without editing", async () => {
     const user = userEvent.setup()
     const kick = trackNamed("Kick").id
