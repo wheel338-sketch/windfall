@@ -29,7 +29,7 @@ describe("BYOK panel explicit-action cases (HTTP responses are fixtures)", () =>
     const before = await app.backend.documentSnapshot()
     fireEvent.click(screen.getByRole("button", { name: "Save BYOK connection" }))
     await waitFor(() => expect(screen.getByRole("button", { name: "Ask BYOK assistant" })).toBeEnabled())
-    expect(configure).toHaveBeenCalledWith({ ...connected, hasKey: undefined, apiKey: "fixture-private-key" })
+    expect(configure).toHaveBeenCalledWith({ baseUrl: connected.baseUrl, model: connected.model, enabled: true, apiKey: "fixture-private-key" })
     expect(screen.getByLabelText("API key")).toHaveValue("")
     expect(remote).not.toHaveBeenCalled()
     expect(await app.backend.documentSnapshot()).toEqual(before)

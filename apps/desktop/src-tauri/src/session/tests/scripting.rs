@@ -371,3 +371,86 @@ fn proposal_recording_admission_is_rechecked_after_engine_preparation() {
     assert!(result.is_err());
     assert_eq!(rig.session.document_snapshot(), before);
 }
+
+#[test]
+fn byok_fake_endpoint_is_reviewed_atomic_stale_guarded_and_never_saved_in_project() {
+    use crate::assistant::tests::{completion, fake};
+    use windfall_ipc::AssistantConnectionUpdate;
+    let rig = Rig::new();
+    let before = rig.session.document_snapshot();
+    let request = rig.session.assistant_request_begin();
+    assert!(
+        rig.session
+            .assistant_remote(request, "help")
+            .unwrap_err()
+            .contains("OFF")
+    );
+    assert_eq!(rig.session.document_snapshot(), before);
+    let content = r#"{"answer":"New pattern","label":"Pattern","explanation":"Review pattern","commands":[{"type":"addPattern","name":"BYOK Verse"}]}"#;
+    let (url, server) = fake(completion(content), std::time::Duration::ZERO);
+    let configure = |url| AssistantConnectionUpdate {
+        base_url: url,
+        model: "fake-model".into(),
+        enabled: true,
+        api_key: Some("session-private-key".into()),
+    };
+    rig.session.assistant_configure(configure(url)).unwrap();
+    let request = rig.session.assistant_request_begin();
+    let reply = rig
+        .session
+        .assistant_remote(request, "create pattern BYOK Verse")
+        .unwrap();
+    server.join().unwrap();
+    assert_eq!(rig.session.document_snapshot(), before);
+    let proposal = reply.proposal.unwrap();
+    let result = rig.session.proposal_apply(proposal.clone()).unwrap();
+    assert_eq!(result.patch.history.cursor, before.history.cursor + 1);
+    assert!(rig.session.proposal_apply(proposal.clone()).is_err());
+    rig.session
+        .proposal_undo(windfall_project::proposal::ProposalStamp {
+            revision: result.patch.revision,
+            ..proposal.stamp
+        })
+        .unwrap();
+    assert_eq!(rig.project().patterns, before.project.patterns);
+    let text = windfall_project::file::to_json(&rig.project()).unwrap();
+    assert!(!text.contains("session-private-key"));
+    assert!(!text.contains("fake-model"));
+    assert!(
+        std::fs::read_to_string(rig.file("assistant-connection.json"))
+            .unwrap()
+            .contains("session-private-key")
+    );
+
+    // A later invalid command must not leak the earlier valid command/ID.
+    let bad = r#"{"answer":"Bad batch","label":"Bad","explanation":"Must reject","commands":[{"type":"addPattern","name":"Never created"},{"type":"updateChannel","id":4294967295,"patch":{"muted":true}}]}"#;
+    let (url, server) = fake(completion(bad), std::time::Duration::ZERO);
+    rig.session.assistant_configure(configure(url)).unwrap();
+    let before = rig.session.document_snapshot();
+    let request = rig.session.assistant_request_begin();
+    assert!(rig.session.assistant_remote(request, "bad batch").is_err());
+    server.join().unwrap();
+    assert_eq!(rig.session.document_snapshot(), before);
+
+    let (url, server) = fake(completion(content), std::time::Duration::from_millis(200));
+    rig.session.assistant_configure(configure(url)).unwrap();
+    let request = rig.session.assistant_request_begin();
+    let hold = rig.session.hold("assistant:request-snapshot");
+    let job = rig
+        .session
+        .background(move |s| s.assistant_remote(request, "create pattern"));
+    hold.wait();
+    rig.session
+        .dispatch(
+            Command::AddPattern {
+                name: Some("Concurrent edit".into()),
+            },
+            None,
+        )
+        .unwrap();
+    let before = rig.session.document_snapshot();
+    hold.release();
+    assert!(job.join().unwrap().unwrap_err().contains("changed"));
+    server.join().unwrap();
+    assert_eq!(rig.session.document_snapshot(), before);
+}

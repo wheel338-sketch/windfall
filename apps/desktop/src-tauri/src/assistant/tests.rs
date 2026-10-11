@@ -22,11 +22,32 @@ fn context(project: &Project) -> AssistantContext<'_> {
     }
 }
 pub(crate) fn fake(body: String, delay: Duration) -> (String, thread::JoinHandle<String>) {
+    fake_status(body, delay, "200 OK")
+}
+fn fake_status(
+    body: String,
+    delay: Duration,
+    status: &'static str,
+) -> (String, thread::JoinHandle<String>) {
+    let (url, worker, _) = fake_response(body, delay, status, None);
+    (url, worker)
+}
+fn fake_response(
+    body: String,
+    delay: Duration,
+    status: &'static str,
+    location: Option<String>,
+) -> (
+    String,
+    thread::JoinHandle<String>,
+    std::sync::mpsc::Receiver<()>,
+) {
+    let (notice, accepted) = std::sync::mpsc::channel();
     let listener = TcpListener::bind("127.0.0.1:0").unwrap();
     let url = format!("http://{}/v1", listener.local_addr().unwrap());
     let worker = thread::spawn(move || {
         listener.set_nonblocking(true).unwrap();
-        let deadline = Instant::now() + Duration::from_secs(3);
+        let deadline = Instant::now() + Duration::from_secs(10);
         let mut socket = loop {
             match listener.accept() {
                 Ok((s, _)) => break s,
@@ -42,16 +63,20 @@ pub(crate) fn fake(body: String, delay: Duration) -> (String, thread::JoinHandle
             .set_read_timeout(Some(Duration::from_secs(2)))
             .unwrap();
         let request = read_request(&mut socket);
+        let _ = notice.send(());
         thread::sleep(delay);
+        let location = location
+            .map(|url| format!("Location: {url}\r\n"))
+            .unwrap_or_default();
         let _ = write!(
             socket,
-            "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
+            "HTTP/1.1 {status}\r\n{location}Content-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
             body.len(),
             body
         );
         request
     });
-    (url, worker)
+    (url, worker, accepted)
 }
 fn read_request(socket: &mut TcpStream) -> String {
     let mut reader = std::io::BufReader::new(socket);
@@ -185,13 +210,19 @@ fn fake_endpoint_timeout_and_cancel_are_bounded_and_no_key_never_connects() {
     );
     assert!(began.elapsed() < Duration::from_secs(1));
     server.join().unwrap();
-    let (url, server) = fake(completion(REPLY), Duration::from_millis(250));
+    let (url, server, accepted) = fake_response(
+        completion(REPLY),
+        Duration::from_millis(250),
+        "200 OK",
+        None,
+    );
     let config = connection(url);
     let request = service.begin();
     thread::scope(|scope| {
-        scope.spawn(|| {
-            thread::sleep(Duration::from_millis(50));
-            service.cancel(request);
+        let service_ref = &service;
+        scope.spawn(move || {
+            accepted.recv_timeout(Duration::from_secs(2)).unwrap();
+            service_ref.cancel(request);
         });
         assert!(
             Provider {
@@ -255,4 +286,36 @@ fn connection_is_off_without_key_and_atomic_private_file_roundtrips_without_expo
 }
 fn fs_key(path: &std::path::Path) -> bool {
     std::fs::read_to_string(path).unwrap().contains(KEY)
+}
+
+#[test]
+fn http_refusal_and_redirect_never_expose_response_body_or_follow_another_endpoint() {
+    let service = Service::default();
+    let project = Project::new("Refusal");
+    for status in ["401 Unauthorized", "302 Found"] {
+        let trap = TcpListener::bind("127.0.0.1:0").unwrap();
+        trap.set_nonblocking(true).unwrap();
+        let (url, server, _) = fake_response(
+            format!("sensitive failure: {KEY}"),
+            Duration::ZERO,
+            status,
+            Some(format!("http://{}/trap", trap.local_addr().unwrap())),
+        );
+        let config = connection(url);
+        let error = Provider {
+            config: &config,
+            timeout: Duration::from_secs(2),
+            service: &service,
+            request: service.begin(),
+        }
+        .respond("help", context(&project))
+        .unwrap_err();
+        assert!(error.contains("refused"));
+        assert!(!error.contains(KEY));
+        assert_eq!(
+            trap.accept().unwrap_err().kind(),
+            std::io::ErrorKind::WouldBlock
+        );
+        server.join().unwrap();
+    }
 }

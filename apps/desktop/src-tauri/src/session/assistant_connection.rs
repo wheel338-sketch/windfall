@@ -36,6 +36,8 @@ impl Session {
                 },
             )
         };
+        #[cfg(test)]
+        self.pause("assistant:request-snapshot");
         let reply = self.inner.assistant.respond(
             &file,
             request,

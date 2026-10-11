@@ -31,6 +31,13 @@ Fake loopback tests (all written, not executed):
 `connection_is_off_without_key_and_atomic_private_file_roundtrips_without_exposing_it`.
 Project `assistant_protocol` test:
 `schema_and_parser_bound_strict_commands_and_keep_authoritative_stamp`.
+Additional native fixtures: `http_refusal_and_redirect_never_expose_response_body_or_follow_another_endpoint`
+uses a second loopback listener as the redirect trap; no fixture can contact an
+external endpoint. `byok_fake_endpoint_is_reviewed_atomic_stale_guarded_and_never_saved_in_project`
+drives the real session through a fake endpoint, apply/undo, failed-batch rollback,
+credential-file isolation and a deterministic snapshot barrier for stale replies.
+Cancellation fixture waits for the fake endpoint to read the request before
+cancelling. All are written, not executed.
 Native request returns only a proposal and rechecks the document stamp. UI/IPC
 now exposes connection status/save/remove-key and explicit **Ask BYOK assistant**
 alongside offline help. Neither mount nor save sends a request. Browser mode

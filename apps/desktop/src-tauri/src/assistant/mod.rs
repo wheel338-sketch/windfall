@@ -82,7 +82,11 @@ impl Service {
         }
         .respond(prompt, context);
         crate::sync::lock(&self.wake).take();
-        result
+        if self.cancelled(request) {
+            Err("assistant request cancelled".into())
+        } else {
+            result
+        }
     }
     fn cancelled(&self, request: u64) -> bool {
         self.ticket.load(Ordering::Acquire) != request
@@ -90,4 +94,4 @@ impl Service {
 }
 
 #[cfg(test)]
-mod tests;
+pub(crate) mod tests;
