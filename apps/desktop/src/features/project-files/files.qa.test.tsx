@@ -1,3 +1,4 @@
+import { openEffect } from "@/features/mixer/effect-ops"
 import { toast } from "sonner"
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react"
 import { afterEach, beforeEach, expect, it, vi } from "vitest"
@@ -224,6 +225,9 @@ it("mounted disk browser applies a real built-in instrument plugin preset and re
   const saved = state().project.channels.find((c) => c.id === channel)!.source
   const destination = state().project.channels.find((c) => c.id === channel)!
   await dispatch({ type: "applyChannelPreset", id: channel, expected: destination, nameColor: false, preset: { name: destination.name, color: destination.color, volume: destination.volume, pan: destination.pan, source: { type: "instrument", params: instrumentDescriptor("fourOp").defaults } } })
+  // A selected mixer effect must not steal an instrument preset destination.
+  const effect = await dispatch({ type: "addEffect", track: state().project.mixer.tracks[0].id, kind: "delay" })
+  openEffect(effect.created[0])
   const before = state().history.cursor
   render(<ProjectFilesPanel />)
   fireEvent.click(screen.getByRole("button", { name: "Browse preset files on disk…" }))

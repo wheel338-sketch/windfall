@@ -40,7 +40,6 @@ export async function applyPresetFile(chosen?: string) {
   const channel = useProjectStore.getState().project.channels.find((c) => c.id === useUiStore.getState().selectedChannel)
   const state = await backend.timelineState(); current(ticket)
   const effect = selectedEffect()
-  const target = effect ? { type: "effect" as const, effect: effect.slot.id } : channel ? { type: "instrument" as const, channel: channel.id } : null
   const path = chosen ?? await backend.pickPresetPath()
   if (path === null) return
   current(ticket)
@@ -58,7 +57,10 @@ export async function applyPresetFile(chosen?: string) {
     const result = await backend.presetApplyChannel(path, channel.id, channel, false, withoutAudio, state.generation, state.revision)
     if (ticket.generation === getProjectGeneration()) receivePatch(result.patch)
   } else if (review.preset.plugin) {
-    if (!target) throw new Error("Select a plugin destination")
+    const source = review.preset.plugin.state
+    const instrument = source.type === "instrument" || (source.type === "hosted" && source.instrument)
+    const target = instrument ? channel ? { type: "instrument" as const, channel: channel.id } : null : effect ? { type: "effect" as const, effect: effect.slot.id } : null
+    if (!target) throw new Error(instrument ? "Select an instrument channel destination" : "Select an effect slot destination")
     current(ticket)
     const result = await backend.presetApplyPlugin(path, target, state.generation, state.revision)
     if (ticket.generation === getProjectGeneration()) receivePatch(result.patch)
