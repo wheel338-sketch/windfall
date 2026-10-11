@@ -276,6 +276,7 @@ mod timebase_tests {
             ppq,
             running_status: false,
             swing: false,
+            expression: Default::default(),
         }
     }
 

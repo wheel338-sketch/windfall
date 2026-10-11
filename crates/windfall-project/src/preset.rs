@@ -653,6 +653,7 @@ impl ChannelPreset {
             solo: false,
             mixer_track: TrackId::MASTER,
             source: self.source.clone(),
+            expression_map: Default::default(),
         };
         project.channels.push(self.onto(&base, sample));
         if let Some(binding) = &self.plugin {
