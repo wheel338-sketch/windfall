@@ -117,6 +117,9 @@ pub(crate) trait InstanceBackend {
     fn open_editor(&mut self, options: &EditorOptions) -> Result<EditorInfo, EditorError>;
     fn close_editor(&mut self);
     fn editor(&self) -> Option<EditorInfo>;
+    fn set_editor_scale(&mut self, _application: f64) -> Result<EditorInfo, EditorError> {
+        Err(EditorError::UnsupportedScale)
+    }
 }
 
 struct Active {
@@ -434,6 +437,14 @@ impl PluginInstance {
     /// The open editor's window, if there is one.
     pub fn editor(&self) -> Option<EditorInfo> {
         self.backend.editor()
+    }
+
+    /// Main-thread native content scaling; no musical state or audio command.
+    /// Refusal keeps the current editor alive at its previous scale.
+    pub fn set_editor_scale(&mut self, application: f64) -> Result<EditorInfo, EditorError> {
+        crate::gui::scaling::content_scale(application, 1.0)?;
+        if self.editor().is_none() { return Err(EditorError::NoEditor); }
+        self.backend.set_editor_scale(application)
     }
 }
 

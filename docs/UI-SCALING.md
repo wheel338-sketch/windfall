@@ -1,5 +1,13 @@
 # Interface scaling
 
+2026-10-11 follow-up (`gpt/w3-shell-release`, edit-only): application scale now
+has a custom IPC path to the plugin owner thread, remembered for reopen and
+applied to supported embedded Windows CLAP/VST3 content. Refusals are explicit.
+This source has not been compiled/tested. Release bridge editor hosting, actual
+monitor-transition notifications, macOS/Linux hosting, and physical/performance
+gates below remain open. See `docs/qa/2026-10-11-shell-release.md` for details.
+The phase-1 evidence below predates this follow-up and is not evidence for it.
+
 This implements the shared application portion of `wf-ui-scaling` (phase 1,
 roadmap R1). The full row also requires scaling native third-party plugin
 window content. **That part is pending with the plugin-runtime owner; this

@@ -17,7 +17,7 @@ use std::time::Duration;
 use windows_sys::Win32::Foundation::{HWND, LPARAM, LRESULT, RECT, WPARAM};
 use windows_sys::Win32::Graphics::Gdi::{BLACK_BRUSH, GetStockObject, HBRUSH};
 use windows_sys::Win32::System::LibraryLoader::GetModuleHandleW;
-use windows_sys::Win32::UI::HiDpi::GetDpiForSystem;
+use windows_sys::Win32::UI::HiDpi::{GetDpiForSystem, GetDpiForWindow};
 use windows_sys::Win32::UI::WindowsAndMessaging::{
     AdjustWindowRectEx, CREATESTRUCTW, CW_USEDEFAULT, CreateWindowExW, DefWindowProcW,
     DestroyWindow, DispatchMessageW, GWLP_USERDATA, GetWindowLongPtrW, IDC_ARROW, LoadCursorW, MSG,
@@ -219,6 +219,12 @@ impl Drop for HostWindow {
 pub(crate) fn system_scale() -> f64 {
     // SAFETY: the call takes no arguments and only reads system settings.
     f64::from(unsafe { GetDpiForSystem() }) / 96.0
+}
+
+pub(crate) fn window_scale(handle: HWND) -> f64 {
+    // SAFETY: caller owns a live editor HWND on its GUI thread; read-only call.
+    let dpi = unsafe { GetDpiForWindow(handle) };
+    if dpi == 0 { system_scale() } else { f64::from(dpi) / 96.0 }
 }
 
 pub(crate) fn pump_events(wait: Option<Duration>) {

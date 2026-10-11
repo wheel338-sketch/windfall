@@ -265,3 +265,36 @@ automation, plugin failure and plan swaps, callback allocator checks of the live
 path, thread-count persistence/mounted Settings, priority/affinity, and measured
 worst-case budgets on Windows/macOS/Linux remain. First compile checks: Send on
 TrackProcessor, ring queue ownership and large by-value error/clippy policy.
+
+## Interface/native editor scaling
+
+The existing shell scaling gates in `docs/UI-SCALING.md` were reviewed. New
+native plumbing carries the existing persisted UI factor through one serialized,
+coalescing listener per window and a dedicated custom IPC command. Plugin runtime
+stores the preference for reopen and calls open native editors on their owning
+GUI thread. It does not dispatch a document command or alter audio settings.
+CLAP embedded Windows editors use gui.set_scale and their reported new size;
+VST3 Windows editors query IPlugViewContentScaleSupport, call setContentScaleFactor
+and honor their reported dimensions/normal frame callbacks. Monitor DPI comes
+from the editor HWND and is combined exactly once with the application factor.
+Unsupported/refused scaling reports an error and keeps the editor alive.
+
+Restart reconciliation: this implementation file group is committed before
+adding its mounted and native acceptance fixtures. `gui/scaling.rs` already has
+the written, not executed, factor validation/once-only DPI combination unit case.
+Native GUI tests and mounted preference/serialization tests follow separately.
+
+**Partial:** the existing release audio/state bridge explicitly refuses native
+editors. This work does not invent a bridge GUI protocol or bypass containment.
+Its owner must deliver editor hosting/scaling there before release parity. macOS
+and Linux native editor ownership remain missing in the baseline host. Dynamic
+editor-monitor DPI transitions are read on scale change/reopen, not yet wired
+to WM_DPICHANGED. Required physical Windows/WebView2 pointer/touch/trackpad and
+detached monitor transitions, macOS WKWebView, Linux WebKitGTK, real WebGPU
+device-loss, and scale-specific 10k/50k performance checks remain external.
+First compile checks: CLAP gui.set_scale result signature, VST3 generated COM
+scale trait, Win32 GetDpiForWindow availability, runtime clone/preferences and
+backend interface additions. No new generated IPC types or dependencies.
+
+Primary native API reference:
+[VST3 content-scale contract](https://steinbergmedia.github.io/vst3_doc/base/classSteinberg_1_1IPlugViewContentScaleSupport.html).

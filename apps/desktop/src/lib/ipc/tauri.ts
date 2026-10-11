@@ -183,6 +183,7 @@ export function createTauriBackend(): Backend {
     pluginsAddFolder: (folder) => call("plugins_add_folder", { folder }),
     pluginsAdd: (path, id, track) => call("plugins_add", { path, id, track }),
     pluginEditor: (target, open) => call("plugin_editor", { target, open }),
+    pluginEditorScale: (application) => call("plugin_editor_scale", { application }),
 
     documentSnapshot: () => call("document_snapshot"),
     dispatch: (command, gesture) => call("dispatch", { command, gesture }),

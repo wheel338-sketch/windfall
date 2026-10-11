@@ -524,6 +524,10 @@ impl InstanceBackend for ClapInstance {
     fn editor(&self) -> Option<EditorInfo> {
         self.editor.as_ref().map(Editor::info)
     }
+
+    fn set_editor_scale(&mut self, application: f64) -> Result<EditorInfo, EditorError> {
+        self.editor.as_mut().ok_or(EditorError::NoEditor)?.set_scale(&mut self.instance, application)
+    }
 }
 
 impl Drop for ClapInstance {

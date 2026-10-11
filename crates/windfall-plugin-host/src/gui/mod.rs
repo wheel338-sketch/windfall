@@ -26,6 +26,7 @@ use std::time::Duration;
 
 #[cfg(windows)]
 pub(crate) mod win32;
+pub(crate) mod scaling;
 
 /// How to open an editor.
 #[derive(Debug, Clone, PartialEq)]
@@ -72,6 +73,10 @@ pub enum EditorError {
     NoEditor,
     #[error("the plugin's editor is already open")]
     AlreadyOpen,
+    #[error("the plugin editor does not support application scaling")]
+    UnsupportedScale,
+    #[error("application scale must be finite and between 75% and 200%")]
+    InvalidScale,
     /// The plugin only embeds its editor in a host window, and this
     /// platform's host window is not written yet.
     #[error("editors that need a host window are not supported on this platform yet")]

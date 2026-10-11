@@ -758,6 +758,7 @@ export function createMockBackend(options: MockOptions = {}): MockBackend {
     pluginEditor: async () => {
       throw new Error("Native editors require the Windows desktop app")
     },
+    pluginEditorScale: async () => {},
 
     timelineState: () => ipc(timelineState),
     timelineRegion: (region, generation, revision, request, cancel) =>

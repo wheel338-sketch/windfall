@@ -902,6 +902,15 @@ fn panel_title(id: &str) -> Result<&'static str, String> {
     }
 }
 
+#[tauri::command]
+async fn plugin_editor_scale(
+    manager: State<'_, std::sync::Arc<crate::plugins::PluginManager>>,
+    application: f64,
+) -> Result<(), String> {
+    let runtime = manager.runtime.clone();
+    blocking(move || runtime.set_editor_scale(application)).await
+}
+
 // Creating a WebView2 window in a synchronous command can deadlock on Windows.
 #[tauri::command]
 async fn detach_panel(app: AppHandle, id: String) -> Result<(), String> {
@@ -1077,6 +1086,7 @@ pub fn handler() -> impl Fn(Invoke) -> bool + Send + Sync + 'static {
         plugins_add_folder,
         plugins_add,
         plugin_editor,
+        plugin_editor_scale,
         crate::files_commands::preset_capture_channel,
         crate::files_commands::preset_capture_plugin,
         crate::files_commands::preset_write,

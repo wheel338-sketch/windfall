@@ -99,6 +99,27 @@ impl Editor {
         self.info
     }
 
+    pub fn set_scale(&mut self, instance: &mut PluginInstance<WindfallHost>, application: f64) -> Result<EditorInfo, EditorError> {
+        #[cfg(windows)]
+        {
+            let window = self.window.as_ref().ok_or(EditorError::UnsupportedScale)?;
+            let factor = crate::gui::scaling::content_scale(application, crate::gui::win32::window_scale(window.window.handle()))?;
+            let plugin = instance.plugin_handle();
+            self.gui.set_scale(&plugin, factor).map_err(|_| EditorError::UnsupportedScale)?;
+            let size = self.gui.get_size(&plugin).map_err(failed("scaled editor did not supply a size"))?;
+            if !(1..=32768).contains(&size.width) || !(1..=32768).contains(&size.height) {
+                return Err(EditorError::Failed("invalid scaled editor dimensions".into()));
+            }
+            self.apply_requested_size(size.width, size.height);
+            Ok(self.info)
+        }
+        #[cfg(not(windows))]
+        {
+            let _ = (instance, application);
+            Err(EditorError::UnsupportedScale)
+        }
+    }
+
     /// True once after the user asked to close the host's window.
     pub fn take_close_request(&self) -> bool {
         #[cfg(windows)]
