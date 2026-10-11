@@ -13,9 +13,11 @@ use windfall_dsp::eqbank::{
     MORPH_CURVE_FREQUENCIES_HZ, MORPH_CURVE_Q, MorphEqParams, SEVEN_BAND_FREQUENCIES_HZ,
     SevenBandParams,
 };
+use windfall_dsp::multiband::BandCount;
 use windfall_dsp::spatial::StereoInvert;
 use windfall_dsp::{
-    AnyEffect, EffectParams, EffectSlot, LfoShape, SpreaderParams, StereoEnhancerParams,
+    AnyEffect, BandSplit, BandSplitParams, Effect, EffectParams, EffectSlot, LfoShape,
+    SpreaderParams, StereoEnhancerParams,
 };
 
 const RATES: [f32; 3] = [44_100.0, 48_000.0, 96_000.0];
@@ -838,4 +840,203 @@ fn morph_eq_is_block_invariant_through_a_morph_and_bypasses_without_a_click() {
     let mut loud = MorphEqParams::default();
     loud.curves[0].gains_db[5] = 12.0;
     assert_bypass_is_continuous(&EffectParams::MorphEq(loud), 0.07);
+}
+
+// ---------------------------------------------------------------------
+// Band Split
+
+/// What `process_routed` gives for a stereo input: the main signal, then
+/// the low, mid and high outputs, all as frames.
+fn split(
+    params: &BandSplitParams,
+    routed: [bool; 3],
+    left: &[f32],
+    right: &[f32],
+    blocks: &[usize],
+) -> [Vec<[f32; 2]>; 4] {
+    let mut effect = BandSplit::default();
+    effect.prepare(48_000.0, 512);
+    effect.set_params(params);
+    let frames = left.len();
+    let (mut main_left, mut main_right) = (left.to_vec(), right.to_vec());
+    let mut bands = [
+        vec![[0.0; 2]; frames],
+        vec![[0.0; 2]; frames],
+        vec![[0.0; 2]; frames],
+    ];
+    let mut cursor = 0;
+    let mut block = 0;
+    while cursor < frames {
+        let next = (cursor + blocks[block % blocks.len()]).min(frames);
+        let [low, mid, high] = &mut bands;
+        effect.process_routed(
+            &mut main_left[cursor..next],
+            &mut main_right[cursor..next],
+            routed,
+            [
+                &mut low[cursor..next],
+                &mut mid[cursor..next],
+                &mut high[cursor..next],
+            ],
+        );
+        cursor = next;
+        block += 1;
+    }
+    let main = main_left
+        .iter()
+        .zip(&main_right)
+        .map(|(l, r)| [*l, *r])
+        .collect();
+    let [low, mid, high] = bands;
+    [main, low, mid, high]
+}
+
+/// The level in dB, against a 0.1 input, of the left side of `frames` at
+/// `hz`, over the last half second of one second at 48 kHz.
+fn level_db(frames: &[[f32; 2]], hz: f64) -> f64 {
+    let (mut in_phase, mut quadrature) = (0.0_f64, 0.0_f64);
+    for (n, frame) in frames.iter().enumerate().skip(24_000) {
+        let angle = TAU * hz * n as f64 / 48_000.0;
+        in_phase += f64::from(frame[0]) * angle.sin();
+        quadrature += f64::from(frame[0]) * angle.cos();
+    }
+    let amplitude = 2.0 * in_phase.hypot(quadrature) / 24_000.0;
+    20.0 * (amplitude / 0.1).max(1.0e-12).log10()
+}
+
+/// A fourth-order Linkwitz-Riley pair at `corner`: the squared magnitude
+/// of a Butterworth section, so low and high are 6 dB down where they
+/// meet. Returns the low and high levels in dB at `hz`.
+fn crossover_db(corner: f64, hz: f64) -> (f64, f64) {
+    let warped = (PI * hz / 48_000.0).tan() / (PI * corner / 48_000.0).tan();
+    let fourth = warped.powi(4);
+    (
+        -20.0 * (1.0 + fourth).log10(),
+        20.0 * (fourth / (1.0 + fourth)).log10(),
+    )
+}
+
+#[test]
+fn band_split_outputs_are_the_three_bands_of_a_fourth_order_crossover() {
+    let params = BandSplitParams {
+        low_crossover_hz: 300.0,
+        high_crossover_hz: 3_000.0,
+        ..Default::default()
+    };
+    for hz in [60.0, 150.0, 300.0, 600.0, 1_000.0, 3_000.0, 6_000.0, 12_000.0] {
+        let sine: Vec<f32> = (0..48_000)
+            .map(|n| (0.1 * (TAU * hz * n as f64 / 48_000.0).sin()) as f32)
+            .collect();
+        let [main, low, mid, high] = split(&params, [true; 3], &sine, &sine, &[512]);
+        // Everything was routed away.
+        assert!(main.iter().all(|frame| *frame == [0.0; 2]));
+        let (low_1, high_1) = crossover_db(300.0, hz);
+        let (low_2, high_2) = crossover_db(3_000.0, hz);
+        for (name, found, expected) in [
+            ("low", level_db(&low, hz), low_1),
+            ("mid", level_db(&mid, hz), high_1 + low_2),
+            ("high", level_db(&high, hz), high_1 + high_2),
+        ] {
+            // Far down a skirt the comparison is of two very small numbers.
+            if expected > -60.0 {
+                assert!(
+                    (found - expected).abs() < 0.05,
+                    "{name} at {hz} Hz: {found} against {expected}"
+                );
+            } else {
+                assert!(found < -55.0, "{name} at {hz} Hz: {found}");
+            }
+        }
+    }
+}
+
+#[test]
+fn band_split_routed_bands_leave_the_main_signal_and_everything_still_adds_up() {
+    let (left, right) = (busy(4_800, 41), busy(4_800, 42));
+    let params = BandSplitParams {
+        low_gain_db: -3.0,
+        high_gain_db: 4.0,
+        ..Default::default()
+    };
+    // What the effect puts out with nothing routed, through `process`.
+    let mut whole = BandSplit::default();
+    whole.prepare(48_000.0, 512);
+    whole.set_params(&params);
+    let (mut plain_left, mut plain_right) = (left.clone(), right.clone());
+    whole.process(&mut plain_left, &mut plain_right);
+
+    let [main, low, mid, high] = split(&params, [false; 3], &left, &right, &[512]);
+    for n in 0..4_800 {
+        assert_eq!(main[n], [plain_left[n], plain_right[n]], "frame {n}");
+        assert_eq!([low[n], mid[n], high[n]], [[0.0; 2]; 3]);
+    }
+
+    for routed in [
+        [true, false, false],
+        [false, true, false],
+        [true, false, true],
+        [true, true, true],
+    ] {
+        let [main, low, mid, high] = split(&params, routed, &left, &right, &[512]);
+        let outputs = [&low, &mid, &high];
+        for n in 0..4_800 {
+            for side in 0..2 {
+                let total = main[n][side] + low[n][side] + mid[n][side] + high[n][side];
+                let plain = [plain_left[n], plain_right[n]][side];
+                assert!((total - plain).abs() < 2.0e-6, "{routed:?}, frame {n}");
+            }
+            for (band, output) in outputs.iter().enumerate() {
+                if !routed[band] {
+                    assert_eq!(output[n], [0.0; 2], "{routed:?}: band {band} stays");
+                }
+            }
+        }
+        // A routed band carries signal of its own.
+        for (band, output) in outputs.iter().enumerate() {
+            let heard = output.iter().any(|frame| frame[0].abs() > 1.0e-4);
+            assert_eq!(heard, routed[band], "{routed:?}: band {band}");
+        }
+        // However the host cuts its blocks.
+        let pieces = split(&params, routed, &left, &right, &[1, 7, 64, 127, 256]);
+        assert_eq!(pieces, [main, low, mid, high], "{routed:?}");
+    }
+}
+
+#[test]
+fn band_split_in_two_bands_has_a_silent_mid_and_a_high_from_the_crossover_up() {
+    let params = BandSplitParams {
+        bands: BandCount::Two,
+        low_crossover_hz: 500.0,
+        ..Default::default()
+    };
+    for hz in [100.0, 500.0, 2_000.0, 9_000.0] {
+        let sine: Vec<f32> = (0..48_000)
+            .map(|n| (0.1 * (TAU * hz * n as f64 / 48_000.0).sin()) as f32)
+            .collect();
+        let [_, low, mid, high] = split(&params, [true; 3], &sine, &sine, &[512]);
+        assert!(mid.iter().all(|frame| *frame == [0.0; 2]));
+        let (expected_low, expected_high) = crossover_db(500.0, hz);
+        assert!((level_db(&low, hz) - expected_low).abs() < 0.05, "low {hz}");
+        assert!((level_db(&high, hz) - expected_high).abs() < 0.05, "high {hz}");
+    }
+}
+
+#[test]
+fn band_split_is_block_invariant_and_bypasses_without_a_click() {
+    assert_block_invariant(
+        &EffectParams::BandSplit(BandSplitParams::default()),
+        &EffectParams::BandSplit(BandSplitParams {
+            bands: BandCount::Two,
+            low_crossover_hz: 900.0,
+            mid_gain_db: -12.0,
+            ..Default::default()
+        }),
+    );
+    assert_bypass_is_continuous(
+        &EffectParams::BandSplit(BandSplitParams {
+            mid_gain_db: 6.0,
+            ..Default::default()
+        }),
+        0.05,
+    );
 }
