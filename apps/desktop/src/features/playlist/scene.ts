@@ -395,7 +395,7 @@ export class PlaylistScene implements PaintSource {
    * target holds a clip's end value, and which curves several clips show.
    */
   private followAutomation(current: Project): void {
-    if (current.automations.length === 0) {
+    if (current.automations.length === 0 && !current.patterns.some((pattern) => pattern.events?.length)) {
       this.holds = NO_HOLDS
       this.shared = NOT_SHARED
       return

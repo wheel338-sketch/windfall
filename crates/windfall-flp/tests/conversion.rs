@@ -92,6 +92,28 @@ fn converted(p: &FlpProject) -> Conversion {
 }
 
 #[test]
+fn recorded_pattern_controls_import_from_real_bytes_as_held_lanes() {
+    use windfall_flp::target::{ChannelParam, ControlTarget};
+    let mut source = fixture(480);
+    source.patterns[0].control_events = vec![
+        ControlEvent { position: 0, location: ControlTarget::Channel { channel: 0, param: ChannelParam::Pan }.encode(), value: 0 },
+        ControlEvent { position: 480, location: ControlTarget::Channel { channel: 0, param: ChannelParam::Pan }.encode(), value: 6400 },
+        ControlEvent { position: 480, location: ControlTarget::Channel { channel: 0, param: ChannelParam::Pan }.encode(), value: 12800 },
+    ];
+    let output = converted(&source);
+    let events = &output.project.patterns[0].events;
+    assert_eq!(events.len(), 1);
+    assert_eq!(events[0].points.len(), 2);
+    assert_eq!(events[0].points[0].tick, 0);
+    assert_eq!(events[0].points[0].value, 0.0);
+    assert_eq!(events[0].points[1].tick, 960);
+    assert_eq!(events[0].points[1].value, 1.0);
+    assert!(events[0].points.iter().all(|point| point.hold));
+    let saved = windfall_project::file::to_json(&output.project);
+    assert!(saved.is_ok());
+}
+
+#[test]
 fn timeline_selected_arrangement_meters_and_named_markers_survive_actual_flp_bytes() {
     let mut source = fixture(960);
     source.arrangements[0].markers = vec![

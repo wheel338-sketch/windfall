@@ -19,6 +19,7 @@ mod channels;
 mod effects;
 mod mixer;
 mod patterns;
+mod pattern_events;
 mod playlist;
 mod synth;
 mod timeline;
@@ -547,22 +548,6 @@ impl<'a> Builder<'a> {
                 Outcome::Dropped,
                 count,
                 format!("Event {id} ({what}) was not interpreted or converted."),
-            );
-        }
-        let recorded: usize = flp
-            .patterns
-            .iter()
-            .map(|pattern| pattern.control_events.len())
-            .sum();
-        if recorded > 0 {
-            self.report
-                .count(section, Outcome::Dropped, recorded as u32);
-            self.report.say(
-                section,
-                Outcome::Dropped,
-                format!(
-                    "{recorded} control changes recorded into patterns were left out: Windfall automates with clips on the playlist."
-                ),
             );
         }
     }

@@ -100,6 +100,16 @@ describe("targetKey", () => {
 })
 
 describe("a lane", () => {
+  it("joins repeated pattern events to playlist priority, offsets and end holds", () => {
+    const project = { ...song([ramp], [clip(10, 1, 0, BAR * 2, 0, { content: { type: "pattern" as const, pattern: 7 }, offset: BAR / 4 }), clip(11, 0, BAR / 2, BAR / 2, 1)]),
+      patterns: [{ id: 7, name: "Events", color: 0, lengthSteps: 16, lanes: [], events: [{ id: 2, target: FADER, points: [point(0, 0), point(BAR, 1)] }] }] }
+    const [lane] = compileLanes(project)
+    expect(laneValueAt(lane, 0)).toEqual({ automation: 2, value: .25 })
+    expect(laneValueAt(lane, BAR / 2)).toEqual({ automation: 1, value: 0 })
+    expect(laneValueAt(lane, BAR)).toEqual({ automation: 2, value: .25 })
+    expect(laneValueAt(lane, BAR * 2 + 100)).toEqual({ automation: 2, value: .25 })
+    expect(holdSegments([lane], BAR * 3).at(-1)?.automation).toBe(2)
+  })
   it("has nothing to say before the target's first clip", () => {
     const [lane] = compileLanes(song([ramp], [clip(1, 0, BAR, BAR, 1)]))
     expect(laneValueAt(lane, 0)).toBeNull()

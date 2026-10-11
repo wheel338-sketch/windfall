@@ -7,6 +7,7 @@ import type {
   TransportState,
 } from "@/bindings"
 import { automatedAt, compileLanes, type Lane } from "@/lib/automation/lanes"
+import { curveValue } from "@/lib/automation/curve"
 import { songTempoMap } from "@/lib/automation/tempo-map"
 import { soloSet } from "@/lib/mixer-graph"
 import { playedNoteTiming } from "@/lib/note-timing"
@@ -157,6 +158,7 @@ export class TransportSim {
   private lanes: {
     playlist: Project["playlist"]
     automations: Project["automations"]
+    patterns: Project["patterns"]
     lanes: Lane[]
   } | null = null
 
@@ -298,22 +300,28 @@ export class TransportSim {
    * the engine reads them. Nothing while stopped and in pattern mode.
    */
   private automated(project: Project): AutomatedValue[] {
-    if (!this.inSong() || project.automations.length === 0) return []
+    if (!this.state.playing) return []
+    if (this.state.mode === "pattern") {
+      const pattern = project.patterns.find((pattern) => pattern.id === this.state.pattern) ?? project.patterns[0]
+      return (pattern?.events ?? []).slice(0, 128).map((lane) => ({ automation: lane.id, value: curveValue(lane.points, this.tick) }))
+    }
     const kept = this.lanes
     const lanes =
       kept &&
       kept.playlist === project.playlist &&
+      kept.patterns === project.patterns &&
       kept.automations === project.automations
         ? kept.lanes
         : compileLanes(project)
     this.lanes = {
       playlist: project.playlist,
       automations: project.automations,
+      patterns: project.patterns,
       lanes,
     }
     return automatedAt(
       lanes,
-      project.automations.map((automation) => automation.id),
+      [...project.automations.map((automation) => automation.id), ...project.patterns.flatMap((pattern) => (pattern.events ?? []).map((lane) => lane.id))],
       this.tick
     )
   }

@@ -14,7 +14,7 @@ use windfall_project::{
 };
 
 impl Builder<'_> {
-    fn automation_target(&self, target: ControlTarget) -> Option<AutomationTarget> {
+    pub(super) fn automation_target(&self, target: ControlTarget) -> Option<AutomationTarget> {
         Some(match target {
             ControlTarget::Channel { channel, param } => {
                 let ChannelRole::Plays(channel) = self.channels.get(&channel)? else {
@@ -77,7 +77,7 @@ impl Builder<'_> {
         })
     }
 
-    fn automation_value(
+    pub(super) fn automation_value(
         &self,
         source: ControlTarget,
         target: &AutomationTarget,

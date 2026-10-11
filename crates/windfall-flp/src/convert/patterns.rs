@@ -56,6 +56,7 @@ impl Builder<'_> {
                 })
                 .max()
                 .unwrap_or(u64::from(self.ppq) * 4);
+            let notes_end = notes_end.max(pattern.control_events.iter().map(|event| u64::from(event.position) + 1).max().unwrap_or(0));
             let source_length = pattern
                 .length
                 .filter(|l| *l != 0)
@@ -198,6 +199,7 @@ impl Builder<'_> {
                 self.report
                     .count(ReportSection::Notes, Outcome::Approximated, 1);
             }
+            self.pattern_events(id, &pattern.control_events);
         }
     }
 }

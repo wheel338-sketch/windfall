@@ -32,6 +32,10 @@ import { targetKey } from "@/lib/automation/lanes"
 import { targetState } from "@/lib/automation/targets"
 import { newGestureId } from "@/lib/store/gesture"
 import { dispatch, useProjectStore } from "@/lib/store/project"
+import { getProjectGeneration } from "@/lib/store/replaced"
+import { usePlayhead } from "@/lib/store/realtime"
+import { SNAP_OPTIONS, isSnapId, snapRound, snapTicks, type SnapId } from "@/features/piano-roll/snap"
+import { patternTickInSong } from "@/features/piano-roll/view-math"
 import { useTransportStore } from "@/lib/store/transport"
 import { ticksPerBar, ticksPerBeat } from "@/lib/time"
 
@@ -83,6 +87,24 @@ function LaneEditor({
   const length = patternTicks(pattern)
   const state = targetState(project, target)
   const signature = pattern.timeSignature ?? project.settings.timeSignature
+  const [snap, setSnap] = useState<SnapId>("none")
+  const spacing = snapTicks(snap, signature)
+  const playhead = useRef<SVGLineElement>(null)
+  const mounted = useRef(true)
+  const generation = useRef(getProjectGeneration())
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false } }, [])
+  usePlayhead((tick, playing) => {
+    const line = playhead.current
+    if (!line) return
+    const transport = useTransportStore.getState()
+    const project = useProjectStore.getState().project
+    const local = transport.mode === "pattern"
+      ? transport.pattern === pattern.id ? tick : null
+      : patternTickInSong(tick, project.playlist.clips, project.playlist.tracks, pattern.id, length)
+    const visible = playing && local !== null
+    line.style.display = visible ? "" : "none"
+    if (visible) { const x = String(xOf(local!, length)); line.setAttribute("x1", x); line.setAttribute("x2", x) }
+  })
 
   const [draft, setDraft] = useState<AutomationPoint[] | null>(null)
   const [selected, setSelected] = useState<number | null>(null)
@@ -107,6 +129,7 @@ function LaneEditor({
   const commit = (next: AutomationPoint[], id?: number) => {
     setDraft(next)
     sending.current = sending.current.then(async () => {
+      if (!mounted.current || getProjectGeneration() !== generation.current) return
       const expected = held.current
       if (samePoints(expected, next)) return
       const result = await dispatch(
@@ -150,9 +173,9 @@ function LaneEditor({
     const x = ((event.clientX - box.left) / box.width) * WIDTH
     const y = ((event.clientY - box.top) / box.height) * HEIGHT
     return {
-      tick: Math.round(
+      tick: Math.min(length, snapRound(Math.round(
         Math.min(1, Math.max(0, (x - PAD) / (WIDTH - PAD * 2))) * length
-      ),
+      ), spacing)),
       value: Math.min(1, Math.max(0, 1 - (y - PAD) / (HEIGHT - PAD * 2))),
     }
   }
@@ -191,7 +214,7 @@ function LaneEditor({
   }
 
   const current = selected !== null ? points[selected] : undefined
-  const step = Math.max(1, Math.round(beat / 4))
+  const step = spacing || Math.max(1, Math.round(beat / 4))
   const describe = (point: AutomationPoint) =>
     `${formatBarBeat(point.tick, signature)}, ${formatAutomationValue(project, target, point.value) || `${Math.round(point.value * 100)}%`}`
 
@@ -202,6 +225,9 @@ function LaneEditor({
 
   return (
     <div className="flex flex-col gap-3">
+      <Field><FieldLabel>Snap</FieldLabel><Select items={SNAP_OPTIONS.map(({ id, label }) => ({ value: id, label }))} value={snap} onValueChange={(value) => { if (isSnapId(value)) setSnap(value) }}>
+        <SelectTrigger aria-label="Event snap"><SelectValue /></SelectTrigger><SelectContent><SelectGroup>{SNAP_OPTIONS.map(({ id, label }) => <SelectItem key={id} value={id}>{label}</SelectItem>)}</SelectGroup></SelectContent>
+      </Select></Field>
       {!state && (
         <Alert>
           <AlertDescription>
@@ -273,6 +299,7 @@ function LaneEditor({
             data-testid="event-curve"
           />
         )}
+        <line ref={playhead} aria-label="Event playhead" x1={PAD} x2={PAD} y1={PAD} y2={HEIGHT - PAD} className="stroke-primary" strokeWidth={2} style={{ display: "none" }} pointerEvents="none" />
         {points.map((point, index) => (
           <circle
             key={index}
