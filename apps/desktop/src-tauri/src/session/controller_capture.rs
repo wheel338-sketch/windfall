@@ -88,11 +88,6 @@ impl TransportClock {
         self.reading.is_some_and(|(playhead, _)| playhead.playing)
     }
 
-    /// The last reading, whether or not playback runs.
-    pub fn playhead(&self) -> Option<Playhead> {
-        self.reading.map(|(playhead, _)| playhead)
-    }
-
     /// Where the playhead was at `moment`, moved by `offset_seconds`.
     /// `None` while stopped and for a moment before playback began.
     pub fn position_at(&self, moment: Instant, offset_seconds: f64) -> Option<Position> {
@@ -168,6 +163,7 @@ impl NoteTake {
         self.dropped
     }
 
+    #[cfg(test)]
     pub fn is_empty(&self) -> bool {
         self.open.is_empty() && self.done.is_empty()
     }
@@ -464,10 +460,12 @@ impl AutomationTake {
             .sum()
     }
 
+    #[cfg(test)]
     pub fn dropped(&self) -> u32 {
         self.dropped
     }
 
+    #[cfg(test)]
     pub fn is_empty(&self) -> bool {
         self.lanes.is_empty()
     }

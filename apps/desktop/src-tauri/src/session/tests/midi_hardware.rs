@@ -204,6 +204,7 @@ fn midi_hardware_settings_persist_without_reusing_the_runtime_destination() {
         output: Some("saved-output".into()),
         input_channel: Some(4),
         output_channel: 7,
+        ..MidiHardwareSettings::default()
     };
     let result = rig
         .session
