@@ -1,5 +1,5 @@
-import { useState } from "react"
-import type { Channel, EffectKind, EffectParams, InstrumentKind, InstrumentParams, RackEndpoint, RackGraph, RackNode, RackProcessor } from "@/bindings"
+import { useEffect, useState } from "react"
+import type { Channel, DispatchResult, EffectKind, EffectParams, InstrumentKind, InstrumentParams, RackEndpoint, RackGraph, RackNode, RackProcessor } from "@/bindings"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -9,7 +9,8 @@ import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { effectDescriptor, EFFECT_KINDS, GenericParamEditor, instrumentDescriptor, INSTRUMENT_KINDS, writeParam } from "@/features/params"
 import { dispatch, redo, undo, useProjectStore } from "@/lib/store"
-import { useProjectGeneration } from "@/lib/store/replaced"
+import { onHistoryNavigation } from "@/lib/store/project"
+import { getProjectGeneration, useProjectGeneration } from "@/lib/store/replaced"
 import { cn } from "@/lib/utils"
 import { Section } from "../channel-rack/inspector/parts"
 import { CONTROL_IN, defaultModule, graphAt, initialGraph, nestedGraph, node, ports, rackPreset, replaceGraph, sameEndpoint } from "./model"
@@ -31,13 +32,20 @@ export function ModularEditor({ channel, root }: { channel: Channel; root: RackG
   const [presetText, setPresetText] = useState("")
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+  const generation = useProjectGeneration()
+  const [parameterQueue] = useState(() => ({ tail: Promise.resolve<DispatchResult | null>(null), epoch: 0 }))
+  useEffect(() => {
+    const stop = onHistoryNavigation(() => { parameterQueue.epoch += 1 })
+    return () => { stop(); parameterQueue.epoch += 1 }
+  }, [parameterQueue])
   const graph = graphAt(root, path)
+  const activePath = graph === root ? [] : path
   const current = graph.nodes.find((node) => node.id === selected)
 
   async function save(next: RackGraph, gesture?: number) {
     if (busy) return null
     setBusy(true)
-    const result = await dispatch({ type: "setChannelRack", id: channel.id, graph: replaceGraph(root, path, next), expected: root }, gesture)
+    const result = await dispatch({ type: "setChannelRack", id: channel.id, graph: replaceGraph(root, activePath, next), expected: root }, gesture)
     setBusy(false)
     setError(result ? null : "Rack edit was refused. Check the project error message; the saved graph was kept.")
     return result
@@ -77,6 +85,29 @@ export function ModularEditor({ channel, root }: { channel: Channel; root: RackG
     }
     if (await save({ ...graph, edges: [...graph.edges, { from, to, gain: 1, ...(id ? { parameter: id } : {}) }] })) setFrom(null)
   }
+  function queueParameter(id: number, type: "instrument" | "effect", kind: InstrumentKind | EffectKind, index: number, value: number, gesture?: number) {
+    const epoch = parameterQueue.epoch
+    const result = parameterQueue.tail.then(async () => {
+      if (generation !== getProjectGeneration() || epoch !== parameterQueue.epoch) return null
+      const latest = useProjectStore.getState().project.settings.modularRacks?.find((rack) => rack.channel === channel.id)?.graph
+      if (!latest) return null
+      const nested = graphAt(latest, activePath)
+      if (activePath.length > 0 && nested === latest) return null
+      const target = nested.nodes.find((node) => node.id === id)
+      if (!target || target.processor.type !== type || (target.processor.type !== "instrument" && target.processor.type !== "effect") || target.processor.params.type !== kind) return null
+      const processor = target.processor
+      const info = (processor.type === "instrument" ? instrumentDescriptor(processor.params.type) : effectDescriptor(processor.params.type)).params[index]
+      if (!info) return null
+      const updated: RackProcessor = processor.type === "instrument" ? { ...processor, params: writeParam(processor.params, info, value) } : { ...processor, params: writeParam(processor.params, info, value) }
+      setBusy(true)
+      const applied = await dispatch({ type: "setChannelRack", id: channel.id, expected: latest, graph: replaceGraph(latest, activePath, { ...nested, nodes: nested.nodes.map((node) => node.id === id ? { ...node, processor: updated } : node) }) }, gesture)
+      setBusy(false)
+      setError(applied ? null : "Rack parameter edit was refused; the saved graph was kept.")
+      return applied
+    })
+    parameterQueue.tail = result
+    return result
+  }
   async function loadPreset() {
     try {
       const parsed: unknown = JSON.parse(presetText)
@@ -96,7 +127,7 @@ export function ModularEditor({ channel, root }: { channel: Channel; root: RackG
       <Button onClick={() => void add()} disabled={busy || graph.nodes.length >= 64}>Add node</Button>
       <Button variant="outline" disabled={busy} onClick={() => void undo()}>Undo rack edit</Button>
       <Button variant="outline" disabled={busy} onClick={() => void redo()}>Redo rack edit</Button>
-      {path.length > 0 && <Button variant="outline" onClick={() => { setPath(path.slice(0, -1)); setSelected(null); setFrom(null) }}>Parent rack</Button>}
+      {activePath.length > 0 && <Button variant="outline" onClick={() => { setPath(activePath.slice(0, -1)); setSelected(null); setFrom(null) }}>Parent rack</Button>}
     </div>
     {error && <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}
     <div className="max-h-64 overflow-auto rounded-md border">
@@ -134,7 +165,7 @@ export function ModularEditor({ channel, root }: { channel: Channel; root: RackG
         <NumberField label="Node Y" value={current.position[1]} min={0} max={2000} onChange={(value) => void updateNode({ ...current, position: [current.position[0], value] })} />
         {(["muted", "solo"] as const).map((key) => <Field key={key} orientation="horizontal"><Checkbox id={`rack-${key}`} checked={current[key]} onCheckedChange={(value) => void updateNode({ ...current, [key]: value === true })} /><FieldLabel htmlFor={`rack-${key}`}>{key === "muted" ? "Mute node" : "Solo node"}</FieldLabel></Field>)}
         {current.processor.type === "note" && <NoteModuleEditor key={current.id} module={current.processor.module} onChange={(module) => void updateNode({ ...current, processor: { type: "note", module } })} />}
-        {current.processor.type === "rack" && <Button onClick={() => { setPath([...path, current.id]); setSelected(null); setFrom(null) }}>Open nested rack</Button>}
+        {current.processor.type === "rack" && <Button onClick={() => { setPath([...activePath, current.id]); setSelected(null); setFrom(null) }}>Open nested rack</Button>}
         {current.processor.type === "controlInput" && <NumberField label={`Macro ${current.processor.index + 1}`} value={current.processor.value} min={0} max={1} step={0.01} onChange={(value) => {
           const processor = current.processor; if (processor.type === "controlInput") void updateNode({ ...current, processor: { ...processor, value } })
         }} />}
@@ -144,11 +175,9 @@ export function ModularEditor({ channel, root }: { channel: Channel; root: RackG
           return <>
             <ChoiceField<string> label="Control destination" value={parameter || descriptor.params[0]?.id || ""} choices={descriptor.params.map((info) => info.id)} onChange={setParameter} />
             {processor.type === "effect" && <NumberField label="Effect mix" value={processor.mix} min={0} max={1} step={0.01} onChange={(mix) => void updateNode({ ...current, processor: { ...processor, mix } })} />}
-            <GenericParamEditor descriptor={descriptor} params={processor.params} setParam={async (index, value, gesture) => {
-              const info = descriptor.params[index]; if (!info) return null
-              const next = processor.type === "instrument" ? { ...processor, params: writeParam(processor.params, info, value) } : { ...processor, params: writeParam(processor.params, info, value) }
-              return updateNode({ ...current, processor: next }, gesture)
-            }} />
+            {processor.type === "instrument" ? <GenericParamEditor descriptor={instrumentDescriptor(processor.params.type)} params={processor.params} setParam={(index, value, gesture) => queueParameter(current.id, "instrument", processor.params.type, index, value, gesture)} />
+              : <GenericParamEditor descriptor={effectDescriptor(processor.params.type)} params={processor.params} setParam={(index, value, gesture) => queueParameter(current.id, "effect", processor.params.type, index, value, gesture)} />}
+
           </>
         })()}
         <Button variant="destructive" disabled={busy} onClick={async () => {
