@@ -9,6 +9,22 @@ edit-only rule: no Cargo, no pnpm, no generators. Every test named below is
 This file is kept current as the work goes, so it is a usable hand-off if
 the session stops early. The status column says how far each row got.
 
+## Resumed implementation, 2026-10-11
+
+Merge `7ae5c5fc` retains both delay editor registrations and the integration
+branch's tuner registration, and retains both engine module additions.
+The incoming generated bindings/WASM are integration artifacts, not worker
+edits. No worker generator, build, test, or browser validation was run.
+
+Source review after the merge confirmed that `EffectSlot::try_prepare` still
+matches the slot preparation buffers, `EffectUnit::build` has one caller, and
+the control-side `PlanState::try_build` performs admission before allocation.
+The linked editor, drawn editor, admission and saturating tails are therefore
+full-row **candidates** for the two delay-bank rows, pending integrator execution
+of the commands below. The earlier checkpoint also appended bucket modes,
+chorus voice count, phaser stage/stagger controls and flanger order, but left
+their declared `spatial::model_tests` module absent; this resumption completes it.
+
 ## Status by row
 
 | Row | Status | What is in the branch |
