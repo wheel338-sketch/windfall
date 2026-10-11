@@ -119,6 +119,16 @@ pub enum Command {
         #[ts(optional)]
         gain: Option<f32>,
     },
+    /// Sends one separately routable output of an effect to another mixer
+    /// track, or disconnects it when `target` is absent. Refused when the
+    /// effect has no such output, sits on the master, or the route would
+    /// make routing loop back on itself.
+    SetEffectOutput {
+        effect: EffectId,
+        output: u8,
+        #[ts(optional)]
+        target: Option<TrackId>,
+    },
     ApplyMixerTrackPreset {
         id: TrackId,
         expected: crate::MixerTrack,

@@ -56,6 +56,9 @@ pub(crate) enum Kind {
     Swap,
     /// Stereo effect with a mono sidechain input and a mono extra output.
     Sidechain,
+    /// Stereo effect with three sidechain inputs: one mono, one stereo and
+    /// one with four channels. Its output says which of them was fed.
+    MultiSidechain,
     /// One channel in, one channel out, at half the level.
     Mono,
     /// Writes values that are not numbers.
@@ -241,6 +244,13 @@ const SPECS: &[Spec] = &[
         kind: Kind::BridgeControlledProcessError,
         id: c"org.windfall.test.bridge-controlled-process-error",
         name: c"Test Bridge Controlled Process Error",
+        features: EFFECT,
+    },
+    // Appended last, so the positions of the plugins above do not move.
+    Spec {
+        kind: Kind::MultiSidechain,
+        id: c"org.windfall.test.multi-sidechain",
+        name: c"Test Multi Sidechain",
         features: EFFECT,
     },
 ];

@@ -6,6 +6,8 @@ mod analysis_jobs;
 mod recording_completion_qa;
 #[path = "../mixer_render_qa.rs"]
 mod mixer_render_qa;
+#[path = "../mixer_presets_qa.rs"]
+mod mixer_presets_qa;
 mod archive;
 mod audio_editor;
 mod beat;
@@ -31,6 +33,8 @@ mod plugins;
 mod project_preparation;
 mod recording;
 mod sampler_processing;
+#[cfg(windows)]
+mod sidechain_buses;
 mod slicer;
 mod song;
 mod timeline;

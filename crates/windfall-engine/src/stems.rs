@@ -247,7 +247,13 @@ fn sources(project: &Project, through: bool) -> Vec<bool> {
             let output = track
                 .output
                 .filter(|_| !track.external_output.is_some_and(|route| route.exclusive));
-            for target in output.into_iter().chain(sends).filter_map(place) {
+            let effect_outputs = project
+                .mixer
+                .effect_outputs
+                .iter()
+                .filter(|route| track.effects.iter().any(|slot| slot.id == route.effect))
+                .map(|route| route.target);
+            for target in output.into_iter().chain(sends).chain(effect_outputs).filter_map(place) {
                 gives[target] = true;
             }
         }

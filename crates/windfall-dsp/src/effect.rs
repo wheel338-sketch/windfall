@@ -1621,6 +1621,98 @@ impl AnyEffect {
     }
 }
 
+/// Most separately routable outputs one effect has beside its main output.
+pub const MAX_AUX_OUTPUTS: usize = 2;
+
+/// One output of an effect that a host can route somewhere other than the
+/// next place in the chain.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AuxOutputInfo {
+    /// Stable name for saved routing and tests.
+    pub id: &'static str,
+    /// What the UI calls it.
+    pub label: &'static str,
+    /// Routing this output takes its signal out of the effect's main
+    /// output. An output that does not split is a copy, and the main
+    /// output is the same whether or not it is routed.
+    pub splits: bool,
+}
+
+/// The separately routable stereo frames of one block, for
+/// [`EffectSlot::process_routed`].
+pub struct AuxBlock<'a> {
+    /// Bit `n` set: output `n` has a destination.
+    pub routed: u8,
+    /// One buffer per possible output, each at least as long as the block.
+    /// Every buffer is overwritten: an output that is not routed, or that
+    /// the effect does not have, is left silent.
+    pub outputs: [&'a mut [[f32; 2]]; MAX_AUX_OUTPUTS],
+}
+
+impl EffectKind {
+    /// The outputs of this effect a host can route to another track, in the
+    /// order saved routing numbers them. Most effects have none.
+    pub fn aux_outputs(self) -> &'static [AuxOutputInfo] {
+        match self {
+            EffectKind::SendTap => &[AuxOutputInfo {
+                id: "send",
+                label: "Send",
+                splits: false,
+            }],
+            EffectKind::TransientSplit => &[
+                AuxOutputInfo {
+                    id: "transient",
+                    label: "Transient",
+                    splits: true,
+                },
+                AuxOutputInfo {
+                    id: "sustain",
+                    label: "Sustain",
+                    splits: true,
+                },
+            ],
+            _ => &[],
+        }
+    }
+}
+
+impl AnyEffect {
+    /// Processes one block in place as [`AnyEffect::process_sidechain`]
+    /// does, and fills the separately routable outputs. Does not allocate.
+    pub fn process_aux(
+        &mut self,
+        left: &mut [f32],
+        right: &mut [f32],
+        key: Option<&[[f32; 2]]>,
+        aux: &mut AuxBlock<'_>,
+    ) {
+        let frames = left.len().min(right.len());
+        let [first, second] = &mut aux.outputs;
+        let (first, second) = (&mut first[..frames], &mut second[..frames]);
+        match self {
+            AnyEffect::SendTap(effect) => {
+                effect.process(left, right);
+                if aux.routed & 1 != 0 {
+                    effect.send_frames(left, right, first);
+                } else {
+                    first.fill([0.0; 2]);
+                }
+                second.fill([0.0; 2]);
+            }
+            AnyEffect::TransientSplit(effect) => {
+                let routed = [aux.routed & 1 != 0, aux.routed & 2 != 0];
+                effect.process_routed(left, right, routed, first, second);
+            }
+            _ => {
+                self.process_sidechain(left, right, key);
+                first.fill([0.0; 2]);
+                second.fill([0.0; 2]);
+            }
+        }
+    }
+}
+
 /// Time the slot takes to fade an effect in or out, and to follow its mix.
 const SLOT_FADE_MS: f32 = 10.0;
 
@@ -1850,16 +1942,62 @@ impl EffectSlot {
                 &mut left[start..end],
                 &mut right[start..end],
                 key.and_then(|key| key.get(start..end)),
+                None,
             );
             start = end;
         }
     }
 
-    fn process_piece(&mut self, left: &mut [f32], right: &mut [f32], key: Option<&[[f32; 2]]>) {
+    /// Processes one block in place as [`EffectSlot::process_sidechain`]
+    /// does, and fills the effect's separately routable outputs.
+    ///
+    /// They follow the slot's switch and mix the way its main output does:
+    /// a slot that is off sends nothing, and a mix below 1 scales what is
+    /// sent, so an output that splits and the main output still add up to
+    /// the signal that came in. Does not allocate.
+    pub fn process_routed(
+        &mut self,
+        left: &mut [f32],
+        right: &mut [f32],
+        key: Option<&[[f32; 2]]>,
+        aux: &mut AuxBlock<'_>,
+    ) {
+        let frames = left.len().min(right.len());
+        let piece = self.scratch_left.len().max(1);
+        let mut start = 0;
+        while start < frames {
+            let end = (start + piece).min(frames);
+            let [first, second] = &mut aux.outputs;
+            let mut part = AuxBlock {
+                routed: aux.routed,
+                outputs: [&mut first[start..end], &mut second[start..end]],
+            };
+            self.process_piece(
+                &mut left[start..end],
+                &mut right[start..end],
+                key.and_then(|key| key.get(start..end)),
+                Some(&mut part),
+            );
+            start = end;
+        }
+    }
+
+    fn process_piece(
+        &mut self,
+        left: &mut [f32],
+        right: &mut [f32],
+        key: Option<&[[f32; 2]]>,
+        mut aux: Option<&mut AuxBlock<'_>>,
+    ) {
         let fresh = std::mem::replace(&mut self.fresh, false);
         let frames = left.len();
         if self.scratch_left.len() < frames {
             // Not prepared: there is nowhere to keep the dry signal.
+            if let Some(aux) = &mut aux {
+                for output in &mut aux.outputs {
+                    output[..frames].fill([0.0; 2]);
+                }
+            }
             return;
         }
         for sample in left.iter_mut().chain(right.iter_mut()) {
@@ -1908,6 +2046,11 @@ impl EffectSlot {
             left.copy_from_slice(dry_left);
             right.copy_from_slice(dry_right);
             self.dormant = true;
+            if let Some(aux) = &mut aux {
+                for output in &mut aux.outputs {
+                    output[..frames].fill([0.0; 2]);
+                }
+            }
             return;
         }
         if self.dormant {
@@ -1922,7 +2065,10 @@ impl EffectSlot {
             // simultaneous dry/PDC transition has also reached its target.
             self.warm_up = self.warm_up.max(dry_transition);
         }
-        self.effect.process_sidechain(left, right, key);
+        match &mut aux {
+            Some(aux) => self.effect.process_aux(left, right, key, aux),
+            None => self.effect.process_sidechain(left, right, key),
+        }
         if self.warm_up == 0 && self.wet.is_settled() && self.wet.value() == 1.0 {
             return;
         }
@@ -1941,6 +2087,14 @@ impl EffectSlot {
             } else if wet != 1.0 {
                 left[index] = dry_left[index] + (left[index] - dry_left[index]) * wet;
                 right[index] = dry_right[index] + (right[index] - dry_right[index]) * wet;
+            }
+            // What is routed away is heard as much as the effect itself is.
+            if wet != 1.0
+                && let Some(aux) = &mut aux
+            {
+                for output in &mut aux.outputs {
+                    output[index] = [output[index][0] * wet, output[index][1] * wet];
+                }
             }
         }
         self.warm_up_elapsed = self.warm_up_elapsed.saturating_add(frames);

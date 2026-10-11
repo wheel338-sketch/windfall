@@ -19,6 +19,14 @@ fn cid(index: i32) -> TUID {
     id[15] = (index + 1) as char8;
     id
 }
+/// How many classes the factory offers. New ones are appended, so the
+/// positions and ids of the earlier ones do not move.
+const CLASSES: i32 = 23;
+/// The auxiliary input buses of the multi-detector class, after its main
+/// stereo bus: their names and speaker arrangements (left; left and right;
+/// left, right and both surrounds).
+const MULTI_KEYS: [(&str, SpeakerArrangement); 3] =
+    [("Key Mono", 1), ("Key Stereo", 3), ("Key Quad", 0x33)];
 struct Factory;
 impl Class for Factory {
     type Interfaces = (IPluginFactory2,);
@@ -40,10 +48,10 @@ impl IPluginFactoryTrait for Factory {
         kResultOk
     }
     unsafe fn countClasses(&self) -> i32 {
-        22
+        CLASSES
     }
     unsafe fn getClassInfo(&self, index: i32, info: *mut PClassInfo) -> tresult {
-        if info.is_null() || !(0..22).contains(&index) {
+        if info.is_null() || !(0..CLASSES).contains(&index) {
             return kInvalidArgument;
         }
         // SAFETY: caller supplies a writable SDK output struct.
@@ -76,6 +84,7 @@ impl IPluginFactoryTrait for Factory {
                         "VST3 Bridge Controlled Process Error",
                         "VST3 Bridge Deactivation Edit",
                         "VST3 Auxiliary Detector",
+                        "VST3 Multi Auxiliary Detector",
                     ][index as usize],
                 ),
             });
@@ -96,13 +105,14 @@ impl IPluginFactoryTrait for Factory {
             obj.write(ptr::null_mut());
             let class = ptr::read_unaligned(class.cast::<TUID>());
             let iid = ptr::read_unaligned(iid.cast::<[u8; 16]>());
-            if iid != IComponent::IID || !(0..22).any(|i| class == cid(i)) {
+            if iid != IComponent::IID || !(0..CLASSES).any(|i| class == cid(i)) {
                 return kNoInterface;
             }
             let component = ComWrapper::new(Component {
                 absurd: class == cid(1),
                 instrument: class == cid(2) || class == cid(12),
                 sidechain: class == cid(21),
+                multi_sidechain: class == cid(22),
                 bridge_note_probe: class == cid(12),
                 mono: class == cid(3),
                 refuse: class == cid(6),
@@ -157,7 +167,7 @@ impl IPluginFactoryTrait for Factory {
 }
 impl IPluginFactory2Trait for Factory {
     unsafe fn getClassInfo2(&self, index: i32, info: *mut PClassInfo2) -> tresult {
-        if info.is_null() || !(0..22).contains(&index) {
+        if info.is_null() || !(0..CLASSES).contains(&index) {
             return kInvalidArgument;
         }
         // SAFETY: caller supplies a writable SDK output struct.
@@ -190,6 +200,7 @@ impl IPluginFactory2Trait for Factory {
                         "VST3 Bridge Controlled Process Error",
                         "VST3 Bridge Deactivation Edit",
                         "VST3 Auxiliary Detector",
+                        "VST3 Multi Auxiliary Detector",
                     ][index as usize],
                 ),
                 classFlags: 0,
@@ -208,6 +219,9 @@ impl IPluginFactory2Trait for Factory {
 }
 struct Component {
     sidechain: bool,
+    /// Three auxiliary inputs of one, two and four channels. The output
+    /// carries each of their channels with the marks of the CLAP fixture.
+    multi_sidechain: bool,
     absurd: bool,
     instrument: bool,
     bridge_note_probe: bool,
@@ -286,6 +300,8 @@ impl IComponentTrait for Component {
                 0
             } else if self.sidechain && dir == 0 {
                 2
+            } else if self.multi_sidechain && dir == 0 {
+                1 + MULTI_KEYS.len() as i32
             } else {
                 1
             }
@@ -303,11 +319,17 @@ impl IComponentTrait for Component {
         if index < 0 || index >= unsafe { self.getBusCount(media, dir) } || bus.is_null() {
             return kInvalidArgument;
         }
+        let multi_key = (self.multi_sidechain && media == 0 && dir == 0 && index >= 1)
+            .then(|| MULTI_KEYS[index as usize - 1]);
         let mut name = [0; 128];
-        for (slot, unit) in name
-            .iter_mut()
-            .zip(if index == 1 { "Detector" } else { "Stereo" }.encode_utf16())
-        {
+        for (slot, unit) in name.iter_mut().zip(
+            match multi_key {
+                Some((name, _)) => name,
+                None if index == 1 => "Detector",
+                None => "Stereo",
+            }
+            .encode_utf16(),
+        ) {
             *slot = unit;
         }
         // SAFETY: caller supplies a writable SDK bus structure.
@@ -315,13 +337,15 @@ impl IComponentTrait for Component {
             bus.write(BusInfo {
                 mediaType: media,
                 direction: dir,
-                channelCount: if media == 1 || self.mono || index == 1 {
+                channelCount: if let Some((_, arrangement)) = multi_key {
+                    arrangement.count_ones() as i32
+                } else if media == 1 || self.mono || index == 1 {
                     1
                 } else {
                     2
                 },
                 name,
-                busType: if index == 1 { 1 } else { 0 },
+                busType: if index == 1 || multi_key.is_some() { 1 } else { 0 },
                 flags: u32::from(index == 0),
             });
         }
@@ -521,6 +545,8 @@ impl IAudioProcessorTrait for Component {
         if numIns
             == if self.sidechain {
                 2
+            } else if self.multi_sidechain {
+                1 + MULTI_KEYS.len() as i32
             } else {
                 i32::from(!self.instrument)
             }
@@ -537,6 +563,15 @@ impl IAudioProcessorTrait for Component {
         index: i32,
         arr: *mut SpeakerArrangement,
     ) -> tresult {
+        if self.multi_sidechain && dir == 0 && (1..=MULTI_KEYS.len() as i32).contains(&index) {
+            if arr.is_null() {
+                return kInvalidArgument;
+            }
+            unsafe {
+                arr.write(MULTI_KEYS[index as usize - 1].1);
+            }
+            return kResultOk;
+        }
         if (index != 0 && !(self.sidechain && dir == 0 && index == 1)) || arr.is_null() {
             return kInvalidArgument;
         }
@@ -613,6 +648,7 @@ impl IAudioProcessorTrait for Component {
         if !audio.configured
             || data.numOutputs != 1
             || (self.sidechain && data.numInputs != 2)
+            || (self.multi_sidechain && data.numInputs != 1 + MULTI_KEYS.len() as i32)
             || data.numSamples <= 0
             || data.processContext.is_null()
         {
@@ -649,6 +685,17 @@ impl IAudioProcessorTrait for Component {
         let output = unsafe { &mut *data.outputs };
         if output.numChannels != if self.mono { 1 } else { 2 } {
             return kInvalidArgument;
+        }
+        if self.multi_sidechain {
+            // A host that hands over a narrower bus is refused, not read past.
+            for (bus, (_, arrangement)) in MULTI_KEYS.iter().enumerate() {
+                let auxiliary = unsafe { &*data.inputs.add(bus + 1) };
+                if auxiliary.numChannels != arrangement.count_ones() as i32
+                    || unsafe { auxiliary.__field0.channelBuffers32 }.is_null()
+                {
+                    return kInvalidArgument;
+                }
+            }
         }
         let mut gain = f64::from_bits(self.gain.load(std::sync::atomic::Ordering::Relaxed));
         let changes = unsafe { vst3::ComRef::from_raw(data.inputParameterChanges) };
@@ -761,6 +808,17 @@ impl IAudioProcessorTrait for Component {
                         let detector = if self.sidechain {
                             let auxiliary = &*data.inputs.add(1);
                             *(*auxiliary.__field0.channelBuffers32).add(frame as usize)
+                        } else if self.multi_sidechain {
+                            let mut marked = 0.0;
+                            for (bus, marks) in crate::plugin::MULTI_KEY_MARKS.iter().enumerate() {
+                                let auxiliary = &*data.inputs.add(bus + 1);
+                                for (index, mark) in marks.iter().enumerate() {
+                                    marked += *(*auxiliary.__field0.channelBuffers32.add(index))
+                                        .add(frame as usize)
+                                        * mark[channel as usize];
+                                }
+                            }
+                            marked
                         } else {
                             0.0
                         };

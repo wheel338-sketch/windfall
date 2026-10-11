@@ -55,6 +55,13 @@ impl SettingsStore {
             .unwrap_or(Path::new("."))
             .join("recordings")
     }
+    /// The per-user folder of mixer track presets, next to the settings file.
+    pub fn mixer_presets_dir(&self) -> PathBuf {
+        self.file
+            .parent()
+            .unwrap_or(Path::new("."))
+            .join("mixer-presets")
+    }
 
     /// Reads the settings file at `file`, which need not exist.
     pub fn load(file: PathBuf) -> Self {

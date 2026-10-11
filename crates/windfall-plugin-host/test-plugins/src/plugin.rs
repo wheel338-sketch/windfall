@@ -409,6 +409,7 @@ unsafe extern "C" fn process(
             Kind::Sine | Kind::MidiSine => process_sine(plugin, audio, block),
             Kind::Swap => process_stereo(block, |left, right| (right, left)),
             Kind::Sidechain => process_sidechain(block),
+            Kind::MultiSidechain => process_multi_sidechain(block),
             Kind::Mono => process_mono(block),
             Kind::Nan => process_stereo(block, |_, _| (f32::NAN, f32::INFINITY)),
             Kind::ProcessError => {
@@ -610,6 +611,80 @@ unsafe fn process_sidechain(block: &clap_process) -> clap_process_status {
             *out_left.add(frame) = *in_left.add(frame) + key;
             *out_right.add(frame) = *in_right.add(frame) + key;
             *extra.add(frame) = key;
+        }
+    }
+    CLAP_PROCESS_CONTINUE
+}
+
+/// What each sidechain channel adds to the main output, as `[left, right]`
+/// factors. Every channel of every sidechain input leaves a different mark,
+/// so a test reads from the output alone which input the host fed and which
+/// of its channels:
+///
+/// - the mono input goes to the left and, inverted, to the right,
+/// - the stereo input goes straight to its own side,
+/// - the four-channel input's first pair goes inverted to its own side, and
+///   its second pair doubled to its own side.
+pub(crate) const MULTI_KEY_MARKS: [&[[f32; 2]]; 3] = [
+    &[[1.0, -1.0]],
+    &[[1.0, 0.0], [0.0, 1.0]],
+    &[[-1.0, 0.0], [0.0, -1.0], [2.0, 0.0], [0.0, 2.0]],
+];
+
+/// Passes the main signal and adds every sidechain channel with its mark
+/// from [`MULTI_KEY_MARKS`]. A host that leaves out a port or a channel gets
+/// an error, not a crash.
+///
+/// # Safety
+/// `block` must be the host's valid block.
+unsafe fn process_multi_sidechain(block: &clap_process) -> clap_process_status {
+    // SAFETY: the block's buffers are valid for its counts.
+    let (in_left, in_right, out_left, out_right) = unsafe {
+        (
+            channel(block.audio_inputs, block.audio_inputs_count, 0, 0),
+            channel(block.audio_inputs, block.audio_inputs_count, 0, 1),
+            channel(block.audio_outputs, block.audio_outputs_count, 0, 0),
+            channel(block.audio_outputs, block.audio_outputs_count, 0, 1),
+        )
+    };
+    if in_left.is_null() || in_right.is_null() || out_left.is_null() || out_right.is_null() {
+        return CLAP_PROCESS_ERROR;
+    }
+    let mut keys = [ptr::null_mut::<f32>(); 7];
+    let mut marks = [[0.0_f32; 2]; 7];
+    let mut count = 0;
+    for (port, port_marks) in MULTI_KEY_MARKS.iter().enumerate() {
+        for (index, mark) in port_marks.iter().enumerate() {
+            // SAFETY: as above. Sidechain inputs follow the main one.
+            let key = unsafe {
+                channel(
+                    block.audio_inputs,
+                    block.audio_inputs_count,
+                    port as u32 + 1,
+                    index as u32,
+                )
+            };
+            if key.is_null() {
+                return CLAP_PROCESS_ERROR;
+            }
+            keys[count] = key;
+            marks[count] = *mark;
+            count += 1;
+        }
+    }
+    for frame in 0..block.frames_count as usize {
+        // SAFETY: every channel holds `frames_count` samples. The main input
+        // is read before the output is written, as they may share memory.
+        unsafe {
+            let mut left = *in_left.add(frame);
+            let mut right = *in_right.add(frame);
+            for (key, mark) in keys.iter().zip(&marks) {
+                let sample = *key.add(frame);
+                left += sample * mark[0];
+                right += sample * mark[1];
+            }
+            *out_left.add(frame) = left;
+            *out_right.add(frame) = right;
         }
     }
     CLAP_PROCESS_CONTINUE

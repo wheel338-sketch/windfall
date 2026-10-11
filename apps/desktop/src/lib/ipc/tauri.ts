@@ -96,6 +96,10 @@ export function createTauriBackend(): Backend {
       const path = await open({ multiple: false, filters: [{ name: "Windfall mixer preset", extensions: ["wfmixer"] }] })
       return typeof path === "string" ? call("mixer_preset_read", { path }) : null
     },
+    mixerPresetLibrary: () => call("mixer_preset_library"),
+    mixerPresetLibrarySave: (preset) => call("mixer_preset_library_save", { preset }),
+    mixerPresetLibraryRead: (file) => call("mixer_preset_library_read", { file }),
+    mixerPresetLibraryDelete: (file) => call("mixer_preset_library_delete", { file }),
     currentMixerTarget: (track, generation, revision) => call("current_mixer_target", { track, generation, revision }),
     timelineState: () => call("timeline_state"),
     timelineRegion: (region, generation, revision, request, cancel) =>

@@ -23,6 +23,8 @@ pub mod file;
 mod lower;
 mod mixer_preset;
 pub use mixer_preset::MixerTrackPreset;
+pub mod effect_outputs;
+pub use effect_outputs::EffectOutputRoute;
 pub mod model;
 pub mod notebook;
 pub use notebook::{Notebook, NotebookPage};

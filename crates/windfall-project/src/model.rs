@@ -263,6 +263,7 @@ impl Project {
                 lanes: Vec::new(),
             }],
             mixer: Mixer {
+                effect_outputs: Vec::new(),
                 tracks: vec![MixerTrack {
                     dock: crate::MixerDock::default(),
                     external_output: None,
@@ -766,6 +767,11 @@ pub struct Note {
 pub struct Mixer {
     /// `tracks[0]` is always the master. At most [`MAX_MIXER_TRACKS`].
     pub tracks: Vec<MixerTrack>,
+    /// Separately routable effect outputs sent to other tracks, such as a
+    /// Send Tap's copy or the two parts of a Transient Split.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[ts(as = "Option<Vec<crate::EffectOutputRoute>>", optional)]
+    pub effect_outputs: Vec<crate::EffectOutputRoute>,
 }
 
 impl Mixer {
