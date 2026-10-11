@@ -83,7 +83,7 @@ impl Session {
                         .as_ref()
                         .is_some_and(|dir| dir.starts_with(root))
                     || state
-                        .save_to
+                        .path
                         .as_ref()
                         .is_some_and(|path| path.starts_with(root))
                     || sources.iter().any(|path| path.starts_with(root));

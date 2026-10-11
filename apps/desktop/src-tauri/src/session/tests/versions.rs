@@ -315,12 +315,17 @@ fn numbered_publication_child() {
         &Default::default(),
         &folder.join("Song.windfall"),
         |_, _| {
-            let mut destination = fs::File::create(folder.join("copied-audio.part")).unwrap();
-            use std::io::Write;
-            destination.write_all(&[7; 64 * 1024]).unwrap();
-            if stage == "PartialCopy" {
-                std::process::exit(73);
-            }
+            crate::session::files::copy_into_place_checked(
+                &folder.join("input-audio.raw"),
+                &folder.join("copied-audio.raw"),
+                &mut |copied| {
+                    if stage == "PartialCopy" && copied >= 64 * 1024 {
+                        std::process::exit(73);
+                    }
+                    Ok(())
+                },
+            )
+            .map_err(|error| error.to_string())?;
             Ok(())
         },
         &mut |boundary| {
@@ -370,6 +375,8 @@ fn large_numbered_project_survives_real_child_termination_at_every_publication_b
     ] {
         let root = tempfile::tempdir().unwrap();
         fs::write(root.path().join("input.windfall"), &json).unwrap();
+        let audio = vec![7; 1024 * 1024];
+        fs::write(root.path().join("input-audio.raw"), &audio).unwrap();
         fs::write(root.path().join("Song.windfall"), b"previous version").unwrap();
         fs::write(
             root.path().join("Song (001).windfall"),
@@ -395,6 +402,17 @@ fn large_numbered_project_survives_real_child_termination_at_every_publication_b
             fs::read(root.path().join("Song (001).windfall")).unwrap(),
             b"competing process"
         );
+        assert_eq!(
+            fs::read(root.path().join("input-audio.raw")).unwrap(),
+            audio
+        );
+        let copied = root.path().join("copied-audio.raw");
+        if copied.exists() {
+            assert_eq!(fs::read(&copied).unwrap(), audio);
+        }
+        if stage == "PartialCopy" {
+            assert!(!copied.exists());
+        }
         let published = root.path().join("Song (002).windfall");
         if stage == "Published" {
             assert_eq!(file::load(&published).unwrap(), project);
@@ -405,9 +423,18 @@ fn large_numbered_project_survives_real_child_termination_at_every_publication_b
             &project,
             &Default::default(),
             &root.path().join("Song.windfall"),
-            |_, _| Ok(()),
+            |_, _| {
+                crate::session::files::copy_into_place_checked(
+                    &root.path().join("input-audio.raw"),
+                    &copied,
+                    &mut |_| Ok(()),
+                )
+                .map_err(|error| error.to_string())
+                .map(|_| ())
+            },
         )
         .unwrap();
+        assert_eq!(fs::read(copied).unwrap(), audio);
         assert_eq!(actual, project);
         assert_eq!(file::load(saved).unwrap(), project);
     }
@@ -441,5 +468,38 @@ fn injected_numbered_io_faults_never_expose_partial_projects_or_change_the_snaps
         assert!(!root.path().join("Song (001).windfall").exists());
         assert_eq!(fs::read_dir(root.path()).unwrap().count(), 0);
         assert_eq!(rig.project(), original);
+    }
+}
+
+#[test]
+fn interrupted_production_sample_copy_preserves_source_and_final_names() {
+    let root = tempfile::tempdir().unwrap();
+    let source = root.path().join("source.raw");
+    let target = root.path().join("target.raw");
+    let audio = vec![0x53; 1024 * 1024];
+    fs::write(&source, &audio).unwrap();
+    for existing in [false, true] {
+        if existing {
+            fs::write(&target, b"competitor").unwrap();
+        }
+        let failed =
+            crate::session::files::copy_into_place_checked(&source, &target, &mut |copied| {
+                if copied >= 64 * 1024 {
+                    Err(std::io::Error::other("injected copy fault"))
+                } else {
+                    Ok(())
+                }
+            });
+        assert!(failed.unwrap_err().to_string().contains("injected"));
+        assert_eq!(fs::read(&source).unwrap(), audio);
+        if existing {
+            assert_eq!(fs::read(&target).unwrap(), b"competitor");
+        } else {
+            assert!(!target.exists());
+        }
+        assert_eq!(
+            fs::read_dir(root.path()).unwrap().count(),
+            if existing { 2 } else { 1 }
+        );
     }
 }

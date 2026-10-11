@@ -857,12 +857,34 @@ fn numbered(relative: &str, number: u32) -> String {
 /// without replacement. False means a competitor has the final name. All
 /// error/collision cleanup belongs to the temporary file, never `target`.
 fn copy_into_place(source: &Path, target: &Path) -> io::Result<bool> {
+    copy_into_place_checked(source, target, &mut |_| Ok(()))
+}
+/// Production sample copier with a byte frontier for deterministic local
+/// interruption tests. The no-op production hook is monomorphized away.
+pub(super) fn copy_into_place_checked(
+    source: &Path,
+    target: &Path,
+    check: &mut impl FnMut(u64) -> io::Result<()>,
+) -> io::Result<bool> {
+    use std::io::Write;
     let folder = target
         .parent()
         .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidInput, "the sample has no folder"))?;
     fs::create_dir_all(folder)?;
     let mut staged = tempfile::NamedTempFile::new_in(folder)?;
-    io::copy(&mut File::open(source)?, staged.as_file_mut())?;
+    let mut source = File::open(source)?;
+    let mut bytes = [0_u8; 64 * 1024];
+    let mut copied = 0_u64;
+    check(copied)?;
+    loop {
+        let count = source.read(&mut bytes)?;
+        if count == 0 {
+            break;
+        }
+        staged.as_file_mut().write_all(&bytes[..count])?;
+        copied += count as u64;
+        check(copied)?;
+    }
     staged.as_file().sync_all()?;
     match staged.persist_noclobber(target) {
         Ok(_) => Ok(true),

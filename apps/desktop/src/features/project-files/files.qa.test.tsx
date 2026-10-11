@@ -8,14 +8,16 @@ import { ProjectTab } from "@/features/browser/project-tab"
 import { ProjectOverviewView } from "@/features/project-overview/view"
 import { PluginPicker, usePluginPicker } from "@/features/plugins/picker"
 import { PluginCatalog } from "@/features/plugins/catalog"
-import { ProjectPlaybackSettings } from "@/features/project-info/settings"
+import { MidiDialogs } from "@/features/midi/dialogs"
+import { PROJECT_TIMEBASES, ProjectPlaybackSettings } from "@/features/project-info/settings"
 import { ProjectFilesPanel } from "./panel"
 import { ScoreFileControls } from "./score-controls"
 import { usePlaylistStore } from "@/features/playlist/store"
 import { useTransportStore } from "@/lib/store/transport"
 
 let app: Awaited<ReturnType<typeof startTestApp>>
-beforeEach(async () => { app = await startTestApp(); useUiStore.getState().selectChannel(useProjectStore.getState().project.channels[0].id) })
+let midiFiles: Uint8Array[] = []
+beforeEach(async () => { midiFiles = []; app = await startTestApp({ midiExport: (_path, bytes) => { midiFiles.push(bytes) } }); useUiStore.getState().selectChannel(useProjectStore.getState().project.channels[0].id) })
 afterEach(() => { usePluginPicker.setState({ open: false }); localStorage.removeItem("windfall.plugin-tile-images.v1"); app.stop(); vi.restoreAllMocks() })
 const state = () => useProjectStore.getState()
 
@@ -152,7 +154,7 @@ it("mounted picker searches favorites and persists a supplied image over generat
   expect(localStorage.getItem("windfall.plugin-tile-images.v1")).toContain("data:image/png;base64,")
   fireEvent.click(within(tile).getByRole("button",{ name:"Favorite Subtractive synth" }))
   await within(tile).findByRole("button",{ name:"Unfavorite Subtractive synth" })
-  fireEvent.click(screen.getByLabelText("Favorites only"))
+  fireEvent.click(screen.getByRole("checkbox", { name: "Favorites only" }))
   fireEvent.change(screen.getByLabelText("Search plugins"),{ target:{ value:"Subtractive synth" } })
   expect(screen.getAllByRole("region")).toHaveLength(1)
   expect(state().history.cursor).toBe(0)
@@ -231,4 +233,24 @@ it("mounted disk browser applies a real built-in instrument plugin preset and re
   await act(async () => { await redo() })
   await app.backend.projectSave("/instrument-preset.windfall"); await app.backend.projectOpen("/instrument-preset.windfall")
   expect(state().project.channels.find((c) => c.id === channel)?.source).toEqual(saved)
+})
+
+it.each([...PROJECT_TIMEBASES, 1, 123, 32767])("mounted MIDI export emits the requested %i PPQ in actual SMF bytes", async (ppq) => {
+  const original = state().project
+  const history = state().history.cursor
+  useUiStore.getState().openDialog("midiExport")
+  render(<MidiDialogs />)
+  if (PROJECT_TIMEBASES.includes(ppq)) {
+    fireEvent.click(screen.getByRole("combobox", { name: "Resolution" }))
+    fireEvent.click(await screen.findByRole("option", { name: `${ppq} PPQ` }))
+  } else {
+    fireEvent.change(screen.getByRole("spinbutton", { name: "Custom MIDI resolution (1–32767)" }), { target: { value: String(ppq) } })
+  }
+  fireEvent.click(screen.getByRole("button", { name: "Choose file and export…" }))
+  await waitFor(() => expect(midiFiles).toHaveLength(1))
+  const bytes = midiFiles[0]
+  expect([...bytes.slice(0, 4)]).toEqual([77, 84, 104, 100])
+  expect(new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength).getUint16(12)).toBe(ppq)
+  expect(state().project).toEqual(original)
+  expect(state().history.cursor).toBe(history)
 })

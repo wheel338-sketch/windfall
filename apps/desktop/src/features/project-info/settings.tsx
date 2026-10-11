@@ -11,7 +11,7 @@ export function ProjectPlaybackSettings() {
   return <FieldGroup>
     <Field><FieldLabel htmlFor={`${id}-law`}>Panning law</FieldLabel>
       <Choice<PanLaw> disabled={false} id={`${id}-law`} value={settings.panLaw ?? "balance"} options={[{ value: "balance", label: "Balance (legacy)" }, { value: "constantPower", label: "Constant power (+3 dB)" }, { value: "compromise", label: "Compromise (+4.5 dB)" }, { value: "linear", label: "Linear (+6 dB)" }]} onChange={(panLaw) => void dispatch({ type: "updateSettings", patch: { panLaw } })} />
-      <FieldDescription>Unity at center. Applies to channel, note, clip and mixer panning.</FieldDescription>
+      <FieldDescription>Unity at center. Applies to channel, clip and mixer panning, and instruments that support per-note pan.</FieldDescription>
     </Field>
     <Field><FieldLabel htmlFor={`${id}-ppq`}>Project timebase</FieldLabel>
       <Choice<number> disabled={false} id={`${id}-ppq`} value={settings.timebasePpq ?? 960} options={PROJECT_TIMEBASES.map((value) => ({ value, label: `${value} PPQ` }))} onChange={(timebasePpq) => void dispatch({ type: "updateSettings", patch: { timebasePpq } })} />
