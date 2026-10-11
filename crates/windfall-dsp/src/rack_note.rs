@@ -149,6 +149,8 @@ pub enum RackNoteModule {
     },
     KeySplitter {
         params: KeySplitParams,
+        #[serde(rename = "preserveKey")]
+        #[ts(rename = "preserveKey")]
         preserve_key: bool,
     },
     KeyMapper {

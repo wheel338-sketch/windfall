@@ -5,6 +5,7 @@ import { ActionButton } from "@/components/action-button"
 import { ContextActions } from "@/components/context-actions"
 import { INSPECTOR_KEEPS, useShortcutScope } from "@/lib/actions"
 import { isInstrumentChannel, isSamplerChannel } from "@/lib/channel-source"
+import { useProjectStore } from "@/lib/store/project"
 import { useGesture } from "@/lib/store/gesture"
 import { useChannel, useChannelCount } from "@/lib/store/selectors"
 import { ChannelVoicePanel } from "../voice"
@@ -34,6 +35,7 @@ export function ChannelInspector() {
   const selected = useUiStore((state) => state.selectedChannel)
   const channel = useChannel(selected)
   const count = useChannelCount()
+  const hasModularRack = useProjectStore((state) => state.project.settings.modularRacks?.some((rack) => rack.channel === selected) ?? false)
   // The settings are a scope of their own inside the rack's. Delete and
   // Ctrl+D pressed in here are about a setting, never about the channel.
   const scope = useShortcutScope("rackInspector", { keeps: INSPECTOR_KEEPS })
@@ -94,7 +96,7 @@ export function ChannelInspector() {
                 <EnvelopeSection channel={channel} />
               </>
             ) : (
-              isInstrumentChannel(channel) && (
+              isInstrumentChannel(channel) && !hasModularRack && (
                 <InstrumentSection channel={channel} />
               )
             )}

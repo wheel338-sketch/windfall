@@ -247,3 +247,8 @@ Written, not executed: channel_preset_capture_keeps_nested_racks_and_loading_pla
 Regenerate ChannelPreset.rack too. Native browser library/file UI integration
 for channel presets is not exposed in the current Backend interface; that gate
 remains, rather than claiming the text editor establishes native preset UX.
+
+Host seam is documented at docs/integration/seams/modular-rack.md; the note-map
+seam now records permanent registration. The inspector hides source parameter
+automation controls while a rack owns the macro indices. Note-module parameter
+automation and full built-in auxiliary assets/ports remain explicit gates.
