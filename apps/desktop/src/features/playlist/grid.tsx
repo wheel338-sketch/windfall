@@ -19,6 +19,9 @@ import {
 } from "@/lib/canvas"
 import { TimeGridCanvas } from "@/lib/canvas/react"
 import { activeSampleDrag, hasSampleDrag, readSampleDrag } from "@/lib/dnd"
+import { activeLoopDrag, hasLoopDrag, readLoopDrag } from "@/features/loops/drag"
+import { insertFactoryLoop } from "@/features/loops/insert"
+import { PPQ } from "@/lib/units"
 import { MODIFIER_HINTS } from "@/lib/edit-modifiers"
 import { errorMessage } from "@/lib/ipc"
 import { useHint } from "@/lib/store/hint"
@@ -291,11 +294,15 @@ export function PlaylistGrid({ metrics }: { metrics: GridMetrics }) {
     const session = sessionRef.current
     // Anything that is not a sound is left to the browser, which shows it
     // cannot be dropped here.
-    if (!view || !session || !hasSampleDrag(event)) return null
+    if (!view || !session || (!hasSampleDrag(event) && !hasLoopDrag(event))) return null
     event.preventDefault()
     event.dataTransfer.dropEffect = "copy"
     const sample = activeSampleDrag()
     const at = { ...view.localPoint(event), alt: event.altKey }
+    if (hasLoopDrag(event)) {
+      const loop = activeLoopDrag()
+      return session.previewDrop(at, loop?.name ?? "Factory loop", loop ? loop.bars * 4 * PPQ : null)
+    }
     const tempo = project().settings.tempoBpm
     const length = () => (sample ? fileClipTicks(sample.path, tempo) : null)
     if (sample) {
@@ -310,6 +317,14 @@ export function PlaylistGrid({ metrics }: { metrics: GridMetrics }) {
   function onDrop(event: DragEvent<HTMLDivElement>) {
     const place = previewDrop(event)
     sessionRef.current?.previewDrop(null)
+    const loop = readLoopDrag(event)
+    if (place && loop) {
+      const row = documentRowFor(place.row)
+      if (row === undefined) return
+      containerRef.current?.focus({ preventScroll: true })
+      void insertFactoryLoop(loop, place.start, project().playlist.tracks[row]?.id ?? null)
+      return
+    }
     const sample = readSampleDrag(event)
     if (!place || !sample) return
     const row = documentRowFor(place.row)

@@ -1,4 +1,5 @@
 import { unavailableAnalysis } from "@/features/analysis/unavailable"
+import { unavailableRemoteContent } from "./remote-content"
 import { NATIVE_ONLY, unavailableLogger } from "@/features/audio-logger/types"
 import { unavailableAnalyzer } from "@/features/analyzers/types"
 import type {
@@ -638,6 +639,7 @@ export function createMockBackend(options: MockOptions = {}): MockBackend {
 
   const made: MockBackend = {
     kind: "mock",
+    ...unavailableRemoteContent(),
     ...unavailableAnalysis(),
     ...mockMixerPresetLibrary(),
     ...unavailableAnalyzer(),

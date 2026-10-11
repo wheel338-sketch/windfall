@@ -29,8 +29,10 @@ impl Default for AudioLimits {
 pub(crate) struct ArchiveJob {
     session: Session,
     cancelled: Arc<AtomicBool>,
+    generation: Option<u64>,
 }
 impl ArchiveJob {
+    pub(crate) fn for_generation(mut self, generation: u64) -> Self { self.generation = Some(generation); self }
     fn check(&self) -> Result<(), Error> {
         if self.cancelled.load(Ordering::Acquire) {
             Err(Error::Cancelled)
@@ -59,6 +61,7 @@ impl Session {
         Ok(ArchiveJob {
             session: self.clone(),
             cancelled,
+            generation: None,
         })
     }
     pub fn project_archive_cancel(&self) {
@@ -103,6 +106,7 @@ impl Session {
         drop(self.recording_idle()?);
         let (project, played, directory, revision) = {
             let state = self.state();
+            if job.generation.is_some_and(|generation| state.generation != generation) { return Err("The project changed before backup capture.".into()); }
             (
                 state.document.project().clone(),
                 self.played(),

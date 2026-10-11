@@ -39,9 +39,9 @@ async fn backup_versions(session: State<'_, Session>, folder: String) -> Result<
     let session=session.inner().clone(); blocking(move ||session.backup_versions(&folder)).await
 }
 #[tauri::command]
-async fn backup_save(session: State<'_, Session>, folder: String, expected: Option<String>, keep: usize) -> Result<windfall_ipc::BackupVersion,String> {
+async fn backup_save(session: State<'_, Session>, folder: String, expected: Option<String>, keep: usize, generation: u64) -> Result<windfall_ipc::BackupVersion,String> {
     let job=session.backup_job()?;
-    let session=session.inner().clone(); blocking(move ||session.backup_save_with(&folder,expected.as_deref(),keep,job)).await
+    let session=session.inner().clone(); blocking(move ||session.backup_save_with(&folder,expected.as_deref(),keep,generation,job)).await
 }
 #[tauri::command]
 async fn backup_restore(session: State<'_, Session>, folder: String, id: String, target: String) -> Result<String,String> {

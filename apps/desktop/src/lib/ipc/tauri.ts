@@ -1,4 +1,5 @@
 import { Channel, invoke } from "@tauri-apps/api/core"
+import { nativeRemoteContent } from "./remote-content"
 import { listen } from "@tauri-apps/api/event"
 import { getCurrentWindow } from "@tauri-apps/api/window"
 import { open, save } from "@tauri-apps/plugin-dialog"
@@ -66,6 +67,7 @@ export function createTauriBackend(): Backend {
 
   return {
     kind: "tauri",
+    ...nativeRemoteContent(call),
     analyzerCapability: () => call("analyzer_capability"),
     analyzerSubscribe: (slot, handler) => {
       // One channel per slot. Events that arrive after the slot stopped

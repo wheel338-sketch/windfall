@@ -34,6 +34,7 @@ import { useUiStore, type KeymapPreset, type Theme } from "@/lib/store/ui"
 import { formatSampleRate } from "@/lib/time"
 import { cn } from "@/lib/utils"
 import { MidiHardwareSettingsSection } from "./midi-hardware"
+import { PhoneRemoteSettings } from "./phone-remote"
 import { nextKeymapPreset } from "./keymap-preset-step"
 
 import {
@@ -334,6 +335,7 @@ export function SettingsDialog() {
         </DialogHeader>
         <AudioSection />
         <MidiHardwareSettingsSection />
+        <PhoneRemoteSettings />
         <AppearanceSection />
         <KeyboardSection />
       </DialogContent>
