@@ -9,7 +9,10 @@
 use std::f64::consts::{PI, TAU};
 
 use windfall_dsp::control::PanLfoParams;
-use windfall_dsp::eqbank::{SEVEN_BAND_FREQUENCIES_HZ, SevenBandParams};
+use windfall_dsp::eqbank::{
+    MORPH_CURVE_FREQUENCIES_HZ, MORPH_CURVE_Q, MorphEqParams, SEVEN_BAND_FREQUENCIES_HZ,
+    SevenBandParams,
+};
 use windfall_dsp::spatial::StereoInvert;
 use windfall_dsp::{
     AnyEffect, EffectParams, EffectSlot, LfoShape, SpreaderParams, StereoEnhancerParams,
@@ -723,4 +726,116 @@ fn pan_motion_is_block_invariant_and_bypasses_without_a_click() {
         }),
     );
     assert_bypass_is_continuous(&shaped(LfoShape::Square, 1.0), 0.06);
+}
+
+// ---------------------------------------------------------------------
+// Morph EQ
+
+/// Bells in series at `centers`, all with the same Q.
+fn bells(centers: &[f32], gains_db: &[f32], q: f64, hz: f64, rate: f64) -> Complex {
+    let mut total = (1.0, 0.0);
+    for (center, gain) in centers.iter().zip(gains_db) {
+        total = multiply(
+            total,
+            section(Shape::Peak, f64::from(*center), q, f64::from(*gain), hz, rate),
+        );
+    }
+    total
+}
+
+fn assert_curve(params: &EffectParams, gains_db: &[f32; 15], what: &str) {
+    for rate in [44_100.0, 96_000.0] {
+        for hz in [
+            24.0, 40.0, 100.0, 250.0, 400.0, 1_000.0, 1_600.0, 4_000.0, 10_000.0, 16_000.0,
+        ] {
+            let measured = measured(params, rate, hz);
+            let expected = bells(
+                &MORPH_CURVE_FREQUENCIES_HZ,
+                gains_db,
+                f64::from(MORPH_CURVE_Q),
+                hz,
+                f64::from(rate),
+            );
+            assert!(
+                (magnitude_db(measured) - magnitude_db(expected)).abs() < 0.05,
+                "{what}: level at {hz} Hz, {rate} Hz: {} against {}",
+                magnitude_db(measured),
+                magnitude_db(expected)
+            );
+            assert!(
+                phase_gap(phase(measured), phase(expected)) < 0.01,
+                "{what}: phase at {hz} Hz, {rate} Hz"
+            );
+        }
+    }
+}
+
+/// Four stored curves that share no band, so a morph position is told by
+/// which bands are raised.
+fn stored_curves() -> MorphEqParams {
+    let mut params = MorphEqParams::default();
+    params.curves[0].gains_db[3] = 12.0;
+    params.curves[0].gains_db[9] = -6.0;
+    params.curves[1].gains_db[6] = 12.0;
+    params.curves[2].gains_db[10] = -12.0;
+    params.curves[3].gains_db[13] = 9.0;
+    params
+}
+
+#[test]
+fn morph_eq_curve_is_fifteen_fixed_bells_in_level_and_phase() {
+    let mut params = MorphEqParams::default();
+    params.curves[0].gains_db = [
+        6.0, -3.0, 9.0, -12.0, 4.0, 0.0, -7.0, 12.0, -18.0, 5.0, 0.0, 8.0, -4.0, 18.0, -9.0,
+    ];
+    let gains = params.curves[0].gains_db;
+    assert_eq!(params.interpolated_curve(), gains);
+    assert_curve(&EffectParams::MorphEq(params), &gains, "curve A");
+}
+
+#[test]
+fn morph_eq_morph_walks_the_stored_curves_in_straight_lines_of_decibels() {
+    // Two curves by default: the travel runs from A to B.
+    let mut two = stored_curves();
+    two.morph = 1.0;
+    assert_eq!(two.interpolated_curve(), two.curves[1].gains_db);
+    assert_curve(&EffectParams::MorphEq(two), &two.curves[1].gains_db, "B");
+    two.morph = 0.5;
+    let mut half = [0.0; 15];
+    half[3] = 6.0;
+    half[9] = -3.0;
+    half[6] = 6.0;
+    assert_eq!(two.interpolated_curve(), half);
+    assert_curve(&EffectParams::MorphEq(two), &half, "half way from A to B");
+
+    // With four, each third of the travel is one curve to the next.
+    let mut four = stored_curves();
+    four.curve_count = 4;
+    four.morph = 1.0;
+    assert_eq!(four.interpolated_curve(), four.curves[3].gains_db);
+    assert_curve(&EffectParams::MorphEq(four), &four.curves[3].gains_db, "D");
+    four.morph = 0.5;
+    let mut middle = [0.0; 15];
+    middle[6] = 6.0;
+    middle[10] = -6.0;
+    let found = four.interpolated_curve();
+    for band in 0..15 {
+        assert!((found[band] - middle[band]).abs() < 1.0e-4, "band {band}");
+    }
+    assert_curve(&EffectParams::MorphEq(four), &found, "half way from B to C");
+    // The stored curves are not changed by morphing.
+    assert_eq!(four.curves, stored_curves().curves);
+}
+
+#[test]
+fn morph_eq_is_block_invariant_through_a_morph_and_bypasses_without_a_click() {
+    let mut start = stored_curves();
+    start.curve_count = 4;
+    let mut end = start;
+    end.morph = 1.0;
+    end.snapshot_b.bands[1].gain_db = 9.0;
+    assert_block_invariant(&EffectParams::MorphEq(start), &EffectParams::MorphEq(end));
+    let mut loud = MorphEqParams::default();
+    loud.curves[0].gains_db[5] = 12.0;
+    assert_bypass_is_continuous(&EffectParams::MorphEq(loud), 0.07);
 }

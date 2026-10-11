@@ -1,6 +1,15 @@
 import { describe, expect, it } from "vitest"
 
 import {
+  curvePosition,
+  describeMorph,
+  interpolatedBells,
+  interpolatedCurve,
+  MORPH_CURVE_HZ,
+  MORPH_CURVE_Q,
+  morphEqSections,
+} from "./graphic/morph-eq"
+import {
   describeBands,
   SEVEN_BAND_HZ,
   SEVEN_BAND_Q,
@@ -169,5 +178,81 @@ describe("the stereo picture", () => {
     expect(describeOffset(0)).toBe("Both sides in time")
     expect(describeOffset(5)).toBe("Right side 5 ms late")
     expect(describeOffset(-2.5)).toBe("Left side 2.5 ms late")
+  })
+})
+
+describe("the Morph EQ curve", () => {
+  const flat = () => MORPH_CURVE_HZ.map(() => 0)
+  const curves = () => {
+    const stored = [flat(), flat(), flat(), flat()]
+    stored[0][3] = 12
+    stored[1][6] = 12
+    stored[2][10] = -12
+    stored[3][13] = 9
+    return stored
+  }
+
+  it("moves in straight lines of decibels and lands on each stored curve", () => {
+    const stored = curves()
+    expect(interpolatedCurve(stored, 2, 0)).toEqual(stored[0])
+    expect(interpolatedCurve(stored, 2, 1)).toEqual(stored[1])
+    const half = interpolatedCurve(stored, 2, 0.5)
+    expect(half[3]).toBe(6)
+    expect(half[6]).toBe(6)
+    expect(interpolatedCurve(stored, 4, 1)).toEqual(stored[3])
+    const middle = interpolatedCurve(stored, 4, 0.5)
+    expect(middle[6]).toBeCloseTo(6, 9)
+    expect(middle[10]).toBeCloseTo(-6, 9)
+    expect(middle[3]).toBe(0)
+    // Out of range settings are held to the ends.
+    expect(interpolatedCurve(stored, 9, 7)).toEqual(stored[3])
+    expect(interpolatedCurve(stored, 0, -1)).toEqual(stored[0])
+  })
+
+  it("names the position and places the curves on the travel", () => {
+    expect(describeMorph(0, 2)).toBe("Curve A")
+    expect(describeMorph(1, 2)).toBe("Curve B")
+    expect(describeMorph(0.4, 2)).toBe("40% from A to B")
+    expect(describeMorph(1, 4)).toBe("Curve D")
+    expect(describeMorph(0.5, 4)).toBe("50% from B to C")
+    expect(curvePosition(0, 4)).toBe(0)
+    expect(curvePosition(3, 4)).toBe(1)
+    expect(curvePosition(1, 2)).toBe(1)
+  })
+
+  it("is fifteen fixed bells and four gliding ones in series", () => {
+    const band = (frequencyHz: number, gainDb: number, q: number) => ({
+      frequencyHz,
+      gainDb,
+      q,
+    })
+    const a = [band(100, 6, 1), band(400, 0, 1), band(2_000, 0, 1), band(8_000, 0, 1)]
+    const b = [band(400, -6, 4), band(400, 0, 1), band(2_000, 0, 1), band(8_000, 0, 1)]
+    // Half way: 200 Hz (the geometric mean), 0 dB, Q 2.
+    expect(interpolatedBells(a, b, 0.5)[0]).toEqual({
+      frequencyHz: expect.closeTo(200, 6),
+      gainDb: 0,
+      q: expect.closeTo(2, 6),
+    })
+    expect(interpolatedBells(a, b, 0)).toEqual(a)
+    expect(interpolatedBells(a, b, 1)).toEqual(b)
+
+    const stored = curves()
+    const params = {
+      snapshotA: { bands: a },
+      snapshotB: { bands: b },
+      morph: 0,
+      curves: stored.map((gainsDb) => ({ gainsDb })),
+      curveCount: 2,
+    } as unknown as Parameters<typeof morphEqSections>[0]
+    for (const hz of [60, 100, 250, 1_000]) {
+      const expected =
+        db(bellPower(warped(hz, 100), MORPH_CURVE_Q, 12)) +
+        db(bellPower(warped(hz, 100), 1, 6))
+      expect(seriesGainAt(morphEqSections(params, RATE), hz, RATE)).toBeCloseTo(
+        expected,
+        4
+      )
+    }
   })
 })

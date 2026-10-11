@@ -16,6 +16,7 @@ import { CompressorEditor } from "./compressor/compressor-editor"
 import { DelayEditor } from "./delay/delay-editor"
 import type { EditorProps } from "./editor-props"
 import { EqEditor } from "./eq/eq-editor"
+import { MorphEqEditor } from "./graphic/morph-eq-editor"
 import { SevenBandEditor } from "./graphic/seven-band-editor"
 import { LimiterEditor } from "./limiter/limiter-editor"
 import { PanMotionEditor } from "./motion/pan-motion-editor"
@@ -42,6 +43,7 @@ const EDITORS: Editors = {
   spreader: SpreaderEditor,
   stereoEnhancer: StereoEnhancerEditor,
   panLfo: PanMotionEditor,
+  morphEq: MorphEqEditor,
 }
 
 type AnyEditor = ComponentType<EditorProps<EffectParams>>

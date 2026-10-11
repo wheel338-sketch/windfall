@@ -496,7 +496,7 @@ fn parameter_metadata_serde_and_ts_agree() {
     metadata::<SevenBandParams>(7);
     metadata::<MorphBandParams>(3);
     metadata::<MorphSnapshotParams>(12);
-    metadata::<MorphEqParams>(25);
+    metadata::<MorphEqParams>(86);
     metadata::<FilterSlotParams>(3);
     metadata::<FilterBankParams>(25);
 }

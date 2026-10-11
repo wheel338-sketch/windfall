@@ -7,7 +7,7 @@ mod support;
 
 use support::{Rig, sine};
 use windfall_dsp::control::PanLfoParams;
-use windfall_dsp::eqbank::SevenBandParams;
+use windfall_dsp::eqbank::{MorphEqParams, SevenBandParams};
 use windfall_dsp::{SpreaderParams, StereoEnhancerParams};
 use windfall_engine::{Processor, RenderOptions, render};
 use windfall_ipc::PlayMode;
@@ -243,5 +243,23 @@ fn pan_motion_shape_sync_and_volume_reach_native_audio_history_and_files() {
             ("volumeDepth", 1.0),
         ],
         "depth",
+    );
+}
+
+#[test]
+fn morph_eq_curves_and_morph_reach_native_audio_history_files_and_automation() {
+    // Curve B is stored before the test moves anything: 400 Hz up, 10 kHz down.
+    let mut params = MorphEqParams::default();
+    params.curves[1].gains_db[6] = 12.0;
+    params.curves[1].gains_db[13] = -12.0;
+    accept(
+        EffectParams::MorphEq(params),
+        &[
+            ("curves.0.gainsDb.6", -9.0),
+            ("morph", 1.0),
+            ("curveCount", 4.0),
+            ("curves.3.gainsDb.13", 12.0),
+        ],
+        "morph",
     );
 }

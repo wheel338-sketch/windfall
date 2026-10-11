@@ -21,7 +21,7 @@ been started.
 | `fx-spreader` | Spreader (`spreader`) | editor and tests written; candidate for done once they pass |
 | `fx-fruity-stereo-enhancer` | Stereo Enhancer (`stereoEnhancer`) | phase offset and inversion added, editor and tests written; candidate for done once they pass |
 | `fx-fruity-panomatic` | Pan Motion (`panLfo`) | shapes and tempo sync added, editor and tests written; candidate for done once they pass |
-| `fx-equo` | Morph EQ (`morphEq`) | not started |
+| `fx-equo` | Morph EQ (`morphEq`) | graphic curves, morph across up to four, editor and tests written; candidate for done once they pass |
 | `fx-fruity-love-philter` | Filter Bank (`filterBank`) | not started |
 | `fx-fruity-filter` | new kind | not started |
 | `fx-fruity-parametric-eq` | new kind | not started |
@@ -145,3 +145,34 @@ Least sure: the existing `control/tests.rs` cases `pan_motion_modulates_audio_an
 
 Remaining gate: the motion free-runs from the start of processing; it is not locked to the
 song position (the `Effect` interface carries tempo, not transport position).
+
+## `fx-equo` — Morph EQ
+
+Implemented (`crates/windfall-dsp/src/eqbank/graphic.rs`, `morph.rs`): the existing kind keeps
+its 25 descriptors (two snapshots of four movable bells and `morph`) and gains a real graphic
+equalizer: `curves` — four stored curves, A to D, of fifteen fixed bands two thirds of an
+octave apart (25 Hz to 16 kHz, Q 2.1, -18 to 18 dB; indices 25 to 84) — and `curveCount`
+(index 85; 2 to 4, default 2). The one `morph` control walks the curves in use, evenly spaced
+on its travel, in straight lines of dB, and at the same time glides the bells from snapshot A
+to B. A position on a stored curve gives that curve exactly. With flat curves the output is
+bit-identical to before, so saved projects sound the same. `MorphEqParams::interpolated_curve`
+exposes the gains at the current position. Descriptor count goes from 25 to 86
+(`eqbank/tests.rs` updated).
+
+Editor `features/effects/graphic/morph-eq-editor.tsx`: the selected stored curve on fifteen
+faders, curve buttons A to D (only those in use), Morph on a horizontal fader with its
+position in words, "Store what is heard in X" and "Flat" as single undo steps, the stored
+curves drawn faintly behind what is heard, and the movable bells behind a switch.
+
+Tests: DSP `morph_eq_curve_is_fifteen_fixed_bells_in_level_and_phase`,
+`morph_eq_morph_walks_the_stored_curves_in_straight_lines_of_decibels`,
+`morph_eq_is_block_invariant_through_a_morph_and_bypasses_without_a_click`; engine
+`morph_eq_curves_and_morph_reach_native_audio_history_files_and_automation`; UI
+`describe("Morph EQ")` (five cases); helpers `the Morph EQ curve`.
+
+Least sure: the 61 generated `param_set!` rows compile as written (array-of-struct paths such as
+`curves[2].gains_db[7]`); `EffectParams` grows by 244 bytes; the mounted cases need regenerated
+`descriptors.json` and bindings (`MorphCurveParams` is a new exported type).
+
+Remaining gate: no per-band pan or send, and no analysis-driven curve capture; "Store what is
+heard" captures the morphed setting, not the audio.

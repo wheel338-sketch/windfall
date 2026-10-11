@@ -16,6 +16,7 @@ import { dispatch, redo, undo, useProjectStore } from "@/lib/store/project"
 import { settle, startTestApp } from "@/test/harness"
 
 import { customEditor, EffectEditor } from "./effect-editor"
+import { curveGainId } from "./graphic/morph-eq"
 import { SEVEN_BAND_HZ, SEVEN_BAND_IDS } from "./graphic/seven-band"
 import { describeOffset } from "./stereo/stereo"
 
@@ -342,5 +343,105 @@ describe("Pan Motion", () => {
     await setParam("panLfo", effect, "depth", 0.5)
     await setParam("panLfo", effect, "pan", 0.5)
     expect(label()).toMatch(/^Pan moves between C and R100 as a square/)
+  })
+})
+
+describe("Morph EQ", () => {
+  const label = () =>
+    document
+      .querySelector("[data-slot=response-display]")
+      ?.getAttribute("aria-label")
+
+  it("has its own editor: a graphic curve, the morph and the curve count", async () => {
+    expect(customEditor("morphEq")).toBeDefined()
+    const effect = await open("morphEq")
+    expect(
+      screen.getByRole("group", { name: "Morph EQ settings" })
+    ).toBeVisible()
+    const faders = within(
+      screen.getByRole("group", { name: "Curve A" })
+    ).getAllByRole("slider")
+    expect(faders).toHaveLength(15)
+    await expectSliders("morphEq", effect, [
+      "morph",
+      "curveCount",
+      curveGainId(0, 0),
+      curveGainId(0, 14),
+    ])
+  })
+
+  it("edits the stored curve that is selected, and only offers the curves in use", async () => {
+    const user = userEvent.setup()
+    const effect = await open("morphEq")
+    expect(screen.getByRole("button", { name: "Curve A" })).toHaveAttribute(
+      "aria-pressed",
+      "true"
+    )
+    expect(screen.getByRole("button", { name: "Curve C" })).toBeDisabled()
+    await user.click(screen.getByRole("button", { name: "Curve B" }))
+    expect(
+      within(screen.getByRole("group", { name: "Curve B" })).getAllByRole(
+        "slider"
+      )
+    ).toHaveLength(15)
+    await expectSliders("morphEq", effect, [curveGainId(1, 8)])
+    await setParam("morphEq", effect, "curveCount", 4)
+    expect(screen.getByRole("button", { name: "Curve C" })).toBeEnabled()
+    await user.click(screen.getByRole("button", { name: "Curve D" }))
+    await expectSliders("morphEq", effect, [curveGainId(3, 2)])
+  })
+
+  it("shows where the morph is and what is heard there", async () => {
+    const effect = await open("morphEq")
+    expect(label()).toBe("Morph EQ response at Curve A: flat")
+    await setParam("morphEq", effect, curveGainId(0, 8), 12)
+    await setParam("morphEq", effect, "morph", 0.5)
+    expect(label()).toBe(
+      `Morph EQ response at 50% from A to B: ${formatHz(1_000)} ${formatDb(6, 1)}`
+    )
+    await setParam("morphEq", effect, "morph", 1)
+    expect(label()).toBe("Morph EQ response at Curve B: flat")
+  })
+
+  it("stores what is heard into the selected curve, and flattens it, each as one undo step", async () => {
+    const user = userEvent.setup()
+    const effect = await open("morphEq")
+    await setParam("morphEq", effect, curveGainId(0, 8), 12)
+    await setParam("morphEq", effect, curveGainId(0, 3), -8)
+    await setParam("morphEq", effect, "morph", 0.5)
+    await user.click(screen.getByRole("button", { name: "Curve B" }))
+    const before = structuredClone(slotOf(effect).params)
+    const cursor = history().cursor
+    await user.click(
+      screen.getByRole("button", { name: "Store what is heard in B" })
+    )
+    await flush()
+    expect(stored(effect, "morphEq", curveGainId(1, 8))).toBe(6)
+    expect(stored(effect, "morphEq", curveGainId(1, 3))).toBe(-4)
+    // Curve A is as it was.
+    expect(stored(effect, "morphEq", curveGainId(0, 8))).toBe(12)
+    expect(history().cursor).toBe(cursor + 1)
+    await user.click(screen.getByRole("button", { name: "Flat" }))
+    await flush()
+    expect(stored(effect, "morphEq", curveGainId(1, 8))).toBe(0)
+    expect(history().cursor).toBe(cursor + 2)
+    await undo()
+    await undo()
+    await flush()
+    expect(slotOf(effect).params).toEqual(before)
+  })
+
+  it("keeps the movable bells behind a switch, each on its own setting", async () => {
+    const user = userEvent.setup()
+    const effect = await open("morphEq")
+    expect(
+      screen.queryByRole("slider", { name: "A Band 1 Frequency" })
+    ).toBeNull()
+    await user.click(screen.getByRole("button", { name: "Movable bells" }))
+    await expectSliders("morphEq", effect, [
+      "snapshotA.bands.0.frequencyHz",
+      "snapshotA.bands.3.gainDb",
+      "snapshotB.bands.2.q",
+    ])
   })
 })
