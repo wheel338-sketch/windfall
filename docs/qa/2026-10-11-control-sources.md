@@ -54,3 +54,5 @@ Reference fixture review: mounted XYZ recording begins Y at 0.5 and allows f32 s
 Plan adoption now carries unchanged internal fader ramps and restores linked native parameters after stored plan settings apply, without advancing link smoothing outside its grid. Added an unrelated-edit-between-grid-boundaries gain continuity case; written, not executed.
 
 Adoption reference fixture uses ProjectSettings.name; gain continuity transfer respects mute/solo audibility changes, and cached values are read before mutably borrowing PlanState.
+
+Final UI review: source-owned link edits/removal identify the source and target against the latest document rather than a potentially shifted list position. Smoothing input advertises the checked contract's 5000 ms maximum. No build or test was run.
