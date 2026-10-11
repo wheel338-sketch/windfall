@@ -77,6 +77,23 @@ describe("sample instrument purpose-built editors",()=>{
     expect(useProjectStore.getState().project.channels.find(item=>item.id===id)?.sampleInstrument)
       .toEqual({type:"soundFont",path:{kind:"external",path:"C:/Own/keys.sf2"},bank:3,program:7})
   })
+  it("switches generated piano recipes with undo and exposes the active source",async()=>{
+    const id=await open("pianoKeys")
+    expect(screen.getByText("Current source: Struck-string piano")).toBeInTheDocument()
+    fireEvent.click(screen.getByRole("button",{name:"Switch piano / electric keyboard"}));await act(()=>settle())
+    expect(useProjectStore.getState().project.channels.find(item=>item.id===id)?.sampleInstrument).toEqual({type:"piano",electric:true,version:1})
+    expect(screen.getByText("Current source: Electric keyboard")).toBeInTheDocument()
+    await undo();await act(()=>settle())
+    expect(screen.getByText("Current source: Struck-string piano")).toBeInTheDocument()
+  })
+  it("reports a native portable-bank loading error without changing the player",async()=>{
+    backend.sampleInstrumentLoadBank=vi.fn().mockRejectedValue(new Error("Missing bank source"))
+    const id=await open("samplePlayer")
+    fireEvent.change(screen.getByRole("textbox",{name:"Bank file"}),{target:{value:"C:/Own/player.wfbank"}})
+    fireEvent.click(screen.getByRole("button",{name:"Load instrument bank"}));await act(()=>settle())
+    expect(screen.getByRole("alert")).toHaveTextContent("Missing bank source")
+    expect(useProjectStore.getState().project.channels.find(item=>item.id===id)?.sampleInstrument).toBeUndefined()
+  })
   it("shows desktop-only speech capability without fabricating a rendered source",async()=>{
     await open("textVoice")
     fireEvent.change(screen.getByRole("textbox",{name:"Text"}),{target:{value:"Hello"}})

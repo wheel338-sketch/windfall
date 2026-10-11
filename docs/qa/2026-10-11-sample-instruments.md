@@ -196,3 +196,11 @@ preset selection isolation, preset/instrument range intersections, inherited
 root tuning, distinct signed PCM, catalog enumeration and missing-program refusal.
 This supplements hostile/truncated files, generator offsets, envelopes and loops;
 it does not establish broad third-party SF2 interoperability.
+
+## Mounted special-output and source-recipe acceptance group
+
+Written, not executed: `editor.test.tsx` also covers active generated-piano recipe
+switching/undo and native portable-bank failure leaving the player unchanged.
+`special-output-editor.test.tsx` covers unavailable routes without hardware fallback,
+advertised system-synth/controller selection preserving settings, and worker failure.
+The native adapters and mock route tests do not fabricate hardware evidence.
