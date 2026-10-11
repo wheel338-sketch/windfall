@@ -17,6 +17,7 @@ use windfall_engine::Processor;
 use windfall_ipc::{
     ANALYZER_EVENT_BYTES, AnalyzerAck, AnalyzerEvent, AnalyzerFrame, AnalyzerObservation,
     AnalyzerPhase, AnalyzerReason, AnalyzerSelect, AnalyzerSource, AnalyzerStatus, AnalyzerWant,
+    MixerWaveform, RealtimeFrame,
 };
 use windfall_project::{
     ChannelId, Command, EffectId, EffectKind, InstrumentKind, MixerTrackPatch, TrackId,
@@ -828,4 +829,202 @@ fn an_effect_slot_is_sent_the_limiters_history_and_the_tuners_calibrated_reading
     let octaves = (reading.2 / 440.0).log2();
     assert!((octaves - octaves.round()).abs() < 0.01, "{reading:?}");
     assert!(reading.3 > 0.5, "{reading:?}");
+}
+
+/// Subscribes a window to the realtime feed and keeps what it is sent, as
+/// the JSON text that crosses to the window.
+fn realtime_wire(rig: &Rig, window: &str) -> Arc<Mutex<Vec<String>>> {
+    let texts = Arc::new(Mutex::new(Vec::new()));
+    let sink = texts.clone();
+    rig.session.subscribe_realtime(
+        window,
+        Box::new(move |frame: &RealtimeFrame| {
+            lock(&sink).push(serde_json::to_string(frame).unwrap());
+            true
+        }),
+    );
+    texts
+}
+
+/// One tick of the feed, read back from what the window was sent.
+fn sent_frame(rig: &Rig, wire: &Arc<Mutex<Vec<String>>>) -> RealtimeFrame {
+    lock(wire).clear();
+    rig.session.realtime_tick();
+    let texts = lock(wire);
+    assert_eq!(texts.len(), 1, "one frame per tick");
+    serde_json::from_str(&texts[0]).unwrap()
+}
+
+fn waveform_of(frame: &RealtimeFrame, track: TrackId) -> Option<&MixerWaveform> {
+    frame
+        .waveforms
+        .iter()
+        .find(|waveform| waveform.track == track)
+}
+
+/// Whether one side of a waveform history moved at all: `side` 0 is left.
+fn swings(waveform: &MixerWaveform, side: usize) -> bool {
+    waveform
+        .points
+        .iter()
+        .any(|point| point[side * 2] < -1.0e-3 && point[side * 2 + 1] > 1.0e-3)
+}
+
+fn still(waveform: &MixerWaveform, side: usize) -> bool {
+    waveform
+        .points
+        .iter()
+        .all(|point| point[side * 2] == 0.0 && point[side * 2 + 1] == 0.0)
+}
+
+#[test]
+fn the_feed_a_window_is_sent_tells_tracks_apart_for_the_large_meter_and_the_waveform_meters() {
+    let _turn = turn();
+    let mut bench = Bench::new();
+    let session = bench.rig.session.clone();
+    let wire = realtime_wire(&bench.rig, WINDOW);
+    let place = |track: TrackId| {
+        session
+            .document_snapshot()
+            .project
+            .mixer
+            .tracks
+            .iter()
+            .position(|item| item.id == track)
+            .unwrap()
+    };
+    let (a, b) = (place(bench.a), place(bench.b));
+
+    // The meters: two per mixer track in mixer order, the master first.
+    // Track A is hard left, track B hard right, the master has both.
+    bench.rig.run(4_800);
+    let frame = sent_frame(&bench.rig, &wire);
+    assert!(frame.meters[a * 2] > 1.0e-3, "{:?}", frame.meters);
+    assert_eq!(frame.meters[a * 2 + 1], 0.0);
+    assert_eq!(frame.meters[b * 2], 0.0);
+    assert!(frame.meters[b * 2 + 1] > 1.0e-3, "{:?}", frame.meters);
+    assert!(frame.meters[0] > 1.0e-3 && frame.meters[1] > 1.0e-3);
+    // Peaks are since the frame before: with no audio in between, none.
+    let quiet = sent_frame(&bench.rig, &wire);
+    assert_eq!(quiet.meters[a * 2], 0.0);
+    // Nobody asked for waveforms, so none are sent.
+    assert!(frame.waveforms.is_empty());
+
+    // The waveform meters: only the tracks a window asked for, by track id.
+    let snapshot = session.document_snapshot();
+    let generation = bench.generation();
+    session
+        .mixer_waveform_tracks(vec![bench.a, bench.b], generation, snapshot.revision)
+        .unwrap();
+    bench.rig.run(24_000);
+    let frame = sent_frame(&bench.rig, &wire);
+    assert_eq!(frame.waveforms.len(), 2, "{:?}", frame.waveforms);
+    let (on_a, on_b) = (
+        waveform_of(&frame, bench.a).expect("track A's waveform"),
+        waveform_of(&frame, bench.b).expect("track B's waveform"),
+    );
+    assert_eq!(on_a.sample_rate, SAMPLE_RATE);
+    // Five milliseconds a bucket, 64 buckets at most.
+    assert_eq!(on_a.bucket_frames, SAMPLE_RATE / 200);
+    assert_eq!(on_a.points.len(), 64);
+    assert!(swings(on_a, 0) && still(on_a, 1), "{:?}", on_a.points);
+    assert!(still(on_b, 0) && swings(on_b, 1), "{:?}", on_b.points);
+    // The history moves on with the audio.
+    bench.rig.run(4_800);
+    let later = sent_frame(&bench.rig, &wire);
+    assert!(waveform_of(&later, bench.a).unwrap().serial > on_a.serial);
+
+    // A request made for another project or another revision is refused.
+    assert!(
+        session
+            .mixer_waveform_tracks(vec![bench.a], generation + 1, snapshot.revision)
+            .is_err()
+    );
+    assert!(
+        session
+            .mixer_waveform_tracks(vec![bench.a, bench.a], generation, snapshot.revision)
+            .is_err()
+    );
+
+    // Track B is deleted: its waveform is gone, A's goes on, and B can no
+    // longer be asked for.
+    session
+        .dispatch(Command::RemoveMixerTrack { id: bench.b }, None)
+        .unwrap();
+    bench.rig.run(4_800);
+    let frame = sent_frame(&bench.rig, &wire);
+    assert!(
+        waveform_of(&frame, bench.b).is_none(),
+        "{:?}",
+        frame.waveforms
+    );
+    assert!(waveform_of(&frame, bench.a).is_some());
+    let revision = session.document_snapshot().revision;
+    assert!(
+        session
+            .mixer_waveform_tracks(vec![bench.a, bench.b], generation, revision)
+            .is_err()
+    );
+
+    // A new project takes this one's place. Its tracks share ids with the
+    // old one's, so nothing of the old project's waveforms may be sent for
+    // them: interest starts over, and so does every history.
+    session.project_new().unwrap();
+    bench.rig.run(4_800);
+    let frame = sent_frame(&bench.rig, &wire);
+    assert!(frame.waveforms.is_empty(), "{:?}", frame.waveforms);
+    let fresh = session.document_snapshot();
+    let master = fresh.project.mixer.tracks[0].id;
+    session
+        .mixer_waveform_tracks(vec![master], bench.generation(), fresh.revision)
+        .unwrap();
+    bench.rig.run(480);
+    let frame = sent_frame(&bench.rig, &wire);
+    if let Some(waveform) = waveform_of(&frame, master) {
+        // At most what the new project has played since: two buckets.
+        assert!(waveform.points.len() <= 2, "{:?}", waveform.points);
+    }
+}
+
+#[test]
+fn the_playhead_a_window_is_sent_follows_play_a_seek_and_the_loop_for_the_large_clock() {
+    let mut rig = Rig::new();
+    let session = rig.session.clone();
+    let wire = realtime_wire(&rig, WINDOW);
+    let stopped = sent_frame(&rig, &wire);
+    assert!(!stopped.playing);
+    assert_eq!(stopped.tick, 0.0);
+
+    // 120 beats a minute is 1920 ticks a second.
+    session.transport_seek(960.0);
+    session.transport_play().unwrap();
+    rig.run(SAMPLE_RATE as usize / 2);
+    let playing = sent_frame(&rig, &wire);
+    assert!(playing.playing);
+    assert!(
+        (playing.tick - 1_920.0).abs() < 2.0,
+        "tick {}",
+        playing.tick
+    );
+
+    // The pattern is one bar, 3840 ticks, and loops: 2.5 seconds on from
+    // tick 1920 is tick 6720, which is 2880 into the second time round.
+    rig.run(SAMPLE_RATE as usize * 5 / 2);
+    let looped = sent_frame(&rig, &wire);
+    assert!(looped.playing);
+    assert!((looped.tick - 2_880.0).abs() < 2.0, "tick {}", looped.tick);
+
+    // A seek while playing moves the playhead and it runs on from there.
+    session.transport_seek(480.0);
+    rig.run(SAMPLE_RATE as usize / 4);
+    let moved = sent_frame(&rig, &wire);
+    assert!(moved.playing);
+    assert!((moved.tick - 960.0).abs() < 2.0, "tick {}", moved.tick);
+
+    session.transport_stop();
+    rig.run(480);
+    let stopped = sent_frame(&rig, &wire);
+    assert!(!stopped.playing);
+    // The position crosses the wire as a plain number a clock can format.
+    assert!(stopped.tick.is_finite());
 }

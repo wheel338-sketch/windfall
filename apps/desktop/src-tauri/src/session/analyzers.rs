@@ -755,6 +755,11 @@ impl Session {
     /// document lock held, so it only marks: the next tick lets go of the
     /// old project's captures, outside that lock, and tells every slot.
     pub(super) fn analyzer_project_replaced(&self, generation: u64) {
+        // The waveform meters' interest is by track id, and the new
+        // project's ids start over: without this the old project's choice
+        // and its last third of a second of history would show under the
+        // new project's tracks. Only atomics are written.
+        self.controller().clear_waveform_history();
         let mut state = lock(&self.inner.analyzers.state);
         for seat in state.seats.iter_mut().flatten() {
             if seat.project != generation {
