@@ -1,5 +1,12 @@
 # E3 delay-family source contract
 
+2026-10-11 continuation: both registered processors now have purpose-built
+editors (linked eight-unit routing and drawn sixteen-band delay/level/pan),
+fallible host admission and saturating aggregate tails. The original DSP
+contract below is retained. The four named integration gates are full-row
+source candidates; new tests are written, not executed. See
+[the current handoff](qa/2026-10-10-fx-delay-mod-reverb.md) for commands and limits.
+
 Source checkpoint; no effect registry, project, engine, IPC, generated bindings,
 UI, parity or release changes. Ownership is confined to the two new public DSP
 modules, their private submodules, this document, the auto-discovered integration
