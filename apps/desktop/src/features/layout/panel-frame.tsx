@@ -16,6 +16,7 @@ import { reportError } from "@/lib/errors"
 import type { PanelId } from "@/lib/store/ui"
 import { cn } from "@/lib/utils"
 import { message, useTranslation } from "@/lib/i18n"
+import { openContextHelp } from "@/features/help/getting-started-store"
 
 import { panelMenu } from "./chrome-menus"
 import { detachPanel } from "./detach-panel"
@@ -144,6 +145,7 @@ export function PanelFrame({
           <h2 className="truncate text-xs font-medium">{t(title)}</h2>
           <div className="ml-auto flex items-center gap-0.5">
             {actions}
+            {panel && <Button variant="ghost" size="xs" onClick={() => openContextHelp(panel)}>{t("Help")}</Button>}
             {panel && (
               <PanelWindowButton panel={panel} title={title} dock={detached} />
             )}

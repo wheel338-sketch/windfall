@@ -166,5 +166,23 @@ export const es = {
   "pages": {
     "one": "{count} página",
     "other": "{count} páginas"
-  }
+  },
+  "Add a sound channel or use the factory drum kit already in the rack.": "Añade un canal de sonido o usa la batería de fábrica que ya está en los canales.",
+  "Draw notes or turn on drum steps in the rack. Keep the guide open while editing.": "Dibuja notas o activa pasos de batería en los canales. Mantén la guía abierta mientras editas.",
+  "Place the current pattern on a playlist lane using the button, or draw a pattern clip yourself.": "Coloca el patrón actual en la lista de reproducción con el botón o dibuja un clip de patrón.",
+  "Play the song, then stop and save your beat.": "Reproduce la canción, detén la reproducción y guarda tu ritmo.",
+  "Save the project. This step completes only when the document is clean.": "Guarda el proyecto. Este paso se completa solo cuando no quedan cambios sin guardar.",
+  "Open recording and choose a real input device. Browser mode reports its native limitation.": "Abre la grabación y elige un dispositivo de entrada real. El modo navegador indica su limitación nativa.",
+  "Select the input channels, timing and destination, then start recording.": "Selecciona los canales de entrada, la sincronización y el destino; después inicia la grabación.",
+  "Stop and keep the take. Completion requires a new audio clip in the playlist.": "Detén y conserva la toma. Se necesita un nuevo clip de audio en la lista de reproducción para completar el paso.",
+  "Choose an audio file. A cancelled or failed picker does not complete the step.": "Elige un archivo de audio. Si cancelas o falla la selección, el paso no se completa.",
+  "Draw a note for the imported sampler, or turn on a step in the rack.": "Dibuja una nota para la muestra importada o activa un paso en los canales.",
+  "Save the project and its sample reference before closing it.": "Guarda el proyecto y la referencia de la muestra antes de cerrarlo.",
+  "Open Export audio and choose pattern or song, file format and destination.": "Abre Exportar audio y elige patrón o canción, formato de archivo y destino.",
+  "Press Export in the real export dialog. Only successful completion counts; cancellation and errors do not.": "Pulsa Exportar en el diálogo de exportación. Solo cuenta una exportación correcta, sin cancelaciones ni errores.",
+  "Preview sounds in the browser, then drag a sound to the rack or playlist. Your sample files stay unchanged.": "Escucha sonidos en el explorador y arrástralos a los canales o a la lista de reproducción. Tus muestras originales no se modifican.",
+  "Turn on steps to make a beat. The selected pattern and piano roll share the same notes. Use channel settings to choose a sound and mixer destination.": "Activa pasos para crear un ritmo. El patrón y el editor de notas comparten las mismas notas. Elige el sonido y el destino del mezclador en los ajustes del canal.",
+  "Draw and edit the selected channel's notes. Choose a tool and snap before dragging. Undo reverses ordinary note edits.": "Dibuja y edita las notas del canal seleccionado. Elige una herramienta y el ajuste antes de arrastrar. Deshacer revierte las ediciones de notas.",
+  "Place patterns, audio and automation on song lanes. Switch the transport to Song to hear the arrangement; Pattern plays only the selected pattern.": "Coloca patrones, audio y automatización en las pistas. Cambia el transporte a Canción para oír el arreglo; Patrón reproduce solo el patrón seleccionado.",
+  "Each channel feeds a mixer track. Add effects, adjust levels and route sends here. The master sums the song; stop playback before changing audio devices.": "Cada canal alimenta una pista del mezclador. Añade efectos, ajusta niveles y envíos aquí. La pista maestra suma la canción; detén la reproducción antes de cambiar dispositivos de audio."
 } satisfies Catalog

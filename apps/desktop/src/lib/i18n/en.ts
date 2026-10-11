@@ -164,5 +164,23 @@ export const en = {
   "pages": {
     "one": "{count} page",
     "other": "{count} pages"
-  }
+  },
+  "Add a sound channel or use the factory drum kit already in the rack.": "Add a sound channel or use the factory drum kit already in the rack.",
+  "Draw notes or turn on drum steps in the rack. Keep the guide open while editing.": "Draw notes or turn on drum steps in the rack. Keep the guide open while editing.",
+  "Place the current pattern on a playlist lane using the button, or draw a pattern clip yourself.": "Place the current pattern on a playlist lane using the button, or draw a pattern clip yourself.",
+  "Play the song, then stop and save your beat.": "Play the song, then stop and save your beat.",
+  "Save the project. This step completes only when the document is clean.": "Save the project. This step completes only when the document is clean.",
+  "Open recording and choose a real input device. Browser mode reports its native limitation.": "Open recording and choose a real input device. Browser mode reports its native limitation.",
+  "Select the input channels, timing and destination, then start recording.": "Select the input channels, timing and destination, then start recording.",
+  "Stop and keep the take. Completion requires a new audio clip in the playlist.": "Stop and keep the take. Completion requires a new audio clip in the playlist.",
+  "Choose an audio file. A cancelled or failed picker does not complete the step.": "Choose an audio file. A cancelled or failed picker does not complete the step.",
+  "Draw a note for the imported sampler, or turn on a step in the rack.": "Draw a note for the imported sampler, or turn on a step in the rack.",
+  "Save the project and its sample reference before closing it.": "Save the project and its sample reference before closing it.",
+  "Open Export audio and choose pattern or song, file format and destination.": "Open Export audio and choose pattern or song, file format and destination.",
+  "Press Export in the real export dialog. Only successful completion counts; cancellation and errors do not.": "Press Export in the real export dialog. Only successful completion counts; cancellation and errors do not.",
+  "Preview sounds in the browser, then drag a sound to the rack or playlist. Your sample files stay unchanged.": "Preview sounds in the browser, then drag a sound to the rack or playlist. Your sample files stay unchanged.",
+  "Turn on steps to make a beat. The selected pattern and piano roll share the same notes. Use channel settings to choose a sound and mixer destination.": "Turn on steps to make a beat. The selected pattern and piano roll share the same notes. Use channel settings to choose a sound and mixer destination.",
+  "Draw and edit the selected channel's notes. Choose a tool and snap before dragging. Undo reverses ordinary note edits.": "Draw and edit the selected channel's notes. Choose a tool and snap before dragging. Undo reverses ordinary note edits.",
+  "Place patterns, audio and automation on song lanes. Switch the transport to Song to hear the arrangement; Pattern plays only the selected pattern.": "Place patterns, audio and automation on song lanes. Switch the transport to Song to hear the arrangement; Pattern plays only the selected pattern.",
+  "Each channel feeds a mixer track. Add effects, adjust levels and route sends here. The master sums the song; stop playback before changing audio devices.": "Each channel feeds a mixer track. Add effects, adjust levels and route sends here. The master sums the song; stop playback before changing audio devices."
 } as const

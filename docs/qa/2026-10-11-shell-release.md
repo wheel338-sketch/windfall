@@ -177,3 +177,33 @@ parse contract; all number/date consumers have not yet adopted Intl helpers.
 Do not call Spanish a complete application/main-panel translation. Translator
 review, text expansion at 75–200% and accessibility/native OS runs remain.
 No IPC/generated type or project-format change for language preferences.
+
+## Help and tutorials
+
+Getting started is now nonmodal so the actual editors remain interactive.
+Retains existing quick actions and adds selectable build-beat, record, import,
+export guides. Each Next gate inspects the real document/transport/recording/
+export state; cancelled/failed imports and exports cannot count as completion.
+Beat placement uses ordinary checked AddPlaylistTrack/AddClips commands, song
+play uses the real transport, and recording/import/export use existing actions.
+Project replacement closes/resets the guide and releases its export listener.
+Panel-header Help opens contextual instructions for that panel, including in
+detached windows. All new guide/context instructions have Spanish messages.
+
+Written, not executed: `features/help/guided-tutorial.test.tsx` mounted real-WASM
+note gate and undoable clip placement, real picker cancellation, recording/export
+evidence predicates, active/detached context; existing getting-started tests must
+run for nonmodal/menu/action/replacement regressions.
+
+```powershell
+pnpm --dir apps/desktop test src/features/help/getting-started.test.tsx src/features/help/guided-tutorial.test.tsx src/lib/i18n/catalogs.test.tsx --maxWorkers=2
+```
+
+Partial: manual link/manual content service is still absent; guides are explicit
+state-gated assistants, not anchored highlights of every control. Mounted full
+native record→kept clip and completed file export walkthroughs, error/device
+loss and keyboard focus checks remain. Export completion currently observes a
+successful event in the current project/window, rather than a dedicated tutorial
+export request token. Nonmodal focus and opening child dialogs require native
+webview verification. Pattern placement currently creates a lane and clip as
+two ordinary history operations when the playlist starts empty.
