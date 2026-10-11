@@ -17,7 +17,7 @@ Product/test tree: `1239e096` (the following commits update this report only). A
 | `nat.sh round1-native` | Fixture 0; desktop build 0; tests 0; **3,509 passed, 0 failed, 36 ignored**; zero warnings | `target/round1-native.log` (134 result summaries, including doctests) |
 | `pnpm.cmd test --maxWorkers=4` | Exit 0; **5,801 passed, 0 failed, 0 skipped; 448 files passed** | `target/round1-frontend.log`; 389.15 s |
 | `pnpm.cmd typecheck` | Exit 0; zero diagnostics | `target/round1-typecheck.log` |
-| `pnpm.cmd lint` | Pending final run | — |
+| `pnpm.cmd lint` | Exit 0; zero errors/warnings | `target/round1-lint.log` |
 | `pnpm.cmd build` | Pending final run | — |
 
 All nonignored native and frontend evidence below now passes in the full suites. The seven `done` recommendations await the final typecheck/lint/build gates before publication as final acceptance. The earlier eight-file frontend repair run passed 126 tests. Ignored/hardware tests are not passing evidence.
