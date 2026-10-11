@@ -15,6 +15,8 @@ mod fx;
 mod runtime;
 mod vintage_poly;
 mod dual_poly;
+mod compact_synth;
+pub use compact_synth::{CompactSynth, CompactSynthParams, CompactResponse};
 pub use dual_poly::{DualPoly, DualPolyParams, PolyResponse};
 pub use vintage_poly::{VintagePoly, VintagePolyParams};
 

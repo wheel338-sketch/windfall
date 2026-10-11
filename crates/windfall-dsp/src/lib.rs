@@ -158,3 +158,4 @@ pub mod zones;
 pub mod polysynth;
 pub use polysynth::{VintagePoly, VintagePolyParams};
 pub use polysynth::{DualPoly, DualPolyParams};
+pub use polysynth::{CompactSynth, CompactSynthParams};

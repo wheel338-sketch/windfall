@@ -7,6 +7,12 @@ import { dispatch } from "@/lib/store"
 const amp = ["envelope.attackMs", "envelope.decayMs", "envelope.sustain", "envelope.releaseMs"]
 const filterEnv = ["filterEnvelope.attackMs", "filterEnvelope.decayMs", "filterEnvelope.sustain", "filterEnvelope.releaseMs"]
 export const POLYSYNTH_PANELS: Record<string, readonly (readonly [string, readonly string[]])[]> = {
+  compactSynth: [
+    ["Quick oscillators", ["waveA", "waveB", "mix", "coarse", "fine", "pulseWidth", "pwm", "ring"]],
+    ["Multimode filter", ["response", "cutoffHz", "resonance", "drive", "filterAmount", "keyTrack"]],
+    ["Amp contour", amp], ["Filter contour", filterEnv], ["Motion", ["lfoRateHz", "lfoFilter"]],
+    ["Voices", ["unison", "detuneCents", "spread", "glideMs", "polyphony", "chorus", "gain"]],
+  ],
   dualPoly: [
     ["Dual oscillator banks", ["waveA", "waveB", "balance", "coarseB", "fineB", "pulseWidth", "pwm", "crossMod", "sub", "noise", "drift"]],
     ["Variable ladder", ["response", "cutoffHz", "resonance", "drive", "filterAmount", "keyTrack"]],

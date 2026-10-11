@@ -15,3 +15,13 @@ fn dualPoly_musical_edit_reaches_history_disk_and_live_offline_pcm() {
     assert!(changed.set(param, if info.default == info.max { info.min } else { info.max }));
     acceptance(InstrumentKind::DualPoly, initial, changed);
 }
+
+#[test]
+fn compactSynth_musical_edit_reaches_history_disk_and_live_offline_pcm() {
+    let initial = InstrumentKind::CompactSynth.default_params();
+    let mut changed = initial;
+    let param = InstrumentKind::CompactSynth.descriptors().iter().position(|p| p.id == "cutoffHz").unwrap();
+    let info = &InstrumentKind::CompactSynth.descriptors()[param];
+    assert!(changed.set(param, if info.default == info.max { info.min } else { info.max }));
+    acceptance(InstrumentKind::CompactSynth, initial, changed);
+}

@@ -108,3 +108,17 @@ per-graph DSP tests in `polysynth/tests.rs` (names below).
 Use the integrator commands in the Vintage Poly section, after regenerating
 bindings/descriptors and WASM. Check strict Clippy and numerical thresholds first;
 no measured sound/performance claim is made. No external proprietary content.
+
+## 2026-10-11 continuation — CompactSynth / inst-poizone
+
+Full-row software candidate, awaiting execution. A quick-programming two-oscillator graph with pitch/fine mix, PWM and ring blend into a saturating multimode state-variable filter. Contours, unison, glide and chorus have direct controls. DSP test: compact_synth_quick_oscillators_ring_and_filter_modes_are_distinct.
+Purpose-built editor group: Quick oscillators. Uses the existing checked instrument
+commands, tagged project persistence, engine hosting and live/offline processor.
+New generated types: `CompactSynth`, `CompactSynthParams`, `compactSynth` tag and descriptors.
+Tests **written, not executed**: `compactSynth_musical_edit_reaches_history_disk_and_live_offline_pcm`
+in registered `polysynth_acceptance.rs`; the `compactSynth` mounted editor case
+(edit and undo); complete descriptor/serde/default/range tests in DSP params;
+per-graph DSP tests in `polysynth/tests.rs` (names below).
+Use the integrator commands in the Vintage Poly section, after regenerating
+bindings/descriptors and WASM. Check strict Clippy and numerical thresholds first;
+no measured sound/performance claim is made. No external proprietary content.

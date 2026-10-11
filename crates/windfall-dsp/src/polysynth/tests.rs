@@ -103,3 +103,17 @@ fn dual_poly_banks_cross_modulation_and_each_filter_response_sound() {
     assert!(amplitude(&low[12000..],1760.0)<amplitude(&x[12000..],1760.0)*0.1);
 }
 
+#[test]
+fn compact_synth_quick_oscillators_ring_and_filter_modes_are_distinct() {
+    contract(InstrumentKind::CompactSynth);
+    let p=CompactSynthParams::default();
+    different(InstrumentParams::CompactSynth(p),InstrumentParams::CompactSynth(CompactSynthParams { coarse:12.0,ring:0.7,..p }));
+    for response in [CompactResponse::Band,CompactResponse::High] {
+        different(InstrumentParams::CompactSynth(p),InstrumentParams::CompactSynth(CompactSynthParams { response,..p }));
+    }
+    let p=CompactSynthParams { wave_a:crate::Waveform::Sine,mix:0.0,filter_amount:0.0,key_track:0.0,cutoff_hz:18000.0,..p };
+    let x=render(InstrumentParams::CompactSynth(p),69,60000,64).0;
+    assert!(amplitude(&x[12000..],440.0)>amplitude(&x[12000..],442.0)*10.0);
+    different(InstrumentParams::CompactSynth(p),InstrumentParams::CompactSynth(CompactSynthParams { cutoff_hz:200.0,..p }));
+}
+
