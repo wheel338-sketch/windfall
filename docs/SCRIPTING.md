@@ -250,10 +250,67 @@ project replacement and opaque plugin state. Checked native parameter
 capabilities and recording locks still apply. Providers and scripts do not
 get mutable document handles.
 
-The shipped provider is deterministic and offline. `AssistantProvider` is the
-adapter trait; it receives immutable context and returns an answer/proposal.
-The user must choose local/BYOK/hosted model operation, the model/service,
-credential storage, what project context may leave the machine, retention,
-cost and offline fallback. A future model adapter must bound output, support
-request cancellation, and send every result through the same review/validation
-API. This implementation neither chooses that policy nor contacts a service.
+## Optional bring-your-own-key provider
+
+Offline help stays available. The native panel also has **Bring your own key
+connection**: enter a chat-completions base URL, model name and API key, enable
+the connection, then save. It remains OFF without a key. A blank key field
+keeps a previously saved key; **Remove key and turn OFF** deletes it. Status
+never returns the stored key. Saving, loading a project and opening the panel
+do not send requests. Only **Ask BYOK assistant** sends one. Browser mode
+explicitly refuses credentials/remote requests instead of saving keys there.
+
+The native adapter implements the same `AssistantProvider` trait using
+Tauri's existing HTTP client (`reqwest`), without a model SDK. The endpoint
+must use HTTPS; literal 127.0.0.1/::1 HTTP is allowed for local services and
+loopback fixtures. `/chat/completions` is appended to the base URL unless it
+is already present. URL credentials, queries and fragments are rejected.
+Redirects and automatic proxies are disabled so a bearer key cannot follow
+a response to another endpoint.
+
+This version uses the authorized fallback credential file
+`assistant-connection.json` in the native per-user app configuration directory,
+outside projects/archives. It is atomically replaced, private 0600 on Unix,
+and inherits the app-config directory's Windows ACL. Its key is plaintext:
+there is no OS credential-store adapter installed. The private struct has no
+Debug implementation; request headers are marked sensitive. Request/response
+bodies and transport errors are never logged; displayed transport/parser
+errors are generic. Replies containing the stored key are discarded before
+they can become answers or project commands.
+
+The request sends `model`, `stream: false`, `max_tokens: 4096`, and system/user
+messages. The system message contains the command schema and at most 128 IDs
+each for channels, patterns and mixer tracks. The user message is your prompt.
+It does not send full project data, samples, paths, names, notes, plugin state
+or the key in message content. The panel displays this data policy before Ask.
+
+The endpoint returns a chat completion whose `choices[0].message.content`
+contains one JSON object, without code fences:
+
+```json
+{
+  "answer": "Proposed a tempo change.",
+  "label": "Tempo",
+  "explanation": "Review the tempo change before applying it.",
+  "commands": [{"type": "updateSettings", "patch": {"tempoBpm": 127}}]
+}
+```
+
+An empty `commands` array is an answer/refusal with no proposal. Unknown fields,
+missing fields, tool-only replies, malformed JSON and commands outside the
+advertised schema are rejected. The current BYOK schema exposes pattern
+creation/rename, subtractive channel creation, tempo, channel mute/mixer
+routing, mixer name/volume/pan/mute/solo and checked track-output routing.
+It deliberately omits opaque plugin actions, script installation, recursive
+batches and external IO. The Rust document supplies the approval stamp,
+validates the whole batch and checks the stamp again after the reply; the
+model cannot approve or apply its own commands.
+
+Native limits: one admitted request, 15s HTTP total timeout (5s connection
+timeout), 65,536 request bytes, 600,000 response bytes, 524,288 inner reply bytes,
+8,192 answer bytes and the existing proposal limits. Cancel wakes the worker
+and drops its HTTP future; the UI also ignores late replies. Client setup and
+snapshot/preparation work are control-side and not preempted by that timer.
+Model quality, service retention/cost and real endpoint credentials remain the
+user's service choice and an external acceptance gate. The worker only wrote
+the loopback tests; it made no network request and executed no tests.

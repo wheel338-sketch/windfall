@@ -2,13 +2,13 @@
 
 Branch: `gpt/w3-scripting-assistant`, base `87b87bc2439ec076d0f75c5b4d997c9db1faba95`.
 
-Source checkpoint after application restart. All tests in this stream are **written, not executed**.
+Source delivery complete for the bounded scope below. All tests are **written, not executed**.
 The worker is edit-only: no build, test, dependency installation, generation,
-device access or network request was performed. The user has now selected an
-optional BYOK chat-completions adapter; that addition is the next file group.
+device access or network request was performed. The user's optional BYOK
+chat-completions adapter is implemented alongside the offline provider.
 
 Implementation scope: checked, revision/generation guarded command proposals;
-offline help/intent provider; bounded Rust scripting with piano/controller
+offline help/intent provider and explicit-action BYOK adapter; bounded Rust scripting with piano/controller
 workers and a fixed realtime note-transform subset. No Python source compatibility.
 
 The integrator owns generated bindings/WASM and validation.
@@ -52,54 +52,86 @@ Final source fixture addition: offline and BYOK schema expose checked
 not executed. Wakers are invoked outside their mutex so cancellation cannot
 re-enter a held service lock.
 
-## Row claims at this checkpoint
+## Per-row claims
 
 | Row | Claim | Implemented and remaining |
 | --- | --- | --- |
-| core-gopher | Full-row candidate, pending validation | Provider trait, deterministic offline help/intent provider, native and WASM checked proposals, mounted review/apply/guarded undo. User must decide model/service, credentials, privacy and offline fallback policy before a model-backed adapter is added. No provider SDK, dependency or network calls. |
+| core-gopher | Full-row candidate, pending validation | Offline help/intent provider, opt-in native BYOK chat-completions provider, configurable endpoint/model/key outside the project, bounded schema/reply validation and review/apply/guarded undo. No SDK or automatic request. User chooses service/model and real credentials; quality/TLS/credential-file acceptance remains external. |
 | win-piano-scripting | Full-row candidate for Windfall Script v1, pending validation | Fixed bounded Rust interpreter, selected-note/generator API, parameters, cancellable native worker, previews, atomic review/apply/undo, saved immutable revision references and editor. This language does not execute Python source. |
 | wf-midi-scripting | Partial | Existing controller stream/profile links feed bounded script actions, normalized target mapping and opt-in CC feedback on the native MIDI worker. Editor installs CC channel-1/Master-volume mappings; persisted API supports broader checked sources/targets. Hardware/profile/device feedback acceptance remains external. |
-| fx-vfx-script | Partial | Fixed allocation-free note evaluator, immutable channel references and sequenced plan compilation shared by live playback/export, editor assignment, independent render/evaluator fixtures. Modular rack worker must hook up this channel transform seam. Hardware audition and automation transforms remain unsupported. |
+| fx-vfx-script | Partial | Fixed allocation-free note evaluator, exact channel references and sequenced plan compilation shared by live playback/export, editor assignment/removal, independent render/evaluator fixtures. Rack node hookup, hardware audition, script parameter automation and transformed clip-duration expansion remain. |
+
+Commits: `3fce6324` foundation, `ff61d6fa` restored scripting/UI,
+`ecfe813a` API/history documentation, `a2827c88` BYOK transport/protocol,
+`a7d87661` BYOK UI/IPC, `c302e74f` session/redirect fixtures, `cde030fb`
+checked track routing/cancellation. Final documentation is a separate commit;
+the exact final HEAD is reported in the delivery response.
 
 ## Tests and validation
 
 All the following are **written, not executed**. Never infer successful compilation or runtime evidence from this hand-off.
 
-- `crates/windfall-project/src/scripting/tests.rs`: interpreter semantics, line diagnostics, source/code/stack/parameter/output/step limits, cancellation, selected and generated notes, fixed-transform equivalence, library/revision persistence, controller fixtures and checked proposal rollback/staleness/recording exclusions.
-- `crates/windfall-project/src/assistant.rs`: local intents/help and invalid input.
-- `apps/desktop/src-tauri/src/session/tests/scripting.rs`: `assistant_review_apply_guarded_undo_and_stale_preparation_are_atomic`, `invalid_proposal_rolls_back_ids_history_and_replacement_invalidates_approval`, `piano_worker_selected_fixture_preview_apply_undo_cancel_and_save`, `controller_script_pump_maps_actions_and_refuses_partial_output`, `recording_and_worker_busy_exclusions_are_explicit`.
+- `crates/windfall-project/src/scripting/tests.rs`: `interpreter_postfix_parameters_selected_and_generation_fixtures`, `source_stack_step_memory_deadline_and_errors_are_bounded`, `compiled_transform_equals_interpreted_result_and_rejects_unbounded_surface`, `controller_fixture_maps_cc_and_emits_checked_tempo_and_feedback`, `proposal_registry_stale_recording_size_and_failed_batch_preserve_everything`, `successful_proposal_is_one_undo_step_and_cannot_replay_after_patch`, `script_revisions_save_reopen_undo_and_reject_unknown_language`, `ineffective_proposal_preserves_prior_history_and_redo`, `controller_adapter_checks_target_range_opt_in_and_message_budget`, `assigned_transform_rejects_invalid_notes_rolls_back_ids_and_suspends_on_delete`.
+- `crates/windfall-project/src/assistant.rs`: `offline_intents_and_help_are_deterministic_and_do_not_edit`, `track_routing_proposal_uses_checked_cycle_guard_and_one_undo_step`.
+- `apps/desktop/src-tauri/src/session/tests/scripting.rs`: `assistant_review_apply_guarded_undo_and_stale_preparation_are_atomic`, `invalid_proposal_rolls_back_ids_history_and_replacement_invalidates_approval`, `piano_worker_selected_fixture_preview_apply_undo_cancel_and_save`, `controller_script_pump_maps_actions_and_refuses_partial_output` (includes ordinary-link + script atomicity), `recording_and_worker_busy_exclusions_are_explicit`, `proposal_recording_admission_is_rechecked_after_engine_preparation`, plus the BYOK fixture named above. Recording tests use the actual admission flag without a device/take.
 - `crates/windfall-engine/src/script_notes.rs`: `fixed_transform_success_and_failure_allocate_and_free_nothing`.
-- `crates/windfall-engine/tests/engine/script_notes.rs`: independent manually transformed audio score, irregular live blocks, reopen/export equality and callback allocator counters.
+- `crates/windfall-engine/tests/engine/script_notes.rs`: `channel_script_matches_manual_score_live_offline_irregular_blocks_and_saved_reopen`, with independent manually transformed audio score, irregular live blocks, reopen/export equality and callback allocator counters.
 - `crates/windfall-engine/src/midi_hardware/tests.rs`: `installed_script_feedback_is_bounded_owned_by_worker_and_epoch_guarded`; synthetic native port harness, not hardware evidence.
-- `apps/desktop/src/features/assistant/{panel,script-editor}.test.tsx`: mounted local help, review/apply/undo, stale/recording rejection, late-response dismissal, script parameters/errors, saved revision/assignment and selected-note preview.
+- `apps/desktop/src/features/assistant/panel.test.tsx`: `answers local help without a project mutation`, `reviews exact commands and applies/undoes one batch`, `refuses stale proposals and dismisses without changing history`, `surfaces recording admission errors and ignores a cancelled provider response`.
+- `apps/desktop/src/features/assistant/script-editor.test.tsx`: `reports native worker capability and builds parameter controls with the Rust parser`, `reviews saved revisions, applies through Rust, reopens in the editor and undoes`, `assigns a compiled transform to the selected channel with an exact saved revision` (also remove/undo), `captures selected IDs for a native preview, then applies the reviewed fixture atomically`, `requires reviewed controller installation and stores feedback opt-in with its exact source` (also removal). Worker output is a declared fixture; command application uses real Rust WASM.
+- `apps/desktop/src/features/assistant/byok-panel.test.tsx`: `stays OFF without a key, saves credentials outside the document and only sends on Ask`, `cancels native requests, ignores late replies, surfaces malformed/timeout failures and removes a key`; transport responses are declared fixtures, not service evidence.
 - `apps/desktop/src/lib/ipc/sim/proposals.test.ts`: Rust WASM authority rejects malformed, oversized, stale and recording-excluded proposals without edits. `document.test.ts` registers `setScriptLibrary` in `EVERY_COMMAND`.
 
-Integrator commands (from repository root; initialize the repository's documented Windows Rust/MSVC environment first):
+Integrator commands from repository root in Git Bash. These are instructions,
+not commands run by this worker. First resolve the direct HTTP/TLS dependency
+edge and review Cargo.lock changes/licenses; do not hand-edit lockfiles:
 
 ```sh
+source scripts/msvc-env.sh
+export PATH="/c/Program Files/nodejs:/c/Users/ewhee/AppData/Roaming/npm:$PATH"
+cargo check -p windfall-desktop
 scripts/gen-bindings.sh
 scripts/build-sim.sh
+node scripts/check-bindings.mjs
+node scripts/check-sim.mjs
+task_bindings="$(mktemp -d)"
+export TS_RS_EXPORT_DIR="$(cygpath -w "$task_bindings")"
 cargo test -p windfall-project --lib scripting
 cargo test -p windfall-project --lib assistant
+cargo test -p windfall-desktop --lib assistant::tests
+cargo test -p windfall-sim --lib
 cargo test -p windfall-engine --lib script_notes
 cargo test -p windfall-engine --lib midi_hardware::tests::installed_script_feedback
 cargo test -p windfall-engine --test engine script_notes
 cargo test -p windfall-desktop --lib session::tests::scripting
 pnpm --dir apps/desktop test src/features/assistant src/lib/ipc/sim/proposals.test.ts src/lib/ipc/sim/document.test.ts --maxWorkers=4
+pnpm --dir apps/desktop typecheck
+pnpm --dir apps/desktop lint
+cargo fmt --all --check
+cargo clippy -p windfall-project -p windfall-engine -p windfall-ipc -p windfall-sim -p windfall-desktop --all-targets -- -D warnings
+cargo test -p windfall-project --lib --tests
+cargo test -p windfall-desktop --lib session::tests::controllers
+cargo test -p windfall-desktop --lib session::tests::recording
+cargo test -p windfall-desktop --lib session::tests::document
 ```
 
-Before accepting rows, also run the repository's required project persistence/history, controller/recording, typecheck and lint checks. Verify package/script names against manifests when integrating; this worker cannot execute them.
+Package/script names were read from manifests. Acceptance additionally needs
+real MIDI feedback/profile devices, actual recording-start races and chosen
+BYOK service/TLS/credential-file behavior on supported OSes. No such evidence
+was obtained here. Synthetic fixtures do not constitute hardware/service evidence.
 
 ## Shared seams and generation
 
-Project: `src/{model,command,lower,check,lib}.rs`; engine: `src/{lib,plan}.rs`, MIDI hardware request worker, `tests/engine/main.rs`; desktop native: `commands.rs`, `session/{mod,edit,controllers}.rs`, `session/tests/mod.rs`; WASM simulator: `src/lib.rs`; frontend: IPC `backend/tauri/mock.ts`, simulator document and `EVERY_COMMAND`, layout `register-actions/app-shell`, action menus. New behavior otherwise lives in assistant/proposal/scripting modules.
+Project: `src/{model,command,lower,check,lib}.rs`; engine: `src/{lib,plan}.rs`, `src/midi_hardware/{mod,tests}.rs`, `tests/engine/main.rs`; IPC: `src/lib.rs`; desktop native: `Cargo.toml`, `src/{commands,lib,settings}.rs`, `session/{mod,edit,controllers}.rs`, `session/tests/mod.rs`; WASM simulator: `src/lib.rs`; frontend: IPC `backend/tauri/mock.ts`, `sim/document.ts` and `EVERY_COMMAND` in `document.test.ts`, layout `register-actions/app-shell`, action menus. New logic otherwise lives in assistant/proposal/scripting modules. No descriptor reorder or parity tracker edit.
 
-Regenerate Rust TS exports and the WASM simulator, including `Command::SetScriptLibrary`, optional `ProjectSettings.scripts`, `ProposalStamp`, `CommandProposal`, `AssistantReply`, `ScriptParameter`, `ScriptDiagnostic`, `ScriptNote`, `ScriptKind`, `ScriptReference`, `ScriptAsset`, `ChannelScript`, `ControllerScript`, `ScriptLibrary`, `PianoScriptRequest`, `PianoScriptPreview`. Never manually edit generated files.
+Regenerate Cargo.lock for the direct reqwest/TLS edge, Rust TS exports and WASM. Types: `Command::SetScriptLibrary`, optional `ProjectSettings.scripts`, `ProposalStamp`, `CommandProposal`, `AssistantReply`, `AssistantConnection`, `AssistantConnectionUpdate`, `ScriptParameter`, `ScriptDiagnostic`, `ScriptNote`, `ScriptKind`, `ScriptReference`, `ScriptAsset`, `ChannelScript`, `ControllerScript`, `ScriptLibrary`, `PianoScriptRequest`, `PianoScriptPreview`. Never manually edit generated files. No generated artifacts are committed.
 
 ## Risks in integration order
 
-1. Nothing compiled: check new Rust/TS shapes, Tauri argument registration and existing session ticket/history APIs first; run generation before frontend checks.
-2. Check strict lint and mounted component conventions, then batch atomicity, revision races, worker admission/cancellation and recording exclusions.
-3. Native feedback can fail after the internal command transaction committed. It emits a warning; physical MIDI cannot be rolled back. Disconnected feedback is preflighted and queued packets are hardware-epoch guarded.
-4. Note transformation currently runs while preparing immutable sequenced event plans, not on hardware audition; rack integration remains another worker's responsibility. Invalid transforms are rejected on checked project edits; unchecked engine fixtures fail open.
-5. `docs/SCRIPTING.md` now documents grammar, limits, IO policy and rack hookup. Ineffective proposals are rejected before apply; script assignments support reviewed removal. Added fixtures cover combined ordinary-link/script rollback, feedback opt-in, invalid transformed-note admission, suspended assignment undo and the recording gate after preparation. All remain written, not executed. Validate real MIDI feedback and actual recording races externally. No network, audio device or other-OS evidence exists.
+1. Nothing compiled: resolve reqwest 0.13.5 `rustls` feature/API and its TLS/transitive dependency lock/license inventory first. This workspace previously locked reqwest without TLS dependencies. Then check IPC/Tauri/session signatures and generate bindings/WASM before frontend checks.
+2. Run native fake-endpoint tests, strict Rust/React Compiler lint and mounted cases. Check block_on on Tauri blocking workers, cancellation/busy admission, malformed/oversized replies, stale stamps, rollback and recording exclusions. Shared seams were intentionally not broadly reformatted; integrator owns final formatting.
+3. Credential fallback is plaintext, outside the project; validate Windows app-config ACL and Unix 0600/atomic replacement. No OS credential-store adapter exists. Validate real HTTPS certificates, selected endpoint's JSON contract and model quality externally; no auto requests or SDK. Errors intentionally omit remote error bodies/URLs.
+4. Native feedback can fail after the internal command batch committed. It warns; physical MIDI cannot roll back. Disconnected feedback is preflighted and packets are hardware-epoch guarded. Real port/device/profile behavior remains external.
+5. Controller script changes form one undo step per pump and do not inherit normal gesture merging, pickup/smoothing or automation-take capture. Other profile transport/clock actions keep separate semantics. Initial editor source/target selection is CC/channel-1/Master volume; broader bindings exist in checked persistence/API but need a richer form before full-row closure.
+6. VFX runs during immutable sequenced plan preparation. Rack node hookup, hardware audition, parameter automation and transformed clip/pattern-duration expansion remain. Checked edits validate all stored notes, which can add control-side edit latency on large projects; unchecked engine fixtures fail open.
+7. Piano/controller deadlines are cooperative, checked per instruction and before native result acceptance; they do not preempt snapshot or engine preparation. Windfall language compatibility is documented; Python source compatibility is expressly absent. No build/test/lint/generation, dependency install, network/device check, sub-agent, push/PR or parity edit ran. Only touched-module rustfmt and git diff checks were used mechanically.
