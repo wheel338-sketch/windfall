@@ -73,3 +73,17 @@ are still being implemented. Physical devices and listening remain external.
 
 No generated files edited. This first piece changes no generated type shape.
 Check the new MIDI test's pattern length/repetition assumptions first.
+
+Third piece (written, not executed): instrument-channel echo frequency,
+partition equality, allocator and one-frame cost smoke; seek/live versus
+sequenced loop discard; decoded native sidechain stems and selected-region
+alignment; mounted real export panel with guarded region request.
+
+Run sequentially:
+```bash
+cargo test -p windfall-engine --test engine rack_voice
+cargo test -p windfall-desktop --lib sidechain_stems_measure_lane_isolation
+pnpm --dir apps/desktop test src/features/export/playlist-tracks.qa.test.tsx --maxWorkers=4
+```
+Check exact sidechain detector attenuation and selected-region endpoint lengths
+first. One-frame timing is a bounded-work smoke test, not a driver deadline.
