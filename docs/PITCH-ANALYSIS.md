@@ -498,3 +498,15 @@ this doc change; lib.rs/Cargo.toml/Cargo.lock bytes remain exactly those of 603.
 No amendments, new dependencies, source/job/UI/IPC/registry edits, parent imports,
 push, PR, release, new agents or review threads. The full phases 0–7 / 342-row
 parent objective remains active; parent alone starts fresh R2.
+
+## Shared realtime math, 2026-10-11 (written, not executed)
+
+The spectral effects worker extracted the existing first interpolated CMND-trough
+search and parabolic minimum into `windfall-core/src/yin.rs`. This batch detector
+now calls that shared helper; its FFT differences, Work checkpoints, bounds,
+raw-difference interpolation, error policy and algorithm version are unchanged.
+Pitch Correct supplies fixed direct differences to the same math from prepared
+streaming storage; it does not invoke this worker/batch API on audio. Existing
+analysis reference tests must be rerun by the integrator to confirm numerical
+identity. This change establishes neither a new analysis quality claim nor new
+measurements of the realtime processor.

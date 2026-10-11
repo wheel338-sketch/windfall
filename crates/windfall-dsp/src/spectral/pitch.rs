@@ -15,17 +15,29 @@ const TRACK_SIZE: usize = 256;
 const TRACK_HOP: usize = 32;
 const TRACK_LAGS: usize = 152;
 
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+pub enum PitchShiftMode {
+    #[default]
+    Mix,
+    Voice,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase", default)]
 pub struct PitchShiftParams {
     /// -24..24 semitones; ratio = 2^(semitones/12).
     pub semitones: f32,
+    pub formant_semitones: f32,
+    pub mode: PitchShiftMode,
     pub mix: f32,
 }
 impl Default for PitchShiftParams {
     fn default() -> Self {
         Self {
             semitones: 0.0,
+            formant_semitones: 0.0,
+            mode: PitchShiftMode::Mix,
             mix: 1.0,
         }
     }
@@ -33,6 +45,8 @@ impl Default for PitchShiftParams {
 param_set!(PitchShiftParams, "Pitch Shift", {
     float [semitones] "semitones" "Shift" { Semitones, Linear, -24.0, 24.0, 0.0 }
     float [mix] "mix" "Mix" { Fraction, Linear, 0.0, 1.0, 1.0 }
+    float [formant_semitones] "formantSemitones" "Formants" { Semitones, Linear, -12.0, 12.0, 0.0 }
+    choice [mode] "mode" "Mode" { PitchShiftMode, Mix, [Mix "mix" "Full mix", Voice "voice" "Voice"] }
 });
 
 /// Two cubic fractional read heads with complementary raised-cosine windows.
@@ -93,36 +107,64 @@ impl Grains {
 
 pub struct PitchShift {
     grains: Grains,
-    controls: Controls<2>,
+    source_grains: Grains,
+    formants: super::formants::Formants,
+    mode: PitchShiftMode,
+    sample_rate: f32,
+    controls: Controls<3>,
 }
 impl Default for PitchShift {
     fn default() -> Self {
         Self {
             grains: Grains::default(),
-            controls: Controls::new([0.0, 1.0]),
+            source_grains: Grains::default(),
+            formants: super::formants::Formants::default(),
+            mode: PitchShiftMode::Mix,
+            sample_rate: 48000.0,
+            controls: Controls::new([0.0, 1.0, 0.0]),
         }
     }
 }
 impl Effect for PitchShift {
     type Params = PitchShiftParams;
     fn prepare(&mut self, sample_rate: f32, _max_block: usize) {
+        self.sample_rate = rate(sample_rate);
         self.grains.prepare(0);
+        self.source_grains.prepare(0);
+        self.formants.reset();
         self.controls.prepare(rate(sample_rate));
     }
     fn reset(&mut self) {
         self.grains.reset();
+        self.source_grains.reset();
+        self.formants.reset();
         self.controls.reset();
     }
     fn set_params(&mut self, params: &Self::Params) {
         let p = params.sanitized();
-        self.controls.set([p.semitones, p.mix]);
+        self.mode = p.mode;
+        self.controls.set([p.semitones, p.mix, p.formant_semitones]);
     }
     fn process(&mut self, left: &mut [f32], right: &mut [f32]) {
         for (l, r) in left.iter_mut().zip(right) {
-            let [semitones, mix] = self.controls.tick();
-            let (wet, dry) = self
-                .grains
-                .tick([audio(*l), audio(*r)], (semitones / 12.0).exp2());
+            let [semitones, mix, formant] = self.controls.tick();
+            let input = [audio(*l), audio(*r)];
+            let ratio = (semitones / 12.0).exp2();
+            let (plain, dry) = self.grains.tick(input, ratio);
+            let excitation = self
+                .formants
+                .excitation(input, self.mode == PitchShiftMode::Voice);
+            let (shifted, _) = self.source_grains.tick(excitation, ratio);
+            let filtered = self.formants.synthesize(shifted, formant);
+            // Mix mode is the legacy transparent grain path at zero formant;
+            // Voice mode preserves the estimated envelope during pitch shifts.
+            let share = if self.mode == PitchShiftMode::Voice {
+                (semitones.abs() + formant.abs()).min(1.0)
+            } else {
+                formant.abs().min(1.0)
+            };
+            let wet =
+                std::array::from_fn::<_, 2, _>(|ch| plain[ch] + (filtered[ch] - plain[ch]) * share);
             *l = output(dry[0] + (wet[0] - dry[0]) * mix);
             *r = output(dry[1] + (wet[1] - dry[1]) * mix);
         }
@@ -131,10 +173,10 @@ impl Effect for PitchShift {
         self.grains.latency()
     }
     fn tail_samples(&self) -> usize {
-        self.grains.tail()
+        self.grains.tail() + (self.sample_rate * 2.0) as usize
     }
     fn gap_samples(&self) -> usize {
-        self.grains.tail()
+        self.tail_samples()
     }
     fn warm_up_samples(&self) -> usize {
         self.grains.tail()
@@ -177,6 +219,13 @@ pub struct PitchCorrectParams {
     /// A4 tuning, 400..480 Hz.
     pub tuning_hz: f32,
     pub mix: f32,
+    #[serde(default, skip_serializing_if = "is_zero_channel")]
+    #[ts(optional)]
+    pub harmony_channel: u32,
+    pub harmony_mix: f32,
+}
+fn is_zero_channel(channel: &u32) -> bool {
+    *channel == 0
 }
 impl Default for PitchCorrectParams {
     fn default() -> Self {
@@ -187,6 +236,8 @@ impl Default for PitchCorrectParams {
             amount: 1.0,
             tuning_hz: 440.0,
             mix: 1.0,
+            harmony_channel: 0,
+            harmony_mix: 0.0,
         }
     }
 }
@@ -197,21 +248,25 @@ param_set!(PitchCorrectParams, "Pitch Correct", {
     float [amount] "amount" "Amount" { Fraction, Linear, 0.0, 1.0, 1.0 }
     float [tuning_hz] "tuningHz" "Tuning" { Hertz, Linear, 400.0, 480.0, 440.0 }
     float [mix] "mix" "Mix" { Fraction, Linear, 0.0, 1.0, 1.0 }
+    float [harmony_mix] "harmonyMix" "Harmony level" { Fraction, Linear, 0.0, 1.0, 0.0 }
 });
 
-/// Monophonic normalized autocorrelation at approximately 6 kHz. A bounded
+/// Monophonic shared-YIN detection at approximately 6 kHz. A bounded
 /// 256-sample ring, 32-sample hop and <=151 lags cost no worker handoff/locks.
 pub struct PitchCorrect {
     params: PitchCorrectParams,
-    controls: Controls<4>,
+    controls: Controls<5>,
+    harmonies: [Grains; 4],
+    harmony_notes: [u8; 4],
+    harmony_levels: [f32; 4],
     grains: Grains,
     sample_rate: f32,
     decimation: usize,
     decimation_cursor: usize,
     tracker_rate: f32,
-    lowpass: [Biquad; 2],
+    lowpass: [[Biquad; 2]; 2],
     lowpass_coeffs: BiquadCoeffs,
-    tracker: [f32; TRACK_SIZE],
+    tracker: [[f32; TRACK_SIZE]; 2],
     tracker_cursor: usize,
     tracked: usize,
     hop: usize,
@@ -222,15 +277,18 @@ impl Default for PitchCorrect {
     fn default() -> Self {
         let mut effect = Self {
             params: PitchCorrectParams::default(),
-            controls: Controls::new([35.0, 1.0, 440.0, 1.0]),
+            controls: Controls::new([35.0, 1.0, 440.0, 1.0, 0.0]),
+            harmonies: std::array::from_fn(|_| Grains::default()),
+            harmony_notes: [255; 4],
+            harmony_levels: [0.0; 4],
             grains: Grains::default(),
             sample_rate: 48_000.0,
             decimation: 8,
             decimation_cursor: 0,
             tracker_rate: 6_000.0,
-            lowpass: [Biquad::default(); 2],
+            lowpass: [[Biquad::default(); 2]; 2],
             lowpass_coeffs: BiquadCoeffs::IDENTITY,
-            tracker: [0.0; TRACK_SIZE],
+            tracker: [[0.0; TRACK_SIZE]; 2],
             tracker_cursor: 0,
             tracked: 0,
             hop: 0,
@@ -242,59 +300,55 @@ impl Default for PitchCorrect {
     }
 }
 impl PitchCorrect {
+    /// Four lowest distinct held MIDI keys. 255 means released/absent.
+    pub fn set_harmony_notes(&mut self, notes: [u8; 4]) {
+        self.harmony_notes = notes.map(|key| if key < 128 { key } else { 255 });
+    }
     fn estimate(&mut self) {
+        let centered_energy = |samples: &[f32; TRACK_SIZE]| {
+            let mean = samples.iter().sum::<f32>() / TRACK_SIZE as f32;
+            samples.iter().map(|v| (v - mean).powi(2)).sum::<f32>()
+        };
+        let channel =
+            usize::from(centered_energy(&self.tracker[1]) > centered_energy(&self.tracker[0]));
         let mut signal = [0.0; TRACK_SIZE];
-        let mean = self.tracker.iter().sum::<f32>() / TRACK_SIZE as f32;
+        let mean = self.tracker[channel].iter().sum::<f32>() / TRACK_SIZE as f32;
         for (i, sample) in signal.iter_mut().enumerate() {
-            *sample = self.tracker[(self.tracker_cursor + i) % TRACK_SIZE] - mean;
+            *sample = self.tracker[channel][(self.tracker_cursor + i) % TRACK_SIZE] - mean;
         }
-        let power = signal.iter().map(|v| v * v).sum::<f32>() / TRACK_SIZE as f32;
-        if power < 1.0e-7 {
+        if signal.iter().map(|v| v * v).sum::<f32>() / (TRACK_SIZE as f32) < 1e-7 {
             self.frequency = 0.0;
             return;
         }
-        let min_lag = (self.tracker_rate / 1000.0).floor().max(2.0) as usize;
         let max_lag = (self.tracker_rate / 60.0)
             .ceil()
             .min((TRACK_LAGS - 2) as f32) as usize;
-        let mut correlation = [0.0; TRACK_LAGS];
-        for lag in min_lag.saturating_sub(1)..=max_lag + 1 {
-            let mut cross = 0.0;
-            let mut a = 0.0;
-            let mut b = 0.0;
-            for i in 0..TRACK_SIZE - lag {
-                cross += signal[i] * signal[i + lag];
-                a += signal[i] * signal[i];
-                b += signal[i + lag] * signal[i + lag];
-            }
-            correlation[lag] = cross / (a * b).sqrt().max(1.0e-12);
+        let comparison = TRACK_SIZE - TRACK_LAGS;
+        let mut raw = [0.0_f64; TRACK_LAGS];
+        let mut cmnd = [1.0_f64; TRACK_LAGS];
+        let mut sum = 0.0;
+        for lag in 1..=max_lag + 1 {
+            raw[lag] = (0..comparison)
+                .map(|i| {
+                    let d = f64::from(signal[i]) - f64::from(signal[i + lag]);
+                    d * d
+                })
+                .sum();
+            sum += raw[lag];
+            cmnd[lag] = if sum > 0.0 {
+                raw[lag] * lag as f64 / sum
+            } else {
+                1.0
+            };
         }
-        // Prefer the earliest convincing peak, rather than a longer multiple
-        // of the period. Reject unvoiced/aperiodic input without holding a note.
-        let mut best = 0;
-        for lag in min_lag..=max_lag {
-            if correlation[lag] >= 0.75
-                && correlation[lag] >= correlation[lag - 1]
-                && correlation[lag] > correlation[lag + 1]
-            {
-                best = lag;
-                break;
-            }
-        }
-        if best == 0 {
-            self.frequency = 0.0;
-            return;
-        }
-        let a = correlation[best - 1];
-        let b = correlation[best];
-        let c = correlation[best + 1];
-        let denominator = a - 2.0 * b + c;
-        let fraction = if denominator.abs() > 1.0e-6 {
-            (0.5 * (a - c) / denominator).clamp(-0.5, 0.5)
-        } else {
-            0.0
-        };
-        self.frequency = self.tracker_rate / (best as f32 + fraction);
+        self.frequency = windfall_core::yin::first_trough(&cmnd, max_lag, 0.15)
+            .and_then(|(lag, _)| {
+                let offset =
+                    windfall_core::yin::parabolic_minimum(raw[lag - 1], raw[lag], raw[lag + 1]).0;
+                let hz = f64::from(self.tracker_rate) / (lag as f64 + offset);
+                (60.0..=1000.0).contains(&hz).then_some(hz as f32)
+            })
+            .unwrap_or(0.0);
     }
     fn target(&self, tuning: f32) -> f32 {
         if self.frequency <= 0.0 {
@@ -326,14 +380,22 @@ impl Effect for PitchCorrect {
         self.lowpass_coeffs =
             BiquadCoeffs::low_pass(self.tracker_rate * 0.4, 0.707, self.sample_rate);
         self.grains.prepare(TRACK_SIZE * self.decimation);
+        for harmony in &mut self.harmonies {
+            harmony.prepare(TRACK_SIZE * self.decimation);
+        }
         self.controls.prepare(self.sample_rate);
         self.reset();
     }
     fn reset(&mut self) {
         self.grains.reset();
         self.controls.reset();
-        self.lowpass.fill(Biquad::default());
-        self.tracker.fill(0.0);
+        self.lowpass.fill([Biquad::default(); 2]);
+        self.tracker.fill([0.0; TRACK_SIZE]);
+        for harmony in &mut self.harmonies {
+            harmony.reset();
+        }
+        self.harmony_notes.fill(255);
+        self.harmony_levels.fill(0.0);
         self.tracker_cursor = 0;
         self.decimation_cursor = 0;
         self.tracked = 0;
@@ -345,20 +407,25 @@ impl Effect for PitchCorrect {
         self.params = params.sanitized();
         let p = self.params;
         self.controls
-            .set([p.speed_ms, p.amount, p.tuning_hz, p.mix]);
+            .set([p.speed_ms, p.amount, p.tuning_hz, p.mix, p.harmony_mix]);
     }
     fn process(&mut self, left: &mut [f32], right: &mut [f32]) {
         for (l, r) in left.iter_mut().zip(right) {
             let input = [audio(*l), audio(*r)];
-            let mut filtered = f64::from(0.5 * (input[0] + input[1]));
-            for section in &mut self.lowpass {
-                filtered = section.tick(&self.lowpass_coeffs, filtered);
-                section.flush();
-            }
+            let filtered = std::array::from_fn::<_, 2, _>(|ch| {
+                let mut value = f64::from(input[ch]);
+                for section in &mut self.lowpass[ch] {
+                    value = section.tick(&self.lowpass_coeffs, value);
+                    section.flush();
+                }
+                output(value as f32)
+            });
             self.decimation_cursor += 1;
             if self.decimation_cursor == self.decimation {
                 self.decimation_cursor = 0;
-                self.tracker[self.tracker_cursor] = output(filtered as f32);
+                for (ch, value) in filtered.iter().enumerate() {
+                    self.tracker[ch][self.tracker_cursor] = *value;
+                }
                 self.tracker_cursor = (self.tracker_cursor + 1) % TRACK_SIZE;
                 self.tracked = (self.tracked + 1).min(TRACK_SIZE);
                 self.hop += 1;
@@ -369,11 +436,31 @@ impl Effect for PitchCorrect {
                     }
                 }
             }
-            let [speed, amount, tuning, mix] = self.controls.tick();
+            let [speed, amount, tuning, mix, harmony_mix] = self.controls.tick();
             let target = self.target(tuning) * amount;
             self.correction +=
                 (target - self.correction) * smoothing_coefficient(speed, self.sample_rate);
-            let (wet, dry) = self.grains.tick(input, (self.correction / 12.0).exp2());
+            let (mut wet, dry) = self.grains.tick(input, (self.correction / 12.0).exp2());
+            let source_note = if self.frequency > 0.0 {
+                69.0 + 12.0 * (self.frequency / tuning).log2()
+            } else {
+                69.0
+            };
+            for voice in 0..4 {
+                let active = self.harmony_notes[voice] < 128 && self.frequency > 0.0;
+                let target_level = if active { 1.0 } else { 0.0 };
+                self.harmony_levels[voice] += (target_level - self.harmony_levels[voice])
+                    * smoothing_coefficient(5.0, self.sample_rate);
+                let shift = if active {
+                    (f32::from(self.harmony_notes[voice]) - source_note).clamp(-24.0, 24.0)
+                } else {
+                    0.0
+                };
+                let (harmony, _) = self.harmonies[voice].tick(input, (shift / 12.0).exp2());
+                for ch in 0..2 {
+                    wet[ch] += harmony[ch] * self.harmony_levels[voice] * harmony_mix * 0.25;
+                }
+            }
             *l = output(dry[0] + (wet[0] - dry[0]) * mix);
             *r = output(dry[1] + (wet[1] - dry[1]) * mix);
         }

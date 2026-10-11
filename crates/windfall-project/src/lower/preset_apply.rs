@@ -142,9 +142,12 @@ impl Transaction<'_> {
                     _ => false,
                 });
                 match state {
-                    PluginPresetState::Effect { params } => {
+                    PluginPresetState::Effect { params, impulse } => {
                         let params = checked_effect(params)?;
-                        self.change_track(track, |track| track.effects[slot].params = params);
+                        self.change_track(track, |track| {
+                            track.effects[slot].params = params;
+                            track.effects[slot].impulse = impulse;
+                        });
                         self.rebind(target, None);
                     }
                     PluginPresetState::Hosted { binding, .. } => {

@@ -312,3 +312,5 @@ mod tests {
         assert!((per_tick * PPQ as f64 - 24_000.0).abs() < 1e-6);
     }
 }
+
+pub mod yin;

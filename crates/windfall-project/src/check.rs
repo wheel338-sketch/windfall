@@ -418,6 +418,10 @@ fn check_effects(
         if !within(effect.mix, 0.0, 1.0) {
             return Err(format!("{name} has mix {}, outside 0 to 1", effect.mix));
         }
+        if let Some(asset) = &effect.impulse {
+            if effect.kind() != crate::EffectKind::Convolver { return Err(format!("{name} has an IR on a non-convolver")); }
+            asset.check().map_err(str::to_owned)?;
+        }
         if effect.params.sanitized() != effect.params {
             return Err(format!("{name} has a setting outside its range"));
         }

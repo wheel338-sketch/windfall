@@ -494,6 +494,7 @@ impl Ledger {
     ) -> bool {
         self.sample_rate == rate
             && effect.params.kind() == before.params.kind()
+            && effect.impulse == before.impulse
             && self.effects.get(&effect.id) == Some(&(effect.params.kind(), before.life.generation))
             && effect.native_identity()
                 == self
@@ -577,7 +578,7 @@ impl Layout {
                     plugins.get(&windfall_project::PluginTarget::Effect { effect: effect.id });
                 out = out
                     .checked_add(record.map_or_else(
-                        || effect.params.latency_samples(sample_rate as f32),
+                        || effect.latency_samples(sample_rate),
                         |record| record.1,
                     ))
                     .ok_or(ProjectPreparationError::SizeOverflow)?;
@@ -698,7 +699,7 @@ impl Layout {
                     } else {
                         reservation.possible().max_by_key(|source| {
                             source.native.map_or_else(
-                                || source.params.kind().max_latency_samples(rate),
+                                || source.params.kind().max_latency_samples(rate)+source.impulse.as_ref().map_or(0,|asset|asset.group_delay_at(rate as u32)),
                                 |record| record.1,
                             )
                         })
@@ -708,6 +709,8 @@ impl Layout {
                     continue;
                 }
                 let params = source.map_or(effect.params, |source| source.params);
+                let impulse=source.map_or(effect.impulse.as_ref(),|source|source.impulse.as_ref());
+                let impulse_delay=impulse.map_or(0,|asset|asset.group_delay_at(rate as u32));
                 let generation =
                     source.map_or(effect.life.generation, |source| source.life.generation);
                 let native = if effect.leaving {
@@ -718,13 +721,13 @@ impl Layout {
                     plugins.get(&key).copied()
                 };
                 let maximum = native.map_or_else(
-                    || params.kind().max_latency_samples(rate),
+                    || params.kind().max_latency_samples(rate)+impulse_delay,
                     |record| record.1,
                 );
                 let delay = if effect.leaving {
                     0
                 } else {
-                    native.map_or_else(|| params.latency_samples(rate), |record| record.1)
+                    native.map_or_else(|| params.latency_samples(rate)+impulse_delay, |record| record.1)
                 };
                 if maximum > 0 {
                     path.push(DelayStage {
@@ -955,6 +958,23 @@ impl PlanState {
                 )
             })
             .ok_or(crate::project_preparation::ProjectPreparationError::SizeOverflow)?;
+        // Include both stereo kernel/history and temporary resampling storage.
+        // This admission runs before constructing any new convolver owner.
+        let impulse_bytes = plan.tracks.iter().flat_map(|track| &track.effects).try_fold(0_usize, |total, effect| {
+            let Some(asset) = &effect.impulse else { return Some(total); };
+            let frames = (asset.frames.len() as u64 * u64::from(sample_rate)).div_ceil(u64::from(asset.sample_rate.max(1)));
+            let frames = usize::try_from(frames).ok()?;
+            let partitions = frames.div_ceil(windfall_dsp::spectral::CONVOLUTION_PARTITION);
+            // Two stereo complex planes (kernels + history), plus source PCM,
+            // resampled PCM, allocator headers, queue/fixed scratch allowance.
+            let dry=asset.group_delay_at(sample_rate).checked_add(4)?.checked_next_power_of_two()?.checked_mul(8)?;
+            let bytes = partitions.checked_mul(8192)?.checked_add(dry)?.checked_add(frames.checked_mul(8)?)?.checked_add(asset.frames.len().checked_mul(8)?)?.checked_add(16384)?;
+            total.checked_add(bytes)
+        }).ok_or(crate::project_preparation::ProjectPreparationError::SizeOverflow)?;
+        const IMPULSE_LIMIT: usize = 128 * 1024 * 1024;
+        if impulse_bytes > IMPULSE_LIMIT {
+            return Err(crate::project_preparation::ProjectPreparationError::MemoryLimit { required: impulse_bytes, limit: IMPULSE_LIMIT });
+        }
         let inherited = held.map_or(0, |held| held.history_capacity);
         if conditional {
             let capacity = inherited.max(sample_rate as usize);
@@ -1045,7 +1065,6 @@ impl PlanState {
         });
         // Large echo histories are admitted before anything is prepared.
         let admission = crate::effect_host::HistoryAdmission::of(plan, sample_rate)?;
-        let mut refused = None;
         let (mut prepared, plugins) = crate::plugins::prepare(plan, sample_rate, &known_plugins)?;
         Layout::validate_native_routes(plan, sample_rate, &plugins)?;
         let mut departing_plugins = HashMap::new();
@@ -1190,7 +1209,7 @@ impl PlanState {
                     });
                 if effect.leaving {
                     // Only there to fade out what is already playing.
-                    return None;
+                    return Ok(None);
                 }
                 ledger
                     .effects
@@ -1199,22 +1218,10 @@ impl PlanState {
                     let meters = held.map_or(&[][..], |held| &held.meters);
                     let meter = meters.iter().find(|(id, _)| *id == effect.id);
                     ledger.meters.extend(meter.cloned());
-                    return None;
+                    return Ok(None);
                 }
-                let (mut unit, meter) = match EffectUnit::build(
-                    effect,
-                    track.id,
-                    sample_rate,
-                    plan.tempo_bpm,
-                    admission.budget(kind),
-                ) {
-                    Ok(built) => built,
-                    Err(error) => {
-                        // The first refusal ends the build below.
-                        refused.get_or_insert(crate::effect_host::refusal(error));
-                        return None;
-                    }
-                };
+                let (mut unit, meter) =
+                    EffectUnit::build(effect, track.id, sample_rate, plan.tempo_bpm, admission.budget(kind))?;
                 if let Some(binding) = plan.plugins.iter().find(|binding| binding.target == target)
                 {
                     let native = match prepared.remove(&target) {
@@ -1224,14 +1231,9 @@ impl PlanState {
                     unit.install_plugin(native, binding);
                 }
                 ledger.meters.extend(meter.map(|meter| (effect.id, meter)));
-                Some(unit)
+                Ok(Some(unit))
             });
-            chains.push(chain.collect());
-            if let Some(error) = refused.take() {
-                // Everything built so far is dropped here, off the audio
-                // thread, and the plan that was playing stays.
-                return Err(error);
-            }
+            chains.push(chain.collect::<Result<Vec<_>, crate::project_preparation::ProjectPreparationError>>()?);
         }
 
         let printed = if plan.audio_clips.iter().any(|clip| clip.direct_output)
@@ -2125,6 +2127,7 @@ mod tests {
 
     fn limiter(id: u32, lookahead_ms: f32) -> EffectSlot {
         EffectSlot {
+            impulse: None,
             id: EffectId(id),
             enabled: true,
             mix: 1.0,

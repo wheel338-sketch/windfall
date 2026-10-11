@@ -387,6 +387,7 @@ fn add_effects(project: &mut Project) -> (ChannelId, TrackId) {
     let effects: Vec<EffectSlot> = chain
         .into_iter()
         .map(|kind| EffectSlot {
+            impulse: None,
             id: EffectId(next_id()),
             enabled: true,
             mix: 1.0,

@@ -32,3 +32,5 @@ mod nonlinear_performance;
 /// thread that is not being watched, so the other tests are unaffected.
 #[global_allocator]
 static ALLOCATOR: realtime::CountingAllocator = realtime::CountingAllocator;
+
+mod spectral;

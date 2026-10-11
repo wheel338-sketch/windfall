@@ -49,6 +49,10 @@ import { StackedFlangerEditor } from "./circuits/stacked-flanger-editor"
 import { DriveChainEditor, GuitarRackEditor, OverdriveEditor, WaveshaperEditor } from "./nonlinear/editors"
 import { PerformanceRackEditor, ScratchEditor, TimeTransportEditor, VolumeGateEditor } from "./nonlinear/performance-editors"
 
+import { ConvolverEditor } from "./spectral/convolver-editor"
+import { PitchShiftEditor, PitchCorrectEditor } from "./spectral/pitch-editor"
+import { VocoderEditor } from "./spectral/vocoder-editor"
+
 type Editors = {
   [Kind in EffectKind]?: ComponentType<EditorProps<EffectParamsOf<Kind>>>
 }
@@ -96,6 +100,10 @@ const EDITORS: Editors = {
   timeTransport: TimeTransportEditor,
   performanceRack: PerformanceRackEditor,
   scratch: ScratchEditor,
+  convolver: ConvolverEditor,
+  vocoder: VocoderEditor,
+  pitchShift: PitchShiftEditor,
+  pitchCorrect: PitchCorrectEditor,
 }
 
 type AnyEditor = ComponentType<EditorProps<EffectParams>>

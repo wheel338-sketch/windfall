@@ -61,6 +61,10 @@ impl MixerTrackPreset {
         }
         let mut ids = std::collections::HashSet::new();
         for effect in &self.effects {
+            if let Some(asset) = &effect.impulse {
+                if effect.kind() != crate::EffectKind::Convolver { return Err("Only convolver slots can hold an IR".into()); }
+                asset.check().map_err(str::to_owned)?;
+            }
             if effect.id.0 == 0
                 || !ids.insert(effect.id)
                 || !effect.mix.is_finite()

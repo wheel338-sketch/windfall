@@ -310,6 +310,7 @@ impl EffectLife {
 
 #[derive(Debug, Clone)]
 pub(crate) struct PlanEffect {
+    pub impulse: Option<Arc<windfall_project::ConvolverImpulse>>,
     pub id: EffectId,
     /// Every value inside its range.
     pub params: EffectParams,
@@ -341,6 +342,7 @@ pub(crate) struct DepartureReservation {
 
 #[derive(Debug, Clone)]
 pub(crate) struct DepartureSource {
+    pub impulse: Option<Arc<windfall_project::ConvolverImpulse>>,
     pub life: Arc<EffectLife>,
     pub params: EffectParams,
     pub enabled: bool,
@@ -375,6 +377,7 @@ impl DepartureReservation {
 }
 
 impl PlanEffect {
+    pub fn latency_samples(&self,rate:u32)->usize {self.params.latency_samples(rate as f32)+self.impulse.as_ref().map_or(0,|asset|asset.group_delay_at(rate))}
     pub fn native_identity(&self) -> Option<u64> {
         self.native_owner
     }
@@ -544,7 +547,7 @@ impl Plan {
             // querying the previous factory now would observe its new revision.
             let before_native =
                 prepared.map_or(before.native_owner, |held| held.native_identity(effect.id));
-            if effect.params.kind() == before.params.kind() && native == before_native {
+            if effect.params.kind() == before.params.kind() && native == before_native && effect.impulse == before.impulse {
                 effect.life = before.life.clone();
                 effect.after = before.after.as_ref().filter(|life| life.heard()).cloned();
             }
@@ -667,6 +670,7 @@ impl Plan {
                     // adoption. Finished departures alone can be excluded.
                     if !before.leaving || before.life.progress.load(Ordering::Acquire) != 2 {
                         sources.push(DepartureSource {
+                            impulse: before.impulse.clone(),
                             life: before.life.clone(),
                             params: before.params,
                             enabled: before.enabled,
@@ -702,6 +706,7 @@ impl Plan {
             for (inserted, (id, sources, anchor)) in rows.into_iter().enumerate() {
                 let first = &sources[0];
                 let row = PlanEffect {
+                    impulse: first.impulse.clone(),
                     id,
                     params: first.params,
                     enabled: first.enabled,
@@ -1443,6 +1448,7 @@ fn compile_mixer(mixer: &Mixer) -> (Vec<PlanTrack>, Vec<usize>) {
                 .filter(|effect| effects_seen.insert(effect.id))
                 .take(MAX_EFFECT_SLOTS)
                 .map(|effect| PlanEffect {
+                    impulse: effect.impulse.clone().map(Arc::new),
                     id: effect.id,
                     params: effect.params.sanitized(),
                     enabled: effect.enabled,
@@ -2025,6 +2031,7 @@ mod tests {
         let mut project = Project::new("bounded restores");
         let slots: Vec<_> = (0..MAX_EFFECT_SLOTS)
             .map(|index| windfall_project::EffectSlot {
+                impulse: None,
                 id: EffectId(index as u32 + 1),
                 params: windfall_project::EffectKind::StereoMatrix.default_params(),
                 enabled: true,

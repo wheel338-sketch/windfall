@@ -822,6 +822,10 @@ pub enum Command {
         label: Option<String>,
         commands: Vec<Command>,
     },
+    /// Replace/clear a portable IR in one undo transaction. PCM is decoded
+    /// before dispatch and FFT partitions are prepared before plan publication.
+    SetConvolverImpulse { track: TrackId, effect: EffectId, impulse: Option<crate::ConvolverImpulse> },
+
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, TS)]

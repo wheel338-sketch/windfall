@@ -79,3 +79,6 @@ pub use project_settings::PanLaw;
 pub mod score;
 pub use score::{Score, ScoreLoadMode, ScoreNote};
 pub mod timebase;
+
+mod convolver;
+pub use convolver::ConvolverImpulse;

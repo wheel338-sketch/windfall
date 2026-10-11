@@ -1239,12 +1239,14 @@ mod tests {
         first.output = Some(TrackId::MASTER);
         first.effects = vec![
             EffectSlot {
+                impulse: None,
                 id: EffectId(20),
                 enabled: true,
                 mix: 1.0,
                 params: windfall_project::EffectKind::Balance.default_params(),
             },
             EffectSlot {
+                impulse: None,
                 id: EffectId(21),
                 enabled: true,
                 mix: 1.0,
@@ -1778,6 +1780,7 @@ mod tests {
         );
         pool.set_plugin_factory(Arc::new(Factory(counts.clone())));
         project.mixer.tracks[0].effects.push(EffectSlot {
+            impulse: None,
             id: EffectId(950),
             enabled: true,
             mix: 1.0,

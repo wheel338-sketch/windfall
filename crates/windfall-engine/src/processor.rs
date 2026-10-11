@@ -1592,6 +1592,26 @@ impl Processor {
     }
 
     fn render_voice_audio(&mut self, base: u64, from: usize, to: usize) {
+        // Capture the actual admitted source-channel MIDI owners at every
+        // frame, before mixer effects run. A final-block held snapshot would
+        // lose short notes and make harmonies depend on device block size.
+        let clock=self.sequencer.clock();
+        for chain in &mut self.state.chains {
+            for unit in chain.iter_mut().flatten() {
+                let source=unit.harmony_channel().and_then(|id|self.plan.channel_ids.get(id));
+                for frame in from..to {
+                    let mut notes=[255;4];
+                    if let Some(source)=source {
+                        let at=clock.tick_at(base+frame as u64);
+                        let mut held=[false;128];
+                        for owner in self.state.channel_voice[source].owners.iter().flatten().filter(|owner|owner.admitted && owner.note.end>at) {held[usize::from(owner.note.key.min(127))]=true;}
+                        let mut voice=0;
+                        for (key,active) in held.iter().enumerate() {if *active {notes[voice]=key as u8;voice+=1;if voice==4 {break;}}}
+                    }
+                    unit.record_harmony_frame(frame,notes);
+                }
+            }
+        }
         if from < to {
             if let Some(count) = &mut self.count_in {
                 self.metronome.render_count_in(
