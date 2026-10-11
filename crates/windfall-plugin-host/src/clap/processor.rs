@@ -284,6 +284,7 @@ fn transport_event(transport: &Transport) -> Result<TransportEvent, ProcessFaile
 }
 
 impl ProcessorBackend for ClapProcessor {
+    fn supports_midi_expression(&self) -> bool { self.dialect == Dialect::Midi }
     fn supports_note_instances(&self) -> bool {
         self.dialect == Dialect::Clap
     }
