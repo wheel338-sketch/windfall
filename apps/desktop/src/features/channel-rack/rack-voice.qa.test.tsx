@@ -186,7 +186,7 @@ it("refuses sample pre-processing in the browser without changing anything", asy
   expect(request).not.toHaveBeenCalled()
 
   await userEvent.click(
-    screen.getByRole("checkbox", { name: "Normalize to full scale" })
+    screen.getByRole("checkbox", { name: "Normalize to −1 dBFS" })
   )
   await userEvent.click(
     screen.getByRole("checkbox", { name: "Reverse the audio" })

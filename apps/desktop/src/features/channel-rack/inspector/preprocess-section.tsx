@@ -174,7 +174,7 @@ function PreprocessForm({ channel }: { channel: SamplerChannel }) {
               : "Turn on a forward loop to crossfade its seam."}
           </FieldDescription>
         </Field>
-        {toggle("normalize", "Normalize to full scale")}
+        {toggle("normalize", "Normalize to −1 dBFS")}
         <FieldDescription>
           Apply renders a new sample and gives it to this channel as one undo
           step. The original sample and its file are kept.

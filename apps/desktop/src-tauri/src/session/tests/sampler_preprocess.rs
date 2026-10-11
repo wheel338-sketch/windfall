@@ -141,7 +141,7 @@ fn preprocess_renders_a_new_sample_as_one_undo_step_and_survives_save_and_reopen
         .samples()
         .iter()
         .fold(0.0_f32, |peak, sample| peak.max(sample.abs()));
-    assert!((peak - 1.0).abs() < 1e-6, "normalized to full scale");
+    assert!((peak - 10.0_f32.powf(-1.0 / 20.0)).abs() < 1e-6, "normalized to −1 dBFS");
 
     // One history entry: the channel now plays the new sample, the trim is
     // baked, the loop points follow the audio and the playback crossfade

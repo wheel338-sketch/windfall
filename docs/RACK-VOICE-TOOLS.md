@@ -104,7 +104,7 @@ Treatments, applied in this order:
    leads into it and the loop keeps its length. A loop that starts at the
    first frame is shortened by the blend, and the audio that followed it
    fades into its start. The playback loop crossfade is set to zero.
-8. Normalize: one gain for every channel, peak to full scale.
+8. Normalize: one gain for every channel, peak to −1 dBFS.
 
 The reverse switch and the playback loop crossfade remain what they were:
 settings that change how an unchanged sample is read.
