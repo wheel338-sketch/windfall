@@ -14,13 +14,12 @@ import {
   project,
   strip,
   stubCanvas,
-  trackNamed,
 } from "@/features/mixer/test-utils"
 import { effectDescriptor, readParam } from "@/features/params"
 import { registry, runAction } from "@/lib/actions"
 import { SimDocument } from "@/lib/ipc/sim/document"
 import { emptyProject } from "@/lib/ipc/sim/project"
-import { dispatch, redo, undo, useProjectStore } from "@/lib/store/project"
+import { redo, undo } from "@/lib/store/project"
 import { startTestApp } from "@/test/harness"
 
 // jsdom has no layout. Only the resize surface is substituted: descriptors,
@@ -202,7 +201,7 @@ describe("nonlinear and buffered effects with the shared Rust WASM document", ()
   it.each(["volumeGate", "timeTransport"] as const)("%s exposes an undoable persisted MIDI-linkable trigger", async (kind) => {
     const { editor, user } = await open(kind)
     const before = structuredClone(chain("Clap")[0].params)
-    await user.click(editor.getByRole("button", { name: "Trigger", exact: true }))
+    await user.click(editor.getByRole("button", { name: "Trigger" }))
     await flush()
     expect(chain("Clap")[0].params).toMatchObject({ trigger: true })
     await undo(); await flush(); expect(chain("Clap")[0].params).toEqual(before)

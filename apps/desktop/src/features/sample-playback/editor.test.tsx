@@ -44,7 +44,7 @@ describe("purpose-built sample instrument editors", () => {
     const sample = useProjectStore.getState().project.samples[0]
     const user = userEvent.setup()
     await user.click(screen.getByRole("combobox", { name: "Source B" }))
-    await user.click(await screen.findByRole("option", { name: sample.name, exact: true }))
+    await user.click(await screen.findByRole("option", { name: sample.name }))
     await flush()
     expect(asset(id).inlineSource).toEqual(source)
     expect(asset(id).sample).toBeNull()
@@ -115,7 +115,7 @@ describe("purpose-built sample instrument editors", () => {
     const id = await open("waveRide")
     const user = userEvent.setup()
     await user.click(screen.getByRole("combobox", { name: "Curve note" }))
-    await user.click(await screen.findByRole("option", { name: "Key 60", exact: true }))
+    await user.click(await screen.findByRole("option", { name: "Key 60" }))
     const end = screen.getByRole("spinbutton", { name: "Point 2 value" })
     fireEvent.change(end, { target: { value: "0.2" } }); fireEvent.blur(end)
     await flush()

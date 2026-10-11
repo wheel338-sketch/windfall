@@ -16,6 +16,7 @@
 - Deliverable 3 committed at `42d74bc4`: Open-row classification covers exactly the original 64 open wave 1 IDs once (63 in-progress plus one todo), checked by set comparison.
 - Binding generation passed: 511 files. Simulator rebuild and fresh inventory comparison are next; no focused/full wave 2 test evidence yet.
 - Simulator generation passed: 4,955,235 bytes with provenance for all seven Rust source crates. Next: frontend typecheck/lint and focused measured tests, then full gates and final row table.
+- Frontend typecheck passed after removing unused test imports and unsupported `exact` role-query options (string role names already match exactly). All four added Command variants have small examples in EVERY_COMMAND; their execution remains pending.
 - Build/test commands will run sequentially with eight Cargo jobs and four Vitest workers. No devices/ignored tests, parity inventory edits, pushes or delegation.
 
 ## Verified execution record
@@ -33,6 +34,7 @@
 | Branch 9 `chk.sh` | Cargo exit 0; zero errors/warnings | `target/round2-branch9-check.log` |
 | `bash scripts/gen-bindings.sh` | Exit 0; 511 files generated | `target/round2-bindings.log` |
 | `bash scripts/build-sim.sh` | Exit 0; 4,955,235 bytes/provenance generated | `target/round2-sim-build.log` |
+| `pnpm.cmd typecheck` | Exit 0; zero diagnostics | `target/round2-typecheck.log` |
 
 ## Row acceptance
 
