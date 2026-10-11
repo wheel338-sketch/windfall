@@ -288,3 +288,9 @@ choosing an empty slot. Test written, not executed in the standalone fixture:
 expression::tests::reused_identity_updates_existing_owner_even_with_an_earlier_empty_slot.
 Integrator: cargo test --manifest-path crates/windfall-plugin-host/test-plugins/Cargo.toml
 --lib --jobs 1. This command is integrator-only, not run here.
+
+Saved variable-buffer serialization now omits fixedBuffer to match the generated
+optional number type, while reading older explicit null remains compatible.
+Test written, not executed: plugin::wrapper::tests::
+variable_buffer_is_absent_matching_the_optional_generated_type.
+Integrator: cargo test -p windfall-project --lib variable_buffer_is_absent.

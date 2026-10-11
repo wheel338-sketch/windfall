@@ -21,11 +21,35 @@ pub enum PluginProcessingMode {
 pub struct PluginWrapperOptions {
     pub smart_disable: bool,
     /// Native block size, not the device or shared-memory packet size.
+    #[serde(skip_serializing_if = "Option::is_none")]
     #[ts(optional)]
     pub fixed_buffer: Option<u32>,
     pub processing: PluginProcessingMode,
     pub editor_scale: f32,
     pub detached: bool,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn variable_buffer_is_absent_matching_the_optional_generated_type() {
+        let options = PluginWrapperOptions {
+            smart_disable: true,
+            ..Default::default()
+        };
+        let json = serde_json::to_value(options).unwrap();
+        assert!(json.get("fixedBuffer").is_none());
+        assert_eq!(
+            serde_json::from_value::<PluginWrapperOptions>(json).unwrap(),
+            options
+        );
+        let old_null = serde_json::json!({ "smartDisable": true, "fixedBuffer": null });
+        assert_eq!(
+            serde_json::from_value::<PluginWrapperOptions>(old_null).unwrap(),
+            options
+        );
+    }
 }
 impl Default for PluginWrapperOptions {
     fn default() -> Self {
