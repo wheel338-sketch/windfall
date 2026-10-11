@@ -18,6 +18,8 @@ import type { EditorProps } from "./editor-props"
 import { EqEditor } from "./eq/eq-editor"
 import { LimiterEditor } from "./limiter/limiter-editor"
 import { ReverbEditor } from "./reverb/reverb-editor"
+import { EchoBankEditor } from "./echo-bank/echo-bank-editor"
+import { FrequencyDelayEditor } from "./frequency-delay/frequency-delay-editor"
 
 type Editors = {
   [Kind in EffectKind]?: ComponentType<EditorProps<EffectParamsOf<Kind>>>
@@ -34,6 +36,8 @@ const EDITORS: Editors = {
   limiter: LimiterEditor,
   reverb: ReverbEditor,
   delay: DelayEditor,
+  echoBank: EchoBankEditor,
+  frequencyDelay: FrequencyDelayEditor,
 }
 
 type AnyEditor = ComponentType<EditorProps<EffectParams>>

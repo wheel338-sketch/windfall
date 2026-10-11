@@ -392,3 +392,28 @@ also checks the private test-only allocator/rollback code. The new preparation
 cases are part of the library run. Foundation R2 review, fallible host admission,
 saturating engine tail aggregation, registry/project integration, drawn editors and all other
 remaining E3 work remain pending; this repair does not close parity.
+
+## Host integration and editors (2026-10-10, source only)
+
+The four gates above are addressed in source; none of it has been compiled
+or run. `docs/qa/2026-10-10-fx-delay-mod-reverb.md` has the files, the tests
+and the commands.
+
+- Tails: `windfall-engine/src/effect_host.rs` adds tails and horizons with
+  saturating arithmetic, and `PlanState::settled` uses it. An endless tail
+  is never counted out; the track is done when it has been quiet for the
+  summed gap.
+- Admission: a plan reserves the history of every echo bank and frequency
+  delay it runs against 1 GiB before preparing any. Each new one is then
+  prepared through `EffectSlot::try_prepare` within its own share, and a
+  refusal fails the plan build on the control side with a typed error.
+  The boxed `AnyEffect` variants already keep the bank's inline state out
+  of every other slot.
+- Editors: `features/effects/echo-bank` is the linked eight-unit editor and
+  `features/effects/frequency-delay` the drawn sixteen-band one.
+
+The bank's reported gap is still its whole conservative horizon, about 200
+seconds, so an automatic render tail through a bank runs for as long as the
+user allows. Oversampling, granulation, the linear-phase splitter, curve
+snapshots and the other controls listed under "Public references and
+scope" remain outside what is implemented.
