@@ -10,6 +10,7 @@ mod archive;
 mod audio_editor;
 mod beat;
 mod clip_recording;
+mod controllers;
 mod document;
 mod effects;
 mod export;

@@ -532,8 +532,18 @@ impl Session {
     /// call. Never call it from the MIDI worker or the audio thread.
     pub fn controllers_pump(&self, now: Instant) {
         let mut plan = self.controllers_plan(now);
+        let learned = !plan.learned.is_empty();
         for (link, global, gesture) in std::mem::take(&mut plan.learned) {
             self.controller_link_add(link, global, gesture);
+        }
+        if learned {
+            // So the very next message from a newly linked control is taken.
+            let state = self.state();
+            lock(&self.inner.controllers).sync(
+                state.generation,
+                state.document.revision(),
+                state.document.project(),
+            );
         }
         if !plan.commands.is_empty() {
             let command = if plan.commands.len() == 1 {
@@ -1305,12 +1315,16 @@ pub(super) fn recorded_notes_command(
             }],
         });
         next_id = next_id.saturating_add(2);
+        // The clip loops its pattern, so a note further in than the pattern
+        // is long belongs to a later time round.
+        let looped = pattern_ticks(*pattern);
         for note in held {
+            let local = note.start - start;
             let placed = TakenNote {
-                start: note.start - start,
+                start: looped.map_or(local, |length| local.rem_euclid(f64::from(length))),
                 ..**note
             };
-            if let Some(init) = note_init(&placed, 0.0, quantize, None) {
+            if let Some(init) = note_init(&placed, 0.0, quantize, looped) {
                 add(*pattern, note.channel, init);
             }
         }
