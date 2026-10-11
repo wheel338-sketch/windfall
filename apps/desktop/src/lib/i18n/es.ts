@@ -1,6 +1,15 @@
 import type { Catalog } from "./types"
 
 export const es = {
+  "Leave blank for a manual page. Playback, seeks and loops select the latest cue in song mode.": "Déjalo vacío para una página manual. La reproducción, los saltos y los bucles eligen la última posición en modo Canción.",
+  "Use a whole tick from 0 to 960,000,000.": "Usa una posición entera de 0 a 960.000.000 ticks.",
+  "Page title must be at most 128 bytes.": "El título de página admite como máximo 128 bytes.",
+  "Page body must be at most 16,384 bytes.": "El texto de página admite como máximo 16.384 bytes.",
+  "Basic text formatting and tables. Links are shown as text; scripts, images and remote content are removed.": "Formato básico de texto y tablas. Los enlaces se muestran como texto; se eliminan scripts, imágenes y contenido remoto.",
+  "Plain text saved with the song.": "Texto sin formato guardado con la canción.",
+  "Notebook HTML preview": "Vista HTML del cuaderno",
+  "Page {page} exceeds a text limit.": "La página {page} supera un límite de texto.",
+  "A notebook can have at most 8 pages.": "Un cuaderno admite como máximo 8 páginas.",
   "Read manual": "Leer el manual",
   "Windfall manual": "Manual de Windfall",
   "Patterns and songs": "Patrones y canciones",

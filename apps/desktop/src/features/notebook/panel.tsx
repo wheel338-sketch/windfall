@@ -120,7 +120,7 @@ export function NotebookPanel({
 
   return (
     <form
-      aria-label="Song notebook"
+      aria-label={t("Song notebook")}
       aria-busy={saving}
       onSubmit={(event) => {
         event.preventDefault()
@@ -173,7 +173,7 @@ export function NotebookPanel({
                 setSelected(visiblePages.length)
               }}
             >
-              Add page
+              {t("Add page")}
             </Button>
             <Button
               type="button"
@@ -185,7 +185,7 @@ export function NotebookPanel({
                 setSelected(Math.max(0, selected - 1))
               }}
             >
-              Remove page
+              {t("Remove page")}
             </Button>
             <Button
               type="button"
@@ -199,7 +199,7 @@ export function NotebookPanel({
                 setSelected(selected + 1)
               }}
             >
-              Duplicate page
+              {t("Duplicate page")}
             </Button>
           </div>
         </Field>
@@ -209,8 +209,8 @@ export function NotebookPanel({
             step={1} value={page.startTick ?? ""} disabled={saving}
             aria-invalid={cueInvalid}
             onChange={(event) => edit({ startTick: event.target.value === "" ? undefined : Number(event.target.value) })} />
-          <FieldDescription>Leave blank for a manual page. Playback, seeks and loops select the latest cue in song mode.</FieldDescription>
-          {cueInvalid && <FieldError>Use a whole tick from 0 to 960,000,000.</FieldError>}
+          <FieldDescription>{t("Leave blank for a manual page. Playback, seeks and loops select the latest cue in song mode.")}</FieldDescription>
+          {cueInvalid && <FieldError>{t("Use a whole tick from 0 to 960,000,000.")}</FieldError>}
         </Field>
         <Field orientation="horizontal">
           <Checkbox id={`${id}-html`} disabled={saving} checked={page.html ?? false}
@@ -229,7 +229,7 @@ export function NotebookPanel({
           />
           {titleInvalid && (
             <FieldError id={`${id}-title-error`}>
-              Page title must be at most 128 bytes.
+              {t("Page title must be at most 128 bytes.")}
             </FieldError>
           )}
         </Field>
@@ -246,22 +246,22 @@ export function NotebookPanel({
           />
           {bodyInvalid && (
             <FieldError id={`${id}-body-error`}>
-              Page body must be at most 16,384 bytes.
+              {t("Page body must be at most 16,384 bytes.")}
             </FieldError>
           )}
-          <FieldDescription>{page.html ? "Basic text formatting and tables. Links are shown as text; scripts, images and remote content are removed." : "Plain text saved with the song."}</FieldDescription>
+          <FieldDescription>{t(page.html ? "Basic text formatting and tables. Links are shown as text; scripts, images and remote content are removed." : "Plain text saved with the song.")}</FieldDescription>
         </Field>
-        {page.html && <iframe title="Notebook HTML preview" sandbox=""
+        {page.html && <iframe title={t("Notebook HTML preview")} sandbox=""
           referrerPolicy="no-referrer" className="h-64 w-full rounded-md border bg-background"
           srcDoc={notebookHtmlDocument(page.body)} />}
         {invalidPage !== -1 && invalidPage !== selected && (
           <FieldError role="alert">
-            Page {invalidPage + 1} exceeds a text limit.
+            {message("Page {page} exceeds a text limit.", { page: invalidPage + 1 })}
           </FieldError>
         )}
         {pages.length > MAX_PAGES && (
           <FieldError role="alert">
-            A notebook can have at most 8 pages.
+            {t("A notebook can have at most 8 pages.")}
           </FieldError>
         )}
         {error && <FieldError role="alert">{error}</FieldError>}
@@ -270,7 +270,7 @@ export function NotebookPanel({
           size="sm"
           disabled={saving || !changed || invalid}
         >
-          {saving ? "Saving…" : "Save notebook"}
+          {t(saving ? "Saving…" : "Save notebook")}
         </Button>
       </FieldGroup>
     </form>

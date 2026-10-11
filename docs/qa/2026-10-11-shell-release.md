@@ -199,6 +199,9 @@ parse contract; all number/date consumers have not yet adopted Intl helpers.
 Do not call Spanish a complete application/main-panel translation. Translator
 review, text expansion at 75–200% and accessibility/native OS runs remain.
 No IPC/generated type or project-format change for language preferences.
+Notebook labels, buttons, hints, validation and inert-preview accessibility
+titles are now fully migrated too; mounted Spanish notebook controls/preview
+and unchanged user-content case is written, not executed in catalogs.test.tsx.
 
 ## Help and tutorials
 

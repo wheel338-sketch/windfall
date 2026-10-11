@@ -4,11 +4,21 @@ import { afterEach, describe, expect, it, vi } from "vitest"
 import { LanguageSection } from "@/features/settings/language"
 import { PanelFrame } from "@/features/layout/panel-frame"
 import { TooltipProvider } from "@/components/ui/tooltip"
+import { NotebookPanel } from "@/features/notebook/panel"
 import { catalogs, connectLanguage, formatDate, formatNumber, LANGUAGE_STORAGE_KEY, message, setLanguage, translatedText, useLanguageStore } from "."
 import type { MessageKey } from "./types"
 
 afterEach(() => { setLanguage("en"); localStorage.removeItem(LANGUAGE_STORAGE_KEY); vi.restoreAllMocks() })
 describe("shell message catalogs", () => {
+  it("translates notebook controls and preview labels while preserving authored content", () => {
+    setLanguage("es")
+    render(<NotebookPanel notebook={{ pages: [{ title: "User title", body: "<p>User note</p>", html: true }] }} onSave={async () => true} />)
+    expect(screen.getByRole("button", { name: "Añadir página" })).toBeVisible()
+    expect(screen.getByRole("button", { name: "Guardar cuaderno" })).toBeVisible()
+    expect(screen.getByTitle("Vista HTML del cuaderno")).toHaveAttribute("sandbox", "")
+    expect(screen.getByDisplayValue("User title")).toBeVisible()
+    expect(screen.getByDisplayValue("<p>User note</p>")).toBeVisible()
+  })
   it("has every key, plural form and interpolation placeholder in every catalog", () => {
     for (const catalog of Object.values(catalogs)) {
       expect(Object.keys(catalog).sort()).toEqual(Object.keys(catalogs.en).sort())

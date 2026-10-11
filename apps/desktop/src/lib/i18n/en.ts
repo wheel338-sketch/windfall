@@ -1,4 +1,13 @@
 export const en = {
+  "Leave blank for a manual page. Playback, seeks and loops select the latest cue in song mode.": "Leave blank for a manual page. Playback, seeks and loops select the latest cue in song mode.",
+  "Use a whole tick from 0 to 960,000,000.": "Use a whole tick from 0 to 960,000,000.",
+  "Page title must be at most 128 bytes.": "Page title must be at most 128 bytes.",
+  "Page body must be at most 16,384 bytes.": "Page body must be at most 16,384 bytes.",
+  "Basic text formatting and tables. Links are shown as text; scripts, images and remote content are removed.": "Basic text formatting and tables. Links are shown as text; scripts, images and remote content are removed.",
+  "Plain text saved with the song.": "Plain text saved with the song.",
+  "Notebook HTML preview": "Notebook HTML preview",
+  "Page {page} exceeds a text limit.": "Page {page} exceeds a text limit.",
+  "A notebook can have at most 8 pages.": "A notebook can have at most 8 pages.",
   "Read manual": "Read manual",
   "Windfall manual": "Windfall manual",
   "Patterns and songs": "Patterns and songs",
