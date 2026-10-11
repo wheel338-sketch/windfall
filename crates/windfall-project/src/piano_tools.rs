@@ -97,6 +97,13 @@ pub enum NoteTransform {
     Staccato {
         factor: f64,
     },
+    /// Legato lengths plus `overlap` ticks, and every note after the first
+    /// selected onset becomes a portamento note gliding for `glide` ticks.
+    /// The first onset and slide notes keep their articulation.
+    Portamento {
+        glide: u32,
+        overlap: u32,
+    },
     /// Split at absolute grid boundaries. Keep the first segment's id.
     Chop {
         grid: u32,
@@ -201,6 +208,7 @@ impl NoteTransform {
         match self {
             Self::Legato => "Legato notes",
             Self::Staccato { .. } => "Staccato notes",
+            Self::Portamento { .. } => "Portamento notes",
             Self::Chop { .. } | Self::ChopPattern { .. } => "Chop notes",
             Self::Arpeggiate { .. } => "Arpeggiate notes",
             Self::Flam { .. } => "Flam notes",
@@ -304,6 +312,14 @@ impl NoteTransform {
                 Ok(())
             }
             Self::Staccato { factor } => number("length factor", factor, f64::MIN_POSITIVE, 1.0),
+            Self::Portamento { glide, overlap } => {
+                if !(1..=MAX_PATTERN_TICKS).contains(&glide) || overlap > MAX_PATTERN_TICKS {
+                    return Err(CommandError::invalid(
+                        "portamento needs a glide of 1 to 245760 ticks and an overlap inside the pattern",
+                    ));
+                }
+                Ok(())
+            }
             Self::ScaleVelocity { factor } => number("velocity factor", factor, 0.0, 4.0),
             Self::Randomize { pitch, velocity, pan, timing, length, .. } => {
                 if pitch > MAX_KEY || timing > MAX_PATTERN_TICKS {
@@ -668,6 +684,23 @@ pub(crate) fn transform_mapped(
             for note in &mut notes {
                 if let Some(next) = starts.get(starts.partition_point(|s| *s <= note.start)) {
                     note.length = next - note.start;
+                }
+            }
+        }
+        NoteTransform::Portamento { glide, overlap } => {
+            let mut starts: Vec<_> = notes.iter().map(|n| n.start).collect();
+            starts.dedup();
+            let first = starts[0];
+            for note in &mut notes {
+                if let Some(next) = starts.get(starts.partition_point(|s| *s <= note.start)) {
+                    // Reach into the next onset, never past the longest pattern.
+                    let room = MAX_PATTERN_TICKS - note.start;
+                    note.length = (next - note.start).saturating_add(overlap).min(room);
+                }
+                let slide = note.expression.articulation == crate::NoteArticulation::Slide;
+                if note.start != first && !slide {
+                    note.expression.articulation = crate::NoteArticulation::Portamento;
+                    note.expression.glide_ticks = glide;
                 }
             }
         }

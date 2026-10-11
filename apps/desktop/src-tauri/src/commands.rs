@@ -141,6 +141,37 @@ async fn mixer_preset_read(
     let session = session.inner().clone();
     blocking(move || session.mixer_preset_read(path)).await
 }
+#[tauri::command]
+async fn mixer_preset_library(
+    session: State<'_, Session>,
+) -> Result<crate::session::MixerPresetLibrary, String> {
+    let session = session.inner().clone();
+    blocking(move || session.mixer_preset_library()).await
+}
+#[tauri::command]
+async fn mixer_preset_library_save(
+    session: State<'_, Session>,
+    preset: windfall_project::MixerTrackPreset,
+) -> Result<crate::session::MixerPresetLibraryEntry, String> {
+    let session = session.inner().clone();
+    blocking(move || session.mixer_preset_library_save(preset)).await
+}
+#[tauri::command]
+async fn mixer_preset_library_read(
+    session: State<'_, Session>,
+    file: String,
+) -> Result<windfall_project::MixerTrackPreset, String> {
+    let session = session.inner().clone();
+    blocking(move || session.mixer_preset_library_read(file)).await
+}
+#[tauri::command]
+async fn mixer_preset_library_delete(
+    session: State<'_, Session>,
+    file: String,
+) -> Result<(), String> {
+    let session = session.inner().clone();
+    blocking(move || session.mixer_preset_library_delete(file)).await
+}
 
 #[tauri::command]
 async fn slice_analyze(
@@ -702,6 +733,34 @@ async fn bounce_selected_clips(
 }
 
 #[tauri::command]
+async fn consolidate_playlist_tracks(
+    session: State<'_, Session>,
+    tracks: Vec<windfall_project::PlaylistTrackId>,
+) -> Result<DispatchResult, String> {
+    let session = session.inner().clone();
+    blocking(move || session.consolidate_playlist_tracks(tracks)).await
+}
+
+#[tauri::command]
+async fn export_playlist_tracks(
+    session: State<'_, Session>,
+    options: ExportOptions,
+    stems: windfall_ipc::ExportPlaylistStems,
+) -> Result<(), String> {
+    let session = session.inner().clone();
+    blocking(move || session.export_playlist_tracks(options, stems)).await
+}
+
+#[tauri::command]
+async fn sampler_preprocess(
+    session: State<'_, Session>,
+    request: windfall_ipc::SamplerPreprocessRequest,
+) -> Result<DispatchResult, String> {
+    let session = session.inner().clone();
+    blocking(move || session.sampler_preprocess(request)).await
+}
+
+#[tauri::command]
 fn export_cancel(session: State<'_, Session>) {
     session.export_cancel();
 }
@@ -894,11 +953,23 @@ pub fn handler() -> impl Fn(Invoke) -> bool + Send + Sync + 'static {
         mixer_preset_capture,
         mixer_preset_write,
         mixer_preset_read,
+        mixer_preset_library,
+        mixer_preset_library_save,
+        mixer_preset_library_read,
+        mixer_preset_library_delete,
         midi_hardware_state,
         midi_hardware_refresh,
         midi_hardware_configure,
         midi_hardware_target,
         midi_hardware_panic,
+        controller_state,
+        controller_settings_set,
+        controller_learn,
+        controller_learn_cancel,
+        note_record_arm,
+        automation_record_arm,
+        score_log_dump,
+        score_log_clear,
         recording_inputs,
         input_monitor_start,
         input_monitor_stop,
@@ -907,6 +978,9 @@ pub fn handler() -> impl Fn(Invoke) -> bool + Send + Sync + 'static {
         recording_start,
         recording_stop,
         recording_cancel,
+        audio_logger_state,
+        audio_logger_configure,
+        audio_logger_dump,
         document_snapshot,
         dispatch,
         automate,
@@ -932,6 +1006,11 @@ pub fn handler() -> impl Fn(Invoke) -> bool + Send + Sync + 'static {
         timeline_state,
         timeline_region,
         realtime_subscribe,
+        analyzer_capability,
+        analyzer_subscribe,
+        analyzer_select,
+        analyzer_ack,
+        analyzer_unsubscribe,
         engine_status,
         process_memory,
         engine_devices,
@@ -971,6 +1050,9 @@ pub fn handler() -> impl Fn(Invoke) -> bool + Send + Sync + 'static {
         add_audio_clip_from_file,
         add_audio_clip_from_sample,
         bounce_selected_clips,
+        consolidate_playlist_tracks,
+        export_playlist_tracks,
+        sampler_preprocess,
         export_audio,
         export_cancel,
         midi_preview,
@@ -983,6 +1065,25 @@ pub fn handler() -> impl Fn(Invoke) -> bool + Send + Sync + 'static {
         plugins_add_folder,
         plugins_add,
         plugin_editor,
+        crate::files_commands::preset_capture_channel,
+        crate::files_commands::preset_capture_plugin,
+        crate::files_commands::preset_write,
+        crate::files_commands::preset_read,
+        crate::files_commands::preset_apply_channel,
+        crate::files_commands::preset_library,
+        crate::files_commands::preset_library_save,
+        crate::files_commands::preset_library_delete,
+        crate::files_commands::score_write,
+        crate::files_commands::score_read,
+        crate::files_commands::templates,
+        crate::files_commands::template_save,
+        crate::files_commands::template_new,
+        crate::files_commands::template_delete,
+        crate::files_commands::plugin_database,
+        crate::files_commands::plugin_database_annotate,
+        crate::files_commands::plugin_database_forget_missing,
+        crate::files_commands::plugins_remove_folder,
+        crate::files_commands::plugins_rescan,
     ]
 }
 
@@ -1017,6 +1118,63 @@ fn midi_hardware_target(
 #[tauri::command]
 fn midi_hardware_panic(session: State<'_, Session>) {
     session.midi_hardware_panic();
+}
+
+#[tauri::command]
+fn controller_state(session: State<'_, Session>) -> windfall_ipc::ControllerState {
+    session.controller_state()
+}
+#[tauri::command]
+async fn controller_settings_set(
+    session: State<'_, Session>,
+    settings: windfall_ipc::ControllerSettings,
+) -> Result<windfall_ipc::ControllerState, String> {
+    let session = session.inner().clone();
+    blocking(move || session.controller_settings_set(settings)).await
+}
+#[tauri::command]
+fn controller_learn(
+    session: State<'_, Session>,
+    targets: Vec<windfall_project::LinkTarget>,
+    global: bool,
+    multi: bool,
+    generation: u64,
+) -> Result<windfall_ipc::ControllerState, String> {
+    session.controller_learn(targets, global, multi, generation)
+}
+#[tauri::command]
+fn controller_learn_cancel(session: State<'_, Session>) -> windfall_ipc::ControllerState {
+    session.controller_learn_cancel()
+}
+#[tauri::command]
+async fn note_record_arm(
+    session: State<'_, Session>,
+    armed: bool,
+) -> Result<windfall_ipc::ControllerState, String> {
+    let session = session.inner().clone();
+    blocking(move || Ok(session.note_record_arm(armed))).await
+}
+#[tauri::command]
+async fn automation_record_arm(
+    session: State<'_, Session>,
+    armed: bool,
+) -> Result<windfall_ipc::ControllerState, String> {
+    let session = session.inner().clone();
+    blocking(move || Ok(session.automation_record_arm(armed))).await
+}
+#[tauri::command]
+async fn score_log_dump(
+    session: State<'_, Session>,
+    pattern: windfall_project::PatternId,
+    seconds: Option<f32>,
+    generation: u64,
+) -> Result<DispatchResult, String> {
+    let session = session.inner().clone();
+    blocking(move || session.score_log_dump(pattern, seconds, generation)).await
+}
+#[tauri::command]
+fn score_log_clear(session: State<'_, Session>) -> windfall_ipc::ControllerState {
+    session.score_log_clear()
 }
 
 #[tauri::command]
@@ -1077,4 +1235,69 @@ async fn recording_cancel(session: State<'_, Session>) -> Result<(), String> {
         Ok(())
     })
     .await
+}
+
+#[tauri::command]
+async fn audio_logger_state(
+    session: State<'_, Session>,
+) -> Result<windfall_ipc::AudioLoggerState, String> {
+    let session = session.inner().clone();
+    blocking(move || Ok(session.audio_logger_state())).await
+}
+#[tauri::command]
+async fn audio_logger_configure(
+    session: State<'_, Session>,
+    settings: windfall_ipc::AudioLoggerSettings,
+) -> Result<windfall_ipc::AudioLoggerState, String> {
+    let session = session.inner().clone();
+    blocking(move || session.audio_logger_configure(settings)).await
+}
+#[tauri::command]
+async fn audio_logger_dump(
+    session: State<'_, Session>,
+    request: windfall_ipc::AudioLoggerDumpRequest,
+) -> Result<DispatchResult, String> {
+    let session = session.inner().clone();
+    blocking(move || session.audio_logger_dump(request)).await
+}
+// Live analyzer controls. Each only changes the service's bookkeeping; the
+// analysis itself runs on the realtime thread, which also sends the events.
+#[tauri::command]
+fn analyzer_capability(session: State<'_, Session>) -> windfall_ipc::AnalyzerCapability {
+    session.analyzer_capability()
+}
+#[tauri::command]
+fn analyzer_subscribe(
+    session: State<'_, Session>,
+    window: WebviewWindow,
+    slot: String,
+    channel: Channel<tauri::ipc::InvokeResponseBody>,
+) -> windfall_ipc::AnalyzerStatus {
+    // The session hands over each event as JSON text it has already
+    // measured against the size limit, so it goes out as it is.
+    session.analyzer_subscribe(
+        window.label(),
+        &slot,
+        Box::new(move |event| {
+            channel
+                .send(tauri::ipc::InvokeResponseBody::Json(event.to_owned()))
+                .is_ok()
+        }),
+    )
+}
+#[tauri::command]
+fn analyzer_select(
+    session: State<'_, Session>,
+    window: WebviewWindow,
+    select: windfall_ipc::AnalyzerSelect,
+) -> windfall_ipc::AnalyzerStatus {
+    session.analyzer_select(window.label(), select)
+}
+#[tauri::command]
+fn analyzer_ack(session: State<'_, Session>, window: WebviewWindow, ack: windfall_ipc::AnalyzerAck) {
+    session.analyzer_ack(window.label(), ack);
+}
+#[tauri::command]
+fn analyzer_unsubscribe(session: State<'_, Session>, window: WebviewWindow, slot: String) {
+    session.analyzer_unsubscribe(window.label(), &slot);
 }

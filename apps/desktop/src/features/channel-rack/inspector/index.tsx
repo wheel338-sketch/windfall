@@ -5,8 +5,8 @@ import { ActionButton } from "@/components/action-button"
 import { ContextActions } from "@/components/context-actions"
 import { INSPECTOR_KEEPS, useShortcutScope } from "@/lib/actions"
 import { isInstrumentChannel, isSamplerChannel } from "@/lib/channel-source"
+import { useGesture } from "@/lib/store/gesture"
 import { useChannel, useChannelCount } from "@/lib/store/selectors"
-import { dispatch } from "@/lib/store/project"
 import { ChannelVoicePanel } from "../voice"
 import { useUiStore } from "@/lib/store/ui"
 import { colorToCss } from "@/lib/units"
@@ -15,7 +15,9 @@ import { INSPECTOR_MENU } from "../menus"
 import { EnvelopeSection } from "./envelope-section"
 import { InstrumentSection } from "./instrument-section"
 import { KeyboardSection } from "./keyboard-section"
+import { LayerSection } from "./layer-section"
 import { LoopSection } from "./loop-section"
+import { SamplePreprocessSection } from "./preprocess-section"
 import { RoutingSection } from "./routing-section"
 import { SampleSection } from "./sample-section"
 import { SoundSection } from "./sound-section"
@@ -34,6 +36,8 @@ export function ChannelInspector() {
   // The settings are a scope of their own inside the rack's. Delete and
   // Ctrl+D pressed in here are about a setting, never about the channel.
   const scope = useShortcutScope("rackInspector", { keeps: INSPECTOR_KEEPS })
+  // One knob drag in the voice tools is one undo step.
+  const voiceGesture = useGesture()
 
   return (
     <ContextActions items={INSPECTOR_MENU}>
@@ -83,6 +87,7 @@ export function ChannelInspector() {
               <>
                 <SampleSection channel={channel} />
                 <LoopSection channel={channel} />
+                <SamplePreprocessSection channel={channel} />
                 <SamplerProcessingSection channel={channel} />
                 <SoundSection channel={channel} />
                 <EnvelopeSection channel={channel} />
@@ -92,16 +97,21 @@ export function ChannelInspector() {
                 <InstrumentSection channel={channel} />
               )
             )}
+            <LayerSection channel={channel} />
+            {/* The panel shows the saved settings whenever none of its own
+                edits is on its way, so undo and redo show through. */}
             <ChannelVoicePanel
-              key={`${channel.id}:${JSON.stringify(channel.voice)}`}
               initialSettings={channel.voice}
-              onChange={(settings) => {
-                void dispatch({
+              kind={isSamplerChannel(channel) ? "sampler" : "instrument"}
+              onGestureStart={voiceGesture.begin}
+              onGestureEnd={voiceGesture.end}
+              onChange={(settings) =>
+                voiceGesture.dispatch({
                   type: "setChannelVoiceSettings",
                   id: channel.id,
                   settings,
                 })
-              }}
+              }
             />
             <KeyboardSection channel={channel} />
             <TimingSection channel={channel} />

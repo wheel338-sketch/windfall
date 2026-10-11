@@ -13,6 +13,8 @@ windfall-project.workspace = true
 windfall-midi.workspace = true
 windfall-flp.workspace = true
 serde.workspace = true
+# The plugin database file. Already in the tree through windfall-project.
+serde_json.workspace = true
 ts-rs.workspace = true
 
 [lints]

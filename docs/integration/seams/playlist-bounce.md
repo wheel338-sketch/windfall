@@ -49,3 +49,31 @@ rendering, track isolation, exact geometry, one-step undo/redo and stale admissi
 renderer's nonzero span and pattern/audio track isolation.
 `features/playlist/bounce.test.ts` checks one successful batch, source mute,
 destination selection, unchanged track flags, empty selection and failed render.
+
+## Consolidate tracks — 2026-10-10
+
+**Consolidate track** in a track header's menu, and **Consolidate tracks of
+selected clips** in the clip and panel menus, need no selection of clips:
+the lane decides what is rendered.
+
+`Backend.consolidatePlaylistTracks(tracks)` calls the Tauri command
+`consolidate_playlist_tracks` and `Session::consolidate_playlist_tracks`
+(`session/consolidate.rs`). For each lane, in playlist order:
+
+- The sources are the lane's unmuted pattern and audio clips that the
+  active arrangement shows. A lane with none refuses the whole request.
+- The span runs from the first source's start to the last source's end.
+- The render copy mutes every other pattern and audio clip, clears solo and
+  unmutes the lane. **Automation clips keep playing**, wherever they sit,
+  so the print carries the fader rides the lane is heard with. This differs
+  from Bounce selected clips, which silences unselected automation clips.
+- The print is one Direct-output audio clip on the same lane.
+
+All lanes are committed as one batch, "Consolidate track" or "Consolidate
+tracks": a sample and a clip for each lane, then one `UpdateClips` that
+mutes every source. Undo unmutes the sources and removes the prints. The
+stale guards, the file cleanup on failure and the worker placement are the
+bounce's; both paths share `Session::render_print`.
+
+Coverage, written and not yet run: `session::tests::consolidate` and
+`features/playlist/consolidate.test.ts`.

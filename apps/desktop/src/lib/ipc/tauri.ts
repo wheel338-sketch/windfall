@@ -4,6 +4,10 @@ import { getCurrentWindow } from "@tauri-apps/api/window"
 import { open, save } from "@tauri-apps/plugin-dialog"
 
 import type { RealtimeFrame } from "@/bindings"
+import type {
+  AnalyzerEvent,
+  AnalyzerStatus,
+} from "@/features/analyzers/types"
 
 import {
   AUDIO_EXTENSIONS,
@@ -62,6 +66,39 @@ export function createTauriBackend(): Backend {
 
   return {
     kind: "tauri",
+    analyzerCapability: () => call("analyzer_capability"),
+    analyzerSubscribe: (slot, handler) => {
+      // One channel per slot. Events that arrive after the slot stopped
+      // belong to nobody and are dropped here.
+      let stopped = false
+      const channel = new Channel<AnalyzerEvent>()
+      channel.onmessage = (event) => {
+        if (!stopped) handler(event)
+      }
+      const status = call<AnalyzerStatus>("analyzer_subscribe", {
+        slot,
+        channel,
+      })
+      return {
+        status,
+        stop: () => {
+          stopped = true
+          call<void>("analyzer_unsubscribe", { slot }).catch(
+            (error: unknown) => {
+              console.error("analyzer_unsubscribe failed:", errorMessage(error))
+            }
+          )
+        },
+      }
+    },
+    analyzerSelect: (select) => call("analyzer_select", { select }),
+    analyzerAck: (slot, sequence) => {
+      call<void>("analyzer_ack", { ack: { slot, sequence } }).catch(
+        (error: unknown) => {
+          console.error("analyzer_ack failed:", errorMessage(error))
+        }
+      )
+    },
     analysisCapability: () => call("analysis_capability"),
     analysisModelImport: (path, model) =>
       call("analysis_model_import", { path, model }),
@@ -96,6 +133,10 @@ export function createTauriBackend(): Backend {
       const path = await open({ multiple: false, filters: [{ name: "Windfall mixer preset", extensions: ["wfmixer"] }] })
       return typeof path === "string" ? call("mixer_preset_read", { path }) : null
     },
+    mixerPresetLibrary: () => call("mixer_preset_library"),
+    mixerPresetLibrarySave: (preset) => call("mixer_preset_library_save", { preset }),
+    mixerPresetLibraryRead: (file) => call("mixer_preset_library_read", { file }),
+    mixerPresetLibraryDelete: (file) => call("mixer_preset_library_delete", { file }),
     currentMixerTarget: (track, generation, revision) => call("current_mixer_target", { track, generation, revision }),
     timelineState: () => call("timeline_state"),
     timelineRegion: (region, generation, revision, request, cancel) =>
@@ -113,6 +154,17 @@ export function createTauriBackend(): Backend {
     midiHardwareTarget: (channel, generation, revision) =>
       call("midi_hardware_target", { channel, generation, revision }),
     midiHardwarePanic: () => call("midi_hardware_panic"),
+    controllerState: () => call("controller_state"),
+    controllerSettingsSet: (settings) =>
+      call("controller_settings_set", { settings }),
+    controllerLearn: (targets, global, multi, generation) =>
+      call("controller_learn", { targets, global, multi, generation }),
+    controllerLearnCancel: () => call("controller_learn_cancel"),
+    noteRecordArm: (armed) => call("note_record_arm", { armed }),
+    automationRecordArm: (armed) => call("automation_record_arm", { armed }),
+    scoreLogDump: (pattern, seconds, generation) =>
+      call("score_log_dump", { pattern, seconds, generation }),
+    scoreLogClear: () => call("score_log_clear"),
     audioEditorOpen: (clip) => call("audio_editor_open", { clip }),
     audioEditorApply: (request) => call("audio_editor_apply", { request }),
     audioEditorDiscard: (token) => call("audio_editor_discard", { token }),
@@ -161,11 +213,14 @@ export function createTauriBackend(): Backend {
     importMidi: (token) => call("import_midi", { token }),
     midiDiscard: (token) => call("midi_discard", { token }),
     exportMidi: (path, options) => call("export_midi", { path, options }),
-    sheetMusicSave: async (suggestedName, xml) => {
+    sheetMusicSave: async (suggestedName, xml, format = "musicxml") => {
       const path = await save({
         title: "Export sheet music",
-        defaultPath: `${suggestedName.replace(/[<>:"/\\|?*]/g, "_") || "Score"}.musicxml`,
-        filters: [{ name: "MusicXML score", extensions: ["musicxml", "xml"] }],
+        defaultPath: `${suggestedName.replace(/[<>:"/\\|?*]/g, "_") || "Score"}.${format === "pdf" ? "pdf" : "musicxml"}`,
+        filters:
+          format === "pdf"
+            ? [{ name: "PDF score", extensions: ["pdf"] }]
+            : [{ name: "MusicXML score", extensions: ["musicxml", "xml"] }],
       })
       return path ? call("write_sheet_music", { path, xml }) : null
     },
@@ -193,6 +248,10 @@ export function createTauriBackend(): Backend {
 
     engineStatus: () => call("engine_status"),
     processMemory: () => call("process_memory"),
+    audioLoggerState: () => call("audio_logger_state"),
+    audioLoggerConfigure: (settings) =>
+      call("audio_logger_configure", { settings }),
+    audioLoggerDump: (request) => call("audio_logger_dump", { request }),
     recordingInputs: () => call("recording_inputs"),
     inputMonitorStart: () => call("input_monitor_start"),
     inputMonitorStop: () => call("input_monitor_stop"),
@@ -233,6 +292,7 @@ export function createTauriBackend(): Backend {
       call("sampler_preparation_progress", { request }),
     prepareSamplerCommand: (command, request) =>
       call("prepare_sampler_command", { command, request }),
+    samplerPreprocess: (request) => call("sampler_preprocess", { request }),
     detectClipTempo: (sample) => call("detect_clip_tempo", { sample }),
     sampleInfoById: (sample) => call("sample_info_by_id", { sample }),
     addChannelFromFile: (path, index, browser) =>
@@ -244,10 +304,14 @@ export function createTauriBackend(): Backend {
     addAudioClipFromSample: (sample, place) =>
       call("add_audio_clip_from_sample", { sample, ...place }),
     bounceSelectedClips: (clips) => call("bounce_selected_clips", { clips }),
+    consolidatePlaylistTracks: (tracks) =>
+      call("consolidate_playlist_tracks", { tracks }),
     automate: (target) => call("automate", { target }),
     samplesReload: () => call("samples_reload"),
 
     exportAudio: (options) => call("export_audio", { options }),
+    exportPlaylistTracks: (options, stems) =>
+      call("export_playlist_tracks", { options, stems }),
     exportCancel: () => call("export_cancel"),
 
     onProjectPatch: (handler) => on(EVENTS.projectPatch, handler),
@@ -255,6 +319,7 @@ export function createTauriBackend(): Backend {
     onTransportState: (handler) => on(EVENTS.transportState, handler),
     onEngineStatus: (handler) => on(EVENTS.engineStatus, handler),
     onExportProgress: (handler) => on(EVENTS.exportProgress, handler),
+    onMidiHardwareNote: (handler) => on(EVENTS.midiHardwareNote, handler),
     onProjectWarnings: (handler) => on(EVENTS.projectWarnings, handler),
 
     subscribeRealtime(handler) {

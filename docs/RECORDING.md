@@ -28,6 +28,11 @@ count-in, routed monitoring and loop takes.
   synchronized multitrack comping, pass audition and composite replacement.
 - [External output ports](EXTERNAL-OUTPUT-ROUTING.md): saved mixer destinations,
   multichannel device layouts and shared output delay alignment.
+- [Real-device acceptance](DEVICE-ACCEPTANCE.md): the opt-in harness that
+  drives these paths against the machine's own endpoints, loopback inputs
+  (`Loopback: <output device>`), and capture errors that name their cause.
+- [Audio logger](AUDIO-LOGGER.md): a bounded background history of the master,
+  chosen mixer tracks and one input, addable to the playlist afterwards.
 
 Ordinary project edits, history, seeks, mode changes, replacement, save/export
 and output configuration remain blocked while recording owns the take.

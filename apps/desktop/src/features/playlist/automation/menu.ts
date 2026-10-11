@@ -6,6 +6,7 @@ import {
 } from "@/components/context-actions"
 import { CHANNEL_COLORS } from "@/features/channel-rack/color-swatches"
 
+import { selectedClips } from "../selectors"
 import type { PointRef } from "../store"
 import { viewRangeItems } from "./view-menu"
 import {
@@ -74,6 +75,28 @@ export function automationMenu(automation: Automation): ContextItem[] {
       title: "Delete…",
       destructive: true,
       run: () => deleteAutomation(id),
+    },
+  ]
+}
+
+/**
+ * The LFO writer for the one automation clip that is selected, opened on
+ * the part of the curve that clip shows. Empty for any other selection.
+ */
+export function selectedClipLfoItems(): ContextItem[] {
+  const clips = selectedClips()
+  if (clips.length !== 1) return []
+  const [clip] = clips
+  if (clip.content.type !== "automation") return []
+  const automation = clip.content.automation
+  return [
+    {
+      title: "Write LFO…",
+      run: () =>
+        openAutomationLfo(automation, {
+          start: clip.offset,
+          end: clip.offset + clip.length,
+        }),
     },
   ]
 }

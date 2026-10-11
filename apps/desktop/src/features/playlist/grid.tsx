@@ -30,7 +30,7 @@ import { useTransportStore } from "@/lib/store/transport"
 import { setActiveSession } from "./active"
 import { fileClipTicks } from "./audio/drop"
 import { addAudioFile } from "./audio/ops"
-import { pointMenu } from "./automation/menu"
+import { pointMenu, selectedClipLfoItems } from "./automation/menu"
 import { selectedViewRangeItems } from "./automation/view-menu"
 import type { InnerHit } from "./inner"
 import type { Tool } from "./intents"
@@ -59,10 +59,13 @@ const CLIP_MENU: ContextItem[] = [
   "playlist.makeUnique",
   "playlist.muteClips",
   "playlist.bounceSelectedClips",
+  "playlist.consolidateSelectedTracks",
   contextSeparator,
   "playlist.clipInspector",
   // How much of its range an automation clip shows, when one is selected.
   { dynamic: selectedViewRangeItems },
+  // The LFO writer, for one selected automation clip.
+  { dynamic: selectedClipLfoItems },
   contextSeparator,
   "playlist.deleteClips",
 ]

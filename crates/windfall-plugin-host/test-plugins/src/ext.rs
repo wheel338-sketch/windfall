@@ -440,8 +440,37 @@ const WITH_EXTRA: &[Port] = &[
     },
 ];
 
+/// A main stereo input followed by a mono, a stereo and a four-channel
+/// sidechain input, in that order. See `process_multi_sidechain`.
+const WITH_THREE_KEYS: &[Port] = &[
+    stereo(false),
+    Port {
+        id: 1,
+        name: "Key Mono",
+        channels: 1,
+        main: false,
+        in_place: false,
+    },
+    Port {
+        id: 2,
+        name: "Key Stereo",
+        channels: 2,
+        main: false,
+        in_place: false,
+    },
+    Port {
+        id: 3,
+        name: "Key Quad",
+        channels: 4,
+        main: false,
+        in_place: false,
+    },
+];
+
 fn ports_of(kind: Kind, is_input: bool) -> &'static [Port] {
     match kind {
+        Kind::MultiSidechain if is_input => WITH_THREE_KEYS,
+        Kind::MultiSidechain => STEREO_SEPARATE,
         Kind::Sine | Kind::MidiSine | Kind::BridgeNoteProbe if is_input => NONE,
         Kind::Sine | Kind::MidiSine | Kind::BridgeNoteProbe | Kind::Swap => STEREO_SEPARATE,
         Kind::Sidechain => WITH_EXTRA,
@@ -487,10 +516,11 @@ unsafe extern "C" fn audio_ports_get(
         0
     };
     info.channel_count = port.channels;
-    info.port_type = if port.channels == 1 {
-        CLAP_PORT_MONO.as_ptr()
-    } else {
-        CLAP_PORT_STEREO.as_ptr()
+    info.port_type = match port.channels {
+        1 => CLAP_PORT_MONO.as_ptr(),
+        2 => CLAP_PORT_STEREO.as_ptr(),
+        // CLAP names no type for four plain channels.
+        _ => ptr::null(),
     };
     info.in_place_pair = if port.in_place {
         port.id

@@ -21,6 +21,8 @@ use crate::state::{Ledger, PlanState};
 
 #[path = "project_preparation.rs"]
 pub(crate) mod preparation;
+#[path = "capture_control.rs"]
+pub(crate) mod capture_control;
 pub use preparation::{
     PreparationSnapshot, PreparedPublication, ProjectPreparationError, ProjectPublicationIntent,
     ProjectPublicationLease, ProjectRetirement, PublicationRefusal,
@@ -98,6 +100,27 @@ struct Link {
     messages: Producer<Message>,
     garbage: Consumer<Garbage>,
     spectrum: Option<crate::spectrum::SpectrumReader>,
+    /// The stream's selectable analyzer captures. `None` when the process
+    /// had no tap slot left for them.
+    captures: Option<capture_control::SharedCaptures>,
+}
+
+/// A reading of the transport for control-side timing: see
+/// [`Controller::playhead`].
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Playhead {
+    pub playing: bool,
+    /// The tick being heard: within the pattern in pattern mode, within the
+    /// song in song mode.
+    pub tick: f64,
+    /// How fast the tick moves here, tempo automation included.
+    pub ticks_per_second: f64,
+    pub mode: PlayMode,
+    /// The pattern that plays in pattern mode.
+    pub pattern: PatternId,
+    /// The length that pattern loops at, when it is in the plan.
+    pub pattern_ticks: Option<u32>,
+    pub loop_song: bool,
 }
 
 /// Measurements the device callback takes while a stream runs.
@@ -478,6 +501,40 @@ impl Controller {
             .send(Message::SetDiskTaps(Vec::new().into_boxed_slice()));
     }
 
+    /// The stream attached now: a number that changes whenever another takes
+    /// its place, and its sample rate. See `audio_logger.rs`.
+    pub(crate) fn attached_stream(&self) -> Option<(u64, u32)> {
+        let state = self.lock();
+        state.link.as_ref()?;
+        let rate = state.hosted.as_ref()?.sample_rate;
+        Some((state.stream_generation, rate))
+    }
+
+    /// Hands the audio thread the audio logger's tap, or takes its tap away.
+    /// A tap built for `stream` is refused once another stream is attached.
+    pub(crate) fn set_audio_logger_tap(
+        &self,
+        stream: Option<u64>,
+        tap: Option<Box<crate::audio_logger::LoggerTap>>,
+    ) -> Result<(), String> {
+        let refused = {
+            let mut state = self.lock();
+            let current = state.link.is_some()
+                && stream.is_none_or(|stream| stream == state.stream_generation);
+            if current {
+                state.send(Message::SetAudioLogger(tap));
+                return Ok(());
+            }
+            tap
+        };
+        // Dropped here, with the guard released: nothing was installed.
+        drop(refused);
+        match stream {
+            Some(_) => Err("The audio output changed while the audio logger was starting.".into()),
+            None => Ok(()),
+        }
+    }
+
     /// Exact nominal sample span through the compiled song tempo map.
     pub fn song_range_frames(
         &self,
@@ -601,6 +658,59 @@ impl Controller {
         }
     }
 
+    /// Where playback is and how fast it moves, for timing live input and
+    /// MIDI clock on the control side. The tick is the one last published by
+    /// the audio thread, so it steps once a buffer; callers that need finer
+    /// time carry on from it at `ticks_per_second`.
+    pub fn playhead(&self) -> Playhead {
+        let mut state = self.lock();
+        state.maintain();
+        let tick = self.inner.shared.tick();
+        let mode = state.transport.mode;
+        let stored = state.plan.tempo_bpm * f64::from(windfall_core::PPQ) / 60.0;
+        // Tempo automation bends the song's clock; a pattern plays at the
+        // stored tempo.
+        let ticks_per_second = if mode == PlayMode::Song {
+            const SPAN: f64 = 0.01;
+            let ahead = state.plan.unwarp(state.plan.warp(tick) + stored * SPAN);
+            let rate = (ahead - tick) / SPAN;
+            if rate.is_finite() && rate > 0.0 { rate } else { stored }
+        } else {
+            stored
+        };
+        let pattern = state.transport.pattern;
+        Playhead {
+            playing: self.playing(&state),
+            tick,
+            ticks_per_second,
+            mode,
+            pattern,
+            pattern_ticks: state
+                .plan
+                .pattern_ids
+                .get(pattern.0)
+                .map(|index| state.plan.patterns[index].length),
+            loop_song: state.transport.loop_song,
+        }
+    }
+
+    /// Takes the messages MIDI output channels have queued, oldest first,
+    /// each with the engine frame it belongs to. One thread at a time may
+    /// call this: it is the MIDI worker's. Never blocks the audio thread.
+    pub fn drain_midi_out(&self, mut out: impl FnMut(u64, &[u8])) {
+        for _ in 0..crate::shared::MIDI_OUT_CAPACITY {
+            let Some((frame, bytes, len)) = self.inner.shared.pop_midi_out() else {
+                break;
+            };
+            out(frame, &bytes[..usize::from(len.min(3))]);
+        }
+    }
+
+    /// MIDI output messages lost because the worker did not keep up.
+    pub fn midi_out_dropped(&self) -> u32 {
+        self.inner.shared.midi_out_dropped()
+    }
+
     /// Session-only song region, preserved across stream replacement.
     pub fn set_timeline_region(
         &self,
@@ -624,6 +734,13 @@ impl Controller {
             .shared
             .navigation_overflows
             .load(Ordering::Relaxed)
+    }
+
+    /// Notes that played without their echoes since the engine started,
+    /// because a channel's fixed echo queue or its table of held notes was
+    /// full. The dry note always sounds.
+    pub fn rejected_echoes(&self) -> u32 {
+        self.inner.shared.rejected_echoes.load(Ordering::Relaxed)
     }
 
     /// Plays a note on a channel right away, as from the UI keyboard.
@@ -986,6 +1103,7 @@ mod tests {
             solo: false,
             group: String::new(),
             voice: Default::default(),
+            expression_map: Default::default(),
             timing: windfall_project::ChannelTiming::default(),
             mixer_track: TrackId::MASTER,
             source: ChannelSource::Sampler(SamplerSettings {

@@ -15,6 +15,8 @@ pub enum Event {
     TransportState(TransportState),
     EngineStatus(EngineStatus),
     ExportProgress(ExportProgress),
+    /// A note from a MIDI input that the audition destination took.
+    MidiHardwareNote(windfall_ipc::MidiHardwareNote),
 }
 
 impl Event {
@@ -27,6 +29,7 @@ impl Event {
             Event::TransportState(_) => "transport:state",
             Event::EngineStatus(_) => "engine:status",
             Event::ExportProgress(_) => "export:progress",
+            Event::MidiHardwareNote(_) => "midi:note",
         }
     }
 
@@ -39,6 +42,7 @@ impl Event {
             Event::TransportState(state) => serde_json::to_string(state),
             Event::EngineStatus(status) => serde_json::to_string(status),
             Event::ExportProgress(progress) => serde_json::to_string(progress),
+            Event::MidiHardwareNote(note) => serde_json::to_string(note),
         }
     }
 }

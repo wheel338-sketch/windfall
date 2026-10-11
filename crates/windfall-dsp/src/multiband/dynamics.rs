@@ -354,6 +354,7 @@ impl Effect for MultibandMaximizer {
                 input_gain_db: 0.0,
                 release_ms: release,
                 lookahead_ms: 1.0,
+                ..LimiterParams::default()
             });
         }
         self.sum_limiter.set_params(&LimiterParams {
@@ -361,6 +362,7 @@ impl Effect for MultibandMaximizer {
             input_gain_db: 0.0,
             release_ms: p.limiter_release_ms,
             lookahead_ms: 1.0,
+            ..LimiterParams::default()
         });
     }
     fn process(&mut self, left: &mut [f32], right: &mut [f32]) {
