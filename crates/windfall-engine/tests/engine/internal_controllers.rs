@@ -311,7 +311,7 @@ fn reversed_formula_mapping_and_grid_smoothing_match_independent_exponential_ref
     // x=.5 -> .8 + (.2-.8)*x^2 = .65. At grid boundary n the
     // preceding grid's ramp has arrived at the nth exponential endpoint.
     for n in 4..60 {
-        let reference = 0.65 + (0.5 - 0.65) * (-n as f64 * 64.0 / 480.0).exp();
+        let reference = 0.65 + (0.5 - 0.65) * (-(n as f64) * 64.0 / 480.0).exp();
         assert!(
             (f64::from(left(&out)[n * 64]) - (1.0 - reference)).abs() < 2e-6,
             "grid {n}"

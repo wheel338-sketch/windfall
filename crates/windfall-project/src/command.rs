@@ -360,9 +360,6 @@ pub enum Command {
         links: Vec<crate::ControllerLink>,
     },
 
-    /// Replaces variable-size internal source configuration in one undo step.
-    SetInternalControllerSettings { settings: Vec<crate::InternalControllerSettings> },
-
     // Sample pool
     /// Registers an audio file. Creates a [`SampleId`]. If a sample with the
     /// same path is already in the pool, nothing is added and its id is
@@ -825,6 +822,9 @@ pub enum Command {
         label: Option<String>,
         commands: Vec<Command>,
     },
+
+    /// Replaces variable-size internal source configuration in one undo step.
+    SetInternalControllerSettings { settings: Vec<crate::InternalControllerSettings> },
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, TS)]

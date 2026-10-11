@@ -758,10 +758,10 @@ pub enum EffectParams {
     Tuner(TunerParams),
     StageStack(StageStackParams),
     ControlSurface(ControlSurfaceParams),
+    SendTap(SendTapParams),
     FormulaSource(FormulaSourceParams),
     KeyboardSource(KeyboardSourceParams),
     VoltageSource(VoltageSourceParams),
-    SendTap(SendTapParams),
 }
 
 /// Runs `$body` with `$params` bound to the settings inside an
@@ -1190,10 +1190,10 @@ pub enum AnyEffect {
     Tuner(Box<Tuner>),
     StageStack(Box<StageStack>),
     ControlSurface(Box<ControlSurface>),
+    SendTap(Box<SendTap>),
     FormulaSource(Box<FormulaSource>),
     KeyboardSource(Box<KeyboardSource>),
     VoltageSource(Box<VoltageSource>),
-    SendTap(Box<SendTap>),
 }
 
 /// Runs `$body` with `$effect` bound to the effect inside an [`AnyEffect`].

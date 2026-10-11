@@ -42,3 +42,5 @@ Static follow-up: DC channel type conversions fixed; LFO ports share one DSP pha
 Host sources now pass carrier audio through and declare no audio tail; standalone DSP audio-application APIs are retained. Acceptance `all_hosted_sources_leave_real_carrier_audio_unchanged_without_links` is written, not executed. Both DSP and engine exhaustive realtime parameter fixtures include all appended source kinds.
 
 Added engine acceptance for reversed formula mapping with independently calculated grid smoothing, and note-triggered envelope modulation equality across 1/127-frame callback partitions. Written, not executed.
+
+Registry seam review: new Command and effect parameter/processor variants are appended after existing entries; old kind and descriptor indices remain intact. No generated files were edited.
