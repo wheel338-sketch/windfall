@@ -85,6 +85,16 @@ impl Session {
         } else {
             PathBuf::from(format!("{}.zip", paths::display(&target)))
         };
+        self.archive_export_to(target, job)
+    }
+    /// The export itself, to exactly `target`, whatever its extension: a
+    /// project template is the same archive under another name.
+    pub(super) fn archive_export_to(
+        &self,
+        target: PathBuf,
+        job: ArchiveJob,
+    ) -> Result<String, String> {
+        job.check().map_err(|e| e.to_string())?;
         // Sample directory and document snapshot must be captured together,
         // and serialized with Save as, which may carry/relink these sources.
         let saving = lock(&self.inner.save);
@@ -173,6 +183,18 @@ impl Session {
         path: &str,
         job: ArchiveJob,
     ) -> Result<DocumentSnapshot, String> {
+        self.archive_open_adjusted(path, job, "The project archive", |_| {})
+    }
+    /// Opens the archive at `path` as a copy, after `adjust` has had the
+    /// project that is about to be installed. `what` names the file in the
+    /// messages: a project template is opened through here too.
+    pub(super) fn archive_open_adjusted(
+        &self,
+        path: &str,
+        job: ArchiveJob,
+        what: &str,
+        adjust: impl FnOnce(&mut Project),
+    ) -> Result<DocumentSnapshot, String> {
         job.check().map_err(|e| e.to_string())?;
         drop(self.recording_idle()?);
         let source = paths::absolute(path)?;
@@ -204,22 +226,25 @@ impl Session {
         job.check().map_err(|e| e.to_string())?;
         if !decoded.failed.is_empty() {
             return Err(format!(
-                "The project archive contains unreadable audio and was not opened:\n{}",
+                "{what} contains unreadable audio and was not opened:\n{}",
                 decoded.warnings.join("\n")
             ));
         }
+        let mut project = extracted.project.clone();
+        adjust(&mut project);
+        project.check()?;
         #[cfg(test)]
         self.pause("archive:install");
         let snapshot = self
             .install(
                 &ticket,
-                Document::new(extracted.project.clone()),
+                Document::new(project),
                 None,
                 extracted.session,
                 Some(root),
                 decoded,
             )
-            .map_err(|refusal| refusal.message("The project archive was not opened"))?;
+            .map_err(|refusal| refusal.message(&format!("{what} was not opened")))?;
         extracted.retain();
         Ok(snapshot)
     }

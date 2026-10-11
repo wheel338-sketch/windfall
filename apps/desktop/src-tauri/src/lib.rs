@@ -9,8 +9,10 @@
 pub mod browser;
 mod commands;
 pub mod events;
+mod files_commands;
 pub mod library;
 pub mod paths;
+pub mod plugin_database;
 pub mod plugins;
 mod process_memory;
 pub mod samples;

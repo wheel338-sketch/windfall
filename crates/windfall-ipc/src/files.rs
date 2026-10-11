@@ -61,6 +61,18 @@ pub struct ScoreReview {
     pub notes: Vec<String>,
 }
 
+/// A score file that was written, with what the file could not hold.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct ScoreWritten {
+    /// The file that was written.
+    pub path: String,
+    /// One line for everything of the score a MIDI file does not hold.
+    /// Empty for a score file, which holds all of it.
+    pub notes: Vec<String>,
+}
+
 /// A project template the user can start from.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]

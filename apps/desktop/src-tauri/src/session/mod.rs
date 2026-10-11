@@ -81,11 +81,14 @@ mod midi_hardware;
 mod mixer_presets;
 mod playlist_bounce;
 mod preparation;
+mod presets;
 mod realtime;
 mod recording;
 mod sampler_processing;
 mod samples;
+mod scores;
 mod slicer;
+mod templates;
 #[cfg(test)]
 mod tests;
 mod timeline;
