@@ -70,6 +70,8 @@ mod audio;
 mod audio_editor;
 mod autosave;
 mod clip_processing;
+mod controller_capture;
+mod controllers;
 mod edit;
 mod export;
 mod files;
@@ -174,6 +176,11 @@ struct Inner {
     analysis: analysis_jobs::Service,
     midi_hardware: Mutex<Option<Arc<windfall_engine::midi_hardware::Runtime>>>,
     midi_configuring: Mutex<()>,
+    /// Controller links at work, takes being recorded and the note log.
+    /// May be locked under `state`, never the other way round.
+    controllers: Mutex<controllers::Hub>,
+    /// Wakes the thread that carries out what controllers ask for.
+    controllers_wake: std::sync::Condvar,
     /// Serializes editor workers and retains at most one bounded clip view.
     audio_editor: Mutex<audio_editor::Editor>,
     library: crate::library::Library,
@@ -383,6 +390,10 @@ impl Session {
             .collect();
         let library = crate::library::Library::new(settings.library_file(), roots);
         let analysis = analysis_jobs::Service::new(settings.recordings_dir().join("Analysis"));
+        let controller_hub = controllers::Hub::new(
+            settings.settings().controllers.clone(),
+            &settings.controllers_dir(),
+        );
 
         let project = default_project();
         let decoded = samples::decode_all(&cache, &project, None, &factory_dir);
@@ -399,6 +410,8 @@ impl Session {
                 analysis,
                 midi_hardware: Mutex::new(None),
                 midi_configuring: Mutex::new(()),
+                controllers: Mutex::new(controller_hub),
+                controllers_wake: std::sync::Condvar::new(),
                 audio_editor: Mutex::new(audio_editor::Editor::default()),
                 library,
                 plugins: Mutex::new(None),

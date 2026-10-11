@@ -24,6 +24,8 @@ pub const MAX_RECENT_PROJECTS: usize = 10;
 pub struct Settings {
     pub audio: AudioSettings,
     pub midi_hardware: MidiHardwareSettings,
+    /// Controller links for every project, pickup and note-recording choices.
+    pub controllers: windfall_ipc::ControllerSettings,
     /// Folders the user added to the browser, in the order they were added.
     pub browser_roots: Vec<String>,
     /// Project files, most recently used first.
@@ -48,6 +50,13 @@ impl SettingsStore {
             .parent()
             .unwrap_or(Path::new("."))
             .join(crate::library::METADATA_FILE)
+    }
+    /// Where the user's controller profiles are: one JSON file each.
+    pub fn controllers_dir(&self) -> PathBuf {
+        self.file
+            .parent()
+            .unwrap_or(Path::new("."))
+            .join("controllers")
     }
     pub fn recordings_dir(&self) -> PathBuf {
         self.file

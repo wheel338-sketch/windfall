@@ -899,6 +899,14 @@ pub fn handler() -> impl Fn(Invoke) -> bool + Send + Sync + 'static {
         midi_hardware_configure,
         midi_hardware_target,
         midi_hardware_panic,
+        controller_state,
+        controller_settings_set,
+        controller_learn,
+        controller_learn_cancel,
+        note_record_arm,
+        automation_record_arm,
+        score_log_dump,
+        score_log_clear,
         recording_inputs,
         input_monitor_start,
         input_monitor_stop,
@@ -1017,6 +1025,63 @@ fn midi_hardware_target(
 #[tauri::command]
 fn midi_hardware_panic(session: State<'_, Session>) {
     session.midi_hardware_panic();
+}
+
+#[tauri::command]
+fn controller_state(session: State<'_, Session>) -> windfall_ipc::ControllerState {
+    session.controller_state()
+}
+#[tauri::command]
+async fn controller_settings_set(
+    session: State<'_, Session>,
+    settings: windfall_ipc::ControllerSettings,
+) -> Result<windfall_ipc::ControllerState, String> {
+    let session = session.inner().clone();
+    blocking(move || session.controller_settings_set(settings)).await
+}
+#[tauri::command]
+fn controller_learn(
+    session: State<'_, Session>,
+    targets: Vec<windfall_project::LinkTarget>,
+    global: bool,
+    multi: bool,
+    generation: u64,
+) -> Result<windfall_ipc::ControllerState, String> {
+    session.controller_learn(targets, global, multi, generation)
+}
+#[tauri::command]
+fn controller_learn_cancel(session: State<'_, Session>) -> windfall_ipc::ControllerState {
+    session.controller_learn_cancel()
+}
+#[tauri::command]
+async fn note_record_arm(
+    session: State<'_, Session>,
+    armed: bool,
+) -> Result<windfall_ipc::ControllerState, String> {
+    let session = session.inner().clone();
+    blocking(move || Ok(session.note_record_arm(armed))).await
+}
+#[tauri::command]
+async fn automation_record_arm(
+    session: State<'_, Session>,
+    armed: bool,
+) -> Result<windfall_ipc::ControllerState, String> {
+    let session = session.inner().clone();
+    blocking(move || Ok(session.automation_record_arm(armed))).await
+}
+#[tauri::command]
+async fn score_log_dump(
+    session: State<'_, Session>,
+    pattern: windfall_project::PatternId,
+    seconds: Option<f32>,
+    generation: u64,
+) -> Result<DispatchResult, String> {
+    let session = session.inner().clone();
+    blocking(move || session.score_log_dump(pattern, seconds, generation)).await
+}
+#[tauri::command]
+fn score_log_clear(session: State<'_, Session>) -> windfall_ipc::ControllerState {
+    session.score_log_clear()
 }
 
 #[tauri::command]

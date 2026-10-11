@@ -96,6 +96,7 @@ pub fn start(app: &AppHandle) -> Result<Session, Box<dyn Error>> {
         Err(error) => log::warn!("plugins: {error}"),
     }
     session.spawn_realtime()?;
+    session.spawn_controllers()?;
     session.spawn_autosave(AUTOSAVE_INTERVAL)?;
     Ok(session)
 }

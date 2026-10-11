@@ -1,0 +1,1446 @@
+//! Controllers: hardware controls linked to the project, learning those
+//! links, recording what is played and what is moved, and the rolling log.
+//!
+//! # Threads and locks
+//!
+//! The MIDI worker calls [`Session::controller_message`],
+//! [`Session::controller_played`] and [`Session::controller_idle`]. Each
+//! takes the hub's lock for a moment and never touches the document, so a
+//! slow edit cannot delay a note. What a message asks for is left in a
+//! bounded queue.
+//!
+//! [`Session::controllers_pump`] empties that queue. It runs on the thread
+//! [`Session::spawn_controllers`] starts, never on the MIDI worker or the
+//! audio thread, and it is the only place a controller changes the project:
+//! through the same checked commands as every other edit, so a movement
+//! undoes, saves and renders offline like one made with the mouse.
+//!
+//! The hub's lock is a leaf: it may be taken while another lock is held,
+//! the document's included, and nothing else is ever taken while it is.
+
+use std::collections::{HashMap, VecDeque};
+use std::io;
+use std::path::Path;
+use std::thread::{self, JoinHandle};
+use std::time::{Duration, Instant};
+
+use windfall_engine::Playhead;
+use windfall_engine::midi_hardware::clock::{ClockIn, ClockInEvent};
+use windfall_engine::midi_hardware::{InputMessage, MidiMessage};
+use windfall_ipc::{
+    AutomationRecordState, ControllerLearn, ControllerSettings, ControllerState,
+    MidiHardwareSettings, MidiPort, NoteRecordState, PlayMode, TransportPatch,
+};
+use windfall_project::controller_links::{
+    LinkState, MAX_CONTROLLER_LINKS, Motion, SLOT_BANK_SIZE, SourceInput, builtin_profiles,
+    command_targets, links_problem, target_command,
+};
+use windfall_project::{
+    AutomationId, AutomationPoint, AutomationTarget, ChannelId, ClipContent, ClipInit, Command,
+    ControlAction, ControlMap, ControlSource, ControllerLink, ControllerProfile, DispatchResult,
+    LinkTarget, MAX_SONG_TICKS, MidiControl, NoteInit, PatternId, PlaylistTrackId, Project,
+    SettingsPatch, TICKS_PER_STEP,
+};
+
+use super::Session;
+use super::controller_capture::{
+    AutomationLane, AutomationTake, NoteTake, ScoreLog, TakenNote, TransportClock, merge_points,
+    note_init, recorded_points,
+};
+use crate::sync::lock;
+
+/// Controller messages that can wait for the pump.
+const QUEUE: usize = 512;
+/// Movements of one control closer together than this are one undo step.
+const GESTURE_GAP: Duration = Duration::from_millis(600);
+/// How long the pump sleeps with nothing to do, and while a glide runs.
+const IDLE_WAIT: Duration = Duration::from_millis(50);
+const BUSY_WAIT: Duration = Duration::from_millis(10);
+/// Controls one pass of linking may hold.
+const MAX_LEARN_TARGETS: usize = 64;
+/// The furthest the bank commands move positions.
+const MAX_BANK: u32 = 120;
+/// User profile files read at most.
+const MAX_USER_PROFILES: usize = 64;
+/// Gesture ids of controller edits start here, far above the ids windows make.
+const GESTURE_BASE: u64 = 1 << 62;
+/// The gesture that follows an external clock's tempo.
+const CLOCK_GESTURE: u64 = GESTURE_BASE - 1;
+
+/// One message from a hardware control, as the pump takes it.
+#[derive(Debug, Clone, PartialEq)]
+struct Incoming {
+    source: ControlSource,
+    input: SourceInput,
+    /// A key going down, or any movement of a continuous control: what a
+    /// pass of linking takes as "this is the control I mean".
+    learnable: bool,
+}
+
+struct Learn {
+    targets: Vec<LinkTarget>,
+    linked: usize,
+    global: bool,
+    multi: bool,
+    gesture: u64,
+    /// Hardware controls this pass has already given a target.
+    seen: Vec<ControlSource>,
+}
+
+/// Everything about controllers that is not part of the project.
+pub(super) struct Hub {
+    settings: ControllerSettings,
+    user_profiles: Vec<ControllerProfile>,
+    /// The links of the profiles assigned to the open inputs.
+    profile_links: Vec<ControllerLink>,
+    /// Port names of the inputs, by their place in the settings.
+    device_names: Vec<String>,
+    follow_clock: bool,
+    /// The source of every link in force, for the MIDI worker to tell a
+    /// linked control from any other without the document.
+    sources: Vec<ControlSource>,
+    /// The document the sources were read from: generation and revision.
+    stamp: Option<(u64, u64)>,
+    generation: u64,
+    queue: VecDeque<Incoming>,
+    dropped: u32,
+    states: HashMap<(ControlSource, LinkTarget), LinkState>,
+    learn: Option<Learn>,
+    bank: u32,
+    last_input: Option<ControlSource>,
+    last_tweaked: Option<AutomationTarget>,
+    waiting: Vec<AutomationTarget>,
+    gesture: Option<(u64, Instant)>,
+    gestures: u64,
+    last_pump: Option<Instant>,
+    clock: TransportClock,
+    /// Where the playhead last was while playing.
+    last_tick: f64,
+    /// Playback stopped since the pump last looked.
+    stopped: bool,
+    note_armed: bool,
+    notes: NoteTake,
+    automation_armed: bool,
+    automation: AutomationTake,
+    log: ScoreLog,
+    clock_in: ClockIn,
+    clock_events: VecDeque<ClockInEvent>,
+    error: Option<String>,
+}
+
+impl Hub {
+    pub(super) fn new(settings: ControllerSettings, profiles_dir: &Path) -> Self {
+        Self {
+            settings,
+            user_profiles: load_profiles(profiles_dir),
+            profile_links: Vec::new(),
+            device_names: Vec::new(),
+            follow_clock: false,
+            sources: Vec::new(),
+            stamp: None,
+            generation: 0,
+            queue: VecDeque::with_capacity(QUEUE),
+            dropped: 0,
+            states: HashMap::new(),
+            learn: None,
+            bank: 0,
+            last_input: None,
+            last_tweaked: None,
+            waiting: Vec::new(),
+            gesture: None,
+            gestures: 0,
+            last_pump: None,
+            clock: TransportClock::default(),
+            last_tick: 0.0,
+            stopped: false,
+            note_armed: false,
+            notes: NoteTake::default(),
+            automation_armed: false,
+            automation: AutomationTake::default(),
+            log: ScoreLog::default(),
+            clock_in: ClockIn::default(),
+            clock_events: VecDeque::new(),
+            error: None,
+        }
+    }
+
+    fn profiles(&self) -> Vec<ControllerProfile> {
+        let mut profiles = builtin_profiles();
+        profiles.extend(self.user_profiles.iter().cloned());
+        profiles
+    }
+
+    /// Reads which inputs are open and what profiles they have.
+    fn set_devices(&mut self, settings: &MidiHardwareSettings, ports: &[MidiPort]) {
+        let profiles = self.profiles();
+        self.device_names.clear();
+        self.profile_links.clear();
+        for (id, profile) in settings.inputs() {
+            let name = ports
+                .iter()
+                .find(|port| port.id == id)
+                .map_or_else(|| id.to_owned(), |port| port.name.clone());
+            if let Some(profile) =
+                profile.and_then(|wanted| profiles.iter().find(|profile| profile.id == wanted))
+            {
+                self.profile_links.extend(profile.links(Some(&name)));
+            }
+            self.device_names.push(name);
+        }
+        self.follow_clock = settings.follow_clock;
+        self.stamp = None;
+    }
+
+    /// Brings what depends on the document up to date: a new document
+    /// forgets everything that named the old one, and an edit refreshes the
+    /// sources the MIDI worker matches against.
+    fn sync(&mut self, generation: u64, revision: u64, project: &Project) {
+        if self.generation != generation {
+            self.generation = generation;
+            self.learn = None;
+            self.states.clear();
+            self.waiting.clear();
+            self.last_tweaked = None;
+            self.notes = NoteTake::default();
+            self.automation = AutomationTake::default();
+            self.log.clear();
+            self.bank = 0;
+            self.stamp = None;
+        }
+        if self.stamp != Some((generation, revision)) {
+            self.stamp = Some((generation, revision));
+            self.sources.clear();
+            let links = project
+                .settings
+                .controller_links
+                .iter()
+                .chain(&self.settings.links)
+                .chain(&self.profile_links);
+            for link in links {
+                if !self.sources.contains(&link.source) {
+                    self.sources.push(link.source.clone());
+                }
+            }
+        }
+    }
+
+    /// The id that groups a run of controller movements into one undo step.
+    fn gesture_at(&mut self, now: Instant) -> u64 {
+        let id = match self.gesture {
+            Some((id, last)) if now.saturating_duration_since(last) <= GESTURE_GAP => id,
+            _ => {
+                self.gestures += 1;
+                GESTURE_BASE + self.gestures
+            }
+        };
+        self.gesture = Some((id, now));
+        id
+    }
+
+    fn fresh_gesture(&mut self) -> u64 {
+        self.gestures += 1;
+        GESTURE_BASE + self.gestures
+    }
+
+    fn push(&mut self, incoming: Incoming) {
+        if self.queue.len() >= QUEUE {
+            self.queue.pop_front();
+            self.dropped = self.dropped.saturating_add(1);
+        }
+        self.queue.push_back(incoming);
+    }
+}
+
+/// True when a link from `link` takes a message that came as `from`.
+fn source_matches(link: &ControlSource, from: &ControlSource) -> bool {
+    match (link, from) {
+        (
+            ControlSource::Midi {
+                device,
+                channel,
+                control,
+            },
+            ControlSource::Midi {
+                device: from_device,
+                channel: from_channel,
+                control: from_control,
+            },
+        ) => {
+            control == from_control
+                && (channel.is_none() || channel == from_channel)
+                && (device.is_none() || device == from_device)
+        }
+        _ => false,
+    }
+}
+
+/// Reads the user's controller profiles: one JSON file each. A file that is
+/// malformed, or takes the id of another profile, is skipped and logged.
+fn load_profiles(dir: &Path) -> Vec<ControllerProfile> {
+    let Ok(entries) = std::fs::read_dir(dir) else {
+        return Vec::new();
+    };
+    let mut files: Vec<_> = entries
+        .filter_map(Result::ok)
+        .map(|entry| entry.path())
+        .filter(|path| {
+            path.extension()
+                .is_some_and(|extension| extension == "json")
+        })
+        .collect();
+    files.sort();
+    let mut profiles: Vec<ControllerProfile> = Vec::new();
+    let taken = builtin_profiles();
+    for file in files.into_iter().take(MAX_USER_PROFILES) {
+        let read = std::fs::read_to_string(&file)
+            .map_err(|error| error.to_string())
+            .and_then(|json| {
+                serde_json::from_str::<ControllerProfile>(&json).map_err(|error| error.to_string())
+            })
+            .and_then(|profile| match profile.problem() {
+                Some(problem) => Err(problem),
+                None => Ok(profile),
+            });
+        match read {
+            Ok(profile)
+                if taken
+                    .iter()
+                    .chain(&profiles)
+                    .all(|other| other.id != profile.id) =>
+            {
+                profiles.push(profile);
+            }
+            Ok(profile) => log::warn!(
+                "controller profile {}: the id {} is already taken",
+                file.display(),
+                profile.id
+            ),
+            Err(error) => log::warn!("controller profile {}: {error}", file.display()),
+        }
+    }
+    profiles
+}
+
+/// What the pump worked out under the locks, to carry out once they are
+/// released.
+#[derive(Default)]
+struct Plan {
+    generation: u64,
+    /// The targets to move, each with the value it had, the value it gets
+    /// (both 0 to 1) and the link that moves it.
+    writes: Vec<Write>,
+    commands: Vec<Command>,
+    actions: Vec<ControlAction>,
+    learned: Vec<(ControllerLink, bool, u64)>,
+    clock: Vec<ClockInEvent>,
+    stopped: bool,
+    gesture: u64,
+}
+
+struct Write {
+    target: AutomationTarget,
+    before: f32,
+    value: f32,
+    link: (ControlSource, LinkTarget),
+}
+
+impl Session {
+    /// Starts the thread that carries out what controllers ask for. It stops
+    /// when the last handle to the session is dropped.
+    pub fn spawn_controllers(&self) -> io::Result<JoinHandle<()>> {
+        let session = self.downgrade();
+        thread::Builder::new()
+            .name("windfall-controllers".to_owned())
+            .spawn(move || {
+                loop {
+                    let Some(session) = session.upgrade() else {
+                        break;
+                    };
+                    session.controllers_wait();
+                    session.controllers_pump(Instant::now());
+                }
+            })
+    }
+
+    /// Sleeps until a controller message arrives or the wait runs out.
+    fn controllers_wait(&self) {
+        let hub = lock(&self.inner.controllers);
+        let busy = !hub.queue.is_empty()
+            || hub.stopped
+            || !hub.clock_events.is_empty()
+            || hub.states.values().any(LinkState::gliding);
+        if !hub.queue.is_empty() || hub.stopped {
+            return;
+        }
+        let wait = if busy { BUSY_WAIT } else { IDLE_WAIT };
+        let _ = self
+            .inner
+            .controllers_wake
+            .wait_timeout(hub, wait)
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+    }
+
+    /// Reads the devices the MIDI settings name into the hub.
+    pub(super) fn controllers_devices(&self, settings: &MidiHardwareSettings, ports: &[MidiPort]) {
+        lock(&self.inner.controllers).set_devices(settings, ports);
+    }
+
+    /// The tempo of the clock an input is sending, while one is.
+    pub(super) fn external_bpm(&self) -> Option<f32> {
+        lock(&self.inner.controllers)
+            .clock_in
+            .bpm()
+            .map(|bpm| bpm as f32)
+    }
+
+    /// Every accepted hardware message, on the MIDI worker. True takes the
+    /// message away from note audition.
+    pub(super) fn controller_message(&self, input: InputMessage) -> bool {
+        let mut hub = lock(&self.inner.controllers);
+        let (channel, control, value, learnable) = match input.message {
+            MidiMessage::Clock | MidiMessage::Start | MidiMessage::Continue | MidiMessage::Stop => {
+                if let Some(event) = hub.clock_in.message(input.message, input.at)
+                    && hub.follow_clock
+                    && hub.clock_events.len() < 32
+                {
+                    hub.clock_events.push_back(event);
+                    self.inner.controllers_wake.notify_one();
+                }
+                return false;
+            }
+            MidiMessage::ProgramChange { .. } => return false,
+            MidiMessage::NoteOn { channel, key, .. } => (
+                channel,
+                MidiControl::Note { key },
+                SourceInput::button(true),
+                true,
+            ),
+            MidiMessage::NoteOff { channel, key } => (
+                channel,
+                MidiControl::Note { key },
+                SourceInput::button(false),
+                false,
+            ),
+            MidiMessage::Controller {
+                channel,
+                number,
+                value,
+            } => (
+                channel,
+                MidiControl::Cc { number },
+                SourceInput::seven_bit(value),
+                true,
+            ),
+            MidiMessage::PitchBend { channel, value } => (
+                channel,
+                MidiControl::PitchBend,
+                SourceInput::fourteen_bit(value),
+                true,
+            ),
+            MidiMessage::ChannelPressure { channel, value } => (
+                channel,
+                MidiControl::ChannelPressure,
+                SourceInput::seven_bit(value),
+                true,
+            ),
+        };
+        let source = ControlSource::Midi {
+            device: hub.device_names.get(usize::from(input.device)).cloned(),
+            channel: Some(channel + 1),
+            control,
+        };
+        let is_note = matches!(control, MidiControl::Note { .. });
+        let linked = hub.sources.iter().any(|link| source_matches(link, &source));
+        // While links are being made, a key that goes down is a candidate
+        // and its release goes with it. Controls move nothing meanwhile.
+        let learning = hub.learn.is_some();
+        if !linked && !learning {
+            if !is_note {
+                hub.last_input = Some(source);
+            }
+            return false;
+        }
+        hub.push(Incoming {
+            source,
+            input: value,
+            learnable,
+        });
+        self.inner.controllers_wake.notify_one();
+        true
+    }
+
+    /// A note that sounds: from hardware, the typing keyboard or the touch
+    /// controllers. `velocity` is `None` when the key comes up. The note is
+    /// logged always and recorded while note recording is armed and
+    /// playback runs.
+    pub(super) fn controller_played(
+        &self,
+        channel: ChannelId,
+        key: u8,
+        velocity: Option<f32>,
+        at: Instant,
+    ) {
+        let mut hub = lock(&self.inner.controllers);
+        let offset = f64::from(hub.settings.record_offset_ms) / 1000.0;
+        let position = hub.clock.position_at(at, offset);
+        match velocity {
+            Some(velocity) => {
+                hub.log
+                    .note_on(channel, key, velocity, at, position.map(|place| place.tick));
+                if let Some(place) = position.filter(|_| hub.note_armed) {
+                    hub.notes.note_on(channel, key, velocity, place);
+                }
+            }
+            None => {
+                hub.log.note_off(channel, key, at);
+                if let Some(place) = position {
+                    hub.notes.note_off(channel, key, place);
+                }
+            }
+        }
+    }
+
+    /// A hardware note for the audition destination, with its capture time.
+    pub(super) fn hardware_note_at(&self, epoch: u64, key: u8, velocity: u8, at: Instant) -> bool {
+        let channel = self.state().midi_target;
+        let delivered = self.hardware_note(epoch, key, velocity);
+        if delivered && let Some(channel) = channel {
+            let velocity = (velocity > 0).then(|| f32::from(velocity) / 127.0);
+            self.controller_played(channel, key, velocity, at);
+        }
+        delivered
+    }
+
+    /// Once a turn of the MIDI worker: follows the playhead, and wakes the
+    /// pump when playback stops or a glide has somewhere to go.
+    pub(super) fn controller_idle(&self, now: Instant, playhead: &Playhead) {
+        let mut hub = lock(&self.inner.controllers);
+        if let Some(place) = hub.clock.position_at(now, 0.0) {
+            hub.last_tick = place.tick;
+        }
+        if hub.clock.observe(playhead, now) {
+            let end = hub.last_tick;
+            hub.notes.close_all(end);
+            hub.stopped = true;
+            self.inner.controllers_wake.notify_one();
+        }
+        hub.clock_in.idle(now);
+        hub.log.prune(now);
+    }
+
+    /// Carries out everything controllers have asked for since the last
+    /// call. Never call it from the MIDI worker or the audio thread.
+    pub fn controllers_pump(&self, now: Instant) {
+        let mut plan = self.controllers_plan(now);
+        for (link, global, gesture) in std::mem::take(&mut plan.learned) {
+            self.controller_link_add(link, global, gesture);
+        }
+        if !plan.commands.is_empty() {
+            let command = if plan.commands.len() == 1 {
+                plan.commands.remove(0)
+            } else {
+                Command::Batch {
+                    label: None,
+                    commands: std::mem::take(&mut plan.commands),
+                }
+            };
+            match self.dispatch_quiet(command, Some(plan.gesture)) {
+                Ok(_) => self.controllers_wrote(&plan, now),
+                Err(error) => lock(&self.inner.controllers).error = Some(error),
+            }
+        }
+        for action in std::mem::take(&mut plan.actions) {
+            self.controller_action(action);
+        }
+        for event in std::mem::take(&mut plan.clock) {
+            self.follow_clock(event);
+        }
+        if plan.stopped {
+            self.commit_note_take();
+            self.commit_automation_take();
+        }
+    }
+
+    /// The first half of a pump: under the document lock and the hub's,
+    /// works out what the queued messages and running glides move.
+    fn controllers_plan(&self, now: Instant) -> Plan {
+        let state = self.state();
+        let project = state.document.project();
+        let mut guard = lock(&self.inner.controllers);
+        let hub = &mut *guard;
+        hub.sync(state.generation, state.document.revision(), project);
+        let mut plan = Plan {
+            generation: state.generation,
+            stopped: std::mem::take(&mut hub.stopped),
+            clock: hub.clock_events.drain(..).collect(),
+            ..Plan::default()
+        };
+        let elapsed = hub.last_pump.map_or(0.0, |last| {
+            now.saturating_duration_since(last).as_secs_f32()
+        });
+        hub.last_pump = Some(now);
+        let pickup = hub.settings.pickup;
+        let bank = hub.bank;
+        let links: Vec<ControllerLink> = project
+            .settings
+            .controller_links
+            .iter()
+            .chain(&hub.settings.links)
+            .chain(&hub.profile_links)
+            .cloned()
+            .collect();
+        hub.waiting.clear();
+        let events: Vec<Incoming> = hub.queue.drain(..).collect();
+        if !events.is_empty() {
+            hub.error = None;
+        }
+        // What a target is to be given, so later messages in the same turn
+        // carry on from it instead of from the stored value.
+        let resolve = |target: &LinkTarget| -> Option<AutomationTarget> {
+            match target {
+                LinkTarget::Param { target } => Some(*target),
+                LinkTarget::Slot { slot } => slot.resolve(project, bank),
+                LinkTarget::Action { .. } => None,
+            }
+        };
+        let current = |writes: &[Write], target: &AutomationTarget| -> Option<f32> {
+            if let Some(write) = writes.iter().rev().find(|write| write.target == *target) {
+                return Some(write.value);
+            }
+            let range = project.automation_range(target)?;
+            Some(range.normalized(project.automation_stored_value(target)?))
+        };
+        let put = |writes: &mut Vec<Write>,
+                   target: AutomationTarget,
+                   value: f32,
+                   link: &ControllerLink| {
+            let Some(stored) = project
+                .automation_range(&target)
+                .zip(project.automation_stored_value(&target))
+                .map(|(range, value)| range.normalized(value))
+            else {
+                return;
+            };
+            let key = (link.source.clone(), link.target);
+            match writes.iter_mut().find(|write| write.target == target) {
+                Some(write) => {
+                    write.value = value;
+                    write.link = key;
+                }
+                None => writes.push(Write {
+                    target,
+                    before: stored,
+                    value,
+                    link: key,
+                }),
+            }
+        };
+
+        for event in events {
+            hub.last_input = Some(event.source.clone());
+            if let Some(learn) = &mut hub.learn {
+                let free = learn.linked < learn.targets.len();
+                if event.learnable && free && !learn.seen.contains(&event.source) {
+                    let target = learn.targets[learn.linked];
+                    learn.linked += 1;
+                    learn.seen.push(event.source.clone());
+                    plan.learned.push((
+                        ControllerLink {
+                            source: event.source.clone(),
+                            target,
+                            map: ControlMap::default(),
+                        },
+                        learn.global,
+                        learn.gesture,
+                    ));
+                    if !learn.multi {
+                        hub.learn = None;
+                    }
+                }
+                continue;
+            }
+            for link in links
+                .iter()
+                .filter(|link| source_matches(&link.source, &event.source))
+            {
+                let key = (link.source.clone(), link.target);
+                let link_state = hub.states.entry(key).or_default();
+                if let LinkTarget::Action { action } = link.target {
+                    if link_state.pressed(event.input) {
+                        plan.actions.push(action);
+                    }
+                    continue;
+                }
+                let Some(target) = resolve(&link.target) else {
+                    continue;
+                };
+                let (Some(value), Ok(map)) = (current(&plan.writes, &target), link.map.compile())
+                else {
+                    continue;
+                };
+                match link_state.input(&map, event.input, value, pickup) {
+                    Motion::Write(value) => put(&mut plan.writes, target, value, link),
+                    Motion::Held => {
+                        if !hub.waiting.contains(&target) {
+                            hub.waiting.push(target);
+                        }
+                    }
+                    Motion::None => {}
+                }
+            }
+        }
+        // Glides move on by the time since the last turn.
+        if elapsed > 0.0 {
+            for link in &links {
+                let key = (link.source.clone(), link.target);
+                let Some(link_state) = hub.states.get_mut(&key).filter(|held| held.gliding())
+                else {
+                    continue;
+                };
+                let (Some(target), Ok(map)) = (resolve(&link.target), link.map.compile()) else {
+                    link_state.reset();
+                    continue;
+                };
+                if let Motion::Write(value) = link_state.advance(&map, elapsed) {
+                    put(&mut plan.writes, target, value, link);
+                }
+            }
+        }
+        for write in &plan.writes {
+            let Some(range) = project.automation_range(&write.target) else {
+                continue;
+            };
+            if let Some(command) = target_command(project, &write.target, range.value(write.value))
+            {
+                plan.commands.push(command);
+            }
+        }
+        if !plan.commands.is_empty() {
+            plan.gesture = hub.gesture_at(now);
+        }
+        plan
+    }
+
+    /// After a controller edit landed: tells each link what its target now
+    /// holds, and records the movement when automation recording is on.
+    fn controllers_wrote(&self, plan: &Plan, now: Instant) {
+        let state = self.state();
+        if state.generation != plan.generation {
+            return;
+        }
+        let project = state.document.project();
+        let mut guard = lock(&self.inner.controllers);
+        let hub = &mut *guard;
+        let place = hub
+            .clock
+            .position_at(now, 0.0)
+            .filter(|place| place.mode == PlayMode::Song && hub.automation_armed);
+        for write in &plan.writes {
+            let Some(stored) = project
+                .automation_range(&write.target)
+                .zip(project.automation_stored_value(&write.target))
+                .map(|(range, value)| range.normalized(value))
+            else {
+                continue;
+            };
+            if let Some(link_state) = hub.states.get_mut(&write.link) {
+                link_state.wrote(stored);
+            }
+            if let Some(place) = place {
+                hub.automation
+                    .record(write.target, write.before, place.tick, stored);
+            }
+        }
+    }
+
+    /// Adds one link made by a pass of linking: to the project as an edit,
+    /// or to the app's settings.
+    fn controller_link_add(&self, link: ControllerLink, global: bool, gesture: u64) {
+        let outcome = if global {
+            let mut settings = lock(&self.inner.controllers).settings.clone();
+            settings
+                .links
+                .retain(|other| other.target != link.target && other.source != link.source);
+            settings.links.push(link);
+            self.controller_settings_set(settings).map(|_| ())
+        } else {
+            let mut links = self
+                .state()
+                .document
+                .project()
+                .settings
+                .controller_links
+                .clone();
+            // Linking a control again replaces the link it had.
+            links.retain(|other| other.target != link.target);
+            links.push(link);
+            self.dispatch_quiet(Command::SetControllerLinks { links }, Some(gesture))
+                .map(|_| ())
+        };
+        if let Err(error) = outcome {
+            let mut hub = lock(&self.inner.controllers);
+            hub.error = Some(error);
+            hub.learn = None;
+        }
+    }
+
+    fn controller_action(&self, action: ControlAction) {
+        let outcome: Result<(), String> = match action {
+            ControlAction::Play => self.transport_play().map(|_| ()),
+            ControlAction::Stop => {
+                self.transport_stop();
+                Ok(())
+            }
+            ControlAction::TogglePlay => self.transport_toggle().map(|_| ()),
+            ControlAction::ToggleLoop => {
+                let looping = self.transport_state().loop_song;
+                self.transport_set(TransportPatch {
+                    loop_song: Some(!looping),
+                    ..TransportPatch::default()
+                })
+                .map(|_| ())
+            }
+            ControlAction::ToggleMetronome => {
+                let mut metronome = self.transport_state().metronome.unwrap_or_default();
+                metronome.enabled = !metronome.enabled;
+                self.transport_set(TransportPatch {
+                    metronome: Some(metronome),
+                    ..TransportPatch::default()
+                })
+                .map(|_| ())
+            }
+            ControlAction::ToggleNoteRecord => {
+                let armed = lock(&self.inner.controllers).note_armed;
+                self.note_record_arm(!armed);
+                Ok(())
+            }
+            ControlAction::ToggleAutomationRecord => {
+                let armed = lock(&self.inner.controllers).automation_armed;
+                self.automation_record_arm(!armed);
+                Ok(())
+            }
+            ControlAction::Undo => {
+                self.undo();
+                Ok(())
+            }
+            ControlAction::Redo => {
+                self.redo();
+                Ok(())
+            }
+            ControlAction::PatternPrevious | ControlAction::PatternNext => {
+                let patterns: Vec<PatternId> = {
+                    let state = self.state();
+                    let patterns = &state.document.project().patterns;
+                    patterns.iter().map(|pattern| pattern.id).collect()
+                };
+                let now = self.transport_state().pattern;
+                let at = patterns.iter().position(|id| *id == now).unwrap_or(0);
+                let next = if action == ControlAction::PatternNext {
+                    (at + 1).min(patterns.len().saturating_sub(1))
+                } else {
+                    at.saturating_sub(1)
+                };
+                match patterns.get(next) {
+                    Some(pattern) => self
+                        .transport_set(TransportPatch {
+                            pattern: Some(*pattern),
+                            ..TransportPatch::default()
+                        })
+                        .map(|_| ()),
+                    None => Ok(()),
+                }
+            }
+            ControlAction::BankPrevious | ControlAction::BankNext => {
+                let mut hub = lock(&self.inner.controllers);
+                hub.bank = if action == ControlAction::BankNext {
+                    (hub.bank + SLOT_BANK_SIZE).min(MAX_BANK)
+                } else {
+                    hub.bank.saturating_sub(SLOT_BANK_SIZE)
+                };
+                Ok(())
+            }
+            ControlAction::PanicMidi => {
+                self.midi_hardware_panic();
+                Ok(())
+            }
+        };
+        if let Err(error) = outcome {
+            lock(&self.inner.controllers).error = Some(error);
+        }
+    }
+
+    /// Does what the clock of an input asks, when following is switched on.
+    fn follow_clock(&self, event: ClockInEvent) {
+        let outcome = match event {
+            ClockInEvent::Start => {
+                self.transport_seek(0.0);
+                self.transport_play().map(|_| ())
+            }
+            ClockInEvent::Continue => self.transport_play().map(|_| ()),
+            ClockInEvent::Stop => {
+                self.transport_stop();
+                Ok(())
+            }
+            ClockInEvent::Tempo(bpm) => {
+                let tempo = self.state().document.project().settings.tempo_bpm;
+                if (tempo - bpm).abs() < 0.05 {
+                    Ok(())
+                } else {
+                    let patch = SettingsPatch {
+                        tempo_bpm: Some(bpm),
+                        ..SettingsPatch::default()
+                    };
+                    self.dispatch_quiet(Command::UpdateSettings { patch }, Some(CLOCK_GESTURE))
+                        .map(|_| ())
+                }
+            }
+        };
+        if let Err(error) = outcome {
+            lock(&self.inner.controllers).error = Some(error);
+        }
+    }
+
+    /// The targets a command is about to set, each with the value it has
+    /// now, 0 to 1. Call before the command runs.
+    pub(super) fn controller_tweak_probe(&self, command: &Command) -> Vec<(AutomationTarget, f32)> {
+        let state = self.state();
+        let project = state.document.project();
+        command_targets(project, command)
+            .into_iter()
+            .filter_map(|target| {
+                let range = project.automation_range(&target)?;
+                let value = project.automation_stored_value(&target)?;
+                Some((target, range.normalized(value)))
+            })
+            .collect()
+    }
+
+    /// After a command from the UI set those targets: remembers the last
+    /// one, adds them to a multi-link pass, and records the movement when
+    /// automation recording is on.
+    pub(super) fn controller_tweaked(&self, tweaks: &[(AutomationTarget, f32)]) {
+        let Some((last, _)) = tweaks.last() else {
+            return;
+        };
+        let now = Instant::now();
+        let state = self.state();
+        let project = state.document.project();
+        let mut guard = lock(&self.inner.controllers);
+        let hub = &mut *guard;
+        hub.last_tweaked = Some(*last);
+        if let Some(learn) = hub
+            .learn
+            .as_mut()
+            .filter(|learn| learn.multi && !learn.global)
+        {
+            for (target, _) in tweaks {
+                let target = LinkTarget::Param { target: *target };
+                if !learn.targets.contains(&target) && learn.targets.len() < MAX_LEARN_TARGETS {
+                    learn.targets.push(target);
+                }
+            }
+        }
+        let place = hub
+            .clock
+            .position_at(now, 0.0)
+            .filter(|place| place.mode == PlayMode::Song && hub.automation_armed);
+        if let Some(place) = place {
+            for (target, before) in tweaks {
+                let stored = project
+                    .automation_range(target)
+                    .zip(project.automation_stored_value(target))
+                    .map(|(range, value)| range.normalized(value));
+                if let Some(stored) = stored.filter(|stored| stored != before) {
+                    hub.automation.record(*target, *before, place.tick, stored);
+                }
+            }
+        }
+    }
+
+    pub fn controller_state(&self) -> ControllerState {
+        let generation = self.state().generation;
+        let hub = lock(&self.inner.controllers);
+        let now = Instant::now();
+        ControllerState {
+            settings: hub.settings.clone(),
+            profiles: hub.profiles(),
+            learn: hub.learn.as_ref().map(|learn| ControllerLearn {
+                targets: learn.targets.clone(),
+                linked: learn.linked as u32,
+                global: learn.global,
+                multi: learn.multi,
+            }),
+            last_input: hub.last_input.clone(),
+            last_tweaked: hub.last_tweaked,
+            waiting: hub.waiting.clone(),
+            bank: hub.bank,
+            note_record: NoteRecordState {
+                armed: hub.note_armed,
+                pending: hub.notes.pending(),
+                dropped: hub.notes.dropped(),
+            },
+            automation_record: AutomationRecordState {
+                armed: hub.automation_armed,
+                targets: hub.automation.targets(),
+                pending: hub.automation.pending(),
+            },
+            score_log: hub.log.state(now),
+            dropped: hub.dropped,
+            error: hub.error.clone(),
+            generation,
+        }
+    }
+
+    /// Replaces what the app remembers about controllers and saves it.
+    pub fn controller_settings_set(
+        &self,
+        settings: ControllerSettings,
+    ) -> Result<ControllerState, String> {
+        settings.validate()?;
+        {
+            let mut hub = lock(&self.inner.controllers);
+            hub.settings = settings.clone();
+            hub.stamp = None;
+            hub.states.clear();
+        }
+        self.store().update(|store| store.controllers = settings);
+        Ok(self.controller_state())
+    }
+
+    /// Starts a pass of linking: the next hardware controls that move are
+    /// given `targets`, in order. With `multi`, controls moved on screen are
+    /// added to the pass as they are moved, and the pass runs until it is
+    /// cancelled. With `global`, the links go to the app's settings.
+    pub fn controller_learn(
+        &self,
+        targets: Vec<LinkTarget>,
+        global: bool,
+        multi: bool,
+        generation: u64,
+    ) -> Result<ControllerState, String> {
+        if targets.len() > MAX_LEARN_TARGETS {
+            return Err(format!(
+                "At most {MAX_LEARN_TARGETS} controls can be linked in one pass."
+            ));
+        }
+        if targets.is_empty() && !multi {
+            return Err("Choose a control to link.".into());
+        }
+        {
+            let state = self.state();
+            if state.generation != generation {
+                return Err("Project changed. Try linking again.".into());
+            }
+            let project = state.document.project();
+            let existing = if global {
+                lock(&self.inner.controllers).settings.links.len()
+            } else {
+                project.settings.controller_links.len()
+            };
+            if existing + targets.len() > MAX_CONTROLLER_LINKS {
+                return Err(format!(
+                    "There can be at most {MAX_CONTROLLER_LINKS} controller links."
+                ));
+            }
+            // A link with any source will do to check the targets.
+            let probe: Vec<ControllerLink> = targets
+                .iter()
+                .enumerate()
+                .map(|(index, target)| ControllerLink {
+                    source: ControlSource::Internal {
+                        controller: index as u32,
+                        output: 0,
+                    },
+                    target: *target,
+                    map: ControlMap::default(),
+                })
+                .collect();
+            if let Some(problem) = links_problem(&probe, (!global).then_some(project)) {
+                return Err(problem);
+            }
+            let mut hub = lock(&self.inner.controllers);
+            hub.sync(state.generation, state.document.revision(), project);
+            let gesture = hub.fresh_gesture();
+            hub.queue.clear();
+            hub.learn = Some(Learn {
+                targets,
+                linked: 0,
+                global,
+                multi,
+                gesture,
+                seen: Vec::new(),
+            });
+        }
+        Ok(self.controller_state())
+    }
+
+    pub fn controller_learn_cancel(&self) -> ControllerState {
+        lock(&self.inner.controllers).learn = None;
+        self.controller_state()
+    }
+
+    /// Arms or disarms note recording. Disarming writes the pass so far.
+    pub fn note_record_arm(&self, armed: bool) -> ControllerState {
+        let was = std::mem::replace(&mut lock(&self.inner.controllers).note_armed, armed);
+        if was && !armed {
+            {
+                let mut hub = lock(&self.inner.controllers);
+                let end = hub.last_tick;
+                hub.notes.close_all(end);
+            }
+            self.commit_note_take();
+        }
+        self.controller_state()
+    }
+
+    /// Arms or disarms automation recording. Disarming writes the pass so far.
+    pub fn automation_record_arm(&self, armed: bool) -> ControllerState {
+        let was = std::mem::replace(&mut lock(&self.inner.controllers).automation_armed, armed);
+        if was && !armed {
+            self.commit_automation_take();
+        }
+        self.controller_state()
+    }
+
+    /// Writes the notes of the pass into their patterns, as one undo step.
+    fn commit_note_take(&self) {
+        let (notes, quantize) = {
+            let mut hub = lock(&self.inner.controllers);
+            (hub.notes.take(), hub.settings.record_quantize_ticks)
+        };
+        if notes.is_empty() {
+            return;
+        }
+        let command = {
+            let state = self.state();
+            recorded_notes_command(state.document.project(), &notes, quantize)
+        };
+        let Some(command) = command else {
+            return;
+        };
+        if let Err(error) = self.dispatch_quiet(command, None) {
+            lock(&self.inner.controllers).error = Some(error);
+        }
+    }
+
+    /// Writes the movements of the pass as automation, as one undo step.
+    fn commit_automation_take(&self) {
+        let lanes = lock(&self.inner.controllers).automation.take();
+        if lanes.is_empty() {
+            return;
+        }
+        let command = {
+            let state = self.state();
+            recorded_automation_command(state.document.project(), &lanes)
+        };
+        let Some(command) = command else {
+            return;
+        };
+        if let Err(error) = self.dispatch_quiet(command, None) {
+            lock(&self.inner.controllers).error = Some(error);
+        }
+    }
+
+    /// Puts what the rolling log holds into a pattern, as one undo step. The
+    /// log keeps its notes, so undoing the dump loses nothing. `seconds`
+    /// limits the dump to notes that began that recently.
+    pub fn score_log_dump(
+        &self,
+        pattern: PatternId,
+        seconds: Option<f32>,
+        generation: u64,
+    ) -> Result<DispatchResult, String> {
+        let command = {
+            let state = self.state();
+            if state.generation != generation {
+                return Err("Project changed. Try again.".into());
+            }
+            let project = state.document.project();
+            let Some(found) = project.pattern(pattern) else {
+                return Err("The pattern no longer exists.".into());
+            };
+            let signature = found
+                .time_signature
+                .unwrap_or(project.settings.time_signature);
+            let window = seconds
+                .filter(|seconds| seconds.is_finite() && *seconds > 0.0)
+                .map(Duration::from_secs_f32);
+            let hub = lock(&self.inner.controllers);
+            let dump = hub.log.dump(
+                Instant::now(),
+                window,
+                project.settings.tempo_bpm,
+                signature.ticks_per_bar(),
+                hub.settings.record_quantize_ticks,
+            );
+            let commands: Vec<Command> = dump
+                .lanes
+                .into_iter()
+                .filter(|(channel, notes)| project.channel(*channel).is_some() && !notes.is_empty())
+                .map(|(channel, notes)| Command::AddNotes {
+                    pattern,
+                    channel,
+                    notes,
+                })
+                .collect();
+            if commands.is_empty() {
+                return Err("Nothing has been played to put into the pattern.".into());
+            }
+            Command::Batch {
+                label: Some("Dump note log".to_owned()),
+                commands,
+            }
+        };
+        self.dispatch_quiet(command, None)
+    }
+
+    pub fn score_log_clear(&self) -> ControllerState {
+        lock(&self.inner.controllers).log.clear();
+        self.controller_state()
+    }
+}
+
+/// The command that writes a pass of recorded notes. Notes played in
+/// pattern mode go where they were played in the pattern. Notes played in
+/// song mode go into the pattern that was selected, through the clip of it
+/// under the playhead; where no clip of it was playing, one is added on a
+/// new playlist track to hold them. `None` when nothing can be written.
+pub(super) fn recorded_notes_command(
+    project: &Project,
+    notes: &[TakenNote],
+    quantize: u32,
+) -> Option<Command> {
+    let pattern_ticks = |id: PatternId| {
+        project
+            .pattern(id)
+            .map(|pattern| pattern.length_steps.max(1).saturating_mul(TICKS_PER_STEP))
+    };
+    // Notes per pattern and channel, in the order they are first met.
+    let mut lanes: Vec<(PatternId, ChannelId, Vec<NoteInit>)> = Vec::new();
+    let mut add =
+        |pattern: PatternId, channel: ChannelId, note: NoteInit| match lanes.iter_mut().find(
+            |(lane_pattern, lane_channel, _)| *lane_pattern == pattern && *lane_channel == channel,
+        ) {
+            Some((_, _, lane)) => lane.push(note),
+            None => lanes.push((pattern, channel, vec![note])),
+        };
+    // Song-mode notes with no clip of their pattern under them, by pattern.
+    let mut homeless: Vec<(PatternId, Vec<&TakenNote>)> = Vec::new();
+    for note in notes {
+        let Some(length) = pattern_ticks(note.pattern) else {
+            continue;
+        };
+        if project.channel(note.channel).is_none() {
+            continue;
+        }
+        if note.mode == PlayMode::Pattern {
+            if let Some(init) = note_init(note, 0.0, quantize, Some(length)) {
+                add(note.pattern, note.channel, init);
+            }
+            continue;
+        }
+        let clip = project.playlist.clips.iter().find(|clip| {
+            clip.content
+                == (ClipContent::Pattern {
+                    pattern: note.pattern,
+                })
+                && f64::from(clip.start) <= note.start
+                && note.start < f64::from(clip.start) + f64::from(clip.length)
+        });
+        match clip {
+            Some(clip) => {
+                // Into the pattern as the clip plays it: from its offset,
+                // round the pattern's length.
+                let local = (note.start - f64::from(clip.start) + f64::from(clip.offset))
+                    .rem_euclid(f64::from(length));
+                let placed = TakenNote {
+                    start: local,
+                    ..*note
+                };
+                if let Some(init) = note_init(&placed, 0.0, quantize, Some(length)) {
+                    add(note.pattern, note.channel, init);
+                }
+            }
+            None => match homeless
+                .iter_mut()
+                .find(|(pattern, _)| *pattern == note.pattern)
+            {
+                Some((_, held)) => held.push(note),
+                None => homeless.push((note.pattern, vec![note])),
+            },
+        }
+    }
+    let mut commands = Vec::new();
+    // A batch cannot pass an id from one command to the next, so the ids
+    // the new tracks will get are worked out first: each track is followed
+    // by its clip.
+    let mut next_id = project.next_id;
+    let bar = f64::from(project.settings.time_signature.ticks_per_bar().max(1));
+    for (pattern, held) in &homeless {
+        let first = held
+            .iter()
+            .map(|note| note.start)
+            .fold(f64::INFINITY, f64::min);
+        let last = held
+            .iter()
+            .map(|note| note.start + note.length)
+            .fold(0.0, f64::max);
+        let start = (first / bar).floor() * bar;
+        let length = (((last - start) / bar).ceil().max(1.0)) * bar;
+        if start + length > f64::from(MAX_SONG_TICKS) {
+            continue;
+        }
+        commands.push(Command::AddPlaylistTrack {
+            name: None,
+            index: None,
+        });
+        commands.push(Command::AddClips {
+            clips: vec![ClipInit {
+                track: PlaylistTrackId(next_id),
+                start: start as u32,
+                length: Some(length as u32),
+                offset: None,
+                muted: None,
+                content: ClipContent::Pattern { pattern: *pattern },
+            }],
+        });
+        next_id = next_id.saturating_add(2);
+        for note in held {
+            let placed = TakenNote {
+                start: note.start - start,
+                ..**note
+            };
+            if let Some(init) = note_init(&placed, 0.0, quantize, None) {
+                add(*pattern, note.channel, init);
+            }
+        }
+    }
+    for (pattern, channel, notes) in lanes {
+        commands.push(Command::AddNotes {
+            pattern,
+            channel,
+            notes,
+        });
+    }
+    if !commands
+        .iter()
+        .any(|command| matches!(command, Command::AddNotes { .. }))
+    {
+        return None;
+    }
+    Some(Command::Batch {
+        label: Some("Record notes".to_owned()),
+        commands,
+    })
+}
+
+/// The command that writes a pass of recorded movements as automation. A
+/// control that an automation clip under the playhead already drives has
+/// the recorded stretch written into that curve, the rest of the curve
+/// staying as it was. Any other control gets a new automation that starts
+/// from the value it held, and a clip on a new playlist track from the
+/// start of the song. `None` when nothing can be written.
+pub(super) fn recorded_automation_command(
+    project: &Project,
+    lanes: &[AutomationLane],
+) -> Option<Command> {
+    let mut commands = Vec::new();
+    // As in `Session::automate`: the ids a new automation, its track and
+    // its clip will get, in that order.
+    let mut next_id = project.next_id;
+    let song_end = project
+        .playlist
+        .clips
+        .iter()
+        .map(|clip| clip.start.saturating_add(clip.length))
+        .max()
+        .unwrap_or(0);
+    let bar = project.settings.time_signature.ticks_per_bar().max(1);
+    for lane in lanes {
+        if project.automation_range(&lane.target).is_none() {
+            continue;
+        }
+        let Some(&(first_tick, _)) = lane.samples.first() else {
+            continue;
+        };
+        // The clip that was driving the control where the pass began.
+        let driving = project.playlist.clips.iter().find_map(|clip| {
+            let automation = project.automation(clip.content.automation()?)?;
+            let covers = f64::from(clip.start) <= first_tick
+                && first_tick < f64::from(clip.start) + f64::from(clip.length);
+            (automation.target == lane.target && !clip.muted && covers)
+                .then_some((clip, automation))
+        });
+        match driving {
+            Some((clip, automation)) => {
+                let end = f64::from(clip.start) + f64::from(clip.length);
+                let local: Vec<(f64, f32)> = lane
+                    .samples
+                    .iter()
+                    .filter(|(tick, _)| *tick >= f64::from(clip.start) && *tick < end)
+                    .map(|(tick, value)| {
+                        (
+                            tick - f64::from(clip.start) + f64::from(clip.offset),
+                            *value,
+                        )
+                    })
+                    .collect();
+                let recorded = recorded_points(&local, windfall_project::MAX_AUTOMATION_POINTS);
+                let points = merge_points(&automation.points, &recorded, true);
+                if points != automation.points {
+                    commands.push(Command::SetAutomationPoints {
+                        id: automation.id,
+                        points,
+                    });
+                }
+            }
+            None => {
+                let recorded =
+                    recorded_points(&lane.samples, windfall_project::MAX_AUTOMATION_POINTS);
+                let Some(last) = recorded.last() else {
+                    continue;
+                };
+                let start = [AutomationPoint {
+                    tick: 0,
+                    value: lane.before,
+                    curve: 0.0,
+                    hold: false,
+                }];
+                let points = merge_points(&start, &recorded, false);
+                let length = song_end
+                    .max(last.tick.saturating_add(bar))
+                    .max(bar * 4)
+                    .min(MAX_SONG_TICKS);
+                commands.push(Command::AddAutomation {
+                    name: None,
+                    target: lane.target,
+                    points: Some(points),
+                });
+                commands.push(Command::AddPlaylistTrack {
+                    name: None,
+                    index: None,
+                });
+                commands.push(Command::AddClips {
+                    clips: vec![ClipInit {
+                        track: PlaylistTrackId(next_id.saturating_add(1)),
+                        start: 0,
+                        length: Some(length),
+                        offset: None,
+                        muted: None,
+                        content: ClipContent::Automation {
+                            automation: AutomationId(next_id),
+                        },
+                    }],
+                });
+                next_id = next_id.saturating_add(3);
+            }
+        }
+    }
+    if commands.is_empty() {
+        return None;
+    }
+    Some(Command::Batch {
+        label: Some("Record automation".to_owned()),
+        commands,
+    })
+}
