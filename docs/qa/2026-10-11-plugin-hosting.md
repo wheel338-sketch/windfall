@@ -1,4 +1,4 @@
-# Plugin hosting implementation hand-off — 2026-10-11
+# Plugin hosting implementation hand-off ï¿½ 2026-10-11
 
 Branch: `gpt/w3-plugin-hosting`. Worktree: `.claude/worktrees/gpt-plugin-hosting`.
 All changes are source-only. **No builds, tests, device checks or nested agents were run.**
@@ -6,7 +6,7 @@ The overseer owns tracker status. No full row is claimed verified.
 
 ## Bridge instance transport checkpoint
 
-ABI 7 replaces ABI 6: 16×128 legacy channel/key velocities and a checked,
+ABI 7 replaces ABI 6: 16ï¿½128 legacy channel/key velocities and a checked,
 bounded 1,024-owner snapshot precede timed events. The snapshot contains native
 identity, channel/key, velocity, pan, fractional pitch and both modulation
 controls. Ready negotiates actual native instance/expression capabilities.
@@ -50,10 +50,10 @@ be rebuilt together; ABI 6 helpers are deliberately incompatible.
 | --- | --- | --- |
 | `fmt-host-vst3` | partial | Fresh fixture/editor/external-plugin and Mac/Linux acceptance; multi-output desktop routing. |
 | `fmt-host-clap` | partial | Fresh fixture/editor/external-plugin and Mac/Linux acceptance; multi-output desktop routing. |
-| `fmt-host-bridging` | partial | New expression replay validation; packaged discovery, actual helper editor/lifecycle, external corpus, non-Windows IPC. |
-| `fmt-host-wrapper-options` | partial | Implementation in progress; persistence/history/UI and all stated lifecycle semantics required. |
-| `fmt-host-au` | partial | macOS adapter in progress; cannot compile or execute on this Windows worker. Needs a Mac and native acceptance. |
-| `fmt-host-vst2` | partial | Public GPL-header provenance/licence investigation and scoped implementation in progress. |
+| `fmt-host-bridging` | partial | New expression replay validation; packaged discovery, fresh helper editor/lifecycle validation, external corpus, non-Windows IPC. |
+| `fmt-host-wrapper-options` | partial | DSP fixed-buffer/smart-disable and native editor policy implemented; persistence/history/UI and threaded owner provider remain. |
+| `fmt-host-au` | partial | macOS AUv2 source adapter written; needs a Mac to compile/execute plus scanner/provider/editor/multi-bus integration. |
+| `fmt-host-vst2` | partial | GPL header evidence documented in docs/plugins/vst2-licensing.md; provenance/distribution decision required before an adapter. |
 | `fmt-host-fl-as-plugin` | partial | Separate export target in progress; actual other-host acceptance external. |
 | `core-vst2-vst3-audio-unit-and-clap-support` | partial | Depends on VST2, VST3, AU, CLAP and platform/containment acceptance; wrapper/export rows tracked separately. |
 
@@ -100,3 +100,10 @@ and on a Mac `cargo test -p windfall-plugin-host --lib au::tests:: -- --test-thr
 Check VST3 content-scale interface imports, native owner/window semantics,
 bridge dirty capture/ack races, and AU C struct layout/CF ownership first.
 No new dependencies or generated IPC/TS types in this checkpoint.
+
+## Restart checkpoint
+
+The assigned worktree was clean at restart, at commit 6fec307b. No uncommitted
+implementation was lost. Remaining software work begins with the standalone
+Windfall plugin export target; full-row gates above remain explicit.
+
