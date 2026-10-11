@@ -110,8 +110,14 @@ impl Transaction<'_> {
                     _ => false,
                 });
                 match state {
-                    PluginPresetState::Instrument { params } => {
-                        self.set_instrument(index, checked_instrument(params)?);
+                    PluginPresetState::Instrument { params, asset } => {
+                        self.set_source(
+                            index,
+                            ChannelSource::Instrument {
+                                params: checked_instrument(params)?,
+                                asset,
+                            },
+                        );
                         self.rebind(target, None);
                     }
                     PluginPresetState::Hosted { binding, .. } => {

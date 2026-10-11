@@ -104,3 +104,74 @@ fn legacy_instrument_json_omits_assets_and_loads_without_them() {
     restored.check().unwrap();
     assert_eq!(restored, *doc.project());
 }
+
+#[test]
+fn instrument_plugin_presets_capture_replace_validate_and_undo_immutable_data() {
+    use windfall_project::preset::{PluginPreset, PluginPresetState};
+    let mut doc = Document::new(Project::new("Preset assets"));
+    let channel = add(&mut doc);
+    let target = PluginTarget::Instrument { channel };
+    let empty = PluginPreset::capture(doc.project(), target).unwrap();
+    let expected = doc.project().channel(channel).unwrap().source.clone();
+    let asset = InstrumentAsset::DrumKeys {
+        patches: vec![DrumKeyPatch {
+            key: 127,
+            params: DrumVoiceParams {
+                mode: DrumMode::Hat,
+                ..Default::default()
+            },
+        }],
+    };
+    doc.dispatch(
+        Command::SetInstrumentAsset {
+            channel,
+            expected,
+            asset: Some(asset.clone()),
+        },
+        None,
+    )
+    .unwrap();
+    let captured = PluginPreset::capture(doc.project(), target).unwrap();
+    let encoded = serde_json::to_string(&captured).unwrap();
+    let captured: PluginPreset = serde_json::from_str(&encoded).unwrap();
+    assert!(
+        matches!(&captured.state,PluginPresetState::Instrument{asset:Some(stored),..} if stored==&asset)
+    );
+    doc.dispatch(
+        Command::ApplyPluginPreset {
+            target,
+            expected: captured.state.clone(),
+            preset: empty,
+        },
+        None,
+    )
+    .unwrap();
+    assert!(matches!(
+        &doc.project().channel(channel).unwrap().source,
+        ChannelSource::Instrument { asset: None, .. }
+    ));
+    doc.undo().unwrap();
+    assert_eq!(
+        PluginPreset::capture(doc.project(), target).unwrap(),
+        captured
+    );
+    let mut invalid = captured.clone();
+    if let PluginPresetState::Instrument { asset, .. } = &mut invalid.state {
+        *asset = Some(InstrumentAsset::Pcm(
+            windfall_dsp::instrument_asset::LayerPcm::from_samples(48000, &[0.0, 0.5]),
+        ));
+    }
+    assert!(invalid.validate().is_err());
+    let before = doc.project().clone();
+    assert!(doc
+        .dispatch(
+            Command::ApplyPluginPreset {
+                target,
+                expected: captured.state,
+                preset: invalid
+            },
+            None
+        )
+        .is_err());
+    assert_eq!(doc.project(), &before);
+}

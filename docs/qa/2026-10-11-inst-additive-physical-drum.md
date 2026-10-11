@@ -227,3 +227,15 @@ storms/reset and counts alloc/zeroed/realloc/free with the existing TLS allocato
 `asset-job.test.ts` covers buffer transfer, success retirement, cancellation,
 late results, timeout, worker error and pre-cancel refusal. Worker dispatch throws
 now terminate/clear the job. Add asset-job.test.ts to the frontend test commands.
+
+### Instrument preset asset checkpoint
+
+Static inspection found channel presets already clone the whole source, while
+instrument-only PluginPresetState previously captured just Copy parameters.
+It now carries optional, omitted-when-absent immutable assets; capture/validate/
+expected-destination comparison/apply/history preserve or explicitly reset them.
+A preset load replaces both parameters and its asset atomically, including across
+instrument kinds. Legacy plugin preset JSON remains valid. Written, not executed:
+`instrument_plugin_presets_capture_replace_validate_and_undo_immutable_data`.
+Additional shared seams: `project/src/preset.rs`, `lower/preset_apply.rs`.
+Regenerate PluginPresetState (and its referenced command/preset types) too.
