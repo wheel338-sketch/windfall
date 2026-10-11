@@ -473,18 +473,13 @@ fn audio_editor_bakes_clip_view_once_and_preserves_routing_mute_and_fractional_t
 }
 
 #[test]
-fn audio_editor_tempo_automation_is_explicitly_refused() {
+fn audio_editor_tempo_automation_opens_without_document_mutation() {
     use windfall_project::AutomationTarget;
     let rig = Rig::new();
     let (id, _, _) = add(&rig);
     rig.session.automate(AutomationTarget::Tempo).unwrap();
     let before = rig.session.document_snapshot();
-    assert!(
-        rig.session
-            .audio_editor_open(id)
-            .unwrap_err()
-            .contains("tempo automation")
-    );
+    assert!(rig.session.audio_editor_open(id).unwrap().frames > 0);
     assert_eq!(rig.session.document_snapshot(), before);
 }
 

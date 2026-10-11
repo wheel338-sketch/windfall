@@ -6,11 +6,11 @@ use crate::sync::lock;
 use std::fs::{self, OpenOptions};
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicU64, Ordering};
-use windfall_core::{AudioBuffer, samples_per_tick};
+use windfall_core::AudioBuffer;
 use windfall_engine::audio_edit;
 use windfall_ipc::{AudioEditOperation, AudioEditPreview, AudioEditRequest};
 use windfall_project::{
-    AutomationTarget, Clip, ClipContent, ClipId, ClipInit, Command, DispatchResult, MAX_SONG_TICKS,
+    AudioViewTiming, Clip, ClipContent, ClipId, ClipInit, Command, DispatchResult, MAX_SONG_TICKS,
     SampleId, SamplePath,
 };
 
@@ -29,7 +29,8 @@ struct Prepared {
     clip: Clip,
     source: AudioBuffer,
     view: AudioBuffer,
-    tempo: f64,
+    clock: windfall_engine::SongClock,
+    analysis_timing: AudioViewTiming,
     analysis_view: AudioBuffer,
     analysis_source: Option<(SampleId, AudioBuffer)>,
     recipe: Option<windfall_project::AudioEditRecipe>,
@@ -77,17 +78,10 @@ impl Session {
         let mut editor = lock(&self.inner.audio_editor);
         // Drop the previous view before allocating another. This is worker-only.
         editor.prepared = None;
-        let (clip, pool, generation, edits, name, tempo, recipe) = {
+        let (clip, pool, generation, edits, name, project, recipe) = {
             let _recording = self.recording_idle()?;
             let state = self.state();
             let project = state.document.project();
-            if project
-                .automations
-                .iter()
-                .any(|a| matches!(a.target, AutomationTarget::Tempo))
-            {
-                return Err("Audio editing with tempo automation is not supported yet.".into());
-            }
             let clip = project
                 .playlist
                 .clips
@@ -107,7 +101,7 @@ impl Session {
                 state.generation,
                 state.edits,
                 name,
-                project.settings.tempo_bpm,
+                project.clone(),
                 project.sample(sample).and_then(|s| s.processing.clone()),
             )
         };
@@ -115,9 +109,17 @@ impl Session {
             .get(clip.content.sample().unwrap())
             .cloned()
             .ok_or("The clip's audio is not loaded. Reload samples first.")?;
-        let view = audio_edit::render_view(&pool, &clip, tempo)?;
+        let clock = windfall_engine::SongClock::new(&project)?;
+        let timing = audio_edit::view_timing(&pool, &clip, project.settings.tempo_bpm, &clock)?;
+        let view = audio_edit::render_view_timed(&pool, &clip, &timing)?;
+        let analysis_timing = if let Some(recipe) = &recipe {
+            match recipe.source_timing {
+                Some(timing) => timing,
+                None => audio_edit::view_timing(&pool, &recipe.source_clip, project.settings.tempo_bpm, &clock)?,
+            }
+        } else { timing };
         let analysis_view = if let Some(recipe) = &recipe {
-            audio_edit::render_view(&pool, &recipe.source_clip, tempo)?
+            audio_edit::render_view_timed(&pool, &recipe.source_clip, &analysis_timing)?
         } else { view.clone() };
         let analysis_source = recipe.as_ref().map(|recipe| {
             let id = recipe.source_clip.content.sample().expect("checked saved recipe");
@@ -134,7 +136,8 @@ impl Session {
             clip,
             source,
             view,
-            tempo,
+            clock,
+            analysis_timing,
             analysis_view,
             analysis_source,
             recipe,
@@ -206,33 +209,28 @@ impl Session {
             request.start_frame,
             request.end_frame,
         )? };
-        let per_tick = samples_per_tick(prepared.tempo, f64::from(output.sample_rate()));
-        // Same frame count keeps the tick length, even across a fractional
-        // tick. Shorter audio rounds up, capped at the old length. Longer
-        // audio takes the fewest ticks whose reopened view holds every frame.
-        let length = match output.frames().cmp(&prepared.view.frames()) {
-            std::cmp::Ordering::Equal => prepared.clip.length,
-            std::cmp::Ordering::Less => ((output.frames() as f64 / per_tick).ceil().max(1.0)
-                as u32)
-                .min(prepared.clip.length),
-            std::cmp::Ordering::Greater => {
-                let ticks = ((output.frames() as f64 - 1.0 + 1e-6) / per_tick).floor() + 1.0;
-                if ticks > f64::from(MAX_SONG_TICKS) {
-                    return Err("Edit falls outside the song.".into());
-                }
-                (ticks as u32).max(prepared.clip.length)
-            }
-        };
         let shift = if request.operation == AudioEditOperation::Extract {
             prepared.clip.length
         } else {
-            (lead as f64 / per_tick).round() as u32
+            prepared.clock.tick_after(prepared.clip.start, lead as f64 / f64::from(output.sample_rate()))?
+                .checked_sub(prepared.clip.start).ok_or("Invalid edit onset.")?
         };
         let clip = &prepared.clip;
         let start = clip
             .start
             .checked_add(shift)
             .ok_or("Edit falls outside the song.")?;
+        // Preserve exact existing edges for same-size edits. Otherwise choose
+        // the first integer tick whose view contains every output frame.
+        let length = if output.frames() == prepared.view.frames() && shift == 0 {
+            clip.length
+        } else {
+            let last_frame = (output.frames() as f64 - 1.0 + 1e-6) / f64::from(output.sample_rate());
+            let end = prepared.clock.tick_after_precise(start, last_frame)?.floor() + 1.0;
+            if end > f64::from(MAX_SONG_TICKS) { return Err("Edit falls outside the song.".into()); }
+            (end as u32).checked_sub(start).filter(|length| *length > 0)
+                .ok_or("Invalid edited clip duration.")?
+        };
         if start.saturating_add(length) > MAX_SONG_TICKS {
             return Err("Edit falls outside the song.".into());
         }

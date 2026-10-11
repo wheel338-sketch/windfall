@@ -99,6 +99,94 @@ fn classical_pitch_edit_one_step_undo_save_reopen_keeps_estimates_and_original()
         rig.session.state().pool.get(sample).unwrap().samples(),
         rendered.samples()
     );
+    // Saved estimates retain the detection-time view even after song tempo
+    // changes the playlist window's current duration.
+    rig.session
+        .dispatch(
+            windfall_project::Command::UpdateSettings {
+                patch: windfall_project::SettingsPatch {
+                    tempo_bpm: Some(90.0),
+                    ..Default::default()
+                },
+            },
+            None,
+        )
+        .unwrap();
+    let reopened = reviewed(&rig, next_clip);
+    assert_eq!(reopened.recipe, edit.recipe);
+    rig.session
+        .audio_analysis_audition(reopened, false)
+        .unwrap();
+}
+
+#[test]
+fn audio_score_under_tempo_ramp_uses_absolute_onsets_and_offsets() {
+    use windfall_project::*;
+    let rig = Rig::new();
+    let (clip, _, _) = fixture(&rig);
+    let result = rig
+        .session
+        .dispatch(
+            Command::AddAutomation {
+                name: None,
+                target: AutomationTarget::Tempo,
+                points: Some(vec![
+                    AutomationPoint {
+                        tick: 0,
+                        value: (60.0 - 10.0) / 512.0,
+                        curve: 0.0,
+                        hold: false,
+                    },
+                    AutomationPoint {
+                        tick: 1920,
+                        value: (120.0 - 10.0) / 512.0,
+                        curve: 0.0,
+                        hold: false,
+                    },
+                ]),
+            },
+            None,
+        )
+        .unwrap();
+    let track = rig
+        .project()
+        .playlist
+        .clips
+        .iter()
+        .find(|c| c.id == clip)
+        .unwrap()
+        .track;
+    rig.session
+        .prepare_clip_command(Command::AddClips {
+            clips: vec![ClipInit {
+                track,
+                start: 0,
+                length: Some(1920),
+                offset: Some(0),
+                muted: Some(false),
+                content: ClipContent::Automation {
+                    automation: AutomationId(result.created[0]),
+                },
+            }],
+        })
+        .unwrap();
+    let edit = reviewed(&rig, clip);
+    let n = &edit.recipe.analysis.notes[0];
+    let start_frame = n.start_frame;
+    let end_frame = n.end_frame;
+    rig.session.audio_analysis_send_midi(edit, vec![0]).unwrap();
+    let project = rig.project();
+    let note = &project.patterns.last().unwrap().lanes[0].notes[0];
+    let base_time = 2.0 * (1.0 + 100.0 / 1920.0_f64).ln();
+    // Invert the independent analytic ramp integral t=2*ln(1+tick/1920).
+    let tick = |frame: u32| {
+        let t = base_time + f64::from(frame) / 16000.0;
+        (1920.0 * ((t / 2.0).exp() - 1.0)).round() as u32 - 100
+    };
+    assert_eq!(note.start, tick(start_frame));
+    assert_eq!(note.start + note.length, tick(end_frame));
+    assert_eq!(note.key, 69);
+    assert!(note.velocity > 0.4);
 }
 #[test]
 fn audio_score_review_inserts_calibrated_notes_as_one_persisted_undo_step() {
@@ -152,12 +240,11 @@ fn immutable_estimates_bad_warp_and_stale_source_cannot_apply() {
     let mut edit = reviewed(&rig, clip);
     let before = rig.session.document_snapshot();
     edit.recipe.analysis.notes[0].midi_pitch = 60.0;
-    assert!(
-        rig.session
-            .audio_analysis_apply(edit)
-            .unwrap_err()
-            .contains("cannot be rewritten")
-    );
+    assert!(rig
+        .session
+        .audio_analysis_apply(edit)
+        .unwrap_err()
+        .contains("cannot be rewritten"));
     assert_eq!(rig.session.document_snapshot(), before);
     let mut edit = reviewed(&rig, clip);
     edit.recipe.markers.last_mut().unwrap().target_frame = 1;

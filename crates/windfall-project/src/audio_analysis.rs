@@ -55,11 +55,41 @@ pub struct AudioDenoiseSettings {
     pub reduction_db: f64,
     pub wet: f64,
 }
+/// Frozen source-view timing at detection. Audio clips play at source speed;
+/// only playlist edges and fades follow the tempo map. Stored in source frames
+/// so later tempo edits cannot rewrite the input behind retained estimates.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct AudioViewTiming {
+    pub duration_frames: f64,
+    pub offset_frames: f64,
+    pub fade_in_frames: f64,
+    pub fade_out_frames: f64,
+}
+impl AudioViewTiming {
+    pub fn check(&self) -> Result<(), String> {
+        if !self.duration_frames.is_finite()
+            || self.duration_frames <= 0.0
+            || !self.offset_frames.is_finite()
+            || self.offset_frames < 0.0
+            || [self.fade_in_frames, self.fade_out_frames]
+                .iter()
+                .any(|v| !v.is_finite() || *v < 0.0 || *v > self.duration_frames)
+        {
+            return Err("Invalid frozen audio view timing.".into());
+        }
+        Ok(())
+    }
+}
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
 #[ts(export)]
 pub struct AudioEditRecipe {
     pub source_clip: Clip,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub source_timing: Option<AudioViewTiming>,
     pub analysis: AudioAnalysisData,
     pub overrides: Vec<AudioNoteOverride>,
     /// Includes fixed origin and editable duration endpoint.
@@ -105,6 +135,12 @@ impl AudioAnalysisData {
 impl AudioEditRecipe {
     pub fn check(&self) -> Result<(), String> {
         self.analysis.check()?;
+        if let Some(timing) = self.source_timing {
+            timing.check()?;
+            if (timing.duration_frames - 1e-6).ceil() != f64::from(self.analysis.frames) {
+                return Err("Frozen source timing disagrees with analyzed frames.".into());
+            }
+        }
         if !matches!(self.source_clip.content, ClipContent::Audio { .. })
             || self.overrides.len() > MAX_AUDIO_NOTES
             || (self.analysis.polyphonic && !self.overrides.is_empty())

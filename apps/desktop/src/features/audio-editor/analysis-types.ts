@@ -15,8 +15,15 @@ export type AudioNoteOverride = {
   endFrame: number
 }
 export type AudioWarpMarker = { sourceFrame: number; targetFrame: number }
+export type AudioViewTiming = {
+  durationFrames: number
+  offsetFrames: number
+  fadeInFrames: number
+  fadeOutFrames: number
+}
 export type AudioEditRecipe = {
   sourceClip: Clip
+  sourceTiming?: AudioViewTiming | null
   analysis: {
     frames: number
     sampleRate: number

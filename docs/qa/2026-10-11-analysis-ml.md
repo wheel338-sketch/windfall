@@ -39,9 +39,12 @@ rejects overflow/resolution/pattern bounds and batches new pattern/channel/notes
 and playlist clip in one history step. Source/estimate provenance is immutable.
 `features/audio-editor/analysis-tools.tsx` mounts pitch/score, time/warp and noise
 views with pointer/keyboard edits, draft history, preview, cancellation and
-reviewed insertion. The existing editor's tempo-automation refusal remains:
-the clock itself is tested against an analytic ramp, but opening automated-tempo
-audio clips still needs an editor view contract extension.
+reviewed insertion. Follow-up extends editor views to the exact playback tempo
+map: playlist edges and fades follow the map, while source offsets use stored
+tempo and audio retains its source speed. `AudioViewTiming` freezes the
+detection-time view in the saved recipe so later tempo changes cannot change
+the source under retained estimates. Legacy recipes without timing remain
+readable. Clip duration and trim placement use the same inverse map.
 
 Model adapters opt into `InferenceTask`: exact four stem roles or separate
 general/vocal dereverb roles with preserved channels. `NoteInferenceAdapter`
@@ -58,6 +61,8 @@ Additional tests, all **written, not executed**:
   `classical_cancel_at_prepared_publication_preserves_project_and_review`,
   `immutable_estimates_bad_warp_and_stale_source_cannot_apply`,
   `noise_profile_dry_wet_and_apply_preserve_source_and_saved_profile`.
+  Added `audio_score_under_tempo_ramp_uses_absolute_onsets_and_offsets`;
+  pitch persistence also reopens/auditions after a tempo change. Written, not executed.
 - `session/tests/analysis_jobs.rs`: `analysis_stem_review_preview_selected_remix_layout_is_aligned_and_one_undo`,
   `analysis_dereverb_modes_reach_adapter_and_refuse_mismatched_model_roles`,
   `analysis_unknown_duplicate_or_empty_stem_selection_leaves_ready_review_unchanged`.
@@ -65,6 +70,9 @@ Additional tests, all **written, not executed**:
 - `windfall-project/tests/audio_analysis.rs`: `processing_metadata_legacy_defaults_history_reopen_and_retained_source`,
   `shorter_warp_duration_and_crossing_note_anchors_are_checked_atomically`.
 - `windfall-engine/tests/analysis_clock.rs`: `audio_seconds_follow_tempo_ramp_and_meter_labels_do_not_change_clock`.
+  Expanded with independently integrated clip durations/fades and stored-tempo
+  offsets. Existing native audio-editor tempo-refusal case now checks supported
+  opening without mutation. Written, not executed.
 - `audio-editor/analysis-tools.test.tsx`: independent estimate/override editing,
   draft undo/audition payload; crossing warp rejection/profile wet preview;
   selected score apply; late detection after replacement.

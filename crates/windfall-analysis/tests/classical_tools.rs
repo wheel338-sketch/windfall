@@ -1,6 +1,6 @@
 //! Calibrated acceptance fixtures. Written, not executed by implementation worker.
 use std::time::Duration;
-use windfall_analysis::{CancelToken, Work, classical};
+use windfall_analysis::{classical, CancelToken, Work};
 use windfall_core::AudioBuffer;
 use windfall_project::{
     AudioDenoiseSettings, AudioEditRecipe, AudioNoteOverride, AudioWarpMarker, Clip, ClipContent,
@@ -30,6 +30,7 @@ fn signal(hz: &[f64], frames: usize) -> AudioBuffer {
 }
 fn recipe(audio: &AudioBuffer) -> AudioEditRecipe {
     AudioEditRecipe {
+        source_timing: None,
         source_clip: Clip {
             id: ClipId(8),
             track: PlaylistTrackId(7),
@@ -119,26 +120,20 @@ fn repeated_and_held_notes_silence_and_polyphonic_chord() {
     )
     .unwrap();
     for key in [60.0, 64.0, 67.0] {
-        assert!(
-            chord
-                .notes
-                .iter()
-                .any(|n| (n.midi_pitch - key).abs() < 0.1 && n.end_frame - n.start_frame > 24000)
-        );
+        assert!(chord
+            .notes
+            .iter()
+            .any(|n| (n.midi_pitch - key).abs() < 0.1 && n.end_frame - n.start_frame > 24000));
     }
     let silent = AudioBuffer::from_interleaved(16000, 1, vec![0.0; 16000]);
-    assert!(
-        classical::detect(&silent, false, &mut work())
-            .unwrap()
-            .notes
-            .is_empty()
-    );
-    assert!(
-        classical::detect(&silent, true, &mut work())
-            .unwrap()
-            .notes
-            .is_empty()
-    );
+    assert!(classical::detect(&silent, false, &mut work())
+        .unwrap()
+        .notes
+        .is_empty());
+    assert!(classical::detect(&silent, true, &mut work())
+        .unwrap()
+        .notes
+        .is_empty());
 }
 #[test]
 fn glide_vibrato_and_noise_keep_bounded_estimates() {
@@ -162,11 +157,10 @@ fn glide_vibrato_and_noise_keep_bounded_estimates() {
         );
         let data = classical::detect(&audio, false, &mut work()).unwrap();
         assert!(!data.notes.is_empty());
-        assert!(
-            data.notes
-                .iter()
-                .all(|n| (55.0..71.0).contains(&n.midi_pitch))
-        );
+        assert!(data
+            .notes
+            .iter()
+            .all(|n| (55.0..71.0).contains(&n.midi_pitch)));
     }
     let mut seed = 777_u32;
     let noise = AudioBuffer::from_interleaved(
@@ -179,12 +173,10 @@ fn glide_vibrato_and_noise_keep_bounded_estimates() {
             })
             .collect(),
     );
-    assert!(
-        classical::detect(&noise, false, &mut work())
-            .unwrap()
-            .notes
-            .is_empty()
-    );
+    assert!(classical::detect(&noise, false, &mut work())
+        .unwrap()
+        .notes
+        .is_empty());
 }
 #[test]
 fn warp_order_bounds_overrides_and_cancel_are_explicit() {

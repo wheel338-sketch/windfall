@@ -1,12 +1,12 @@
 //! Prepared analysis editor. All FFT/stretch/IO occurs outside recording/State.
-use super::{Editor, STALE, Session, lock};
+use super::{lock, Editor, Session, STALE};
 use std::time::Duration;
-use windfall_analysis::{CancelToken, Work, classical};
+use windfall_analysis::{classical, CancelToken, Work};
 use windfall_core::TICKS_PER_STEP;
 use windfall_ipc::{AudioAnalysisEdit, AudioAnalysisPreview, AudioEditOperation, AudioEditRequest};
 use windfall_project::{
     AudioEditRecipe, AudioWarpMarker, ChannelId, ClipContent, ClipInit, Command, DispatchResult,
-    MAX_PATTERN_TICKS, NoteInit, PatternId, PatternPatch,
+    NoteInit, PatternId, PatternPatch, MAX_PATTERN_TICKS,
 };
 
 struct Preparation<'a>(&'a Session);
@@ -35,7 +35,9 @@ fn checked_recipe<'a>(
         .recipe
         .as_ref()
         .ok_or("Detect audio before reviewing edits.")?;
-    if edit.recipe.analysis != original.analysis || edit.recipe.source_clip != original.source_clip
+    if edit.recipe.analysis != original.analysis
+        || edit.recipe.source_clip != original.source_clip
+        || edit.recipe.source_timing != original.source_timing
     {
         return Err(
             "Detected estimates and source provenance cannot be rewritten. Edit overrides instead."
@@ -93,6 +95,7 @@ impl Session {
                 .collect();
             prepared.recipe = Some(AudioEditRecipe {
                 source_clip,
+                source_timing: Some(prepared.analysis_timing),
                 analysis,
                 overrides: vec![],
                 markers,
