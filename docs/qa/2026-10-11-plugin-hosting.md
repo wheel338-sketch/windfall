@@ -100,7 +100,8 @@ host fixture helpers can invoke nested Cargo, so do not overlap test programs.
 source scripts/msvc-env.sh
 export CARGO_BUILD_JOBS=1
 export TS_RS_EXPORT_DIR="$(cygpath -w "$(mktemp -d)")"
-cargo generate-lockfile
+# Preserve existing locked dependency versions; record the new workspace member.
+cargo build -p windfall-plugin --jobs 1
 cargo build --manifest-path crates/windfall-plugin-host/test-plugins/Cargo.toml --target-dir target/plugin-fixtures --jobs 1
 cargo test --manifest-path crates/windfall-plugin-host/test-plugins/Cargo.toml --lib --jobs 1
 cargo build -p windfall-plugin-host --bin windfall-plugin-audio --jobs 1
