@@ -127,7 +127,8 @@ DispatchResult through the existing editor commit/token-renewal flow. The built-
 - Mounted real panels against the real WASM document:
   `channel-rack/sampler-second-pass.qa.test.tsx` (filter/LFO gesture history,
   Fit/apply/reopen, no-history preview/GC controls, telemetry/reset),
-  `transport/recording.qa.test.tsx` (start/keep/attachment/history/reopen),
+  `transport/recording.qa.test.tsx` (start/keep/attachment/history/reopen and
+  late Stop and keep refusal after actual WASM replacement),
   `export/playlist-tracks.qa.test.tsx` (guarded selected-region request),
   `audio-editor/second-pass.qa.test.tsx` (spectrum/regions/markers/history/reopen,
   advanced/stretch request controls, real effect editor recorder attachment,

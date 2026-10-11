@@ -48,3 +48,27 @@ it("mounts transport Record/start/keep through take attachment with one WASM und
   await act(async () => { await redo() })
   expect(useProjectStore.getState().project).toEqual(after)
 })
+
+it("refuses a late Stop and keep reply after WASM project replacement",async()=>{
+  const result=await app.backend.addAudioClipFromFile("/factory/Loops/Drum loop 128.wav",{start:960})
+  await app.backend.projectNew()
+  let active=false
+  vi.spyOn(app.backend,"recordingInputs").mockResolvedValue([{host:"Synthetic",device:"Input",channels:2,sampleRates:[48000]}])
+  const state=()=>({active,frames:active ? 24000 : 0,sampleRate:48000,startTick:960,error:null})
+  vi.spyOn(app.backend,"recordingState").mockImplementation(async()=>state())
+  vi.spyOn(app.backend,"recordingStart").mockImplementation(async()=>{active=true;return state()})
+  let resolve!: (value:typeof result)=>void
+  const keep=vi.spyOn(app.backend,"recordingStop").mockImplementation(()=>new Promise(done=>{active=false;resolve=done}))
+  render(<TransportBar/>)
+  await userEvent.click(screen.getByRole("button",{name:"Record audio input"}))
+  await userEvent.click(await screen.findByRole("button",{name:"Start recording"}))
+  await userEvent.click(screen.getByRole("button",{name:"Stop and keep"}))
+  await waitFor(()=>expect(keep).toHaveBeenCalledOnce())
+  await act(async()=>{await app.backend.projectNew()})
+  const before=useProjectStore.getState()
+  await act(async()=>{resolve(result)})
+  await waitFor(()=>expect(useRecordingStore.getState().busy).toBe(false))
+  expect(useRecordingStore.getState().error).toMatch(/project changed/)
+  expect(useProjectStore.getState()).toBe(before)
+  expect(before.project.playlist.clips).toEqual([])
+})
