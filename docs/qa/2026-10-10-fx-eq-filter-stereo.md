@@ -313,3 +313,55 @@ MIDI-triggered retrigger or song-position lock. The supplied summary requires
 drawn gate/filter patterns and eight series/parallel units, which this exposes;
 the cycle is processor-relative, following tempo, as with Pan Motion.
 No executed evidence or proprietary sonic identity is claimed.
+
+## Final implementation hand-off - 2026-10-11
+
+All nine rows are full-row candidates against their supplied summaries, pending
+integrator execution. No parity status file was edited. Prior worker work was
+continued, and all integration additions in the requested merge were preserved.
+
+Last acceptance additions (written, not executed):
+- `band_split_registered_outputs_match_independent_band_level_and_phase` measures
+  each registered aux output against independently derived LR4 complex responses
+  at 44.1/48/96 kHz, in both band modes.
+- `routed_band_split_mix_and_bypass_preserve_the_same_continuous_sum_as_the_plain_slot`
+  compares routed+main to the plain slot through mix and bypass fades.
+- The native three-output case counts callback allocations/frees after adoption.
+- Filter Bank mounted cases select real Parallel/Dry routing, enable every unit's
+  pattern, edit cycle/depth and draw points through the WASM history.
+- Project `damaged_filter_patterns_are_refused_and_legacy_patterns_default`
+  rejects out-of-range controls and wrong-length arrays on file load.
+
+Shared production seams changed by this continuation (outside merge contents):
+`crates/windfall-dsp/src/effect.rs` (third aux output and BandSplit admission),
+`crates/windfall-engine/src/mixer.rs` (third prepared scratch buffer),
+`apps/desktop/src/features/effects/effect-editor.tsx` (editor registration),
+`apps/desktop/src/features/params/access.ts` (known omitted default field).
+Other changes stay in stream-owned DSP/editor/test modules. No shared engine
+pan call sites, project command union, IPC transport or session host were edited.
+Existing checked effect-output routing owns validation/history/removal/PDC.
+
+Generated inventory for the full stream: new `MorphCurveParams`, `StereoInvert`,
+`FilterPatternParams`; changed `MorphEqParams`, `StereoEnhancerParams`,
+`PanLfoParams`, `FilterBankParams`, `FilterSlotMode`, dependent `EffectParams`
+exports, descriptors/automation fixtures and simulator. Regenerate once after
+integration. No generated source or WASM was hand-authored. Integration's own
+generated files were retained by the explicitly requested merge.
+
+Risk order for the integrator:
+1. Regenerate first: all mounted cases depend on fresh descriptors and WASM.
+2. Compile native tests, checking nested-array macro paths and new optional
+   pattern field export, and expanded aux buffer borrowing/capacity.
+3. Independent DSP phase/timing tolerances and routed native sum/live/export
+   exactness, especially two-band silent Mid and receiver processing.
+4. Mounted eight-tab/choice/switch/stroke gestures and omitted-default access.
+5. Run the existing all-kind hostile/allocator/engine realtime suites. The
+   ignored Seven Band timing comparison remains the CPU measurement gate;
+   no performance result has been fabricated.
+
+Remaining contract boundaries: eight-point repeating Filter Bank envelopes and
+Pan Motion start relative to processing, not song-position/MIDI retrigger;
+Stereo Enhancer's moving phase delay temporarily bends pitch; Morph EQ stores
+settings rather than analyzing/capturing audio. Those wider behaviors are not
+part of the supplied summaries. Hardware/listening review is external. Every
+new or previously authored test in this stream remains written, not executed.

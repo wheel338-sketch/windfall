@@ -503,11 +503,21 @@ describe("Filter Bank", () => {
     expect(customEditor("filterBank")).toBeDefined()
     const tabs = screen.getByRole("tablist", { name: "Filter units" })
     expect(within(tabs).getAllByRole("tab")).toHaveLength(8)
+    await choose("filterBank", "routing", "Parallel")
+    expect(stored(effect, "filterBank", "routing")).toBe(1)
+    await undo()
+    await flush()
+    expect(stored(effect, "filterBank", "routing")).toBe(0)
     for (let unit = 0; unit < 8; unit += 1) {
       await user.click(within(tabs).getByRole("tab", { name: `Unit ${unit + 1}` }))
       await flush()
       expect(screen.getByRole("img", { name: new RegExp(`Unit ${unit + 1} gate envelope:`) })).toBeVisible()
-      await expectSliders("filterBank", effect, [`patterns.${unit}.gate.0`, `patterns.${unit}.cutoff.7`])
+      await choose("filterBank", `slots.${unit}.mode`, "Dry")
+      expect(stored(effect, "filterBank", `slots.${unit}.mode`)).toBe(4)
+      await user.click(screen.getByRole("switch", { name: `Unit ${unit + 1} pattern` }))
+      await flush()
+      expect(stored(effect, "filterBank", `patterns.${unit}.enabled`)).toBe(1)
+      await expectSliders("filterBank", effect, [`patterns.${unit}.gate.0`, `patterns.${unit}.cutoff.7`, `patterns.${unit}.beats`, `patterns.${unit}.depthOctaves`])
     }
   })
 

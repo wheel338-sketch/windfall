@@ -163,3 +163,51 @@ fn settings_saved_with_only_their_type_load_as_the_defaults() {
         loaded.check().unwrap();
     }
 }
+
+#[test]
+fn damaged_filter_patterns_are_refused_and_legacy_patterns_default() {
+    use windfall_dsp::eqbank::FilterBankParams;
+    let mut doc = Document::new(Project::new("Filter patterns"));
+    let effect = add(&mut doc, EffectKind::FilterBank);
+    let original = serde_json::to_value(doc.project()).unwrap();
+    assert!(
+        original["mixer"]["tracks"][0]["effects"][0]["params"]
+            .get("patterns")
+            .is_none()
+    );
+    let mut patterned = FilterBankParams::default();
+    patterned.patterns[7].enabled = true;
+    doc.dispatch(
+        Command::SetEffectParams {
+            track: TrackId::MASTER,
+            effect,
+            params: EffectParams::FilterBank(patterned),
+        },
+        None,
+    )
+    .unwrap();
+    let valid = serde_json::to_value(doc.project()).unwrap();
+    for (field, bad) in [("beats", 0.0), ("depthOctaves", 9.0)] {
+        let mut json = valid.clone();
+        json["mixer"]["tracks"][0]["effects"][0]["params"]["patterns"][7][field] =
+            serde_json::json!(bad);
+        assert!(
+            file::from_json(&serde_json::to_string(&json).unwrap()).is_err(),
+            "{field}"
+        );
+    }
+    let mut wrong_length = valid.clone();
+    wrong_length["mixer"]["tracks"][0]["effects"][0]["params"]["patterns"][7]["gate"] =
+        serde_json::json!([0.5]);
+    assert!(file::from_json(&serde_json::to_string(&wrong_length).unwrap()).is_err());
+    let mut outside = valid;
+    outside["mixer"]["tracks"][0]["effects"][0]["params"]["patterns"][7]["cutoff"][0] =
+        serde_json::json!(2.0);
+    assert!(file::from_json(&serde_json::to_string(&outside).unwrap()).is_err());
+    assert_eq!(params(&doc, effect), EffectParams::FilterBank(patterned));
+    doc.undo().unwrap();
+    assert_eq!(
+        params(&doc, effect),
+        EffectKind::FilterBank.default_params()
+    );
+}

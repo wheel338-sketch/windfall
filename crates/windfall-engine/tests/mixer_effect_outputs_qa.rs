@@ -898,6 +898,14 @@ fn qa_band_split_routes_each_band_through_tracks_history_files_and_export() {
             let sum: f32 = expected[n].iter().map(|frame| frame[0]).sum();
             assert!((together[n] - sum).abs() < 3e-6);
         }
+        // Three real routed outputs do not allocate or retire storage in the callback.
+        let (mut processor, controller) = rig.processor(RATE);
+        controller.play();
+        let mut buffer = [0.0; 254];
+        processor.process(&mut buffer);
+        assert_eq!(allocator_calls(|| {
+            for _ in 0..24 { processor.process(&mut buffer); }
+        }), 0);
         // Destinations have independent processors: invert only the low band.
         rig.effect(targets[0], flip());
         let processed = left(&rig.play(RATE, FRAMES, 127));

@@ -1432,3 +1432,131 @@ fn drawn_cutoff_audio_matches_an_independent_time_varying_iir_reference() {
         assert!((f64::from(heard[n]) - y).abs() < 1e-5, "frame {n}");
     }
 }
+
+#[test]
+fn band_split_registered_outputs_match_independent_band_level_and_phase() {
+    use windfall_dsp::AuxBlock;
+    for rate in RATES {
+        for bands in [BandCount::Two, BandCount::Three] {
+            for hz in [100.0, 300.0, 1_000.0, 3_000.0, 8_000.0] {
+                let params = EffectParams::BandSplit(BandSplitParams {
+                    bands,
+                    low_crossover_hz: 300.0,
+                    high_crossover_hz: 3_000.0,
+                    ..Default::default()
+                });
+                let mut processor = effect(&params, rate, 512);
+                let frames = rate as usize;
+                let window = frames / 2;
+                let angle = |n: usize| TAU * hz * n as f64 / f64::from(rate);
+                let mut left: Vec<f32> =
+                    (0..frames).map(|n| (0.1 * angle(n).sin()) as f32).collect();
+                let mut right = left.clone();
+                let mut outputs: [Vec<[f32; 2]>; 3] =
+                    std::array::from_fn(|_| vec![[0.0; 2]; frames]);
+                let [low, mid, high] = &mut outputs;
+                processor.process_aux(
+                    &mut left,
+                    &mut right,
+                    None,
+                    &mut AuxBlock {
+                        routed: 7,
+                        outputs: [low, mid, high],
+                    },
+                );
+                let pair = |corner| {
+                    let l = section(
+                        Shape::Lowpass,
+                        corner,
+                        1.0 / 2.0_f64.sqrt(),
+                        0.0,
+                        hz,
+                        f64::from(rate),
+                    );
+                    let h = section(
+                        Shape::Highpass,
+                        corner,
+                        1.0 / 2.0_f64.sqrt(),
+                        0.0,
+                        hz,
+                        f64::from(rate),
+                    );
+                    (multiply(l, l), multiply(h, h))
+                };
+                let (l1, h1) = pair(300.0);
+                let (l2, h2) = pair(3_000.0);
+                let upper = (l2.0 + h2.0, l2.1 + h2.1);
+                let references = [multiply(l1, upper), multiply(h1, l2), multiply(h1, h2)];
+                let references = if bands == BandCount::Two {
+                    [references[0], (0.0, 0.0), multiply(h1, upper)]
+                } else {
+                    references
+                };
+                for band in 0..3 {
+                    if bands == BandCount::Two && band == 1 {
+                        assert!(outputs[band].iter().all(|frame| *frame == [0.0; 2]));
+                        continue;
+                    }
+                    let (mut sin, mut cos) = (0.0, 0.0);
+                    for n in frames - window..frames {
+                        sin += f64::from(outputs[band][n][0]) * angle(n).sin();
+                        cos += f64::from(outputs[band][n][0]) * angle(n).cos();
+                    }
+                    let factor = 2.0 / (0.1 * window as f64);
+                    let heard = (sin * factor, cos * factor);
+                    if magnitude_db(references[band]) > -60.0 {
+                        assert!(
+                            (magnitude_db(heard) - magnitude_db(references[band])).abs() < 0.05
+                        );
+                        assert!(phase_gap(phase(heard), phase(references[band])) < 0.01);
+                    }
+                }
+            }
+        }
+    }
+}
+
+#[test]
+fn routed_band_split_mix_and_bypass_preserve_the_same_continuous_sum_as_the_plain_slot() {
+    use windfall_dsp::AuxBlock;
+    let params = EffectParams::BandSplit(BandSplitParams::default());
+    let mut routed = EffectSlot::new(AnyEffect::new(&params));
+    let mut plain = EffectSlot::new(AnyEffect::new(&params));
+    for slot in [&mut routed, &mut plain] {
+        slot.prepare(48_000.0, 512);
+        slot.set_params(&params);
+        slot.set_mix(0.4);
+    }
+    let source = busy(4_800, 7);
+    for segment in 0..3 {
+        for slot in [&mut routed, &mut plain] {
+            slot.set_enabled(segment != 1);
+        }
+        for start in (segment * 1_600..(segment + 1) * 1_600).step_by(7) {
+            let end = (start + 7).min((segment + 1) * 1_600);
+            let mut l = source[start..end].to_vec();
+            let mut r = l.clone();
+            let (mut pl, mut pr) = (l.clone(), r.clone());
+            let mut outputs: [Vec<[f32; 2]>; 3] =
+                std::array::from_fn(|_| vec![[0.0; 2]; end - start]);
+            let [low, mid, high] = &mut outputs;
+            routed.process_routed(
+                &mut l,
+                &mut r,
+                None,
+                &mut AuxBlock {
+                    routed: 7,
+                    outputs: [low, mid, high],
+                },
+            );
+            plain.process(&mut pl, &mut pr);
+            for n in 0..l.len() {
+                let total = l[n] + outputs.iter().map(|band| band[n][0]).sum::<f32>();
+                assert!((total - pl[n]).abs() < 2e-6, "frame {}", start + n);
+                if segment == 1 && start > 2_200 {
+                    assert!(outputs.iter().all(|band| band[n] == [0.0; 2]));
+                }
+            }
+        }
+    }
+}
