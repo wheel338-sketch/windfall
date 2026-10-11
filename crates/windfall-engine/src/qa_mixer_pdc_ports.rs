@@ -128,6 +128,7 @@ impl Rig {
                 input_gain_db: 0.0,
                 release_ms: 100.0,
                 lookahead_ms: 5.0,
+                ..LimiterParams::default()
             }),
         });
     }
