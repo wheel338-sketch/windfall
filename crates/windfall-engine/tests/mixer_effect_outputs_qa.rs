@@ -12,7 +12,9 @@ mod support;
 use std::alloc::{GlobalAlloc, Layout, System};
 use std::cell::Cell;
 
-use support::{Rig, counted, counting, idle_limiter, impulse, largest_step, left, level, right, run};
+use support::{
+    Rig, counted, counting, idle_limiter, impulse, largest_step, left, level, right, run,
+};
 use windfall_core::AudioBuffer;
 use windfall_dsp::sendtap::SendTapParams;
 use windfall_dsp::{Effect, EffectKind, PolarityParams, TransientSplit, TransientSplitParams};
@@ -112,7 +114,11 @@ fn tap_rig() -> (Rig, TrackId, TrackId) {
 /// the sample lasts, and silence after it.
 fn assert_counted(audio: &[f32], gain: f32, what: &str) {
     for (frame, pair) in audio.chunks_exact(2).enumerate() {
-        let expected = if frame < 2_000 { gain * counted(frame) } else { 0.0 };
+        let expected = if frame < 2_000 {
+            gain * counted(frame)
+        } else {
+            0.0
+        };
         assert_eq!(pair, [expected, expected], "{what}: frame {frame}");
     }
 }
@@ -263,7 +269,11 @@ fn qa_send_tap_is_sample_aligned_with_its_track_around_latent_effects() {
             let case = format!("tap_first={tap_first} destination={destination_latency:?}");
             let heard = rig.play(FAST, 2_000, 127);
             let found = marks(&heard);
-            assert_eq!(found.len(), 1, "{case}: both copies on one frame, got {found:?}");
+            assert_eq!(
+                found.len(),
+                1,
+                "{case}: both copies on one frame, got {found:?}"
+            );
             assert!(
                 (found[0].1 - 1.5).abs() < 1e-5,
                 "{case}: direct plus tap, got {found:?}"
@@ -311,7 +321,10 @@ fn qa_send_tap_route_command_history_file_and_loop_refusal_reach_the_audio() {
         },
         None,
     );
-    assert!(looped.is_err(), "output back into the tapped track must be refused");
+    assert!(
+        looped.is_err(),
+        "output back into the tapped track must be refused"
+    );
     assert_eq!(document.project(), &before);
 
     // Deleting the destination retires the route in the same step, and one
@@ -397,15 +410,27 @@ fn qa_send_tap_level_automation_moves_the_send_without_steps() {
     let heard = left(&rig.play_song(RATE, 6_000, 64));
     // Automation is read once a block, so the first block already holds
     // the curve's value 64 frames in: 64/4000 of the 0.5 signal.
-    assert!(heard[0].abs() <= 0.5 * 64.0 / 4_000.0 + 1e-6, "starts closed, got {}", heard[0]);
-    assert!((heard[5_000] - 0.5).abs() < 1e-3, "ends open, got {}", heard[5_000]);
+    assert!(
+        heard[0].abs() <= 0.5 * 64.0 / 4_000.0 + 1e-6,
+        "starts closed, got {}",
+        heard[0]
+    );
+    assert!(
+        (heard[5_000] - 0.5).abs() < 1e-3,
+        "ends open, got {}",
+        heard[5_000]
+    );
     assert!(
         heard.windows(2).all(|pair| pair[1] >= pair[0] - 1e-6),
         "a rising level never dips"
     );
     // The level travels its whole range in 5 ms at the fastest: 1/40 of the
     // 0.5 signal per frame at 8 kHz.
-    assert!(largest_step(&heard) <= 0.5 / 40.0 + 1e-6, "{}", largest_step(&heard));
+    assert!(
+        largest_step(&heard) <= 0.5 / 40.0 + 1e-6,
+        "{}",
+        largest_step(&heard)
+    );
     assert_eq!(heard, left(&rig.play_song(RATE, 6_000, 64)));
 }
 
@@ -428,15 +453,29 @@ fn qa_send_tap_route_edits_while_playing_fade_instead_of_clicking() {
     route(&mut rig, tap, 0, destination);
     controller.set_project(&rig.project, &rig.pool);
     let joined = left(&run(&mut processor, 1_000, 127));
-    assert!((joined[999] - 0.5).abs() < 1e-6, "route settles at the send level");
-    assert!(largest_step(&joined) < 0.05, "fade in, got {}", largest_step(&joined));
+    assert!(
+        (joined[999] - 0.5).abs() < 1e-6,
+        "route settles at the send level"
+    );
+    assert!(
+        largest_step(&joined) < 0.05,
+        "fade in, got {}",
+        largest_step(&joined)
+    );
 
     // The level is turned down while it is sending: the send glides there.
     rig.effect_mut(tap).params = send_tap(0.25);
     controller.set_project(&rig.project, &rig.pool);
     let turned = left(&run(&mut processor, 1_000, 127));
-    assert!((turned[999] - 0.125).abs() < 1e-6, "the new level is reached");
-    assert!(largest_step(&turned) < 0.05, "level glide, got {}", largest_step(&turned));
+    assert!(
+        (turned[999] - 0.125).abs() < 1e-6,
+        "the new level is reached"
+    );
+    assert!(
+        largest_step(&turned) < 0.05,
+        "level glide, got {}",
+        largest_step(&turned)
+    );
 
     // The tap effect is deleted: its route goes with it, as a removed send
     // does, and nothing of it is left.
@@ -444,7 +483,10 @@ fn qa_send_tap_route_edits_while_playing_fade_instead_of_clicking() {
     rig.project.mixer.effect_outputs.clear();
     controller.set_project(&rig.project, &rig.pool);
     let gone = left(&run(&mut processor, 1_000, 127));
-    assert!(gone[1..].iter().all(|v| *v == 0.0), "a deleted tap is silent");
+    assert!(
+        gone[1..].iter().all(|v| *v == 0.0),
+        "a deleted tap is silent"
+    );
 }
 
 #[test]
@@ -488,7 +530,10 @@ fn qa_routed_outputs_never_allocate_on_the_audio_thread() {
         }
     });
     rig.remove_effect(tap);
-    rig.project.mixer.effect_outputs.retain(|route| route.effect != tap);
+    rig.project
+        .mixer
+        .effect_outputs
+        .retain(|route| route.effect != tap);
     controller.set_project(&rig.project, &rig.pool);
     calls += allocator_calls(|| {
         for chunk in out.chunks_mut(2 * 127) {
@@ -574,7 +619,11 @@ fn qa_transient_split_sends_each_part_to_its_own_track() {
     // Only the transient track is heard: exactly the transient part.
     rig.track_mut(sustain).muted = true;
     let heard = rig.play(RATE, frames, 127);
-    assert_eq!(left(&heard), attack, "the transient track carries the transient part");
+    assert_eq!(
+        left(&heard),
+        attack,
+        "the transient track carries the transient part"
+    );
     assert_eq!(left(&heard), right(&heard));
     assert_eq!(heard, rig.play(RATE, frames, 1));
     assert_eq!(heard, rig.play(RATE, frames, 64));
@@ -583,13 +632,25 @@ fn qa_transient_split_sends_each_part_to_its_own_track() {
     rig.track_mut(sustain).muted = false;
     rig.track_mut(transient).muted = true;
     let heard = rig.play(RATE, frames, 127);
-    assert_eq!(left(&heard), body, "the sustain track carries the sustained part");
+    assert_eq!(
+        left(&heard),
+        body,
+        "the sustain track carries the sustained part"
+    );
     assert_eq!(heard, rig.play(RATE, frames, 1));
 
     // The separation is a real one. The transient part holds the onsets
     // and little else; the sustained part holds the ring and not the onset.
-    let onset = |signal: &[f32]| (0..3).map(|hit| energy(&signal[hit * HIT..][..40])).sum::<f64>();
-    let ring = |signal: &[f32]| (0..3).map(|hit| energy(&signal[hit * HIT + 400..][..1_200])).sum::<f64>();
+    let onset = |signal: &[f32]| {
+        (0..3)
+            .map(|hit| energy(&signal[hit * HIT..][..40]))
+            .sum::<f64>()
+    };
+    let ring = |signal: &[f32]| {
+        (0..3)
+            .map(|hit| energy(&signal[hit * HIT + 400..][..1_200]))
+            .sum::<f64>()
+    };
     let shares = [
         onset(&attack) / onset(&input),
         ring(&attack) / ring(&input),
@@ -599,9 +660,15 @@ fn qa_transient_split_sends_each_part_to_its_own_track() {
     // Measured at the default settings: about 0.53, 0.0, 1.0 and 0.10. The
     // parts are amplitudes that add up to the input, so their energies in
     // a window where both are present do not.
-    assert!(shares[0] > 0.4, "onsets go to the transient part: {shares:?}");
+    assert!(
+        shares[0] > 0.4,
+        "onsets go to the transient part: {shares:?}"
+    );
     assert!(shares[1] < 0.01, "the ring does not: {shares:?}");
-    assert!(shares[2] > 0.99, "the ring goes to the sustained part: {shares:?}");
+    assert!(
+        shares[2] > 0.99,
+        "the ring goes to the sustained part: {shares:?}"
+    );
     assert!(shares[3] < 0.2, "the onset does not: {shares:?}");
 }
 
@@ -631,11 +698,17 @@ fn qa_transient_split_routed_parts_leave_the_chain_and_sum_back_to_the_input() {
     rig.track_mut(sustain).muted = false;
     let together = left(&rig.play(RATE, frames, 127));
     for (frame, (heard, dry)) in together.iter().zip(&input).enumerate() {
-        assert!((heard - dry).abs() < 1e-6, "frame {frame}: {heard} against {dry}");
+        assert!(
+            (heard - dry).abs() < 1e-6,
+            "frame {frame}: {heard} against {dry}"
+        );
     }
 
     // With only the transient routed, the chain keeps the sustained part.
-    rig.project.mixer.effect_outputs.retain(|route| route.output == 0);
+    rig.project
+        .mixer
+        .effect_outputs
+        .retain(|route| route.output == 0);
     rig.track_mut(transient).muted = true;
     assert_eq!(left(&rig.play(RATE, frames, 127)), body);
     // And the other way round.
@@ -673,10 +746,16 @@ fn qa_transient_split_parts_can_be_processed_separately() {
     let heard = left(&rig.play(RATE, frames, 127));
     for (frame, value) in heard.iter().enumerate() {
         let expected = 0.5 * body[frame] - attack[frame];
-        assert!((value - expected).abs() < 1e-6, "frame {frame}: {value} against {expected}");
+        assert!(
+            (value - expected).abs() < 1e-6,
+            "frame {frame}: {value} against {expected}"
+        );
     }
     assert!(
-        heard.iter().zip(&input).any(|(heard, dry)| (heard - dry).abs() > 0.1),
+        heard
+            .iter()
+            .zip(&input)
+            .any(|(heard, dry)| (heard - dry).abs() > 0.1),
         "the separate processing is audible"
     );
 }
@@ -724,7 +803,11 @@ fn qa_transient_split_routes_follow_commands_history_file_and_offline_render() {
     );
 
     rig.project = file::from_json(&file::to_json(document.project()).unwrap()).unwrap();
-    assert_eq!(left(&rig.play(RATE, frames, 127)), attack, "reopened routes");
+    assert_eq!(
+        left(&rig.play(RATE, frames, 127)),
+        attack,
+        "reopened routes"
+    );
 
     // Export is the same audio as playback.
     let options = RenderOptions {
@@ -734,7 +817,11 @@ fn qa_transient_split_routes_follow_commands_history_file_and_offline_render() {
         ..RenderOptions::default()
     };
     let offline = render(&rig.project, &rig.pool, &options, &mut |_| true);
-    assert_eq!(left(&offline.samples()[..frames * 2]), attack, "offline render");
+    assert_eq!(
+        left(&offline.samples()[..frames * 2]),
+        attack,
+        "offline render"
+    );
 
     // Undo both routes: the plain effect again, the whole signal on the
     // source track.

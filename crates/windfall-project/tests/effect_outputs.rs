@@ -99,7 +99,10 @@ fn only_send_tap_and_transient_split_have_routable_outputs() {
             _ => assert!(outputs.is_empty(), "{kind:?} has no routable output"),
         }
         assert!(outputs.len() <= windfall_dsp::MAX_AUX_OUTPUTS);
-        assert_eq!(windfall_project::effect_outputs::output_count(kind), outputs.len());
+        assert_eq!(
+            windfall_project::effect_outputs::output_count(kind),
+            outputs.len()
+        );
     }
 }
 
@@ -117,7 +120,10 @@ fn routes_are_added_retargeted_and_disconnected_one_undo_step_each() {
 
     let applied = doc.dispatch(route(tap, 0, first), None).unwrap();
     assert!(applied.created.is_empty());
-    assert!(applied.touched.mixer, "the mixer section carries the routes");
+    assert!(
+        applied.touched.mixer,
+        "the mixer section carries the routes"
+    );
     assert_eq!(
         routes(&doc),
         [EffectOutputRoute {
@@ -149,7 +155,11 @@ fn routes_are_added_retargeted_and_disconnected_one_undo_step_each() {
     )
     .unwrap();
     assert_eq!(routes(&doc).len(), 2);
-    assert!(routes(&doc).iter().all(|route| (route.effect, route.output) != (split, 1)));
+    assert!(
+        routes(&doc)
+            .iter()
+            .all(|route| (route.effect, route.output) != (split, 1))
+    );
 
     // Disconnecting what is not connected, or routing to where it already
     // goes, changes nothing and leaves no history entry.
@@ -165,10 +175,20 @@ fn routes_are_added_retargeted_and_disconnected_one_undo_step_each() {
         )
         .unwrap();
     assert!(same.touched.is_empty());
-    assert!(doc.dispatch(route(tap, 0, second), None).unwrap().touched.is_empty());
+    assert!(
+        doc.dispatch(route(tap, 0, second), None)
+            .unwrap()
+            .touched
+            .is_empty()
+    );
     assert_eq!(doc.history().entries.len(), history);
 
-    let labels: Vec<_> = doc.history().entries.iter().map(|entry| entry.label.clone()).collect();
+    let labels: Vec<_> = doc
+        .history()
+        .entries
+        .iter()
+        .map(|entry| entry.label.clone())
+        .collect();
     assert_eq!(labels[labels.len() - 1], "Disconnect effect output");
     assert_eq!(labels[labels.len() - 2], "Route effect output");
 
@@ -212,7 +232,10 @@ fn invalid_routes_are_refused_and_change_nothing() {
         ("a missing effect", route(EffectId(9_999), 0, first)),
     ];
     for (what, command) in refused {
-        assert!(doc.dispatch(command, None).is_err(), "{what} must be refused");
+        assert!(
+            doc.dispatch(command, None).is_err(),
+            "{what} must be refused"
+        );
         assert_eq!(doc.project(), &before, "{what} must change nothing");
     }
     // Disconnecting an output that does not exist is refused the same way.
@@ -371,7 +394,8 @@ fn routes_follow_their_effect_and_retire_with_it_in_the_same_undo_step() {
     doc.undo().expect("undo duplicate");
 
     // Deleting a destination retires the routes into it only.
-    doc.dispatch(Command::RemoveMixerTrack { id: first }, None).unwrap();
+    doc.dispatch(Command::RemoveMixerTrack { id: first }, None)
+        .unwrap();
     assert_eq!(
         routes(&doc),
         [EffectOutputRoute {
@@ -385,7 +409,8 @@ fn routes_follow_their_effect_and_retire_with_it_in_the_same_undo_step() {
     assert_restored(&doc, &routed);
 
     // Deleting the source takes its effects and all their routes.
-    doc.dispatch(Command::RemoveMixerTrack { id: source }, None).unwrap();
+    doc.dispatch(Command::RemoveMixerTrack { id: source }, None)
+        .unwrap();
     assert!(routes(&doc).is_empty());
     doc.project().check().unwrap();
     doc.undo().expect("undo delete source");
@@ -406,7 +431,10 @@ fn routes_follow_their_effect_and_retire_with_it_in_the_same_undo_step() {
         None,
     )
     .unwrap();
-    let kept: Vec<_> = routes(&doc).iter().filter(|route| route.effect == split).collect();
+    let kept: Vec<_> = routes(&doc)
+        .iter()
+        .filter(|route| route.effect == split)
+        .collect();
     assert_eq!(kept.len(), 1);
     assert_eq!((kept[0].output, kept[0].target), (1, second));
     doc.project().check().unwrap();
@@ -461,7 +489,10 @@ fn a_moved_effect_loses_a_route_that_would_loop_where_it_now_sits() {
         None,
     )
     .unwrap();
-    assert!(routes(&doc).is_empty(), "a looping route is dropped, not kept broken");
+    assert!(
+        routes(&doc).is_empty(),
+        "a looping route is dropped, not kept broken"
+    );
     doc.project().check().unwrap();
     doc.undo().expect("undo move");
     assert_eq!(routes(&doc).len(), 1);
@@ -481,7 +512,10 @@ fn a_track_preset_carries_no_routes_and_loading_one_retires_the_replaced_ones() 
     doc.dispatch(route(tap, 0, first), None).unwrap();
     let preset = MixerTrackPreset::capture(doc.project(), source).unwrap();
     let encoded = serde_json::to_string(&preset).unwrap();
-    assert!(!encoded.contains("effectOutputs"), "routing stays with the project");
+    assert!(
+        !encoded.contains("effectOutputs"),
+        "routing stays with the project"
+    );
 
     // Loading the preset onto the routed track replaces its effects with
     // fresh ones, so the old tap's route goes in the same step.
@@ -532,7 +566,13 @@ fn routes_save_reopen_and_stay_out_of_files_that_have_none() {
     // files are unaffected.
     let plain = file::to_json(doc.project()).unwrap();
     assert!(!plain.contains("effectOutputs"));
-    assert!(file::from_json(&plain).unwrap().mixer.effect_outputs.is_empty());
+    assert!(
+        file::from_json(&plain)
+            .unwrap()
+            .mixer
+            .effect_outputs
+            .is_empty()
+    );
 
     doc.dispatch(route(tap, 0, first), None).unwrap();
     doc.dispatch(route(split, 1, second), None).unwrap();
@@ -556,10 +596,22 @@ fn a_file_with_a_damaged_route_is_refused_on_load() {
     let good = doc.project().clone();
 
     let damage: [(&str, Box<dyn Fn(&mut Project)>); 6] = [
-        ("an output the effect lacks", Box::new(|p| p.mixer.effect_outputs[0].output = 1)),
-        ("a missing effect", Box::new(|p| p.mixer.effect_outputs[0].effect = EffectId(9_999))),
-        ("a missing target", Box::new(|p| p.mixer.effect_outputs[0].target = TrackId(9_999))),
-        ("its own track", Box::new(move |p| p.mixer.effect_outputs[0].target = source)),
+        (
+            "an output the effect lacks",
+            Box::new(|p| p.mixer.effect_outputs[0].output = 1),
+        ),
+        (
+            "a missing effect",
+            Box::new(|p| p.mixer.effect_outputs[0].effect = EffectId(9_999)),
+        ),
+        (
+            "a missing target",
+            Box::new(|p| p.mixer.effect_outputs[0].target = TrackId(9_999)),
+        ),
+        (
+            "its own track",
+            Box::new(move |p| p.mixer.effect_outputs[0].target = source),
+        ),
         (
             "a duplicated route",
             Box::new(|p| {
@@ -570,7 +622,12 @@ fn a_file_with_a_damaged_route_is_refused_on_load() {
         (
             "a routing loop",
             Box::new(move |p| {
-                let track = p.mixer.tracks.iter_mut().find(|track| track.id == first).unwrap();
+                let track = p
+                    .mixer
+                    .tracks
+                    .iter_mut()
+                    .find(|track| track.id == first)
+                    .unwrap();
                 track.output = Some(source);
             }),
         ),

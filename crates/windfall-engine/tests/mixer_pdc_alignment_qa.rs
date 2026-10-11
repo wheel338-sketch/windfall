@@ -96,7 +96,10 @@ fn assert_one_mark(audio: &[f32], frame: usize, sum: f32, what: &str) {
     let found = marks(audio);
     assert_eq!(found.len(), 1, "{what}: one frame expected, got {found:?}");
     assert_eq!(found[0].0, frame, "{what}: wrong frame, got {found:?}");
-    assert!((found[0].1 - sum).abs() < 1e-5, "{what}: wrong sum, got {found:?}");
+    assert!(
+        (found[0].1 - sum).abs() < 1e-5,
+        "{what}: wrong sum, got {found:?}"
+    );
     assert_eq!(left(audio), right(audio), "{what}: sides differ");
 }
 
@@ -165,7 +168,12 @@ fn qa_parallel_tracks_buses_and_sends_of_different_latency_land_on_one_frame() {
     rig.track_mut(quick).output = Some(bus);
     let direct = rig.channel_on(impulse(RATE), bus);
     rig.steps(direct, &[0]);
-    assert_aligned(&rig, FIVE_MS + 96, 4.0, "two feeders and a direct voice on the bus");
+    assert_aligned(
+        &rig,
+        FIVE_MS + 96,
+        4.0,
+        "two feeders and a direct voice on the bus",
+    );
 
     // A send from a latent track into a return that has its own latency,
     // while the same track also plays to the master.
@@ -214,7 +222,10 @@ fn pulse_rig() -> (Rig, TrackId, TrackId) {
     let (first, second) = (rig.track(), rig.track());
     for track in [first, second] {
         let channel = rig.channel_on(impulse(RATE), track);
-        rig.steps(channel, &[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]);
+        rig.steps(
+            channel,
+            &[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
+        );
     }
     (rig, first, second)
 }
@@ -223,7 +234,13 @@ fn pulse_rig() -> (Rig, TrackId, TrackId) {
 /// that every impulse of the following three steps is a single frame of
 /// `sum`, `latency` frames after its step.
 #[track_caller]
-fn assert_pulses_aligned(processor: &mut Processor, played: &mut usize, latency: usize, sum: f32, what: &str) {
+fn assert_pulses_aligned(
+    processor: &mut Processor,
+    played: &mut usize,
+    latency: usize,
+    sum: f32,
+    what: &str,
+) {
     // Let the change of plan settle: its fades and the crossfade of the
     // compensation delays take a few milliseconds.
     let settle = 2 * STEP - (*played % STEP);
@@ -281,12 +298,24 @@ fn qa_adding_removing_moving_and_retiming_effects_while_playing_stays_aligned() 
         .unwrap();
     rig.project = document.project().clone();
     controller.set_project(&rig.project, &rig.pool);
-    assert_pulses_aligned(&mut processor, &mut played, 120, 2.0, "moved to the other track");
+    assert_pulses_aligned(
+        &mut processor,
+        &mut played,
+        120,
+        2.0,
+        "moved to the other track",
+    );
 
     // A second latent effect behind it, then reorder the two.
     let longer = rig.effect(second, idle_limiter(5.0));
     controller.set_project(&rig.project, &rig.pool);
-    assert_pulses_aligned(&mut processor, &mut played, 360, 2.0, "second limiter added");
+    assert_pulses_aligned(
+        &mut processor,
+        &mut played,
+        360,
+        2.0,
+        "second limiter added",
+    );
     rig.track_mut(second).effects.swap(0, 1);
     controller.set_project(&rig.project, &rig.pool);
     assert_pulses_aligned(&mut processor, &mut played, 360, 2.0, "chain reordered");
@@ -339,7 +368,10 @@ fn qa_compensation_changes_while_playing_never_allocate() {
     rig.track_mut(first).latency_offset_ms = 0.0;
     controller.set_project(&rig.project, &rig.pool);
     calls += spin(&mut processor, 127);
-    assert_eq!(calls, 0, "compensation changes must not touch the allocator");
+    assert_eq!(
+        calls, 0,
+        "compensation changes must not touch the allocator"
+    );
 }
 
 // A hosted effect that reports latency and delays by it, to compensate a
@@ -383,15 +415,29 @@ impl HostedEffect for Latent {
 }
 
 impl PluginFactory for LatentFactory {
-    fn effect(&self, binding: &PluginBinding, _rate: u32, _block: usize) -> Result<Box<dyn HostedEffect>, String> {
-        let frames: usize = binding.id.trim_start_matches("difference-").parse().unwrap_or(0);
+    fn effect(
+        &self,
+        binding: &PluginBinding,
+        _rate: u32,
+        _block: usize,
+    ) -> Result<Box<dyn HostedEffect>, String> {
+        let frames: usize = binding
+            .id
+            .trim_start_matches("difference-")
+            .parse()
+            .unwrap_or(0);
         Ok(Box::new(Latent {
             line: vec![[0.0; 2]; frames],
             at: 0,
             difference: binding.id.starts_with("difference-"),
         }))
     }
-    fn instrument(&self, _binding: &PluginBinding, _rate: u32, _block: usize) -> Result<Box<dyn HostedInstrument>, String> {
+    fn instrument(
+        &self,
+        _binding: &PluginBinding,
+        _rate: u32,
+        _block: usize,
+    ) -> Result<Box<dyn HostedInstrument>, String> {
         Err("effect fixture only".into())
     }
 }
@@ -420,7 +466,12 @@ fn qa_hosted_plugin_latency_is_compensated_like_a_built_in() {
     hosted(&mut rig, slow, "333");
     rig.effect(slow, idle_limiter(5.0));
     rig.pool.set_plugin_factory(Arc::new(LatentFactory));
-    assert_one_mark(&play_checked(&rig, 2_000), 333 + FIVE_MS, 2.0, "hosted plus built-in latency");
+    assert_one_mark(
+        &play_checked(&rig, 2_000),
+        333 + FIVE_MS,
+        2.0,
+        "hosted plus built-in latency",
+    );
 }
 
 #[test]
@@ -429,14 +480,19 @@ fn qa_sidechain_keys_arrive_aligned_with_the_signal_they_control() {
     // through 5 ms of latency, and the main track's first slot is latent
     // too, so the detector slot behind it sees its key later still. The
     // probe subtracts the key from the signal: silence means they met.
-    let pulses: Vec<f32> = (0..24_000).map(|i| if i % 37 == 0 { 0.5 } else { 0.0 }).collect();
+    let pulses: Vec<f32> = (0..24_000)
+        .map(|i| if i % 37 == 0 { 0.5 } else { 0.0 })
+        .collect();
     let build = |probe: &str| {
         let mut rig = Rig::new();
         let main = rig.track();
         let key = rig.track();
         rig.track_mut(key).output = None;
         for track in [main, key] {
-            let channel = rig.channel_on(AudioBuffer::from_interleaved(RATE, 1, pulses.clone()), track);
+            let channel = rig.channel_on(
+                AudioBuffer::from_interleaved(RATE, 1, pulses.clone()),
+                track,
+            );
             rig.steps(channel, &[0]);
         }
         rig.effect(key, idle_limiter(5.0));
@@ -464,7 +520,12 @@ fn qa_sidechain_keys_arrive_aligned_with_the_signal_they_control() {
     );
     assert_eq!(nulled, build("difference-0").play(RATE, 6_000, 1));
     // Positive control: without the subtraction the same graph is audible.
-    assert!(build("0").play(RATE, 6_000, 127).iter().any(|v| v.abs() > 0.1));
+    assert!(
+        build("0")
+            .play(RATE, 6_000, 127)
+            .iter()
+            .any(|v| v.abs() > 0.1)
+    );
 }
 
 #[test]
@@ -491,7 +552,12 @@ fn qa_direct_printed_clips_stay_aligned_with_a_latent_mix() {
         ..RenderOptions::default()
     };
     let rendered = render(&rig.project, &rig.pool, &options, &mut |_| true);
-    assert_one_mark(&rendered.samples()[..2 * 2_000], 0, 2.0, "printed clip, exported");
+    assert_one_mark(
+        &rendered.samples()[..2 * 2_000],
+        0,
+        2.0,
+        "printed clip, exported",
+    );
 }
 
 // --- Manual correction -----------------------------------------------------
@@ -517,7 +583,11 @@ fn qa_a_positive_correction_delays_everything_else_by_the_typed_amount() {
     rig.steps(channel, &[0]);
     let _plain = impulse_track(&mut rig);
     let found = marks(&rig.play(RATE, 2_000, 127));
-    assert_eq!(found.iter().map(|mark| mark.0).collect::<Vec<_>>(), [0, 100], "uncorrected");
+    assert_eq!(
+        found.iter().map(|mark| mark.0).collect::<Vec<_>>(),
+        [0, 100],
+        "uncorrected"
+    );
 
     // Typing the 100 frames in as a correction lines the other track up.
     rig.track_mut(late).latency_offset_ms = ms(100.0);
@@ -537,7 +607,12 @@ fn qa_a_positive_correction_delays_everything_else_by_the_typed_amount() {
 
     // It adds to latency the track's effects report.
     rig.effect(late, idle_limiter(5.0));
-    assert_aligned(&rig, 100 + FIVE_MS, 2.0, "correction on top of reported latency");
+    assert_aligned(
+        &rig,
+        100 + FIVE_MS,
+        2.0,
+        "correction on top of reported latency",
+    );
 
     // Too little or too much correction is audible as exactly that error.
     rig.track_mut(late).latency_offset_ms = ms(60.0);
@@ -559,7 +634,12 @@ fn qa_a_negative_correction_takes_back_overstated_latency_and_stops_at_zero() {
     rig.effect(slow, idle_limiter(5.0));
     assert_one_mark(&play_checked(&rig, 2_000), FIVE_MS, 2.0, "uncorrected");
 
-    let frames = |rig: &Rig| marks(&rig.play(RATE, 2_000, 127)).iter().map(|mark| mark.0).collect::<Vec<_>>();
+    let frames = |rig: &Rig| {
+        marks(&rig.play(RATE, 2_000, 127))
+            .iter()
+            .map(|mark| mark.0)
+            .collect::<Vec<_>>()
+    };
     rig.track_mut(slow).latency_offset_ms = -ms(120.0);
     assert_eq!(frames(&rig), [120, FIVE_MS], "half the report taken back");
     rig.track_mut(slow).latency_offset_ms = -ms(240.0);
@@ -608,7 +688,13 @@ fn qa_manual_correction_reaches_buses_sends_sidechains_and_printed_clips() {
     // track null against on-time pulses on the main track.
     let pulses = |shift: usize| {
         let data: Vec<f32> = (0..24_000)
-            .map(|i| if i >= shift && (i - shift) % 37 == 0 { 0.5 } else { 0.0 })
+            .map(|i| {
+                if i >= shift && (i - shift) % 37 == 0 {
+                    0.5
+                } else {
+                    0.0
+                }
+            })
             .collect();
         AudioBuffer::from_interleaved(RATE, 1, data)
     };
@@ -636,7 +722,9 @@ fn qa_manual_correction_reaches_buses_sends_sidechains_and_printed_clips() {
         "a corrected key must meet the signal"
     );
     assert!(
-        build(0.0).play(RATE, 6_000, 127)[2 * 200..].iter().any(|v| v.abs() > 0.1),
+        build(0.0).play(RATE, 6_000, 127)[2 * 200..]
+            .iter()
+            .any(|v| v.abs() > 0.1),
         "uncorrected, the late key misses it"
     );
 
@@ -651,7 +739,12 @@ fn qa_manual_correction_reaches_buses_sends_sidechains_and_printed_clips() {
     if let ClipContent::Audio { output, .. } = &mut rig.clip_mut(printed).content {
         *output = ClipAudioOutput::Direct;
     }
-    assert_one_mark(&rig.play_song(RATE, 2_000, 127), 100, 2.0, "printed clip and a corrected track");
+    assert_one_mark(
+        &rig.play_song(RATE, 2_000, 127),
+        100,
+        2.0,
+        "printed clip and a corrected track",
+    );
 }
 
 #[test]
@@ -660,10 +753,16 @@ fn qa_manual_correction_edits_while_playing_realign_and_follow_history_and_files
     let mut rig = Rig::new();
     let late = rig.track();
     let channel = rig.channel_on(late_impulse(100), late);
-    rig.steps(channel, &[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]);
+    rig.steps(
+        channel,
+        &[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
+    );
     let plain = rig.track();
     let channel = rig.channel_on(impulse(RATE), plain);
-    rig.steps(channel, &[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]);
+    rig.steps(
+        channel,
+        &[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
+    );
 
     let mut document = Document::new(rig.project.clone());
     let (mut processor, controller) = rig.processor(RATE);
@@ -694,18 +793,29 @@ fn qa_manual_correction_edits_while_playing_realign_and_follow_history_and_files
     let settle = 2 * STEP - (played % STEP);
     run(&mut processor, settle, 127);
     let apart = marks(&run(&mut processor, STEP, 127));
-    assert_eq!(apart.iter().map(|mark| mark.0).collect::<Vec<_>>(), [0, 100], "undone");
+    assert_eq!(
+        apart.iter().map(|mark| mark.0).collect::<Vec<_>>(),
+        [0, 100],
+        "undone"
+    );
     played += settle + STEP;
 
     // Redo, save, reopen: the reopened project is aligned from its first frame.
     document.redo().expect("redo the correction");
     rig.project = file::from_json(&file::to_json(document.project()).unwrap()).unwrap();
     let reopened = rig.project.mixer.track(late).unwrap().latency_offset_ms;
-    assert!((reopened - ms(100.0)).abs() < 1e-9, "the correction is saved: {reopened}");
+    assert!(
+        (reopened - ms(100.0)).abs() < 1e-9,
+        "the correction is saved: {reopened}"
+    );
     controller.set_project(&rig.project, &rig.pool);
     assert_pulses_aligned(&mut processor, &mut played, 100, 2.0, "redone and reopened");
     let fresh = marks(&rig.play(RATE, 2_000, 127));
-    assert_eq!(fresh.len(), 1, "a fresh processor starts aligned: {fresh:?}");
+    assert_eq!(
+        fresh.len(),
+        1,
+        "a fresh processor starts aligned: {fresh:?}"
+    );
     assert_eq!(fresh[0].0, 100);
 
     // Out-of-range and non-finite values are refused and change nothing.

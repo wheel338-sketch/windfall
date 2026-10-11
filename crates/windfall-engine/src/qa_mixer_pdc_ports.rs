@@ -9,9 +9,9 @@
 use windfall_core::{AudioBuffer, TICKS_PER_STEP};
 use windfall_dsp::LimiterParams;
 use windfall_project::{
-    Channel, ChannelId, ChannelSource, EffectId, EffectParams, EffectSlot, ExternalOutputRoute,
-    Lane, MixerTrack, Note, NoteId, Project, SampleAsset, SampleId, SamplePath, SamplerSettings,
-    TrackId, DEFAULT_KEY,
+    Channel, ChannelId, ChannelSource, DEFAULT_KEY, EffectId, EffectParams, EffectSlot,
+    ExternalOutputRoute, Lane, MixerTrack, Note, NoteId, Project, SampleAsset, SampleId,
+    SamplePath, SamplerSettings, TrackId,
 };
 
 use crate::{Processor, SamplePool};
@@ -63,7 +63,8 @@ impl Rig {
         let sample = SampleId(self.id());
         let mut data = vec![0.0; late + 1];
         data[late] = 1.0;
-        self.pool.insert(sample, AudioBuffer::from_interleaved(RATE, 1, data));
+        self.pool
+            .insert(sample, AudioBuffer::from_interleaved(RATE, 1, data));
         self.project.samples.push(SampleAsset {
             id: sample,
             name: String::new(),
@@ -107,7 +108,10 @@ impl Rig {
 
     fn track_mut(&mut self, id: TrackId) -> &mut MixerTrack {
         let tracks = self.project.mixer.tracks.iter_mut();
-        tracks.into_iter().find(|track| track.id == id).expect("the track exists")
+        tracks
+            .into_iter()
+            .find(|track| track.id == id)
+            .expect("the track exists")
     }
 
     /// A limiter that does nothing but put its output out 5 ms, 240 frames,

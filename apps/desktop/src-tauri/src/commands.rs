@@ -141,6 +141,37 @@ async fn mixer_preset_read(
     let session = session.inner().clone();
     blocking(move || session.mixer_preset_read(path)).await
 }
+#[tauri::command]
+async fn mixer_preset_library(
+    session: State<'_, Session>,
+) -> Result<crate::session::MixerPresetLibrary, String> {
+    let session = session.inner().clone();
+    blocking(move || session.mixer_preset_library()).await
+}
+#[tauri::command]
+async fn mixer_preset_library_save(
+    session: State<'_, Session>,
+    preset: windfall_project::MixerTrackPreset,
+) -> Result<crate::session::MixerPresetLibraryEntry, String> {
+    let session = session.inner().clone();
+    blocking(move || session.mixer_preset_library_save(preset)).await
+}
+#[tauri::command]
+async fn mixer_preset_library_read(
+    session: State<'_, Session>,
+    file: String,
+) -> Result<windfall_project::MixerTrackPreset, String> {
+    let session = session.inner().clone();
+    blocking(move || session.mixer_preset_library_read(file)).await
+}
+#[tauri::command]
+async fn mixer_preset_library_delete(
+    session: State<'_, Session>,
+    file: String,
+) -> Result<(), String> {
+    let session = session.inner().clone();
+    blocking(move || session.mixer_preset_library_delete(file)).await
+}
 
 #[tauri::command]
 async fn slice_analyze(
@@ -894,6 +925,10 @@ pub fn handler() -> impl Fn(Invoke) -> bool + Send + Sync + 'static {
         mixer_preset_capture,
         mixer_preset_write,
         mixer_preset_read,
+        mixer_preset_library,
+        mixer_preset_library_save,
+        mixer_preset_library_read,
+        mixer_preset_library_delete,
         midi_hardware_state,
         midi_hardware_refresh,
         midi_hardware_configure,

@@ -68,7 +68,9 @@ fn problem(mixer: &Mixer, route: &EffectOutputRoute) -> Option<String> {
         return Some(format!("{name} is routed, but the effect does not exist"));
     };
     if usize::from(route.output) >= output_count(slot.kind()) {
-        return Some(format!("{name} is routed, but the effect has no such output"));
+        return Some(format!(
+            "{name} is routed, but the effect has no such output"
+        ));
     }
     if track.id == TrackId::MASTER || track.current {
         return Some(format!(
@@ -121,8 +123,9 @@ pub(crate) fn pruned(mixer: &Mixer) -> Vec<EffectOutputRoute> {
     }
     let mut kept = mixer.clone();
     let mut seen = std::collections::HashSet::new();
-    kept.effect_outputs
-        .retain(|route| problem(mixer, route).is_none() && seen.insert((route.effect, route.output)));
+    kept.effect_outputs.retain(|route| {
+        problem(mixer, route).is_none() && seen.insert((route.effect, route.output))
+    });
     // Each route is tried against the routing that survived before it.
     let mut index = 0;
     while index < kept.effect_outputs.len() {

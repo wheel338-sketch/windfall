@@ -111,6 +111,7 @@ pub use audio::openable;
 pub use autosave::{AUTOSAVE_INTERVAL, backup_timestamp};
 pub use files::{EDITED_WHILE_MOVING, NO_FILE_YET};
 pub use library::{ClipPlace, PROJECT_REPLACED};
+pub use mixer_presets::{MixerPresetLibrary, MixerPresetLibraryEntry, MixerPresetPluginRef};
 pub use realtime::{FRAME_INTERVAL, FrameSender};
 pub use transport::{EMPTY_PLAYLIST, MUTED_PLAYLIST, SILENT_PLAYLIST};
 

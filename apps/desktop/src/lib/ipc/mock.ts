@@ -33,6 +33,7 @@ import type {
   StoredAudioSettings,
   Unsubscribe,
 } from "./backend"
+import { mockMixerPresetLibrary } from "./mixer-presets"
 import {
   baseName,
   defaultRoots,
@@ -628,6 +629,7 @@ export function createMockBackend(options: MockOptions = {}): MockBackend {
   return {
     kind: "mock",
     ...unavailableAnalysis(),
+    ...mockMixerPresetLibrary(),
     mixerWaveformTracks: (tracks, generation, revision) => ipc(() => {
       const state = timelineState()
       if (state.generation !== generation || state.revision !== revision) throw new Error("The project changed before waveform selection could update")
