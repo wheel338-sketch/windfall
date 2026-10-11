@@ -42,11 +42,11 @@ export function offlineSignal(samples: ArrayLike<number>, endFrame: number): Vis
   const end = N + Math.floor((endFrame - N) / HOP) * HOP
   if (end * 2 > samples.length) throw new Error("Analysis extends beyond the audio")
   const left = new Float64Array(N); const right = new Float64Array(N)
-  let sum = 0
+  let leftSquare = 0; let rightSquare = 0
   for (let i = 0; i < N; i += 1) {
     const l = samples[(end - N + i) * 2]; const r = samples[(end - N + i) * 2 + 1]
     if (!Number.isFinite(l) || !Number.isFinite(r)) throw new Error("Audio contains an invalid sample")
-    sum += (l * l + r * r) / 2
+    leftSquare += l * l; rightSquare += r * r
     const window = 0.5 - 0.5 * Math.cos(2 * Math.PI * i / N)
     left[i] = l * window; right[i] = r * window
   }
@@ -56,7 +56,10 @@ export function offlineSignal(samples: ArrayLike<number>, endFrame: number): Vis
   for (let band = 0; band < bands.length; band += 1) {
     const from = Math.floor(band * lp.length / bands.length)
     const to = Math.floor((band + 1) * lp.length / bands.length)
-    for (let bin = from; bin < to; bin += 1) bands[band] += (lp[bin] + rp[bin]) / 2
+    for (let bin = from; bin < to; bin += 1) bands[band] += lp[bin] + rp[bin]
+    bands[band] = Math.fround(bands[band] / 2)
   }
-  return { rms: Math.sqrt(sum / N), bands }
+  // Match the f32 wire quantization of each native level and band.
+  const lr = Math.fround(Math.sqrt(leftSquare / N)); const rr = Math.fround(Math.sqrt(rightSquare / N))
+  return { rms: Math.sqrt((lr * lr + rr * rr) / 2), bands }
 }

@@ -6,7 +6,7 @@ import { songTempoMap } from "@/lib/automation/tempo-map"
 import { useProjectStore } from "@/lib/store/project"
 import { useProjectGeneration } from "@/lib/store/replaced"
 import { useRealtime } from "@/lib/store/realtime"
-import { VideoFollower } from "./follower"
+import { VideoFollower, videoTarget } from "./follower"
 
 /** A local file is read through a checked, bounded native operation then
  * decoded by HTML video. Blob URLs are revoked on replacement/unmount. */
@@ -42,9 +42,8 @@ export function VideoPlayer({ placement }: { placement: VideoPlacement }) {
     if (!element) return
     const clock = frame.mediaClock
     const project = useProjectStore.getState().project
-    const inside = clock?.mode === "song" && clock.tick >= placement.startTick && clock.tick < placement.startTick + placement.lengthTicks
     const map = songTempoMap(project)
-    const target = inside && clock ? placement.offsetSeconds + map.secondsAt(clock.tick) - map.secondsAt(placement.startTick) : null
+    const target = videoTarget(placement, clock, (tick) => map.secondsAt(tick))
     const result = follower.current.follow(element, clock, target)
     if (readout.current) {
       readout.current.textContent = `Drift ${(result.drift * 1000).toFixed(1)} ms · ${result.correction} · driver latency ${clock ? clock.deviceLatencyFrames === null ? "unknown" : `${clock.deviceLatencyFrames} frames` : "unavailable"}`

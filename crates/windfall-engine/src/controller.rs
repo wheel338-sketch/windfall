@@ -140,8 +140,7 @@ pub struct StreamStats {
 }
 
 impl Controller {
-    /// Selects a post-fader utility source without rebuilding the musical plan.
-    /// Interest is installed off audio; unrequested tracks perform no history work.
+    /// Admits a bounded performance request without changing song transport.
     pub fn performance_launch(&self, request: crate::performance::LaunchRequest) -> Result<(), &'static str> {
         let mut state = self.lock();
         if state.link.is_none() { return Err("Performance launching needs an active audio stream"); }
@@ -180,6 +179,8 @@ impl Controller {
         }
     }
 
+    /// Selects a post-fader utility source without rebuilding the musical plan.
+    /// Interest is installed off audio; unrequested tracks perform no history work.
     pub fn set_waveform_tracks(&self, ids: &[windfall_project::TrackId]) {
         let ids = &ids[..ids.len().min(crate::waveform_meter::MAX_VISIBLE)];
         let state = self.lock();

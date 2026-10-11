@@ -1,4 +1,9 @@
-import type { MediaClock } from "@/bindings"
+import type { MediaClock, VideoPlacement } from "@/bindings"
+
+export function videoTarget(placement: VideoPlacement, clock: MediaClock | null | undefined, secondsAt: (tick: number) => number): number | null {
+  if (!clock || clock.mode !== "song" || clock.tick < placement.startTick || clock.tick >= placement.startTick + placement.lengthTicks) return null
+  return placement.offsetSeconds + secondsAt(clock.tick) - secondsAt(placement.startTick)
+}
 
 export type MediaLike = {
   currentTime: number

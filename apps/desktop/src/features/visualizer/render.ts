@@ -18,7 +18,7 @@ export function visualFrameNumber(endFrame: string, rate: number): number {
 }
 
 function color(hue: number): [number, number, number] {
-  const h = ((hue % 360) + 360) / 60
+  const h = (((hue % 360) + 360) % 360) / 60
   const x = 1 - Math.abs(h % 2 - 1)
   const rgb = h < 1 ? [1, x, 0] : h < 2 ? [x, 1, 0] : h < 3 ? [0, 1, x] : h < 4 ? [0, x, 1] : h < 5 ? [x, 0, 1] : [1, 0, x]
   return [Math.round(255 * rgb[0]), Math.round(255 * rgb[1]), Math.round(255 * rgb[2])]

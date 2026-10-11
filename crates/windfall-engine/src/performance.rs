@@ -137,13 +137,34 @@ impl Launcher {
     /// Tempo/meter/mixer edits keep the exact owners and note ends. A changed
     /// pattern or channel-index layout is released before its new data arrives.
     pub fn compatible(&self, old: &Plan, new: &Plan) -> bool {
-        if old.channels.len() != new.channels.len() || old.channels.iter().zip(&new.channels).any(|(a, b)| a.id != b.id) { return false; }
+        if old.channels.len() != new.channels.len()
+            || old
+                .channels
+                .iter()
+                .zip(&new.channels)
+                .any(|(a, b)| a.id != b.id)
+        {
+            return false;
+        }
         self.slots.iter().filter_map(|slot| slot.pattern).all(|id| {
-            let Some(a) = old.pattern_ids.get(id.0).map(|i| &old.patterns[i]) else { return false; };
-            let Some(b) = new.pattern_ids.get(id.0).map(|i| &new.patterns[i]) else { return false; };
-            a.length == b.length && a.events.len() == b.events.len() && a.events.iter().zip(&b.events).all(|(x, y)| {
-                x.source == y.source && x.tick == y.tick && x.length == y.length && x.channel == y.channel && x.key == y.key && x.velocity == y.velocity && x.pan == y.pan && x.expression == y.expression
-            })
+            let Some(a) = old.pattern_ids.get(id.0).map(|i| &old.patterns[i]) else {
+                return false;
+            };
+            let Some(b) = new.pattern_ids.get(id.0).map(|i| &new.patterns[i]) else {
+                return false;
+            };
+            a.length == b.length
+                && a.events.len() == b.events.len()
+                && a.events.iter().zip(&b.events).all(|(x, y)| {
+                    x.source == y.source
+                        && x.tick == y.tick
+                        && x.length == y.length
+                        && x.channel == y.channel
+                        && x.key == y.key
+                        && x.velocity == y.velocity
+                        && x.pan == y.pan
+                        && x.expression == y.expression
+                })
         })
     }
     pub fn active(&self) -> bool {
@@ -333,7 +354,7 @@ pub fn render_capture(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{SamplePool, plan::compile};
+    use crate::{plan::compile, SamplePool};
     use windfall_project::{Project, StageMedia};
 
     #[test]
@@ -372,5 +393,219 @@ mod tests {
         assert_eq!(launch.slot(0), (None, None, false));
         assert!(!launch.active());
         assert!(project.settings.stage_media == StageMedia::default());
+    }
+
+    fn note_plan() -> Plan {
+        let project = Project::new("owned notes");
+        let mut plan = compile(&project, &SamplePool::new());
+        plan.patterns[0].events = vec![NoteEvent {
+            source: windfall_project::NoteId(100),
+            tick: 0.0,
+            length: 960.0,
+            channel: 0,
+            key: 60,
+            velocity: 1.0,
+            pan: 0.0,
+            expression: windfall_dsp::NoteExpression::default(),
+        }];
+        plan
+    }
+
+    #[test]
+    fn queued_boundary_retimes_at_new_meter_and_preserves_tempo_owned_note_end() {
+        let mut plan = note_plan();
+        let pattern = plan.patterns[0].id;
+        let mut launch = Launcher::new();
+        launch.tick = 100.0;
+        let request = LaunchRequest {
+            track: 0,
+            pattern: Some(pattern),
+            quantization: LaunchQuantization::Bar,
+        };
+        launch.request(request, &plan);
+        assert_eq!(launch.slots[0].pending.unwrap().at, 3840.0);
+        let change = windfall_project::MeterChange {
+            id: windfall_project::MeterChangeId(100),
+            tick: 720,
+            signature: TimeSignature {
+                numerator: 7,
+                denominator: 8,
+            },
+        };
+        plan.meters = windfall_project::MeterMap::checked(plan.signature, &[change])
+            .map(|map| map.segments().to_vec());
+        plan.tempo_bpm = 73.0;
+        launch.retime(&plan);
+        assert_eq!(launch.slots[0].pending.unwrap().at, 720.0);
+        launch.tick = 719.9;
+        launch.step(&plan, 48000);
+        assert_eq!(launch.events_len(), 0);
+        launch.tick = 720.0;
+        launch.step(&plan, 48000);
+        let token = match launch.event(0) {
+            Event::On { token, .. } => token,
+            _ => panic!("launch on downbeat"),
+        };
+        assert_eq!(launch.held.iter().flatten().next().unwrap().end, 1680.0);
+        let mut faster = plan.clone();
+        faster.tempo_bpm = 190.0;
+        assert!(launch.compatible(&plan, &faster));
+        launch.retime(&faster);
+        assert_eq!(launch.held.iter().flatten().next().unwrap().token, token);
+        launch.tick = 1680.0;
+        launch.step(&faster, 48000);
+        assert!(matches!(launch.event(0), Event::Off { token: released } if released == token));
+        assert!(launch.held.iter().all(Option::is_none));
+    }
+
+    #[test]
+    fn launch_stop_launch_race_releases_old_owner_before_new_owner() {
+        let plan = note_plan();
+        let pattern = plan.patterns[0].id;
+        let mut launch = Launcher::new();
+        let request = LaunchRequest {
+            track: 0,
+            pattern: Some(pattern),
+            quantization: LaunchQuantization::Immediate,
+        };
+        launch.request(request, &plan);
+        launch.step(&plan, 48000);
+        let first = match launch.event(0) {
+            Event::On { token, .. } => token,
+            _ => panic!("note on"),
+        };
+        launch.request(
+            LaunchRequest {
+                pattern: None,
+                ..request
+            },
+            &plan,
+        );
+        launch.request(request, &plan);
+        launch.step(&plan, 48000);
+        assert!(matches!(launch.event(0), Event::Off { token } if token == first));
+        let second = match launch.event(1) {
+            Event::On { token, .. } => token,
+            _ => panic!("replacement note"),
+        };
+        assert_ne!(first, second);
+        launch.request(request, &plan);
+        launch.request(
+            LaunchRequest {
+                pattern: None,
+                ..request
+            },
+            &plan,
+        );
+        launch.step(&plan, 48000);
+        assert_eq!(launch.events_len(), 1);
+        assert!(matches!(launch.event(0), Event::Off { token } if token == second));
+        assert!(!launch.active());
+    }
+
+    #[test]
+    fn overload_drops_only_ons_and_all_accepted_owners_release_without_allocator_calls() {
+        let mut plan = note_plan();
+        let note = plan.patterns[0].events[0];
+        plan.patterns[0].events = vec![note; HELD + 1];
+        let request = LaunchRequest {
+            track: 0,
+            pattern: Some(plan.patterns[0].id),
+            quantization: LaunchQuantization::Immediate,
+        };
+        let mut launch = Launcher::new();
+        let calls = crate::test_alloc::allocator_calls(|| {
+            launch.request(request, &plan);
+            launch.step(&plan, 48000);
+            launch.step(&plan, 48000);
+        });
+        assert_eq!(calls, 0);
+        assert_eq!(launch.held.iter().flatten().count(), HELD);
+        assert!(launch.dropped > 0);
+        let tokens: Vec<_> = launch
+            .held
+            .iter()
+            .flatten()
+            .map(|note| note.token)
+            .collect();
+        assert_eq!(
+            crate::test_alloc::allocator_calls(|| launch.release(true)),
+            0
+        );
+        assert_eq!(launch.events_len(), HELD);
+        for token in tokens {
+            assert_eq!(launch.events.iter().filter(|event| matches!(event, Event::Off { token: released } if *released == token)).count(), 1);
+        }
+        assert!(!launch.active());
+        assert_eq!(launch.events.capacity(), EVENTS);
+    }
+
+    #[test]
+    fn processor_launch_retrigger_stop_and_tempo_adoption_do_not_call_allocator() {
+        use windfall_project::{ChannelId, Command, Document, InstrumentKind, NoteInit};
+        let mut doc = Document::new(Project::new("callback allocation"));
+        let channel = ChannelId(
+            doc.dispatch(
+                Command::AddChannel {
+                    name: None,
+                    sample: None,
+                    instrument: Some(InstrumentKind::SubtractiveSynth),
+                    index: None,
+                    mixer_track: None,
+                },
+                None,
+            )
+            .unwrap()
+            .created[0],
+        );
+        let pattern = doc.project().patterns[0].id;
+        doc.dispatch(
+            Command::AddNotes {
+                pattern,
+                channel,
+                notes: vec![NoteInit {
+                    start: 0,
+                    length: 960,
+                    key: 60,
+                    velocity: Some(0.8),
+                    pan: None,
+                    expression: None,
+                }],
+            },
+            None,
+        )
+        .unwrap();
+        let controller = crate::Controller::new();
+        controller.set_project(doc.project(), &SamplePool::new());
+        let mut processor = controller.attach(48000);
+        let mut buffer = [0.0; 960];
+        processor.process(&mut buffer);
+        let request = LaunchRequest {
+            track: 0,
+            pattern: Some(pattern),
+            quantization: LaunchQuantization::Immediate,
+        };
+        controller.performance_launch(request).unwrap();
+        assert_eq!(
+            crate::test_alloc::allocator_calls(|| processor.process(&mut buffer)),
+            0
+        );
+        controller.performance_launch(request).unwrap();
+        assert_eq!(
+            crate::test_alloc::allocator_calls(|| processor.process(&mut buffer)),
+            0
+        );
+        let mut faster = doc.project().clone();
+        faster.settings.tempo_bpm = 180.0;
+        controller.set_project(&faster, &SamplePool::new());
+        assert_eq!(
+            crate::test_alloc::allocator_calls(|| processor.process(&mut buffer)),
+            0
+        );
+        controller.performance_stop_all();
+        assert_eq!(
+            crate::test_alloc::allocator_calls(|| processor.process(&mut buffer)),
+            0
+        );
     }
 }

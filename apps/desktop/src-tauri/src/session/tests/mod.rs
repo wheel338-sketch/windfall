@@ -48,6 +48,7 @@ mod timeline;
 mod transport_acceptance;
 mod versions;
 mod audio_logger;
+mod performance_media;
 
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
