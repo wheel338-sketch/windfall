@@ -167,27 +167,36 @@ impl Session {
                 self.project_preparation(&state),
             )
         };
-        let output = audio_edit::edit(
+        let audio_edit::Edited {
+            audio: output,
+            lead,
+        } = audio_edit::apply(
             &prepared.view,
             request.operation,
             request.start_frame,
             request.end_frame,
         )?;
         let per_tick = samples_per_tick(prepared.tempo, f64::from(output.sample_rate()));
-        let length = if matches!(
-            request.operation,
-            AudioEditOperation::Trim | AudioEditOperation::Extract | AudioEditOperation::Cut
-        ) {
-            ((output.frames() as f64 / per_tick).ceil().max(1.0) as u32).min(prepared.clip.length)
-        } else {
-            prepared.clip.length
+        // Same frame count keeps the tick length, even across a fractional
+        // tick. Shorter audio rounds up, capped at the old length. Longer
+        // audio takes the fewest ticks whose reopened view holds every frame.
+        let length = match output.frames().cmp(&prepared.view.frames()) {
+            std::cmp::Ordering::Equal => prepared.clip.length,
+            std::cmp::Ordering::Less => ((output.frames() as f64 / per_tick).ceil().max(1.0)
+                as u32)
+                .min(prepared.clip.length),
+            std::cmp::Ordering::Greater => {
+                let ticks = ((output.frames() as f64 - 1.0 + 1e-6) / per_tick).floor() + 1.0;
+                if ticks > f64::from(MAX_SONG_TICKS) {
+                    return Err("Edit falls outside the song.".into());
+                }
+                (ticks as u32).max(prepared.clip.length)
+            }
         };
         let shift = if request.operation == AudioEditOperation::Extract {
             prepared.clip.length
-        } else if request.operation == AudioEditOperation::Trim {
-            (f64::from(request.start_frame) / per_tick).round() as u32
         } else {
-            0
+            (lead as f64 / per_tick).round() as u32
         };
         let clip = &prepared.clip;
         let start = clip
@@ -225,17 +234,26 @@ impl Session {
         // without decoding under state. WAV Float32 preserves the edit exactly.
         let decoded = self.inner.cache.decode(&owned.0)?;
         let sample = SampleId(document.project().next_id);
-        let label = format!("Audio edit: {:?}", request.operation);
+        let label = format!("Audio edit: {}", request.operation.label());
+        let source = document
+            .project()
+            .sample(clip.content.sample().unwrap())
+            .unwrap();
+        // Several edits in one sitting name the result after the latest one,
+        // not after the whole chain.
+        let base = match &source.path {
+            SamplePath::External(path)
+                if std::path::Path::new(path).parent() == Some(folder.as_path()) =>
+            {
+                source
+                    .name
+                    .rsplit_once(" (")
+                    .map_or(source.name.as_str(), |(base, _)| base)
+            }
+            _ => &source.name,
+        };
         let mut commands = vec![Command::AddSample {
-            name: format!(
-                "{} ({:?})",
-                document
-                    .project()
-                    .sample(clip.content.sample().unwrap())
-                    .unwrap()
-                    .name,
-                request.operation
-            ),
+            name: format!("{base} ({})", request.operation.label()),
             path: SamplePath::External(crate::paths::display(&owned.0)),
         }];
         if request.operation != AudioEditOperation::Extract {
@@ -243,7 +261,12 @@ impl Session {
                 clips: vec![clip.id],
             });
         }
-        let ClipContent::Audio { mixer_track, output, .. } = clip.content else {
+        let ClipContent::Audio {
+            mixer_track,
+            output,
+            ..
+        } = clip.content
+        else {
             unreachable!()
         };
         commands.push(Command::AddClips {

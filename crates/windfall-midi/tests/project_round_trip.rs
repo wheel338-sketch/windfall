@@ -67,15 +67,26 @@ fn options() -> impl Strategy<Value = ImportOptions> {
         (0_u32..6, any::<bool>()).prop_map(|(bars, share)| PatternStrategy::Bars { bars, share }),
     ];
     let kit = prop_oneof![Just(None), Just(Some(DrumKit::factory()))];
-    (patterns, kit, any::<bool>(), any::<bool>(), any::<bool>()).prop_map(
-        |(patterns, drum_kit, tempo, time_signature, channel_mix)| ImportOptions {
-            patterns,
-            drum_kit,
-            tempo,
-            time_signature,
-            channel_mix,
-        },
+    (
+        patterns,
+        kit,
+        any::<bool>(),
+        any::<bool>(),
+        any::<bool>(),
+        any::<bool>(),
     )
+        .prop_map(
+            |(patterns, drum_kit, tempo, time_signature, channel_mix, note_expression)| {
+                ImportOptions {
+                    patterns,
+                    drum_kit,
+                    tempo,
+                    time_signature,
+                    channel_mix,
+                    note_expression,
+                }
+            },
+        )
 }
 
 /// A song whose notes reach well past the 64 bars one pattern holds, with

@@ -1,7 +1,7 @@
 //! Pure arrangement metadata. The caller owns IDs, history, persistence and playback.
 use crate::model::{
     ChannelId, Clip, ClipId, MAX_SONG_TICKS, Pattern, PatternId, PlaylistTrackId, SampleAsset,
-    SampleId,
+    SampleId, TrackId,
 };
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
@@ -55,8 +55,13 @@ pub struct ClipGroup {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
 #[serde(tag = "type", rename_all = "camelCase")]
 pub enum TrackKind {
+    /// An instrument track: pattern clips on it play only this channel,
+    /// through the mixer track the channel is routed to.
     Instrument { channel: ChannelId },
+    /// A label naming the audio source a lane is kept for. It routes nothing.
     Audio { source: SampleId },
+    /// An audio track: audio clips on it play into this mixer track.
+    AudioTrack { mixer: TrackId },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
@@ -115,6 +120,19 @@ fn distinct<T: Copy + Ord + Into<u32>>(
 impl ArrangementBook {
     pub fn is_empty(&self) -> bool {
         self == &Self::default()
+    }
+
+    /// Whether the layout that is active now shows this clip: it lists the
+    /// clip and the lane the clip sits on. Without an active layout every
+    /// clip is shown. Playback, export and consolidation follow this rule.
+    pub fn shows(&self, clip: &Clip) -> bool {
+        let Some(active) = self.active else {
+            return true;
+        };
+        self.arrangements
+            .iter()
+            .find(|item| item.id == active)
+            .is_none_or(|item| item.clips.contains(&clip.id) && item.tracks.contains(&clip.track))
     }
 
     /// Structural validation. The parent also validates references against project pools.
@@ -478,6 +496,10 @@ impl ArrangementBook {
                             kind: "sample",
                             id: source.0,
                         },
+                        TrackKind::AudioTrack { mixer } => ArrangementError::MissingId {
+                            kind: "mixer track",
+                            id: mixer.0,
+                        },
                     });
                 }
                 next.linked_tracks.insert(track, kind);
@@ -520,6 +542,7 @@ pub fn make_unique(
             );
             used.extend(pattern.timeline.meters.iter().map(|meter| meter.id.0));
             used.extend(pattern.timeline.markers.iter().map(|marker| marker.id.0));
+            used.extend(pattern.events.iter().map(|lane| lane.id.0));
         }
         UniqueSource::Audio(sample) => {
             used.insert(sample.id.0);
@@ -567,6 +590,9 @@ pub fn make_unique(
             }
             for marker in &mut copy.timeline.markers {
                 marker.id = fresh()?.into();
+            }
+            for lane in &mut copy.events {
+                lane.id = crate::AutomationId(fresh()?);
             }
             Ok((
                 SourceReference::Pattern { pattern: copy.id },

@@ -487,3 +487,295 @@ fn audio_editor_tempo_automation_is_explicitly_refused() {
     );
     assert_eq!(rig.session.document_snapshot(), before);
 }
+
+/// A stereo clip of `samples` at one frame per tick, starting on tick 100.
+fn add_audio(rig: &Rig, name: &str, samples: Vec<f32>) -> (ClipId, String, Vec<u8>) {
+    let path = rig.file(name);
+    let source = AudioBuffer::from_interleaved(1920, 2, samples);
+    windfall_codec::write_wav(&path, &source, windfall_codec::WavSampleFormat::Float32).unwrap();
+    let bytes = std::fs::read(&path).unwrap();
+    let result = rig
+        .session
+        .add_audio_clip_from_file(
+            &path,
+            ClipPlace {
+                track: None,
+                start: 100,
+                mixer_track: None,
+            },
+        )
+        .unwrap();
+    (ClipId(*result.created.last().unwrap()), path, bytes)
+}
+
+/// The audio of [`add`]'s clip, which is also its editor view.
+const FIXTURE: [f32; 8] = [0.1, -0.1, 0.2, -0.2, 0.3, -0.3, 0.4, -0.4];
+
+/// The samples the engine holds for a sample asset.
+fn pooled(rig: &Rig, sample: SampleId) -> Vec<f32> {
+    rig.session
+        .state()
+        .pool
+        .get(sample)
+        .unwrap()
+        .samples()
+        .to_vec()
+}
+
+/// Start and length of a clip, in ticks.
+fn placed(rig: &Rig, clip: u32) -> (u32, u32) {
+    let project = rig.project();
+    let clip = project
+        .playlist
+        .clips
+        .iter()
+        .find(|candidate| candidate.id.0 == clip)
+        .unwrap();
+    (clip.start, clip.length)
+}
+
+#[test]
+fn audio_editor_tools_write_what_the_engine_computes_as_one_undo_step_each() {
+    use windfall_ipc::{AudioEditChannels, AudioFadeDirection, AudioFadeShape, AudioNormalizeMode};
+    let view = AudioBuffer::from_interleaved(1920, 2, FIXTURE.to_vec());
+    for operation in [
+        Op::RemoveDc,
+        Op::Gain { db: -6.0 },
+        Op::NormalizeTo {
+            target_db: -6.0,
+            mode: AudioNormalizeMode::Peak,
+        },
+        Op::Fade {
+            direction: AudioFadeDirection::Out,
+            shape: AudioFadeShape::Linear,
+        },
+        Op::SwapChannels,
+        Op::MonoSum,
+        Op::InvertPhase {
+            channels: AudioEditChannels::Left,
+        },
+    ] {
+        let rig = Rig::new();
+        let (id, path, original) = add(&rig);
+        let before = rig.session.document_snapshot();
+        let expected = windfall_engine::audio_edit::apply(&view, operation, 1, 3)
+            .unwrap_or_else(|error| panic!("{operation:?}: {error}"));
+        assert_eq!(expected.lead, 0, "{operation:?}");
+        // The frames outside the selection are the source's own.
+        assert_eq!(
+            &expected.audio.samples()[..2],
+            &FIXTURE[..2],
+            "{operation:?}"
+        );
+        assert_eq!(
+            &expected.audio.samples()[6..],
+            &FIXTURE[6..],
+            "{operation:?}"
+        );
+        let preview = rig.session.audio_editor_open(id).unwrap();
+        let result = rig
+            .session
+            .audio_editor_apply(request(preview.token, operation))
+            .unwrap_or_else(|error| panic!("{operation:?}: {error}"));
+        assert_eq!(result.created.len(), 2, "{operation:?}");
+        assert_eq!(
+            pooled(&rig, SampleId(result.created[0])),
+            expected.audio.samples(),
+            "{operation:?}"
+        );
+        assert_eq!(placed(&rig, result.created[1]), (100, 4), "{operation:?}");
+        let project = rig.project();
+        let sample = project
+            .samples
+            .iter()
+            .find(|sample| sample.id.0 == result.created[0])
+            .unwrap();
+        assert!(
+            sample.name.ends_with(&format!("({})", operation.label())),
+            "{}",
+            sample.name
+        );
+        assert_eq!(
+            rig.session.document_snapshot().history.cursor,
+            before.history.cursor + 1,
+            "{operation:?}"
+        );
+        assert_eq!(std::fs::read(&path).unwrap(), original, "{operation:?}");
+        rig.session.undo().unwrap();
+        let mut restored = before.project.clone();
+        restored.next_id = rig.project().next_id;
+        assert_eq!(rig.project(), restored, "{operation:?}");
+    }
+}
+
+#[test]
+fn audio_editor_length_changing_tools_move_the_clip_start_and_length_with_the_audio() {
+    // Silence at both ends of the whole clip is trimmed: the clip starts
+    // later by what was removed from its front and is as long as what is
+    // left, at one frame per tick.
+    let rig = Rig::new();
+    let quiet = vec![0.0, 0.0, 0.2, -0.2, 0.3, -0.3, 0.0, 0.0];
+    let (id, path, original) = add_audio(&rig, "quiet.wav", quiet.clone());
+    let view = AudioBuffer::from_interleaved(1920, 2, quiet);
+    let trim = Op::TrimSilence {
+        threshold_db: -60.0,
+    };
+    let expected = windfall_engine::audio_edit::apply(&view, trim, 0, 4).unwrap();
+    assert!(expected.lead > 0, "leading silence is removed");
+    let kept = expected.audio.samples().len() / 2;
+    assert!(kept < 4, "trailing or leading silence is removed");
+    let preview = rig.session.audio_editor_open(id).unwrap();
+    let result = rig
+        .session
+        .audio_editor_apply(AudioEditRequest {
+            token: preview.token,
+            operation: trim,
+            start_frame: 0,
+            end_frame: 4,
+        })
+        .unwrap();
+    assert_eq!(
+        placed(&rig, result.created[1]),
+        (100 + expected.lead as u32, kept as u32)
+    );
+    assert_eq!(
+        pooled(&rig, SampleId(result.created[0])),
+        expected.audio.samples()
+    );
+    assert_eq!(std::fs::read(&path).unwrap(), original);
+
+    // Two frames of silence before frame 1 make the clip two ticks longer
+    // and leave its start alone.
+    let rig = Rig::new();
+    let (id, _, _) = add(&rig);
+    let insert = Op::InsertSilence { frames: 2 };
+    let preview = rig.session.audio_editor_open(id).unwrap();
+    let result = rig
+        .session
+        .audio_editor_apply(request(preview.token, insert))
+        .unwrap();
+    assert_eq!(placed(&rig, result.created[1]), (100, 6));
+    assert_eq!(
+        pooled(&rig, SampleId(result.created[0])),
+        [
+            0.1, -0.1, 0.0, 0.0, 0.0, 0.0, 0.2, -0.2, 0.3, -0.3, 0.4, -0.4
+        ]
+    );
+    // The longer clip reopens whole: nothing of the edit fell off its end.
+    let reopened = rig
+        .session
+        .audio_editor_open(ClipId(result.created[1]))
+        .unwrap();
+    assert_eq!(reopened.frames, 6);
+}
+
+#[test]
+fn audio_editor_refused_tools_leave_no_file_and_no_history() {
+    let rig = Rig::new();
+    let (id, path, original) = add(&rig);
+    let before = rig.session.document_snapshot();
+    for operation in [
+        // A boost that would clip is refused, not clipped.
+        Op::Gain { db: 24.0 },
+        Op::Gain { db: 0.0 },
+        Op::InsertSilence { frames: 0 },
+        Op::Declick { strength: 2.0 },
+        Op::ReduceNoise {
+            reduction_db: 0.0,
+            profile: None,
+        },
+        Op::Stretch {
+            ratio: 1.0,
+            semitones: 0.0,
+            quality: Default::default(),
+            formants: false,
+        },
+    ] {
+        let preview = rig.session.audio_editor_open(id).unwrap();
+        assert!(
+            rig.session
+                .audio_editor_apply(request(preview.token, operation))
+                .is_err(),
+            "{operation:?}"
+        );
+        assert_eq!(rig.session.document_snapshot(), before, "{operation:?}");
+        assert_eq!(derived_files(&rig), 0, "{operation:?}");
+    }
+    assert_eq!(std::fs::read(&path).unwrap(), original);
+}
+
+#[test]
+fn audio_editor_several_edits_in_a_row_undo_one_at_a_time() {
+    use windfall_ipc::AudioEditChannels;
+    let rig = Rig::new();
+    let (id, path, original) = add(&rig);
+    let start = rig.session.document_snapshot();
+    let mut clip = id;
+    let mut snapshots = vec![rig.project()];
+    for operation in [
+        Op::Gain { db: -6.0 },
+        Op::SwapChannels,
+        Op::InvertPhase {
+            channels: AudioEditChannels::Both,
+        },
+    ] {
+        // Each edit opens the clip the one before it made.
+        let preview = rig.session.audio_editor_open(clip).unwrap();
+        let result = rig
+            .session
+            .audio_editor_apply(request(preview.token, operation))
+            .unwrap();
+        clip = ClipId(result.created[1]);
+        snapshots.push(rig.project());
+    }
+    assert_eq!(
+        rig.session.document_snapshot().history.cursor,
+        start.history.cursor + 3
+    );
+    assert_eq!(derived_files(&rig), 3);
+    // The last sample is named after the last edit alone, not the chain.
+    let project = rig.project();
+    let ClipContent::Audio { sample, .. } = &project
+        .playlist
+        .clips
+        .iter()
+        .find(|candidate| candidate.id == clip)
+        .unwrap()
+        .content
+    else {
+        panic!("an audio clip");
+    };
+    let name = &project
+        .samples
+        .iter()
+        .find(|asset| asset.id == *sample)
+        .unwrap()
+        .name;
+    assert!(name.ends_with("(Invert phase)"), "{name}");
+    assert!(!name.contains("Gain") && !name.contains("Swap"), "{name}");
+    // Frames 1 and 2 are 6 dB down; exchanging the channels and then
+    // flipping both polarities brings each sample back to its own side.
+    let gain = 10.0_f32.powf(-6.0 / 20.0);
+    let wanted = [
+        0.1,
+        -0.1,
+        0.2 * gain,
+        -0.2 * gain,
+        0.3 * gain,
+        -0.3 * gain,
+        0.4,
+        -0.4,
+    ];
+    let heard = pooled(&rig, *sample);
+    assert_eq!(heard.len(), wanted.len());
+    for (heard, wanted) in heard.iter().zip(wanted) {
+        assert!((heard - wanted).abs() < 1e-6, "{heard} {wanted}");
+    }
+    for snapshot in snapshots.iter().rev().skip(1) {
+        rig.session.undo().unwrap();
+        let mut restored = snapshot.clone();
+        restored.next_id = rig.project().next_id;
+        assert_eq!(rig.project(), restored);
+    }
+    assert_eq!(std::fs::read(&path).unwrap(), original);
+}

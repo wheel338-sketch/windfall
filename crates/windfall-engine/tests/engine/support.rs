@@ -89,6 +89,7 @@ impl Rig {
             solo: false,
             group: String::new(),
             voice: Default::default(),
+            expression_map: Default::default(),
             timing: windfall_project::ChannelTiming::default(),
             mixer_track: track,
             source: ChannelSource::Sampler(SamplerSettings {
@@ -163,6 +164,7 @@ impl Rig {
             solo: false,
             group: String::new(),
             voice: Default::default(),
+            expression_map: Default::default(),
             timing: windfall_project::ChannelTiming::default(),
             mixer_track: track,
             source: ChannelSource::Instrument {
@@ -203,6 +205,7 @@ impl Rig {
         let id = PatternId(self.id());
         self.project.patterns.push(Pattern {
             note_curves: Vec::new(),
+            events: Vec::new(),
             time_signature: None,
             timeline: Default::default(),
             id,
@@ -643,6 +646,7 @@ pub fn idle_limiter(lookahead_ms: f32) -> EffectParams {
         input_gain_db: 0.0,
         release_ms: 100.0,
         lookahead_ms,
+        ..LimiterParams::default()
     })
 }
 
@@ -654,6 +658,7 @@ pub fn limiter(ceiling_db: f32) -> EffectParams {
         input_gain_db: 0.0,
         release_ms: 100.0,
         lookahead_ms: 5.0,
+        ..LimiterParams::default()
     })
 }
 

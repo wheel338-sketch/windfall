@@ -2,10 +2,13 @@
 //! spectral preparation and equal-power fade law; excludes mixer processing
 //! and transport's transient de-click ramps.
 use windfall_core::{AudioBuffer, pan_gains, samples_per_tick};
-use windfall_ipc::AudioEditOperation;
+use windfall_ipc::{AudioEditOperation, AudioFadeDirection, AudioFadeShape, AudioNormalizeMode};
 use windfall_project::{Clip, ClipContent, ClipStretch};
 
 use crate::{SamplePool, clips::equal_power, voice::Region};
+
+pub mod clean;
+pub mod process;
 
 pub const MAX_EDIT_SECONDS: f64 = 120.0;
 pub const MAX_EDIT_BYTES: usize = 64 * 1024 * 1024;
@@ -108,6 +111,15 @@ pub fn render_view(pool: &SamplePool, clip: &Clip, tempo: f64) -> Result<AudioBu
     Ok(AudioBuffer::from_interleaved(source.sample_rate(), 2, data))
 }
 
+/// The edited audio, and how far its first frame sits after the view's.
+#[derive(Debug, Clone)]
+pub struct Edited {
+    pub audio: AudioBuffer,
+    /// Frames removed from the front that the clip's start should follow:
+    /// the selection start of a trim, or trimmed leading silence.
+    pub lead: usize,
+}
+
 /// Selection is [start, end). All operations preserve channel interleaving.
 /// Normalization uses one linked gain for all channels, targeting -1 dBFS.
 pub fn edit(
@@ -116,6 +128,17 @@ pub fn edit(
     start: u32,
     end: u32,
 ) -> Result<AudioBuffer, String> {
+    apply(view, operation, start, end).map(|edited| edited.audio)
+}
+
+/// Every operation leaves samples outside the selection bit-identical;
+/// length-changing ones move, but never alter, the frames after it.
+pub fn apply(
+    view: &AudioBuffer,
+    operation: AudioEditOperation,
+    start: u32,
+    end: u32,
+) -> Result<Edited, String> {
     let (start, end) = (start as usize, end as usize);
     if start >= end || end > view.frames() {
         return Err("Select at least one frame within the clip.".into());
@@ -125,35 +148,116 @@ pub fn edit(
         return Err("The audio contains non-finite samples.".into());
     }
     let channels = usize::from(view.channels());
+    let rate = view.sample_rate();
     let first = start * channels;
     let last = end * channels;
+    let samples = view.samples();
+    let grown = |frames: usize| bounded(frames as f64, rate, view.channels());
+    let spliced = |from: usize, middle: &[f32], to: usize| {
+        let mut out = Vec::with_capacity(from + middle.len() + samples.len() - to);
+        out.extend_from_slice(&samples[..from]);
+        out.extend_from_slice(middle);
+        out.extend_from_slice(&samples[to..]);
+        out
+    };
+    let mut lead = 0;
     let data = match operation {
         AudioEditOperation::Trim | AudioEditOperation::Extract => {
-            view.samples()[first..last].to_vec()
+            if operation == AudioEditOperation::Trim {
+                lead = start;
+            }
+            samples[first..last].to_vec()
         }
         AudioEditOperation::Cut => {
             if start == 0 && end == view.frames() {
                 return Err("Cut would leave an empty clip. Select a smaller range.".into());
             }
-            let mut out = Vec::with_capacity(view.samples().len() - (last - first));
-            out.extend_from_slice(&view.samples()[..first]);
-            out.extend_from_slice(&view.samples()[last..]);
+            spliced(first, &[], last)
+        }
+        AudioEditOperation::TrimSilence { threshold_db } => {
+            let Some((keep, stop)) =
+                clean::silence_bounds(samples, channels, start, end, threshold_db)?
+            else {
+                return Err(
+                    "The whole selection is below the threshold. Use Cut or Silence instead."
+                        .into(),
+                );
+            };
+            if keep == start && stop == end {
+                return Err("The selection has no leading or trailing silence to trim.".into());
+            }
+            if start == 0 {
+                lead = keep;
+            }
+            spliced(first, &samples[keep * channels..stop * channels], last)
+        }
+        AudioEditOperation::InsertSilence { frames } => {
+            if frames == 0 {
+                return Err("Insert at least one frame of silence.".into());
+            }
+            grown(view.frames() + frames as usize)?;
+            spliced(first, &vec![0.0; frames as usize * channels], first)
+        }
+        AudioEditOperation::Stretch {
+            ratio,
+            semitones,
+            quality,
+            formants,
+        } => {
+            process::check_stretch(ratio, semitones)?;
+            grown(view.frames() - (end - start) + process::stretched_frames(end - start, ratio))?;
+            let stretched = process::stretch(
+                &samples[first..last],
+                rate,
+                view.channels(),
+                ratio,
+                semitones,
+                quality,
+                formants,
+            )?;
+            spliced(first, &stretched, last)
+        }
+        AudioEditOperation::RemoveDc
+        | AudioEditOperation::Declick { .. }
+        | AudioEditOperation::ReduceNoise { .. } => {
+            let mut out = samples.to_vec();
+            match operation {
+                AudioEditOperation::RemoveDc => clean::remove_dc(&mut out, channels, start, end),
+                AudioEditOperation::Declick { strength } => {
+                    if clean::declick(&mut out, channels, rate, start, end, strength)? == 0 {
+                        return Err(
+                            "No clicks were found in the selection. Raise the strength to detect smaller ones."
+                                .into(),
+                        );
+                    }
+                }
+                AudioEditOperation::ReduceNoise {
+                    reduction_db,
+                    profile,
+                } => clean::reduce_noise(
+                    &mut out,
+                    channels,
+                    rate,
+                    start,
+                    end,
+                    reduction_db,
+                    profile.map(|range| (range.start_frame as usize, range.end_frame as usize)),
+                )?,
+                _ => unreachable!(),
+            }
             out
         }
         _ => {
-            let mut out = view.samples().to_vec();
+            let mut out = samples.to_vec();
             let selected = &mut out[first..last];
             match operation {
                 AudioEditOperation::Normalize => {
-                    let peak = selected.iter().fold(0.0_f32, |peak, s| peak.max(s.abs()));
-                    if peak == 0.0 {
-                        return Err("The selection is silent and cannot be normalized.".into());
-                    }
-                    let target = windfall_core::db_to_gain(-1.0);
-                    for s in selected {
-                        *s = ((*s as f64 / f64::from(peak)) * f64::from(target)) as f32;
-                    }
+                    process::normalize(selected, -1.0, AudioNormalizeMode::Peak)?
                 }
+                AudioEditOperation::NormalizeTo { target_db, mode } => {
+                    process::normalize(selected, target_db, mode)?
+                }
+                AudioEditOperation::Gain { db } => process::gain(selected, db)?,
                 AudioEditOperation::Reverse => {
                     for frame in 0..(end - start) / 2 {
                         for channel in 0..channels {
@@ -165,29 +269,35 @@ pub fn edit(
                     }
                 }
                 AudioEditOperation::Silence => selected.fill(0.0),
-                AudioEditOperation::FadeIn | AudioEditOperation::FadeOut => {
-                    let denominator = (end - start - 1).max(1) as f64;
-                    for (frame, samples) in selected.chunks_exact_mut(channels).enumerate() {
-                        let part = if operation == AudioEditOperation::FadeIn {
-                            frame as f64 / denominator
-                        } else {
-                            (end - start - 1 - frame) as f64 / denominator
-                        };
-                        for s in samples {
-                            *s *= equal_power(part);
-                        }
-                    }
+                AudioEditOperation::FadeIn => {
+                    process::fade(selected, channels, false, AudioFadeShape::EqualPower)
+                }
+                AudioEditOperation::FadeOut => {
+                    process::fade(selected, channels, true, AudioFadeShape::EqualPower)
+                }
+                AudioEditOperation::Fade { direction, shape } => process::fade(
+                    selected,
+                    channels,
+                    direction == AudioFadeDirection::Out,
+                    shape,
+                ),
+                AudioEditOperation::SwapChannels => process::swap_channels(selected, channels)?,
+                AudioEditOperation::MonoSum => process::mono_sum(selected, channels)?,
+                AudioEditOperation::InvertPhase { channels: which } => {
+                    process::invert_phase(selected, channels, which)?
                 }
                 _ => unreachable!(),
             }
             out
         }
     };
-    Ok(AudioBuffer::from_interleaved(
-        view.sample_rate(),
-        view.channels(),
-        data,
-    ))
+    if data.iter().any(|s| !s.is_finite()) {
+        return Err("The edit produced non-finite audio.".into());
+    }
+    Ok(Edited {
+        audio: AudioBuffer::from_interleaved(rate, view.channels(), data),
+        lead,
+    })
 }
 
 /// Envelope across channels, rather than their average: anti-phase stereo
@@ -372,5 +482,201 @@ mod tests {
         let mut clip = clip();
         clip.length = 960 * 121;
         assert!(render_view(&pool, &clip, 60.0).is_err());
+    }
+
+    use windfall_ipc::{AudioEditChannels, AudioEditRange};
+
+    /// One second at 48 kHz: silence, a noisy tone, silence.
+    fn take() -> AudioBuffer {
+        let mut state = 9_u64;
+        let mut data = Vec::with_capacity(96_000);
+        for i in 0..48_000 {
+            state = state
+                .wrapping_mul(6_364_136_223_846_793_005)
+                .wrapping_add(1_442_695_040_888_963_407);
+            let noise = ((state >> 40) as f32 / (1u64 << 23) as f32 - 1.0) * 0.01;
+            let tone = if (4800..43_200).contains(&i) {
+                (i as f32 * 0.05).sin() * 0.4
+            } else {
+                0.0
+            };
+            let quiet = if (4800..43_200).contains(&i) {
+                noise
+            } else {
+                noise * 0.01
+            };
+            data.extend([tone + quiet, (tone + quiet) * 0.5]);
+        }
+        AudioBuffer::from_interleaved(48_000, 2, data)
+    }
+
+    #[test]
+    fn audio_edit_trim_and_insert_silence_have_exact_boundaries_and_lengths() {
+        let view = take();
+        let samples = view.samples();
+        let trim = AudioEditOperation::TrimSilence {
+            threshold_db: -60.0,
+        };
+        // Whole clip: both ends go, and the clip start follows the lead.
+        let whole = apply(&view, trim, 0, 48_000).unwrap();
+        assert_eq!(whole.lead, 4800);
+        assert_eq!(whole.audio.frames(), 38_400);
+        assert_eq!(whole.audio.samples(), &samples[9600..86_400]);
+        // Inner selection: audio before and after it is kept in place.
+        let inner = apply(&view, trim, 2400, 45_600).unwrap();
+        assert_eq!(inner.lead, 0);
+        assert_eq!(inner.audio.frames(), 2400 + 38_400 + 2400);
+        assert_eq!(&inner.audio.samples()[..4800], &samples[..4800]);
+        assert_eq!(&inner.audio.samples()[4800..81_600], &samples[9600..86_400]);
+        assert_eq!(&inner.audio.samples()[81_600..], &samples[91_200..]);
+        assert!(apply(&view, trim, 0, 4800).unwrap_err().contains("below"));
+        assert!(
+            apply(&view, trim, 4800, 43_200)
+                .unwrap_err()
+                .contains("no leading")
+        );
+
+        let insert = AudioEditOperation::InsertSilence { frames: 1000 };
+        let longer = apply(&view, insert, 6000, 6001).unwrap();
+        assert_eq!((longer.lead, longer.audio.frames()), (0, 49_000));
+        assert_eq!(&longer.audio.samples()[..12_000], &samples[..12_000]);
+        assert!(
+            longer.audio.samples()[12_000..14_000]
+                .iter()
+                .all(|s| *s == 0.0)
+        );
+        assert_eq!(&longer.audio.samples()[14_000..], &samples[12_000..]);
+        assert!(apply(&view, AudioEditOperation::InsertSilence { frames: 0 }, 0, 1).is_err());
+        // Growing past two minutes is refused before any allocation.
+        let too_long = AudioEditOperation::InsertSilence {
+            frames: 120 * 48_000,
+        };
+        assert!(
+            apply(&view, too_long, 0, 1)
+                .unwrap_err()
+                .contains("two minutes")
+        );
+    }
+
+    #[test]
+    fn audio_edit_selection_stretch_splices_exact_lengths_and_keeps_the_rest() {
+        let view = take();
+        let samples = view.samples();
+        let stretch = AudioEditOperation::Stretch {
+            ratio: 1.25,
+            semitones: 0.0,
+            quality: Default::default(),
+            formants: false,
+        };
+        let edited = apply(&view, stretch, 9600, 33_600).unwrap();
+        assert_eq!(edited.audio.frames(), 9600 + 30_000 + 14_400);
+        assert_eq!(&edited.audio.samples()[..19_200], &samples[..19_200]);
+        assert_eq!(&edited.audio.samples()[79_200..], &samples[67_200..]);
+        let pitched = AudioEditOperation::Stretch {
+            ratio: 1.0,
+            semitones: 5.0,
+            quality: Default::default(),
+            formants: false,
+        };
+        let edited = apply(&view, pitched, 9600, 33_600).unwrap();
+        assert_eq!(edited.audio.frames(), 48_000);
+        assert_eq!(&edited.audio.samples()[..19_200], &samples[..19_200]);
+        assert_eq!(&edited.audio.samples()[67_200..], &samples[67_200..]);
+        assert_ne!(
+            &edited.audio.samples()[19_200..67_200],
+            &samples[19_200..67_200]
+        );
+        let huge = AudioBuffer::from_interleaved(48_000, 2, vec![0.1; 2 * 48_000 * 40]);
+        let quadruple = AudioEditOperation::Stretch {
+            ratio: 4.0,
+            semitones: 0.0,
+            quality: Default::default(),
+            formants: false,
+        };
+        assert!(
+            apply(&huge, quadruple, 0, 48_000 * 40)
+                .unwrap_err()
+                .contains("two minutes")
+        );
+    }
+
+    #[test]
+    fn audio_edit_every_operation_is_deterministic_and_preserves_the_outside() {
+        let view = take();
+        let samples = view.samples();
+        let mut clicked = samples.to_vec();
+        clicked[2 * 20_000] += 0.5;
+        clicked[2 * 30_000 + 1] -= 0.4;
+        let clicked = AudioBuffer::from_interleaved(48_000, 2, clicked);
+        for operation in [
+            AudioEditOperation::RemoveDc,
+            AudioEditOperation::Declick { strength: 0.5 },
+            AudioEditOperation::ReduceNoise {
+                reduction_db: 12.0,
+                profile: None,
+            },
+            AudioEditOperation::ReduceNoise {
+                reduction_db: 12.0,
+                profile: Some(AudioEditRange {
+                    start_frame: 0,
+                    end_frame: 4800,
+                }),
+            },
+            AudioEditOperation::Gain { db: 3.0 },
+            AudioEditOperation::NormalizeTo {
+                target_db: -3.0,
+                mode: AudioNormalizeMode::Peak,
+            },
+            AudioEditOperation::NormalizeTo {
+                target_db: -20.0,
+                mode: AudioNormalizeMode::Rms,
+            },
+            AudioEditOperation::Fade {
+                direction: AudioFadeDirection::Out,
+                shape: AudioFadeShape::SCurve,
+            },
+            AudioEditOperation::SwapChannels,
+            AudioEditOperation::MonoSum,
+            AudioEditOperation::InvertPhase {
+                channels: AudioEditChannels::Left,
+            },
+        ] {
+            let input = if matches!(operation, AudioEditOperation::Declick { .. }) {
+                &clicked
+            } else {
+                &view
+            };
+            let edited = apply(input, operation, 12_000, 36_000).unwrap();
+            let again = apply(input, operation, 12_000, 36_000).unwrap();
+            let (out, before) = (edited.audio.samples(), input.samples());
+            assert_eq!(edited.lead, 0, "{operation:?}");
+            assert_eq!(out.len(), before.len(), "{operation:?}");
+            assert!(
+                out.iter()
+                    .zip(again.audio.samples())
+                    .all(|(a, b)| a.to_bits() == b.to_bits()),
+                "{operation:?}"
+            );
+            assert_eq!(&out[..24_000], &before[..24_000], "{operation:?}");
+            assert_eq!(&out[72_000..], &before[72_000..], "{operation:?}");
+            assert_ne!(
+                &out[24_000..72_000],
+                &before[24_000..72_000],
+                "{operation:?}"
+            );
+        }
+        // Clean audio gives the de-clicker nothing to do: no empty undo step.
+        let refusal = apply(
+            &view,
+            AudioEditOperation::Declick { strength: 0.5 },
+            0,
+            48_000,
+        );
+        assert!(refusal.unwrap_err().contains("No clicks"));
+        assert!(
+            apply(&view, AudioEditOperation::Gain { db: 12.0 }, 0, 48_000)
+                .unwrap_err()
+                .contains("would clip")
+        );
     }
 }

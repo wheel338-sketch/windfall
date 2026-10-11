@@ -1,4 +1,4 @@
-import type { EffectId } from "@/bindings"
+import type { EffectId, TrackId } from "@/bindings"
 import type { ParamBinder } from "@/features/params"
 
 /**
@@ -9,6 +9,11 @@ import type { ParamBinder } from "@/features/params"
 export type EditorProps<Params> = {
   /** The effect being edited, which is how its meters find their readings. */
   effect: EffectId
+  /**
+   * The mixer track the effect is on, which is where its live displays
+   * take their audio from. Without it they stay empty.
+   */
+  track?: TrackId
   /** The stored settings. */
   params: Params
   bind: ParamBinder

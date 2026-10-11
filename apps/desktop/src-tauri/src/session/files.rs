@@ -548,6 +548,7 @@ impl Session {
                         candidate.midi_ticket = state.midi_ticket;
                         candidate.slice_ticket = state.slice_ticket;
                         old_state = Some(std::mem::replace(&mut *state, candidate));
+                        self.analyzer_project_replaced(generation);
                         retirement = Some(lease.install());
                         self.refresh_input_monitor_signature(&state);
                         if let Some(staged) = &staged {

@@ -13,6 +13,10 @@ pub const MAX_EVENTS: usize = MAX_BLOCK_FRAMES * 2;
 pub const ECHO_EVENT_CAPACITY: usize = 256;
 /// Echoes below -60 dB velocity are not scheduled.
 pub const ECHO_VELOCITY_FLOOR: f32 = 0.001;
+/// The most repeats one note can have; the settings clamp to it.
+pub const MAX_ECHO_REPEATS: usize = 8;
+/// Release time of an echo whose source note is still held.
+const HELD_OPEN: u64 = u64::MAX;
 
 fn finite(value: f32, low: f32, high: f32, fallback: f32) -> f32 {
     if value.is_finite() {
@@ -227,6 +231,24 @@ struct DelayedEvent {
     kind: NoteEventKind,
     note: HeldNote,
 }
+/// The echoes scheduled for one held note, to release them when it ends.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct HeldEcho {
+    first_id: u64,
+    count: u8,
+    start: u64,
+    delay: f64,
+}
+impl HeldEcho {
+    /// How many repeats were queued.
+    pub fn repeats(&self) -> usize {
+        usize::from(self.count)
+    }
+    /// The id of repeat `index`, counted from zero.
+    pub fn id(&self, index: usize) -> u64 {
+        self.first_id.wrapping_add(index as u64)
+    }
+}
 pub struct NoteEcho {
     settings: NoteEchoSettings,
     queue: [Option<DelayedEvent>; ECHO_EVENT_CAPACITY],
@@ -241,6 +263,65 @@ impl NoteEcho {
             frame: 0,
             next_id: 1,
         }
+    }
+    fn delay_frames(&self, rate: f64, bpm: f64) -> f64 {
+        match self.settings.time {
+            EchoTime::Milliseconds { ms } => (sample_rate(rate) * f64::from(ms) / 1000.0).max(1.0),
+            EchoTime::Division { division } => division.frames(rate, bpm),
+        }
+    }
+    /// The repeats one note gets: `(start frame, note)` for repeat 1 onward.
+    /// The list ends at the first repeat that falls below the velocity floor
+    /// or leaves the MIDI range.
+    fn repeats(
+        &self,
+        note: HeldNote,
+        start: u64,
+        delay: f64,
+    ) -> ([(u64, HeldNote); MAX_ECHO_REPEATS], usize) {
+        let note = note.sanitized();
+        let mut out = [(0, HeldNote::default()); MAX_ECHO_REPEATS];
+        let mut count = 0;
+        let mut velocity = note.velocity;
+        for repeat in 1..=self.settings.repeats.min(MAX_ECHO_REPEATS as u8) {
+            velocity *= self.settings.feedback;
+            if velocity < ECHO_VELOCITY_FLOOR {
+                break;
+            }
+            let key =
+                i16::from(note.key) + i16::from(self.settings.pitch_semitones) * i16::from(repeat);
+            if !(0..=127).contains(&key) {
+                break;
+            }
+            let at = start.saturating_add((delay * f64::from(repeat)).round() as u64);
+            out[count] = (
+                at,
+                HeldNote {
+                    key: key as u8,
+                    velocity,
+                },
+            );
+            count += 1;
+        }
+        (out, count)
+    }
+    /// Queues every pair or none of them. `off` gives each repeat's release.
+    fn enqueue(&mut self, repeats: &[(u64, HeldNote)], off: impl Fn(u64) -> u64) -> Option<u64> {
+        let count = repeats.len() * 2;
+        if self.queue.iter().filter(|slot| slot.is_none()).count() < count {
+            return None;
+        }
+        let first = self.next_id;
+        let mut free = self.queue.iter_mut().filter(|slot| slot.is_none());
+        for (index, &(at, note)) in repeats.iter().enumerate() {
+            let id = first.wrapping_add(index as u64);
+            for (at, kind) in [(at, NoteEventKind::On), (off(at), NoteEventKind::Off)] {
+                *free.next().expect("the free slots were counted") =
+                    Some(DelayedEvent { id, at, kind, note });
+            }
+        }
+        self.next_id = self.next_id.wrapping_add(repeats.len() as u64);
+        Some(first)
     }
     /// Schedule echoes of one completed note; original is not emitted.
     /// `offset` is relative to the next block; `duration` is the original gate.
@@ -257,60 +338,69 @@ impl NoteEcho {
         if !self.settings.enabled {
             return true;
         }
-        let delay = match self.settings.time {
-            EchoTime::Milliseconds { ms } => (sample_rate(rate) * f64::from(ms) / 1000.0).max(1.0),
-            EchoTime::Division { division } => division.frames(rate, bpm),
+        let delay = self.delay_frames(rate, bpm);
+        let start = self.frame.saturating_add(offset as u64);
+        let (repeats, count) = self.repeats(note, start, delay);
+        let gate = duration.max(1) as u64;
+        self.enqueue(&repeats[..count], |at| at.saturating_add(gate))
+            .is_some()
+    }
+    /// Schedule echoes of a note that is still held, whose length is not
+    /// known yet. Every repeat's note-on is queued now and its release is
+    /// reserved but left open, so capacity is settled here and the later
+    /// [`Self::release_held`] cannot fail. `None` rejects the whole request
+    /// for capacity. A disabled echo, or one with no audible repeat, returns
+    /// a handle with nothing to release.
+    pub fn schedule_held(
+        &mut self,
+        note: HeldNote,
+        offset: usize,
+        rate: f64,
+        bpm: f64,
+    ) -> Option<HeldEcho> {
+        let delay = self.delay_frames(rate, bpm);
+        let start = self.frame.saturating_add(offset as u64);
+        let mut held = HeldEcho {
+            first_id: self.next_id,
+            count: 0,
+            start,
+            delay,
         };
-        let note = note.sanitized();
-        let mut pending = [None; 16];
-        let mut count = 0;
-        let mut velocity = note.velocity;
-        for repeat in 1..=self.settings.repeats {
-            velocity *= self.settings.feedback;
-            if velocity < ECHO_VELOCITY_FLOOR {
-                break;
+        if !self.settings.enabled {
+            return Some(held);
+        }
+        let (repeats, count) = self.repeats(note, start, delay);
+        held.first_id = self.enqueue(&repeats[..count], |_| HELD_OPEN)?;
+        held.count = count as u8;
+        Some(held)
+    }
+    /// Ends the echoes of a held note: each repeat is released as long after
+    /// this moment as it started after the note did, so every echo has the
+    /// length the note turned out to have (at least one frame). `offset` is
+    /// relative to the next block. Repeats already discarded by a reset are
+    /// skipped.
+    pub fn release_held(&mut self, held: HeldEcho, offset: usize) {
+        let released = self.frame.saturating_add(offset as u64);
+        for index in 0..u64::from(held.count) {
+            let id = held.first_id.wrapping_add(index);
+            let shift = (held.delay * (index + 1) as f64).round() as u64;
+            let on = held.start.saturating_add(shift);
+            let at = released.saturating_add(shift).max(on.saturating_add(1));
+            for event in self.queue.iter_mut().flatten() {
+                if event.id == id && event.kind == NoteEventKind::Off && event.at == HELD_OPEN {
+                    event.at = at;
+                }
             }
-            let key =
-                i16::from(note.key) + i16::from(self.settings.pitch_semitones) * i16::from(repeat);
-            if !(0..=127).contains(&key) {
-                break;
+        }
+    }
+    /// Discards what is still queued for one repeat. The caller releases
+    /// its voice if it is already sounding.
+    pub fn cancel(&mut self, id: u64) {
+        for slot in &mut self.queue {
+            if slot.is_some_and(|event| event.id == id) {
+                *slot = None;
             }
-            let at = self
-                .frame
-                .saturating_add(offset as u64)
-                .saturating_add((delay * f64::from(repeat)).round() as u64);
-            let echoed = HeldNote {
-                key: key as u8,
-                velocity,
-            };
-            pending[count] = Some(DelayedEvent {
-                id: self.next_id.wrapping_add(u64::from(repeat) - 1),
-                at,
-                kind: NoteEventKind::On,
-                note: echoed,
-            });
-            pending[count + 1] = Some(DelayedEvent {
-                id: self.next_id.wrapping_add(u64::from(repeat) - 1),
-                at: at.saturating_add(duration.max(1) as u64),
-                kind: NoteEventKind::Off,
-                note: echoed,
-            });
-            count += 2;
         }
-        if self.queue.iter().filter(|slot| slot.is_none()).count() < count {
-            return false;
-        }
-        let mut events = pending[..count].iter().copied();
-        for slot in self
-            .queue
-            .iter_mut()
-            .filter(|slot| slot.is_none())
-            .take(count)
-        {
-            *slot = events.next().flatten();
-        }
-        self.next_id = self.next_id.wrapping_add((count / 2) as u64);
-        true
     }
     /// Discard future events on stop/seek after the caller releases voices.
     pub fn reset(&mut self) {
@@ -332,6 +422,7 @@ impl NoteEcho {
         for slot in &mut self.queue {
             if let Some(event) = *slot
                 && event.at < end
+                && event.at != HELD_OPEN
             {
                 let frame = event.at.saturating_sub(self.frame) as usize;
                 out.push(frame, event.kind, event.note, event.id);
@@ -362,6 +453,15 @@ pub struct PolyphonyDecision {
 }
 
 impl PolyphonyDecision {
+    /// Admits a note without entering it in the held table: it retriggers
+    /// and releases nothing. For echoes, which sound alongside the note
+    /// they repeat instead of replacing it.
+    pub fn alongside() -> Self {
+        Self {
+            retrigger: true,
+            ..Default::default()
+        }
+    }
     /// Release these existing keys before admitting the new note. Includes
     /// duplicate-key retriggers and all victims when a voice limit shrinks.
     pub fn released_keys(&self) -> &[u8] {
@@ -431,8 +531,12 @@ pub fn admit_note(held: &mut HeldNotes, key: u8, settings: PolyphonySettings) ->
 #[derive(Clone, Copy)]
 pub struct PreparedChannelEnvelopes {
     settings: ChannelEnvelopes,
-    generators: [Adsr; 3],
+    /// Cutoff, pitch, pan, resonance.
+    generators: [Adsr; 4],
+    /// The assignable LFO.
     phase: f64,
+    /// The dedicated LFOs: volume, pan, pitch, cutoff, resonance.
+    phases: [f64; 5],
     rate: f64,
 }
 pub struct ModulationBlock {
@@ -440,6 +544,10 @@ pub struct ModulationBlock {
     pub filter_cutoff_offset: [f32; MAX_BLOCK_FRAMES],
     pub pitch_cents: [f32; MAX_BLOCK_FRAMES],
     pub pan: [f32; MAX_BLOCK_FRAMES],
+    /// Added to the filter's resonance amount, then clamped to 0..1.
+    pub resonance: [f32; MAX_BLOCK_FRAMES],
+    /// Tremolo gain, 0 to 1. One when no volume LFO runs.
+    pub volume: [f32; MAX_BLOCK_FRAMES],
     pub frames: usize,
 }
 impl Default for ModulationBlock {
@@ -448,20 +556,42 @@ impl Default for ModulationBlock {
             filter_cutoff_offset: [0.0; MAX_BLOCK_FRAMES],
             pitch_cents: [0.0; MAX_BLOCK_FRAMES],
             pan: [0.0; MAX_BLOCK_FRAMES],
+            resonance: [0.0; MAX_BLOCK_FRAMES],
+            volume: [1.0; MAX_BLOCK_FRAMES],
             frames: 0,
         }
     }
+}
+fn lfo_wave(shape: LfoShape, phase: f64) -> f32 {
+    (match shape {
+        LfoShape::Sine => (phase * std::f64::consts::TAU).sin(),
+        LfoShape::Triangle => 1.0 - 4.0 * (phase - 0.5).abs(),
+        LfoShape::Square => {
+            if phase < 0.5 {
+                1.0
+            } else {
+                -1.0
+            }
+        }
+    }) as f32
+}
+/// Tremolo gain for an LFO value and its depth: the gain swings between
+/// `1 - |depth|` and 1, and a negative depth swaps which half of the wave
+/// is the loud one.
+fn tremolo(wave: f32, depth: f32) -> f32 {
+    (1.0 - depth.abs() * (1.0 - wave * depth.signum()) * 0.5).clamp(0.0, 1.0)
 }
 impl PreparedChannelEnvelopes {
     pub fn prepare(settings: ChannelEnvelopes, rate: f64) -> Self {
         let settings = settings.sanitized();
         let rate = sample_rate(rate);
-        let mut generators = [Adsr::default(); 3];
-        for (generator, envelope) in
-            generators
-                .iter_mut()
-                .zip([settings.filter, settings.pitch, settings.pan])
-        {
+        let mut generators = [Adsr::default(); 4];
+        for (generator, envelope) in generators.iter_mut().zip([
+            settings.filter,
+            settings.pitch,
+            settings.pan,
+            settings.resonance,
+        ]) {
             generator.configure(
                 envelope.attack_ms,
                 envelope.decay_ms,
@@ -474,6 +604,7 @@ impl PreparedChannelEnvelopes {
             settings,
             generators,
             phase: 0.0,
+            phases: [0.0; 5],
             rate,
         }
     }
@@ -481,7 +612,14 @@ impl PreparedChannelEnvelopes {
         self.settings.filter.enabled
             || self.settings.pitch.enabled
             || self.settings.pan.enabled
+            || self.settings.resonance.enabled
             || self.settings.lfo.enabled
+            || self.settings.lfos.any_enabled()
+            || self.settings.filter_settings.enabled
+    }
+    /// The channel filter these modulations move.
+    pub(crate) fn filter(&self) -> VoiceFilter {
+        self.settings.filter_settings
     }
     /// Call only on retrigger; mono legato preserves this state.
     pub fn gate_on(&mut self) {
@@ -499,47 +637,70 @@ impl PreparedChannelEnvelopes {
             envelope.reset();
         }
         self.phase = 0.0;
+        self.phases = [0.0; 5];
     }
     pub fn process_block(&mut self, frames: usize, out: &mut ModulationBlock) {
         out.frames = frames.min(MAX_BLOCK_FRAMES);
         out.filter_cutoff_offset.fill(0.0);
         out.pitch_cents.fill(0.0);
         out.pan.fill(0.0);
+        out.resonance.fill(0.0);
+        out.volume.fill(1.0);
+        let envelopes = [
+            self.settings.filter,
+            self.settings.pitch,
+            self.settings.pan,
+            self.settings.resonance,
+        ];
+        let lfo = self.settings.lfo;
+        let lfos = self.settings.lfos;
+        let targets = [
+            lfos.volume,
+            lfos.pan,
+            lfos.pitch,
+            lfos.cutoff,
+            lfos.resonance,
+        ];
         for frame in 0..out.frames {
-            let mut values = [0.0; 3];
-            for (index, settings) in [self.settings.filter, self.settings.pitch, self.settings.pan]
-                .iter()
-                .enumerate()
-            {
+            // Cutoff octaves, pitch cents, pan, resonance amount.
+            let mut values = [0.0; 4];
+            for (index, settings) in envelopes.iter().enumerate() {
                 let level = self.generators[index].tick();
                 if settings.enabled {
                     values[index] = level * settings.depth;
                 }
             }
-            let lfo = self.settings.lfo;
+            let mut volume = 1.0;
             if lfo.enabled {
-                let wave = match lfo.shape {
-                    LfoShape::Sine => (self.phase * std::f64::consts::TAU).sin(),
-                    LfoShape::Triangle => 1.0 - 4.0 * (self.phase - 0.5).abs(),
-                    LfoShape::Square => {
-                        if self.phase < 0.5 {
-                            1.0
-                        } else {
-                            -1.0
-                        }
-                    }
-                } as f32
-                    * lfo.depth;
+                let wave = lfo_wave(lfo.shape, self.phase);
                 match lfo.target {
-                    LfoTarget::Filter => values[0] += wave * 8.0,
-                    LfoTarget::Pitch => values[1] += wave * 2400.0,
-                    LfoTarget::Pan => values[2] += wave,
+                    LfoTarget::Filter => values[0] += wave * lfo.depth * 8.0,
+                    LfoTarget::Pitch => values[1] += wave * lfo.depth * 2400.0,
+                    LfoTarget::Pan => values[2] += wave * lfo.depth,
+                    LfoTarget::Resonance => values[3] += wave * lfo.depth,
+                    LfoTarget::Volume => volume *= tremolo(wave, lfo.depth),
                 }
             }
             self.phase = (self.phase + f64::from(lfo.rate_hz) / self.rate).rem_euclid(1.0);
+            for (index, target) in targets.iter().enumerate() {
+                if target.enabled {
+                    let wave = lfo_wave(target.shape, self.phases[index]);
+                    match index {
+                        0 => volume *= tremolo(wave, target.depth),
+                        1 => values[2] += wave * target.depth,
+                        2 => values[1] += wave * target.depth * 2400.0,
+                        3 => values[0] += wave * target.depth * 8.0,
+                        _ => values[3] += wave * target.depth,
+                    }
+                }
+                self.phases[index] =
+                    (self.phases[index] + f64::from(target.rate_hz) / self.rate).rem_euclid(1.0);
+            }
             out.filter_cutoff_offset[frame] = values[0].clamp(-8.0, 8.0);
             out.pitch_cents[frame] = values[1].clamp(-2400.0, 2400.0);
             out.pan[frame] = values[2].clamp(-1.0, 1.0);
+            out.resonance[frame] = values[3].clamp(-1.0, 1.0);
+            out.volume[frame] = volume;
         }
     }
 }

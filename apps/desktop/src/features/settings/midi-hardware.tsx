@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react"
 import type {
+  ControllerState,
   MidiHardwareSettings,
   MidiHardwareState,
   MidiPort,
@@ -86,8 +87,23 @@ const CHANNELS: Option[] = Array.from({ length: 16 }, (_, index) => ({
   label: `Channel ${index + 1}`,
 }))
 
+const SWITCH: Option[] = [
+  { value: "off", label: "Off" },
+  { value: "on", label: "On" },
+]
+const NO_PROFILE = "none"
+/** Grids recorded notes can be snapped to, in ticks of 960 a quarter note. */
+const QUANTIZE: Option[] = [
+  { value: "0", label: "Off" },
+  { value: "120", label: "1/32 note" },
+  { value: "240", label: "1/16 note" },
+  { value: "480", label: "1/8 note" },
+  { value: "960", label: "1/4 note" },
+]
+
 export function MidiHardwareSettingsSection() {
   const [state, setState] = useState<MidiHardwareState | null>(null)
+  const [controllers, setControllers] = useState<ControllerState | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const channels = useProjectStore((project) => project.project.channels)
@@ -105,12 +121,15 @@ export function MidiHardwareSettingsSection() {
       const request = operation.current
       try {
         const result = await backend.midiHardwareState()
+        const linked = await backend.controllerState()
         if (
           ticket === epoch.current &&
           request === operation.current &&
           !working.current
-        )
+        ) {
           setState(result)
+          setControllers(linked)
+        }
       } catch (failure) {
         if (ticket === epoch.current && request === operation.current)
           setError(errorMessage(failure))
@@ -151,6 +170,14 @@ export function MidiHardwareSettingsSection() {
       void run(() =>
         backend.midiHardwareConfigure({ ...state.settings, ...change })
       )
+  }
+  function configureControllers(change: Partial<ControllerState["settings"]>) {
+    if (!controllers || working.current) return
+    setError(null)
+    backend
+      .controllerSettingsSet({ ...controllers.settings, ...change })
+      .then(setControllers)
+      .catch((failure: unknown) => setError(errorMessage(failure)))
   }
   const disabled = busy || !state || backend.kind !== "tauri"
   return (
@@ -219,6 +246,51 @@ export function MidiHardwareSettingsSection() {
           disabled={disabled}
           change={(value) => configure({ outputChannel: Number(value) })}
         />
+        <Choice
+          label="Controller profile"
+          value={state?.settings.inputProfile ?? NO_PROFILE}
+          options={[
+            { value: NO_PROFILE, label: "None" },
+            ...(controllers?.profiles ?? []).map((profile) => ({
+              value: profile.id,
+              label: profile.name,
+            })),
+          ]}
+          disabled={disabled}
+          change={(value) =>
+            configure({ inputProfile: value === NO_PROFILE ? null : value })
+          }
+        />
+        <Choice
+          label="Send MIDI clock"
+          value={state?.settings.sendClock ? "on" : "off"}
+          options={SWITCH}
+          disabled={disabled}
+          change={(value) => configure({ sendClock: value === "on" })}
+        />
+        <Choice
+          label="Follow MIDI clock"
+          value={state?.settings.followClock ? "on" : "off"}
+          options={SWITCH}
+          disabled={disabled}
+          change={(value) => configure({ followClock: value === "on" })}
+        />
+        <Choice
+          label="Controller pickup"
+          value={controllers?.settings.pickup ? "on" : "off"}
+          options={SWITCH}
+          disabled={disabled || !controllers}
+          change={(value) => configureControllers({ pickup: value === "on" })}
+        />
+        <Choice
+          label="Snap recorded notes"
+          value={String(controllers?.settings.recordQuantizeTicks ?? 0)}
+          options={QUANTIZE}
+          disabled={disabled || !controllers}
+          change={(value) =>
+            configureControllers({ recordQuantizeTicks: Number(value) })
+          }
+        />
       </FieldGroup>
       <div className="flex flex-wrap gap-2">
         <Button
@@ -268,8 +340,9 @@ export function MidiHardwareSettingsSection() {
       <p className="text-muted-foreground">
         Play notes and sustain into the chosen channel. The destination resets
         when its channel is removed or another project opens. Output forwards
-        live notes only. Notes are not recorded; controller mapping and MIDI
-        clock are not available.
+        live notes, and a MIDI output channel in the rack sends its pattern.
+        Right-click a knob or fader to link it to a hardware control. A
+        profile maps a known surface to the mixer and the transport.
       </p>
     </FieldSet>
   )

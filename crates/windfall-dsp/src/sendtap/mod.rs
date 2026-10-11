@@ -18,13 +18,54 @@ param_set!(SendTapParams, "Send Tap", {
     float [level] "level" "Level" { Gain, Linear, 0.0, 1.0, 0.0 }
 });
 
-/// Stateless unity passthrough with a separate, host-owned send output.
+/// Time the routed send takes to travel its whole level range.
+const SEND_GLIDE_MS: f32 = 5.0;
+
+/// Unity passthrough with a separate, host-owned send output. The dry path
+/// and [`SendTap::send`] keep no audio; [`SendTap::send_frames`] only keeps
+/// the gain it last applied, so a routed send follows its level without a
+/// step.
 #[derive(Debug, Default)]
 pub struct SendTap {
     params: SendTapParams,
+    /// Gain [`SendTap::send_frames`] last applied.
+    sent: f32,
+    /// Largest change of that gain from one frame to the next.
+    step: f32,
+    /// Nothing has been sent since prepare or reset, so the first frame
+    /// starts on the level instead of gliding up to it.
+    fresh: bool,
 }
 
 impl SendTap {
+    /// Writes the block just passed to `process` into `send` as stereo
+    /// frames at the current level, for a host that routes the tap to
+    /// another track. The gain glides to a changed level over a few
+    /// milliseconds, so automating or dragging it never steps. The first
+    /// block after `prepare` or `reset` starts on the level. `send` is
+    /// overwritten. Does not allocate.
+    pub fn send_frames(&mut self, left: &[f32], right: &[f32], send: &mut [[f32; 2]]) {
+        let level = self.params.level;
+        if std::mem::replace(&mut self.fresh, false) {
+            self.sent = level;
+        }
+        let step = if self.step > 0.0 { self.step } else { 1.0 };
+        for (frame, (left, right)) in send.iter_mut().zip(left.iter().zip(right)) {
+            let gap = level - self.sent;
+            self.sent = if gap.abs() <= step {
+                level
+            } else {
+                self.sent + step.copysign(gap)
+            };
+            // Exact silence at zero, even for a source that is not a number.
+            *frame = if self.sent == 0.0 {
+                [0.0; 2]
+            } else {
+                [crate::balance::audio(*left) * self.sent, crate::balance::audio(*right) * self.sent]
+            };
+        }
+    }
+
     /// Copies the block just passed to `process` into the destination pair,
     /// scaled by the current level. Call before downstream processing changes
     /// the source block. No audio is retained internally.
@@ -55,11 +96,15 @@ impl SendTap {
 impl Effect for SendTap {
     type Params = SendTapParams;
 
-    fn prepare(&mut self, _sample_rate: f32, _max_block: usize) {
+    fn prepare(&mut self, sample_rate: f32, _max_block: usize) {
+        let rate = crate::balance::rate(sample_rate);
+        self.step = 1.0 / (SEND_GLIDE_MS * 0.001 * rate).max(1.0);
         self.reset();
     }
 
-    fn reset(&mut self) {}
+    fn reset(&mut self) {
+        self.fresh = true;
+    }
 
     fn set_params(&mut self, params: &Self::Params) {
         self.params = params.sanitized();

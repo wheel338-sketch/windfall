@@ -38,16 +38,23 @@
 
 pub mod error;
 pub mod export;
+pub mod expression;
 pub mod file;
 pub mod gm;
 pub mod import;
+mod import_expression;
 mod mix;
 pub mod read;
+pub mod score;
 pub mod song;
 pub mod write;
 
 pub use error::MidiError;
-pub use export::{ExportError, ExportOptions, MAX_EXPORTED_NOTES, export_pattern, export_song};
+pub use export::{
+    ExportError, ExportOptions, Exported, MAX_EXPORTED_NOTES, MAX_EXPRESSION_MESSAGES,
+    export_pattern, export_pattern_reported, export_song, export_song_reported,
+};
+pub use expression::{ExportReport, ExpressionMode, ExpressionOptions};
 pub use file::{read_file, write_file};
 pub use gm::{DrumKit, DrumPad, program_name};
 pub use import::{
@@ -55,5 +62,6 @@ pub use import::{
     PlannedClip, PlannedLane, PlannedPattern, PlannedSample, PlannedSound, Unsupported, import,
 };
 pub use read::{MAX_FILE_BYTES, read};
+pub use score::{score_from_song, score_to_song};
 pub use song::*;
 pub use write::{Resolution, SmfFormat, WriteOptions, write};

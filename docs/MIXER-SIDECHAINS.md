@@ -109,3 +109,13 @@ audible/key destinations, deletion/history, per-slot alignment and hosted plugin
 ownership exchange, multiple auxiliary inputs, mono/wider port mapping, unavailable
 saved selections, and version-six key transport. Bindings are provisionally synchronized; the simulator still
 requires the combined native artifact build. No GitHub CI or Actions are used.
+
+## Follow-up, 2026-10-10
+
+Tests for the three gates the completion audit named are written: a real
+CLAP/VST3 fixture with mono, stereo and four-channel auxiliary inputs and the
+host, helper, desktop-provider and session cases that use it; owner exchange
+with the saved choice reapplied; and engine cases that edit latency, routes
+and history while the key is sounding. A key shorter than the audio block is
+now silent only past its own end. None of it has been executed yet. See
+`docs/qa/2026-10-10-mixer.md`.

@@ -131,6 +131,7 @@ describe("descriptors", () => {
       waveLane: true,
       macroVoice: true,
       speechVoice: true,
+      midiOut: true,
     }
     expect([...EFFECT_KINDS].sort()).toEqual(Object.keys(effects).sort())
     expect([...INSTRUMENT_KINDS].sort()).toEqual(

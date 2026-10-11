@@ -46,7 +46,7 @@ impl Capture {
     pub fn start_timed<F>(source: RecordingSource, rate: u32, gate: CaptureGate, metrics: Arc<AlignmentMetrics>, mut monitor: Option<crate::recording_monitor::MonitorWriter>, mut sink: F) -> Result<Self, String>
     where F: FnMut(&[f32]) -> Result<(), String> + Send + 'static {
         let stop = Arc::new(AtomicBool::new(false));
-        let fault = Arc::new(AtomicBool::new(false));
+        let fault = Arc::new(InputFault::new());
         let frames = Arc::new(AtomicU64::new(0));
         let (ready, waiting) = std::sync::mpsc::sync_channel(1);
         let s = stop.clone(); let f = fault.clone(); let count = frames.clone();
@@ -72,7 +72,7 @@ impl Capture {
                     }
                     total += packet.len as u64; count.store(total, Ordering::Relaxed);
                 }
-                if f.load(Ordering::Acquire) { return Err("Recording failed: input dropout, device loss, or timestamp queue overflow. The take was discarded.".into()); }
+                if f.load(Ordering::Acquire) { return Err(f.describe("The take was discarded so nothing is kept out of time.")); }
                 if s.load(Ordering::Acquire) {
                     if stopping.is_none() { aligner.gate.close(); stopping = Some(std::time::Instant::now()); }
                     let end = aligner.gate.window()?.end as f64;
@@ -87,7 +87,7 @@ impl Capture {
             drop(stream);
             while let Ok(packet) = queue.pop() { aligner.push(&packet, &mut sink)?; total += packet.len as u64; }
             aligner.finish(&mut sink)?;
-            if f.load(Ordering::Acquire) { return Err("Recording input failed; take discarded.".into()); }
+            if f.load(Ordering::Acquire) { return Err(f.describe("The take was discarded.")); }
             count.store(total, Ordering::Relaxed);
             Ok(total)
         }).map_err(|e| e.to_string())?;
@@ -100,12 +100,12 @@ impl Capture {
 }
 struct TimedFeed {
     queue: Producer<Packet>, channels: usize, left: usize, right: usize,
-    clock: RecordingClock, rate: u32, frame: u64, fault: Arc<AtomicBool>,
+    clock: RecordingClock, rate: u32, frame: u64, fault: Arc<InputFault>,
 }
 impl TimedFeed {
     fn push<T: SizedSample>(&mut self, data: &[T], info: &cpal::InputCallbackInfo) where f32: FromSample<T> {
         if self.fault.load(Ordering::Relaxed) { return; }
-        if !data.len().is_multiple_of(self.channels) { self.fault.store(true, Ordering::Release); return; }
+        if !data.len().is_multiple_of(self.channels) { self.fault.raise(FaultReason::InvalidAudio); return; }
         let stamp = info.timestamp();
         let latency = stamp.callback.checked_duration_since(stamp.capture);
         let latency_ns = latency.map_or(0, nanos);
@@ -119,21 +119,22 @@ impl TimedFeed {
             };
             for (out, frame) in packet.audio.iter_mut().zip(chunk.chunks_exact(self.channels)) {
                 *out = [f32::from_sample(frame[self.left]), f32::from_sample(frame[self.right])];
-                if !out[0].is_finite() || !out[1].is_finite() { self.fault.store(true, Ordering::Release); return; }
+                if !out[0].is_finite() || !out[1].is_finite() { self.fault.raise(FaultReason::InvalidAudio); return; }
             }
             self.frame = self.frame.saturating_add(len as u64);
-            if self.queue.push(packet).is_err() { self.fault.store(true, Ordering::Release); return; }
+            if self.queue.push(packet).is_err() { self.fault.raise(FaultReason::Overflow); return; }
         }
     }
 }
-fn open_timed(source: &RecordingSource, output_rate: u32, clock: RecordingClock, fault: Arc<AtomicBool>) -> Result<(cpal::Stream, rtrb::Consumer<Packet>, u32), String> {
+fn open_timed(source: &RecordingSource, output_rate: u32, clock: RecordingClock, fault: Arc<InputFault>) -> Result<(cpal::Stream, rtrb::Consumer<Packet>, u32), String> {
     let id = cpal::available_hosts().into_iter().find(|id| id.name() == source.host).ok_or("Input host is unavailable.")?;
     let host = cpal::host_from_id(id).map_err(|e| e.to_string())?;
-    let device = host.input_devices().map_err(|e| e.to_string())?
-        .find(|d| d.description().is_ok_and(|d| d.name() == source.device)).ok_or("Input device is unavailable.")?;
+    let endpoint = crate::recording_endpoint::find_input(&host, &source.device)?.ok_or("Input device is unavailable.")?;
+    let configs = crate::recording_endpoint::input_configs(&endpoint)?;
+    let device = endpoint.device;
     let right = source.right.unwrap_or(source.left);
     let preferred = source.alignment.as_ref().and_then(|a| a.input_sample_rate).unwrap_or(output_rate);
-    let config = device.supported_input_configs().map_err(|e| e.to_string())?
+    let config = configs.into_iter()
         .filter(|c| c.channels() > source.left.max(right) && matches!(c.sample_format(), SampleFormat::F32 | SampleFormat::I16 | SampleFormat::U16 | SampleFormat::I32))
         .map(|c| { let rate = preferred.clamp(c.min_sample_rate(), c.max_sample_rate()); (rate.abs_diff(preferred), c.with_sample_rate(rate)) })
         .min_by_key(|(distance, _)| *distance).map(|(_, config)| config).ok_or("Input has no supported format for the selected channels.")?;
@@ -150,8 +151,8 @@ fn open_timed(source: &RecordingSource, output_rate: u32, clock: RecordingClock,
     stream.play().map_err(|e| e.to_string())?;
     Ok((stream, consumer, rate))
 }
-fn build_timed<T: SizedSample>(device: &cpal::Device, config: &cpal::StreamConfig, mut feed: TimedFeed, fault: Arc<AtomicBool>) -> Result<cpal::Stream, String> where f32: FromSample<T> {
-    device.build_input_stream(*config, move |data: &[T], info| feed.push(data, info), move |_| fault.store(true, Ordering::Release), None).map_err(|e| e.to_string())
+fn build_timed<T: SizedSample>(device: &cpal::Device, config: &cpal::StreamConfig, mut feed: TimedFeed, fault: Arc<InputFault>) -> Result<cpal::Stream, String> where f32: FromSample<T> {
+    device.build_input_stream(*config, move |data: &[T], info| feed.push(data, info), move |error: cpal::Error| fault.report(error), None).map_err(|e| e.to_string())
 }
 
 /// A bounded circular history with a symmetric windowed-sinc interpolator.

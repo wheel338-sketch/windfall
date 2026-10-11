@@ -2,6 +2,8 @@ import { create } from "zustand"
 
 import { samePoints, toCurveTick } from "@/features/playlist/automation/points"
 import { rangeNormalized } from "@/lib/automation/curve"
+import { reportError } from "@/lib/errors"
+import { backend } from "@/lib/ipc"
 import { targetState } from "@/lib/automation/targets"
 import { dispatch, useProjectStore } from "@/lib/store/project"
 import { automatedValue, realtimeFrame } from "@/lib/store/realtime"
@@ -23,11 +25,26 @@ onProjectReplaced(() => {
   useAutomationRecordStore.setState({ recordArmed: false })
 })
 
+// In the desktop app the shell records: it sees controller movements as
+// well as edits made here, and writes the pass as one undo step when the
+// transport stops. The arm is the same button.
+useAutomationRecordStore.subscribe((state, previous) => {
+  if (backend.kind !== "tauri" || state.recordArmed === previous.recordArmed)
+    return
+  backend
+    .automationRecordArm(state.recordArmed)
+    .catch((error: unknown) =>
+      reportError(error, "Could not change automation recording")
+    )
+})
+
 /** Records committed control edits into an existing clip while playing. */
 export function watchAutomationRecording(): () => void {
   let writing = false
   return useProjectStore.subscribe((state, previous) => {
     if (
+      // The shell does the recording in the desktop app.
+      backend.kind === "tauri" ||
       writing ||
       !useAutomationRecordStore.getState().recordArmed ||
       !useTransportStore.getState().playing

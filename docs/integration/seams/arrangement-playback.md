@@ -56,3 +56,10 @@ The public-renderer command passed all 9 tests; the desktop command passed all
 17 tests. The plan unit-test command is currently blocked by unrelated existing
 test compilation errors in `project_preparation.rs`, `device.rs` and `render.rs`
 (missing fixture fields and `StemError`/`RenderError` mismatches).
+
+## Empty arrangements — 2026-10-10
+
+An active arrangement that lists lanes and no clips now shows those lanes
+in the playlist, so that the first clip of a new layout has somewhere to
+go. It still plays nothing. An arrangement that lists no lanes shows
+nothing, as before. The engine is unchanged.

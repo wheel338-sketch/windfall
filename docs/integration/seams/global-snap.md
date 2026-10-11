@@ -31,3 +31,24 @@ Focused verification from `apps/desktop`:
 The test covers selections in both directions for all four shared values,
 piano-only divisions, reselecting an unchanged shared value, panel changes,
 New and Open resetting to `bar`, and ignoring legacy snap preferences.
+
+## Live input — 2026-10-10
+
+The statement above that this seam does not quantize live MIDI is
+superseded for the played-note log. Notes played on the computer keyboard
+already entered that log through `auditionOn` and `auditionOff`, and "Dump
+played notes" places them on the shared snap.
+
+Notes from a MIDI input now enter the same log. The session emits a
+`midi:note` event, `{ channel, key, velocity }` with velocity 0 for a
+release, for every hardware note the engine accepts.
+`connectStores` hands it to `logHardwareNote`, which logs the note and asks
+for no audition, because the engine has sounded it already.
+
+The snap itself is unchanged: still a session value, still reset to bar on
+New and Open. Quantizing notes as they are recorded into a pattern belongs
+to note recording, not to this seam.
+
+Coverage, written and not yet run:
+`features/piano-roll/live-input-snap.test.ts` and
+`midi_hardware_notes_are_reported_to_the_ui_for_the_played_note_log`.

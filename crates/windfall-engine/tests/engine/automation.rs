@@ -935,6 +935,7 @@ fn a_setting_that_moves_an_effects_latency_is_not_automated() {
             input_gain_db: 0.0,
             release_ms: 100.0,
             lookahead_ms: 5.0,
+            ..LimiterParams::default()
         }),
     );
     let pattern = rig.first_pattern();

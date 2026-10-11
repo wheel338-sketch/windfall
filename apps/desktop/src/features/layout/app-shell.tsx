@@ -8,6 +8,7 @@ import { FlpImportDialog } from "@/features/flp-import/import-dialog"
 import { ExportDialog } from "@/features/export/export-dialog"
 import { GettingStartedDialog } from "@/features/help/getting-started-dialog"
 import { LfoDialog } from "@/features/automation/lfo-dialog"
+import { EventEditorPanel } from "@/features/event-editor/panel"
 import { PatternTimelineDialog } from "@/features/piano-roll/pattern-timeline"
 import { MidiDialogs } from "@/features/midi/dialogs"
 import { CommandPalette } from "@/features/palette/command-palette"
@@ -17,6 +18,7 @@ import { SpectrumPanel } from "@/features/spectrum/panel"
 import { ProjectOverviewPanel } from "@/features/project-overview/panel"
 import { PhaseMeterPanel } from "@/features/phase-meter/panel"
 import { SpectrogramPanel } from "@/features/spectrogram/panel"
+import { ScopePanel } from "@/features/analyzers/scope-panel"
 import { TransportBar } from "@/features/transport/transport-bar"
 import { resolveTheme, useUiStore } from "@/lib/store/ui"
 
@@ -30,6 +32,7 @@ import { useToastOffset } from "./toast-place"
 import { useAppBoot, useWindowTitle } from "./use-app-boot"
 import { Workspace } from "./workspace"
 import { PluginManager } from "@/features/plugins/manager"
+import { TouchControllersWindow } from "@/features/touch-controllers/window"
 
 /** The most room a toast takes across, however long its message. */
 const TOAST_WIDTH = 340
@@ -60,6 +63,7 @@ export function Overlays() {
       <PromptHost />
       <ArchiveReport />
       <PluginManager />
+      <EventEditorPanel />
       <LfoDialog />
       <PatternTimelineDialog />
       <StageViews />
@@ -67,6 +71,8 @@ export function Overlays() {
       <ProjectOverviewPanel />
       <PhaseMeterPanel />
       <SpectrogramPanel />
+      <ScopePanel />
+      <TouchControllersWindow />
       <Toaster
         theme={theme}
         position="bottom-right"

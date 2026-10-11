@@ -248,6 +248,9 @@ impl Project {
                     denominator: 4,
                 },
                 swing: 0.0,
+                pan_law: crate::PanLaw::default(),
+                timebase_ppq: crate::timebase::DEFAULT_TIMEBASE_PPQ,
+                controller_links: Vec::new(),
             },
             samples: Vec::new(),
             notebook: crate::Notebook::default(),
@@ -261,8 +264,10 @@ impl Project {
                 color: palette_color(0),
                 length_steps: DEFAULT_PATTERN_STEPS,
                 lanes: Vec::new(),
+                events: Vec::new(),
             }],
             mixer: Mixer {
+                effect_outputs: Vec::new(),
                 tracks: vec![MixerTrack {
                     dock: crate::MixerDock::default(),
                     external_output: None,
@@ -339,6 +344,26 @@ pub struct ProjectSettings {
     /// At 1 that step lands two thirds of the way through its pair of steps,
     /// which is a full triplet feel.
     pub swing: f32,
+    /// How panning changes level in playback and export. A file that names
+    /// none has [`PanLaw::Balance`](crate::PanLaw::Balance).
+    #[serde(default, skip_serializing_if = "crate::PanLaw::is_default")]
+    #[ts(as = "Option<crate::PanLaw>", optional)]
+    pub pan_law: crate::PanLaw,
+    /// Ticks per quarter note that playback and export count time in: one
+    /// of [`TIMEBASES`](crate::timebase::TIMEBASES). Stored positions stay
+    /// at 960; see [`crate::timebase`]. A file that names none has 960.
+    #[serde(
+        default = "crate::timebase::default_ppq",
+        skip_serializing_if = "crate::timebase::is_default_ppq"
+    )]
+    #[ts(as = "Option<u16>", optional)]
+    pub timebase_ppq: u16,
+    /// What hardware and internal controllers move in this project, at most
+    /// [`MAX_CONTROLLER_LINKS`](crate::controller_links::MAX_CONTROLLER_LINKS).
+    /// Edited by [`Command::SetControllerLinks`](crate::Command).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[ts(as = "Option<Vec<crate::ControllerLink>>", optional)]
+    pub controller_links: Vec<crate::ControllerLink>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
@@ -450,6 +475,11 @@ pub struct Channel {
     /// The mixer track this channel plays into.
     pub mixer_track: TrackId,
     pub source: ChannelSource,
+    /// What modulation X, modulation Y and release drive in this channel's
+    /// voices. Absent in older files, which is the fixed mapping they had.
+    #[serde(default, skip_serializing_if = "crate::ExpressionMap::is_default")]
+    #[ts(as = "Option<crate::ExpressionMap>", optional)]
+    pub expression_map: crate::ExpressionMap,
 }
 
 /// What makes the sound of a channel: a sample or an instrument. Hosted
@@ -685,6 +715,11 @@ pub struct Pattern {
     /// Notes per channel, sorted by channel id. Channels with no notes have
     /// no lane.
     pub lanes: Vec<Lane>,
+    /// Event automation: curves in pattern ticks that move a control
+    /// wherever this pattern plays. At most one lane per target.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[ts(as = "Option<Vec<crate::PatternEventLane>>", optional)]
+    pub events: Vec<crate::PatternEventLane>,
 }
 
 impl Pattern {
@@ -766,6 +801,11 @@ pub struct Note {
 pub struct Mixer {
     /// `tracks[0]` is always the master. At most [`MAX_MIXER_TRACKS`].
     pub tracks: Vec<MixerTrack>,
+    /// Separately routable effect outputs sent to other tracks, such as a
+    /// Send Tap's copy or the two parts of a Transient Split.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[ts(as = "Option<Vec<crate::EffectOutputRoute>>", optional)]
+    pub effect_outputs: Vec<crate::EffectOutputRoute>,
 }
 
 impl Mixer {

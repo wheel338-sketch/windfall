@@ -40,3 +40,12 @@ for these additions. Capacity performance, manual timing and persistence are
 deferred acceptance work. Current source coverage is recorded separately; other mixer
 workflows and the remaining whole-project parity scope remain implementation
 work. No GitHub CI or Actions were used.
+
+## Follow-up, 2026-10-10
+
+Measured alignment tests for automatic compensation and the manual correction
+are written (`crates/windfall-engine/tests/mixer_pdc_alignment_qa.rs`,
+`crates/windfall-engine/src/qa_mixer_pdc_ports.rs`) and not yet executed. A
+routed effect output (Send Tap, Transient Split) is declared at the measured
+latency of its place in the chain; the track's manual correction does not
+apply to it. See `docs/qa/2026-10-10-mixer.md`.

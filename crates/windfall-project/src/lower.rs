@@ -34,6 +34,10 @@ use crate::model::{
 
 type Label = &'static str;
 
+mod playlist_layouts;
+/// Preset commands, lowered beside the rest so they share its transaction.
+mod preset_apply;
+
 /// What a command did to the project.
 pub(crate) struct Outcome {
     /// The edits that were applied, in order. Empty when nothing changed.
@@ -63,6 +67,7 @@ pub(crate) fn execute(project: &mut Project, command: Command) -> Result<Outcome
         }) {
             transaction.prune_arrangement_references();
         }
+        transaction.settle_linked_tracks();
         crate::check::check_arrangement_references(
             transaction.project,
             &transaction.project.playlist.arrangement_book,
@@ -97,6 +102,12 @@ pub(crate) fn execute(project: &mut Project, command: Command) -> Result<Outcome
                 .collect();
             for edit in curve_edits {
                 transaction.push(edit);
+            }
+            if let Some(links) = crate::controller_links::following(transaction.project) {
+                let old = transaction.project.settings.clone();
+                let mut new = old.clone();
+                new.controller_links = links;
+                transaction.push(Edit::Settings(Change { old, new }));
             }
             if transaction.edits.iter().any(|edit| matches!(edit, Edit::Clips { remove, insert } if remove.iter().any(|old| !insert.iter().any(|new| new.id == old.id)))) {
                 let old = transaction.project.playlist.take_groups.clone();
@@ -161,6 +172,9 @@ impl Transaction<'_> {
                     }
                     crate::arrangement::TrackKind::Audio { source } => {
                         self.project.sample(*source).is_some()
+                    }
+                    crate::arrangement::TrackKind::AudioTrack { mixer } => {
+                        self.project.mixer.track(*mixer).is_some()
                     }
                 }
         });
@@ -243,10 +257,8 @@ impl Transaction<'_> {
                     .sample(sample)
                     .ok_or_else(|| CommandError::not_found("sample", sample))?,
             ),
-            _ => {
-                return Err(CommandError::invalid(
-                    "Only pattern and audio clips can be made unique",
-                ));
+            ClipContent::Automation { automation } => {
+                return self.make_automation_clip_unique(old, automation);
             }
         };
         let mut cursor = self.project.next_id;
@@ -376,16 +388,16 @@ impl Transaction<'_> {
                 )?;
                 "Switch arrangement"
             }
-            Command::RemoveArrangement { id } => {
-                self.replace_arrangement_book(
-                    self.project
-                        .playlist
-                        .arrangement_book
-                        .remove_arrangement(id),
-                    self.project.next_id,
-                )?;
-                "Remove arrangement"
+            Command::RemoveArrangement { id } => self.remove_arrangement_layout(id)?,
+            Command::AddArrangementLayout { name, copy } => {
+                self.add_arrangement_layout(name, copy)?
             }
+            Command::AddInstrumentTrack {
+                name,
+                sample,
+                instrument,
+            } => self.add_instrument_track(name, sample, instrument)?,
+            Command::AddAudioTrack { name } => self.add_audio_track(name)?,
             Command::AddTrackGroup { name, parent } => {
                 let (id, cursor) = self.staged_metadata_id()?;
                 let next = self
@@ -469,6 +481,11 @@ impl Transaction<'_> {
                         crate::arrangement::TrackKind::Audio { source } => {
                             self.project.sample(source).is_some()
                         }
+                        crate::arrangement::TrackKind::AudioTrack { mixer } => self
+                            .project
+                            .mixer
+                            .track(mixer)
+                            .is_some_and(|track| !track.current),
                     });
                 self.replace_arrangement_book(next, self.project.next_id)?;
                 "Link playlist track"
@@ -564,6 +581,72 @@ impl Transaction<'_> {
                     change: Change { old, new },
                 });
                 "Edit note expression curves"
+            }
+            Command::SetEffectOutput {
+                effect,
+                output,
+                target,
+            } => self.set_effect_output(effect, output, target)?,
+            Command::SetPatternEvents {
+                pattern,
+                target,
+                expected,
+                points,
+            } => self.set_pattern_events(pattern, target, expected, points)?,
+            Command::GeneratePatternEventLfo {
+                pattern,
+                target,
+                expected,
+                start,
+                end,
+                resolution,
+                lfo,
+            } => {
+                self.pattern_index(pattern)?;
+                let (range, stored) = self.automation_target(&target)?;
+                // A pattern with no lane yet starts from what the control has.
+                let base = if expected.is_empty() {
+                    vec![AutomationPoint {
+                        tick: 0,
+                        value: range.normalized(stored),
+                        curve: 0.0,
+                        hold: false,
+                    }]
+                } else {
+                    expected.clone()
+                };
+                let points = crate::curve_lfo::write_lfo(&base, start, end, resolution, lfo)?;
+                self.set_pattern_events(pattern, target, expected, points)?;
+                "Write event LFO"
+            }
+            Command::GenerateNoteCurveLfo {
+                pattern,
+                channel,
+                expected,
+                expected_curves,
+                parameter,
+                origin,
+                resolution,
+                strength,
+                lfo,
+            } => {
+                let curves = crate::note_curve_lfo::generate(
+                    &expected,
+                    &expected_curves,
+                    parameter,
+                    origin,
+                    resolution,
+                    strength,
+                    lfo,
+                )?;
+                self.run(Command::SetNoteExpressionCurves {
+                    pattern,
+                    channel,
+                    expected,
+                    expected_curves,
+                    curves,
+                })?;
+                "Write note curve LFO"
             }
             Command::SetSidechain { from, to, gain } => {
                 let index = self.signal_track_index(from)?;
@@ -1165,6 +1248,31 @@ impl Transaction<'_> {
                 }));
                 "Save notebook"
             }
+            Command::ApplyChannelPreset {
+                id,
+                expected,
+                preset,
+                sample,
+                audio,
+                name_color,
+            } => self.apply_channel_preset(id, expected, preset, sample, audio, name_color)?,
+            Command::ApplyPluginPreset {
+                target,
+                expected,
+                preset,
+            } => self.apply_plugin_preset(target, expected, preset)?,
+            Command::SetControllerLinks { links } => {
+                if let Some(problem) =
+                    crate::controller_links::links_problem(&links, Some(self.project))
+                {
+                    return Err(CommandError::invalid(problem));
+                }
+                let old = self.project.settings.clone();
+                let mut new = old.clone();
+                new.controller_links = links;
+                self.push(Edit::Settings(Change { old, new }));
+                "Change controller links"
+            }
             Command::AddSample { name, path } => self.add_sample(name, path)?,
             Command::RemoveSample { id } => self.remove_sample(id)?,
             Command::AddChannel {
@@ -1183,14 +1291,27 @@ impl Transaction<'_> {
                     .channel(id)
                     .ok_or_else(|| CommandError::not_found("channel", id))?
                     .clone();
+                let settings = settings.sanitized();
+                crate::layer::check_settings(&self.project.channels, id, &settings)
+                    .map_err(CommandError::invalid)?;
                 let new = Channel {
-                    voice: settings.sanitized(),
+                    voice: settings,
                     ..old.clone()
                 };
                 self.push(Edit::SetChannel(Box::new(Change { old, new })));
                 "Set channel voice settings"
             }
             Command::UpdateChannel { id, patch } => self.update_channel(id, patch)?,
+            Command::SetChannelExpressionMap { id, map } => {
+                let old = self
+                    .project
+                    .channel(id)
+                    .ok_or_else(|| CommandError::not_found("channel", id))?
+                    .clone();
+                let new = crate::expression_map::applied(&old, map)?;
+                self.push(Edit::SetChannel(Box::new(Change { old, new })));
+                "Set channel expression mapping"
+            }
             Command::SetChannelGroup { channels, group } => {
                 self.set_channel_group(&channels, &group)?;
                 "Assign channel group"
@@ -1373,7 +1494,76 @@ impl Transaction<'_> {
             }
         };
         self.prune_plugins();
+        self.prune_effect_outputs();
         Ok(label.to_owned())
+    }
+
+    /// Effect output routes follow their effects: an edit that deletes or
+    /// replaces an effect, deletes a target, or moves an effect to where
+    /// its route would loop, retires the route in the same undo step.
+    fn prune_effect_outputs(&mut self) {
+        let new = crate::effect_outputs::pruned(&self.project.mixer);
+        self.push(Edit::EffectOutputs(Change {
+            old: self.project.mixer.effect_outputs.clone(),
+            new,
+        }));
+    }
+
+    fn set_effect_output(
+        &mut self,
+        effect: EffectId,
+        output: u8,
+        target: Option<TrackId>,
+    ) -> Result<Label, CommandError> {
+        let mixer = &self.project.mixer;
+        let home = crate::effect_outputs::home(mixer, effect)
+            .ok_or_else(|| CommandError::invalid("the effect is not in this project"))?;
+        let kind = home
+            .effects
+            .iter()
+            .find(|slot| slot.id == effect)
+            .map(EffectSlot::kind)
+            .ok_or_else(|| CommandError::invalid("the effect is not in this project"))?;
+        if usize::from(output) >= crate::effect_outputs::output_count(kind) {
+            return Err(CommandError::invalid(
+                "This effect has no such output to route",
+            ));
+        }
+        let from = home.id;
+        if let Some(to) = target {
+            if from == TrackId::MASTER || home.current {
+                return Err(CommandError::invalid(
+                    "An effect on this track cannot send to another track",
+                ));
+            }
+            self.signal_track_index(to)?;
+            if to == from {
+                return Err(CommandError::invalid(
+                    "Choose a different track to receive this output",
+                ));
+            }
+            // The route being replaced is not part of the loop test.
+            let mut without = self.project.mixer.clone();
+            without.effect_outputs = crate::effect_outputs::with_route(
+                &without.effect_outputs,
+                effect,
+                output,
+                None,
+            );
+            if reaches(&without, to, from) {
+                return Err(CommandError::invalid(
+                    "The route would make routing loop back on itself",
+                ));
+            }
+        }
+        let old = self.project.mixer.effect_outputs.clone();
+        let new = crate::effect_outputs::with_route(&old, effect, output, target);
+        self.push(Edit::EffectOutputs(Change { old, new }));
+        Ok(if target.is_some() {
+            "Route effect output"
+        } else {
+            "Disconnect effect output"
+        })
     }
 
     fn bind_plugin(&mut self, plugin: crate::PluginBinding) {
@@ -1467,6 +1657,8 @@ impl Transaction<'_> {
                 (patch.tempo_bpm.is_some(), "Change tempo"),
                 (patch.time_signature.is_some(), "Change time signature"),
                 (patch.swing.is_some(), "Change swing"),
+                (patch.pan_law.is_some(), "Change panning law"),
+                (patch.timebase_ppq.is_some(), "Change timebase"),
             ],
             "Change project settings",
         );
@@ -1504,6 +1696,18 @@ impl Transaction<'_> {
         }
         if let Some(swing) = patch.swing {
             new.swing = clamped("the swing", swing, 0.0, 1.0)?;
+        }
+        if let Some(law) = patch.pan_law {
+            new.pan_law = law;
+        }
+        if let Some(ppq) = patch.timebase_ppq {
+            if !crate::timebase::is_timebase(ppq) {
+                return Err(CommandError::invalid(format!(
+                    "a timebase of {ppq} ticks per quarter note is not one of {:?}",
+                    crate::timebase::TIMEBASES
+                )));
+            }
+            new.timebase_ppq = ppq;
         }
         self.push(Edit::Settings(Change { old, new }));
         Ok(label)
@@ -1624,6 +1828,7 @@ impl Transaction<'_> {
                 name,
                 group: String::new(),
                 voice: Default::default(),
+                expression_map: Default::default(),
                 timing: crate::ChannelTiming::default(),
                 color,
                 volume: DEFAULT_CHANNEL_VOLUME,
@@ -1656,6 +1861,11 @@ impl Transaction<'_> {
                 remove: notes,
                 insert: Vec::new(),
             });
+        }
+        // No layer keeps the deleted channel as a child; undo restores both.
+        for (parent, new) in crate::layer::without_child(&self.project.channels, id) {
+            let old = self.project.channels[parent].clone();
+            self.push(Edit::SetChannel(Box::new(Change { old, new })));
         }
         let item = self.project.channels[index].clone();
         self.push(Edit::Channel(Box::new(ListEdit::Remove { index, item })));
@@ -2040,6 +2250,7 @@ impl Transaction<'_> {
             index: count,
             item: Pattern {
                 note_curves: Vec::new(),
+                events: Vec::new(),
                 time_signature: None,
                 timeline: Default::default(),
                 id,
@@ -2190,6 +2401,9 @@ impl Transaction<'_> {
         }
         for marker in &mut copy.timeline.markers {
             marker.id = crate::TimelineMarkerId(self.allocate()?);
+        }
+        for lane in &mut copy.events {
+            lane.id = AutomationId(self.allocate()?);
         }
         for lane in &mut copy.lanes {
             // Ids go out in lane order, so the copies sort the same way.
@@ -3047,8 +3261,96 @@ impl Transaction<'_> {
                 }
                 self.push(Edit::SetAutomation(Box::new(Change { old, new })));
             }
+            self.map_pattern_events(|lanes| {
+                let mut lanes = lanes.to_vec();
+                for lane in &mut lanes {
+                    if !targets_effect(&lane.target, effect) {
+                        continue;
+                    }
+                    match &mut lane.target {
+                        AutomationTarget::EffectParam { track, .. }
+                        | AutomationTarget::EffectMix { track, .. } => *track = home,
+                        _ => {}
+                    }
+                }
+                lanes
+            });
         }
         Ok("Move effect")
+    }
+
+    /// Replaces the event lane a pattern has for `target`, as
+    /// [`Command::SetPatternEvents`] describes.
+    fn set_pattern_events(
+        &mut self,
+        pattern: PatternId,
+        target: AutomationTarget,
+        expected: Vec<AutomationPoint>,
+        points: Vec<AutomationPoint>,
+    ) -> Result<Label, CommandError> {
+        let index = self.pattern_index(pattern)?;
+        let before = &self.project.patterns[index];
+        if crate::pattern_events::captured(before, &target) != expected {
+            return Err(CommandError::invalid(
+                "the captured event automation changed; reopen the event editor",
+            ));
+        }
+        let exists = before.event_lane(&target).is_some();
+        let points = crate::pattern_events::checked_points(points)?;
+        // What a lane moves has to be there. Taking a lane out needs nothing.
+        if !points.is_empty() && target != AutomationTarget::Tempo {
+            self.automation_target(&target)?;
+        }
+        let label = match (exists, points.is_empty()) {
+            (_, true) => "Clear event automation",
+            (false, false) => "Add event automation",
+            (true, false) => "Change event automation",
+        };
+        let fresh = if exists || points.is_empty() {
+            None
+        } else {
+            Some(AutomationId(self.allocate()?))
+        };
+        let old = PatternInfo::of(&self.project.patterns[index]);
+        let mut new = old.clone();
+        new.events = crate::pattern_events::replaced(&old.events, target, points, fresh)?;
+        if let Some(id) = fresh {
+            self.created.push(id.0);
+        }
+        self.push(Edit::PatternInfo {
+            id: pattern,
+            change: Change { old, new },
+        });
+        Ok(label)
+    }
+
+    /// Rewrites the event lanes of every pattern that has some.
+    fn map_pattern_events(
+        &mut self,
+        map: impl Fn(&[crate::PatternEventLane]) -> Vec<crate::PatternEventLane>,
+    ) {
+        let edits: Vec<Edit> = self
+            .project
+            .patterns
+            .iter()
+            .filter(|pattern| !pattern.events.is_empty())
+            .filter_map(|pattern| {
+                let events = map(&pattern.events);
+                if events == pattern.events {
+                    return None;
+                }
+                let old = PatternInfo::of(pattern);
+                let mut new = old.clone();
+                new.events = events;
+                Some(Edit::PatternInfo {
+                    id: pattern.id,
+                    change: Change { old, new },
+                })
+            })
+            .collect();
+        for edit in edits {
+            self.push(edit);
+        }
     }
 
     fn update_effect(
@@ -3618,6 +3920,15 @@ impl Transaction<'_> {
     /// Removes every automation whose target `gone` picks out, with its
     /// clips: what those automations move is about to leave the project.
     fn remove_automations_of(&mut self, gone: impl Fn(&AutomationTarget) -> bool) {
+        self.map_pattern_events(|lanes| crate::pattern_events::without(lanes, &gone));
+        // Controller links to the same targets leave in the same edit.
+        let links = &self.project.settings.controller_links;
+        if let Some(kept) = crate::controller_links::without_targets(links, &gone) {
+            let old = self.project.settings.clone();
+            let mut new = old.clone();
+            new.controller_links = kept;
+            self.push(Edit::Settings(Change { old, new }));
+        }
         let automations = self.project.automations.iter();
         let ids: Vec<AutomationId> = automations
             .filter(|automation| gone(&automation.target))
