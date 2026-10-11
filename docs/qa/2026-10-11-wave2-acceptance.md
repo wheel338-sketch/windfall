@@ -2,6 +2,8 @@
 
 ## Running progress
 
+- Every-effect rapid edit/reset/tempo allocator stress passes 1/0/0 (`target/round2-all-effects-stress-final.log`), including the previously failing shortened-loop release. No allocation/free assertion was weakened. Final formatting/Clippy and artifact provenance are being refreshed before the justified complete-suite rerun.
+
 - Full DSP library after final-native repairs passes 623/0/0 (`target/round2-dsp-full-repair.log`). New exact-phase regression first reproduced the overflow, then passed after loop synchronization also normalized the trigger offset. Registry test now compares the precise legacy edit-mask bit while preserving full scalar/state equality. All original descriptor/choice/kind prefixes pass the repeated static audit; allocation stress and complete native rerun are next.
 
 - First complete native gate finished: fixture/desktop builds exit 0; workspace test exit 101, 3,868 passed/2 failed/37 ignored (`target/round2-native-initial.log`). Registry default writes now require an exact explicit sample edit-mask expectation; VolumeGate release after a shortened loop exposes a stale trigger offset and unsigned underflow. A deterministic exact-phase regression is being verified before repair. All other native tests passed; ignored cases remain unexecuted.
