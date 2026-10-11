@@ -23,6 +23,7 @@ function fullProject() {
     channel: 0,
     synth: 0,
     effect: 0,
+    tap: 0,
     sparePattern: 0,
     track: 0,
     playlistTrack: 0,
@@ -62,6 +63,7 @@ function fullProject() {
       kind: "compressor",
     })
     run({ type: "addEffect", track: ids.track, kind: "delay" })
+    ;[ids.tap] = run({ type: "addEffect", track: ids.track, kind: "sendTap" })
     ;[ids.playlistTrack] = run({ type: "addPlaylistTrack" })
     ;[ids.clip] = run({
       type: "addClips",
@@ -796,6 +798,109 @@ const EVERY_COMMAND: { [Type in Command["type"]]: (ids: Ids) => Command } = {
   duplicateAutomation: (ids) => ({
     type: "duplicateAutomation",
     id: ids.automation,
+  }),
+  addArrangementLayout: () => ({
+    type: "addArrangementLayout",
+    name: "Layout",
+    copy: true,
+  }),
+  addInstrumentTrack: () => ({ type: "addInstrumentTrack" }),
+  addAudioTrack: () => ({ type: "addAudioTrack" }),
+  setPatternEvents: (ids) => ({
+    type: "setPatternEvents",
+    pattern: ids.pattern,
+    target: { type: "trackVolume", track: ids.track },
+    expected: [],
+    points: [{ tick: 0, value: 0.5, curve: 0, hold: false }],
+  }),
+  generatePatternEventLfo: (ids) => ({
+    type: "generatePatternEventLfo",
+    pattern: ids.pattern,
+    target: { type: "trackVolume", track: ids.track },
+    expected: [],
+    start: 0,
+    end: 960,
+    resolution: 120,
+    lfo: {
+      wave: "sine",
+      period: 960,
+      phase: 0,
+      center: 0.5,
+      depth: 0.25,
+      width: 0.5,
+      seed: 1,
+    },
+  }),
+  generateNoteCurveLfo: (ids) => ({
+    type: "generateNoteCurveLfo",
+    pattern: ids.pattern,
+    channel: ids.channel,
+    expected: [ids.selectedNote],
+    expectedCurves: [],
+    parameter: "pan",
+    origin: 0,
+    resolution: 120,
+    strength: 1,
+    lfo: {
+      wave: "sine",
+      period: 960,
+      phase: 0,
+      center: 0.5,
+      depth: 0.25,
+      width: 0.5,
+      seed: 1,
+    },
+  }),
+  setEffectOutput: (ids) => ({
+    type: "setEffectOutput",
+    effect: ids.tap,
+    output: 0,
+    target: 0,
+  }),
+  setControllerLinks: (ids) => ({
+    type: "setControllerLinks",
+    links: [
+      {
+        source: { type: "midi", control: { type: "cc", number: 7 } },
+        target: {
+          type: "param",
+          target: { type: "trackVolume", track: ids.track },
+        },
+        map: {
+          min: 0,
+          max: 1,
+          smoothingMs: 0,
+          pickup: "inherit",
+          mode: "absolute",
+        },
+      },
+    ],
+  }),
+  setChannelExpressionMap: (ids) => ({
+    type: "setChannelExpressionMap",
+    id: ids.channel,
+    map: {
+      modulationX: {
+        destination: "pitch",
+        plugin: "brightness",
+        amount: 1,
+        invert: false,
+      },
+      modulationY: {
+        destination: "resonance",
+        plugin: "expression",
+        amount: 1,
+        invert: false,
+      },
+      release: {
+        destination: "release",
+        plugin: "none",
+        amount: 1,
+        invert: false,
+      },
+      pitchRangeCents: 1200,
+      bendRangeSemitones: 2,
+    },
   }),
   batch: (ids) => ({
     type: "batch",

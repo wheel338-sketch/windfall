@@ -111,7 +111,7 @@ function LfoForm({ request }: { request: Request }) {
   const session = request.kind === "piano" ? currentSession() : null
   const revision = useProjectStore((state) => state.revision)
   useSyncExternalStore((notify) => session?.editor.subscribe(notify) ?? (() => {}), () => session?.editor.selection)
-  const first = request.kind === "piano" ? request.notes.reduce((first, note) => Math.min(first, note.start), MAX_PATTERN_STEPS * TICKS_PER_STEP) : request.start
+  const first = request.kind === "piano" ? request.notes.reduce((first, note) => Math.min(first, note.start), MAX_PATTERN_STEPS * TICKS_PER_STEP) : request.kind === "automation" ? request.start : 0
   const last = request.kind === "piano" ? request.notes.reduce((last, note) => Math.max(last, note.start + note.length), 0) : request.end
   const [wave, setWave] = useState<CurveLfoWave>("sine")
   const [period, setPeriod] = useState(String(PPQ))
@@ -154,7 +154,7 @@ function LfoForm({ request }: { request: Request }) {
         submitting.current = true; setPending(true); setFailed(false)
         try {
           const ok = request.kind === "piano"
-            ? curved && property !== "velocity"
+            ? curved
               ? !!await dispatch({ type: "generateNoteCurveLfo", pattern: request.pattern, channel: request.channel, expected: request.notes, expectedCurves: request.curves, parameter: property, origin: numeric(start), resolution: numeric(resolution), strength: numeric(strength) / 100, lfo })
               : await currentSession()!.editor.transformNotes(request.notes, { type: "lfo", property, origin: numeric(start), strength: numeric(strength) / 100, lfo })
             : request.kind === "events"

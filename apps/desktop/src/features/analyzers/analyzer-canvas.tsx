@@ -1,4 +1,4 @@
-import { useEffect, useEffectEvent, useRef } from "react"
+import { useEffect, useRef } from "react"
 
 import {
   observeCanvas,
@@ -10,6 +10,29 @@ import { cn } from "@/lib/utils"
 
 import { useAnalyzerFrames } from "./feed"
 import type { AnalyzerFrame } from "./types"
+
+type Drawing = {
+  context: CanvasRenderingContext2D | null
+  size: CanvasSize | null
+  colors: AnalyzerColors | null
+  frame: AnalyzerFrame | null
+  painted: number
+  paint: AnalyzerCanvasProps["paint"]
+}
+
+function redraw(state: Drawing, element: HTMLCanvasElement | null) {
+  const { context, size, colors, frame } = state
+  if (element) {
+    // Says, without a canvas to look at, that a frame reached the view.
+    state.painted += 1
+    element.dataset.painted = String(state.painted)
+    element.dataset.live = frame ? "true" : "false"
+  }
+  if (!context || !size || !colors) return
+  context.setTransform(size.dpr, 0, 0, size.dpr, 0, 0)
+  context.clearRect(0, 0, size.width, size.height)
+  state.paint(context, size, colors, frame)
+}
 
 /** The colors every analyzer display draws with, from the theme. */
 export const ANALYZER_COLORS = {
@@ -60,28 +83,20 @@ export function AnalyzerCanvas({
   className,
 }: AnalyzerCanvasProps) {
   const canvas = useRef<HTMLCanvasElement>(null)
-  const drawing = useRef<{
-    context: CanvasRenderingContext2D | null
-    size: CanvasSize | null
-    colors: AnalyzerColors | null
-    frame: AnalyzerFrame | null
-    painted: number
-  }>({ context: null, size: null, colors: null, frame: null, painted: 0 })
-
-  const draw = useEffectEvent(() => {
-    const { context, size, colors, frame } = drawing.current
-    const element = canvas.current
-    if (element) {
-      // Says, without a canvas to look at, that a frame reached the view.
-      drawing.current.painted += 1
-      element.dataset.painted = String(drawing.current.painted)
-      element.dataset.live = frame ? "true" : "false"
-    }
-    if (!context || !size || !colors) return
-    context.setTransform(size.dpr, 0, 0, size.dpr, 0, 0)
-    context.clearRect(0, 0, size.width, size.height)
-    paint(context, size, colors, frame)
+  const drawing = useRef<Drawing>({
+    context: null,
+    size: null,
+    colors: null,
+    frame: null,
+    painted: 0,
+    paint,
   })
+  // Frames arrive outside React, so the painter they use is kept current
+  // here rather than captured by whichever render subscribed.
+  useEffect(() => {
+    drawing.current.paint = paint
+  })
+  const draw = () => redraw(drawing.current, canvas.current)
 
   useEffect(() => {
     const element = canvas.current

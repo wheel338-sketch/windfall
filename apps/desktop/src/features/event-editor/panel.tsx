@@ -172,17 +172,16 @@ function LaneEditor({
     void commit(removePoint(points, index))
   }
 
-  const path = useMemo(() => {
-    if (!points.length) return ""
-    const parts: string[] = []
+  const pathParts: string[] = []
+  if (points.length) {
     for (let index = 0; index <= SAMPLES; index += 1) {
       const tick = (index / SAMPLES) * length
-      parts.push(
+      pathParts.push(
         `${index ? "L" : "M"}${xOf(tick, length).toFixed(2)} ${yOf(curveValue(points, tick)).toFixed(2)}`
       )
     }
-    return parts.join(" ")
-  }, [points, length])
+  }
+  const path = pathParts.join(" ")
 
   const bar = ticksPerBar(signature)
   const beat = ticksPerBeat(signature)

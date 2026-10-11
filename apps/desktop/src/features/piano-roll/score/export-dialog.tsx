@@ -188,14 +188,14 @@ function SheetExportForm({ request }: { request: SheetRequest }) {
         </DialogHeader>
         <div className="grid gap-4 md:grid-cols-[14rem_1fr]">
           <FieldGroup className="flex flex-col gap-3">
-            <Choice
+            <Choice<PaperSize>
               label="Paper"
               value={paper}
               options={PAPER_OPTIONS}
               onChange={setPaper}
               disabled={pending}
             />
-            <Choice
+            <Choice<StaffLayout>
               label="Staves"
               value={staff}
               options={STAFF_OPTIONS}
@@ -209,7 +209,7 @@ function SheetExportForm({ request }: { request: SheetRequest }) {
               onChange={setKeyId}
               disabled={pending}
             />
-            <Choice
+            <Choice<`${SmallestValue}`>
               label="Smallest note value"
               value={smallest}
               options={SMALLEST_OPTIONS}

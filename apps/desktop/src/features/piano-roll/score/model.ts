@@ -235,12 +235,14 @@ type Bar = {
 class Bars {
   readonly list: Bar[] = []
   private readonly changes: { tick: number; signature: TimeSignature }[]
+  private readonly grid: number
 
   constructor(
-    private readonly grid: number,
+    grid: number,
     base: TimeSignature,
     meters: readonly { tick: number; signature: TimeSignature }[]
   ) {
+    this.grid = grid
     this.changes = [{ tick: 0, signature: base }]
     for (const meter of [...meters].sort((a, b) => a.tick - b.tick)) {
       if (!validSignature(meter.signature) || !Number.isFinite(meter.tick))

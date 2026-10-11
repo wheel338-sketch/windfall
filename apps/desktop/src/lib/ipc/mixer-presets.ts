@@ -101,7 +101,8 @@ export function mockMixerPresetLibrary(
       value = JSON.parse(text)
     } catch (error) {
       throw new Error(
-        `Invalid mixer preset: ${error instanceof Error ? error.message : String(error)}`
+        `Invalid mixer preset: ${error instanceof Error ? error.message : String(error)}`,
+        { cause: error }
       )
     }
     if (!looksLikePreset(value)) throw new Error("Invalid mixer preset")
