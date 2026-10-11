@@ -178,6 +178,22 @@ describe("instrument settings panels", () => {
     ).toEqual({ type: "instrumentParam", channel, param })
   })
 
+  it("edits Finger Bass tone through history with its six string/body controls", async () => {
+    const channel = await open("fingerBass")
+    const descriptor = instrumentDescriptor("fingerBass")
+    const original = channelOf(channel).source.params
+    const tone = descriptor.params[paramIndex(descriptor, "tone")]
+    const control = screen.getByRole("slider", { name: tone.name })
+    fireEvent.keyDown(control, { key: "End" })
+    fireEvent.keyUp(control, { key: "End" })
+    await flush()
+    expect(channelOf(channel).source.params).not.toEqual(original)
+    expect(control).toHaveAttribute("aria-valuenow", "1")
+    await act(() => undo())
+    expect(channelOf(channel).source.params).toEqual(original)
+    expect(screen.getAllByRole("slider")).toHaveLength(6)
+  })
+
   it("keeps hosted plugin controls ahead of the built-in panel", async () => {
     const channel = await open("acidLine")
     const plugin: PluginBinding = {

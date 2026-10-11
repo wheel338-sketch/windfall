@@ -1,6 +1,6 @@
 use std::f64::consts::TAU;
 
-use serde::{Serialize, de::DeserializeOwned};
+use serde::{de::DeserializeOwned, Serialize};
 
 use super::*;
 use crate::blocks::math::key_to_hz;
@@ -142,11 +142,10 @@ fn assert_extremes<I: Instrument + Default>() {
         }
         for _ in 0..32 {
             instrument.process(&mut left, &mut right);
-            assert!(
-                left.iter()
-                    .chain(&right)
-                    .all(|x| x.is_finite() && x.abs() < 8.0)
-            );
+            assert!(left
+                .iter()
+                .chain(&right)
+                .all(|x| x.is_finite() && x.abs() < 8.0));
             assert!(instrument.active_voices() <= MAX_POLYPHONY);
         }
     }
@@ -162,11 +161,10 @@ fn assert_extremes<I: Instrument + Default>() {
         }
         instrument.set_params(&params);
         instrument.process(&mut left, &mut right);
-        assert!(
-            left.iter()
-                .chain(&right)
-                .all(|x| x.is_finite() && x.abs() < 8.0)
-        );
+        assert!(left
+            .iter()
+            .chain(&right)
+            .all(|x| x.is_finite() && x.abs() < 8.0));
     }
 }
 
@@ -307,11 +305,9 @@ fn assert_lifecycle<I: Instrument + Default>() {
     assert_eq!(instrument.active_voices(), 0);
     instrument.prepare(192_000.0, 256);
     instrument.note_on(0, 1.0);
-    assert!(
-        render(&mut instrument, 8000, &[256])
-            .iter()
-            .all(|x| x.is_finite())
-    );
+    assert!(render(&mut instrument, 8000, &[256])
+        .iter()
+        .all(|x| x.is_finite()));
     instrument.reset();
     assert!(render(&mut instrument, 64, &[1]).iter().all(|&x| x == 0.0));
 }
@@ -380,4 +376,24 @@ fn physical_parameter_descriptors_serialization_and_sanitization() {
     assert_eq!(PluckParams::NAME, "Pluck");
     assert_eq!(FingerBassParams::NAME, "Finger Bass");
     assert_eq!(AcousticStringParams::NAME, "Acoustic String");
+}
+
+#[test]
+fn finger_bass_is_monophonic_and_old_key_release_cannot_release_new_string() {
+    let mut bass = FingerBass::default();
+    bass.prepare(48_000.0, 257);
+    bass.note_on(28, 1.0);
+    let first = render(&mut bass, 2400, &[17, 257]);
+    for key in 29..60 {
+        bass.note_on(key, 1.0);
+        assert_eq!(bass.active_voices(), 1);
+    }
+    bass.note_off(28);
+    let second = render(&mut bass, 9600, &[31]);
+    assert_eq!(bass.active_voices(), 1);
+    assert!(energy(&second[480..]) > 1e-9);
+    assert!((second[0] - first[first.len() - 1]).abs() < 1e-5);
+    bass.all_notes_off();
+    render(&mut bass, 480, &[7]);
+    assert_eq!(bass.active_voices(), 0);
 }
