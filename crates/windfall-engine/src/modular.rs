@@ -680,8 +680,9 @@ impl ModularRack {
     fn finish(&mut self, index: usize) {
         let owner = self.owners[index];
         self.owners[index].active = false;
+        let other = self.owners.iter().any(|other| other.active && other.node == owner.node && other.note.key == owner.note.key);
         if let Unit::Instrument { dsp, .. } = &mut self.nodes[owner.node].unit {
-            dsp.note_off_instance(owner.child, owner.note.key);
+            if dsp.supports_note_instances() || !other { dsp.note_off_instance(owner.child, owner.note.key); }
         }
     }
     pub fn set_note_expression(

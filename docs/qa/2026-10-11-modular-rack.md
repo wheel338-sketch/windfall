@@ -1,24 +1,46 @@
-# Modular rack and note modules â€” implementation hand-off
+# Modular rack and note modules — implementation hand-off
 
-Branch: `gpt/w3-modular-rack`. Work is edit-only. No build, test, package
-runner, benchmark, device check or generated-artifact regeneration was run.
+Branch: `gpt/w3-modular-rack`. Edit-only: no builds, tests, runners, benchmarks,
+device checks or generated-artifact regeneration have been executed.
 
-## Current implementation
+## Implemented
 
-- Saved channel graph side table on ProjectSettings, omitted from legacy
-  defaults. Stable graph-local IDs and ports; typed checked edges; cycle,
-  depth/node/edge/event limits; atomic replacement/history and channel cleanup.
-- DSP note-map foundations registered; six saved note-module configurations.
-- Control-side rack compilation and preallocated frame processing are being
-  integrated. Internal audio wires include delay compensation; note wires
-  retain parent and child note-instance ownership. Nested built-in graphs are
-  flattened. Control ports are external inlets, not duplicated control sources.
+Saved channel graphs with stable node/port IDs, typed edges, cycle refusal,
+node/depth/edge/event limits, nested preset JSON, project persistence, atomic
+replacement, history, duplicate/remove ownership and stale-editor checks.
+Control-side compilation flattens built-in graphs, prepares DSP and latency
+buffers, and processes preallocated audio/note/control wires. Channel macro
+inlets reuse instrument automation; removed inlet ownership prunes lanes.
+The inspector mounts a graph editor with add/connect/disconnect, nested editing,
+mute/solo, built-in parameter controls, six purpose-built note editors and
+preset text load/save. Existing note-map, layer and expression ownership
+foundations are reused. Control sources and scripting are outside this stream.
 
-## Acceptance status
+## Per-row status
 
-All eight rows remain partial until integration and the tests below are
-written and executed. In particular hosted-node state/editor capture is not
-implemented: native-bound channels reject rack replacement explicitly.
+| Row | Claim | Remaining gates |
+| --- | --- | --- |
+| fx-patcher | partial | Hosted lifecycle/state, acceptance coverage, executed validation |
+| core-fl-studio-mobile-rack-fx | partial | Rack file/library workflow, acceptance coverage, executed validation |
+| fx-vfx-color-mapper | partial | Routed-note runtime and mounted acceptance coverage |
+| fx-vfx-envelope | partial | Expression-map gain forwarding, runtime/mounted coverage |
+| fx-vfx-level-scaler | partial | Expression updates must preserve transform, runtime/mounted coverage |
+| fx-vfx-keyboard-splitter | partial | Routed-note runtime and mounted coverage |
+| fx-vfx-key-mapper | partial | Child ownership runtime and mounted coverage |
+| fx-vfx-sequencer | partial | Held-chord arpeggiation, tempo gate changes, runtime/mounted coverage |
+
+## Tests written, not executed
+
+`crates/windfall-project/tests/modular_rack.rs`:
+- nested_rack_preset_and_project_round_trip_preserve_ids_wires_and_history
+- cycles_type_mismatch_missing_ports_and_stale_edits_are_atomic
+- macro_automation_follows_its_owner_and_removed_owner_is_undoable
+- bounded_graphs_refuse_excess_nodes_depth_duplicate_ids_and_note_explosion
+- legacy_projects_omit_racks_and_duplicate_channels_copy_an_independent_graph
+- latency_changing_control_wire_is_refused_before_publication
+
+Engine audio/allocation and mounted editor cases will be added next; they are
+not claimed as present or passing. Existing EVERY_COMMAND gains setChannelRack.
 
 ## Integrator commands (not executed here)
 
@@ -28,22 +50,36 @@ In Git Bash, `source scripts/msvc-env.sh`; put node/pnpm on PATH; set
 - `cargo test -p windfall-dsp --lib notemap`
 - `cargo test -p windfall-dsp --lib rack_note`
 - `cargo test -p windfall-project --test modular_rack`
-- `cargo test -p windfall-engine --test modular_rack`
+- `cargo test -p windfall-engine --test engine modular_rack`
 - `cargo test -p windfall-engine --test engine`
 - `cargo clippy -p windfall-dsp -p windfall-project -p windfall-engine --all-targets -- -D warnings`
-- Regenerate Rust/TS bindings and document WASM with the repository scripts.
+- `bash scripts/gen-bindings.sh`
+- `bash scripts/build-sim.sh`
 - `pnpm --dir apps/desktop test src/features/modular src/lib/ipc/sim/document.test.ts --maxWorkers=4`
-- Desktop typecheck/lint; plugin state/capture regression suites.
+- Desktop typecheck/lint and native plugin state/capture regressions.
 
-## Generation
+## Generation and seams
 
-New rack graph/node/edge/endpoint/processor/preset/channel-rack and note-module
-types; ProjectSettings.modularRacks; Command.setChannelRack. Descriptors remain
-append-only; no generated files are edited by this worker.
+Regenerate rack graph/node/edge/endpoint/processor/preset/channel-rack types,
+note-module configs, ProjectSettings.modularRacks and Command.setChannelRack
+(including optional expected graph), then simulator WASM. No generated edits.
+Shared seams: DSP lib.rs; project lib/model/check/command/lower/automation;
+engine lib/plan/state/project_preparation/rack/automation/layout; inspector,
+automation targets and EVERY_COMMAND. Exact final inventory is maintained in git.
 
-## Risks and remaining gates
+## Risks, in check order
 
-Runtime integration, mounted purpose-built editor, acceptance tests and exact
-shared seam inventory will be recorded here as each coherent piece lands.
-Hosted processor lifecycle and capture, native platform listening and executed
-acceptance stay explicit gates. Do not promote tracker rows from this document.
+1. Uncompiled Rust and generated TS integration; inspect new literals/selects.
+2. Nested mixed-source latency metadata may differ from flattened runtime;
+   parent AudioInput latency is not incorporated in internal compensation.
+3. Graph replacement retriggers held voices and resets delay/tail state.
+4. Expression updates currently overwrite some mapped properties; gain and
+   parent pitch forwarding need further integration.
+5. Sequencer repeats steps per root; held-chord selection is still absent.
+6. Queue budget is fixed but validation counts terminal fanout, not every
+   transit event. Runtime overflow rejects deterministically; UI counter absent.
+7. Hosted processors and sampler channels deliberately reject attachment;
+   native state/editor ownership and rack preset library capture remain open.
+
+Do not promote tracker rows based on this hand-off. Listening and executed
+acceptance remain integrator gates.

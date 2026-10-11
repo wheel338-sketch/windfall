@@ -940,7 +940,8 @@ impl PlanState {
         for channel in &plan.channels {
             if let Some(graph) = &channel.rack
                 && !channel.leaving
-                && held.and_then(|held| held.racks.get(&channel.id)) != Some(graph)
+                && (held.and_then(|held| held.racks.get(&channel.id)) != Some(graph)
+                    || held.and_then(|held| held.instruments.get(&channel.id)).copied() != channel.instrument.map(|params| params.kind()))
             {
                 let rack = crate::modular::ModularRack::prepare(graph, sample_rate, plan.tempo_bpm)
                     .map_err(crate::project_preparation::ProjectPreparationError::Rack)?;

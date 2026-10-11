@@ -23,6 +23,7 @@ import { SampleSection } from "./sample-section"
 import { SoundSection } from "./sound-section"
 import { SamplerProcessingSection } from "./processing-section"
 import { TimingSection } from "./timing-section"
+import { ModularRackSection } from "@/features/modular/editor"
 
 /**
  * The settings of the selected channel, docked beside the rack: a sampler's
@@ -98,6 +99,7 @@ export function ChannelInspector() {
               )
             )}
             <LayerSection channel={channel} />
+            <ModularRackSection channel={channel} />
             {/* The panel shows the saved settings whenever none of its own
                 edits is on its way, so undo and redo show through. */}
             <ChannelVoicePanel

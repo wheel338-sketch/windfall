@@ -827,6 +827,10 @@ pub enum Command {
     SetChannelRack {
         id: ChannelId,
         graph: Option<crate::RackGraph>,
+        /// Optional stale-editor guard, checked before any edit.
+        #[serde(default)]
+        #[ts(optional)]
+        expected: Option<crate::RackGraph>,
     },
 }
 

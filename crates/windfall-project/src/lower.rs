@@ -1313,8 +1313,11 @@ impl Transaction<'_> {
                 self.push(Edit::SetChannel(Box::new(Change { old, new })));
                 "Set channel expression mapping"
             }
-            Command::SetChannelRack { id, graph } => {
+            Command::SetChannelRack { id, graph, expected } => {
                 self.channel_index(id)?;
+                if expected.as_ref().is_some_and(|expected| self.project.settings.modular_racks.iter().find(|rack| rack.channel == id).map(|rack| &rack.graph) != Some(expected)) {
+                    return Err(CommandError::invalid("Rack changed while the editor was open; retry from its current graph"));
+                }
                 let old = self.project.settings.clone();
                 let mut new = old.clone();
                 let previous = new.modular_racks.iter().find(|rack| rack.channel == id);
@@ -2243,6 +2246,15 @@ impl Transaction<'_> {
         param: u32,
         value: f32,
     ) -> Result<String, CommandError> {
+        if let Some(rack) = self.project.settings.modular_racks.iter().find(|rack| rack.channel == channel) {
+            if !value.is_finite() { return Err(CommandError::invalid("Rack macro must be finite")); }
+            let mut graph = rack.graph.clone();
+            let inlet = graph.nodes.iter_mut().find(|node| matches!(node.processor, crate::RackProcessor::ControlInput { index, .. } if u32::from(index) == param))
+                .ok_or_else(|| CommandError::invalid("Rack macro was removed"))?;
+            if let crate::RackProcessor::ControlInput { value: stored, .. } = &mut inlet.processor { *stored = value.clamp(0.0, 1.0); }
+            self.run(Command::SetChannelRack { id: channel, graph: Some(graph), expected: None })?;
+            return Ok("Change rack macro".into());
+        }
         let target = crate::PluginTarget::Instrument { channel };
         if let Some(plugin) = self.project.plugin(target) {
             let parameter = plugin
