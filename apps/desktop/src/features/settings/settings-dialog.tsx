@@ -35,6 +35,7 @@ import { formatSampleRate } from "@/lib/time"
 import { cn } from "@/lib/utils"
 import { MidiHardwareSettingsSection } from "./midi-hardware"
 import { nextKeymapPreset } from "./keymap-preset-step"
+import { UpdatesSection } from "@/features/updates/section"
 
 import {
   bufferOptions,
@@ -336,6 +337,7 @@ export function SettingsDialog() {
         <MidiHardwareSettingsSection />
         <AppearanceSection />
         <KeyboardSection />
+        <UpdatesSection />
       </DialogContent>
     </Dialog>
   )

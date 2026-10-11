@@ -943,6 +943,9 @@ async fn dock_panel(app: AppHandle, id: String) -> Result<(), String> {
 /// The handler for every command above.
 pub fn handler() -> impl Fn(Invoke) -> bool + Send + Sync + 'static {
     tauri::generate_handler![
+        crate::updates::update_check,
+        crate::updates::update_download,
+        crate::updates::update_install,
         analysis_capability,
         analysis_model_import,
         analysis_submit,

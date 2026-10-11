@@ -94,3 +94,57 @@ new command argument/token ordering are first compile/runtime risks to check.
 
 Detached windows, scaling, tutorials, languages, updater and scheduler work
 continues below. None is presently claimed complete.
+
+## Free updates / release
+
+Native Tauri updater plugin is registered, with separate check, download/verify
+and explicit install/restart commands restricted to the main window. Stable
+and preview use distinct operator-baked HTTPS endpoints. A serialized operation
+gate and checked selection token prevent concurrent/stale selections. App
+rejects same-version/downgrade, stable prerelease, wrong/missing channel,
+unsigned/non-HTTPS download and different/missing project-format metadata.
+Tauri's `Update::download` verifies the cryptographic signature before bytes
+enter the installable cache. Timeouts/offline and verification/install failures
+surface in Settings → Updates with retry. Installation refuses dirty project,
+playing transport and active recording; the module never rewrites a project.
+
+Configuration: updater artifacts enabled; plugin has empty operator placeholders
+and no frontend updater permission (custom commands enforce the policy).
+Build-time values required: `WINDFALL_UPDATE_PUBLIC_KEY` (public verification key),
+`WINDFALL_UPDATE_STABLE_URL`, `WINDFALL_UPDATE_PREVIEW_URL`. Operator alone
+provides the matching private signing key/password, signed HTTPS release host
+and installer artifacts, Windows signing certificate, Apple developer identity/
+notarization credentials, and Linux package/signing distribution choices.
+Each manifest must add `windfall: { channel: "stable" | "preview",
+projectFormatVersion: 1 }` alongside standard Tauri version/platform URLs/
+signatures/notes. Never publish over `v0.1.0-alpha.1`. No workflow added/run.
+
+Dependencies: `tauri-plugin-updater = 2.13.3` (MIT OR Apache-2.0), explicit existing
+transitive `semver = 1` / `url = 2` (MIT OR Apache-2.0). GPL-compatible. Integrator
+must resolve/update Cargo.lock; dependency installation was not run here.
+
+Written, not executed: `updates.rs` policy fixture
+`update_fixture_rejects_downgrade_channel_format_and_unsigned_packages`, operation
+gate `update_operations_are_serialized_and_recover_after_failure`;
+`features/updates/section.test.tsx` mounted verification/save/playback gating,
+offline/corrupt retry, missing verification, operator-unconfigured cases.
+
+```powershell
+cargo test -p windfall-desktop updates
+pnpm --dir apps/desktop test src/features/updates/section.test.tsx src/features/settings/settings.test.tsx --maxWorkers=2
+```
+
+Partial: actual plugin cryptographic fixture using a pre-existing signed artifact,
+redirect/download-size enforcement before allocating the plugin's complete
+buffer, installer rollback/upgrade/uninstall, interrupted download/installation,
+signing trust and actual three-OS packages remain. Do not count mocked corrupt
+errors as signature proof. The plugin handles signatures; our fixtures exercise
+policy/UI. Detached/import edits racing the final dirty check are not frozen by
+a session-wide shutdown lease; inspect this before enabling release installation.
+Updater APIs/async command Send bounds, plugin initialization with empty config,
+packaging flag and dependency resolution are the first compile checks.
+
+Primary API sources read (implementation references, not runtime evidence):
+[Tauri updater](https://v2.tauri.app/plugin/updater/),
+[Update download/install](https://docs.rs/tauri-plugin-updater/latest/tauri_plugin_updater/struct.Update.html),
+[UpdaterBuilder](https://docs.rs/tauri-plugin-updater/latest/tauri_plugin_updater/struct.UpdaterBuilder.html).
