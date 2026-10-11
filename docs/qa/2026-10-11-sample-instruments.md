@@ -213,3 +213,8 @@ once per frame, rather than repeating exponential/trigonometric work for each
 layer on every frame. Saturated pitch bounds remain explicit. The existing
 written independent octave-frequency, block-partition equality and callback
 allocation tests cover this path; playback CPU still needs integrator measurement.
+
+Source inspection correction: cache initialization uses the selected zone mapping
+explicitly. Portable-bank export releases State before atomic file persistence;
+its authorized immutable snapshot cannot mutate the document if a subsequent
+edit races that final file operation. No tests were run for these changes.

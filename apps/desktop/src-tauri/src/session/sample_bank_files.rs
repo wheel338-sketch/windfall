@@ -255,9 +255,10 @@ impl Session {
         {
             return Err("project changed while the sample bank was saved".into());
         }
-        // This file commit is on the IPC worker. It never enters the engine.
-        temporary.persist(&file).map_err(|e| e.to_string())?;
+        // Export is an immutable snapshot; release State before the file commit.
+        // A later edit cannot change these source copies or mutate the project.
         drop(state);
+        temporary.persist(&file).map_err(|e| e.to_string())?;
         written.0.clear();
         Ok(())
     }

@@ -198,6 +198,7 @@ impl Engine {
                 continue;
             }
             matched = true;
+            let map = zone.mapping;
             let slot = self
                 .voices
                 .iter()
