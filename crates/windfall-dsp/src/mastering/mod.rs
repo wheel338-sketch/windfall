@@ -3,9 +3,14 @@
 //! The submodules hold what a master is measured by ([`loudness`]) and the
 //! larger limiter this one is the short form of ([`master_limiter`]).
 
+pub mod chain;
 pub mod loudness;
 pub mod master_limiter;
 
+pub use chain::{
+    MASTERING_CEILING_RANGE, MASTERING_PEAK_TOLERANCE_DB, MASTERING_TARGET_RANGE,
+    MASTERING_TOLERANCE_LU, Mastering, MasteringError, MasteringReport, MasteringSettings, master,
+};
 pub use loudness::{LOUDNESS_FLOOR, LoudnessMeter, LoudnessMetrics, measure};
 pub use master_limiter::{MasterLimiter, MasterLimiterParams, master_limiter_latency};
 
