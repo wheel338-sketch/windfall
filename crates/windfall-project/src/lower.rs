@@ -39,6 +39,7 @@ mod playlist_layouts;
 mod preset_apply;
 mod instrument_assets;
 mod sample_playback;
+mod audio_regions;
 
 /// What a command did to the project.
 pub(crate) struct Outcome {
@@ -1278,6 +1279,7 @@ impl Transaction<'_> {
             Command::AddSample { name, path } => self.add_sample(name, path)?,
             Command::SetSamplePlayback { channel, asset } => self.set_sample_playback(channel, asset)?,
             Command::GenerateSlicePattern { channel, pattern } => self.generate_slice_pattern(channel, pattern)?,
+            Command::SetSampleRegions { sample, expected, regions } => self.set_sample_regions(sample, expected, regions)?,
             Command::RemoveSample { id } => self.remove_sample(id)?,
             Command::AddChannel {
                 name,
@@ -1739,7 +1741,7 @@ impl Transaction<'_> {
         let id = SampleId(self.allocate()?);
         self.push(Edit::Sample(ListEdit::Insert {
             index: self.project.samples.len(),
-            item: SampleAsset { id, name, path },
+            item: SampleAsset { id, name, path, regions: Vec::new() },
         }));
         self.created.push(id.0);
         Ok(label)

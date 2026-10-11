@@ -251,6 +251,7 @@ type Ids = ReturnType<typeof fullProject>["ids"]
  * for a new entry when the Rust `Command` gains a variant.
  */
 const EVERY_COMMAND: { [Type in Command["type"]]: (ids: Ids) => Command } = {
+  setSampleRegions: (ids) => ({type:"setSampleRegions",sample:ids.sample,expected:[],regions:[{name:"Region",startFrame:0,endFrame:100}]}),
   setSamplePlayback: (ids) => ({ type: "setSamplePlayback", channel: ids.slicer, asset: { ...defaultAsset(), sample: ids.sample, sourceBpm: 90 } }),
   generateSlicePattern: (ids) => ({ type: "generateSlicePattern", channel: ids.slicer, pattern: ids.pattern }),
   addArrangement: (ids) => ({

@@ -7,6 +7,7 @@ use windfall_project::{Clip, ClipContent, ClipStretch};
 
 use crate::{SamplePool, clips::equal_power, voice::Region};
 
+pub mod advanced;
 pub mod clean;
 pub mod process;
 
@@ -198,6 +199,32 @@ pub fn apply(
             grown(view.frames() + frames as usize)?;
             spliced(first, &vec![0.0; frames as usize * channels], first)
         }
+        AudioEditOperation::Convolve { impulse, wet } => {
+            let a = impulse.start_frame as usize;
+            let b = impulse.end_frame as usize;
+            if a >= b || b > view.frames() || b - a > 32768 {
+                return Err(
+                    "Capture an impulse range of 1 to 32768 frames within this clip.".into(),
+                );
+            }
+            let convolved = advanced::convolve(
+                &samples[first..last],
+                &samples[a * channels..b * channels],
+                channels,
+                wet,
+            )?;
+            spliced(first, &convolved, last)
+        }
+        AudioEditOperation::StripSilence {
+            threshold_db,
+            min_silence_frames,
+        } => {
+            advanced::sound_regions(view, start, end, threshold_db, min_silence_frames)?;
+            samples.to_vec() // Session attaches separate clips at these source positions.
+        }
+        AudioEditOperation::Script => {
+            return Err("Run scripts through the sandboxed selection processor.".into());
+        }
         AudioEditOperation::Stretch {
             ratio,
             semitones,
@@ -258,6 +285,18 @@ pub fn apply(
                     process::normalize(selected, target_db, mode)?
                 }
                 AudioEditOperation::Gain { db } => process::gain(selected, db)?,
+                AudioEditOperation::Equalize {
+                    low_db,
+                    mid_db,
+                    high_db,
+                } => advanced::equalize(selected, channels, rate, [low_db, mid_db, high_db])?,
+                AudioEditOperation::Blur { amount } => advanced::blur(selected, channels, amount)?,
+                AudioEditOperation::RepairClipping { threshold } => {
+                    advanced::repair_clipping(selected, channels, threshold)?
+                }
+                AudioEditOperation::LoopTune { crossfade_frames } => {
+                    advanced::loop_tune(selected, channels, crossfade_frames)?
+                }
                 AudioEditOperation::Reverse => {
                     for frame in 0..(end - start) / 2 {
                         for channel in 0..channels {
@@ -297,6 +336,37 @@ pub fn apply(
     Ok(Edited {
         audio: AudioBuffer::from_interleaved(rate, view.channels(), data),
         lead,
+    })
+}
+
+/// A sandbox returns only selected audio. Validate it, then splice through the
+/// same immutable/bounded asset contract as built-in operations.
+pub fn replace_selection(
+    view: &AudioBuffer,
+    start: u32,
+    end: u32,
+    replacement: AudioBuffer,
+) -> Result<Edited, String> {
+    if start >= end
+        || end as usize > view.frames()
+        || replacement.sample_rate() != view.sample_rate()
+        || replacement.channels() != view.channels()
+        || replacement.samples().iter().any(|s| !s.is_finite())
+    {
+        return Err("The script returned invalid selection audio.".into());
+    }
+    bounded(
+        (view.frames() - (end - start) as usize + replacement.frames()) as f64,
+        view.sample_rate(),
+        view.channels(),
+    )?;
+    let channels = usize::from(view.channels());
+    let mut samples = view.samples()[..start as usize * channels].to_vec();
+    samples.extend_from_slice(replacement.samples());
+    samples.extend_from_slice(&view.samples()[end as usize * channels..]);
+    Ok(Edited {
+        audio: AudioBuffer::from_interleaved(view.sample_rate(), view.channels(), samples),
+        lead: 0,
     })
 }
 

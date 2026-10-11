@@ -108,3 +108,23 @@ New native commands: sampler_preprocess_preview, collect_derived_assets.
 No dependency or persisted type changed. Cleanup is intentionally conservative
 across app restarts: it cannot prove another saved document stopped using an
 older asset. No arbitrary-directory scan is offered.
+
+Fifth piece (written, not executed): worker DSP for smooth three-band EQ,
+phase-preserving spectral magnitude blur, bounded linear FFT convolution,
+short-plateau Hermite clipping repair, duration-preserving loop seam tuning,
+silence-run region discovery and a bounded stereo spectrogram. Independent
+convolution and flat-EQ references, repair and gate ranges, anti-phase display,
+blur determinism/energy and refusal cases are in audio_edit/advanced.rs.
+The project now persists optional source-frame AudioRegion metadata (equal
+endpoints are markers), validates it, and offers guarded SetSampleRegions with
+ordinary document undo/redo. Empty metadata is omitted from legacy/default JSON.
+All SampleAsset literals found in this worktree are widened. The command's
+EVERY_COMMAND example is provided for combined WASM regeneration.
+
+Run sequentially:
+```bash
+cargo test -p windfall-engine --lib audio_edit
+cargo test -p windfall-project --test audio_regions
+```
+Regenerate AudioEditOperation, AudioEditPreview, AudioEditDestination,
+AudioEditTransferRequest, AudioRegion, SampleAsset and Command. No new dependency.

@@ -837,6 +837,8 @@ pub enum Command {
     SetSamplePlayback { channel: ChannelId, asset: Option<crate::SamplePlayback> },
     /// Generates source-length notes in the saved slice order in one history step.
     GenerateSlicePattern { channel: ChannelId, pattern: PatternId },
+    /// Immutable asset metadata, guarded against concurrent region edits.
+    SetSampleRegions { sample: SampleId, expected: Vec<crate::AudioRegion>, regions: Vec<crate::AudioRegion> },
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, TS)]

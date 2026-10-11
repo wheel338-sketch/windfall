@@ -247,6 +247,7 @@ fn check_settings(project: &Project) -> Result<(), String> {
 fn check_samples(project: &Project) -> Result<(), String> {
     let mut ids = HashSet::new();
     for sample in &project.samples {
+        crate::model::check_audio_regions(&sample.regions)?;
         check_id(project, "sample", sample.id, &mut ids)?;
         if let Some(problem) = sample.path.problem() {
             return Err(format!("sample {}: {problem}", sample.id.0));
