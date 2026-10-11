@@ -12,6 +12,7 @@ import { CommandPalette } from "@/features/palette/command-palette"
 import userEvent from "@testing-library/user-event"
 import { AnalysisButton, AnalysisPanel } from "./index"
 import type { AnalysisJob, AnalysisModel, AnalysisReview } from "./types"
+import { useRemixLoader } from "./remix"
 
 const model: AnalysisModel = {
   id: "test-only-copy",
@@ -76,6 +77,7 @@ let clip: number
 beforeEach(async () => {
   useAnalysisRecovery.setState(useAnalysisRecovery.getInitialState(), true)
   useRecordingStore.setState(useRecordingStore.getInitialState(), true)
+  useRemixLoader.setState({ busy: false })
   ;({ backend, stop } = await startTestApp())
   unregister = registerAnalysisActions()
   await selectClip()
@@ -94,7 +96,7 @@ async function selectClip() {
   clip = id
   usePlaylistStore.getState().select([clip])
 }
-async function nativePanel() {
+async function nativePanel(pinned = model) {
   if (
     !useProjectStore
       .getState()
@@ -105,7 +107,7 @@ async function nativePanel() {
     native: true,
     available: true,
     reason: null,
-    models: [model],
+    models: [pinned],
   })
   vi.spyOn(backend, "analysisStatus").mockResolvedValue({
     ...job,
@@ -422,6 +424,7 @@ describe("analysis app controls", () => {
       "analysis.recoveryRetry",
       "analysis.recoveryForget",
       "analysis.recoveryNext",
+      "analysis.remix",
     ])
   })
   it("shows honest browser unavailability and preserves document/history", async () => {
@@ -513,5 +516,77 @@ describe("analysis app controls", () => {
     const before = useProjectStore.getState()
     await act(async () => resolve(result))
     expect(useProjectStore.getState()).toBe(before)
+  })
+  it("reviews selected stems, auditions without applying, and requests one aligned remix import", async () => {
+    const stemModel: AnalysisModel = { ...model, outputs: ["drums", "bass", "vocals", "other"]
+      .map((role) => ({ role, channels: 2 })) }
+    const stemReview: AnalysisReview = { ...review, task: "stemSeparation", model: stemModel,
+      artifacts: stemModel.outputs.map((output, i) => ({ ...review.artifacts[0],
+        name: `stem-${i}.wav`, role: output.role })) }
+    vi.spyOn(backend, "analysisSubmit").mockResolvedValue(job)
+    vi.spyOn(backend, "analysisReview").mockImplementation(async () => ({ ...stemReview, clip }))
+    vi.spyOn(backend, "analysisPreview").mockResolvedValue()
+    vi.spyOn(backend, "previewStop").mockResolvedValue()
+    const result = await backend.addAudioClipFromFile("/factory/Loops/Drum loop 128.wav", { start: 100 })
+    vi.spyOn(backend, "analysisApply").mockResolvedValue(result)
+    await nativePanel(stemModel)
+    fireEvent.change(screen.getByLabelText("Analysis operation"), { target: { value: "stemSeparation" } })
+    fireEvent.click(screen.getByRole("button", { name: "Submit analysis" }))
+    await screen.findByText(/Job 9007199254740993: ready/)
+    expect(backend.analysisSubmit).toHaveBeenCalledWith(expect.objectContaining({ task: "stemSeparation" }))
+    fireEvent.click(screen.getByRole("button", { name: "Review outputs" }))
+    await screen.findByRole("button", { name: "Audition vocals" })
+    const before = useProjectStore.getState()
+    fireEvent.click(screen.getByRole("button", { name: "Audition vocals" }))
+    await waitFor(() => expect(backend.analysisPreview).toHaveBeenCalledWith(job.ticket, "vocals"))
+    expect(useProjectStore.getState()).toBe(before)
+    for (const role of ["bass", "other"]) fireEvent.click(screen.getByLabelText(`Import ${role}`))
+    fireEvent.click(screen.getByRole("button", { name: "Apply reviewed outputs" }))
+    await waitFor(() => expect(backend.analysisApply).toHaveBeenCalledWith({
+      ticket: job.ticket, request: job.request, replaceOriginal: false,
+      selectedRoles: ["drums", "vocals"], separateTracks: true, muteOriginal: true,
+    }))
+  })
+  it.each(["dereverbGeneral", "dereverbVocal"] as const)("submits the distinct %s mode only with matching model roles", async (task) => {
+    vi.spyOn(backend, "analysisSubmit").mockResolvedValue(job)
+    const role = task === "dereverbGeneral" ? "dereverb-general" : "dereverb-vocal"
+    await nativePanel({ ...model, outputs: [{ role, channels: 2 }] })
+    fireEvent.change(screen.getByLabelText("Analysis operation"), { target: { value: task } })
+    expect(screen.getByRole("button", { name: "Submit analysis" })).toBeEnabled()
+    fireEvent.click(screen.getByRole("button", { name: "Submit analysis" }))
+    await waitFor(() => expect(backend.analysisSubmit).toHaveBeenCalledWith(expect.objectContaining({ task })))
+  })
+  it("refuses mismatched stem roles through the registry", async () => {
+    const submit = vi.spyOn(backend, "analysisSubmit").mockResolvedValue(job)
+    await nativePanel()
+    fireEvent.change(screen.getByLabelText("Analysis operation"), { target: { value: "stemSeparation" } })
+    expect(screen.getByRole("button", { name: "Submit analysis" })).toBeDisabled()
+    expect(disabledReason(registry.get("analysis.submit")!, getAppState())).toContain("exact roles")
+    await act(() => runAction("analysis.submit"))
+    expect(submit).not.toHaveBeenCalled()
+  })
+  it("loads a song from the remix action and opens the honest stem wizard", async () => {
+    vi.spyOn(backend, "pickAudioFile").mockResolvedValue("/factory/Loops/Drum loop 128.wav")
+    render(<AnalysisButton />)
+    await act(() => runAction("analysis.remix"))
+    expect(await screen.findByRole("dialog", { name: "Native analysis" })).toBeVisible()
+    expect(screen.getByRole("region", { name: "Remix song workflow" })).toHaveTextContent("Song loaded")
+    expect(screen.getByLabelText("Analysis operation")).toHaveValue("stemSeparation")
+    expect(usePlaylistStore.getState().selection.size).toBe(1)
+    expect(screen.getByRole("button", { name: "Submit analysis" })).toBeDisabled()
+    expect(useRemixLoader.getState().busy).toBe(false)
+  })
+  it("does not import a song chosen after project replacement", async () => {
+    let finish!: (path: string | null) => void
+    vi.spyOn(backend, "pickAudioFile").mockImplementation(() => new Promise((done) => { finish = done }))
+    const add = vi.spyOn(backend, "addAudioClipFromFile")
+    render(<AnalysisButton />)
+    const loading = runAction("analysis.remix")
+    expect(useRemixLoader.getState().busy).toBe(true)
+    await act(() => backend.projectNew())
+    await act(async () => { finish("/factory/Loops/Drum loop 128.wav"); await loading })
+    expect(add).not.toHaveBeenCalled()
+    expect(screen.queryByRole("dialog")).toBeNull()
+    expect(useRemixLoader.getState().busy).toBe(false)
   })
 })

@@ -106,6 +106,11 @@ Additional tests, all **written, not executed**:
   coordinates independently of a reopened derived clip.
   The mounted editor now owns that source waveform/range. Added preserved-source
   selection and real browser-backend refusal cases, written, not executed.
+- `features/analysis/panel.test.tsx`: selected stem preview and aligned remix
+  payload; distinct general/vocal mode submission; mismatched-role refusal;
+  real song loading into the wizard; replacement during file picking.
+  All written, not executed. Existing checksum/model-absence/cancel/stale
+  lifecycle fixtures in M1 are retained.
 
 ## Remaining work
 
