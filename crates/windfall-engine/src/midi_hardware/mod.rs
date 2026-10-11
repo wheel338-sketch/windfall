@@ -1,10 +1,24 @@
 //! Native MIDI control. One worker owns all port handles and output sends.
-//! The input callback only parses fixed-size supported messages, reads atomics,
-//! and pushes a Copy packet into a preallocated SPSC queue. No project access.
+//! The input callback only parses fixed-size supported messages, reads atomics
+//! and the monotonic clock, and pushes a Copy packet into a preallocated SPSC
+//! queue. No project access.
+//!
+//! Besides auditioning notes, the worker hands every accepted message to its
+//! [`Audition`] sink with the moment it was captured, sends MIDI clock for the
+//! transport, and sends what MIDI output channels queue on the audio thread.
+//! Nothing here runs on the audio thread: it only leaves fixed-size messages
+//! in a preallocated queue, and this worker sends them.
+pub mod clock;
+mod message;
 mod native;
+#[cfg(test)]
+mod routing_tests;
 #[cfg(test)]
 mod tests;
 
+pub use message::MidiMessage;
+
+use std::collections::VecDeque;
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::{Arc, Mutex, mpsc};
 use std::thread::{self, JoinHandle};
@@ -13,11 +27,17 @@ use std::time::{Duration, Instant};
 use rtrb::{Consumer, Producer, RingBuffer};
 use windfall_ipc::{MidiHardwareSettings, MidiHardwareState, MidiPort};
 
-use crate::Controller;
+use crate::{Controller, Playhead};
+use clock::ClockOut;
 
 pub const INPUT_CAPACITY: usize = 1024;
+/// Messages of MIDI output channels that can wait for their time to be sent.
+pub const OUTPUT_PENDING: usize = 2048;
 const POLL: Duration = Duration::from_millis(500);
 const SERVICE: Duration = Duration::from_millis(2);
+/// A MIDI output message due later than this is not believed: the audio
+/// clock it was timed against has gone away. It is sent at once.
+const MAX_AHEAD_NANOS: u64 = 2_000_000_000;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 enum Event {
@@ -27,43 +47,75 @@ enum Event {
 }
 
 impl Event {
-    fn parse(bytes: &[u8]) -> Option<Self> {
-        let [status, a, b] = *bytes else {
-            return None;
-        };
-        if a > 127 || b > 127 {
-            return None;
-        }
-        let channel = status & 15;
-        match status >> 4 {
-            8 => Some(Self::Note {
+    /// What a message means for auditioning notes, if anything.
+    fn of(message: MidiMessage) -> Option<Self> {
+        match message {
+            MidiMessage::NoteOn {
                 channel,
-                key: a,
+                key,
+                velocity,
+            } => Some(Self::Note {
+                channel,
+                key,
+                velocity,
+            }),
+            MidiMessage::NoteOff { channel, key } => Some(Self::Note {
+                channel,
+                key,
                 velocity: 0,
             }),
-            9 => Some(Self::Note {
+            MidiMessage::Controller {
                 channel,
-                key: a,
-                velocity: b,
-            }),
-            11 if a == 64 => Some(Self::Sustain {
+                number: 64,
+                value,
+            } => Some(Self::Sustain {
                 channel,
-                down: b >= 64,
+                down: value >= 64,
             }),
-            11 if a == 121 => Some(Self::Sustain {
+            MidiMessage::Controller {
+                channel,
+                number: 121,
+                ..
+            } => Some(Self::Sustain {
                 channel,
                 down: false,
             }),
-            11 if a == 120 || a == 123 => Some(Self::Panic { channel }),
+            MidiMessage::Controller {
+                channel,
+                number: 120 | 123,
+                ..
+            } => Some(Self::Panic { channel }),
             _ => None,
         }
+    }
+
+    #[cfg(test)]
+    fn parse(bytes: &[u8]) -> Option<Self> {
+        MidiMessage::parse(bytes).and_then(Self::of)
     }
 }
 
 #[derive(Clone, Copy)]
 struct Packet {
     epoch: u64,
-    event: Event,
+    device: u8,
+    message: MidiMessage,
+    at: Instant,
+    stamp_micros: u64,
+}
+
+/// One accepted message from an input, as the sink sees it.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct InputMessage {
+    /// Which input it came from: the place of that input in
+    /// [`MidiHardwareSettings::inputs`], the main input being 0.
+    pub device: u8,
+    pub message: MidiMessage,
+    /// When the input callback took it, on the monotonic clock.
+    pub at: Instant,
+    /// The backend's own timestamp in microseconds, or 0 when it gave none.
+    /// Only differences between two stamps of one input mean anything.
+    pub stamp_micros: u64,
 }
 
 /// Moved into the backend callback and used by deterministic fake inputs too.
@@ -71,16 +123,26 @@ pub struct Ingress {
     tx: Producer<Packet>,
     controller: Controller,
     dropped: Arc<AtomicU32>,
+    device: u8,
 }
 
 impl Ingress {
     pub fn receive(&mut self, bytes: &[u8]) {
-        let Some(event) = Event::parse(bytes) else {
+        self.receive_at(0, bytes);
+    }
+
+    /// As [`receive`](Self::receive), with the backend's timestamp. Reads the
+    /// monotonic clock, parses and pushes; never allocates, locks or waits.
+    pub fn receive_at(&mut self, stamp_micros: u64, bytes: &[u8]) {
+        let Some(message) = MidiMessage::parse(bytes) else {
             return;
         };
         let packet = Packet {
             epoch: self.controller.hardware_epoch(),
-            event,
+            device: self.device,
+            message,
+            at: Instant::now(),
+            stamp_micros,
         };
         if self.tx.push(packet).is_err() {
             self.dropped.fetch_add(1, Ordering::Relaxed);
@@ -94,6 +156,28 @@ impl Ingress {
 /// with respect to project changes. False invalidates the whole held-note set.
 pub trait Audition: Send + Sync + 'static {
     fn note(&self, epoch: u64, key: u8, velocity: u8) -> bool;
+
+    /// As [`note`](Self::note), with the moment the message that caused it
+    /// was captured. A note let go by the sustain pedal carries the pedal's
+    /// moment.
+    fn note_at(&self, epoch: u64, key: u8, velocity: u8, at: Instant) -> bool {
+        let _ = at;
+        self.note(epoch, key, velocity)
+    }
+
+    /// Every accepted message, before it is auditioned. Answering true takes
+    /// the message: a note, pedal or panic so taken is not auditioned, which
+    /// is how a key linked to a control stays silent.
+    fn message(&self, input: InputMessage) -> bool {
+        let _ = input;
+        false
+    }
+
+    /// Once every turn of the worker, about every two milliseconds, with
+    /// the transport as it then reads.
+    fn idle(&self, now: Instant, playhead: &Playhead) {
+        let _ = (now, playhead);
+    }
 }
 
 pub trait Output: Send {
@@ -146,18 +230,24 @@ impl Runtime {
                 let mut worker = Worker::new(factory(), worker_controller, audition);
                 worker.configure(settings);
                 let mut polled = Instant::now();
-                loop {
-                    match rx.recv_timeout(SERVICE) {
-                        Ok(Request::Configure(settings, reply)) => {
-                            worker.configure(settings);
-                            let _ = reply.send(worker.state());
+                'serve: loop {
+                    // Sleeping, not waiting on the queue: the wait is cut
+                    // short for the next clock pulse or timed message, and a
+                    // sleep keeps to its length where a queue wait may not.
+                    thread::sleep(worker.wait(Instant::now()));
+                    loop {
+                        match rx.try_recv() {
+                            Ok(Request::Configure(settings, reply)) => {
+                                worker.configure(settings);
+                                let _ = reply.send(worker.state());
+                            }
+                            Ok(Request::Refresh(reply)) => {
+                                worker.refresh();
+                                let _ = reply.send(worker.state());
+                            }
+                            Err(mpsc::TryRecvError::Empty) => break,
+                            Err(mpsc::TryRecvError::Disconnected) => break 'serve,
                         }
-                        Ok(Request::Refresh(reply)) => {
-                            worker.refresh();
-                            let _ = reply.send(worker.state());
-                        }
-                        Err(mpsc::RecvTimeoutError::Disconnected) => break,
-                        Err(mpsc::RecvTimeoutError::Timeout) => {}
                     }
                     if polled.elapsed() >= POLL {
                         worker.refresh();
@@ -166,7 +256,7 @@ impl Runtime {
                     worker.service();
                     *published.lock().unwrap_or_else(|e| e.into_inner()) = worker.state();
                 }
-                worker.panic();
+                worker.shutdown();
                 // All connections drop here, after output cleanup, on this worker.
             })
             .map_err(|error| error.to_string())?;
@@ -221,14 +311,29 @@ impl Drop for Runtime {
     }
 }
 
+struct Input {
+    id: String,
+    /// Dropping it closes the port.
+    _connection: Box<dyn Send>,
+    rx: Consumer<Packet>,
+}
+
+/// A message of a MIDI output channel and when to send it, in the
+/// nanoseconds of the engine's recording clock.
+#[derive(Clone, Copy)]
+struct Timed {
+    due: u64,
+    bytes: [u8; 3],
+    len: u8,
+}
+
 struct Worker {
     ports: Box<dyn Ports>,
     controller: Controller,
     audition: Arc<dyn Audition>,
     state: MidiHardwareState,
-    input: Option<Box<dyn Send>>,
+    inputs: Vec<Input>,
     output: Option<Box<dyn Output>>,
-    rx: Option<Consumer<Packet>>,
     dropped: Arc<AtomicU32>,
     epoch: u64,
     /// One bit per input channel/key, and a separate sustain bit. Fixed storage.
@@ -236,6 +341,13 @@ struct Worker {
     sounding: [[bool; 128]; 16],
     sustain: [bool; 16],
     output_keys: [bool; 128],
+    clock: ClockOut,
+    /// MIDI output channel messages in the order they were made.
+    pending: VecDeque<Timed>,
+    /// The latest time given to a pending message, so none overtakes another.
+    last_due: u64,
+    /// One bit per MIDI channel a MIDI output channel has sent on.
+    used_channels: u16,
 }
 
 impl Worker {
@@ -246,32 +358,43 @@ impl Worker {
             controller,
             audition,
             state: MidiHardwareState::default(),
-            input: None,
+            inputs: Vec::new(),
             output: None,
-            rx: None,
             dropped: Arc::new(AtomicU32::new(0)),
             epoch,
             down: [[false; 128]; 16],
             sounding: [[false; 128]; 16],
             sustain: [false; 16],
             output_keys: [false; 128],
+            clock: ClockOut::new(Instant::now()),
+            pending: VecDeque::with_capacity(OUTPUT_PENDING),
+            last_due: 0,
+            used_channels: 0,
         }
     }
 
     fn state(&self) -> MidiHardwareState {
+        let main = self.state.settings.input.as_deref();
         MidiHardwareState {
-            input_connected: self.input.is_some(),
+            input_connected: self
+                .inputs
+                .iter()
+                .any(|input| Some(input.id.as_str()) == main),
             output_connected: self.output.is_some(),
             dropped_events: self.dropped.load(Ordering::Relaxed),
+            connected_inputs: self.inputs.iter().map(|input| input.id.clone()).collect(),
+            clock_running: self.clock.running(),
+            output_dropped: self.controller.midi_out_dropped(),
             ..self.state.clone()
         }
     }
 
     fn configure(&mut self, settings: MidiHardwareSettings) {
         self.panic();
-        self.input.take();
+        self.stop_clock();
+        self.inputs.clear();
         self.output.take();
-        self.rx.take();
+        self.pending.clear();
         self.state.settings = settings;
         self.state.error = None;
         self.refresh();
@@ -281,18 +404,26 @@ impl Worker {
                 Err(error) => self.state.error = Some(error),
             }
         }
-        if let Some(id) = self.state.settings.input.clone() {
+        let wanted: Vec<String> = self
+            .state
+            .settings
+            .inputs()
+            .map(|(id, _)| id.to_owned())
+            .collect();
+        for (device, id) in wanted.into_iter().enumerate() {
             let (tx, rx) = RingBuffer::new(INPUT_CAPACITY);
             let ingress = Ingress {
                 tx,
                 controller: self.controller.clone(),
                 dropped: self.dropped.clone(),
+                device: device as u8,
             };
             match self.ports.input(&id, ingress) {
-                Ok(input) => {
-                    self.input = Some(input);
-                    self.rx = Some(rx);
-                }
+                Ok(connection) => self.inputs.push(Input {
+                    id,
+                    _connection: connection,
+                    rx,
+                }),
                 Err(error) => self.state.error = Some(error),
             }
         }
@@ -301,10 +432,8 @@ impl Worker {
     fn refresh(&mut self) {
         match self.ports.enumerate() {
             Ok((inputs, outputs)) => {
-                let lost_input = self.input.is_some()
-                    && !inputs
-                        .iter()
-                        .any(|p| Some(&p.id) == self.state.settings.input.as_ref());
+                let present = |id: &str| inputs.iter().any(|port| port.id == id);
+                let lost_input = self.inputs.iter().any(|input| !present(&input.id));
                 let lost_output = self.output.is_some()
                     && !outputs
                         .iter()
@@ -312,11 +441,11 @@ impl Worker {
                 if lost_input || lost_output {
                     self.panic();
                     if lost_input {
-                        self.input.take();
-                        self.rx.take();
+                        self.inputs.retain(|input| present(&input.id));
                     }
                     if lost_output {
                         self.output.take();
+                        self.pending.clear();
                     }
                     self.state.error = Some("MIDI device disconnected. Refresh and apply the device settings to reconnect.".into());
                 }
@@ -325,9 +454,9 @@ impl Worker {
             }
             Err(error) => {
                 self.panic();
-                self.input.take();
+                self.inputs.clear();
                 self.output.take();
-                self.rx.take();
+                self.pending.clear();
                 self.state.error = Some(error);
             }
         }
@@ -338,17 +467,42 @@ impl Worker {
         self.reset();
     }
 
+    /// The last thing the worker does: stop the clock and quiet the output.
+    fn shutdown(&mut self) {
+        self.stop_clock();
+        self.panic();
+    }
+
+    fn stop_clock(&mut self) {
+        let mut stopped = false;
+        self.clock.stop(&mut |_| stopped = true);
+        if stopped {
+            self.send(&[0xfc]);
+        }
+    }
+
     fn reset(&mut self) {
         // Exact note-offs plus standard panic messages; no output call from audio.
         let channel = self.state.settings.output_channel.saturating_sub(1);
         for key in 0..128 {
             if self.output_keys[key] {
-                self.send([0x80 | channel, key as u8, 0]);
+                self.send(&[0x80 | channel, key as u8, 0]);
             }
         }
-        self.send([0xb0 | channel, 64, 0]);
-        self.send([0xb0 | channel, 123, 0]);
-        self.send([0xb0 | channel, 120, 0]);
+        self.send(&[0xb0 | channel, 64, 0]);
+        self.send(&[0xb0 | channel, 123, 0]);
+        self.send(&[0xb0 | channel, 120, 0]);
+        // MIDI output channels may have notes on other channels. Their own
+        // note-offs are discarded with the queue, so each channel they used
+        // is told to stop instead.
+        let used = std::mem::take(&mut self.used_channels);
+        self.pending.clear();
+        for other in 0..16_u8 {
+            if used & (1 << other) != 0 && other != channel {
+                self.send(&[0xb0 | other, 123, 0]);
+                self.send(&[0xb0 | other, 120, 0]);
+            }
+        }
         self.down = [[false; 128]; 16];
         self.sounding = [[false; 128]; 16];
         self.sustain = [false; 16];
@@ -356,36 +510,152 @@ impl Worker {
         self.epoch = self.controller.hardware_epoch();
     }
 
-    fn send(&mut self, bytes: [u8; 3]) {
+    fn send(&mut self, bytes: &[u8]) {
         if let Some(output) = &mut self.output
-            && let Err(error) = output.send(&bytes)
+            && let Err(error) = output.send(bytes)
         {
             self.state.error = Some(error);
             self.output.take();
+            self.pending.clear();
             self.controller.panic_hardware();
         }
     }
 
+    /// How long the worker may sleep before something is due.
+    fn wait(&self, now: Instant) -> Duration {
+        let mut wait = SERVICE;
+        if let Some(due) = self.clock.next_due() {
+            wait = wait.min(due.saturating_duration_since(now));
+        }
+        if let Some(front) = self.pending.front() {
+            let now_nanos = self.controller.recording_clock().now_nanos();
+            wait = wait.min(Duration::from_nanos(front.due.saturating_sub(now_nanos)));
+        }
+        wait
+    }
+
     fn service(&mut self) {
+        self.service_at(Instant::now());
+    }
+
+    /// One turn of the worker, with the time passed in so tests can make
+    /// the clock's time up.
+    fn service_at(&mut self, now: Instant) {
         if self.epoch != self.controller.hardware_epoch() {
             self.reset();
         }
         // Bounded service budget; control requests and disconnect checks cannot starve.
-        for _ in 0..INPUT_CAPACITY {
-            let Some(packet) = self.rx.as_mut().and_then(|rx| rx.pop().ok()) else {
+        let mut budget = INPUT_CAPACITY;
+        'inputs: while budget > 0 {
+            let mut any = false;
+            for slot in 0..self.inputs.len() {
+                let Some(packet) = self
+                    .inputs
+                    .get_mut(slot)
+                    .and_then(|input| input.rx.pop().ok())
+                else {
+                    continue;
+                };
+                any = true;
+                budget -= 1;
+                if self.epoch != self.controller.hardware_epoch() {
+                    self.reset();
+                }
+                if packet.epoch == self.epoch {
+                    self.event(packet);
+                }
+                if budget == 0 {
+                    break 'inputs;
+                }
+            }
+            if !any {
                 break;
+            }
+        }
+        let playhead = self.controller.playhead();
+        self.audition.idle(now, &playhead);
+        self.outputs(now, &playhead);
+    }
+
+    /// Sends what is due: MIDI output channel messages, then the clock.
+    fn outputs(&mut self, now: Instant, playhead: &Playhead) {
+        let recording_clock = self.controller.recording_clock();
+        let now_nanos = recording_clock.now_nanos();
+        let output_clock = recording_clock.output();
+        let connected = self.output.is_some();
+        let pending = &mut self.pending;
+        let last_due = &mut self.last_due;
+        // Drained whether or not an output is open, so the queue never
+        // fills and nothing stale is sent to a port opened later.
+        self.controller.drain_midi_out(|frame, bytes| {
+            if !connected || pending.len() >= OUTPUT_PENDING || bytes.is_empty() {
+                return;
+            }
+            let timed = output_clock.map_or(now_nanos, |clock| clock.nanos_at(frame));
+            let believed = if timed > now_nanos.saturating_add(MAX_AHEAD_NANOS) {
+                now_nanos
+            } else {
+                timed
             };
-            if self.epoch != self.controller.hardware_epoch() {
-                self.reset();
+            // A message never goes before one made earlier.
+            let due = believed.max(*last_due);
+            *last_due = due;
+            let mut stored = [0; 3];
+            stored[..bytes.len()].copy_from_slice(bytes);
+            pending.push_back(Timed {
+                due,
+                bytes: stored,
+                len: bytes.len() as u8,
+            });
+        });
+        while let Some(front) = self.pending.front().copied() {
+            if front.due > now_nanos {
+                break;
             }
-            if packet.epoch != self.epoch {
-                continue;
+            self.pending.pop_front();
+            if front.bytes[0] < 0xf0 {
+                self.used_channels |= 1 << (front.bytes[0] & 15);
             }
-            self.event(packet.event);
+            self.send(&front.bytes[..usize::from(front.len)]);
+        }
+        if self.pending.is_empty() {
+            self.last_due = 0;
+        }
+
+        if !(self.state.settings.send_clock && self.output.is_some()) {
+            self.stop_clock();
+            return;
+        }
+        // The clock cannot borrow the worker to send, so what it wants sent
+        // is kept in fixed storage for a moment: at most a song position, a
+        // continue and a short run of pulses.
+        let mut wanted = [([0_u8; 3], 0_usize); 8];
+        let mut count = 0;
+        self.clock.poll(playhead, now, &mut |bytes| {
+            if count < wanted.len() && bytes.len() <= 3 {
+                wanted[count].0[..bytes.len()].copy_from_slice(bytes);
+                wanted[count].1 = bytes.len();
+                count += 1;
+            }
+        });
+        for (bytes, len) in &wanted[..count] {
+            self.send(&bytes[..*len]);
         }
     }
 
-    fn event(&mut self, event: Event) {
+    fn event(&mut self, packet: Packet) {
+        let taken = self.audition.message(InputMessage {
+            device: packet.device,
+            message: packet.message,
+            at: packet.at,
+            stamp_micros: packet.stamp_micros,
+        });
+        let Some(event) = Event::of(packet.message) else {
+            return;
+        };
+        if taken {
+            return;
+        }
         let channel = match event {
             Event::Note { channel, .. }
             | Event::Sustain { channel, .. }
@@ -406,9 +676,9 @@ impl Worker {
                 self.down[c][k] = velocity > 0;
                 if velocity > 0 {
                     self.sounding[c][k] = true;
-                    self.deliver(key, velocity);
+                    self.deliver(key, velocity, packet.at);
                 } else if !self.sustain[c] {
-                    self.release(c, k);
+                    self.release(c, k, packet.at);
                 }
             }
             Event::Sustain { down, .. } => {
@@ -416,7 +686,7 @@ impl Worker {
                 if !down {
                     for key in 0..128 {
                         if !self.down[c][key] {
-                            self.release(c, key);
+                            self.release(c, key, packet.at);
                         }
                     }
                 }
@@ -425,19 +695,19 @@ impl Worker {
         }
     }
 
-    fn release(&mut self, channel: usize, key: usize) {
+    fn release(&mut self, channel: usize, key: usize, at: Instant) {
         if self.sounding[channel][key] {
             self.sounding[channel][key] = false;
             // All accepted MIDI channels feed one destination. Keep the key held
             // until every contributing channel releases it.
             if !self.sounding.iter().any(|keys| keys[key]) {
-                self.deliver(key as u8, 0);
+                self.deliver(key as u8, 0, at);
             }
         }
     }
 
-    fn deliver(&mut self, key: u8, velocity: u8) {
-        if !self.audition.note(self.epoch, key, velocity) {
+    fn deliver(&mut self, key: u8, velocity: u8, at: Instant) {
+        if !self.audition.note_at(self.epoch, key, velocity, at) {
             self.dropped.fetch_add(1, Ordering::Relaxed);
             self.panic();
             return;
@@ -447,16 +717,13 @@ impl Worker {
             return;
         }
         let status = if velocity > 0 { 0x90 } else { 0x80 };
+        let channel = self.state.settings.output_channel - 1;
         // The engine holds one note per key. Balance output retriggers too,
         // including when several accepted input channels play the same key.
         if velocity > 0 && self.output_keys[usize::from(key)] {
-            self.send([0x80 | (self.state.settings.output_channel - 1), key, 0]);
+            self.send(&[0x80 | channel, key, 0]);
         }
-        self.send([
-            status | (self.state.settings.output_channel - 1),
-            key,
-            velocity,
-        ]);
+        self.send(&[status | channel, key, velocity]);
         self.output_keys[usize::from(key)] = velocity > 0 && self.output.is_some();
     }
 }

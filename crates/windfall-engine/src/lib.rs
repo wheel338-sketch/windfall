@@ -164,6 +164,7 @@ pub use controller::{
     ProjectPublicationIntent, ProjectPublicationLease, ProjectRetirement, PublicationRefusal,
     StreamStats,
 };
+pub use controller::Playhead;
 pub use device::Engine;
 pub use pool::SamplePool;
 pub use processor::Processor;

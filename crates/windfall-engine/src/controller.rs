@@ -105,6 +105,24 @@ struct Link {
     captures: Option<capture_control::SharedCaptures>,
 }
 
+/// A reading of the transport for control-side timing: see
+/// [`Controller::playhead`].
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Playhead {
+    pub playing: bool,
+    /// The tick being heard: within the pattern in pattern mode, within the
+    /// song in song mode.
+    pub tick: f64,
+    /// How fast the tick moves here, tempo automation included.
+    pub ticks_per_second: f64,
+    pub mode: PlayMode,
+    /// The pattern that plays in pattern mode.
+    pub pattern: PatternId,
+    /// The length that pattern loops at, when it is in the plan.
+    pub pattern_ticks: Option<u32>,
+    pub loop_song: bool,
+}
+
 /// Measurements the device callback takes while a stream runs.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct StreamStats {
@@ -638,6 +656,59 @@ impl Controller {
             count_in_remaining: Some(self.count_in_remaining()),
             ..state.transport
         }
+    }
+
+    /// Where playback is and how fast it moves, for timing live input and
+    /// MIDI clock on the control side. The tick is the one last published by
+    /// the audio thread, so it steps once a buffer; callers that need finer
+    /// time carry on from it at `ticks_per_second`.
+    pub fn playhead(&self) -> Playhead {
+        let mut state = self.lock();
+        state.maintain();
+        let tick = self.inner.shared.tick();
+        let mode = state.transport.mode;
+        let stored = state.plan.tempo_bpm * f64::from(windfall_core::PPQ) / 60.0;
+        // Tempo automation bends the song's clock; a pattern plays at the
+        // stored tempo.
+        let ticks_per_second = if mode == PlayMode::Song {
+            const SPAN: f64 = 0.01;
+            let ahead = state.plan.unwarp(state.plan.warp(tick) + stored * SPAN);
+            let rate = (ahead - tick) / SPAN;
+            if rate.is_finite() && rate > 0.0 { rate } else { stored }
+        } else {
+            stored
+        };
+        let pattern = state.transport.pattern;
+        Playhead {
+            playing: self.playing(&state),
+            tick,
+            ticks_per_second,
+            mode,
+            pattern,
+            pattern_ticks: state
+                .plan
+                .pattern_ids
+                .get(pattern.0)
+                .map(|index| state.plan.patterns[index].length),
+            loop_song: state.transport.loop_song,
+        }
+    }
+
+    /// Takes the messages MIDI output channels have queued, oldest first,
+    /// each with the engine frame it belongs to. One thread at a time may
+    /// call this: it is the MIDI worker's. Never blocks the audio thread.
+    pub fn drain_midi_out(&self, mut out: impl FnMut(u64, &[u8])) {
+        for _ in 0..crate::shared::MIDI_OUT_CAPACITY {
+            let Some((frame, bytes, len)) = self.inner.shared.pop_midi_out() else {
+                break;
+            };
+            out(frame, &bytes[..usize::from(len.min(3))]);
+        }
+    }
+
+    /// MIDI output messages lost because the worker did not keep up.
+    pub fn midi_out_dropped(&self) -> u32 {
+        self.inner.shared.midi_out_dropped()
     }
 
     /// Session-only song region, preserved across stream replacement.

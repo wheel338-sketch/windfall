@@ -13,6 +13,24 @@ impl Audition for Destination {
             .upgrade()
             .is_some_and(|session| session.hardware_note(epoch, key, velocity))
     }
+
+    fn note_at(&self, epoch: u64, key: u8, velocity: u8, at: std::time::Instant) -> bool {
+        self.0
+            .upgrade()
+            .is_some_and(|session| session.hardware_note_at(epoch, key, velocity, at))
+    }
+
+    fn message(&self, input: windfall_engine::midi_hardware::InputMessage) -> bool {
+        self.0
+            .upgrade()
+            .is_some_and(|session| session.controller_message(input))
+    }
+
+    fn idle(&self, now: std::time::Instant, playhead: &windfall_engine::Playhead) {
+        if let Some(session) = self.0.upgrade() {
+            session.controller_idle(now, playhead);
+        }
+    }
 }
 
 impl Session {
@@ -28,6 +46,10 @@ impl Session {
             settings,
         )?;
         *lock(&self.inner.midi_hardware) = Some(Arc::new(runtime));
+        // The worker lists its ports within a turn or two; until then the
+        // inputs go by their ids. Configuring again reads the names.
+        let settings = self.store().settings().midi_hardware.clone();
+        self.controllers_devices(&settings, &[]);
         Ok(())
     }
 
@@ -47,6 +69,7 @@ impl Session {
             },
             |runtime| runtime.state(),
         );
+        result.external_bpm = self.external_bpm();
         let state = self.state();
         result.target = state.midi_target;
         result.generation = state.generation;
@@ -71,6 +94,8 @@ impl Session {
         let _recording = self.recording_idle()?;
         let runtime = self.midi_runtime()?;
         let mut result = runtime.configure(settings.clone())?;
+        self.controllers_devices(&settings, &result.inputs);
+        result.external_bpm = self.external_bpm();
         self.store().update(|store| store.midi_hardware = settings);
         let state = self.state();
         result.target = state.midi_target;

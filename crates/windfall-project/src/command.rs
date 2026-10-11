@@ -353,6 +353,12 @@ pub enum Command {
         expected: crate::PluginPresetState,
         preset: crate::PluginPreset,
     },
+    /// Replaces every controller link saved with the project, in one undo
+    /// step. Fails, with nothing changed, when a link is malformed, repeats
+    /// another, or points at something that is not in the project.
+    SetControllerLinks {
+        links: Vec<crate::ControllerLink>,
+    },
 
     // Sample pool
     /// Registers an audio file. Creates a [`SampleId`]. If a sample with the

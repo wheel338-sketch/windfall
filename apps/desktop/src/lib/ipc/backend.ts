@@ -94,6 +94,34 @@ export interface Backend extends AnalysisBackend, MixerPresetLibraryBackend, Ana
     revision: number
   ): Promise<import("@/bindings").MidiHardwareState>
   midiHardwarePanic(): Promise<void>
+  /** Controller links at work, learning, recording arms and the note log. */
+  controllerState(): Promise<import("@/bindings").ControllerState>
+  controllerSettingsSet(
+    settings: import("@/bindings").ControllerSettings
+  ): Promise<import("@/bindings").ControllerState>
+  /**
+   * Starts a pass of linking: the next hardware controls that move get
+   * `targets`, in order. With `multi`, controls moved on screen join the
+   * pass; with `global`, the links go to the app's settings.
+   */
+  controllerLearn(
+    targets: import("@/bindings").LinkTarget[],
+    global: boolean,
+    multi: boolean,
+    generation: number
+  ): Promise<import("@/bindings").ControllerState>
+  controllerLearnCancel(): Promise<import("@/bindings").ControllerState>
+  noteRecordArm(armed: boolean): Promise<import("@/bindings").ControllerState>
+  automationRecordArm(
+    armed: boolean
+  ): Promise<import("@/bindings").ControllerState>
+  /** One undo step. `seconds` limits the dump to notes that recent. */
+  scoreLogDump(
+    pattern: number,
+    seconds: number | null,
+    generation: number
+  ): Promise<DispatchResult>
+  scoreLogClear(): Promise<import("@/bindings").ControllerState>
   audioEditorOpen(
     clip: number
   ): Promise<import("@/features/audio-editor/types").AudioEditPreview>

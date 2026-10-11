@@ -47,6 +47,11 @@ impl Project {
         }
         check_settings(self)?;
         self.notebook.check().map_err(|error| error.to_string())?;
+        if let Some(problem) =
+            crate::controller_links::links_problem(&self.settings.controller_links, Some(self))
+        {
+            return Err(problem);
+        }
         self.playlist
             .timeline
             .check(self.settings.time_signature, self.next_id)?;

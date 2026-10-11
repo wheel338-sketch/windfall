@@ -1,5 +1,6 @@
 import type { AutomationTarget } from "@/bindings"
 import type { ContextItem } from "@/components/context-actions"
+import { controllerEntries } from "@/features/controllers/menu"
 import { deleteAutomation } from "@/features/playlist/automation/ops"
 import {
   automationBlocked,
@@ -98,5 +99,12 @@ export function automationEntries(target: AutomationTarget): ContextItem[] {
  *     <ValueContextItems items={items}>…</ValueContextItems>
  */
 export function automationItems(target: AutomationTarget): ContextItem[] {
-  return [{ dynamic: () => automationEntries(target) }]
+  return [
+    {
+      dynamic: () => [
+        ...automationEntries(target),
+        ...controllerEntries(target),
+      ],
+    },
+  ]
 }

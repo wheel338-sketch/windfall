@@ -250,6 +250,7 @@ impl Project {
                 swing: 0.0,
                 pan_law: crate::PanLaw::default(),
                 timebase_ppq: crate::timebase::DEFAULT_TIMEBASE_PPQ,
+                controller_links: Vec::new(),
             },
             samples: Vec::new(),
             notebook: crate::Notebook::default(),
@@ -357,6 +358,12 @@ pub struct ProjectSettings {
     )]
     #[ts(as = "Option<u16>", optional)]
     pub timebase_ppq: u16,
+    /// What hardware and internal controllers move in this project, at most
+    /// [`MAX_CONTROLLER_LINKS`](crate::controller_links::MAX_CONTROLLER_LINKS).
+    /// Edited by [`Command::SetControllerLinks`](crate::Command).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[ts(as = "Option<Vec<crate::ControllerLink>>", optional)]
+    pub controller_links: Vec<crate::ControllerLink>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]

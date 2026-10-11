@@ -15,6 +15,7 @@ mod beat;
 mod clip_recording;
 mod consolidate;
 mod device_acceptance;
+mod controllers;
 mod document;
 mod effects;
 mod export;

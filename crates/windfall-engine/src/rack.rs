@@ -968,6 +968,8 @@ impl InstrumentUnit {
                 right.fill(0.0);
             }
         } else {
+            // A MIDI output channel's messages belong to this block's frame.
+            self.instrument.stamp_midi(base + from as u64);
             self.instrument.process(left, right);
         }
         let last = (0..to - from)
@@ -975,6 +977,14 @@ impl InstrumentUnit {
             .find(|&index| left[index] != 0.0 || right[index] != 0.0);
         if let Some(last) = last {
             self.last_sound = base + (from + last) as u64 + 1;
+        }
+    }
+
+    /// Hands over what a MIDI output channel has made, oldest first. Fixed
+    /// storage; nothing for any other instrument.
+    pub fn drain_midi(&mut self, out: &mut dyn FnMut(windfall_dsp::MidiOutEvent)) {
+        if self.external.is_none() {
+            self.instrument.drain_midi(out);
         }
     }
 

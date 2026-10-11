@@ -103,6 +103,12 @@ pub(crate) fn execute(project: &mut Project, command: Command) -> Result<Outcome
             for edit in curve_edits {
                 transaction.push(edit);
             }
+            if let Some(links) = crate::controller_links::following(transaction.project) {
+                let old = transaction.project.settings.clone();
+                let mut new = old.clone();
+                new.controller_links = links;
+                transaction.push(Edit::Settings(Change { old, new }));
+            }
             if transaction.edits.iter().any(|edit| matches!(edit, Edit::Clips { remove, insert } if remove.iter().any(|old| !insert.iter().any(|new| new.id == old.id)))) {
                 let old = transaction.project.playlist.take_groups.clone();
                 let new = crate::take_groups::prune(transaction.project);
@@ -1255,6 +1261,18 @@ impl Transaction<'_> {
                 expected,
                 preset,
             } => self.apply_plugin_preset(target, expected, preset)?,
+            Command::SetControllerLinks { links } => {
+                if let Some(problem) =
+                    crate::controller_links::links_problem(&links, Some(self.project))
+                {
+                    return Err(CommandError::invalid(problem));
+                }
+                let old = self.project.settings.clone();
+                let mut new = old.clone();
+                new.controller_links = links;
+                self.push(Edit::Settings(Change { old, new }));
+                "Change controller links"
+            }
             Command::AddSample { name, path } => self.add_sample(name, path)?,
             Command::RemoveSample { id } => self.remove_sample(id)?,
             Command::AddChannel {
@@ -3903,6 +3921,14 @@ impl Transaction<'_> {
     /// clips: what those automations move is about to leave the project.
     fn remove_automations_of(&mut self, gone: impl Fn(&AutomationTarget) -> bool) {
         self.map_pattern_events(|lanes| crate::pattern_events::without(lanes, &gone));
+        // Controller links to the same targets leave in the same edit.
+        let links = &self.project.settings.controller_links;
+        if let Some(kept) = crate::controller_links::without_targets(links, &gone) {
+            let old = self.project.settings.clone();
+            let mut new = old.clone();
+            new.controller_links = kept;
+            self.push(Edit::Settings(Change { old, new }));
+        }
         let automations = self.project.automations.iter();
         let ids: Vec<AutomationId> = automations
             .filter(|automation| gone(&automation.target))
