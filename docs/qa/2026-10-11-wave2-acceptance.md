@@ -2,6 +2,8 @@
 
 ## Running progress
 
+- Focused mounted run: 863 passed/3 failed across 28 files (`round2-frontend-focused.log`). The three failed files now pass all 41 tests (`round2-frontend-repair.log`): repaired CP1252 ellipsis in the test's button label; correctly adopted the controlled curve parent's edited last endpoint and added focus-loss cancellation evidence; split eight complete Filter Bank workflows into eight cases without increasing the five-second timeout or dropping assertions. Four further mixed-encoding frontend files found by strict UTF-8 source scan are being repaired before final lint/typecheck/full execution.
+
 - Final simulator generation passes: 4,980,098 bytes, fresh seven-crate provenance (`target/round2-sim-final.log`), following strict-Clippy product cleanups and gate-release repair. Focused mounted tests are next; full native/frontend suites and final row reconciliation remain pending.
 
 - Final strict workspace Clippy passes with zero warnings (`target/round2-clippy-repair.log`); final rustfmt check also exits 0. Cleanups preserve formulas and assertions: reuse prepared bank allocation, pair cabinet selection with its bank, remove redundant struct updates, use fixed-size chunks/iterators and simplify equivalent validation guards. Next: rebuild simulator from this clean product tree, then mounted and full-suite gates.

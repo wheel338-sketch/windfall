@@ -21,17 +21,26 @@ describe("drawn effect assets", () => {
 
   it("cancel and focus loss discard the draft, keyboard edits and bends commit", () => {
     const commit = vi.fn()
-    render(<CurveEditor label="Time" points={[]} onCommit={commit} />)
+    const view = render(<CurveEditor label="Time" points={[]} onCommit={commit} />)
     const drawing = screen.getByRole("application", { name: "Time drawing" })
     drawing.setPointerCapture = vi.fn()
     fireEvent.pointerDown(drawing, { pointerId: 1, button: 0, clientX: 1, clientY: 1 })
     fireEvent.keyDown(drawing, { key: "Escape" })
     fireEvent.pointerUp(drawing, { pointerId: 1 })
     expect(commit).not.toHaveBeenCalled()
-    fireEvent.keyDown(drawing, { key: "ArrowUp" })
+    fireEvent.pointerDown(drawing, { pointerId: 2, button: 0, clientX: 1, clientY: 1 })
+    fireEvent.blur(drawing)
+    fireEvent.pointerUp(drawing, { pointerId: 2 })
+    expect(commit).not.toHaveBeenCalled()
+    fireEvent.keyDown(drawing, { key: "ArrowDown" })
     expect(commit).toHaveBeenCalledTimes(1)
+    // Cancelling an inserted draft selects the last surviving endpoint.
+    // The controlled parent adopts the keyboard edit before the next edit.
+    expect(commit.mock.calls[0][0][1].y).toBe(0.99)
+    view.rerender(<CurveEditor label="Time" points={commit.mock.calls[0][0]} onCommit={commit} />)
     fireEvent.change(screen.getByRole("spinbutton", { name: "Time tension" }), { target: { value: "0.5" } })
-    expect(commit.mock.calls.at(-1)?.[0][0].tension).toBe(0.5)
+    expect(commit).toHaveBeenCalledTimes(2)
+    expect(commit.mock.calls.at(-1)?.[0][1]).toEqual({ x: 1, y: 0.99, tension: 0.5 })
   })
 })
 

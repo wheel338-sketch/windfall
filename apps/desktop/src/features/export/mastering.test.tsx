@@ -291,7 +291,7 @@ describe("mastering in the export dialog", () => {
     const user = userEvent.setup()
     const exported = vi.spyOn(backend, "exportAudio").mockResolvedValue(undefined)
     const playlist = vi.spyOn(backend, "exportPlaylistTracks").mockResolvedValue(undefined)
-    await user.click(screen.getByRole("button", { name: "Choose…" }))
+    await user.click(screen.getByRole("button", { name: "Chooseâ€¦" }))
     await user.click(screen.getByRole("checkbox", { name: "Export each playlist track to its own file" }))
     await user.click(master())
     expect(screen.getByText(NOT_WITH_STEMS)).toHaveAttribute("role", "alert")

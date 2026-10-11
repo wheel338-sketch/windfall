@@ -497,7 +497,10 @@ describe("Seven movable EQ bands", () => {
 })
 
 describe("Filter Bank", () => {
-  it("exposes eight real units with independently stored drawn gate/cutoff points", async () => {
+  // Exercise every unit in its own mounted workflow. Eight complete edit /
+  // history sequences in one test exceed the framework's five-second limit
+  // under four workers; all controls and assertions remain covered.
+  it.each([0, 1, 2, 3, 4, 5, 6, 7])("exposes unit %i with independently stored drawn gate/cutoff points", async (unit) => {
     const user = userEvent.setup()
     const effect = await open("filterBank")
     expect(customEditor("filterBank")).toBeDefined()
@@ -508,7 +511,6 @@ describe("Filter Bank", () => {
     await undo()
     await flush()
     expect(stored(effect, "filterBank", "routing")).toBe(0)
-    for (let unit = 0; unit < 8; unit += 1) {
       await user.click(within(tabs).getByRole("tab", { name: `Unit ${unit + 1}` }))
       await flush()
       expect(screen.getByRole("img", { name: new RegExp(`Unit ${unit + 1} gate envelope:`) })).toBeVisible()
@@ -518,7 +520,6 @@ describe("Filter Bank", () => {
       await flush()
       expect(stored(effect, "filterBank", `patterns.${unit}.enabled`)).toBe(1)
       await expectSliders("filterBank", effect, [`patterns.${unit}.gate.0`, `patterns.${unit}.cutoff.7`, `patterns.${unit}.beats`, `patterns.${unit}.depthOctaves`])
-    }
   })
 
   it("draws a whole stroke as one undo step and restores it through redo", async () => {
