@@ -579,3 +579,46 @@ fn dynamics_kinds_report_their_gain_reduction_through_the_registry() {
     let settled = amplitude_at(&left[RATE as usize..], 60.0, RATE);
     assert!((db(settled / 0.7) + 18.3).abs() < 1.5, "{settled}");
 }
+
+#[test]
+fn shaper_saved_aux_routes_remove_only_the_routed_parts_and_ignore_listen() {
+    let input = programme(0.2, 1);
+    let params = TransientShaperParams { attack: 0.4, sustain: -0.3, ..Default::default() };
+    let mut reference = TransientShaper::default();
+    reference.prepare(RATE as f32, 512);
+    reference.set_params(&params);
+    let expected: Vec<_> = input.iter().map(|x| reference.split_frame([*x, -*x])).collect();
+    for mask in 0..4 {
+        for listen in [TransientListen::Both, TransientListen::Attack, TransientListen::Sustain] {
+            let settings = EffectParams::TransientShaper(TransientShaperParams { listen, ..params });
+            let render = |block| {
+                let mut effect = AnyEffect::new(&settings);
+                effect.prepare(RATE as f32, 512);
+                effect.set_params(&settings);
+                let mut left = input.clone();
+                let mut right: Vec<_> = input.iter().map(|x| -*x).collect();
+                let mut attack = vec![[99.0; 2]; input.len()];
+                let mut sustain = attack.clone();
+                for (((l, r), a), s) in left.chunks_mut(block).zip(right.chunks_mut(block))
+                    .zip(attack.chunks_mut(block)).zip(sustain.chunks_mut(block)) {
+                    effect.process_aux(l, r, None, &mut windfall_dsp::AuxBlock { routed: mask, outputs: [a, s] });
+                }
+                (left, right, attack, sustain)
+            };
+            let output = render(257);
+            assert_eq!(output, render(1));
+            for (i, parts) in expected.iter().enumerate() {
+                let routed = [mask & 1 != 0, mask & 2 != 0];
+                let audible = [listen != TransientListen::Sustain, listen != TransientListen::Attack];
+                for c in 0..2 {
+                    assert_eq!(output.2[i][c], if routed[0] { parts[0][c] } else { 0.0 });
+                    assert_eq!(output.3[i][c], if routed[1] { parts[1][c] } else { 0.0 });
+                    let main = (if !routed[0] && audible[0] { parts[0][c] } else { 0.0 })
+                        + (if !routed[1] && audible[1] { parts[1][c] } else { 0.0 });
+                    let actual = if c == 0 { output.0[i] } else { output.1[i] };
+                    assert!((actual - main).abs() < 1e-6, "frame {i}, mask {mask}, {listen:?}");
+                }
+            }
+        }
+    }
+}

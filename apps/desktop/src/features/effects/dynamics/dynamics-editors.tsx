@@ -113,7 +113,7 @@ export function TransientShaperEditor({
       <ParamControl
         {...bind("listen")}
         layout="inline"
-        description="Lets out the whole sound, or only its attack or its sustain. The two parts add up to the whole, so two shapers on two tracks split a sound in two"
+        description="Audition the whole sound, its attack, or its sustain in this chain. Use the output routing below to send the shaped parts to separate tracks; routed parts play independently of this selector"
       />
       <p data-slot="transient-amounts" className={NOTE}>
         Attack <span className={READOUT}>{db(attack)}</span>, sustain{" "}

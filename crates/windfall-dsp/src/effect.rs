@@ -1705,7 +1705,7 @@ impl EffectKind {
                 label: "Send",
                 splits: false,
             }],
-            EffectKind::TransientSplit => &[
+            EffectKind::TransientShaper | EffectKind::TransientSplit => &[
                 AuxOutputInfo {
                     id: "transient",
                     label: "Transient",
@@ -1744,6 +1744,10 @@ impl AnyEffect {
                     first.fill([0.0; 2]);
                 }
                 second.fill([0.0; 2]);
+            }
+            AnyEffect::TransientShaper(effect) => {
+                let routed = [aux.routed & 1 != 0, aux.routed & 2 != 0];
+                effect.process_routed(left, right, routed, first, second);
             }
             AnyEffect::TransientSplit(effect) => {
                 let routed = [aux.routed & 1 != 0, aux.routed & 2 != 0];

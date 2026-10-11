@@ -82,7 +82,7 @@ fn fixture() -> Fixture {
 }
 
 #[test]
-fn only_send_tap_and_transient_split_have_routable_outputs() {
+fn send_tap_and_both_transient_processors_have_routable_outputs() {
     for kind in EffectKind::ALL {
         let outputs = kind.aux_outputs();
         match kind {
@@ -91,7 +91,7 @@ fn only_send_tap_and_transient_split_have_routable_outputs() {
                 assert_eq!((outputs[0].id, outputs[0].label), ("send", "Send"));
                 assert!(!outputs[0].splits, "a send is a copy");
             }
-            EffectKind::TransientSplit => {
+            EffectKind::TransientShaper | EffectKind::TransientSplit => {
                 let names: Vec<_> = outputs.iter().map(|output| output.label).collect();
                 assert_eq!(names, ["Transient", "Sustain"]);
                 assert!(outputs.iter().all(|output| output.splits));

@@ -136,41 +136,42 @@ describe("effect output routing in the inspector", () => {
     ).toBeVisible()
   })
 
-  it("routes the two parts of a Transient Split separately and retires the routes with the effect", async () => {
+  it.each(["transientSplit", "transientShaper"] as const)("routes the two parts of %s separately and retires the routes with the effect", async (kind) => {
+    const name = kind === "transientSplit" ? "Transient Split" : "Transient Shaper"
     const user = userEvent.setup()
     const kick = trackNamed("Kick").id
     const clap = trackNamed("Clap").id
     const hat = trackNamed("Hat").id
-    const split = await addEffect(kick, "transientSplit")
+    const split = await addEffect(kick, kind)
     render(<Outputs track={kick} effect={split} />)
     expect(
-      screen.getByRole("list", { name: "Transient Split output routing" })
+      screen.getByRole("list", { name: `${name} output routing` })
     ).toBeVisible()
 
     await choose(
       user,
-      "Transient output of Transient Split: not routed",
+      `Transient output of ${name}: not routed`,
       /Clap/
     )
-    await choose(user, "Sustain output of Transient Split: not routed", /Hat/)
+    await choose(user, `Sustain output of ${name}: not routed`, /Hat/)
     expect(routes()).toEqual([
       { effect: split, output: 0, target: clap },
       { effect: split, output: 1, target: hat },
     ])
     expect(
       screen.getByRole("button", {
-        name: "Transient output of Transient Split: Clap",
+        name: `Transient output of ${name}: Clap`,
       })
     ).toBeVisible()
     expect(
       screen.getByRole("button", {
-        name: "Sustain output of Transient Split: Hat",
+        name: `Sustain output of ${name}: Hat`,
       })
     ).toBeVisible()
     // A part that is not routed stays in the chain, and the menu says so.
     await user.click(
       screen.getByRole("button", {
-        name: "Sustain output of Transient Split: Hat",
+        name: `Sustain output of ${name}: Hat`,
       })
     )
     expect(
@@ -191,7 +192,7 @@ describe("effect output routing in the inspector", () => {
     expect(routes()).toEqual([{ effect: split, output: 0, target: clap }])
     expect(
       screen.getByRole("button", {
-        name: "Sustain output of Transient Split: not routed",
+        name: `Sustain output of ${name}: not routed`,
       })
     ).toBeVisible()
     await act(async () => {
@@ -212,7 +213,7 @@ describe("effect output routing in the inspector", () => {
     expect(project()).toEqual(routed)
     expect(
       screen.getByRole("button", {
-        name: "Transient output of Transient Split: Clap",
+        name: `Transient output of ${name}: Clap`,
       })
     ).toBeVisible()
   })
