@@ -79,9 +79,17 @@ impl Session {
     /// started and the error says what to do: the engine would stop again
     /// at once and leave the user with a dead Play button.
     pub fn transport_play(&self) -> Result<TransportState, String> {
+        self.transport_play_checked(None)
+    }
+
+    pub(super) fn transport_play_checked(&self, generation: Option<u64>) -> Result<TransportState, String> {
+        let _recording = generation.map(|_| self.recording_idle()).transpose()?;
         // Held across the check and the start, so the last clip cannot be
         // removed in between.
         let state = self.state();
+        if generation.is_some_and(|generation| state.generation != generation) {
+            return Err("Remote project generation is stale.".into());
+        }
         let transport = self.controller().transport();
         if transport.mode == PlayMode::Song
             && !transport.playing
@@ -96,10 +104,18 @@ impl Session {
 
     /// Stops playback. The playhead returns to where playback started.
     pub fn transport_stop(&self) -> TransportState {
+        self.transport_stop_checked(None).expect("unguarded stop cannot fail")
+    }
+
+    pub(super) fn transport_stop_checked(&self, generation: Option<u64>) -> Result<TransportState, String> {
+        let _recording = generation.map(|_| self.recording_idle()).transpose()?;
         let state = self.state();
+        if generation.is_some_and(|generation| state.generation != generation) {
+            return Err("Remote project generation is stale.".into());
+        }
         self.clear_timeline_play_owner(&state);
         self.controller().stop();
-        self.sync_transport()
+        Ok(self.sync_transport())
     }
 
     /// Stops playback if it is running, and starts it if it is not, with

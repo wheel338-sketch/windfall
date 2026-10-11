@@ -29,6 +29,38 @@ use windfall_ipc::{MidiExportOptions, MidiImportOptions, MidiImportPreview};
 // Native analysis controls. Slow preparation, cleanup and joining stay on
 // blocking tasks; cancellation itself never waits for the preparation gate.
 #[tauri::command]
+fn phone_remote_state(session: State<'_, Session>) -> windfall_ipc::RemoteSettingsState { session.phone_remote_state() }
+#[tauri::command]
+async fn phone_remote_set(session: State<'_, Session>, address: Option<String>) -> Result<windfall_ipc::RemoteSettingsState, String> {
+    let session=session.inner().clone(); blocking(move ||session.phone_remote_set(address.as_deref())).await
+}
+#[tauri::command]
+async fn backup_versions(session: State<'_, Session>, folder: String) -> Result<Vec<windfall_ipc::BackupVersion>,String> {
+    let session=session.inner().clone(); blocking(move ||session.backup_versions(&folder)).await
+}
+#[tauri::command]
+async fn backup_save(session: State<'_, Session>, folder: String, expected: Option<String>, keep: usize) -> Result<windfall_ipc::BackupVersion,String> {
+    let job=session.backup_job()?;
+    let session=session.inner().clone(); blocking(move ||session.backup_save_with(&folder,expected.as_deref(),keep,job)).await
+}
+#[tauri::command]
+async fn backup_restore(session: State<'_, Session>, folder: String, id: String, target: String) -> Result<String,String> {
+    let job=session.backup_job()?;
+    let session=session.inner().clone(); blocking(move ||session.backup_restore_with(&folder,&id,&target,job)).await
+}
+#[tauri::command]
+fn backup_cancel(session: State<'_, Session>) { session.backup_cancel(); }
+#[tauri::command]
+fn loop_catalog(session: State<'_, Session>) -> windfall_ipc::LoopCatalog { session.loop_catalog() }
+#[tauri::command]
+async fn loop_preview(session: State<'_, Session>, id: String) -> Result<(),String> {
+    let session=session.inner().clone(); blocking(move ||session.loop_preview(&id)).await
+}
+#[tauri::command]
+async fn loop_insert(session: State<'_, Session>, id: String, key: Option<u8>, track: Option<PlaylistTrackId>, start: u32, generation:u64, revision:u64) -> Result<DispatchResult,String> {
+    let session=session.inner().clone(); blocking(move ||session.loop_insert(&id,key,ClipPlace {track,start,mixer_track:None},generation,revision)).await
+}
+#[tauri::command]
 fn analysis_capability(session: State<'_, Session>) -> windfall_ipc::AnalysisCapability {
     session.analysis_capability()
 }
@@ -1084,6 +1116,15 @@ pub fn handler() -> impl Fn(Invoke) -> bool + Send + Sync + 'static {
         crate::files_commands::plugin_database_forget_missing,
         crate::files_commands::plugins_remove_folder,
         crate::files_commands::plugins_rescan,
+        phone_remote_state,
+        phone_remote_set,
+        backup_versions,
+        backup_save,
+        backup_restore,
+        backup_cancel,
+        loop_catalog,
+        loop_preview,
+        loop_insert,
     ]
 }
 

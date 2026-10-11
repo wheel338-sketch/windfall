@@ -7,6 +7,8 @@
 //! it inside a Tauri app.
 
 pub mod browser;
+pub mod backup;
+mod remote_protocol;
 mod commands;
 pub mod events;
 mod files_commands;

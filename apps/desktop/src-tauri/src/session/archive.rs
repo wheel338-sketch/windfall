@@ -48,11 +48,13 @@ impl Session {
     /// Reserve cancellation ownership before a shell command queues blocking
     /// work, so Cancel can also stop a job waiting to enter its worker.
     pub(crate) fn archive_job(&self) -> Result<ArchiveJob, String> {
+        self.archive_job_with_cancel(Arc::new(AtomicBool::new(false)))
+    }
+    pub(crate) fn archive_job_with_cancel(&self, cancelled: Arc<AtomicBool>) -> Result<ArchiveJob, String> {
         let mut active = lock(&self.inner.archive_job);
         if active.is_some() {
             return Err("Another project archive operation is running.".into());
         }
-        let cancelled = Arc::new(AtomicBool::new(false));
         *active = Some(cancelled.clone());
         Ok(ArchiveJob {
             session: self.clone(),

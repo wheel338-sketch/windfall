@@ -24,6 +24,7 @@ mod dsp;
 mod math;
 mod sounds;
 mod wav;
+pub mod loops;
 
 #[cfg(test)]
 mod analysis;
@@ -231,7 +232,8 @@ fn files() -> Vec<(&'static str, Vec<u8>)> {
     let documents = DOCUMENTS
         .iter()
         .map(|&(path, text)| (path, unix_lines(text.as_bytes())));
-    sounds.chain(documents).collect()
+    let loops = loops::manifest().iter().map(|asset| (asset.path, asset.render().to_wav()));
+    sounds.chain(loops).chain(documents).chain(std::iter::once(("Loops/manifest.json", loops::metadata_json().into_bytes()))).collect()
 }
 
 /// Drops the carriage return of every CRLF line ending. Git may check text
