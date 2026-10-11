@@ -36,7 +36,10 @@ fn loop_drop_creates_blank_rows_and_clip_in_one_undo_step() {
         project.playlist.tracks[row].id
     );
     rig.session.undo().unwrap();
-    assert_eq!(rig.project(), before);
+    let mut restored = rig.project();
+    assert!(restored.next_id > before.next_id);
+    restored.next_id = before.next_id; // Allocated IDs remain retired after undo.
+    assert_eq!(restored, before);
 }
 #[test]
 fn remote_named_command_undo_stale_and_recording_guards() {
@@ -334,7 +337,10 @@ fn loop_fit_insertion_one_undo_save_reopen_and_provenance() {
             && metadata.contains("loops-v1")
     );
     rig.session.undo().unwrap();
-    assert_eq!(rig.project(), before);
+    let mut restored = rig.project();
+    assert_eq!(restored.next_id, after.next_id);
+    restored.next_id = before.next_id;
+    assert_eq!(restored, before);
     rig.session.redo().unwrap();
     assert_eq!(rig.project(), after);
     let saved = paths::display(&rig.folder.path().join("loop.windfall"));

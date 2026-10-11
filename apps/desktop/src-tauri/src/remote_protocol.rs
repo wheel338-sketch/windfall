@@ -28,6 +28,7 @@ impl Read for Deadline<'_> {
     }
 }
 
+#[derive(Debug)]
 pub struct Request {
     pub method: String,
     pub path: String,
@@ -260,6 +261,41 @@ fn websocket_accept(key: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    fn parse_http(bytes: &[u8]) -> Result<Request, String> {
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let mut client = TcpStream::connect(listener.local_addr().unwrap()).unwrap();
+        client.write_all(bytes).unwrap();
+        client.shutdown(std::net::Shutdown::Write).unwrap();
+        let (mut server, _) = listener.accept().unwrap();
+        server
+            .set_read_timeout(Some(std::time::Duration::from_secs(2)))
+            .unwrap();
+        request(&mut server)
+    }
+    #[test]
+    fn http_duplicate_chunked_truncated_and_size_limits() {
+        let valid =
+            parse_http(b"POST /pair HTTP/1.1\r\nHost: 127.0.0.1:1\r\nContent-Length: 2\r\n\r\n{}")
+                .unwrap();
+        assert_eq!(valid.method, "POST");
+        assert_eq!(valid.path, "/pair");
+        assert_eq!(valid.body, b"{}");
+        for bytes in [
+            &b"GET / HTTP/1.1\r\nHost: local\r\nhOsT: other\r\n\r\n"[..],
+            &b"POST /pair HTTP/1.1\r\nTransfer-Encoding: chunked\r\n\r\n"[..],
+            &b"POST /pair HTTP/1.1\r\nContent-Length: 4097\r\n\r\n"[..],
+            &b"POST /pair HTTP/1.1\r\nContent-Length: 3\r\n\r\n{}"[..],
+            &b"GET / HTTP/1.0\r\n\r\n"[..],
+        ] {
+            assert!(parse_http(bytes).is_err());
+        }
+        let large = format!("GET / HTTP/1.1\r\nX: {}\r\n\r\n", "a".repeat(MAX_HEADER));
+        assert!(
+            parse_http(large.as_bytes())
+                .unwrap_err()
+                .contains("headers exceed")
+        );
+    }
     #[test]
     fn rfc6455_handshake_reference() {
         assert_eq!(

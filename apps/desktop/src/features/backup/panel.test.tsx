@@ -5,10 +5,14 @@ import type { BackupVersion } from "@/bindings"
 import { setBackend } from "@/lib/ipc"
 import { openProjectPath } from "@/lib/flows/project"
 import { useProjectStore } from "@/lib/store/project"
+import { announceProjectReplaced } from "@/lib/store/replaced"
 import { startTestApp } from "@/test/harness"
 import { FolderBackupPanel } from "./panel"
 import { backupAfterSave, prepareBackupAfterSave, useBackupConfig, useBackupJob } from "./store"
-vi.mock("@/lib/flows/project", () => ({ openProjectPath: vi.fn(async () => {}) }))
+vi.mock("@/lib/flows/project", async (importOriginal) => ({
+  ...await importOriginal<typeof import("@/lib/flows/project")>(),
+  openProjectPath: vi.fn(async () => {}),
+}))
 
 const version: BackupVersion = { id: "a".repeat(64), parent: null, checksum: "b".repeat(64), bytes: 42, createdMs: 1000 }
 describe("folder backup panel", () => {
@@ -66,5 +70,33 @@ describe("folder backup panel", () => {
     await userEvent.setup().click(await screen.findByRole("button", { name: "Restore aaaaaaaa" }))
     await waitFor(() => expect(backupRestore).toHaveBeenCalledWith("/backup",version.id,"/restored.zip"))
     expect(openProjectPath).toHaveBeenCalledWith("/restored.zip")
+  })
+  it("does not attach an automatic backup choice across project replacement", async () => {
+    useProjectStore.setState({ path: "/song.windfall" })
+    useBackupConfig.setState({ projects: { "/song.windfall": { folder: "/backup", keep: 2, afterSave: true, head: null } } })
+    let release!: (catalog: { generation: number; revision: number; entries: [] }) => void
+    const loopCatalog = vi.fn(() => new Promise<{ generation: number; revision: number; entries: [] }>((resolve) => { release = resolve }))
+    const backupSave = vi.fn(async () => version)
+    setBackend({ ...app.backend, kind: "tauri", loopCatalog, backupSave })
+    const preparing = prepareBackupAfterSave()
+    announceProjectReplaced()
+    release({ generation: 20, revision: 0, entries: [] })
+    expect(await preparing).toBeNull()
+    expect(backupSave).not.toHaveBeenCalled()
+  })
+  it("carries numbered-save configuration and honors a withdrawn opt-in", async () => {
+    useProjectStore.setState({ path: "/song.windfall" })
+    const config = { folder: "/backup", keep: 2, afterSave: true, head: null }
+    useBackupConfig.setState({ projects: { "/song.windfall": config } })
+    const backupSave = vi.fn(async () => version)
+    setBackend({ ...app.backend, kind: "tauri", loopCatalog: async () => ({ generation: 9, revision: 0, entries: [] }), backupSave })
+    const ticket = await prepareBackupAfterSave()
+    useBackupConfig.setState({ projects: { "/song.windfall": { ...config, afterSave: false } } })
+    await backupAfterSave(ticket, "/song (001).windfall", true)
+    expect(backupSave).not.toHaveBeenCalled()
+    useBackupConfig.setState({ projects: { "/song.windfall": config } })
+    await backupAfterSave(ticket, "/song (001).windfall", true)
+    expect(backupSave).toHaveBeenCalledOnce()
+    expect(useBackupConfig.getState().projects["/song (001).windfall"]).toEqual({ ...config, head: version.id })
   })
 })

@@ -18,7 +18,9 @@ pub struct BackupVersion {
     pub id: String,
     pub parent: Option<String>,
     pub checksum: String,
+    #[ts(type = "number")]
     pub bytes: u64,
+    #[ts(type = "number")]
     pub created_ms: u64,
 }
 
@@ -40,7 +42,9 @@ pub struct LoopEntry {
 #[serde(rename_all = "camelCase")]
 #[ts(export)]
 pub struct LoopCatalog {
+    #[ts(type = "number")]
     pub generation: u64,
+    #[ts(type = "number")]
     pub revision: u64,
     pub entries: Vec<LoopEntry>,
 }

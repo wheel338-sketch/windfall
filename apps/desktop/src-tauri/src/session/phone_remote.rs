@@ -451,6 +451,32 @@ fn release(session: &Session, notes: &mut Notes, all: bool) {
 mod tests {
     use super::*;
     #[test]
+    fn pairing_attempt_expiry_connection_and_action_shape_limits() {
+        let mut auth = Authority::new().unwrap();
+        let code = auth.code.clone();
+        for _ in 0..10 {
+            assert!(auth.pair("wrong").is_err());
+        }
+        assert!(auth.pair(&code).is_err());
+        let mut auth = Authority::new().unwrap();
+        let code = auth.code.clone();
+        auth.expires = Instant::now();
+        assert!(auth.pair(&code).is_err());
+        for _ in 0..20 {
+            assert!(auth.connection());
+        }
+        assert!(!auth.connection());
+        assert!(serde_json::from_str::<Action>(r#"{"name":"feed","track":0}"#).is_err());
+        assert!(
+            serde_json::from_str::<Envelope>(
+                r#"{"token":"x","sequence":1,"generation":0,"action":{"name":"feed"},"extra":true}"#
+            )
+            .is_err()
+        );
+        assert!(!local_peer("203.0.113.1".parse().unwrap()));
+        assert!(!local_peer("::1".parse().unwrap()));
+    }
+    #[test]
     fn authentication_replay_expiry_and_rate_limits() {
         let mut auth = Authority::new().unwrap();
         let code = auth.code.clone();

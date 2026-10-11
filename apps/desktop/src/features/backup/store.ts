@@ -3,6 +3,7 @@ import { create } from "zustand"
 import { persist } from "zustand/middleware"
 import { backend, errorMessage } from "@/lib/ipc"
 import { useProjectStore } from "@/lib/store/project"
+import { getProjectGeneration } from "@/lib/store/replaced"
 
 export type FolderBackupConfig = { folder: string | null; keep: number; afterSave: boolean; head: string | null }
 export const EMPTY_BACKUP: FolderBackupConfig = { folder: null, keep: 20, afterSave: false, head: null }
@@ -13,17 +14,24 @@ export function rememberBackup(path: string | null, config: FolderBackupConfig) 
   if (path === null) return
   useBackupConfig.setState((state) => ({ projects: { ...state.projects, [path]: config } }))
 }
-type SaveTicket = { path: string; generation: number; config: FolderBackupConfig }
+type SaveTicket = { path: string; generation: number; localGeneration: number; config: FolderBackupConfig }
 /** Capture identity before Save. Optional backup failure never prevents Save. */
 export async function prepareBackupAfterSave(): Promise<SaveTicket | null> {
+  const localGeneration = getProjectGeneration()
   const path = useProjectStore.getState().path
   const config = path ? useBackupConfig.getState().projects[path] : undefined
   if (backend.kind !== "tauri" || !path || !config?.afterSave || !config.folder) return null
-  try { const { generation } = await backend.loopCatalog(); return { path, generation, config } }
+  try {
+    const { generation } = await backend.loopCatalog()
+    if (localGeneration !== getProjectGeneration() || useProjectStore.getState().path !== path) return null
+    return { path, generation, localGeneration, config }
+  }
   catch (error) { toast.error("Could not prepare optional backup", { description: errorMessage(error) }); return null }
 }
 export async function backupAfterSave(ticket: SaveTicket | null, saved: string, numberedVersion = false): Promise<void> {
   if (!ticket || (!numberedVersion && saved !== ticket.path) || !ticket.config.folder) return
+  const chosen = useBackupConfig.getState().projects[ticket.path]
+  if (ticket.localGeneration !== getProjectGeneration() || !chosen?.afterSave || chosen.folder !== ticket.config.folder) return
   if (useBackupJob.getState().busy) {
     const error = "Project saved. Optional backup skipped because another backup job is running."
     useBackupJob.setState({ error }); toast.error(error); return
