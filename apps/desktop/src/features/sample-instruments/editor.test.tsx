@@ -53,7 +53,7 @@ describe("sample instrument purpose-built editors",()=>{
   it("sequences the selected pad without replacing another pad and restores the step with undo",async()=>{
     const id=await open("padBank")
     fireEvent.click(screen.getByRole("button",{name:"Pad 1 step 1"}));await act(()=>settle())
-    fireEvent.click(within(screen.getByRole("group",{name:"Sixteen drum pads"})).getByRole("button",{name:/Pad 2 ·/}))
+    fireEvent.click(within(screen.getByRole("group",{name:"Sixteen drum pads"})).getByRole("button",{name:/Pad 2 Â·/}))
     fireEvent.click(screen.getByRole("button",{name:"Pad 2 step 1"}));await act(()=>settle())
     const notes=()=>useProjectStore.getState().project.patterns.flatMap(pattern=>pattern.lanes.filter(lane=>lane.channel===id).flatMap(lane=>lane.notes))
     expect(notes().map(note=>note.key)).toEqual([36,37])

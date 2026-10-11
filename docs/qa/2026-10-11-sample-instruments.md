@@ -160,8 +160,8 @@ relay. XInput is still a feature-gated adapter without a selectable project rout
 
 The Windows `xinput` feature now exposes `Game controller feedback (XInput)` as a
 virtual output in the existing MIDI output selector. Add a MidiOut instrument,
-select this route in MIDI settings, and use MIDI output channels 1–4 for controller
-indexes 0–3; note keys below 64 drive the low motor, keys 64–127 the high motor,
+select this route in MIDI settings, and use MIDI output channels 1â€“4 for controller
+indexes 0â€“3; note keys below 64 drive the low motor, keys 64â€“127 the high motor,
 and velocity sets strength. The existing timestamped MIDI worker owns the adapter,
 so notes, panic, disconnect and adapter destruction perform IO away from audio.
 No separate RumbleNotes enum or duplicated device-worker lifecycle was introduced.
@@ -218,3 +218,10 @@ Source inspection correction: cache initialization uses the selected zone mappin
 explicitly. Portable-bank export releases State before atomic file persistence;
 its authorized immutable snapshot cannot mutate the document if a subsequent
 edit races that final file operation. No tests were run for these changes.
+
+## Text encoding correction
+
+Four branch-owned frontend/report files contained mixed UTF-8 and Windows-1252
+characters after earlier edits. Their existing text is now consistently UTF-8,
+preserving already-valid sequences. No build or test was run.
+

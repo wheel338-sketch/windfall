@@ -50,7 +50,7 @@ function PadSteps({ channel, pad }: { channel: InstrumentChannel; pad: number })
   const start = Math.min(page * 16, Math.floor((pattern.lengthSteps - 1) / 16) * 16)
   const notes = pattern.lanes.find(lane => lane.channel === channel.id)?.notes ?? []
   return <FieldGroup>
-    <FieldDescription>Pad {pad - 35} in {pattern.name}: steps {start + 1}–{Math.min(start + 16, pattern.lengthSteps)}. Other pad notes stay in place.</FieldDescription>
+    <FieldDescription>Pad {pad - 35} in {pattern.name}: steps {start + 1}â€“{Math.min(start + 16, pattern.lengthSteps)}. Other pad notes stay in place.</FieldDescription>
     <div role="group" aria-label={`Pad ${pad - 35} pattern steps`} className="grid grid-cols-8 gap-1">
       {Array.from({length:Math.min(16,pattern.lengthSteps-start)},(_,index)=>{
         const step=start+index
@@ -108,7 +108,7 @@ function ZonesEditor({ channel, pads }: { channel: InstrumentChannel; pads: bool
         }
       } catch(error) { if(generation === getProjectGeneration())setError(errorMessage(error)) }
       finally { setBusy(false) }
-    }}>{busy ? "Importing…" : pads ? "Import pad source" : "Import zone source"}</Button>
+    }}>{busy ? "Importingâ€¦" : pads ? "Import pad source" : "Import zone source"}</Button>
     {error && <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}
     <Button disabled={source === null || zones.length >= 256} onClick={() => { if(source!==null) replace([...zones,newZone(source,pads?pad:undefined)]) }}>
       {pads ? "Add pad layer" : "Add zone"}
