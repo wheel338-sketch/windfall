@@ -1197,8 +1197,11 @@ impl Transaction<'_> {
                     .channel(id)
                     .ok_or_else(|| CommandError::not_found("channel", id))?
                     .clone();
+                let settings = settings.sanitized();
+                crate::layer::check_settings(&self.project.channels, id, &settings)
+                    .map_err(CommandError::invalid)?;
                 let new = Channel {
-                    voice: settings.sanitized(),
+                    voice: settings,
                     ..old.clone()
                 };
                 self.push(Edit::SetChannel(Box::new(Change { old, new })));
@@ -1739,6 +1742,11 @@ impl Transaction<'_> {
                 remove: notes,
                 insert: Vec::new(),
             });
+        }
+        // No layer keeps the deleted channel as a child; undo restores both.
+        for (parent, new) in crate::layer::without_child(&self.project.channels, id) {
+            let old = self.project.channels[parent].clone();
+            self.push(Edit::SetChannel(Box::new(Change { old, new })));
         }
         let item = self.project.channels[index].clone();
         self.push(Edit::Channel(Box::new(ListEdit::Remove { index, item })));

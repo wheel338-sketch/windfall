@@ -276,6 +276,7 @@ impl Processor {
     fn sync_hardware_epoch(&mut self) {
         let epoch = self.shared.hardware_epoch.load(Ordering::Acquire);
         if epoch != self.hardware_epoch {
+            self.cut_echoes_of(Origin::Hardware);
             self.voices.fade_origin(Origin::Hardware);
             for unit in self.state.instrument_units() {
                 unit.silence_hardware();
@@ -500,6 +501,10 @@ impl Processor {
                 self.transport_sequence = sequence;
                 self.sequencer.stop();
                 self.clips.release_all();
+                // Stop silences every note, so no echo of one may follow it.
+                for origin in [Origin::Sequenced, Origin::Live, Origin::Hardware] {
+                    self.cut_echoes_of(origin);
+                }
                 self.voices.fade_origin(Origin::Sequenced);
                 self.voices.fade_origin(Origin::Live);
                 self.voices.fade_origin(Origin::Hardware);
@@ -762,6 +767,27 @@ impl Processor {
     /// Starts a note on frame `now`: on its channel's instrument if it has
     /// one, and as a sampler voice otherwise, including per-voice expression.
     fn start(&mut self, note: Note, now: u64) {
+        // A layer is silent itself and plays the note on each channel it
+        // resolves to. The plan holds that bounded list, so this is a fixed
+        // amount of work and nested layers were followed on the control side.
+        if let Some(targets) = self.plan.channels[note.channel].layer.as_ref() {
+            if !self.plan.channels[note.channel].audible {
+                return;
+            }
+            for index in 0..targets.len() {
+                let Some(layer) = self.plan.channels[note.channel].layer.as_ref() else {
+                    break;
+                };
+                let channel = layer[index];
+                self.start_on(Note { channel, ..note }, now);
+            }
+            return;
+        }
+        self.start_on(note, now);
+    }
+
+    /// Starts a note on a channel that makes sound.
+    fn start_on(&mut self, note: Note, now: u64) {
         let channel = note.channel;
         if self.state.channel_voice[channel].settings.arpeggiator.mode != ArpeggiatorMode::Off
             && note.expression.articulation != windfall_dsp::NoteArticulation::Slide
@@ -769,10 +795,22 @@ impl Processor {
             self.state.channel_voice[channel].chord_on(note);
             return;
         }
-        // Live echo requires a duration; held notes deliberately remain dry.
-        if note.end.is_finite()
-            && note.expression.articulation != windfall_dsp::NoteArticulation::Slide
-        {
+        if note.expression.articulation == windfall_dsp::NoteArticulation::Slide {
+            // A slide bends sounding notes and has no echo of its own.
+        } else if !note.end.is_finite() {
+            // A note held by hand has no length yet: its echoes start now
+            // and are let go when the key is.
+            if matches!(note.origin, Origin::Live | Origin::Hardware) {
+                let bpm = self.state.tempo();
+                let rejected = self.state.channel_voice[channel].rejected_echoes;
+                self.state.channel_voice[channel].schedule_held_echo(
+                    note,
+                    f64::from(self.sample_rate),
+                    bpm,
+                );
+                self.report_rejected_echoes(channel, rejected);
+            }
+        } else {
             let duration = self
                 .sequencer
                 .clock()
@@ -780,14 +818,50 @@ impl Processor {
                 .saturating_sub(now)
                 .max(1) as usize;
             let bpm = self.state.tempo();
+            let rejected = self.state.channel_voice[channel].rejected_echoes;
             self.state.channel_voice[channel].schedule_echo(
                 note,
                 duration,
                 f64::from(self.sample_rate),
                 bpm,
             );
+            self.report_rejected_echoes(channel, rejected);
         }
         self.start_output(note, now, None);
+    }
+
+    /// Ends the echoes of every note from `origin`: the ones sounding are
+    /// released and the ones still queued are discarded.
+    fn cut_echoes_of(&mut self, origin: Origin) {
+        for channel in 0..self.state.channel_voice.len() {
+            for slot in 0..self.state.channel_voice[channel].owners.len() {
+                if let Some(owner) = self.state.channel_voice[channel].owners[slot]
+                    && matches!(owner.generated, Some((Generator::Echo, _)))
+                    && owner.note.origin == origin
+                {
+                    self.release_instance(channel, owner.instance);
+                    if owner.admitted {
+                        self.state.channel_voice[channel]
+                            .held
+                            .note_off(owner.note.key);
+                    }
+                    self.state.channel_voice[channel].owners[slot] = None;
+                }
+            }
+            self.state.channel_voice[channel].cancel_echoes_of(origin);
+        }
+    }
+
+    /// Publishes echo requests refused since `before` to the control side.
+    fn report_rejected_echoes(&self, channel: usize, before: u64) {
+        let refused = self.state.channel_voice[channel]
+            .rejected_echoes
+            .saturating_sub(before);
+        if refused > 0 {
+            self.shared
+                .rejected_echoes
+                .fetch_add(refused.min(u64::from(u32::MAX)) as u32, Ordering::Relaxed);
+        }
     }
 
     fn release_instance(&mut self, channel: usize, id: NoteInstanceId) {
@@ -800,7 +874,23 @@ impl Processor {
     }
 
     fn release_input(&mut self, channel: usize, key: u8, origin: Origin) {
+        // A layer's keys were played on the channels it resolves to.
+        if let Some(targets) = self.plan.channels[channel].layer.as_ref() {
+            for index in 0..targets.len() {
+                let Some(layer) = self.plan.channels[channel].layer.as_ref() else {
+                    break;
+                };
+                let child = layer[index];
+                self.release_input_on(child, key, origin);
+            }
+            return;
+        }
+        self.release_input_on(channel, key, origin);
+    }
+
+    fn release_input_on(&mut self, channel: usize, key: u8, origin: Origin) {
         self.state.channel_voice[channel].chord_off(key, origin);
+        self.state.channel_voice[channel].release_held_echo(key, origin);
         for slot in 0..self.state.channel_voice[channel].owners.len() {
             if let Some(owner) = self.state.channel_voice[channel].owners[slot]
                 && owner.generated.is_none()
@@ -864,11 +954,49 @@ impl Processor {
         let channel = note.channel;
         self.state.channel_voice[channel].expire(clock, now);
         let settings = self.state.channel_voice[channel].settings.polyphony;
-        let decision = admit_note(
-            &mut self.state.channel_voice[channel].held,
-            note.key,
-            settings,
-        );
+        // An echo sounds alongside the note it repeats, so it is not entered
+        // in the held table, where a second note of the same key replaces
+        // the first. A one-voice channel stays one voice: there an echo
+        // takes the note's place like any other note.
+        let alongside = matches!(generated, Some((Generator::Echo, _)))
+            && !settings.mono_legato
+            && settings.max_voices > 1;
+        // The voice limit counts echoes too, and echoes give way first: the
+        // oldest one is released for any new note, and a new echo is left
+        // out when only played notes are sounding.
+        let limit = usize::from(settings.max_voices);
+        loop {
+            let runtime = &self.state.channel_voice[channel];
+            let sounding = runtime.owners.iter().flatten().count();
+            if sounding < limit && sounding < runtime.owners.len() {
+                break;
+            }
+            let Some(slot) = runtime.oldest_echo() else {
+                break;
+            };
+            if let Some(owner) = self.state.channel_voice[channel].owners[slot].take() {
+                self.release_instance(channel, owner.instance);
+            }
+        }
+        if alongside
+            && self.state.channel_voice[channel]
+                .owners
+                .iter()
+                .flatten()
+                .count()
+                >= limit
+        {
+            return;
+        }
+        let decision = if alongside {
+            crate::channel_voice::PolyphonyDecision::alongside()
+        } else {
+            admit_note(
+                &mut self.state.channel_voice[channel].held,
+                note.key,
+                settings,
+            )
+        };
         let mono = if !decision.retrigger {
             self.state.channel_voice[channel]
                 .owners
@@ -883,6 +1011,7 @@ impl Processor {
             for slot in 0..self.state.channel_voice[channel].owners.len() {
                 if let Some(owner) = self.state.channel_voice[channel].owners[slot]
                     && owner.note.key == key
+                    && owner.admitted
                 {
                     if mono.is_none() {
                         self.release_instance(channel, owner.instance);
@@ -937,9 +1066,10 @@ impl Processor {
                     note,
                     instance,
                     generated,
+                    admitted: !alongside,
                 });
             }
-        } else {
+        } else if !alongside {
             self.state.channel_voice[channel].held.note_off(note.key);
         }
     }
@@ -1271,9 +1401,11 @@ impl Processor {
                     && owner.generated == Some((generator, event.id))
                 {
                     self.release_instance(channel, owner.instance);
-                    self.state.channel_voice[channel]
-                        .held
-                        .note_off(owner.note.key);
+                    if owner.admitted {
+                        self.state.channel_voice[channel]
+                            .held
+                            .note_off(owner.note.key);
+                    }
                     self.state.channel_voice[channel].owners[slot] = None;
                 }
             }
@@ -1306,6 +1438,7 @@ impl Processor {
             let clock = self.sequencer.clock();
             let bpm = self.state.tempo();
             for channel in 0..self.state.channel_voice.len() {
+                let rejected = self.state.channel_voice[channel].rejected_echoes;
                 let runtime = &mut self.state.channel_voice[channel];
                 runtime.expire(clock, now);
                 runtime.arp.process_block(
@@ -1333,6 +1466,7 @@ impl Processor {
                     }
                 }
                 runtime.echo.process_block(1, &mut runtime.echo_events);
+                self.report_rejected_echoes(channel, rejected);
                 // Merge chronologically, off before on for the shared frame.
                 for kind in [NoteEventKind::Off, NoteEventKind::On] {
                     for generator in [Generator::Arp, Generator::Echo] {

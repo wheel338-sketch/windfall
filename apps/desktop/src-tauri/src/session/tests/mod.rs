@@ -35,12 +35,14 @@ mod plugin_update;
 mod plugins;
 mod project_preparation;
 mod recording;
+mod sampler_preprocess;
 mod sampler_processing;
 #[cfg(windows)]
 mod sidechain_buses;
 mod slicer;
 mod song;
 mod timeline;
+mod transport_acceptance;
 mod versions;
 mod audio_logger;
 

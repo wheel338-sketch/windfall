@@ -122,6 +122,10 @@ pub(crate) struct PlanChannel {
     pub sampler: PlanSampler,
     /// The settings of the instrument an instrument channel plays.
     pub instrument: Option<InstrumentParams>,
+    /// For a layer channel, the indexes of the channels its notes play on,
+    /// nested layers already followed. `None` for every other channel. A
+    /// layer never sounds itself, so an empty list is silence.
+    pub layer: Option<Arc<[usize]>>,
     /// The channel is no longer in the project. It is listed after the
     /// project's channels, where no note finds it, for as long as its
     /// instrument takes to fade out. See [`Plan::keep_leaving`].
@@ -566,6 +570,7 @@ impl Plan {
                 pan: channel.pan,
                 sampler: PlanSampler::silent(),
                 instrument,
+                layer: None,
                 leaving: true,
             });
         }
@@ -722,6 +727,7 @@ impl Plan {
                     pan: channel.pan,
                     sampler: PlanSampler::silent(),
                     instrument: Some(instrument),
+                    layer: None,
                     leaving: true,
                 });
             }
@@ -847,11 +853,20 @@ pub(crate) fn compile(project: &Project, pool: &SamplePool) -> Plan {
     let track_ids = IdIndex::new(tracks.iter().map(|track| track.id.0));
     let edge_count = tracks.iter().map(|track| track.edges.len()).sum();
 
-    let any_solo = project.channels.iter().any(|channel| channel.solo);
+    // A soloed layer keeps the channels it plays audible.
+    let solo_audible = windfall_project::layer::solo_audible(&project.channels);
     let channels: Vec<PlanChannel> = project
         .channels
         .iter()
-        .map(|channel| compile_channel(channel, pool, &track_ids, any_solo))
+        .enumerate()
+        .map(|(index, channel)| {
+            let mut compiled = compile_channel(channel, pool, &track_ids, solo_audible[index]);
+            if windfall_project::layer::is_layer(channel) {
+                compiled.layer =
+                    Some(windfall_project::layer::targets(&project.channels, index).into());
+            }
+            compiled
+        })
         .collect();
     let channel_ids = IdIndex::new(channels.iter().map(|channel| channel.id.0));
 
@@ -922,13 +937,13 @@ fn compile_channel(
     channel: &Channel,
     pool: &SamplePool,
     track_ids: &IdIndex,
-    any_solo: bool,
+    solo_audible: bool,
 ) -> PlanChannel {
     let (sampler, instrument) = match &channel.source {
         ChannelSource::Sampler(settings) => (compile_sampler(settings, pool), None),
         ChannelSource::Instrument { params } => (PlanSampler::silent(), Some(params.sanitized())),
     };
-    let audible = !channel.muted && (!any_solo || channel.solo);
+    let audible = !channel.muted && solo_audible;
     PlanChannel {
         voice: channel.voice.sanitized(),
         id: channel.id,
@@ -939,6 +954,7 @@ fn compile_channel(
         pan: pan(channel.pan),
         sampler,
         instrument,
+        layer: None,
         leaving: false,
     }
 }

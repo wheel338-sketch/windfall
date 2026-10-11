@@ -12,6 +12,7 @@ mod mixer;
 mod modulation;
 mod playlist_layouts;
 mod playlist_stems;
+mod rack_voice;
 mod realtime;
 mod rendering;
 mod sampler;

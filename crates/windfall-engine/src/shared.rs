@@ -26,6 +26,9 @@ pub(crate) struct Shared {
     pub recording_clock: crate::recording_clock::RecordingClock,
     pub count_in_remaining: AtomicU32,
     pub navigation_overflows: AtomicU32,
+    /// Notes whose echoes did not fit a channel's fixed echo queue and
+    /// played dry instead.
+    pub rejected_echoes: AtomicU32,
     /// Invalidates queued hardware notes and silences their voices without queue space.
     pub hardware_epoch: AtomicU64,
     /// The transport sequence number of the last play or stop the audio
@@ -73,6 +76,7 @@ impl Shared {
             recording_clock: crate::recording_clock::RecordingClock::new(),
             count_in_remaining: AtomicU32::new(0),
             navigation_overflows: AtomicU32::new(0),
+            rejected_echoes: AtomicU32::new(0),
             hardware_epoch: AtomicU64::new(0),
             transport: AtomicU64::new(0),
             tick: AtomicU64::new(0.0_f64.to_bits()),

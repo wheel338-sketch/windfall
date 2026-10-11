@@ -16,6 +16,9 @@ pub(crate) struct Owner {
     pub note: Note,
     pub instance: NoteInstanceId,
     pub generated: Option<(Generator, u64)>,
+    /// The note has an entry in the held table. False for an echo that
+    /// sounds alongside the note it repeats.
+    pub admitted: bool,
 }
 
 pub(crate) struct ChannelVoiceRuntime {
@@ -28,6 +31,8 @@ pub(crate) struct ChannelVoiceRuntime {
     pub owners: [Option<Owner>; MAX_HELD_NOTES],
     chord: [Option<Note>; MAX_CHORD_NOTES],
     echo_sources: [Option<(u64, Note)>; ECHO_EVENT_CAPACITY],
+    /// Echoes of notes still held by hand, waiting for their release.
+    held_echoes: [Option<(u8, Origin, HeldEcho)>; MAX_HELD_NOTES],
     pub arp_events: NoteEvents,
     pub echo_events: NoteEvents,
     pub rejected_echoes: u64,
@@ -46,6 +51,7 @@ impl ChannelVoiceRuntime {
             owners: [None; MAX_HELD_NOTES],
             chord: [None; MAX_CHORD_NOTES],
             echo_sources: [None; ECHO_EVENT_CAPACITY],
+            held_echoes: [None; MAX_HELD_NOTES],
             arp_events: NoteEvents::default(),
             echo_events: NoteEvents::default(),
             rejected_echoes: 0,
@@ -141,6 +147,91 @@ impl ChannelVoiceRuntime {
         }
     }
 
+    /// Echoes a note that is still held and has no known length. Its
+    /// repeats start now and end when [`Self::release_held_echo`] is called
+    /// for the same key and origin. A full table or queue leaves the note
+    /// dry and counts one rejected echo.
+    pub fn schedule_held_echo(&mut self, note: Note, rate: f64, bpm: f64) {
+        if !self.settings.echo.enabled {
+            return;
+        }
+        // Playing a held key again releases the echoes of the earlier press.
+        self.release_held_echo(note.key, note.origin);
+        let Some(slot) = self.held_echoes.iter().position(Option::is_none) else {
+            self.rejected_echoes = self.rejected_echoes.saturating_add(1);
+            return;
+        };
+        let Some(held) = self.echo.schedule_held(
+            HeldNote {
+                key: note.key,
+                velocity: note.velocity,
+            },
+            0,
+            rate,
+            bpm,
+        ) else {
+            self.rejected_echoes = self.rejected_echoes.saturating_add(1);
+            return;
+        };
+        if held.repeats() == 0 {
+            return;
+        }
+        for index in 0..held.repeats() {
+            if let Some(source) = self.echo_sources.iter_mut().find(|s| s.is_none()) {
+                *source = Some((held.id(index), note));
+            }
+        }
+        self.held_echoes[slot] = Some((note.key, note.origin, held));
+    }
+
+    /// Lets go of the echoes of a held note; they end one by one, each as
+    /// long after this as it started after the note.
+    pub fn release_held_echo(&mut self, key: u8, origin: Origin) {
+        for slot in &mut self.held_echoes {
+            if let Some((held_key, held_origin, held)) = *slot
+                && held_key == key
+                && held_origin == origin
+            {
+                self.echo.release_held(held, 0);
+                *slot = None;
+            }
+        }
+    }
+
+    /// Discards every queued echo of notes from one origin, as when those
+    /// notes are cut. The caller releases the echoes already sounding.
+    pub fn cancel_echoes_of(&mut self, origin: Origin) {
+        for slot in &mut self.echo_sources {
+            if let Some((id, note)) = *slot
+                && note.origin == origin
+            {
+                self.echo.cancel(id);
+                *slot = None;
+            }
+        }
+        for slot in &mut self.held_echoes {
+            if slot.is_some_and(|(_, held_origin, _)| held_origin == origin) {
+                *slot = None;
+            }
+        }
+    }
+
+    /// The oldest echo that sounds alongside its note, as a slot of
+    /// [`Self::owners`]. It is the first voice to give way when the channel
+    /// is at its voice limit.
+    pub fn oldest_echo(&self) -> Option<usize> {
+        self.owners
+            .iter()
+            .enumerate()
+            .filter_map(|(slot, owner)| {
+                owner
+                    .filter(|owner| !owner.admitted)
+                    .map(|owner| (owner.instance.0, slot))
+            })
+            .min()
+            .map(|(_, slot)| slot)
+    }
+
     pub fn source(&self, generator: Generator, event: NoteEvent) -> Option<Note> {
         match generator {
             Generator::Arp => self
@@ -208,6 +299,7 @@ impl ChannelVoiceRuntime {
         self.arp.reset();
         self.echo.reset();
         self.echo_sources.fill(None);
+        self.held_echoes.fill(None);
         for note in &mut self.chord {
             if note.is_some_and(|note| note.origin == Origin::Sequenced) {
                 *note = None;
@@ -215,7 +307,7 @@ impl ChannelVoiceRuntime {
         }
         self.refresh_chord();
         self.held.clear();
-        for owner in self.owners.iter().flatten() {
+        for owner in self.owners.iter().flatten().filter(|owner| owner.admitted) {
             admit_note(&mut self.held, owner.note.key, self.settings.polyphony);
         }
     }
@@ -228,6 +320,7 @@ impl ChannelVoiceRuntime {
         self.chord.fill(None);
         self.owners.fill(None);
         self.echo_sources.fill(None);
+        self.held_echoes.fill(None);
         self.envelopes.reset();
     }
 }

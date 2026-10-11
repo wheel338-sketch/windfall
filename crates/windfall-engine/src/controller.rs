@@ -660,6 +660,13 @@ impl Controller {
             .load(Ordering::Relaxed)
     }
 
+    /// Notes that played without their echoes since the engine started,
+    /// because a channel's fixed echo queue or its table of held notes was
+    /// full. The dry note always sounds.
+    pub fn rejected_echoes(&self) -> u32 {
+        self.inner.shared.rejected_echoes.load(Ordering::Relaxed)
+    }
+
     /// Plays a note on a channel right away, as from the UI keyboard.
     /// `velocity` runs from 0 to 1.
     pub fn note_on(&self, channel: ChannelId, key: u8, velocity: f32) {

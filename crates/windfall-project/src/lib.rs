@@ -14,6 +14,7 @@ pub mod curve_lfo;
 pub use curve_lfo::{CurveLfo, CurveLfoWave};
 pub mod channel_voice;
 pub use channel_voice::*;
+pub mod layer;
 mod check;
 pub mod command;
 pub mod document;
