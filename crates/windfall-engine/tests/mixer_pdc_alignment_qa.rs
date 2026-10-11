@@ -168,10 +168,15 @@ fn qa_parallel_tracks_buses_and_sends_of_different_latency_land_on_one_frame() {
     rig.track_mut(quick).output = Some(bus);
     let direct = rig.channel_on(impulse(RATE), bus);
     rig.steps(direct, &[0]);
+    // A quarter each, so the three together stay under the bus limiter's
+    // ceiling and it has nothing to do but delay them.
+    rig.track_mut(fed).volume = 0.25;
+    rig.track_mut(quick).volume = 0.25;
+    rig.channel_mut(direct).volume = 0.25;
     assert_aligned(
         &rig,
         FIVE_MS + 96,
-        4.0,
+        1.75,
         "two feeders and a direct voice on the bus",
     );
 
