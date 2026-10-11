@@ -822,6 +822,10 @@ pub enum Command {
         label: Option<String>,
         commands: Vec<Command>,
     },
+    /// One undoable replacement of a sample instrument's immutable assets.
+    SetSamplePlayback { channel: ChannelId, asset: Option<crate::SamplePlayback> },
+    /// Generates source-length notes in the saved slice order in one history step.
+    GenerateSlicePattern { channel: ChannelId, pattern: PatternId },
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, TS)]

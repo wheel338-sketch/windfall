@@ -113,6 +113,7 @@ pub(crate) struct Plan {
 
 #[derive(Debug, Clone)]
 pub(crate) struct PlanChannel {
+    pub sample_playback: Option<Arc<crate::sample_playback::Prepared>>,
     pub voice: windfall_project::ChannelVoiceSettings,
     /// What the stored controls of a note drive in this channel's voices.
     pub expression_map: windfall_dsp::ExpressionMap,
@@ -569,6 +570,7 @@ impl Plan {
             }
             let track = previous.tracks[channel.track].id;
             self.channels.push(PlanChannel {
+                sample_playback: channel.sample_playback.clone(),
                 voice: channel.voice,
                 expression_map: channel.expression_map,
                 id: channel.id,
@@ -724,6 +726,7 @@ impl Plan {
                 && self.channel_ids.get(channel.id.0).is_none()
             {
                 self.channels.push(PlanChannel {
+                sample_playback: channel.sample_playback.clone(),
                 voice: channel.voice,
                 expression_map: channel.expression_map,
                     id: channel.id,
@@ -961,6 +964,7 @@ fn compile_channel(
     };
     let audible = !channel.muted && solo_audible;
     PlanChannel {
+        sample_playback: channel.sample_playback.as_ref().and_then(|settings| crate::sample_playback::prepare(settings, pool).ok()),
         voice: channel.voice.sanitized(),
         expression_map: channel.expression_map.sanitized(),
         id: channel.id,
@@ -2034,6 +2038,7 @@ mod tests {
     fn an_unpaired_last_step_is_not_swung() {
         let mut project = Project::new("odd");
         project.channels.push(Channel {
+                sample_playback: None,
             id: ChannelId(10),
             name: String::new(),
             color: 0,

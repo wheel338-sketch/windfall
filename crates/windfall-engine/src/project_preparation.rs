@@ -204,6 +204,11 @@ impl PreparationSnapshot {
         let controller = Controller {
             inner: self.owner.clone(),
         };
+        for channel in &project.channels {
+            if let Some(settings) = &channel.sample_playback {
+                crate::sample_playback::prepare(settings, pool).map_err(ProjectPreparationError::Unsupported)?;
+            }
+        }
         let result = Controller::try_prepare_project(project, pool)
             .map_err(ProjectPreparationError::Sampler)
             .and_then(|prepared| self.prepare_compiled(prepared, intent));
@@ -964,6 +969,7 @@ mod tests {
             AudioBuffer::from_interleaved(48_000, 1, vec![1.0; 16_000]),
         );
         project.channels.push(Channel {
+                sample_playback: None,
             id: channel,
             name: String::new(),
             color: 0,

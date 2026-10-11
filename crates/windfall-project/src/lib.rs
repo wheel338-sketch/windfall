@@ -79,3 +79,9 @@ pub use project_settings::PanLaw;
 pub mod score;
 pub use score::{Score, ScoreLoadMode, ScoreNote};
 pub mod timebase;
+
+pub mod sample_playback;
+pub use sample_playback::{SamplePlayback, KeyPlaybackCurve};
+
+mod legacy_sample_playback;
+pub use sample_playback::InlinePlaybackSource;

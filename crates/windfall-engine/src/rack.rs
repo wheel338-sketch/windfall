@@ -531,6 +531,9 @@ pub(crate) struct InstrumentUnit {
 }
 
 impl InstrumentUnit {
+    pub fn set_playback_asset(&mut self, asset: std::sync::Arc<windfall_dsp::granular::PlaybackAsset>) {
+        self.instrument.set_playback_asset(asset);
+    }
     /// Builds and prepares an instrument. Allocates, so it is for the
     /// control side.
     pub fn build(params: &InstrumentParams, sample_rate: u32, tempo_bpm: f64) -> Self {

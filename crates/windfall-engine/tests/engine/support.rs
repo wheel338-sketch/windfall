@@ -80,6 +80,7 @@ impl Rig {
         let sample = self.sample(audio);
         let id = ChannelId(self.id());
         self.project.channels.push(Channel {
+                sample_playback: None,
             id,
             name: String::new(),
             color: 0,
@@ -155,6 +156,7 @@ impl Rig {
     pub fn synth_on(&mut self, params: SynthParams, track: TrackId) -> ChannelId {
         let id = ChannelId(self.id());
         self.project.channels.push(Channel {
+                sample_playback: None,
             id,
             name: String::new(),
             color: 0,

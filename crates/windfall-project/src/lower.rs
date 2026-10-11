@@ -37,6 +37,7 @@ type Label = &'static str;
 mod playlist_layouts;
 /// Preset commands, lowered beside the rest so they share its transaction.
 mod preset_apply;
+mod sample_playback;
 
 /// What a command did to the project.
 pub(crate) struct Outcome {
@@ -1274,6 +1275,8 @@ impl Transaction<'_> {
                 "Change controller links"
             }
             Command::AddSample { name, path } => self.add_sample(name, path)?,
+            Command::SetSamplePlayback { channel, asset } => self.set_sample_playback(channel, asset)?,
+            Command::GenerateSlicePattern { channel, pattern } => self.generate_slice_pattern(channel, pattern)?,
             Command::RemoveSample { id } => self.remove_sample(id)?,
             Command::AddChannel {
                 name,
@@ -1736,7 +1739,7 @@ impl Transaction<'_> {
     fn remove_sample(&mut self, id: SampleId) -> Result<Label, CommandError> {
         let index = self.sample_index(id)?;
         let channels = &self.project.channels;
-        let user = channels.iter().find(|c| c.source.sample() == Some(id));
+        let user = channels.iter().find(|c| c.source.sample() == Some(id) || c.sample_playback.as_ref().is_some_and(|a| a.references(id)));
         if let Some(channel) = user {
             return Err(CommandError::invalid(format!(
                 "the sample is still used by the channel \"{}\"",
@@ -1824,6 +1827,7 @@ impl Transaction<'_> {
         self.push(Edit::Channel(Box::new(ListEdit::Insert {
             index,
             item: Channel {
+                sample_playback: None,
                 id,
                 name,
                 group: String::new(),

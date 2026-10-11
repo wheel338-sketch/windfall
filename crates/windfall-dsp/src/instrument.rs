@@ -574,6 +574,16 @@ pub enum AnyInstrument {
 }
 
 impl AnyInstrument {
+    /// Called only while constructing a control-side instrument unit.
+    pub fn set_playback_asset(&mut self, asset: std::sync::Arc<crate::granular::PlaybackAsset>) -> bool {
+        match self {
+            Self::SliceMap(i) => i.set_asset(asset), Self::SliceDeck(i) => i.set_asset(asset),
+            Self::GrainCloud(i) => i.set_asset(asset), Self::WaveRide(i) => i.set_asset(asset),
+            _ => return false,
+        }
+        true
+    }
+
     /// Gives the messages a MIDI output channel made since the last block
     /// the frame of the block about to be processed. Nothing for the rest.
     pub fn stamp_midi(&mut self, frame: u64) {

@@ -641,6 +641,7 @@ impl ChannelPreset {
         }
         let id = ChannelId(take());
         let base = Channel {
+                sample_playback: None,
             voice: ChannelVoiceSettings::default(),
             id,
             name: "Preset".to_owned(),

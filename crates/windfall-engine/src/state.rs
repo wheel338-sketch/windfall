@@ -461,6 +461,7 @@ pub(crate) struct Ledger {
     pub sample_rate: u32,
     effects: HashMap<EffectId, (EffectKind, u64)>,
     instruments: HashMap<ChannelId, InstrumentKind>,
+    sample_playback: HashMap<ChannelId, crate::sample_playback::Identity>,
     /// The length each compensation delay is set to and the longest its
     /// line can give, plus the identity and prepared bounds of its stages.
     delays: HashMap<DelayKey, (usize, usize, Vec<DelayStage>)>,
@@ -1096,6 +1097,7 @@ impl PlanState {
             sample_rate,
             effects: HashMap::new(),
             instruments: HashMap::new(),
+            sample_playback: HashMap::new(),
             delays: HashMap::new(),
             meters: Vec::new(),
             latency: u32::try_from(output_latency).unwrap_or(u32::MAX),
@@ -1269,6 +1271,7 @@ impl PlanState {
                 channel: channel.id,
             };
             let known = held.and_then(|held| held.instruments.get(&channel.id)) == Some(&kind)
+                && held.and_then(|held| held.sample_playback.get(&channel.id)) == channel.sample_playback.as_ref().map(|asset| &asset.identity)
                 && held
                     .is_some_and(|held| held.plugins.get(&target) == ledger.plugins.get(&target));
             let unit = if channel.leaving {
@@ -1278,8 +1281,10 @@ impl PlanState {
                 None
             } else {
                 ledger.instruments.insert(channel.id, kind);
+                if let Some(asset) = &channel.sample_playback { ledger.sample_playback.insert(channel.id, asset.identity.clone()); }
                 (!known).then(|| {
                     let mut unit = InstrumentUnit::build(params, sample_rate, plan.tempo_bpm);
+                    if let Some(asset) = &channel.sample_playback { unit.set_playback_asset(asset.asset.clone()); }
                     unit.configure_voice(
                         crate::channel_voice::PreparedChannelEnvelopes::prepare(
                             channel.voice.envelopes,
@@ -2130,6 +2135,7 @@ mod tests {
 
     fn channel(id: u32, track: u32, source: ChannelSource) -> Channel {
         Channel {
+                sample_playback: None,
             id: ChannelId(id),
             name: String::new(),
             color: 0,

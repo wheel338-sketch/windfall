@@ -75,6 +75,7 @@ fn engine_with_loop(loop_mode: SamplerLoopMode) -> (Processor, Controller) {
     let (processor, controller) = Processor::new(48_000);
     let mut project = Project::new("MIDI");
     project.channels.push(Channel {
+                sample_playback: None,
         id: ChannelId(901),
         name: "Test".into(),
         color: 0,

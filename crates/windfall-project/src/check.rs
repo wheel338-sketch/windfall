@@ -415,6 +415,7 @@ fn check_channels(project: &Project) -> Result<(), String> {
 }
 
 fn check_channel(project: &Project, channel: &Channel) -> Result<(), String> {
+    if let Some(asset) = &channel.sample_playback { asset.check(project, channel)?; }
     if channel.voice.sanitized() != channel.voice {
         return Err(format!("channel {} has invalid voice settings", channel.id.0));
     }
