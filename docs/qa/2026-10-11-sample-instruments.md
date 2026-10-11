@@ -130,3 +130,28 @@ and temporary-file cleanup, preset kind-change history, and sampled octave pitch
 measured by independent zero crossings at four output rates. All nine rows remain partial
 until those gaps, held-voice bank replacement, portable bank loading, broader SF2
 interoperability and registered peripheral workflows are closed and verified.
+
+## Portable banks and pad sequencing
+
+Written, not executed: own `.wfbank` version-1 JSON manifests contain relative
+WAV references and validated zone mappings. Native loading bounds manifests,
+rejects traversal/duplicate/missing IDs, decodes sources on the worker, remaps
+bank IDs into project SampleIds and attaches the entire instrument in one guarded
+history step. Export writes Float32 source copies plus an atomic manifest; failed
+exports clean newly written files. The multisampler, drum bank and player editors
+can load/save these banks. The player keeps mappings read-only.
+
+The selected drum pad now has its own paged pattern step editor (up to the current
+pattern length); toggling a pad changes only notes for that key, preserving other
+pads and supporting ordinary note history. Added written mounted case:
+`sequences the selected pad without replacing another pad and restores the step with undo`.
+Added native case:
+`portable_bank_copies_own_pcm_loads_into_a_fresh_player_and_preserves_one_step_history`.
+Added format case:
+`manifest_rejects_wrong_version_traversal_duplicate_ids_and_missing_sources`.
+
+Portable loading is no longer a project-ID-only JSON workflow. Remaining bank
+limits still include active-voice replacement continuity, aggregate retained-plan
+memory admission, and broader multisampler modulation/effects. Razer lighting is
+still a contract/mock without a supplied SDK, a registered mixer effect or session
+relay. XInput is still a feature-gated adapter without a selectable project route.

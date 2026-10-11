@@ -510,3 +510,4 @@ impl Session {
 }
 
 mod sample_instruments;
+mod sample_bank_files;

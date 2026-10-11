@@ -50,6 +50,17 @@ describe("sample instrument purpose-built editors",()=>{
     expect(asset).toMatchObject({type:"zones",zones:[{keyLow:37,keyHigh:37},{keyLow:37,keyHigh:37}]})
     expect(screen.getByRole("spinbutton",{name:"Zone 1 choke group"})).toBeInTheDocument()
   })
+  it("sequences the selected pad without replacing another pad and restores the step with undo",async()=>{
+    const id=await open("padBank")
+    fireEvent.click(screen.getByRole("button",{name:"Pad 1 step 1"}));await act(()=>settle())
+    fireEvent.click(within(screen.getByRole("group",{name:"Sixteen drum pads"})).getByRole("button",{name:/Pad 2 ·/}))
+    fireEvent.click(screen.getByRole("button",{name:"Pad 2 step 1"}));await act(()=>settle())
+    const notes=()=>useProjectStore.getState().project.patterns.flatMap(pattern=>pattern.lanes.filter(lane=>lane.channel===id).flatMap(lane=>lane.notes))
+    expect(notes().map(note=>note.key)).toEqual([36,37])
+    fireEvent.click(screen.getByRole("button",{name:"Pad 2 step 1"}));await act(()=>settle())
+    expect(notes().map(note=>note.key)).toEqual([36])
+    await undo();await act(()=>settle());expect(notes().map(note=>note.key)).toEqual([36,37])
+  })
   it("keeps the player mapping read-only and reports malformed banks",async()=>{
     await open("samplePlayer")
     expect(screen.queryByRole("button",{name:"Add zone"})).not.toBeInTheDocument()

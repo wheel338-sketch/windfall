@@ -10,9 +10,10 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Textarea } from "@/components/ui/textarea"
 import type { InstrumentChannel } from "@/lib/channel-source"
 import { backend, errorMessage } from "@/lib/ipc"
-import { dispatch, useProjectStore } from "@/lib/store"
+import { dispatch, useProjectStore, useTransportStore } from "@/lib/store"
 import { receivePatch } from "@/lib/store/project"
 import { getProjectGeneration } from "@/lib/store/replaced"
+import { TICKS_PER_STEP } from "@/lib/units"
 
 import { GenericInstrumentEditor } from "../channel-rack/inspector/generic-instrument-editor"
 
@@ -41,6 +42,29 @@ function NumberEdit({ label, value, min = 0, max = 127, commit }: {
     }} />
 }
 
+function PadSteps({ channel, pad }: { channel: InstrumentChannel; pad: number }) {
+  const patternId = useTransportStore(state => state.pattern)
+  const pattern = useProjectStore(state => state.project.patterns.find(item => item.id === patternId))
+  const [page, setPage] = useState(0)
+  if (!pattern) return null
+  const start = Math.min(page * 16, Math.floor((pattern.lengthSteps - 1) / 16) * 16)
+  const notes = pattern.lanes.find(lane => lane.channel === channel.id)?.notes ?? []
+  return <FieldGroup>
+    <FieldDescription>Pad {pad - 35} in {pattern.name}: steps {start + 1}–{Math.min(start + 16, pattern.lengthSteps)}. Other pad notes stay in place.</FieldDescription>
+    <div role="group" aria-label={`Pad ${pad - 35} pattern steps`} className="grid grid-cols-8 gap-1">
+      {Array.from({length:Math.min(16,pattern.lengthSteps-start)},(_,index)=>{
+        const step=start+index
+        const hits=notes.filter(note=>note.key===pad && Math.floor(note.start/TICKS_PER_STEP)===step)
+        return <Button key={step} size="sm" variant={hits.length ? "default" : "outline"} aria-label={`Pad ${pad-35} step ${step+1}`} aria-pressed={hits.length>0}
+          onClick={()=>void dispatch(hits.length ? {type:"removeNotes",pattern:pattern.id,channel:channel.id,notes:hits.map(note=>note.id)} :
+            {type:"addNotes",pattern:pattern.id,channel:channel.id,notes:[{start:step*TICKS_PER_STEP,length:TICKS_PER_STEP,key:pad,velocity:1}]})}>{step+1}</Button>
+      })}
+    </div>
+    <div className="flex gap-1"><Button variant="outline" disabled={start===0} onClick={()=>setPage(Math.max(0,start/16-1))}>Previous pad steps</Button>
+      <Button variant="outline" disabled={start+16>=pattern.lengthSteps} onClick={()=>setPage(start/16+1)}>Next pad steps</Button></div>
+  </FieldGroup>
+}
+
 function ZonesEditor({ channel, pads }: { channel: InstrumentChannel; pads: boolean }) {
   const samples = useProjectStore((state) => state.project.samples)
   const zones = channel.sampleInstrument?.type === "zones" ? channel.sampleInstrument.zones : []
@@ -65,6 +89,7 @@ function ZonesEditor({ channel, pads }: { channel: InstrumentChannel; pads: bool
         </Button>
       })}
     </div> : <ZoneMap zones={zones} />}
+    {pads && <PadSteps channel={channel} pad={pad} />}
     <Field><FieldLabel>Source sample</FieldLabel>
       <Select value={source === null ? "" : String(source)} onValueChange={(value) => setSample(Number(value))}>
         <SelectTrigger aria-label="Source sample"><SelectValue /></SelectTrigger>
@@ -121,7 +146,36 @@ function ZonesEditor({ channel, pads }: { channel: InstrumentChannel; pads: bool
         <TableCell><Button variant="outline" onClick={()=>replace(zones.filter((_,i)=>i!==index))}>Remove zone {index+1}</Button></TableCell>
       </TableRow>)}</TableBody>
     </Table>
+    <PortableBank channel={channel} />
     {pads && <FieldDescription>Pad notes are keys 36â€“51. Add these keys in the piano roll to sequence all layers and chokes in a pattern.</FieldDescription>}
+  </FieldGroup>
+}
+
+function PortableBank({ channel }: { channel: InstrumentChannel }) {
+  const [path,setPath] = useState("")
+  const [busy,setBusy] = useState(false)
+  const [error,setError] = useState<string|null>(null)
+  const [saved,setSaved] = useState(false)
+  return <FieldGroup>
+    <Field><FieldLabel>Bank file (.wfbank)</FieldLabel><Input aria-label="Bank file" value={path} onChange={event=>{setPath(event.target.value);setSaved(false)}} />
+      <FieldDescription>Windfall bank files bring their own referenced audio. They can be moved with the adjacent source folder.</FieldDescription></Field>
+    <div className="flex gap-1">
+      <Button disabled={busy || !path || !backend.sampleInstrumentLoadBank} onClick={async()=>{
+        const generation=getProjectGeneration();setBusy(true)
+        try { const result=await backend.sampleInstrumentLoadBank!(channel.id,channel.sampleInstrument??null,path)
+          if(generation===getProjectGeneration()){receivePatch(result.patch);setError(null)} }
+        catch(error){if(generation===getProjectGeneration())setError(errorMessage(error))}finally{setBusy(false)}
+      }}>Load instrument bank</Button>
+      <Button variant="outline" disabled={busy || !path || channel.sampleInstrument?.type!=="zones" || !backend.sampleInstrumentSaveBank} onClick={async()=>{
+        const generation=getProjectGeneration();setBusy(true)
+        try { await backend.sampleInstrumentSaveBank!(channel.id,channel.sampleInstrument??null,path)
+          if(generation===getProjectGeneration()){setSaved(true);setError(null)} }
+        catch(error){if(generation===getProjectGeneration())setError(errorMessage(error))}finally{setBusy(false)}
+      }}>Save instrument bank</Button>
+    </div>
+    {saved && <FieldDescription role="status">Instrument bank saved.</FieldDescription>}
+    {!backend.sampleInstrumentLoadBank && <FieldDescription>Portable bank files require the desktop app.</FieldDescription>}
+    {error && <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}
   </FieldGroup>
 }
 
@@ -132,6 +186,7 @@ function PlayerEditor({ channel }: { channel: InstrumentChannel }) {
   const zones = channel.sampleInstrument?.type === "zones" ? channel.sampleInstrument.zones : []
   return <FieldGroup>
     <ZoneMap zones={zones} />
+    <PortableBank channel={channel} />
     <Field><FieldLabel htmlFor={id}>Ready-made bank references</FieldLabel>
       <Textarea id={id} value={json} onChange={event=>setJson(event.target.value)} />
       <FieldDescription>Load a zone-bank JSON document using sample IDs present in this project. This player does not edit its mapping.</FieldDescription>

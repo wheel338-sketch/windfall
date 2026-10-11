@@ -197,3 +197,80 @@ fn replacement_during_speech_render_refuses_commit_and_cleans_the_saved_source()
     let folder = rig.session.store().recordings_dir().join("Text voice");
     assert_eq!(std::fs::read_dir(folder).unwrap().count(), 0);
 }
+
+#[test]
+fn portable_bank_copies_own_pcm_loads_into_a_fresh_player_and_preserves_one_step_history() {
+    let rig = Rig::new();
+    let channel = ChannelId(
+        rig.session
+            .dispatch(
+                Command::AddChannel {
+                    name: None,
+                    sample: None,
+                    instrument: Some(InstrumentKind::MultiSampler),
+                    index: None,
+                    mixer_track: None,
+                },
+                None,
+            )
+            .unwrap()
+            .created[0],
+    );
+    let path = rig.file("source.wav");
+    let pcm = windfall_core::AudioBuffer::from_interleaved(48000, 1, vec![0.25; 4800]);
+    windfall_codec::write_wav(&path, &pcm, windfall_codec::WavSampleFormat::Float32).unwrap();
+    rig.session
+        .sample_instrument_import_zone(channel, None, path.clone(), None)
+        .unwrap();
+    let bank_path = rig.file("own.wfbank");
+    rig.session
+        .sample_instrument_save_bank(
+            channel,
+            rig.project()
+                .channel(channel)
+                .unwrap()
+                .sample_instrument
+                .clone(),
+            bank_path.clone(),
+        )
+        .unwrap();
+    std::fs::remove_file(path).unwrap(); // Loading must use the exported copy.
+    rig.session.project_new().unwrap();
+    let player = ChannelId(
+        rig.session
+            .dispatch(
+                Command::AddChannel {
+                    name: None,
+                    sample: None,
+                    instrument: Some(InstrumentKind::SamplePlayer),
+                    index: None,
+                    mixer_track: None,
+                },
+                None,
+            )
+            .unwrap()
+            .created[0],
+    );
+    let before = rig.project();
+    rig.session
+        .sample_instrument_load_bank(player, None, bank_path)
+        .unwrap();
+    let loaded = rig.project();
+    let Some(SampleInstrumentAsset::Zones { zones }) =
+        &loaded.channel(player).unwrap().sample_instrument
+    else {
+        panic!("player bank missing")
+    };
+    let audio = rig
+        .session
+        .state()
+        .pool
+        .get(windfall_project::SampleId(zones[0].sample))
+        .unwrap()
+        .clone();
+    assert_eq!(audio.samples(), pcm.samples());
+    rig.session.undo().unwrap();
+    assert_eq!(rig.project(), before);
+    rig.session.redo().unwrap();
+    assert_eq!(rig.project(), loaded);
+}
