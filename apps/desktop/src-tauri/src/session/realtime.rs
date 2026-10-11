@@ -67,10 +67,24 @@ impl Session {
         &self,
         retirement: &mut windfall_engine::ProjectRetirement,
     ) -> RealtimeFrame {
+        self.realtime_tick_at_with_retirement(retirement, Instant::now())
+    }
+
+    #[cfg(test)]
+    pub(super) fn realtime_tick_at(&self, now: Instant) -> RealtimeFrame {
+        let mut retirement = windfall_engine::ProjectRetirement::default();
+        self.realtime_tick_at_with_retirement(&mut retirement, now)
+    }
+
+    fn realtime_tick_at_with_retirement(
+        &self,
+        retirement: &mut windfall_engine::ProjectRetirement,
+        now: Instant,
+    ) -> RealtimeFrame {
         self.retire_project(retirement);
         let frame = self.controller().frame();
         lock(&self.inner.subscribers).retain_mut(|subscriber| (subscriber.send)(&frame));
-        self.analyzer_tick(Instant::now());
+        self.analyzer_tick(now);
         // Playback that ended by itself: the end of a song, or a device
         // that went away.
         let told = lock(&self.inner.transport).playing;

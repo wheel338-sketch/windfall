@@ -57,6 +57,8 @@ type Slot = {
   frame: AnalyzerFrame | null
   /** Counts what there is to paint: frames and clears. */
   serial: number
+  receivedAt: number
+  sequence: bigint
   handlers: Set<FrameHandlers>
   watchers: Set<() => void>
 }
@@ -75,6 +77,8 @@ function slotOf(name: string): Slot {
       status: null,
       frame: null,
       serial: 0,
+      receivedAt: 0,
+      sequence: 0n,
       handlers: new Set(),
       watchers: new Set(),
     }
@@ -118,6 +122,13 @@ function receive(slot: Slot, event: AnalyzerEvent) {
     // sends nothing more until it is.
     backend.analyzerAck(slot.name, event.sequence)
     if (event.request !== slot.request || slot.wanted === null) return
+    if (!/^[1-9]\d{0,19}$/.test(event.sequence) || BigInt(event.sequence) <= slot.sequence) return
+    const standing = slot.status
+    if (standing?.phase === "refused" || standing?.phase === "unavailable" || standing?.phase === "waitingForStream") return
+    // A live standing authorizes an exact native lease, including recovery.
+    // Late channel callbacks must not revive a deleted/replaced owner.
+    if (standing?.phase === "live" && standing.ticket &&
+      (["service", "subscription", "stream", "selection", "project"] as const).some((key) => standing.ticket?.[key] !== event.ticket[key])) return
     const before = slot.frame
     // Another selection than the frame before, or a break the service
     // reports: nothing shown so far carries on into this frame.
@@ -130,6 +141,8 @@ function receive(slot: Slot, event: AnalyzerEvent) {
       clear(slot)
     }
     slot.frame = event
+    slot.receivedAt = performance.now()
+    slot.sequence = BigInt(event.sequence)
     slot.serial += 1
     for (const handlers of [...slot.handlers]) handlers.onFrame?.(event)
     if (slot.status?.phase !== "live") {
@@ -138,6 +151,7 @@ function receive(slot: Slot, event: AnalyzerEvent) {
         phase: "live",
         reason: null,
         ticket: event.ticket,
+        sampleRate: event.clock.sampleRate,
       })
     }
     return
@@ -175,6 +189,7 @@ function start(slot: Slot) {
 function select(slot: Slot, wanted: AnalyzerSelection | null) {
   slot.wanted = wanted
   slot.request += 1
+  slot.sequence = 0n
   const request = slot.request
   clear(slot)
   if (wanted === null) {
@@ -298,6 +313,10 @@ export function useAnalyzerFrames(name: string, handlers: FrameHandlers) {
     let seen = -1
     let animation = requestAnimationFrame(function draw() {
       animation = requestAnimationFrame(draw)
+      if (slot.frame && performance.now() - slot.receivedAt > 500) {
+        clear(slot)
+        tell(slot, localStatus(slot, "stalled", "audioStalled"))
+      }
       if (slot.serial === seen) return
       seen = slot.serial
       paint(slot.frame)

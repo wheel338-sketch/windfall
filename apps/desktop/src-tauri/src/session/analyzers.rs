@@ -576,6 +576,15 @@ impl Session {
     /// stands; frames follow as events once real audio has been analyzed.
     /// A refusal leaves the slot with what it had selected before.
     pub fn analyzer_select(&self, window: &str, select: AnalyzerSelect) -> AnalyzerStatus {
+        self.analyzer_select_at(window, select, Instant::now())
+    }
+
+    pub(super) fn analyzer_select_at(
+        &self,
+        window: &str,
+        select: AnalyzerSelect,
+        now: Instant,
+    ) -> AnalyzerStatus {
         let refuse = |reason| AnalyzerStatus {
             slot: select
                 .slot
@@ -670,7 +679,6 @@ impl Session {
         if shared.is_none() {
             // The engine is asked at the next tick, off this thread. An old
             // capture in the seat is replaced by that selection.
-            let now = Instant::now();
             seats[index] = Some(Seat {
                 source: select.source,
                 effect: select.effect,

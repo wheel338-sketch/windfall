@@ -44,6 +44,7 @@ export function LargeMasterMeter() {
     <div
       role="group"
       aria-label="Master level"
+      data-slot="large-master-meter"
       className="flex flex-col items-center gap-4 rounded-lg bg-display p-6"
     >
       <div className="grid w-full grid-cols-2 gap-4 text-center font-readout tabular-nums">
@@ -53,7 +54,7 @@ export function LargeMasterMeter() {
           className="flex flex-col gap-1"
         >
           <span className="text-xs text-display-dim">Left</span>
-          <span ref={left} className="text-xl text-display-foreground">
+          <span ref={left} data-side="left" className="text-xl text-display-foreground">
             −∞ dBFS
           </span>
         </div>
@@ -63,7 +64,7 @@ export function LargeMasterMeter() {
           className="flex flex-col gap-1"
         >
           <span className="text-xs text-display-dim">Right</span>
-          <span ref={right} className="text-xl text-display-foreground">
+          <span ref={right} data-side="right" className="text-xl text-display-foreground">
             −∞ dBFS
           </span>
         </div>

@@ -114,13 +114,28 @@ export function StripWaveform({ id, vertical, wide, active }: { id: TrackId; ver
     const observer = new ResizeObserver(() => { resized = true; draw() })
     observer.observe(element)
     const unregister = active ? registerTrack(id) : () => {}
-    const stop = active ? subscribeRealtime((frame) => { latest = frame.waveforms?.find((item) => item.track === id); draw() }) : () => {}
+    const clear = () => {
+      latest = undefined; stamp = ""
+      element.dataset.serial = ""; element.dataset.epoch = ""
+      element.dataset.leftPeak = "0"; element.dataset.rightPeak = "0"
+      draw()
+    }
+    const offReplace = onProjectReplaced(clear)
+    const stop = active ? subscribeRealtime((frame) => {
+      latest = frame.waveforms?.find((item) => item.track === id)
+      element.dataset.serial = latest ? String(latest.serial) : ""
+      element.dataset.epoch = latest ? String(latest.epoch) : ""
+      for (let side = 0; side < 2; side += 1) {
+        element.dataset[side === 0 ? "leftPeak" : "rightPeak"] = String(Math.max(0, ...(latest?.points ?? []).map((point) => Math.max(Math.abs(point[side * 2]), Math.abs(point[side * 2 + 1])))))
+      }
+      draw()
+    }) : () => {}
     draw()
-    return () => { unregister(); stop(); observer.disconnect() }
+    return () => { unregister(); stop(); offReplace(); observer.disconnect() }
   }, [id, vertical, active, theme])
   return <button ref={button} type="button" aria-label="Stereo waveform history. Click to clear the held clip indication"
     title={backend.kind === "mock" ? "Audio waveforms are available in the desktop app" : "Stereo waveform · about 320 ms · click to clear clip indication"}
     onClick={() => resetPeak(id)} className={`${vertical ? `h-full ${wide ? "w-4" : "w-3"}` : "h-1.5 w-full"} overflow-hidden rounded-[2px] bg-display outline-none data-clipped:ring-1 data-clipped:ring-destructive focus-visible:ring-2 focus-visible:ring-ring`}>
-    <canvas ref={canvas} aria-hidden="true" className="block h-full w-full" />
+    <canvas ref={canvas} data-slot="mixer-waveform" data-track={id} aria-hidden="true" className="block h-full w-full" />
   </button>
 }

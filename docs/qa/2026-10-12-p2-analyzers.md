@@ -24,3 +24,18 @@ cargo test -p windfall-desktop --lib native_window_join_capture_and_checked_fixt
 ```
 
 Do not promote a failed/incomplete capture. Commit reviewed native fixture bytes. Subsequent runs compare them and refuse drift. Other joins/window script and exact frontend commands will be recorded in the next commit.
+
+## Mounted replay (written, not executed)
+
+`apps/desktop/src/features/analyzers/native-join.test.tsx` test `replays real native session channel bytes through the mounted displays and every source lifecycle` parses raw captured strings, uses the real feed subscription callback, mounts real canvas painters against a recording context, and mounts the stage clock/meter, both waveform meters, limiter history, EQ spectrum and the extracted actual tuner readout. It asserts independent tone bins, stereo sides/vector geometry, native levels and waveform updates, clock text/wrap, calibrated A4/cents and changed tuner source, limiter input/reduction/release, PDC-aligned frame labels, rate, invalid levels and lifecycle clears. A missing capture fails explicitly. The optional target capture path and checked-in path exercise the same consumers.
+
+The native service uses the same select/tick bodies with an explicit clock for deterministic capture; ordinary shell calls still supply `Instant::now`. The frontend rejects duplicate/out-of-order sequences and stale live tickets/terminal source callbacks. A 500 ms local freshness check clears evidence when the UI resumes after a freeze. Mixer waveform canvases clear immediately on project replacement.
+
+```bash
+WINDFALL_ANALYZER_CAPTURE_DIR=target/analyzer-join pnpm --dir apps/desktop test src/features/analyzers/native-join.test.tsx --maxWorkers=1
+pnpm --dir apps/desktop test src/features/analyzers src/features/effects/analyzer-editors.test.tsx src/features/effects/tuner src/features/mixer/waveform-meter.qa.test.tsx --maxWorkers=4
+pnpm --dir apps/desktop typecheck
+pnpm --dir apps/desktop lint
+```
+
+After native fixture promotion, the first command also runs without the environment variable. Least-sure areas: native pool replacement invalid-PCM propagation and exact repeat-capture determinism; limiter release envelope under Stop; effect movement ownership; mocked canvas overload typing and animation scheduling. These are strict unexecuted assertions to repair against actual behavior, not accepted evidence.

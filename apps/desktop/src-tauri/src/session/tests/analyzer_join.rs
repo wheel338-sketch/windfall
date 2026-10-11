@@ -3,8 +3,8 @@
 use std::fs;
 use std::path::{Component, Path, PathBuf};
 
-use serde_json::{json, Value};
-use windfall_codec::{write_wav, WavSampleFormat};
+use serde_json::{Value, json};
+use windfall_codec::{WavSampleFormat, write_wav};
 use windfall_core::AudioBuffer;
 use windfall_ipc::{PlayMode, TransportPatch};
 
@@ -43,7 +43,7 @@ impl Capture {
                 bench.ack(SLOT, &frame);
             }
         }
-        bench.rig.session.realtime_tick();
+        bench.rig.session.realtime_tick_at(bench.now);
         (texts, std::mem::take(&mut *lock(&self.realtime)))
     }
 
@@ -81,7 +81,10 @@ impl Capture {
                 envelope: true,
             },
         };
-        let answer = bench.rig.session.analyzer_select(WINDOW, select.clone());
+        let answer = bench
+            .rig
+            .session
+            .analyzer_select_at(WINDOW, select.clone(), bench.now);
         assert_ne!(answer.phase, AnalyzerPhase::Refused, "{answer:?}");
         self.step(bench, name, request, 12);
         let step = self.steps.last_mut().unwrap();
@@ -252,11 +255,13 @@ fn capture() -> Value {
     assert!(lock(&joined.wire.texts).is_empty());
     bench.ack(SLOT, &held);
     joined.step(&mut bench, "ui-recovery", 7, 12);
-    assert!(joined.steps.last().unwrap()["analyzer"]
-        .as_array()
-        .unwrap()
-        .iter()
-        .any(|text| text.as_str().unwrap().contains("viewStalled")));
+    assert!(
+        joined.steps.last().unwrap()["analyzer"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|text| text.as_str().unwrap().contains("viewStalled"))
+    );
     for _ in 0..40 {
         bench.tick(false);
     }
@@ -323,6 +328,15 @@ fn comparable(mut value: Value) -> Value {
     }
     if let Some(steps) = value["steps"].as_array_mut() {
         for step in steps {
+            if let Some(ticket) = step
+                .get_mut("answer")
+                .and_then(|answer| answer.get_mut("ticket"))
+                .and_then(Value::as_object_mut)
+            {
+                for key in ["service", "subscription", "stream", "selection"] {
+                    ticket.remove(key);
+                }
+            }
             for family in ["analyzer", "realtime"] {
                 for text in step[family].as_array_mut().unwrap() {
                     let mut payload: Value = serde_json::from_str(text.as_str().unwrap()).unwrap();
@@ -354,9 +368,11 @@ fn native_window_join_capture_and_checked_fixture_agree() {
             relative.components().next(),
             Some(Component::Normal(std::ffi::OsStr::new("target")))
         );
-        assert!(relative
-            .components()
-            .all(|part| matches!(part, Component::Normal(_))));
+        assert!(
+            relative
+                .components()
+                .all(|part| matches!(part, Component::Normal(_)))
+        );
         let output = root().join(relative);
         fs::create_dir_all(&output).unwrap();
         fs::write(
