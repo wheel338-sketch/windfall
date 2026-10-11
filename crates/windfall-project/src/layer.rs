@@ -180,6 +180,7 @@ mod tests {
             solo: false,
             mixer_track: TrackId::MASTER,
             source: ChannelSource::Sampler(SamplerSettings::default()),
+            expression_map: Default::default(),
         }
     }
 

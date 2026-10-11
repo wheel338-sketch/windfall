@@ -13,7 +13,7 @@ use windfall_project::{
     Project, TICKS_PER_STEP, curve_value,
 };
 
-use crate::expression::{self, Curves, ExportReport, ExpressionMode, ExpressionOptions, Source};
+use crate::expression::{self, Curves, ExportReport, ExpressionMode, ExpressionOptions, Source as NoteSource};
 use crate::mix::{pan_to_midi, velocity_to_midi, volume_to_midi};
 use crate::song::{
     CC_PAN, CC_VOLUME, ControlCurve, ControlKind, ControlPoint, DRUM_CHANNEL,
@@ -479,7 +479,7 @@ fn song(
     options: &ExportOptions,
 ) -> Result<(MidiSong, ExportReport), ExportError> {
     let mut tracks: Vec<MidiTrack> = Vec::new();
-    let mut sources: Vec<Source<'_>> = Vec::new();
+    let mut sources: Vec<NoteSource<'_>> = Vec::new();
     let mpe = options
         .expression
         .is_some_and(|expression| expression.mode == ExpressionMode::Mpe);
@@ -497,7 +497,7 @@ fn song(
             .and_then(|expressive| expressive.remove(&channel.id));
         for pending in pending.into_iter().flatten() {
             let played = pending.played;
-            sources.push(Source {
+            sources.push(NoteSource {
                 track: tracks.len(),
                 note: pending.note,
                 start: pending.start,

@@ -82,6 +82,7 @@ impl Rig {
             group: String::new(),
             voice: Default::default(),
             timing: windfall_project::ChannelTiming::default(),
+            expression_map: Default::default(),
             mixer_track: track,
             source: ChannelSource::Sampler(SamplerSettings {
                 sample: Some(sample),

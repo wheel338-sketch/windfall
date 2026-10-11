@@ -346,12 +346,6 @@ pub(crate) struct Curves<'a> {
     pub y: Option<&'a NoteExpressionCurve>,
 }
 
-impl Curves<'_> {
-    pub fn any(&self) -> bool {
-        self.pan.is_some() || self.fine.is_some() || self.x.is_some() || self.y.is_some()
-    }
-}
-
 /// One note of an export, or one slide, as the expression pass sees it.
 #[derive(Clone, Copy)]
 pub(crate) struct Source<'a> {

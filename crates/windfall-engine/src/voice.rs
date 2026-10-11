@@ -609,9 +609,39 @@ impl Voice {
         plan: &Plan,
         sample_rate: f64,
     ) -> bool {
-        let Some(sample) = &self.sample else {
+        // Taken out for the call, so the frame loop can change the voice
+        // while it reads the sample. Moving it allocates nothing.
+        let Some(sample) = self.sample.take() else {
             return true;
         };
+        let ended = self.render_frames(
+            &sample,
+            out,
+            mix,
+            start,
+            release_at,
+            fade_frames,
+            clock,
+            plan,
+            sample_rate,
+        );
+        self.sample = Some(sample);
+        ended
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn render_frames(
+        &mut self,
+        sample: &AudioBuffer,
+        out: &mut [Frame],
+        mix: Mix,
+        start: u64,
+        release_at: u64,
+        fade_frames: u32,
+        clock: Clock,
+        plan: &Plan,
+        sample_rate: f64,
+    ) -> bool {
         // A strip that is still gliding is read again on every frame.
         let (gliding, mut left, mut right) = match mix {
             Mix::Sides(left, right) => (None, left, right),
