@@ -42,7 +42,7 @@ function slotName(slot: SlotTarget): string {
 function sourceName(source: ControllerLink["source"]): string {
   if (source.type !== "midi") return "Internal controller"
   const control = source.control.type === "cc" ? `CC ${source.control.number}` : source.control.type === "note" ? `Key ${source.control.key}` : source.control.type === "pitchBend" ? "Pitch wheel" : "Pressure"
-  return `${source.device ?? "Any MIDI device"} · ${source.channel ? `Channel ${source.channel}` : "All channels"} · ${control}`
+  return `${source.device ?? "Any MIDI device"} Â· ${source.channel ? `Channel ${source.channel}` : "All channels"} Â· ${control}`
 }
 
 type Draft = { link: ControllerLink; links: ControllerLink[]; index: number; global: boolean; revision: number; generation: number }

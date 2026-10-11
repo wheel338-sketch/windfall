@@ -81,7 +81,7 @@ export function controllerEntries(target: AutomationTarget): ContextItem[] {
     },
   ]
   if (linked.length > 0) {
-    items.push({ title: "Edit controller links…", run: () => useUiStore.getState().openDialog("settings") })
+    items.push({ title: "Edit controller linksâ€¦", run: () => useUiStore.getState().openDialog("settings") })
     items.push({
       title: "Remove controller link",
       destructive: true,

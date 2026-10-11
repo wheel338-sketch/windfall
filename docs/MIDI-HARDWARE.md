@@ -209,3 +209,15 @@ The opt-in real-port check is
 `cargo test -p windfall-engine real_ports -- --ignored --nocapture`. It
 lists the machine's ports and sends one second of clock to the first
 output. It has not been run.
+
+## Second-pass implementation, 2026-10-12 (written, not executed)
+
+These changes supersede the software limitations in the 2026-10-10 additions, subject to integrator verification. Tests and gates are indexed in `docs/qa/2026-10-12-p2-midi.md`.
+
+Transport MIDI arm uses configured count-in and excludes pre-roll. Wheel maps to fine pitch (+/-200 cents), CC74 to modulation X, CC1/channel pressure to modulation Y (last event wins). Capture writes existing AddNotesWithCurves data: initial NoteExpression and source-specific held Pattern.note_curves, normalized against original sounding duration. Snapping shifts the onset without stretching expression. The piano worker owns display/editing of that model.
+
+MIDI-out selects hardware slot 0 (main) or 1-7 (additional), or a hosted instrument destination. Disabled slots retain their indices. Removing a sounding source drains its releases during adoption. Removing a hosted target disconnects its sources in the same undo edit. Hosted routes render offline; hardware routes never send offline. Native admission retains channel-specific notes/control state across owner exchanges using bridge protocol v7. VST3 CC/program behavior depends on IMidiMapping; unmapped controls are refused.
+
+The output worker uses DAC frame timestamps minus each output's reported MIDI latency. Audio buffering is already in that timestamp. Clock uses the DAC-aligned published playhead. Unknown driver latency defaults to zero; injected clocks/ports measure compensation and scheduling jitter. This does not establish physical calibration.
+
+Settings expose independent additional inputs/outputs, each input profile, recording offset and clock controls. Accepted browser audition/native played-note paths have bounded restart-persisted score logs; dump retains the source through undo. Declarative surface feedback is described in CONTROLLER-LINKS.md. No second-pass build, test or physical-device check ran here.
