@@ -583,6 +583,7 @@ fn notes_recorded_in_song_mode_get_a_clip_of_their_pattern_when_none_is_playing(
         length: 240.0,
         key,
         velocity: 0.9,
+        expression: Default::default(),
     };
     let taken = [
         note(f64::from(bar) * 2.0 + 480.0, 61),
@@ -639,4 +640,125 @@ fn notes_recorded_in_song_mode_get_a_clip_of_their_pattern_when_none_is_playing(
         ..note(0.0, 60)
     }];
     assert!(recorded_notes_command(doc.project(), &stray, 0).is_none());
+}
+
+#[test]
+fn wheel_pressure_and_cc_capture_attach_curves_to_native_note_ids_and_survive_history_and_file() {
+    use crate::session::capture_expression::{ExpressionCapture, movement, set};
+    use crate::session::controller_capture::{NoteTake, Position};
+    use windfall_project::{NoteCurveParameter, NoteExpression};
+    let rig = Rig::new();
+    let channel = rig.channel(0);
+    let pattern = rig.pattern();
+    let position = |tick| Position {
+        tick,
+        mode: PlayMode::Pattern,
+        pattern,
+        pattern_ticks: Some(3840),
+    };
+    let mut take = NoteTake::default();
+    let mut initial = NoteExpression::default();
+    let (_, parameter, value) = movement(MidiMessage::PitchBend {
+        channel: 2,
+        value: 12288,
+    })
+    .unwrap();
+    set(&mut initial, parameter, value);
+    take.note_on_expressed(
+        channel,
+        110,
+        0.8,
+        position(100.0),
+        ExpressionCapture {
+            initial,
+            source: Some((1, 2)),
+            samples: Vec::new(),
+        },
+    );
+    // Other input/channel movements never change the note's contour.
+    take.expression((0, 2), NoteCurveParameter::ModulationX, 120.0, 0.9);
+    for (tick, message) in [
+        (
+            125.0,
+            MidiMessage::Controller {
+                channel: 2,
+                number: 74,
+                value: 127,
+            },
+        ),
+        (
+            150.0,
+            MidiMessage::Controller {
+                channel: 2,
+                number: 1,
+                value: 0,
+            },
+        ),
+        (
+            175.0,
+            MidiMessage::ChannelPressure {
+                channel: 2,
+                value: 127,
+            },
+        ),
+        (
+            190.0,
+            MidiMessage::PitchBend {
+                channel: 2,
+                value: 0,
+            },
+        ),
+    ] {
+        let (_, parameter, value) = movement(message).unwrap();
+        take.expression((1, 2), parameter, tick, value);
+    }
+    take.note_off(channel, 110, position(200.0));
+    let notes = take.take();
+    let original = rig.project();
+    let mut doc = Document::new(original.clone());
+    doc.dispatch(
+        recorded_notes_command(doc.project(), &notes, 240).unwrap(),
+        None,
+    )
+    .unwrap();
+    let recorded = doc.project().pattern(pattern).unwrap();
+    let note = recorded
+        .lanes
+        .iter()
+        .flat_map(|lane| &lane.notes)
+        .find(|note| note.key == 110)
+        .unwrap();
+    assert_eq!(note.start, 0); // Quantization translates the note and its relative contours together.
+    assert!((note.expression.fine_pitch_cents - 100.0122).abs() < 0.001);
+    let curves: Vec<_> = recorded
+        .note_curves
+        .iter()
+        .filter(|curve| curve.note == note.id)
+        .collect();
+    assert_eq!(curves.len(), 3);
+    let x = curves
+        .iter()
+        .find(|curve| curve.parameter == NoteCurveParameter::ModulationX)
+        .unwrap();
+    assert_eq!((x.points[1].position, x.points[1].value), (0.25, 1.0));
+    let y = curves
+        .iter()
+        .find(|curve| curve.parameter == NoteCurveParameter::ModulationY)
+        .unwrap();
+    assert_eq!(
+        y.points
+            .iter()
+            .map(|p| (p.position, p.value))
+            .collect::<Vec<_>>(),
+        [(0.0, 0.5), (0.5, 0.0), (0.75, 1.0)]
+    );
+    doc.project().check().unwrap();
+    let saved = serde_json::to_string(doc.project()).unwrap();
+    let reopened: windfall_project::Project = serde_json::from_str(&saved).unwrap();
+    reopened.check().unwrap();
+    assert_eq!(&reopened, doc.project());
+    doc.undo().unwrap();
+    assert_eq!(doc.project().pattern(pattern), original.pattern(pattern));
+    doc.redo().unwrap();
+    assert_eq!(doc.project().pattern(pattern), reopened.pattern(pattern));
 }

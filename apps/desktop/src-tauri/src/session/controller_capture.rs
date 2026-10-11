@@ -6,6 +6,7 @@
 use std::collections::VecDeque;
 use std::time::{Duration, Instant};
 
+use super::capture_expression::ExpressionCapture;
 use windfall_engine::Playhead;
 use windfall_ipc::{PlayMode, ScoreLogState};
 use windfall_project::{
@@ -127,7 +128,7 @@ impl TransportClock {
 }
 
 /// One finished note of a recording pass.
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub(super) struct TakenNote {
     pub channel: ChannelId,
     pub pattern: PatternId,
@@ -136,14 +137,16 @@ pub(super) struct TakenNote {
     pub length: f64,
     pub key: u8,
     pub velocity: f32,
+    pub expression: ExpressionCapture,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 struct OpenNote {
     channel: ChannelId,
     key: u8,
     velocity: f32,
     at: Position,
+    expression: ExpressionCapture,
 }
 
 /// The notes played during one pass of note recording.
@@ -169,7 +172,19 @@ impl NoteTake {
     }
 
     /// A key going down at `at`. A key already down is ended there first.
+    #[cfg(test)]
     pub fn note_on(&mut self, channel: ChannelId, key: u8, velocity: f32, at: Position) {
+        self.note_on_expressed(channel, key, velocity, at, ExpressionCapture::default());
+    }
+
+    pub fn note_on_expressed(
+        &mut self,
+        channel: ChannelId,
+        key: u8,
+        velocity: f32,
+        at: Position,
+        expression: ExpressionCapture,
+    ) {
         self.note_off(channel, key, at);
         if self.open.len() + self.done.len() >= MAX_TAKE_NOTES {
             self.dropped = self.dropped.saturating_add(1);
@@ -180,7 +195,33 @@ impl NoteTake {
             key,
             velocity: velocity.clamp(0.0, 1.0),
             at,
+            expression,
         });
+    }
+
+    pub fn expression(
+        &mut self,
+        source: (u8, u8),
+        parameter: windfall_project::NoteCurveParameter,
+        tick: f64,
+        value: f32,
+    ) {
+        for note in &mut self.open {
+            if note.expression.source != Some(source) {
+                continue;
+            }
+            // Three curves, at most 256 points each; refuse rather than grow without limit.
+            if note.expression.samples.len() >= 3 * (windfall_project::MAX_NOTE_CURVE_POINTS - 1) {
+                self.dropped = self.dropped.saturating_add(1);
+                continue;
+            }
+            let tick = if tick < note.at.tick && note.at.mode == PlayMode::Pattern {
+                f64::from(note.at.pattern_ticks.unwrap_or(0)).max(note.at.tick)
+            } else {
+                tick
+            };
+            note.expression.samples.push((parameter, tick, value));
+        }
     }
 
     /// A key coming up at `at`.
@@ -219,6 +260,7 @@ impl NoteTake {
             length: length.max(1.0),
             key: note.key,
             velocity: note.velocity,
+            expression: note.expression,
         });
     }
 
@@ -263,7 +305,7 @@ pub(super) fn note_init(
         key: note.key.min(127),
         velocity: Some(note.velocity.clamp(0.0, 1.0)),
         pan: None,
-        expression: None,
+        expression: Some(note.expression.initial),
     })
 }
 
@@ -413,6 +455,7 @@ impl ScoreLog {
                 length: note.off.duration_since(note.on).as_secs_f64() * rate,
                 key: note.key,
                 velocity: note.velocity,
+                expression: ExpressionCapture::default(),
             };
             let Some(init) = note_init(&taken, 0.0, quantize, None) else {
                 dump.skipped += 1;
@@ -779,6 +822,7 @@ mod tests {
             length: 99.6,
             key: 60,
             velocity: 0.7,
+            expression: ExpressionCapture::default(),
         };
         let plain = note_init(&note, 0.0, 0, None).unwrap();
         assert_eq!((plain.start, plain.length, plain.key), (250, 100, 60));
@@ -792,18 +836,18 @@ mod tests {
         // A late note snapped onto the end of the pattern is its first step.
         let late = TakenNote {
             start: 3_800.0,
-            ..note
+            ..note.clone()
         };
         assert_eq!(note_init(&late, 0.0, 240, Some(3_840)).unwrap().start, 0);
         assert_eq!(note_init(&late, 0.0, 240, None).unwrap().start, 3_840);
         let far = TakenNote {
             start: f64::from(MAX_PATTERN_TICKS),
-            ..note
+            ..note.clone()
         };
         assert_eq!(note_init(&far, 0.0, 0, None), None);
         let short = TakenNote {
             length: 0.2,
-            ..note
+            ..note.clone()
         };
         assert_eq!(note_init(&short, 0.0, 0, None).unwrap().length, 1);
     }

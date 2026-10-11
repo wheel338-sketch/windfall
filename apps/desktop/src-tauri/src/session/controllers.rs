@@ -125,6 +125,9 @@ pub(super) struct Hub {
     log: ScoreLog,
     clock_in: ClockIn,
     clock_events: VecDeque<ClockInEvent>,
+    expression: HashMap<(u8, u8), windfall_project::NoteExpression>,
+    note_sources: HashMap<u8, (u8, u8)>,
+    input_filter: Option<u8>,
     error: Option<String>,
 }
 
@@ -160,6 +163,9 @@ impl Hub {
             log: ScoreLog::default(),
             clock_in: ClockIn::default(),
             clock_events: VecDeque::new(),
+            expression: HashMap::new(),
+            note_sources: HashMap::new(),
+            input_filter: None,
             error: None,
         }
     }
@@ -187,6 +193,9 @@ impl Hub {
             }
             self.device_names.push(name);
         }
+        self.expression.clear();
+        self.note_sources.clear();
+        self.input_filter = settings.input_channel;
         self.follow_clock = settings.follow_clock;
         self.stamp = None;
     }
@@ -201,6 +210,8 @@ impl Hub {
             self.states.clear();
             self.waiting.clear();
             self.last_tweaked = None;
+            self.expression.clear();
+            self.note_sources.clear();
             self.notes = NoteTake::default();
             self.automation = AutomationTake::default();
             self.log.clear();
@@ -397,6 +408,24 @@ impl Session {
     /// message away from note audition.
     pub(super) fn controller_message(&self, input: InputMessage) -> bool {
         let mut hub = lock(&self.inner.controllers);
+        if let Some((channel, parameter, value)) =
+            super::capture_expression::movement(input.message)
+            && hub.input_filter.is_none_or(|filter| filter == channel + 1)
+        {
+            let source = (input.device, channel);
+            super::capture_expression::set(
+                hub.expression.entry(source).or_default(),
+                parameter,
+                value,
+            );
+            let offset = f64::from(hub.settings.record_offset_ms) / 1000.0;
+            if let Some(place) = hub.clock.position_at(input.at, offset) {
+                hub.notes.expression(source, parameter, place.tick, value);
+            }
+        }
+        if let MidiMessage::NoteOn { channel, key, .. } = input.message {
+            hub.note_sources.insert(key, (input.device, channel));
+        }
         let (channel, control, value, learnable) = match input.message {
             MidiMessage::Clock | MidiMessage::Start | MidiMessage::Continue | MidiMessage::Stop => {
                 if let Some(event) = hub.clock_in.message(input.message, input.at)
@@ -488,7 +517,21 @@ impl Session {
                 hub.log
                     .note_on(channel, key, velocity, at, position.map(|place| place.tick));
                 if let Some(place) = position.filter(|_| hub.note_armed) {
-                    hub.notes.note_on(channel, key, velocity, place);
+                    let source = hub.note_sources.get(&key).copied();
+                    let initial = source
+                        .and_then(|source| hub.expression.get(&source).copied())
+                        .unwrap_or_default();
+                    hub.notes.note_on_expressed(
+                        channel,
+                        key,
+                        velocity,
+                        place,
+                        super::capture_expression::ExpressionCapture {
+                            initial,
+                            source,
+                            samples: Vec::new(),
+                        },
+                    );
                 }
             }
             None => {
@@ -1226,14 +1269,28 @@ pub(super) fn recorded_notes_command(
             .map(|pattern| pattern.length_steps.max(1).saturating_mul(TICKS_PER_STEP))
     };
     // Notes per pattern and channel, in the order they are first met.
-    let mut lanes: Vec<(PatternId, ChannelId, Vec<NoteInit>)> = Vec::new();
-    let mut add =
-        |pattern: PatternId, channel: ChannelId, note: NoteInit| match lanes.iter_mut().find(
-            |(lane_pattern, lane_channel, _)| *lane_pattern == pattern && *lane_channel == channel,
-        ) {
-            Some((_, _, lane)) => lane.push(note),
-            None => lanes.push((pattern, channel, vec![note])),
-        };
+    let mut lanes: Vec<(
+        PatternId,
+        ChannelId,
+        Vec<NoteInit>,
+        Vec<windfall_project::NoteCurveInsert>,
+    )> = Vec::new();
+    let mut add = |pattern: PatternId, channel: ChannelId, init: NoteInit, taken: &TakenNote| {
+        let index = lanes
+            .iter()
+            .position(|(p, c, _, _)| *p == pattern && *c == channel)
+            .unwrap_or_else(|| {
+                lanes.push((pattern, channel, Vec::new(), Vec::new()));
+                lanes.len() - 1
+            });
+        let (_, _, notes, curves) = &mut lanes[index];
+        curves.extend(
+            taken
+                .expression
+                .curves(taken.start, taken.length, notes.len() as u32),
+        );
+        notes.push(init);
+    };
     // Song-mode notes with no clip of their pattern under them, by pattern.
     let mut homeless: Vec<(PatternId, Vec<&TakenNote>)> = Vec::new();
     for note in notes {
@@ -1245,7 +1302,7 @@ pub(super) fn recorded_notes_command(
         }
         if note.mode == PlayMode::Pattern {
             if let Some(init) = note_init(note, 0.0, quantize, Some(length)) {
-                add(note.pattern, note.channel, init);
+                add(note.pattern, note.channel, init, note);
             }
             continue;
         }
@@ -1265,10 +1322,10 @@ pub(super) fn recorded_notes_command(
                     .rem_euclid(f64::from(length));
                 let placed = TakenNote {
                     start: local,
-                    ..*note
+                    ..note.clone()
                 };
                 if let Some(init) = note_init(&placed, 0.0, quantize, Some(length)) {
-                    add(note.pattern, note.channel, init);
+                    add(note.pattern, note.channel, init, note);
                 }
             }
             None => match homeless
@@ -1322,23 +1379,24 @@ pub(super) fn recorded_notes_command(
             let local = note.start - start;
             let placed = TakenNote {
                 start: looped.map_or(local, |length| local.rem_euclid(f64::from(length))),
-                ..**note
+                ..(*note).clone()
             };
             if let Some(init) = note_init(&placed, 0.0, quantize, looped) {
-                add(*pattern, note.channel, init);
+                add(*pattern, note.channel, init, note);
             }
         }
     }
-    for (pattern, channel, notes) in lanes {
-        commands.push(Command::AddNotes {
+    for (pattern, channel, notes, curves) in lanes {
+        commands.push(Command::AddNotesWithCurves {
             pattern,
             channel,
             notes,
+            curves,
         });
     }
     if !commands
         .iter()
-        .any(|command| matches!(command, Command::AddNotes { .. }))
+        .any(|command| matches!(command, Command::AddNotesWithCurves { .. }))
     {
         return None;
     }

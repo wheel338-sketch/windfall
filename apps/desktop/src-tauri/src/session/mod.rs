@@ -74,6 +74,7 @@ mod autosave;
 mod clip_processing;
 mod consolidate;
 mod controller_capture;
+mod capture_expression;
 mod controllers;
 mod edit;
 mod export;
