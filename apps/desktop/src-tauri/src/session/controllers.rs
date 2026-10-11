@@ -20,7 +20,7 @@
 
 use std::collections::{HashMap, VecDeque};
 use std::io;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::thread::{self, JoinHandle};
 use std::time::{Duration, Instant};
 
@@ -126,6 +126,10 @@ pub(super) struct Hub {
     automation: AutomationTake,
     recording_gesture: Option<u64>,
     log: ScoreLog,
+    log_file: PathBuf,
+    log_identity: String,
+    log_dirty: bool,
+    saved_log: Option<(String, ScoreLog)>,
     clock_in: ClockIn,
     clock_events: VecDeque<ClockInEvent>,
     expression: HashMap<(u8, u8), windfall_project::NoteExpression>,
@@ -167,6 +171,18 @@ impl Hub {
             automation: AutomationTake::default(),
             recording_gesture: None,
             log: ScoreLog::default(),
+            log_file: profiles_dir
+                .parent()
+                .unwrap_or(profiles_dir)
+                .join("score-log.json"),
+            log_identity: String::new(),
+            log_dirty: false,
+            saved_log: ScoreLog::load(
+                &profiles_dir
+                    .parent()
+                    .unwrap_or(profiles_dir)
+                    .join("score-log.json"),
+            ),
             clock_in: ClockIn::default(),
             clock_events: VecDeque::new(),
             expression: HashMap::new(),
@@ -225,11 +241,30 @@ impl Hub {
             self.automation = AutomationTake::default();
             self.recording_gesture = None;
             self.log.clear();
+            self.log_dirty = true;
             self.bank = 0;
             self.last_feedback.clear();
             self.stamp = None;
         }
         if self.stamp != Some((generation, revision)) {
+            let identity = serde_json::to_string(&(
+                project.settings.name.as_str(),
+                project
+                    .channels
+                    .iter()
+                    .map(|channel| (channel.id, channel.name.as_str()))
+                    .collect::<Vec<_>>(),
+            ))
+            .unwrap_or_default();
+            if self
+                .saved_log
+                .as_ref()
+                .is_some_and(|(saved, _)| *saved == identity)
+            {
+                self.log = self.saved_log.take().unwrap().1;
+                self.log_dirty = false;
+            }
+            self.log_identity = identity;
             self.stamp = Some((generation, revision));
             self.sources.clear();
             let links = project
@@ -520,7 +555,19 @@ impl Session {
         velocity: Option<f32>,
         at: Instant,
     ) {
+        self.controller_played_from(channel, key, velocity, at, None);
+    }
+
+    fn controller_played_from(
+        &self,
+        channel: ChannelId,
+        key: u8,
+        velocity: Option<f32>,
+        at: Instant,
+        source: Option<(u8, u8)>,
+    ) {
         let mut hub = lock(&self.inner.controllers);
+        hub.saved_log = None;
         let offset = f64::from(hub.settings.record_offset_ms) / 1000.0;
         let position = hub.clock.position_at(at, offset);
         match velocity {
@@ -528,7 +575,6 @@ impl Session {
                 hub.log
                     .note_on(channel, key, velocity, at, position.map(|place| place.tick));
                 if let Some(place) = position.filter(|_| hub.note_armed) {
-                    let source = hub.note_sources.get(&key).copied();
                     let initial = source
                         .and_then(|source| hub.expression.get(&source).copied())
                         .unwrap_or_default();
@@ -547,6 +593,7 @@ impl Session {
             }
             None => {
                 hub.log.note_off(channel, key, at);
+                hub.log_dirty = true;
                 if let Some(place) = position {
                     hub.notes.note_off(channel, key, place);
                 }
@@ -560,7 +607,11 @@ impl Session {
         let delivered = self.hardware_note(epoch, key, velocity);
         if delivered && let Some(channel) = channel {
             let velocity = (velocity > 0).then(|| f32::from(velocity) / 127.0);
-            self.controller_played(channel, key, velocity, at);
+            let source = lock(&self.inner.controllers)
+                .note_sources
+                .get(&key)
+                .copied();
+            self.controller_played_from(channel, key, velocity, at, source);
         }
         delivered
     }
@@ -628,6 +679,30 @@ impl Session {
             self.commit_automation_take();
         }
         self.surface_feedback();
+        self.flush_score_log();
+    }
+
+    fn flush_score_log(&self) {
+        let saved = {
+            let mut hub = lock(&self.inner.controllers);
+            if !hub.log_dirty {
+                return;
+            }
+            hub.log_dirty = false;
+            (
+                hub.log_file.clone(),
+                hub.log.saved(hub.log_identity.clone(), Instant::now()),
+            )
+        };
+        let outcome = saved.1.and_then(|bytes| {
+            windfall_project::file::write_atomic(&saved.0, &bytes)
+                .map_err(|error| error.to_string())
+        });
+        if let Err(error) = outcome {
+            let mut hub = lock(&self.inner.controllers);
+            hub.error = Some(format!("The note log could not be saved: {error}"));
+            hub.log_dirty = true;
+        }
     }
 
     fn surface_feedback(&self) {
@@ -1409,7 +1484,13 @@ impl Session {
     }
 
     pub fn score_log_clear(&self) -> ControllerState {
-        lock(&self.inner.controllers).log.clear();
+        {
+            let mut hub = lock(&self.inner.controllers);
+            hub.log.clear();
+            hub.saved_log = None;
+            hub.log_dirty = true;
+        }
+        self.flush_score_log();
         self.controller_state()
     }
 }

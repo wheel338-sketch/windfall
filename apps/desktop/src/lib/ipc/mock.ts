@@ -51,6 +51,7 @@ import { simulatedLatencyFrames } from "./sim/effects"
 import { demoProject, starterProject } from "./sim/project"
 import { TransportSim } from "./sim/transport"
 import { createMidiMock, type MockMidiOptions } from "./sim/midi"
+import { createBrowserScoreLog } from "./sim/score-log"
 import { createMidiHardwareMock } from "./sim/midi-hardware"
 import { createSlicerMock, type SlicerMockOptions } from "./sim/slicer"
 import { createLibraryMock, storedBrowserRoots } from "./sim/library"
@@ -282,6 +283,7 @@ export function createMockBackend(options: MockOptions = {}): MockBackend {
         ? null
         : localStorage
       : options.storage
+  const scoreLog = createBrowserScoreLog(storage)
   const dialogs = options.dialogs ?? promptDialogs()
 
   let doc = SimDocument.create(options.project ?? demoProject())
@@ -295,6 +297,7 @@ export function createMockBackend(options: MockOptions = {}): MockBackend {
     if (timelineDocument !== doc) {
       timelineDocument = doc
       timelineGeneration += 1
+      scoreLog.clear()
     }
     return {
       request: timelineRequest,
@@ -711,7 +714,7 @@ export function createMockBackend(options: MockOptions = {}): MockBackend {
     pickProjectArchivePath: async () => {
       throw new Error("Portable project archives require the desktop app.")
     },
-    ...createMidiHardwareMock(),
+    ...createMidiHardwareMock({ project: () => doc.project(), generation: () => timelineState().generation, dispatch: dispatchNow, log: scoreLog }),
     ...createPlaylistMock(options, {
       snapshot: () => doc.snapshot(path),
       ipc,
@@ -1051,9 +1054,10 @@ export function createMockBackend(options: MockOptions = {}): MockBackend {
             "Spectral sampler audition requires the desktop audio engine."
           )
         transport.noteOn(channel, key, velocity)
+        scoreLog.note(doc.project(), channel, key, velocity)
       }),
     auditionNoteOff: (channel, key) =>
-      ipc(() => transport.noteOff(channel, key)),
+      ipc(() => { transport.noteOff(channel, key); scoreLog.note(doc.project(), channel, key, null) }),
     previewPlay: (filePath, browser) =>
       ipc(() => {
         library.check(filePath, browser)

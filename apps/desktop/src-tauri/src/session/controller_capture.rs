@@ -154,6 +154,7 @@ struct OpenNote {
 pub(super) struct NoteTake {
     open: Vec<OpenNote>,
     done: Vec<TakenNote>,
+    expression_samples: usize,
     dropped: u32,
 }
 
@@ -211,7 +212,11 @@ impl NoteTake {
                 continue;
             }
             // Three curves, at most 256 points each; refuse rather than grow without limit.
-            if note.expression.samples.len() >= 3 * (windfall_project::MAX_NOTE_CURVE_POINTS - 1) {
+            if self.expression_samples
+                >= windfall_project::MAX_PATTERN_CURVE_POINTS - 3 * MAX_TAKE_NOTES
+                || note.expression.samples.len()
+                    >= 3 * (windfall_project::MAX_NOTE_CURVE_POINTS - 1)
+            {
                 self.dropped = self.dropped.saturating_add(1);
                 continue;
             }
@@ -221,6 +226,7 @@ impl NoteTake {
                 tick
             };
             note.expression.samples.push((parameter, tick, value));
+            self.expression_samples += 1;
         }
     }
 
@@ -268,6 +274,11 @@ impl NoteTake {
     /// empty pass. Keys still down stay down.
     pub fn take(&mut self) -> Vec<TakenNote> {
         self.dropped = 0;
+        self.expression_samples = self
+            .open
+            .iter()
+            .map(|note| note.expression.samples.len())
+            .sum();
         let mut notes = std::mem::take(&mut self.done);
         notes.sort_by(|a, b| a.start.total_cmp(&b.start));
         notes
@@ -686,6 +697,92 @@ pub(super) fn merge_points(
     merged.extend(after);
     merged.truncate(MAX_AUTOMATION_POINTS);
     merged
+}
+
+#[derive(serde::Serialize, serde::Deserialize)]
+struct SavedLog {
+    identity: String,
+    notes: Vec<SavedNote>,
+}
+#[derive(serde::Serialize, serde::Deserialize)]
+struct SavedNote {
+    channel: ChannelId,
+    key: u8,
+    velocity: f32,
+    on_ms: u64,
+    off_ms: u64,
+    tick: Option<f64>,
+}
+fn wall_ms() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_millis()
+        .min(u128::from(u64::MAX)) as u64
+}
+impl ScoreLog {
+    pub fn saved(&self, identity: String, now: Instant) -> Result<Vec<u8>, String> {
+        let wall = wall_ms();
+        let notes = self
+            .notes
+            .iter()
+            .map(|note| SavedNote {
+                channel: note.channel,
+                key: note.key,
+                velocity: note.velocity,
+                on_ms: wall
+                    .saturating_sub(now.saturating_duration_since(note.on).as_millis() as u64),
+                off_ms: wall
+                    .saturating_sub(now.saturating_duration_since(note.off).as_millis() as u64),
+                tick: note.tick,
+            })
+            .collect();
+        serde_json::to_vec(&SavedLog { identity, notes }).map_err(|error| error.to_string())
+    }
+    pub fn load(path: &std::path::Path) -> Option<(String, Self)> {
+        let metadata = std::fs::metadata(path).ok()?;
+        if metadata.len() > 4 * 1024 * 1024 {
+            return None;
+        }
+        let saved: SavedLog = serde_json::from_slice(&std::fs::read(path).ok()?).ok()?;
+        if saved.notes.len() > SCORE_LOG_NOTES {
+            return None;
+        }
+        let wall = wall_ms();
+        let now = Instant::now();
+        let mut log = Self::default();
+        for note in saved.notes {
+            if note.key > 127
+                || !note.velocity.is_finite()
+                || !(0.0..=1.0).contains(&note.velocity)
+                || note.on_ms > wall
+                || note.off_ms < note.on_ms
+                || note.tick.is_some_and(|tick| !tick.is_finite())
+            {
+                continue;
+            }
+            let age = Duration::from_millis(wall - note.on_ms);
+            if age > SCORE_LOG_SPAN {
+                continue;
+            }
+            let Some(on) = now.checked_sub(age) else {
+                continue;
+            };
+            let off = now
+                .checked_sub(Duration::from_millis(wall.saturating_sub(note.off_ms)))
+                .unwrap_or(on)
+                .max(on);
+            log.notes.push_back(LoggedNote {
+                channel: note.channel,
+                key: note.key,
+                velocity: note.velocity,
+                on,
+                off,
+                tick: note.tick,
+            });
+        }
+        Some((saved.identity, log))
+    }
 }
 
 #[cfg(test)]

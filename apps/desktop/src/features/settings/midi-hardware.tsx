@@ -1,3 +1,5 @@
+import { ControllerLinksPanel } from "@/features/controllers/links-panel"
+import { Input } from "@/components/ui/input"
 import { useEffect, useRef, useState } from "react"
 import type {
   ControllerState,
@@ -171,13 +173,18 @@ export function MidiHardwareSettingsSection() {
         backend.midiHardwareConfigure({ ...state.settings, ...change })
       )
   }
-  function configureControllers(change: Partial<ControllerState["settings"]>) {
+  async function configureControllers(change: Partial<ControllerState["settings"]>) {
     if (!controllers || working.current) return
+    const ticket = epoch.current
+    operation.current++
+    working.current = true
+    setBusy(true)
     setError(null)
-    backend
-      .controllerSettingsSet({ ...controllers.settings, ...change })
-      .then(setControllers)
-      .catch((failure: unknown) => setError(errorMessage(failure)))
+    try {
+      const next = await backend.controllerSettingsSet({ ...controllers.settings, ...change })
+      if (ticket === epoch.current) setControllers(next)
+    } catch (failure) { if (ticket === epoch.current) setError(errorMessage(failure)) }
+    finally { working.current = false; setBusy(false) }
   }
   const disabled = busy || !state || backend.kind !== "tauri"
   return (
@@ -261,6 +268,23 @@ export function MidiHardwareSettingsSection() {
             configure({ inputProfile: value === NO_PROFILE ? null : value })
           }
         />
+        {(state?.settings.extraInputs ?? []).map((input, index) => <FieldSet key={input.id}>
+          <FieldLegend>Additional input {index + 1}</FieldLegend>
+          <Choice label={`Additional input ${index + 1}`} value={`port:${input.id}`} options={portOptions(state?.inputs ?? [], input.id).filter((option) => option.value === `port:${input.id}` || option.value === OFF || ![state?.settings.input, ...(state?.settings.extraInputs ?? []).map((item) => item.id)].includes(option.value.slice(5)))} disabled={disabled} change={(value) => configure({ extraInputs: (state?.settings.extraInputs ?? []).flatMap((item, at) => at === index ? value === OFF ? [] : [{ ...item, id: value.slice(5) }] : [item]) })} />
+          <Choice label={`Additional input ${index + 1} profile`} value={input.profile ?? NO_PROFILE} options={[{ value: NO_PROFILE, label: "None" }, ...(controllers?.profiles ?? []).map((profile) => ({ value: profile.id, label: profile.name }))]} disabled={disabled} change={(value) => configure({ extraInputs: (state?.settings.extraInputs ?? []).map((item, at) => at === index ? { ...item, profile: value === NO_PROFILE ? null : value } : item) })} />
+          <Button variant="outline" size="sm" disabled={disabled} onClick={() => configure({ extraInputs: (state?.settings.extraInputs ?? []).filter((_, at) => at !== index) })}>Remove additional input {index + 1}</Button>
+        </FieldSet>)}
+        <Button variant="outline" size="sm" disabled={disabled || (state?.settings.extraInputs.length ?? 0) >= 7 || !(state?.inputs ?? []).some((port) => port.id !== state?.settings.input && !(state?.settings.extraInputs ?? []).some((input) => input.id === port.id))} onClick={() => {
+          const next = state?.inputs.find((port) => port.id !== state.settings.input && !state.settings.extraInputs.some((input) => input.id === port.id))
+          if (state && next) configure({ extraInputs: [...state.settings.extraInputs, { id: next.id, profile: null }] })
+        }}>Add MIDI input</Button>
+        <Field><FieldLabel htmlFor="midi-record-offset">Recording offset (ms)</FieldLabel>
+          <Input id="midi-record-offset" type="number" min={-500} max={500} step={1} defaultValue={controllers?.settings.recordOffsetMs ?? 0} key={controllers?.settings.recordOffsetMs ?? 0} disabled={disabled || !controllers} onBlur={(event) => {
+            const value = Number(event.target.value)
+            if (event.target.value.trim() && Number.isFinite(value) && Math.abs(value) <= 500) void configureControllers({ recordOffsetMs: value })
+            else setError("Recording offset must be within -500 to 500 ms.")
+          }} />
+        </Field>
         <Choice
           label="Send MIDI clock"
           value={state?.settings.sendClock ? "on" : "off"}
@@ -337,6 +361,7 @@ export function MidiHardwareSettingsSection() {
           <AlertDescription>{error ?? state?.error}</AlertDescription>
         </Alert>
       )}
+      <ControllerLinksPanel />
       <p className="text-muted-foreground">
         Play notes and sustain into the chosen channel. The destination resets
         when its channel is removed or another project opens. Output forwards

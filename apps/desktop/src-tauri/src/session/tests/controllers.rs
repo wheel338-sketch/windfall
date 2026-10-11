@@ -943,3 +943,105 @@ fn armed_midi_uses_count_in_and_excludes_preroll_notes() {
     assert_eq!(notes.len(), 1);
     assert_eq!(notes[0].key, 111);
 }
+
+#[test]
+fn score_log_is_atomically_saved_restored_after_restart_and_invalidated_for_a_replaced_project() {
+    let rig = Rig::new();
+    pump(&rig); // Bind the log to this document's channel identity before capture.
+    let channel = rig.channel(0);
+    let at = Instant::now();
+    rig.session.controller_played(channel, 110, Some(0.7), at);
+    rig.session
+        .controller_played(channel, 110, None, at + Duration::from_millis(125));
+    pump(&rig); // Disk publication belongs to the control pump, never the input callback.
+    assert!(rig.folder.path().join("score-log.json").exists());
+    let rig = rig.restart();
+    pump(&rig);
+    assert_eq!(rig.session.controller_state().score_log.notes, 1);
+    let pattern = rig.pattern();
+    let generation = rig.session.controller_state().generation;
+    let entries = history(&rig);
+    rig.session
+        .score_log_dump(pattern, None, generation)
+        .unwrap();
+    assert_eq!(history(&rig), entries + 1);
+    assert_eq!(rig.session.controller_state().score_log.notes, 1);
+    let saved = rig.file("logged.windfall");
+    rig.session.project_save(Some(&saved)).unwrap();
+    rig.session.undo().unwrap();
+    assert_eq!(rig.session.controller_state().score_log.notes, 1);
+    rig.session.project_open(&saved).unwrap();
+    pump(&rig);
+    assert_eq!(rig.session.controller_state().score_log.notes, 0);
+    assert!(
+        rig.session
+            .score_log_dump(pattern, None, generation)
+            .is_err()
+    );
+    assert!(
+        rig.project()
+            .pattern(pattern)
+            .unwrap()
+            .lanes
+            .iter()
+            .flat_map(|lane| &lane.notes)
+            .any(|note| note.key == 110)
+    );
+}
+
+#[test]
+fn learned_multilinks_and_global_mappings_survive_file_and_settings_restart() {
+    use windfall_project::SlotTarget;
+    let rig = Rig::new();
+    let channel = rig.channel(0);
+    let generation = rig.session.controller_state().generation;
+    rig.session
+        .controller_learn(Vec::new(), false, true, generation)
+        .unwrap();
+    for patch in [
+        ChannelPatch {
+            pan: Some(0.25),
+            ..Default::default()
+        },
+        ChannelPatch {
+            volume: Some(0.5),
+            ..Default::default()
+        },
+    ] {
+        rig.session
+            .dispatch(Command::UpdateChannel { id: channel, patch }, None)
+            .unwrap();
+    }
+    cc(&rig, 20, 1);
+    cc(&rig, 21, 1);
+    pump(&rig);
+    rig.session.controller_learn_cancel();
+    let expected = links(&rig);
+    let path = rig.file("multilink.windfall");
+    rig.session.project_save(Some(&path)).unwrap();
+    rig.session.undo().unwrap();
+    assert!(links(&rig).is_empty());
+    rig.session.project_open(&path).unwrap();
+    assert_eq!(links(&rig), expected);
+    rig.session
+        .controller_settings_set(ControllerSettings {
+            links: vec![ControllerLink {
+                source: cc_source(30),
+                target: LinkTarget::Slot {
+                    slot: SlotTarget::MasterVolume,
+                },
+                map: ControlMap {
+                    min: 0.8,
+                    max: 0.2,
+                    formula: Some("1 - x^2".into()),
+                    smoothing_ms: 100.0,
+                    ..Default::default()
+                },
+            }],
+            ..Default::default()
+        })
+        .unwrap();
+    let expected = rig.session.controller_state().settings;
+    let rig = rig.restart();
+    assert_eq!(rig.session.controller_state().settings, expected);
+}
