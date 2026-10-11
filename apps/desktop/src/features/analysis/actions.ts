@@ -15,9 +15,11 @@ import {
 import {
   isTerminalStatus,
   validRange,
+  taskProblem,
   type AnalysisCapability,
   type AnalysisJob,
   type AnalysisReview,
+  type AnalysisTask,
 } from "./types"
 
 /** UI identity only. Native capture/recheck remains the installation authority. */
@@ -86,6 +88,8 @@ type PanelContext = {
   manifest: string
   localPath: string
   replace: boolean
+  task?: AnalysisTask
+  selectedRoles?: readonly string[]
   execute(command: AnalysisCommand): Promise<void>
 }
 let panel: PanelContext | null = null
@@ -147,6 +151,8 @@ function reason(command: AnalysisCommand): string | undefined {
       return "Retire retained analysis jobs first (limit 8)"
     if (context.job) return "Retire the current job before submitting another"
     if (!model) return "Import and select a pinned model"
+    const mismatch = taskProblem(context.task ?? "audio", model)
+    if (mismatch) return mismatch
     if (!validRange(context.start, context.end))
       return "Enter a valid frame range"
   }
@@ -155,6 +161,7 @@ function reason(command: AnalysisCommand): string | undefined {
   if (command === "apply") {
     const { job, review, capability } = context
     if (!review || job?.status !== "ready") return "Review ready outputs first"
+    if (context.selectedRoles?.length === 0) return "Select at least one reviewed output"
     if (
       review.job.job !== job.job ||
       review.job.ticket !== job.ticket ||

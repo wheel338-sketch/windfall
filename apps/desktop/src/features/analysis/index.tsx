@@ -230,6 +230,8 @@ export function AnalysisPanel({
       manifest,
       localPath,
       replace,
+      task,
+      selectedRoles,
       execute: async (command: AnalysisCommand) => {
         if (command === "cancelPreparation") {
           try {

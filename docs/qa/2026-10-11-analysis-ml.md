@@ -65,6 +65,8 @@ Model-job capture and partial-range placement now use the same tempo-aware
 view/clock as classical editors. Complete outputs retain the original clip
 edges; partial outputs retain aligned source-frame origins. Missing-adapter UX
 explicitly names licensed model/runtime requirements.
+Canonical actions also validate task/model roles and empty stem selections
+before submission/apply; native validation remains final.
 
 Additional tests, all **written, not executed**:
 

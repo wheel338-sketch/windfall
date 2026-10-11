@@ -90,6 +90,17 @@ export type AnalysisApply = {
   muteOriginal?: boolean
 }
 export type AnalysisTask = "audio" | "stemSeparation" | "dereverbGeneral" | "dereverbVocal"
+export function taskProblem(task: AnalysisTask, model: AnalysisModel): string | undefined {
+  if (task === "audio") return undefined
+  const expected = task === "stemSeparation" ? ["drums", "bass", "vocals", "other"] :
+    [task === "dereverbGeneral" ? "dereverb-general" : "dereverb-vocal"]
+  const roles = model.outputs.map((o) => o.role)
+  if (roles.length !== expected.length || new Set(roles).size !== roles.length ||
+    expected.some((role) => !roles.includes(role)) ||
+    model.outputs.some((o) => o.channels !== model.inputChannels))
+    return "Select a pinned model with the exact roles and preserved channels for this operation."
+  return undefined
+}
 export interface AnalysisBackend {
   analysisCapability(): Promise<AnalysisCapability>
   analysisModelImport(
