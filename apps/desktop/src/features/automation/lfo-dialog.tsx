@@ -20,7 +20,7 @@ import { MAX_PATTERN_STEPS, MAX_SONG_TICKS, PPQ, TICKS_PER_STEP } from "@/lib/un
 type Capture = { generation: number; revision: number; serial: number }
 type Request = Capture & (
   { kind: "piano"; pattern: PatternId; channel: ChannelId; notes: Note[]; selection: number[]; property: NoteLfoProperty } |
-  { kind: "automation"; expected: Automation; end: number }
+  { kind: "automation"; expected: Automation; start: number; end: number }
 )
 const useLfoDialog = create<{ request: Request | null }>(() => ({ request: null }))
 let serial = 0
@@ -45,15 +45,22 @@ export function openNoteLfo() {
   } })
 }
 
-export function openAutomationLfo(id: AutomationId) {
+/**
+ * Opens the LFO writer on an automation. `range` is the stretch of the
+ * curve, in its own ticks, that the dialog offers to write: the window one
+ * clip shows of it, when the tool is opened from that clip.
+ */
+export function openAutomationLfo(id: AutomationId, range?: { start: number; end: number }) {
   const project = useProjectStore.getState().project
   const automation = project.automations.find((item) => item.id === id)
   if (!automation) return
   const clipEnd = project.playlist.clips.reduce((end, clip) => clip.content.type === "automation" && clip.content.automation === id
     ? Math.max(end, Math.min(MAX_SONG_TICKS, clip.offset + clip.length)) : end, 0)
+  const shown = range && range.end > range.start && range.start >= 0 ? range : null
   useLfoDialog.setState({ request: {
     ...capture(), kind: "automation", expected: { ...automation, target: { ...automation.target }, points: automation.points.map((point) => ({ ...point })) },
-    end: Math.min(MAX_SONG_TICKS, Math.max(PPQ * 4, clipEnd, automation.points.at(-1)?.tick ?? 0)),
+    start: shown ? Math.min(MAX_SONG_TICKS - 1, shown.start) : 0,
+    end: shown ? Math.min(MAX_SONG_TICKS, shown.end) : Math.min(MAX_SONG_TICKS, Math.max(PPQ * 4, clipEnd, automation.points.at(-1)?.tick ?? 0)),
   } })
 }
 
@@ -76,7 +83,7 @@ function LfoForm({ request }: { request: Request }) {
   const session = request.kind === "piano" ? currentSession() : null
   const revision = useProjectStore((state) => state.revision)
   useSyncExternalStore((notify) => session?.editor.subscribe(notify) ?? (() => {}), () => session?.editor.selection)
-  const first = request.kind === "piano" ? request.notes.reduce((first, note) => Math.min(first, note.start), MAX_PATTERN_STEPS * TICKS_PER_STEP) : 0
+  const first = request.kind === "piano" ? request.notes.reduce((first, note) => Math.min(first, note.start), MAX_PATTERN_STEPS * TICKS_PER_STEP) : request.start
   const last = request.kind === "piano" ? request.notes.reduce((last, note) => Math.max(last, note.start + note.length), 0) : request.end
   const [wave, setWave] = useState<CurveLfoWave>("sine")
   const [period, setPeriod] = useState(String(PPQ))

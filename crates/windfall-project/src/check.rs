@@ -769,6 +769,8 @@ pub(crate) fn check_arrangement_references(project: &Project, book: &crate::Arra
                 return Err(format!("arrangement channel {} does not exist", channel.0)),
             crate::arrangement::TrackKind::Audio { source } if project.sample(source).is_none() =>
                 return Err(format!("arrangement sample {} does not exist", source.0)),
+            crate::arrangement::TrackKind::AudioTrack { mixer } if project.mixer.track(mixer).is_none_or(|track| track.current) =>
+                return Err(format!("arrangement mixer track {} does not exist", mixer.0)),
             _ => {}
         }
     }

@@ -170,6 +170,10 @@ pub use stems::{
     Stem, StemError, StemMode, StemOptions, Streamed, render_stems, render_streaming,
     render_streaming_checked, stems,
 };
+pub use stems::{
+    PlaylistStem, PlaylistStemError, PlaylistStemOptions, playlist_stem_project, playlist_stems,
+    render_playlist_stems,
+};
 pub use voice::{PREVIEW_GAIN_DB, loop_crossfade_mix};
 
 /// Lets the unit tests of code that runs on the audio thread count its

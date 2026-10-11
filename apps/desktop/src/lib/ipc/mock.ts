@@ -53,6 +53,11 @@ import { createMidiMock, type MockMidiOptions } from "./sim/midi"
 import { createMidiHardwareMock } from "./sim/midi-hardware"
 import { createSlicerMock, type SlicerMockOptions } from "./sim/slicer"
 import { createLibraryMock, storedBrowserRoots } from "./sim/library"
+import {
+  createPlaylistMock,
+  type PlaylistMock,
+  type PlaylistMockOptions,
+} from "./sim/playlist"
 
 /** Stand-ins for the native file dialogs. Each resolves to null on cancel. */
 export type MockDialogs = {
@@ -65,6 +70,7 @@ export type MockDialogs = {
 }
 
 export type MockOptions = MockMidiOptions &
+  PlaylistMockOptions &
   SlicerMockOptions & {
     /** Original FL bytes supplied by tests, or selected with the browser picker. */
     flpFiles?: Record<string, Uint8Array>
@@ -82,6 +88,8 @@ export type MockOptions = MockMidiOptions &
 
 /** A backend that lives in the page, and what tidies it up. */
 export type MockBackend = Backend & {
+  /** Stands in for a note arriving from a MIDI input. */
+  playMidiHardwareNote: PlaylistMock["playMidiHardwareNote"]
   /** Successful requests to open a panel window, in call order. */
   detachCalls: PanelId[]
   /**
@@ -627,7 +635,7 @@ export function createMockBackend(options: MockOptions = {}): MockBackend {
     return commands
   }
 
-  return {
+  const made: MockBackend = {
     kind: "mock",
     ...unavailableAnalysis(),
     ...mockMixerPresetLibrary(),
@@ -702,6 +710,15 @@ export function createMockBackend(options: MockOptions = {}): MockBackend {
       throw new Error("Portable project archives require the desktop app.")
     },
     ...createMidiHardwareMock(),
+    ...createPlaylistMock(options, {
+      snapshot: () => doc.snapshot(path),
+      ipc,
+      dispatch: dispatchNow,
+      sampleCommands,
+      audioClipCommands,
+      sampleInfo: (file) => sampleInfoFor(roots, file),
+      exportAudio: (exportOptions) => made.exportAudio(exportOptions),
+    }),
     ...createSlicerMock(
       options,
       () => doc,
@@ -1454,4 +1471,5 @@ export function createMockBackend(options: MockOptions = {}): MockBackend {
       doc.dispose()
     },
   }
+  return made
 }

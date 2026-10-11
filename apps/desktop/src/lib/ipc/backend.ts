@@ -271,6 +271,15 @@ export interface Backend extends AnalysisBackend, MixerPresetLibraryBackend {
   /** Render selected tracks' span from a copy, then add audio and mute sources in one undo batch. */
   bounceSelectedClips(clips: ClipId[]): Promise<DispatchResult>
   /**
+   * Renders each of these playlist tracks' unmuted pattern and audio clips
+   * to one audio clip on that track and mutes the sources: one undo batch
+   * for any number of tracks. `created` holds a sample and then its clip
+   * for each track, in playlist order.
+   */
+  consolidatePlaylistTracks(
+    tracks: import("@/bindings").PlaylistTrackId[]
+  ): Promise<DispatchResult>
+  /**
    * One undo step, "Create automation clip": an automation of `target`
    * with one point at the value it has now, a new playlist track at the
    * end, and a clip of the automation on it from tick 0 for the length of
@@ -288,6 +297,15 @@ export interface Backend extends AnalysisBackend, MixerPresetLibraryBackend {
 
   /** Returns at once. Progress arrives through `onExportProgress`. */
   exportAudio(options: ExportOptions): Promise<void>
+  /**
+   * Like `exportAudio`, with one file for each playlist track: the song
+   * with only that track's pattern and audio clips placed, heard at the
+   * output. Needs song mode, and `options.stems` must be absent.
+   */
+  exportPlaylistTracks(
+    options: ExportOptions,
+    stems: import("@/bindings").ExportPlaylistStems
+  ): Promise<void>
   /** Stops the active export; its last progress event acknowledges cancellation. */
   exportCancel(): Promise<void>
 
@@ -296,6 +314,10 @@ export interface Backend extends AnalysisBackend, MixerPresetLibraryBackend {
   onTransportState(handler: (state: TransportState) => void): Unsubscribe
   onEngineStatus(handler: (status: EngineStatus) => void): Unsubscribe
   onExportProgress(handler: (progress: ExportProgress) => void): Unsubscribe
+  /** Notes a MIDI input played into the audition destination. */
+  onMidiHardwareNote(
+    handler: (note: import("@/bindings").MidiHardwareNote) => void
+  ): Unsubscribe
   /** Problems found while loading a project, such as a missing sample. */
   onProjectWarnings(handler: (warnings: string[]) => void): Unsubscribe
   /** Frames arrive about 60 times a second while subscribed. */
@@ -331,6 +353,7 @@ export const EVENTS = {
   transportState: "transport:state",
   engineStatus: "engine:status",
   exportProgress: "export:progress",
+  midiHardwareNote: "midi:note",
   projectWarnings: "project:warnings",
 } as const
 

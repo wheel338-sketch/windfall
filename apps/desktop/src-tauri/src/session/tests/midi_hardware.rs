@@ -357,3 +357,45 @@ fn midi_hardware_native_clap_saturated_panic_preserves_a_ui_key() {
     assert_eq!(rig.session.controller().frame().voices, 0);
     assert_eq!(rig.session.document_snapshot(), before);
 }
+
+#[test]
+fn midi_hardware_notes_are_reported_to_the_ui_for_the_played_note_log() {
+    use crate::events::Event;
+    let rig = Rig::new();
+    let channel = rig.channel(0);
+    select(&rig, channel);
+    rig.events.take();
+    let epoch = rig.session.controller().hardware_epoch();
+    assert!(rig.session.hardware_note(epoch, 60, 100));
+    assert!(rig.session.hardware_note(epoch, 60, 0));
+    let reported: Vec<Event> = rig
+        .events
+        .take()
+        .into_iter()
+        .filter(|event| matches!(event, Event::MidiHardwareNote(_)))
+        .collect();
+    let notes: Vec<_> = reported
+        .iter()
+        .map(|event| match event {
+            Event::MidiHardwareNote(note) => (note.channel, note.key, note.velocity),
+            _ => unreachable!("filtered above"),
+        })
+        .collect();
+    // A press and its release, in order, for the channel that sounded them.
+    assert_eq!(notes, [(channel, 60, 100), (channel, 60, 0)]);
+    assert_eq!(reported[0].name(), "midi:note");
+    assert_eq!(
+        reported[0].payload().unwrap(),
+        format!(r#"{{"channel":{},"key":60,"velocity":100}}"#, channel.0)
+    );
+    // A note the engine refuses is not reported, so the log never holds a
+    // note that did not sound.
+    rig.session.transport_stop();
+    assert!(!rig.session.hardware_note(epoch, 60, 100));
+    assert!(
+        rig.events
+            .take()
+            .iter()
+            .all(|event| !matches!(event, Event::MidiHardwareNote(_)))
+    );
+}

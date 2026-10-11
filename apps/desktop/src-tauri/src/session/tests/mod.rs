@@ -12,6 +12,7 @@ mod archive;
 mod audio_editor;
 mod beat;
 mod clip_recording;
+mod consolidate;
 mod device_acceptance;
 mod document;
 mod effects;
@@ -26,6 +27,7 @@ mod midi;
 mod midi_hardware;
 mod playback;
 mod playlist_bounce;
+mod playlist_export;
 mod plugin_recording;
 #[cfg(windows)]
 mod plugin_update;

@@ -34,6 +34,8 @@ use crate::model::{
 
 type Label = &'static str;
 
+mod playlist_layouts;
+
 /// What a command did to the project.
 pub(crate) struct Outcome {
     /// The edits that were applied, in order. Empty when nothing changed.
@@ -63,6 +65,7 @@ pub(crate) fn execute(project: &mut Project, command: Command) -> Result<Outcome
         }) {
             transaction.prune_arrangement_references();
         }
+        transaction.settle_linked_tracks();
         crate::check::check_arrangement_references(
             transaction.project,
             &transaction.project.playlist.arrangement_book,
@@ -162,6 +165,9 @@ impl Transaction<'_> {
                     crate::arrangement::TrackKind::Audio { source } => {
                         self.project.sample(*source).is_some()
                     }
+                    crate::arrangement::TrackKind::AudioTrack { mixer } => {
+                        self.project.mixer.track(*mixer).is_some()
+                    }
                 }
         });
         self.push(Edit::ArrangementBook(Change { old, new }));
@@ -243,10 +249,8 @@ impl Transaction<'_> {
                     .sample(sample)
                     .ok_or_else(|| CommandError::not_found("sample", sample))?,
             ),
-            _ => {
-                return Err(CommandError::invalid(
-                    "Only pattern and audio clips can be made unique",
-                ));
+            ClipContent::Automation { automation } => {
+                return self.make_automation_clip_unique(old, automation);
             }
         };
         let mut cursor = self.project.next_id;
@@ -376,16 +380,16 @@ impl Transaction<'_> {
                 )?;
                 "Switch arrangement"
             }
-            Command::RemoveArrangement { id } => {
-                self.replace_arrangement_book(
-                    self.project
-                        .playlist
-                        .arrangement_book
-                        .remove_arrangement(id),
-                    self.project.next_id,
-                )?;
-                "Remove arrangement"
+            Command::RemoveArrangement { id } => self.remove_arrangement_layout(id)?,
+            Command::AddArrangementLayout { name, copy } => {
+                self.add_arrangement_layout(name, copy)?
             }
+            Command::AddInstrumentTrack {
+                name,
+                sample,
+                instrument,
+            } => self.add_instrument_track(name, sample, instrument)?,
+            Command::AddAudioTrack { name } => self.add_audio_track(name)?,
             Command::AddTrackGroup { name, parent } => {
                 let (id, cursor) = self.staged_metadata_id()?;
                 let next = self
@@ -469,6 +473,11 @@ impl Transaction<'_> {
                         crate::arrangement::TrackKind::Audio { source } => {
                             self.project.sample(source).is_some()
                         }
+                        crate::arrangement::TrackKind::AudioTrack { mixer } => self
+                            .project
+                            .mixer
+                            .track(mixer)
+                            .is_some_and(|track| !track.current),
                     });
                 self.replace_arrangement_book(next, self.project.next_id)?;
                 "Link playlist track"

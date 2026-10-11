@@ -114,7 +114,19 @@ impl Session {
         {
             return false;
         }
-        self.controller()
-            .hardware_note(epoch, channel, key, velocity)
+        let accepted = self
+            .controller()
+            .hardware_note(epoch, channel, key, velocity);
+        if accepted {
+            // Lets the UI log what was played, for a later snapped dump.
+            self.emit(crate::events::Event::MidiHardwareNote(
+                windfall_ipc::MidiHardwareNote {
+                    channel,
+                    key,
+                    velocity,
+                },
+            ));
+        }
+        accepted
     }
 }

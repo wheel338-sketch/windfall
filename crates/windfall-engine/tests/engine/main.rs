@@ -10,6 +10,8 @@ mod instruments;
 mod lofi;
 mod mixer;
 mod modulation;
+mod playlist_layouts;
+mod playlist_stems;
 mod realtime;
 mod rendering;
 mod sampler;

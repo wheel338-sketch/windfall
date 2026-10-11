@@ -394,6 +394,9 @@ pub(crate) struct PlanClip {
     pub offset: u32,
     /// Index into [`Plan::patterns`].
     pub pattern: usize,
+    /// On an instrument track, the only channel of the pattern that sounds:
+    /// an index into [`Plan::channels`]. `None` plays every channel.
+    pub only: Option<usize>,
     /// Largest `end` among this clip and all clips before it. It lets the
     /// sequencer skip, with one binary search, every clip that ended before
     /// the stretch of time it is looking at.
@@ -860,7 +863,7 @@ pub(crate) fn compile(project: &Project, pool: &SamplePool) -> Plan {
     let pattern_ids = IdIndex::new(patterns.iter().map(|pattern| pattern.id.0));
 
     let playlist = arrangement_playlist(&project.playlist);
-    let (clips, song_end) = compile_playlist(&playlist, &pattern_ids, &patterns);
+    let (clips, song_end) = compile_playlist(&playlist, &pattern_ids, &patterns, &channel_ids);
     let audio_clips = compile_audio_clips(&playlist, pool, &track_ids, tempo_bpm);
     let audio_clip_ids = IdIndex::new(audio_clips.iter().map(|clip| clip.id.0));
 
@@ -1072,7 +1075,7 @@ fn swing_warp(tick: f64, swing: f64, swung_length: f64) -> f64 {
 
 /// Resolve arrangement references on the control side, before mute, solo and
 /// crossfade compilation. The stored playlist and its clip positions stay intact.
-fn arrangement_playlist(playlist: &Playlist) -> Cow<'_, Playlist> {
+pub(crate) fn arrangement_playlist(playlist: &Playlist) -> Cow<'_, Playlist> {
     let book = &playlist.arrangement_book;
     if book.arrangements.is_empty() || book.active.is_none() {
         return Cow::Borrowed(playlist);
@@ -1117,8 +1120,10 @@ fn compile_playlist(
     playlist: &Playlist,
     pattern_ids: &IdIndex,
     patterns: &[PlanPattern],
+    channel_ids: &IdIndex,
 ) -> (Vec<PlanClip>, u32) {
     let silent_tracks = silent_playlist_tracks(playlist);
+    let links = &playlist.arrangement_book.linked_tracks;
 
     let mut song_end = 0;
     let mut clips = Vec::new();
@@ -1136,11 +1141,23 @@ fn compile_playlist(
         let Some(pattern) = pattern_ids.get(pattern.0) else {
             continue;
         };
+        // An instrument track plays its own channel only. A link whose
+        // channel is gone plays nothing rather than everything.
+        let only = match links.get(&clip.track) {
+            Some(windfall_project::arrangement::TrackKind::Instrument { channel }) => {
+                match channel_ids.get(channel.0) {
+                    Some(index) => Some(index),
+                    None => continue,
+                }
+            }
+            _ => None,
+        };
         clips.push(PlanClip {
             start: clip.start,
             end,
             offset: clip.offset % patterns[pattern].length,
             pattern,
+            only,
             reach: end,
         });
     }

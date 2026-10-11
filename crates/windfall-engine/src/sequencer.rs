@@ -792,6 +792,9 @@ impl Sequencer {
                     if tick < clip_start || tick >= clip_end {
                         continue;
                     }
+                    if clip.only.is_some_and(|only| only != event.channel) {
+                        continue;
+                    }
                     let Some(frame) = self.due(plan.warp(tick), from, to) else {
                         continue;
                     };
