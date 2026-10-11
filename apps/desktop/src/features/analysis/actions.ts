@@ -173,17 +173,15 @@ function reason(command: AnalysisCommand): string | undefined {
     const { job, review, capability } = context
     if (!review || job?.status !== "ready") return "Review ready outputs first"
     if (context.selectedRoles?.length === 0) return "Select at least one reviewed output"
+    const modelCurrent = (capability.classicalDereverb && isBuiltinDereverb(review.model)) ||
+      capability.models.some((model) => model.id === review.model.id &&
+        model.version === review.model.version && model.revision === review.model.revision)
     if (
       review.job.job !== job.job ||
       review.job.ticket !== job.ticket ||
       review.job.request !== job.request ||
       review.clip !== context.clip ||
-      !(capability.classicalDereverb && isBuiltinDereverb(review.model)) && !capability.models.some(
-        (model) =>
-          model.id === review.model.id &&
-          model.version === review.model.version &&
-          model.revision === review.model.revision
-      )
+      !modelCurrent
     )
       return "Review or model revision changed; review again"
     if (

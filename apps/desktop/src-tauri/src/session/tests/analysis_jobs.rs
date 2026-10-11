@@ -1082,7 +1082,8 @@ fn analysis_direct_volume_drive_mapping_is_retained_through_final_apply() {
 }
 fn model() -> AnalysisModel {
     AnalysisModel {
-        onnx: None,        id: "test-only-lifecycle-copy".into(),
+        onnx: None,
+        id: "test-only-lifecycle-copy".into(),
         version: "1".into(),
         revision: "1".into(),
         sha256: "07f6812eb7ac451adc4b010bb18b2fe098ce235498880c80ead3fad519e47d33".into(),
@@ -1109,7 +1110,8 @@ fn model() -> AnalysisModel {
 }
 fn request(clip: ClipId) -> AnalysisSubmit {
     AnalysisSubmit {
-        amount: None,        task: Default::default(),
+        amount: None,
+        task: Default::default(),
         clip,
         model_id: model().id,
         model_version: "1".into(),

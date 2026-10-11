@@ -496,7 +496,7 @@ export function AnalysisPanel({
           <p>Source SHA256: {review.sourceSha256}</p>
           {isBuiltinDereverb(review.model) ? <p>
             Built-in classical dereverb · {review.task === "dereverbVocal" ? "vocal" : "general"}
-            {" · "}wet/dry {review.amount}. No model weights.
+            {" · "}wet/dry {(review.amount * 100).toFixed(0)}%. No model weights.
           </p> : <p>
             Model: {review.model.id} {review.model.version}, SHA256{" "}
             {review.model.sha256}

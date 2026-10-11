@@ -121,7 +121,7 @@ pub struct Usage {
 /// model/runtime memory must be charged in scratch_bytes; it must use the
 /// provided bounded scratch and checkpoint between bounded CPU chunks. This
 /// cooperative contract does not sandbox arbitrary native allocations/code.
-/// No production inference adapter ships with this foundation.
+/// Built-in classical dereverb ships; imported ONNX inference remains unavailable.
 pub trait AnalysisAdapter: Send + Sync + 'static {
     fn id(&self) -> &str;
     fn version(&self) -> &str;

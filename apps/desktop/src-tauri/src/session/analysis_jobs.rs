@@ -128,7 +128,8 @@ fn manifest(spec: AnalysisModel) -> Result<native::ModelManifest, String> {
 fn model_wire(model: &native::ModelManifest) -> AnalysisModel {
     let p = &model.provenance;
     AnalysisModel {
-        onnx: model.onnx.as_ref().map(onnx_wire),        id: model.id.clone(),
+        onnx: model.onnx.as_ref().map(onnx_wire),
+        id: model.id.clone(),
         version: model.version.clone(),
         revision: model.revision.to_string(),
         sha256: hex(&model.sha256),
