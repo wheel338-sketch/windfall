@@ -720,7 +720,12 @@ pub(crate) struct Look {
 /// to have at the next step of the grid.
 ///
 /// Runs on the audio thread, so it must not allocate.
-pub(crate) fn step(plan: &Plan, state: &mut PlanState, look: Look) {
+pub(crate) fn step(
+    plan: &Plan,
+    state: &mut PlanState,
+    look: Look,
+    touches: &[Option<(AutomationTarget, f32)>],
+) {
     let Look {
         now,
         until,
@@ -730,6 +735,26 @@ pub(crate) fn step(plan: &Plan, state: &mut PlanState, look: Look) {
     } = look;
     let (mut engaged, mut returning) = (0, 0);
     for (index, lane) in plan.lanes.iter().enumerate() {
+        if let Some((_, real)) = touches.iter().flatten().find(|(key, _)| *key == lane.key) {
+            set(
+                plan,
+                state,
+                lane.target,
+                *real,
+                now,
+                until.saturating_sub(now),
+            );
+            if let Some((_, automation)) = tick.and_then(|place| lane.value_in(place)) {
+                state.lanes[index] = LaneState {
+                    engaged: true,
+                    value: lane.range.normalized(*real),
+                    automation: automation.0,
+                    back: None,
+                };
+                engaged += 1;
+            }
+            continue;
+        }
         let Some((value, automation)) = tick.and_then(|place| lane.value_in(place)) else {
             if let_go(plan, state, index, look) {
                 returning += 1;

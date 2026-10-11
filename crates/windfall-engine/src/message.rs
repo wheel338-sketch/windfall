@@ -78,6 +78,11 @@ pub(crate) enum Message {
     SetDiskTaps(Box<[crate::recording_disk::DiskWriter]>),
     /// Installs the audio logger's tap, or with `None` takes it away.
     SetAudioLogger(Option<Box<crate::audio_logger::LoggerTap>>),
+    /// Recording touch override; real parameter units, cleared at stop/disarm.
+    AutomationTouch {
+        target: windfall_project::AutomationTarget,
+        value: Option<f32>,
+    },
 }
 
 /// Values the audio thread is done with. Dropping them is the control

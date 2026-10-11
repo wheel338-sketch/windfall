@@ -116,7 +116,13 @@ impl Session {
             return Err(reason.to_owned());
         }
         self.clear_timeline_play_owner(&state);
-        self.controller().play();
+        let armed = self.controller_state().note_record.armed;
+        let bars = transport.count_in_bars.unwrap_or(0);
+        if armed && bars > 0 {
+            self.controller().play_count_in(bars);
+        } else {
+            self.controller().play();
+        }
         Ok(self.sync_transport())
     }
 

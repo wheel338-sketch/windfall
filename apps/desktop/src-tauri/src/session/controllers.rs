@@ -122,6 +122,7 @@ pub(super) struct Hub {
     notes: NoteTake,
     automation_armed: bool,
     automation: AutomationTake,
+    recording_gesture: Option<u64>,
     log: ScoreLog,
     clock_in: ClockIn,
     clock_events: VecDeque<ClockInEvent>,
@@ -160,6 +161,7 @@ impl Hub {
             notes: NoteTake::default(),
             automation_armed: false,
             automation: AutomationTake::default(),
+            recording_gesture: None,
             log: ScoreLog::default(),
             clock_in: ClockIn::default(),
             clock_events: VecDeque::new(),
@@ -214,6 +216,7 @@ impl Hub {
             self.note_sources.clear();
             self.notes = NoteTake::default();
             self.automation = AutomationTake::default();
+            self.recording_gesture = None;
             self.log.clear();
             self.bank = 0;
             self.stamp = None;
@@ -561,7 +564,11 @@ impl Session {
         if let Some(place) = hub.clock.position_at(now, 0.0) {
             hub.last_tick = place.tick;
         }
-        if hub.clock.observe(playhead, now) {
+        let mut capture_head = *playhead;
+        if self.controller().count_in_remaining() > 0 {
+            capture_head.playing = false;
+        }
+        if hub.clock.observe(&capture_head, now) {
             let end = hub.last_tick;
             hub.notes.close_all(end);
             hub.stopped = true;
@@ -768,8 +775,26 @@ impl Session {
                 plan.commands.push(command);
             }
         }
+        // Held pickup state persists across idle polls; only crossing/removal releases it.
+        hub.waiting = links
+            .iter()
+            .filter_map(|link| {
+                let key = (link.source.clone(), link.target);
+                hub.states
+                    .get(&key)
+                    .filter(|state| state.waiting())
+                    .and_then(|_| resolve(&link.target))
+            })
+            .collect();
         if !plan.commands.is_empty() {
-            plan.gesture = hub.gesture_at(now);
+            plan.gesture = if hub.automation_armed && hub.clock.playing() {
+                if hub.recording_gesture.is_none() {
+                    hub.recording_gesture = Some(hub.fresh_gesture());
+                }
+                hub.recording_gesture.unwrap()
+            } else {
+                hub.gesture_at(now)
+            };
         }
         plan
     }
@@ -787,7 +812,7 @@ impl Session {
         let place = hub
             .clock
             .position_at(now, 0.0)
-            .filter(|place| place.mode == PlayMode::Song && hub.automation_armed);
+            .filter(|place| hub.automation_armed);
         for write in &plan.writes {
             let Some(stored) = project
                 .automation_range(&write.target)
@@ -800,10 +825,18 @@ impl Session {
                 link_state.wrote(stored);
             }
             if let Some(place) = place {
-                hub.automation
-                    .record(write.target, write.before, place.tick, stored);
+                hub.automation.record_in(
+                    (place.mode == PlayMode::Pattern).then_some(place.pattern),
+                    write.target,
+                    write.before,
+                    place.tick,
+                    stored,
+                );
             }
         }
+        drop(guard);
+        drop(state);
+        self.recording_touch_refresh();
     }
 
     /// Adds one link made by a pass of linking: to the project as an edit,
@@ -996,7 +1029,7 @@ impl Session {
         let place = hub
             .clock
             .position_at(now, 0.0)
-            .filter(|place| place.mode == PlayMode::Song && hub.automation_armed);
+            .filter(|place| hub.automation_armed);
         if let Some(place) = place {
             for (target, before) in tweaks {
                 let stored = project
@@ -1004,9 +1037,56 @@ impl Session {
                     .zip(project.automation_stored_value(target))
                     .map(|(range, value)| range.normalized(value));
                 if let Some(stored) = stored.filter(|stored| stored != before) {
-                    hub.automation.record(*target, *before, place.tick, stored);
+                    hub.automation.record_in(
+                        (place.mode == PlayMode::Pattern).then_some(place.pattern),
+                        *target,
+                        *before,
+                        place.tick,
+                        stored,
+                    );
                 }
             }
+        }
+        drop(guard);
+        drop(state);
+        self.recording_touch_refresh();
+    }
+
+    /// Recording movements, including their curve commit, share one pass history entry.
+    pub(super) fn recording_edit_gesture(&self, has_tweaks: bool) -> Option<u64> {
+        let mut hub = lock(&self.inner.controllers);
+        if !has_tweaks || !hub.automation_armed || !hub.clock.playing() {
+            return None;
+        }
+        if hub.recording_gesture.is_none() {
+            hub.recording_gesture = Some(hub.fresh_gesture());
+        }
+        hub.recording_gesture
+    }
+
+    fn recording_touch_refresh(&self) {
+        let targets = {
+            let hub = lock(&self.inner.controllers);
+            if !hub.automation_armed || !hub.clock.playing() {
+                return;
+            }
+            hub.automation.recorded_targets()
+        };
+        let values: Vec<_> = {
+            let state = self.state();
+            targets
+                .into_iter()
+                .filter_map(|target| {
+                    state
+                        .document
+                        .project()
+                        .automation_stored_value(&target)
+                        .map(|value| (target, value))
+                })
+                .collect()
+        };
+        for (target, value) in values {
+            self.controller().automation_touch(target, Some(value));
         }
     }
 
@@ -1100,9 +1180,12 @@ impl Session {
                 .iter()
                 .enumerate()
                 .map(|(index, target)| ControllerLink {
-                    source: ControlSource::Internal {
-                        controller: index as u32,
-                        output: 0,
+                    source: ControlSource::Midi {
+                        device: None,
+                        channel: None,
+                        control: MidiControl::Cc {
+                            number: index as u8,
+                        },
                     },
                     target: *target,
                     map: ControlMap::default(),
@@ -1178,7 +1261,10 @@ impl Session {
 
     /// Writes the movements of the pass as automation, as one undo step.
     fn commit_automation_take(&self) {
-        let lanes = lock(&self.inner.controllers).automation.take();
+        let (lanes, gesture) = {
+            let mut hub = lock(&self.inner.controllers);
+            (hub.automation.take(), hub.recording_gesture.take())
+        };
         if lanes.is_empty() {
             return;
         }
@@ -1186,11 +1272,13 @@ impl Session {
             let state = self.state();
             recorded_automation_command(state.document.project(), &lanes)
         };
-        let Some(command) = command else {
-            return;
-        };
-        if let Err(error) = self.dispatch_quiet(command, None) {
+        if let Some(command) = command
+            && let Err(error) = self.dispatch_quiet(command, gesture)
+        {
             lock(&self.inner.controllers).error = Some(error);
+        }
+        for lane in lanes {
+            self.controller().automation_touch(lane.target, None);
         }
     }
 
@@ -1430,6 +1518,41 @@ pub(super) fn recorded_automation_command(
     let bar = project.settings.time_signature.ticks_per_bar().max(1);
     for lane in lanes {
         if project.automation_range(&lane.target).is_none() {
+            continue;
+        }
+        if let Some(pattern_id) = lane.pattern {
+            if lane.target == AutomationTarget::Tempo {
+                continue;
+            }
+            let Some(pattern) = project.pattern(pattern_id) else {
+                continue;
+            };
+            let expected = pattern
+                .events
+                .iter()
+                .find(|event| event.target == lane.target)
+                .map(|event| event.points.clone())
+                .unwrap_or_default();
+            let recorded = recorded_points(&lane.samples, windfall_project::MAX_AUTOMATION_POINTS);
+            let base = if expected.is_empty() {
+                vec![AutomationPoint {
+                    tick: 0,
+                    value: lane.before,
+                    curve: 0.0,
+                    hold: false,
+                }]
+            } else {
+                expected.clone()
+            };
+            let points = merge_points(&base, &recorded, !expected.is_empty());
+            if points != expected {
+                commands.push(Command::SetPatternEvents {
+                    pattern: pattern_id,
+                    target: lane.target,
+                    expected,
+                    points,
+                });
+            }
             continue;
         }
         let Some(&(first_tick, _)) = lane.samples.first() else {

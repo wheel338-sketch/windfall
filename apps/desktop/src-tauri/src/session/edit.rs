@@ -120,6 +120,7 @@ impl Session {
         // What the command is about to set, for linking the control last
         // moved and for recording the movement as automation.
         let tweaks = self.controller_tweak_probe(&command);
+        let gesture = self.recording_edit_gesture(!tweaks.is_empty()).or(gesture);
         let result = self.dispatch_quiet(command, gesture);
         if result.is_ok() {
             self.controller_tweaked(&tweaks);

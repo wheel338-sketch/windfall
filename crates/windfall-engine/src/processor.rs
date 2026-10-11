@@ -67,6 +67,7 @@ pub struct Processor {
     /// Automated values were published the last time there were any to
     /// publish, so their going away has to be published once as well.
     reported: bool,
+    automation_touches: [Option<(windfall_project::AutomationTarget, f32)>; 64],
     /// Playback has begun or been moved since the automation was last
     /// looked at.
     landed: bool,
@@ -121,6 +122,7 @@ impl Processor {
         let sample_rate = sample_rate.max(1);
         Self {
             spectrum: None,
+            automation_touches: [None; 64],
             captures: None,
             sample_rate,
             frame: 0,
@@ -369,7 +371,7 @@ impl Processor {
             },
         };
         let tick = look.tick;
-        automation::step(&self.plan, &mut self.state, look);
+        automation::step(&self.plan, &mut self.state, look, &self.automation_touches);
         if self.state.engaged == 0 {
             self.hold = None;
         }
@@ -466,7 +468,8 @@ impl Processor {
             | Message::SetInputMonitors(_)
             | Message::SetDiskTaps(_)
             | Message::SetAudioLogger(_)
-            | Message::SetOutputGain(_) => false,
+            | Message::SetOutputGain(_)
+            | Message::AutomationTouch { .. } => false,
         };
         if lets_go {
             self.hold = None;
@@ -547,6 +550,7 @@ impl Processor {
                 self.sequencer.play(&self.plan, now, passes, from);
             }
             Message::Stop { sequence } => {
+                self.automation_touches.fill(None);
                 self.sequencer.set_recording(false);
                 self.cancel_count_in();
                 self.transport_sequence = sequence;
@@ -562,6 +566,17 @@ impl Processor {
                 for unit in self.state.instrument_units() {
                     unit.silence();
                 }
+            }
+            Message::AutomationTouch { target, value } => {
+                let slot = self
+                    .automation_touches
+                    .iter()
+                    .position(|touch| touch.is_some_and(|(key, _)| key == target))
+                    .or_else(|| self.automation_touches.iter().position(Option::is_none));
+                if let Some(slot) = slot {
+                    self.automation_touches[slot] = value.map(|value| (target, value));
+                }
+                self.landed = true;
             }
             Message::Seek(tick) => {
                 self.cancel_count_in();
@@ -1595,20 +1610,37 @@ impl Processor {
         // Capture the actual admitted source-channel MIDI owners at every
         // frame, before mixer effects run. A final-block held snapshot would
         // lose short notes and make harmonies depend on device block size.
-        let clock=self.sequencer.clock();
+        let clock = self.sequencer.clock();
         for chain in &mut self.state.chains {
             for unit in chain.iter_mut().flatten() {
-                let source=unit.harmony_channel().and_then(|id|self.plan.channel_ids.get(id));
+                let source = unit
+                    .harmony_channel()
+                    .and_then(|id| self.plan.channel_ids.get(id));
                 for frame in from..to {
-                    let mut notes=[255;4];
-                    if let Some(source)=source {
-                        let at=clock.tick_at(base+frame as u64);
-                        let mut held=[false;128];
-                        for owner in self.state.channel_voice[source].owners.iter().flatten().filter(|owner|owner.admitted && owner.note.end>at) {held[usize::from(owner.note.key.min(127))]=true;}
-                        let mut voice=0;
-                        for (key,active) in held.iter().enumerate() {if *active {notes[voice]=key as u8;voice+=1;if voice==4 {break;}}}
+                    let mut notes = [255; 4];
+                    if let Some(source) = source {
+                        let at = clock.tick_at(base + frame as u64);
+                        let mut held = [false; 128];
+                        for owner in self.state.channel_voice[source]
+                            .owners
+                            .iter()
+                            .flatten()
+                            .filter(|owner| owner.admitted && owner.note.end > at)
+                        {
+                            held[usize::from(owner.note.key.min(127))] = true;
+                        }
+                        let mut voice = 0;
+                        for (key, active) in held.iter().enumerate() {
+                            if *active {
+                                notes[voice] = key as u8;
+                                voice += 1;
+                                if voice == 4 {
+                                    break;
+                                }
+                            }
+                        }
                     }
-                    unit.record_harmony_frame(frame,notes);
+                    unit.record_harmony_frame(frame, notes);
                 }
             }
         }

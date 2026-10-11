@@ -337,7 +337,11 @@ impl Controller {
         let pool = pool.prepare_samplers(project, &mut || true, &mut |_, _, _| {})?;
         let prepared = Self::compile_prepared_project(project, &pool);
         if prepared.scratch_asset_refused() {
-            return Err(crate::sampler_processing::SamplerPreparationError::Unsupported("The scratch source exceeds the effect asset memory budget; restart to release retained sources."));
+            return Err(
+                crate::sampler_processing::SamplerPreparationError::Unsupported(
+                    "The scratch source exceeds the effect asset memory budget; restart to release retained sources.",
+                ),
+            );
         }
         Ok(prepared)
     }
@@ -567,6 +571,14 @@ impl Controller {
 
     pub fn count_in_remaining(&self) -> u32 {
         self.inner.shared.count_in_remaining.load(Ordering::Acquire)
+    }
+
+    /// Temporarily gives a recorded gesture ownership over an existing curve.
+    /// It does not mutate the saved document and is never used by offline rendering.
+    pub fn automation_touch(&self, target: windfall_project::AutomationTarget, value: Option<f32>) {
+        if value.is_none_or(f32::is_finite) {
+            self.lock().send(Message::AutomationTouch { target, value });
+        }
     }
 
     /// Plays the pattern or song `passes` times, then stops without cutting
@@ -1111,7 +1123,7 @@ mod tests {
             AudioBuffer::from_interleaved(48_000, 1, vec![1.0]),
         );
         project.channels.push(Channel {
-                sample_playback: None,
+            sample_playback: None,
             id: ChannelId(901),
             name: String::new(),
             color: 0,

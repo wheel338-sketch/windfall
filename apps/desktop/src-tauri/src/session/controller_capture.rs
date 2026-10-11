@@ -477,6 +477,8 @@ impl ScoreLog {
 /// The movements of one control in a pass of automation recording.
 #[derive(Debug, Clone, PartialEq)]
 pub(super) struct AutomationLane {
+    /// None is song automation; Some writes events in this pattern.
+    pub pattern: Option<PatternId>,
     pub target: AutomationTarget,
     /// The control's value, 0 to 1, before its first movement of the pass.
     pub before: f32,
@@ -492,6 +494,10 @@ pub(super) struct AutomationTake {
 }
 
 impl AutomationTake {
+    pub fn recorded_targets(&self) -> Vec<AutomationTarget> {
+        self.lanes.iter().map(|lane| lane.target).collect()
+    }
+
     pub fn targets(&self) -> u32 {
         self.lanes.len() as u32
     }
@@ -515,12 +521,28 @@ impl AutomationTake {
 
     /// A control moved to `value` at song tick `tick`. `before` is what it
     /// held just before, which matters for its first movement only.
+    #[cfg(test)]
     pub fn record(&mut self, target: AutomationTarget, before: f32, tick: f64, value: f32) {
+        self.record_in(None, target, before, tick, value);
+    }
+
+    pub fn record_in(
+        &mut self,
+        pattern: Option<PatternId>,
+        target: AutomationTarget,
+        before: f32,
+        tick: f64,
+        value: f32,
+    ) {
         if !tick.is_finite() || !value.is_finite() {
             return;
         }
         let value = value.clamp(0.0, 1.0);
-        let index = match self.lanes.iter().position(|lane| lane.target == target) {
+        let index = match self
+            .lanes
+            .iter()
+            .position(|lane| lane.target == target && lane.pattern == pattern)
+        {
             Some(index) => index,
             None if self.lanes.len() >= MAX_AUTOMATION_LANES => {
                 self.dropped = self.dropped.saturating_add(1);
@@ -528,6 +550,7 @@ impl AutomationTake {
             }
             None => {
                 self.lanes.push(AutomationLane {
+                    pattern,
                     target,
                     before: if before.is_finite() {
                         before.clamp(0.0, 1.0)

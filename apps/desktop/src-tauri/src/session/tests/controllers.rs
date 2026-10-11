@@ -477,6 +477,7 @@ fn recorded_movements_become_a_new_automation_clip_then_overdub_its_curve() {
     let mut doc = Document::new(rig.project());
     let original = doc.project().clone();
     let lanes = vec![AutomationLane {
+        pattern: None,
         target: AutomationTarget::Tempo,
         before: 0.2,
         samples: vec![(960.0, 0.3), (1_920.0, 0.4)],
@@ -521,6 +522,7 @@ fn recorded_movements_become_a_new_automation_clip_then_overdub_its_curve() {
     // A second pass under that clip writes into the same curve and leaves
     // the rest of it alone.
     let again = vec![AutomationLane {
+        pattern: None,
         target: AutomationTarget::Tempo,
         before: 0.4,
         samples: vec![(1_200.0, 0.9), (1_500.0, 0.8)],
@@ -546,6 +548,7 @@ fn recorded_movements_become_a_new_automation_clip_then_overdub_its_curve() {
     // Nothing recorded, or a control that is gone, writes nothing.
     assert!(recorded_automation_command(doc.project(), &[]).is_none());
     let gone = vec![AutomationLane {
+        pattern: None,
         target: AutomationTarget::ChannelPan {
             channel: ChannelId(999_999),
         },
@@ -761,4 +764,182 @@ fn wheel_pressure_and_cc_capture_attach_curves_to_native_note_ids_and_survive_hi
     assert_eq!(doc.project().pattern(pattern), original.pattern(pattern));
     doc.redo().unwrap();
     assert_eq!(doc.project().pattern(pattern), reopened.pattern(pattern));
+}
+
+#[test]
+fn pattern_recording_and_overdub_are_one_history_entry_and_audible_during_capture() {
+    use windfall_project::{AutomationPoint, InstrumentKind, NoteInit};
+    let mut rig = Rig::new();
+    let pattern = rig.pattern();
+    let created = rig
+        .session
+        .dispatch(
+            Command::AddChannel {
+                name: Some("Recording reference".into()),
+                sample: None,
+                instrument: Some(InstrumentKind::TripleOsc),
+                index: None,
+                mixer_track: None,
+            },
+            None,
+        )
+        .unwrap()
+        .created;
+    let channel = ChannelId(created[0]);
+    rig.session
+        .dispatch(
+            Command::AddNotes {
+                pattern,
+                channel,
+                notes: vec![NoteInit {
+                    start: 0,
+                    length: 3840,
+                    key: 69,
+                    velocity: Some(1.0),
+                    pan: None,
+                    expression: None,
+                }],
+            },
+            None,
+        )
+        .unwrap();
+    let target = AutomationTarget::ChannelVolume { channel };
+    let point = |tick, value| AutomationPoint {
+        tick,
+        value,
+        curve: 0.0,
+        hold: true,
+    };
+    rig.session
+        .dispatch(
+            Command::SetPatternEvents {
+                pattern,
+                target,
+                expected: vec![],
+                points: vec![point(0, 0.5), point(3000, 0.5)],
+            },
+            None,
+        )
+        .unwrap();
+    rig.session
+        .transport_set(windfall_ipc::TransportPatch {
+            mode: Some(PlayMode::Pattern),
+            pattern: Some(pattern),
+            ..Default::default()
+        })
+        .unwrap();
+    // Only our synthetic instrument is listened to, so mute the factory rack first.
+    for id in rig
+        .project()
+        .channels
+        .iter()
+        .filter(|c| c.id != channel)
+        .map(|c| c.id)
+        .collect::<Vec<_>>()
+    {
+        rig.session
+            .dispatch(
+                Command::UpdateChannel {
+                    id,
+                    patch: ChannelPatch {
+                        muted: Some(true),
+                        ..Default::default()
+                    },
+                },
+                None,
+            )
+            .unwrap();
+    }
+    rig.session.transport_play().unwrap();
+    let audible = rig.run(2000);
+    assert!(audible.iter().any(|sample| sample.abs() > 0.01));
+    let head = rig.session.controller().playhead();
+    rig.session.controller_idle(Instant::now(), &head);
+    rig.session.automation_record_arm(true);
+    let entries = history(&rig);
+    let before_lane = rig.project().pattern(pattern).unwrap().events.clone();
+    for gain in [0.25, 0.1, 0.0] {
+        rig.session
+            .dispatch(
+                Command::UpdateChannel {
+                    id: channel,
+                    patch: ChannelPatch {
+                        volume: Some(gain),
+                        ..Default::default()
+                    },
+                },
+                None,
+            )
+            .unwrap();
+    }
+    rig.run(4000); // Allow both gain ramps and publication to settle.
+    let muted = rig.run(480);
+    assert!(
+        muted.iter().all(|sample| sample.abs() < 1e-5),
+        "recorded control overrides the old audible event lane"
+    );
+    rig.session.automation_record_arm(false);
+    assert_eq!(
+        history(&rig),
+        entries + 1,
+        "movements and lane commit are one pass"
+    );
+    let recorded = rig.project();
+    assert_ne!(recorded.pattern(pattern).unwrap().events, before_lane);
+    let saved = rig.file("pattern-recording.windfall");
+    rig.session.project_save(Some(&saved)).unwrap();
+    rig.session.undo().unwrap();
+    assert_eq!(rig.project().pattern(pattern).unwrap().events, before_lane);
+    rig.session.redo().unwrap();
+    rig.session.project_open(&saved).unwrap();
+    assert_eq!(
+        rig.project().pattern(pattern).unwrap().events,
+        recorded.pattern(pattern).unwrap().events
+    );
+}
+
+#[test]
+fn armed_midi_uses_count_in_and_excludes_preroll_notes() {
+    let mut rig = Rig::new();
+    let channel = rig.channel(0);
+    let pattern = rig.pattern();
+    rig.session
+        .transport_set(windfall_ipc::TransportPatch {
+            mode: Some(PlayMode::Pattern),
+            pattern: Some(pattern),
+            count_in_bars: Some(1),
+            ..Default::default()
+        })
+        .unwrap();
+    rig.session.note_record_arm(true);
+    rig.session.transport_play().unwrap();
+    rig.run(480);
+    assert!(rig.session.controller().count_in_remaining() > 0);
+    let head = rig.session.controller().playhead();
+    let at = Instant::now();
+    rig.session.controller_idle(at, &head);
+    rig.session.controller_played(channel, 110, Some(1.0), at);
+    rig.session
+        .controller_played(channel, 110, None, at + Duration::from_millis(10));
+    assert_eq!(rig.session.controller_state().note_record.pending, 0);
+    rig.run(96000);
+    assert_eq!(rig.session.controller().count_in_remaining(), 0);
+    let head = rig.session.controller().playhead();
+    let at = Instant::now();
+    rig.session.controller_idle(at, &head);
+    rig.session.controller_played(channel, 111, Some(0.75), at);
+    rig.session
+        .controller_played(channel, 111, None, at + Duration::from_millis(125));
+    rig.session.note_record_arm(false);
+    let project = rig.project();
+    let notes: Vec<_> = project
+        .pattern(pattern)
+        .unwrap()
+        .lanes
+        .iter()
+        .flat_map(|lane| &lane.notes)
+        .filter(|note| note.key >= 110)
+        .collect();
+    assert_eq!(notes.len(), 1);
+    assert_eq!(notes[0].key, 111);
 }
