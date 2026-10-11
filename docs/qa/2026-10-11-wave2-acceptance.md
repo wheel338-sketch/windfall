@@ -2,6 +2,8 @@
 
 ## Running progress
 
+- Final simulator generation passes: 4,980,098 bytes, fresh seven-crate provenance (`target/round2-sim-final.log`), following strict-Clippy product cleanups and gate-release repair. Focused mounted tests are next; full native/frontend suites and final row reconciliation remain pending.
+
 - Final strict workspace Clippy passes with zero warnings (`target/round2-clippy-repair.log`); final rustfmt check also exits 0. Cleanups preserve formulas and assertions: reuse prepared bank allocation, pair cabinet selection with its bank, remove redundant struct updates, use fixed-size chunks/iterators and simplify equivalent validation guards. Next: rebuild simulator from this clean product tree, then mounted and full-suite gates.
 
 - Formats/core/analysis focused execution: the non-FLP targets pass 232/0/3 (`round2-formats-focused.log`); FLP is now 158/0/0 (`round2-flp-focused-final.log`). Corrected invalid/incomplete generated fixtures, exact pan-law report accounting, preserved source editing resolution and both mapped/unsupported opaque states. Malformed payload test now checks exact salvage diagnostic and preceding version preservation, matching the parser's established partial-recovery contract; no parser behavior or refusal bound weakened.
