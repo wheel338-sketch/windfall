@@ -32,6 +32,12 @@ independent of the pitch detector, with a <10-cent target; hum SNR target is
 Render intervals now use 120 ms source context and up to 8 ms linear
 crossfades, shrinking for short neighbouring intervals. Neutral render is an
 exact buffer bypass. Strongest-channel and output scans checkpoint Work.
+Polyphonic note gating/dynamics now use the current 10 ms cell rather than
+the centered FFT lookahead, preventing future attacks from creating early
+notes and past audio from holding offsets through silence. Added
+`repeated_score_notes_have_calibrated_onsets_offsets_pitch_and_dynamics`:
+two repeated A4 notes, silence, differing amplitudes, mono/poly modes,
+50/10 ms boundary targets and bounded RMS-derived velocity. Written, not executed.
 
 These assertions are acceptance targets, not measurements. The SNR fixture
 requires >5 dB improvement and <1.5 dB tone RMS error; no result is claimed.

@@ -195,7 +195,6 @@ fn spectral_notes(
     let mut notes: Vec<DetectedAudioNote> = Vec::new();
     for center in (0..audio.frames()).step_by(hop) {
         work.checkpoint((n * (n.ilog2() as usize + 1) * 20) as u64)?;
-        let mut energy = 0.0;
         for (i, bin) in bins.iter_mut().enumerate() {
             let frame = center as isize + i as isize - n as isize / 2;
             let value = if frame >= 0 && frame < audio.frames() as isize {
@@ -205,9 +204,16 @@ fn spectral_notes(
             };
             let window = 0.5 - 0.5 * (std::f64::consts::TAU * i as f64 / n as f64).cos();
             *bin = Complex::new(value * window, 0.0);
-            energy += value * value;
         }
-        let rms = (energy / n as f64).sqrt();
+        // Gate and dynamics use the current 10 ms cell, not the lookahead FFT
+        // window. Future onsets must not create early notes; past tails must
+        // not extend offsets through actual silence.
+        let end_frame = (center + hop).min(audio.frames());
+        let rms = ((center..end_frame)
+            .map(|frame| f64::from(audio.samples()[frame * channels + channel]).powi(2))
+            .sum::<f64>()
+            / (end_frame - center) as f64)
+            .sqrt();
         fft.process_with_scratch(&mut bins, &mut scratch);
         for (m, b) in magnitudes.iter_mut().zip(&bins) {
             *m = b.norm();

@@ -386,3 +386,40 @@ fn stationary_hum_profile_preserves_tone_stereo_and_linear_wet_mix() {
         .all(|f| (f[0] + f[1]).abs() < 1e-6));
     assert_eq!(audio.samples(), noisy);
 }
+
+#[test]
+fn repeated_score_notes_have_calibrated_onsets_offsets_pitch_and_dynamics() {
+    let spans = [(4000_usize, 12000_usize, 0.10_f64), (15200, 31200, 0.25)];
+    let audio = AudioBuffer::from_interleaved(
+        16000,
+        1,
+        (0..35200)
+            .map(|i| {
+                let gain = spans
+                    .iter()
+                    .find(|(start, end, _)| i >= *start && i < *end)
+                    .map_or(0.0, |(_, _, gain)| *gain);
+                (gain * (std::f64::consts::TAU * 440.0 * i as f64 / 16000.0).sin()) as f32
+            })
+            .collect(),
+    );
+    for polyphonic in [false, true] {
+        let analysis = classical::detect(&audio, polyphonic, &mut work()).unwrap();
+        assert_eq!(analysis.notes.len(), 2, "mode polyphonic={polyphonic}");
+        for (note, (start, end, _)) in analysis.notes.iter().zip(spans) {
+            // YIN support can straddle an edge; the spectral cell gate has a
+            // tighter 10 ms bound. These are declared acceptance targets.
+            let tolerance = if polyphonic { 160 } else { 800 };
+            assert!(note.start_frame.abs_diff(start as u32) <= tolerance);
+            assert!(note.end_frame.abs_diff(end as u32) <= tolerance);
+            assert!((note.midi_pitch - 69.0).abs() < 0.15);
+            let velocity = (note.rms.sqrt() * 1.6).clamp(1.0 / 127.0, 1.0);
+            assert!((0.35..0.8).contains(&velocity));
+        }
+        assert!(analysis.notes[0].rms < analysis.notes[1].rms);
+        let mut r = recipe(&audio);
+        r.analysis = analysis;
+        let reviewed = classical::reviewed_notes(&r).unwrap();
+        assert_eq!(reviewed, r.analysis.notes);
+    }
+}
