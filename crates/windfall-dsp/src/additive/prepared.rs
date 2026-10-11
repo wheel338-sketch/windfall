@@ -54,6 +54,10 @@ struct Voice {
     order: u64,
     phases: [f32; 64],
     release: LinearRamp,
+    correction_left: LinearRamp,
+    correction_right: LinearRamp,
+    last_left: f32,
+    last_right: f32,
 }
 impl Default for Voice {
     fn default() -> Self {
@@ -66,6 +70,10 @@ impl Default for Voice {
             order: 0,
             phases: [0.0; 64],
             release: LinearRamp::new(1.0),
+            correction_left: LinearRamp::new(0.0),
+            correction_right: LinearRamp::new(0.0),
+            last_left: 0.0,
+            last_right: 0.0,
         }
     }
 }
@@ -143,6 +151,16 @@ impl PreparedEngine {
         for (phase, partial) in voice.phases.iter_mut().zip(&self.bank.frames[0].partials) {
             *phase = partial.phase;
         }
+        if self.voices[index].active {
+            voice.correction_left.snap(self.voices[index].last_left);
+            voice.correction_right.snap(self.voices[index].last_right);
+            voice
+                .correction_left
+                .set_target(0.0, (self.rate * 0.004).max(1.0) as u32);
+            voice
+                .correction_right
+                .set_target(0.0, (self.rate * 0.004).max(1.0) as u32);
+        }
         self.voices[index] = voice;
         for voice in &mut self.voices[limit..] {
             if voice.active {
@@ -215,6 +233,7 @@ impl PreparedEngine {
                     1.0
                 };
                 let envelope = attack * natural * v.release.tick() * v.velocity * c.gain;
+                let (mut voice_left, mut voice_right) = (0.0, 0.0);
                 for (i, (pa, pb)) in self.bank.frames[a]
                     .partials
                     .iter()
@@ -256,10 +275,14 @@ impl PreparedEngine {
                         * shimmer
                         * alias
                         * envelope;
-                    *left += sample * (1.0 - pan) * 0.5;
-                    *right += sample * (1.0 + pan) * 0.5;
+                    voice_left += sample * (1.0 - pan) * 0.5;
+                    voice_right += sample * (1.0 + pan) * 0.5;
                     v.phases[i] = (v.phases[i] + increment).rem_euclid(1.0);
                 }
+                v.last_left = voice_left + v.correction_left.tick();
+                v.last_right = voice_right + v.correction_right.tick();
+                *left += v.last_left;
+                *right += v.last_right;
                 v.age = v.age.saturating_add(1);
                 if v.release.value() == 0.0 || natural < 1e-7 {
                     v.active = false;

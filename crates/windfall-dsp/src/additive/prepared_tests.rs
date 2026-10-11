@@ -320,3 +320,28 @@ fn image_scan_interpolates_brightness_pitch_and_stereo_with_partition_identity()
     assert_eq!(left, right);
     assert_eq!(sound(0.0, true, 1.0, 12000), sound(0.0, true, 1.0, 1));
 }
+
+#[test]
+fn prepared_voice_stealing_preserves_endpoint_and_stop_reaches_exact_silence() {
+    let mut synth = SnapshotMorph::default();
+    synth.prepare(48000.0, 257);
+    synth.set_params(&SnapshotMorphParams {
+        polyphony: 1,
+        attack_ms: 0.1,
+        ..Default::default()
+    });
+    synth.note_on(69, 1.0);
+    let (mut l, mut r) = ([0.0; 257], [0.0; 257]);
+    synth.process(&mut l, &mut r);
+    let before = l[256];
+    synth.note_on(57, 1.0);
+    let (mut first, mut right) = ([0.0], [0.0]);
+    synth.process(&mut first, &mut right);
+    assert!((first[0] - before).abs() < 0.002);
+    assert_eq!(synth.active_voices(), 1);
+    synth.all_notes_off();
+    synth.process(&mut l, &mut r);
+    synth.process(&mut l, &mut r);
+    assert_eq!(synth.active_voices(), 0);
+    assert!(l.iter().chain(&r).all(|x| *x == 0.0));
+}
