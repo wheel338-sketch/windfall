@@ -779,6 +779,7 @@ mod tests {
         assert_ne!(copy.name, pattern.name);
         assert!(make_unique(UniqueSource::Pattern(pattern), || pattern.id.0).is_err());
         let sample = SampleAsset {
+            processing: None,
             id: SampleId(50),
             name: "Audio".into(),
             path: SamplePath::Project("audio.wav".into()),

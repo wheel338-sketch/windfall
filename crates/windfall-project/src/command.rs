@@ -372,6 +372,11 @@ pub enum Command {
     RemoveSample {
         id: SampleId,
     },
+    /// Stores the separately reviewed estimates/overrides on a derived asset.
+    SetSampleProcessing {
+        id: SampleId,
+        processing: Option<crate::AudioEditRecipe>,
+    },
 
     // Channel rack
     /// Adds a channel and, unless `mixer_track` is given, a new mixer track

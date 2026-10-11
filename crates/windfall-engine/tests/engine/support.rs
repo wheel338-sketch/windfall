@@ -43,6 +43,7 @@ impl Rig {
         let id = SampleId(self.id());
         self.pool.insert(id, audio);
         self.project.samples.push(SampleAsset {
+            processing: None,
             id,
             name: format!("sample {}", id.0),
             path: SamplePath::Project(format!("{}.wav", id.0)),

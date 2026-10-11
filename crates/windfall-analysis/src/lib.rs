@@ -5,6 +5,7 @@ mod input;
 mod jobs;
 mod model;
 pub mod pitch;
+pub mod classical;
 mod work;
 
 pub use artifacts::{ArtifactMetadata, ArtifactWriter, RelativeName};

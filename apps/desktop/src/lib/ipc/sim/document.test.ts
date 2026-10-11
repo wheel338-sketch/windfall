@@ -585,6 +585,7 @@ const EVERY_COMMAND: { [Type in Command["type"]]: (ids: Ids) => Command } = {
     path: { kind: "factory", path: "Drums/Percussion/Rim 01.wav" },
   }),
   removeSample: (ids) => ({ type: "removeSample", id: ids.spareSample }),
+  setSampleProcessing: (ids) => ({ type: "setSampleProcessing", id: ids.sample, processing: null }),
   addChannel: (ids) => ({ type: "addChannel", sample: ids.sample, index: 0 }),
   removeChannel: (ids) => ({ type: "removeChannel", id: ids.channel }),
   duplicateChannel: (ids) => ({ type: "duplicateChannel", id: ids.channel }),

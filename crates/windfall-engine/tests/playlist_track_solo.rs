@@ -23,6 +23,7 @@ fn fixture(kind: Kind) -> (Project, SamplePool) {
     let sample = SampleId(11);
     let channel = ChannelId(10);
     project.samples.push(SampleAsset {
+            processing: None,
         id: sample,
         name: "Tone".into(),
         path: SamplePath::Project("tone.wav".into()),

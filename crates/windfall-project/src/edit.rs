@@ -126,6 +126,7 @@ pub(crate) enum Edit {
     /// Replaces the routing of the effects' separately routable outputs.
     EffectOutputs(Change<Vec<crate::EffectOutputRoute>>),
     Sample(ListEdit<SampleAsset>),
+    SetSample(Change<SampleAsset>),
     /// Boxed because a channel is large: an instrument's settings are part
     /// of it.
     Channel(Box<ListEdit<Channel>>),
@@ -182,6 +183,12 @@ impl Edit {
                 project.mixer.effect_outputs = change.result(direction).clone()
             }
             Edit::Sample(edit) => edit.apply(&mut project.samples, direction),
+            Edit::SetSample(change) => {
+                let result = change.result(direction);
+                if let Some(sample) = project.samples.iter_mut().find(|s| s.id == result.id) {
+                    *sample = result.clone();
+                }
+            }
             Edit::Channel(edit) => edit.apply(&mut project.channels, direction),
             Edit::MoveChannel(moved) => moved.apply(&mut project.channels, direction),
             Edit::SetChannel(change) => {
@@ -264,7 +271,7 @@ impl Edit {
             Edit::TakeGroups(_) => touched.playlist = true,
             Edit::Plugins(_) => touched.plugins = true,
             Edit::EffectOutputs(_) => touched.mixer = true,
-            Edit::Sample(_) => touched.samples = true,
+            Edit::Sample(_) | Edit::SetSample(_) => touched.samples = true,
             Edit::Channel(_) | Edit::MoveChannel(_) | Edit::SetChannel(_) => {
                 touched.channels = true;
             }
@@ -319,6 +326,7 @@ impl Edit {
             Edit::Plugins(change) => change.old == change.new,
             Edit::EffectOutputs(change) => change.old == change.new,
             Edit::SetChannel(change) => change.old == change.new,
+            Edit::SetSample(change) => change.old == change.new,
             Edit::SetMixerTrack(change) => change.old == change.new,
             Edit::SetPlaylistTrack(change) => change.old == change.new,
             Edit::SetAutomation(change) => change.old == change.new,

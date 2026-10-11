@@ -223,6 +223,13 @@ fn check_samples(project: &Project) -> Result<(), String> {
     let mut ids = HashSet::new();
     for sample in &project.samples {
         check_id(project, "sample", sample.id, &mut ids)?;
+        if let Some(recipe) = &sample.processing {
+            recipe.check()?;
+            let source = recipe.source_clip.content.sample().expect("checked audio recipe");
+            if source == sample.id || project.sample(source).is_none() {
+                return Err("A processed sample has lost its original source.".into());
+            }
+        }
         if let Some(problem) = sample.path.problem() {
             return Err(format!("sample {}: {problem}", sample.id.0));
         }
