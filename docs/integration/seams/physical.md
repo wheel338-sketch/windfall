@@ -4,9 +4,9 @@ Public types live in `windfall_dsp::physical`: `Pluck` / `PluckParams`,
 `FingerBass` / `FingerBassParams`, and `AcousticString` / `AcousticStringParams`.
 Each instrument implements `Instrument`, has `Default`, and exposes Copy,
 sanitized `ParamSet` controls with serde camelCase, legacy-field defaults and
-ts-rs exports. Suggested `InstrumentKind` variants are `Pluck`, `FingerBass`,
+ts-rs exports. Registered `InstrumentKind` variants are `Pluck`, `FingerBass`,
 and `AcousticString`; matching parameter/runtime union variants can use these
-names. Registry/model/command/parity integration belongs to the parent owner.
+names. Registry/model/command hosting is wired; parity status remains with the integration owner.
 
 - **Pluck**, parity `inst-plucked`: Karplusâ€“Strong delay with deterministic
   noise plus a plucked triangular displacement, decay, brightness and pick
@@ -28,8 +28,10 @@ names. Registry/model/command/parity integration belongs to the parent owner.
 
 `prepare` allocates two fixed delay lines per voice; construction and destruction
 also belong off the audio thread. All other calls reuse storage without
-allocation, freeing, IO, synchronization or waits. There are exactly eight
-voices, including releases; overflow deterministically steals the oldest voice.
+allocation, freeing, IO, synchronization or waits. Pluck and Acoustic String
+retain eight voices including releases; overflow steals the oldest. Finger Bass
+now uses a single monophonic string: every positive note replaces it with a
+4 ms endpoint correction. An old key release cannot stop the new key.
 Excitation uses a note sequence/key seed, which resets reproducibly. Every
 sample is processed independently of callback boundaries, and the smoothed
 controls update on a persistent 16-sample clock (10 ms smoothing).
@@ -86,3 +88,11 @@ the package's existing dependency artifacts. All 13 physical tests passed
 (including three TypeScript export tests). The harness and its executable were
 removed afterward. Only physical Rust files were formatted; full package and
 workspace validation remain the integration owner's responsibility.
+
+## Finger Bass application checkpoint — 2026-10-11
+
+The six controls retain their indices and automation/history semantics. Public
+engine acceptance covers audible tone edits, undo/redo, actual disk reopen and
+live/offline PCM equality; mounted channel-rack acceptance covers tone editing.
+New and existing physical measurements are **written, not executed** in this
+edit-only stream. See [hand-off](../../qa/2026-10-11-inst-additive-physical-drum.md).

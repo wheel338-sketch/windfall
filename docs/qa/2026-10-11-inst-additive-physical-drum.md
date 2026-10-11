@@ -50,7 +50,7 @@ pnpm --dir apps/desktop lint
 - No new dependency, generated file edit, or parameter index change.
 - The new engine test is an automatically discovered Cargo integration target.
 - Inspect mono retrigger continuity and tone-difference threshold first; no runtime evidence is claimed.
-- Shared seams touched so far: none.
+- The current shared seam inventory is listed in the final hand-off below.
 
 ### Single drum checkpoint
 
@@ -289,3 +289,69 @@ state or embedded sample/image sources. Shared additional seam:
 `windfall-flp/src/convert/synth.rs`; run `cargo test -p windfall-flp --lib convert::synth`.
 
 Ownership documentation now states the actual strategy: plans retain Arc assets and prepared units own immutable clones; changed assets replace prebuilt units through existing plan retirement. No callback-side asset replacement API is exposed.
+
+## Final integration hand-off
+
+All eleven row entries are full-row **candidates**, not verified closures.
+No build, test, lint, benchmark, generator, device check or browser test was run.
+No dependency, generated artifact, parity status, push, PR or subagent was added.
+Every coherent file group is committed. The temporary registry helper was removed.
+
+### Shared source seams
+
+- DSP: `src/instrument.rs`, `src/lib.rs`, `src/instrument_asset.rs` (existing unregistered foundation now exported/extended); family module exports and parameter append-only layouts; `tests/dsp/params.rs`, `tests/dsp/realtime.rs`.
+- Project: `src/model.rs`, `command.rs`, `lower.rs`, `check.rs`, `automation.rs`, `preset.rs`, `lower/preset_apply.rs`; new owned `lower/instrument_assets.rs`.
+- Engine: `src/plan.rs`, `state.rs`, `rack.rs`; source constructor/destructure fixtures in `src/bin/windfall-soak.rs` and `tests/engine/support.rs`.
+- Frontend: `features/channel-rack/inspector/instrument-section.tsx`, mounted acceptance, `features/params/access.test.ts`, simulator `EVERY_COMMAND`.
+- Tauri fixture: `src-tauri/src/session/tests/effects.rs`; project `tests/commands.rs` source literals/destructures only.
+- FL import: `windfall-flp/src/convert/synth.rs` only the assigned I3/I4 name mappings and their corresponding tests.
+- Design seams updated: `docs/integration/seams/additive.md`, `physical.md`, `drums.md`, `flp-instruments.md`.
+
+### Regenerate after merging all streams
+
+`InstrumentKind`, `InstrumentParams`, LayerKickParams, SnapshotMorphParams,
+HarmonicFilterParams/HarmonicShape, MetalVoiceParams, NumberVoiceParams,
+SpectralResynthParams, ColorScanParams, MembraneParams, DrumPadParams,
+DrumRackParams, InstrumentAsset, DrumKeyPatch, SpectralBank, SpectralFrame,
+SpectralPartial, the existing LayerPcm/SpectralGrid types, ChannelSource,
+PluginPresetState and referenced Command/Project/PluginPreset types. Rebuild
+parameter defaults/descriptors, automation fixtures, binding barrel and simulator
+WASM/metadata. Do not hand-edit generated types. Current local ALL length is 34;
+reconcile other workers' append-only kinds, exhaustive arms, pinned names and
+frontend kind record after merge. Do not reorder existing descriptor indices.
+
+### Exact integrator sequence (not run here)
+
+Run these from the merged checkout in Git Bash, one integrator at a time:
+
+```sh
+source scripts/msvc-env.sh
+bash scripts/gen-bindings.sh
+bash scripts/build-sim.sh
+# Redirect later ts-rs test exports away from regenerated checked-in bindings.
+wf_exports="$(mktemp -d)"
+export TS_RS_EXPORT_DIR="$(cygpath -w "$wf_exports")"
+cargo test -p windfall-dsp --lib physical
+cargo test -p windfall-dsp --lib drums
+cargo test -p windfall-dsp --lib additive
+cargo test -p windfall-dsp --lib instrument_asset
+cargo test -p windfall-dsp --test dsp
+cargo test -p windfall-project --test instrument_assets
+cargo test -p windfall-project --test presets
+cargo test -p windfall-project --lib --tests
+cargo test -p windfall-engine --test inst_additive_physical_drum
+cargo test -p windfall-engine --test builtin_instrument_acceptance_qa
+cargo test -p windfall-flp --lib convert::synth
+pnpm --dir apps/desktop test src/features/channel-rack/instruments/asset-preparation.test.ts src/features/channel-rack/instruments/asset-job.test.ts src/features/channel-rack/inspector/instrument-section.test.tsx src/features/params/access.test.ts src/lib/ipc/sim/document.test.ts --maxWorkers=4
+pnpm --dir apps/desktop typecheck
+pnpm --dir apps/desktop lint
+```
+
+### Risks / remaining gates, in check order
+
+1. Merge registry/Command/ChannelSource/preset/host seams with the parallel synth/MIDI/sample workers; regenerate everything before frontend checks. Compile warnings and TypeScript/React lint are unverified. The registry helper error was corrected in the final tree.
+2. Run real native/project/simulator and mounted suites above. Numerical assertions, block partitions, old membrane expectations and live/offline prefixes are unexecuted; fix implementation when an independent reference fails rather than weakening it by assumption.
+3. Listen to membrane/body/strike spectra, monophonic bass retriggers, metallic shimmer, image scan loop and layer steals. Source changes intentionally replace the currently sounding prepared unit; they are program edits, not a table mutation during callback playback.
+4. Check maximum 16-voice/64-partial callback cost on the integrator's audio device. Allocator harness is written and bounded storage inspected, but no realtime CPU/device evidence exists.
+5. WAV resynthesis is bounded harmonic projection at an explicit user root; arbitrary transient/noisy/DC residuals are omitted and incorrect roots increase error. Images resize to 256x64 and WAV sources truncate/fade at 32768 mono frames. Number-preparation pow rounding may differ by an ulp across platforms; saved prepared partials remain authoritative.
+6. Import recognizes instrument names and starts from Windfall defaults; original proprietary presets/sources are not decoded or reproduced. No claim of vendor bit identity, hardware acceptance or other-OS verification.

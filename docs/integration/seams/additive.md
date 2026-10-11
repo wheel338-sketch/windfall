@@ -1,5 +1,43 @@
 # Seam: additive and resynthesis instruments
 
+## Current application contract — 2026-10-11
+
+The historical foundation reference below remains load-compatible. The full
+application workflows now use six additional append-only kinds:
+
+| Row | Current kind / product | Prepared contract |
+| --- | --- | --- |
+| inst-harmless | HarmonicFilter / Harmonic Filter | Immutable 64 harmonics with saw/square/triangle weighting and spectral cutoff/resonance |
+| inst-morphine | SnapshotMorph / Snapshot Morph | Worker-prepared A/B harmonic snapshots, amplitude/phase/pan interpolation and harmonic editor |
+| inst-ogun | MetalVoice / Metal Voice | Inharmonic partials, stretch, independent shimmer and finite decay |
+| inst-harmor | SpectralResynth / Spectral Resynth | Worker harmonic WAV projection or image luminance frames, manual freeze or timed scan |
+| inst-autogun | NumberVoice / Number Voice | Full unsigned 32-bit number selects deterministic prepared ratios/levels/phases; preset-only editor |
+| inst-beepmap | ColorScan / Color Scan | Image rows/hue to frequency, squared luminance/alpha to amplitude, red/blue to pan; timed scan |
+
+`InstrumentAsset::Spectra` contains non-Copy SpectralBank/Frame/Partial data.
+Copy params contain scalar controls only. Preparation happens off audio;
+process/events/reset read immutable assets and fixed oscillator/envelope state.
+There are at most 16 voices and 64 partials, with 5 ms control smoothing,
+4 ms steal/stop continuity, shortest-path phase interpolation, Nyquist fading
+and stereo output. Scan interpolates back to its first frame at loop boundaries.
+Banks hold at most 256 frames. WAV and browser image source files cap at 16 MiB;
+WAV preparation retains at most 32768 mono frames. Harmonic projection omits DC
+and noisy residuals; exact arbitrary recording reconstruction is not promised.
+
+ChannelSource and instrument plugin presets persist optional assets; checked
+SetInstrumentAsset captures the complete expected source, rejects stale/invalid
+results, and supplies ordinary history. Plans build changed assets into fresh
+units off audio and retire old units on the control side. Cancellation covers
+project replacement, history navigation, unmount and worker timeout.
+
+Registry, descriptors, project persistence, engine hosting, purpose-built
+channel-rack editors and acceptance sources are implemented. All new acceptance
+is **written, not executed**. See [current hand-off](../../qa/2026-10-11-inst-additive-physical-drum.md)
+for exact tests/regeneration/risks. The following sections describe the earlier
+six foundation kinds, not this current application contract.
+
+## Historical foundation reference
+
 The owned `windfall_dsp::additive` module adds six polyphonic instruments
 through the existing `Instrument` and `ParamSet` contracts. Nothing outside
 `crates/windfall-dsp/src/additive/` and this file was touched, so the module
