@@ -16,12 +16,20 @@ describe("MIDI hardware settings", () => {
     app.stop()
   })
 
+  /** The settings added with controller profiles and MIDI clock. */
+  const MORE_SETTINGS = {
+    inputProfile: null,
+    extraInputs: [],
+    sendClock: false,
+    followClock: false,
+  }
   const hardware = (): MidiHardwareState => ({
     settings: {
       input: null,
       output: null,
       inputChannel: null,
       outputChannel: 1,
+      ...MORE_SETTINGS,
     },
     inputs: [
       { id: "input-1", name: "Keyboard" },
@@ -34,6 +42,10 @@ describe("MIDI hardware settings", () => {
     generation: 42,
     droppedEvents: 0,
     error: null,
+    connectedInputs: [],
+    clockRunning: false,
+    outputDropped: 0,
+    externalBpm: null,
   })
   function native(overrides: Partial<Backend> = {}) {
     let state = hardware()
@@ -96,6 +108,7 @@ describe("MIDI hardware settings", () => {
       output: null,
       inputChannel: null,
       outputChannel: 1,
+      ...MORE_SETTINGS,
     })
     await user.click(screen.getByRole("combobox", { name: "Live MIDI output" }))
     await user.click(await screen.findByRole("option", { name: "Synth" }))
@@ -104,6 +117,7 @@ describe("MIDI hardware settings", () => {
       output: "output",
       inputChannel: null,
       outputChannel: 1,
+      ...MORE_SETTINGS,
     })
     const channel = useProjectStore.getState().project.channels[0]
     await user.click(

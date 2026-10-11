@@ -7,7 +7,7 @@ use rtrb::{Consumer, Producer};
 use windfall_core::AudioBuffer;
 use windfall_project::TrackId;
 
-use crate::automation::{self, GRID, Look};
+use crate::automation::{self, GRID, Look, Place};
 use crate::channel_voice::{ArpeggiatorMode, NoteEvent, NoteEventKind, admit_note};
 use crate::channel_voice_runtime::{Generator, Owner};
 use crate::clips::ClipPlayer;
@@ -35,6 +35,8 @@ use windfall_dsp::NoteInstanceId;
 /// back to it to be dropped.
 pub struct Processor {
     spectrum: Option<crate::spectrum::SpectrumTap>,
+    /// The selectable analyzer captures of a device stream. `None` offline.
+    captures: Option<crate::capture::AudioCaptures>,
     sample_rate: u32,
     /// Frames processed so far. It is the engine's clock.
     frame: u64,
@@ -52,6 +54,9 @@ pub struct Processor {
     count_in: Option<crate::metronome::CountIn>,
     input_monitors: Box<[Box<crate::recording_monitor::MonitorReader>]>,
     disk_taps: Box<[crate::recording_disk::DiskWriter]>,
+    /// The audio logger's end of its queues. `None` while nothing is logged,
+    /// and always in an offline render.
+    audio_logger: Option<Box<crate::audio_logger::LoggerTap>>,
     hardware_output: Option<crate::hardware_output::HardwareOutput>,
     /// Gain applied after the master track and its meter.
     output_gain: Ramp,
@@ -68,7 +73,7 @@ pub struct Processor {
     /// The place in the song at which a song that has stopped keeps its
     /// automation, for as long as it is ringing out. See
     /// [`Processor::automate`].
-    hold: Option<f64>,
+    hold: Option<Place>,
     /// The offline renderer is what plays: nobody will use the transport
     /// again, so a hold lasts for good.
     hold_for_good: bool,
@@ -90,6 +95,16 @@ impl Processor {
         (processor, controller)
     }
 
+    /// Gives `controller` a new processor running at `sample_rate`, as the
+    /// device layer does when it reopens a stream, for running the engine
+    /// with no device. The project, the transport settings and the playhead
+    /// carry over; what belonged to the stream before, such as analyzer
+    /// captures and their tickets, does not. Drop the controller's previous
+    /// processor first: this panics while that one is still alive.
+    pub fn reopen(controller: &Controller, sample_rate: u32) -> Processor {
+        controller.attach(sample_rate)
+    }
+
     /// A processor that starts out on `plan`, with `state` built for it at
     /// this sample rate, and with the output at `output_gain`. All of it is
     /// simply there from the first frame: nothing has sounded yet, so there
@@ -106,6 +121,7 @@ impl Processor {
         let sample_rate = sample_rate.max(1);
         Self {
             spectrum: None,
+            captures: None,
             sample_rate,
             frame: 0,
             state,
@@ -120,6 +136,7 @@ impl Processor {
             count_in: None,
             input_monitors: Vec::new().into_boxed_slice(),
             disk_taps: Vec::new().into_boxed_slice(),
+            audio_logger: None,
             hardware_output: None,
             output_gain: Ramp::at_rest(output_gain),
             fades: Fades::at(sample_rate),
@@ -145,6 +162,11 @@ impl Processor {
         self.spectrum = Some(spectrum);
     }
 
+    /// Installed during off-audio attachment, before processing can begin.
+    pub(crate) fn set_captures(&mut self, captures: crate::capture::AudioCaptures) {
+        self.captures = Some(captures);
+    }
+
     pub(crate) fn output_frame(&self) -> u64 {
         self.frame
     }
@@ -164,6 +186,9 @@ impl Processor {
     /// The audio does not depend on how the output is divided into calls,
     /// only on which frame each request arrives at.
     pub fn process(&mut self, out: &mut [f32]) {
+        if let Some(captures) = &mut self.captures {
+            captures.boundary();
+        }
         self.plugin_control_boundary();
         self.voices.sweep(&self.plan, &mut self.garbage);
         self.clips.sweep(&self.plan, &mut self.garbage);
@@ -195,6 +220,7 @@ impl Processor {
         self.finish_count_in();
         self.apply_navigation(&mut navigation_left);
         self.publish_automation();
+        self.collect_midi_out();
         self.shared.publish_transport(
             self.transport_sequence,
             self.sequencer.playing() || self.count_in.is_some(),
@@ -272,6 +298,7 @@ impl Processor {
     fn sync_hardware_epoch(&mut self) {
         let epoch = self.shared.hardware_epoch.load(Ordering::Acquire);
         if epoch != self.hardware_epoch {
+            self.cut_echoes_of(Origin::Hardware);
             self.voices.fade_origin(Origin::Hardware);
             for unit in self.state.instrument_units() {
                 unit.silence_hardware();
@@ -288,7 +315,11 @@ impl Processor {
     fn next_block(&mut self, left: usize) -> usize {
         let most = left.min(MAX_BLOCK);
         let at_work = self.state.engaged > 0 || self.state.returning > 0;
-        let automating = !self.plan.lanes.is_empty() && (self.sequencer.in_song() || at_work);
+        let in_pattern = self.plan.pattern_lanes
+            && self.sequencer.playing()
+            && self.sequencer.mode() == windfall_ipc::PlayMode::Pattern;
+        let automating =
+            !self.plan.lanes.is_empty() && (self.sequencer.in_song() || in_pattern || at_work);
         if !automating {
             return most;
         }
@@ -322,15 +353,12 @@ impl Processor {
         }
         let landed = std::mem::take(&mut self.landed);
         let until = (now / GRID + 1) * GRID;
-        let ahead = self.sequencer.song_tick_at(&self.plan, until);
+        let ahead = self.place_at(until);
         let look = Look {
             now,
             until,
             tick: ahead.or(self.hold),
-            landed: self
-                .sequencer
-                .song_tick_at(&self.plan, now)
-                .filter(|_| landed),
+            landed: self.place_at(now).filter(|_| landed),
             // With the song playing on, what starts next must find the
             // target where it belongs. With the transport stopped there is
             // only what still rings to hear the change.
@@ -346,10 +374,25 @@ impl Processor {
             self.hold = None;
         }
         let tempo = match (tick, &self.plan.tempo_map) {
-            (Some(tick), Some(map)) => map.tempo_at(tick),
+            (Some(Place::Song(tick)), Some(map)) => map.tempo_at(tick),
             _ => self.plan.tempo_bpm,
         };
         self.state.tell_tempo(tempo);
+    }
+
+    /// The place automation is read at for frame `frame`: in the song while
+    /// the playlist plays, in the pattern while a pattern plays by itself
+    /// and some pattern has event lanes.
+    fn place_at(&self, frame: u64) -> Option<Place> {
+        if let Some(tick) = self.sequencer.song_tick_at(&self.plan, frame) {
+            return Some(Place::Song(tick));
+        }
+        if !self.plan.pattern_lanes {
+            return None;
+        }
+        self.sequencer
+            .pattern_tick_at(&self.plan, frame)
+            .map(|(index, tick)| Place::Pattern { index, tick })
     }
 
     /// Publishes the value of every automation that has its target in
@@ -376,6 +419,19 @@ impl Processor {
         ) && let Some(spectrum) = &mut self.spectrum
         {
             spectrum.reset();
+        }
+        if let Some(captures) = &mut self.captures
+            && matches!(
+                &message,
+                Message::SetPlan { .. }
+                    | Message::Play { .. }
+                    | Message::Stop { .. }
+                    | Message::Seek(_)
+                    | Message::SetTransport { .. }
+                    | Message::CountIn { .. }
+            )
+        {
+            captures.reset();
         }
         // A stale hardware note must not even release a stopped song's
         // automation hold. Discard it before any transport/tail side effects.
@@ -409,6 +465,7 @@ impl Processor {
             | Message::StopPreview
             | Message::SetInputMonitors(_)
             | Message::SetDiskTaps(_)
+            | Message::SetAudioLogger(_)
             | Message::SetOutputGain(_) => false,
         };
         if lets_go {
@@ -495,6 +552,10 @@ impl Processor {
                 self.transport_sequence = sequence;
                 self.sequencer.stop();
                 self.clips.release_all();
+                // Stop silences every note, so no echo of one may follow it.
+                for origin in [Origin::Sequenced, Origin::Live, Origin::Hardware] {
+                    self.cut_echoes_of(origin);
+                }
                 self.voices.fade_origin(Origin::Sequenced);
                 self.voices.fade_origin(Origin::Live);
                 self.voices.fade_origin(Origin::Hardware);
@@ -596,6 +657,11 @@ impl Processor {
                 let old = std::mem::replace(&mut self.disk_taps, taps);
                 retire(&mut self.garbage, Garbage::DiskTaps(old));
             }
+            Message::SetAudioLogger(tap) => {
+                if let Some(old) = std::mem::replace(&mut self.audio_logger, tap) {
+                    retire(&mut self.garbage, Garbage::AudioLogger(old));
+                }
+            }
         }
         // Whatever moved the playhead moved the clock under the notes that
         // are still sounding.
@@ -624,7 +690,7 @@ impl Processor {
     /// automation's hands. [`Processor::automate`] ends the hold.
     fn hold_if_stopped(&mut self, tick: f64) {
         if !self.sequencer.playing() && self.state.engaged > 0 {
-            self.hold = Some(tick);
+            self.hold = Some(Place::Song(tick));
         }
     }
 
@@ -752,6 +818,27 @@ impl Processor {
     /// Starts a note on frame `now`: on its channel's instrument if it has
     /// one, and as a sampler voice otherwise, including per-voice expression.
     fn start(&mut self, note: Note, now: u64) {
+        // A layer is silent itself and plays the note on each channel it
+        // resolves to. The plan holds that bounded list, so this is a fixed
+        // amount of work and nested layers were followed on the control side.
+        if let Some(targets) = self.plan.channels[note.channel].layer.as_ref() {
+            if !self.plan.channels[note.channel].audible {
+                return;
+            }
+            for index in 0..targets.len() {
+                let Some(layer) = self.plan.channels[note.channel].layer.as_ref() else {
+                    break;
+                };
+                let channel = layer[index];
+                self.start_on(Note { channel, ..note }, now);
+            }
+            return;
+        }
+        self.start_on(note, now);
+    }
+
+    /// Starts a note on a channel that makes sound.
+    fn start_on(&mut self, note: Note, now: u64) {
         let channel = note.channel;
         if self.state.channel_voice[channel].settings.arpeggiator.mode != ArpeggiatorMode::Off
             && note.expression.articulation != windfall_dsp::NoteArticulation::Slide
@@ -759,10 +846,22 @@ impl Processor {
             self.state.channel_voice[channel].chord_on(note);
             return;
         }
-        // Live echo requires a duration; held notes deliberately remain dry.
-        if note.end.is_finite()
-            && note.expression.articulation != windfall_dsp::NoteArticulation::Slide
-        {
+        if note.expression.articulation == windfall_dsp::NoteArticulation::Slide {
+            // A slide bends sounding notes and has no echo of its own.
+        } else if !note.end.is_finite() {
+            // A note held by hand has no length yet: its echoes start now
+            // and are let go when the key is.
+            if matches!(note.origin, Origin::Live | Origin::Hardware) {
+                let bpm = self.state.tempo();
+                let rejected = self.state.channel_voice[channel].rejected_echoes;
+                self.state.channel_voice[channel].schedule_held_echo(
+                    note,
+                    f64::from(self.sample_rate),
+                    bpm,
+                );
+                self.report_rejected_echoes(channel, rejected);
+            }
+        } else {
             let duration = self
                 .sequencer
                 .clock()
@@ -770,14 +869,50 @@ impl Processor {
                 .saturating_sub(now)
                 .max(1) as usize;
             let bpm = self.state.tempo();
+            let rejected = self.state.channel_voice[channel].rejected_echoes;
             self.state.channel_voice[channel].schedule_echo(
                 note,
                 duration,
                 f64::from(self.sample_rate),
                 bpm,
             );
+            self.report_rejected_echoes(channel, rejected);
         }
         self.start_output(note, now, None);
+    }
+
+    /// Ends the echoes of every note from `origin`: the ones sounding are
+    /// released and the ones still queued are discarded.
+    fn cut_echoes_of(&mut self, origin: Origin) {
+        for channel in 0..self.state.channel_voice.len() {
+            for slot in 0..self.state.channel_voice[channel].owners.len() {
+                if let Some(owner) = self.state.channel_voice[channel].owners[slot]
+                    && matches!(owner.generated, Some((Generator::Echo, _)))
+                    && owner.note.origin == origin
+                {
+                    self.release_instance(channel, owner.instance);
+                    if owner.admitted {
+                        self.state.channel_voice[channel]
+                            .held
+                            .note_off(owner.note.key);
+                    }
+                    self.state.channel_voice[channel].owners[slot] = None;
+                }
+            }
+            self.state.channel_voice[channel].cancel_echoes_of(origin);
+        }
+    }
+
+    /// Publishes echo requests refused since `before` to the control side.
+    fn report_rejected_echoes(&self, channel: usize, before: u64) {
+        let refused = self.state.channel_voice[channel]
+            .rejected_echoes
+            .saturating_sub(before);
+        if refused > 0 {
+            self.shared
+                .rejected_echoes
+                .fetch_add(refused.min(u64::from(u32::MAX)) as u32, Ordering::Relaxed);
+        }
     }
 
     fn release_instance(&mut self, channel: usize, id: NoteInstanceId) {
@@ -790,7 +925,23 @@ impl Processor {
     }
 
     fn release_input(&mut self, channel: usize, key: u8, origin: Origin) {
+        // A layer's keys were played on the channels it resolves to.
+        if let Some(targets) = self.plan.channels[channel].layer.as_ref() {
+            for index in 0..targets.len() {
+                let Some(layer) = self.plan.channels[channel].layer.as_ref() else {
+                    break;
+                };
+                let child = layer[index];
+                self.release_input_on(child, key, origin);
+            }
+            return;
+        }
+        self.release_input_on(channel, key, origin);
+    }
+
+    fn release_input_on(&mut self, channel: usize, key: u8, origin: Origin) {
         self.state.channel_voice[channel].chord_off(key, origin);
+        self.state.channel_voice[channel].release_held_echo(key, origin);
         for slot in 0..self.state.channel_voice[channel].owners.len() {
             if let Some(owner) = self.state.channel_voice[channel].owners[slot]
                 && owner.generated.is_none()
@@ -854,11 +1005,49 @@ impl Processor {
         let channel = note.channel;
         self.state.channel_voice[channel].expire(clock, now);
         let settings = self.state.channel_voice[channel].settings.polyphony;
-        let decision = admit_note(
-            &mut self.state.channel_voice[channel].held,
-            note.key,
-            settings,
-        );
+        // An echo sounds alongside the note it repeats, so it is not entered
+        // in the held table, where a second note of the same key replaces
+        // the first. A one-voice channel stays one voice: there an echo
+        // takes the note's place like any other note.
+        let alongside = matches!(generated, Some((Generator::Echo, _)))
+            && !settings.mono_legato
+            && settings.max_voices > 1;
+        // The voice limit counts echoes too, and echoes give way first: the
+        // oldest one is released for any new note, and a new echo is left
+        // out when only played notes are sounding.
+        let limit = usize::from(settings.max_voices);
+        loop {
+            let runtime = &self.state.channel_voice[channel];
+            let sounding = runtime.owners.iter().flatten().count();
+            if sounding < limit && sounding < runtime.owners.len() {
+                break;
+            }
+            let Some(slot) = runtime.oldest_echo() else {
+                break;
+            };
+            if let Some(owner) = self.state.channel_voice[channel].owners[slot].take() {
+                self.release_instance(channel, owner.instance);
+            }
+        }
+        if alongside
+            && self.state.channel_voice[channel]
+                .owners
+                .iter()
+                .flatten()
+                .count()
+                >= limit
+        {
+            return;
+        }
+        let decision = if alongside {
+            crate::channel_voice::PolyphonyDecision::alongside()
+        } else {
+            admit_note(
+                &mut self.state.channel_voice[channel].held,
+                note.key,
+                settings,
+            )
+        };
         let mono = if !decision.retrigger {
             self.state.channel_voice[channel]
                 .owners
@@ -873,6 +1062,7 @@ impl Processor {
             for slot in 0..self.state.channel_voice[channel].owners.len() {
                 if let Some(owner) = self.state.channel_voice[channel].owners[slot]
                     && owner.note.key == key
+                    && owner.admitted
                 {
                     if mono.is_none() {
                         self.release_instance(channel, owner.instance);
@@ -927,9 +1117,10 @@ impl Processor {
                     note,
                     instance,
                     generated,
+                    admitted: !alongside,
                 });
             }
-        } else {
+        } else if !alongside {
             self.state.channel_voice[channel].held.note_off(note.key);
         }
     }
@@ -938,6 +1129,9 @@ impl Processor {
     fn end_sequenced(&mut self) {
         if let Some(spectrum) = &mut self.spectrum {
             spectrum.reset();
+        }
+        if let Some(captures) = &mut self.captures {
+            captures.reset();
         }
         for channel in 0..self.state.channel_voice.len() {
             for slot in 0..self.state.channel_voice[channel].owners.len() {
@@ -1047,6 +1241,20 @@ impl Processor {
     }
 
     /// Processes up to [`MAX_BLOCK`] frames.
+    /// Moves what the MIDI output channels made in this buffer to the queue
+    /// the MIDI worker reads. Fixed storage on both sides; nothing is sent
+    /// from here.
+    fn collect_midi_out(&mut self) {
+        let shared = &self.shared;
+        for seat in self.state.instruments.iter_mut().flatten() {
+            if let Some(unit) = &mut seat.unit {
+                unit.drain_midi(&mut |event| {
+                    shared.push_midi_out(event.frame, event.bytes, event.len);
+                });
+            }
+        }
+    }
+
     fn process_block(&mut self, out: &mut [Frame]) {
         // Failed preparations are refused on the control side. Keep this
         // internal invariant fail-closed without manufacturing native anchors.
@@ -1187,14 +1395,39 @@ impl Processor {
             base,
             out,
             &mut self.disk_taps,
+            &mut self.audio_logger,
         );
+        if let Some(captures) = &mut self.captures {
+            captures.publish_tracks(
+                &self.plan,
+                &self.state,
+                &self.mixer,
+                base,
+                self.sample_rate,
+                frames,
+            );
+        }
         if let Some(taps) = &mut self.taps {
             taps.collect(&mut self.mixer, frames);
         }
         self.mixer
             .publish_waveforms(&self.plan, &self.shared, base, self.sample_rate, out);
         self.metronome.mix(out);
-        self.finish_output(base, out);
+        // A capture of the mix output sees it after the gain and before the
+        // scrub; the device gets the same samples either way.
+        match &mut self.captures {
+            Some(captures) if captures.wants_mix() => captures.finish_output(
+                &self.output_gain,
+                base,
+                self.sample_rate,
+                self.state.latency,
+                out,
+            ),
+            _ => self.finish_output(base, out),
+        }
+        if let Some(logger) = &mut self.audio_logger {
+            logger.master(out);
+        }
         if let Some(spectrum) = &mut self.spectrum {
             spectrum.publish(
                 out,
@@ -1257,9 +1490,11 @@ impl Processor {
                     && owner.generated == Some((generator, event.id))
                 {
                     self.release_instance(channel, owner.instance);
-                    self.state.channel_voice[channel]
-                        .held
-                        .note_off(owner.note.key);
+                    if owner.admitted {
+                        self.state.channel_voice[channel]
+                            .held
+                            .note_off(owner.note.key);
+                    }
                     self.state.channel_voice[channel].owners[slot] = None;
                 }
             }
@@ -1292,6 +1527,7 @@ impl Processor {
             let clock = self.sequencer.clock();
             let bpm = self.state.tempo();
             for channel in 0..self.state.channel_voice.len() {
+                let rejected = self.state.channel_voice[channel].rejected_echoes;
                 let runtime = &mut self.state.channel_voice[channel];
                 runtime.expire(clock, now);
                 runtime.arp.process_block(
@@ -1319,6 +1555,7 @@ impl Processor {
                     }
                 }
                 runtime.echo.process_block(1, &mut runtime.echo_events);
+                self.report_rejected_echoes(channel, rejected);
                 // Merge chronologically, off before on for the shared frame.
                 for kind in [NoteEventKind::Off, NoteEventKind::On] {
                     for generator in [Generator::Arp, Generator::Echo] {
@@ -1437,7 +1674,7 @@ mod tests {
     #[test]
     fn stale_hardware_notes_preserve_stopped_automation_hold() {
         let (mut processor, controller) = Processor::new(48_000);
-        processor.hold = Some(960.0);
+        processor.hold = Some(Place::Song(960.0));
         let epoch = controller.hardware_epoch();
         controller.panic_hardware();
 
@@ -1448,6 +1685,6 @@ mod tests {
             velocity: 127,
         });
 
-        assert_eq!(processor.hold, Some(960.0));
+        assert_eq!(processor.hold, Some(Place::Song(960.0)));
     }
 }

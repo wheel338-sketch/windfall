@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type FormEvent } from "react"
 import { toast } from "sonner"
 
-import type { ExportOptions, MasteringReview, PlayMode } from "@/bindings"
+import type { ExportOptions, ExportPlaylistStems, MasteringReview, PlayMode } from "@/bindings"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import {
@@ -36,6 +36,7 @@ import { getProjectGeneration } from "@/lib/store/replaced"
 import { Choice, type Option } from "./choice"
 import { useTimelineStore } from "@/features/playlist/timeline-store"
 import { changeExportFormat, FormatControls } from "./format-controls"
+import { PlaylistStemControls } from "./playlist-stem-controls"
 import { StemControls } from "./stem-controls"
 import {
   MasteringControls,
@@ -97,6 +98,12 @@ function ExportForm({ onDone }: { onDone(): void }) {
       folder: true,
     } : undefined,
   }))
+  // One file for each playlist track. It is a kind of export of its own:
+  // it cannot be combined with mixer stems, and it needs the song.
+  const [playlistStems, setPlaylistStems] = useState<
+    ExportPlaylistStems | undefined
+  >(undefined)
+  const sentPlaylist = useRef(false)
   const [run, setRun] = useState<Run | null>(null)
   const [cancelling, setCancelling] = useState(false)
   const [master, setMaster] = useState<MasteringDraft>(DEFAULT_MASTERING_DRAFT)
@@ -140,6 +147,13 @@ function ExportForm({ onDone }: { onDone(): void }) {
       ? "An export track was removed. Choose the remaining mixer tracks again."
       : null
   const mastering = masteringRequest(master, draft.stems !== undefined)
+  const playlistError = !playlistStems
+    ? null
+    : draft.mode !== "song"
+      ? "Playlist tracks belong to the song. Render the whole song to export them."
+      : playlistStems.tracks?.length === 0 && !playlistStems.includeMix
+        ? "Choose at least one playlist track or include the full mix."
+        : null
   const regionError =
     draft.mode === "song" && selectedOnly && !selectedRegion
       ? "The time selection was cleared. Select a region again or turn off region export."
@@ -161,11 +175,15 @@ function ExportForm({ onDone }: { onDone(): void }) {
             return
           }
           toast.success("Exported", {
-            description: options.stems
+            description: sentPlaylist.current
               ? progress.files
                 ? `${progress.files.length} files`
-                : "Mixer stems"
-              : exportedName(progress.path, options.format),
+                : "Playlist tracks"
+              : options.stems
+                ? progress.files
+                  ? `${progress.files.length} files`
+                  : "Mixer stems"
+                : exportedName(progress.path, options.format),
           })
           if (progress.mastering) {
             // A master is reviewed before the dialog goes.
@@ -206,6 +224,7 @@ function ExportForm({ onDone }: { onDone(): void }) {
     if (tailSecs === null) return focus("export-tail")
     if (stemsError) return focus("export-stem-selection")
     if (mixerSourceError) return focus("export-stem-selection")
+    if (playlistError) return focus("export-playlist-tracks")
     if (regionError) return
     if (master.enabled && !mastering.options) {
       return focus(
@@ -228,9 +247,11 @@ function ExportForm({ onDone }: { onDone(): void }) {
           ? { ...selectedRegion }
           : undefined,
     }
+    if (playlistStems) options.stems = undefined
     // The field shows the name the file gets.
     set("path", path)
     sent.current = options
+    sentPlaylist.current = playlistStems !== undefined
     setCancelling(false)
     setReview(null)
     setRun({ fraction: 0, error: null })
@@ -250,7 +271,9 @@ function ExportForm({ onDone }: { onDone(): void }) {
         options.regionGeneration = source.generation
         options.regionRevision = source.revision
       }
-      await backend.exportAudio(options)
+      if (playlistStems)
+        await backend.exportPlaylistTracks(options, { ...playlistStems })
+      else await backend.exportAudio(options)
     } catch (error) {
       setRun({ fraction: 0, error: errorMessage(error) })
     }
@@ -401,10 +424,28 @@ function ExportForm({ onDone }: { onDone(): void }) {
         <StemControls
           value={draft.stems}
           disabled={exporting}
-          onChange={(stems) => set("stems", stems)}
+          onChange={(stems) => {
+            set("stems", stems)
+            if (stems) setPlaylistStems(undefined)
+          }}
         />
         {stemsError && <FieldError>{stemsError}</FieldError>}
         {mixerSourceError && <FieldError>{mixerSourceError}</FieldError>}
+        <PlaylistStemControls
+          value={playlistStems}
+          disabled={exporting}
+          onChange={(next) => {
+            setPlaylistStems(next)
+            // Turning it on takes the place of mixer stems and needs the song.
+            if (next && !playlistStems)
+              setDraft((current) => ({
+                ...current,
+                stems: undefined,
+                mode: "song",
+              }))
+          }}
+        />
+        {playlistError && <FieldError>{playlistError}</FieldError>}
 
         <MasteringControls
           value={master}
@@ -463,7 +504,8 @@ export function ExportDialog() {
         <DialogHeader>
           <DialogTitle>Export audio</DialogTitle>
           <DialogDescription>
-            Save the selected pattern or song as a mix or separate mixer tracks.
+            Save the selected pattern or song as a mix, as separate mixer
+            tracks, or as one file for each playlist track.
           </DialogDescription>
         </DialogHeader>
         <ExportForm onDone={closeDialog} />

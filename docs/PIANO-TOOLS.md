@@ -22,6 +22,7 @@ reselect those IDs.
 | Quantize | Starts or ends, current snap grid (240 ticks if snap is off), 100% strength, Straight. Starts move with lengths preserved; ends move with starts preserved. |
 | Legato | End each selected onset/chord at the next distinct selected onset, extending or trimming lengths. The last selected chord keeps its lengths. |
 | Staccato | Multiply lengths by 50%, rounding to whole ticks, with a minimum of one tick. UI range 1–100%. |
+| Portamento | Legato lengths plus an overlap (default 0 ticks), and every note after the first selected onset becomes a portamento note with the chosen glide (default 240 ticks). The first onset and slide notes keep their articulation. Added 2026-10-10; written, not yet run in the UI. |
 | Chop | Split on absolute pattern grid boundaries, defaulting to snap/240 ticks. Retain partial first/last segments and all pitch, velocity and pan values. The first piece keeps the original ID. |
 | Custom Chop | Repeat user-authored boundaries from Origin with optional per-step gate/velocity accents. Keep partial edges. |
 | Arpeggiate | Rewrite exact-onset chords into repeated ascending, descending or alternating hits, with rate/gate/octave/duration controls. |
@@ -91,10 +92,11 @@ its recording-before-document lock order.
 Implemented and checked within the assigned selected-note scope:
 `win-piano-quantize`, `win-piano-chop`, `win-piano-glue`, `win-piano-strum`,
 `win-piano-limit`, `win-piano-flip`, and `win-piano-scale-levels`.
-`win-piano-articulate` has working legato/staccato length tools; its broader
-portamento phrasing remains dependent on the separate slide/portamento note
-model and engine feature. Keep that broader row in progress if portamento is
-required. Chop now also supports bounded user-authored slicing patterns;
+`win-piano-articulate` has working legato/staccato length tools. Portamento
+phrasing was added on 2026-10-10 as the Portamento tool above, on top of the
+slide/portamento note model; its acceptance
+(`crates/windfall-project/tests/piano_articulation_lfo_qa.rs`) is written and
+has not been run, so the row stays in progress until it has. Chop now also supports bounded user-authored slicing patterns;
 Arpeggiate, Flam and Rhythm reshaper are described in PIANO-RHYTHM. Scale levels
 affects velocity only. Randomization and preset import/export remain outside
 this workflow. The separately reviewed scale/stamp workflow is described in

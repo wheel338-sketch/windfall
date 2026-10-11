@@ -29,6 +29,7 @@ import type { EditorProps } from "./editor-props"
 import { EqEditor } from "./eq/eq-editor"
 import { LimiterEditor } from "./limiter/limiter-editor"
 import { ReverbEditor } from "./reverb/reverb-editor"
+import { TunerEditor } from "./tuner/tuner-editor"
 
 type Editors = {
   [Kind in EffectKind]?: ComponentType<EditorProps<EffectParamsOf<Kind>>>
@@ -52,6 +53,7 @@ const EDITORS: Editors = {
   bassHarmonics: BassHarmonicsEditor,
   stageStack: StageStackEditor,
   masterLimiter: MasterLimiterEditor,
+  tuner: TunerEditor,
 }
 
 type AnyEditor = ComponentType<EditorProps<EffectParams>>
@@ -106,7 +108,14 @@ function BoundEditor({ trackId, slot, Editor, descriptor }: BoundEditorProps) {
     setParam,
     ...automation,
   })
-  return <Editor effect={slot.id} params={slot.params} bind={bind} />
+  return (
+    <Editor
+      effect={slot.id}
+      track={trackId}
+      params={slot.params}
+      bind={bind}
+    />
+  )
 }
 
 function FallbackEditor({

@@ -72,6 +72,22 @@ export function logAuditionOff(channel: ChannelId, key: number) {
   )
 }
 
+/**
+ * A note a MIDI input played into the audition destination. The engine has
+ * already sounded it; here it only joins the log, so that a dump places it
+ * with the shared snap like a note played on the typing keyboard. A
+ * velocity of 0 releases the key.
+ */
+export function logHardwareNote(
+  channel: ChannelId,
+  key: number,
+  velocity: number
+) {
+  if (velocity > 0)
+    logAuditionOn(channel, key, Math.min(1, Math.max(0, velocity / 127)))
+  else logAuditionOff(channel, key)
+}
+
 /** Check age at read time too, in case background-tab timers were delayed. */
 export function playedNotesFor(channel: ChannelId): PlayedNote[] {
   const cutoff = Date.now() - WINDOW_MS

@@ -1,4 +1,11 @@
-import { useId, useRef, useState } from "react"
+import {
+  createContext,
+  useContext,
+  useId,
+  useMemo,
+  useRef,
+  useState,
+} from "react"
 
 import { Knob, msUnit, percentUnit, powerScale } from "@/components/audio"
 import {
@@ -14,12 +21,59 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 
 import {
   createDefaultChannelVoiceSettings,
+  LFO_TARGETS,
+  MAX_VOICE_CUTOFF_HZ,
+  MIN_VOICE_CUTOFF_HZ,
+  resonanceEnvelopeOf,
   sanitizeChannelVoiceSettings,
+  targetLfosOf,
+  voiceFilterOf,
   type ChannelVoiceSettings,
-  type LfoTarget,
+  type LfoShape,
   type ModulationEnvelope,
   type NoteDivision,
+  type TargetLfo,
+  type TargetLfoName,
+  type VoiceFilter,
+  type VoiceFilterMode,
 } from "./settings"
+
+/** The targets that have an envelope in this panel. */
+type EnvelopeTarget = "filter" | "pitch" | "pan" | "resonance"
+
+type GestureHandlers = {
+  onGestureStart?: () => void
+  onGestureEnd?: () => void
+}
+/** Every knob of the panel reports the start and end of a drag through this. */
+const GestureContext = createContext<GestureHandlers>({})
+
+const SHAPES: readonly { value: LfoShape; label: string }[] = [
+  { value: "sine", label: "Sine" },
+  { value: "triangle", label: "Triangle" },
+  { value: "square", label: "Square" },
+]
+const FILTER_MODES: readonly { value: VoiceFilterMode; label: string }[] = [
+  { value: "lowPass", label: "Low-pass" },
+  { value: "highPass", label: "High-pass" },
+  { value: "bandPass", label: "Band-pass" },
+  { value: "notch", label: "Notch" },
+]
+const LFO_FULL_DEPTH: Record<TargetLfoName, string> = {
+  volume: "down to silence",
+  pan: "full pan travel",
+  pitch: "2400 cents",
+  cutoff: "8 octaves",
+  resonance: "the whole resonance range",
+}
+
+const ENVELOPE_DEPTH: Record<EnvelopeTarget, { max: number; unit: string }> =
+  {
+    filter: { max: 8, unit: "oct" },
+    pitch: { max: 2400, unit: "ct" },
+    pan: { max: 1, unit: "pan" },
+    resonance: { max: 1, unit: "res" },
+  }
 
 const TIME_SCALE = powerScale(3)
 const DIVISIONS: readonly { value: NoteDivision; label: string }[] = [
@@ -89,14 +143,13 @@ function EnvelopeControls({
   value,
   onChange,
 }: {
-  target: LfoTarget
+  target: EnvelopeTarget
   value: ModulationEnvelope
   onChange(value: ModulationEnvelope): void
 }) {
+  const gestures = useContext(GestureContext)
   const title = `${target[0].toUpperCase()}${target.slice(1)} envelope`
-  const maxDepth = target === "filter" ? 8 : target === "pitch" ? 2400 : 1
-  const depthUnit =
-    target === "filter" ? "oct" : target === "pitch" ? "ct" : "pan"
+  const { max: maxDepth, unit: depthUnit } = ENVELOPE_DEPTH[target]
   const set = (patch: Partial<ModulationEnvelope>) =>
     onChange({ ...value, ...patch })
   return (
@@ -121,6 +174,7 @@ function EnvelopeControls({
               showValue
               {...msUnit}
               onValueChange={(attackMs) => set({ attackMs })}
+              {...gestures}
             />
           </Field>
           <Field>
@@ -135,6 +189,7 @@ function EnvelopeControls({
               showValue
               {...msUnit}
               onValueChange={(decayMs) => set({ decayMs })}
+              {...gestures}
             />
           </Field>
           <Field>
@@ -148,6 +203,7 @@ function EnvelopeControls({
               showValue
               {...percentUnit}
               onValueChange={(sustain) => set({ sustain })}
+              {...gestures}
             />
           </Field>
           <Field>
@@ -162,6 +218,7 @@ function EnvelopeControls({
               showValue
               {...msUnit}
               onValueChange={(releaseMs) => set({ releaseMs })}
+              {...gestures}
             />
           </Field>
           <Field>
@@ -178,6 +235,7 @@ function EnvelopeControls({
                 `${depth.toFixed(target === "pitch" ? 0 : 2)} ${depthUnit}`
               }
               onValueChange={(depth) => set({ depth })}
+              {...gestures}
             />
           </Field>
         </FieldGroup>
@@ -186,48 +244,201 @@ function EnvelopeControls({
   )
 }
 
+function TargetLfoControls({
+  target,
+  value,
+  onChange,
+}: {
+  target: TargetLfoName
+  value: TargetLfo
+  onChange(value: TargetLfo): void
+}) {
+  const gestures = useContext(GestureContext)
+  const title = `${target[0].toUpperCase()}${target.slice(1)} LFO`
+  const set = (patch: Partial<TargetLfo>) => onChange({ ...value, ...patch })
+  return (
+    <FieldSet className="border-b px-2.5 py-2">
+      <FieldLegend>{title}</FieldLegend>
+      <FieldGroup>
+        <Enabled
+          label={`Enable ${target} LFO`}
+          checked={value.enabled}
+          onChange={(enabled) => set({ enabled })}
+        />
+        <Choices
+          label={`${title} waveform`}
+          value={value.shape}
+          options={SHAPES}
+          onChange={(shape) => set({ shape })}
+        />
+        <FieldGroup className="grid grid-cols-2 justify-items-center gap-2">
+          <Field>
+            <Knob
+              label="Rate"
+              aria-label={`${title} rate`}
+              value={value.rateHz}
+              min={0.01}
+              max={30}
+              defaultValue={5}
+              scale="log"
+              showValue
+              format={(rate) => `${rate.toFixed(2)} Hz`}
+              onValueChange={(rateHz) => set({ rateHz })}
+              {...gestures}
+            />
+          </Field>
+          <Field>
+            <Knob
+              label="Depth"
+              aria-label={`${title} depth`}
+              value={value.depth}
+              min={-1}
+              max={1}
+              defaultValue={0}
+              bipolar
+              showValue
+              {...percentUnit}
+              onValueChange={(depth) => set({ depth })}
+              {...gestures}
+            />
+          </Field>
+        </FieldGroup>
+        <FieldDescription>
+          Full depth: {LFO_FULL_DEPTH[target]}.
+        </FieldDescription>
+      </FieldGroup>
+    </FieldSet>
+  )
+}
+
 export interface ChannelVoicePanelProps {
-  /** Initial local draft. Remount with a channel/revision key to replace it. */
+  /**
+   * The saved settings. They are shown whenever no edit of this panel is on
+   * its way, so an undo or a load replaces what the panel shows.
+   */
   initialSettings?: ChannelVoiceSettings
-  onChange(settings: ChannelVoiceSettings): void
+  /**
+   * Called with the complete settings after every edit. Return the promise
+   * of the save to let the panel follow the saved settings once it settles;
+   * a handler that returns nothing leaves the panel on its own draft.
+   */
+  onChange(settings: ChannelVoiceSettings): void | Promise<unknown>
+  /** A knob drag starts and ends, to group its edits into one undo step. */
+  onGestureStart?: () => void
+  onGestureEnd?: () => void
+  /**
+   * An instrument channel has no sampler voice: the channel filter, the
+   * resonance target and the volume LFO do not apply to it and are hidden.
+   */
+  kind?: "sampler" | "instrument"
 }
 
 /** Local editor: the parent owns persistence and engine application. */
-export function ChannelVoicePanel({
+export function ChannelVoicePanel(props: ChannelVoicePanelProps) {
+  const { onGestureStart, onGestureEnd } = props
+  const gestures = useMemo(
+    () => ({ onGestureStart, onGestureEnd }),
+    [onGestureStart, onGestureEnd]
+  )
+  return (
+    <GestureContext.Provider value={gestures}>
+      <VoiceEditor {...props} />
+    </GestureContext.Provider>
+  )
+}
+
+function VoiceEditor({
   initialSettings,
   onChange,
+  kind = "sampler",
 }: ChannelVoicePanelProps) {
-  const [settings, setSettings] = useState(() =>
-    sanitizeChannelVoiceSettings(
-      initialSettings ?? createDefaultChannelVoiceSettings()
-    )
+  const gestures = useContext(GestureContext)
+  const stored = useMemo(
+    () =>
+      sanitizeChannelVoiceSettings(
+        initialSettings ?? createDefaultChannelVoiceSettings()
+      ),
+    [initialSettings]
   )
+  const [local, setLocal] = useState<ChannelVoiceSettings | null>(null)
+  const settings = local ?? stored
   // Keep rapid edits coherent before React renders; onChange stays outside a
   // state updater so Strict Mode cannot duplicate external side effects.
-  const draft = useRef(settings)
-  function update(patch: Partial<ChannelVoiceSettings>) {
-    const next = sanitizeChannelVoiceSettings({ ...draft.current, ...patch })
+  // Read and written in handlers only.
+  const draft = useRef<ChannelVoiceSettings | null>(null)
+  function update(
+    change: (current: ChannelVoiceSettings) => ChannelVoiceSettings
+  ) {
+    const next = sanitizeChannelVoiceSettings(change(draft.current ?? stored))
     draft.current = next
-    setSettings(next)
-    onChange(next)
+    setLocal(next)
+    const saved: unknown = onChange(next)
+    if (saved instanceof Promise) {
+      // The save has landed in the project, or was refused: either way the
+      // saved settings are the truth again unless a newer edit is under way.
+      const settle = () => {
+        if (draft.current === next) {
+          draft.current = null
+          setLocal(null)
+        }
+      }
+      void saved.then(settle, settle)
+    }
   }
+  const sampler = kind === "sampler"
   const arp = settings.arpeggiator
   const echo = settings.echo
   const poly = settings.polyphony
   const lfo = settings.envelopes.lfo
+  const filter = voiceFilterOf(settings)
+  const lfos = targetLfosOf(settings)
   const setArp = (patch: Partial<typeof arp>) =>
-    update({ arpeggiator: { ...draft.current.arpeggiator, ...patch } })
+    update((current) => ({
+      ...current,
+      arpeggiator: { ...current.arpeggiator, ...patch },
+    }))
   const setEcho = (patch: Partial<typeof echo>) =>
-    update({ echo: { ...draft.current.echo, ...patch } })
+    update((current) => ({ ...current, echo: { ...current.echo, ...patch } }))
   const setPoly = (patch: Partial<typeof poly>) =>
-    update({ polyphony: { ...draft.current.polyphony, ...patch } })
+    update((current) => ({
+      ...current,
+      polyphony: { ...current.polyphony, ...patch },
+    }))
   const setLfo = (patch: Partial<typeof lfo>) =>
-    update({
+    update((current) => ({
+      ...current,
       envelopes: {
-        ...draft.current.envelopes,
-        lfo: { ...draft.current.envelopes.lfo, ...patch },
+        ...current.envelopes,
+        lfo: { ...current.envelopes.lfo, ...patch },
       },
-    })
+    }))
+  const setFilter = (patch: Partial<VoiceFilter>) =>
+    update((current) => ({
+      ...current,
+      envelopes: {
+        ...current.envelopes,
+        filterSettings: { ...voiceFilterOf(current), ...patch },
+      },
+    }))
+  const setEnvelope = (target: EnvelopeTarget, value: ModulationEnvelope) =>
+    update((current) => ({
+      ...current,
+      envelopes: { ...current.envelopes, [target]: value },
+    }))
+  const setTargetLfo = (target: TargetLfoName, value: TargetLfo) =>
+    update((current) => ({
+      ...current,
+      envelopes: {
+        ...current.envelopes,
+        lfos: { ...targetLfosOf(current), [target]: value },
+      },
+    }))
+  const envelopeTargets: readonly EnvelopeTarget[] = sampler
+    ? ["filter", "resonance", "pitch", "pan"]
+    : ["filter", "pitch", "pan"]
+  const lfoTargets = LFO_TARGETS.filter(
+    (target) => sampler || (target !== "volume" && target !== "resonance")
+  )
 
   return (
     <div
@@ -268,6 +479,7 @@ export function ChannelVoicePanel({
                 showValue
                 {...percentUnit}
                 onValueChange={(gate) => setArp({ gate })}
+                {...gestures}
               />
             </Field>
             <Field>
@@ -281,6 +493,7 @@ export function ChannelVoicePanel({
                 defaultValue={1}
                 showValue
                 onValueChange={(rangeOctaves) => setArp({ rangeOctaves })}
+                {...gestures}
               />
             </Field>
           </FieldGroup>
@@ -302,7 +515,7 @@ export function ChannelVoicePanel({
               { value: "division", label: "Tempo" },
             ]}
             onChange={(unit) => {
-              if (unit !== draft.current.echo.time.unit)
+              if (unit !== echo.time.unit)
                 setEcho({
                   time:
                     unit === "milliseconds"
@@ -335,6 +548,7 @@ export function ChannelVoicePanel({
                 onValueChange={(ms) =>
                   setEcho({ time: { unit: "milliseconds", ms } })
                 }
+                {...gestures}
               />
             </Field>
           )}
@@ -350,6 +564,7 @@ export function ChannelVoicePanel({
                 showValue
                 {...percentUnit}
                 onValueChange={(feedback) => setEcho({ feedback })}
+                {...gestures}
               />
             </Field>
             <Field>
@@ -365,6 +580,7 @@ export function ChannelVoicePanel({
                 showValue
                 format={(pitch) => `${pitch} st`}
                 onValueChange={(pitchSemitones) => setEcho({ pitchSemitones })}
+                {...gestures}
               />
             </Field>
             <Field>
@@ -378,6 +594,7 @@ export function ChannelVoicePanel({
                 defaultValue={3}
                 showValue
                 onValueChange={(repeats) => setEcho({ repeats })}
+                {...gestures}
               />
             </Field>
           </FieldGroup>
@@ -407,6 +624,7 @@ export function ChannelVoicePanel({
                 defaultValue={32}
                 showValue
                 onValueChange={(maxVoices) => setPoly({ maxVoices })}
+                {...gestures}
               />
             </Field>
             <Field>
@@ -421,6 +639,7 @@ export function ChannelVoicePanel({
                 showValue
                 {...msUnit}
                 onValueChange={(portamentoMs) => setPoly({ portamentoMs })}
+                {...gestures}
               />
             </Field>
           </FieldGroup>
@@ -430,16 +649,78 @@ export function ChannelVoicePanel({
           </FieldDescription>
         </FieldGroup>
       </FieldSet>
-      {(["filter", "pitch", "pan"] as const).map((target) => (
+      {sampler && (
+        <FieldSet className="border-b px-2.5 py-2">
+          <FieldLegend>Channel filter</FieldLegend>
+          <FieldGroup>
+            <Enabled
+              label="Enable channel filter"
+              checked={filter.enabled}
+              onChange={(enabled) => setFilter({ enabled })}
+            />
+            <Choices
+              label="Filter type"
+              value={filter.mode}
+              options={FILTER_MODES}
+              onChange={(mode) => setFilter({ mode })}
+            />
+            <FieldGroup className="grid grid-cols-2 justify-items-center gap-2">
+              <Field>
+                <Knob
+                  label="Cutoff"
+                  aria-label="Channel filter cutoff"
+                  value={filter.cutoffHz}
+                  min={MIN_VOICE_CUTOFF_HZ}
+                  max={MAX_VOICE_CUTOFF_HZ}
+                  defaultValue={2000}
+                  scale="log"
+                  showValue
+                  format={(cutoff) => `${Math.round(cutoff)} Hz`}
+                  onValueChange={(cutoffHz) => setFilter({ cutoffHz })}
+                  {...gestures}
+                />
+              </Field>
+              <Field>
+                <Knob
+                  label="Resonance"
+                  aria-label="Channel filter resonance"
+                  value={filter.resonance}
+                  min={0}
+                  max={1}
+                  defaultValue={0}
+                  showValue
+                  {...percentUnit}
+                  onValueChange={(resonance) => setFilter({ resonance })}
+                  {...gestures}
+                />
+              </Field>
+            </FieldGroup>
+            <FieldDescription>
+              Cutoff and resonance are the two modulation targets: the filter
+              and resonance envelopes and the cutoff and resonance LFOs move
+              them. The volume envelope is the sampler&apos;s Envelope section.
+            </FieldDescription>
+          </FieldGroup>
+        </FieldSet>
+      )}
+      {envelopeTargets.map((target) => (
         <EnvelopeControls
           key={target}
           target={target}
-          value={settings.envelopes[target]}
-          onChange={(value) =>
-            update({
-              envelopes: { ...draft.current.envelopes, [target]: value },
-            })
+          value={
+            target === "resonance"
+              ? resonanceEnvelopeOf(settings)
+              : settings.envelopes[target]
           }
+          onChange={(value) => setEnvelope(target, value)}
+        />
+      ))}
+      {lfoTargets.map((target) => (
+        <TargetLfoControls
+          key={target}
+          target={target}
+          value={lfos[target]}
+          onChange={(value) => setTargetLfo(target, value)}
         />
       ))}
       <FieldSet className="border-b px-2.5 py-2">
@@ -453,21 +734,27 @@ export function ChannelVoicePanel({
           <Choices
             label="LFO waveform"
             value={lfo.shape}
-            options={[
-              { value: "sine", label: "Sine" },
-              { value: "triangle", label: "Triangle" },
-              { value: "square", label: "Square" },
-            ]}
+            options={SHAPES}
             onChange={(shape) => setLfo({ shape })}
           />
           <Choices
             label="LFO target"
             value={lfo.target}
-            options={[
-              { value: "filter", label: "Filter" },
-              { value: "pitch", label: "Pitch" },
-              { value: "pan", label: "Pan" },
-            ]}
+            options={
+              sampler
+                ? [
+                    { value: "filter", label: "Filter" },
+                    { value: "pitch", label: "Pitch" },
+                    { value: "pan", label: "Pan" },
+                    { value: "volume", label: "Volume" },
+                    { value: "resonance", label: "Resonance" },
+                  ]
+                : [
+                    { value: "filter", label: "Filter" },
+                    { value: "pitch", label: "Pitch" },
+                    { value: "pan", label: "Pan" },
+                  ]
+            }
             onChange={(target) => setLfo({ target })}
           />
           <FieldGroup className="grid grid-cols-2 justify-items-center gap-2">
@@ -483,6 +770,7 @@ export function ChannelVoicePanel({
                 showValue
                 format={(rate) => `${rate.toFixed(2)} Hz`}
                 onValueChange={(rateHz) => setLfo({ rateHz })}
+                {...gestures}
               />
             </Field>
             <Field>
@@ -497,12 +785,14 @@ export function ChannelVoicePanel({
                 showValue
                 {...percentUnit}
                 onValueChange={(depth) => setLfo({ depth })}
+                {...gestures}
               />
             </Field>
           </FieldGroup>
           <FieldDescription>
-            Full depth: 8 filter octaves, 2400 pitch cents, or full pan travel.
-            Negative depth reverses the motion.
+            One extra LFO for any target. Full depth: 8 filter octaves, 2400
+            pitch cents, full pan travel, a tremolo down to silence, or the
+            whole resonance range. Negative depth reverses the motion.
           </FieldDescription>
         </FieldGroup>
       </FieldSet>

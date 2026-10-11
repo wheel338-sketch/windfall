@@ -30,7 +30,7 @@
 use std::collections::HashMap;
 use std::ops::Range;
 
-use windfall_core::{db_to_gain, pan_gains};
+use windfall_core::{PanLaw, db_to_gain};
 use windfall_dsp::GainReductionMeter;
 use windfall_project::{
     ChannelId, EffectId, EffectKind, InstrumentKind, MAX_MIXER_TRACKS, TrackId,
@@ -70,6 +70,11 @@ const RECENT_FRAMES: u64 = 64;
 /// echo's path spreads the echo over a few frames more than its delay.
 const TAIL_SLACK_FRAMES: u64 = 256;
 
+/// Most routed effect outputs one track can have: every slot of its chain
+/// with every output an effect can offer.
+const MAX_TAPS_PER_TRACK: usize =
+    windfall_project::MAX_EFFECT_SLOTS * windfall_dsp::MAX_AUX_OUTPUTS;
+
 /// Lengths, in frames, of the fades a change of plan can start.
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct Fades {
@@ -101,6 +106,8 @@ impl Fades {
 pub(crate) struct Strip {
     pub gain: Ramp,
     pub pan: Ramp,
+    /// The project's panning law, which says what `pan` does to each side.
+    pub law: PanLaw,
 }
 
 impl Strip {
@@ -108,7 +115,14 @@ impl Strip {
         Self {
             gain: Ramp::at_rest(gain),
             pan: Ramp::at_rest(pan),
+            law: PanLaw::Balance,
         }
+    }
+
+    /// The same strip under another panning law.
+    pub fn under(mut self, law: PanLaw) -> Self {
+        self.law = law;
+        self
     }
 
     fn retarget(&mut self, gain: f32, pan: f32, now: u64, frames: u64) {
@@ -149,6 +163,30 @@ enum DelayKey {
         send: bool,
         sidechain: bool,
     },
+    /// One routed output of an effect on its way into another track.
+    Tap {
+        effect: EffectId,
+        output: u8,
+        to: TrackId,
+    },
+}
+
+impl DelayKey {
+    fn of_edge(from: TrackId, edge: &crate::plan::PlanEdge) -> Self {
+        match edge.tap {
+            Some(tap) => DelayKey::Tap {
+                effect: tap.effect,
+                output: tap.output,
+                to: edge.target_id,
+            },
+            None => DelayKey::Edge {
+                from,
+                to: edge.target_id,
+                send: edge.send,
+                sidechain: edge.sidechain,
+            },
+        }
+    }
 }
 
 /// A place for a compensation delay.
@@ -254,6 +292,17 @@ impl DelaySlot {
         // Reserved storage alone is not an audible delay path. Preserve an
         // existing path's transition, or activate a newly resolved real path.
         self.used |= delay != 0 || !self.path.is_empty();
+        if let Some(line) = &mut self.line {
+            line.select_path(&self.path);
+        }
+    }
+
+    /// The same for a place that keeps scalar compensation whatever the
+    /// reference transfer is, as an effect's routed output does.
+    fn resolve_scalar(&mut self, delay: usize) {
+        self.target = delay;
+        self.path.clear();
+        self.used |= delay != 0;
         if let Some(line) = &mut self.line {
             line.select_path(&self.path);
         }
@@ -481,6 +530,11 @@ struct Layout {
     out_path: Vec<Vec<DelayStage>>,
     /// Prefix transfer before each effect, excluding the track's input alignment.
     key_paths: Vec<Vec<Vec<DelayStage>>>,
+    /// Frames by which what enters each routing edge is behind, by the
+    /// edge's slot. For an output or a send that is the track's `out`. An
+    /// effect's routed output leaves earlier: after the effects up to and
+    /// including its own, and without the track's manual correction.
+    edge_out: Vec<usize>,
 }
 
 impl Layout {
@@ -558,6 +612,7 @@ impl Layout {
             arrival: vec![0; count],
             reach: vec![0; count],
             out: vec![0; count],
+            edge_out: vec![0; plan.edge_count],
             arrival_path: (0..count).map(|_| Vec::with_capacity(stages)).collect(),
             out_path: (0..count).map(|_| Vec::with_capacity(stages)).collect(),
             key_paths: plan
@@ -625,6 +680,13 @@ impl Layout {
             path.extend_from_slice(&self.arrival_path[index]);
             let mut latency = 0;
             let mut longest = 0;
+            // The most each routed output could come to lag its track's
+            // input, kept beside its lag in the edge's own seat until the
+            // edges are walked below.
+            let mut tap_reach = [0_usize; MAX_TAPS_PER_TRACK];
+            for edge in &track.edges {
+                self.edge_out[edge.slot] = 0;
+            }
             for (place, effect) in track.effects.iter().enumerate() {
                 let prefix = &mut self.key_paths[index][place];
                 prefix.clear();
@@ -689,6 +751,17 @@ impl Layout {
                 }
                 latency += delay;
                 longest += maximum;
+                if track.tapped {
+                    let taps = track.edges.iter().filter(|edge| edge.tap.is_some());
+                    for (order, edge) in taps.enumerate() {
+                        if edge.tap.is_some_and(|tap| tap.place == place) {
+                            self.edge_out[edge.slot] = latency;
+                            if let Some(reach) = tap_reach.get_mut(order) {
+                                *reach = longest;
+                            }
+                        }
+                    }
+                }
             }
             let correction =
                 (track.latency_offset_ms * f64::from(sample_rate) / 1000.0).round() as i64;
@@ -699,16 +772,29 @@ impl Layout {
             if correction != 0 {
                 path.clear();
             }
+            let mut tap_order = 0;
             for edge in &track.edges {
-                if self.out[index] > self.arrival[edge.target]
-                    || (self.out[index] == self.arrival[edge.target]
-                        && out_reach > self.reach[edge.target])
+                // An effect's routed output is compensated as a plain
+                // length: its transfer is a prefix of the chain's, which
+                // the serial matrix reference does not describe.
+                let (out, out_reach, scalar) = if edge.tap.is_some() {
+                    let reach = tap_reach.get(tap_order).copied().unwrap_or(longest);
+                    tap_order += 1;
+                    let out = self.arrival[index] + self.edge_out[edge.slot];
+                    (out, (self.reach[index] + reach).max(out), true)
+                } else {
+                    (self.out[index], out_reach, false)
+                };
+                self.edge_out[edge.slot] = out;
+                if out > self.arrival[edge.target]
+                    || (out == self.arrival[edge.target] && out_reach > self.reach[edge.target])
                 {
                     self.arrival_path[edge.target].clear();
-                    self.arrival_path[edge.target].extend_from_slice(path);
+                    if !scalar {
+                        self.arrival_path[edge.target].extend_from_slice(path);
+                    }
                 }
-                self.arrival[edge.target] =
-                    self.arrival[edge.target].max(self.out[index]).min(most);
+                self.arrival[edge.target] = self.arrival[edge.target].max(out).min(most);
                 self.reach[edge.target] = self.reach[edge.target].max(out_reach).min(most);
             }
         }
@@ -1025,20 +1111,20 @@ impl PlanState {
         for (index, track) in plan.tracks.iter().enumerate() {
             for edge in &track.edges {
                 edges[edge.slot] = Ramp::at_rest(edge.gain);
-                let key = DelayKey::Edge {
-                    from: track.id,
-                    to: edge.target_id,
-                    send: edge.send,
-                    sidechain: edge.sidechain,
-                };
-                let delay = layout.arrival[edge.target].saturating_sub(layout.out[index]);
+                let key = DelayKey::of_edge(track.id, edge);
+                let delay =
+                    layout.arrival[edge.target].saturating_sub(layout.edge_out[edge.slot]);
                 let reach = layout.reach[edge.target];
-                let path = layout.compensation_path(
-                    edge.target,
-                    &layout.out_path[index],
-                    delay,
-                    sample_rate as usize,
-                );
+                let path = if edge.tap.is_some() {
+                    Vec::new()
+                } else {
+                    layout.compensation_path(
+                        edge.target,
+                        &layout.out_path[index],
+                        delay,
+                        sample_rate as usize,
+                    )
+                };
                 edge_delays[edge.slot] =
                     DelaySlot::seat(key, delay, reach, path, held, &mut ledger);
             }
@@ -1204,6 +1290,7 @@ impl PlanState {
                             .polyphony
                             .glide_coefficient(f64::from(sample_rate)),
                     );
+                    unit.set_expression_map(channel.expression_map);
                     if let Some(binding) =
                         plan.plugins.iter().find(|binding| binding.target == target)
                     {
@@ -1326,12 +1413,12 @@ impl PlanState {
             channels: plan
                 .channels
                 .iter()
-                .map(|channel| Strip::at_rest(channel.gain, channel.pan))
+                .map(|channel| Strip::at_rest(channel.gain, channel.pan).under(plan.pan_law))
                 .collect(),
             tracks: plan
                 .tracks
                 .iter()
-                .map(|track| Strip::at_rest(track.gain, track.pan))
+                .map(|track| Strip::at_rest(track.gain, track.pan).under(plan.pan_law))
                 .collect(),
             edges,
             chains,
@@ -1366,18 +1453,24 @@ impl PlanState {
         // done before it.
         for &index in plan.order.iter().rev() {
             let mut onward = [0.0; 2];
+            // What leaves from an effect's own output, before the fader.
+            let mut tapped = [0.0; 2];
             if index == 0 {
                 onward = [1.0; 2];
             }
             for edge in &plan.tracks[index].edges {
                 let gain = self.edges[edge.slot].at(now);
-                onward[0] += gain * gains[edge.target][0];
-                onward[1] += gain * gains[edge.target][1];
+                let sum = if edge.tap.is_some() { &mut tapped } else { &mut onward };
+                sum[0] += gain * gains[edge.target][0];
+                sum[1] += gain * gains[edge.target][1];
             }
             let strip = &self.tracks[index];
-            let (left, right) = pan_gains(strip.pan.at(now));
+            let (left, right) = strip.law.gains(strip.pan.at(now));
             let gain = strip.gain.at(now);
-            gains[index] = [gain * left * onward[0], gain * right * onward[1]];
+            gains[index] = [
+                gain * left * onward[0] + tapped[0],
+                gain * right * onward[1] + tapped[1],
+            ];
         }
         gains
     }
@@ -1463,6 +1556,7 @@ impl PlanState {
                 let strip = &mut self.channels[index];
                 *strip = old.channels[found];
                 strip.retarget(channel.gain, channel.pan, now, fades.ramp);
+                strip.law = plan.pan_law;
             }
         }
 
@@ -1522,6 +1616,7 @@ impl PlanState {
                     self.channel_voice[index].envelopes,
                     self.channel_voice[index].glide,
                 );
+                unit.set_expression_map(channel.expression_map);
             }
             let sounding = seat
                 .unit
@@ -1532,6 +1627,7 @@ impl PlanState {
                 let strip = &mut self.channels[index];
                 *strip = old.channels[found];
                 strip.retarget(channel.gain, channel.pan, now, fades.ramp);
+                strip.law = plan.pan_law;
             }
         }
         // The tracks sampler voices play straight into, before `heard`
@@ -1571,15 +1667,12 @@ impl PlanState {
             let strip = &mut self.tracks[index];
             *strip = old.tracks[found];
             strip.retarget(track.gain, track.pan, now, fades.ramp);
+            strip.law = plan.pan_law;
             for edge in &track.edges {
                 let before = old_plan.tracks[found]
                     .edges
                     .iter()
-                    .find(|old_edge| {
-                        old_edge.target_id == edge.target_id
-                            && old_edge.send == edge.send
-                            && old_edge.sidechain == edge.sidechain
-                    })
+                    .find(|old_edge| old_edge.same_route(edge))
                     .map(|old_edge| old.edges[old_edge.slot]);
                 // A route that did not exist a moment ago fades in.
                 let mut ramp = before.unwrap_or(Ramp::at_rest(0.0));
@@ -1731,7 +1824,12 @@ impl PlanState {
                     self.sample_rate as usize,
                 );
                 for edge in &track.edges {
-                    let delay = layout.arrival[edge.target].saturating_sub(layout.out[index]);
+                    let delay = layout.arrival[edge.target]
+                        .saturating_sub(layout.edge_out[edge.slot]);
+                    if edge.tap.is_some() {
+                        self.edge_delays[edge.slot].resolve_scalar(delay);
+                        continue;
+                    }
                     self.edge_delays[edge.slot].resolve(
                         layout,
                         edge.target,
@@ -1823,14 +1921,20 @@ impl PlanState {
                 wait,
             );
             for edge in &track.edges {
-                let before = found.and_then(|found| {
-                    let edges = &old_plan.tracks[found].edges;
-                    edges.iter().find(|old_edge| {
-                        old_edge.target_id == edge.target_id
-                            && old_edge.send == edge.send
-                            && old_edge.sidechain == edge.sidechain
+                // An effect that moved to another track took its routed
+                // outputs with it, so those are looked for on every track.
+                let before = if edge.tap.is_some() {
+                    old_plan
+                        .tracks
+                        .iter()
+                        .flat_map(|track| &track.edges)
+                        .find(|old_edge| old_edge.same_route(edge))
+                } else {
+                    found.and_then(|found| {
+                        let edges = &old_plan.tracks[found].edges;
+                        edges.iter().find(|old_edge| old_edge.same_route(edge))
                     })
-                });
+                };
                 self.edge_delays[edge.slot].align_splices(plan, &self.chains);
                 self.edge_delays[edge.slot].take_over(
                     before.map(|before| &mut old.edge_delays[before.slot]),
@@ -2035,6 +2139,7 @@ mod tests {
             solo: false,
             group: String::new(),
             voice: Default::default(),
+            expression_map: Default::default(),
             timing: windfall_project::ChannelTiming::default(),
             mixer_track: TrackId(track),
             source,

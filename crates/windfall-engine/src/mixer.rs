@@ -4,7 +4,7 @@
 //! its effects in order, then its fader and pan, and from there to its
 //! meter, its output and its sends.
 
-use windfall_core::pan_gains;
+use windfall_core::PanLaw;
 use windfall_project::MAX_MIXER_TRACKS;
 
 use crate::plan::Plan;
@@ -43,6 +43,9 @@ pub(crate) struct Mixer {
     /// The same block as it was before an effect that is fading in or out.
     dry_left: Box<[f32]>,
     dry_right: Box<[f32]>,
+    /// One block of each separately routable output of the effect being
+    /// run, on its way to the track it is routed to.
+    aux: [Box<[Frame]>; windfall_dsp::MAX_AUX_OUTPUTS],
 }
 
 impl Mixer {
@@ -61,6 +64,7 @@ impl Mixer {
             right: side(),
             dry_left: side(),
             dry_right: side(),
+            aux: [frames(MAX_BLOCK), frames(MAX_BLOCK)],
         }
     }
 
@@ -78,6 +82,11 @@ impl Mixer {
 
     pub fn track_mut(&mut self, track: usize) -> &mut [Frame] {
         &mut self.buffers[track * MAX_BLOCK..][..MAX_BLOCK]
+    }
+
+    /// A track's block as [`Mixer::mix`] left it: after its fader and pan.
+    pub fn track(&self, track: usize) -> &[Frame] {
+        &self.buffers[track * MAX_BLOCK..][..MAX_BLOCK]
     }
 
     /// The buffer for voices that go straight to the output.
@@ -107,6 +116,7 @@ impl Mixer {
         base: u64,
         out: &mut [Frame],
         taps: &mut [crate::recording_disk::DiskWriter],
+        logger: &mut Option<Box<crate::audio_logger::LoggerTap>>,
     ) {
         let frames = out.len();
         self.add_instruments(plan, state, base, frames);
@@ -131,25 +141,56 @@ impl Mixer {
             }
 
             state.activity[index].hear_input(base, buffer, state.silence);
-            let chain = &mut state.chains[index];
-            if !chain.is_empty() {
+            if !state.chains[index].is_empty() {
                 let (left, right) = (&mut self.left[..frames], &mut self.right[..frames]);
                 for (frame, (left, right)) in buffer.iter().zip(left.iter_mut().zip(&mut *right)) {
                     *left = frame[0];
                     *right = frame[1];
                 }
-                for (place, unit) in chain.iter_mut().enumerate() {
-                    if let Some(unit) = unit {
-                        self.scratch[..frames].copy_from_slice(&self.keys[index * MAX_BLOCK..][..frames]);
-                        if let Some(line) = &mut state.key_delays[index][place].line { line.process(&mut self.scratch[..frames]); }
+                for place in 0..state.chains[index].len() {
+                    let Some(unit) = &mut state.chains[index][place] else {
+                        continue;
+                    };
+                    self.scratch[..frames].copy_from_slice(&self.keys[index * MAX_BLOCK..][..frames]);
+                    if let Some(line) = &mut state.key_delays[index][place].line { line.process(&mut self.scratch[..frames]); }
+                    let routed = track.routed_outputs(place);
+                    if routed == 0 {
                         unit.process_sidechain(left, right, &mut self.dry_left, &mut self.dry_right, Some(&self.scratch[..frames]));
+                        continue;
+                    }
+                    // The effect's own outputs leave the track here, before
+                    // the rest of the chain and the fader. Each goes through
+                    // its compensation delay into the track it is routed to,
+                    // which routing order puts after this one.
+                    let [first, second] = &mut self.aux;
+                    let mut aux = windfall_dsp::AuxBlock {
+                        routed,
+                        outputs: [&mut first[..frames], &mut second[..frames]],
+                    };
+                    unit.process_routed(left, right, &mut self.dry_left, &mut self.dry_right, Some(&self.scratch[..frames]), &mut aux);
+                    for edge in &track.edges {
+                        let Some(tap) = edge.tap.filter(|tap| tap.place == place) else {
+                            continue;
+                        };
+                        let sent = &mut self.aux[usize::from(tap.output)][..frames];
+                        if let Some(line) = &mut state.edge_delays[edge.slot].line {
+                            line.process(sent);
+                        }
+                        let feeds = if state.direct[edge.target].line.is_some() {
+                            &mut self.inbox
+                        } else {
+                            &mut self.buffers
+                        };
+                        add_scaled(sent, &mut feeds[edge.target * MAX_BLOCK..][..frames], &state.edges[edge.slot], base);
                     }
                 }
-                for (frame, (left, right)) in buffer.iter_mut().zip(left.iter().zip(&*right)) {
+                let buffer = &mut self.buffers[index * MAX_BLOCK..][..frames];
+                for (frame, (left, right)) in buffer.iter_mut().zip(self.left[..frames].iter().zip(&self.right[..frames])) {
                     *frame = [*left, *right];
                 }
                 state.activity[index].hear_output(base, buffer, state.silence);
             }
+            let buffer = &mut self.buffers[index * MAX_BLOCK..][..frames];
 
             let left = &mut self.left[..frames]; let right = &mut self.right[..frames];
             for (frame, (left, right)) in buffer.iter().zip(left.iter_mut().zip(right.iter_mut())) { *left = frame[0]; *right = frame[1]; }
@@ -157,14 +198,15 @@ impl Mixer {
             for (frame, (left, right)) in buffer.iter_mut().zip(left.iter().zip(right.iter())) { *frame = [*left, *right]; }
             state.activity[index].hear_output(base, buffer, state.silence);
             for tap in taps.iter_mut().filter(|tap| tap.tap.track == track.id) { tap.copy(base, state.latency, state.behind[index], windfall_project::MixerRecordMode::PostEffects, buffer); }
+            if let Some(logger) = logger.as_mut() { logger.track(track.id, buffer); }
             let strip = &state.tracks[index];
             let steady = strip.gain.settled(base) && strip.pan.settled(base);
-            let (mut left, mut right) = fader_gains(strip.gain.at(base), strip.pan.at(base));
+            let (mut left, mut right) = fader_gains(strip.law, strip.gain.at(base), strip.pan.at(base));
             let (mut peak_left, mut peak_right) = (0.0_f32, 0.0_f32);
             for (offset, frame) in buffer.iter_mut().enumerate() {
                 if !steady {
                     let at = base + offset as u64;
-                    (left, right) = fader_gains(strip.gain.at(at), strip.pan.at(at));
+                    (left, right) = fader_gains(strip.law, strip.gain.at(at), strip.pan.at(at));
                 }
                 frame[0] *= left;
                 frame[1] *= right;
@@ -175,6 +217,10 @@ impl Mixer {
             for tap in taps.iter_mut().filter(|tap| tap.tap.track == track.id) { tap.copy(base, state.latency, state.behind[index], windfall_project::MixerRecordMode::PostFader, buffer); }
 
             for edge in &track.edges {
+                if edge.tap.is_some() {
+                    // Already sent from its place in the chain.
+                    continue;
+                }
                 let gain = &state.edges[edge.slot];
                 let delayed = state.edge_delays[edge.slot].line.as_mut();
                 if edge.sidechain {
@@ -283,8 +329,8 @@ fn pair(buffers: &mut [Frame], source: usize, target: usize) -> (&[Frame], &mut 
 }
 
 #[inline]
-fn fader_gains(gain: f32, pan: f32) -> (f32, f32) {
-    let (left, right) = pan_gains(pan);
+fn fader_gains(law: PanLaw, gain: f32, pan: f32) -> (f32, f32) {
+    let (left, right) = law.gains(pan);
     (gain * left, gain * right)
 }
 
@@ -292,12 +338,12 @@ fn fader_gains(gain: f32, pan: f32) -> (f32, f32) {
 /// The block starts on frame `base`.
 fn apply_strip(left: &[f32], right: &[f32], strip: &Strip, base: u64, out: &mut [Frame]) {
     let steady = strip.gain.settled(base) && strip.pan.settled(base);
-    let mut gains = fader_gains(strip.gain.at(base), strip.pan.at(base));
+    let mut gains = fader_gains(strip.law, strip.gain.at(base), strip.pan.at(base));
     let sides = left.iter().zip(right);
     for (offset, (frame, (left, right))) in out.iter_mut().zip(sides).enumerate() {
         if !steady {
             let at = base + offset as u64;
-            gains = fader_gains(strip.gain.at(at), strip.pan.at(at));
+            gains = fader_gains(strip.law, strip.gain.at(at), strip.pan.at(at));
         }
         *frame = [left * gains.0, right * gains.1];
     }

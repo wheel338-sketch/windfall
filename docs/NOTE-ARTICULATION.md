@@ -40,3 +40,15 @@ MIDI/MPE, bridge-provider integration and slide-control curve ownership remain.
 
 No builds, tests, QA, reviews or artifact generators ran for this pass. Native
 and UI source additions are awaiting the later artifact and QA pass.
+
+## 2026-10-10: MIDI files and phrasing
+
+MIDI export can now write slides and portamento: with note expression on, a
+slide is a pitch-bend ramp on the held notes' channel with no note-on of
+its own, and a portamento note starts bent to the pitch before it and
+returns to centre over its glide. See `crates/windfall-midi/src/expression.rs`
+for the mapping and the export report. The Portamento note tool is described
+in [PIANO-TOOLS.md](PIANO-TOOLS.md). Both are written and not executed.
+
+Still missing: a pitch-bend fallback for MIDI-only plugin inputs, live MIDI
+output of sequenced glides, and bridge-provider pitch transport.

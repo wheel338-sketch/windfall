@@ -26,3 +26,30 @@ pnpm test -- src/features/piano-roll/chords
 The focused tests cover selection precedence, playhead updates and flooring,
 exclusive note ends, channel isolation, empty and unknown results, and the
 absence of dispatches. Existing chord tool tests also run in this suite.
+
+## 2026-10-10: wider vocabulary, live keys and a panel
+
+Written and not executed; see [the QA hand-off](../../qa/2026-10-10-piano.md).
+The sections above describe the earlier triad-only readout.
+
+`detectChord` now names a single note, a two-note interval (a perfect fifth
+as a power chord), the six triads as before, and the sixths, sevenths,
+extended and altered chords in `CHORDS`. Three or more pitch classes are
+tried on every sounding root; a seventh or larger chord may omit its fifth.
+Among several readings the first of these decides: the root is the bass;
+fewest omitted and altered tones; the lowest root pitch class from C; the
+order of `CHORDS`. So C-E-G-A is a C sixth over C, E or G and an A minor
+seventh over A. A bass that is not the root is written as a slash chord.
+Sets that match nothing keep the `Unknown chord (...)` label.
+
+The readout now has three sources, taken in this order: keys held live,
+then the selected notes, then the notes under the playhead. Held keys come
+from `chords/held-keys.ts`, which the audition path feeds: the typing
+keyboard, step entry, the key gutter and a note being drawn or dragged. A
+key counts once and its first release lets it go. Keys played on a hardware
+MIDI device are not included: nothing carries held hardware notes to the
+frontend.
+
+Clicking the readout, or **Chord display** (`pianoRoll.chordDisplay`) in
+the View menu and palette, opens a panel with the symbol, the long name,
+the bass, the pitch classes and which source is shown.

@@ -148,6 +148,8 @@ function ToolForm({ request }: { request: ToolRequest }) {
   const [divisor, setDivisor] = useState(String(request.musical.divisor))
   const [strength, setStrength] = useState("100")
   const [length, setLength] = useState("50")
+  const [glide, setGlide] = useState("240")
+  const [overlap, setOverlap] = useState("0")
   const [velocity, setVelocity] = useState("80")
   const [spacing, setSpacing] = useState("30")
   const [velocityStep, setVelocityStep] = useState("-5")
@@ -212,6 +214,10 @@ function ToolForm({ request }: { request: ToolRequest }) {
       case "staccato":
         return within(number(length), 1, 100)
           ? { type: tool, factor: number(length) / 100 }
+          : null
+      case "portamento":
+        return within(number(glide), 1, 245760, true) && within(number(overlap), 0, 245760, true)
+          ? { type: tool, glide: number(glide), overlap: number(overlap) }
           : null
       case "chop":
         return within(g, 1, 245760, true) ? { type: tool, grid: g } : null
@@ -634,6 +640,31 @@ function ToolForm({ request }: { request: ToolRequest }) {
                 max={100}
                 step={0.1}
               />
+            )}
+            {tool === "portamento" && (
+              <>
+                <NumberField
+                  label="Glide (ticks)"
+                  value={glide}
+                  set={setGlide}
+                  min={1}
+                  max={245760}
+                  step={1}
+                />
+                <NumberField
+                  label="Overlap (ticks)"
+                  value={overlap}
+                  set={setOverlap}
+                  min={0}
+                  max={245760}
+                  step={1}
+                />
+                <FieldDescription>
+                  Each note reaches the next selected onset plus the overlap,
+                  so a mono sound ties. The glide is how long every note after
+                  the first takes to arrive from the pitch before it.
+                </FieldDescription>
+              </>
             )}
             {tool === "strum" && (
               <>

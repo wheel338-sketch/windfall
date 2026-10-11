@@ -18,6 +18,12 @@ pub(crate) const MAX_REPORTED_AUTOMATIONS: usize = 128;
 /// piece before it gives up for this time.
 const READ_ATTEMPTS: u32 = 4;
 
+/// Messages of MIDI output channels that can wait for the MIDI worker. A
+/// power of two, so a position that wraps still names the same slot.
+pub(crate) const MIDI_OUT_CAPACITY: usize = 2048;
+/// The frame of a waiting MIDI message is kept in this many bits.
+const MIDI_OUT_FRAME_BITS: u32 = 38;
+
 pub(crate) struct Shared {
     pub waveform_epoch: AtomicU64,
     pub waveforms: Box<[crate::waveform_meter::WaveSlot]>,
@@ -26,6 +32,9 @@ pub(crate) struct Shared {
     pub recording_clock: crate::recording_clock::RecordingClock,
     pub count_in_remaining: AtomicU32,
     pub navigation_overflows: AtomicU32,
+    /// Notes whose echoes did not fit a channel's fixed echo queue and
+    /// played dry instead.
+    pub rejected_echoes: AtomicU32,
     /// Invalidates queued hardware notes and silences their voices without queue space.
     pub hardware_epoch: AtomicU64,
     /// The transport sequence number of the last play or stop the audio
@@ -62,6 +71,13 @@ pub(crate) struct Shared {
     /// An automation's id in the high half and its value, as `f32` bits,
     /// in the low half.
     automated: [AtomicU64; MAX_REPORTED_AUTOMATIONS],
+    /// Messages of MIDI output channels on their way to the MIDI worker:
+    /// one writer, the audio thread, and one reader. Each slot holds the
+    /// three bytes, their count and the frame: see [`Shared::push_midi_out`].
+    midi_out: Box<[AtomicU64]>,
+    midi_out_write: AtomicU32,
+    midi_out_read: AtomicU32,
+    midi_out_dropped: AtomicU32,
 }
 
 impl Shared {
@@ -73,6 +89,7 @@ impl Shared {
             recording_clock: crate::recording_clock::RecordingClock::new(),
             count_in_remaining: AtomicU32::new(0),
             navigation_overflows: AtomicU32::new(0),
+            rejected_echoes: AtomicU32::new(0),
             hardware_epoch: AtomicU64::new(0),
             transport: AtomicU64::new(0),
             tick: AtomicU64::new(0.0_f64.to_bits()),
@@ -89,7 +106,57 @@ impl Shared {
             automated_version: AtomicU32::new(0),
             automated_count: AtomicU32::new(0),
             automated: [const { AtomicU64::new(0) }; MAX_REPORTED_AUTOMATIONS],
+            midi_out: (0..MIDI_OUT_CAPACITY)
+                .map(|_| AtomicU64::new(0))
+                .collect::<Vec<_>>()
+                .into_boxed_slice(),
+            midi_out_write: AtomicU32::new(0),
+            midi_out_read: AtomicU32::new(0),
+            midi_out_dropped: AtomicU32::new(0),
         }
+    }
+
+    /// Queues one message of a MIDI output channel for the MIDI worker.
+    /// Only the audio thread calls this. It stores to preallocated slots and
+    /// never waits; a full queue drops the message and counts it.
+    pub fn push_midi_out(&self, frame: u64, bytes: [u8; 3], len: u8) {
+        let write = self.midi_out_write.load(Ordering::Relaxed);
+        let read = self.midi_out_read.load(Ordering::Acquire);
+        if write.wrapping_sub(read) as usize >= MIDI_OUT_CAPACITY {
+            self.midi_out_dropped.fetch_add(1, Ordering::Relaxed);
+            return;
+        }
+        let frame = frame & ((1 << MIDI_OUT_FRAME_BITS) - 1);
+        let packed = u64::from(bytes[0])
+            | u64::from(bytes[1]) << 8
+            | u64::from(bytes[2]) << 16
+            | u64::from(len.min(3)) << 24
+            | frame << 26;
+        self.midi_out[write as usize % MIDI_OUT_CAPACITY].store(packed, Ordering::Relaxed);
+        self.midi_out_write
+            .store(write.wrapping_add(1), Ordering::Release);
+    }
+
+    /// Takes the oldest waiting MIDI output message: its frame, bytes and
+    /// byte count. Only one thread at a time may call this.
+    pub fn pop_midi_out(&self) -> Option<(u64, [u8; 3], u8)> {
+        let read = self.midi_out_read.load(Ordering::Relaxed);
+        if read == self.midi_out_write.load(Ordering::Acquire) {
+            return None;
+        }
+        let packed = self.midi_out[read as usize % MIDI_OUT_CAPACITY].load(Ordering::Relaxed);
+        self.midi_out_read
+            .store(read.wrapping_add(1), Ordering::Release);
+        Some((
+            packed >> 26,
+            [packed as u8, (packed >> 8) as u8, (packed >> 16) as u8],
+            ((packed >> 24) & 3) as u8,
+        ))
+    }
+
+    /// MIDI output messages lost to a full queue since the engine started.
+    pub fn midi_out_dropped(&self) -> u32 {
+        self.midi_out_dropped.load(Ordering::Relaxed)
     }
 
     /// Publishes the automations at work as their id and their value, 0

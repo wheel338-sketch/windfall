@@ -9,6 +9,8 @@ use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 mod analysis;
 pub use analysis::*;
+mod analyzer;
+pub use analyzer::*;
 mod audio_edit;
 pub use audio_edit::*;
 pub mod library;
@@ -21,6 +23,10 @@ pub use midi_hardware::*;
 pub use slicer::{SliceOptions, SliceReview};
 mod plugins;
 pub use plugins::*;
+mod sampler_preprocess;
+pub use sampler_preprocess::*;
+mod files;
+pub use files::*;
 pub use windfall_project::PlayMode;
 use windfall_project::{AutomationId, EffectId, PatternId, TrackId};
 
@@ -512,6 +518,33 @@ pub struct ExportStems {
     pub folder: bool,
 }
 
+/// Exports the playlist tracks apart, each lane of the timeline to a file
+/// of its own: the song with only that lane's pattern and audio clips
+/// placed, heard at the output through its mixer tracks, its buses and the
+/// master. Automation plays in every file. Where everything on the way is
+/// linear the files add up to the mix; a compressor, limiter or sidechain
+/// detector reacts to each lane alone. The song is rendered once for every
+/// file. With an active arrangement the lanes are the ones it lists.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct ExportPlaylistStems {
+    /// The playlist tracks to export. Absent means every lane that the mix
+    /// plays and that holds a pattern or audio clip. A lane that is muted,
+    /// silenced by solo, or holds neither cannot be listed.
+    #[serde(default)]
+    #[ts(optional)]
+    pub tracks: Option<Vec<windfall_project::PlaylistTrackId>>,
+    /// Writes the whole mix as well, as one more file.
+    pub include_mix: bool,
+    /// Puts each lane's place on the timeline in front of its name, as in
+    /// "03 Bass", so the files sort the way the playlist shows the lanes.
+    pub numbered: bool,
+    /// Puts the files in a folder of their own, named like the export.
+    /// Without it they are written where the export's path points.
+    pub folder: bool,
+}
+
 /// One file an export wrote.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
@@ -521,6 +554,11 @@ pub struct ExportedFile {
     pub path: String,
     /// The mixer track the file is the stem of. `None` for the mix.
     pub track: Option<TrackId>,
+    /// The playlist track the file is the stem of, for an export of the
+    /// playlist tracks. Absent for the mix and for mixer stems.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub playlist_track: Option<windfall_project::PlaylistTrackId>,
     /// Length of the audio in frames, at the export's sample rate.
     #[ts(type = "number")]
     pub frames: u64,
@@ -740,3 +778,5 @@ pub struct SamplerPreparationProgress {
 }
 mod mastering;
 pub use mastering::*;
+mod audio_logger;
+pub use audio_logger::*;

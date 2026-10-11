@@ -61,6 +61,8 @@ struct Voice {
     fine: f32,
     release_multiplier: f32,
     velocity: f32,
+    /// Linear gain from the expression map of the channel. 1 is unity.
+    gain: f32,
     pan: [f32; 2],
     age: u64,
     release_left: u32,
@@ -84,6 +86,7 @@ impl Default for Voice {
             fine: 0.0,
             release_multiplier: 1.0,
             velocity: 0.0,
+            gain: 1.0,
             pan: [1.0; 2],
             age: 0,
             release_left: 0,
@@ -241,6 +244,16 @@ impl Engine {
             }
         }
     }
+    pub fn gain(&mut self, id: NoteInstanceId, gain: f32) {
+        if !gain.is_finite() {
+            return;
+        }
+        for voice in &mut self.voices {
+            if voice.active && voice.id == id {
+                voice.gain = gain.clamp(0.0, 16.0);
+            }
+        }
+    }
     pub fn pitch(&mut self, id: NoteInstanceId, pitch: f32) {
         if !pitch.is_finite() {
             return;
@@ -382,7 +395,7 @@ impl Engine {
                 }
             }
             voice.age = voice.age.saturating_add(1);
-            let signal = signal * envelope * voice.velocity * settings.level * 0.25;
+            let signal = signal * envelope * voice.velocity * settings.level * 0.25 * voice.gain;
             for (out, gain) in bus.iter_mut().zip(voice.pan) {
                 *out += signal * gain;
             }

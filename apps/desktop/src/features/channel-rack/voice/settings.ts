@@ -1,10 +1,20 @@
 /** Persistent types generated from windfall-project. */
 import type {
+  ChannelId,
+  ChannelTargetLfos,
   EchoTime,
+  LayerSettings,
   ModulationEnvelope,
   ChannelVoiceSettings,
+  TargetLfo,
+  VoiceFilter,
 } from "@/bindings"
 export type {
+  ChannelTargetLfos,
+  LayerSettings,
+  TargetLfo,
+  VoiceFilter,
+  VoiceFilterMode,
   ChannelNoteDivision as NoteDivision,
   ArpeggiatorMode,
   EchoTime,
@@ -19,15 +29,76 @@ export type {
   ChannelVoiceSettings,
 } from "@/bindings"
 
+/** The most channels one layer plays, as in windfall-project. */
+export const MAX_LAYER_CHILDREN = 16
+export const MIN_VOICE_CUTOFF_HZ = 20
+export const MAX_VOICE_CUTOFF_HZ = 20_000
+
+/** The sampler modulation targets that have an LFO of their own. */
+export const LFO_TARGETS = [
+  "volume",
+  "pan",
+  "pitch",
+  "cutoff",
+  "resonance",
+] as const
+export type TargetLfoName = (typeof LFO_TARGETS)[number]
+
+const defaultEnvelope = (): ModulationEnvelope => ({
+  enabled: false,
+  attackMs: 2,
+  decayMs: 200,
+  sustain: 0.8,
+  releaseMs: 150,
+  depth: 0,
+})
+
+export function createDefaultTargetLfo(): TargetLfo {
+  return { enabled: false, shape: "sine", rateHz: 5, depth: 0 }
+}
+
+export function createDefaultTargetLfos(): ChannelTargetLfos {
+  return {
+    volume: createDefaultTargetLfo(),
+    pan: createDefaultTargetLfo(),
+    pitch: createDefaultTargetLfo(),
+    cutoff: createDefaultTargetLfo(),
+    resonance: createDefaultTargetLfo(),
+  }
+}
+
+export function createDefaultVoiceFilter(): VoiceFilter {
+  return { enabled: false, mode: "lowPass", cutoffHz: 2000, resonance: 0 }
+}
+
+/**
+ * The settings below are left out of a project while they are at their
+ * defaults, so older files keep their shape. These read them with the
+ * defaults filled in.
+ */
+export function resonanceEnvelopeOf(
+  settings: ChannelVoiceSettings
+): ModulationEnvelope {
+  return settings.envelopes.resonance ?? defaultEnvelope()
+}
+
+export function targetLfosOf(
+  settings: ChannelVoiceSettings
+): ChannelTargetLfos {
+  return settings.envelopes.lfos ?? createDefaultTargetLfos()
+}
+
+export function voiceFilterOf(settings: ChannelVoiceSettings): VoiceFilter {
+  return settings.envelopes.filterSettings ?? createDefaultVoiceFilter()
+}
+
+export function layerOf(
+  settings: ChannelVoiceSettings | undefined
+): LayerSettings {
+  return settings?.layer ?? { enabled: false, children: [] }
+}
+
 export function createDefaultChannelVoiceSettings(): ChannelVoiceSettings {
-  const envelope = (): ModulationEnvelope => ({
-    enabled: false,
-    attackMs: 2,
-    decayMs: 200,
-    sustain: 0.8,
-    releaseMs: 150,
-    depth: 0,
-  })
   return {
     arpeggiator: {
       mode: "off",
@@ -44,9 +115,9 @@ export function createDefaultChannelVoiceSettings(): ChannelVoiceSettings {
     },
     polyphony: { maxVoices: 32, monoLegato: false, portamentoMs: 0 },
     envelopes: {
-      filter: envelope(),
-      pitch: envelope(),
-      pan: envelope(),
+      filter: defaultEnvelope(),
+      pitch: defaultEnvelope(),
+      pan: defaultEnvelope(),
       lfo: {
         enabled: false,
         shape: "sine",
@@ -85,6 +156,27 @@ export function sanitizeChannelVoiceSettings(
       depth: finite(value.depth, -depth, depth, 0),
     }
   }
+  function targetLfo(value: TargetLfo): TargetLfo {
+    return {
+      ...value,
+      rateHz: finite(value.rateHz, 0.01, 30, 5),
+      depth: finite(value.depth, -1, 1, 0),
+    }
+  }
+  function layer(value: LayerSettings): LayerSettings {
+    const children: ChannelId[] = []
+    for (const child of value.children) {
+      if (
+        Number.isInteger(child) &&
+        child >= 0 &&
+        !children.includes(child) &&
+        children.length < MAX_LAYER_CHILDREN
+      )
+        children.push(child)
+    }
+    return { enabled: value.enabled === true, children }
+  }
+  const { resonance, lfos, filterSettings } = value.envelopes
   function time(value: EchoTime): EchoTime {
     switch (value.unit) {
       case "milliseconds":
@@ -122,6 +214,34 @@ export function sanitizeChannelVoiceSettings(
         rateHz: finite(value.envelopes.lfo.rateHz, 0.01, 30, 5),
         depth: finite(value.envelopes.lfo.depth, -1, 1, 0),
       },
+      // Kept only when present, so untouched settings stay out of the edit.
+      ...(resonance ? { resonance: envelope(resonance, 1) } : {}),
+      ...(lfos
+        ? {
+            lfos: {
+              volume: targetLfo(lfos.volume),
+              pan: targetLfo(lfos.pan),
+              pitch: targetLfo(lfos.pitch),
+              cutoff: targetLfo(lfos.cutoff),
+              resonance: targetLfo(lfos.resonance),
+            },
+          }
+        : {}),
+      ...(filterSettings
+        ? {
+            filterSettings: {
+              ...filterSettings,
+              cutoffHz: finite(
+                filterSettings.cutoffHz,
+                MIN_VOICE_CUTOFF_HZ,
+                MAX_VOICE_CUTOFF_HZ,
+                2000
+              ),
+              resonance: finite(filterSettings.resonance, 0, 1, 0),
+            },
+          }
+        : {}),
     },
+    ...(value.layer ? { layer: layer(value.layer) } : {}),
   }
 }

@@ -269,6 +269,7 @@ impl Session {
         let _saving = lock(&self.inner.save);
         let mut owned = self.recording_idle()?;
         self.input_monitor_stop();
+        self.audio_logger_pause_input();
         if self.inner.exporting.load(Ordering::Acquire) {
             return Err("Wait for export before recording.".into());
         }

@@ -214,6 +214,7 @@ fn steady_noise_does_not_pump() {
         input_gain_db: 9.0,
         release_ms: 100.0,
         lookahead_ms: 5.0,
+        ..LimiterParams::default()
     };
     let mut limiter: Limiter = prepared(&params, RATE);
     let output = run_mono(&mut limiter, &noise(31, 0.7, 144_000));

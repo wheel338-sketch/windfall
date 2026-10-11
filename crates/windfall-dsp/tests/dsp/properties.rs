@@ -358,6 +358,7 @@ fn busy_limiter() -> LimiterParams {
         input_gain_db: 9.0,
         release_ms: 40.0,
         lookahead_ms: 3.0,
+        ..LimiterParams::default()
     }
 }
 
@@ -367,6 +368,7 @@ fn other_limiter() -> LimiterParams {
         input_gain_db: 0.0,
         release_ms: 300.0,
         lookahead_ms: 11.0,
+        ..LimiterParams::default()
     }
 }
 

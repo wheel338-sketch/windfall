@@ -142,10 +142,12 @@ pub mod recording_clock;
 pub mod recording_monitor;
 pub mod recording_disk;
 mod render;
+pub mod sample_preprocess;
 pub mod sampler_processing;
 mod sequencer;
 mod shared;
 mod spectrum;
+mod capture;
 mod waveform_meter;
 mod state;
 mod stems;
@@ -162,6 +164,7 @@ pub use controller::{
     ProjectPublicationIntent, ProjectPublicationLease, ProjectRetirement, PublicationRefusal,
     StreamStats,
 };
+pub use controller::Playhead;
 pub use device::Engine;
 pub use pool::SamplePool;
 pub use processor::Processor;
@@ -170,7 +173,16 @@ pub use stems::{
     Stem, StemError, StemMode, StemOptions, Streamed, render_stems, render_streaming,
     render_streaming_checked, stems,
 };
+pub use stems::{
+    PlaylistStem, PlaylistStemError, PlaylistStemOptions, playlist_stem_project, playlist_stems,
+    render_playlist_stems,
+};
 pub use voice::{PREVIEW_GAIN_DB, loop_crossfade_mix};
+pub use capture::{CAPTURE_OBSERVATIONS, CAPTURE_SEATS, CapturedObservation};
+pub use controller::capture_control::{
+    CaptureCapability, CaptureRefusal, CaptureRequest, CaptureState, CaptureTicket, CaptureView,
+    SeatCounters,
+};
 
 /// Lets the unit tests of code that runs on the audio thread count its
 /// allocator calls.
@@ -182,6 +194,12 @@ static ALLOCATOR: test_alloc::CountingAllocator = test_alloc::CountingAllocator;
 pub mod audio_edit;
 /// Bounded native audio input capture.
 pub mod recording;
+/// Capture endpoints and render-endpoint loopback inputs.
+pub mod recording_endpoint;
+/// Bounded background history of the output and of chosen mixer tracks.
+pub mod audio_logger;
 
 #[cfg(test)]
 mod qa_recording_mixer;
+#[cfg(test)]
+mod qa_mixer_pdc_ports;

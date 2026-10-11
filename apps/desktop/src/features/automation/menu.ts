@@ -1,5 +1,6 @@
 import type { AutomationTarget } from "@/bindings"
 import type { ContextItem } from "@/components/context-actions"
+import { controllerEntries } from "@/features/controllers/menu"
 import { deleteAutomation } from "@/features/playlist/automation/ops"
 import {
   automationBlocked,
@@ -7,6 +8,8 @@ import {
   targetState,
 } from "@/lib/automation/targets"
 import { useProjectStore } from "@/lib/store/project"
+
+import { openEventEditor } from "@/features/event-editor/actions"
 
 import { createAutomationClip, showAutomation } from "./create"
 import { drivingAutomation } from "./now"
@@ -57,6 +60,16 @@ export function automationEntries(target: AutomationTarget): ContextItem[] {
       afterClose: true,
       run: () => showAutomation(automation.id),
     })),
+    // Automation the selected pattern stores for itself, with no clip.
+    ...(target.type === "tempo"
+      ? []
+      : [
+          {
+            title: "Edit events in pattern",
+            afterClose: true,
+            run: () => openEventEditor(target),
+          },
+        ]),
   ]
   if (existing.length === 1) {
     items.push({
@@ -86,5 +99,12 @@ export function automationEntries(target: AutomationTarget): ContextItem[] {
  *     <ValueContextItems items={items}>…</ValueContextItems>
  */
 export function automationItems(target: AutomationTarget): ContextItem[] {
-  return [{ dynamic: () => automationEntries(target) }]
+  return [
+    {
+      dynamic: () => [
+        ...automationEntries(target),
+        ...controllerEntries(target),
+      ],
+    },
+  ]
 }

@@ -62,6 +62,12 @@ use crate::pool::SamplePool;
 use crate::processor::Processor;
 use crate::render::{RenderOptions, TAIL_HOLD_SECONDS, TAIL_SILENCE_DB};
 
+mod playlist;
+pub use playlist::{
+    PlaylistStem, PlaylistStemError, PlaylistStemOptions, playlist_stem_project, playlist_stems,
+    render_playlist_stems,
+};
+
 /// The name of the stream that is the whole mix.
 const MIX_NAME: &str = "Mix";
 
@@ -247,7 +253,13 @@ fn sources(project: &Project, through: bool) -> Vec<bool> {
             let output = track
                 .output
                 .filter(|_| !track.external_output.is_some_and(|route| route.exclusive));
-            for target in output.into_iter().chain(sends).filter_map(place) {
+            let effect_outputs = project
+                .mixer
+                .effect_outputs
+                .iter()
+                .filter(|route| track.effects.iter().any(|slot| slot.id == route.effect))
+                .map(|route| route.target);
+            for target in output.into_iter().chain(sends).chain(effect_outputs).filter_map(place) {
                 gives[target] = true;
             }
         }
@@ -792,6 +804,7 @@ mod tests {
             solo: false,
             group: String::new(),
             voice: Default::default(),
+            expression_map: Default::default(),
             timing: windfall_project::ChannelTiming::default(),
             mixer_track: TrackId(track),
             source: ChannelSource::Sampler(SamplerSettings::default()),
