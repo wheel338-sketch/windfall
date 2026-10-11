@@ -269,3 +269,23 @@ fn removing_link_returns_target_to_its_stored_value_without_callback_allocation(
     let out = run(&mut processor, 4800, 64);
     assert!((left(&out)[4000] - 0.5).abs() < 1e-6);
 }
+
+#[test]
+fn all_hosted_sources_leave_real_carrier_audio_unchanged_without_links() {
+    let (plain, _) = carrier();
+    let reference = plain.play_song(RATE, 4800, 37);
+    for kind in [
+        EffectKind::NoteEnvelope,
+        EffectKind::KeyboardSource,
+        EffectKind::EnvelopeFollower,
+        EffectKind::FormulaSource,
+        EffectKind::XyPad,
+        EffectKind::XyzPad,
+        EffectKind::ControlSurface,
+        EffectKind::VoltageSource,
+    ] {
+        let (mut rig, track) = carrier();
+        rig.effect(track, kind.default_params());
+        assert_eq!(rig.play_song(RATE, 4800, 37), reference, "{kind:?}");
+    }
+}

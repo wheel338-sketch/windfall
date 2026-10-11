@@ -163,6 +163,9 @@ fn random_effect_params(kind: EffectKind, rng: &mut Rng) -> EffectParams {
         EffectKind::StageStack => EffectParams::StageStack(random_params::<windfall_dsp::mastering::StageStackParams>(rng)),
         EffectKind::ControlSurface => EffectParams::ControlSurface(random_params::<windfall_dsp::surface::ControlSurfaceParams>(rng)),
         EffectKind::SendTap => EffectParams::SendTap(random_params::<windfall_dsp::sendtap::SendTapParams>(rng)),
+        EffectKind::FormulaSource => EffectParams::FormulaSource(random_params::<windfall_dsp::control::FormulaSourceParams>(rng)),
+        EffectKind::KeyboardSource => EffectParams::KeyboardSource(random_params::<windfall_dsp::control::KeyboardSourceParams>(rng)),
+        EffectKind::VoltageSource => EffectParams::VoltageSource(random_params::<windfall_dsp::control::VoltageSourceParams>(rng)),
 
     }
 }
