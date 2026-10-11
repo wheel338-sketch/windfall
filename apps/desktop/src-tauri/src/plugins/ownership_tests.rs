@@ -111,6 +111,41 @@ fn midi_only_input_receives_bend_before_onset_and_replays_the_latest_group_pitch
     assert!(expression_audio(audio.as_mut(), 128)[64..].iter().all(|frame| *frame == [0.0; 2]));
 }
 
+#[test]
+fn vst3_cached_midi_mapping_routes_color_channels_replays_owner_and_matches_render() {
+    use windfall_dsp::{NoteExpression, NoteInstanceId};
+    let (runtime, binding) = fixture(23);
+    let mut audio = runtime.instrument(&binding, 48_000, 64).unwrap();
+    audio.transport(transport());
+    assert!(audio.supports_note_pitch() && audio.supports_note_instances());
+    let left = NoteExpression { fine_pitch_cents: 100.0, color_group: Some(2), ..NoteExpression::NEUTRAL };
+    let right = NoteExpression { fine_pitch_cents: -100.0, color_group: Some(5), ..NoteExpression::NEUTRAL };
+    assert_eq!(crate::test_alloc::allocator_calls(|| {
+        audio.note_on_instance(NoteInstanceId(1), 69, 1.0, 0.0, left);
+        audio.note_on_instance(NoteInstanceId(2), 69, 1.0, 0.0, right);
+    }), 0);
+    let native = expression_audio(audio.as_mut(), 8192);
+    assert!((expression_frequency(&native, 0) - 466.164).abs() < 1.0);
+    assert!((expression_frequency(&native, 1) - 415.305).abs() < 1.0);
+    let factory = runtime.render_factory().unwrap();
+    let mut offline = factory.instrument(&binding, 48_000, 64).unwrap();
+    offline.transport(transport());
+    offline.note_on_instance(NoteInstanceId(1), 69, 1.0, 0.0, left);
+    offline.note_on_instance(NoteInstanceId(2), 69, 1.0, 0.0, right);
+    assert_eq!(native, expression_audio(offline.as_mut(), 8192));
+    let resume = pause_adapter(&runtime, audio.as_mut());
+    audio.note_off_on_channel(NoteInstanceId(1), 69, 2);
+    audio.set_note_pitch(NoteInstanceId(2), 71.0);
+    resume.send(()).unwrap();
+    runtime.call(|_| Ok(())).unwrap();
+    audio.control_boundary();
+    let replayed = expression_audio(audio.as_mut(), 8192);
+    assert!(replayed.iter().all(|frame| frame[0] == 0.0));
+    assert!((expression_frequency(&replayed, 1) - 493.883).abs() < 1.0);
+    audio.all_notes_off();
+    assert!(expression_audio(audio.as_mut(), 128).iter().all(|frame| *frame == [0.0; 2]));
+}
+
 pub(crate) fn fixture(index: usize) -> (Arc<Runtime>, PluginBinding) {
     static FILE: OnceLock<PathBuf> = OnceLock::new();
     let path = FILE.get_or_init(|| {
@@ -141,7 +176,7 @@ pub(crate) fn fixture(index: usize) -> (Arc<Runtime>, PluginBinding) {
         format: "vst3".into(),
         name: descriptor.name.clone(),
         vendor: "Fixture".into(),
-        instrument: index == 2,
+        instrument: index == 2 || index == 23,
         usable: true,
         error: None,
     }]);
@@ -149,7 +184,7 @@ pub(crate) fn fixture(index: usize) -> (Arc<Runtime>, PluginBinding) {
         .discover(PluginBinding {
             sidechain_input: None,
             auxiliary_inputs: Vec::new(),
-            target: if index == 2 {
+            target: if index == 2 || index == 23 {
                 PluginTarget::Instrument {
                     channel: windfall_project::ChannelId(900),
                 }

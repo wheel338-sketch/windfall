@@ -97,6 +97,7 @@ pub(crate) struct ProcessFailed;
 /// on the audio thread only, never two at once.
 pub(crate) trait ProcessorBackend: Send + 'static {
     fn supports_midi_expression(&self) -> bool { false }
+    fn midi_expression_mask(&self, _channel: u8) -> u32 { 0 }
     fn supports_note_instances(&self) -> bool {
         false
     }
@@ -198,6 +199,7 @@ pub(crate) struct ProcessorParts {
 impl PluginProcessor {
     /// Cached format/input capability; no discovery or FFI on audio.
     pub fn supports_midi_expression(&self) -> bool { self.backend.supports_midi_expression() }
+    pub fn midi_expression_mask(&self, channel: u8) -> u32 { self.backend.midi_expression_mask(channel.min(15)) }
     pub fn supports_note_instances(&self) -> bool {
         self.backend.supports_note_instances()
     }

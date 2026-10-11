@@ -323,7 +323,7 @@ impl PluginInstrument {
             if controls.mask & kind.mask() == 0 { values[index] = neutral[index]; }
         }
         let midi = self.processor.supports_midi_expression();
-        let mask = if midi { 0x7f } else { self.processor.note_expression_mask(note.channel) };
+        let mask = if midi { self.processor.midi_expression_mask(note.channel) } else { self.processor.note_expression_mask(note.channel) };
         if midi { values[2] = (values[2] / self.bend_range_semitones).clamp(-1.0, 1.0); }
         for (index, kind) in EXPRESSION_KINDS
         .into_iter()

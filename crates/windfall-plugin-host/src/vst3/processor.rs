@@ -176,6 +176,8 @@ pub(super) struct VstProcessor {
     event_input: bool,
     instances: Box<[NativeHeld]>,
     expression_masks: [u32; 16],
+    midi_expression: [[Option<u32>; 7]; 16],
+    midi_fallback: bool,
     native_drops: u32,
 }
 // SAFETY: all mutable COM buffers are exclusively owned by this processor,
@@ -309,7 +311,7 @@ impl VstProcessor {
                 return Err(PluginError::Activate("processing setup refused".into()));
             }
         }
-        let parameters = Changes::input(values.len());
+        let parameters = Changes::input(values.len().saturating_add(16 * 7));
         let parameter_ptr = parameters
             .to_com_ptr::<IParameterChanges>()
             .expect("changes");
@@ -342,6 +344,22 @@ impl VstProcessor {
                 }
             }
         }
+        let mut midi_expression = [[None; 7]; 16];
+        if let Some(mapping) = objects.controller.as_ref().and_then(|controller| controller.cast::<IMidiMapping>()) {
+            // SDK controller numbers: CC7, CC10, pitch bend (129), CC1,
+            // CC11, CC74 and channel pressure (128). Query only on owner.
+            for (channel, assignments) in midi_expression.iter_mut().enumerate() {
+                for (index, number) in [7_i16, 10, 129, 1, 11, 74, 128].into_iter().enumerate() {
+                    let mut id = 0;
+                    if unsafe { mapping.getMidiControllerAssignment(0, channel as i16, number, &mut id) } == kResultOk &&
+                        values.iter().any(|value| value.id == id && value.writable) {
+                        assignments[index] = Some(id);
+                    }
+                }
+            }
+        }
+        let midi_fallback = expression_masks.iter().all(|mask| mask & NoteExpressionKind::Tuning.mask() == 0) &&
+            midi_expression.iter().any(|assignments| assignments[2].is_some());
         Ok(Self {
             objects,
             unprocessed: vec![None; values.len()].into_boxed_slice(),
@@ -364,6 +382,8 @@ impl VstProcessor {
             event_input: layout.note_inputs > 0,
             instances: vec![NativeHeld::EMPTY; MAX_NOTE_INSTANCES].into_boxed_slice(),
             expression_masks,
+            midi_expression,
+            midi_fallback,
             native_drops: 0,
         })
     }
@@ -460,6 +480,13 @@ impl VstProcessor {
         self.note_with_id(time, key, channel, velocity, on, id as i32);
     }
     fn expression(&self, time: u32, id: u32, channel: u8, kind: NoteExpressionKind, value: f64) {
+        if self.midi_fallback {
+            if let Some(parameter) = self.midi_expression[channel as usize][kind as usize] {
+                let normalized = if kind == NoteExpressionKind::Tuning { (value + 1.0) / 2.0 } else { value };
+                self.parameters.push(parameter, time, normalized.clamp(0.0, 1.0));
+            }
+            return;
+        }
         if !self.event_input || self.expression_masks[channel as usize] & kind.mask() == 0 {
             return;
         }
@@ -490,6 +517,11 @@ impl VstProcessor {
     }
 }
 impl ProcessorBackend for VstProcessor {
+    fn supports_midi_expression(&self) -> bool { self.event_input && self.midi_fallback }
+    fn midi_expression_mask(&self, channel: u8) -> u32 {
+        if !self.midi_fallback { return 0; }
+        self.midi_expression[channel.min(15) as usize].iter().enumerate().fold(0, |mask, (index, id)| mask | if id.is_some() { 1 << index } else { 0 })
+    }
     fn supports_note_instances(&self) -> bool {
         self.event_input
     }
@@ -643,6 +675,11 @@ impl ProcessorBackend for VstProcessor {
                 HostEvent::AllNotesOff { time } => {
                     self.release_instances(time);
                     for channel in 0..16 {
+                        if self.midi_fallback {
+                            for (index, value) in [1.0, 0.5, 0.0, 0.5, 0.5, 0.5, 0.5].into_iter().enumerate() {
+                                self.expression(time, crate::events::FIRST_NOTE_INSTANCE_ID, channel as u8, NoteExpressionKind::from_raw(index as u32).unwrap(), value);
+                            }
+                        }
                         for key in 0..128 {
                             if self.held[channel][key] {
                                 self.note(time, key as u8, channel as u8, 0.0, false);
