@@ -16,6 +16,7 @@ import { CompressorEditor } from "./compressor/compressor-editor"
 import { DelayEditor } from "./delay/delay-editor"
 import type { EditorProps } from "./editor-props"
 import { EqEditor } from "./eq/eq-editor"
+import { SevenBandEditor } from "./graphic/seven-band-editor"
 import { LimiterEditor } from "./limiter/limiter-editor"
 import { ReverbEditor } from "./reverb/reverb-editor"
 
@@ -34,6 +35,7 @@ const EDITORS: Editors = {
   limiter: LimiterEditor,
   reverb: ReverbEditor,
   delay: DelayEditor,
+  sevenBand: SevenBandEditor,
 }
 
 type AnyEditor = ComponentType<EditorProps<EffectParams>>
