@@ -4,6 +4,7 @@
 //! documented in docs/integration/seams/spatial.md.
 
 mod band_delay;
+mod bucket;
 mod chorus;
 mod common;
 mod flanger;
@@ -12,9 +13,15 @@ mod room;
 mod stereo;
 
 pub use band_delay::{BandDelay, BandDelayParams};
-pub use chorus::{HyperChorus, HyperChorusParams, VintageChorus, VintageChorusParams};
-pub use flanger::{StackedFlanger, StackedFlangerParams};
-pub use phaser::{VintagePhaser, VintagePhaserParams};
+pub use bucket::{BUCKET_GUARD_HZ, BUCKET_SAMPLES, BucketMode, BucketSweep};
+pub use chorus::{
+    HyperChorus, HyperChorusParams, SWARM_MAX_VOICES, VintageChorus, VintageChorusParams,
+    voice_delay_ratio, voice_rate_ratio,
+};
+pub use flanger::{FLANGER_MAX_ORDER, StackedFlanger, StackedFlangerParams, comb_time_ratio};
+pub use phaser::{
+    PHASER_MAX_STAGES, PhaserStages, VintagePhaser, VintagePhaserParams, stage_ratio,
+};
 pub use room::{Room, RoomParams};
 pub use stereo::{
     MAX_PHASE_OFFSET_MS, Spreader, SpreaderParams, StereoEnhancer, StereoEnhancerParams,
@@ -22,5 +29,7 @@ pub use stereo::{
 };
 
 
+#[cfg(test)]
+mod model_tests;
 #[cfg(test)]
 mod tests;

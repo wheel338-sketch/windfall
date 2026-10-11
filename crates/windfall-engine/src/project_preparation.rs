@@ -81,6 +81,12 @@ impl fmt::Display for ProjectPreparationError {
                 "Native plugin preparation failed for {target:?}: {reason}"
             ),
             Self::Unsupported(reason) => formatter.write_str(reason),
+            Self::MemoryLimit { required, limit } => write!(
+                formatter,
+                "This project needs {} MB of prepared audio memory and the limit is {} MB. Nothing was changed.",
+                required.div_ceil(1 << 20),
+                limit >> 20
+            ),
             _ => write!(formatter, "Project preparation refused: {self:?}"),
         }
     }

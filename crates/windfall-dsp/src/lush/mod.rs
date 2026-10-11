@@ -18,7 +18,9 @@ const EARLY_MS: [[f32; 5]; 2] = [
 const EARLY_GAIN: [f32; 5] = [0.55, -0.37, 0.29, 0.21, -0.15];
 const ALLPASS_GAIN: f32 = 0.55;
 const MIN_DECAY_S: f32 = 0.18;
-const RAMPS: usize = 9;
+const RAMPS: usize = 12;
+
+mod pitch;
 
 /// Settings of [`LushSpace`]. Decay is nominal low-frequency RT60.
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, TS)]
@@ -40,6 +42,12 @@ pub struct LushSpaceParams {
     pub width: f32,
     /// Dry/wet balance, 0..1, default 0.3.
     pub mix: f32,
+    /// Wet feed-forward pitch voice, -12..12 semitones. No pitch feedback.
+    pub pitch_semitones: f32,
+    /// Share of pitched wet sound. Zero preserves the legacy hall exactly.
+    pub pitch_amount: f32,
+    /// Acoustic spacing, 0..1; 0.5 preserves the original tank dimensions.
+    pub size: f32,
 }
 
 impl Default for LushSpaceParams {
@@ -53,6 +61,9 @@ impl Default for LushSpaceParams {
             modulation_depth_ms: 0.7,
             width: 1.0,
             mix: 0.3,
+            pitch_semitones: 12.0,
+            pitch_amount: 0.0,
+            size: 0.5,
         }
     }
 }
@@ -66,6 +77,9 @@ param_set!(LushSpaceParams, "Lush Space", {
     float [modulation_depth_ms] "modulationDepthMs" "Modulation depth" { Milliseconds, Linear, 0.0, 2.0, 0.7 }
     float [width] "width" "Width" { Fraction, Linear, 0.0, 1.0, 1.0 }
     float [mix] "mix" "Mix" { Fraction, Linear, 0.0, 1.0, 0.3 }
+    float [pitch_semitones] "pitchSemitones" "Pitch shift" { Semitones, Linear, -12.0, 12.0, 12.0 }
+    float [pitch_amount] "pitchAmount" "Pitch amount" { Fraction, Linear, 0.0, 1.0, 0.0 }
+    float [size] "size" "Size" { Fraction, Linear, 0.0, 1.0, 0.5 }
 });
 
 /// A stereo hall with serial diffusion and cross-coupled long delay tanks.
@@ -89,6 +103,7 @@ pub struct LushSpace {
     idle: usize,
     lifetime: usize,
     tail_gain: LinearRamp,
+    pitch: pitch::PitchVoice,
 }
 
 impl Default for LushSpace {
@@ -111,6 +126,7 @@ impl Default for LushSpace {
             idle: 0,
             lifetime: 0,
             tail_gain: LinearRamp::new(1.0),
+            pitch: pitch::PitchVoice::default(),
         };
         hall.apply();
         hall
@@ -146,9 +162,10 @@ impl LushSpace {
     fn apply(&mut self) {
         let p = self.params;
         let decay = p.decay_s.max(MIN_DECAY_S);
+        let scale = 0.4 + 1.2 * p.size;
         let feedback = TANK_MS.map(|times| {
             // One sample of cross-coupling storage belongs to each loop.
-            let length: usize = times.iter().map(|ms| frames(*ms, self.rate)).sum();
+            let length: usize = times.iter().map(|ms| frames(*ms * scale, self.rate)).sum();
             (-6.907_755 * (length + 1) as f32 / (decay * self.rate)).exp()
         });
         let cutoff = 1_100.0 + 16_900.0 * (1.0 - p.damping).powi(2);
@@ -163,6 +180,9 @@ impl LushSpace {
             p.mix,
             feedback[0],
             feedback[1],
+            (p.pitch_semitones / 12.0).exp2(),
+            p.pitch_amount,
+            scale,
         ];
         let glide = if self.fresh {
             0
@@ -174,7 +194,12 @@ impl LushSpace {
         }
         // Keep a conservative bound for audio already circulating when decay
         // is shortened. Reset starts a new lifetime at the current settings.
-        let lifetime = ((1.5 * decay + 0.77) * self.rate).ceil() as usize;
+        let pitch_history = if p.pitch_amount > 0.0 {
+            self.pitch.history()
+        } else {
+            0
+        };
+        let lifetime = ((1.5 * decay + 0.77 * scale) * self.rate).ceil() as usize + pitch_history;
         self.lifetime = if self.fresh {
             lifetime
         } else {
@@ -194,6 +219,7 @@ impl LushSpace {
         }
         self.damping = [0.0; 2];
         self.returns = [0.0; 2];
+        self.pitch.clear();
     }
 
     fn tick(&mut self, dry: [f32; 2], controls: [f32; RAMPS]) -> [f32; 2] {
@@ -207,6 +233,9 @@ impl LushSpace {
             _,
             feedback_l,
             feedback_r,
+            _,
+            _,
+            scale,
         ] = controls;
         let feedback = [feedback_l, feedback_r];
         let old_returns = self.returns;
@@ -220,33 +249,36 @@ impl LushSpace {
             self.pre[ch].push(dry[ch]);
             let mut early = 0.0;
             for (ms, gain) in EARLY_MS[ch].iter().zip(EARLY_GAIN) {
-                early += gain * self.early[ch].tap(frames(*ms, self.rate));
+                early += gain
+                    * self.early[ch].tap_linear(samples(*ms * scale, self.rate).round().max(1.0));
             }
             self.early[ch].push(input);
             let mut diffused = input;
             for i in 0..2 {
                 diffused = allpass(
                     &mut self.diffusers[ch][i],
-                    self.diffuser_lengths[ch][i] as f32,
+                    (self.diffuser_lengths[ch][i] as f32 * scale).max(1.0),
                     diffused,
                 );
             }
 
             self.phases[ch] = (self.phases[ch] + f64::from(hz) / f64::from(self.rate)).fract();
             let swing = (std::f64::consts::TAU * self.phases[ch]).sin() as f32 * depth;
-            let delay = (self.tank_lengths[ch][0] as f32 + swing)
+            let delay = (self.tank_lengths[ch][0] as f32 * scale + swing)
                 .clamp(1.0, self.tanks[ch][0].max_delay().max(1) as f32);
             let fed = 0.4 * diffused + feedback[ch] * old_returns[1 - ch];
             let first = allpass(&mut self.tanks[ch][0], delay, fed);
-            let echo = self.tanks[ch][1].tap(self.tank_lengths[ch][1]);
+            let echo =
+                self.tanks[ch][1].tap_linear((self.tank_lengths[ch][1] as f32 * scale).max(1.0));
             self.tanks[ch][1].push(first);
             self.damping[ch] = state((1.0 - pole) * echo + pole * self.damping[ch]);
             let second = allpass(
                 &mut self.tanks[ch][2],
-                self.tank_lengths[ch][2] as f32,
+                (self.tank_lengths[ch][2] as f32 * scale).max(1.0),
                 self.damping[ch],
             );
-            let returned = self.tanks[ch][3].tap(self.tank_lengths[ch][3]);
+            let returned =
+                self.tanks[ch][3].tap_linear((self.tank_lengths[ch][3] as f32 * scale).max(1.0));
             self.tanks[ch][3].push(second);
             self.returns[ch] = returned;
             wet[ch] = state(0.6 * (echo + returned) + early_level * early);
@@ -261,17 +293,18 @@ impl Effect for LushSpace {
     fn prepare(&mut self, sample_rate: f32, _max_block: usize) {
         self.rate = clean(sample_rate, 1.0, 384_000.0, 48_000.0);
         self.pre = std::array::from_fn(|_| DelayLine::new(frames(120.0, self.rate) + 2));
-        self.early = std::array::from_fn(|_| DelayLine::new(frames(113.0, self.rate)));
+        self.early = std::array::from_fn(|_| DelayLine::new(frames(113.0 * 1.6, self.rate) + 2));
         self.diffuser_lengths = DIFFUSER_MS.map(|times| times.map(|ms| frames(ms, self.rate)));
         self.diffusers = std::array::from_fn(|ch| {
-            std::array::from_fn(|i| DelayLine::new(self.diffuser_lengths[ch][i]))
+            std::array::from_fn(|i| DelayLine::new(frames(DIFFUSER_MS[ch][i] * 1.6, self.rate) + 2))
         });
         self.tank_lengths = TANK_MS.map(|times| times.map(|ms| frames(ms, self.rate)));
         self.tanks = std::array::from_fn(|ch| {
             std::array::from_fn(|i| {
-                DelayLine::new(self.tank_lengths[ch][i] + frames(2.0, self.rate) + 2)
+                DelayLine::new(frames(TANK_MS[ch][i] * 1.6, self.rate) + frames(2.0, self.rate) + 2)
             })
         });
+        self.pitch.prepare(self.rate);
         self.prepared = true;
         self.reset();
     }
@@ -313,7 +346,13 @@ impl Effect for LushSpace {
                 }
             }
             let wet = if self.idle < self.lifetime {
-                self.tick(dry, controls)
+                let plain = self.tick(dry, controls);
+                let pitched = self.pitch.tick(plain, controls[9]);
+                if controls[10] == 0.0 {
+                    plain
+                } else {
+                    std::array::from_fn(|ch| plain[ch] + controls[10] * (pitched[ch] - plain[ch]))
+                }
             } else {
                 if !expired {
                     self.clear_audio();

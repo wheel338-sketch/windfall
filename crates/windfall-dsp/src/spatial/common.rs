@@ -27,6 +27,17 @@ pub(super) fn advance(phase: &mut f64, hz: f32, rate: f32) {
     *phase = (*phase + f64::from(hz) / f64::from(rate)).fract();
 }
 
+/// One cycle in `beats` quarter notes, without resetting the running phase.
+/// Free rates retain the legacy arithmetic. Host tempo is bounded consistently
+/// with the delay bank; invalid tempo falls back to 120 BPM.
+pub(super) fn modulation_hz(free: f32, sync: bool, beats: f32, bpm: f32) -> f32 {
+    if sync {
+        clean(bpm, 10.0, 1000.0, 120.0) / (60.0 * beats)
+    } else {
+        free
+    }
+}
+
 /// Fixed 10 ms ramps, including topology weights. Writes before the first
 /// processed frame snap. Repeated equal targets never restart a ramp.
 pub(super) struct Controls<const N: usize> {
@@ -60,6 +71,16 @@ impl<const N: usize> Controls<N> {
         self.fresh = false;
         std::array::from_fn(|i| self.ramps[i].tick())
     }
+    /// Length of a ramp started now: nothing before the first frame.
+    pub fn glide(&self) -> u32 {
+        if self.fresh { 0 } else { self.length }
+    }
+}
+
+/// One cycle of a triangle that starts at 0, peaks at 1 half way and is
+/// back at 0 at the end.
+pub(super) fn triangle(phase: f64) -> f32 {
+    (1.0 - (1.0 - 2.0 * phase.fract()).abs()) as f32
 }
 
 #[derive(Default, Clone, Copy)]

@@ -49,6 +49,10 @@ pub enum DelayMode {
     /// The input is summed to mono and its echoes bounce from left to
     /// right and back.
     PingPong,
+    /// Every echo is on the opposite side to the sound that made it: what
+    /// comes in on the left echoes on the right and stays there, and the
+    /// other way round. The dry sound keeps its place.
+    Inverted,
 }
 
 /// A note length for a delay time that follows the tempo.
@@ -183,7 +187,11 @@ param_set!(DelayParams, "Delay", {
     }
     float [feedback] "feedback" "Feedback" { Fraction, Linear, 0.0, 0.95, 0.35 }
     choice [mode] "mode" "Mode" {
-        DelayMode, Stereo, [Stereo "stereo" "Stereo", PingPong "pingPong" "Ping-pong"]
+        DelayMode, Stereo, [
+            Stereo "stereo" "Stereo",
+            PingPong "pingPong" "Ping-pong",
+            Inverted "inverted" "Inverted"
+        ]
     }
     float [stereo_offset_ms] "stereoOffsetMs" "Stereo offset"
         { Milliseconds, Linear, -50.0, 50.0, 0.0 }
@@ -305,6 +313,11 @@ fn saturate(input: f32, amount: f32) -> f32 {
 /// glide in pitch the way a tape delay does. Optional sine modulation
 /// moves the read positions continuously with linear interpolation.
 ///
+/// Three modes place the echoes. Stereo keeps each side's echoes on its
+/// side. Ping-pong sums the input to mono and bounces it from left to
+/// right. Inverted swaps the sides of every echo: a sound on the left
+/// echoes on the right, and its repeats stay there.
+///
 /// Feedback stops at 0.95 and nothing in the loop has a gain above 1, so
 /// the delay cannot run away. It adds no latency.
 pub struct Delay {
@@ -327,6 +340,9 @@ pub struct Delay {
     mod_depth_samples: LinearRamp,
     /// 0 for stereo routing, 1 for ping-pong, in between while switching.
     cross: LinearRamp,
+    /// 0 while each side feeds its own line, 1 for inverted stereo, where
+    /// each side feeds the other's, in between while switching.
+    swap: LinearRamp,
     until_control: usize,
     fresh: bool,
 }
@@ -352,6 +368,7 @@ impl Default for Delay {
             mod_lfo: Lfo::new(1),
             mod_depth_samples: LinearRamp::new(0.0),
             cross: LinearRamp::new(0.0),
+            swap: LinearRamp::new(0.0),
             until_control: 0,
             fresh: true,
         };
@@ -383,11 +400,13 @@ impl Delay {
         self.mix.set_target(params.mix, ramp);
         self.mod_depth_samples
             .set_target(params.mod_depth_ms * (0.001 * rate), ramp);
-        let cross = match params.mode {
-            DelayMode::Stereo => 0.0,
-            DelayMode::PingPong => 1.0,
+        let (cross, swap) = match params.mode {
+            DelayMode::Stereo => (0.0, 0.0),
+            DelayMode::PingPong => (1.0, 0.0),
+            DelayMode::Inverted => (0.0, 1.0),
         };
         self.cross.set_target(cross, ramp);
+        self.swap.set_target(swap, ramp);
 
         let fade = ms_to_samples(TIME_FADE_MS, rate);
         let delays = self.delays();
@@ -525,8 +544,17 @@ impl Effect for Delay {
             // line's echoes, so the sound bounces between them.
             let cross = self.cross.tick();
             let mono = 0.5 * (*left + *right);
-            let into_left = lerp(*left + back[0], mono + back[1], cross);
-            let into_right = lerp(*right + back[1], back[0], cross);
+            // Inverted stereo sends each side into the other side's line.
+            // The repeats stay in that line, so they stay on that side.
+            let swap = self.swap.tick();
+            let (own_left, own_right) = if swap == 0.0 {
+                // The other modes' samples are untouched by the switch.
+                (*left, *right)
+            } else {
+                (lerp(*left, *right, swap), lerp(*right, *left, swap))
+            };
+            let into_left = lerp(own_left + back[0], mono + back[1], cross);
+            let into_right = lerp(own_right + back[1], back[0], cross);
             self.lines[0].push(flush(into_left));
             self.lines[1].push(flush(into_right));
 
@@ -739,6 +767,214 @@ mod tests {
         }
         delay.reset();
         assert_eq!(delay.modulation_samples(), 0.0);
+    }
+
+    /// A delay prepared at 44.1 kHz with `params` in force from the start.
+    fn prepared(params: &DelayParams) -> Delay {
+        let mut delay = Delay::default();
+        delay.prepare(44_100.0, 64);
+        delay.set_params(params);
+        delay
+    }
+
+    /// Ten milliseconds, 441 samples at 44.1 kHz, with the feedback filters
+    /// as far out of the way as they go.
+    fn inverted(feedback: f32) -> DelayParams {
+        DelayParams {
+            sync: false,
+            time_ms: 10.0,
+            feedback,
+            mode: DelayMode::Inverted,
+            high_cut_hz: 20_000.0,
+            mix: 1.0,
+            ..DelayParams::default()
+        }
+    }
+
+    #[test]
+    fn the_inverted_mode_is_appended_after_the_existing_choices() {
+        let index = DelayParams::index_of("mode").unwrap();
+        assert_eq!(index, 4);
+        let info = DelayParams::descriptors()[index];
+        let values: Vec<_> = info.choices.iter().map(|choice| choice.value).collect();
+        assert_eq!(values, ["stereo", "pingPong", "inverted"]);
+        assert_eq!((info.min, info.max, info.default), (0.0, 2.0, 0.0));
+
+        let mut params = DelayParams::default();
+        assert!(params.set(index, 1.0));
+        assert_eq!(params.mode, DelayMode::PingPong);
+        assert!(params.set(index, 2.0));
+        assert_eq!(params.mode, DelayMode::Inverted);
+        assert_eq!(params.get(index), Some(2.0));
+        // Past the end holds at the last choice, as for every choice.
+        assert!(params.set(index, 9.0));
+        assert_eq!(params.mode, DelayMode::Inverted);
+
+        let json = serde_json::to_value(params).unwrap();
+        assert_eq!(json["mode"], "inverted");
+        let loaded: DelayParams = serde_json::from_value(json).unwrap();
+        assert_eq!(loaded, params);
+        for (stored, mode) in [
+            ("stereo", DelayMode::Stereo),
+            ("pingPong", DelayMode::PingPong),
+        ] {
+            let old: DelayParams =
+                serde_json::from_str(&format!(r#"{{"mode":"{stored}"}}"#)).unwrap();
+            assert_eq!(old.mode, mode);
+        }
+    }
+
+    #[test]
+    fn inverted_echoes_arrive_on_the_other_side_at_the_delay_time() {
+        let at = 441;
+        for side in 0..2 {
+            let mut delay = prepared(&inverted(0.0));
+            let mut channels = [vec![0.0_f32; 3 * at], vec![0.0_f32; 3 * at]];
+            channels[side][0] = 1.0;
+            {
+                let [left, right] = &mut channels;
+                delay.process(left, right);
+            }
+            let (same, other) = (&channels[side], &channels[1 - side]);
+            assert!(same.iter().all(|sample| *sample == 0.0), "side {side}");
+            assert_eq!(other[at], 1.0, "side {side}");
+            assert_eq!(other.iter().filter(|sample| **sample != 0.0).count(), 1);
+        }
+    }
+
+    #[test]
+    fn inverted_repeats_stay_on_the_swapped_side_and_decay() {
+        let at = 441;
+        let mut delay = prepared(&inverted(0.5));
+        let mut left = vec![0.0_f32; 8 * at];
+        let mut right = left.clone();
+        left[0] = 1.0;
+        delay.process(&mut left, &mut right);
+        // Nothing ever comes back on the side the sound came in on.
+        assert!(left.iter().all(|sample| *sample == 0.0));
+        assert_eq!(right[at], 1.0);
+        // Each repeat is one more pass through the feedback path, which
+        // halves it. The filters smear it over a few samples and take a
+        // little more, so compare the energy around each repeat.
+        let energy = |repeat: usize| -> f32 {
+            let from = repeat * at - at / 2;
+            right[from..from + at].iter().map(|x| x * x).sum()
+        };
+        let mut previous = energy(1);
+        for repeat in 2..7 {
+            let now = energy(repeat);
+            assert!(
+                now > 0.12 * previous && now <= 0.2501 * previous,
+                "repeat {repeat}: {now} after {previous}"
+            );
+            previous = now;
+        }
+    }
+
+    #[test]
+    fn stereo_and_ping_pong_still_keep_their_sides() {
+        let at = 441;
+        let mut stereo = prepared(&DelayParams {
+            mode: DelayMode::Stereo,
+            ..inverted(0.5)
+        });
+        let mut left = vec![0.0_f32; 4 * at];
+        let mut right = left.clone();
+        left[0] = 1.0;
+        stereo.process(&mut left, &mut right);
+        assert_eq!(left[at], 1.0);
+        assert!(right.iter().all(|sample| *sample == 0.0));
+
+        let mut bounce = prepared(&DelayParams {
+            mode: DelayMode::PingPong,
+            ..inverted(0.5)
+        });
+        let mut left = vec![0.0_f32; 4 * at];
+        let mut right = left.clone();
+        left[0] = 1.0;
+        bounce.process(&mut left, &mut right);
+        // Half the left impulse is the mono sum; it lands left, then right.
+        assert_eq!(left[at], 0.5);
+        assert_eq!(right[at], 0.0);
+        assert!(right[2 * at - 8..2 * at + 8].iter().any(|x| x.abs() > 0.05));
+    }
+
+    #[test]
+    fn switching_to_inverted_glides_and_does_not_depend_on_the_blocks() {
+        const FRAMES: usize = 8_820;
+        const SWITCH: usize = 4_410;
+        let input: Vec<f32> = (0..FRAMES)
+            .map(|n| (std::f32::consts::TAU * 220.0 * n as f32 / 44_100.0).sin() * 0.5)
+            .collect();
+        let start = DelayParams {
+            mode: DelayMode::Stereo,
+            time_ms: 1.0,
+            ..inverted(0.3)
+        };
+        let run = |sizes: &[usize]| {
+            let mut delay = prepared(&start);
+            let mut left = input.clone();
+            let mut right = vec![0.0_f32; FRAMES];
+            let (mut at, mut turn) = (0, 0);
+            while at < FRAMES {
+                if at == SWITCH {
+                    delay.set_params(&DelayParams {
+                        mode: DelayMode::Inverted,
+                        ..start
+                    });
+                }
+                let stop = if at < SWITCH { SWITCH } else { FRAMES };
+                let to = (at + sizes[turn % sizes.len()]).min(stop);
+                delay.process(&mut left[at..to], &mut right[at..to]);
+                at = to;
+                turn += 1;
+            }
+            (left, right)
+        };
+        let (left, right) = run(&[FRAMES]);
+        let (pieces_left, pieces_right) = run(&[1, 64, 7, 333, 16]);
+        assert_eq!(left, pieces_left);
+        assert_eq!(right, pieces_right);
+        // Before the switch the echoes are on the left and the right is
+        // silent; long after it they have changed sides.
+        assert!(right[..SWITCH].iter().all(|sample| *sample == 0.0));
+        assert!(left[2_000..SWITCH].iter().any(|x| x.abs() > 0.2));
+        assert!(right[7_000..].iter().any(|x| x.abs() > 0.2));
+        assert!(left[7_000..].iter().all(|x| x.abs() < 1.0e-3));
+        // The 220 Hz input moves at most 0.5 * 2 * pi * 220 / 44100 = 0.016
+        // a sample. A switch that jumped would step by up to half a unit.
+        for side in [&left, &right] {
+            for pair in side[SWITCH - 10..6_000].windows(2) {
+                assert!((pair[1] - pair[0]).abs() < 0.03);
+            }
+        }
+    }
+
+    #[test]
+    fn inverted_keeps_the_stereo_offset_and_the_tail_of_the_other_modes() {
+        let params = DelayParams {
+            stereo_offset_ms: 4.0,
+            ..inverted(0.0)
+        };
+        // 10 ms on the left line and 14 ms on the right: 441 and 617 samples.
+        let (base, late) = (441, 617);
+        let mut delay = prepared(&params);
+        let mut left = vec![0.0_f32; 2 * late];
+        let mut right = left.clone();
+        left[0] = 1.0;
+        right[0] = -1.0;
+        delay.process(&mut left, &mut right);
+        // The right input comes back on the left, on the left line's time.
+        assert_eq!(left[base], -1.0);
+        assert_eq!(right[late], 1.0);
+        assert_eq!(left.iter().filter(|sample| **sample != 0.0).count(), 1);
+        assert_eq!(right.iter().filter(|sample| **sample != 0.0).count(), 1);
+        let stereo = prepared(&DelayParams {
+            mode: DelayMode::Stereo,
+            ..params
+        });
+        assert_eq!(delay.tail_samples(), stereo.tail_samples());
+        assert_eq!(delay.gap_samples(), stereo.gap_samples());
     }
 
     #[test]

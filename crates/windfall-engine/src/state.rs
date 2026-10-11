@@ -1043,6 +1043,9 @@ impl PlanState {
                     held.is_some_and(|held| held.instruments.get(&channel) == Some(&params.kind()))
                 }),
         });
+        // Large echo histories are admitted before anything is prepared.
+        let admission = crate::effect_host::HistoryAdmission::of(plan, sample_rate)?;
+        let mut refused = None;
         let (mut prepared, plugins) = crate::plugins::prepare(plan, sample_rate, &known_plugins)?;
         Layout::validate_native_routes(plan, sample_rate, &plugins)?;
         let mut departing_plugins = HashMap::new();
@@ -1198,8 +1201,20 @@ impl PlanState {
                     ledger.meters.extend(meter.cloned());
                     return None;
                 }
-                let (mut unit, meter) =
-                    EffectUnit::build(effect, track.id, sample_rate, plan.tempo_bpm);
+                let (mut unit, meter) = match EffectUnit::build(
+                    effect,
+                    track.id,
+                    sample_rate,
+                    plan.tempo_bpm,
+                    admission.budget(kind),
+                ) {
+                    Ok(built) => built,
+                    Err(error) => {
+                        // The first refusal ends the build below.
+                        refused.get_or_insert(crate::effect_host::refusal(error));
+                        return None;
+                    }
+                };
                 if let Some(binding) = plan.plugins.iter().find(|binding| binding.target == target)
                 {
                     let native = match prepared.remove(&target) {
@@ -1212,6 +1227,11 @@ impl PlanState {
                 Some(unit)
             });
             chains.push(chain.collect());
+            if let Some(error) = refused.take() {
+                // Everything built so far is dropped here, off the audio
+                // thread, and the plan that was playing stays.
+                return Err(error);
+            }
         }
 
         let printed = if plan.audio_clips.iter().any(|clip| clip.direct_output)
@@ -2065,9 +2085,14 @@ impl PlanState {
                     return true;
                 }
                 let units = || self.chains[index].iter().flatten();
-                let ring: usize = units().map(EffectUnit::tail_samples).sum::<usize>()
-                    + self.track_processing[index].tail_samples();
-                let gap: usize = units().map(EffectUnit::gap_samples).sum();
+                // An effect that sustains reports a tail without end, so
+                // these sums saturate instead of wrapping to a short time.
+                let ring = crate::effect_host::total(
+                    units()
+                        .map(EffectUnit::tail_samples)
+                        .chain([self.track_processing[index].tail_samples()]),
+                );
+                let gap = crate::effect_host::total(units().map(EffectUnit::gap_samples));
                 let edges = track.edges.iter();
                 let onward = edges.map(|edge| self.edge_delays[edge.slot].holds()).max();
                 let output = if index == 0 {
@@ -2076,9 +2101,10 @@ impl PlanState {
                     self.external[index].holds()
                 };
                 let held = self.direct[index].holds() + onward.unwrap_or(0).max(output);
-                let rung_out = activity.loud_input + ring as u64 + held;
+                let rung_out = crate::effect_host::horizon(activity.loud_input, ring, held);
                 let quiet_from = activity.loud_input.max(activity.loud_output);
-                let died_away = quiet_from + gap as u64 + TAIL_SLACK_FRAMES + held;
+                let died_away = crate::effect_host::horizon(quiet_from, gap, held)
+                    .saturating_add(TAIL_SLACK_FRAMES);
                 rung_out.min(died_away) <= now
             })
     }

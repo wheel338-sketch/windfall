@@ -27,7 +27,7 @@ fn energy(signal: &[f32]) -> f64 {
 fn parameter_metadata_serde_and_ts_agree() {
     let params = LushSpaceParams::default();
     assert_eq!(LushSpaceParams::NAME, "Lush Space");
-    assert_eq!(LushSpaceParams::descriptors().len(), 8);
+    assert_eq!(LushSpaceParams::descriptors().len(), 11);
     let json = serde_json::to_value(params).unwrap();
     for (index, info) in LushSpaceParams::descriptors().iter().enumerate() {
         assert_eq!(params.get(index), Some(info.default));
@@ -48,8 +48,8 @@ fn parameter_metadata_serde_and_ts_agree() {
         params
     );
     assert!(LushSpaceParams::decl(&ts_rs::Config::default()).contains("modulationDepthMs"));
-    assert_eq!(params.get(8), None);
-    assert!(!LushSpaceParams::default().set(8, 0.0));
+    assert_eq!(params.get(11), None);
+    assert!(!LushSpaceParams::default().set(11, 0.0));
 }
 
 #[test]
@@ -246,6 +246,9 @@ fn irregular_blocks_and_automation_match_one_block() {
                 pre_delay_ms: 87.0,
                 width: 0.2,
                 mix: 0.7,
+                pitch_amount: 1.0,
+                pitch_semitones: -12.0,
+                size: 0.8,
                 ..Default::default()
             },
         ),
@@ -268,6 +271,53 @@ fn irregular_blocks_and_automation_match_one_block() {
 }
 
 #[test]
+fn size_moves_early_arrivals_without_changing_their_signed_gain() {
+    for size in [0.0, 0.5, 1.0] {
+        let params = LushSpaceParams {
+            size,
+            pre_delay_ms: 10.0,
+            early_level: 1.0,
+            modulation_depth_ms: 0.0,
+            mix: 1.0,
+            ..Default::default()
+        };
+        let (left, right) = impulse(params, 16_000.0, 0.3);
+        let scale = 0.4 + 1.2 * size;
+        for (signal, first_ms) in [(&left, 17.0_f32), (&right, 23.0)] {
+            let first = (160.0 + (first_ms * scale * 16.0).round()) as usize;
+            assert!(signal[..first].iter().all(|x| *x == 0.0));
+            assert!((signal[first] - 0.55).abs() < 1e-6);
+        }
+    }
+}
+
+#[test]
+fn zero_pitch_amount_preserves_plain_audio_and_legacy_defaults() {
+    let plain = LushSpaceParams {
+        mix: 1.0,
+        pitch_amount: 0.0,
+        ..Default::default()
+    };
+    assert_eq!(
+        impulse(plain, 8000.0, 3.0),
+        impulse(
+            LushSpaceParams {
+                pitch_semitones: -12.0,
+                ..plain
+            },
+            8000.0,
+            3.0
+        )
+    );
+    let old:LushSpaceParams=serde_json::from_str(r#"{"decayS":3.5,"preDelayMs":20.0,"damping":0.45,"earlyLevel":0.35,"modulationRateHz":0.27,"modulationDepthMs":0.7,"width":1.0,"mix":0.3}"#).unwrap();
+    assert_eq!(old, LushSpaceParams::default());
+    assert_eq!(LushSpaceParams::index_of("mix"), Some(7));
+    assert_eq!(LushSpaceParams::index_of("pitchSemitones"), Some(8));
+    assert_eq!(LushSpaceParams::index_of("pitchAmount"), Some(9));
+    assert_eq!(LushSpaceParams::index_of("size"), Some(10));
+}
+
+#[test]
 fn invalid_audio_params_and_rates_stay_finite_and_reset_repeats() {
     for rate in [f32::NAN, f32::INFINITY, -1.0, 1.0, 384_000.0] {
         let mut effect = hall(LushSpaceParams::default(), rate);
@@ -280,6 +330,7 @@ fn invalid_audio_params_and_rates_stay_finite_and_reset_repeats() {
             modulation_depth_ms: f32::INFINITY,
             width: f32::NAN,
             mix: f32::INFINITY,
+            ..Default::default()
         };
         effect.set_params(&params);
         effect.set_tempo(f32::NAN);

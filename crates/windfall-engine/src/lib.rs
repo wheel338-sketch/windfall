@@ -201,5 +201,8 @@ pub mod recording_endpoint;
 
 #[cfg(test)]
 mod qa_mixer_pdc_ports;
+
+/// Saturating tail sums and memory admission for effects with long histories.
+mod effect_host;
 #[cfg(test)]
 mod qa_recording_mixer;

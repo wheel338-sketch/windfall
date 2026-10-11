@@ -1,5 +1,11 @@
 # Lush Space integration seam
 
+2026-10-11 continuation: [E3-CIRCUITS.md](../../E3-CIRCUITS.md) specifies
+appended pitchSemitones/pitchAmount/size controls, feed-forward wet pitch,
+larger preparation rings and the updated conservative tail. Original descriptor
+indices 0–7 and default plain hall audio remain intact. A dedicated editor and
+full-row summary acceptance tests are authored; they are not executed here.
+
 `crates/windfall-dsp/src/lush/` provides `LushSpace` and `LushSpaceParams`.
 The processor implements `Effect`; its Copy, Default, serde camelCase and
 `ts_rs::TS` parameter struct implements `ParamSet` through `param_set!`.

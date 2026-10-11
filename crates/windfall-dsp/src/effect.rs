@@ -2167,6 +2167,8 @@ impl EffectSlot {
     }
 }
 
+mod admission;
+
 #[cfg(test)]
 mod registry_tests {
     use super::*;

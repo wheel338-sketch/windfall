@@ -37,7 +37,15 @@ import { PanMotionEditor } from "./motion/pan-motion-editor"
 import { ReverbEditor } from "./reverb/reverb-editor"
 import { SpreaderEditor } from "./stereo/spreader-editor"
 import { StereoEnhancerEditor } from "./stereo/stereo-enhancer-editor"
+import { EchoBankEditor } from "./echo-bank/echo-bank-editor"
+import { FrequencyDelayEditor } from "./frequency-delay/frequency-delay-editor"
 import { TunerEditor } from "./tuner/tuner-editor"
+import { RoomEditor } from "./circuits/room-editor"
+import { LushSpaceEditor } from "./circuits/lush-space-editor"
+import { BucketChorusEditor } from "./circuits/bucket-chorus-editor"
+import { StagePhaserEditor } from "./circuits/stage-phaser-editor"
+import { SwarmChorusEditor } from "./circuits/swarm-chorus-editor"
+import { StackedFlangerEditor } from "./circuits/stacked-flanger-editor"
 
 type Editors = {
   [Kind in EffectKind]?: ComponentType<EditorProps<EffectParamsOf<Kind>>>
@@ -70,6 +78,14 @@ const EDITORS: Editors = {
   bandSplit: BandSplitEditor,
   selectableFilter: FilterEditor,
   filterBank: FilterBankEditor,
+  echoBank: EchoBankEditor,
+  frequencyDelay: FrequencyDelayEditor,
+  room: RoomEditor,
+  lushSpace: LushSpaceEditor,
+  vintageChorus: BucketChorusEditor,
+  vintagePhaser: StagePhaserEditor,
+  hyperChorus: SwarmChorusEditor,
+  stackedFlanger: StackedFlangerEditor,
 }
 
 type AnyEditor = ComponentType<EditorProps<EffectParams>>
