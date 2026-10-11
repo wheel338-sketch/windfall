@@ -542,13 +542,18 @@ fn qa_direct_printed_clips_stay_aligned_with_a_latent_mix() {
     let other = rig.playlist_track();
     // One impulse through the latent mixer track, one printed past the
     // mixer, both on the first tick of the song.
-    rig.audio_clip(lane, impulse(RATE), slow, 0, 960);
-    let printed = rig.audio_clip(other, impulse(RATE), TrackId::MASTER, 0, 960);
+    rig.audio_clip(lane, clip_impulse(0), slow, 0, 960);
+    let printed = rig.audio_clip(other, clip_impulse(0), TrackId::MASTER, 0, 960);
     if let ClipContent::Audio { output, .. } = &mut rig.clip_mut(printed).content {
         *output = ClipAudioOutput::Direct;
     }
     let heard = rig.play_song(RATE, 2_000, 127);
-    assert_one_mark(&heard, FIVE_MS, 2.0, "printed clip beside a latent track");
+    assert_one_mark(
+        &heard,
+        FIVE_MS + CLIP_LEAD,
+        2.0,
+        "printed clip beside a latent track",
+    );
     assert_eq!(heard, rig.play_song(RATE, 2_000, 1));
 
     let options = RenderOptions {
@@ -559,13 +564,25 @@ fn qa_direct_printed_clips_stay_aligned_with_a_latent_mix() {
     let rendered = render(&rig.project, &rig.pool, &options, &mut |_| true);
     assert_one_mark(
         &rendered.samples()[..2 * 2_000],
-        0,
+        CLIP_LEAD,
         2.0,
         "printed clip, exported",
     );
 }
 
 // --- Manual correction -----------------------------------------------------
+
+/// Frames before the impulse in a [`clip_impulse`] source, and after it:
+/// longer than the 3 ms ramp the engine puts on both ends of an audio clip,
+/// so the impulse is heard at full level.
+const CLIP_LEAD: usize = 200;
+
+/// An impulse for an audio clip, `late` frames after [`CLIP_LEAD`].
+fn clip_impulse(late: usize) -> AudioBuffer {
+    let mut data = vec![0.0; CLIP_LEAD + late + 1 + CLIP_LEAD];
+    data[CLIP_LEAD + late] = 1.0;
+    AudioBuffer::from_interleaved(RATE, 1, data)
+}
 
 /// An impulse that comes `late` frames into its sample, as it would out of
 /// a processor that delays without saying so.
@@ -739,14 +756,14 @@ fn qa_manual_correction_reaches_buses_sends_sidechains_and_printed_clips() {
     rig.track_mut(late).latency_offset_ms = ms(100.0);
     let lane = rig.playlist_track();
     let other = rig.playlist_track();
-    rig.audio_clip(lane, late_impulse(100), late, 0, 960);
-    let printed = rig.audio_clip(other, impulse(RATE), TrackId::MASTER, 0, 960);
+    rig.audio_clip(lane, clip_impulse(100), late, 0, 960);
+    let printed = rig.audio_clip(other, clip_impulse(0), TrackId::MASTER, 0, 960);
     if let ClipContent::Audio { output, .. } = &mut rig.clip_mut(printed).content {
         *output = ClipAudioOutput::Direct;
     }
     assert_one_mark(
         &rig.play_song(RATE, 2_000, 127),
-        100,
+        100 + CLIP_LEAD,
         2.0,
         "printed clip and a corrected track",
     );
