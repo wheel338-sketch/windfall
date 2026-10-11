@@ -13,6 +13,9 @@ Restart follow-ups are committed in small groups through `d10a21f5`:
 merged frontend anchors, frozen tempo-aware source timing, contextual seam
 rendering, preserved-source selection, tempo-aware model placement, task
 validation, remix loading and calibrated score boundary cases.
+The overseer follow-up adds persistent ONNX pack contracts, built-in classical
+dereverb and its native/UI review/audition path in small commits beginning
+`02d22e8b`; numerical and lifecycle acceptance cases remain unexecuted.
 
 ## Per-row claims
 
@@ -25,8 +28,8 @@ statuses or executed evidence. The overseer owns both parity files.
 | `editor-newtone` | Full-row candidate, classical scope | Immutable detected notes, separate pitch/onset/offset overrides, pointer/keyboard editor, draft history, contextual spectral render, save/reopen | Execute calibrated correction/history/mounted cases and listen to short/voiced boundaries |
 | `editor-newtime` | Full-row candidate | Detected transient slices, editable ordered markers and duration, ratio/combined-anchor limits, preview/render/history/reopen | Execute marker/duration/tempo-map cases and boundary listening |
 | `wf-audio-to-midi` | Full-row candidate within declared classical limits | Mono YIN and sparse spectral polyphony, selected-note review, RMS dynamics, exact tempo-map endpoint conversion, one-step piano-roll/channel/playlist insertion | Execute onset/offset/pitch/velocity and tempo/meter cases; no dense-mix or neural accuracy claim |
-| `core-stem-separation` | Partial; open | Explicit checksum/licence pack import, four-role adapter contract, retained review, per-stem preview/select, aligned playlist/mixer batch | Choose licensed runtime/weights, implement production adapter and evaluate real separation |
-| `win-playlist-deverb` | Partial; open | Distinct general/vocal modes, exact role/channel checks, preview/review/one-step retained import | Choose mode-aware licensed weights/runtime and evaluate actual dereverb |
+| `core-stem-separation` | Partial; open | Checksum/licence import, persistent ONNX tensor/segment/stem contract, four-role review, aligned playlist/mixer batch | Exact licensed ONNX export/weights and ONNX Runtime adapter; real separation evaluation |
+| `win-playlist-deverb` | Full-row candidate within job bounds | Built-in multichannel WPE vocal mode and decay-model general mode, wet/dry A/B review, deterministic aligned render, one-step import/history/reopen | Execute measured tail/direct/dry/stereo/partition cases, native lifecycle and listening; review capture caps |
 | `wf-remix-a-song` | Partial; open | Song picker/import entry point, stem-task wizard, preview/select, aligned separate rows/inserts and optional original mute | Production separation dependency; long-song tiling/rate conversion for chosen runtime |
 
 Classical scope: finite mono/stereo at 8–192 kHz, up to 120 seconds and 64 MiB
@@ -100,7 +103,9 @@ readable. Clip duration and trim placement use the same inverse map.
 
 Model adapters opt into `InferenceTask`: exact four stem roles or separate
 general/vocal dereverb roles with preserved channels. `NoteInferenceAdapter`
-is the future typed score seam. No production adapter is installed.
+is an optional future score seam; classical transcription is the accepted
+product. Built-in classical dereverb is installed by default. ONNX separation
+has no production runtime adapter.
 `analysis_preview` claims a ready ticket while verifying/decoding an output;
 the lease restores Ready after audition. Selected role import can create
 separate aligned playlist rows and mixer inserts, optionally muting the original
@@ -108,7 +113,8 @@ mix, as one batch. UI exposes role preview/selection and a remix layout step.
 Model-job capture and partial-range placement now use the same tempo-aware
 view/clock as classical editors. Complete outputs retain the original clip
 edges; partial outputs retain aligned source-frame origins. Missing-adapter UX
-explicitly names licensed model/runtime requirements.
+explicitly names ONNX separation model/runtime requirements; dereverb uses
+built-in code and needs no pack.
 Canonical actions also validate task/model roles and empty stem selections
 before submission/apply; native validation remains final.
 The `analysis.remix` canonical action starts a wizard by explicitly choosing
@@ -163,42 +169,117 @@ Additional tests, all **written, not executed**:
 Integrator compilation, acceptance execution, interval-boundary listening,
 memory/latency validation and chosen-model quality evaluation remain. No test,
 listening, hardware, cross-platform, benchmark or measured quality result is
-claimed. The three trained-model rows remain open even if software lifecycle
-tests pass. Four classical rows are candidates within the bounds above.
+claimed. Separation and remix remain open even if lifecycle tests pass. Five
+classical rows are full-row candidates within their documented input bounds,
+subject to integration evidence, not accepted tracker statuses.
 
-## Accepted product and runtime decisions (overseer follow-up)
+## Accepted product and runtime decisions
 
-- Denoising, pitch/time editors and audio-to-MIDI use the accepted classical
-  product scope above. Neural transcription/voice suppression are optional
-  future directions, not acceptance gates for these four rows.
-- Dereverb uses built-in classical DSP: vocal mode is multichannel STFT WPE,
-  general mode is conservative decay-model late-power suppression. No trained
-  weights or neural claim are required. Implementation is in progress in this
-  follow-up; independent measured-behaviour acceptance is still an integration
-  gate. Prior missing-model dereverb copy/claim is superseded by this decision.
-- Four-stem separation and remix remain open. ONNX Runtime is the selected
-  runtime direction; users import licensed, pinned packs and no weights ship
-  in the repository. No `ort` dependency/runtime implementation is added here.
-  The ONNX manifest now records opset, named input/output tensor shapes,
-  symbolic dimensions, sample rate, segment/overlap frames and ordered stem
-  roles. Pack metadata is atomically persisted beside the cache and restored
-  after restart with byte checksums reverified. A corrupt/absent pack reports
-  an offline error; it is never silently trusted or downloaded.
-- Exact four-stem model/export, licensed weight bytes, CPU runtime version,
-  preprocessing, stitching and memory/rate budgets still need implementation
-  and evaluation. Demucs upstream code is MIT, but its PyTorch reference does
-  not establish that a particular ONNX export or weight licence is suitable.
-  [Demucs](https://github.com/facebookresearch/demucs),
-  [ONNX Runtime MIT licence](https://github.com/microsoft/onnxruntime/blob/main/LICENSE).
-  RNNoise (BSD-3-Clause speech denoising) and Basic Pitch (Apache-2.0 note
-  transcription) are not four-stem or dereverb solutions and are not required
-  for the accepted classical products.
+The overseer accepts classical denoising, pitch/time editors and audio-to-MIDI
+as the product scope. Neural voice suppression/transcription are optional
+future adapters, not acceptance gates. Dereverb is also a classical product:
+mode-specific user-visible tail reduction is the acceptance criterion.
 
-Follow-up registry test: `pack_registry_restart_keeps_onnx_contract_and_rechecks_checksum`
-in `session/analysis_jobs/pack_registry.rs`, **written, not executed**.
-Registration is bounded to eight packs / 128 KiB metadata. A malformed or
-corrupt registry fails closed with its error exposed in capability; explicit
-repair of that registry is required before imports can rewrite it.
+Dereverb now uses a built-in production adapter (no weights): vocal mode solves
+multichannel STFT WPE; general mode conservatively suppresses late power from
+a clamped signal-decay estimate. Built-in descriptors explicitly declare zero
+model bytes and are refused by the model-pack import/cache APIs. Imported packs
+never become executable code by registration. No neural claim appears in the
+mode controls or built-in review.
+
+Four-stem separation and remix stay open. **ONNX Runtime** is the chosen runtime
+direction, with explicit user-imported packs and no bundled weights. No `ort`
+dependency/runtime implementation is added. Pack contracts now describe opset,
+named input/output tensors, fixed or symbolic shapes, sample rate, segment
+length/overlap and ordered stem roles. Bounded metadata is atomically persisted
+in `Analysis/packs.json`, beside the Models cache. After restart, metadata is
+restored and cached weight bytes are rehashed before registration is admitted.
+An absent/bad-checksum/malformed registry reports an offline failure; no fetch
+or silent re-import occurs. Eight packs / 128 KiB metadata remain the bounds.
+A damaged registry fails closed; explicit repair is required before imports
+can rewrite it. Built-in dereverb remains independent of registry restoration.
+
+Exact four-stem ONNX export/weight bytes, SPDX/provenance, pinned CPU runtime,
+preprocessing, stitching, resampling and audited memory limits still need to
+be supplied/implemented/evaluated by the next runtime stream. In particular:
+
+- **Demucs** upstream code is [MIT](https://github.com/facebookresearch/demucs/blob/main/LICENSE).
+  Its Python/PyTorch reference and four-stem design are a candidate basis;
+  neither an ONNX export nor the licence of a particular weight pack is assumed.
+  Pin export/version/checksum and evaluate channel balance and alignment.
+- **ONNX Runtime** code is [MIT](https://github.com/microsoft/onnxruntime/blob/main/LICENSE).
+  That code licence does not approve a selected wrapper, binary or model pack.
+- **RNNoise** is a [BSD-3-Clause speech denoiser](https://github.com/xiph/rnnoise/blob/main/COPYING),
+  not a separator or dereverb model; it is not required for accepted denoising.
+- **Basic Pitch** is [Apache-2.0](https://github.com/spotify/basic-pitch/blob/main/LICENSE)
+  note transcription with converted runtimes; it is not required for the
+  accepted sparse classical audio-to-MIDI scope. No Basic Pitch quality claim.
+
+## Follow-up dereverb implementation and acceptance
+
+`crates/windfall-analysis/src/dereverb.rs` processes canonical overlapping
+2-second windows / 1-second hops independent of incoming block partitions.
+Vocal WPE jointly solves channels with 35 ms delayed prediction, eight past
+taps, three desired-power reweighting iterations and regularized complex
+Cholesky (<=16 dimensions). General mode uses fitted RT60 clamped to
+0.15-2.5 s, exponentially decaying delayed power, shared stereo gains and a
+0.38 gain floor. Vocal mode has a 0.22 late-power floor and a common safety
+gain on the actual protected joint residual; it cannot amplify total bin
+energy. Direct/onset protection lasts 45 ms with a 10 ms release ramp.
+Low-confidence/no-decay material bypasses. Natural musical releases remain
+ambiguous; no room-inversion/formant or universal dry-material claim is made.
+Zero amount bypasses exactly. Output frame origin/length are preserved.
+
+Streaming retains at most two input seconds plus one output overlap; segment
+spectra/synthesis scratch stay bounded at 192 kHz stereo. Native jobs reserve
+64 MiB DSP scratch without allocating an unused generic scratch vector.
+Worker work/deadline/cancellation checks remain off the audio thread. The
+existing native capture/source-view limit is **16 MiB**, combined output
+32 MiB, input <=120 s; the streaming kernel's long-file bound does not remove
+those independent job admission limits. Long full-song capture needs future
+file-backed input tiling/admission work; it is not claimed to exist here.
+
+Algorithm written independently; no upstream code/package copied or p-code
+downloaded. WPE origin: [NTT research](https://www.rd.ntt/cs/team_project/media/signal/wpe/),
+Nakatani et al., DOI 10.1109/TASL.2010.2052251.
+
+`dereverb_adapter.rs` installs real production DSP behind AnalysisAdapter.
+Mode and amount are pinned in the immutable job/review. UI offers built-in
+selection without a pack, bounded wet/dry input and processed/dry A/B audition.
+Dry audition holds the same review lease and uses the exact captured selection.
+Apply retains existing source/staleness guards and one-step history; saved
+assets reopen without rerunning an algorithm. ONNX pack registration still
+reports its missing runtime explicitly. Capability stays nonblocking during
+shutdown joins. No dependency or weight download was added.
+
+All following cases are **written, not executed**:
+
+- `crates/windfall-analysis/tests/dereverb.rs`:
+  `authored_impulses_vibrato_and_music_reduce_late_tail_with_bounded_direct_damage`,
+  `already_dry_is_preserved_silence_and_zero_amount_are_exact`,
+  `stereo_image_partition_invariance_and_distinct_modes`,
+  `cancellation_bad_shapes_and_stream_lifecycle_fail_without_finishing`,
+  `partial_wet_is_linear_and_long_stream_retention_is_bounded`.
+  Independent dry impulses, harmonic vibrato and drum/tone mix are convolved
+  with seeded exponentially decaying noise rooms of known decay. Targets:
+  >10% late-tail energy reduction, bounded direct-region damage, already-dry
+  relative squared error <1e-6, proportional stereo image, identical input
+  partition results, exact length/silence/zero wet, linear 50% wet, distinct
+  modes and five-minute stream retention without storing output. These are
+  acceptance targets; no measured RT60 shortening or quality result is claimed.
+- Native `session/tests/analysis_jobs.rs`:
+  `builtin_dereverb_without_weights_reviews_amount_and_applies_one_saved_undo_step`,
+  `builtin_descriptor_cannot_be_imported_as_fake_weights`,
+  `explicit_pack_registration_is_restored_on_actual_session_restart`.
+- Native `session/analysis_jobs/pack_registry.rs`:
+  `pack_registry_restart_keeps_onnx_contract_and_rechecks_checksum`.
+- `crates/windfall-analysis/tests/analysis_jobs.rs`:
+  `onnx_contract_rejects_ambiguous_shapes_segment_policy_and_stem_mapping`.
+- Frontend `features/analysis/panel.test.tsx`: both mounted
+  `uses built-in %s without a pack and pins reviewed wet/dry` modes, invalid
+  amount refusal, reviewed apply eligibility and wet/dry audition.
+  `manifest.test.ts`: tensor/shape/stem policy retained, executable extras
+  stripped, invalid dimensions and segment/collection bounds refused.
 
 ## Integrator commands (worker has not run any of them)
 
@@ -212,6 +293,7 @@ scripts/gen-bindings.sh
 scripts/build-sim.sh
 binding_scratch="$(mktemp -d)"
 export TS_RS_EXPORT_DIR="$(cygpath -w "$binding_scratch")"
+cargo test -p windfall-analysis --locked --offline --test dereverb
 cargo test -p windfall-analysis --locked --offline --test classical_tools
 cargo test -p windfall-analysis --locked --offline --test pitch_analysis
 cargo test -p windfall-analysis --locked --offline --test analysis_jobs
@@ -233,7 +315,9 @@ Regenerate `DetectedAudioNote`, `AudioAnalysisData`, `AudioNoteOverride`,
 `AudioWarpMarker`, `AudioDenoiseSettings`, `AudioViewTiming`,
 `AudioEditRecipe`, `AudioAnalysisPreview`, `AudioAnalysisEdit`,
 `AnalysisTask`, and changed `SampleAsset`, `Command`, `AnalysisSubmit`,
-`AnalysisReview`, `AnalysisApply` and their barrel. Desktop-only calls are
+`AnalysisReview`, `AnalysisApply`, `AnalysisCapability`, `AnalysisModel`,
+`AnalysisOnnxContract`, `AnalysisTensorSpec`, `AnalysisTensorDimension` and
+their barrel. Desktop-only calls are
 `audio_analysis_detect/audition/apply/send_midi/cancel` and
 `analysis_preview`. Refresh WASM plus its metadata for
 `SetSampleProcessing` and persistence schemas. No model asset generator.
@@ -261,7 +345,10 @@ Shared seams touched:
 2. Compile native Session methods and all test fixtures; inspect any borrow,
    clippy size/warning or mounted React Compiler diagnostics before widening
    checks. None were run by this worker.
-3. Execute independent frequency/SNR, neutral identity and 8 ms seam targets.
+3. Execute dereverb tail/direct/dry/stereo/partition and frequency/SNR,
+   neutral identity and 8 ms seam targets. WPE conditioning/decay confidence,
+   release/segment seams and natural musical tails need listening.
+   The authored acceptance fixtures remain targets; fix algorithms if they fail.
    These numerical assertions may require correcting algorithms, not weakening
    acceptance to fit observed output. Short interval spectral phases/formants,
    dense note grids and transient smearing need listening.
@@ -276,59 +363,10 @@ Shared seams touched:
    buffer limit; RSS has not been measured.
 6. Model-backed jobs retain stricter 16 MiB source/view, 32 MiB combined output,
    64 MiB model and exact sample-rate/channel contracts. A full long song or
-   real Demucs pack needs audited tiling/resampling/cap adjustments. Registries
-   are process-volatile; explicitly reimport manifests after restart.
+   real Demucs pack needs audited file-backed tiling/resampling/cap adjustments.
+   Dereverb DSP streaming is bounded, but native capture still rejects sources
+   exceeding 16 MiB. Registrations persist; corrupt metadata/bytes fail closed.
 7. Installed-model quality and redistribution remain external. Deterministic
    test outputs prove cancellation/checksum/staleness/review/layout only,
-   never separation, dereverb or neural transcription.
-
-## Follow-up dereverb kernel (written, not executed)
-
-`crates/windfall-analysis/src/dereverb.rs` implements canonical overlapping
-2-second windows / 1-second hops independent of incoming block partitions.
-Vocal WPE solves jointly across channels with 35 ms prediction delay, eight
-past taps, three desired-power reweighting iterations and regularized complex
-Cholesky. General mode uses a fitted/clamped RT60 (0.15–2.5 s), exponentially
-decaying delayed power, shared stereo gain, 0.38 gain floor and transient
-protection. Vocal mode also bounds residual amplification and uses a 0.22
-floor late-power gain. Low-confidence/no-decay material bypasses; natural
-musical releases remain intrinsically ambiguous. No formant/room inversion
-claim. Exact zero-amount bypass; output frame origin and length are preserved.
-Streaming retains at most two input seconds plus one output overlap;
-segment spectra/synthesis scratch remain bounded at 192 kHz stereo.
-Algorithm written independently; no upstream implementation/package copied.
-WPE origin: [NTT research](https://www.rd.ntt/cs/team_project/media/signal/wpe/),
-Nakatani et al., DOI 10.1109/TASL.2010.2052251. No NTT p-code downloaded.
-
-`crates/windfall-analysis/tests/dereverb.rs` acceptance cases, all **written,
-not executed**: authored impulse/vibrato/music convolved with seeded noise
-room response; late-tail energy reduction >10%, direct-region damage bounded,
-already-dry relative error <1e-6, exact silence/zero wet, proportional stereo
-image, exact output across input block partitions, modes differ, cancellation
-and stream lifecycle. These are targets, not measured results.
-Integrator additionally run: `cargo test -p windfall-analysis --locked --offline --test dereverb`.
-Native adapter hookup is complete; UI is the next file group.
-Built-in descriptors explicitly declare zero weight bytes and cannot be
-imported through the model cache. JobManager asks trusted native adapters for
-a weight-free descriptor; imported packs still hash/load their own bytes.
-DSP scratch reserves 64 MiB without allocating an unused generic scratch
-vector. Amount is pinned in job and review; preview/apply retains the existing
-source/staleness and one-step history guards. Native session acceptance:
-`builtin_dereverb_without_weights_reviews_amount_and_applies_one_saved_undo_step`
-and `builtin_descriptor_cannot_be_imported_as_fake_weights`, written, not executed.
-Production import case distinguishes built-in availability from unavailable
-ONNX inference. Capability remains nonblocking while shutdown joins workers.UI now offers built-in dereverb without a model, distinct mode copy, boundedwet/dry input and reviewed amount. Canonical actions accept its native revieweddescriptor and refuse unsupported registered ONNX inference explicitly. Mountedcases `uses built-in %s without a pack and pins reviewed wet/dry` for bothmodes are **written, not executed** in `features/analysis/panel.test.tsx`.Regenerate `AnalysisCapability`, `AnalysisSubmit`, `AnalysisReview`,`AnalysisOnnxContract`, `AnalysisTensorSpec`, `AnalysisTensorDimension` andchanged `AnalysisModel` in addition to the earlier binding list.Dry/wet A/B audition uses the same retained review lease: `dry-input` auditionsthe exact captured selection without rereading/re-rendering a changed source.Only built-in dereverb accepts this reserved audition role; it cannot beselected for import. Mounted and native cases include dry audition, written,not executed. Apply amount remains the immutable reviewed render's setting.
-
-Dereverb follow-up adds a 10 ms release ramp after direct/onset protection,
-checkpoints in spectrum-power and synthesis scans, and immediate cancellation
-for empty pushes. Additional acceptance `partial_wet_is_linear_and_long_stream_retention_is_bounded`
-checks 50% blend against dry/full wet and five minutes of streamed silence
-without retaining output. Written, not executed. Native job source/view caps
-still apply independently of the streaming kernel.
-Additional ONNX cases in `features/analysis/manifest.test.ts`,
-`onnx_contract_rejects_ambiguous_shapes_segment_policy_and_stem_mapping` in
-analysis lifecycle tests, and
-`explicit_pack_registration_is_restored_on_actual_session_restart` in native
-Session tests are **written, not executed**. They cover named/symbolic tensors,
-stripped executable extras, invalid dimensions, overlap, opset, rate and role
-mapping, and public capability restoration without re-import.
+   never separation or neural transcription. Dereverb has its own independent
+   authored quality cases, written but not executed.

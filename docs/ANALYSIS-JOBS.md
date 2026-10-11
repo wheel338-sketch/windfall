@@ -319,8 +319,9 @@ Existing editor/edit/library/
 files/clip_processing, sampler/cache and Document exact-source/history internals
 remain reserved. Parent owns generated TS/WASM, shared root documentation/parity
 and final integration/publication. Mock must honestly report native inference
-unavailable. No production adapter is available for a user-visible successful
-analysis until a separately reviewed actual algorithm/model is integrated.
+unavailable in browser mode. Native production now installs classical
+dereverb; ONNX separation remains unavailable until its actual runtime/model
+adapter is integrated. See the current hand-off below.
 
 ## Dependency license evidence
 
@@ -395,3 +396,25 @@ OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
 IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ```
+
+
+## Classical dereverb and persistent ONNX contracts (2026-10-11)
+
+The native default adapter runs real classical general/vocal dereverb without
+weights. Built-in descriptors use an explicit reserved ID and zero bytes;
+they cannot be imported as model packs. JobManager resolves them through
+trusted native code; every imported model still follows checksum/cache loading.
+Scratch reservation includes adapter-owned vectors without duplicating unused
+generic scratch. Mode and wet/dry amount are pinned in the retained review.
+Dry/wet A/B uses that same lease and immutable captured input. Native source/
+view admission remains 16 MiB; bounded DSP streaming is not file-backed capture.
+
+Imported manifests may declare an ONNX opset, named tensor shapes with explicit
+fixed/symbolic dimensions, rate, segment/overlap frames and ordered stem roles.
+Registration persists atomically in the sibling packs.json, with bounded reads
+and rehashed cache content on restart. Jobs/tickets remain process-volatile.
+Import never installs executable code or downloads weights. ONNX Runtime is
+the chosen separation direction but no ort dependency/adapter ships here.
+See [the hand-off](qa/2026-10-11-analysis-ml.md) for exact acceptance targets,
+commands, licensing decisions and remaining gates. All new cases are written,
+not executed by this worker.
