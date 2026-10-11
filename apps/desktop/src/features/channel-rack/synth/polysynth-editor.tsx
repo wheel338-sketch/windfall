@@ -8,6 +8,13 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 const amp = ["envelope.attackMs", "envelope.decayMs", "envelope.sustain", "envelope.releaseMs"]
 const filterEnv = ["filterEnvelope.attackMs", "filterEnvelope.decayMs", "filterEnvelope.sustain", "filterEnvelope.releaseMs"]
 export const POLYSYNTH_PANELS: Record<string, readonly (readonly [string, readonly string[]])[]> = {
+  grooveSynth: [
+    ["Groove engine", ["mode", "mix", "coarse", "ratio", "shape", "index"]],
+    ["Rhythm and motion", ["sync", "division", "gate", "motion", "lfoRateHz", "lfoFilter"]],
+    ["Filter", ["cutoffHz", "resonance", "drive", "filterAmount", "keyTrack"]],
+    ["Amp contour", amp], ["Filter contour", filterEnv],
+    ["Voices and effects", ["unison", "detuneCents", "spread", "glideMs", "polyphony", "chorus", "delay", "phaser", "reverb", "gain"]],
+  ],
   pocketSynth: [
     ["Oscillator", ["waveform", "pulseWidth", "sub", "drive"]],
     ["Filter", ["cutoffHz", "resonance", "filterAmount", "keyTrack"]],

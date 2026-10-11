@@ -150,3 +150,17 @@ per-graph DSP tests in `polysynth/tests.rs` (names below).
 Use the integrator commands in the Vintage Poly section, after regenerating
 bindings/descriptors and WASM. Check strict Clippy and numerical thresholds first;
 no measured sound/performance claim is made. No external proprietary content.
+
+## 2026-10-11 continuation — GrooveSynth / inst-gms
+
+Full-row software candidate, awaiting execution. A groove-box hybrid with distinct analog, phase modulation, ring and harmonic-scan paths. Tempo/free motion and rhythmic gating feed drive/filter, amp and filter contours, unison and chorus/phaser/echo/room. DSP test: groove_synth_real_analog_phase_ring_table_paths_and_tempo_motion.
+Purpose-built editor group: Groove engine. Uses the existing checked instrument
+commands, tagged project persistence, engine hosting and live/offline processor.
+New generated types: `GrooveSynth`, `GrooveSynthParams`, `grooveSynth` tag and descriptors.
+Tests **written, not executed**: `grooveSynth_musical_edit_reaches_history_disk_and_live_offline_pcm`
+in registered `polysynth_acceptance.rs`; the `grooveSynth` mounted editor case
+(edit and undo); complete descriptor/serde/default/range tests in DSP params;
+per-graph DSP tests in `polysynth/tests.rs` (names below).
+Use the integrator commands in the Vintage Poly section, after regenerating
+bindings/descriptors and WASM. Check strict Clippy and numerical thresholds first;
+no measured sound/performance claim is made. No external proprietary content.

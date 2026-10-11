@@ -141,3 +141,20 @@ fn pocket_synth_each_shape_tunes_and_mobile_controls_reach_audio() {
     }
 }
 
+#[test]
+fn groove_synth_real_analog_phase_ring_table_paths_and_tempo_motion() {
+    contract(InstrumentKind::GrooveSynth);
+    let p=GrooveSynthParams::default();
+    for mode in [GrooveMode::Phase,GrooveMode::Ring,GrooveMode::Table] {
+        different(InstrumentParams::GrooveSynth(p),InstrumentParams::GrooveSynth(GrooveSynthParams { mode,..p }));
+        let mode_patch=GrooveSynthParams { mode,..p };
+        different(InstrumentParams::GrooveSynth(mode_patch),InstrumentParams::GrooveSynth(GrooveSynthParams { shape:1.0,index:4.0,..mode_patch }));
+    }
+    different(InstrumentParams::GrooveSynth(p),InstrumentParams::GrooveSynth(GrooveSynthParams { gate:1.0,division:0.25,..p }));
+    let patch=InstrumentParams::GrooveSynth(GrooveSynthParams { gate:1.0,motion:2.0,..p });
+    let mut a=crate::AnyInstrument::new(&patch);let mut b=crate::AnyInstrument::new(&patch);
+    a.prepare(48000.0,64);b.prepare(48000.0,64);a.set_tempo(80.0);b.set_tempo(160.0);a.note_on(60,1.0);b.note_on(60,1.0);
+    let mut x=vec![0.0;24000];let mut y=x.clone();let mut r=x.clone();a.process(&mut x,&mut r);b.process(&mut y,&mut r);
+    assert!(energy(&x.iter().zip(y).map(|(a,b)|a-b).collect::<Vec<_>>())>1e-6);
+}
+

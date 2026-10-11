@@ -45,3 +45,13 @@ fn pocketSynth_musical_edit_reaches_history_disk_and_live_offline_pcm() {
     assert!(changed.set(param, if info.default == info.max { info.min } else { info.max }));
     acceptance(InstrumentKind::PocketSynth, initial, changed);
 }
+
+#[test]
+fn grooveSynth_musical_edit_reaches_history_disk_and_live_offline_pcm() {
+    let initial = InstrumentKind::GrooveSynth.default_params();
+    let mut changed = initial;
+    let param = InstrumentKind::GrooveSynth.descriptors().iter().position(|p| p.id == "cutoffHz").unwrap();
+    let info = &InstrumentKind::GrooveSynth.descriptors()[param];
+    assert!(changed.set(param, if info.default == info.max { info.min } else { info.max }));
+    acceptance(InstrumentKind::GrooveSynth, initial, changed);
+}
