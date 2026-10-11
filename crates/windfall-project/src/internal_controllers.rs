@@ -40,7 +40,7 @@ pub struct SurfaceControl {
     pub row: u8,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, TS)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase", default)]
 #[ts(export)]
 pub struct InternalControllerSettings {
@@ -67,6 +67,22 @@ pub struct InternalControllerSettings {
     #[serde(skip_serializing_if = "Vec::is_empty")]
     #[ts(as = "Option<Vec<VoltageRoute>>", optional)]
     pub voltage_routes: Vec<VoltageRoute>,
+}
+
+impl Default for InternalControllerSettings {
+    fn default() -> Self {
+        Self {
+            controller: 0,
+            note_channel: None,
+            expression: None,
+            envelope: Vec::new(),
+            duration_ms: 1000.0,
+            sync_beats: None,
+            rms: false,
+            controls: Vec::new(),
+            voltage_routes: Vec::new(),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, TS)]
@@ -156,6 +172,25 @@ pub fn settings_problem(
         {
             return Some("duplicate controller configuration".into());
         }
+        if !config.duration_ms.is_finite() || !(1.0..=60_000.0).contains(&config.duration_ms) {
+            return Some("envelope duration must be 1..60000 ms".into());
+        }
+        if config.note_channel.is_some()
+            && !matches!(
+                effect.kind(),
+                EffectKind::NoteEnvelope | EffectKind::KeyboardSource
+            )
+        {
+            return Some("only a note or keyboard source has a note input".into());
+        }
+        if !config.envelope.is_empty() && effect.kind() != EffectKind::NoteEnvelope {
+            return Some("only a note envelope has drawn points".into());
+        }
+        if (config.rms || config.sync_beats.is_some())
+            && effect.kind() != EffectKind::EnvelopeFollower
+        {
+            return Some("only an audio follower has detector and LFO settings".into());
+        }
         if config
             .note_channel
             .is_some_and(|id| project.channel(id).is_none())
@@ -227,7 +262,8 @@ pub fn settings_problem(
                     })
                 });
                 route_audio.is_some_and(|audio| {
-                    audio.left == route.channel || audio.right == Some(route.channel)
+                    audio.left == u16::from(route.channel)
+                        || audio.right == Some(u16::from(route.channel))
                 })
             });
             if audible {
@@ -408,7 +444,7 @@ fn audio_reaches(
     to: crate::TrackId,
     visited: &mut Vec<crate::TrackId>,
 ) -> bool {
-    if from == to {
+    if from == to || project.mixer.track(to).is_some_and(|track| track.current) {
         return true;
     }
     if visited.contains(&from) {
@@ -425,4 +461,6 @@ fn audio_reaches(
             .sends
             .iter()
             .any(|s| audio_reaches(project, s.target, to, visited))
+        || crate::effect_outputs::targets(&project.mixer, from)
+            .any(|target| audio_reaches(project, target, to, visited))
 }

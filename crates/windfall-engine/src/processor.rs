@@ -788,7 +788,7 @@ impl Processor {
                     }
                     let shift = self.sequencer.take_clock_shift();
                     self.voices.shift_ends(shift);
-            self.state.controls.move_ends(&|end| end + shift);
+                    self.state.controls.move_ends(&|end| end + shift);
                     for runtime in &mut self.state.channel_voice {
                         runtime.move_ends(&|end| end + shift);
                     }
@@ -1497,7 +1497,7 @@ impl Processor {
             for route in &source.config.voltage_routes {
                 for offset in 0..out.len() {
                     let value = self.state.controls.nodes[index].dc[offset][usize::from(route.output)];
-                    output.add(windfall_project::ExternalOutputRoute { left: route.channel, right: None, exclusive: true }, first + offset, [value, value]);
+                    output.add(windfall_project::ExternalOutputRoute { left: u16::from(route.channel), right: None, exclusive: true }, first + offset, [value, value]);
                 }
             }
         }

@@ -337,3 +337,46 @@ fn drawn_envelopes_layout_and_dc_calibration_reject_unbounded_or_conflicting_dat
         .is_err()
     );
 }
+
+#[test]
+fn source_specific_settings_and_nonfinite_duration_are_refused_without_history_changes() {
+    let mut doc = Document::new(Project::new("Settings bounds"));
+    let id = effect(&mut doc, TrackId::MASTER, EffectKind::FormulaSource);
+    let before = doc.project().clone();
+    let history = doc.history();
+    for config_value in [
+        InternalControllerSettings {
+            controller: id.0,
+            duration_ms: f32::NAN,
+            ..Default::default()
+        },
+        InternalControllerSettings {
+            controller: id.0,
+            rms: true,
+            ..Default::default()
+        },
+        InternalControllerSettings {
+            controller: id.0,
+            sync_beats: Some(1.0),
+            ..Default::default()
+        },
+        InternalControllerSettings {
+            controller: id.0,
+            envelope: vec![
+                ControlPoint {
+                    position: 0.0,
+                    value: 0.0,
+                },
+                ControlPoint {
+                    position: 1.0,
+                    value: 1.0,
+                },
+            ],
+            ..Default::default()
+        },
+    ] {
+        assert!(config(&mut doc, vec![config_value]).is_err());
+        assert_eq!(doc.project(), &before);
+        assert_eq!(doc.history(), history);
+    }
+}

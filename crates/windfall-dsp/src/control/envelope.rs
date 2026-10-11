@@ -54,6 +54,8 @@ pub struct EnvelopeFollower {
     follower: Ballistics,
     sample_rate: f32,
     phase: f64,
+    last_lfo: f32,
+    sync_rate: Option<f32>,
 }
 
 impl Default for EnvelopeFollower {
@@ -66,6 +68,8 @@ impl Default for EnvelopeFollower {
             follower,
             sample_rate: 48_000.0,
             phase: 0.0,
+            last_lfo: 0.5,
+            sync_rate: None,
         }
     }
 }
@@ -79,17 +83,46 @@ impl EnvelopeFollower {
         );
     }
 
-    fn tick(&mut self, left: f32, right: f32) -> [f32; 2] { self.tick_detector(left, right, false) }
+    fn set_controls(&mut self) {
+        let p = self.params;
+        self.controls.set([
+            p.input_gain,
+            p.base,
+            p.amount,
+            p.duck,
+            p.lfo_depth,
+            self.sync_rate.unwrap_or(p.rate_hz),
+        ]);
+    }
+
+    /// Musical rates can exceed the free-running knob's 20 Hz maximum.
+    /// They use the same five-millisecond glide and phase as the combined output.
+    pub fn set_sync_rate(&mut self, hz: Option<f32>) {
+        self.sync_rate = hz.map(|hz| crate::blocks::math::clean(hz, 0.001, 160.0, 1.0));
+        self.set_controls();
+    }
+
+    pub fn lfo_value(&self) -> f32 {
+        self.last_lfo
+    }
+
+    fn tick(&mut self, left: f32, right: f32) -> [f32; 2] {
+        self.tick_detector(left, right, false)
+    }
 
     fn tick_detector(&mut self, left: f32, right: f32, rms: bool) -> [f32; 2] {
         let [input_gain, base, amount, duck, lfo_depth, hz] = self.controls.tick();
         let detector = if rms {
-            let l = audio(left) * input_gain; let r = audio(right) * input_gain;
+            let l = audio(left) * input_gain;
+            let r = audio(right) * input_gain;
             ((l * l + r * r) * 0.5).min(1.0)
-        } else { (peak(left, right) * input_gain).min(1.0) };
+        } else {
+            (peak(left, right) * input_gain).min(1.0)
+        };
         let level = self.follower.tick(detector);
         let level = if rms { level.max(0.0).sqrt() } else { level };
         let wave = (0.5 + 0.5 * (std::f64::consts::TAU * self.phase).sin()) as f32;
+        self.last_lfo = wave;
         self.phase = (self.phase + f64::from(hz / self.sample_rate)).fract();
         let control = (base + amount * (level + lfo_depth * wave)).clamp(0.0, 1.0);
         [control, 1.0 - duck * control]
@@ -107,8 +140,15 @@ impl EnvelopeFollower {
     }
 
     /// Ballistics on mean stereo power, followed by a square root.
-    pub fn process_control_rms<const N: usize>(&mut self, left: &[f32; N], right: &[f32; N], output: &mut [f32; N]) {
-        for ((l, r), value) in left.iter().zip(right).zip(output) { *value = self.tick_detector(*l, *r, true)[0]; }
+    pub fn process_control_rms<const N: usize>(
+        &mut self,
+        left: &[f32; N],
+        right: &[f32; N],
+        output: &mut [f32; N],
+    ) {
+        for ((l, r), value) in left.iter().zip(right).zip(output) {
+            *value = self.tick_detector(*l, *r, true)[0];
+        }
     }
 
     pub fn process_with_control<const N: usize>(
@@ -140,20 +180,14 @@ impl Effect for EnvelopeFollower {
         self.controls.reset();
         self.follower.snap(0.0);
         self.phase = 0.0;
+        self.last_lfo = 0.5;
     }
 
     fn set_params(&mut self, params: &Self::Params) {
         let p = params.sanitized();
         self.params = p;
         self.configure();
-        self.controls.set([
-            p.input_gain,
-            p.base,
-            p.amount,
-            p.duck,
-            p.lfo_depth,
-            p.rate_hz,
-        ]);
+        self.set_controls();
     }
 
     fn process(&mut self, left: &mut [f32], right: &mut [f32]) {

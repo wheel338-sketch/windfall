@@ -33,7 +33,7 @@ export function SurfacePanel({ controller, bind, dashboard = false }: { controll
         <Button size="sm" variant="outline" onClick={() => { void save({ controls: controls.filter((c) => c.output !== control.output) }); }}>Delete control</Button>
       </div>
     </Field>)}</FieldGroup>
-    <Button size="sm" variant="outline" disabled={controls.length >= 8} onClick={() => { const output = Array.from({ length: 8 }, (_, i) => i).find((i) => !controls.some((c) => c.output === i)); if (output !== undefined) void save({ controls: [...controls, { output, name: `Control ${output + 1}`, kind: "knob", column: output, row: 0 }] }); }}>Add control</Button>
+    <Button size="sm" variant="outline" disabled={controls.length >= 8} onClick={() => { const output = Array.from({ length: 8 }, (_, i) => i).find((i) => !controls.some((c) => c.output === i)); const cell = Array.from({ length: 64 }, (_, i) => ({ column: i % 8, row: Math.floor(i / 8) })).find((cell) => !controls.some((c) => c.column === cell.column && c.row === cell.row)); if (output !== undefined && cell) void save({ controls: [...controls, { output, name: `Control ${output + 1}`, kind: "knob", ...cell }] }); }}>Add control</Button>
     {controls.length === 0 && <p className="text-xs text-muted-foreground">Add a control, choose its appearance, then link its output from a destination control.</p>}
   </div>
 }

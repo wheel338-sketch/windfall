@@ -103,6 +103,9 @@ describe("descriptors", () => {
       stageStack: true,
       controlSurface: true,
       sendTap: true,
+      keyboardSource: true,
+      formulaSource: true,
+      voltageSource: true,
     }
     const instruments: Record<InstrumentKind, true> = {
       subtractiveSynth: true,
@@ -132,6 +135,7 @@ describe("descriptors", () => {
       macroVoice: true,
       speechVoice: true,
       midiOut: true,
+      dashboard: true,
     }
     expect([...EFFECT_KINDS].sort()).toEqual(Object.keys(effects).sort())
     expect([...INSTRUMENT_KINDS].sort()).toEqual(

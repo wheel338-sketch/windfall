@@ -112,6 +112,8 @@ pub(crate) fn execute(project: &mut Project, command: Command) -> Result<Outcome
                     if owner.kind() != EffectKind::NoteEnvelope { config.envelope.clear(); }
                     if owner.kind() != EffectKind::ControlSurface { config.controls.clear(); }
                     if owner.kind() != EffectKind::VoltageSource { config.voltage_routes.clear(); }
+                    if !matches!(owner.kind(), EffectKind::NoteEnvelope | EffectKind::KeyboardSource) { config.note_channel = None; }
+                    if owner.kind() != EffectKind::EnvelopeFollower { config.rms = false; config.sync_beats = None; }
                 }
                 if config.note_channel.is_some_and(|id| transaction.project.channel(id).is_none()) { config.note_channel = None; }
             }

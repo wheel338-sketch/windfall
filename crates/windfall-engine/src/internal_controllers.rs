@@ -63,7 +63,9 @@ pub(crate) fn compile(project: &Project, plan: &Plan) -> (Vec<Source>, Vec<Link>
     let mut sources = Vec::new();
     for (track, chain) in plan.tracks.iter().enumerate() {
         for effect in &chain.effects {
-            if windfall_project::internal_controllers::outputs(effect.params.kind()).is_empty() {
+            if effect.leaving
+                || windfall_project::internal_controllers::outputs(effect.params.kind()).is_empty()
+            {
                 continue;
             }
             let config = project
@@ -169,7 +171,7 @@ pub(crate) struct Node {
     params: EffectParams,
     held: [Option<Held>; 128],
     values: [f32; 8],
-    phase: f64,
+    sync_rate: Option<f32>,
     drawn: f32,
     gate: bool,
     rate: f32,
@@ -244,7 +246,7 @@ impl Node {
             params: source.params,
             held: [None; 128],
             values,
-            phase: 0.0,
+            sync_rate: None,
             drawn: 0.0,
             gate: false,
             rate,
@@ -284,7 +286,9 @@ impl Node {
                 *held = None;
             }
         }
-        self.phase = 0.0;
+        if let Dsp::Peak(d) = &mut self.dsp {
+            d.reset();
+        }
         self.drawn = 0.0;
         self.gate = false;
         if let (Dsp::Envelope(d), EffectParams::NoteEnvelope(params)) = (&mut self.dsp, self.params)
@@ -327,6 +331,7 @@ impl Node {
                     if params != self.params || p.trigger != self.gate {
                         d.set_params(&p);
                     }
+                    self.gate = p.trigger;
                     if retrigger {
                         d.trigger();
                     }
@@ -359,12 +364,17 @@ impl Node {
                         ((out[0].pitch_semitones + f32::from(p.root_key)) / 127.0).clamp(0.0, 1.0);
                     self.values[1] = (1.0 + out[0].gain_offset).clamp(0.0, 1.0);
                 }
-                (Dsp::Peak(d), EffectParams::EnvelopeFollower(mut p)) => {
-                    if let Some(beats) = source.config.sync_beats {
-                        p.rate_hz = (tempo as f32 / (60.0 * beats)).clamp(0.01, 20.0);
-                    }
-                    if params != self.params || source.config.sync_beats.is_some() {
+                (Dsp::Peak(d), EffectParams::EnvelopeFollower(p)) => {
+                    if params != self.params {
                         d.set_params(&p);
+                    }
+                    let sync_rate = source
+                        .config
+                        .sync_beats
+                        .map(|beats| tempo as f32 / (60.0 * beats));
+                    if sync_rate != self.sync_rate {
+                        d.set_sync_rate(sync_rate);
+                        self.sync_rate = sync_rate;
                     }
                     let mut out = [0.0];
                     if source.config.rms {
@@ -373,9 +383,7 @@ impl Node {
                         d.process_control(&[left], &[right], &mut out);
                     }
                     self.values[0] = out[0];
-                    self.values[1] =
-                        (0.5 + 0.5 * (std::f64::consts::TAU * self.phase).sin()) as f32;
-                    self.phase = (self.phase + f64::from(p.rate_hz / self.rate)).fract();
+                    self.values[1] = d.lfo_value();
                 }
                 (Dsp::Formula(d), EffectParams::FormulaSource(p)) => {
                     if params != self.params {
@@ -423,7 +431,6 @@ impl Node {
                 }
                 _ => {}
             }
-            self.gate = gate;
             self.params = params;
         }
     }
@@ -613,3 +620,6 @@ pub(crate) fn step(plan: &Plan, state: &mut PlanState, now: u64) {
         );
     }
 }
+
+#[cfg(test)]
+mod tests;

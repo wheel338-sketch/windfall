@@ -13,7 +13,7 @@ Edit-only worker: **no builds, tests, package tools, device checks, or generated
 - Added eight-output DC software source with affine calibration, smoothing and default-off arming. DC adds to configured channels of the existing multichannel buffer separately from audible stereo. `Processor::set_output_channels` / `hardware_samples` expose a device-free harness.
 - Dashboard is a distinct instrument kind reusing the actual MIDI-out processor; it adds normalized internal source ports and persisted custom panel configuration.
 - Purpose-built editors are wired for every source, including drawn envelopes, formula errors, peak/RMS sync, XY/XYZ gestures, custom surfaces, dashboard MIDI controls and DC calibration routes. The normal control context menu lists internal sources and their outputs; source editors expose destination/range/mapping edits.
-- Acceptance tests are written, not executed: DSP reference formula/RMS/DC cases; project ports, persistence, cycles and atomic deletion/undo; engine real-audio modulation, block/live/offline equivalence, smoothing, keyboard and multichannel DC; mounted editor and menu cases. Final static review remains in progress.
+- Acceptance tests are written, not executed: DSP reference formula/RMS/DC cases; project ports, persistence, cycles and atomic deletion/undo; engine real-audio modulation, block/live/offline equivalence, smoothing, keyboard and multichannel DC; mounted editor and menu cases. Source references now also cover exact note-frame drawn-envelope interpolation, analytic ADSR attack, overlapping keyboard fallback/glide, free and tempo-synced LFO (including 160 Hz musical rates), bounded note-table overflow, and dashboard/XY/XYZ values. Final static review remains in progress.
 - Source notes now follow loop/tempo-map clock changes and are released on stop or hardware disconnect. Invalid externally supplied source settings fail closed when plans compile.
 
 Known limits: internal Tempo target is explicitly refused pending a clock feedback contract; internal maps use absolute mode without pickup; up to eight custom controls per surface/dashboard. Detector graph checks conservatively reject upstream audible feedback. Hardware output calibration/safety remain external.
@@ -36,3 +36,5 @@ pnpm --dir apps/desktop lint
 ## External gates
 
 Real DC-coupled outputs, calibration and voltage safety are hardware gates; no hardware behavior or safe voltage is claimed. MIDI hardware requires real device checks.
+
+Static follow-up: DC channel type conversions fixed; LFO ports share one DSP phase and smoothing; graph validation follows effect output taps and conservatively treats Current detector input as dynamic. Source-specific configuration is validated and cleared on kind replacement. Existing exhaustive frontend registry fixtures include new kinds. Dashboard registry MIDI CC acceptance is written, not executed.
