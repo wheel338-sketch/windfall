@@ -89,7 +89,7 @@ impl SamplePreprocess {
 }
 
 /// A treated sample and the sampler settings that go with it.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone)]
 pub struct Preprocessed {
     pub audio: AudioBuffer,
     /// The region to play, as fractions of the new sample.

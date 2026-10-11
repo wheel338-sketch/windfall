@@ -749,7 +749,10 @@ async fn export_playlist_tracks(
 ) -> Result<(), String> {
     let session = session.inner().clone();
     blocking(move || session.export_playlist_tracks(options, stems)).await
-}\n\n#[tauri::command]\nasync fn sampler_preprocess(
+}
+
+#[tauri::command]
+async fn sampler_preprocess(
     session: State<'_, Session>,
     request: windfall_ipc::SamplerPreprocessRequest,
 ) -> Result<DispatchResult, String> {
