@@ -64,7 +64,15 @@ fn any_effect_reports_what_it_holds_and_refuses_other_settings() {
                 assert!(!effect.set_params(&other.default_params()));
             }
         }
-        let has_meter = matches!(kind, EffectKind::Compressor | EffectKind::Limiter);
+        let has_meter = matches!(
+            kind,
+            EffectKind::Compressor
+                | EffectKind::Limiter
+                | EffectKind::MultibandCompressor
+                | EffectKind::MultibandMaximizer
+                | EffectKind::OneKnob
+                | EffectKind::StageStack
+        );
         assert_eq!(effect.gain_reduction().is_some(), has_meter);
         let has_latency = matches!(
             kind,

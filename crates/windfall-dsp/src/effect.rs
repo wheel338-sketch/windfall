@@ -1610,12 +1610,17 @@ impl AnyEffect {
         each_effect!(self, effect => effect.gap_samples())
     }
 
-    /// The gain reduction meter of a compressor or limiter. Take it before
-    /// the effect goes to the audio thread.
+    /// The gain reduction meter of an effect that turns its signal down:
+    /// the compressor, the limiter and the multiband and mastering
+    /// dynamics. Take it before the effect goes to the audio thread.
     pub fn gain_reduction(&self) -> Option<GainReductionMeter> {
         match self {
             AnyEffect::Compressor(effect) => Some(effect.meter()),
             AnyEffect::Limiter(effect) => Some(effect.meter()),
+            AnyEffect::MultibandCompressor(effect) => Some(effect.meter()),
+            AnyEffect::MultibandMaximizer(effect) => Some(effect.meter()),
+            AnyEffect::OneKnob(effect) => Some(effect.meter()),
+            AnyEffect::StageStack(effect) => Some(effect.meter()),
             _ => None,
         }
     }

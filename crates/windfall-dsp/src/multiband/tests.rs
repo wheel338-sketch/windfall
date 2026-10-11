@@ -328,6 +328,7 @@ fn all_processors_are_partition_invariant_during_control_changes_and_reset() {
             attack: 0.9,
             sustain: -0.5,
             sensitivity: 2.0,
+            listen: TransientListen::Attack,
         },
     );
     partition_check::<TransientSplit>(
