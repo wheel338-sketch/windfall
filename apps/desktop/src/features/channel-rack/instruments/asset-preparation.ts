@@ -1,8 +1,14 @@
 import type { InstrumentAsset } from "@/bindings"
 
-export type AssetRequest = { type: "layer"; bytes: ArrayBuffer } | { type: "snapshots"; a: number[]; b: number[] }
+export type AssetRequest = { type: "number"; number: number } | { type: "layer"; bytes: ArrayBuffer } | { type: "snapshots"; a: number[]; b: number[] }
 /** Bounded worker-side WAV decoding; no WebAudio device or audio callback. */
 export function prepareInstrumentAsset(request: AssetRequest): InstrumentAsset {
+  if (request.type === "number") {
+    if (!Number.isInteger(request.number) || request.number<0 || request.number>4294967295) throw new Error("Patch number must be an integer from 0 to 4294967295")
+    let state=(request.number+0x9e3779b9)>>>0
+    const draw=()=>{ state^=state<<13; state^=state>>>17; state^=state<<5; state>>>=0; return state/4294967295 }
+    return {type:"spectra",frameSeconds:0.1,rootHz:440,presetNumber:request.number,frames:[{partials:Array.from({length:64},(_,i)=>{const n=i+1;return {ratio:Math.fround(n*(1+0.35*(draw()*2-1))),level:Math.fround((0.2+0.8*draw())/Math.pow(n,1.2)),phase:Math.fround(draw()),pan:0}})}]}
+  }
   if (request.type === "snapshots") {
     if (request.a.length !== 32 || request.b.length !== 32 || [...request.a,...request.b].some(level => !Number.isFinite(level) || level<0 || level>1)) throw new Error("Snapshots need 32 harmonic levels from zero to one")
     return { type: "spectra", frameSeconds: 0.1, rootHz: 440, frames: [request.a,request.b].map(levels => ({ partials: levels.map((level,index) => ({ ratio: index+1,level,phase: 0,pan: 0 })) })) }

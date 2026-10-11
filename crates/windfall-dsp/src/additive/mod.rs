@@ -82,3 +82,6 @@ pub use harmonic_filter::{HarmonicFilter,HarmonicFilterParams,HarmonicShape};
 
 mod metal_voice;
 pub use metal_voice::{MetalVoice,MetalVoiceParams};
+
+mod number_voice;
+pub use number_voice::{NumberVoice,NumberVoiceParams};

@@ -165,3 +165,5 @@ pub use additive::{SnapshotMorph,SnapshotMorphParams};
 pub use additive::{HarmonicFilter,HarmonicFilterParams,HarmonicShape};
 
 pub use additive::{MetalVoice,MetalVoiceParams};
+
+pub use additive::{NumberVoice,NumberVoiceParams};

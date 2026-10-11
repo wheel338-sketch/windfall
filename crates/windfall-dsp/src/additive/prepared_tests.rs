@@ -176,3 +176,34 @@ fn metallic_partials_shimmer_decay_and_reset_are_measured() {
     assert!(short[12000..].iter().all(|x| *x == 0.0));
     assert_eq!(base, sound(params));
 }
+
+#[test]
+fn numbered_patches_cover_full_u32_domain_and_reproduce_measured_pcm() {
+    let sound = |number| {
+        let bank = SpectralBank::numbered(number);
+        assert_eq!(bank.check(), Ok(()));
+        assert_eq!(bank.preset_number, Some(number));
+        let mut synth = NumberVoice::default();
+        synth.set_bank(&bank);
+        synth.prepare(48000.0, 257);
+        synth.note_on(60, 1.0);
+        let mut l = vec![0.0; 12000];
+        let mut r = vec![0.0; 12000];
+        synth.process(&mut l, &mut r);
+        assert!(l.iter().all(|x| x.is_finite()));
+        l
+    };
+    let base = sound(0);
+    assert_eq!(base, sound(0));
+    for number in [1, 16777216, 2147483648, u32::MAX] {
+        let other = sound(number);
+        assert_eq!(other, sound(number));
+        assert!(
+            base.iter()
+                .zip(other)
+                .map(|(a, b)| (*a - b).abs())
+                .sum::<f32>()
+                > 10.0
+        );
+    }
+}

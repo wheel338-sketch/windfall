@@ -5,6 +5,7 @@ import type { InstrumentChannel } from "@/lib/channel-source"
 import { colorToCss } from "@/lib/units"
 
 import { useProjectGeneration } from "@/lib/store"
+import { NumberEditor } from "../instruments/number-editor"
 import { MetalEditor } from "../instruments/metal-editor"
 import { HarmonicFilterEditor } from "../instruments/harmonic-filter-editor"
 import { SnapshotEditor } from "../instruments/snapshot-editor"
@@ -48,6 +49,8 @@ export function InstrumentSection({ channel }: { channel: InstrumentChannel }) {
           params={params}
           color={colorToCss(channel.color)}
         />
+      ) : params.type === "numberVoice" ? (
+        <NumberEditor channel={channel} />
       ) : params.type === "metalVoice" ? (
         <MetalEditor channel={channel.id} params={params} />
       ) : params.type === "harmonicFilter" ? (

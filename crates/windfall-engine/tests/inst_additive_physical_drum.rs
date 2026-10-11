@@ -357,3 +357,20 @@ fn metallic_shimmer_reaches_history_disk_and_live_offline_pcm() {
         InstrumentParams::MetalVoice(changed),
     );
 }
+
+#[test]
+fn full_width_numbered_patch_reaches_history_disk_and_live_offline_pcm() {
+    let params = InstrumentKind::NumberVoice.default_params();
+    acceptance_data(
+        InstrumentKind::NumberVoice,
+        params,
+        params,
+        60,
+        Some(InstrumentAsset::Spectra(
+            windfall_dsp::instrument_asset::SpectralBank::numbered(0),
+        )),
+        Some(InstrumentAsset::Spectra(
+            windfall_dsp::instrument_asset::SpectralBank::numbered(u32::MAX),
+        )),
+    );
+}

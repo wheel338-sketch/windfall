@@ -28,3 +28,8 @@ it("prepares independent immutable harmonic snapshots and refuses invalid levels
   expect(asset.frames[1].partials[4].level).toBe(0.2)
   expect(() => prepareInstrumentAsset({type:"snapshots",a:[-1],b})).toThrow("Snapshots")
 })
+
+it("derives deterministic patches across the full unsigned number domain",()=>{
+  for(const number of [0,1,16777216,2147483648,4294967295]) { const asset=prepareInstrumentAsset({type:"number",number});expect(asset).toEqual(prepareInstrumentAsset({type:"number",number}));expect(asset).toMatchObject({type:"spectra",presetNumber:number});expect(asset).not.toEqual(prepareInstrumentAsset({type:"number",number:number===0?1:0})); }
+  for(const number of [-1,1.5,4294967296,NaN]) expect(()=>prepareInstrumentAsset({type:"number",number})).toThrow(/Patch number/)
+})

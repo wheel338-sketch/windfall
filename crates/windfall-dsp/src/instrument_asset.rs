@@ -85,6 +85,33 @@ impl SpectralBank {
         }
         Ok(())
     }
+    /// Full-width number selection, prepared only on the control side.
+    pub fn numbered(number: u32) -> Self {
+        let mut state = number.wrapping_add(0x9e3779b9);
+        let mut draw = || {
+            state ^= state << 13;
+            state ^= state >> 17;
+            state ^= state << 5;
+            f64::from(state) / f64::from(u32::MAX)
+        };
+        let partials = (0..64)
+            .map(|i| {
+                let n = (i + 1) as f64;
+                SpectralPartial {
+                    ratio: (n * (1.0 + 0.35 * (draw() * 2.0 - 1.0))) as f32,
+                    level: ((0.2 + 0.8 * draw()) / n.powf(1.2)) as f32,
+                    phase: draw() as f32,
+                    pan: 0.0,
+                }
+            })
+            .collect();
+        Self {
+            frames: vec![SpectralFrame { partials }],
+            frame_seconds: 0.1,
+            root_hz: 440.0,
+            preset_number: Some(number),
+        }
+    }
     pub fn metallic() -> Self {
         Self {
             frames: vec![SpectralFrame {
@@ -202,6 +229,9 @@ impl InstrumentAsset {
             (Self::Pcm(_), InstrumentKind::LayerKick) => Ok(()),
             (Self::Spectra(_), InstrumentKind::HarmonicFilter) => Ok(()),
             (Self::Spectra(_), InstrumentKind::MetalVoice) => Ok(()),
+            (Self::Spectra(bank), InstrumentKind::NumberVoice) if bank.preset_number.is_some() => {
+                Ok(())
+            }
             (Self::Spectra(bank), InstrumentKind::SnapshotMorph) if bank.frames.len() == 2 => {
                 Ok(())
             }

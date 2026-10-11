@@ -13,7 +13,7 @@ benchmarks, generators or audio-device checks were run. Every test below is
 | inst-morphine | Full-row candidate: new Snapshot Morph kind uses immutable worker-prepared 32-harmonic A/B spectra, phase/pan-aware interpolation, polyphony/envelope controls and a two-spectrum harmonic editor. | Fresh integration execution and listening. |
 | inst-ogun | Full-row candidate: Metal Voice has prepared inharmonic partials, partial stretch, independent phase-offset amplitude shimmer and exponential decay; dedicated spacing/shimmer editor. | Fresh integration execution and listening. |
 | inst-harmless | Full-row candidate: Harmonic Filter plays an immutable 64-harmonic bank through saw/square/triangle weighting, spectral cutoff/resonance and envelope/polyphony controls; dedicated oscillator/filter/envelope editor. | Fresh integration execution and listening. |
-| inst-autogun | Pending this stream. | Full number domain and preset-only workflow. |
+| inst-autogun | Full-row candidate: Number Voice derives immutable 64-partial patches deterministically from any unsigned 32-bit number; preset-only editor and output level. | Fresh integration execution and listening. |
 | inst-beepmap | Pending this stream. | Color/brightness image scan. |
 | inst-drumaxx | Full-row candidate: sixteen independent modal membrane/cavity patches, fixed MIDI 36–51, per-pad strike/damping/body controls, selection grid and hold-to-audition editor; shared passive model with single Membrane. | Fresh integration execution and listening. |
 | inst-bassdrum | Full-row candidate: distinct Layer Kick kind, swept sine body plus optional immutable WAV layer, mix/tune/start controls; cancellable worker import, finite limits, remove/history and host asset identity. | Fresh integration execution and listening. |
@@ -169,3 +169,13 @@ audible shimmer, decay silence, reproducibility), engine
 `metallic_shimmer_reaches_history_disk_and_live_offline_pcm`, mounted shimmer/display/history.
 Regenerate MetalVoiceParams and union/descriptors/WASM. The base bank is made
 at construction/preparation, held immutable, and read by the same bounded engine.
+
+### Number Voice checkpoint
+
+Appends NumberVoice (32 kinds here). Selection stays as u32 asset metadata,
+never a float descriptor, so all 4294967296 patch numbers remain distinguishable.
+Worker and Rust preparation use xorshift32, f64 arithmetic then f32 storage;
+persisted partials are authoritative across platforms (pow rounding can differ
+by an ulp). Written, not executed: numbered DSP reproducibility/audio differences,
+engine full-width asset history/disk/live equality, worker boundary/refusal and
+mounted preset-only workflow. Regenerate NumberVoiceParams and union/descriptors.

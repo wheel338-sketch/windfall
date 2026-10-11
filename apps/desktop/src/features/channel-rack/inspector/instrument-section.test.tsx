@@ -279,6 +279,14 @@ describe("instrument settings panels", () => {
     expect(channelOf(channel).source.params).not.toEqual(original);await act(()=>undo());expect(channelOf(channel).source.params).toEqual(original)
   })
 
+  it("mounts full-width number selection with only output as a scalar control",async()=>{
+    await open("numberVoice")
+    expect(screen.getByRole("spinbutton",{name:"Patch number"})).toHaveAttribute("max","4294967295")
+    expect(screen.getByRole("button",{name:"Load numbered patch"})).toBeVisible()
+    expect(screen.getAllByRole("slider")).toHaveLength(1)
+    expect(screen.getByRole("slider",{name:"Level"})).toBeVisible()
+  })
+
   it("keeps hosted plugin controls ahead of the built-in panel", async () => {
     const channel = await open("acidLine")
     const plugin: PluginBinding = {
