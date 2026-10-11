@@ -287,3 +287,5 @@ Kick. Existing opaque-state/case/default/loss-note tests updated, **written, not
 executed**. This recognizes the workflow and does not recover proprietary patch
 state or embedded sample/image sources. Shared additional seam:
 `windfall-flp/src/convert/synth.rs`; run `cargo test -p windfall-flp --lib convert::synth`.
+
+Ownership documentation now states the actual strategy: plans retain Arc assets and prepared units own immutable clones; changed assets replace prebuilt units through existing plan retirement. No callback-side asset replacement API is exposed.

@@ -3,16 +3,15 @@
 //! A parameter struct is `Copy` and crosses to the audio thread by value, so
 //! it is no place for a picture or a recording. An [`InstrumentAsset`] is
 //! prepared away from the audio thread, never changes afterwards, and is
-//! handed to an instrument behind an [`Arc`]. The instrument only reads it.
+//! retained by control-side plans behind an [`Arc`]. A built instrument owns
+//! a prepared immutable clone and only reads it in playback.
 //!
 //! # Who frees it
 //!
-//! Swapping one asset for another on the audio thread is a pointer swap. The
-//! asset that was swapped out must still be owned somewhere else when that
-//! happens, or dropping it would free memory in the callback. The engine
-//! arranges this: the project and the plan that supplied an asset both hold
-//! it for at least as long as the instrument does, and a plan is retired on
-//! the control side.
+//! Asset changes build a new unit on the control side. The audio thread
+//! adopts the prebuilt unit and returns the old unit inside its retired plan;
+//! existing plan retirement destroys its data on the control side. Parameter
+//! events never replace or destroy an asset in the audio callback.
 
 use std::sync::Arc;
 

@@ -360,7 +360,7 @@ mod tests {
             ("BooBass", InstrumentKind::FingerBass),
             ("Sakura", InstrumentKind::AcousticString),
             ("Fruity Kick", InstrumentKind::Kick),
-    ("BassDrum", InstrumentKind::LayerKick),
+            ("BassDrum", InstrumentKind::LayerKick),
             ("Drumaxx", InstrumentKind::DrumRack),
             ("Drumpad", InstrumentKind::Membrane),
             ("Fruity DrumSynth Live", InstrumentKind::DrumVoice),
