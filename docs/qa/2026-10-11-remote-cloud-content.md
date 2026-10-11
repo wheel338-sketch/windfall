@@ -15,6 +15,8 @@ not executed**. Parity status is owned by the overseer and remains untouched.
   page with faders, pads and keyboard. Settings now exposes explicit enable,
   bind address, pairing instructions and disable. Global connection limits,
   read deadlines, revocation and bounded held-note release are implemented.
+  Phone faders reflect desktop edits between gestures; channel selection is
+  retained across feed-driven rebuilds and reconnect clears in-memory authority.
 - `fmt-cloud-backup`: provider trait, folder history with SHA-256, immutable
   version objects, expected-head conflict check, cooperating-writer lock,
   chunked cancel, retention and no-overwrite verified restore. Session captures

@@ -12,12 +12,48 @@
 <label for="channel">Channel <select id="channel"></select></label><label for="layout">Surface <select id="layout"><option value="keyboard">Keyboard C4–B4</option><option value="pads">Pads C2–D♯3</option></select></label><div id="notes" class="keys"></div></main>
 <script>
 'use strict';
-const $=id=>document.getElementById(id); let token='',socket=null,sequence=0,generation=0,pending=false,signature='';const held=new Map();
+const $=id=>document.getElementById(id); let token='',socket=null,sequence=0,generation=0,pending=false,signature='';const held=new Map(),faders=new Map();
 function status(text){$('status').textContent=text;}
 function send(action){if(!socket||socket.readyState!==1||pending)return false;pending=true;socket.send(JSON.stringify({token,sequence:++sequence,generation,action}));return true;}
 // A short FIFO preserves note-on/off order while keeping one request in flight.
 const queue=[];function command(action){if(queue.length>=32){status('Remote command queue is full. Reconnect.');socket?.close();return;}queue.push(action);pump();}function pump(){if(queue.length&&!pending&&send(queue[0]))queue.shift();}
-$('pair').onsubmit=async event=>{event.preventDefault();try{const response=await fetch('/pair',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({code:$('code').value})});const result=await response.json();if(!response.ok)throw Error(result.error);token=result.token;sequence=0;socket=new WebSocket('ws://'+location.host+'/ws');socket.onopen=()=>{pending=false;$('pair').hidden=true;$('controls').hidden=false;command({name:'feed'});};socket.onclose=()=>{held.clear();queue.length=0;pending=false;$('controls').hidden=true;status('Disconnected. Restart the desktop remote to pair again.');};socket.onerror=()=>status('Remote connection failed.');socket.onmessage=event=>{const state=JSON.parse(event.data);pending=false;if(state.generation!==generation){held.clear();queue.length=0;generation=state.generation;}status(state.error||'Connected');$('transport').textContent=(state.transport.playing?'Playing':'Stopped')+' · tick '+Math.round(state.feed.tick);$('meter').value=Math.max(...state.feed.meters.slice(0,2),0);const next=JSON.stringify([state.tracks.map(t=>[t.id,t.name]),state.channels]);if(next!==signature){signature=next;$('mixer').replaceChildren();for(const track of state.tracks){const label=document.createElement('label');label.textContent=track.name;const fader=document.createElement('input');fader.type='range';fader.min='0';fader.max='2';fader.step='.01';fader.value=track.gain;fader.setAttribute('aria-label',track.name+' volume');fader.onchange=()=>command({name:'fader',track:track.id,value:Number(fader.value)});label.append(fader);$('mixer').append(label);}$('channel').replaceChildren();for(const channel of state.channels){const option=document.createElement('option');option.value=channel.id;option.textContent=channel.name;$('channel').append(option);}}pump();};}catch(error){status(error.message);}};
+function render(state){
+ pending=false;
+ if(state.generation!==generation){held.clear();queue.length=0;generation=state.generation;signature='';}
+ status(state.error||'Connected');
+ $('transport').textContent=(state.transport.playing?'Playing':'Stopped')+' · tick '+Math.round(state.feed.tick);
+ $('meter').value=Math.max(...state.feed.meters.slice(0,2),0);
+ const next=JSON.stringify([state.tracks.map(t=>[t.id,t.name]),state.channels]);
+ if(next!==signature){
+  signature=next;faders.clear();$('mixer').replaceChildren();
+  for(const track of state.tracks){
+   const label=document.createElement('label');label.textContent=track.name;
+   const fader=document.createElement('input');fader.type='range';fader.min='0';fader.max='2';fader.step='.01';fader.value=track.gain;fader.setAttribute('aria-label',track.name+' volume');
+   fader.onpointerdown=()=>{fader.dataset.adjusting='true';};
+   const settled=()=>{delete fader.dataset.adjusting;};
+   fader.onpointerup=settled;fader.onpointercancel=settled;fader.onblur=settled;
+   fader.onchange=()=>command({name:'fader',track:track.id,value:Number(fader.value)});
+   faders.set(track.id,fader);label.append(fader);$('mixer').append(label);
+  }
+  const selected=$('channel').value;releaseAll();$('channel').replaceChildren();
+  for(const channel of state.channels){const option=document.createElement('option');option.value=channel.id;option.textContent=channel.name;$('channel').append(option);}
+  if(state.channels.some(channel=>String(channel.id)===selected))$('channel').value=selected;
+ }
+ // Reflect desktop edits without interrupting a touch gesture or queued edit.
+ for(const track of state.tracks){const fader=faders.get(track.id);if(fader&&!fader.dataset.adjusting&&!queue.some(action=>action.name==='fader'&&action.track===track.id))fader.value=track.gain;}
+ pump();
+}
+$('pair').onsubmit=async event=>{
+ event.preventDefault();try{
+  const response=await fetch('/pair',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({code:$('code').value})});
+  const result=await response.json();if(!response.ok)throw Error(result.error);
+  token=result.token;sequence=0;socket=new WebSocket('ws://'+location.host+'/ws');
+  socket.onopen=()=>{pending=false;$('pair').hidden=true;$('controls').hidden=false;command({name:'feed'});};
+  socket.onclose=()=>{token='';held.clear();queue.length=0;pending=false;signature='';$('controls').hidden=true;status('Disconnected. Restart the desktop remote to pair again.');};
+  socket.onerror=()=>status('Remote connection failed.');
+  socket.onmessage=event=>{try{render(JSON.parse(event.data));}catch(error){status('Invalid remote response: '+error.message);socket.close();}};
+ }catch(error){status(error.message);}
+};
 $('play').onclick=()=>command({name:'play'});$('stop').onclick=()=>command({name:'stop'});$('disconnect').onclick=()=>socket?.close();
 function release(pointer){const note=held.get(pointer);if(note){command({name:'noteOff',...note});held.delete(pointer);}}
 function releaseAll(){for(const pointer of [...held.keys()])release(pointer);}
