@@ -225,3 +225,9 @@ Four branch-owned frontend/report files contained mixed UTF-8 and Windows-1252
 characters after earlier edits. Their existing text is now consistently UTF-8,
 preserving already-valid sequences. No build or test was run.
 
+## Empty-bank callback correction
+
+Pitch, pan and gain callbacks now ignore inactive voice slots. This prevents a
+default note-instance ID from indexing zone 0 in an empty bank. Written, not
+executed: `empty_bank_and_retired_note_controls_are_safe_and_silent` covers an
+empty instrument and delayed expression events after source retirement.

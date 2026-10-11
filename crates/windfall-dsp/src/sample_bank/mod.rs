@@ -415,7 +415,7 @@ macro_rules! instrument {
             fn set_note_pitch(&mut self, id: NoteInstanceId, pitch: f32) {
                 if pitch.is_finite() {
                     for v in &mut self.engine.voices {
-                        if v.id == id {
+                        if v.active && v.id == id {
                             v.pitch = pitch.clamp(-48.0, 175.0);
                             if let Some(bank) = &self.engine.bank {
                                 let zone = &bank.zones()[v.zone];
@@ -437,7 +437,7 @@ macro_rules! instrument {
             ) {
                 if pan.is_finite() {
                     for v in &mut self.engine.voices {
-                        if v.id == id {
+                        if v.active && v.id == id {
                             v.pan = pan.clamp(-1.0, 1.0);
                             if let Some(bank) = &self.engine.bank {
                                 v.configure_pan(bank.zones()[v.zone].mapping);
@@ -449,7 +449,7 @@ macro_rules! instrument {
             fn set_note_gain(&mut self, id: NoteInstanceId, gain: f32) {
                 if gain.is_finite() {
                     for v in &mut self.engine.voices {
-                        if v.id == id {
+                        if v.active && v.id == id {
                             v.gain = gain.clamp(0.0, 4.0);
                         }
                     }

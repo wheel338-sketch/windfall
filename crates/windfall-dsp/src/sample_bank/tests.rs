@@ -42,6 +42,33 @@ fn inclusive_key_velocity_edges_and_independent_fades() {
     assert_eq!(map.weight(54, 64), 1.0);
 }
 #[test]
+fn empty_bank_and_retired_note_controls_are_safe_and_silent() {
+    let mut unit = sampler(Vec::new());
+    // Idle slots have the default id 0; expression callbacks must not look up
+    // their default zone index in an empty bank.
+    unit.set_note_pitch(NoteInstanceId(0), 72.0);
+    unit.set_note_expression(NoteInstanceId(0), 1.0, NoteExpression::default());
+    unit.set_note_gain(NoteInstanceId(0), 2.0);
+    unit.note_on_instance(NoteInstanceId(0), 60, 1.0, 0.0, NoteExpression::default());
+    unit.note_off_instance(NoteInstanceId(0), 60);
+    unit.all_notes_off();
+    assert_eq!(unit.active_voices(), 0);
+    assert_eq!(unit.missed_notes(), 1);
+    assert!(render(&mut unit, 64, 7).iter().all(|x| *x == 0.0));
+
+    unit.install_bank(Arc::new(
+        SampleBank::new(vec![zone(0.3, SampleZone::default())]).unwrap(),
+    ));
+    unit.note_on_instance(NoteInstanceId(0), 60, 1.0, 0.0, NoteExpression::default());
+    render(&mut unit, 64, 64);
+    unit.all_notes_off();
+    render(&mut unit, 512, 7);
+    unit.install_bank(Arc::new(SampleBank::new(Vec::new()).unwrap()));
+    unit.set_note_pitch(NoteInstanceId(0), 72.0);
+    unit.set_note_expression(NoteInstanceId(0), -1.0, NoteExpression::default());
+    assert!(render(&mut unit, 64, 7).iter().all(|x| *x == 0.0));
+}
+#[test]
 fn overlapping_layers_add_and_missing_keys_are_silent() {
     let map = SampleZone {
         key_low: 60,
@@ -147,28 +174,24 @@ fn live_style_partitions_match_offline_pcm_with_loops_and_envelopes() {
 #[test]
 fn invalid_pcm_mapping_and_loops_fail_before_publication() {
     assert!(SampleBank::new(vec![zone(f32::NAN, SampleZone::default())]).is_err());
-    assert!(
-        SampleBank::new(vec![zone(
-            0.0,
-            SampleZone {
-                key_low: 100,
-                key_high: 2,
-                ..Default::default()
-            }
-        )])
-        .is_err()
-    );
-    assert!(
-        SampleBank::new(vec![zone(
-            0.0,
-            SampleZone {
-                loop_mode: BankLoop::Continuous,
-                loop_end: 5000,
-                ..Default::default()
-            }
-        )])
-        .is_err()
-    );
+    assert!(SampleBank::new(vec![zone(
+        0.0,
+        SampleZone {
+            key_low: 100,
+            key_high: 2,
+            ..Default::default()
+        }
+    )])
+    .is_err());
+    assert!(SampleBank::new(vec![zone(
+        0.0,
+        SampleZone {
+            loop_mode: BankLoop::Continuous,
+            loop_end: 5000,
+            ..Default::default()
+        }
+    )])
+    .is_err());
 }
 #[test]
 fn speech_render_is_deterministic_bounded_and_cancellable() {
