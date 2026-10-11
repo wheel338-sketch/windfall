@@ -269,9 +269,14 @@ Go to these first.
    cast with `as never`; store calls are made outside `act`.
 8. **`device_external_output_ports`** was rewritten for two-port devices after
    the harness last compiled.
-9. **Formatting.** Only the two new files of mine were run through rustfmt.
-   The copied logger and editor files and the sed-edited capture files were
-   not; `cargo fmt --check` may list them.
+9. **Formatting.** Every touched Rust file parses (`rustfmt --check` reports
+   no syntax error in any of them; that is a parse check, not a compile).
+   Files whose base copy was rustfmt-clean were formatted again:
+   `recording.rs` (this reflowed its dense worker closure, a whitespace-only
+   change), `controller.rs`, `session/audio_editor.rs`, and the two session
+   test files. `recording_timed.rs`, `mixer.rs` and `message.rs` were already
+   unformatted at the base and were left as they were, so `cargo fmt --check`
+   lists them as it did before.
 
 ## Shared seam files touched
 
