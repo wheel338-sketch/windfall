@@ -4,7 +4,11 @@ Branch: `gpt/w3-analysis-ml`, base `87b87bc2439ec076d0f75c5b4d997c9db1faba95`.
 Worker follows the common brief: edits only, no builds/tests, no agents, no
 downloads, no external dependencies, no generated bindings/WASM edits.
 
-## Implementation in progress
+## Committed implementation
+
+Restart recovery: worktree was clean at `747d98f3`. Kernels/schema are in
+`0ffd0fd5`; native/UI integration and model-output workflows are in
+`747d98f3`. No build, test or binding generator was run.
 
 Classical kernels: `crates/windfall-analysis/src/classical.rs`.
 Persistent estimates, overrides, warp anchors and noise-profile controls:
@@ -71,6 +75,52 @@ Additional tests, all **written, not executed**:
 Integration verification, interval-boundary listening/continuity, selected-range
 and richer MIDI onset evaluation, model/runtime licence evaluation. All seven
 rows remain partial until final scope and integrator evidence are reconciled.
+
+## Model/runtime decision required
+
+No production inference adapter or weights are installed. Importing a manifest
+does not install executable code. Existing explicit import checks checksum,
+licence metadata, roles and bounded sizes; missing adapter/model returns an
+offline failure, not copied audio. Deterministic copies exist only in tests.
+Model registrations currently need explicit manifest reimport after restart,
+although cache bytes are retained.
+
+- **Demucs v4**: upstream [repository](https://github.com/facebookresearch/demucs)
+  and [MIT licence](https://github.com/facebookresearch/demucs/blob/main/LICENSE).
+  The archived upstream uses Python/PyTorch; `htdemucs` targets four stereo
+  stems at 44.1 kHz. A packaged CPU implementation must pin preprocessing,
+  segment overlap, gain handling and output alignment. Per-stem automatic
+  rescaling must not silently change the reviewed mix balance. No ONNX export
+  compatibility is assumed. Decide exact fork/version, model bytes/checksum,
+  separate weight provenance/licence, runtime distribution and memory budget.
+  The current 64 MiB pack cap may need an audited increase for chosen weights.
+- **RNNoise**: [repository](https://github.com/xiph/rnnoise) and
+  [BSD-style three-clause licence](https://github.com/xiph/rnnoise/blob/main/COPYING).
+  Its C runtime targets 48 kHz mono speech noise suppression. It is a possible
+  optional voice denoiser, not a music separator or either dereverb mode.
+  Pin model provenance and frame contract, channel/resampling/gain policy,
+  distribution notices and music/stereo damage evaluation. Upstream setup
+  downloads model data; none of those scripts were run here.
+- **Basic Pitch**: [repository](https://github.com/spotify/basic-pitch) and
+  [Apache-2.0 licence](https://github.com/spotify/basic-pitch/blob/main/LICENSE).
+  TensorFlow reference models have ONNX/CoreML/TFLite conversions; upstream
+  Windows uses ONNX. Input is downmixed and resampled to 22.05 kHz. A selected
+  runtime must match the reference windowing, stitching, onset/note/contour
+  postprocessing and tested conversion. [ONNX Runtime's MIT licence](https://github.com/microsoft/onnxruntime/blob/main/LICENSE)
+  alone does not approve a particular binary, wrapper or model. Decide pinned
+  model/runtime versions, weight licence and redistribution notices. The
+  classical spectral heuristic makes no Basic Pitch quality claim.
+- **Dereverb**: no trained dereverb candidate is selected in the roadmap.
+  Supply licensed general and vocal weights (or a demonstrably mode-aware
+  model), preprocessing/output contracts and bounded CPU adapter. Evaluate
+  tail reduction, dry-signal damage and stereo coherence on authored dry/reverb
+  fixtures. Denoising cannot stand in for dereverberation.
+
+The user must select and approve exact redistributable model/runtime artefacts
+or explicitly import a supported licensed pack. An implementer must then add
+the corresponding production adapter and independent quality evaluation.
+`core-stem-separation`, `win-playlist-deverb` and `wf-remix-a-song`
+remain open until that happens. No dependency or weights were added.
 
 ## Integrator commands (worker has not run any of them)
 
