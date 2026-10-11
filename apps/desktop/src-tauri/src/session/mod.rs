@@ -65,6 +65,7 @@
 //! first and gives up if another document has taken its place.
 
 mod analysis_jobs;
+mod analyzers;
 mod archive;
 mod audio;
 mod audio_editor;
@@ -111,6 +112,7 @@ use crate::settings::SettingsStore;
 use crate::sync::lock;
 use crate::template::default_project;
 
+pub use analyzers::{ACK_TIMEOUT, AUDIO_TIMEOUT, AnalyzerSender};
 pub use audio::openable;
 pub use autosave::{AUTOSAVE_INTERVAL, backup_timestamp};
 pub use files::{EDITED_WHILE_MOVING, NO_FILE_YET};
@@ -177,6 +179,9 @@ struct Inner {
     timeline_play_request: std::sync::atomic::AtomicU64,
     archive_job: Mutex<Option<Arc<AtomicBool>>>,
     analysis: analysis_jobs::Service,
+    /// Live analyzer slots and captures. Locked after `state`, before the
+    /// engine's controller; the realtime thread takes it without `state`.
+    analyzers: analyzers::Service,
     midi_hardware: Mutex<Option<Arc<windfall_engine::midi_hardware::Runtime>>>,
     midi_configuring: Mutex<()>,
     /// Serializes editor workers and retains at most one bounded clip view.
@@ -405,6 +410,7 @@ impl Session {
                 timeline_play_request: std::sync::atomic::AtomicU64::new(0),
                 archive_job: Mutex::new(None),
                 analysis,
+                analyzers: analyzers::Service::new(),
                 midi_hardware: Mutex::new(None),
                 midi_configuring: Mutex::new(()),
                 audio_editor: Mutex::new(audio_editor::Editor::default()),

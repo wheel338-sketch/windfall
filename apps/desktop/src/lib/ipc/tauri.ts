@@ -4,6 +4,10 @@ import { getCurrentWindow } from "@tauri-apps/api/window"
 import { open, save } from "@tauri-apps/plugin-dialog"
 
 import type { RealtimeFrame } from "@/bindings"
+import type {
+  AnalyzerEvent,
+  AnalyzerStatus,
+} from "@/features/analyzers/types"
 
 import {
   AUDIO_EXTENSIONS,
@@ -62,6 +66,39 @@ export function createTauriBackend(): Backend {
 
   return {
     kind: "tauri",
+    analyzerCapability: () => call("analyzer_capability"),
+    analyzerSubscribe: (slot, handler) => {
+      // One channel per slot. Events that arrive after the slot stopped
+      // belong to nobody and are dropped here.
+      let stopped = false
+      const channel = new Channel<AnalyzerEvent>()
+      channel.onmessage = (event) => {
+        if (!stopped) handler(event)
+      }
+      const status = call<AnalyzerStatus>("analyzer_subscribe", {
+        slot,
+        channel,
+      })
+      return {
+        status,
+        stop: () => {
+          stopped = true
+          call<void>("analyzer_unsubscribe", { slot }).catch(
+            (error: unknown) => {
+              console.error("analyzer_unsubscribe failed:", errorMessage(error))
+            }
+          )
+        },
+      }
+    },
+    analyzerSelect: (select) => call("analyzer_select", { select }),
+    analyzerAck: (slot, sequence) => {
+      call<void>("analyzer_ack", { ack: { slot, sequence } }).catch(
+        (error: unknown) => {
+          console.error("analyzer_ack failed:", errorMessage(error))
+        }
+      )
+    },
     analysisCapability: () => call("analysis_capability"),
     analysisModelImport: (path, model) =>
       call("analysis_model_import", { path, model }),

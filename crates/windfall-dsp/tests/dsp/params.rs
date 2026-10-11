@@ -242,6 +242,7 @@ fn sanitizing_replaces_everything_that_is_not_a_number() {
         input_gain_db: f32::NAN,
         release_ms: 0.0,
         lookahead_ms: 1.0e6,
+        ..LimiterParams::default()
     }
     .sanitized();
     assert_eq!(limiter.ceiling_db, 0.0);

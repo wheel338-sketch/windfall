@@ -147,6 +147,7 @@ pub mod sampler_processing;
 mod sequencer;
 mod shared;
 mod spectrum;
+mod capture;
 mod waveform_meter;
 mod state;
 mod stems;
@@ -176,6 +177,11 @@ pub use stems::{
     render_playlist_stems,
 };
 pub use voice::{PREVIEW_GAIN_DB, loop_crossfade_mix};
+pub use capture::{CAPTURE_OBSERVATIONS, CAPTURE_SEATS, CapturedObservation};
+pub use controller::capture_control::{
+    CaptureCapability, CaptureRefusal, CaptureRequest, CaptureState, CaptureTicket, CaptureView,
+    SeatCounters,
+};
 
 /// Lets the unit tests of code that runs on the audio thread count its
 /// allocator calls.

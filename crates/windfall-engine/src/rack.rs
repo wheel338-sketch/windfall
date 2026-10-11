@@ -138,6 +138,15 @@ impl EffectUnit {
         self.params.kind()
     }
 
+    /// What the built-in effect measured over the block it last processed.
+    /// A hosted plugin reports nothing.
+    pub fn observation(&self) -> Option<windfall_dsp::EffectObservation> {
+        if self.external.is_some() {
+            return None;
+        }
+        self.slot.effect().observation()
+    }
+
     pub fn install_plugin(
         &mut self,
         unit: Option<Box<dyn crate::plugins::HostedEffect>>,

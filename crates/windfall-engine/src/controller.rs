@@ -21,6 +21,8 @@ use crate::state::{Ledger, PlanState};
 
 #[path = "project_preparation.rs"]
 pub(crate) mod preparation;
+#[path = "capture_control.rs"]
+pub(crate) mod capture_control;
 pub use preparation::{
     PreparationSnapshot, PreparedPublication, ProjectPreparationError, ProjectPublicationIntent,
     ProjectPublicationLease, ProjectRetirement, PublicationRefusal,
@@ -98,6 +100,9 @@ struct Link {
     messages: Producer<Message>,
     garbage: Consumer<Garbage>,
     spectrum: Option<crate::spectrum::SpectrumReader>,
+    /// The stream's selectable analyzer captures. `None` when the process
+    /// had no tap slot left for them.
+    captures: Option<capture_control::SharedCaptures>,
 }
 
 /// Measurements the device callback takes while a stream runs.

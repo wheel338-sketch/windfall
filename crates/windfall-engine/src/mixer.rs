@@ -84,6 +84,11 @@ impl Mixer {
         &mut self.buffers[track * MAX_BLOCK..][..MAX_BLOCK]
     }
 
+    /// A track's block as [`Mixer::mix`] left it: after its fader and pan.
+    pub fn track(&self, track: usize) -> &[Frame] {
+        &self.buffers[track * MAX_BLOCK..][..MAX_BLOCK]
+    }
+
     /// The buffer for voices that go straight to the output.
     pub fn apart_mut(&mut self) -> &mut [Frame] {
         &mut self.apart

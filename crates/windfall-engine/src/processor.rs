@@ -35,6 +35,8 @@ use windfall_dsp::NoteInstanceId;
 /// back to it to be dropped.
 pub struct Processor {
     spectrum: Option<crate::spectrum::SpectrumTap>,
+    /// The selectable analyzer captures of a device stream. `None` offline.
+    captures: Option<crate::capture::AudioCaptures>,
     sample_rate: u32,
     /// Frames processed so far. It is the engine's clock.
     frame: u64,
@@ -93,6 +95,16 @@ impl Processor {
         (processor, controller)
     }
 
+    /// Gives `controller` a new processor running at `sample_rate`, as the
+    /// device layer does when it reopens a stream, for running the engine
+    /// with no device. The project, the transport settings and the playhead
+    /// carry over; what belonged to the stream before, such as analyzer
+    /// captures and their tickets, does not. Drop the controller's previous
+    /// processor first: this panics while that one is still alive.
+    pub fn reopen(controller: &Controller, sample_rate: u32) -> Processor {
+        controller.attach(sample_rate)
+    }
+
     /// A processor that starts out on `plan`, with `state` built for it at
     /// this sample rate, and with the output at `output_gain`. All of it is
     /// simply there from the first frame: nothing has sounded yet, so there
@@ -109,6 +121,7 @@ impl Processor {
         let sample_rate = sample_rate.max(1);
         Self {
             spectrum: None,
+            captures: None,
             sample_rate,
             frame: 0,
             state,
@@ -149,6 +162,11 @@ impl Processor {
         self.spectrum = Some(spectrum);
     }
 
+    /// Installed during off-audio attachment, before processing can begin.
+    pub(crate) fn set_captures(&mut self, captures: crate::capture::AudioCaptures) {
+        self.captures = Some(captures);
+    }
+
     pub(crate) fn output_frame(&self) -> u64 {
         self.frame
     }
@@ -168,6 +186,9 @@ impl Processor {
     /// The audio does not depend on how the output is divided into calls,
     /// only on which frame each request arrives at.
     pub fn process(&mut self, out: &mut [f32]) {
+        if let Some(captures) = &mut self.captures {
+            captures.boundary();
+        }
         self.plugin_control_boundary();
         self.voices.sweep(&self.plan, &mut self.garbage);
         self.clips.sweep(&self.plan, &mut self.garbage);
@@ -397,6 +418,19 @@ impl Processor {
         ) && let Some(spectrum) = &mut self.spectrum
         {
             spectrum.reset();
+        }
+        if let Some(captures) = &mut self.captures
+            && matches!(
+                &message,
+                Message::SetPlan { .. }
+                    | Message::Play { .. }
+                    | Message::Stop { .. }
+                    | Message::Seek(_)
+                    | Message::SetTransport { .. }
+                    | Message::CountIn { .. }
+            )
+        {
+            captures.reset();
         }
         // A stale hardware note must not even release a stopped song's
         // automation hold. Discard it before any transport/tail side effects.
@@ -1095,6 +1129,9 @@ impl Processor {
         if let Some(spectrum) = &mut self.spectrum {
             spectrum.reset();
         }
+        if let Some(captures) = &mut self.captures {
+            captures.reset();
+        }
         for channel in 0..self.state.channel_voice.len() {
             for slot in 0..self.state.channel_voice[channel].owners.len() {
                 if let Some(owner) = self.state.channel_voice[channel].owners[slot]
@@ -1345,13 +1382,34 @@ impl Processor {
             &mut self.disk_taps,
             &mut self.audio_logger,
         );
+        if let Some(captures) = &mut self.captures {
+            captures.publish_tracks(
+                &self.plan,
+                &self.state,
+                &self.mixer,
+                base,
+                self.sample_rate,
+                frames,
+            );
+        }
         if let Some(taps) = &mut self.taps {
             taps.collect(&mut self.mixer, frames);
         }
         self.mixer
             .publish_waveforms(&self.plan, &self.shared, base, self.sample_rate, out);
         self.metronome.mix(out);
-        self.finish_output(base, out);
+        // A capture of the mix output sees it after the gain and before the
+        // scrub; the device gets the same samples either way.
+        match &mut self.captures {
+            Some(captures) if captures.wants_mix() => captures.finish_output(
+                &self.output_gain,
+                base,
+                self.sample_rate,
+                self.state.latency,
+                out,
+            ),
+            _ => self.finish_output(base, out),
+        }
         if let Some(logger) = &mut self.audio_logger {
             logger.master(out);
         }

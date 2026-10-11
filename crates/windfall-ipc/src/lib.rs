@@ -9,6 +9,8 @@ use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 mod analysis;
 pub use analysis::*;
+mod analyzer;
+pub use analyzer::*;
 mod audio_edit;
 pub use audio_edit::*;
 pub mod library;

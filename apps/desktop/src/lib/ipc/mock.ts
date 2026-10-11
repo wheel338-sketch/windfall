@@ -1,5 +1,6 @@
 import { unavailableAnalysis } from "@/features/analysis/unavailable"
 import { NATIVE_ONLY, unavailableLogger } from "@/features/audio-logger/types"
+import { unavailableAnalyzer } from "@/features/analyzers/types"
 import type {
   FlpImportPreview,
   ImportReport,
@@ -639,6 +640,7 @@ export function createMockBackend(options: MockOptions = {}): MockBackend {
     kind: "mock",
     ...unavailableAnalysis(),
     ...mockMixerPresetLibrary(),
+    ...unavailableAnalyzer(),
     mixerWaveformTracks: (tracks, generation, revision) => ipc(() => {
       const state = timelineState()
       if (state.generation !== generation || state.revision !== revision) throw new Error("The project changed before waveform selection could update")

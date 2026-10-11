@@ -998,6 +998,11 @@ pub fn handler() -> impl Fn(Invoke) -> bool + Send + Sync + 'static {
         timeline_state,
         timeline_region,
         realtime_subscribe,
+        analyzer_capability,
+        analyzer_subscribe,
+        analyzer_select,
+        analyzer_ack,
+        analyzer_unsubscribe,
         engine_status,
         process_memory,
         engine_devices,
@@ -1170,4 +1175,45 @@ async fn audio_logger_dump(
 ) -> Result<DispatchResult, String> {
     let session = session.inner().clone();
     blocking(move || session.audio_logger_dump(request)).await
+}
+// Live analyzer controls. Each only changes the service's bookkeeping; the
+// analysis itself runs on the realtime thread, which also sends the events.
+#[tauri::command]
+fn analyzer_capability(session: State<'_, Session>) -> windfall_ipc::AnalyzerCapability {
+    session.analyzer_capability()
+}
+#[tauri::command]
+fn analyzer_subscribe(
+    session: State<'_, Session>,
+    window: WebviewWindow,
+    slot: String,
+    channel: Channel<tauri::ipc::InvokeResponseBody>,
+) -> windfall_ipc::AnalyzerStatus {
+    // The session hands over each event as JSON text it has already
+    // measured against the size limit, so it goes out as it is.
+    session.analyzer_subscribe(
+        window.label(),
+        &slot,
+        Box::new(move |event| {
+            channel
+                .send(tauri::ipc::InvokeResponseBody::Json(event.to_owned()))
+                .is_ok()
+        }),
+    )
+}
+#[tauri::command]
+fn analyzer_select(
+    session: State<'_, Session>,
+    window: WebviewWindow,
+    select: windfall_ipc::AnalyzerSelect,
+) -> windfall_ipc::AnalyzerStatus {
+    session.analyzer_select(window.label(), select)
+}
+#[tauri::command]
+fn analyzer_ack(session: State<'_, Session>, window: WebviewWindow, ack: windfall_ipc::AnalyzerAck) {
+    session.analyzer_ack(window.label(), ack);
+}
+#[tauri::command]
+fn analyzer_unsubscribe(session: State<'_, Session>, window: WebviewWindow, slot: String) {
+    session.analyzer_unsubscribe(window.label(), &slot);
 }
