@@ -38,6 +38,9 @@ notes and past audio from holding offsets through silence. Added
 `repeated_score_notes_have_calibrated_onsets_offsets_pitch_and_dynamics`:
 two repeated A4 notes, silence, differing amplitudes, mono/poly modes,
 50/10 ms boundary targets and bounded RMS-derived velocity. Written, not executed.
+Held spectral notes average their pitch/salience estimates instead of pinning
+an onset-window estimate. Denoise output scans checkpoint and reject nonfinite
+float output before even a neutral recipe can return it.
 
 These assertions are acceptance targets, not measurements. The SNR fixture
 requires >5 dB improvement and <1.5 dB tone RMS error; no result is claimed.

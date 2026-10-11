@@ -193,6 +193,7 @@ fn spectral_notes(
     let mut magnitudes = vec![0.0_f64; n / 2 + 1];
     let mut active: [Option<usize>; 128] = [None; 128];
     let mut notes: Vec<DetectedAudioNote> = Vec::new();
+    let mut counts = Vec::<u32>::new();
     for center in (0..audio.frames()).step_by(hop) {
         work.checkpoint((n * (n.ilog2() as usize + 1) * 20) as u64)?;
         for (i, bin) in bins.iter_mut().enumerate() {
@@ -276,9 +277,15 @@ fn spectral_notes(
                         confidence: salience,
                         rms,
                     });
+                    counts.push(1);
                 } else if let Some(index) = active[key] {
-                    notes[index].end_frame = end;
-                    notes[index].rms = notes[index].rms.max(rms);
+                    counts[index] += 1;
+                    let mix = 1.0 / f64::from(counts[index]);
+                    let note = &mut notes[index];
+                    note.midi_pitch += (pitch - note.midi_pitch) * mix;
+                    note.confidence += (salience - note.confidence) * mix;
+                    note.end_frame = end;
+                    note.rms = note.rms.max(rms);
                 }
             } else {
                 active[key] = None;
@@ -396,7 +403,7 @@ pub fn denoise(
             }
         }
     }
-    let samples = output
+    let samples: Vec<f32> = output
         .iter()
         .enumerate()
         .map(|(i, wet)| {
@@ -405,6 +412,12 @@ pub fn denoise(
                 as f32
         })
         .collect();
+    for chunk in samples.chunks(4096) {
+        work.checkpoint(chunk.len() as u64)?;
+        if chunk.iter().any(|v| !v.is_finite()) {
+            return Err(invalid("nonfinite denoise output"));
+        }
+    }
     Ok(AudioBuffer::from_interleaved(
         audio.sample_rate(),
         audio.channels(),
