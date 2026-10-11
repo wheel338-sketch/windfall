@@ -207,7 +207,8 @@ function PlayerEditor({ channel }: { channel: InstrumentChannel }) {
 }
 
 function SoundFontEditor({ channel }: { channel: InstrumentChannel }) {
-  const [path,setPath] = useState("")
+  const selected = channel.sampleInstrument?.type === "soundFont" ? channel.sampleInstrument : null
+  const [path,setPath] = useState(selected?.path.kind === "external" ? selected.path.path : "")
   const [presets,setPresets] = useState<SoundFontPreset[]>([])
   const [error,setError] = useState<string | null>(null)
   const request = useRef(0)

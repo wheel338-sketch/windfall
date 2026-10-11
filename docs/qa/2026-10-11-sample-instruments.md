@@ -231,3 +231,10 @@ Pitch, pan and gain callbacks now ignore inactive voice slots. This prevents a
 default note-instance ID from indexing zone 0 in an empty bank. Written, not
 executed: `empty_bank_and_retired_note_controls_are_safe_and_silent` covers an
 empty instrument and delayed expression events after source retirement.
+
+## SoundFont editor reopen correction
+
+The SoundFont editor initializes its file field from the saved external reference
+when reopened, so preset browsing uses that bank without retyping its path.
+Written, not executed: `reopens the saved SoundFont path and browses that bank`
+is a mounted inspector case against the real checked document commands.

@@ -77,6 +77,21 @@ describe("sample instrument purpose-built editors",()=>{
     expect(useProjectStore.getState().project.channels.find(item=>item.id===id)?.sampleInstrument)
       .toEqual({type:"soundFont",path:{kind:"external",path:"C:/Own/keys.sf2"},bank:3,program:7})
   })
+  it("reopens the saved SoundFont path and browses that bank",async()=>{
+    backend.soundfontPresets=vi.fn().mockResolvedValue([{name:"Own piano",bank:3,program:7}])
+    const result=await dispatch({type:"addChannel",instrument:"soundFont"})
+    if(!result)throw new Error("channel creation failed")
+    const id=result.created[0]
+    await dispatch({type:"setSampleInstrumentAsset",channel:id,expected:null,
+      asset:{type:"soundFont",path:{kind:"external",path:"C:/Own/keys.sf2"},bank:3,program:7}})
+    render(<ValueContextMenus><Panel id={id}/></ValueContextMenus>)
+    await act(()=>settle())
+    expect(screen.getByRole("textbox",{name:"SoundFont file"})).toHaveValue("C:/Own/keys.sf2")
+    expect(screen.getByText("Selected bank 3, program 7")).toBeInTheDocument()
+    fireEvent.click(screen.getByRole("button",{name:"Browse presets"}));await act(()=>settle())
+    expect(backend.soundfontPresets).toHaveBeenCalledWith("C:/Own/keys.sf2")
+    expect(screen.getByRole("button",{name:"3:7 · Own piano"})).toBeInTheDocument()
+  })
   it("switches generated piano recipes with undo and exposes the active source",async()=>{
     const id=await open("pianoKeys")
     expect(screen.getByText("Current source: Struck-string piano")).toBeInTheDocument()
