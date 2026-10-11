@@ -287,7 +287,10 @@ fn the_last_seconds_of_the_master_become_a_clip_of_exactly_what_was_played() {
     let project = rig.project();
     let clip = project.playlist.clips.last().unwrap();
     assert_eq!(clip.start, 1_920);
-    assert_eq!(project.playlist.clips.len(), before.playlist.clips.len() + 1);
+    assert_eq!(
+        project.playlist.clips.len(),
+        before.playlist.clips.len() + 1
+    );
     assert_eq!(
         project.playlist.tracks.len(),
         before.playlist.tracks.len() + 1
@@ -308,7 +311,10 @@ fn the_last_seconds_of_the_master_become_a_clip_of_exactly_what_was_played() {
     assert_eq!(held(&rig, MASTER), 60_000);
     played.extend(play(&mut rig, 30_000, &[2, 0]));
     assert_eq!(held(&rig, MASTER), 90_000);
-    assert_eq!(status(&rig.session.audio_logger_state(), MASTER).dropped_frames, 0);
+    assert_eq!(
+        status(&rig.session.audio_logger_state(), MASTER).dropped_frames,
+        0
+    );
     let track = project.playlist.tracks[0].id;
     rig.session
         .audio_logger_dump(AudioLoggerDumpRequest {
@@ -392,10 +398,18 @@ fn a_logged_mixer_track_is_dumped_as_it_left_its_effects() {
         })
         .unwrap();
     assert_eq!(state.sources.len(), 4);
-    let missing = status(&state, AudioLoggerSource::Track { track: TrackId(9_999) });
+    let missing = status(
+        &state,
+        AudioLoggerSource::Track {
+            track: TrackId(9_999),
+        },
+    );
     assert!(!missing.active && missing.label.contains("not in this project"));
     let named = status(&state, AudioLoggerSource::Track { track: kick });
-    assert!(named.active && named.label.contains("Kick Punch"), "{named:?}");
+    assert!(
+        named.active && named.label.contains("Kick Punch"),
+        "{named:?}"
+    );
 
     // Only the kick plays, into a track at unity, so the master is what
     // left that track; the hat's track is logged too and stays silent.
@@ -419,9 +433,17 @@ fn a_logged_mixer_track_is_dumped_as_it_left_its_effects() {
     // A track the project does not have was never heard, and one that is
     // not logged cannot be dumped.
     let before = rig.project();
-    let missing = dump(AudioLoggerSource::Track { track: TrackId(9_999) }, None);
+    let missing = dump(
+        AudioLoggerSource::Track {
+            track: TrackId(9_999),
+        },
+        None,
+    );
     let error = rig.session.audio_logger_dump(missing).unwrap_err();
-    assert!(error.contains("not heard anything from that mixer track"), "{error}");
+    assert!(
+        error.contains("not heard anything from that mixer track"),
+        "{error}"
+    );
     let snare = dump(
         AudioLoggerSource::Track {
             track: project.channels[3].mixer_track,
@@ -440,9 +462,18 @@ fn a_dump_is_refused_while_recording_for_an_empty_history_and_for_bad_requests()
     let before = rig.project();
 
     // Nothing was played yet: there is nothing to put on the playlist.
-    let error = rig.session.audio_logger_dump(dump(MASTER, None)).unwrap_err();
-    assert!(error.contains("not heard anything from the master output"), "{error}");
-    let error = rig.session.audio_logger_dump(dump(INPUT, None)).unwrap_err();
+    let error = rig
+        .session
+        .audio_logger_dump(dump(MASTER, None))
+        .unwrap_err();
+    assert!(
+        error.contains("not heard anything from the master output"),
+        "{error}"
+    );
+    let error = rig
+        .session
+        .audio_logger_dump(dump(INPUT, None))
+        .unwrap_err();
     assert!(error.contains("not logging an audio input"), "{error}");
 
     play(&mut rig, 12_000, &[0]);
@@ -473,7 +504,10 @@ fn a_dump_is_refused_while_recording_for_an_empty_history_and_for_bad_requests()
             Ok(Box::new(TakeCapture))
         })
         .unwrap();
-    let error = rig.session.audio_logger_dump(dump(MASTER, None)).unwrap_err();
+    let error = rig
+        .session
+        .audio_logger_dump(dump(MASTER, None))
+        .unwrap_err();
     assert_eq!(error, "Stop or cancel recording first.");
     // The logger itself goes on through the take.
     play(&mut rig, 12_000, &[1]);
@@ -531,7 +565,9 @@ fn a_logged_input_keeps_its_own_rate_and_is_dumped_exactly() {
     input.feed(&ramp(4_410, 6_615));
     assert_eq!(held(&rig, INPUT), 11_025);
     play(&mut rig, 12_000, &[0]);
-    rig.session.audio_logger_dump(dump(INPUT, Some(0.1))).unwrap();
+    rig.session
+        .audio_logger_dump(dump(INPUT, Some(0.1)))
+        .unwrap();
     let (rate, written) = decode(&last_file(&rig));
     assert_eq!(rate, 44_100);
     assert!(written == ramp(6_615, 4_410));
@@ -545,7 +581,9 @@ fn a_logged_input_keeps_its_own_rate_and_is_dumped_exactly() {
     }
     let total = 11_025 + 140 * 9_600;
     assert_eq!(held(&rig, INPUT), 44_100 * 30);
-    rig.session.audio_logger_dump(dump(INPUT, Some(1.0))).unwrap();
+    rig.session
+        .audio_logger_dump(dump(INPUT, Some(1.0)))
+        .unwrap();
     assert!(decode(&last_file(&rig)).1 == ramp(total - 44_100, 44_100));
     assert_eq!(held(&rig, MASTER), 12_000, "the master history is its own");
 }
@@ -631,7 +669,13 @@ fn the_logged_input_makes_way_for_a_recording_take_and_comes_back() {
     let state = rig.session.audio_logger_state();
     let logged = status(&state, INPUT);
     assert!(!logged.active);
-    assert!(logged.error.as_deref().unwrap().contains("Paused while a recording take"));
+    assert!(
+        logged
+            .error
+            .as_deref()
+            .unwrap()
+            .contains("Paused while a recording take")
+    );
     assert_eq!(logged.available_frames, 2_400);
 
     // It stays closed for as long as the take lasts, whatever is asked.
@@ -733,7 +777,10 @@ fn changing_the_length_or_the_sources_starts_over_and_disabling_stops() {
     assert!(!state.running && state.sources.is_empty());
     assert_eq!(state.memory_bytes, 0);
     play(&mut rig, 12_000, &[0]);
-    let error = rig.session.audio_logger_dump(dump(MASTER, None)).unwrap_err();
+    let error = rig
+        .session
+        .audio_logger_dump(dump(MASTER, None))
+        .unwrap_err();
     assert_eq!(error, "The audio logger is not running.");
     rig.session.audio_logger_maintain();
     assert!(!rig.session.audio_logger_state().running);
@@ -814,7 +861,10 @@ fn logger_settings_are_remembered_and_an_older_settings_file_gives_the_defaults(
     assert!(state.settings.enabled && state.settings.master);
     assert_eq!(state.settings.seconds, 120);
     assert!(state.settings.tracks.is_empty() && state.settings.input.is_none());
-    assert_eq!((state.min_seconds, state.max_seconds, state.max_tracks), (30, 600, 4));
+    assert_eq!(
+        (state.min_seconds, state.max_seconds, state.max_tracks),
+        (30, 600, 4)
+    );
     // Nothing runs until the app starts the logger.
     assert!(!state.running);
     rig.session.audio_logger_restore();
@@ -841,7 +891,12 @@ fn logger_settings_are_remembered_and_an_older_settings_file_gives_the_defaults(
     let state = rig.session.audio_logger_state();
     assert!(state.running);
     assert_eq!(state.sources.len(), 2);
-    assert!(state.sources.iter().all(|status| status.capacity_seconds == 300.0));
+    assert!(
+        state
+            .sources
+            .iter()
+            .all(|status| status.capacity_seconds == 300.0)
+    );
 
     // A file edited by hand to hold more than the logger takes is cut to
     // what it can run, not trusted and not thrown away.

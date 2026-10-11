@@ -167,7 +167,10 @@ impl Session {
                 self.project_preparation(&state),
             )
         };
-        let audio_edit::Edited { audio: output, lead } = audio_edit::apply(
+        let audio_edit::Edited {
+            audio: output,
+            lead,
+        } = audio_edit::apply(
             &prepared.view,
             request.operation,
             request.start_frame,
@@ -179,9 +182,9 @@ impl Session {
         // audio takes the fewest ticks whose reopened view holds every frame.
         let length = match output.frames().cmp(&prepared.view.frames()) {
             std::cmp::Ordering::Equal => prepared.clip.length,
-            std::cmp::Ordering::Less => {
-                ((output.frames() as f64 / per_tick).ceil().max(1.0) as u32).min(prepared.clip.length)
-            }
+            std::cmp::Ordering::Less => ((output.frames() as f64 / per_tick).ceil().max(1.0)
+                as u32)
+                .min(prepared.clip.length),
             std::cmp::Ordering::Greater => {
                 let ticks = ((output.frames() as f64 - 1.0 + 1e-6) / per_tick).floor() + 1.0;
                 if ticks > f64::from(MAX_SONG_TICKS) {
@@ -232,12 +235,20 @@ impl Session {
         let decoded = self.inner.cache.decode(&owned.0)?;
         let sample = SampleId(document.project().next_id);
         let label = format!("Audio edit: {}", request.operation.label());
-        let source = document.project().sample(clip.content.sample().unwrap()).unwrap();
+        let source = document
+            .project()
+            .sample(clip.content.sample().unwrap())
+            .unwrap();
         // Several edits in one sitting name the result after the latest one,
         // not after the whole chain.
         let base = match &source.path {
-            SamplePath::External(path) if std::path::Path::new(path).parent() == Some(folder.as_path()) => {
-                source.name.rsplit_once(" (").map_or(source.name.as_str(), |(base, _)| base)
+            SamplePath::External(path)
+                if std::path::Path::new(path).parent() == Some(folder.as_path()) =>
+            {
+                source
+                    .name
+                    .rsplit_once(" (")
+                    .map_or(source.name.as_str(), |(base, _)| base)
             }
             _ => &source.name,
         };
@@ -250,7 +261,12 @@ impl Session {
                 clips: vec![clip.id],
             });
         }
-        let ClipContent::Audio { mixer_track, output, .. } = clip.content else {
+        let ClipContent::Audio {
+            mixer_track,
+            output,
+            ..
+        } = clip.content
+        else {
             unreachable!()
         };
         commands.push(Command::AddClips {

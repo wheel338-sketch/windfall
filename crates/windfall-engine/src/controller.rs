@@ -496,7 +496,8 @@ impl Controller {
     ) -> Result<(), String> {
         let refused = {
             let mut state = self.lock();
-            let current = state.link.is_some() && stream.is_none_or(|stream| stream == state.stream_generation);
+            let current = state.link.is_some()
+                && stream.is_none_or(|stream| stream == state.stream_generation);
             if current {
                 state.send(Message::SetAudioLogger(tap));
                 return Ok(());

@@ -1,5 +1,6 @@
 //! Input capture. The driver callback only converts and pushes whole stereo
 //! frames into a bounded SPSC queue; the owning worker performs disk IO.
+use crate::recording_endpoint::{FaultReason, InputFault};
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use cpal::{FromSample, Sample, SampleFormat, SizedSample};
 use rtrb::{Producer, RingBuffer};
@@ -7,7 +8,6 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::thread::JoinHandle;
 use std::time::Duration;
-use crate::recording_endpoint::{FaultReason, InputFault};
 use windfall_ipc::{RecordingInput, RecordingSource};
 
 #[path = "recording_timed.rs"]
@@ -35,30 +35,64 @@ impl Capture {
         let s = stop.clone();
         let f = fault.clone();
         let count = frames.clone();
-        let worker = std::thread::Builder::new().name("windfall-input-writer".into()).spawn(move || {
-            let opened = open(&source, rate, f.clone());
-            let (stream, mut queue) = match opened {
-                Ok(value) => { let _ = ready.send(Ok(())); value },
-                Err(error) => { let _ = ready.send(Err(error.clone())); return Err(error) }
-            };
-            let mut block = [0.0_f32; 2048];
-            let mut total = 0;
-            loop {
-                let mut n = 0;
-                while n < block.len() {
-                    match queue.pop() { Ok(frame) => { block[n] = frame[0]; block[n+1] = frame[1]; n += 2; }, Err(_) => break }
+        let worker = std::thread::Builder::new()
+            .name("windfall-input-writer".into())
+            .spawn(move || {
+                let opened = open(&source, rate, f.clone());
+                let (stream, mut queue) = match opened {
+                    Ok(value) => {
+                        let _ = ready.send(Ok(()));
+                        value
+                    }
+                    Err(error) => {
+                        let _ = ready.send(Err(error.clone()));
+                        return Err(error);
+                    }
+                };
+                let mut block = [0.0_f32; 2048];
+                let mut total = 0;
+                loop {
+                    let mut n = 0;
+                    while n < block.len() {
+                        match queue.pop() {
+                            Ok(frame) => {
+                                block[n] = frame[0];
+                                block[n + 1] = frame[1];
+                                n += 2;
+                            }
+                            Err(_) => break,
+                        }
+                    }
+                    if n > 0 {
+                        if let Err(error) = sink(&block[..n]) {
+                            f.store(true, Ordering::Release);
+                            return Err(error);
+                        }
+                        total += (n / 2) as u64;
+                        count.store(total, Ordering::Relaxed);
+                    }
+                    if f.load(Ordering::Acquire) {
+                        return Err(f.describe("The take was discarded."));
+                    }
+                    if s.load(Ordering::Acquire) {
+                        break;
+                    }
+                    if n == 0 {
+                        std::thread::sleep(Duration::from_millis(2));
+                    }
                 }
-                if n > 0 { if let Err(error)=sink(&block[..n]) {f.store(true,Ordering::Release);return Err(error)} total += (n / 2) as u64; count.store(total, Ordering::Relaxed); }
-                if f.load(Ordering::Acquire) { return Err(f.describe("The take was discarded.")) }
-                if s.load(Ordering::Acquire) { break }
-                if n == 0 { std::thread::sleep(Duration::from_millis(2)); }
-            }
-            // Dropping closes callbacks before draining the final queued frames.
-            drop(stream);
-            while let Ok(frame) = queue.pop() { sink(&frame)?; total += 1; }
-            if f.load(Ordering::Acquire) { return Err(f.describe("The take was discarded.")) }
-            Ok(total)
-        }).map_err(|e| e.to_string())?;
+                // Dropping closes callbacks before draining the final queued frames.
+                drop(stream);
+                while let Ok(frame) = queue.pop() {
+                    sink(&frame)?;
+                    total += 1;
+                }
+                if f.load(Ordering::Acquire) {
+                    return Err(f.describe("The take was discarded."));
+                }
+                Ok(total)
+            })
+            .map_err(|e| e.to_string())?;
         match waiting.recv() {
             Ok(Ok(())) => Ok(Self {
                 stop,

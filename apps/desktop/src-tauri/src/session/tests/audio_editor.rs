@@ -536,9 +536,7 @@ fn placed(rig: &Rig, clip: u32) -> (u32, u32) {
 
 #[test]
 fn audio_editor_tools_write_what_the_engine_computes_as_one_undo_step_each() {
-    use windfall_ipc::{
-        AudioEditChannels, AudioFadeDirection, AudioFadeShape, AudioNormalizeMode,
-    };
+    use windfall_ipc::{AudioEditChannels, AudioFadeDirection, AudioFadeShape, AudioNormalizeMode};
     let view = AudioBuffer::from_interleaved(1920, 2, FIXTURE.to_vec());
     for operation in [
         Op::RemoveDc,
@@ -564,8 +562,16 @@ fn audio_editor_tools_write_what_the_engine_computes_as_one_undo_step_each() {
             .unwrap_or_else(|error| panic!("{operation:?}: {error}"));
         assert_eq!(expected.lead, 0, "{operation:?}");
         // The frames outside the selection are the source's own.
-        assert_eq!(&expected.audio.samples()[..2], &FIXTURE[..2], "{operation:?}");
-        assert_eq!(&expected.audio.samples()[6..], &FIXTURE[6..], "{operation:?}");
+        assert_eq!(
+            &expected.audio.samples()[..2],
+            &FIXTURE[..2],
+            "{operation:?}"
+        );
+        assert_eq!(
+            &expected.audio.samples()[6..],
+            &FIXTURE[6..],
+            "{operation:?}"
+        );
         let preview = rig.session.audio_editor_open(id).unwrap();
         let result = rig
             .session
