@@ -53,7 +53,7 @@ impl Session {
         Ok(())
     }
 
-    fn midi_runtime(&self) -> Result<Arc<Runtime>, String> {
+    pub(super) fn midi_runtime(&self) -> Result<Arc<Runtime>, String> {
         lock(&self.inner.midi_hardware)
             .clone()
             .ok_or("Native MIDI runtime is unavailable.".into())

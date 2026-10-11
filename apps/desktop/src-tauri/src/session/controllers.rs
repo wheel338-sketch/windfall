@@ -93,6 +93,8 @@ pub(super) struct Hub {
     user_profiles: Vec<ControllerProfile>,
     /// The links of the profiles assigned to the open inputs.
     profile_links: Vec<ControllerLink>,
+    feedback: Vec<windfall_project::controller_links::ProfileFeedback>,
+    last_feedback: Vec<Vec<u8>>,
     /// Port names of the inputs, by their place in the settings.
     device_names: Vec<String>,
     follow_clock: bool,
@@ -138,6 +140,8 @@ impl Hub {
             settings,
             user_profiles: load_profiles(profiles_dir),
             profile_links: Vec::new(),
+            feedback: Vec::new(),
+            last_feedback: Vec::new(),
             device_names: Vec::new(),
             follow_clock: false,
             sources: Vec::new(),
@@ -183,6 +187,8 @@ impl Hub {
         let profiles = self.profiles();
         self.device_names.clear();
         self.profile_links.clear();
+        self.feedback.clear();
+        self.last_feedback.clear();
         for (id, profile) in settings.inputs() {
             let name = ports
                 .iter()
@@ -192,6 +198,7 @@ impl Hub {
                 profile.and_then(|wanted| profiles.iter().find(|profile| profile.id == wanted))
             {
                 self.profile_links.extend(profile.links(Some(&name)));
+                self.feedback.extend(profile.feedback.iter().cloned());
             }
             self.device_names.push(name);
         }
@@ -219,6 +226,7 @@ impl Hub {
             self.recording_gesture = None;
             self.log.clear();
             self.bank = 0;
+            self.last_feedback.clear();
             self.stamp = None;
         }
         if self.stamp != Some((generation, revision)) {
@@ -618,6 +626,71 @@ impl Session {
         if plan.stopped {
             self.commit_note_take();
             self.commit_automation_take();
+        }
+        self.surface_feedback();
+    }
+
+    fn surface_feedback(&self) {
+        use windfall_project::controller_links::FeedbackSource;
+        let transport = self.transport_state();
+        let messages = {
+            let state = self.state();
+            let project = state.document.project();
+            let hub = lock(&self.inner.controllers);
+            let messages: Vec<_> = hub
+                .feedback
+                .iter()
+                .map(|feedback| {
+                    let (value, text) = match feedback.source {
+                        FeedbackSource::Slot { slot } => {
+                            let value = slot
+                                .resolve(project, hub.bank)
+                                .and_then(|target| {
+                                    project
+                                        .automation_range(&target)
+                                        .zip(project.automation_stored_value(&target))
+                                })
+                                .map_or(0.0, |(range, value)| range.normalized(value));
+                            (value, "")
+                        }
+                        FeedbackSource::Playing => (f32::from(u8::from(transport.playing)), ""),
+                        FeedbackSource::Stopped => (f32::from(u8::from(!transport.playing)), ""),
+                        FeedbackSource::NoteRecordArmed => {
+                            (f32::from(u8::from(hub.note_armed)), "")
+                        }
+                        FeedbackSource::AutomationRecordArmed => {
+                            (f32::from(u8::from(hub.automation_armed)), "")
+                        }
+                        FeedbackSource::MixerName { index } => (
+                            0.0,
+                            project
+                                .mixer
+                                .tracks
+                                .iter()
+                                .filter(|track| {
+                                    track.id != windfall_project::TrackId::MASTER && !track.current
+                                })
+                                .nth((index + hub.bank) as usize)
+                                .map_or("", |track| track.name.as_str()),
+                        ),
+                    };
+                    feedback.encode(value, text)
+                })
+                .filter(|bytes| !bytes.is_empty())
+                .collect();
+            if messages == hub.last_feedback {
+                return;
+            }
+            messages
+        };
+        if messages.is_empty() {
+            return;
+        }
+        if let Ok(runtime) = self.midi_runtime() {
+            match runtime.feedback(messages.clone()) {
+                Ok(()) => lock(&self.inner.controllers).last_feedback = messages,
+                Err(error) => lock(&self.inner.controllers).error = Some(error),
+            }
         }
     }
 

@@ -198,6 +198,7 @@ pub trait Ports: Send + 'static {
 enum Request {
     Configure(MidiHardwareSettings, mpsc::SyncSender<MidiHardwareState>),
     Refresh(mpsc::SyncSender<MidiHardwareState>),
+    Feedback(Vec<Vec<u8>>),
 }
 
 /// Thread-safe control handle; native handles never leave its worker.
@@ -249,6 +250,7 @@ impl Runtime {
                                 worker.refresh();
                                 let _ = reply.send(worker.state());
                             }
+                            Ok(Request::Feedback(messages)) => worker.feedback(&messages),
                             Err(mpsc::TryRecvError::Empty) => break,
                             Err(mpsc::TryRecvError::Disconnected) => break 'serve,
                         }
@@ -280,6 +282,22 @@ impl Runtime {
         settings.validate()?;
         let (tx, rx) = mpsc::sync_channel(1);
         self.request(Request::Configure(settings, tx), rx)
+    }
+
+    /// Bounded control-side surface updates; every output call stays on the worker.
+    pub fn feedback(&self, messages: Vec<Vec<u8>>) -> Result<(), String> {
+        if messages.len() > 256
+            || messages
+                .iter()
+                .any(|message| message.is_empty() || message.len() > 128)
+        {
+            return Err("Surface feedback exceeds the MIDI worker budget.".into());
+        }
+        self.tx
+            .as_ref()
+            .ok_or("MIDI worker stopped.")?
+            .try_send(Request::Feedback(messages))
+            .map_err(|_| "MIDI feedback queue is busy.".to_owned())
     }
 
     pub fn refresh(&self) -> Result<MidiHardwareState, String> {
@@ -512,6 +530,14 @@ impl Worker {
         self.sustain = [false; 16];
         self.output_keys = [false; 128];
         self.epoch = self.controller.hardware_epoch();
+    }
+
+    fn feedback(&mut self, messages: &[Vec<u8>]) {
+        for bytes in messages.iter().take(256) {
+            if !bytes.is_empty() && bytes.len() <= 128 {
+                self.send(bytes);
+            }
+        }
     }
 
     fn send(&mut self, bytes: &[u8]) {

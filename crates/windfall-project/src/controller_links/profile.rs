@@ -11,8 +11,8 @@ use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
 use super::{
-    ControlAction, ControlMap, ControlSource, ControllerLink, LinkTarget, MidiControl, SlotTarget,
-    SourceMode,
+    ControlAction, ControlMap, ControlSource, ControllerLink, FeedbackMessage, FeedbackSource,
+    LinkTarget, MidiControl, ProfileFeedback, SlotTarget, SourceMode,
 };
 
 /// The most controls one profile describes.
@@ -52,6 +52,9 @@ pub struct ControllerProfile {
     #[ts(as = "Option<String>", optional)]
     pub notes: String,
     pub controls: Vec<ProfileControl>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[ts(optional)]
+    pub feedback: Vec<ProfileFeedback>,
 }
 
 impl ControllerProfile {
@@ -83,6 +86,12 @@ impl ControllerProfile {
                 .any(|port| port.is_empty() || port.len() > 128)
         {
             return Some("a controller profile's port names are invalid".into());
+        }
+        if self.feedback.len() > MAX_PROFILE_CONTROLS {
+            return Some("Too many surface feedback rules.".into());
+        }
+        if let Some(problem) = self.feedback.iter().find_map(ProfileFeedback::problem) {
+            return Some(problem);
         }
         super::links_problem(&self.links(None), None)
     }
@@ -214,11 +223,43 @@ fn mackie_control() -> ControllerProfile {
     ] {
         controls.push(action(name, Some(1), MidiControl::Note { key }, command));
     }
+    let mut feedback = Vec::new();
+    for strip in 0..8_u8 {
+        feedback.push(ProfileFeedback {
+            source: FeedbackSource::Slot {
+                slot: SlotTarget::MixerVolume {
+                    index: u32::from(strip),
+                },
+            },
+            message: FeedbackMessage::PitchBend { channel: strip + 1 },
+        });
+        feedback.push(ProfileFeedback {
+            source: FeedbackSource::MixerName {
+                index: u32::from(strip),
+            },
+            message: FeedbackMessage::Display {
+                prefix: vec![0xf0, 0, 0, 0x66, 0x14, 0x12, strip * 7],
+                suffix: vec![0xf7],
+                width: 7,
+            },
+        });
+    }
+    for (source, key) in [
+        (FeedbackSource::Playing, 94),
+        (FeedbackSource::Stopped, 93),
+        (FeedbackSource::NoteRecordArmed, 95),
+    ] {
+        feedback.push(ProfileFeedback {
+            source,
+            message: FeedbackMessage::NoteLed { channel: 1, key },
+        });
+    }
     ControllerProfile {
+        feedback,
         id: "mackie-control".to_owned(),
         name: "Mackie Control compatible".to_owned(),
         ports: vec!["mackie control".to_owned(), "mcu pro".to_owned()],
-        notes: "Set the surface to Mackie Control mode. Faders are not motorized from Windfall."
+        notes: "Set the surface to Mackie Control mode and choose its MIDI output for fader, LED and display feedback."
             .to_owned(),
         controls,
     }
@@ -259,7 +300,19 @@ fn nano_kontrol2() -> ControllerProfile {
     ] {
         controls.push(action(name, Some(1), MidiControl::Cc { number }, command));
     }
+    let feedback = [
+        (FeedbackSource::Playing, 41),
+        (FeedbackSource::Stopped, 42),
+        (FeedbackSource::NoteRecordArmed, 45),
+    ]
+    .into_iter()
+    .map(|(source, number)| ProfileFeedback {
+        source,
+        message: FeedbackMessage::Controller { channel: 1, number },
+    })
+    .collect();
     ControllerProfile {
+        feedback,
         id: "korg-nanokontrol2".to_owned(),
         name: "Korg nanoKONTROL2".to_owned(),
         ports: vec!["nanokontrol2".to_owned()],
@@ -293,6 +346,7 @@ fn general_midi_mixer() -> ControllerProfile {
         ));
     }
     ControllerProfile {
+        feedback: Vec::new(),
         id: "general-midi-mixer".to_owned(),
         name: "Standard volume and pan controllers".to_owned(),
         ports: Vec::new(),

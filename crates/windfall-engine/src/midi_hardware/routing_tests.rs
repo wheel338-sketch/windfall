@@ -665,3 +665,71 @@ fn injected_audio_clock_and_port_measure_compensated_notes_and_clock_jitter() {
         .sqrt();
     assert!(rms < 600_000.0, "synthetic clock jitter RMS {rms} ns");
 }
+
+#[test]
+fn declarative_surface_feedback_emits_led_motor_and_display_bytes_through_the_worker() {
+    use windfall_project::controller_links::{FeedbackMessage, FeedbackSource, ProfileFeedback};
+    let (_, controller) = Processor::new(48_000);
+    let fake = fake(&["surface"]);
+    let (mut worker, _) = worker(
+        &controller,
+        &fake,
+        MidiHardwareSettings {
+            output: Some("surface".into()),
+            ..Default::default()
+        },
+    );
+    let rules = [
+        ProfileFeedback {
+            source: FeedbackSource::Playing,
+            message: FeedbackMessage::NoteLed {
+                channel: 1,
+                key: 94,
+            },
+        },
+        ProfileFeedback {
+            source: FeedbackSource::Slot {
+                slot: windfall_project::SlotTarget::MasterVolume,
+            },
+            message: FeedbackMessage::PitchBend { channel: 9 },
+        },
+        ProfileFeedback {
+            source: FeedbackSource::MixerName { index: 0 },
+            message: FeedbackMessage::Display {
+                prefix: vec![0xf0, 0, 0, 0x66, 0x14, 0x12, 0],
+                suffix: vec![0xf7],
+                width: 7,
+            },
+        },
+    ];
+    let messages = vec![
+        rules[0].encode(1.0, ""),
+        rules[1].encode(0.5, ""),
+        rules[2].encode(0.0, "Bass"),
+    ];
+    assert!(rules.iter().all(|rule| rule.problem().is_none()));
+    fake.lock().unwrap().sent.clear();
+    worker.feedback(&messages);
+    assert_eq!(
+        fake.lock().unwrap().sent,
+        vec![
+            vec![0x90, 94, 127],
+            vec![0xe8, 0, 64],
+            vec![
+                0xf0, 0, 0, 0x66, 0x14, 0x12, 0, b'B', b'a', b's', b's', b' ', b' ', b' ', 0xf7
+            ],
+        ]
+    );
+    worker.feedback(&[rules[0].encode(0.0, "")]);
+    assert_eq!(fake.lock().unwrap().sent.last().unwrap(), &[0x90, 94, 0]);
+    let invalid = ProfileFeedback {
+        source: FeedbackSource::Playing,
+        message: FeedbackMessage::Display {
+            prefix: vec![0xf0, 0xff],
+            suffix: vec![0xf7],
+            width: 7,
+        },
+    };
+    assert!(invalid.problem().is_some());
+    assert!(invalid.encode(0.0, "invalid").is_empty());
+}
