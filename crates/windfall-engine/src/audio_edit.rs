@@ -1,7 +1,7 @@
 //! Bounded, immutable clip editing on workers. Uses playback's region reader,
 //! spectral preparation and equal-power fade law; excludes mixer processing
 //! and transport's transient de-click ramps.
-use windfall_core::{AudioBuffer, pan_gains, samples_per_tick};
+use windfall_core::{AudioBuffer, PanLaw, samples_per_tick};
 use windfall_ipc::{AudioEditOperation, AudioFadeDirection, AudioFadeShape, AudioNormalizeMode};
 use windfall_project::{Clip, ClipContent, ClipStretch};
 
@@ -27,6 +27,15 @@ fn bounded(frames: f64, rate: u32, channels: u16) -> Result<usize, String> {
 /// Renders the clip's visible window at the source rate, with silence after
 /// the source ends. Tempo automation is rejected by the session before calling.
 pub fn render_view(pool: &SamplePool, clip: &Clip, tempo: f64) -> Result<AudioBuffer, String> {
+    render_view_with_law(pool, clip, tempo, PanLaw::Balance)
+}
+
+pub fn render_view_with_law(
+    pool: &SamplePool,
+    clip: &Clip,
+    tempo: f64,
+    law: PanLaw,
+) -> Result<AudioBuffer, String> {
     let ClipContent::Audio {
         sample,
         gain,
@@ -85,7 +94,7 @@ pub fn render_view(pool: &SamplePool, clip: &Clip, tempo: f64) -> Result<AudioBu
         frames: audio.frames(),
         reverse,
     };
-    let (left, right) = pan_gains(pan);
+    let (left, right) = law.gains(pan);
     let mut data = Vec::with_capacity(frames * 2);
     for frame in 0..frames {
         let tick = frame as f64 / per_tick;
@@ -327,7 +336,7 @@ mod tests {
     fn source() -> AudioBuffer {
         AudioBuffer::from_interleaved(960, 2, vec![0.1, -0.1, 0.2, -0.2, 0.3, -0.3, 0.4, -0.4])
     }
-    fn clip() -> Clip {
+    pub(super) fn clip() -> Clip {
         Clip {
             id: ClipId(1),
             track: PlaylistTrackId(2),
@@ -677,6 +686,35 @@ mod tests {
             apply(&view, AudioEditOperation::Gain { db: 12.0 }, 0, 48_000)
                 .unwrap_err()
                 .contains("would clip")
+        );
+    }
+}
+
+#[cfg(test)]
+mod project_pan_qa {
+    use super::*;
+    #[test]
+    fn editor_balance_pcm_matches_the_project_law_without_changing_the_source() {
+        let mut pool = SamplePool::new();
+        let audio = AudioBuffer::from_interleaved(
+            960,
+            2,
+            vec![0.25, -0.5, 0.25, -0.5, 0.25, -0.5, 0.25, -0.5],
+        );
+        pool.insert(windfall_project::SampleId(3), audio.clone());
+        let mut clip = super::tests::clip();
+        if let ClipContent::Audio { pan, .. } = &mut clip.content {
+            *pan = 0.5;
+        }
+        for (law, gains) in [(PanLaw::Balance, (0.5, 1.0)), (PanLaw::Linear, (0.5, 1.5))] {
+            let pcm = render_view_with_law(&pool, &clip, 60.0, law).unwrap();
+            for frame in pcm.samples().chunks_exact(2) {
+                assert_eq!(frame, [0.25 * gains.0, -0.5 * gains.1]);
+            }
+        }
+        assert_eq!(
+            pool.get(windfall_project::SampleId(3)).unwrap().samples(),
+            audio.samples()
         );
     }
 }

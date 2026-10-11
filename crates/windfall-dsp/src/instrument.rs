@@ -80,6 +80,9 @@ pub trait Instrument: Send {
         let _ = bpm;
     }
 
+    /// Selects the project law for per-note panning. Implementations ramp live changes.
+    fn set_note_pan_law(&mut self, law: windfall_core::PanLaw) { let _ = law; }
+
     /// Starts a note. `key` is a MIDI key number, where 60 is middle C and
     /// 69 is the A at 440 Hz. `velocity` runs from 0 to 1; zero or less is
     /// taken as a note-off.
@@ -1979,6 +1982,17 @@ impl AnyInstrument {
 
     /// See [`Instrument::set_note_gain`]. Instruments without per-note
     /// controls ignore it.
+    pub fn set_note_pan_law(&mut self, law: windfall_core::PanLaw) {
+        match self {
+            Self::SubtractiveSynth(unit) => unit.set_note_pan_law(law),
+            Self::SliceMap(unit) => unit.set_note_pan_law(law),
+            Self::SliceDeck(unit) => unit.set_note_pan_law(law),
+            Self::GrainCloud(unit) => unit.set_note_pan_law(law),
+            Self::WaveRide(unit) => unit.set_note_pan_law(law),
+            _ => {},
+        }
+    }
+
     pub fn set_note_gain(&mut self, id: NoteInstanceId, gain: f32) {
         match self {
             AnyInstrument::SubtractiveSynth(synth) => synth.set_note_gain(id, gain),

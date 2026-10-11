@@ -107,7 +107,7 @@ pub(crate) struct Strip {
     pub gain: Ramp,
     pub pan: Ramp,
     /// The project's panning law, which says what `pan` does to each side.
-    pub law: PanLaw,
+    pub law: windfall_core::PanLawRamp,
 }
 
 impl Strip {
@@ -115,13 +115,13 @@ impl Strip {
         Self {
             gain: Ramp::at_rest(gain),
             pan: Ramp::at_rest(pan),
-            law: PanLaw::Balance,
+            law: windfall_core::PanLawRamp::at_rest(PanLaw::Balance),
         }
     }
 
     /// The same strip under another panning law.
     pub fn under(mut self, law: PanLaw) -> Self {
-        self.law = law;
+        self.law = windfall_core::PanLawRamp::at_rest(law);
         self
     }
 
@@ -1317,6 +1317,7 @@ impl PlanState {
                             .glide_coefficient(f64::from(sample_rate)),
                     );
                     unit.set_expression_map(channel.expression_map);
+                unit.set_note_pan_law(plan.pan_law);
                     if let Some(binding) =
                         plan.plugins.iter().find(|binding| binding.target == target)
                     {
@@ -1326,6 +1327,7 @@ impl PlanState {
                         };
                         unit.install_plugin(native, binding);
                     }
+                    unit.set_note_pan_law(plan.pan_law);
                     unit
                 })
             };
@@ -1495,7 +1497,7 @@ impl PlanState {
                 sum[1] += gain * gains[edge.target][1];
             }
             let strip = &self.tracks[index];
-            let (left, right) = strip.law.gains(strip.pan.at(now));
+            let (left, right) = strip.law.gains_at(now, strip.pan.at(now));
             let gain = strip.gain.at(now);
             gains[index] = [
                 gain * left * onward[0] + tapped[0],
@@ -1586,7 +1588,7 @@ impl PlanState {
                 let strip = &mut self.channels[index];
                 *strip = old.channels[found];
                 strip.retarget(channel.gain, channel.pan, now, fades.ramp);
-                strip.law = plan.pan_law;
+                strip.law.retarget(plan.pan_law, now, fades.ramp);
             }
         }
 
@@ -1650,6 +1652,7 @@ impl PlanState {
                     self.channel_voice[index].glide,
                 );
                 unit.set_expression_map(channel.expression_map);
+                unit.set_note_pan_law(plan.pan_law);
             }
             let sounding = seat
                 .unit
@@ -1660,7 +1663,7 @@ impl PlanState {
                 let strip = &mut self.channels[index];
                 *strip = old.channels[found];
                 strip.retarget(channel.gain, channel.pan, now, fades.ramp);
-                strip.law = plan.pan_law;
+                strip.law.retarget(plan.pan_law, now, fades.ramp);
             }
         }
         // The tracks sampler voices play straight into, before `heard`
@@ -1700,7 +1703,7 @@ impl PlanState {
             let strip = &mut self.tracks[index];
             *strip = old.tracks[found];
             strip.retarget(track.gain, track.pan, now, fades.ramp);
-            strip.law = plan.pan_law;
+            strip.law.retarget(plan.pan_law, now, fades.ramp);
             for edge in &track.edges {
                 let before = old_plan.tracks[found]
                     .edges

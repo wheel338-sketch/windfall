@@ -57,6 +57,9 @@ macro_rules! instrument {
             }
         }
         impl Instrument for $name {
+            fn set_note_pan_law(&mut self, law: windfall_core::PanLaw) {
+                self.engine.set_note_pan_law(law);
+            }
             type Params = $params;
             fn prepare(&mut self, sample_rate: f32, _max_block: usize) {
                 self.engine.prepare(sample_rate);

@@ -167,17 +167,20 @@ const KEYS: usize = 16 * 128;
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct PluginNoteControls {
     pub pan: f32,
+    /// Linear per-note level; used to preserve the project pan law.
+    pub volume: f32,
     pub pitch: f32,
     pub modulation_x: f32,
     pub modulation_y: f32,
 }
 impl PluginNoteControls {
-    fn values(self, key: u8) -> [f64; 4] {
+    fn values(self, key: u8) -> [f64; 5] {
         [
             (f64::from(self.pan) + 1.0) / 2.0,
             f64::from(self.pitch) - f64::from(key),
             f64::from(self.modulation_x),
             f64::from(self.modulation_y),
+            f64::from(self.volume),
         ]
     }
     fn valid(self, key: u8) -> bool {
@@ -187,6 +190,7 @@ impl PluginNoteControls {
             NoteExpressionKind::Tuning,
             NoteExpressionKind::Brightness,
             NoteExpressionKind::Expression,
+            NoteExpressionKind::Volume,
         ]
         .into_iter()
         .zip(values)
@@ -207,6 +211,7 @@ impl HeldInstance {
         channel: 0,
         controls: PluginNoteControls {
             pan: 0.0,
+            volume: 1.0,
             pitch: 0.0,
             modulation_x: 0.5,
             modulation_y: 0.5,
@@ -292,7 +297,7 @@ impl PluginInstrument {
         note: HeldInstance,
         before: Option<PluginNoteControls>,
         controls: PluginNoteControls,
-        events: &mut [HostEvent; 5],
+        events: &mut [HostEvent; 6],
         mut count: usize,
     ) -> usize {
         let values = controls.values(note.key);
@@ -303,6 +308,7 @@ impl PluginInstrument {
             NoteExpressionKind::Tuning,
             NoteExpressionKind::Brightness,
             NoteExpressionKind::Expression,
+            NoteExpressionKind::Volume,
         ]
         .into_iter()
         .enumerate()
@@ -347,7 +353,7 @@ impl PluginInstrument {
             channel,
             controls,
         };
-        let mut events = [HostEvent::AllNotesOff { time: 0 }; 5];
+        let mut events = [HostEvent::AllNotesOff { time: 0 }; 6];
         events[0] = HostEvent::NoteOnInstance {
             time: 0,
             id,
@@ -374,7 +380,7 @@ impl PluginInstrument {
         if !controls.valid(note.key) {
             return false;
         }
-        let mut events = [HostEvent::AllNotesOff { time: 0 }; 5];
+        let mut events = [HostEvent::AllNotesOff { time: 0 }; 6];
         let count = self.controls_events(note, Some(note.controls), controls, &mut events, 0);
         if !self.processor.push_events(&events[..count]) {
             return false;

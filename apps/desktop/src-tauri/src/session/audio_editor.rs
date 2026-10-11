@@ -70,7 +70,7 @@ impl Session {
         let mut editor = lock(&self.inner.audio_editor);
         // Drop the previous view before allocating another. This is worker-only.
         editor.prepared = None;
-        let (clip, pool, generation, edits, name, tempo) = {
+        let (clip, pool, generation, edits, name, tempo, law) = {
             let _recording = self.recording_idle()?;
             let state = self.state();
             let project = state.document.project();
@@ -101,13 +101,14 @@ impl Session {
                 state.edits,
                 name,
                 project.settings.tempo_bpm,
+                project.settings.pan_law.core(),
             )
         };
         let source = pool
             .get(clip.content.sample().unwrap())
             .cloned()
             .ok_or("The clip's audio is not loaded. Reload samples first.")?;
-        let view = audio_edit::render_view(&pool, &clip, tempo)?;
+        let view = audio_edit::render_view_with_law(&pool, &clip, tempo, law)?;
         editor.serial = editor
             .serial
             .checked_add(1)

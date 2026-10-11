@@ -265,3 +265,32 @@ fn notes_and_clips_sound_on_the_grid_of_the_timebase() {
         );
     }
 }
+
+#[test]
+fn live_law_change_is_a_measured_five_ms_ramp_independent_of_callback_partition() {
+    let mut reference = None;
+    for block in [1, 17, 64, 127, 512] {
+        let (mut rig, channel) = steady(PanLaw::Balance);
+        rig.channel_mut(channel).pan = 0.6;
+        let (mut processor, controller) = rig.processor(RATE);
+        controller.play();
+        run(&mut processor, 8_000, block);
+        rig.project.settings.pan_law = PanLaw::Linear;
+        controller.set_project(&rig.project, &rig.pool);
+        let pcm = run(&mut processor, 512, block);
+        for frame in 0..512 {
+            let part = (frame as f32 / 240.0).min(1.0);
+            // Independent straight-line stereo reference, not PanLaw::gains.
+            assert_sides(
+                (pcm[2 * frame], pcm[2 * frame + 1]),
+                (0.2, 0.5 + 0.3 * part),
+                "ramped PCM",
+            );
+        }
+        if let Some(before) = &reference {
+            assert_eq!(&pcm, before);
+        } else {
+            reference = Some(pcm);
+        }
+    }
+}

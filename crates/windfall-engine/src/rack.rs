@@ -625,6 +625,10 @@ impl InstrumentUnit {
 
     /// Takes the channel's expression map. Notes already held follow it at
     /// once. Runs on the audio thread when a plan changes the map.
+    pub fn set_note_pan_law(&mut self, law: windfall_core::PanLaw) {
+        self.instrument.set_note_pan_law(law);
+        if let Some(Some(unit)) = &mut self.external { unit.set_note_pan_law(law); }
+    }
     pub fn set_expression_map(&mut self, map: ExpressionMap) {
         if map == self.map {
             return;

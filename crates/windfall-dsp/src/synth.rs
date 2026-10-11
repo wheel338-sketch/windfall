@@ -870,7 +870,14 @@ impl Voice {
 
     /// Renders `left.len()` oversampled samples of the voice and adds them
     /// to the two buses.
-    fn render(&mut self, patch: &Patch, bus_left: &mut [f32], bus_right: &mut [f32]) {
+    fn render(
+        &mut self,
+        patch: &Patch,
+        bus_left: &mut [f32],
+        bus_right: &mut [f32],
+        law: windfall_core::PanLawRamp,
+        clock: u64,
+    ) {
         let frames = bus_left.len();
         let mut left_buffer = [0.0_f32; OVERSAMPLED];
         let mut right_buffer = [0.0_f32; OVERSAMPLED];
@@ -977,10 +984,9 @@ impl Voice {
         for index in 0..frames {
             self.level += self.level_step;
             let gain = self.amp.tick() * self.level * self.choke.tick();
-            let (pan_left, pan_right) = pan_gains(self.note_pan);
-            bus_left[index] += left[index] * gain * (pan_left * std::f32::consts::SQRT_2).min(1.0);
-            bus_right[index] +=
-                right[index] * gain * (pan_right * std::f32::consts::SQRT_2).min(1.0);
+            let (pan_left, pan_right) = law.gains_at(clock + index as u64, self.note_pan);
+            bus_left[index] += left[index] * gain * pan_left;
+            bus_right[index] += right[index] * gain * pan_right;
         }
 
         let faded = self.stage == Stage::Choked && self.choke.is_settled();
@@ -1024,6 +1030,8 @@ impl Voice {
 /// The down-sampling filter delays the output by a fixed 12 samples,
 /// reported by [`latency_samples`](Instrument::latency_samples).
 pub struct SubtractiveSynth {
+    note_law: windfall_core::PanLawRamp,
+    pan_clock: u64,
     sample_rate: f32,
     params: SynthParams,
     /// The parameters on their way to `params`.
@@ -1054,6 +1062,8 @@ impl Default for SubtractiveSynth {
     fn default() -> Self {
         let params = SynthParams::default();
         let mut synth = Self {
+            note_law: windfall_core::PanLawRamp::at_rest(windfall_core::PanLaw::Balance),
+            pan_clock: 0,
             sample_rate: 48_000.0,
             params,
             current: params,
@@ -1140,10 +1150,13 @@ impl SubtractiveSynth {
                     &self.patch,
                     &mut bus_left[..2 * frames],
                     &mut bus_right[..2 * frames],
+                    self.note_law,
+                    self.pan_clock,
                 );
                 sounding = true;
             }
         }
+        self.pan_clock = self.pan_clock.saturating_add(2 * frames as u64);
         self.quiet = if sounding {
             0
         } else {
@@ -1415,6 +1428,17 @@ impl SubtractiveSynth {
 }
 
 impl Instrument for SubtractiveSynth {
+    fn set_note_pan_law(&mut self, law: windfall_core::PanLaw) {
+        if self.fresh {
+            self.note_law = windfall_core::PanLawRamp::at_rest(law);
+        } else {
+            self.note_law.retarget(
+                law,
+                self.pan_clock,
+                (self.sample_rate * 0.01).round() as u64,
+            );
+        }
+    }
     type Params = SynthParams;
 
     fn prepare(&mut self, sample_rate: f32, _max_block: usize) {

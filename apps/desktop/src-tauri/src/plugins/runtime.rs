@@ -1540,9 +1540,21 @@ impl ExpressionOwner {
         started: false,
         dirty: false,
     };
-    fn controls(self) -> windfall_plugin_host::PluginNoteControls {
+    fn controls(
+        self,
+        law: windfall_core::PanLawRamp,
+        clock: u64,
+    ) -> windfall_plugin_host::PluginNoteControls {
+        let (left, right) = law.gains_at(clock, self.pan);
+        let volume = left.max(right);
+        let pan = if volume > 0.0 {
+            (right - left) / volume
+        } else {
+            0.0
+        };
         windfall_plugin_host::PluginNoteControls {
-            pan: self.pan,
+            pan,
+            volume,
             pitch: self.pitch,
             modulation_x: self.expression.modulation_x,
             modulation_y: self.expression.modulation_y,
@@ -1565,6 +1577,9 @@ struct Audio {
     held: [f32; 16 * 128],
     replayed: [f32; 16 * 128],
     expression_owners: Box<[ExpressionOwner]>,
+    note_law: windfall_core::PanLawRamp,
+    pan_clock: u64,
+    pan_ramp_frames: u64,
     next_note_id: u32,
     note_instances: bool,
     note_pitch: bool,
@@ -1583,6 +1598,8 @@ impl Audio {
             held,
             replayed,
             expression_owners,
+            note_law,
+            pan_clock,
             reconcile_notes,
             reset_notes,
             transport,
@@ -1617,10 +1634,10 @@ impl Audio {
                         note.key,
                         note.channel,
                         note.velocity,
-                        note.controls(),
+                        note.controls(*note_law, *pan_clock),
                     )
                 } else if note.dirty {
-                    instrument.set_note_controls(note.native, note.controls())
+                    instrument.set_note_controls(note.native, note.controls(*note_law, *pan_clock))
                 } else {
                     true
                 };
@@ -1774,6 +1791,66 @@ impl HostedEffect for Audio {
         self.process_sidechain(left, right, None);
     }
     fn process_sidechain(&mut self, left: &mut [f32], right: &mut [f32], key: Option<&[[f32; 2]]>) {
+        if self.instrument && !self.note_law.settled(self.pan_clock) {
+            let frames = left.len().min(right.len());
+            for index in 0..frames {
+                for slot in 0..self.expression_owners.len() {
+                    if self.expression_owners[slot].native != 0 {
+                        self.publish_expression_owner(slot);
+                    }
+                }
+                self.process_pan_block(
+                    &mut left[index..index + 1],
+                    &mut right[index..index + 1],
+                    None,
+                );
+                self.pan_clock = self.pan_clock.saturating_add(1);
+            }
+        } else {
+            self.process_pan_block(left, right, key);
+            self.pan_clock = self
+                .pan_clock
+                .saturating_add(left.len().min(right.len()) as u64);
+        }
+    }
+    fn set_param(&mut self, id: u32, value: f32) {
+        if !value.is_finite() {
+            return;
+        }
+        if let Some(control) = self.controls.iter().find(|control| control.id == id) {
+            control.publish(value);
+        }
+        let accepted = match self.adapter_mut() {
+            Some(Adapter::Effect(adapter)) => {
+                adapter.processor().set_param(0, id, f64::from(value))
+            }
+            Some(Adapter::Instrument(adapter)) => {
+                adapter.processor().set_param(0, id, f64::from(value))
+            }
+            None => false,
+        };
+        if let Some((_, pending)) = self.pending_params.iter_mut().find(|(key, _)| *key == id) {
+            *pending = (!accepted).then_some(value);
+        }
+    }
+    fn set_tempo(&mut self, bpm: f32) {
+        self.tempo = Some(bpm);
+        match self.adapter_mut() {
+            Some(Adapter::Effect(adapter)) => adapter.set_tempo(bpm),
+            Some(Adapter::Instrument(adapter)) => adapter.set_tempo(bpm),
+            None => {}
+        }
+    }
+    fn latency(&self) -> usize {
+        self.adapter().map_or(self.latency, Adapter::latency)
+    }
+    fn tail(&self) -> usize {
+        self.adapter().map_or(self.tail, Adapter::tail)
+    }
+}
+
+impl Audio {
+    fn process_pan_block(&mut self, left: &mut [f32], right: &mut [f32], key: Option<&[[f32; 2]]>) {
         // Reconcile after engine commands and note expirations, immediately
         // before sounding. A boundary alone must never resurrect a released key.
         self.reconcile();
@@ -1813,40 +1890,6 @@ impl HostedEffect for Audio {
             }
         }
     }
-    fn set_param(&mut self, id: u32, value: f32) {
-        if !value.is_finite() {
-            return;
-        }
-        if let Some(control) = self.controls.iter().find(|control| control.id == id) {
-            control.publish(value);
-        }
-        let accepted = match self.adapter_mut() {
-            Some(Adapter::Effect(adapter)) => {
-                adapter.processor().set_param(0, id, f64::from(value))
-            }
-            Some(Adapter::Instrument(adapter)) => {
-                adapter.processor().set_param(0, id, f64::from(value))
-            }
-            None => false,
-        };
-        if let Some((_, pending)) = self.pending_params.iter_mut().find(|(key, _)| *key == id) {
-            *pending = (!accepted).then_some(value);
-        }
-    }
-    fn set_tempo(&mut self, bpm: f32) {
-        self.tempo = Some(bpm);
-        match self.adapter_mut() {
-            Some(Adapter::Effect(adapter)) => adapter.set_tempo(bpm),
-            Some(Adapter::Instrument(adapter)) => adapter.set_tempo(bpm),
-            None => {}
-        }
-    }
-    fn latency(&self) -> usize {
-        self.adapter().map_or(self.latency, Adapter::latency)
-    }
-    fn tail(&self) -> usize {
-        self.adapter().map_or(self.tail, Adapter::tail)
-    }
 }
 
 #[cfg(all(test, windows))]
@@ -1859,6 +1902,21 @@ pub(crate) mod ownership_tests;
 #[path = "sidechain_bus_tests.rs"]
 mod sidechain_bus_tests;
 impl HostedInstrument for Audio {
+    fn set_note_pan_law(&mut self, law: windfall_core::PanLaw) {
+        if self.pan_clock == 0 {
+            self.note_law = windfall_core::PanLawRamp::at_rest(law);
+        } else {
+            self.note_law.retarget(law, self.pan_clock, self.pan_ramp_frames);
+        }
+        for note in self
+            .expression_owners
+            .iter_mut()
+            .filter(|note| note.native != 0)
+        {
+            note.dirty = true;
+        }
+        self.reconcile_notes = true;
+    }
     fn supports_note_instances(&self) -> bool {
         self.note_instances
     }
@@ -2043,16 +2101,17 @@ impl Audio {
             return;
         }
         let note = self.expression_owners[slot];
+        let controls = note.controls(self.note_law, self.pan_clock);
         let accepted = if let Some(Adapter::Instrument(adapter)) = self.adapter_mut() {
             if note.started {
-                adapter.set_note_controls(note.native, note.controls())
+                adapter.set_note_controls(note.native, controls)
             } else {
                 adapter.note_on_instance(
                     note.native,
                     note.key,
                     note.channel,
                     note.velocity,
-                    note.controls(),
+                    controls,
                 )
             }
         } else {
@@ -2254,6 +2313,9 @@ impl PluginFactory for Runtime {
                     held: [0.0; 16 * 128],
                     replayed: [0.0; 16 * 128],
                     expression_owners: Box::new([]),
+                    note_law: windfall_core::PanLawRamp::at_rest(windfall_core::PanLaw::Balance),
+                    pan_clock: 0,
+                    pan_ramp_frames: (f64::from(rate) * 0.005).round().max(1.0) as u64,
                     next_note_id: windfall_plugin_host::FIRST_NOTE_INSTANCE_ID,
                     note_instances: false,
                     note_pitch: false,
@@ -2279,6 +2341,9 @@ impl PluginFactory for Runtime {
                 held: [0.0; 16 * 128],
                 replayed: [0.0; 16 * 128],
                 expression_owners: Box::new([]),
+                note_law: windfall_core::PanLawRamp::at_rest(windfall_core::PanLaw::Balance),
+                pan_clock: 0,
+                pan_ramp_frames: (f64::from(rate) * 0.005).round().max(1.0) as u64,
                 next_note_id: windfall_plugin_host::FIRST_NOTE_INSTANCE_ID,
                 note_instances: false,
                 note_pitch: false,
@@ -2396,6 +2461,9 @@ impl PluginFactory for Runtime {
                         windfall_plugin_host::MAX_NOTE_INSTANCES
                     ]
                     .into_boxed_slice(),
+                    note_law: windfall_core::PanLawRamp::at_rest(windfall_core::PanLaw::Balance),
+                    pan_clock: 0,
+                    pan_ramp_frames: (f64::from(rate) * 0.005).round().max(1.0) as u64,
                     next_note_id: windfall_plugin_host::FIRST_NOTE_INSTANCE_ID,
                     note_instances,
                     note_pitch,
@@ -2425,6 +2493,9 @@ impl PluginFactory for Runtime {
                     windfall_plugin_host::MAX_NOTE_INSTANCES
                 ]
                 .into_boxed_slice(),
+                note_law: windfall_core::PanLawRamp::at_rest(windfall_core::PanLaw::Balance),
+                pan_clock: 0,
+                pan_ramp_frames: (f64::from(rate) * 0.005).round().max(1.0) as u64,
                 next_note_id: windfall_plugin_host::FIRST_NOTE_INSTANCE_ID,
                 note_instances: false,
                 note_pitch: false,
