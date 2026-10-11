@@ -23,6 +23,7 @@ import { FrequencyDelayEditor } from "./frequency-delay/frequency-delay-editor"
 import { TunerEditor } from "./tuner/tuner-editor"
 import { RoomEditor } from "./circuits/room-editor"
 import { LushSpaceEditor } from "./circuits/lush-space-editor"
+import { BucketChorusEditor } from "./circuits/bucket-chorus-editor"
 
 type Editors = {
   [Kind in EffectKind]?: ComponentType<EditorProps<EffectParamsOf<Kind>>>
@@ -44,6 +45,7 @@ const EDITORS: Editors = {
   tuner: TunerEditor,
   room: RoomEditor,
   lushSpace: LushSpaceEditor,
+  vintageChorus: BucketChorusEditor,
 }
 
 type AnyEditor = ComponentType<EditorProps<EffectParams>>

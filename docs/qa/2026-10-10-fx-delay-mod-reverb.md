@@ -34,7 +34,7 @@ their declared `spatial::model_tests` module absent; this resumption completes i
 | `fx-multiband-delay` | all four named gates addressed in source; nothing run | Drawn sixteen-band delay/level/pan editor, same host gates |
 | `fx-luxeverb` | full-row candidate; nothing executed | Sized, pitch-shifted and modulated spaces with dedicated editor |
 | `fx-fruity-reeverb` | full-row candidate; nothing executed | Existing room, reflection readout and grouped room/decay editor |
-| `fx-vintage-chorus` | DSP/test candidate; editor integration in progress | Clocked bucket modes and free voices, tempo sync |
+| `fx-vintage-chorus` | full-row candidate; nothing executed | Clocked bucket modes, tempo/free controls and mode-aware editor |
 | `fx-vintage-phaser` | DSP/test candidate; editor integration in progress | Four-stage equal-corner pedal circuit, stage/stagger controls, tempo sync |
 | `fx-hyper-chorus` | DSP/test candidate; editor integration in progress | Two to sixteen actual detuned voices per side, tempo sync |
 | `fx-fruity-flangus` | DSP/test candidate; editor integration in progress | One to four serial swept combs, correct four-comb warmup, tempo sync |
@@ -288,7 +288,7 @@ feed-forward and adds no feedback cycle. Zero amount keeps plain hall audio.
 | --- | --- | --- |
 | `fx-fruity-reeverb` | full-row candidate; nothing executed | Existing room, reflection readout and grouped room/decay editor |
 | `fx-luxeverb` | full-row candidate; nothing executed | Sized, pitch-shifted and modulated spaces with dedicated editor |
-| `fx-vintage-chorus` | `bucket_clock_has_128_samples_in_transit_and_a_bounded_work_limit`, `bucket_sweeps_have_opposed_triangles_and_the_both_mode_stays_mono`, `bucket_modes_ignore_free_controls_and_have_distinct_audio` | `bucket_mode_changes_native_character_and_roundtrips` |
+| `fx-vintage-chorus` | full-row candidate; nothing executed | Clocked bucket modes, tempo/free controls and mode-aware editor |
 | `fx-vintage-phaser` | `four_equal_allpasses_produce_two_measured_pedal_notches` | `pedal_stage_configuration_changes_native_notches_and_roundtrips` |
 | `fx-hyper-chorus` | `swarm_count_measures_the_average_of_independently_delayed_voices` | `sixteen_voice_chorus_changes_native_detuning_and_roundtrips` |
 | `fx-fruity-flangus` | `stacked_combs_match_an_independent_difference_equation_for_every_order` | `four_stacked_combs_change_native_audio_and_roundtrip` |
