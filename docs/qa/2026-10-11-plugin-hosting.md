@@ -142,3 +142,14 @@ new fixture field literals, independent onset/PCM assumptions and clock-bend
 floors first. Regenerate Cargo.lock for the new workspace package; no IPC/TS
 schema additions in this group. Engine hooks compile only with plugin-export.
 No build/check/test was executed, including by the fixture harness.
+
+## AU lifecycle follow-up
+
+The AU adapter no longer invokes AudioUnitReset on the callback: Apple's
+public AUBase contract marks reset non-realtime-safe. Active reset now refuses
+subsequent rendering through normal failed-health/silence handling and requires
+owner deactivation/repreparation. The Mac bypass test also asserts this failure
+and returned ownership (written, not executed). Failed Initialize/timing setup
+retains callback input context; retries first quiesce/remove it, and successful
+return removes the native callback before releasing buffers. Mac review must
+check callback-property scope, idempotent Uninitialize and error-return disposal.

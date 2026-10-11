@@ -15,6 +15,10 @@ layout and behavior checks against the target Mac SDK.
 This Windows worker has not compiled or executed the adapter. It is not desktop
 AU readiness: Cocoa views, installed-component scanner/catalog integration,
 main-thread desktop runtime, transport callbacks, multi-bus routing, native
-reset safety and real third-party AU instruments/effects remain acceptance work.
+reset lifecycle recovery and real third-party AU instruments/effects remain acceptance work.
+Active reset explicitly refuses subsequent rendering and requires owner-side
+deactivation/repreparation: Apple's AUBase documents Reset as not realtime-safe.
+Failed activation retains installed callback context until owner-side callback
+removal or unit disposal; a failed Initialize cannot leave a dangling pointer.
 The Mac regression requires a stock Apple delay Audio Unit and tests real bypass
 PCM, state restore, activation and returned ownership. It is written, not run.

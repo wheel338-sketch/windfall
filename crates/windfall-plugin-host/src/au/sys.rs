@@ -141,7 +141,6 @@ unsafe extern "C" {
         frames: u32,
         audio: *mut BufferList,
     ) -> i32;
-    pub fn AudioUnitReset(unit: Unit, scope: u32, element: u32) -> i32;
     pub fn MusicDeviceMIDIEvent(
         unit: Unit,
         status: u32,

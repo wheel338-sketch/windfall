@@ -288,6 +288,7 @@ pub(crate) fn create(
             params,
             layout,
             active: false,
+            failed_input: None,
         }),
     ))
 }
@@ -296,6 +297,9 @@ struct Instance {
     params: Vec<PluginParam>,
     layout: PluginLayout,
     active: bool,
+    // Installed callbacks can retain their context even when Initialize fails.
+    // Keep it alive until an owner-thread callback removal or unit disposal.
+    failed_input: Option<Box<Input>>,
 }
 fn property<T>(unit: Unit, property: u32, scope: u32, value: &T) -> Result<(), PluginError> {
     checked(
@@ -453,6 +457,22 @@ impl InstanceBackend for Instance {
         block: u32,
         shared: &ProcessorShared,
     ) -> Result<Box<dyn ProcessorBackend>, PluginError> {
+        if self.failed_input.is_some() {
+            checked(
+                unsafe { AudioUnitUninitialize(self.native.unit) },
+                "failed activation quiesce",
+            )?;
+            property(
+                self.native.unit,
+                RENDER_CALLBACK,
+                INPUT_SCOPE,
+                &Callback {
+                    render: None,
+                    context: ptr::null_mut(),
+                },
+            )?;
+            drop(self.failed_input.take());
+        }
         let format = StreamFormat {
             rate,
             format: fourcc(b"lpcm"),
@@ -472,7 +492,7 @@ impl InstanceBackend for Instance {
         });
         if self.shape().has_input {
             property(self.native.unit, STREAM_FORMAT, INPUT_SCOPE, &format)?;
-            property(
+            let installed = property(
                 self.native.unit,
                 RENDER_CALLBACK,
                 INPUT_SCOPE,
@@ -480,18 +500,27 @@ impl InstanceBackend for Instance {
                     render: Some(render_input),
                     context: (&mut *input as *mut Input).cast(),
                 },
-            )?;
+            );
+            if let Err(error) = installed {
+                self.failed_input = Some(input);
+                return Err(error);
+            }
         }
-        checked(
+        let initialized = checked(
             unsafe { AudioUnitInitialize(self.native.unit) },
             "initialize",
-        )?;
+        );
+        if let Err(error) = initialized {
+            self.failed_input = Some(input);
+            return Err(error);
+        }
         let latency = scalar(self.native.unit, LATENCY) * rate;
         let tail = scalar(self.native.unit, TAIL) * rate;
         if latency > f64::from(u32::MAX) || tail > f64::from(u32::MAX) {
             unsafe {
                 AudioUnitUninitialize(self.native.unit);
             }
+            self.failed_input = Some(input);
             return Err(PluginError::Activate("AU timing exceeds bound".into()));
         }
         shared
@@ -504,6 +533,7 @@ impl InstanceBackend for Instance {
             input,
             max_block: block,
             tail: tail.ceil() as u32,
+            reset_refused: false,
         }))
     }
     fn quiesce(&mut self, processor: &mut dyn ProcessorBackend) -> Result<(), PluginError> {
@@ -520,6 +550,17 @@ impl InstanceBackend for Instance {
             unsafe { AudioUnitUninitialize(self.native.unit) },
             "uninitialize",
         )?;
+        if self.shape().has_input {
+            property(
+                self.native.unit,
+                RENDER_CALLBACK,
+                INPUT_SCOPE,
+                &Callback {
+                    render: None,
+                    context: ptr::null_mut(),
+                },
+            )?;
+        }
         self.active = false;
         Ok(())
     }
@@ -600,6 +641,7 @@ struct Processor {
     input: Box<Input>,
     max_block: u32,
     tail: u32,
+    reset_refused: bool,
 }
 impl ProcessorBackend for Processor {
     fn process(
@@ -610,6 +652,9 @@ impl ProcessorBackend for Processor {
         steady_time: u64,
         _: &mut dyn FnMut(PluginEvent),
     ) -> Result<BlockResult, ProcessFailed> {
+        if self.reset_refused {
+            return Err(ProcessFailed);
+        }
         let (il, ir, ol, or) = match audio {
             AudioIo::Separate {
                 in_left,
@@ -719,9 +764,10 @@ impl ProcessorBackend for Processor {
         })
     }
     fn reset(&mut self) {
-        unsafe {
-            AudioUnitReset(self.native.unit, GLOBAL, 0);
-        }
+        // Apple's AUBase declares Reset not realtime-safe. Refuse this active
+        // processor so normal health handling requires owner deactivation and
+        // preparation; never call AudioUnitReset from the callback.
+        self.reset_refused = true;
     }
     fn stop(&mut self) {}
     fn into_any(self: Box<Self>) -> Box<dyn Any> {
@@ -763,6 +809,10 @@ mod tests {
         processor.process(&mut left, &mut right);
         assert!(left.iter().all(|v| (*v - 0.25).abs() < 1e-6));
         assert!(right.iter().all(|v| (*v + 0.5).abs() < 1e-6));
+        processor.reset();
+        processor.process(&mut left, &mut right);
+        assert!(processor.health().failed);
+        assert!(left.iter().chain(&right).all(|v| *v == 0.0));
         instance.deactivate(processor).unwrap();
         assert!(!instance.is_active());
         assert!(!instance.save_state().unwrap().as_bytes().is_empty());
