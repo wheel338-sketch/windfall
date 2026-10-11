@@ -72,7 +72,8 @@ fn programme(level: f64, seconds: usize) -> Vec<f32> {
         .map(|n| {
             let t = n as f64 / f64::from(RATE);
             let swell = 0.6 + 0.4 * (TAU * 2.0 * t).sin();
-            let tones = (TAU * 100.0 * t).sin() + (TAU * 1_000.0 * t).sin() + (TAU * 6_000.0 * t).sin();
+            let tones =
+                (TAU * 100.0 * t).sin() + (TAU * 1_000.0 * t).sin() + (TAU * 6_000.0 * t).sin();
             (level * swell * tones) as f32
         })
         .collect()
@@ -316,7 +317,11 @@ fn the_mastering_limiter_raises_loudness_and_keeps_the_tonal_balance() {
     let after = measure(&stereo(&output), RATE);
     let raised = after.integrated_lufs - before.integrated_lufs;
     assert!(raised > 6.0 && raised < 12.1, "raised by {raised} LU");
-    assert!(after.sample_peak_db <= -1.0 + 0.01, "{}", after.sample_peak_db);
+    assert!(
+        after.sample_peak_db <= -1.0 + 0.01,
+        "{}",
+        after.sample_peak_db
+    );
 
     // One gain for the whole band: every tone moves by the same amount.
     let from = RATE as usize;
@@ -326,7 +331,10 @@ fn the_mastering_limiter_raises_loudness_and_keeps_the_tonal_balance() {
     let (dry, wet) = (&mix[from..mix.len() - latency], &output[from + latency..]);
     for hz in [100.0, 6_000.0] {
         let shift = balance(wet, hz) - balance(dry, hz);
-        assert!(shift.abs() < 1.0, "{hz} Hz moved by {shift} dB against 1 kHz");
+        assert!(
+            shift.abs() < 1.0,
+            "{hz} Hz moved by {shift} dB against 1 kHz"
+        );
     }
 }
 
@@ -347,7 +355,10 @@ fn the_mastering_limiter_does_not_depend_on_how_the_audio_is_divided() {
     ];
     let render = |sizes: &[usize]| {
         let mut limiter = master_limiter(settings[0]);
-        let (mut left, mut right) = (mix.clone(), mix.iter().map(|s| -0.7 * s).collect::<Vec<_>>());
+        let (mut left, mut right) = (
+            mix.clone(),
+            mix.iter().map(|s| -0.7 * s).collect::<Vec<_>>(),
+        );
         let mut at = 0;
         let mut index = 0;
         while at < left.len() {
@@ -549,7 +560,11 @@ fn dynamics_kinds_report_their_gain_reduction_through_the_registry() {
         assert!(effect.gain_reduction().is_some(), "{kind:?}");
     }
     for kind in [EffectKind::TransientShaper, EffectKind::BassHarmonics] {
-        assert!(AnyEffect::new(&kind.default_params()).gain_reduction().is_none());
+        assert!(
+            AnyEffect::new(&kind.default_params())
+                .gain_reduction()
+                .is_none()
+        );
     }
 
     // A 60 Hz tone 20.9 dB over the low band's threshold at eight to one
@@ -583,14 +598,26 @@ fn dynamics_kinds_report_their_gain_reduction_through_the_registry() {
 #[test]
 fn shaper_saved_aux_routes_remove_only_the_routed_parts_and_ignore_listen() {
     let input = programme(0.2, 1);
-    let params = TransientShaperParams { attack: 0.4, sustain: -0.3, ..Default::default() };
+    let params = TransientShaperParams {
+        attack: 0.4,
+        sustain: -0.3,
+        ..Default::default()
+    };
     let mut reference = TransientShaper::default();
     reference.prepare(RATE as f32, 512);
     reference.set_params(&params);
-    let expected: Vec<_> = input.iter().map(|x| reference.split_frame([*x, -*x])).collect();
+    let expected: Vec<_> = input
+        .iter()
+        .map(|x| reference.split_frame([*x, -*x]))
+        .collect();
     for mask in 0..4 {
-        for listen in [TransientListen::Both, TransientListen::Attack, TransientListen::Sustain] {
-            let settings = EffectParams::TransientShaper(TransientShaperParams { listen, ..params });
+        for listen in [
+            TransientListen::Both,
+            TransientListen::Attack,
+            TransientListen::Sustain,
+        ] {
+            let settings =
+                EffectParams::TransientShaper(TransientShaperParams { listen, ..params });
             let render = |block| {
                 let mut effect = AnyEffect::new(&settings);
                 effect.prepare(RATE as f32, 512);
@@ -599,9 +626,21 @@ fn shaper_saved_aux_routes_remove_only_the_routed_parts_and_ignore_listen() {
                 let mut right: Vec<_> = input.iter().map(|x| -*x).collect();
                 let mut attack = vec![[99.0; 2]; input.len()];
                 let mut sustain = attack.clone();
-                for (((l, r), a), s) in left.chunks_mut(block).zip(right.chunks_mut(block))
-                    .zip(attack.chunks_mut(block)).zip(sustain.chunks_mut(block)) {
-                    effect.process_aux(l, r, None, &mut windfall_dsp::AuxBlock { routed: mask, outputs: [a, s] });
+                for (((l, r), a), s) in left
+                    .chunks_mut(block)
+                    .zip(right.chunks_mut(block))
+                    .zip(attack.chunks_mut(block))
+                    .zip(sustain.chunks_mut(block))
+                {
+                    effect.process_aux(
+                        l,
+                        r,
+                        None,
+                        &mut windfall_dsp::AuxBlock {
+                            routed: mask,
+                            outputs: [a, s],
+                        },
+                    );
                 }
                 (left, right, attack, sustain)
             };
@@ -609,20 +648,32 @@ fn shaper_saved_aux_routes_remove_only_the_routed_parts_and_ignore_listen() {
             assert_eq!(output, render(1));
             for (i, parts) in expected.iter().enumerate() {
                 let routed = [mask & 1 != 0, mask & 2 != 0];
-                let audible = [listen != TransientListen::Sustain, listen != TransientListen::Attack];
+                let audible = [
+                    listen != TransientListen::Sustain,
+                    listen != TransientListen::Attack,
+                ];
                 for c in 0..2 {
                     assert_eq!(output.2[i][c], if routed[0] { parts[0][c] } else { 0.0 });
                     assert_eq!(output.3[i][c], if routed[1] { parts[1][c] } else { 0.0 });
-                    let main = (if !routed[0] && audible[0] { parts[0][c] } else { 0.0 })
-                        + (if !routed[1] && audible[1] { parts[1][c] } else { 0.0 });
+                    let main = (if !routed[0] && audible[0] {
+                        parts[0][c]
+                    } else {
+                        0.0
+                    }) + (if !routed[1] && audible[1] {
+                        parts[1][c]
+                    } else {
+                        0.0
+                    });
                     let actual = if c == 0 { output.0[i] } else { output.1[i] };
-                    assert!((actual - main).abs() < 1e-6, "frame {i}, mask {mask}, {listen:?}");
+                    assert!(
+                        (actual - main).abs() < 1e-6,
+                        "frame {i}, mask {mask}, {listen:?}"
+                    );
                 }
             }
         }
     }
 }
-
 
 #[test]
 fn unity_band_sum_matches_the_independent_cascaded_allpass_phase_reference() {
@@ -630,34 +681,48 @@ fn unity_band_sum_matches_the_independent_cascaded_allpass_phase_reference() {
     // its bilinear coefficients here rather than using product filters.
     let allpass = |edge: f64, hz: f64, rate: f64| {
         let k = (std::f64::consts::PI * edge / rate).tan();
-        let norm = 1.0 + std::f64::consts::SQRT_2 * k + k*k;
-        let a1 = 2.0 * (k*k - 1.0) / norm;
-        let a2 = (1.0 - std::f64::consts::SQRT_2*k + k*k) / norm;
+        let norm = 1.0 + std::f64::consts::SQRT_2 * k + k * k;
+        let a1 = 2.0 * (k * k - 1.0) / norm;
+        let a2 = (1.0 - std::f64::consts::SQRT_2 * k + k * k) / norm;
         let w = TAU * hz / rate;
-        let (c1,s1,c2,s2) = (w.cos(), -w.sin(), (2.0*w).cos(), -(2.0*w).sin());
-        let (nr,ni) = (a2 + a1*c1 + c2, a1*s1 + s2);
-        let (dr,di) = (1.0 + a1*c1 + a2*c2, a1*s1 + a2*s2);
-        let d = dr*dr + di*di;
-        ((nr*dr + ni*di)/d, (ni*dr - nr*di)/d)
+        let (c1, s1, c2, s2) = (w.cos(), -w.sin(), (2.0 * w).cos(), -(2.0 * w).sin());
+        let (nr, ni) = (a2 + a1 * c1 + c2, a1 * s1 + s2);
+        let (dr, di) = (1.0 + a1 * c1 + a2 * c2, a1 * s1 + a2 * s2);
+        let d = dr * dr + di * di;
+        ((nr * dr + ni * di) / d, (ni * dr - nr * di) / d)
     };
     for rate in [44_100, 48_000, 96_000] {
         for hz in [20.0, 200.0, 1_000.0, 2_500.0, 12_000.0] {
-            let unity = BandDynamicsParams { ratio: 1.0, makeup_db: 0.0, ..Default::default() };
+            let unity = BandDynamicsParams {
+                ratio: 1.0,
+                makeup_db: 0.0,
+                ..Default::default()
+            };
             let mut compressor = windfall_dsp::multiband::MultibandCompressor::default();
             compressor.prepare(rate as f32, 512);
-            compressor.set_params(&MultibandCompressorParams { low: unity, mid: unity, high: unity, ..Default::default() });
+            compressor.set_params(&MultibandCompressorParams {
+                low: unity,
+                mid: unity,
+                high: unity,
+                ..Default::default()
+            });
             let input = sine(hz, 0.1, 0.0, 3 * rate as usize, rate);
             let output = run(&mut compressor, &input, 137);
             let (mut re, mut im) = (0.0, 0.0);
-            for (n,x) in output.iter().enumerate().skip(2 * rate as usize) {
+            for (n, x) in output.iter().enumerate().skip(2 * rate as usize) {
                 let w = TAU * hz * n as f64 / f64::from(rate);
-                re += f64::from(*x) * w.sin(); im += f64::from(*x) * w.cos();
+                re += f64::from(*x) * w.sin();
+                im += f64::from(*x) * w.cos();
             }
-            re *= 20.0 / f64::from(rate); im *= 20.0 / f64::from(rate);
-            let (a,b) = allpass(200.0, hz, f64::from(rate));
-            let (c,d) = allpass(2_500.0, hz, f64::from(rate));
-            assert!((re - (a*c-b*d)).hypot(im-(a*d+b*c)) < 2e-4, "phase {rate} Hz {hz}: {re} {im}");
-            assert!((re.hypot(im)-1.0).abs() < 2e-4);
+            re *= 20.0 / f64::from(rate);
+            im *= 20.0 / f64::from(rate);
+            let (a, b) = allpass(200.0, hz, f64::from(rate));
+            let (c, d) = allpass(2_500.0, hz, f64::from(rate));
+            assert!(
+                (re - (a * c - b * d)).hypot(im - (a * d + b * c)) < 2e-4,
+                "phase {rate} Hz {hz}: {re} {im}"
+            );
+            assert!((re.hypot(im) - 1.0).abs() < 2e-4);
         }
     }
 }
@@ -665,26 +730,41 @@ fn unity_band_sum_matches_the_independent_cascaded_allpass_phase_reference() {
 #[test]
 fn maximizer_band_ceilings_protect_each_band_before_the_master_sum() {
     use windfall_dsp::multiband::{MultibandMaximizer, MultibandMaximizerParams};
-    let unity = BandDynamicsParams { ratio: 1.0, makeup_db: 0.0, ..Default::default() };
+    let unity = BandDynamicsParams {
+        ratio: 1.0,
+        makeup_db: 0.0,
+        ..Default::default()
+    };
     for (hz, ceiling) in [(40.0, -18.0), (800.0, -12.0), (12_000.0, -6.0)] {
         let mut effect = MultibandMaximizer::default();
         effect.prepare(RATE as f32, 512);
         effect.set_params(&MultibandMaximizerParams {
-            low: unity, mid: unity, high: unity,
+            low: unity,
+            mid: unity,
+            high: unity,
             low_ceiling_db: if hz < 200.0 { ceiling } else { 0.0 },
-            mid_ceiling_db: if hz > 200.0 && hz < 2_500.0 { ceiling } else { 0.0 },
+            mid_ceiling_db: if hz > 200.0 && hz < 2_500.0 {
+                ceiling
+            } else {
+                0.0
+            },
             high_ceiling_db: if hz > 2_500.0 { ceiling } else { 0.0 },
-            ceiling_db: 0.0, input_gain_db: 0.0, ..Default::default()
+            ceiling_db: 0.0,
+            input_gain_db: 0.0,
+            ..Default::default()
         });
         let input = sine(hz, 0.8, 0.0, 3 * RATE as usize, RATE);
         let output = run(&mut effect, &input, 131);
         let fundamental = amplitude_at(&output[2 * RATE as usize..], hz, RATE);
-        assert!((db(fundamental) - f64::from(ceiling)).abs() < 1.5, "{hz}: {} dB", db(fundamental));
+        assert!(
+            (db(fundamental) - f64::from(ceiling)).abs() < 1.5,
+            "{hz}: {} dB",
+            db(fundamental)
+        );
         assert_eq!(effect.latency_samples(), 96);
         assert!(effect.tail_samples() >= effect.latency_samples());
     }
 }
-
 
 #[test]
 fn one_knob_is_constrained_but_still_has_a_real_ceiling_latency_and_finite_tail() {
@@ -710,7 +790,6 @@ fn one_knob_is_constrained_but_still_has_a_real_ceiling_latency_and_finite_tail(
     }
 }
 
-
 #[test]
 fn bass_octave_survives_fundamental_removal_and_amount_is_additive_after_aligned_dry() {
     use windfall_dsp::multiband::{BassHarmonics, BassHarmonicsParams, HARMONICS_LATENCY_SAMPLES};
@@ -718,18 +797,25 @@ fn bass_octave_survives_fundamental_removal_and_amount_is_additive_after_aligned
     let render = |amount| {
         let mut effect = BassHarmonics::default();
         effect.prepare(RATE as f32, 512);
-        effect.set_params(&BassHarmonicsParams { amount, drive: 3.0, cutoff_hz: 180.0 });
+        effect.set_params(&BassHarmonicsParams {
+            amount,
+            drive: 3.0,
+            cutoff_hz: 180.0,
+        });
         assert_eq!(effect.latency_samples(), HARMONICS_LATENCY_SAMPLES);
-        let mut left = input.clone(); let mut right: Vec<_> = input.iter().map(|x| -*x).collect();
-        for (l,r) in left.chunks_mut(131).zip(right.chunks_mut(131)) { effect.process(l,r); }
-        (left,right)
+        let mut left = input.clone();
+        let mut right: Vec<_> = input.iter().map(|x| -*x).collect();
+        for (l, r) in left.chunks_mut(131).zip(right.chunks_mut(131)) {
+            effect.process(l, r);
+        }
+        (left, right)
     };
     let (dry, dry_r) = render(0.0);
     assert!(dry[..13].iter().all(|x| *x == 0.0));
-    assert_eq!(&dry[13..], &input[..input.len()-13]);
+    assert_eq!(&dry[13..], &input[..input.len() - 13]);
     let (full, full_r) = render(1.0);
     let (quarter, _) = render(0.25);
-    let wet: Vec<_> = full.iter().zip(&dry).map(|(a,b)| a-b).collect();
+    let wet: Vec<_> = full.iter().zip(&dry).map(|(a, b)| a - b).collect();
     for n in RATE as usize..input.len() {
         assert!((quarter[n] - dry[n] - 0.25 * wet[n]).abs() < 2e-7);
         // Squaring is even; inverse fundamentals receive the same new octave.
@@ -738,19 +824,31 @@ fn bass_octave_survives_fundamental_removal_and_amount_is_additive_after_aligned
     let octave = amplitude_at(&wet[RATE as usize..], 120.0, RATE);
     assert!(octave > 0.01, "small-speaker octave {octave}");
     assert!(amplitude_at(&dry[RATE as usize..], 120.0, RATE) < 1e-6);
-    let dc = wet[RATE as usize..].iter().map(|x| f64::from(*x)).sum::<f64>() / f64::from(2*RATE);
+    let dc = wet[RATE as usize..]
+        .iter()
+        .map(|x| f64::from(*x))
+        .sum::<f64>()
+        / f64::from(2 * RATE);
     assert!(dc.abs() < 1e-5, "generated path DC {dc}");
 }
-
 
 /// Independent 16x reconstruction with a 32-tap Hann-windowed sinc, not
 /// the product's 4x/12-tap Lanczos detector or LoudnessMeter.
 fn reference_true_peak(samples: &[f32]) -> f64 {
-    let mut maximum = samples.iter().map(|x| f64::from(x.abs())).fold(0.0, f64::max);
-    let sinc = |x: f64| if x.abs() < 1e-12 { 1.0 } else { (std::f64::consts::PI*x).sin() / (std::f64::consts::PI*x) };
+    let mut maximum = samples
+        .iter()
+        .map(|x| f64::from(x.abs()))
+        .fold(0.0, f64::max);
+    let sinc = |x: f64| {
+        if x.abs() < 1e-12 {
+            1.0
+        } else {
+            (std::f64::consts::PI * x).sin() / (std::f64::consts::PI * x)
+        }
+    };
     for n in 0..samples.len() {
         for phase in 1..16 {
-            let time = n as f64 + f64::from(phase)/16.0;
+            let time = n as f64 + f64::from(phase) / 16.0;
             let (mut sum, mut norm) = (0.0, 0.0);
             for offset in -15..=16 {
                 let at = n as isize + offset;
@@ -758,9 +856,11 @@ fn reference_true_peak(samples: &[f32]) -> f64 {
                 let window = 0.5 + 0.5 * (std::f64::consts::PI * delta / 16.0).cos();
                 let weight = sinc(delta) * window;
                 norm += weight;
-                if at >= 0 && at < samples.len() as isize { sum += f64::from(samples[at as usize]) * weight; }
+                if at >= 0 && at < samples.len() as isize {
+                    sum += f64::from(samples[at as usize]) * weight;
+                }
             }
-            maximum = maximum.max((sum/norm).abs());
+            maximum = maximum.max((sum / norm).abs());
         }
     }
     maximum
@@ -769,12 +869,17 @@ fn reference_true_peak(samples: &[f32]) -> f64 {
 #[test]
 fn mastering_limiter_true_peak_is_checked_by_a_different_dense_reconstructor() {
     for rate in [44_100, 48_000, 96_000] {
-        let input = faded(sine(f64::from(rate)/4.0, 1.4, TAU/8.0, 4_096, rate));
+        let input = faded(sine(f64::from(rate) / 4.0, 1.4, TAU / 8.0, 4_096, rate));
         assert!(reference_true_peak(&input) > 1.3);
         let mut effect = MasterLimiter::default();
         effect.prepare(rate as f32, 512);
-        effect.set_params(&MasterLimiterParams { ceiling_db: -1.0, leveling: 0.0,
-            saturation: 0.0, true_peak: true, ..Default::default() });
+        effect.set_params(&MasterLimiterParams {
+            ceiling_db: -1.0,
+            leveling: 0.0,
+            saturation: 0.0,
+            true_peak: true,
+            ..Default::default()
+        });
         let mut padded = input.clone();
         padded.resize(input.len() + effect.latency_samples() + 32, 0.0);
         let output = run(&mut effect, &padded, 53);
@@ -788,80 +893,121 @@ fn mastering_limiter_true_peak_is_checked_by_a_different_dense_reconstructor() {
 
 #[test]
 fn slow_leveling_keeps_shared_stereo_gain_and_tonal_balance() {
-    let mut effect = master_limiter(MasterLimiterParams { gain_db: 6.0, leveling: 1.0,
-        saturation: 0.0, ceiling_db: 0.0, ..Default::default() });
-    let mut left: Vec<_> = (0..4 * RATE).map(|n| {
-        let t = f64::from(n)/f64::from(RATE);
-        (0.2*(TAU*60.0*t).sin() + 0.15*(TAU*1_000.0*t).sin() + 0.1*(TAU*8_000.0*t).sin()) as f32
-    }).collect();
+    let mut effect = master_limiter(MasterLimiterParams {
+        gain_db: 6.0,
+        leveling: 1.0,
+        saturation: 0.0,
+        ceiling_db: 0.0,
+        ..Default::default()
+    });
+    let mut left: Vec<_> = (0..4 * RATE)
+        .map(|n| {
+            let t = f64::from(n) / f64::from(RATE);
+            (0.2 * (TAU * 60.0 * t).sin()
+                + 0.15 * (TAU * 1_000.0 * t).sin()
+                + 0.1 * (TAU * 8_000.0 * t).sin()) as f32
+        })
+        .collect();
     let input = left.clone();
     let mut right: Vec<_> = left.iter().map(|x| -*x * 0.25).collect();
-    for (l,r) in left.chunks_mut(137).zip(right.chunks_mut(137)) { effect.process(l,r); }
-    for (l,r) in left.iter().zip(&right) { assert!((r + 0.25*l).abs() < 1e-7); }
+    for (l, r) in left.chunks_mut(137).zip(right.chunks_mut(137)) {
+        effect.process(l, r);
+    }
+    for (l, r) in left.iter().zip(&right) {
+        assert!((r + 0.25 * l).abs() < 1e-7);
+    }
     let mut gains = Vec::new();
     for hz in [60.0, 1_000.0, 8_000.0] {
-        gains.push(amplitude_at(&left[3 * RATE as usize..], hz, RATE)
-            / amplitude_at(&input[3 * RATE as usize..], hz, RATE));
+        gains.push(
+            amplitude_at(&left[3 * RATE as usize..], hz, RATE)
+                / amplitude_at(&input[3 * RATE as usize..], hz, RATE),
+        );
     }
     let smallest = gains.iter().copied().fold(f64::INFINITY, f64::min);
     let largest = gains.iter().copied().fold(0.0, f64::max);
-    assert!(db(largest/smallest) < 0.15, "tonal balance {gains:?}");
+    assert!(db(largest / smallest) < 0.15, "tonal balance {gains:?}");
     assert!(effect.stage_meters()[0].take_db() > 1.0);
 }
-
 
 #[test]
 fn simplified_two_stages_match_independent_saturation_and_linked_release_reference() {
     use windfall_dsp::mastering::{StageStack, StageStackParams};
-    let params = StageStackParams { drive_db: 9.0, tone: 0.4, ceiling_db: -6.0, mix: 0.75 };
+    let params = StageStackParams {
+        drive_db: 9.0,
+        tone: 0.4,
+        ceiling_db: -6.0,
+        mix: 0.75,
+    };
     let input = programme(0.6, 1);
     let mut effect = StageStack::default();
-    effect.prepare(RATE as f32, 512); effect.set_params(&params);
+    effect.prepare(RATE as f32, 512);
+    effect.set_params(&params);
     let mut left = input.clone();
     let mut right: Vec<_> = input.iter().map(|x| *x * 0.2).collect();
     effect.process(&mut left, &mut right);
-    let drive = 10.0_f64.powf(f64::from(params.drive_db)/20.0);
-    let ceiling = 10.0_f64.powf(f64::from(params.ceiling_db)/20.0);
-    let release = 1.0 - (-1000.0/(3.0*f64::from(RATE))).exp();
+    let drive = 10.0_f64.powf(f64::from(params.drive_db) / 20.0);
+    let ceiling = 10.0_f64.powf(f64::from(params.ceiling_db) / 20.0);
+    let release = 1.0 - (-1000.0 / (3.0 * f64::from(RATE))).exp();
     let mut gain = 1.0_f64;
-    for (n,dry) in input.iter().enumerate() {
-        let shape = |x: f64| { let t=(x*drive*0.5).tanh(); 2.0*t + f64::from(params.tone)*0.5*t*t*(1.0-t*t) };
-        let wet = [shape(f64::from(*dry)), shape(f64::from(*dry)*0.2)];
+    for (n, dry) in input.iter().enumerate() {
+        let shape = |x: f64| {
+            let t = (x * drive * 0.5).tanh();
+            2.0 * t + f64::from(params.tone) * 0.5 * t * t * (1.0 - t * t)
+        };
+        let wet = [shape(f64::from(*dry)), shape(f64::from(*dry) * 0.2)];
         let peak = wet[0].abs().max(wet[1].abs());
-        let needed = (ceiling/peak.max(1e-30)).min(1.0);
-        gain = if needed < gain { needed } else { gain + (needed-gain)*release };
+        let needed = (ceiling / peak.max(1e-30)).min(1.0);
+        gain = if needed < gain {
+            needed
+        } else {
+            gain + (needed - gain) * release
+        };
         for c in 0..2 {
             let d = f64::from(*dry) * if c == 0 { 1.0 } else { 0.2 };
-            let expected = d*0.25 + (wet[c]*gain).clamp(-ceiling,ceiling)*0.75;
+            let expected = d * 0.25 + (wet[c] * gain).clamp(-ceiling, ceiling) * 0.75;
             let actual = if c == 0 { left[n] } else { right[n] };
-            assert!((f64::from(actual)-expected).abs() < 3e-6, "stage reference {n} channel {c}");
+            assert!(
+                (f64::from(actual) - expected).abs() < 3e-6,
+                "stage reference {n} channel {c}"
+            );
         }
     }
     assert_eq!(effect.latency_samples(), 0);
     assert_eq!(effect.tail_samples(), 0);
 }
 
-
 #[test]
 fn local_mastering_passes_are_invariant_to_analysis_and_render_block_sizes() {
     use windfall_dsp::mastering::Mastering;
     let input = stereo(&programme(0.03, 2));
-    let settings = MasteringSettings { target_lufs: -18.0, ceiling_dbtp: -1.0, dynamics: 0.5 };
+    let settings = MasteringSettings {
+        target_lufs: -18.0,
+        ceiling_dbtp: -1.0,
+        dynamics: 0.5,
+    };
     let render = |frames| {
         let mut chain = Mastering::new(RATE, settings);
-        for block in input.chunks(frames*2) { chain.analyze(block); }
+        for block in input.chunks(frames * 2) {
+            chain.analyze(block);
+        }
         chain.begin().unwrap();
         let mut block = Vec::new();
         loop {
             let keep = chain.is_render_pass();
             let mut result = Vec::new();
-            for samples in input.chunks(frames*2) {
+            for samples in input.chunks(frames * 2) {
                 chain.process(samples, &mut block);
-                if keep { result.extend_from_slice(&block); }
+                if keep {
+                    result.extend_from_slice(&block);
+                }
             }
             let report = chain.finish_pass(&mut block);
-            if keep { result.extend_from_slice(&block); }
-            if let Some(report) = report { return (result,report); }
+            if keep {
+                result.extend_from_slice(&block);
+            }
+            if let Some(report) = report {
+                return (result, report);
+            }
         }
     };
     let expected = render(8_192);
@@ -870,13 +1016,19 @@ fn local_mastering_passes_are_invariant_to_analysis_and_render_block_sizes() {
     assert_eq!(expected, render(1));
 }
 
-
 #[test]
 fn an_unreachable_loudness_target_keeps_peak_safety_ahead_of_loudness_error() {
     let input = stereo(&programme(0.5, 3));
-    let settings = MasteringSettings { target_lufs: -6.0, ceiling_dbtp: -9.0, dynamics: 0.0 };
+    let settings = MasteringSettings {
+        target_lufs: -6.0,
+        ceiling_dbtp: -9.0,
+        dynamics: 0.0,
+    };
     let (output, report) = master(&input, RATE, &settings).unwrap();
     assert!(!report.target_reached, "{report:?}");
-    assert!(report.after.true_peak_dbtp <= settings.ceiling_dbtp + MASTERING_PEAK_TOLERANCE_DB, "{report:?}");
+    assert!(
+        report.after.true_peak_dbtp <= settings.ceiling_dbtp + MASTERING_PEAK_TOLERANCE_DB,
+        "{report:?}"
+    );
     assert_eq!(report.after, measure(&output, RATE));
 }

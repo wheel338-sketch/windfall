@@ -94,17 +94,35 @@ impl TransientShaper {
         attack_out: &mut [[f32; 2]],
         sustain_out: &mut [[f32; 2]],
     ) {
-        for ((l, r), (a, s)) in left.iter_mut().zip(right).zip(attack_out.iter_mut().zip(sustain_out)) {
+        for ((l, r), (a, s)) in left
+            .iter_mut()
+            .zip(right)
+            .zip(attack_out.iter_mut().zip(sustain_out))
+        {
             let (shaped, mask) = self.shape([*l, *r]);
             let listen = self.listen.tick();
             let attack = shaped.map(|x| x * mask);
             let sustain: [f32; 2] = std::array::from_fn(|c| shaped[c] - attack[c]);
-            *a = if routed[0] { attack.map(audio) } else { [0.0; 2] };
-            *s = if routed[1] { sustain.map(audio) } else { [0.0; 2] };
+            *a = if routed[0] {
+                attack.map(audio)
+            } else {
+                [0.0; 2]
+            };
+            *s = if routed[1] {
+                sustain.map(audio)
+            } else {
+                [0.0; 2]
+            };
             let share = if !routed[0] && !routed[1] && listen == [1.0, 1.0] {
                 1.0
-            } else { (if routed[0] { 0.0 } else { listen[0] * mask })
-                + (if routed[1] { 0.0 } else { listen[1] * (1.0 - mask) }) };
+            } else {
+                (if routed[0] { 0.0 } else { listen[0] * mask })
+                    + (if routed[1] {
+                        0.0
+                    } else {
+                        listen[1] * (1.0 - mask)
+                    })
+            };
             *l = audio(shaped[0] * share);
             *r = audio(shaped[1] * share);
         }

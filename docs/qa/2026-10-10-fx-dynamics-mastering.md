@@ -4,20 +4,20 @@ Stream: roadmap family E2 plus local mastering from X4. Branch `worktree-agent-a
 
 **Nothing in this document was compiled or executed.** The stream was edit-only. Every test named below is "written, not executed". The parent builds, regenerates and runs.
 
-This file is kept current while the work proceeds, so an interruption leaves a usable hand-off. Sections marked *pending* are not written yet.
+This file is kept current while the work proceeds, so an interruption leaves a usable hand-off. All candidates require the integrator's fresh execution; no parity tracker status was edited.
 
 ## Status by row
 
 | Row | State | Summary |
 | --- | --- | --- |
-| `wf-cloud-mastering` | in progress | Loudness and true-peak measurement written (`mastering/loudness.rs`). Chain, export hook and review UI pending. |
-| `fx-emphasis` | pending | New multistage Mastering Limiter kind. |
-| `fx-emphasizer` | pending | Existing Stage Stack; editor and acceptance tests. |
-| `fx-fruity-multiband-compressor` | pending | Existing DSP; meter, editor, acceptance tests. |
-| `fx-maximus` | pending | Existing DSP; meter, editor, acceptance tests. |
-| `fx-soundgoodizer` | pending | Existing DSP; one-knob editor, acceptance tests. |
-| `fx-transient-processor` | pending | Existing DSP; split listen output, editor, tests. |
-| `fx-low-lifter` | pending | Existing DSP; editor, acceptance tests. |
+| `wf-cloud-mastering` | full-row candidate | Real local LUFS/dynamics/true-peak stereo render and before/after review; integrator execution pending. Metrics are before encoding. |
+| `fx-emphasis` | full-row candidate | Distinct three-stage Mastering Limiter, true-peak/tonal/latency references and editor. |
+| `fx-emphasizer` | full-row candidate | Two-stage saturation/safety workflow, independent sample reference and editor. |
+| `fx-fruity-multiband-compressor` | full-row candidate | Independent detectors, compensated crossover, phase/reference/native/editor/history cases. |
+| `fx-maximus` | full-row candidate | Editable multiband compression and independent band/sum limiting; native and editor cases. |
+| `fx-soundgoodizer` | full-row candidate | Constrained one-control enhancer with measured loudness/ceiling/latency and native/editor cases. |
+| `fx-transient-processor` | full-row candidate | Attack/sustain shaping plus saved independently routed outputs, listen, native and mounted/history cases. |
+| `fx-low-lifter` | full-row candidate | Additive bass octave generation, dry alignment, native/editor/history cases. |
 
 ## What exists so far
 
@@ -33,8 +33,9 @@ Unit tests in the same file, written, not executed:
 - `the_48_khz_weighting_is_the_table_of_the_standard`
 - `the_interpolator_reads_samples_exactly_and_constants_as_themselves`
 
-Least sure: the 48 kHz table comparison uses a 1e-6 tolerance against constants recalled from the standard and from libebur128. If it fails by a small margin the derivation is still right and the tolerance is the thing to look at; if it fails by a lot, a constant is wrong.
-
+Calibration risk: the 48 kHz table comparison uses a 1e-6 tolerance. A failure
+must be investigated against the explicit coefficient reference and measured
+calibration tones; do not loosen acceptance merely to make it pass.
 
 ## Continuation — 2026-10-11
 
@@ -212,3 +213,88 @@ a slight peak overshoot in exchange for a smaller LUFS miss. If no safe trial
 exists at the pass limit, the final limiter ceiling receives another measured
 peak correction. Added `an_unreachable_loudness_target_keeps_peak_safety_ahead_of_loudness_error`
 (written, not executed) against an impossible -6 LUFS/-9 dBTP request.
+
+
+## Final integration hand-off — 2026-10-11
+
+No builds, tests, generators, package commands or device checks ran. Rustfmt
+was used only on touched Rust modules/tests; git whitespace/conflict-marker
+inspection was clean. All tests above and below are **written, not executed**.
+No dependencies, generated artifacts, parity statuses, push or PR were added.
+
+### Integrator command sequence (Git Bash in the integrated checkout)
+
+Run generators first, then the focused Rust/desktop/UI checks against those new
+artifacts. The commands below are instructions, not execution evidence.
+
+```bash
+source scripts/msvc-env.sh
+task_bindings="$(mktemp -d)"
+export TS_RS_EXPORT_DIR="$(cygpath -w "$task_bindings")"
+scripts/gen-bindings.sh "$task_bindings"
+scripts/build-sim.sh
+cargo test -p windfall-dsp --lib multiband
+cargo test -p windfall-dsp --lib mastering
+cargo test -p windfall-dsp --test dynamics_mastering
+cargo test -p windfall-dsp --test dsp realtime
+cargo test -p windfall-project --test dynamics_mastering
+cargo test -p windfall-project --test effect_outputs
+cargo test -p windfall-engine --test engine dynamics_mastering
+cargo test -p windfall-desktop --lib mastering
+pnpm --dir apps/desktop test src/features/effects/dynamics.test.tsx src/features/export/mastering.test.tsx src/features/mixer/effect-outputs.qa.test.tsx src/features/export/playlist-tracks.qa.test.tsx --maxWorkers=4
+pnpm --dir apps/desktop typecheck
+pnpm --dir apps/desktop lint
+cargo fmt --all --check
+cargo clippy -p windfall-dsp -p windfall-project -p windfall-engine -p windfall-desktop --all-targets -- -D warnings
+```
+
+Use the integration owner's standard generator staging/review procedure; never
+copy stale generated types or WASM from this worker as validation. The merge
+commit includes incoming integration-generated artifacts without hand edits.
+
+### Shared seams and generated inventory
+
+Continuation merge resolutions: `session/tests/mod.rs`,
+`features/effects/effect-editor.tsx`, `features/export/export-dialog.tsx`,
+`windfall-ipc/src/lib.rs` retained both intents. Continuation source seams:
+`windfall-dsp/src/effect.rs` (Transient Shaper auxiliary metadata/dispatch),
+`windfall-project/src/effect_outputs.rs` (documentation only),
+`windfall-engine/tests/engine/main.rs` (module registration),
+`session/export.rs` (mastering vs playlist stems admission). Inspector routing
+logic is unchanged; its comments and mounted acceptance include the new kind.
+
+Regenerate the whole descriptor/binding/WASM set. Branch source introduces
+`EffectKind::MasterLimiter`, `EffectParams::MasterLimiter`, `MasterLimiterParams`,
+`TransientListen`, `TransientShaperParams.listen`, `MasteringOptions`,
+`LoudnessReading`, `MasteringReview`, `ExportOptions.mastering` and
+`ExportProgress.mastering`; incoming playlist exports use `ExportPlaylistStems`.
+The continuation adds Transient Shaper to descriptor `effectOutputs`; it adds
+no Command variant or persisted Mixer field and preserves descriptor indices.
+
+### Risks and gates in recommended order
+
+1. Regenerate before typechecking/mounted tests: incoming bindings/WASM cannot
+   contain this branch's MasterLimiter, listen and mastering shapes by assumption.
+2. Compile source/tests. Rustfmt parsed touched Rust, but no compiler has checked
+   imports, integration-generated unions or desktop test setup. Shared registry
+   and session merge additions deserve the first look.
+3. Run native dynamics tests: verify host PDC removal for 96/78/13-frame paths,
+   17/251-frame partitions, tail tolerances, allocator guards and split routing.
+   The short fixture uses a 960-tick song clip; impulse onset fixtures keep away
+   from clip-end ramps and DSP-only tests exercise exact delay separately.
+4. Check independent detector/allpass/true-peak and stage references before
+   considering status promotion. The dense 16x reconstructor checks a different
+   interpolation method; DSP moving-gain true peak has 0.3 dB tolerance. Local
+   mastering corrects its own final 4x reading to 0.05 dB tolerance.
+5. Check complete mastering pass invariance and impossible-target safety. If
+   all trials exceed the measured ceiling, a final correction is applied; the
+   report still truthfully says whether the loudness target was reached.
+6. Execute mounted editor/routing/export tests against the fresh Rust document.
+   Before-encoding stereo metrics are the current scope. Lossy/mono decoded
+   target verification remains an explicitly unclaimed extension, not fabricated
+   audio evidence. Physical devices and other-OS runtime execution are external
+   gates; these rows' headless native harnesses need no audio device.
+
+The historical seam documents describe source-only foundations. This hand-off
+records the later registered/editor/render/software acceptance candidates and
+never substitutes authored tests for successful evidence.

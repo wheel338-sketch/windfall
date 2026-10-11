@@ -334,29 +334,73 @@ fn shaped_transient_routes_are_saved_undoable_pruned_and_checked_for_cycles() {
     let mut doc = Document::new(Project::new("Shaper routes"));
     let mut tracks = Vec::new();
     for name in ["Source", "Attack", "Sustain"] {
-        tracks.push(TrackId(doc.dispatch(Command::AddMixerTrack { name: Some(name.into()) }, None).unwrap().created[0]));
+        tracks.push(TrackId(
+            doc.dispatch(
+                Command::AddMixerTrack {
+                    name: Some(name.into()),
+                },
+                None,
+            )
+            .unwrap()
+            .created[0],
+        ));
     }
-    let effect = EffectId(doc.dispatch(Command::AddEffect {
-        track: tracks[0], kind: EffectKind::TransientShaper, index: None,
-    }, None).unwrap().created[0]);
+    let effect = EffectId(
+        doc.dispatch(
+            Command::AddEffect {
+                track: tracks[0],
+                kind: EffectKind::TransientShaper,
+                index: None,
+            },
+            None,
+        )
+        .unwrap()
+        .created[0],
+    );
     let before = doc.project().clone();
     for output in 0..2 {
-        doc.dispatch(Command::SetEffectOutput { effect, output, target: Some(tracks[usize::from(output) + 1]) }, None).unwrap();
+        doc.dispatch(
+            Command::SetEffectOutput {
+                effect,
+                output,
+                target: Some(tracks[usize::from(output) + 1]),
+            },
+            None,
+        )
+        .unwrap();
     }
     let routed = doc.project().clone();
     let directory = tempfile::tempdir().unwrap();
     let path = directory.path().join("shaper.wfp");
     file::save(doc.project(), &path).unwrap();
     assert_eq!(file::load(&path).unwrap(), routed);
-    doc.undo().unwrap(); doc.undo().unwrap();
+    doc.undo().unwrap();
+    doc.undo().unwrap();
     assert_eq!(*doc.project(), before);
-    doc.redo().unwrap(); doc.redo().unwrap();
+    doc.redo().unwrap();
+    doc.redo().unwrap();
     assert_eq!(*doc.project(), routed);
     let history = doc.history().entries.len();
-    assert!(doc.dispatch(Command::SetTrackOutput { id: tracks[1], output: Some(tracks[0]) }, None).is_err());
+    assert!(
+        doc.dispatch(
+            Command::SetTrackOutput {
+                id: tracks[1],
+                output: Some(tracks[0])
+            },
+            None
+        )
+        .is_err()
+    );
     assert_eq!(*doc.project(), routed);
     assert_eq!(doc.history().entries.len(), history);
-    doc.dispatch(Command::RemoveEffect { track: tracks[0], effect }, None).unwrap();
+    doc.dispatch(
+        Command::RemoveEffect {
+            track: tracks[0],
+            effect,
+        },
+        None,
+    )
+    .unwrap();
     assert!(doc.project().mixer.effect_outputs.is_empty());
     doc.undo().unwrap();
     assert!(same_content(doc.project(), &routed));

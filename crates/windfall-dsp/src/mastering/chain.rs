@@ -280,15 +280,14 @@ impl Mastering {
     /// The band compressors' settings for a depth of 0 to 1. The mix is at
     /// the reference loudness when it reaches them.
     fn compression(dynamics: f32) -> MultibandCompressorParams {
-        let band = |threshold_db: f32, ratio: f32, attack_ms: f32, release_ms: f32| {
-            BandDynamicsParams {
+        let band =
+            |threshold_db: f32, ratio: f32, attack_ms: f32, release_ms: f32| BandDynamicsParams {
                 threshold_db,
                 ratio: 1.0 + (ratio - 1.0) * dynamics,
                 attack_ms,
                 release_ms,
                 makeup_db: 0.0,
-            }
-        };
+            };
         MultibandCompressorParams {
             low_crossover_hz: 160.0,
             high_crossover_hz: 3_200.0,
@@ -379,8 +378,7 @@ impl Mastering {
         let ceiling = self.settings.ceiling_dbtp;
         let miss = target - after.integrated_lufs;
         let over = after.true_peak_dbtp - ceiling;
-        let reached =
-            miss.abs() <= MASTERING_TOLERANCE_LU && over <= MASTERING_PEAK_TOLERANCE_DB;
+        let reached = miss.abs() <= MASTERING_TOLERANCE_LU && over <= MASTERING_PEAK_TOLERANCE_DB;
 
         if self.render {
             let report = MasteringReport {
@@ -423,8 +421,8 @@ impl Mastering {
             self.trim_db = best.trim_db;
             self.limiter_ceiling_db = best.limiter_ceiling_db;
             if best.peak_over_db > MASTERING_PEAK_TOLERANCE_DB {
-                self.limiter_ceiling_db = (self.limiter_ceiling_db - best.peak_over_db - 0.1)
-                    .max(ceiling - 3.0);
+                self.limiter_ceiling_db =
+                    (self.limiter_ceiling_db - best.peak_over_db - 0.1).max(ceiling - 3.0);
             }
             self.render = true;
         } else {

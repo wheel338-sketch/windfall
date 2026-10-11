@@ -6,7 +6,10 @@ use std::fs::{self, File, OpenOptions};
 use std::io::{Read, Seek, SeekFrom, Write};
 use std::path::{Path, PathBuf};
 
-use windfall_dsp::mastering::{LoudnessMetrics, Mastering, MasteringReport, MasteringSettings, MASTERING_TARGET_RANGE, MASTERING_CEILING_RANGE};
+use windfall_dsp::mastering::{
+    LoudnessMetrics, MASTERING_CEILING_RANGE, MASTERING_TARGET_RANGE, Mastering, MasteringReport,
+    MasteringSettings,
+};
 use windfall_ipc::{LoudnessReading, MasteringOptions, MasteringReview};
 
 /// Bytes read back from the spool at a time: 8,192 stereo frames.
@@ -64,7 +67,9 @@ impl Spool {
         &mut self,
         each: &mut dyn FnMut(&[f32]) -> Result<bool, String>,
     ) -> Result<bool, String> {
-        let failed = |error: std::io::Error| format!("the mix set aside for mastering could not be read ({error})");
+        let failed = |error: std::io::Error| {
+            format!("the mix set aside for mastering could not be read ({error})")
+        };
         let file = self.file()?;
         file.flush().map_err(failed)?;
         file.seek(SeekFrom::Start(0)).map_err(failed)?;
@@ -292,11 +297,17 @@ mod tests {
     #[test]
     fn cancelling_during_mastering_and_encoder_failure_remove_the_spooled_mix() {
         let folder = tempfile::tempdir().unwrap();
-        let options = MasteringOptions { target_lufs: -18.0, ceiling_dbtp: -1.0, dynamics: 0.0 };
-        let input: Vec<f32> = (0..96_000).flat_map(|n| {
-            let x = (std::f32::consts::TAU * 1_000.0 * n as f32 / 48_000.0).sin() * 0.1;
-            [x,x]
-        }).collect();
+        let options = MasteringOptions {
+            target_lufs: -18.0,
+            ceiling_dbtp: -1.0,
+            dynamics: 0.0,
+        };
+        let input: Vec<f32> = (0..96_000)
+            .flat_map(|n| {
+                let x = (std::f32::consts::TAU * 1_000.0 * n as f32 / 48_000.0).sin() * 0.1;
+                [x, x]
+            })
+            .collect();
         for fail_encoder in [false, true] {
             let stage = folder.path().join("export.stage");
             let mut job = MasterJob::start(&stage, 48_000, &options).unwrap();
@@ -304,15 +315,29 @@ mod tests {
             assert!(stage.with_extension("master").is_file());
             let mut written = 0;
             let mut reports = 0;
-            let result = job.finish(&mut |block| {
-                written += block.len();
-                if fail_encoder { Err("test encoder failure".to_owned()) } else { Ok(()) }
-            }, &mut |_| { reports += 1; fail_encoder });
-            if fail_encoder { assert!(result.unwrap_err().contains("encoder failure")); }
-            else { assert!(result.unwrap().is_none()); assert_eq!(written, 0); assert_eq!(reports, 1); }
+            let result = job.finish(
+                &mut |block| {
+                    written += block.len();
+                    if fail_encoder {
+                        Err("test encoder failure".to_owned())
+                    } else {
+                        Ok(())
+                    }
+                },
+                &mut |_| {
+                    reports += 1;
+                    fail_encoder
+                },
+            );
+            if fail_encoder {
+                assert!(result.unwrap_err().contains("encoder failure"));
+            } else {
+                assert!(result.unwrap().is_none());
+                assert_eq!(written, 0);
+                assert_eq!(reports, 1);
+            }
             drop(job);
             assert!(!stage.with_extension("master").exists());
         }
     }
-
 }
