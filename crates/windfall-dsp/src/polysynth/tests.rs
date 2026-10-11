@@ -117,3 +117,14 @@ fn compact_synth_quick_oscillators_ring_and_filter_modes_are_distinct() {
     different(InstrumentParams::CompactSynth(p),InstrumentParams::CompactSynth(CompactSynthParams { cutoff_hz:200.0,..p }));
 }
 
+#[test]
+fn vintage_saw_asymmetric_charge_pitch_contour_and_saturating_filter() {
+    contract(InstrumentKind::VintageSaw);
+    let p=VintageSawParams { drift:0.0,asymmetry:0.0,pulse:0.0,sub:0.0,drive:0.0,filter_amount:0.0,key_track:0.0,cutoff_hz:18000.0,..Default::default() };
+    let x=render(InstrumentParams::VintageSaw(p),69,60000,64).0;
+    assert!(amplitude(&x[12000..],440.0)>amplitude(&x[12000..],442.0)*10.0);
+    for changed in [VintageSawParams { asymmetry:1.0,..p },VintageSawParams { pitch_drop:12.0,..p },VintageSawParams { drive:1.0,resonance:0.8,..p },VintageSawParams { cutoff_hz:300.0,..p }] {
+        different(InstrumentParams::VintageSaw(p),InstrumentParams::VintageSaw(changed));
+    }
+}
+

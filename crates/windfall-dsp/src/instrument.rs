@@ -9,6 +9,7 @@ use crate::speech::{SpeechVoice, SpeechVoiceParams};
 use crate::polysynth::{VintagePoly, VintagePolyParams};
 use crate::polysynth::{DualPoly, DualPolyParams};
 use crate::polysynth::{CompactSynth, CompactSynthParams};
+use crate::polysynth::{VintageSaw, VintageSawParams};
 use crate::midi_out::{MidiOut, MidiOutEvent, MidiOutParams};
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
@@ -181,10 +182,11 @@ pub enum InstrumentKind {
     VintagePoly,
     DualPoly,
     CompactSynth,
+    VintageSaw,
 }
 
 impl InstrumentKind {
-    pub const ALL: [InstrumentKind; 30] = [
+    pub const ALL: [InstrumentKind; 31] = [
         InstrumentKind::SubtractiveSynth,
         InstrumentKind::FourOp,
         InstrumentKind::MatrixFm,
@@ -215,6 +217,7 @@ impl InstrumentKind {
         InstrumentKind::VintagePoly,
         InstrumentKind::DualPoly,
         InstrumentKind::CompactSynth,
+        InstrumentKind::VintageSaw,
     ];
 
     /// The instrument's name as shown to the user.
@@ -250,6 +253,7 @@ impl InstrumentKind {
             InstrumentKind::VintagePoly => VintagePolyParams::NAME,
             InstrumentKind::DualPoly => DualPolyParams::NAME,
             InstrumentKind::CompactSynth => CompactSynthParams::NAME,
+            InstrumentKind::VintageSaw => VintageSawParams::NAME,
         }
     }
 
@@ -286,6 +290,7 @@ impl InstrumentKind {
             InstrumentKind::VintagePoly => VintagePolyParams::descriptors(),
             InstrumentKind::DualPoly => DualPolyParams::descriptors(),
             InstrumentKind::CompactSynth => CompactSynthParams::descriptors(),
+            InstrumentKind::VintageSaw => VintageSawParams::descriptors(),
         }
     }
 
@@ -330,6 +335,7 @@ impl InstrumentKind {
             InstrumentKind::VintagePoly => InstrumentParams::VintagePoly(VintagePolyParams::default()),
             InstrumentKind::DualPoly => InstrumentParams::DualPoly(DualPolyParams::default()),
             InstrumentKind::CompactSynth => InstrumentParams::CompactSynth(CompactSynthParams::default()),
+            InstrumentKind::VintageSaw => InstrumentParams::VintageSaw(VintageSawParams::default()),
         }
     }
 }
@@ -370,6 +376,7 @@ pub enum InstrumentParams {
     VintagePoly(VintagePolyParams),
     DualPoly(DualPolyParams),
     CompactSynth(CompactSynthParams),
+    VintageSaw(VintageSawParams),
 }
 
 impl InstrumentParams {
@@ -405,6 +412,7 @@ impl InstrumentParams {
             InstrumentParams::VintagePoly(_) => InstrumentKind::VintagePoly,
             InstrumentParams::DualPoly(_) => InstrumentKind::DualPoly,
             InstrumentParams::CompactSynth(_) => InstrumentKind::CompactSynth,
+            InstrumentParams::VintageSaw(_) => InstrumentKind::VintageSaw,
         }
     }
 
@@ -455,6 +463,7 @@ impl InstrumentParams {
             InstrumentParams::VintagePoly(params) => InstrumentParams::VintagePoly(params.sanitized()),
             InstrumentParams::DualPoly(params) => InstrumentParams::DualPoly(params.sanitized()),
             InstrumentParams::CompactSynth(params) => InstrumentParams::CompactSynth(params.sanitized()),
+            InstrumentParams::VintageSaw(params) => InstrumentParams::VintageSaw(params.sanitized()),
         }
     }
 
@@ -495,6 +504,7 @@ impl InstrumentParams {
             InstrumentParams::VintagePoly(_) => 0,
             InstrumentParams::DualPoly(_) => 0,
             InstrumentParams::CompactSynth(_) => 0,
+            InstrumentParams::VintageSaw(_) => 0,
         }
     }
 
@@ -532,6 +542,7 @@ impl InstrumentParams {
             InstrumentParams::VintagePoly(params) => params.get(index),
             InstrumentParams::DualPoly(params) => params.get(index),
             InstrumentParams::CompactSynth(params) => params.get(index),
+            InstrumentParams::VintageSaw(params) => params.get(index),
         }
     }
 
@@ -569,6 +580,7 @@ impl InstrumentParams {
             InstrumentParams::VintagePoly(params) => params.set(index, value),
             InstrumentParams::DualPoly(params) => params.set(index, value),
             InstrumentParams::CompactSynth(params) => params.set(index, value),
+            InstrumentParams::VintageSaw(params) => params.set(index, value),
         }
     }
 }
@@ -610,6 +622,7 @@ pub enum AnyInstrument {
     VintagePoly(Box<VintagePoly>),
     DualPoly(Box<DualPoly>),
     CompactSynth(Box<CompactSynth>),
+    VintageSaw(Box<VintageSaw>),
 }
 
 impl AnyInstrument {
@@ -783,6 +796,11 @@ impl AnyInstrument {
                 synth.set_params(params);
                 AnyInstrument::CompactSynth(synth)
             }
+            InstrumentParams::VintageSaw(params) => {
+                let mut synth = Box::<VintageSaw>::default();
+                synth.set_params(params);
+                AnyInstrument::VintageSaw(synth)
+            }
         }
     }
 
@@ -818,6 +836,7 @@ impl AnyInstrument {
             AnyInstrument::VintagePoly(_) => InstrumentKind::VintagePoly,
             AnyInstrument::DualPoly(_) => InstrumentKind::DualPoly,
             AnyInstrument::CompactSynth(_) => InstrumentKind::CompactSynth,
+            AnyInstrument::VintageSaw(_) => InstrumentKind::VintageSaw,
         }
     }
 
@@ -854,6 +873,7 @@ impl AnyInstrument {
             AnyInstrument::VintagePoly(synth) => synth.prepare(sample_rate, max_block),
             AnyInstrument::DualPoly(synth) => synth.prepare(sample_rate, max_block),
             AnyInstrument::CompactSynth(synth) => synth.prepare(sample_rate, max_block),
+            AnyInstrument::VintageSaw(synth) => synth.prepare(sample_rate, max_block),
         }
     }
 
@@ -890,6 +910,7 @@ impl AnyInstrument {
             AnyInstrument::VintagePoly(synth) => synth.reset(),
             AnyInstrument::DualPoly(synth) => synth.reset(),
             AnyInstrument::CompactSynth(synth) => synth.reset(),
+            AnyInstrument::VintageSaw(synth) => synth.reset(),
         }
     }
 
@@ -990,6 +1011,9 @@ impl AnyInstrument {
             (AnyInstrument::CompactSynth(synth), InstrumentParams::CompactSynth(params)) => {
                 synth.set_params(params);
             }
+            (AnyInstrument::VintageSaw(synth), InstrumentParams::VintageSaw(params)) => {
+                synth.set_params(params);
+            }
             _ => return false,
         }
         true
@@ -1028,6 +1052,7 @@ impl AnyInstrument {
             AnyInstrument::VintagePoly(synth) => synth.set_tempo(bpm),
             AnyInstrument::DualPoly(synth) => synth.set_tempo(bpm),
             AnyInstrument::CompactSynth(synth) => synth.set_tempo(bpm),
+            AnyInstrument::VintageSaw(synth) => synth.set_tempo(bpm),
         }
     }
 
@@ -1064,6 +1089,7 @@ impl AnyInstrument {
             AnyInstrument::VintagePoly(synth) => synth.note_on(key, velocity),
             AnyInstrument::DualPoly(synth) => synth.note_on(key, velocity),
             AnyInstrument::CompactSynth(synth) => synth.note_on(key, velocity),
+            AnyInstrument::VintageSaw(synth) => synth.note_on(key, velocity),
         }
     }
 
@@ -1161,6 +1187,9 @@ impl AnyInstrument {
             AnyInstrument::CompactSynth(synth) => {
                 synth.note_on_expression(key, velocity, pan, expression)
             }
+            AnyInstrument::VintageSaw(synth) => {
+                synth.note_on_expression(key, velocity, pan, expression)
+            }
         }
     }
 
@@ -1197,6 +1226,7 @@ impl AnyInstrument {
             AnyInstrument::VintagePoly(synth) => synth.note_off(key),
             AnyInstrument::DualPoly(synth) => synth.note_off(key),
             AnyInstrument::CompactSynth(synth) => synth.note_off(key),
+            AnyInstrument::VintageSaw(synth) => synth.note_off(key),
         }
     }
 
@@ -1232,6 +1262,7 @@ impl AnyInstrument {
             AnyInstrument::VintagePoly(synth) => synth.supports_note_instances(),
             AnyInstrument::DualPoly(synth) => synth.supports_note_instances(),
             AnyInstrument::CompactSynth(synth) => synth.supports_note_instances(),
+            AnyInstrument::VintageSaw(synth) => synth.supports_note_instances(),
         }
     }
 
@@ -1334,6 +1365,9 @@ impl AnyInstrument {
             AnyInstrument::CompactSynth(synth) => {
                 synth.note_on_instance(id, key, velocity, pan, expression)
             }
+            AnyInstrument::VintageSaw(synth) => {
+                synth.note_on_instance(id, key, velocity, pan, expression)
+            }
         }
     }
 
@@ -1369,6 +1403,7 @@ impl AnyInstrument {
             AnyInstrument::VintagePoly(synth) => synth.note_off_instance(id, key),
             AnyInstrument::DualPoly(synth) => synth.note_off_instance(id, key),
             AnyInstrument::CompactSynth(synth) => synth.note_off_instance(id, key),
+            AnyInstrument::VintageSaw(synth) => synth.note_off_instance(id, key),
         }
     }
 
@@ -1411,6 +1446,7 @@ impl AnyInstrument {
             AnyInstrument::VintagePoly(synth) => synth.set_note_expression(id, pan, expression),
             AnyInstrument::DualPoly(synth) => synth.set_note_expression(id, pan, expression),
             AnyInstrument::CompactSynth(synth) => synth.set_note_expression(id, pan, expression),
+            AnyInstrument::VintageSaw(synth) => synth.set_note_expression(id, pan, expression),
         }
     }
 
@@ -1446,6 +1482,7 @@ impl AnyInstrument {
             AnyInstrument::VintagePoly(synth) => synth.set_note_pitch(id, pitch),
             AnyInstrument::DualPoly(synth) => synth.set_note_pitch(id, pitch),
             AnyInstrument::CompactSynth(synth) => synth.set_note_pitch(id, pitch),
+            AnyInstrument::VintageSaw(synth) => synth.set_note_pitch(id, pitch),
         }
     }
 
@@ -1495,6 +1532,7 @@ impl AnyInstrument {
             AnyInstrument::VintagePoly(synth) => synth.all_notes_off(),
             AnyInstrument::DualPoly(synth) => synth.all_notes_off(),
             AnyInstrument::CompactSynth(synth) => synth.all_notes_off(),
+            AnyInstrument::VintageSaw(synth) => synth.all_notes_off(),
         }
     }
 
@@ -1531,6 +1569,7 @@ impl AnyInstrument {
             AnyInstrument::VintagePoly(synth) => synth.process(left, right),
             AnyInstrument::DualPoly(synth) => synth.process(left, right),
             AnyInstrument::CompactSynth(synth) => synth.process(left, right),
+            AnyInstrument::VintageSaw(synth) => synth.process(left, right),
         }
     }
 
@@ -1567,6 +1606,7 @@ impl AnyInstrument {
             AnyInstrument::VintagePoly(synth) => synth.active_voices(),
             AnyInstrument::DualPoly(synth) => synth.active_voices(),
             AnyInstrument::CompactSynth(synth) => synth.active_voices(),
+            AnyInstrument::VintageSaw(synth) => synth.active_voices(),
         }
     }
 
@@ -1603,6 +1643,7 @@ impl AnyInstrument {
             AnyInstrument::VintagePoly(synth) => synth.latency_samples(),
             AnyInstrument::DualPoly(synth) => synth.latency_samples(),
             AnyInstrument::CompactSynth(synth) => synth.latency_samples(),
+            AnyInstrument::VintageSaw(synth) => synth.latency_samples(),
         }
     }
 
@@ -1639,6 +1680,7 @@ impl AnyInstrument {
             AnyInstrument::VintagePoly(synth) => synth.tail_samples(),
             AnyInstrument::DualPoly(synth) => synth.tail_samples(),
             AnyInstrument::CompactSynth(synth) => synth.tail_samples(),
+            AnyInstrument::VintageSaw(synth) => synth.tail_samples(),
         }
     }
 }

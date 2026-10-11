@@ -15,7 +15,7 @@ function Panel({ id }: { id: ChannelId }) {
   const channel = useProjectStore((s) => s.project.channels.find((c) => c.id === id))
   return channel && isInstrumentChannel(channel) ? <InstrumentSection channel={channel} /> : null
 }
-const cases: [InstrumentKind, string, string][] = [["compactSynth", "Quick oscillators", "cutoffHz"], ["dualPoly", "Dual oscillator banks", "cutoffHz"], ["vintagePoly", "DCO and divider", "cutoffHz"]]
+const cases: [InstrumentKind, string, string][] = [["vintageSaw", "Charging saw oscillator", "cutoffHz"], ["compactSynth", "Quick oscillators", "cutoffHz"], ["dualPoly", "Dual oscillator banks", "cutoffHz"], ["vintagePoly", "DCO and divider", "cutoffHz"]]
 it.each(cases)("%s mounts its signal-flow editor and makes undoable parameter edits", async (kind, title, path) => {
   const added = await dispatch({ type: "addChannel", instrument: kind })
   if (!added) throw new Error("Could not add instrument")

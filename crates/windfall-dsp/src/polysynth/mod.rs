@@ -16,6 +16,8 @@ mod runtime;
 mod vintage_poly;
 mod dual_poly;
 mod compact_synth;
+mod vintage_saw;
+pub use vintage_saw::{VintageSaw, VintageSawParams};
 pub use compact_synth::{CompactSynth, CompactSynthParams, CompactResponse};
 pub use dual_poly::{DualPoly, DualPolyParams, PolyResponse};
 pub use vintage_poly::{VintagePoly, VintagePolyParams};

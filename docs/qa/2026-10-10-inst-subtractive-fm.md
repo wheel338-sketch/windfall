@@ -122,3 +122,17 @@ per-graph DSP tests in `polysynth/tests.rs` (names below).
 Use the integrator commands in the Vintage Poly section, after regenerating
 bindings/descriptors and WASM. Check strict Clippy and numerical thresholds first;
 no measured sound/performance claim is made. No external proprietary content.
+
+## 2026-10-11 continuation — VintageSaw / inst-sawer
+
+Full-row software candidate, awaiting execution. A saw-focused charge/discharge model with DC-compensated asymmetry, pitch decay contour, pulse blend, sub, deterministic component wander and a saturating two-pole integrator filter. Unison, glide, amp/filter envelopes and chorus/phaser/tempo echo complete the graph. DSP test: vintage_saw_asymmetric_charge_pitch_contour_and_saturating_filter.
+Purpose-built editor group: Charging saw oscillator. Uses the existing checked instrument
+commands, tagged project persistence, engine hosting and live/offline processor.
+New generated types: `VintageSaw`, `VintageSawParams`, `vintageSaw` tag and descriptors.
+Tests **written, not executed**: `vintageSaw_musical_edit_reaches_history_disk_and_live_offline_pcm`
+in registered `polysynth_acceptance.rs`; the `vintageSaw` mounted editor case
+(edit and undo); complete descriptor/serde/default/range tests in DSP params;
+per-graph DSP tests in `polysynth/tests.rs` (names below).
+Use the integrator commands in the Vintage Poly section, after regenerating
+bindings/descriptors and WASM. Check strict Clippy and numerical thresholds first;
+no measured sound/performance claim is made. No external proprietary content.
