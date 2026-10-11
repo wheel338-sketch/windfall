@@ -2,7 +2,8 @@
 
 Open **Help → Offline assistant** or **Help → Script editor**. The assistant
 answers from the bundled `ASSISTANT-HELP.txt`. It recognizes `create pattern
-NAME`, `add channel NAME`, `set tempo BPM`, `route channel ID to track ID`, and
+NAME`, `add channel NAME`, `set tempo BPM`, `route channel ID to track ID`,
+`route track ID to track ID`, and
 `mute channel ID` / `unmute channel ID`. Channel and track IDs are shown in the
 panel. Creating a channel uses Windfall's subtractive synth.
 

@@ -60,6 +60,7 @@ impl CommandProposal {
                 | Command::SetEffectParam { .. }
                 | Command::SetPluginParam { .. }
                 | Command::SetTrackParam { .. }
+                | Command::SetTrackOutput { .. }
                 | Command::SetSend { .. }
                 | Command::SetSidechain { .. }
                 | Command::UpdateEffect { .. }

@@ -29,7 +29,8 @@ pub fn command_schema() -> Value {
         object(json!({"type":{"const":"updateSettings"},"patch":object(json!({"tempoBpm":number}), &["tempoBpm"])}), &["type","patch"]),
         object(json!({"type":{"const":"updatePattern"},"id":id,"patch":object(json!({"name":string}), &["name"])}), &["type","id","patch"]),
         object(json!({"type":{"const":"updateChannel"},"id":id,"patch":channel_patch}), &["type","id","patch"]),
-        object(json!({"type":{"const":"updateMixerTrack"},"id":id,"patch":track_patch}), &["type","id","patch"])
+        object(json!({"type":{"const":"updateMixerTrack"},"id":id,"patch":track_patch}), &["type","id","patch"]),
+        object(json!({"type":{"const":"setTrackOutput"},"id":id,"output":id}), &["type","id","output"])
     ]})
 }
 

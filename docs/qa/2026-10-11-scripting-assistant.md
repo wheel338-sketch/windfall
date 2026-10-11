@@ -46,6 +46,12 @@ refuses BYOK credentials/HTTP instead of storing keys in localStorage. Mounted
 review/apply, cancellation/late replies, malformed/timeout errors and key removal;
 all written, not executed, with remote HTTP responses explicitly mocked.
 
+Final source fixture addition: offline and BYOK schema expose checked
+`SetTrackOutput` routing as well as channel routing. Project test
+`track_routing_proposal_uses_checked_cycle_guard_and_one_undo_step` is written,
+not executed. Wakers are invoked outside their mutex so cancellation cannot
+re-enter a held service lock.
+
 ## Row claims at this checkpoint
 
 | Row | Claim | Implemented and remaining |

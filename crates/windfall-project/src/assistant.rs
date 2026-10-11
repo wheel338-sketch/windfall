@@ -92,6 +92,26 @@ impl AssistantProvider for LocalRuleProvider {
                 "Assistant: set tempo",
                 "Review the tempo change; Undo restores the previous tempo.",
             )
+        } else if lower.starts_with("route track ") {
+            let words: Vec<_> = lower.split_whitespace().collect();
+            if words.len() != 6 || words[3] != "to" || words[4] != "track" {
+                return Err("use route track ID to track ID".into());
+            }
+            let id = TrackId(words[2].parse().map_err(|_| "invalid track id")?);
+            let output = TrackId(words[5].parse().map_err(|_| "invalid track id")?);
+            if context.project.mixer.track(id).is_none()
+                || context.project.mixer.track(output).is_none()
+            {
+                return Err("route target is missing; use the displayed IDs".into());
+            }
+            commands.push(Command::SetTrackOutput {
+                id,
+                output: Some(output),
+            });
+            (
+                "Assistant: route track",
+                "Review the track output. Checked routing rejects feedback cycles.",
+            )
         } else if lower.starts_with("route channel ") {
             let words: Vec<_> = lower.split_whitespace().collect();
             if words.len() != 6 || words[3] != "to" || words[4] != "track" {
@@ -202,6 +222,55 @@ mod tests {
                     }
                 )
                 .is_err()
+        );
+    }
+
+    #[test]
+    fn track_routing_proposal_uses_checked_cycle_guard_and_one_undo_step() {
+        let mut document = crate::Document::new(Project::new("Routing"));
+        let a = TrackId(
+            document
+                .dispatch(Command::AddMixerTrack { name: None }, None)
+                .unwrap()
+                .created[0],
+        );
+        let b = TrackId(
+            document
+                .dispatch(Command::AddMixerTrack { name: None }, None)
+                .unwrap()
+                .created[0],
+        );
+        let ask = |document: &crate::Document, from: TrackId, to: TrackId| {
+            LocalRuleProvider
+                .respond(
+                    &format!("route track {} to track {}", from.0, to.0),
+                    AssistantContext {
+                        project: document.project(),
+                        stamp: ProposalStamp {
+                            generation: 1,
+                            revision: document.revision(),
+                        },
+                        help: LOCAL_HELP,
+                    },
+                )
+                .unwrap()
+                .proposal
+                .unwrap()
+        };
+        let p = ask(&document, a, b);
+        let before = document.history().cursor;
+        let applied = p.apply(&mut document, p.stamp, false).unwrap();
+        document.patch(&applied.touched);
+        assert_eq!(document.history().cursor, before + 1);
+        assert_eq!(document.project().mixer.track(a).unwrap().output, Some(b));
+        let reverse = ask(&document, b, a);
+        let before = document.snapshot(None);
+        assert!(reverse.apply(&mut document, reverse.stamp, false).is_err());
+        assert_eq!(document.snapshot(None), before);
+        document.undo().unwrap();
+        assert_eq!(
+            document.project().mixer.track(a).unwrap().output,
+            Some(TrackId::MASTER)
         );
     }
 }

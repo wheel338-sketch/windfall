@@ -24,7 +24,8 @@ impl Service {
         next
     }
     fn wake(&self) {
-        if let Some(waker) = crate::sync::lock(&self.wake).take() {
+        let waker = crate::sync::lock(&self.wake).take();
+        if let Some(waker) = waker {
             waker.wake();
         }
     }
