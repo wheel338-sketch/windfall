@@ -551,7 +551,20 @@ fn a_seek_a_deleted_track_a_new_project_and_a_new_stream_each_end_what_was_shown
         "{events:#?}"
     );
     assert_eq!(session.analyzer_capability().sample_rate, None);
-    bench.rig.processor = Processor::reopen(session.controller(), 44_100);
+    // Reopening reserves process-wide capture seats again. Other test sessions
+    // can take the seats released above, and a stream opened without them never
+    // acquires them later. Retry attachment, just as Bench::new waits for seats.
+    let deadline = Instant::now() + PATIENCE;
+    loop {
+        let processor = Processor::reopen(session.controller(), 44_100);
+        if session.analyzer_capability().sample_rate.is_some() {
+            bench.rig.processor = processor;
+            break;
+        }
+        drop(processor);
+        assert!(Instant::now() < deadline, "no reopened stream with capture seats");
+        std::thread::sleep(Duration::from_millis(20));
+    }
     let events = bench.until_frame(&wire, "scope", 6);
     let reopened = (*frames(&events).last().unwrap()).clone();
     assert_eq!(reopened.clock.sample_rate, 44_100);
