@@ -3,7 +3,7 @@ import { listen } from "@tauri-apps/api/event"
 import { getCurrentWindow } from "@tauri-apps/api/window"
 import { open, save } from "@tauri-apps/plugin-dialog"
 
-import type { RealtimeFrame } from "@/bindings"
+import type { DocumentSnapshot, RealtimeFrame } from "@/bindings"
 import type {
   AnalyzerEvent,
   AnalyzerStatus,
@@ -46,6 +46,13 @@ const PROJECT_FILTER = [{ name: "Windfall project", extensions: ["windfall"] }]
 const MIDI_FILTER = [{ name: "MIDI file", extensions: ["mid", "midi"] }]
 
 export function createTauriBackend(): Backend {
+  let documentGeneration: number | null = null
+  let documentEpoch = 0
+  type WindowSnapshot = { generation: number; snapshot: DocumentSnapshot }
+  function generation() {
+    if (documentGeneration === null) throw new Error("The window is still loading its project")
+    return documentGeneration
+  }
   const realtimeHandlers = new Set<(frame: RealtimeFrame) => void>()
   let realtimeStarted = false
   let realtimeToken: string | null = null
@@ -185,11 +192,17 @@ export function createTauriBackend(): Backend {
     pluginEditor: (target, open) => call("plugin_editor", { target, open }),
     pluginEditorScale: (application) => call("plugin_editor_scale", { application }),
 
-    documentSnapshot: () => call("document_snapshot"),
-    dispatch: (command, gesture) => call("dispatch", { command, gesture }),
-    undo: () => call("undo"),
-    redo: () => call("redo"),
-    historyJump: (cursor) => call("history_jump", { cursor }),
+    documentSnapshot: async () => {
+      const epoch = documentEpoch
+      const owned = await call<WindowSnapshot>("window_document_snapshot")
+      if (epoch !== documentEpoch) throw new Error("The project was replaced while its snapshot loaded")
+      documentGeneration = owned.generation
+      return owned.snapshot
+    },
+    dispatch: async (command, gesture) => call("dispatch", { command, gesture, generation: generation() }),
+    undo: async () => call("undo", { generation: generation() }),
+    redo: async () => call("redo", { generation: generation() }),
+    historyJump: async (cursor) => call("history_jump", { cursor, generation: generation() }),
 
     flpPreview: (path, options) => call("flp_preview", { path, options }),
     flpOpen: (token) => call("flp_open", { token }),
@@ -323,7 +336,11 @@ export function createTauriBackend(): Backend {
     exportCancel: () => call("export_cancel"),
 
     onProjectPatch: (handler) => on(EVENTS.projectPatch, handler),
-    onProjectLoaded: (handler) => on(EVENTS.projectLoaded, handler),
+    onProjectLoaded: (handler) => on<WindowSnapshot>(EVENTS.projectLoaded, (owned) => {
+      documentEpoch += 1
+      documentGeneration = owned.generation
+      handler(owned.snapshot)
+    }),
     onTransportState: (handler) => on(EVENTS.transportState, handler),
     onEngineStatus: (handler) => on(EVENTS.engineStatus, handler),
     onExportProgress: (handler) => on(EVENTS.exportProgress, handler),

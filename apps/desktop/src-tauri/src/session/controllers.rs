@@ -929,11 +929,16 @@ impl Session {
     /// one, adds them to a multi-link pass, and records the movement when
     /// automation recording is on.
     pub(super) fn controller_tweaked(&self, tweaks: &[(AutomationTarget, f32)]) {
+        self.controller_tweaked_guarded(tweaks, None);
+    }
+
+    pub(super) fn controller_tweaked_guarded(&self, tweaks: &[(AutomationTarget, f32)], generation: Option<u64>) {
         let Some((last, _)) = tweaks.last() else {
             return;
         };
         let now = Instant::now();
         let state = self.state();
+        if generation.is_some_and(|expected| state.generation != expected) { return; }
         let project = state.document.project();
         let mut guard = lock(&self.inner.controllers);
         let hub = &mut *guard;

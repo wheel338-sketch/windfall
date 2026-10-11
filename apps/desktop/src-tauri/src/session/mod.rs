@@ -101,6 +101,7 @@ mod tests;
 mod timeline;
 mod transport;
 mod versions;
+mod window_document;
 
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
@@ -125,6 +126,7 @@ pub use library::{ClipPlace, PROJECT_REPLACED};
 pub use mixer_presets::{MixerPresetLibrary, MixerPresetLibraryEntry, MixerPresetPluginRef};
 pub use realtime::{FRAME_INTERVAL, FrameSender};
 pub use transport::{EMPTY_PLAYLIST, MUTED_PLAYLIST, SILENT_PLAYLIST};
+pub use window_document::WindowDocumentSnapshot;
 
 /// The audio output as the session needs it. [`Engine`] is the real one.
 pub trait AudioDevice: Send + Sync {
@@ -178,6 +180,8 @@ impl WeakSession {
 }
 
 struct Inner {
+    /// State's generation mirrored only at committed replacement for event emission.
+    window_document_generation: std::sync::atomic::AtomicU64,
     /// Transient timeline watermark, accessed under State and retained across replacement.
     timeline_request: std::sync::atomic::AtomicU64,
     /// Successful guarded Play owner; accessed only while State is held.
@@ -420,6 +424,7 @@ impl Session {
 
         Self {
             inner: Arc::new(Inner {
+                window_document_generation: std::sync::atomic::AtomicU64::new(0),
                 timeline_request: std::sync::atomic::AtomicU64::new(0),
                 timeline_play_request: std::sync::atomic::AtomicU64::new(0),
                 archive_job: Mutex::new(None),

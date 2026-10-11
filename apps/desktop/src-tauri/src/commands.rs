@@ -213,6 +213,11 @@ fn document_snapshot(session: State<'_, Session>) -> DocumentSnapshot {
 }
 
 #[tauri::command]
+fn window_document_snapshot(session: State<'_, Session>) -> crate::session::WindowDocumentSnapshot {
+    session.window_document_snapshot()
+}
+
+#[tauri::command]
 fn current_mixer_target(
     session: State<'_, Session>,
     track: Option<TrackId>,
@@ -227,9 +232,10 @@ async fn dispatch(
     session: State<'_, Session>,
     command: Command,
     gesture: Option<u64>,
+    generation: u64,
 ) -> Result<DispatchResult, String> {
     let session = session.inner().clone();
-    blocking(move || session.dispatch(command, gesture)).await
+    blocking(move || session.dispatch_from_window(generation, command, gesture)).await
 }
 
 #[tauri::command]
@@ -306,21 +312,21 @@ fn automate(
 }
 
 #[tauri::command]
-async fn undo(session: State<'_, Session>) -> Result<Option<ProjectPatch>, String> {
+async fn undo(session: State<'_, Session>, generation: u64) -> Result<Option<ProjectPatch>, String> {
     let session = session.inner().clone();
-    blocking(move || Ok(session.undo())).await
+    blocking(move || session.undo_from_window(generation)).await
 }
 
 #[tauri::command]
-async fn redo(session: State<'_, Session>) -> Result<Option<ProjectPatch>, String> {
+async fn redo(session: State<'_, Session>, generation: u64) -> Result<Option<ProjectPatch>, String> {
     let session = session.inner().clone();
-    blocking(move || Ok(session.redo())).await
+    blocking(move || session.redo_from_window(generation)).await
 }
 
 #[tauri::command]
-async fn history_jump(session: State<'_, Session>, cursor: u32) -> Result<ProjectPatch, String> {
+async fn history_jump(session: State<'_, Session>, cursor: u32, generation: u64) -> Result<ProjectPatch, String> {
     let session = session.inner().clone();
-    blocking(move || Ok(session.history_jump(cursor))).await
+    blocking(move || session.history_jump_from_window(generation, cursor)).await
 }
 
 #[tauri::command]
@@ -1002,6 +1008,7 @@ pub fn handler() -> impl Fn(Invoke) -> bool + Send + Sync + 'static {
         audio_logger_configure,
         audio_logger_dump,
         document_snapshot,
+        window_document_snapshot,
         dispatch,
         automate,
         undo,

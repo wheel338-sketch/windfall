@@ -85,10 +85,32 @@ Partial: native two-WebView edit/close/reopen/project replacement and device-los
 races, monitor removal while an already-open window is running, maximized
 geometry/taskbar work-area correctness, focus/menus on real Windows/macOS/Linux
 remain. Session tests prove shared owner/revision order, not native event delivery.
-Existing frontend generation guards cannot authenticate an old-window command
-against a server document identity; delayed dispatch crossing asynchronous
-project replacement remains a separate unresolved gate. Native window APIs and
-new command argument/token ordering are first compile/runtime risks to check.
+Native windows now receive a transient server generation envelope at startup
+and project-loaded events. Dispatch/undo/redo/history-jump carry that generation.
+Session validates it while creating the edit/history candidate under State;
+the existing prepared admission rechecks generation/replacement after slow work.
+Controller tweak recording also refuses a departed generation. A late startup
+snapshot cannot reset the replacement identity. This changes only native window
+IPC envelopes, not saved projects or generated musical types; the raw Session
+Event and document_snapshot APIs remain compatible for other callers/tests.
+Concurrent optimistic preparation may explicitly refuse an edit; the two-window
+fixture retries the refused AddPattern against the same generation and verifies
+ordered revisions. This is not a claim that arbitrary conflicting commands are
+automatically rebased.
+
+Written, not executed: additional detached-window native tests
+`stale_window_dispatch_and_history_cannot_touch_a_replacement_document`,
+`prepared_window_edit_loses_admission_when_the_project_is_replaced`;
+`lib/ipc/tauri-document-owner.test.ts` generation arguments, replacement envelope,
+late startup snapshot and listener release. Run alongside the commands above:
+```powershell
+pnpm --dir apps/desktop test src/lib/ipc/tauri-document-owner.test.ts src/lib/store/project.test.ts src/features/layout/project-replaced.test.tsx --maxWorkers=2
+```
+Remaining: custom mutation IPC beyond ordinary dispatch/history (automation,
+prepare-clip, plugin-add, file imports that begin after replacement) needs the
+same caller identity to close every stale-window entry point. Native shell event
+wrapping/State generation mirror, changed command arguments and native geometry
+are the first compile/runtime risks to check. Two actual WebViews remain external.
 
 ## Remaining streams
 

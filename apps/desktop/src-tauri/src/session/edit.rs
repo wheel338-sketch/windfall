@@ -253,17 +253,17 @@ impl Session {
 
     /// Undoes the last edit. `None` when there is nothing to undo.
     pub fn undo(&self) -> Option<ProjectPatch> {
-        self.prepare_history(HistoryMove::Undo)
+        self.prepare_history(HistoryMove::Undo, None)
     }
 
     /// Applies the last undone edit again. `None` when there is none.
     pub fn redo(&self) -> Option<ProjectPatch> {
-        self.prepare_history(HistoryMove::Redo)
+        self.prepare_history(HistoryMove::Redo, None)
     }
 
     /// Undoes or redoes until `cursor` history entries are applied.
     pub fn history_jump(&self, cursor: u32) -> ProjectPatch {
-        self.prepare_history(HistoryMove::Jump(cursor))
+        self.prepare_history(HistoryMove::Jump(cursor), None)
             .unwrap_or_else(|| self.state().document.unchanged_patch())
     }
 
@@ -362,9 +362,26 @@ impl HistoryMove {
     }
 }
 impl Session {
+    pub fn undo_from_window(&self, generation: u64) -> Result<Option<ProjectPatch>, String> {
+        self.history_from_window(generation, HistoryMove::Undo)
+    }
+    pub fn redo_from_window(&self, generation: u64) -> Result<Option<ProjectPatch>, String> {
+        self.history_from_window(generation, HistoryMove::Redo)
+    }
+    pub fn history_jump_from_window(&self, generation: u64, cursor: u32) -> Result<ProjectPatch, String> {
+        self.history_from_window(generation, HistoryMove::Jump(cursor))?
+            .ok_or_else(|| "The history operation was superseded".into())
+    }
+    fn history_from_window(&self, generation: u64, action: HistoryMove) -> Result<Option<ProjectPatch>, String> {
+        if self.window_document_generation() != generation { return Err(super::PROJECT_REPLACED.into()); }
+        let result = self.prepare_history(action, Some(generation));
+        if self.window_document_generation() != generation { return Err(super::PROJECT_REPLACED.into()); }
+        Ok(result)
+    }
+
     // History can refer to a variant evicted from the bounded cache. Compile
     // its target snapshot before reacquiring the session lock as well.
-    fn prepare_history(&self, action: HistoryMove) -> Option<ProjectPatch> {
+    fn prepare_history(&self, action: HistoryMove, expected: Option<u64>) -> Option<ProjectPatch> {
         drop(self.recording_idle().ok()?);
         for _ in 0..8 {
             let (
@@ -378,6 +395,7 @@ impl Session {
                 preparation,
             ) = {
                 let state = self.state();
+                if expected.is_some_and(|generation| state.generation != generation) { return None; }
                 (
                     state.document.clone(),
                     state.pool.clone(),
