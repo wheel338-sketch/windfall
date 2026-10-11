@@ -16,7 +16,7 @@ Product/test tree: `1239e096` (the following commits update this report only). A
 | `scripts/gen-bindings.sh target/round1-binding-inventory` then `node scripts/check-bindings.mjs target/round1-binding-inventory` | Both exit 0; all 458 files match | `target/round1-binding-inventory.log`; fresh inventory comparison |
 | `nat.sh round1-native` | Fixture 0; desktop build 0; tests 0; **3,509 passed, 0 failed, 36 ignored**; zero warnings | `target/round1-native.log` (134 result summaries, including doctests) |
 | `pnpm.cmd test --maxWorkers=4` | Exit 0; **5,801 passed, 0 failed, 0 skipped; 448 files passed** | `target/round1-frontend.log`; 389.15 s |
-| `pnpm.cmd typecheck` | Pending final run | — |
+| `pnpm.cmd typecheck` | Exit 0; zero diagnostics | `target/round1-typecheck.log` |
 | `pnpm.cmd lint` | Pending final run | — |
 | `pnpm.cmd build` | Pending final run | — |
 
