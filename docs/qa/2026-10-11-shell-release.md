@@ -5,6 +5,26 @@ Implementation worker: edit only. **Every new test is written, not executed.**
 No builds, tests, generators, workflows, keys, hosts, installers, releases,
 pushes or subordinate agents were run/created. Parity status is overseer-owned.
 
+## Final implementation claims
+
+All assigned rows have committed implementation or acceptance-test source.
+There is no executed acceptance evidence from this worker. The work is ready
+for integration, not a claim that all eight rows are done.
+
+| Row | Claim | Remaining before full-row acceptance |
+| --- | --- | --- |
+| `wf-detached-windows` | Partial | Caller generation on custom mutation IPC; actual two-WebView focus/menu/edit/close/reopen/replacement races; open-window monitor removal/work-area checks. |
+| `wf-ui-scaling` | Partial | Release bridge editor hosting; macOS/Linux native editors; independent VST3 fixture; live monitor DPI notifications; physical input, WebGPU loss and each-scale large-project performance gates. |
+| `wf-help-tutorials` | Partial | Full mounted/native recording and export walkthroughs, dedicated export request correlation, device-loss/error/focus cases. |
+| `wf-languages` | Partial | Complete translation of remaining main-panel interiors, dynamic/native/dialog text and palette search; translator review and expansion checks. English/Spanish catalogs cover every currently defined key. |
+| `core-lifetime-free-updates` | Partial | Session-wide installation shutdown lease, bounded streaming/redirect policy, actual signed/corrupt fixtures, operator values and real installers/signing/trust checks. |
+| `wf-multithreading` | Partial: foundation only | Production processor/mixer/plan integration, complete per-track ownership, deterministic edge reduction, plan-swap retirement, deadline-output policy, live thread setting and measured realtime/offline acceptance. Production remains serial. |
+| `fx-fruity-notebook` | Full-row candidate for song-position playback cues | Regeneration and written acceptance execution; verify native save/reopen/history/follow cleanup. No audio-parameter page automation is introduced. |
+| `fx-fruity-html-notebook` | Partial | Execute hostile-content fixtures and packaged three-engine CSP/resource/IPC isolation checks. Active remote HTML/navigation is unsupported. |
+
+The following sections record the exact scope, written tests and commands for
+each row. The integration checklist at the end orders the highest-risk gates.
+
 ## Notebook changes
 
 `NotebookPage` gains optional, default-omitted `html` and `startTick` fields.
@@ -122,11 +142,6 @@ native window focus/menu isolation still requires two separate WebViews.
 ```powershell
 pnpm --dir apps/desktop test src/features/layout/panel-window.test.tsx src/features/layout/detach.test.tsx src/features/help/guided-tutorial.test.tsx --maxWorkers=2
 ```
-
-## Remaining streams
-
-Detached windows, scaling, tutorials, languages, updater and scheduler work
-continues below. None is presently claimed complete.
 
 ## Free updates / release
 
@@ -361,3 +376,88 @@ CLAP source API reference:
 [Clack GUI host wrappers](https://raw.githubusercontent.com/prokopyl/clack/main/extensions/src/gui/host.rs).
 VST3 has no independent native editor fixture yet (its existing fixture returns
 no view); write/execute a real COM-view resize/refusal case before accepting it.
+
+## Shared seams and regeneration
+
+Brief-listed shared seams touched, with new behavior delegated to adjacent modules:
+
+- `apps/desktop/src-tauri/src/commands.rs`, `lib.rs`, `session/mod.rs` and
+  `session/tests/mod.rs`: custom native commands, state/plugin registration,
+  owner generation/realtime lifetime and test registration.
+- `apps/desktop/src/lib/ipc/backend.ts`, `tauri.ts`, `mock.ts`: editor scaling,
+  native generation envelopes/arguments and subscription token release.
+- `apps/desktop/src/features/layout/app-shell.tsx`: detached composition and
+  shared help overlays; `use-app-boot.ts` adds editor-scale listener lifetime.
+- `crates/windfall-engine/src/lib.rs` and `tests/engine/main.rs`: isolated worker
+  module export and acceptance registration. Production `processor.rs`,
+  `mixer.rs`, and `plan.rs` are untouched.
+
+Other cross-owner surfaces to reconcile during merge: session
+`controllers.rs`, `edit.rs`, `files.rs`, `realtime.rs`, native `shell.rs`,
+`plugins/runtime.rs`, plugin-host instance traits and CLAP/VST3 editor/instance
+modules, `gui/{mod,win32}.rs`, the test-plugin GUI/editor fixture, action button/
+menu item translation, `components/ui/dialog.tsx`, layout menu/panel/title/
+workspace and Settings composition. Dialog's optional `showOverlay` preserves
+the default for existing callers. `NotebookPage` owns the persisted additions
+in `crates/windfall-project/src/notebook.rs`; existing notebook test literals
+gain defaults. No musical Command variant, descriptor order, EVERY_COMMAND
+table or parity tracker is changed.
+
+Integrator must resolve the new updater dependencies into `Cargo.lock`, then
+regenerate **all** project/IPC TypeScript bindings with the normal generator
+(not hand edits), including `NotebookPage`'s optional `html`/`startTick` and
+referencing Notebook/Project/Command/patch types. Rebuild and commit
+`apps/desktop/src/lib/ipc/sim/windfall_sim.wasm` and its metadata. Existing
+generator outputs such as descriptors/automation fixtures may be rewritten;
+no new DSP descriptor is intended. The native WindowDocumentSnapshot envelope
+is a private custom IPC contract maintained in the Tauri backend, not a saved
+project field or exported musical binding.
+
+Integrator-only commands, not run here (Git Bash for shell scripts on Windows;
+scripts load the existing MSVC environment):
+```sh
+cargo check -p windfall-project -p windfall-engine -p windfall-plugin-host -p windfall-desktop
+bash scripts/gen-bindings.sh
+bash scripts/build-sim.sh
+pnpm --dir apps/desktop typecheck
+pnpm --dir apps/desktop lint
+```
+Run the per-row test commands above only after regeneration. Include existing
+native session history/edit/recording/realtime and frontend notebook/help/
+settings/detach/replacement regressions. Use the repository's normal final
+format/lint/clippy checks after resolving source errors; none ran in this worker.
+
+## Ordered integration risks and external gates
+
+1. **Compile and generated contracts first:** updater plugin version/API and
+   asynchronous Send bounds; TrackProcessor Send and queue ownership; ts-rs
+   optional NotebookPage fields; native generation event envelope/arguments;
+   Base UI nonmodal prop; CLAP/VST3/Win32 scale interfaces. Generated artifacts
+   and Cargo.lock are intentionally stale until the integrator regenerates.
+2. **Project/window lifetime:** exercise late snapshots, optimistic refusal,
+   two live WebViews racing edits/history/replacement and feed close/reopen.
+   Extend caller identity to the remaining custom mutation IPC before claiming
+   complete stale-window isolation.
+3. **Release installation:** add a session shutdown lease that admits no edits,
+   imports or recording between the final dirty check and installation. Verify
+   an existing correctly signed artifact and corrupted signature/payload;
+   bounded transfer/redirects, offline retry and interruption. Policy mocks
+   cannot establish cryptographic or installer safety.
+4. **Realtime scheduler:** do not enable this foundation in the production
+   callback until the complete track loop/plan-swap lifetime and deterministic
+   accumulation are integrated and allocator/bit-identity tests pass. The
+   256-round probe bound has no measured scheduling-time guarantee.
+5. **Packaged rendering/security and usability:** run the authored application
+   and deny-all notebook CSP on Windows WebView2, macOS WKWebView and Linux
+   WebKitGTK. Verify startup/IPC/WASM/fonts/local audio/canvases/dialogs plus
+   hostile HTML with no execution, remote resource request or IPC. Complete
+   physical scaling/focus/device-loss and language expansion review.
+
+External operator values are precisely the three WINDFALL_UPDATE_* build-time
+values listed above, their matching private signing key/password and signed
+HTTPS manifests/artifacts. Operator also owns platform signing identities,
+notarization and installers/packages. No key, host, workflow or release was
+created. Actual Windows installer upgrade/uninstall/recovery and macOS/Linux
+native builds, signing/trust/install/upgrade/uninstall checks remain outside
+this edit-only worker. Keep alpha version immutable; select and record the
+release version/channel/project-format manifest before publishing.
