@@ -317,4 +317,4 @@ source/staleness and one-step history guards. Native session acceptance:
 `builtin_dereverb_without_weights_reviews_amount_and_applies_one_saved_undo_step`
 and `builtin_descriptor_cannot_be_imported_as_fake_weights`, written, not executed.
 Production import case distinguishes built-in availability from unavailable
-ONNX inference. Capability remains nonblocking while shutdown joins workers.
+ONNX inference. Capability remains nonblocking while shutdown joins workers.UI now offers built-in dereverb without a model, distinct mode copy, boundedwet/dry input and reviewed amount. Canonical actions accept its native revieweddescriptor and refuse unsupported registered ONNX inference explicitly. Mountedcases `uses built-in %s without a pack and pins reviewed wet/dry` for bothmodes are **written, not executed** in `features/analysis/panel.test.tsx`.Regenerate `AnalysisCapability`, `AnalysisSubmit`, `AnalysisReview`,`AnalysisOnnxContract`, `AnalysisTensorSpec`, `AnalysisTensorDimension` andchanged `AnalysisModel` in addition to the earlier binding list.

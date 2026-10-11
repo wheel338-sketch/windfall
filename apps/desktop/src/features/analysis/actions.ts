@@ -17,6 +17,9 @@ import {
   isTerminalStatus,
   validRange,
   taskProblem,
+  isDereverb,
+  isBuiltinDereverb,
+  BUILTIN_DEREVERB_ID,
   type AnalysisCapability,
   type AnalysisJob,
   type AnalysisReview,
@@ -90,6 +93,7 @@ type PanelContext = {
   localPath: string
   replace: boolean
   task?: AnalysisTask
+  amount?: number
   selectedRoles?: readonly string[]
   execute(command: AnalysisCommand): Promise<void>
 }
@@ -147,13 +151,19 @@ function reason(command: AnalysisCommand): string | undefined {
   if (!context.capability.available)
     return context.capability.reason ?? "No inference algorithm is available"
   const model = context.capability.models[context.modelIndex]
+  const builtin = context.capability.classicalDereverb && isDereverb(context.task ?? "audio") &&
+    (context.modelIndex === -1 || context.capability.models.length === 0)
   if (command === "submit") {
     if (!hasRecoveryCapacity())
       return "Retire retained analysis jobs first (limit 8)"
     if (context.job) return "Retire the current job before submitting another"
-    if (!model) return "Import and select a pinned model"
-    const mismatch = taskProblem(context.task ?? "audio", model)
+    if (!model && !builtin) return "Import and select a pinned model"
+    const amount = context.amount ?? 1
+    if (!Number.isFinite(amount) || amount < 0 || amount > 1) return "Wet/dry amount must be 0 to 1"
+    const mismatch = !builtin && model ? taskProblem(context.task ?? "audio", model) : undefined
     if (mismatch) return mismatch
+    if (!builtin && model && context.capability.classicalDereverb && model.provenance.adapterId !== BUILTIN_DEREVERB_ID)
+      return "Pack registered; the ONNX Runtime separation adapter is not installed"
     if (!validRange(context.start, context.end))
       return "Enter a valid frame range"
   }
@@ -168,7 +178,7 @@ function reason(command: AnalysisCommand): string | undefined {
       review.job.ticket !== job.ticket ||
       review.job.request !== job.request ||
       review.clip !== context.clip ||
-      !capability.models.some(
+      !(capability.classicalDereverb && isBuiltinDereverb(review.model)) && !capability.models.some(
         (model) =>
           model.id === review.model.id &&
           model.version === review.model.version &&

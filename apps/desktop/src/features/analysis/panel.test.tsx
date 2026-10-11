@@ -47,6 +47,7 @@ const job: AnalysisJob = {
   failure: null,
 }
 const review: AnalysisReview = {
+  amount: 1,
   job,
   clip: 42,
   generation: "1",
@@ -564,6 +565,34 @@ describe("analysis app controls", () => {
     expect(disabledReason(registry.get("analysis.submit")!, getAppState())).toContain("exact roles")
     await act(() => runAction("analysis.submit"))
     expect(submit).not.toHaveBeenCalled()
+  })
+  it.each(["dereverbGeneral", "dereverbVocal"] as const)("uses built-in %s without a pack and pins reviewed wet/dry", async (task) => {
+    vi.spyOn(backend, "analysisCapability").mockResolvedValue({ native: true, available: true,
+      classicalDereverb: true, reason: null, models: [] })
+    vi.spyOn(backend, "analysisSubmit").mockResolvedValue(job)
+    vi.spyOn(backend, "analysisStatus").mockResolvedValue(job)
+    vi.spyOn(backend, "analysisCancel").mockResolvedValue({ ...job, status: "cancelled" })
+    vi.spyOn(backend, "analysisForget").mockResolvedValue()
+    const role = task === "dereverbVocal" ? "dereverb-vocal" : "dereverb-general"
+    vi.spyOn(backend, "analysisReview").mockImplementation(async () => ({ ...review, clip, task, amount: 0.4,
+      model: { ...model, id: "windfall-classical-dereverb", bytes: "0", outputs: [{ role, channels: 2 }] },
+      artifacts: [{ ...review.artifacts[0], role }] }))
+    vi.spyOn(backend, "analysisPreview").mockResolvedValue()
+    render(<AnalysisPanel clip={clip} initialTask={task} />)
+    await screen.findByRole("option", { name: /Built-in classical/ })
+    fireEvent.change(screen.getByLabelText("End frame exclusive"), { target: { value: "100" } })
+    fireEvent.change(screen.getByLabelText("Dereverb wet/dry amount"), { target: { value: "1.2" } })
+    expect(screen.getByRole("button", { name: "Submit analysis" })).toBeDisabled()
+    fireEvent.change(screen.getByLabelText("Dereverb wet/dry amount"), { target: { value: "0.4" } })
+    fireEvent.click(screen.getByRole("button", { name: "Submit analysis" }))
+    await waitFor(() => expect(backend.analysisSubmit).toHaveBeenCalledWith(expect.objectContaining({
+      task, amount: 0.4, modelId: "windfall-classical-dereverb", modelVersion: "1", modelRevision: "1" })))
+    await screen.findByText(/Job 9007199254740993: ready/)
+    fireEvent.click(screen.getByRole("button", { name: "Review outputs" }))
+    await screen.findByText(/No model weights/)
+    expect(screen.getByRole("button", { name: "Apply reviewed outputs" })).toBeEnabled()
+    fireEvent.click(screen.getByRole("button", { name: `Audition ${role}` }))
+    await waitFor(() => expect(backend.analysisPreview).toHaveBeenCalledWith(job.ticket, role))
   })
   it("loads a song from the remix action and opens the honest stem wizard", async () => {
     vi.spyOn(backend, "pickAudioFile").mockResolvedValue("/factory/Loops/Drum loop 128.wav")

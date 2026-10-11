@@ -29,12 +29,14 @@ export type AnalysisModel = {
   outputs: { role: string; channels: number }[]
 }
 export type AnalysisCapability = {
+  classicalDereverb?: boolean
   native: boolean
   available: boolean
   reason: string | null
   models: AnalysisModel[]
 }
 export type AnalysisSubmit = {
+  amount?: number | null
   task?: AnalysisTask
   clip: number
   modelId: string
@@ -65,6 +67,7 @@ export type AnalysisJob = {
   failure: string | null
 }
 export type AnalysisReview = {
+  amount: number
   task?: AnalysisTask
   job: AnalysisJob
   clip: number
@@ -96,6 +99,13 @@ export type AnalysisApply = {
   muteOriginal?: boolean
 }
 export type AnalysisTask = "audio" | "stemSeparation" | "dereverbGeneral" | "dereverbVocal"
+export const BUILTIN_DEREVERB_ID = "windfall-classical-dereverb"
+export function isDereverb(task: AnalysisTask): boolean {
+  return task === "dereverbGeneral" || task === "dereverbVocal"
+}
+export function isBuiltinDereverb(model: AnalysisModel): boolean {
+  return model.id === BUILTIN_DEREVERB_ID && model.version === "1" && model.revision === "1" && model.bytes === "0"
+}
 export function taskProblem(task: AnalysisTask, model: AnalysisModel): string | undefined {
   if (task === "audio") return undefined
   const expected = task === "stemSeparation" ? ["drums", "bass", "vocals", "other"] :
