@@ -325,3 +325,10 @@ for empty pushes. Additional acceptance `partial_wet_is_linear_and_long_stream_r
 checks 50% blend against dry/full wet and five minutes of streamed silence
 without retaining output. Written, not executed. Native job source/view caps
 still apply independently of the streaming kernel.
+Additional ONNX cases in `features/analysis/manifest.test.ts`,
+`onnx_contract_rejects_ambiguous_shapes_segment_policy_and_stem_mapping` in
+analysis lifecycle tests, and
+`explicit_pack_registration_is_restored_on_actual_session_restart` in native
+Session tests are **written, not executed**. They cover named/symbolic tensors,
+stripped executable extras, invalid dimensions, overlap, opset, rate and role
+mapping, and public capability restoration without re-import.

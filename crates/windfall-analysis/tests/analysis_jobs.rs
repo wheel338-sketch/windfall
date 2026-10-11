@@ -106,6 +106,32 @@ fn manifest() -> ModelManifest {
         }],
     }
 }
+
+#[test]
+fn onnx_contract_rejects_ambiguous_shapes_segment_policy_and_stem_mapping() {
+    use windfall_analysis::{OnnxContract, TensorDimension, TensorSpec};
+    let mut pack = manifest();
+    pack.onnx = Some(OnnxContract {
+        opset: 17,
+        inputs: vec![TensorSpec { name: "audio".into(), shape: vec![TensorDimension::Fixed(1), TensorDimension::Fixed(2), TensorDimension::Symbol("frames".into())] }],
+        outputs: vec![TensorSpec { name: "stems".into(), shape: vec![TensorDimension::Fixed(1), TensorDimension::Fixed(2), TensorDimension::Symbol("frames".into())] }],
+        sample_rate: 48_000, segment_frames: 24_000, overlap_frames: 6_000,
+        stem_roles: vec!["lifecycle-copy".into()],
+    });
+    pack.validate().unwrap();
+    for change in 0..6 {
+        let mut bad = pack.clone(); let onnx = bad.onnx.as_mut().unwrap();
+        match change {
+            0 => onnx.opset = 0,
+            1 => onnx.overlap_frames = onnx.segment_frames,
+            2 => onnx.inputs[0].shape[2] = TensorDimension::Fixed(0),
+            3 => onnx.stem_roles = vec!["wrong-stem".into()],
+            4 => onnx.sample_rate = 44_100,
+            _ => onnx.inputs.push(onnx.inputs[0].clone()),
+        }
+        assert!(bad.validate().is_err(), "invalid ONNX contract variant {change}");
+    }
+}
 fn source() -> AudioBuffer {
     AudioBuffer::from_interleaved(
         48_000,

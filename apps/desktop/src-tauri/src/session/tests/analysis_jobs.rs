@@ -1285,3 +1285,15 @@ fn builtin_descriptor_cannot_be_imported_as_fake_weights() {
     assert!(rig.session.analysis_model_import(&path, spec).unwrap_err().contains("not an imported model"));
     assert!(rig.session.analysis_capability().models.is_empty());
 }
+
+#[test]
+fn explicit_pack_registration_is_restored_on_actual_session_restart() {
+    let rig = Rig::new();
+    let path = rig.file("authored.model"); std::fs::write(&path, MODEL).unwrap();
+    rig.session.analysis_model_import(&path, model()).unwrap();
+    let rig = rig.restart();
+    assert_eq!(rig.session.analysis_capability().models, vec![model()]);
+    assert!(rig.session.analysis_capability().classical_dereverb);
+    // Registration survives, inference support is still a separate native gate.
+    assert!(rig.session.analysis_submit(request(ClipId(1))).unwrap_err().contains("analysis:unavailable"));
+}
