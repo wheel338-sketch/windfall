@@ -121,6 +121,8 @@ pub(crate) enum Edit {
     TakeGroups(Change<Vec<crate::AudioTakeGroup>>),
     Settings(Change<ProjectSettings>),
     Plugins(Change<Vec<crate::PluginBinding>>),
+    /// Replaces the routing of the effects' separately routable outputs.
+    EffectOutputs(Change<Vec<crate::EffectOutputRoute>>),
     Sample(ListEdit<SampleAsset>),
     /// Boxed because a channel is large: an instrument's settings are part
     /// of it.
@@ -174,6 +176,9 @@ impl Edit {
                 project.playlist.take_groups = change.result(direction).clone()
             }
             Edit::Plugins(change) => project.plugins = change.result(direction).clone(),
+            Edit::EffectOutputs(change) => {
+                project.mixer.effect_outputs = change.result(direction).clone()
+            }
             Edit::Sample(edit) => edit.apply(&mut project.samples, direction),
             Edit::Channel(edit) => edit.apply(&mut project.channels, direction),
             Edit::MoveChannel(moved) => moved.apply(&mut project.channels, direction),
@@ -255,6 +260,7 @@ impl Edit {
             Edit::Timeline(_) => touched.playlist = true,
             Edit::TakeGroups(_) => touched.playlist = true,
             Edit::Plugins(_) => touched.plugins = true,
+            Edit::EffectOutputs(_) => touched.mixer = true,
             Edit::Sample(_) => touched.samples = true,
             Edit::Channel(_) | Edit::MoveChannel(_) | Edit::SetChannel(_) => {
                 touched.channels = true;
@@ -308,6 +314,7 @@ impl Edit {
             Edit::ArrangementBook(change) => change.old == change.new,
             Edit::TakeGroups(change) => change.old == change.new,
             Edit::Plugins(change) => change.old == change.new,
+            Edit::EffectOutputs(change) => change.old == change.new,
             Edit::SetChannel(change) => change.old == change.new,
             Edit::SetMixerTrack(change) => change.old == change.new,
             Edit::SetPlaylistTrack(change) => change.old == change.new,
@@ -340,6 +347,7 @@ impl Edit {
             (Edit::Timeline(first), Edit::Timeline(second)) => first.new = second.new,
             (Edit::TakeGroups(first), Edit::TakeGroups(second)) => first.new = second.new,
             (Edit::Plugins(first), Edit::Plugins(second)) => first.new = second.new,
+            (Edit::EffectOutputs(first), Edit::EffectOutputs(second)) => first.new = second.new,
             (Edit::SetChannel(first), Edit::SetChannel(second))
                 if first.new.id == second.new.id =>
             {

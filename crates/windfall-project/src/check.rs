@@ -314,6 +314,7 @@ fn check_mixer(project: &Project) -> Result<(), String> {
             }
         }
     }
+    crate::effect_outputs::check(project)?;
     if let Some(track) = routing_cycle(&project.mixer) {
         return Err(format!(
             "mixer routing loops back on itself at track {}",
@@ -362,14 +363,16 @@ fn routing_cycle(mixer: &Mixer) -> Option<TrackId> {
         .map(|track| track.id)
 }
 
-/// The tracks `from` feeds directly: its output and its sends.
+/// The tracks `from` feeds directly: its output, its sends and sidechains,
+/// and the routed outputs of its effects.
 fn routing_targets(mixer: &Mixer, from: TrackId) -> impl Iterator<Item = TrackId> + '_ {
-    mixer.track(from).into_iter().flat_map(|track| {
+    mixer.track(from).into_iter().flat_map(move |track| {
         track
             .output
             .into_iter()
             .chain(track.sends.iter().map(|send| send.target))
             .chain(track.sidechains.iter().map(|send| send.target))
+            .chain(crate::effect_outputs::targets(mixer, from))
     })
 }
 

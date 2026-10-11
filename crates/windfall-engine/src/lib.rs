@@ -185,3 +185,5 @@ pub mod recording;
 
 #[cfg(test)]
 mod qa_recording_mixer;
+#[cfg(test)]
+mod qa_mixer_pdc_ports;

@@ -92,6 +92,7 @@ pub use dc_block::{DcBlock, DcBlockParams};
 pub use delay::{Delay, DelayMode, DelayParams, NoteDivision};
 pub use distortion::{DISTORTION_LATENCY_SAMPLES, Distortion, DistortionParams};
 pub use effect::{AnyEffect, Effect, EffectKind, EffectParams, EffectSlot, GainReductionMeter};
+pub use effect::{AuxBlock, AuxOutputInfo, MAX_AUX_OUTPUTS};
 pub use eq::{CutSlope, EqBand, EqCutBand, EqParams, ParametricEq};
 pub use filter_family::{
     BassShelf, BassShelfParams, FastLowpass, FastLowpassParams, SelectableFilter,

@@ -565,6 +565,11 @@ impl Transaction<'_> {
                 });
                 "Edit note expression curves"
             }
+            Command::SetEffectOutput {
+                effect,
+                output,
+                target,
+            } => self.set_effect_output(effect, output, target)?,
             Command::SetSidechain { from, to, gain } => {
                 let index = self.signal_track_index(from)?;
                 self.signal_track_index(to)?;
@@ -1373,7 +1378,76 @@ impl Transaction<'_> {
             }
         };
         self.prune_plugins();
+        self.prune_effect_outputs();
         Ok(label.to_owned())
+    }
+
+    /// Effect output routes follow their effects: an edit that deletes or
+    /// replaces an effect, deletes a target, or moves an effect to where
+    /// its route would loop, retires the route in the same undo step.
+    fn prune_effect_outputs(&mut self) {
+        let new = crate::effect_outputs::pruned(&self.project.mixer);
+        self.push(Edit::EffectOutputs(Change {
+            old: self.project.mixer.effect_outputs.clone(),
+            new,
+        }));
+    }
+
+    fn set_effect_output(
+        &mut self,
+        effect: EffectId,
+        output: u8,
+        target: Option<TrackId>,
+    ) -> Result<Label, CommandError> {
+        let mixer = &self.project.mixer;
+        let home = crate::effect_outputs::home(mixer, effect)
+            .ok_or_else(|| CommandError::invalid("the effect is not in this project"))?;
+        let kind = home
+            .effects
+            .iter()
+            .find(|slot| slot.id == effect)
+            .map(EffectSlot::kind)
+            .ok_or_else(|| CommandError::invalid("the effect is not in this project"))?;
+        if usize::from(output) >= crate::effect_outputs::output_count(kind) {
+            return Err(CommandError::invalid(
+                "This effect has no such output to route",
+            ));
+        }
+        let from = home.id;
+        if let Some(to) = target {
+            if from == TrackId::MASTER || home.current {
+                return Err(CommandError::invalid(
+                    "An effect on this track cannot send to another track",
+                ));
+            }
+            self.signal_track_index(to)?;
+            if to == from {
+                return Err(CommandError::invalid(
+                    "Choose a different track to receive this output",
+                ));
+            }
+            // The route being replaced is not part of the loop test.
+            let mut without = self.project.mixer.clone();
+            without.effect_outputs = crate::effect_outputs::with_route(
+                &without.effect_outputs,
+                effect,
+                output,
+                None,
+            );
+            if reaches(&without, to, from) {
+                return Err(CommandError::invalid(
+                    "The route would make routing loop back on itself",
+                ));
+            }
+        }
+        let old = self.project.mixer.effect_outputs.clone();
+        let new = crate::effect_outputs::with_route(&old, effect, output, target);
+        self.push(Edit::EffectOutputs(Change { old, new }));
+        Ok(if target.is_some() {
+            "Route effect output"
+        } else {
+            "Disconnect effect output"
+        })
     }
 
     fn bind_plugin(&mut self, plugin: crate::PluginBinding) {

@@ -223,6 +223,23 @@ pub(crate) struct PlanTrack {
     pub instruments: Vec<usize>,
     pub external_output: Option<windfall_project::ExternalOutputRoute>,
     pub latency_offset_ms: f64,
+    /// Some edge of the track leaves from an effect instead of the fader.
+    pub tapped: bool,
+}
+
+impl PlanTrack {
+    /// Which separately routable outputs of the effect at `place` in the
+    /// chain have somewhere to go: bit `n` for output `n`.
+    pub fn routed_outputs(&self, place: usize) -> u8 {
+        if !self.tapped {
+            return 0;
+        }
+        self.edges
+            .iter()
+            .filter_map(|edge| edge.tap)
+            .filter(|tap| tap.place == place)
+            .fold(0, |mask, tap| mask | (1 << tap.output))
+    }
 }
 
 /// Only progress is shared: this never grants access to a plugin owner.
@@ -329,8 +346,23 @@ impl PlanEffect {
     }
 }
 
+/// Where an edge leaves its track when that is not after the fader: one
+/// separately routable output of one effect of the chain.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct PlanTap {
+    pub effect: EffectId,
+    pub output: u8,
+    /// The effect's place in its track's chain, departing effects counted.
+    /// [`Plan::link`] keeps it current; `usize::MAX` matches no place.
+    pub place: usize,
+}
+
 #[derive(Debug, Clone)]
 pub(crate) struct PlanEdge {
+    /// Set when the edge carries an effect's own output from its place in
+    /// the chain, before the fader. Such an edge is neither the track's
+    /// output nor one of its sends.
+    pub tap: Option<PlanTap>,
     pub sidechain: bool,
     /// Index of the receiving track.
     pub target: usize,
@@ -340,6 +372,18 @@ pub(crate) struct PlanEdge {
     pub gain: f32,
     /// Index of this edge's ramp in [`PlanState::edges`].
     pub slot: usize,
+}
+
+impl PlanEdge {
+    /// The same route in another plan: same destination, same kind, and for
+    /// an effect's output the same output of the same effect.
+    pub fn same_route(&self, other: &PlanEdge) -> bool {
+        self.target_id == other.target_id
+            && self.send == other.send
+            && self.sidechain == other.sidechain
+            && self.tap.map(|tap| (tap.effect, tap.output))
+                == other.tap.map(|tap| (tap.effect, tap.output))
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -691,6 +735,15 @@ impl Plan {
         for (index, channel) in self.channels.iter().enumerate() {
             if channel.instrument.is_some() {
                 self.tracks[channel.track].instruments.push(index);
+            }
+        }
+        for track in &mut self.tracks {
+            let effects = &track.effects;
+            for tap in track.edges.iter_mut().filter_map(|edge| edge.tap.as_mut()) {
+                tap.place = effects
+                    .iter()
+                    .position(|effect| !effect.leaving && effect.id == tap.effect)
+                    .unwrap_or(usize::MAX);
             }
         }
         let places = self.tracks.iter().enumerate().flat_map(|(track, entry)| {
@@ -1261,6 +1314,7 @@ fn compile_mixer(mixer: &Mixer) -> (Vec<PlanTrack>, Vec<usize>) {
                 let target = ids.get(target_id.0)?;
                 // The master is the end of the chain, and nothing feeds itself.
                 (index != 0 && target != index && !track.current && !source[target].current).then_some(PlanEdge {
+                    tap: None,
                     target,
                     target_id,
                     send,
@@ -1275,7 +1329,7 @@ fn compile_mixer(mixer: &Mixer) -> (Vec<PlanTrack>, Vec<usize>) {
                 .iter()
                 .filter_map(|send| edge(send.target, true, false, gain(send.gain)));
             let keys = track.sidechains.iter().filter_map(|send| edge(send.target, true, true, gain(send.gain)));
-            let effects = track
+            let effects: Vec<PlanEffect> = track
                 .effects
                 .iter()
                 .filter(|effect| effects_seen.insert(effect.id))
@@ -1297,6 +1351,27 @@ fn compile_mixer(mixer: &Mixer) -> (Vec<PlanTrack>, Vec<usize>) {
                     after_departure: None,
                 })
                 .collect();
+            // The routed outputs of this track's effects, one edge each. A
+            // damaged project that names an output the effect lacks, or
+            // routes one output twice, gets the first sound route only.
+            let mut tapped = HashSet::new();
+            let taps = mixer.effect_outputs.iter().filter_map(|route| {
+                let place = effects.iter().position(|effect| effect.id == route.effect)?;
+                let outputs = effects[place].params.kind().aux_outputs().len();
+                if usize::from(route.output) >= outputs.min(windfall_dsp::MAX_AUX_OUTPUTS)
+                    || !tapped.insert((route.effect, route.output))
+                {
+                    return None;
+                }
+                let mut edge = edge(route.target, false, false, 1.0)?;
+                edge.tap = Some(PlanTap {
+                    effect: route.effect,
+                    output: route.output,
+                    place,
+                });
+                Some(edge)
+            });
+            let edges: Vec<PlanEdge> = output.into_iter().chain(sends).chain(keys).chain(taps).collect();
             PlanTrack {
                 processing: track.processing,
                 current: track.current,
@@ -1304,7 +1379,8 @@ fn compile_mixer(mixer: &Mixer) -> (Vec<PlanTrack>, Vec<usize>) {
                 gain: gain(track.volume),
                 audible: true,
                 pan: pan(track.pan),
-                edges: output.into_iter().chain(sends).chain(keys).collect(),
+                tapped: edges.iter().any(|edge| edge.tap.is_some()),
+                edges,
                 effects,
                 instruments: Vec::new(),
                 external_output: track.external_output,
@@ -1315,6 +1391,9 @@ fn compile_mixer(mixer: &Mixer) -> (Vec<PlanTrack>, Vec<usize>) {
 
     let mut order = route(&mut tracks);
     order.sort_by_key(|&index| tracks[index].current);
+    for track in &mut tracks {
+        track.tapped = track.edges.iter().any(|edge| edge.tap.is_some());
+    }
 
     let soloed: Vec<bool> = source.iter().map(|track| track.solo && !track.current).collect();
     let heard = solo_set(&tracks, &soloed);
@@ -1325,6 +1404,11 @@ fn compile_mixer(mixer: &Mixer) -> (Vec<PlanTrack>, Vec<usize>) {
             track.audible = false;
         }
         for edge in &mut track.edges {
+            // An effect's own output leaves before the fader, so the fader
+            // at zero does not silence it. Mute and solo still must.
+            if edge.tap.is_some() && !track.audible {
+                edge.gain = 0.0;
+            }
             edge.slot = slot;
             slot += 1;
         }
@@ -1801,7 +1885,7 @@ mod tests {
     }
 
     fn mixer_gains(tracks: Vec<MixerTrack>) -> Vec<f32> {
-        let (tracks, _) = compile_mixer(&Mixer { tracks });
+        let (tracks, _) = compile_mixer(&Mixer { tracks, effect_outputs: Vec::new() });
         tracks.iter().map(|track| track.gain).collect()
     }
 
@@ -1941,6 +2025,7 @@ mod tests {
     #[test]
     fn tracks_are_ordered_after_what_feeds_them() {
         let (tracks, order) = compile_mixer(&Mixer {
+            effect_outputs: Vec::new(),
             tracks: vec![
                 track(0, None, &[]),
                 track(1, Some(3), &[2]),
@@ -1960,6 +2045,7 @@ mod tests {
     #[test]
     fn a_routing_loop_is_broken_instead_of_followed() {
         let (tracks, order) = compile_mixer(&Mixer {
+            effect_outputs: Vec::new(),
             tracks: vec![
                 track(0, None, &[]),
                 track(1, Some(2), &[]),
@@ -1996,6 +2082,7 @@ mod tests {
     #[test]
     fn the_master_never_routes_anywhere() {
         let (tracks, _) = compile_mixer(&Mixer {
+            effect_outputs: Vec::new(),
             tracks: vec![track(0, Some(1), &[1]), track(1, Some(0), &[])],
         });
         assert!(tracks[0].edges.is_empty());

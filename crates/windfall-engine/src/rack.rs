@@ -367,21 +367,57 @@ impl EffectUnit {
         dry_right: &mut [f32],
         key: Option<&[[f32; 2]]>,
     ) {
+        self.process_spliced(left, right, dry_left, dry_right, key, None);
+    }
+
+    /// Processes one block in place and fills the effect's separately
+    /// routable outputs, for a track that sends them elsewhere. They join
+    /// and leave with the effect: while it fades in or out of its chain
+    /// they fade with it, and once it is gone they are silent. A hosted
+    /// plugin has no such outputs and leaves them silent.
+    pub fn process_routed(
+        &mut self,
+        left: &mut [f32],
+        right: &mut [f32],
+        dry_left: &mut [f32],
+        dry_right: &mut [f32],
+        key: Option<&[[f32; 2]]>,
+        aux: &mut windfall_dsp::AuxBlock<'_>,
+    ) {
+        self.process_spliced(left, right, dry_left, dry_right, key, Some(aux));
+    }
+
+    fn process_spliced(
+        &mut self,
+        left: &mut [f32],
+        right: &mut [f32],
+        dry_left: &mut [f32],
+        dry_right: &mut [f32],
+        key: Option<&[[f32; 2]]>,
+        mut aux: Option<&mut windfall_dsp::AuxBlock<'_>>,
+    ) {
         match self.splice {
             Splice::Steady => {
                 self.heard = true;
                 self.life.hear();
-                self.process_slot(left, right, key);
+                self.process_slot(left, right, key, aux);
                 return;
             }
-            Splice::Gone => return,
+            Splice::Gone => {
+                if let Some(aux) = aux {
+                    for output in &mut aux.outputs {
+                        output[..left.len()].fill([0.0; 2]);
+                    }
+                }
+                return;
+            }
             Splice::In { .. } | Splice::Out(_) => {}
         }
         let frames = left.len();
         let (dry_left, dry_right) = (&mut dry_left[..frames], &mut dry_right[..frames]);
         dry_left.copy_from_slice(left);
         dry_right.copy_from_slice(right);
-        self.process_slot(left, right, key);
+        self.process_slot(left, right, key, aux.as_deref_mut());
 
         let length = self.splice_frames as f32;
         for index in 0..frames {
@@ -397,15 +433,33 @@ impl EffectUnit {
             self.splice_elapsed = self.splice_elapsed.saturating_add(1);
             left[index] = dry_left[index] + (left[index] - dry_left[index]) * wet;
             right[index] = dry_right[index] + (right[index] - dry_right[index]) * wet;
+            if let Some(aux) = &mut aux {
+                for output in &mut aux.outputs {
+                    output[index] = [output[index][0] * wet, output[index][1] * wet];
+                }
+            }
         }
         if self.splice == Splice::Gone {
             self.life.finish();
         }
     }
 
-    fn process_slot(&mut self, left: &mut [f32], right: &mut [f32], key: Option<&[[f32; 2]]>) {
+    fn process_slot(
+        &mut self,
+        left: &mut [f32],
+        right: &mut [f32],
+        key: Option<&[[f32; 2]]>,
+        aux: Option<&mut windfall_dsp::AuxBlock<'_>>,
+    ) {
         if let Some(external) = &mut self.external {
             external.process_sidechain(left, right, key);
+            if let Some(aux) = aux {
+                for output in &mut aux.outputs {
+                    output[..left.len()].fill([0.0; 2]);
+                }
+            }
+        } else if let Some(aux) = aux {
+            self.slot.process_routed(left, right, key, aux);
         } else {
             self.slot.process_sidechain(left, right, key);
         }
