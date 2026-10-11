@@ -1006,6 +1006,7 @@ impl AnyInstrument {
                 let mut synth = Box::<PackSynth>::default();
                 synth.set_params(params);
                 AnyInstrument::PackSynth(synth)
+            }
             InstrumentParams::LayerKick(params) => {
                 let mut synth = Box::<LayerKick>::default();
                 synth.set_params(params);
@@ -1303,6 +1304,8 @@ impl AnyInstrument {
                 synth.set_params(params);
             }
             (AnyInstrument::PackSynth(synth), InstrumentParams::PackSynth(params)) => {
+                synth.set_params(params);
+            }
             (AnyInstrument::LayerKick(synth), InstrumentParams::LayerKick(params)) => {
                 synth.set_params(params);
             }
@@ -1537,6 +1540,8 @@ impl AnyInstrument {
                 synth.note_on_expression(key, velocity, pan, expression)
             }
             AnyInstrument::PackSynth(synth) => {
+                synth.note_on_expression(key, velocity, pan, expression)
+            }
             AnyInstrument::LayerKick(synth) => {
                 synth.note_on_expression(key, velocity, pan, expression)
             }
@@ -1773,6 +1778,8 @@ impl AnyInstrument {
                 synth.note_on_instance(id, key, velocity, pan, expression)
             }
             AnyInstrument::PackSynth(synth) => {
+                synth.note_on_instance(id, key, velocity, pan, expression)
+            }
             AnyInstrument::LayerKick(synth) => {
                 synth.note_on_instance(id, key, velocity, pan, expression)
             }
