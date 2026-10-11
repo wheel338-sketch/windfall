@@ -304,6 +304,18 @@ async fn audio_editor_discard(session: State<'_, Session>, token: u32) -> Result
     })
     .await
 }
+
+#[tauri::command]
+async fn audio_editor_regions(session: State<'_, Session>, token: u32, regions: Vec<windfall_project::AudioRegion>) -> Result<DispatchResult, String> {
+    let session = session.inner().clone();
+    blocking(move || session.audio_editor_regions(token, regions)).await
+}
+
+#[tauri::command]
+async fn audio_editor_transfer(session: State<'_, Session>, request: windfall_ipc::AudioEditTransferRequest) -> Result<DispatchResult, String> {
+    let session = session.inner().clone();
+    blocking(move || session.audio_editor_transfer(request)).await
+}
 #[tauri::command]
 fn automate(
     session: State<'_, Session>,
@@ -1060,6 +1072,8 @@ pub fn handler() -> impl Fn(Invoke) -> bool + Send + Sync + 'static {
         audio_editor_open,
         audio_editor_apply,
         audio_editor_discard,
+        audio_editor_regions,
+        audio_editor_transfer,
         slice_analyze,
         sample_playback_detect,
         slice_apply,

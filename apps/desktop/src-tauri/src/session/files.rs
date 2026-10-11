@@ -596,6 +596,7 @@ impl Session {
                 if let Some(retirement) = &mut retirement {
                     self.retire_project(retirement);
                 }
+                self.audio_logger_project_replaced();
                 return Ok(snapshot);
             }
             // A refused candidate cannot be selected/captured. Drop it before

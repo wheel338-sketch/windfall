@@ -126,7 +126,7 @@ impl Mixer {
         out: &mut [Frame],
         captures: CaptureSinks<'_>,
     ) {
-        let CaptureSinks { disk: taps, logger } = captures;
+        let CaptureSinks { disk: taps, mut logger } = captures;
         let frames = out.len();
         self.add_instruments(plan, state, base, frames);
 
@@ -166,6 +166,7 @@ impl Mixer {
                 }
                 for place in 0..state.chains[index].len() {
                     let Some(unit) = &mut state.chains[index][place] else {
+                        if let Some(logger) = logger.as_mut() { logger.effect(track.effects[place].id, left, right); }
                         continue;
                     };
                     self.scratch[..frames]
@@ -182,6 +183,7 @@ impl Mixer {
                             &mut self.dry_right,
                             Some(&self.scratch[..frames]),
                         );
+                        if let Some(logger) = logger.as_mut() { logger.effect(track.effects[place].id, left, right); }
                         continue;
                     }
                     // The effect's own outputs leave the track here, before
@@ -201,6 +203,7 @@ impl Mixer {
                         Some(&self.scratch[..frames]),
                         &mut aux,
                     );
+                    if let Some(logger) = logger.as_mut() { logger.effect(track.effects[place].id, left, right); }
                     for edge in &track.edges {
                         let Some(tap) = edge.tap.filter(|tap| tap.place == place) else {
                             continue;

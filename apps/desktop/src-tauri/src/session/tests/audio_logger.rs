@@ -12,7 +12,7 @@ use windfall_ipc::{
 };
 use windfall_project::{ClipContent, PlaylistTrackId, SamplePath, TrackId};
 
-use super::{rms, Rig, SAMPLE_RATE};
+use super::{Rig, SAMPLE_RATE, rms};
 use crate::session::audio_logger::InputBackend;
 use crate::session::recording::{CaptureHandle, Sink};
 use crate::settings::SETTINGS_FILE;
@@ -20,6 +20,197 @@ use crate::sync::lock;
 
 const MASTER: AudioLoggerSource = AudioLoggerSource::Master;
 const INPUT: AudioLoggerSource = AudioLoggerSource::Input;
+
+#[test]
+fn slot_recording_disarms_on_document_replacement_and_refuses_the_old_history() {
+    use windfall_dsp::EffectKind;
+    use windfall_project::{Command, EffectId};
+    let mut rig = Rig::new();
+    let slot = EffectId(
+        rig.session
+            .dispatch(
+                Command::AddEffect {
+                    track: TrackId::MASTER,
+                    kind: EffectKind::SendTap,
+                    index: None,
+                },
+                None,
+            )
+            .unwrap()
+            .created[0],
+    );
+    let source = AudioLoggerSource::Effect { effect: slot };
+    rig.session
+        .audio_logger_configure(AudioLoggerSettings {
+            master: false,
+            effects: vec![slot],
+            ..settings()
+        })
+        .unwrap();
+    rig.run(1024);
+    assert_eq!(
+        status(&rig.session.audio_logger_state(), source).available_frames,
+        1024
+    );
+    rig.session.project_new().unwrap();
+    let before = rig.session.document_snapshot();
+    let logger = rig.session.audio_logger_state();
+    assert!(logger.settings.effects.is_empty());
+    assert!(!logger.sources.iter().any(|s| s.source == source));
+    assert!(rig.session.audio_logger_dump(dump(source, None)).is_err());
+    assert_eq!(rig.session.document_snapshot(), before);
+}
+
+#[test]
+fn slot_recorder_captures_between_effects_then_edits_and_reopens_as_one_take() {
+    use windfall_dsp::{BalanceParams, EffectKind, EffectParams};
+    use windfall_ipc::{AudioEditOperation, AudioEditRequest, PlayMode, TransportPatch};
+    use windfall_project::{Command, EffectId, MixerTrackPatch};
+    let mut rig = Rig::new();
+    let path = rig.file("slot-input.wav");
+    windfall_codec::write_wav(
+        Path::new(&path),
+        &windfall_core::AudioBuffer::from_interleaved(SAMPLE_RATE, 2, vec![0.4; 48000 * 2]),
+        windfall_codec::WavSampleFormat::Float32,
+    )
+    .unwrap();
+    let track = TrackId(
+        rig.session
+            .dispatch(
+                Command::AddMixerTrack {
+                    name: Some("Recorder chain".into()),
+                },
+                None,
+            )
+            .unwrap()
+            .created[0],
+    );
+    for id in [TrackId::MASTER, track] {
+        rig.session
+            .dispatch(
+                Command::UpdateMixerTrack {
+                    id,
+                    patch: MixerTrackPatch {
+                        volume: Some(1.0),
+                        ..Default::default()
+                    },
+                },
+                None,
+            )
+            .unwrap();
+    }
+    rig.session
+        .add_audio_clip_from_file(
+            &path,
+            crate::session::ClipPlace {
+                track: None,
+                start: 0,
+                mixer_track: Some(track),
+            },
+        )
+        .unwrap();
+    let add = |kind| {
+        EffectId(
+            rig.session
+                .dispatch(
+                    Command::AddEffect {
+                        track,
+                        kind,
+                        index: None,
+                    },
+                    None,
+                )
+                .unwrap()
+                .created[0],
+        )
+    };
+    let before = add(EffectKind::Balance);
+    let slot = add(EffectKind::SendTap);
+    let after = add(EffectKind::Balance);
+    for (effect, gain) in [(before, 0.5), (after, 0.25)] {
+        rig.session
+            .dispatch(
+                Command::SetEffectParams {
+                    track,
+                    effect,
+                    params: EffectParams::Balance(BalanceParams {
+                        gain,
+                        ..Default::default()
+                    }),
+                },
+                None,
+            )
+            .unwrap();
+    }
+    rig.session
+        .transport_set(TransportPatch {
+            mode: Some(PlayMode::Song),
+            loop_song: Some(false),
+            ..Default::default()
+        })
+        .unwrap();
+    rig.session
+        .audio_logger_configure(AudioLoggerSettings {
+            master: false,
+            effects: vec![slot],
+            ..settings()
+        })
+        .unwrap();
+    rig.session.transport_play().unwrap();
+    let played = rig.run(12000);
+    let before = rig.session.document_snapshot();
+    let result = rig
+        .session
+        .audio_logger_dump(AudioLoggerDumpRequest {
+            source: AudioLoggerSource::Effect { effect: slot },
+            seconds: None,
+            start: Some(3840),
+            track: None,
+        })
+        .unwrap();
+    assert_eq!(
+        rig.session.document_snapshot().history.cursor,
+        before.history.cursor + 1
+    );
+    let clip = windfall_project::ClipId(*result.created.last().unwrap());
+    let project = rig.project();
+    let sample = project
+        .playlist
+        .clips
+        .iter()
+        .find(|c| c.id == clip)
+        .unwrap()
+        .content
+        .sample()
+        .unwrap();
+    let audio = rig.session.state().pool.get(sample).unwrap().clone();
+    assert_eq!(audio.samples().len(), played.len());
+    for (tap, output) in audio.samples()[4000..20000]
+        .iter()
+        .zip(&played[4000..20000])
+    {
+        assert!((*tap - 0.2).abs() < 1e-5);
+        assert!((*output - *tap * 0.25).abs() < 1e-5);
+    }
+    rig.session.undo().unwrap();
+    assert!(!rig.project().playlist.clips.iter().any(|c| c.id == clip));
+    rig.session.redo().unwrap();
+    let opened = rig.session.audio_editor_open(clip).unwrap();
+    rig.session
+        .audio_editor_apply(AudioEditRequest {
+            token: opened.token,
+            operation: AudioEditOperation::Reverse,
+            start_frame: 0,
+            end_frame: opened.frames,
+        })
+        .unwrap();
+    let edited = rig.project();
+    let saved = rig.file("slot.windfall");
+    rig.session.project_save(Some(&saved)).unwrap();
+    let rig = rig.restart();
+    rig.session.project_open(&saved).unwrap();
+    assert_eq!(rig.project(), edited);
+}
 
 #[test]
 fn enable_song_play_dump_preserves_sample_alignment_through_playlist_and_reopen() {
@@ -118,12 +309,13 @@ fn enable_song_play_dump_preserves_sample_alignment_through_playlist_and_reopen(
         before.history.cursor + 1
     );
     rig.session.undo().unwrap();
-    assert!(rig
-        .project()
-        .playlist
-        .clips
-        .iter()
-        .all(|clip| clip.id != clip_id));
+    assert!(
+        rig.project()
+            .playlist
+            .clips
+            .iter()
+            .all(|clip| clip.id != clip_id)
+    );
     rig.session.redo().unwrap();
     rig.session.transport_stop();
     let path = rig.file("aligned-logger.windfall");
@@ -454,11 +646,13 @@ fn the_last_seconds_of_the_master_become_a_clip_of_exactly_what_was_played() {
     let clips = project.playlist.clips.len();
     let project = rig.project();
     assert_eq!(project.playlist.clips.len(), clips + 1);
-    assert!(project
-        .playlist
-        .clips
-        .iter()
-        .any(|clip| (clip.start, clip.track) == (0, track)));
+    assert!(
+        project
+            .playlist
+            .clips
+            .iter()
+            .any(|clip| (clip.start, clip.track) == (0, track))
+    );
     assert_eq!(logged_files(&rig).len(), 2);
 
     // More seconds than there are gives all there is.
@@ -799,11 +993,13 @@ fn the_logged_input_makes_way_for_a_recording_take_and_comes_back() {
     let state = rig.session.audio_logger_state();
     let logged = status(&state, INPUT);
     assert!(!logged.active);
-    assert!(logged
-        .error
-        .as_deref()
-        .unwrap()
-        .contains("Paused while a recording take"));
+    assert!(
+        logged
+            .error
+            .as_deref()
+            .unwrap()
+            .contains("Paused while a recording take")
+    );
     assert_eq!(logged.available_frames, 2_400);
 
     // It stays closed for as long as the take lasts, whatever is asked.
@@ -1005,6 +1201,7 @@ fn logger_settings_are_remembered_and_an_older_settings_file_gives_the_defaults(
         seconds: 300,
         master: false,
         tracks: vec![TrackId(2), TrackId(5)],
+        effects: Vec::new(),
         input: None,
     };
     rig.session.audio_logger_configure(chosen.clone()).unwrap();
@@ -1019,10 +1216,12 @@ fn logger_settings_are_remembered_and_an_older_settings_file_gives_the_defaults(
     let state = rig.session.audio_logger_state();
     assert!(state.running);
     assert_eq!(state.sources.len(), 2);
-    assert!(state
-        .sources
-        .iter()
-        .all(|status| status.capacity_seconds == 300.0));
+    assert!(
+        state
+            .sources
+            .iter()
+            .all(|status| status.capacity_seconds == 300.0)
+    );
 
     // A file edited by hand to hold more than the logger takes is cut to
     // what it can run, not trusted and not thrown away.

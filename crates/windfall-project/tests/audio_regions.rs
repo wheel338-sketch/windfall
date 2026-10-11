@@ -45,9 +45,9 @@ fn audio_regions_have_guarded_atomic_history_and_default_compatible_persistence(
     assert_eq!(edited.sample(sample).unwrap().regions, regions);
     let loaded: Project = serde_json::from_str(&serde_json::to_string(&edited).unwrap()).unwrap();
     assert_eq!(loaded, edited);
-    doc.undo();
+    assert!(doc.undo().is_some());
     assert_eq!(doc.project(), &empty);
-    doc.redo();
+    assert!(doc.redo().is_some());
     assert_eq!(doc.project(), &edited);
     assert!(
         doc.dispatch(

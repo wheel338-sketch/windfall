@@ -18,6 +18,50 @@ const HISTORY: usize = RATE as usize * 30;
 
 const MASTER: AudioLoggerSource = AudioLoggerSource::Master;
 
+#[test]
+fn effect_slot_tap_measures_its_chain_position_and_never_allocates() {
+    use windfall_dsp::{BalanceParams, EffectParams, SendTapParams};
+    let mut rig = Rig::new();
+    let track = rig.track();
+    let channel = rig.channel_on(crate::support::level(RATE, 0.4, 4.0), track);
+    rig.effect(
+        track,
+        EffectParams::Balance(BalanceParams {
+            gain: 0.5,
+            ..Default::default()
+        }),
+    );
+    let slot = rig.effect(track, EffectParams::SendTap(SendTapParams::default()));
+    rig.effect(
+        track,
+        EffectParams::Balance(BalanceParams {
+            gain: 0.25,
+            ..Default::default()
+        }),
+    );
+    let (mut processor, controller) = rig.processor(RATE);
+    let logger = controller
+        .start_audio_logger(&LoggerSpec {
+            effects: vec![slot],
+            ..spec(true, &[])
+        })
+        .unwrap();
+    controller.note_on(channel, 60, 1.0);
+    let played = run_logged(&mut processor, &logger, 4000);
+    let tapped = logger
+        .tail(AudioLoggerSource::Effect { effect: slot }, None)
+        .unwrap();
+    assert_eq!(tapped.samples.len(), played.len());
+    for (tap, output) in tapped.samples[4000..].iter().zip(&played[4000..]) {
+        assert!((*tap - 0.2).abs() < 1e-5);
+        assert!((*output - *tap * 0.25).abs() < 1e-5);
+    }
+    let mut out = [0.0; 512];
+    assert_eq!(allocator_calls(|| processor.process(&mut out)), 0);
+    controller.stop_audio_logger();
+    assert_eq!(allocator_calls(|| processor.process(&mut out)), 0);
+}
+
 fn track(track: TrackId) -> AudioLoggerSource {
     AudioLoggerSource::Track { track }
 }
@@ -29,6 +73,7 @@ fn spec(master: bool, tracks: &[TrackId]) -> LoggerSpec {
         tracks: tracks.to_vec(),
         // The tests drain by hand, so what a history holds never depends on
         // when a worker thread happened to run.
+        effects: Vec::new(),
         worker: false,
     }
 }
@@ -117,6 +162,7 @@ fn memory_is_the_history_plus_the_queue_and_never_more_than_the_bound() {
             seconds: 600,
             master: true,
             tracks: vec![TrackId::MASTER],
+            effects: Vec::new(),
             worker: true,
         })
         .unwrap();
@@ -136,6 +182,7 @@ fn memory_is_the_history_plus_the_queue_and_never_more_than_the_bound() {
             seconds: 600,
             master: true,
             tracks: Vec::new(),
+            effects: Vec::new(),
             worker: false,
         })
         .unwrap();

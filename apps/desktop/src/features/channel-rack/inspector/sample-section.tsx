@@ -19,6 +19,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import type { SamplerChannel } from "@/lib/channel-source"
 import { hasSampleDrag, readSampleDrag } from "@/lib/dnd"
+import { hasSelectionDrag, readSelectionDrag, transferSelection } from "@/features/audio-editor/transfer"
 import { useHint } from "@/lib/store/hint"
 import { dispatch, useProjectStore } from "@/lib/store/project"
 import { useSample } from "@/lib/store/selectors"
@@ -173,7 +174,7 @@ export function SampleSection({ channel }: { channel: SamplerChannel }) {
   const [over, setOver] = useState(false)
 
   function onDragOver(event: DragEvent<HTMLDivElement>) {
-    if (!hasSampleDrag(event)) return
+    if (!hasSampleDrag(event) && !hasSelectionDrag(event)) return
     event.preventDefault()
     event.stopPropagation()
     event.dataTransfer.dropEffect = "copy"
@@ -181,10 +182,12 @@ export function SampleSection({ channel }: { channel: SamplerChannel }) {
   }
 
   function onDrop(event: DragEvent<HTMLDivElement>) {
-    if (!hasSampleDrag(event)) return
+    if (!hasSampleDrag(event) && !hasSelectionDrag(event)) return
     event.preventDefault()
     event.stopPropagation()
     setOver(false)
+    const selection=readSelectionDrag(event)
+    if (selection) {void transferSelection(selection,{type:"sampler",channel:channel.id});return}
     const dropped = readSampleDrag(event)
     if (dropped)
       void replaceSampleFromFile(channel.id, dropped.path, dropped.browser)

@@ -19,12 +19,14 @@ export type AudioLoggerSettings = {
   /** Mixer track ids logged after their effects. */
   tracks: number[]
   input: AudioLoggerInput | null
+  effects?: number[]
 }
 
 export type AudioLoggerSource =
   | { type: "master" }
   | { type: "track"; track: number }
   | { type: "input" }
+  | { type: "effect"; effect: number }
 
 export type AudioLoggerSourceStatus = {
   source: AudioLoggerSource
@@ -88,9 +90,11 @@ export function unavailableLogger(): AudioLoggerState {
 
 export function sameSource(a: AudioLoggerSource, b: AudioLoggerSource) {
   if (a.type !== b.type) return false
-  return a.type !== "track" || (b.type === "track" && a.track === b.track)
+  if (a.type === "track") return b.type === "track" && a.track === b.track
+  if (a.type === "effect") return b.type === "effect" && a.effect === b.effect
+  return true
 }
 
 export function sourceKey(source: AudioLoggerSource): string {
-  return source.type === "track" ? `track-${source.track}` : source.type
+  return source.type === "track" ? `track-${source.track}` : source.type === "effect" ? `effect-${source.effect}` : source.type
 }

@@ -6,6 +6,8 @@ import { redo, undo } from "@/lib/store/project"
 import { useUiStore } from "@/lib/store/ui"
 import { settle } from "@/test/harness"
 import { ChannelInspector } from "./inspector"
+import type { RealtimeFrame } from "@/bindings"
+import { realtimeFrame } from "@/lib/store/realtime"
 import { channel, history, project, samplerOf, startRack } from "./test-utils"
 
 let app: Awaited<ReturnType<typeof startRack>>
@@ -21,6 +23,23 @@ function reopen() {
   doc.dispose(); loaded.dispose()
   return value
 }
+
+it("mounts the refused-echo counter from the real realtime feed and clears it on replacement",async()=>{
+  let receive!: (frame:RealtimeFrame)=>void
+  let draw!: FrameRequestCallback
+  vi.spyOn(app.backend,"subscribeRealtime").mockImplementation(handler=>{receive=handler;return ()=>{}})
+  vi.spyOn(globalThis,"requestAnimationFrame").mockImplementation(callback=>{draw=callback;return 123})
+  vi.spyOn(globalThis,"cancelAnimationFrame").mockImplementation(()=>{})
+  const mounted=render(<ChannelInspector/>)
+  const before=history().cursor
+  await act(async()=>{receive({...realtimeFrame(),rejectedEchoes:7});draw(0)})
+  expect(screen.getByLabelText("Refused note echoes")).toHaveTextContent("7 notes had repeats refused")
+  expect(history().cursor).toBe(before)
+  await act(async()=>{await app.backend.projectNew();useUiStore.getState().selectChannel(channel("Kick").id)})
+  await act(async()=>{draw(16)})
+  expect(screen.getByLabelText("Refused note echoes")).toHaveTextContent("0 notes had repeats refused")
+  mounted.unmount()
+})
 
 it("groups every filter-envelope and target-LFO knob drag into one saved undo step", async () => {
   render(<ChannelInspector />)

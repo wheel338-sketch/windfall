@@ -5,7 +5,7 @@
 //! The settings are app settings. Nothing here is part of a project.
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
-use windfall_project::{PlaylistTrackId, TrackId};
+use windfall_project::{EffectId, PlaylistTrackId, TrackId};
 
 /// Shortest history the logger keeps, in seconds.
 pub const AUDIO_LOGGER_MIN_SECONDS: u32 = 30;
@@ -43,6 +43,10 @@ pub struct AudioLoggerSettings {
     pub tracks: Vec<TrackId>,
     /// A hardware input captured continuously. Off unless chosen.
     pub input: Option<AudioLoggerInput>,
+    /// Chain-position taps immediately after these slots, at most four.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    #[ts(optional)]
+    pub effects: Vec<EffectId>,
 }
 
 impl Default for AudioLoggerSettings {
@@ -53,6 +57,7 @@ impl Default for AudioLoggerSettings {
             master: true,
             tracks: Vec::new(),
             input: None,
+            effects: Vec::new(),
         }
     }
 }
@@ -68,6 +73,8 @@ pub enum AudioLoggerSource {
     Track { track: TrackId },
     /// The chosen hardware input.
     Input,
+    /// Immediately after a mixer effect slot, before following effects/fader.
+    Effect { effect: EffectId },
 }
 
 /// How much one source holds right now.

@@ -52,6 +52,7 @@ mod mastering_qa;
 mod nonlinear_performance;
 #[cfg(windows)]
 mod mixer_preset_native;
+mod rack_second_pass;
 
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};

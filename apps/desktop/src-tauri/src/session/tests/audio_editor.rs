@@ -35,6 +35,363 @@ fn request(token: u32, operation: Op) -> AudioEditRequest {
         end_frame: 3,
     }
 }
+
+#[test]
+fn regions_markers_follow_views_transfers_history_and_fresh_reopen() {
+    use windfall_ipc::{AudioEditDestination, AudioEditRange, AudioEditTransferRequest};
+    use windfall_project::{AudioRegion, ChannelSource};
+    let rig = Rig::new();
+    let (clip, _, _) = add(&rig);
+    let preview = rig.session.audio_editor_open(clip).unwrap();
+    let regions = vec![
+        AudioRegion {
+            name: "Phrase".into(),
+            start_frame: 1,
+            end_frame: 3,
+        },
+        AudioRegion {
+            name: "Cue".into(),
+            start_frame: 2,
+            end_frame: 2,
+        },
+    ];
+    let before = rig.session.document_snapshot();
+    rig.session
+        .audio_editor_regions(preview.token, regions.clone())
+        .unwrap();
+    assert_eq!(
+        rig.session.document_snapshot().history.cursor,
+        before.history.cursor + 1
+    );
+    assert_eq!(
+        rig.session.audio_editor_open(clip).unwrap().regions,
+        regions
+    );
+    rig.session.undo().unwrap();
+    assert!(
+        rig.session
+            .audio_editor_open(clip)
+            .unwrap()
+            .regions
+            .is_empty()
+    );
+    rig.session.redo().unwrap();
+    let preview = rig.session.audio_editor_open(clip).unwrap();
+    let channel = rig.channel(0);
+    let before = rig.session.document_snapshot();
+    let result = rig
+        .session
+        .audio_editor_transfer(AudioEditTransferRequest {
+            token: preview.token,
+            start_frame: 1,
+            end_frame: 3,
+            destination: AudioEditDestination::Sampler { channel },
+        })
+        .unwrap();
+    let sample = SampleId(result.created[0]);
+    assert_eq!(pooled(&rig, sample), [0.2, -0.2, 0.3, -0.3]);
+    assert_eq!(
+        rig.project().channel(channel).unwrap().source.sample(),
+        Some(sample)
+    );
+    let project = rig.project();
+    let ChannelSource::Sampler(settings) = &project.channel(channel).unwrap().source else {
+        panic!("sampler")
+    };
+    assert_eq!(
+        (settings.start, settings.end, settings.reverse),
+        (0.0, 1.0, false)
+    );
+    assert_eq!(
+        project.sample(sample).unwrap().regions[0],
+        AudioRegion {
+            name: "Phrase".into(),
+            start_frame: 0,
+            end_frame: 2
+        }
+    );
+    assert_eq!(
+        rig.session.document_snapshot().history.cursor,
+        before.history.cursor + 1
+    );
+    rig.session.undo().unwrap();
+    assert_ne!(
+        rig.project().channel(channel).unwrap().source.sample(),
+        Some(sample)
+    );
+    rig.session.redo().unwrap();
+    let preview = rig.session.audio_editor_open(clip).unwrap();
+    let before = rig.session.document_snapshot();
+    let result = rig
+        .session
+        .audio_editor_transfer(AudioEditTransferRequest {
+            token: preview.token,
+            start_frame: 1,
+            end_frame: 3,
+            destination: AudioEditDestination::Playlist {
+                track: None,
+                start: 700,
+            },
+        })
+        .unwrap();
+    let output = windfall_project::ClipId(*result.created.last().unwrap());
+    let project = rig.project();
+    assert_eq!(
+        project
+            .playlist
+            .clips
+            .iter()
+            .find(|c| c.id == output)
+            .unwrap()
+            .start,
+        700
+    );
+    assert_eq!(
+        rig.session.document_snapshot().history.cursor,
+        before.history.cursor + 1
+    );
+    assert_eq!(
+        rig.session.audio_editor_open(output).unwrap().regions[1].start_frame,
+        1
+    );
+    let preview = rig.session.audio_editor_open(clip).unwrap();
+    let invalid = vec![AudioRegion {
+        name: "Outside".into(),
+        start_frame: 4,
+        end_frame: 5,
+    }];
+    let before = rig.session.document_snapshot();
+    assert!(
+        rig.session
+            .audio_editor_regions(preview.token, invalid)
+            .is_err()
+    );
+    assert_eq!(rig.session.document_snapshot(), before);
+    let saved = rig.file("regions.windfall");
+    rig.session.project_save(Some(&saved)).unwrap();
+    let rig = rig.restart();
+    rig.session.project_open(&saved).unwrap();
+    assert_eq!(rig.project(), project);
+    let preview = rig.session.audio_editor_open(output).unwrap();
+    let before = rig.session.document_snapshot();
+    assert!(
+        rig.session
+            .audio_editor_run_script_selection(
+                preview.token,
+                AudioEditRange {
+                    start_frame: 1,
+                    end_frame: 3
+                },
+                |_| panic!("invalid range not passed to runner")
+            )
+            .is_err()
+    );
+    assert_eq!(rig.session.document_snapshot(), before);
+}
+
+#[test]
+fn editor_advanced_tools_and_sandbox_entry_share_one_step_history_and_saved_sources() {
+    use windfall_ipc::AudioEditRange;
+    let rig = Rig::new();
+    let (mut clip, path, original) = add(&rig);
+    for operation in [
+        Op::Equalize {
+            low_db: -6.0,
+            mid_db: -6.0,
+            high_db: -6.0,
+        },
+        Op::Convolve {
+            impulse: AudioEditRange {
+                start_frame: 0,
+                end_frame: 1,
+            },
+            wet: 1.0,
+        },
+        Op::Blur { amount: 0.5 },
+        Op::LoopTune {
+            crossfade_frames: 2,
+        },
+    ] {
+        let preview = rig.session.audio_editor_open(clip).unwrap();
+        assert_eq!(preview.spectral.len(), 8192);
+        let before = rig.session.document_snapshot();
+        let view = windfall_engine::audio_edit::render_view(
+            &rig.session.state().pool,
+            rig.project()
+                .playlist
+                .clips
+                .iter()
+                .find(|c| c.id == clip)
+                .unwrap(),
+            120.0,
+        )
+        .unwrap();
+        let expected = windfall_engine::audio_edit::edit(&view, operation, 0, 4).unwrap();
+        let result = rig
+            .session
+            .audio_editor_apply(AudioEditRequest {
+                token: preview.token,
+                operation,
+                start_frame: 0,
+                end_frame: 4,
+            })
+            .unwrap();
+        let sample = SampleId(result.created[0]);
+        assert_eq!(pooled(&rig, sample), expected.samples());
+        assert_eq!(
+            rig.session.document_snapshot().history.cursor,
+            before.history.cursor + 1
+        );
+        let after = rig.project();
+        rig.session.undo().unwrap();
+        let mut old = before.project;
+        old.next_id = rig.project().next_id;
+        assert_eq!(rig.project(), old);
+        rig.session.redo().unwrap();
+        assert_eq!(rig.project(), after);
+        clip = ClipId(*result.created.last().unwrap());
+    }
+    let preview = rig.session.audio_editor_open(clip).unwrap();
+    let before = rig.session.document_snapshot();
+    let result = rig
+        .session
+        .audio_editor_run_script_selection(
+            preview.token,
+            AudioEditRange {
+                start_frame: 1,
+                end_frame: 3,
+            },
+            |selection| {
+                Ok(AudioBuffer::from_interleaved(
+                    selection.sample_rate(),
+                    selection.channels(),
+                    selection.samples().iter().map(|s| -*s).collect(),
+                ))
+            },
+        )
+        .unwrap();
+    assert_eq!(
+        rig.session.document_snapshot().history.cursor,
+        before.history.cursor + 1
+    );
+    let edited = rig.project();
+    let saved = rig.file("advanced.windfall");
+    rig.session.project_save(Some(&saved)).unwrap();
+    let rig = rig.restart();
+    rig.session.project_open(&saved).unwrap();
+    assert_eq!(rig.project(), edited);
+    assert!(!pooled(&rig, SampleId(result.created[0])).is_empty());
+    assert_eq!(std::fs::read(path).unwrap(), original);
+}
+
+#[test]
+fn strip_silence_makes_position_preserving_clips_in_one_saved_undo_step() {
+    let rig = Rig::new();
+    let path = rig.file("gaps.wav");
+    let data: Vec<_> = (0..200)
+        .flat_map(|i| {
+            if (50..100).contains(&i) {
+                [0.0, 0.0]
+            } else {
+                [0.2, -0.2]
+            }
+        })
+        .collect();
+    windfall_codec::write_wav(
+        &path,
+        &AudioBuffer::from_interleaved(1920, 2, data.clone()),
+        windfall_codec::WavSampleFormat::Float32,
+    )
+    .unwrap();
+    let added = rig
+        .session
+        .add_audio_clip_from_file(
+            &path,
+            ClipPlace {
+                track: None,
+                start: 100,
+                mixer_track: None,
+            },
+        )
+        .unwrap();
+    let id = ClipId(*added.created.last().unwrap());
+    let preview = rig.session.audio_editor_open(id).unwrap();
+    let before = rig.session.document_snapshot();
+    let result = rig
+        .session
+        .audio_editor_apply(AudioEditRequest {
+            token: preview.token,
+            operation: Op::StripSilence {
+                threshold_db: -60.0,
+                min_silence_frames: 20,
+            },
+            start_frame: 0,
+            end_frame: 200,
+        })
+        .unwrap();
+    assert_eq!(result.created.len(), 3);
+    let project = rig.project();
+    let clips: Vec<_> = project
+        .playlist
+        .clips
+        .iter()
+        .filter(|c| result.created[1..].contains(&c.id.0))
+        .collect();
+    assert_eq!(
+        (clips[0].start, clips[0].offset, clips[0].length),
+        (100, 0, 50)
+    );
+    assert_eq!(
+        (clips[1].start, clips[1].offset, clips[1].length),
+        (200, 100, 100)
+    );
+    assert_eq!(pooled(&rig, SampleId(result.created[0])), data);
+    assert_eq!(
+        rig.session.document_snapshot().history.cursor,
+        before.history.cursor + 1
+    );
+    rig.session.undo().unwrap();
+    assert!(rig.project().playlist.clips.iter().any(|c| c.id == id));
+    rig.session.redo().unwrap();
+    assert_eq!(rig.project(), project);
+    let saved = rig.file("split.windfall");
+    rig.session.project_save(Some(&saved)).unwrap();
+    let rig = rig.restart();
+    rig.session.project_open(&saved).unwrap();
+    assert_eq!(rig.project(), project);
+}
+
+#[test]
+fn invalid_or_stale_script_results_leave_no_asset_or_history() {
+    use windfall_ipc::AudioEditRange;
+    let rig = Rig::new();
+    let (id, _, _) = add(&rig);
+    let preview = rig.session.audio_editor_open(id).unwrap();
+    let before = rig.session.document_snapshot();
+    let range = AudioEditRange {
+        start_frame: 1,
+        end_frame: 3,
+    };
+    assert!(
+        rig.session
+            .audio_editor_run_script_selection(preview.token, range, |_| Ok(
+                AudioBuffer::from_interleaved(1920, 2, vec![f32::NAN; 4])
+            ))
+            .is_err()
+    );
+    assert_eq!(rig.session.document_snapshot(), before);
+    assert_eq!(derived_files(&rig), 0);
+    rig.session.project_new().unwrap();
+    let before = rig.session.document_snapshot();
+    assert!(
+        rig.session
+            .audio_editor_run_script_selection(preview.token, range, |_| panic!(
+                "stale runner must not execute"
+            ))
+            .is_err()
+    );
+    assert_eq!(rig.session.document_snapshot(), before);
+}
 fn derived_files(rig: &Rig) -> usize {
     let folder = rig.folder.path().join("recordings").join("Audio edits");
     std::fs::read_dir(folder).map_or(0, |entries| entries.count())

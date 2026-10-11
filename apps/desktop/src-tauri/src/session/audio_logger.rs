@@ -125,6 +125,7 @@ pub(super) struct Logger {
     input_error: Option<String>,
     /// The input was closed for a recording take and is to be reopened.
     input_paused: bool,
+    effect_generation: Option<u64>,
 }
 
 impl Default for Logger {
@@ -136,6 +137,7 @@ impl Default for Logger {
             input: None,
             input_error: None,
             input_paused: false,
+            effect_generation: None,
         }
     }
 }
@@ -164,6 +166,13 @@ fn usable(mut settings: AudioLoggerSettings) -> AudioLoggerSettings {
         }
     }
     settings.tracks = tracks;
+    let mut effects = Vec::new();
+    for effect in settings.effects {
+        if !effects.contains(&effect) && effects.len() < AUDIO_LOGGER_MAX_TRACKS {
+            effects.push(effect);
+        }
+    }
+    settings.effects = effects;
     settings
 }
 
@@ -182,7 +191,8 @@ fn check(settings: &AudioLoggerSettings) -> Result<(), String> {
 }
 
 fn logs_output(settings: &AudioLoggerSettings) -> bool {
-    settings.enabled && (settings.master || !settings.tracks.is_empty())
+    settings.enabled
+        && (settings.master || !settings.tracks.is_empty() || !settings.effects.is_empty())
 }
 
 fn file_label(source: AudioLoggerSource) -> String {
@@ -190,10 +200,23 @@ fn file_label(source: AudioLoggerSource) -> String {
         AudioLoggerSource::Master => "master".to_owned(),
         AudioLoggerSource::Track { track } => format!("track-{}", track.0),
         AudioLoggerSource::Input => "input".to_owned(),
+        AudioLoggerSource::Effect { effect } => format!("effect-{}", effect.0),
     }
 }
 
 impl Session {
+    pub(super) fn audio_logger_project_replaced(&self) {
+        let _configuring = lock(&self.inner.configuring);
+        let mut settings = self.audio_logger_settings();
+        if settings.effects.is_empty() {
+            return;
+        }
+        settings.effects.clear();
+        self.store()
+            .update(|stored| stored.audio_logger.effects.clear());
+        let generation = self.state().generation;
+        self.start_output(&mut self.audio_logger(), &settings, generation);
+    }
     fn audio_logger(&self) -> MutexGuard<'_, Logger> {
         lock(&self.inner.audio_logger)
     }
@@ -210,6 +233,23 @@ impl Session {
             let tracks = state.document.project().mixer.tracks.iter();
             tracks.map(|track| (track.id, track.name.clone())).collect()
         };
+        let effect_names: Vec<_> = self
+            .state()
+            .document
+            .project()
+            .mixer
+            .tracks
+            .iter()
+            .flat_map(|track| {
+                track.effects.iter().map(move |slot| {
+                    (
+                        slot.id,
+                        format!("{} · {}", track.name, slot.params.kind().name()),
+                    )
+                })
+            })
+            .collect();
+        let generation = self.state().generation;
         let logger = self.audio_logger();
         let running = logger
             .output
@@ -217,6 +257,13 @@ impl Session {
             .is_some_and(|output| !output.detached());
         let label = |source: AudioLoggerSource| match source {
             AudioLoggerSource::Master => "Master output".to_owned(),
+            AudioLoggerSource::Effect { effect } => effect_names
+                .iter()
+                .find(|(id, _)| *id == effect)
+                .map_or_else(
+                    || format!("Effect {} (not in this project)", effect.0),
+                    |(_, name)| format!("Slot: {name}"),
+                ),
             AudioLoggerSource::Track { track } => {
                 names.iter().find(|(id, _)| *id == track).map_or_else(
                     || format!("Mixer track {} (not in this project)", track.0),
@@ -246,6 +293,10 @@ impl Session {
                 for stats in output.stats() {
                     let rate = f64::from(stats.sample_rate.max(1));
                     let present = match stats.source {
+                        AudioLoggerSource::Effect { effect } => {
+                            logger.effect_generation == Some(generation)
+                                && effect_names.iter().any(|(id, _)| *id == effect)
+                        }
                         AudioLoggerSource::Track { track } => {
                             names.iter().any(|(id, _)| *id == track)
                         }
@@ -273,6 +324,9 @@ impl Session {
                 }
                 for &track in &settings.tracks {
                     sources.push(empty(AudioLoggerSource::Track { track }, None));
+                }
+                for &effect in &settings.effects {
+                    sources.push(empty(AudioLoggerSource::Effect { effect }, None));
                 }
             }
             None => {}
@@ -337,6 +391,7 @@ impl Session {
                 .update(|stored| stored.audio_logger = settings.clone());
             // Held so that a take cannot start while the input is reopened.
             let recording = self.recording_idle();
+            let generation = self.state().generation;
             let mut logger = self.audio_logger();
             let output = |settings: &AudioLoggerSettings| {
                 (
@@ -344,10 +399,11 @@ impl Session {
                     settings.seconds,
                     settings.master,
                     settings.tracks.clone(),
+                    settings.effects.clone(),
                 )
             };
             if output(&before) != output(&settings) || logger.output.is_none() {
-                self.start_output(&mut logger, &settings);
+                self.start_output(&mut logger, &settings, generation);
             }
             let input = |settings: &AudioLoggerSettings| {
                 (settings.enabled, settings.seconds, settings.input.clone())
@@ -377,8 +433,9 @@ impl Session {
     fn restart_audio_logger(&self) {
         let settings = self.audio_logger_settings();
         let recording = self.recording_idle();
+        let generation = self.state().generation;
         let mut logger = self.audio_logger();
-        self.start_output(&mut logger, &settings);
+        self.start_output(&mut logger, &settings, generation);
         self.open_input(&mut logger, &settings, false, recording.is_ok());
     }
 
@@ -413,8 +470,9 @@ impl Session {
             return;
         }
         let recording = self.recording_idle();
+        let generation = self.state().generation;
         let mut logger = self.audio_logger();
-        self.heal_output(&mut logger, &settings);
+        self.heal_output(&mut logger, &settings, generation);
         let failed = logger
             .input
             .as_mut()
@@ -459,7 +517,8 @@ impl Session {
 
     /// Starts the engine's side from scratch, or stops it. The old logger
     /// is dropped only after the new tap has taken the old one's place.
-    fn start_output(&self, logger: &mut Logger, settings: &AudioLoggerSettings) {
+    fn start_output(&self, logger: &mut Logger, settings: &AudioLoggerSettings, generation: u64) {
+        logger.effect_generation = (!settings.effects.is_empty()).then_some(generation);
         logger.output_error = None;
         if !logs_output(settings) {
             self.controller().stop_audio_logger();
@@ -470,6 +529,7 @@ impl Session {
             seconds: settings.seconds,
             master: settings.master,
             tracks: settings.tracks.clone(),
+            effects: settings.effects.clone(),
             worker: true,
         };
         match self.controller().start_audio_logger(&spec) {
@@ -484,7 +544,7 @@ impl Session {
     /// Takes a logger whose stream went away to the stream that is open
     /// now: with its history if the rate is the same, and from scratch if
     /// it is not. With no stream open there is nothing to do but wait.
-    fn heal_output(&self, logger: &mut Logger, settings: &AudioLoggerSettings) {
+    fn heal_output(&self, logger: &mut Logger, settings: &AudioLoggerSettings, generation: u64) {
         if !logs_output(settings) {
             return;
         }
@@ -496,7 +556,7 @@ impl Session {
             Some(output) if output.sample_rate() == rate => {
                 logger.output_error = self.controller().reattach_audio_logger(output).err();
             }
-            _ => self.start_output(logger, settings),
+            _ => self.start_output(logger, settings, generation),
         }
     }
 
@@ -628,6 +688,7 @@ impl Session {
                 AudioLoggerSource::Track { .. } => {
                     "The audio logger has not heard anything from that mixer track yet."
                 }
+                AudioLoggerSource::Effect { .. } => "No audio has reached that effect slot yet. Enable its recorder and play audio through the chain.",
                 AudioLoggerSource::Input => {
                     "The audio logger has not heard anything from the audio input yet."
                 }
@@ -693,7 +754,15 @@ impl Session {
         seconds: Option<f64>,
     ) -> Result<LoggedAudio, String> {
         let frames = |rate: u32| seconds.map(|seconds| (seconds * f64::from(rate)).round() as u64);
+        let generation = self.state().generation;
         let logger = self.audio_logger();
+        if matches!(source, AudioLoggerSource::Effect { .. })
+            && logger.effect_generation != Some(generation)
+        {
+            return Err(
+                "The slot recording belongs to an earlier project. Start a new recording.".into(),
+            );
+        }
         match source {
             AudioLoggerSource::Input => {
                 let input = logger

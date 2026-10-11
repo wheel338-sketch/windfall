@@ -1,5 +1,6 @@
 import { useState, type ReactNode } from "react"
 import { Button } from "@/components/ui/button"
+import { Checkbox } from "@/components/ui/checkbox"
 import { Field, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import {
@@ -29,7 +30,9 @@ import type {
   AudioEditPreview,
   AudioFadeShape,
   AudioNormalizeMode,
+  AudioStretchQuality,
 } from "./types"
+import { AdvancedTools } from "./advanced-tools"
 
 const FADE_SHAPES: { value: AudioFadeShape; label: string }[] = [
   { value: "equalPower", label: "Equal power" },
@@ -47,7 +50,7 @@ const PHASE_CHANNELS: { value: AudioEditChannels; label: string }[] = [
 ]
 
 /** A choice among a few named values, stored by its place in the list. */
-function Choice<T extends string>({
+export function Choice<T extends string>({
   label,
   value,
   options,
@@ -89,7 +92,7 @@ function Choice<T extends string>({
   )
 }
 
-function Amount({
+export function Amount({
   id,
   label,
   value,
@@ -159,6 +162,8 @@ export function EditTools({
   const [stretchPercent, setStretchPercent] = useState(100)
   const [semitones, setSemitones] = useState(0)
   const [silenceMs, setSilenceMs] = useState(100)
+  const [quality, setQuality] = useState<AudioStretchQuality>("standard")
+  const [formants, setFormants] = useState(false)
 
   function tool(
     label: string,
@@ -384,8 +389,10 @@ export function EditTools({
           {tool(
             "Stretch and pitch",
             "Change the selection's length and pitch independently. The audio after it moves; nothing else changes",
-            stretch(stretchPercent, semitones)
+            stretch(stretchPercent, semitones, quality, formants)
           )}
+          <Choice<AudioStretchQuality> label="Stretch quality" value={quality} options={[{value:"fast",label:"Fast"},{value:"standard",label:"Standard"},{value:"high",label:"High"}]} onChange={setQuality} disabled={disabled} />
+          <Field orientation="horizontal"><Checkbox id="editor-formants" checked={formants} disabled={disabled} onCheckedChange={(value) => setFormants(value === true)} /><FieldLabel htmlFor="editor-formants">Preserve formants</FieldLabel></Field>
         </Tool>
         <Tool>
           <Amount
@@ -404,6 +411,7 @@ export function EditTools({
           )}
         </Tool>
       </div>
+      <AdvancedTools preview={preview} selection={selection} disabled={disabled} onApply={onApply} />
     </>
   )
 }
