@@ -194,8 +194,12 @@ impl LushSpace {
         }
         // Keep a conservative bound for audio already circulating when decay
         // is shortened. Reset starts a new lifetime at the current settings.
-        let lifetime =
-            ((1.5 * decay + 0.77 * scale) * self.rate).ceil() as usize + self.pitch.history();
+        let pitch_history = if p.pitch_amount > 0.0 {
+            self.pitch.history()
+        } else {
+            0
+        };
+        let lifetime = ((1.5 * decay + 0.77 * scale) * self.rate).ceil() as usize + pitch_history;
         self.lifetime = if self.fresh {
             lifetime
         } else {

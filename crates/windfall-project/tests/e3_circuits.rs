@@ -12,6 +12,36 @@ const KINDS: [EffectKind; 6] = [
     EffectKind::StackedFlanger,
 ];
 
+#[test]
+fn original_e3_examples_are_valid_parameters_and_roundtrip_as_projects() {
+    let examples = [
+        include_str!("../../../docs/examples/e3/room.json"),
+        include_str!("../../../docs/examples/e3/lushSpace.json"),
+        include_str!("../../../docs/examples/e3/vintageChorus.json"),
+        include_str!("../../../docs/examples/e3/vintagePhaser.json"),
+        include_str!("../../../docs/examples/e3/hyperChorus.json"),
+        include_str!("../../../docs/examples/e3/stackedFlanger.json"),
+    ];
+    for (kind, json) in KINDS.into_iter().zip(examples) {
+        let example: EffectParams = serde_json::from_str(json).unwrap();
+        assert_eq!(example.kind(), kind);
+        let mut doc = Document::new(Project::new("Original E3 example"));
+        let effect = add(&mut doc, kind);
+        doc.dispatch(
+            Command::SetEffectParams {
+                track: TrackId::MASTER,
+                effect,
+                params: example,
+            },
+            None,
+        )
+        .unwrap();
+        doc.project().check().unwrap();
+        let reopened = file::from_json(&file::to_json(doc.project()).unwrap()).unwrap();
+        assert_eq!(reopened, *doc.project());
+    }
+}
+
 fn add(doc: &mut Document, kind: EffectKind) -> EffectId {
     EffectId(
         doc.dispatch(

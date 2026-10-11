@@ -113,6 +113,54 @@ fn bucket_modes_ignore_free_controls_and_have_distinct_audio() {
 }
 
 #[test]
+fn bucket_audio_delay_tracks_the_documented_rate_depth_and_opposed_sweep() {
+    // Recover delay from a broadband input by cross-correlation; this measures
+    // the clocked audio path, not the public sweep helper or an internal phase.
+    let rate = 48_000.0;
+    let mut seed = 0x9432_51ab_u32;
+    let input: Vec<f32> = (0..120_000)
+        .map(|_| {
+            seed = seed.wrapping_mul(1_664_525).wrapping_add(1_013_904_223);
+            ((seed >> 8) as f32 / 16_777_216.0 - 0.5) * 0.4
+        })
+        .collect();
+    for (mode, hz) in [(BucketMode::One, 0.513_f64), (BucketMode::Two, 0.863)] {
+        let mut fx = VintageChorus::default();
+        fx.prepare(rate, 127);
+        fx.set_params(&VintageChorusParams {
+            mode,
+            mix: 1.0,
+            ..Default::default()
+        });
+        let (mut left, mut right) = (input.clone(), input.clone());
+        fx.process(&mut left, &mut right);
+        for phase in [0.125_f64, 0.5, 0.75, 1.125] {
+            let center = (phase / hz * f64::from(rate)).round() as usize;
+            let position = 1.0 - (1.0 - 2.0 * phase.fract()).abs();
+            for (output, position) in [(&left, position), (&right, 1.0 - position)] {
+                let expected = (1.66 + 3.69 * position) * 48.0;
+                let measured = (65..280)
+                    .max_by(|a, b| {
+                        let score = |lag: usize| {
+                            (center - 256..center + 256)
+                                .map(|n| f64::from(input[n - lag]) * f64::from(output[n]))
+                                .sum::<f64>()
+                        };
+                        score(*a).total_cmp(&score(*b))
+                    })
+                    .unwrap();
+                // Filter group delay and the clock's sample-and-hold add a few
+                // frames. The moving window contributes up to two more.
+                assert!(
+                    (measured as f64 - expected).abs() < 10.0,
+                    "{mode:?}, phase {phase}: {measured} vs {expected}"
+                );
+            }
+        }
+    }
+}
+
+#[test]
 fn swarm_count_measures_the_average_of_independently_delayed_voices() {
     let hz = 400.0;
     let input = sine(hz, 8_000);

@@ -71,7 +71,9 @@ parameter/tempo writes, processing, bypass and safety expiry allocate/free nothi
 Stack warm-up is now 64 ms, covering all four serial combs. Other spatial tails
 retain their documented finite safety lifetimes. Lush lifetime includes its grain
 history and the largest requested size/decay since reset:
-`ceil((1.5*max(decayS,0.18)+0.77*(0.4+1.2*size))*rate)+grainHistory`.
+`ceil((1.5*max(decayS,0.18)+0.77*(0.4+1.2*size))*rate)+pitchHistory`,
+where pitchHistory is the grain history when pitch amount is nonzero. The
+longest requested lifetime is retained through a live fade back to plain sound.
 Zero pitch amount preserves the original hall's samples at the original size.
 The slot retains its shared bypass/mix ramps and clears on dormant wake.
 

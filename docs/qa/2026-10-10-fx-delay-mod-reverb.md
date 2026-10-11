@@ -29,9 +29,9 @@ their declared `spatial::model_tests` module absent; this resumption completes i
 
 | Row | Status | What is in the branch |
 | --- | --- | --- |
-| `fx-fruity-delay` | complete in source (`61cd12b6` and the test commit); nothing run | Inverted stereo mode in the core Delay, with DSP, importer, engine and UI tests |
-| `fx-fruity-delay-bank` | all four named gates addressed in source (`7ecea4c7`, `ef0ce026`, editor commit); nothing run | Linked eight-unit editor, fallible host admission, saturating tails |
-| `fx-multiband-delay` | all four named gates addressed in source; nothing run | Drawn sixteen-band delay/level/pan editor, same host gates |
+| `fx-fruity-delay` | full-row candidate (`61cd12b6`, `15443791`); nothing run | Inverted stereo mode in the core Delay, with DSP, importer, engine and UI tests |
+| `fx-fruity-delay-bank` | full-row candidate; all four named gates addressed in source; nothing run | Linked eight-unit editor, fallible host admission, saturating tails |
+| `fx-multiband-delay` | full-row candidate; all four named gates addressed in source; nothing run | Drawn sixteen-band delay/level/pan editor, same host gates |
 | `fx-luxeverb` | full-row candidate; nothing executed | Sized, pitch-shifted and modulated spaces with dedicated editor |
 | `fx-fruity-reeverb` | full-row candidate; nothing executed | Existing room, reflection readout and grouped room/decay editor |
 | `fx-vintage-chorus` | full-row candidate; nothing executed | Clocked bucket modes, tempo/free controls and mode-aware editor |
@@ -275,6 +275,13 @@ No dependencies, assets, commands, IPC variants or EffectKind variants added.
 The old generic hosting path already carries the six registered kinds through
 document commands, engine construction and realtime/offline processing.
 
+Row editor commits: Room `1a073799`, Lush Space `04585b70`, Bucket Chorus
+`63ca6595`, Stage Phaser `8764eaac`, Swarm Chorus `e81d0ef4`, Stacked Flanger
+`a32bfc96`. Shared DSP/project/native acceptance foundation is `0263f977`.
+The linked/drawn delay editors are `dc456534`; resumed gate reconciliation is
+`e735af75` and `82ead719`. The final acceptance/handoff commit is discoverable
+with `git log -1`; its SHA is also given in the final worker response.
+
 The previously missing `spatial/model_tests.rs` is now supplied. Continuous and
 topology controls glide per frame. Chorus voice weights/phaser stage weights/
 stack order weights retain first-frame and legacy defaults. Four stacked combs
@@ -297,6 +304,9 @@ All modulation direct cases are in `crates/windfall-dsp/src/spatial/model_tests.
 Its shared cases `model_extrema_partition_edits_empty_blocks_and_tails_are_stable`,
 `tempo_sync_matches_free_rate_and_depth_zero_removes_detuning` and
 `legacy_model_settings_keep_defaults_and_descriptor_prefixes` cover each circuit.
+`bucket_audio_delay_tracks_the_documented_rate_depth_and_opposed_sweep` recovers
+the moving bucket delay by correlating real processed broadband audio with its
+input at independently specified phase/time points, including both output sides.
 The six named native cases are in `crates/windfall-engine/tests/e3_circuits_qa.rs`;
 each measures real changed PCM, gesture undo/redo, disk save/load and exact live
 versus offline audio at 7/64/127-frame partitions.
@@ -311,6 +321,8 @@ All six also have:
   `v1_defaults_roundtrip_without_a_format_bump`,
   `invalid_edits_are_atomic_and_finite_extrema_use_descriptor_sanitization`,
   `every_control_has_the_correct_automation_range_and_removal_history_restores_curves`.
+  `original_e3_examples_are_valid_parameters_and_roundtrip_as_projects` validates
+  the six original CC0 parameter examples in `docs/examples/e3/`.
 - `apps/desktop/src/features/effects/e3-circuits.test.tsx`: six mounted descriptor/
   distinct-control/history/file cases, six mounted automation cases, bucket model
   disabling/return-to-Free, and four mounted tempo-cycle switches. Requires new
@@ -328,6 +340,7 @@ cargo test -p windfall-dsp --lib lush
 cargo test -p windfall-dsp --test dsp e3_circuits
 cargo test -p windfall-project --test e3_circuits
 cargo test -p windfall-engine --test e3_circuits_qa
+cargo clippy -p windfall-dsp -p windfall-project -p windfall-engine --all-targets -- -D warnings
 pnpm --dir apps/desktop test src/features/effects/e3-circuits.test.tsx src/features/effects/delay-family.test.tsx --maxWorkers=4
 pnpm --dir apps/desktop typecheck
 pnpm --dir apps/desktop lint
@@ -346,6 +359,8 @@ probe internally; that is integrator work, not a worker execution.
 2. Compile owned Rust and native fixtures first. The previously absent model test
    module is now present. Verify independent phaser/comb/chorus tolerance bounds
    before adjusting them; none has empirical pass evidence from this worker.
+   The broadband bucket-delay measurement allows ten frames for filter group
+   delay, sample-and-hold and moving-window spread; inspect recovered lags first.
 3. Check Lush pitch projection at +/-12 semitones, size-dependent arrival times,
    the enlarged lifetime, and legacy-default impulse tests. Pitch voice is a
    windowed delay pitch shifter, not a formant-preserving vocal engine.
@@ -355,6 +370,13 @@ probe internally; that is integrator work, not a worker execution.
 5. Run native live/offline and history cases, then allocator/bypass regressions.
    Bank auto-tail remains conservative (roughly 200 s gap) and the 1 GiB admission
    limit covers admitted echo histories, not every host allocation or old plan.
+
+Shared seams changed by this stream (excluding unrelated incoming merge work):
+`dsp/src/effect.rs` (admission child module), `engine/src/lib.rs` (host module),
+`features/effects/effect-editor.tsx` (eight custom editors), and the DSP integration
+test module list `dsp/tests/dsp/main.rs`. The existing engine build caller/slot
+preparation signatures were re-read after the merge. No project command/model,
+IPC, session, generated binding or simulator file was edited by this worker.
 
 All these rows remain candidates until the integrator passes the authored suites.
 This is summary-behaviour parity, not a claim of every reference plugin's extra

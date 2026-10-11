@@ -152,7 +152,7 @@ fn decay_zero_is_short_finite_and_long_decay_survives_later() {
         ..base
     };
     let short_hall = hall(short, 8_000.0);
-    assert!(short_hall.tail_samples() <= 9_000);
+    assert!(short_hall.tail_samples() <= 8_400);
     let (short_l, short_r) = impulse(short, 8_000.0, 3.0);
     assert!(
         short_l[short_hall.tail_samples() + 1..]
