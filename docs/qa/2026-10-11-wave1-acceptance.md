@@ -15,18 +15,18 @@ Product/test tree: `1239e096` (the following commits update this report only). A
 | `node --test scripts/check-bindings.test.mjs` | Exit 0; 10 passed, 0 failed, 0 skipped | CLI result |
 | `scripts/gen-bindings.sh target/round1-binding-inventory` then `node scripts/check-bindings.mjs target/round1-binding-inventory` | Both exit 0; all 458 files match | `target/round1-binding-inventory.log`; fresh inventory comparison |
 | `nat.sh round1-native` | Fixture 0; desktop build 0; tests 0; **3,509 passed, 0 failed, 36 ignored**; zero warnings | `target/round1-native.log` (134 result summaries, including doctests) |
-| `pnpm.cmd test --maxWorkers=4` | Pending full run | — |
+| `pnpm.cmd test --maxWorkers=4` | Exit 0; **5,801 passed, 0 failed, 0 skipped; 448 files passed** | `target/round1-frontend.log`; 389.15 s |
 | `pnpm.cmd typecheck` | Pending final run | — |
 | `pnpm.cmd lint` | Pending final run | — |
 | `pnpm.cmd build` | Pending final run | — |
 
-All native nonignored evidence below now passes in the full workspace run. Frontend evidence and the seven `done` recommendations remain provisional until the final full frontend suite and checks pass. The earlier eight-file frontend repair run passed 126 tests. Ignored/hardware tests are not passing evidence.
+All nonignored native and frontend evidence below now passes in the full suites. The seven `done` recommendations await the final typecheck/lint/build gates before publication as final acceptance. The earlier eight-file frontend repair run passed 126 tests. Ignored/hardware tests are not passing evidence.
 
 Coverage notation: the named groups resolve to exact test files in the evidence index below. Each table cell names representative assertions or the complete row-specific cases in those files. Passing software evidence does not mean an ignored device case ran. `done` means no required summary or design gate remains; `in-progress` preserves missing behavior, UI, joined workflow, listening or hardware gates; `todo` identifies the unimplemented thumbnail picker.
 
 Inputs: [mixer](2026-10-10-mixer.md), [recording](2026-10-10-recording.md), [playlist](2026-10-10-playlist.md), [rack-sampler](2026-10-10-rack-sampler.md), [piano](2026-10-10-piano.md), [analyzers](2026-10-10-analyzers.md), [files-browser](2026-10-10-files-browser.md), [midi](2026-10-10-midi.md). Historical no-build statements are superseded only for tests executed in the final logs; external gates are not superseded.
 
-| Row and required summary | Test evidence (native passes; frontend pending; see index) | Still open / hand-off reconciliation | Recommendation |
+| Row and required summary | Passing test evidence (see exact-file index) | Still open / hand-off reconciliation | Recommendation |
 | --- | --- | --- | --- |
 | `core-audio-recording` — Records microphone, line or internal audio onto the timeline as editable clips. | Recording: recording_endpoint fault/loopback cases; session recording synthetic capture cases | No passing physical round trip; earlier virtual-cable failure cause unresolved. Microphone/line listening, converter latency, real independent-clock drift and actual device removal remain. Design: [RECORDING.md](../RECORDING.md), [RECORDING-ALIGNMENT.md](../RECORDING-ALIGNMENT.md), [DEVICE-ACCEPTANCE.md](../DEVICE-ACCEPTANCE.md). Handoff: recording. | `in-progress` |
 | `core-audio-logger` — Keeps recording audio in the background so an unplanned take can be recovered afterwards. | Audio logger: engine history/tap, session dump/undo/save, IPC and mounted dialog/backend cases | Real output smoke (enable, play, dump to playlist, listen) still owed. Arbitrary chain-position/disk logging and dump alignment are not claimed. Design: [AUDIO-LOGGER.md](../AUDIO-LOGGER.md). Handoff: recording. | `in-progress` |
