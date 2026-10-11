@@ -164,9 +164,9 @@ impl StageChannel {
         rate: f32,
         phase: f64,
         kernels: Option<&Kernels>,
-        bank: &CabinetBank,
-        cabinet: Cabinet,
+        cabinet: (&CabinetBank, Cabinet),
     ) -> f32 {
+        let (bank, cabinet) = cabinet;
         // Stateful stages pass through the same identity resampler as bypass;
         // each module always contributes 32 frames, regardless of selection.
         let shaped = self.shaper.tick(kernels, input, |sample| {
@@ -304,8 +304,7 @@ impl Effect for DriveChain {
                         self.rate,
                         self.phases[stage] + c as f64 * 1.1,
                         self.kernels,
-                        &self.bank,
-                        self.cabinets[stage],
+                        (&self.bank, self.cabinets[stage]),
                     );
                 }
                 self.phases[stage] = (self.phases[stage]

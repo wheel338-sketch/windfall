@@ -326,7 +326,7 @@ impl Mastering {
         let frames = chunk.len() / 2;
         let left = &mut self.left[..frames];
         let right = &mut self.right[..frames];
-        for (index, frame) in chunk.chunks_exact(2).enumerate() {
+        for (index, frame) in chunk.as_chunks::<2>().0.iter().enumerate() {
             let clean = |sample: f32| if sample.is_finite() { sample } else { 0.0 };
             left[index] = clean(frame[0]) * self.normalize;
             right[index] = clean(frame[1]) * self.normalize;

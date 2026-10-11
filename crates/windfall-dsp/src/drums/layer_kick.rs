@@ -133,7 +133,6 @@ impl Instrument for LayerKick {
             pitch_decay_ms: self.params.pitch_decay_ms,
             click: self.params.click,
             level: 1.0,
-            ..Default::default()
         });
         if self.fresh {
             self.mix.snap(self.params.sample_mix);

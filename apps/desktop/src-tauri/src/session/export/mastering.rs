@@ -95,7 +95,9 @@ impl Spool {
             self.samples.clear();
             self.samples.extend(
                 self.bytes[..whole]
-                    .chunks_exact(4)
+                    .as_chunks::<4>()
+                    .0
+                    .iter()
                     .map(|bytes| f32::from_le_bytes([bytes[0], bytes[1], bytes[2], bytes[3]])),
             );
             if !each(&self.samples)? {

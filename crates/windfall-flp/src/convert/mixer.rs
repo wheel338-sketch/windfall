@@ -495,7 +495,6 @@ impl Builder<'_> {
                     params: windfall_dsp::EffectParams::SendTap(
                         windfall_dsp::sendtap::SendTapParams {
                             level: (volume as f32 / 256.0).clamp(0.0, 1.0),
-                            ..Default::default()
                         },
                     ),
                 },

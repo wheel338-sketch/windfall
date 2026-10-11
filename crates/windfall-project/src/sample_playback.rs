@@ -74,14 +74,13 @@ pub fn supported(kind: InstrumentKind) -> bool {
 }
 impl SamplePlayback {
     pub fn validate(&self) -> Result<(), String> {
-        if let Some(source) = &self.inline_source {
-            if source.data.is_empty()
+        if let Some(source) = &self.inline_source
+            && (source.data.is_empty()
                 || source.data.len() > 4096
                 || !(1000..=384000).contains(&source.sample_rate)
-                || source.data.iter().any(|v| !v.is_finite())
-            {
-                return Err("Invalid migrated sample table.".into());
-            }
+                || source.data.iter().any(|v| !v.is_finite()))
+        {
+            return Err("Invalid migrated sample table.".into());
         }
         validate_slices(&self.slices).map_err(str::to_owned)?;
         self.curve.validate().map_err(str::to_owned)?;

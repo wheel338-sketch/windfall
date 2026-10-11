@@ -4,7 +4,7 @@ use windfall_dsp::granular::{PlaybackAsset, PlaybackCurve, SliceRegion};
 use windfall_dsp::{AnyInstrument, InstrumentKind, NoteExpression, NoteInstanceId};
 #[test]
 fn populated_sample_instrument_callbacks_never_allocate_or_free() {
-    let source = AudioBuffer::from_interleaved(48000, 2, vec![0.2, -0.3].repeat(96000));
+    let source = AudioBuffer::from_interleaved(48000, 2, [0.2, -0.3].repeat(96000));
     let asset = Arc::new(
         PlaybackAsset::new(
             [Some(source), None],

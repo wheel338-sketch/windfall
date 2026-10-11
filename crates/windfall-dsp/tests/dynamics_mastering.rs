@@ -651,11 +651,11 @@ fn shaper_saved_aux_routes_remove_only_the_routed_parts_and_ignore_listen() {
                     listen != TransientListen::Sustain,
                     listen != TransientListen::Attack,
                 ];
-                for c in 0..2 {
+                for (c, &attack) in parts[0].iter().enumerate() {
                     assert_eq!(output.2[i][c], if routed[0] { parts[0][c] } else { 0.0 });
                     assert_eq!(output.3[i][c], if routed[1] { parts[1][c] } else { 0.0 });
                     let main = (if !routed[0] && audible[0] {
-                        parts[0][c]
+                        attack
                     } else {
                         0.0
                     }) + (if !routed[1] && audible[1] {
@@ -985,9 +985,9 @@ fn simplified_two_stages_match_independent_saturation_and_linked_release_referen
         } else {
             gain + (needed - gain) * release
         };
-        for c in 0..2 {
+        for (c, &w) in wet.iter().enumerate() {
             let d = f64::from(*dry) * if c == 0 { 1.0 } else { 0.2 };
-            let expected = d * 0.25 + (wet[c] * gain).clamp(-ceiling, ceiling) * 0.75;
+            let expected = d * 0.25 + (w * gain).clamp(-ceiling, ceiling) * 0.75;
             let actual = if c == 0 { left[n] } else { right[n] };
             assert!(
                 (f64::from(actual) - expected).abs() < 3e-6,

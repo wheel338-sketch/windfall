@@ -819,7 +819,13 @@ fn write_files(
             let mut sink = |block: &[f32]| {
                 let samples = if channels == 1 {
                     mono.clear();
-                    mono.extend(block.chunks_exact(2).map(|pair| (pair[0] + pair[1]) * 0.5));
+                    mono.extend(
+                        block
+                            .as_chunks::<2>()
+                            .0
+                            .iter()
+                            .map(|pair| (pair[0] + pair[1]) * 0.5),
+                    );
                     mono.as_slice()
                 } else {
                     block

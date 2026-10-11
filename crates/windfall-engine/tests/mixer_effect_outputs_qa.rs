@@ -894,12 +894,12 @@ fn qa_band_split_routes_each_band_through_tracks_history_files_and_export() {
         dsp.prepare(RATE as f32, 512);
         dsp.set_params(&params);
         let expected: Vec<_> = input.iter().map(|&x| dsp.split_frame([x, x])).collect();
-        for band in 0..3 {
+        for (band, _) in targets.iter().enumerate() {
             for (index, target) in targets.iter().enumerate() {
                 rig.track_mut(*target).muted = index != band;
             }
             let heard = rig.play(RATE, FRAMES, 127);
-            for (n, pair) in heard.chunks_exact(2).enumerate() {
+            for (n, pair) in heard.as_chunks::<2>().0.iter().enumerate() {
                 for side in 0..2 {
                     assert!(
                         (pair[side] - expected[n][band][side]).abs() < 2e-6,

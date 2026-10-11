@@ -137,7 +137,6 @@ impl Patch for GrooveSynthParams {
             delay: self.delay,
             phaser: self.phaser,
             reverb: self.reverb,
-            ..Frame::default()
         }
     }
     fn sample(&self, t: &mut Tone, c: &Context) -> (f32, f32) {

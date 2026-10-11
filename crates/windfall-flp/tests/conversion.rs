@@ -661,7 +661,9 @@ fn unknown_version_bad_event_length_and_unknown_marker_counts_remain_honest() {
     assert_eq!(damaged.diagnostics.len(), 1);
     assert_eq!(
         damaged.diagnostics[0].message,
-        format!("the file ends in the middle of the event that starts at byte {damaged_offset}. Everything before that was read, and the rest is lost.")
+        format!(
+            "the file ends in the middle of the event that starts at byte {damaged_offset}. Everything before that was read, and the rest is lost."
+        )
     );
 }
 

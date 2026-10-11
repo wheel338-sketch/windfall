@@ -285,7 +285,7 @@ impl LoudnessMeter {
     /// Takes more of the programme: interleaved stereo, left first. A
     /// sample that is not a number counts as silence.
     pub fn feed(&mut self, interleaved: &[f32]) {
-        for frame in interleaved.chunks_exact(2) {
+        for frame in interleaved.as_chunks::<2>().0 {
             let mut weighted = 0.0_f64;
             for (channel, sample) in frame.iter().enumerate() {
                 let sample = if sample.is_finite() { *sample } else { 0.0 };

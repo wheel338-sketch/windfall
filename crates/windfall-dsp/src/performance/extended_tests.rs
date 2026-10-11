@@ -28,7 +28,7 @@ fn drawn_time_reverses_a_bounded_record_and_volume_follows_an_independent_line()
     let output = run(&mut gate, &input, 7);
     // Each complete cycle reads the previous immutable 125-frame record.
     // Ignore the explicitly documented two-frame discontinuity crossfade.
-    for n in 125..5000 {
+    for (n, &sample) in output.iter().enumerate().take(5000).skip(125) {
         let phase = n % 125;
         if phase < 3 {
             continue;
@@ -36,7 +36,7 @@ fn drawn_time_reverses_a_bounded_record_and_volume_follows_an_independent_line()
         let oldest = n / 125 * 125 - 125;
         let position = (1.0 - phase as f32 / 125.0) * 124.0;
         let expected = (oldest as f32 + position) * 0.0001 * (phase as f32 / 125.0);
-        assert!((output[n] - expected).abs() < 1e-6, "frame {n}");
+        assert!((sample - expected).abs() < 1e-6, "frame {n}");
     }
     assert_eq!(gate.history.ring.data.len(), 2000);
     assert!(std::mem::size_of::<VolumeGateParams>() < 128);
@@ -281,8 +281,8 @@ fn loaded_scratch_interpolates_a_stereo_source_and_follows_reverse_curves() {
     left.fill(0.0);
     right.fill(0.0);
     effect.process(&mut left, &mut right);
-    for n in 4..125 {
-        assert!((left[n] - (0.125 - n as f32 * 0.001)).abs() < 1e-6);
+    for (n, &sample) in left.iter().enumerate().take(125).skip(4) {
+        assert!((sample - (0.125 - n as f32 * 0.001)).abs() < 1e-6);
     }
     let encoded = serde_json::to_value(p).unwrap();
     assert!(encoded.get("runtimeSource").is_none());

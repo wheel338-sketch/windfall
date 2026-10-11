@@ -2,6 +2,8 @@
 
 ## Running progress
 
+- Final strict workspace Clippy passes with zero warnings (`target/round2-clippy-repair.log`); final rustfmt check also exits 0. Cleanups preserve formulas and assertions: reuse prepared bank allocation, pair cabinet selection with its bank, remove redundant struct updates, use fixed-size chunks/iterators and simplify equivalent validation guards. Next: rebuild simulator from this clean product tree, then mounted and full-suite gates.
+
 - Formats/core/analysis focused execution: the non-FLP targets pass 232/0/3 (`round2-formats-focused.log`); FLP is now 158/0/0 (`round2-flp-focused-final.log`). Corrected invalid/incomplete generated fixtures, exact pan-law report accounting, preserved source editing resolution and both mapped/unsupported opaque states. Malformed payload test now checks exact salvage diagnostic and preceding version preservation, matching the parser's established partial-recovery contract; no parser behavior or refusal bound weakened.
 
 - Remaining engine acceptance targets pass: EQ/filter/stereo 8/0/0, additive/physical/drum 11/0/0, sample playback 4/0/0 (`target/round2-engine-remaining.log`). Native session focused run passes 430/0/8, with 85 unrelated tests filtered (`target/round2-session-focused.log`); ignored hardware cases were not executed. Next: formats/core analysis, final simulator refresh, mounted UI and strict/full gates.

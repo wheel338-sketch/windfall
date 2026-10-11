@@ -101,7 +101,7 @@ impl PreparedEngine {
         }
     }
     pub(super) fn set_bank(&mut self, bank: &SpectralBank) {
-        self.bank = Box::new(bank.clone());
+        *self.bank = bank.clone();
     }
     pub(super) fn prepare(&mut self, rate: f32) {
         self.rate = clean(rate, 8000.0, 192000.0, 48000.0);

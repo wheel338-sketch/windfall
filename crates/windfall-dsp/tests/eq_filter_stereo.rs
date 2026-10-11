@@ -119,9 +119,9 @@ fn measured(params: &EffectParams, rate: f32, hz: f64) -> Complex {
         effect.process(left, right);
     }
     let (mut in_phase, mut quadrature) = (0.0_f64, 0.0_f64);
-    for n in frames - window..frames {
-        in_phase += f64::from(left[n]) * angle(n).sin();
-        quadrature += f64::from(left[n]) * angle(n).cos();
+    for (n, &sample) in left.iter().enumerate().take(frames).skip(frames - window) {
+        in_phase += f64::from(sample) * angle(n).sin();
+        quadrature += f64::from(sample) * angle(n).cos();
     }
     let scale = 2.0 / (0.1 * window as f64);
     (in_phase * scale, quadrature * scale)
@@ -369,11 +369,12 @@ fn seven_band_costs_less_than_the_parametric_equalizer_with_every_band_working()
 // Spreader
 
 fn spreader(width: f32, haas_ms: f32, amount: f32, mix: f32) -> EffectParams {
-    let mut params = SpreaderParams::default();
-    params.width = width;
-    params.haas_ms = haas_ms;
-    params.amount = amount;
-    params.mix = mix;
+    let params = SpreaderParams {
+        width,
+        haas_ms,
+        amount,
+        mix,
+    };
     EffectParams::Spreader(params)
 }
 
@@ -483,9 +484,11 @@ fn spreader_is_block_invariant_and_bypasses_without_a_click() {
 /// Width 1 with no bass lock: the enhancer alone changes nothing, so each
 /// test sees only the control it moves.
 fn enhancer(change: impl FnOnce(&mut StereoEnhancerParams)) -> EffectParams {
-    let mut params = StereoEnhancerParams::default();
-    params.width = 1.0;
-    params.bass_lock = 0.0;
+    let mut params = StereoEnhancerParams {
+        width: 1.0,
+        bass_lock: 0.0,
+        ..Default::default()
+    };
     change(&mut params);
     EffectParams::StereoEnhancer(params)
 }
@@ -1498,9 +1501,14 @@ fn band_split_registered_outputs_match_independent_band_level_and_phase() {
                         continue;
                     }
                     let (mut sin, mut cos) = (0.0, 0.0);
-                    for n in frames - window..frames {
-                        sin += f64::from(outputs[band][n][0]) * angle(n).sin();
-                        cos += f64::from(outputs[band][n][0]) * angle(n).cos();
+                    for (n, frame) in outputs[band]
+                        .iter()
+                        .enumerate()
+                        .take(frames)
+                        .skip(frames - window)
+                    {
+                        sin += f64::from(frame[0]) * angle(n).sin();
+                        cos += f64::from(frame[0]) * angle(n).cos();
                     }
                     let factor = 2.0 / (0.1 * window as f64);
                     let heard = (sin * factor, cos * factor);

@@ -77,7 +77,7 @@ fn chunk(out: &mut Vec<u8>, id: &[u8; 4], body: &[u8]) {
     out.extend_from_slice(id);
     word(out, body.len() as u32);
     out.extend_from_slice(body);
-    if body.len() % 2 != 0 {
+    if !body.len().is_multiple_of(2) {
         out.push(0);
     }
 }
@@ -333,7 +333,7 @@ fn read<R: Read + Seek>(reader: &mut R) -> Result<WavMetadata, CodecError> {
                         if n > MAX_WAV_MARKERS || b.len() != 4 + n * 24 {
                             return Err(corrupt("invalid cue count"));
                         }
-                        for c in b[4..].chunks_exact(24) {
+                        for c in b[4..].as_chunks::<24>().0 {
                             if &c[8..12] != b"data" || u32le(c, 12) != 0 || u32le(c, 16) != 0 {
                                 return Err(CodecError::UnsupportedFormat(
                                     "non-data cue positions".into(),
@@ -363,7 +363,7 @@ fn read<R: Read + Seek>(reader: &mut R) -> Result<WavMetadata, CodecError> {
                                 "fractional smpl tuning".into(),
                             ));
                         }
-                        for l in b[36..36 + n * 24].chunks_exact(24) {
+                        for l in b[36..36 + n * 24].as_chunks::<24>().0 {
                             let kind = match u32le(l, 4) {
                                 0 => WavLoopKind::Forward,
                                 1 => WavLoopKind::Alternating,
@@ -423,7 +423,7 @@ fn read<R: Read + Seek>(reader: &mut R) -> Result<WavMetadata, CodecError> {
                             let data = &b[pos + 8..stop];
                             match &b[pos..pos + 4] {
                                 b"labl" => {
-                                    if n < 5 || n > MAX_LABEL_BYTES + 5 || data[n - 1] != 0 {
+                                    if !(5..=MAX_LABEL_BYTES + 5).contains(&n) || data[n - 1] != 0 {
                                         return Err(corrupt("invalid label"));
                                     }
                                     let label =

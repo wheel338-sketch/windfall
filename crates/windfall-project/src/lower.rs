@@ -3482,10 +3482,10 @@ impl Transaction<'_> {
             return Err(other_kind(params.kind().name(), kind.name()));
         }
         let params = checked_effect(params)?;
-        if let EffectParams::Scratch(p) = params {
-            if p.source_id != 0 {
-                self.sample_index(SampleId(p.source_id))?;
-            }
+        if let EffectParams::Scratch(p) = params
+            && p.source_id != 0
+        {
+            self.sample_index(SampleId(p.source_id))?;
         }
         self.change_track(track, |track| track.effects[slot].params = params);
         Ok("Change effect settings")

@@ -155,21 +155,20 @@ fn legacy_impulse(params: &serde_json::Value) -> Result<Option<ConvolverImpulse>
     Ok(Some(asset))
 }
 pub(crate) fn migrate_impulse_holder(holder: &mut serde_json::Value) -> Result<(), String> {
-    if holder.get("impulse").is_none_or(serde_json::Value::is_null) {
-        if let Some(asset) = holder
+    if holder.get("impulse").is_none_or(serde_json::Value::is_null)
+        && let Some(asset) = holder
             .get("params")
             .map(legacy_impulse)
             .transpose()?
             .flatten()
-        {
-            holder
-                .as_object_mut()
-                .ok_or("IR holder must be an object")?
-                .insert(
-                    "impulse".into(),
-                    serde_json::to_value(asset).map_err(|error| error.to_string())?,
-                );
-        }
+    {
+        holder
+            .as_object_mut()
+            .ok_or("IR holder must be an object")?
+            .insert(
+                "impulse".into(),
+                serde_json::to_value(asset).map_err(|error| error.to_string())?,
+            );
     }
     Ok(())
 }

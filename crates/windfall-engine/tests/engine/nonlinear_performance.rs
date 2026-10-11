@@ -13,7 +13,10 @@ fn aligned_song(rig: &Rig, frames: usize, block: usize) -> Vec<f32> {
     controller.play();
     let mut output = vec![0.0; (frames + latency) * 2];
     for chunk in output.chunks_mut(block * 2) {
-        assert_eq!(crate::realtime::allocator_calls(|| processor.process(chunk)), 0);
+        assert_eq!(
+            crate::realtime::allocator_calls(|| processor.process(chunk)),
+            0
+        );
     }
     output[latency * 2..].to_vec()
 }
@@ -250,7 +253,8 @@ fn recorded_trigger_edges_replay_the_exact_history_in_live_and_offline_capture()
             };
             assert!(
                 (output[frame * 2] - expected).abs() < 1e-6,
-                "{kind:?} frame {frame}: {} != {expected}", output[frame * 2]
+                "{kind:?} frame {frame}: {} != {expected}",
+                output[frame * 2]
             );
             assert!((output[frame * 2 + 1] - expected).abs() < 1e-6);
             previous = expected;

@@ -417,7 +417,7 @@ impl Engine {
                         voice.active = false;
                         continue;
                     }
-                    let reverse = voice.region.map_or(false, |s| s.reverse);
+                    let reverse = voice.region.is_some_and(|s| s.reverse);
                     let position = if reverse {
                         end as f64 - 1.0 - voice.cursor
                     } else {

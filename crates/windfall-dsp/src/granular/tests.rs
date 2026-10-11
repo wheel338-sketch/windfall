@@ -44,9 +44,9 @@ fn immutable_sources_exceed_4096_frames_and_slice_boundaries_never_bleed() {
     });
     i.note_on(60, 1.0);
     let pcm = render(&mut i, 2100, 7);
-    for frame in 8..1992 {
+    for (frame, &sample) in pcm.iter().enumerate().take(1992).skip(8) {
         let expected = (4000 + frame) as f32 / 15999.0 * SCALE;
-        assert!((pcm[frame] - expected).abs() < 1e-6);
+        assert!((sample - expected).abs() < 1e-6);
     }
     assert!(pcm[2000..].iter().all(|v| *v == 0.0));
     i.note_on(59, 1.0);
@@ -74,7 +74,7 @@ fn reverse_pitch_gain_overlaps_reorder_and_second_deck_are_independent() {
             ..Default::default()
         },
     ];
-    let other = AudioBuffer::from_interleaved(RATE as u32, 2, vec![0.2, -0.4].repeat(16000));
+    let other = AudioBuffer::from_interleaved(RATE as u32, 2, [0.2, -0.4].repeat(16000));
     let a = Arc::new(
         PlaybackAsset::new(
             [Some(source()), Some(other)],
@@ -93,8 +93,8 @@ fn reverse_pitch_gain_overlaps_reorder_and_second_deck_are_independent() {
     });
     i.note_on(60, 1.0);
     let pcm = render(&mut i, 2100, 31);
-    for frame in 8..1980 {
-        assert!((pcm[frame] - (7999 - 2 * frame) as f32 / 15999.0 * SCALE * 0.5).abs() < 1e-6);
+    for (frame, &sample) in pcm.iter().enumerate().take(1980).skip(8) {
+        assert!((sample - (7999 - 2 * frame) as f32 / 15999.0 * SCALE * 0.5).abs() < 1e-6);
     }
     assert!(pcm[2000..].iter().all(|v| *v == 0.0));
     i.reset();
@@ -350,9 +350,9 @@ fn original_slice_scalar_indices_override_only_the_edited_asset_controls() {
     i.set_params(&p);
     i.note_on(60, 1.0);
     let pcm = render(&mut i, 1000, 7);
-    for frame in 8..990 {
+    for (frame, &sample) in pcm.iter().enumerate().take(990).skip(8) {
         let expected = frame as f32 / 15999.0 * SCALE * 0.6;
-        assert!((pcm[frame] - expected).abs() < 1e-6, "frame {frame}");
+        assert!((sample - expected).abs() < 1e-6, "frame {frame}");
     }
     // The original pad gain index remains audible on a held voice.
     assert!(p.set(20, 0.2));

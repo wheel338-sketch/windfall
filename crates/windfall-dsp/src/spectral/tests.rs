@@ -482,10 +482,7 @@ fn vocoder_bands_follow_the_real_modulator_and_preserve_carrier_balance() {
                 ..Default::default()
             };
             let (l, r) = render_key(params, &carrier, Some(&key), &[1, 7, 127]);
-            assert!(
-                tone_power(&l[8000..], f64::from(hz))
-                    > tone_power(&l[8000..], f64::from(other)) * 10.0
-            );
+            assert!(tone_power(&l[8000..], f64::from(hz)) > tone_power(&l[8000..], other) * 10.0);
             for (a, b) in l.iter().zip(&r) {
                 assert!((*b - 0.3 * *a).abs() < 1e-5);
             }
