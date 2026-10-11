@@ -147,7 +147,7 @@ impl Rig {
             processor.process(&mut stereo);
             let ports = processor.hardware_samples();
             assert_eq!(ports.len(), block * CHANNELS);
-            for (offset, frame) in ports.chunks_exact(CHANNELS).enumerate() {
+            for (offset, frame) in ports.as_chunks::<CHANNELS>().0.iter().enumerate() {
                 for (channel, value) in frame.iter().enumerate() {
                     if value.abs() > 1e-6 {
                         assert!(

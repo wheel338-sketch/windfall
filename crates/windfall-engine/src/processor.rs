@@ -1394,8 +1394,10 @@ impl Processor {
             &self.shared,
             base,
             out,
-            &mut self.disk_taps,
-            &mut self.audio_logger,
+            crate::mixer::CaptureSinks {
+                disk: &mut self.disk_taps,
+                logger: &mut self.audio_logger,
+            },
         );
         if let Some(captures) = &mut self.captures {
             captures.publish_tracks(

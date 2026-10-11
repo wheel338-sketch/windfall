@@ -113,13 +113,13 @@ fn tap_rig() -> (Rig, TrackId, TrackId) {
 /// Frame `n` of the output must be `gain * counted(n)` on both sides while
 /// the sample lasts, and silence after it.
 fn assert_counted(audio: &[f32], gain: f32, what: &str) {
-    for (frame, pair) in audio.chunks_exact(2).enumerate() {
+    for (frame, pair) in audio.as_chunks::<2>().0.iter().enumerate() {
         let expected = if frame < 2_000 {
             gain * counted(frame)
         } else {
             0.0
         };
-        assert_eq!(pair, [expected, expected], "{what}: frame {frame}");
+        assert_eq!(*pair, [expected, expected], "{what}: frame {frame}");
     }
 }
 

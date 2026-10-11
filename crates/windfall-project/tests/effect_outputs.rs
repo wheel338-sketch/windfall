@@ -595,7 +595,8 @@ fn a_file_with_a_damaged_route_is_refused_on_load() {
     doc.dispatch(route(tap, 0, first), None).unwrap();
     let good = doc.project().clone();
 
-    let damage: [(&str, Box<dyn Fn(&mut Project)>); 6] = [
+    type Damage = Box<dyn Fn(&mut Project)>;
+    let damage: [(&str, Damage); 6] = [
         (
             "an output the effect lacks",
             Box::new(|p| p.mixer.effect_outputs[0].output = 1),

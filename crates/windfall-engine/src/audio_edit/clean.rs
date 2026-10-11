@@ -333,9 +333,9 @@ fn straight_lines(output: &mut [f32], unknown: &[usize]) {
         let before = if first > 0 { output[first - 1] } else { 0.0 };
         let after = output.get(last + 1).copied().unwrap_or(0.0);
         let steps = (last - first + 2) as f32;
-        for at in first..=last {
-            let part = (at - first + 1) as f32 / steps;
-            output[at] = before + (after - before) * part;
+        for (offset, sample) in output[first..=last].iter_mut().enumerate() {
+            let part = (offset + 1) as f32 / steps;
+            *sample = before + (after - before) * part;
         }
         i = j + 1;
     }
@@ -676,7 +676,7 @@ mod tests {
         // the selection is not zero: compare against that exact expectation.
         let tone_mean = tone[480..4320].iter().map(|s| f64::from(*s)).sum::<f64>() / 3840.0;
         let mut worst = 0.0_f64;
-        for (frame, pair) in selected.chunks_exact(2).enumerate() {
+        for (frame, pair) in selected.as_chunks::<2>().0.iter().enumerate() {
             let clean = f64::from(tone[480 + frame]) - tone_mean;
             worst = worst
                 .max((f64::from(pair[0]) - clean).abs())
@@ -740,7 +740,7 @@ mod tests {
         assert!(repaired <= injected * 4, "{repaired} of {injected}");
         let mut worst = 0.0_f32;
         let mut square = 0.0_f64;
-        for (frame, pair) in data.chunks_exact(2).enumerate() {
+        for (frame, pair) in data.as_chunks::<2>().0.iter().enumerate() {
             worst = worst.max((pair[0] - clean[frame]).abs());
             square += f64::from(pair[0] - clean[frame]).powi(2);
             // The clean right channel is untouched, bit for bit.
@@ -769,7 +769,7 @@ mod tests {
         let mut data = stereo(&dirty, &dirty);
         let repaired = declick(&mut data, 2, RATE, 0, 48_000, 0.5).unwrap();
         let (mut worst, mut square, mut changed) = (0.0_f32, 0.0_f64, 0);
-        for (frame, pair) in data.chunks_exact(2).enumerate() {
+        for (frame, pair) in data.as_chunks::<2>().0.iter().enumerate() {
             assert_eq!(pair[0].to_bits(), pair[1].to_bits());
             worst = worst.max((pair[0] - clean[frame]).abs());
             square += f64::from(pair[0] - clean[frame]).powi(2);
@@ -839,7 +839,14 @@ mod tests {
         assert_eq!(&data[..24_000], &original[..24_000]);
         assert_eq!(&data[48_000..], &original[48_000..]);
         assert_ne!(&data[24_000..48_000], &original[24_000..48_000]);
-        for (frame, pair) in data.chunks_exact(2).enumerate().skip(12_000).take(12_000) {
+        for (frame, pair) in data
+            .as_chunks::<2>()
+            .0
+            .iter()
+            .enumerate()
+            .skip(12_000)
+            .take(12_000)
+        {
             assert!((pair[0] - clean[frame]).abs() < 1e-3);
         }
         assert!(declick(&mut data, 2, RATE, 0, 10, 1.5).is_err());

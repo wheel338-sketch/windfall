@@ -539,7 +539,7 @@ impl ChannelPreset {
             color: channel.color,
             volume: channel.volume,
             pan: channel.pan,
-            voice: channel.voice.clone(),
+            voice: channel.voice,
             timing: channel.timing,
             source,
             // The asset list is the caller's: it knows where the audio goes.
@@ -561,7 +561,7 @@ impl ChannelPreset {
         Channel {
             volume: self.volume,
             pan: self.pan,
-            voice: self.voice.clone(),
+            voice: self.voice,
             timing: self.timing,
             source,
             ..base.clone()

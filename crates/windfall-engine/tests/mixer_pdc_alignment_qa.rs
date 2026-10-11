@@ -711,7 +711,7 @@ fn qa_manual_correction_reaches_buses_sends_sidechains_and_printed_clips() {
     let pulses = |shift: usize| {
         let data: Vec<f32> = (0..24_000)
             .map(|i| {
-                if i >= shift && (i - shift) % 37 == 0 {
+                if i >= shift && (i - shift).is_multiple_of(37) {
                     0.5
                 } else {
                     0.0

@@ -832,7 +832,7 @@ fn an_effect_slot_is_sent_the_limiters_history_and_the_tuners_calibrated_reading
             } => Some((*note, *cents, *hz, *confidence)),
             _ => None,
         })
-        .last()
+        .next_back()
         .expect("the tuner found a pitch");
     // The synth's own patch decides which octave of the A is strongest, so
     // the octave is left open: an A, that many cents sharp of 432 tuning.

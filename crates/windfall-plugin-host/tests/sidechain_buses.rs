@@ -486,9 +486,7 @@ mod helper_process {
             // A choice takes effect at a whole block: it holds for every
             // block that starts during the callback that follows it, and
             // not for the rest of a block that had already started.
-            for block in at.div_ceil(BLOCK)..(at + count).div_ceil(BLOCK) {
-                block_fed[block] = fed;
-            }
+            block_fed[at.div_ceil(BLOCK)..(at + count).div_ceil(BLOCK)].fill(fed);
             let key: Vec<[f32; 2]> = (at..at + count).map(key_at).collect();
             let mut left: Vec<f32> = (at..at + count).map(|frame| main_at(frame)[0]).collect();
             let mut right: Vec<f32> = (at..at + count).map(|frame| main_at(frame)[1]).collect();

@@ -221,7 +221,7 @@ pub fn preprocess(
         }
     }
     if options.swap_stereo {
-        for frame in data.chunks_exact_mut(2) {
+        for frame in data.as_chunks_mut::<2>().0 {
             frame.swap(0, 1);
         }
     }

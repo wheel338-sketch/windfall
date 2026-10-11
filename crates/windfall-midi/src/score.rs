@@ -162,7 +162,7 @@ pub fn score_from_song(
             "Every note of the MIDI file starts past the end of the longest pattern".to_owned(),
         );
     }
-    notes.sort_by(|a, b| (a.start, a.key).cmp(&(b.start, b.key)));
+    notes.sort_by_key(|note| (note.start, note.key));
     if song
         .tracks
         .iter()

@@ -19,6 +19,12 @@ pub(crate) const MAX_BLOCK: usize = 256;
 /// One stereo frame: left, then right.
 pub(crate) type Frame = [f32; 2];
 
+/// Recording sinks observing the same rendered mixer block.
+pub(crate) struct CaptureSinks<'a> {
+    pub disk: &'a mut [crate::recording_disk::DiskWriter],
+    pub logger: &'a mut Option<Box<crate::audio_logger::LoggerTap>>,
+}
+
 pub(crate) struct Mixer {
     waveforms: Box<[crate::waveform_meter::WaveAccumulator]>,
     /// [`MAX_BLOCK`] frames per possible mixer track, end to end. Voices add
@@ -118,9 +124,9 @@ impl Mixer {
         shared: &Shared,
         base: u64,
         out: &mut [Frame],
-        taps: &mut [crate::recording_disk::DiskWriter],
-        logger: &mut Option<Box<crate::audio_logger::LoggerTap>>,
+        captures: CaptureSinks<'_>,
     ) {
+        let CaptureSinks { disk: taps, logger } = captures;
         let frames = out.len();
         self.add_instruments(plan, state, base, frames);
 

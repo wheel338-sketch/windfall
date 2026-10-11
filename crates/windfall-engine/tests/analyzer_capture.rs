@@ -374,7 +374,8 @@ fn a_seek_a_transport_change_and_a_new_plan_never_share_a_window_with_what_came_
         .unwrap();
     let mut seen = settle(&mut processor, &controller, 0, ticket, 0);
 
-    let mut breaks: Vec<(&str, Box<dyn Fn(&Controller)>)> = vec![
+    type Discontinuity = Box<dyn Fn(&Controller)>;
+    let mut breaks: Vec<(&str, Discontinuity)> = vec![
         ("seek", Box::new(|controller| controller.seek(960.0))),
         ("play", Box::new(|controller| controller.play())),
         ("stop", Box::new(|controller| controller.stop())),

@@ -662,8 +662,7 @@ impl Session {
                         .is_some_and(|request| request.seat == Some(index))
             })
         };
-        let shared =
-            (0..CAPTURE_SEATS).find(|&index| seats[index].as_ref().is_some_and(|seat| same(seat)));
+        let shared = (0..CAPTURE_SEATS).find(|&index| seats[index].as_ref().is_some_and(same));
         let free = (0..CAPTURE_SEATS).find(|&index| !used_by_others(index));
         let Some(index) = shared.or(free) else {
             return refuse(AnalyzerReason::SourceCapacity);
@@ -805,20 +804,20 @@ impl Session {
                 }
             }
 
-            for index in 0..CAPTURE_SEATS {
+            for (index, slot) in seats.iter_mut().enumerate() {
                 let used = subscriptions.iter().any(|sub| {
                     sub.request
                         .as_ref()
                         .is_some_and(|request| request.seat == Some(index))
                 });
-                let Some(seat) = &mut seats[index] else {
+                let Some(seat) = slot else {
                     continue;
                 };
                 if seat.doomed || !used {
                     // Let go of the engine's capture. If the audio thread
                     // has not yet taken the last hand-over, try again.
                     if seat.ticket.is_none() || controller.capture_clear(index) {
-                        seats[index] = None;
+                        *slot = None;
                     }
                     continue;
                 }

@@ -105,7 +105,7 @@ fn stereo(channels: usize) -> Result<(), String> {
 
 pub fn swap_channels(selected: &mut [f32], channels: usize) -> Result<(), String> {
     stereo(channels)?;
-    for pair in selected.chunks_exact_mut(2) {
+    for pair in selected.as_chunks_mut::<2>().0 {
         pair.swap(0, 1);
     }
     Ok(())
@@ -114,7 +114,7 @@ pub fn swap_channels(selected: &mut [f32], channels: usize) -> Result<(), String
 /// Both channels become their average, which cannot exceed the louder one.
 pub fn mono_sum(selected: &mut [f32], channels: usize) -> Result<(), String> {
     stereo(channels)?;
-    for pair in selected.chunks_exact_mut(2) {
+    for pair in selected.as_chunks_mut::<2>().0 {
         let mono = ((f64::from(pair[0]) + f64::from(pair[1])) * 0.5) as f32;
         pair.fill(mono);
     }

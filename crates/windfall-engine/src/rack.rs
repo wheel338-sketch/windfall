@@ -1772,6 +1772,25 @@ impl Compensation {
     }
 }
 
+/// A note's controls for a built-in instrument, or untouched for a hosted one.
+fn voice_controls(
+    map: ExpressionMap,
+    hosted: bool,
+    pan: f32,
+    expression: NoteExpression,
+) -> VoiceControls {
+    if hosted {
+        VoiceControls {
+            expression,
+            pan,
+            gain: 1.0,
+            pitch_cents: 0.0,
+        }
+    } else {
+        map.resolve(pan, expression)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1918,24 +1937,5 @@ mod tests {
         // and from then on the new delay of 6, reading what the small line
         // was given.
         assert_eq!(left, [47.0, 46.5, 46.0, 47.0]);
-    }
-}
-
-/// A note's controls for a built-in instrument, or untouched for a hosted one.
-fn voice_controls(
-    map: ExpressionMap,
-    hosted: bool,
-    pan: f32,
-    expression: NoteExpression,
-) -> VoiceControls {
-    if hosted {
-        VoiceControls {
-            expression,
-            pan,
-            gain: 1.0,
-            pitch_cents: 0.0,
-        }
-    } else {
-        map.resolve(pan, expression)
     }
 }

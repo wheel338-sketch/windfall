@@ -898,7 +898,7 @@ fn device_count_in_gate() {
     let (stimulus, _, _) = rig.add_stimulus(&options, seconds);
     let mut result = header(&rig, &options, "count-in");
     let mut checks = Vec::new();
-    let tempo = f64::from(rig.project().settings.tempo_bpm);
+    let tempo = rig.project().settings.tempo_bpm;
     result["tempoBpm"] = json!(tempo);
 
     let (plain, reference, _) = synchronized_take(&rig, &options, &stimulus, &input, 0.0, 0);
@@ -979,7 +979,7 @@ fn device_loop_takes() {
     let options = options();
     let input = required_input(&options);
     let rig = DeviceRig::open(&options);
-    let tempo = f64::from(rig.project().settings.tempo_bpm);
+    let tempo = rig.project().settings.tempo_bpm;
     let bar_seconds = 4.0 * 60.0 / tempo;
     let (stimulus, _, _) = rig.add_stimulus(&options, bar_seconds);
     let rate = f64::from(stimulus.rate);

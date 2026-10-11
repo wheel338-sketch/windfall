@@ -137,7 +137,7 @@ impl HistoryRing {
 
     /// The same for interleaved stereo. A stray last sample is ignored.
     pub fn push_interleaved(&mut self, samples: &[f32]) {
-        for frame in samples.chunks_exact(2) {
+        for frame in samples.as_chunks::<2>().0.iter() {
             self.push_frame([frame[0], frame[1]]);
         }
     }
