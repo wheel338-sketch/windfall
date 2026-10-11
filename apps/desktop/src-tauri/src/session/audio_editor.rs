@@ -1,6 +1,7 @@
 //! File/DSP work holds neither document nor audio/controller locks. The editor
 //! lock only serializes these workers; it is never read by the audio callback.
 use super::{Session, State};
+mod classical_editor;
 use crate::sync::lock;
 use std::fs::{self, OpenOptions};
 use std::path::PathBuf;
@@ -29,6 +30,10 @@ struct Prepared {
     source: AudioBuffer,
     view: AudioBuffer,
     tempo: f64,
+    analysis_view: AudioBuffer,
+    analysis_source: Option<(SampleId, AudioBuffer)>,
+    recipe: Option<windfall_project::AudioEditRecipe>,
+    rendered: Option<(windfall_project::AudioEditRecipe, AudioBuffer)>,
 }
 impl Prepared {
     fn valid(&self, state: &State) -> bool {
@@ -46,6 +51,8 @@ impl Prepared {
                 .pool
                 .get(sample)
                 .is_some_and(|now| same_audio(now, &self.source))
+            && self.analysis_source.as_ref().is_none_or(|(id, old)|
+                state.pool.get(*id).is_some_and(|now| same_audio(now, old)))
     }
 }
 fn same_audio(a: &AudioBuffer, b: &AudioBuffer) -> bool {
@@ -70,7 +77,7 @@ impl Session {
         let mut editor = lock(&self.inner.audio_editor);
         // Drop the previous view before allocating another. This is worker-only.
         editor.prepared = None;
-        let (clip, pool, generation, edits, name, tempo) = {
+        let (clip, pool, generation, edits, name, tempo, recipe) = {
             let _recording = self.recording_idle()?;
             let state = self.state();
             let project = state.document.project();
@@ -101,6 +108,7 @@ impl Session {
                 state.edits,
                 name,
                 project.settings.tempo_bpm,
+                project.sample(sample).and_then(|s| s.processing.clone()),
             )
         };
         let source = pool
@@ -108,6 +116,13 @@ impl Session {
             .cloned()
             .ok_or("The clip's audio is not loaded. Reload samples first.")?;
         let view = audio_edit::render_view(&pool, &clip, tempo)?;
+        let analysis_view = if let Some(recipe) = &recipe {
+            audio_edit::render_view(&pool, &recipe.source_clip, tempo)?
+        } else { view.clone() };
+        let analysis_source = recipe.as_ref().map(|recipe| {
+            let id = recipe.source_clip.content.sample().expect("checked saved recipe");
+            pool.get(id).cloned().map(|audio| (id, audio)).ok_or("The original source is not loaded.")
+        }).transpose()?;
         editor.serial = editor
             .serial
             .checked_add(1)
@@ -120,6 +135,10 @@ impl Session {
             source,
             view,
             tempo,
+            analysis_view,
+            analysis_source,
+            recipe,
+            rendered: None,
         };
         let preview = AudioEditPreview {
             token: prepared.token,
@@ -148,6 +167,13 @@ impl Session {
 
     pub fn audio_editor_apply(&self, request: AudioEditRequest) -> Result<DispatchResult, String> {
         let mut editor = lock(&self.inner.audio_editor);
+        self.audio_editor_commit(&mut editor, request, None)
+    }
+
+    fn audio_editor_commit(
+        &self, editor: &mut Editor, request: AudioEditRequest,
+        rendered: Option<(AudioBuffer, windfall_project::AudioEditRecipe)>,
+    ) -> Result<DispatchResult, String> {
         let prepared = editor
             .prepared
             .as_ref()
@@ -167,15 +193,19 @@ impl Session {
                 self.project_preparation(&state),
             )
         };
+        let recipe = rendered.as_ref().map(|(_, recipe)| recipe.clone());
+        let operation_label = if recipe.is_some() { "Pitch/time/noise" } else { request.operation.label() };
         let audio_edit::Edited {
             audio: output,
             lead,
-        } = audio_edit::apply(
+        } = if let Some((audio, _)) = rendered {
+            audio_edit::Edited { audio, lead: 0 }
+        } else { audio_edit::apply(
             &prepared.view,
             request.operation,
             request.start_frame,
             request.end_frame,
-        )?;
+        )? };
         let per_tick = samples_per_tick(prepared.tempo, f64::from(output.sample_rate()));
         // Same frame count keeps the tick length, even across a fractional
         // tick. Shorter audio rounds up, capped at the old length. Longer
@@ -234,7 +264,7 @@ impl Session {
         // without decoding under state. WAV Float32 preserves the edit exactly.
         let decoded = self.inner.cache.decode(&owned.0)?;
         let sample = SampleId(document.project().next_id);
-        let label = format!("Audio edit: {}", request.operation.label());
+        let label = format!("Audio edit: {operation_label}");
         let source = document
             .project()
             .sample(clip.content.sample().unwrap())
@@ -253,7 +283,7 @@ impl Session {
             _ => &source.name,
         };
         let mut commands = vec![Command::AddSample {
-            name: format!("{base} ({})", request.operation.label()),
+            name: format!("{base} ({operation_label})"),
             path: SamplePath::External(crate::paths::display(&owned.0)),
         }];
         if request.operation != AudioEditOperation::Extract {
@@ -291,6 +321,9 @@ impl Session {
                 },
             }],
         });
+        if let Some(processing) = recipe {
+            commands.push(Command::SetSampleProcessing { id: sample, processing: Some(processing) });
+        }
         let command = Command::Batch {
             label: Some(label),
             commands,
@@ -312,6 +345,9 @@ impl Session {
         let result = {
             let _recording = self.recording_idle()?;
             let mut state = self.state();
+            if let Some(cancel) = &*lock(&self.inner.audio_analysis_cancel) {
+                if cancel.is_cancelled() { return Err("Analysis cancelled.".into()); }
+            }
             if state.generation != generation
                 || state.edits != edits
                 || !prepared.valid(&state)

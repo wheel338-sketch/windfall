@@ -25,6 +25,39 @@ use crate::automation::Lane;
 /// with, in ticks: a sixteenth of a beat.
 const GRAIN_TICKS: f64 = 60.0;
 
+/// Control-side conversion using precisely the same compiled tempo lane as
+/// playback. Meter changes affect beat labels, never seconds per quarter.
+pub struct SongClock {
+    base: f64,
+    map: Option<TempoMap>,
+}
+impl SongClock {
+    pub fn new(project: &windfall_project::Project) -> Result<Self, String> {
+        project.check()?;
+        let plan = crate::plan::compile(project, &crate::SamplePool::new());
+        Ok(Self { base: plan.tempo_bpm, map: plan.tempo_map })
+    }
+    pub fn seconds_at(&self, tick: f64) -> Result<f64, String> {
+        if !tick.is_finite() || tick < 0.0 || tick > f64::from(windfall_project::MAX_SONG_TICKS) {
+            return Err("Tick falls outside the song.".into());
+        }
+        let warped = self.map.as_ref().map_or(tick, |m| m.warp(tick));
+        Ok(warped * 60.0 / (self.base * f64::from(windfall_core::PPQ)))
+    }
+    pub fn tick_after(&self, start: u32, seconds: f64) -> Result<u32, String> {
+        if !seconds.is_finite() || seconds < 0.0 {
+            return Err("Expected nonnegative finite seconds.".into());
+        }
+        let time = self.seconds_at(f64::from(start))? + seconds;
+        let warped = time * self.base * f64::from(windfall_core::PPQ) / 60.0;
+        let tick = self.map.as_ref().map_or(warped, |m| m.unwarp(warped));
+        if !tick.is_finite() || tick > f64::from(windfall_project::MAX_SONG_TICKS) {
+            return Err("Audio note exceeds the song; no ticks were saturated.".into());
+        }
+        Ok(tick.round() as u32)
+    }
+}
+
 /// The tempo along the song, and the time it takes to get to each tick.
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct TempoMap {

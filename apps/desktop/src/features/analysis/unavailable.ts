@@ -22,6 +22,7 @@ export function unavailableAnalysis(): AnalysisBackend {
     analysisForget: unavailable,
     analysisRetryCleanup: unavailable,
     analysisReview: unavailable,
+    analysisPreview: unavailable,
     analysisApply: unavailable,
     analysisShutdown: () => Promise.resolve(),
   }

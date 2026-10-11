@@ -14,6 +14,7 @@ mod dos_device;
 
 struct CopyAdapter;
 impl native::AnalysisAdapter for CopyAdapter {
+    fn supports(&self, _task: native::InferenceTask) -> bool { true }
     fn id(&self) -> &str {
         "test-only-copy"
     }
@@ -85,6 +86,9 @@ fn apply(job: &AnalysisJob, replace_original: bool) -> AnalysisApply {
         ticket: job.ticket.clone(),
         request: job.request.clone(),
         replace_original,
+        selected_roles: None,
+        separate_tracks: false,
+        mute_original: false,
     }
 }
 
@@ -1105,12 +1109,88 @@ fn model() -> AnalysisModel {
 }
 fn request(clip: ClipId) -> AnalysisSubmit {
     AnalysisSubmit {
+        task: Default::default(),
         clip,
         model_id: model().id,
         model_version: "1".into(),
         model_revision: "1".into(),
         start_frame: "0".into(),
         end_frame: "100".into(),
+    }
+}
+
+#[test]
+fn analysis_stem_review_preview_selected_remix_layout_is_aligned_and_one_undo() {
+    let rig = Rig::new();
+    let (clip,path,original) = fixture(&rig);
+    let weights = rig.file("authored.model");
+    let mut spec = model();
+    spec.revision = "2".into();
+    spec.outputs = ["drums","bass","vocals","other"].into_iter().map(|role|
+        AnalysisOutputRole{role:role.into(),channels:2}).collect();
+    rig.session.analysis_model_import(&weights,spec).unwrap();
+    let mut submit = request(clip);
+    submit.task = windfall_ipc::AnalysisTask::StemSeparation;
+    submit.model_revision = "2".into();
+    let job = rig.session.analysis_submit(submit).unwrap();
+    rig.session.inner.analysis.test_manager().wait(native::JobId(job.job.parse().unwrap())).unwrap();
+    let review = rig.session.analysis_review(&job.ticket).unwrap();
+    assert_eq!(review.task,windfall_ipc::AnalysisTask::StemSeparation);
+    let before = rig.session.document_snapshot();
+    rig.session.analysis_preview(&job.ticket,"vocals").unwrap();
+    assert_eq!(rig.session.document_snapshot(),before);
+    let mut request = apply(&job,false);
+    request.selected_roles = Some(vec!["drums".into(),"vocals".into()]);
+    request.separate_tracks = true; request.mute_original = true;
+    let result = rig.session.analysis_apply(request).unwrap();
+    assert_eq!(result.created.len(),8);
+    let project = rig.project();
+    assert_eq!(project.mixer.tracks.len(),before.project.mixer.tracks.len()+2);
+    assert_eq!(project.playlist.tracks.len(),before.project.playlist.tracks.len()+2);
+    assert_eq!(rig.session.document_snapshot().history.cursor,before.history.cursor+1);
+    let added:Vec<_>=project.playlist.clips.iter().filter(|c|c.id!=clip).collect();
+    assert_eq!(added.len(),2); assert_eq!(added[0].start,added[1].start);
+    assert_eq!(added[0].length,added[1].length); assert_ne!(added[0].track,added[1].track);
+    assert!(project.playlist.clips.iter().find(|c|c.id==clip).unwrap().muted);
+    assert_eq!(std::fs::read(path).unwrap(),original);
+    rig.session.undo().unwrap();
+    assert_eq!(rig.project().playlist.tracks,before.project.playlist.tracks);
+    rig.session.redo().unwrap();
+    let saved=rig.file("remix.windfall");rig.session.project_save(Some(&saved)).unwrap();
+    let rig=rig.restart();rig.session.project_open(&saved).unwrap();
+    assert_eq!(rig.project().playlist,project.playlist);
+}
+
+#[test]
+fn analysis_dereverb_modes_reach_adapter_and_refuse_mismatched_model_roles() {
+    for (task,role) in [(windfall_ipc::AnalysisTask::DereverbGeneral,"dereverb-general"),
+        (windfall_ipc::AnalysisTask::DereverbVocal,"dereverb-vocal")] {
+        let rig=Rig::new();let (clip,_,_)=fixture(&rig);
+        let mut spec=model();spec.revision="2".into();
+        spec.outputs=vec![AnalysisOutputRole{role:role.into(),channels:2}];
+        rig.session.analysis_model_import(&rig.file("authored.model"),spec).unwrap();
+        let mut submit=request(clip);submit.model_revision="2".into();submit.task=task;
+        let job=rig.session.analysis_submit(submit).unwrap();
+        rig.session.inner.analysis.test_manager().wait(native::JobId(job.job.parse().unwrap())).unwrap();
+        let review=rig.session.analysis_review(&job.ticket).unwrap();
+        assert_eq!(review.task,task);assert_eq!(review.artifacts[0].role,role);
+        rig.session.analysis_apply(apply(&job,true)).unwrap();
+    }
+    let rig=Rig::new();let (clip,_,_)=fixture(&rig);let before=rig.session.document_snapshot();
+    let mut submit=request(clip);submit.task=windfall_ipc::AnalysisTask::DereverbVocal;
+    assert!(rig.session.analysis_submit(submit).is_err());
+    assert_eq!(rig.session.document_snapshot(),before);
+}
+
+#[test]
+fn analysis_unknown_duplicate_or_empty_stem_selection_leaves_ready_review_unchanged() {
+    let rig=Rig::new();let (clip,_,_)=fixture(&rig);let job=ready(&rig,clip);
+    let before=rig.session.document_snapshot();
+    for roles in [vec![],vec!["unknown".into()],vec!["lifecycle-copy".into(),"lifecycle-copy".into()]] {
+        let mut request=apply(&job,false);request.selected_roles=Some(roles);
+        assert!(rig.session.analysis_apply(request).is_err());
+        assert_eq!(rig.session.document_snapshot(),before);
+        assert_eq!(rig.session.analysis_status(&job.job).unwrap().status,AnalysisStatus::Ready);
     }
 }
 #[test]

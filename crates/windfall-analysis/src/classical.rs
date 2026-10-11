@@ -426,7 +426,7 @@ pub fn render(
     work: &mut Work,
 ) -> Result<AudioBuffer> {
     checked(audio, work)?;
-    recipe.check().map_err(|e| AnalysisError::Adapter(e))?;
+    recipe.check().map_err(AnalysisError::Adapter)?;
     if audio.frames() != recipe.analysis.frames as usize
         || audio.sample_rate() != recipe.analysis.sample_rate
     {
@@ -442,28 +442,12 @@ pub fn render(
     if frames * channels > 16 * 1024 * 1024 {
         return Err(AnalysisError::Budget("render output"));
     }
-    let mut points: Vec<(u32, u32, f64)> = recipe
-        .markers
+    let points: Vec<(u32, u32)> = recipe
+        .render_markers()
+        .map_err(AnalysisError::Adapter)?
         .iter()
-        .map(|m| (m.source_frame, m.target_frame, 0.0))
+        .map(|m| (m.source_frame, m.target_frame))
         .collect();
-    // Override spans provide extra warp anchors; estimates are never rewritten.
-    for edit in &recipe.overrides {
-        let note = &recipe.analysis.notes[edit.note as usize];
-        points.retain(|p| p.0 != note.start_frame && p.0 != note.end_frame);
-        points.push((note.start_frame, edit.start_frame, 0.0));
-        points.push((note.end_frame, edit.end_frame, 0.0));
-    }
-    points.sort_by_key(|p| p.0);
-    if points.first().is_none_or(|p| p.0 != 0 || p.1 != 0)
-        || points
-            .last()
-            .is_none_or(|p| p.0 != audio.frames() as u32 || p.1 != frames as u32)
-    {
-        return Err(invalid(
-            "note timing cannot move the fixed render endpoints",
-        ));
-    }
     let mut result = vec![0.0; frames * channels];
     for pair in points.windows(2) {
         let (a, b) = (pair[0], pair[1]);
@@ -527,6 +511,7 @@ pub fn render(
 /// velocity. MIDI ticks are resolved by the host's tempo clock at Apply.
 pub fn reviewed_notes(recipe: &AudioEditRecipe) -> Result<Vec<DetectedAudioNote>> {
     recipe.check().map_err(AnalysisError::Adapter)?;
+    let markers = recipe.render_markers().map_err(AnalysisError::Adapter)?;
     Ok(recipe
         .analysis
         .notes
@@ -539,8 +524,8 @@ pub fn reviewed_notes(recipe: &AudioEditRecipe) -> Result<Vec<DetectedAudioNote>
                 note.end_frame = edit.end_frame;
                 note.midi_pitch = edit.midi_pitch;
             } else {
-                note.start_frame = mapped(&recipe.markers, n.start_frame);
-                note.end_frame = mapped(&recipe.markers, n.end_frame);
+                note.start_frame = mapped(&markers, n.start_frame);
+                note.end_frame = mapped(&markers, n.end_frame);
             }
             note
         })

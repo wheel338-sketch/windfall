@@ -87,6 +87,11 @@ async fn analysis_review(
     blocking(move || session.analysis_review(&ticket)).await
 }
 #[tauri::command]
+async fn analysis_preview(session: State<'_, Session>, ticket: String, role: String) -> Result<(), String> {
+    let session = session.inner().clone();
+    blocking(move || session.analysis_preview(&ticket, &role)).await
+}
+#[tauri::command]
 async fn analysis_apply(
     session: State<'_, Session>,
     request: windfall_ipc::AnalysisApply,
@@ -296,6 +301,30 @@ async fn audio_editor_discard(session: State<'_, Session>, token: u32) -> Result
         Ok(())
     })
     .await
+}
+#[tauri::command]
+async fn audio_analysis_detect(session: State<'_, Session>, token: u32, polyphonic: bool) -> Result<windfall_ipc::AudioAnalysisPreview, String> {
+    let session = session.inner().clone();
+    blocking(move || session.audio_analysis_detect(token, polyphonic)).await
+}
+#[tauri::command]
+async fn audio_analysis_audition(session: State<'_, Session>, edit: windfall_ipc::AudioAnalysisEdit, dry: bool) -> Result<(), String> {
+    let session = session.inner().clone();
+    blocking(move || session.audio_analysis_audition(edit, dry)).await
+}
+#[tauri::command]
+async fn audio_analysis_apply(session: State<'_, Session>, edit: windfall_ipc::AudioAnalysisEdit) -> Result<DispatchResult, String> {
+    let session = session.inner().clone();
+    blocking(move || session.audio_analysis_apply(edit)).await
+}
+#[tauri::command]
+async fn audio_analysis_send_midi(session: State<'_, Session>, edit: windfall_ipc::AudioAnalysisEdit, selected: Vec<u32>) -> Result<DispatchResult, String> {
+    let session = session.inner().clone();
+    blocking(move || session.audio_analysis_send_midi(edit, selected)).await
+}
+#[tauri::command]
+fn audio_analysis_cancel(session: State<'_, Session>) {
+    session.audio_analysis_cancel();
 }
 #[tauri::command]
 fn automate(
@@ -944,6 +973,7 @@ pub fn handler() -> impl Fn(Invoke) -> bool + Send + Sync + 'static {
         analysis_forget,
         analysis_retry_cleanup,
         analysis_review,
+        analysis_preview,
         analysis_apply,
         analysis_shutdown,
         detach_panel,
@@ -1041,6 +1071,11 @@ pub fn handler() -> impl Fn(Invoke) -> bool + Send + Sync + 'static {
         audio_editor_open,
         audio_editor_apply,
         audio_editor_discard,
+        audio_analysis_detect,
+        audio_analysis_audition,
+        audio_analysis_apply,
+        audio_analysis_send_midi,
+        audio_analysis_cancel,
         slice_analyze,
         slice_apply,
         slice_discard,

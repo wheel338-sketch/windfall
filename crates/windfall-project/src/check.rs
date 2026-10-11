@@ -226,7 +226,7 @@ fn check_samples(project: &Project) -> Result<(), String> {
         if let Some(recipe) = &sample.processing {
             recipe.check()?;
             let source = recipe.source_clip.content.sample().expect("checked audio recipe");
-            if source == sample.id || project.sample(source).is_none() {
+            if source == sample.id || project.sample(source).is_none_or(|s|s.processing.is_some()) {
                 return Err("A processed sample has lost its original source.".into());
             }
         }

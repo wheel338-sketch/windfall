@@ -196,6 +196,7 @@ struct Inner {
     controllers_wake: std::sync::Condvar,
     /// Serializes editor workers and retains at most one bounded clip view.
     audio_editor: Mutex<audio_editor::Editor>,
+    audio_analysis_cancel: Mutex<Option<windfall_analysis::CancelToken>>,
     library: crate::library::Library,
     plugins: Mutex<Option<Arc<crate::plugins::PluginManager>>>,
     /// Held by a save or a backup from before it copies the project until
@@ -430,6 +431,7 @@ impl Session {
                 controllers: Mutex::new(controller_hub),
                 controllers_wake: std::sync::Condvar::new(),
                 audio_editor: Mutex::new(audio_editor::Editor::default()),
+                audio_analysis_cancel: Mutex::new(None),
                 library,
                 plugins: Mutex::new(None),
                 save: Mutex::new(()),

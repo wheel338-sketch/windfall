@@ -29,6 +29,7 @@ export type AnalysisCapability = {
   models: AnalysisModel[]
 }
 export type AnalysisSubmit = {
+  task?: AnalysisTask
   clip: number
   modelId: string
   modelVersion: string
@@ -58,6 +59,7 @@ export type AnalysisJob = {
   failure: string | null
 }
 export type AnalysisReview = {
+  task?: AnalysisTask
   job: AnalysisJob
   clip: number
   generation: string
@@ -83,7 +85,11 @@ export type AnalysisApply = {
   ticket: string
   request: string
   replaceOriginal: boolean
+  selectedRoles?: string[] | null
+  separateTracks?: boolean
+  muteOriginal?: boolean
 }
+export type AnalysisTask = "audio" | "stemSeparation" | "dereverbGeneral" | "dereverbVocal"
 export interface AnalysisBackend {
   analysisCapability(): Promise<AnalysisCapability>
   analysisModelImport(
@@ -98,6 +104,7 @@ export interface AnalysisBackend {
   analysisForget(job: string): Promise<void>
   analysisRetryCleanup(job: string): Promise<void>
   analysisReview(ticket: string): Promise<AnalysisReview>
+  analysisPreview(ticket: string, role: string): Promise<void>
   analysisApply(
     request: AnalysisApply
   ): Promise<import("@/bindings").DispatchResult>

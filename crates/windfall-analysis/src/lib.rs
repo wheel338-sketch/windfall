@@ -2,6 +2,8 @@
 //! or underneath a document/engine lock. This crate never edits a document.
 mod artifacts;
 mod input;
+mod inference;
+pub use inference::{InferenceTask, NoteInferenceAdapter};
 mod jobs;
 mod model;
 pub mod pitch;

@@ -175,6 +175,22 @@ fn job_wire(job: native::JobSnapshot) -> AnalysisJob {
         failure: job.failure,
     }
 }
+fn task_native(task: windfall_ipc::AnalysisTask) -> native::InferenceTask {
+    match task {
+        windfall_ipc::AnalysisTask::Audio => native::InferenceTask::Audio,
+        windfall_ipc::AnalysisTask::StemSeparation => native::InferenceTask::StemSeparation,
+        windfall_ipc::AnalysisTask::DereverbGeneral => native::InferenceTask::DereverbGeneral,
+        windfall_ipc::AnalysisTask::DereverbVocal => native::InferenceTask::DereverbVocal,
+    }
+}
+fn task_wire(task: native::InferenceTask) -> windfall_ipc::AnalysisTask {
+    match task {
+        native::InferenceTask::Audio => windfall_ipc::AnalysisTask::Audio,
+        native::InferenceTask::StemSeparation => windfall_ipc::AnalysisTask::StemSeparation,
+        native::InferenceTask::DereverbGeneral => windfall_ipc::AnalysisTask::DereverbGeneral,
+        native::InferenceTask::DereverbVocal => windfall_ipc::AnalysisTask::DereverbVocal,
+    }
+}
 
 struct Owned {
     cache: Option<native::ModelCache>,
@@ -659,6 +675,7 @@ impl Session {
         work.check().map_err(native_error)?;
         let id = manager
             .submit(native::JobRequest {
+                task: task_native(request.task),
                 input,
                 model,
                 budget: native::JobBudget {
@@ -719,6 +736,7 @@ impl Session {
             .clip
             .id;
         Ok(AnalysisReview {
+            task: task_wire(review.task),
             job: job_wire(manager.snapshot(review.job).map_err(native_error)?),
             clip,
             generation: review.capture.generation.to_string(),
@@ -745,12 +763,55 @@ impl Session {
                 .collect(),
         })
     }
+    pub fn analysis_preview(&self, ticket: &str, role: &str) -> Result<(), String> {
+        let preview_ticket = {
+            let mut latest = lock(&self.inner.preview);
+            *latest = latest.checked_add(1).ok_or_else(|| error("exhausted", "Preview tickets exhausted."))?;
+            *latest
+        };
+        let service = &self.inner.analysis;
+        let _gate = lock(&service.gate);
+        let manager = service.manager()?;
+        let ticket = native::TicketId(number(ticket)?);
+        let review = manager.review(ticket).map_err(native_error)?;
+        let (binding, model) = {
+            let owned = lock(&service.owned);
+            let binding = owned.bindings.get(&review.job).cloned()
+                .ok_or_else(|| error("stale", "This review expired."))?;
+            let model = owned.models.get(&(review.model.id.clone(),review.model.version.clone())).cloned()
+                .ok_or_else(|| error("modelAbsent", "Pinned model is missing."))?;
+            (binding,model)
+        };
+        { let _recording = self.recording_idle()?; if !binding.current(&self.state()) {
+            return Err(error("stale","The source or project changed."));
+        }}
+        let preparation = service.begin_preparation();
+        let mut work = work(preparation.cancel.clone())?;
+        let lease = manager.claim(ticket,&binding.stamp,&model).map_err(native_error)?;
+        let audio = lease.preview_audio(role,&mut work).map_err(native_error)?;
+        { let _recording = self.recording_idle()?; if !binding.current(&self.state()) {
+            return Err(error("stale","The source or project changed."));
+        }}
+        work.check().map_err(native_error)?;
+        let latest = lock(&self.inner.preview);
+        if *latest == preview_ticket { self.controller().preview(audio); }
+        Ok(())
+    }
     pub fn analysis_apply(&self, request: AnalysisApply) -> Result<DispatchResult, String> {
         let service = &self.inner.analysis;
         let _gate = lock(&service.gate);
         let manager = service.manager()?;
         let ticket = native::TicketId(number(&request.ticket)?);
         let review = manager.review(ticket).map_err(native_error)?;
+        if let Some(roles) = &request.selected_roles {
+            if roles.is_empty() || roles.len() > 16 || roles.iter().enumerate().any(|(i, role)|
+                !review.artifacts.iter().any(|a| &a.role == role) || roles[..i].contains(role)) {
+                return Err(error("invalid", "Select unique roles from this exact review."));
+            }
+        }
+        if request.separate_tracks && review.task != native::InferenceTask::StemSeparation {
+            return Err(error("invalid", "Remix track layout requires a stem separation review."));
+        }
         if manager.snapshot(review.job).map_err(native_error)?.request != number(&request.request)?
         {
             return Err(error("stale", "This review request is obsolete."));
@@ -844,6 +905,12 @@ impl Session {
             commands.push(Command::RemoveClips {
                 clips: vec![binding.clip.id],
             });
+        } else if request.mute_original {
+            commands.push(Command::UpdateClips { updates: vec![windfall_project::ClipUpdate {
+                id: binding.clip.id, patch: windfall_project::ClipPatch {
+                    muted: Some(true), ..Default::default()
+                }
+            }] });
         }
         let per_tick = samples_per_tick(binding.tempo, f64::from(model.sample_rate));
         let shift = (binding.stamp.selection.start as f64 / per_tick).round() as u32;
@@ -872,6 +939,9 @@ impl Session {
         };
         let mut next_id = document.project().next_id;
         for artifact in prepared.artifacts() {
+            if request.selected_roles.as_ref().is_some_and(|roles| !roles.contains(&artifact.role)) {
+                continue;
+            }
             work.check().map_err(native_error)?;
             let path = artifact
                 .published_path
@@ -903,6 +973,15 @@ impl Session {
                 return Err(error("stale", "The cached output version changed."));
             }
             drop(strict);
+            let (track, mixer_track, output) = if request.separate_tracks {
+                let mixer = windfall_project::TrackId(next_id);
+                let playlist = windfall_project::PlaylistTrackId(next_id.checked_add(1)
+                    .ok_or_else(|| error("invalid", "Document identifiers exhausted."))?);
+                next_id = next_id.checked_add(2).ok_or_else(|| error("invalid", "Document identifiers exhausted."))?;
+                commands.push(Command::AddMixerTrack { name: Some(format!("{} — {}", binding.sample.name, artifact.role)) });
+                commands.push(Command::AddPlaylistTrack { name: Some(artifact.role.clone()), index: None });
+                (playlist, mixer, windfall_project::ClipAudioOutput::Mixer)
+            } else { (binding.clip.track, mixer_track, output) };
             let sample = SampleId(next_id);
             next_id = next_id
                 .checked_add(2)
@@ -913,7 +992,7 @@ impl Session {
             });
             commands.push(Command::AddClips {
                 clips: vec![ClipInit {
-                    track: binding.clip.track,
+                    track,
                     start,
                     length: Some(length),
                     offset: Some(0),
@@ -938,7 +1017,7 @@ impl Session {
             output_files.push(output_file);
         }
         let command = Command::Batch {
-            label: Some("Apply analysis outputs".into()),
+            label: Some(if request.separate_tracks { "Remix: import aligned stems" } else { "Apply analysis outputs" }.into()),
             commands,
         };
         document

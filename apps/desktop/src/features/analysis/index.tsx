@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react"
 import { ActionButton } from "@/components/action-button"
 import { Input } from "@/components/ui/input"
+import { Button } from "@/components/ui/button"
 import {
   Dialog,
   DialogContent,
@@ -36,6 +37,7 @@ import {
   type AnalysisCapability,
   type AnalysisJob,
   type AnalysisReview,
+  type AnalysisTask,
 } from "./types"
 
 export function AnalysisButton() {
@@ -87,6 +89,10 @@ export function AnalysisPanel({
   const [manifest, setManifest] = useState("")
   const [localPath, setLocalPath] = useState("")
   const [replace, setReplace] = useState(false)
+  const [task, setTask] = useState<AnalysisTask>("audio")
+  const [selectedRoles, setSelectedRoles] = useState<string[]>([])
+  const [separateTracks, setSeparateTracks] = useState(false)
+  const [muteOriginal, setMuteOriginal] = useState(true)
   const active = useRef(false)
   const retained = useRef<string | null>(null)
   const sequence = useRef(0)
@@ -262,6 +268,7 @@ export function AnalysisPanel({
                     modelRevision: model.revision,
                     startFrame: start,
                     endFrame: end,
+                    ...(task === "audio" ? {} : { task }),
                   })
                   finish(next)
                 } catch (error) {
@@ -288,8 +295,11 @@ export function AnalysisPanel({
               case "review": {
                 if (!job) return
                 const next = await backend.analysisReview(job.ticket)
-                if (aliveContext.current() && retained.current === next.job.job)
+                if (aliveContext.current() && retained.current === next.job.job) {
                   setReview(next)
+                  setSelectedRoles(next.artifacts.map((a) => a.role))
+                  setSeparateTracks(next.task === "stemSeparation")
+                }
                 break
               }
               case "retryCleanup": {
@@ -313,10 +323,13 @@ export function AnalysisPanel({
               }
               case "apply": {
                 if (!review) return
+                if (selectedRoles.length === 0) throw new Error("Select at least one output.")
                 const result = await backend.analysisApply({
                   ticket: review.job.ticket,
                   request: review.job.request,
                   replaceOriginal: replace,
+                  ...(selectedRoles.length === review.artifacts.length && !separateTracks ? {} : { selectedRoles }),
+                  ...(separateTracks ? { separateTracks, muteOriginal } : {}),
                 })
                 if (!aliveContext.current()) return
                 receivePatch(result.patch)
@@ -381,6 +394,15 @@ export function AnalysisPanel({
         className="flex flex-col gap-2"
       >
         <legend>Submit rendered clip range</legend>
+        <label>Analysis operation
+          <select aria-label="Analysis operation" value={task}
+            onChange={(e) => setTask(e.target.value as AnalysisTask)}>
+            <option value="audio">Imported adapter audio job</option>
+            <option value="stemSeparation">Separate drums / bass / vocals / other</option>
+            <option value="dereverbGeneral">Dereverb — general audio</option>
+            <option value="dereverbVocal">Dereverb — vocals</option>
+          </select>
+        </label>
         <select
           aria-label="Pinned model"
           value={modelIndex}
@@ -441,12 +463,30 @@ export function AnalysisPanel({
             {review.model.provenance.licenseReference}
           </p>
           {review.artifacts.map((output) => (
-            <p key={output.name}>
+            <div key={output.name} className="flex flex-col gap-2">
+            <label><input type="checkbox" checked={selectedRoles.includes(output.role)}
+              disabled={busy || stale} onChange={(e) => setSelectedRoles((roles) => e.target.checked ?
+                [...roles, output.role] : roles.filter((role) => role !== output.role))} /> Import {output.role}</label>
+            <p>
               {output.role}: {output.frames} frames, {output.channels} channels
               at {output.sampleRate} Hz; origin {output.frameOrigin}; SHA256{" "}
               {output.sha256}
             </p>
+            <Button variant="outline" disabled={busy || stale} onClick={() => void action(async () => {
+              await backend.analysisPreview(review.job.ticket, output.role)
+            })}>Audition {output.role}</Button>
+            </div>
           ))}
+          <Button variant="outline" onClick={() => void backend.previewStop()}>Stop stem audition</Button>
+          {review.task === "stemSeparation" && <fieldset className="flex flex-col gap-2" disabled={busy || stale}>
+            <legend>Remix layout</legend>
+            <p>Choose the stems above. Apply creates an aligned playlist row and a mixer insert for each
+              selected stem in one undo step, ready for arrangement and effects.</p>
+            <label><input type="checkbox" checked={separateTracks}
+              onChange={(e) => setSeparateTracks(e.target.checked)} />Create separate playlist and mixer tracks</label>
+            <label><input type="checkbox" checked={muteOriginal}
+              onChange={(e) => setMuteOriginal(e.target.checked)} />Mute original mix when importing stems</label>
+          </fieldset>}
           <label>
             <input
               type="checkbox"

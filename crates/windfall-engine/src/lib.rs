@@ -152,6 +152,7 @@ mod waveform_meter;
 mod state;
 mod stems;
 mod tempo;
+pub use tempo::SongClock;
 mod timeline;
 pub use timeline::MAX_NAVIGATION_TRANSITIONS;
 #[cfg(test)]

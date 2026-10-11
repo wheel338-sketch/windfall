@@ -1278,7 +1278,7 @@ impl Transaction<'_> {
                 if let Some(recipe) = &processing {
                     recipe.check().map_err(CommandError::invalid)?;
                     let source = recipe.source_clip.content.sample().expect("checked audio");
-                    if source == id || self.project.sample(source).is_none() {
+                    if source == id || self.project.sample(source).is_none_or(|s|s.processing.is_some()) {
                         return Err(CommandError::invalid("Processing needs a retained original sample."));
                     }
                 }

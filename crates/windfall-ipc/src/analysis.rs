@@ -53,6 +53,9 @@ pub struct AnalysisCapability {
 #[serde(rename_all = "camelCase")]
 #[ts(export)]
 pub struct AnalysisSubmit {
+    #[serde(default)]
+    #[ts(optional)]
+    pub task: AnalysisTask,
     pub clip: ClipId,
     pub model_id: String,
     pub model_version: String,
@@ -102,6 +105,7 @@ pub struct AnalysisArtifact {
 #[serde(rename_all = "camelCase")]
 #[ts(export)]
 pub struct AnalysisReview {
+    pub task: AnalysisTask,
     pub job: AnalysisJob,
     pub clip: ClipId,
     pub generation: String,
@@ -124,6 +128,26 @@ pub struct AnalysisApply {
     /// Replacement requires the complete rendered clip selection. Otherwise
     /// derived clips are added without deleting any original source or clip.
     pub replace_original: bool,
+    #[serde(default)]
+    #[ts(optional)]
+    pub selected_roles: Option<Vec<String>>,
+    #[serde(default)]
+    #[ts(optional)]
+    pub separate_tracks: bool,
+    #[serde(default)]
+    #[ts(optional)]
+    pub mute_original: bool,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub enum AnalysisTask {
+    #[default]
+    Audio,
+    StemSeparation,
+    DereverbGeneral,
+    DereverbVocal,
 }
 
 #[cfg(test)]

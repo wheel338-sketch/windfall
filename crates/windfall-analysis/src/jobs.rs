@@ -63,6 +63,7 @@ pub struct JobBudget {
 }
 
 pub struct JobRequest {
+    pub task: crate::InferenceTask,
     pub input: CapturedInput,
     pub model: ModelManifest,
     pub budget: JobBudget,
@@ -123,6 +124,16 @@ pub struct Usage {
 pub trait AnalysisAdapter: Send + Sync + 'static {
     fn id(&self) -> &str;
     fn version(&self) -> &str;
+    fn supports(&self, task: crate::InferenceTask) -> bool {
+        task == crate::InferenceTask::Audio
+    }
+    fn run_task(
+        &self, task: crate::InferenceTask, input: &CapturedInput, model: &VerifiedModel,
+        context: &mut WorkerContext, artifacts: &mut ArtifactWriter,
+    ) -> Result<()> {
+        if !self.supports(task) { return Err(AnalysisError::Adapter("This runtime does not support the requested operation/mode.".into())); }
+        self.run(input, model, context, artifacts)
+    }
     fn run(
         &self,
         input: &CapturedInput,
@@ -149,6 +160,7 @@ impl WorkerContext {
 
 #[derive(Debug, Clone)]
 pub struct Review {
+    pub task: crate::InferenceTask,
     pub job: JobId,
     pub ticket: TicketId,
     pub capture: CaptureStamp,
@@ -168,6 +180,7 @@ impl Review {
 }
 
 struct Proposal {
+    task: crate::InferenceTask,
     input: CapturedInput,
     model: ModelManifest,
     _directory: TempDir,
@@ -186,6 +199,7 @@ impl Proposal {
     }
     fn review(&self, id: JobId, ticket: TicketId) -> Review {
         Review {
+            task: self.task,
             job: id,
             ticket,
             capture: self.input.stamp().clone(),
@@ -378,6 +392,10 @@ impl JobManager {
         let shape = request.input.stamp().input_shape;
         let frames = request.input.stamp().selection.frames()?;
         request.model.validate_input(shape, frames)?;
+        request.task.validate(&request.model)?;
+        if !self.shared.adapter.supports(request.task) {
+            return Err(AnalysisError::Adapter("The imported pack has no installed runtime for this operation/mode.".into()));
+        }
         if request.model.provenance.adapter_id != self.shared.adapter.id()
             || request.model.provenance.adapter_version != self.shared.adapter.version()
         {
@@ -901,9 +919,10 @@ fn execute(shared: &Arc<Shared>, id: JobId, task: Task, cancel: CancelToken) -> 
         .cleanup_path = Some(writer.path().to_path_buf());
     shared
         .adapter
-        .run(&request.input, &model, &mut context, &mut writer)?;
+        .run_task(request.task, &request.input, &model, &mut context, &mut writer)?;
     let (directory, artifacts) = writer.complete(&mut context.work)?;
     Ok(Proposal {
+        task: request.task,
         input: request.input,
         model: request.model,
         _directory: directory,
@@ -1051,6 +1070,24 @@ pub struct ApplyLease {
     work: Option<Work>,
 }
 impl ApplyLease {
+    /// Claim ownership while auditioning; cancellation cannot remove the
+    /// staging asset being decoded. Dropping the lease restores Ready.
+    pub fn preview_audio(&self, role: &str, work: &mut Work) -> Result<windfall_core::AudioBuffer> {
+        let proposal = self.proposal.as_ref().expect("live lease");
+        let artifact = proposal.artifacts.iter().find(|a|a.metadata.role==role)
+            .ok_or(AnalysisError::Invalid("unknown preview role"))?;
+        let audio = windfall_codec::decode_file_strict_with(&artifact.staged,
+            &windfall_codec::DecodeOptions { max_decoded_bytes: artifact.metadata.shape.frames
+                * u64::from(artifact.metadata.shape.channels) * 4 })?;
+        if crate::AudioShape::of(&audio) != artifact.metadata.shape { return Err(AnalysisError::Checksum); }
+        let mut file = std::fs::File::open(&artifact.staged)?;
+        let fingerprint = crate::ContentFingerprint::reader(&mut file, artifact.metadata.bytes, work)?;
+        if fingerprint.sha256 != artifact.metadata.sha256 || fingerprint.bytes != artifact.metadata.bytes {
+            return Err(AnalysisError::Checksum);
+        }
+        work.check()?;
+        Ok(audio)
+    }
     pub fn request(&self) -> u64 {
         self.request
     }
@@ -1402,6 +1439,7 @@ mod tests {
             }],
         };
         JobRequest {
+            task: Default::default(),
             input: CapturedInput::capture(audio, capture, InputLimits::default(), &mut work)
                 .unwrap(),
             model,

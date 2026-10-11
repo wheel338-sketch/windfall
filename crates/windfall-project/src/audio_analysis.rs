@@ -133,14 +133,15 @@ impl AudioEditRecipe {
             }
         }
         let output = self.output_frames()?;
+        let render_markers = self.render_markers()?;
         for (i, note) in self.analysis.notes.iter().enumerate() {
-            let span = self
-                .overrides
-                .iter()
-                .find(|o| o.note as usize == i)
-                .map_or((note.start_frame, note.end_frame), |o| {
-                    (o.start_frame, o.end_frame)
-                });
+            let span = self.overrides.iter().find(|o| o.note as usize == i).map_or(
+                (
+                    map_frame(&render_markers, note.start_frame),
+                    map_frame(&render_markers, note.end_frame),
+                ),
+                |o| (o.start_frame, o.end_frame),
+            );
             if span.1 > output {
                 return Err("Edited note exceeds output duration.".into());
             }
@@ -161,6 +162,60 @@ impl AudioEditRecipe {
             }
         }
         Ok(())
+    }
+    /// Override note edges take precedence over transient anchors at that
+    /// source frame. Adjacent notes must agree on a shared boundary.
+    pub fn render_markers(&self) -> Result<Vec<AudioWarpMarker>, String> {
+        let output = self.output_frames()?;
+        let mut edits = Vec::with_capacity(self.overrides.len() * 2);
+        for edit in &self.overrides {
+            let note = self
+                .analysis
+                .notes
+                .get(edit.note as usize)
+                .ok_or("Unknown note override.")?;
+            for (source_frame, target_frame) in [
+                (note.start_frame, edit.start_frame),
+                (note.end_frame, edit.end_frame),
+            ] {
+                if (source_frame == 0 && target_frame != 0)
+                    || (source_frame == self.analysis.frames && target_frame != output)
+                {
+                    return Err("Note edits cannot move fixed render endpoints.".into());
+                }
+                if edits.iter().any(|m: &AudioWarpMarker| {
+                    m.source_frame == source_frame && m.target_frame != target_frame
+                }) {
+                    return Err("Adjacent edited notes disagree on their shared boundary.".into());
+                }
+                edits.push(AudioWarpMarker {
+                    source_frame,
+                    target_frame,
+                });
+            }
+        }
+        let mut markers: Vec<_> = self
+            .markers
+            .iter()
+            .filter(|m| !edits.iter().any(|e| e.source_frame == m.source_frame))
+            .copied()
+            .collect();
+        markers.extend(edits);
+        markers.sort_by_key(|m| m.source_frame);
+        markers.dedup();
+        for pair in markers.windows(2) {
+            if pair[0].source_frame >= pair[1].source_frame
+                || pair[0].target_frame >= pair[1].target_frame
+            {
+                return Err("Combined note and warp markers cross.".into());
+            }
+            let ratio = (pair[1].target_frame - pair[0].target_frame) as f64
+                / (pair[1].source_frame - pair[0].source_frame) as f64;
+            if !(0.25..=4.0).contains(&ratio) {
+                return Err("Combined note/warp interval ratio must be 0.25 to 4.".into());
+            }
+        }
+        Ok(markers)
     }
     pub fn output_frames(&self) -> Result<u32, String> {
         if self.markers.len() < 2
@@ -192,4 +247,14 @@ impl AudioEditRecipe {
         }
         Ok(last.target_frame)
     }
+}
+fn map_frame(markers: &[AudioWarpMarker], source: u32) -> u32 {
+    let pair = markers
+        .windows(2)
+        .find(|w| source <= w[1].source_frame)
+        .expect("checked recipe endpoint");
+    let part = (source - pair[0].source_frame) as f64
+        / (pair[1].source_frame - pair[0].source_frame) as f64;
+    (pair[0].target_frame as f64 + part * (pair[1].target_frame - pair[0].target_frame) as f64)
+        .round() as u32
 }
