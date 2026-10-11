@@ -397,7 +397,6 @@ impl VoiceFilter {
     }
 }
 
-
 #[derive(Debug, Clone, Copy, Default, PartialEq, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase", default)]
 #[ts(export)]

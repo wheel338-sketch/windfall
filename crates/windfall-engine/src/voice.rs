@@ -740,37 +740,37 @@ impl Voice {
             // envelopes and LFOs and by the note's own expression. With the
             // filter off, a modulation still sweeps the 20 kHz low-pass that
             // note expression uses.
-            let modulated_filter = if self.channel_filter.is_some()
-                || cutoff_offset != 0.0
-                || resonance_offset != 0.0
-            {
-                let key = [
-                    cutoff_offset,
-                    resonance_offset,
-                    self.expression.modulation_x,
-                    self.expression.modulation_y,
-                ];
-                let coeffs = match self.filter_cache {
-                    Some((made_from, coeffs)) if made_from == key => coeffs,
-                    _ => {
-                        let (base, amount) = self
-                            .channel_filter
-                            .map_or((20_000.0, 0.0), |filter| (filter.cutoff_hz, filter.resonance));
-                        let coeffs = SvfCoeffs::new(
-                            (base * (self.expression.cutoff_octaves() + cutoff_offset).exp2())
-                                .clamp(20.0, sample_rate as f32 * 0.45),
-                            VoiceFilter::q((amount + resonance_offset).clamp(0.0, 1.0))
-                                * self.expression.resonance_multiplier(),
-                            sample_rate as f32,
-                        );
-                        self.filter_cache = Some((key, coeffs));
-                        coeffs
-                    }
+            let modulated_filter =
+                if self.channel_filter.is_some() || cutoff_offset != 0.0 || resonance_offset != 0.0
+                {
+                    let key = [
+                        cutoff_offset,
+                        resonance_offset,
+                        self.expression.modulation_x,
+                        self.expression.modulation_y,
+                    ];
+                    let coeffs = match self.filter_cache {
+                        Some((made_from, coeffs)) if made_from == key => coeffs,
+                        _ => {
+                            let (base, amount) =
+                                self.channel_filter.map_or((20_000.0, 0.0), |filter| {
+                                    (filter.cutoff_hz, filter.resonance)
+                                });
+                            let coeffs = SvfCoeffs::new(
+                                (base * (self.expression.cutoff_octaves() + cutoff_offset).exp2())
+                                    .clamp(20.0, sample_rate as f32 * 0.45),
+                                VoiceFilter::q((amount + resonance_offset).clamp(0.0, 1.0))
+                                    * self.expression.resonance_multiplier(),
+                                sample_rate as f32,
+                            );
+                            self.filter_cache = Some((key, coeffs));
+                            coeffs
+                        }
+                    };
+                    Some(coeffs)
+                } else {
+                    None
                 };
-                Some(coeffs)
-            } else {
-                None
-            };
             if let Some(coeffs) = modulated_filter
                 .as_ref()
                 .or(self.expression_filter.as_ref())
