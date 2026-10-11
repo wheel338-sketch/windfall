@@ -355,31 +355,37 @@ fn partition_invariance_including_automation_and_model_retargeting() {
 fn drive_changes_ramp_and_reset_restores_the_current_target() {
     let mut effect = GuitarRack::default();
     effect.prepare(RATE, 512);
-    effect.set_params(&GuitarRackParams {
+    let clean = GuitarRackParams {
         drive_db: 0.0,
         output_db: 0.0,
+        oversampling: Oversampling::Off,
         ..Default::default()
-    });
-    let mut l = [0.01];
-    let mut r = l;
+    };
+    effect.set_params(&clean);
+    // Even Off keeps the rack's fixed latency. Prime it before measuring gain.
+    let latency = effect.latency_samples();
+    let mut l = vec![0.01; latency + 1];
+    let mut r = l.clone();
     effect.process(&mut l, &mut r);
-    assert_eq!(l[0], 0.01);
+    assert!(l[..latency].iter().all(|&x| x == 0.0));
+    assert_eq!(l[latency], 0.01);
     effect.set_params(&GuitarRackParams {
         drive_db: 20.0,
-        output_db: 0.0,
-        ..Default::default()
+        ..clean
     });
-    let mut l = [0.01; 240];
-    let mut r = l;
+    let mut l = vec![0.01; 240 + latency];
+    let mut r = l.clone();
     effect.process(&mut l, &mut r);
-    assert!(l[0] > 0.01 && l[0] < 0.011);
-    assert!((l[239] - 0.1).abs() < 1.0e-6);
+    assert!(l[..latency].iter().all(|&x| x == 0.01));
+    assert!(l[latency] > 0.01 && l[latency] < 0.011);
+    assert!((l[239 + latency] - 0.1).abs() < 1.0e-6);
     assert!(l.windows(2).all(|xs| xs[1] >= xs[0]));
     effect.reset();
-    let mut l = [0.01];
-    let mut r = l;
+    let mut l = vec![0.01; latency + 1];
+    let mut r = l.clone();
     effect.process(&mut l, &mut r);
-    assert!((l[0] - 0.1).abs() < 1.0e-6);
+    assert!(l[..latency].iter().all(|&x| x == 0.0));
+    assert!((l[latency] - 0.1).abs() < 1.0e-6);
 }
 
 fn metadata<P: ParamSet + serde::Serialize + serde::de::DeserializeOwned + ts_rs::TS>() {

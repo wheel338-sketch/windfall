@@ -29,8 +29,11 @@ fn amplitude(x: &[f32], hz: f64) -> f64 {
     2.0 * re.hypot(im) / weight
 }
 fn different(a: InstrumentParams, b: InstrumentParams) {
-    let a = render(a, 60, 12000, 64).0;
-    let b = render(b, 60, 12000, 17).0;
+    different_for(a, b, 12000);
+}
+fn different_for(a: InstrumentParams, b: InstrumentParams, frames: usize) {
+    let a = render(a, 60, frames, 64).0;
+    let b = render(b, 60, frames, 17).0;
     let d: Vec<_> = a.iter().zip(&b).map(|(a, b)| a - b).collect();
     assert!(energy(&d) > energy(&a).max(energy(&b)) * 1e-4);
 }
@@ -340,7 +343,6 @@ fn pocket_synth_each_shape_tunes_and_mobile_controls_reach_audio() {
             ..p
         },
         PocketSynthParams { vibrato: 1.0, ..p },
-        PocketSynthParams { delay: 0.8, ..p },
         PocketSynthParams { sub: 0.8, ..p },
     ] {
         different(
@@ -348,6 +350,13 @@ fn pocket_synth_each_shape_tunes_and_mobile_controls_reach_audio() {
             InstrumentParams::PocketSynth(changed),
         );
     }
+    // A quarter-note echo at 120 BPM first arrives at 500 ms. The usual
+    // 250 ms control probe cannot hear it; include two repeats here.
+    different_for(
+        InstrumentParams::PocketSynth(p),
+        InstrumentParams::PocketSynth(PocketSynthParams { delay: 0.8, ..p }),
+        60000,
+    );
 }
 
 #[test]

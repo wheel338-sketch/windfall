@@ -119,7 +119,10 @@ fn rack_pads_and_an_individual_pad_edit_are_audible() {
     rack.note_on(37, 1.0);
     let second = render(&mut rack, 6000, &[512]);
     let difference: Vec<f32> = first.iter().zip(&second).map(|(a, b)| a - b).collect();
-    assert!(power(&difference) > 0.01);
+    // Compare relative signal power: the rack reserves headroom for sixteen
+    // simultaneous pads, so a fixed 0.01 output-power floor tests gain, not
+    // whether pad selection changes the sound. Require a 1% difference.
+    assert!(power(&difference) / power(&first).max(power(&second)) > 0.01);
 
     let mut params = DrumRackParams::default();
     params.pads[0].pitch_hz = 650.0;
@@ -129,7 +132,7 @@ fn rack_pads_and_an_individual_pad_edit_are_audible() {
     rack.note_on(36, 1.0);
     let edited = render(&mut rack, 6000, &[512]);
     let difference: Vec<f32> = first.iter().zip(&edited).map(|(a, b)| a - b).collect();
-    assert!(power(&difference) > 0.01);
+    assert!(power(&difference) / power(&first).max(power(&edited)) > 0.01);
     rack.reset();
     rack.note_on(37, 1.0);
     assert_eq!(second, render(&mut rack, 6000, &[512]));

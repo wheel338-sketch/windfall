@@ -31,9 +31,10 @@ fn bucket_clock_has_128_samples_in_transit_and_a_bounded_work_limit() {
     let output: Vec<_> = (0..300)
         .map(|n| bucket.tick(if n == 0 { 1.0 } else { 0.0 }, 1.0))
         .collect();
-    // A unit clock hands the first input out exactly 128 frames later.
+    // The input is sampled at frame 0's endpoint and spends 128 clocks in
+    // transit. The returned interval average exposes that endpoint on frame 129.
     for (n, x) in output.iter().enumerate() {
-        assert_eq!(*x, if n == 128 { 1.0 } else { 0.0 });
+        assert_eq!(*x, if n == 129 { 1.0 } else { 0.0 });
     }
     assert_eq!(ticks_for(128.0), 1.0);
     assert_eq!(ticks_for(64.0), 2.0);

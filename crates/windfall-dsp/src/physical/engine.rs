@@ -388,6 +388,11 @@ impl Engine {
         let mut output = output * settings.level * 0.25;
         if self.retrigger_remaining > 0 {
             let total = (self.sample_rate * 0.004).ceil().max(1.0);
+            if self.retrigger_remaining as f32 == total {
+                // Crossfade the endpoint difference, rather than adding the
+                // old endpoint on top of the replacement string's first sample.
+                self.retrigger -= output;
+            }
             output += self.retrigger * self.retrigger_remaining as f32 / total;
             self.retrigger_remaining -= 1;
         }
