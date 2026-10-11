@@ -77,3 +77,10 @@ instrument!(DrumVoice, DrumVoiceParams, 8, Recipe::Selected, false);
 
 #[cfg(test)]
 mod tests;
+
+impl DrumVoice {
+    /// Control-side preparation only; never replace this owner on audio.
+    pub(crate) fn set_key_patches(&mut self, patches: &[crate::DrumKeyPatch]) {
+        self.0.set_key_patches(patches);
+    }
+}

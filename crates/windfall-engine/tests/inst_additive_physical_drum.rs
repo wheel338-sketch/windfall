@@ -63,6 +63,17 @@ fn acceptance_key(
     changed: InstrumentParams,
     key: u8,
 ) {
+    acceptance_data(kind, initial, changed, key, None, None);
+}
+
+fn acceptance_data(
+    kind: InstrumentKind,
+    initial: InstrumentParams,
+    changed: InstrumentParams,
+    key: u8,
+    initial_asset: Option<InstrumentAsset>,
+    changed_asset: Option<InstrumentAsset>,
+) {
     let mut doc = Document::new(Project::new("Built-in acceptance QA"));
     let channel = ChannelId(
         doc.dispatch(
@@ -87,6 +98,18 @@ fn acceptance_key(
         None,
     )
     .unwrap();
+    if let Some(asset) = &initial_asset {
+        let expected = doc.project().channel(channel).unwrap().source.clone();
+        doc.dispatch(
+            Command::SetInstrumentAsset {
+                channel,
+                expected,
+                asset: Some(asset.clone()),
+            },
+            None,
+        )
+        .unwrap();
+    }
     doc.dispatch(
         Command::AddNotes {
             pattern,
@@ -108,10 +131,25 @@ fn acceptance_key(
         energy(&baseline) > 1e-8,
         "{kind:?} initial patch must sound"
     );
-    doc.dispatch(
-        Command::SetInstrumentParams {
+    let mut commands = vec![Command::SetInstrumentParams {
+        channel,
+        params: changed,
+    }];
+    if initial_asset != changed_asset {
+        let mut expected = doc.project().channel(channel).unwrap().source.clone();
+        if let ChannelSource::Instrument { params, .. } = &mut expected {
+            *params = changed;
+        }
+        commands.push(Command::SetInstrumentAsset {
             channel,
-            params: changed,
+            expected,
+            asset: changed_asset,
+        });
+    }
+    doc.dispatch(
+        Command::Batch {
+            label: Some("Edit instrument".to_owned()),
+            commands,
         },
         None,
     )
@@ -213,5 +251,30 @@ fn sixteen_pad_membrane_model_reaches_history_disk_and_live_offline_pcm() {
         InstrumentParams::DrumRack(initial),
         InstrumentParams::DrumRack(changed),
         36,
+    );
+}
+
+#[test]
+fn per_key_drum_program_reaches_history_disk_and_live_offline_pcm() {
+    use windfall_dsp::drums::{DrumMode, DrumVoiceParams};
+    let params = InstrumentKind::DrumVoice.default_params();
+    let bank = |mode| {
+        Some(InstrumentAsset::DrumKeys {
+            patches: vec![DrumKeyPatch {
+                key: 60,
+                params: DrumVoiceParams {
+                    mode,
+                    ..Default::default()
+                },
+            }],
+        })
+    };
+    acceptance_data(
+        InstrumentKind::DrumVoice,
+        params,
+        params,
+        60,
+        bank(DrumMode::Kick),
+        bank(DrumMode::Snare),
     );
 }

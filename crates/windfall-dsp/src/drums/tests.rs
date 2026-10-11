@@ -392,3 +392,25 @@ fn rack_modal_model_edits_one_pad_without_changing_another() {
     assert_eq!(rack.active_voices(), 16);
     assert!(render(&mut rack, 4000, &[257]).iter().all(|x| x.is_finite()));
 }
+
+#[test]
+fn drum_key_bank_programs_are_absolute_tuned_independent_and_seeded() {
+    let bank = vec![crate::DrumKeyPatch { key: 36, params: DrumVoiceParams { mode: DrumMode::Kick, pitch_hz: 120.0, ..Default::default() } }, crate::DrumKeyPatch { key: 127, params: DrumVoiceParams { mode: DrumMode::Snare, pitch_hz: 180.0, ..Default::default() } }];
+    let mut drum = DrumVoice::default();
+    drum.set_key_patches(&bank);
+    drum.prepare(RATE, 257);
+    drum.note_on(127, 1.0);
+    let snare = render(&mut drum, 12_000, &[7, 257]);
+    drum.reset();
+    drum.note_on(127, 1.0);
+    assert_eq!(snare, render(&mut drum, 12_000, &[127]));
+    drum.reset();
+    drum.note_on(36, 1.0);
+    let kick = render(&mut drum, 12_000, &[257]);
+    assert!(high_frequency_power(&snare) > high_frequency_power(&kick) * 10.0);
+    let mut other = DrumVoice::default();
+    other.set_key_patches(&[crate::DrumKeyPatch { key: 36, params: DrumVoiceParams { mode: DrumMode::Snare, pitch_hz: 180.0, ..Default::default() } }]);
+    other.prepare(RATE, 257);
+    other.note_on(36, 1.0);
+    assert_eq!(snare, render(&mut other, 12_000, &[31]));
+}

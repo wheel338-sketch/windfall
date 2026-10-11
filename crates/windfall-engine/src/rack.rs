@@ -533,8 +533,8 @@ pub(crate) struct InstrumentUnit {
 impl InstrumentUnit {
     /// Builds and prepares an instrument. Allocates, so it is for the
     /// control side.
-    pub fn build(params: &InstrumentParams, sample_rate: u32, tempo_bpm: f64) -> Self {
-        let mut instrument = AnyInstrument::new(params);
+    pub fn build(params: &InstrumentParams, asset: Option<&windfall_dsp::InstrumentAsset>, sample_rate: u32, tempo_bpm: f64) -> Self {
+        let mut instrument = AnyInstrument::new_with_asset(params, asset);
         instrument.prepare(sample_rate as f32, MAX_BLOCK);
         instrument.set_tempo(tempo_bpm as f32);
         instrument.set_params(params);

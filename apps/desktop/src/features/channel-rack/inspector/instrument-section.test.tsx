@@ -225,6 +225,22 @@ describe("instrument settings panels", () => {
     expect(channelOf(channel).source.params).toEqual(original)
   })
 
+  it("stores independent patches for arbitrary drum keys and undoes a key edit", async () => {
+    const channel = await open("drumVoice")
+    const key = screen.getByRole("spinbutton", { name: "Program MIDI key" })
+    fireEvent.change(key, { target: { value: "127" } })
+    const editor = screen.getByRole("region", { name: "MIDI 127 patch" })
+    const pitch = within(editor).getByRole("slider", { name: "Pitch" })
+    fireEvent.keyDown(pitch, { key: "End" })
+    fireEvent.keyUp(pitch, { key: "End" })
+    await flush()
+    expect(channelOf(channel).source.asset).toMatchObject({ type: "drumKeys", patches: [{ key: 127, params: { pitchHz: 2000 } }] })
+    fireEvent.change(key, { target: { value: "36" } })
+    expect(within(screen.getByRole("region", { name: "MIDI 36 patch" })).getByRole("slider", { name: "Pitch" })).toHaveAttribute("aria-valuenow", "120")
+    await act(() => undo())
+    expect(channelOf(channel).source.asset).toBeUndefined()
+  })
+
   it("keeps hosted plugin controls ahead of the built-in panel", async () => {
     const channel = await open("acidLine")
     const plugin: PluginBinding = {

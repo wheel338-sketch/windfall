@@ -590,6 +590,15 @@ impl AnyInstrument {
         }
     }
 
+    /// Build with immutable data on the control/worker side.
+    pub fn new_with_asset(params: &InstrumentParams, asset: Option<&crate::InstrumentAsset>) -> Self {
+        let mut instrument = Self::new(params);
+        if let (Self::DrumVoice(unit), Some(crate::InstrumentAsset::DrumKeys { patches })) = (&mut instrument, asset) {
+            unit.set_key_patches(patches);
+        }
+        instrument
+    }
+
     /// Builds the instrument `params` belongs to, with those settings. It
     /// still needs [`AnyInstrument::prepare`].
     pub fn new(params: &InstrumentParams) -> Self {

@@ -822,6 +822,14 @@ pub enum Command {
         label: Option<String>,
         commands: Vec<Command>,
     },
+    /// Attaches validated worker-prepared instrument data as one undo step.
+    /// The complete captured source guards asynchronous work from stale edits.
+    SetInstrumentAsset {
+        channel: ChannelId,
+        expected: crate::ChannelSource,
+        asset: Option<windfall_dsp::InstrumentAsset>,
+    },
+
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, TS)]

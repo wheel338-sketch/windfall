@@ -460,7 +460,7 @@ pub(crate) struct Ledger {
     departing_plugins: HashMap<(windfall_project::PluginTarget, u64), (u64, usize)>,
     pub sample_rate: u32,
     effects: HashMap<EffectId, (EffectKind, u64)>,
-    instruments: HashMap<ChannelId, InstrumentKind>,
+    instruments: HashMap<ChannelId, (InstrumentKind, Option<std::sync::Arc<windfall_dsp::InstrumentAsset>>)>,
     /// The length each compensation delay is set to and the longest its
     /// line can give, plus the identity and prepared bounds of its stages.
     delays: HashMap<DelayKey, (usize, usize, Vec<DelayStage>)>,
@@ -1040,7 +1040,7 @@ impl PlanState {
                 .channel(channel)
                 .and_then(|index| plan.channels[index].instrument)
                 .is_some_and(|params| {
-                    held.is_some_and(|held| held.instruments.get(&channel) == Some(&params.kind()))
+                    held.is_some_and(|held| held.instruments.get(&channel).map(|(kind, _)| *kind) == Some(params.kind()))
                 }),
         });
         let (mut prepared, plugins) = crate::plugins::prepare(plan, sample_rate, &known_plugins)?;
@@ -1268,7 +1268,7 @@ impl PlanState {
             let target = windfall_project::PluginTarget::Instrument {
                 channel: channel.id,
             };
-            let known = held.and_then(|held| held.instruments.get(&channel.id)) == Some(&kind)
+            let known = held.and_then(|held| held.instruments.get(&channel.id)) == Some(&(kind, channel.instrument_asset.clone()))
                 && held
                     .is_some_and(|held| held.plugins.get(&target) == ledger.plugins.get(&target));
             let unit = if channel.leaving {
@@ -1277,9 +1277,9 @@ impl PlanState {
                 }
                 None
             } else {
-                ledger.instruments.insert(channel.id, kind);
+                ledger.instruments.insert(channel.id, (kind, channel.instrument_asset.clone()));
                 (!known).then(|| {
-                    let mut unit = InstrumentUnit::build(params, sample_rate, plan.tempo_bpm);
+                    let mut unit = InstrumentUnit::build(params, channel.instrument_asset.as_deref(), sample_rate, plan.tempo_bpm);
                     unit.configure_voice(
                         crate::channel_voice::PreparedChannelEnvelopes::prepare(
                             channel.voice.envelopes,
@@ -2148,6 +2148,7 @@ mod tests {
 
     fn synth() -> ChannelSource {
         ChannelSource::Instrument {
+            asset: None,
             params: InstrumentParams::SubtractiveSynth(Default::default()),
         }
     }

@@ -272,7 +272,7 @@ fn effects_and_instruments_are_edited_like_everything_else() {
     let patch = session.dispatch(command, None).unwrap().patch;
     let channels = patch.channels.unwrap();
     let channel = channels.iter().find(|c| c.id == synth).unwrap();
-    let ChannelSource::Instrument { params } = &channel.source else {
+    let ChannelSource::Instrument { params, .. } = &channel.source else {
         panic!("the channel is not an instrument");
     };
     assert_eq!(params.get(gain), Some(0.6));

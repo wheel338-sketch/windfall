@@ -18,7 +18,7 @@ benchmarks, generators or audio-device checks were run. Every test below is
 | inst-drumaxx | Full-row candidate: sixteen independent modal membrane/cavity patches, fixed MIDI 36–51, per-pad strike/damping/body controls, selection grid and hold-to-audition editor; shared passive model with single Membrane. | Fresh integration execution and listening. |
 | inst-bassdrum | Pending this stream. | Optional immutable sample layer. |
 | inst-drumpad | Full-row candidate: Membrane adds eight circular membrane eigenmodes plus a damped cavity, radial strike position, and frequency-dependent damping. One voice per channel, chromatic tuning, finite passive losses and deterministic noisy excitation; editor shows strike radius and grouped model controls. | Fresh integration execution and listening. |
-| inst-fruity-drumsynth-live | Pending this stream. | Independent per-key programmable patches. |
+| inst-fruity-drumsynth-live | Full-row candidate: sorted bank of up to 128 independent key patches; kick/snare/hat/tom synthesis, absolute key-program tuning, deterministic noise, bounded eight-voice hosting and a per-key editor with audition/history. | Fresh integration execution and listening. |
 
 ## Written acceptance
 
@@ -77,3 +77,34 @@ engine `sixteen_pad_membrane_model_reaches_history_disk_and_live_offline_pcm`,
 mounted sixteenth-pad edit/undo test. Fresh artifacts must regenerate
 `DrumPadParams`, `DrumRackParams` defaults/descriptors and simulator.
 No sample-pad or zone-sampler claim. Shared editor routing seam is additive only.
+
+### Per-key drum / immutable asset checkpoint
+
+`instrument_asset.rs` was an existing unregistered grid/PCM foundation; its
+schema and tests are retained, now exported, and extended with `DrumKeys`.
+`ChannelSource::Instrument.asset` is optional and omitted when absent.
+`SetInstrumentAsset` validates all data and compares the complete captured
+source before editing; rejected worker results leave history/project untouched.
+Ordinary parameter edits preserve assets. Channel cloning, duplication, presets,
+save/reopen and existing channel patches carry the optional data automatically.
+Engine preparation compares asset content on the control side, builds a fresh
+instrument for changed assets, and retains immutable owners in plans/ledgers;
+audio adopts prebuilt units and old plans retire through existing queues. Asset
+edits replace the sounding program; they are not callback-side table mutations.
+
+Written, not executed: `drum_key_bank_programs_are_absolute_tuned_independent_and_seeded`,
+engine `per_key_drum_program_reaches_history_disk_and_live_offline_pcm`,
+project `instrument_assets.rs` (history/stale/disk, invalid key programs, legacy
+JSON), mounted arbitrary-key/undo case, and exhaustive simulator command example.
+Run `cargo test -p windfall-project --test instrument_assets` and the updated
+engine/drums/frontend commands. Regenerate `ChannelSource`, `Command`,
+`InstrumentAsset`, `DrumKeyPatch`, `SpectralGrid`, `LayerPcm` and WASM.
+
+Shared seams touched: DSP `instrument.rs`, `lib.rs`; project `model.rs`,
+`command.rs`, `lower.rs`, `check.rs`, `automation.rs`, `preset.rs`; engine
+`plan.rs`, `state.rs`, `rack.rs`; source constructor/destructure fixtures in
+`engine/tests/engine/support.rs`, `engine/src/bin/windfall-soak.rs`,
+`project/tests/commands.rs`, desktop `session/tests/effects.rs`; editor routing
+and simulator `EVERY_COMMAND`. No new IPC method or patch section is needed.
+Check source-variant constructors, `Command::Batch` integration and engine
+asset-aware reuse first. Existing instrument kind order/count is unchanged here.

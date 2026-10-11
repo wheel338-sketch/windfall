@@ -4216,7 +4216,7 @@ fn check_names_each_broken_rule() {
         sampler
     }
     fn synth(project: &mut Project) -> &mut SynthParams {
-        let ChannelSource::Instrument { params } = &mut project.channels[2].source else {
+        let ChannelSource::Instrument { params, .. } = &mut project.channels[2].source else {
             panic!("the third channel is not an instrument");
         };
         match params {
@@ -5224,7 +5224,7 @@ fn a_knob_drag_on_an_effect_is_one_undo_step() {
 
 fn synth(doc: &Document, channel: ChannelId) -> SynthParams {
     let channel = doc.project().channel(channel).expect("the channel exists");
-    let ChannelSource::Instrument { params } = &channel.source else {
+    let ChannelSource::Instrument { params, .. } = &channel.source else {
         panic!("the channel is not an instrument");
     };
     let synth = match params {

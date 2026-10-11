@@ -4,6 +4,7 @@ import { usePluginBinding } from "@/features/plugins/store"
 import type { InstrumentChannel } from "@/lib/channel-source"
 import { colorToCss } from "@/lib/units"
 
+import { KeyDrumEditor } from "../instruments/key-drum-editor"
 import { DrumRackEditor } from "../instruments/drum-rack-editor"
 import { MembraneEditor } from "../instruments/membrane-editor"
 
@@ -40,6 +41,8 @@ export function InstrumentSection({ channel }: { channel: InstrumentChannel }) {
           params={params}
           color={colorToCss(channel.color)}
         />
+      ) : params.type === "drumVoice" ? (
+        <KeyDrumEditor channel={channel} />
       ) : params.type === "drumRack" ? (
         <DrumRackEditor channel={channel.id} params={params} />
       ) : params.type === "membrane" ? (

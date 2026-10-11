@@ -16,8 +16,18 @@
 
 use std::sync::Arc;
 
+use crate::drums::DrumVoiceParams;
+use crate::{InstrumentKind, ParamSet};
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct DrumKeyPatch {
+    pub key: u8,
+    pub params: DrumVoiceParams,
+}
 
 /// Most steps in time a [`SpectralGrid`] can hold.
 pub const MAX_GRID_COLUMNS: usize = 256;
@@ -50,14 +60,41 @@ pub enum InstrumentAsset {
     Grid(SpectralGrid),
     /// A short mono recording, layered under a synthesized drum.
     Pcm(LayerPcm),
+    DrumKeys {
+        patches: Vec<DrumKeyPatch>,
+    },
 }
 
 impl InstrumentAsset {
+    pub fn validate(&self, kind: InstrumentKind) -> Result<(), &'static str> {
+        self.check()?;
+        match (self, kind) {
+            (Self::DrumKeys { .. }, InstrumentKind::DrumVoice) => Ok(()),
+            _ => Err("this instrument cannot play that asset type"),
+        }
+    }
+
     /// Says what is wrong with the asset, if anything.
     pub fn check(&self) -> Result<(), &'static str> {
         match self {
             InstrumentAsset::Grid(grid) => grid.check(),
             InstrumentAsset::Pcm(pcm) => pcm.check(),
+            InstrumentAsset::DrumKeys { patches } => {
+                if patches.len() > 128 {
+                    return Err("a drum bank holds at most 128 keys");
+                }
+                let mut previous = None;
+                for patch in patches {
+                    if patch.key > 127 || previous.is_some_and(|key| key >= patch.key) {
+                        return Err("drum keys must be unique and sorted from 0 to 127");
+                    }
+                    if patch.params != patch.params.sanitized() {
+                        return Err("a drum key patch has invalid settings");
+                    }
+                    previous = Some(patch.key);
+                }
+                Ok(())
+            }
         }
     }
 
@@ -65,7 +102,7 @@ impl InstrumentAsset {
     pub fn grid(&self) -> Option<&SpectralGrid> {
         match self {
             InstrumentAsset::Grid(grid) => Some(grid),
-            InstrumentAsset::Pcm(_) => None,
+            _ => None,
         }
     }
 
@@ -73,7 +110,7 @@ impl InstrumentAsset {
     pub fn pcm(&self) -> Option<&LayerPcm> {
         match self {
             InstrumentAsset::Pcm(pcm) => Some(pcm),
-            InstrumentAsset::Grid(_) => None,
+            _ => None,
         }
     }
 }
@@ -377,14 +414,12 @@ mod tests {
         assert!((short.at(0.5) - 0.25).abs() < 1.0e-3);
         assert_eq!(short.at(-1.0), 0.0);
         assert_eq!(short.at(f64::NAN), 0.0);
-        assert!(
-            InstrumentAsset::Pcm(LayerPcm {
-                sample_rate: 44_100,
-                samples: Vec::new()
-            })
-            .check()
-            .is_err()
-        );
+        assert!(InstrumentAsset::Pcm(LayerPcm {
+            sample_rate: 44_100,
+            samples: Vec::new()
+        })
+        .check()
+        .is_err());
     }
 
     #[test]

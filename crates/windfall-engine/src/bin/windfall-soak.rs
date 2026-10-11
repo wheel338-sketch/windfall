@@ -444,6 +444,7 @@ fn add_effects(project: &mut Project) -> (ChannelId, TrackId) {
         timing: windfall_project::ChannelTiming::default(),
         mixer_track: track,
         source: ChannelSource::Instrument {
+                asset: None,
             params: InstrumentKind::SubtractiveSynth.default_params(),
         },
     });

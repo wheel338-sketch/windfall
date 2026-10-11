@@ -154,3 +154,6 @@ pub mod sendtap;
 pub mod notemap;
 
 pub mod zones;
+
+pub mod instrument_asset;
+pub use instrument_asset::{DrumKeyPatch, InstrumentAsset};

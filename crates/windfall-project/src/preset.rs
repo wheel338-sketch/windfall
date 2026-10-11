@@ -281,7 +281,7 @@ impl Processor {
         match (source, binding) {
             (ChannelSource::Sampler(_), _) => Processor::Sampler,
             (ChannelSource::Instrument { .. }, Some(binding)) => Self::hosted(binding),
-            (ChannelSource::Instrument { params }, None) => Processor::Instrument(params.kind()),
+            (ChannelSource::Instrument { params, .. }, None) => Processor::Instrument(params.kind()),
         }
     }
 
@@ -464,7 +464,7 @@ impl PluginPreset {
                 let channel = project
                     .channel(channel)
                     .ok_or("The preset's channel no longer exists")?;
-                let ChannelSource::Instrument { params } = &channel.source else {
+                let ChannelSource::Instrument { params, .. } = &channel.source else {
                     return Err(format!(
                         "\"{}\" is a sampler: save it as a channel preset",
                         channel.name
@@ -605,7 +605,7 @@ impl ChannelPreset {
             (ChannelSource::Instrument { .. }, Some(_), _) => {
                 return Err("The preset has audio on an instrument channel".to_owned());
             }
-            (ChannelSource::Instrument { params }, None, plugin) => {
+            (ChannelSource::Instrument { params, .. }, None, plugin) => {
                 if params.sanitized() != *params {
                     return Err(
                         "The preset has instrument settings outside their ranges".to_owned()
@@ -727,7 +727,7 @@ impl Preset {
                 id: binding.id.clone(),
                 instrument: true,
             }),
-            (ChannelSource::Instrument { params }, None) => {
+            (ChannelSource::Instrument { params, .. }, None) => {
                 Some(PluginPresetState::Instrument { params: *params }.identity())
             }
         }
