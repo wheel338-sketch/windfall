@@ -94,3 +94,17 @@ instruments may still be unused until the remaining graphs land. The high-note
 alias threshold, filter transfer and PCM fixture are authored assertions, not
 measured evidence. Target-machine listening/performance remains unmeasured.
 New generated kind/tag: `VintagePoly` / `vintagePoly`; `VintagePolyParams`.
+
+## 2026-10-11 continuation — DualPoly / inst-kepler-exo
+
+Full-row software candidate, awaiting execution. Two independent oscillator banks with cross-frequency modulation, sub/noise, deterministic drift and PWM feed switchable 12/24 dB lowpass, bandpass or highpass ladder outputs with drive. Independent contours, key tracking, mono glide, stereo unison, chorus, tempo echo and reverb extend the compact vintage model. DSP test: dual_poly_banks_cross_modulation_and_each_filter_response_sound.
+Purpose-built editor group: Dual oscillator banks. Uses the existing checked instrument
+commands, tagged project persistence, engine hosting and live/offline processor.
+New generated types: `DualPoly`, `DualPolyParams`, `dualPoly` tag and descriptors.
+Tests **written, not executed**: `dualPoly_musical_edit_reaches_history_disk_and_live_offline_pcm`
+in registered `polysynth_acceptance.rs`; the `dualPoly` mounted editor case
+(edit and undo); complete descriptor/serde/default/range tests in DSP params;
+per-graph DSP tests in `polysynth/tests.rs` (names below).
+Use the integrator commands in the Vintage Poly section, after regenerating
+bindings/descriptors and WASM. Check strict Clippy and numerical thresholds first;
+no measured sound/performance claim is made. No external proprietary content.

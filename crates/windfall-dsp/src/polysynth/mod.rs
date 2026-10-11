@@ -14,6 +14,8 @@ mod core;
 mod fx;
 mod runtime;
 mod vintage_poly;
+mod dual_poly;
+pub use dual_poly::{DualPoly, DualPolyParams, PolyResponse};
 pub use vintage_poly::{VintagePoly, VintagePolyParams};
 
 #[cfg(test)]

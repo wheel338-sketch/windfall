@@ -7,6 +7,12 @@ import { dispatch } from "@/lib/store"
 const amp = ["envelope.attackMs", "envelope.decayMs", "envelope.sustain", "envelope.releaseMs"]
 const filterEnv = ["filterEnvelope.attackMs", "filterEnvelope.decayMs", "filterEnvelope.sustain", "filterEnvelope.releaseMs"]
 export const POLYSYNTH_PANELS: Record<string, readonly (readonly [string, readonly string[]])[]> = {
+  dualPoly: [
+    ["Dual oscillator banks", ["waveA", "waveB", "balance", "coarseB", "fineB", "pulseWidth", "pwm", "crossMod", "sub", "noise", "drift"]],
+    ["Variable ladder", ["response", "cutoffHz", "resonance", "drive", "filterAmount", "keyTrack"]],
+    ["Filter contour", filterEnv], ["Amp contour", amp], ["LFO", ["lfoRateHz", "lfoFilter"]],
+    ["Voices and space", ["unison", "detuneCents", "spread", "glideMs", "polyphony", "chorus", "delay", "reverb", "gain"]],
+  ],
   vintagePoly: [
     ["DCO and divider", ["saw", "pulse", "sub", "noise", "pulseWidth", "pwm", "drift"]],
     ["Resonant ladder", ["cutoffHz", "resonance", "highpassHz", "filterAmount", "keyTrack"]],

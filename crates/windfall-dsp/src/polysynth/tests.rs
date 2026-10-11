@@ -87,3 +87,19 @@ fn vintage_poly_high_saw_suppresses_folded_inharmonic_components() {
     }
 }
 
+#[test]
+fn dual_poly_banks_cross_modulation_and_each_filter_response_sound() {
+    contract(InstrumentKind::DualPoly);
+    let p=DualPolyParams::default();
+    different(InstrumentParams::DualPoly(p),InstrumentParams::DualPoly(DualPolyParams { balance:1.0,coarse_b:12.0,..p }));
+    different(InstrumentParams::DualPoly(p),InstrumentParams::DualPoly(DualPolyParams { cross_mod:2.0,..p }));
+    for response in [PolyResponse::Low2,PolyResponse::Band,PolyResponse::High] {
+        different(InstrumentParams::DualPoly(p),InstrumentParams::DualPoly(DualPolyParams { response,..p }));
+    }
+    let p=DualPolyParams { balance:0.0,sub:0.0,drift:0.0,filter_amount:0.0,key_track:0.0,cutoff_hz:18000.0,..p };
+    let x=render(InstrumentParams::DualPoly(p),69,60000,64).0;
+    assert!(amplitude(&x[12000..],440.0)>amplitude(&x[12000..],442.0)*10.0);
+    let low=render(InstrumentParams::DualPoly(DualPolyParams { cutoff_hz:300.0,..p }),69,60000,64).0;
+    assert!(amplitude(&low[12000..],1760.0)<amplitude(&x[12000..],1760.0)*0.1);
+}
+

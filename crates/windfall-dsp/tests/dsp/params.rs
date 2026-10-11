@@ -201,6 +201,7 @@ fn every_parameter_struct_agrees_with_its_description() {
     check::<FlangerParams>();
     check::<PhaserParams>();
     check::<SynthParams>();
+    check::<windfall_dsp::DualPolyParams>();
     check::<windfall_dsp::VintagePolyParams>();
 }
 
@@ -471,6 +472,7 @@ fn names_are_plain_descriptions() {
             "Speech Voice",
             "MIDI output",
             "Vintage poly",
+            "Dual vintage poly",
         ]
     );
 }
