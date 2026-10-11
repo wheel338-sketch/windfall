@@ -28,10 +28,6 @@ fn stereo(mono: &[f32]) -> Vec<f32> {
     mono.iter().flat_map(|sample| [*sample, *sample]).collect()
 }
 
-fn left_of(interleaved: &[f32]) -> Vec<f32> {
-    interleaved.chunks_exact(2).map(|frame| frame[0]).collect()
-}
-
 /// Amplitude of the component at `hz`, by projection onto a sine and cosine.
 fn amplitude_at(samples: &[f32], hz: f64, rate: u32) -> f64 {
     let (mut re, mut im) = (0.0, 0.0);
@@ -985,7 +981,7 @@ fn local_mastering_passes_are_invariant_to_analysis_and_render_block_sizes() {
         ceiling_dbtp: -1.0,
         dynamics: 0.5,
     };
-    let render = |frames| {
+    let render = |frames: usize| {
         let mut chain = Mastering::new(RATE, settings);
         for block in input.chunks(frames * 2) {
             chain.analyze(block);
