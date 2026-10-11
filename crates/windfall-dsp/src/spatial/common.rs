@@ -60,6 +60,16 @@ impl<const N: usize> Controls<N> {
         self.fresh = false;
         std::array::from_fn(|i| self.ramps[i].tick())
     }
+    /// Length of a ramp started now: nothing before the first frame.
+    pub fn glide(&self) -> u32 {
+        if self.fresh { 0 } else { self.length }
+    }
+}
+
+/// One cycle of a triangle that starts at 0, peaks at 1 half way and is
+/// back at 0 at the end.
+pub(super) fn triangle(phase: f64) -> f32 {
+    (1.0 - (1.0 - 2.0 * phase.fract()).abs()) as f32
 }
 
 #[derive(Default, Clone, Copy)]
