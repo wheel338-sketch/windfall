@@ -2,6 +2,8 @@
 
 ## Running progress
 
+- Final complete frontend gate is green: 6,065 passed/0 failed/0 skipped across 465 files, exit 0 (`target/round2-frontend.log`). All four new Command examples and mounted/history/metadata cases pass in the complete suite. Native remains 3,871/0/37; build, final script gates and publication of the reconciled 72-row table are next.
+
 - Final frontend expectation repairs are committed; refreshed typecheck/lint both exit 0 with no diagnostics (`round2-typecheck-final.log`, `round2-lint-final.log`). Starting the second complete frontend gate after both failed files passed in full; original complete result is retained in `round2-frontend-initial.log`. Native/strict Rust/artifact gates remain green on unchanged Rust sources.
 
 - First complete frontend gate: 6,063 passed/2 failed across 465 files (`target/round2-frontend-initial.log`). Both failures are corrected expectations: generated meter inventory is alphabetical (native kind indices remain append-only), and 2,559 automation ranges replace the old 1,650 count. All 23,031 forward/back samples retain original tolerances. Both complete files now pass 63/0 (`round2-frontend-final-repair.log`); final lint/typecheck and full-suite rerun follow.
