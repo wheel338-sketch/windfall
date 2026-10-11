@@ -9,6 +9,38 @@ downloads, no external dependencies, no generated bindings/WASM edits.
 Restart recovery: worktree was clean at `747d98f3`. Kernels/schema are in
 `0ffd0fd5`; native/UI integration and model-output workflows are in
 `747d98f3`. No build, test or binding generator was run.
+Restart follow-ups are committed in small groups through `d10a21f5`:
+merged frontend anchors, frozen tempo-aware source timing, contextual seam
+rendering, preserved-source selection, tempo-aware model placement, task
+validation, remix loading and calibrated score boundary cases.
+
+## Per-row claims
+
+These are implementation claims for integrator review, not accepted parity
+statuses or executed evidence. The overseer owns both parity files.
+
+| Row | Claim | Implemented | Remaining gate |
+| --- | --- | --- | --- |
+| `core-denoising` | Full-row candidate, classical scope | Learned per-channel stationary profile, Wiener-style gains, linked source retention, wet/dry preview, saved recipe and one undo step | Execute independent hiss/hum SNR and signal-preservation fixtures; listening and memory validation |
+| `editor-newtone` | Full-row candidate, classical scope | Immutable detected notes, separate pitch/onset/offset overrides, pointer/keyboard editor, draft history, contextual spectral render, save/reopen | Execute calibrated correction/history/mounted cases and listen to short/voiced boundaries |
+| `editor-newtime` | Full-row candidate | Detected transient slices, editable ordered markers and duration, ratio/combined-anchor limits, preview/render/history/reopen | Execute marker/duration/tempo-map cases and boundary listening |
+| `wf-audio-to-midi` | Full-row candidate within declared classical limits | Mono YIN and sparse spectral polyphony, selected-note review, RMS dynamics, exact tempo-map endpoint conversion, one-step piano-roll/channel/playlist insertion | Execute onset/offset/pitch/velocity and tempo/meter cases; no dense-mix or neural accuracy claim |
+| `core-stem-separation` | Partial; open | Explicit checksum/licence pack import, four-role adapter contract, retained review, per-stem preview/select, aligned playlist/mixer batch | Choose licensed runtime/weights, implement production adapter and evaluate real separation |
+| `win-playlist-deverb` | Partial; open | Distinct general/vocal modes, exact role/channel checks, preview/review/one-step retained import | Choose mode-aware licensed weights/runtime and evaluate actual dereverb |
+| `wf-remix-a-song` | Partial; open | Song picker/import entry point, stem-task wizard, preview/select, aligned separate rows/inserts and optional original mute | Production separation dependency; long-song tiling/rate conversion for chosen runtime |
+
+Classical scope: finite mono/stereo at 8–192 kHz, up to 120 seconds and 64 MiB
+per audio buffer, <=4096 notes, <=512 base warp markers, ratios 0.25–4,
+correction <=24 semitones. Detection targets 50–1500 Hz. Short sources below
+the calibrated YIN support return no guessed notes but still support time/noise
+controls. Score velocities are RMS-derived dynamics, not measured MIDI
+performance velocity; polyphonic dynamics use a shared strongest-channel cell.
+Detection covers the current complete clip view, and insertion reviews selected
+notes. Spectral polyphony targets sparse tonal mixtures with <=8 simultaneous
+roots: harmonics/octave unisons, percussion and dense music can cause errors.
+Glide/vibrato estimates are retained as note means; there is no pitch-contour
+automation or formant-preservation quality claim. Noise reduction targets
+stationary profiles, not arbitrary nonstationary voices or reverb.
 
 Classical kernels: `crates/windfall-analysis/src/classical.rs`.
 Persistent estimates, overrides, warp anchors and noise-profile controls:
@@ -128,9 +160,11 @@ Additional tests, all **written, not executed**:
 
 ## Remaining work
 
-Integration verification, interval-boundary listening/continuity, selected-range
-and richer MIDI onset evaluation, model/runtime licence evaluation. All seven
-rows remain partial until final scope and integrator evidence are reconciled.
+Integrator compilation, acceptance execution, interval-boundary listening,
+memory/latency validation and chosen-model quality evaluation remain. No test,
+listening, hardware, cross-platform, benchmark or measured quality result is
+claimed. The three trained-model rows remain open even if software lifecycle
+tests pass. Four classical rows are candidates within the bounds above.
 
 ## Model/runtime decision required
 
@@ -181,19 +215,81 @@ remain open until that happens. No dependency or weights were added.
 ## Integrator commands (worker has not run any of them)
 
 Use Git Bash with `source scripts/msvc-env.sh`, one Cargo owner, and a temporary
-native `TS_RS_EXPORT_DIR`.
+native `TS_RS_EXPORT_DIR`. Regenerate model/IPC bindings and simulation before
+frontend verification; generated files were intentionally not edited here.
 
 ```sh
+source scripts/msvc-env.sh
+scripts/gen-bindings.sh
+scripts/build-sim.sh
+binding_scratch="$(mktemp -d)"
+export TS_RS_EXPORT_DIR="$(cygpath -w "$binding_scratch")"
 cargo test -p windfall-analysis --locked --offline --test classical_tools
 cargo test -p windfall-analysis --locked --offline --test pitch_analysis
+cargo test -p windfall-analysis --locked --offline --test analysis_jobs
 cargo test -p windfall-project --locked --offline
 cargo clippy -p windfall-analysis -p windfall-project --all-targets --locked --offline -- -D warnings
 cargo test -p windfall-engine --locked --offline --test analysis_clock
-cargo test -p windfall-desktop --locked --offline classical_analysis
-cargo test -p windfall-desktop --locked --offline analysis_jobs
+cargo test -p windfall-desktop --lib --locked --offline classical_analysis
+cargo test -p windfall-desktop --lib --locked --offline analysis_jobs
+cargo test -p windfall-desktop --lib --locked --offline audio_editor
+pnpm --dir apps/desktop typecheck
+pnpm --dir apps/desktop lint
 pnpm --dir apps/desktop test src/features/audio-editor src/features/analysis --maxWorkers=1
+pnpm --dir apps/desktop test src/lib/ipc/sim/document.test.ts --maxWorkers=1
 ```
 
-Check first: type export of the recipe/Clip references, new sample literals,
-neutral render identity and independent SNR/frequency assertions. No listening,
-hardware, cross-platform or model-quality evidence exists for this change.
+## Generated types and shared seams
+
+Regenerate `DetectedAudioNote`, `AudioAnalysisData`, `AudioNoteOverride`,
+`AudioWarpMarker`, `AudioDenoiseSettings`, `AudioViewTiming`,
+`AudioEditRecipe`, `AudioAnalysisPreview`, `AudioAnalysisEdit`,
+`AnalysisTask`, and changed `SampleAsset`, `Command`, `AnalysisSubmit`,
+`AnalysisReview`, `AnalysisApply` and their barrel. Desktop-only calls are
+`audio_analysis_detect/audition/apply/send_midi/cancel` and
+`analysis_preview`. Refresh WASM plus its metadata for
+`SetSampleProcessing` and persistence schemas. No model asset generator.
+
+Shared seams touched:
+
+- `windfall-project/src/{model,command,lower,edit,check,lib}.rs`;
+  `arrangement.rs`/`preset.rs` and existing fixture constructors only add
+  default processing fields.
+- `windfall-engine/src/{lib,tempo,audio_edit}.rs`; existing sample fixtures
+  including the soak constructor only add the new optional field. No soak run.
+- `windfall-ipc/src/{analysis,audio_edit}.rs`.
+- Desktop `commands.rs`, `session/{mod,analysis_jobs,audio_editor}.rs`,
+  `session/tests/mod.rs`.
+- Frontend `lib/ipc/{backend,tauri,mock}.ts`, simulation EVERY_COMMAND table;
+  existing audio-editor mount and analysis action/panel modules.
+- Analysis adapter/job exports and Cargo dependency/lock edges. Dependencies
+  reuse existing workspace crates; no external dependency was introduced.
+
+## Risks to check in order
+
+1. Fresh TS exports/WASM first: optional non-Option IPC fields, recipe/Clip
+   references, new sample constructors and reversible command lowering.
+   Verify Rust/TS schema matches; generated artefacts are currently stale.
+2. Compile native Session methods and all test fixtures; inspect any borrow,
+   clippy size/warning or mounted React Compiler diagnostics before widening
+   checks. None were run by this worker.
+3. Execute independent frequency/SNR, neutral identity and 8 ms seam targets.
+   These numerical assertions may require correcting algorithms, not weakening
+   acceptance to fit observed output. Short interval spectral phases/formants,
+   dense note grids and transient smearing need listening.
+4. Tempo ramps, rounding at clip ends, trim offsets, frozen-source reopening
+   after tempo changes, one-step history and retained original samples.
+   Editor views bake per-clip gain/pan/fades; mixer processing and transport
+   de-click ramps are deliberately outside the analysis input.
+5. Peak memory and UI responsiveness at input bounds. Classical work is
+   serialized by the editor worker and has Work/deadline checkpoints, but its
+   f64 denoise accumulators and prepared buffers are not charged to the M1
+   JobManager quota. New allocations can be several multiples of the 64 MiB
+   buffer limit; RSS has not been measured.
+6. Model-backed jobs retain stricter 16 MiB source/view, 32 MiB combined output,
+   64 MiB model and exact sample-rate/channel contracts. A full long song or
+   real Demucs pack needs audited tiling/resampling/cap adjustments. Registries
+   are process-volatile; explicitly reimport manifests after restart.
+7. Installed-model quality and redistribution remain external. Deterministic
+   test outputs prove cancellation/checksum/staleness/review/layout only,
+   never separation, dereverb or neural transcription.
