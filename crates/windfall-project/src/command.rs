@@ -445,6 +445,15 @@ pub enum Command {
         #[ts(optional)]
         expected: Option<crate::ExpressionMap>,
     },
+    /// Applies generated notes against the complete reviewed pattern. The
+    /// captured notes, curves, events and meter must still match atomically.
+    InsertReviewedNotes {
+        expected: crate::Pattern,
+        channel: ChannelId,
+        notes: Vec<NoteInit>,
+        remove: Vec<NoteId>,
+        extend: bool,
+    },
     /// Moves every listed channel to a named group in one undo entry.
     /// An empty group name means ungrouped. All channel ids are checked
     /// before any membership changes; repeated ids are ignored.
