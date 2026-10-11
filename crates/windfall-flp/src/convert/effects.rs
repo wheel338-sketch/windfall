@@ -624,7 +624,9 @@ fn delay_1(numbers: Numbers<'_>, tempo_bpm: f64) -> Translated {
     }
     match numbers.get(6) {
         Some(2) => params.mode = DelayMode::PingPong,
-        Some(1) => notes.push(INVERTED),
+        // The older delay's second mode swaps the sides of every echo,
+        // which is what the inverted mode here does.
+        Some(1) => params.mode = DelayMode::Inverted,
         _ => {}
     }
     Translated {
@@ -1140,6 +1142,17 @@ mod tests {
         assert_eq!(params.mode, DelayMode::Stereo);
         assert!(translated.notes.contains(&FREE_TIME));
         assert!(translated.notes.contains(&INVERTED));
+    }
+
+    #[test]
+    fn the_older_delay_keeps_its_inverted_stereo_mode() {
+        let translated = translate("Fruity Delay", &state(&[1, 1_024, 512, 0, 0, 4, 1]), 120.0)
+            .expect("a delay");
+        let EffectParams::Delay(params) = translated.params else {
+            panic!("not a delay");
+        };
+        assert_eq!(params.mode, DelayMode::Inverted);
+        assert!(!translated.notes.contains(&INVERTED));
     }
 
     #[test]
