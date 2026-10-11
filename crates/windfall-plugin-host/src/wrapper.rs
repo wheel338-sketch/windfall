@@ -47,10 +47,7 @@ impl WrapperOptions {
         Ok(())
     }
 }
-const CAPACITY: usize = crate::processor::EVENT_CAPACITY
-    + crate::processor::IMMEDIATE_RELEASE_CAPACITY
-    + 5 * crate::MAX_NOTE_INSTANCES
-    + 16 * 128;
+const CAPACITY: usize = crate::processor::BLOCK_EVENT_CAPACITY;
 struct Fixed {
     input: [Box<[f32]>; 2],
     output: [Box<[f32]>; 2],
@@ -402,7 +399,8 @@ mod tests {
                 0,
                 &mut |_| {},
             )
-            .ok().expect("probe processing should succeed");
+            .ok()
+            .expect("probe processing should succeed");
             ol
         };
         run(0.0, &[]);

@@ -245,3 +245,20 @@ npm run typecheck; npm run lint. These commands have not been run by the worker.
 Check generated optional fixedBuffer shape, Base UI numeric Select/ToggleGroup
 types and mounted async/history behavior first. This closes the controls software
 gap; threaded owner processing and fresh native acceptance remain open.
+
+## VST3 numeric expression boundary follow-up
+
+Source review found Events::addEvent rejected numeric expression type 4 even
+though VstProcessor advertised and produced it. The fixed SDK list now accepts
+the pointer-free numeric payload, checks its finite normalized value and identity,
+and counts host-side refusals. Text/SysEx pointer payloads remain refused.
+Unified prepared input/recovery capacity and enlarged VST3 note/parameter storage
+for recovery plus fixed-block collection; native output flood now exceeds the
+new bounded storage. Capacity is reserved off audio. This is a concrete correction,
+not a claim of external plugin acceptance.
+
+Test written, not executed: vst3::buffers::tests::
+numeric_expressions_survive_the_sdk_list_and_refusal_counts_as_a_drop.
+Integrator: rebuild fixture, run host lib, vst3_host, bridge and realtime suites.
+Check SDK union field types and increased per-instance allocation first; the native
+expression fixture and measured helper case follow in the next file group.

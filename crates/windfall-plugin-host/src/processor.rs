@@ -36,6 +36,11 @@ pub const EVENT_CAPACITY: usize = 1024;
 pub(crate) const IMMEDIATE_RELEASE_CAPACITY: usize =
     16 * 128 + 2 * crate::events::MAX_NOTE_INSTANCES + 1;
 
+pub(crate) const RECOVERY_EVENT_CAPACITY: usize = 5 * crate::MAX_NOTE_INSTANCES + 16 * 128;
+/// Maximum input a prepared policy can collect for one native block.
+pub(crate) const BLOCK_EVENT_CAPACITY: usize =
+    EVENT_CAPACITY + IMMEDIATE_RELEASE_CAPACITY + RECOVERY_EVENT_CAPACITY;
+
 /// A tail length that stands for "never ends".
 pub(crate) const ENDLESS_TAIL: u32 = u32::MAX;
 
@@ -246,12 +251,7 @@ impl PluginProcessor {
             sample_rate: parts.sample_rate,
             max_block,
             recovery_events: 0,
-            pending: Vec::with_capacity(
-                EVENT_CAPACITY
-                    + IMMEDIATE_RELEASE_CAPACITY
-                    + 5 * crate::MAX_NOTE_INSTANCES
-                    + 16 * 128,
-            ),
+            pending: Vec::with_capacity(BLOCK_EVENT_CAPACITY),
             from_main: parts.from_main,
             to_main: parts.to_main,
             transport: Transport::default(),
@@ -325,7 +325,7 @@ impl PluginProcessor {
 
     /// Owner-side recovery replay after reset; bounded separately from timed admission.
     pub(crate) fn push_recovery_event(&mut self, event: HostEvent) -> bool {
-        if !event.valid() || self.pending.len() >= 5 * crate::MAX_NOTE_INSTANCES + 16 * 128 + 1 {
+        if !event.valid() || self.recovery_events >= RECOVERY_EVENT_CAPACITY {
             return false;
         }
         self.pending.push(event);
