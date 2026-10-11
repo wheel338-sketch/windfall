@@ -52,6 +52,9 @@ pub struct Processor {
     count_in: Option<crate::metronome::CountIn>,
     input_monitors: Box<[Box<crate::recording_monitor::MonitorReader>]>,
     disk_taps: Box<[crate::recording_disk::DiskWriter]>,
+    /// The audio logger's end of its queues. `None` while nothing is logged,
+    /// and always in an offline render.
+    audio_logger: Option<Box<crate::audio_logger::LoggerTap>>,
     hardware_output: Option<crate::hardware_output::HardwareOutput>,
     /// Gain applied after the master track and its meter.
     output_gain: Ramp,
@@ -120,6 +123,7 @@ impl Processor {
             count_in: None,
             input_monitors: Vec::new().into_boxed_slice(),
             disk_taps: Vec::new().into_boxed_slice(),
+            audio_logger: None,
             hardware_output: None,
             output_gain: Ramp::at_rest(output_gain),
             fades: Fades::at(sample_rate),
@@ -409,6 +413,7 @@ impl Processor {
             | Message::StopPreview
             | Message::SetInputMonitors(_)
             | Message::SetDiskTaps(_)
+            | Message::SetAudioLogger(_)
             | Message::SetOutputGain(_) => false,
         };
         if lets_go {
@@ -595,6 +600,11 @@ impl Processor {
             Message::SetDiskTaps(taps) => {
                 let old = std::mem::replace(&mut self.disk_taps, taps);
                 retire(&mut self.garbage, Garbage::DiskTaps(old));
+            }
+            Message::SetAudioLogger(tap) => {
+                if let Some(old) = std::mem::replace(&mut self.audio_logger, tap) {
+                    retire(&mut self.garbage, Garbage::AudioLogger(old));
+                }
             }
         }
         // Whatever moved the playhead moved the clock under the notes that
@@ -1187,6 +1197,7 @@ impl Processor {
             base,
             out,
             &mut self.disk_taps,
+            &mut self.audio_logger,
         );
         if let Some(taps) = &mut self.taps {
             taps.collect(&mut self.mixer, frames);
@@ -1195,6 +1206,9 @@ impl Processor {
             .publish_waveforms(&self.plan, &self.shared, base, self.sample_rate, out);
         self.metronome.mix(out);
         self.finish_output(base, out);
+        if let Some(logger) = &mut self.audio_logger {
+            logger.master(out);
+        }
         if let Some(spectrum) = &mut self.spectrum {
             spectrum.publish(
                 out,

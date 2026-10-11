@@ -12,6 +12,7 @@ mod archive;
 mod audio_editor;
 mod beat;
 mod clip_recording;
+mod device_acceptance;
 mod document;
 mod effects;
 mod export;
@@ -39,6 +40,7 @@ mod slicer;
 mod song;
 mod timeline;
 mod versions;
+mod audio_logger;
 
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};

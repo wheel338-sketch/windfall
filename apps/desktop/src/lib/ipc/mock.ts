@@ -1,4 +1,5 @@
 import { unavailableAnalysis } from "@/features/analysis/unavailable"
+import { NATIVE_ONLY, unavailableLogger } from "@/features/audio-logger/types"
 import type {
   FlpImportPreview,
   ImportReport,
@@ -987,6 +988,11 @@ export function createMockBackend(options: MockOptions = {}): MockBackend {
 
     engineStatus: () => ipc(() => currentEngine()),
     processMemory: async () => null,
+    // The browser preview keeps no audio history. It says so; it never
+    // pretends to log or to add a clip.
+    audioLoggerState: async () => unavailableLogger(),
+    audioLoggerConfigure: () => Promise.reject(new Error(NATIVE_ONLY)),
+    audioLoggerDump: () => Promise.reject(new Error(NATIVE_ONLY)),
     recordingInputs: async () => [],
     inputMonitorState: async () => ({ active: false, sampleRate: 0, tracks: [], error: null }),
     inputMonitorStop: async () => ({ active: false, sampleRate: 0, tracks: [], error: null }),

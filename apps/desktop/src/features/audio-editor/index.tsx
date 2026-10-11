@@ -20,11 +20,13 @@ import {
 } from "@/lib/store/replaced"
 import { usePlaylistStore } from "@/features/playlist/store"
 import { validSelection, type Selection } from "./selection"
+import { EditTools } from "./tools-panel"
 import type { AudioEditOperation, AudioEditPreview } from "./types"
 import { Waveform } from "./waveform"
 
 const OPERATIONS: {
-  operation: AudioEditOperation
+  /** The edits without parameters, which travel as their name. */
+  operation: Extract<AudioEditOperation, string>
   label: string
   help: string
 }[] = [
@@ -382,10 +384,18 @@ function Editor({
               </Button>
             ))}
           </div>
+          <EditTools
+            preview={preview}
+            selection={selection}
+            disabled={!valid || busy}
+            onApply={(operation) => void apply(operation)}
+          />
           <p className="text-muted-foreground">
             Edits include the clip’s offset, reverse, pitch/stretch, gain, pan
             and fades. Mixer effects are excluded. Trim preserves the selected
             timeline position; extract places a new clip after the original.
+            Cleaning and processing change only the selection; stretching,
+            trimming silence and inserting silence move the audio after it.
             Maximum two minutes / 64 MiB per buffer.
           </p>
         </>

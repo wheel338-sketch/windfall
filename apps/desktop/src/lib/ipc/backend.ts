@@ -106,6 +106,15 @@ export interface Backend extends AnalysisBackend, MixerPresetLibraryBackend {
   ): Promise<import("@/features/slicer/types").SliceReview>
   sliceApply(token: number, markers: number[]): Promise<DispatchResult>
   sliceDiscard(token: number): Promise<void>
+  audioLoggerState(): Promise<
+    import("@/features/audio-logger/types").AudioLoggerState
+  >
+  audioLoggerConfigure(
+    settings: import("@/features/audio-logger/types").AudioLoggerSettings
+  ): Promise<import("@/features/audio-logger/types").AudioLoggerState>
+  audioLoggerDump(
+    request: import("@/features/audio-logger/types").AudioLoggerDumpRequest
+  ): Promise<DispatchResult>
   recordingInputs(): Promise<import("@/bindings").RecordingInput[]>
   inputMonitorStart(): Promise<import("@/bindings").InputMonitorState>
   inputMonitorStop(): Promise<import("@/bindings").InputMonitorState>

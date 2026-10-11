@@ -28,6 +28,8 @@ pub struct Settings {
     pub browser_roots: Vec<String>,
     /// Project files, most recently used first.
     pub recent_projects: Vec<String>,
+    /// What the audio logger keeps in the background.
+    pub audio_logger: windfall_ipc::AudioLoggerSettings,
 }
 
 /// The settings and the file they are kept in.

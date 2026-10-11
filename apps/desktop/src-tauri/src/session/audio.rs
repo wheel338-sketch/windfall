@@ -104,6 +104,7 @@ impl Session {
             .update(|stored| stored.audio = settings.clone());
         let open = openable(&settings, || self.inner.audio.devices());
         self.inner.audio.reconfigure(&open);
+        self.audio_logger_reconfigured();
         // The device adapter attached the current ready plan off State. Cache
         // notifications queued during reopening use their own checked worker.
         {

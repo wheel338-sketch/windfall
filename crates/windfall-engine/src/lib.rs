@@ -182,6 +182,10 @@ static ALLOCATOR: test_alloc::CountingAllocator = test_alloc::CountingAllocator;
 pub mod audio_edit;
 /// Bounded native audio input capture.
 pub mod recording;
+/// Capture endpoints and render-endpoint loopback inputs.
+pub mod recording_endpoint;
+/// Bounded background history of the output and of chosen mixer tracks.
+pub mod audio_logger;
 
 #[cfg(test)]
 mod qa_recording_mixer;
