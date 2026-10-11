@@ -29,7 +29,8 @@ memory, frames dropped, and any error.
 **Add to playlist** takes the last 10, 30, 60 or 120 seconds of a source, or
 everything it holds, writes a Float32 WAV into the app's recordings folder on
 a worker thread, and adds it as an ordinary audio clip at the playhead on a
-new playlist track. It is one undo step; undo and redo behave as for any
+new playlist track, and selects it, so the clip inspector's **Audio editor**
+opens it directly. It is one undo step; undo and redo behave as for any
 imported clip, and Save copies the sample through the normal sample pipeline.
 The native call can also place the clip at a chosen tick and on an existing
 playlist track. The logger keeps running while a history is added.
@@ -135,6 +136,8 @@ and are registered:
 - `apps/desktop/src/features/audio-logger/logger.test.tsx`: formatting, the
   browser message, opening from the command registry, settings requests, dump
   requests, native errors, an empty history.
+- `apps/desktop/src/features/audio-logger/tauri.test.ts`: the three commands
+  are invoked under their names with `settings` and `request` arguments.
 
 No real-device run exists. To exercise the logger on a real output, build a
 session on a real `Engine` as `device_acceptance.rs` does, call

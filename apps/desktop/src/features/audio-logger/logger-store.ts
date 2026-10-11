@@ -3,6 +3,7 @@ import { toast } from "sonner"
 import type { RecordingInput } from "@/bindings"
 import { backend, errorMessage } from "@/lib/ipc"
 import { receivePatch } from "@/lib/store/project"
+import { usePlaylistStore } from "@/features/playlist/store"
 import type {
   AudioLoggerSettings,
   AudioLoggerSource,
@@ -82,6 +83,10 @@ export function dumpAudioLogger(source: AudioLoggerSource) {
       track: null,
     })
     receivePatch(result.patch)
+    // The clip is created last. Selecting it puts it in the clip inspector,
+    // where the audio editor opens it.
+    const clip = result.created.at(-1)
+    if (clip !== undefined) usePlaylistStore.getState().select([clip])
     toast.success("Logged audio added to playlist")
     await refreshAudioLogger()
   })
