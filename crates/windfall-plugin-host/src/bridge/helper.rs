@@ -523,7 +523,29 @@ fn run(address: SocketAddr) -> io::Result<()> {
         .and_then(|name| name.to_str())
         == Some("windfall-plugin-audio-backpressure")
     {
-        std::thread::sleep(Duration::from_millis(500));
+        // Tell the private fixture test when authenticated Load bytes arrive.
+        // Cancellation must exercise a blocked writer, not process scheduling.
+        let mut byte = [0];
+        loop {
+            match socket.peek(&mut byte) {
+                Ok(0) => return Err(error("backpressure fixture disconnected")),
+                Ok(_) => break,
+                Err(error) if error.kind() == io::ErrorKind::WouldBlock => {}
+                Err(error) => return Err(error),
+            }
+            if Instant::now() >= deadline {
+                return Err(error("backpressure fixture never received Load"));
+            }
+            std::thread::sleep(Duration::from_millis(1));
+        }
+        std::fs::write(
+            std::env::temp_dir().join(format!(
+                "windfall-backpressure-{:016x}.ready",
+                bootstrap.session
+            )),
+            [],
+        )?;
+        std::thread::sleep(Duration::from_secs(3));
     }
     let load = loop {
         if Instant::now() >= deadline {

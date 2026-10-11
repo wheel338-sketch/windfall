@@ -1320,65 +1320,100 @@ fn unsupported_startup_budget_is_rejected_before_paths_or_mapping_resources() {
 #[test]
 fn backpressured_startup_cancellation_and_deadline_reclaim_the_mapping() {
     for cancel in [false, true] {
-        let host = PluginHost::windfall();
-        let module = host.load(&fixture("clap")).unwrap();
-        let mut state = module
-            .create(common::GAIN)
-            .unwrap()
-            .save_state()
-            .unwrap()
-            .into_bytes();
-        state.resize(16 << 20, 0);
-        let mut settings = options(
-            "clap",
-            common::GAIN,
-            Kind::Effect,
-            vec![gain("clap")],
-            Duration::from_secs(2),
-        );
-        settings.helper = PathBuf::from(env!("CARGO_BIN_EXE_windfall-plugin-audio-backpressure"));
-        settings.state = state;
-        settings.startup_timeout = if cancel {
-            Duration::from_secs(5)
-        } else {
-            Duration::from_millis(100)
-        };
-        let flag = Arc::new(std::sync::atomic::AtomicBool::new(false));
-        settings.cancelled = Some(flag.clone());
-        let mapping = format!(
-            "Local\\Windfall-Audio-{:016x}-{:016x}",
-            settings.config.identity.session, settings.config.identity.token
-        );
-        let canceller = cancel.then(|| {
-            std::thread::spawn(move || {
-                std::thread::sleep(Duration::from_millis(100));
-                flag.store(true, Ordering::Release);
-            })
-        });
-        let started = Instant::now();
-        let error = match supervisor::launch(settings) {
-            Ok(_) => panic!("partial cancelled/expired Load was accepted"),
-            Err(error) => error,
-        };
-        if let Some(canceller) = canceller {
-            canceller.join().unwrap();
-        }
-        assert!(
-            started.elapsed() < Duration::from_secs(2),
-            "startup bound: {error}"
-        );
-        assert!(
-            error.contains(if cancel {
-                "startup cancelled"
+        let patience = Instant::now() + Duration::from_secs(15);
+        loop {
+            let host = PluginHost::windfall();
+            let module = host.load(&fixture("clap")).unwrap();
+            let mut state = module
+                .create(common::GAIN)
+                .unwrap()
+                .save_state()
+                .unwrap()
+                .into_bytes();
+            state.resize(16 << 20, 0);
+            let mut settings = options(
+                "clap",
+                common::GAIN,
+                Kind::Effect,
+                vec![gain("clap")],
+                Duration::from_secs(2),
+            );
+            settings.helper =
+                PathBuf::from(env!("CARGO_BIN_EXE_windfall-plugin-audio-backpressure"));
+            settings.state = state;
+            settings.startup_timeout = if cancel {
+                Duration::from_secs(5)
             } else {
-                "startup deadline"
-            }),
-            "{error}"
-        );
-        assert!(
-            windfall_plugin_host::bridge::mapping::Mapping::open(&mapping).is_err(),
-            "failed launch retained its map"
-        );
+                // Includes spawning and authenticating under the suite's load.
+                // The private helper holds Load unread for three seconds.
+                Duration::from_secs(1)
+            };
+            let flag = Arc::new(std::sync::atomic::AtomicBool::new(false));
+            settings.cancelled = Some(flag.clone());
+            let mapping = format!(
+                "Local\\Windfall-Audio-{:016x}-{:016x}",
+                settings.config.identity.session, settings.config.identity.token
+            );
+            let ready = std::env::temp_dir().join(format!(
+                "windfall-backpressure-{:016x}.ready",
+                settings.config.identity.session
+            ));
+            let finished = Arc::new(std::sync::atomic::AtomicBool::new(false));
+            let done = finished.clone();
+            let waiting = ready.clone();
+            let canceller = cancel.then(|| {
+                std::thread::spawn(move || {
+                    while !waiting.is_file() {
+                        if done.load(Ordering::Acquire) {
+                            return;
+                        }
+                        std::thread::sleep(Duration::from_millis(1));
+                    }
+                    std::thread::sleep(Duration::from_millis(100));
+                    flag.store(true, Ordering::Release);
+                })
+            });
+            let started = Instant::now();
+            let error = match supervisor::launch(settings) {
+                Ok(_) => panic!("partial cancelled/expired Load was accepted"),
+                Err(error) => error,
+            };
+            finished.store(true, Ordering::Release);
+            if let Some(canceller) = canceller {
+                canceller.join().unwrap();
+            }
+            let reached_load = ready.is_file();
+            if reached_load {
+                std::fs::remove_file(&ready).unwrap();
+            }
+            assert!(
+                windfall_plugin_host::bridge::mapping::Mapping::open(&mapping).is_err(),
+                "failed launch retained its map"
+            );
+            if !reached_load {
+                // A slow spawn/authentication is not the condition under test.
+                // Retry with a fresh identity, but never accept an untested Load.
+                assert!(
+                    Instant::now() < patience,
+                    "helper never reached Load: {error}"
+                );
+                assert!(error.contains("timed out"), "{error}");
+                continue;
+            }
+            assert!(
+                started.elapsed() < Duration::from_secs(if cancel { 6 } else { 2 }),
+                "startup bound: {error}"
+            );
+            assert!(
+                error.contains(if cancel {
+                    "startup cancelled"
+                } else {
+                    "startup deadline"
+                }),
+                "{error}"
+            );
+            break;
+        }
     }
 }
 
