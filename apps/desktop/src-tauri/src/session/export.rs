@@ -291,7 +291,7 @@ impl Session {
             return Err("Render the pattern at least once.".to_owned());
         }
         if let Some(asked) = &options.mastering {
-            mastering::check(asked, options.stems.is_some())?;
+            mastering::check(asked, options.stems.is_some() || playlist.is_some())?;
         }
 
         // All three under one lock, so the pattern is one of this project's

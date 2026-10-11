@@ -287,6 +287,27 @@ describe("mastering in the export dialog", () => {
     })
   })
 
+  it("preserves playlist-track export while refusing mastering of separate playlist stems", async () => {
+    const user = userEvent.setup()
+    const exported = vi.spyOn(backend, "exportAudio").mockResolvedValue(undefined)
+    const playlist = vi.spyOn(backend, "exportPlaylistTracks").mockResolvedValue(undefined)
+    await user.click(screen.getByRole("button", { name: "Choose…" }))
+    await user.click(screen.getByRole("checkbox", { name: "Export each playlist track to its own file" }))
+    await user.click(master())
+    expect(screen.getByText(NOT_WITH_STEMS)).toHaveAttribute("role", "alert")
+    await user.click(screen.getByRole("button", { name: "Export" }))
+    await settle()
+    expect(exported).not.toHaveBeenCalled()
+    expect(playlist).not.toHaveBeenCalled()
+    await user.click(master())
+    await user.click(screen.getByRole("button", { name: "Export" }))
+    await settle()
+    expect(playlist).toHaveBeenCalledOnce()
+    expect(playlist.mock.calls[0][0].mastering).toBeUndefined()
+    expect(playlist.mock.calls[0][0].mode).toBe("song")
+    expect(exported).not.toHaveBeenCalled()
+  })
+
   it("keeps the dialog open on the review of a finished master", async () => {
     const user = userEvent.setup()
     const exported = vi.spyOn(backend, "exportAudio").mockResolvedValue(undefined)

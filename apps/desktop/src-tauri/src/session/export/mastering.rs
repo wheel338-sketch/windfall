@@ -6,7 +6,7 @@ use std::fs::{self, File, OpenOptions};
 use std::io::{Read, Seek, SeekFrom, Write};
 use std::path::{Path, PathBuf};
 
-use windfall_dsp::mastering::{LoudnessMetrics, Mastering, MasteringReport, MasteringSettings};
+use windfall_dsp::mastering::{LoudnessMetrics, Mastering, MasteringReport, MasteringSettings, MASTERING_TARGET_RANGE, MASTERING_CEILING_RANGE};
 use windfall_ipc::{LoudnessReading, MasteringOptions, MasteringReview};
 
 /// Bytes read back from the spool at a time: 8,192 stereo frames.
@@ -148,6 +148,12 @@ pub(super) fn check(options: &MasteringOptions, stems: bool) -> Result<(), Strin
     if numbers.iter().any(|value| !value.is_finite()) {
         return Err("The mastering target, ceiling and dynamics must be numbers.".to_owned());
     }
+    if !(MASTERING_TARGET_RANGE.0..=MASTERING_TARGET_RANGE.1).contains(&options.target_lufs)
+        || !(MASTERING_CEILING_RANGE.0..=MASTERING_CEILING_RANGE.1).contains(&options.ceiling_dbtp)
+        || !(0.0..=1.0).contains(&options.dynamics)
+    {
+        return Err("Choose a loudness from -30 to -6 LUFS, a ceiling from -9 to 0 dBTP and dynamics from 0 to 1.".to_owned());
+    }
     Ok(())
 }
 
@@ -282,4 +288,31 @@ mod tests {
         };
         assert!(check(&broken, false).unwrap_err().contains("numbers"));
     }
+
+    #[test]
+    fn cancelling_during_mastering_and_encoder_failure_remove_the_spooled_mix() {
+        let folder = tempfile::tempdir().unwrap();
+        let options = MasteringOptions { target_lufs: -18.0, ceiling_dbtp: -1.0, dynamics: 0.0 };
+        let input: Vec<f32> = (0..96_000).flat_map(|n| {
+            let x = (std::f32::consts::TAU * 1_000.0 * n as f32 / 48_000.0).sin() * 0.1;
+            [x,x]
+        }).collect();
+        for fail_encoder in [false, true] {
+            let stage = folder.path().join("export.stage");
+            let mut job = MasterJob::start(&stage, 48_000, &options).unwrap();
+            job.take(&input).unwrap();
+            assert!(stage.with_extension("master").is_file());
+            let mut written = 0;
+            let mut reports = 0;
+            let result = job.finish(&mut |block| {
+                written += block.len();
+                if fail_encoder { Err("test encoder failure".to_owned()) } else { Ok(()) }
+            }, &mut |_| { reports += 1; fail_encoder });
+            if fail_encoder { assert!(result.unwrap_err().contains("encoder failure")); }
+            else { assert!(result.unwrap().is_none()); assert_eq!(written, 0); assert_eq!(reports, 1); }
+            drop(job);
+            assert!(!stage.with_extension("master").exists());
+        }
+    }
+
 }

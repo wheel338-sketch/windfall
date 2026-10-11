@@ -840,3 +840,32 @@ fn simplified_two_stages_match_independent_saturation_and_linked_release_referen
     assert_eq!(effect.latency_samples(), 0);
     assert_eq!(effect.tail_samples(), 0);
 }
+
+
+#[test]
+fn local_mastering_passes_are_invariant_to_analysis_and_render_block_sizes() {
+    use windfall_dsp::mastering::Mastering;
+    let input = stereo(&programme(0.03, 2));
+    let settings = MasteringSettings { target_lufs: -18.0, ceiling_dbtp: -1.0, dynamics: 0.5 };
+    let render = |frames| {
+        let mut chain = Mastering::new(RATE, settings);
+        for block in input.chunks(frames*2) { chain.analyze(block); }
+        chain.begin().unwrap();
+        let mut block = Vec::new();
+        loop {
+            let keep = chain.is_render_pass();
+            let mut result = Vec::new();
+            for samples in input.chunks(frames*2) {
+                chain.process(samples, &mut block);
+                if keep { result.extend_from_slice(&block); }
+            }
+            let report = chain.finish_pass(&mut block);
+            if keep { result.extend_from_slice(&block); }
+            if let Some(report) = report { return (result,report); }
+        }
+    };
+    let expected = render(8_192);
+    assert_eq!(expected.0.len(), input.len());
+    assert_eq!(expected, render(137));
+    assert_eq!(expected, render(1));
+}

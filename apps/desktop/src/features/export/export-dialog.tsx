@@ -146,7 +146,7 @@ function ExportForm({ onDone }: { onDone(): void }) {
     : draft.stems?.tracks?.some((id) => !exportTracks.some((track) => track.id === id && !track.current))
       ? "An export track was removed. Choose the remaining mixer tracks again."
       : null
-  const mastering = masteringRequest(master, draft.stems !== undefined)
+  const mastering = masteringRequest(master, draft.stems !== undefined || playlistStems !== undefined)
   const playlistError = !playlistStems
     ? null
     : draft.mode !== "song"

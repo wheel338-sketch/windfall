@@ -180,3 +180,24 @@ fn mastering_that_cannot_work_is_refused_or_fails_without_leaving_a_file() {
         .unwrap();
     assert_eq!(rig.events.wait_for_export().error, None);
 }
+
+
+#[test]
+fn playlist_stems_and_out_of_range_mastering_are_refused_before_starting_a_job() {
+    let rig = Rig::new();
+    let before = rig.project();
+    let mut asked = options(&rig, "playlist.wav", Some(ASKED));
+    asked.mode = PlayMode::Song;
+    let error = rig.session.export_playlist_tracks(asked, windfall_ipc::ExportPlaylistStems {
+        tracks: None, include_mix: true, numbered: false, folder: false,
+    }).unwrap_err();
+    assert!(error.contains("stems"), "{error}");
+    for invalid in [MasteringOptions { target_lufs: -3.0, ..ASKED },
+        MasteringOptions { ceiling_dbtp: 1.0, ..ASKED }, MasteringOptions { dynamics: 2.0, ..ASKED }] {
+        assert!(rig.session.export_audio(options(&rig, "invalid.wav", Some(invalid))).unwrap_err().contains("Choose a loudness"));
+    }
+    assert_eq!(rig.project(), before);
+    assert!(rig.events.take().iter().all(|event| !matches!(event, Event::ExportProgress(_))));
+    assert!(!Path::new(&rig.file("playlist.wav")).exists());
+    assert!(leftovers(&rig).is_empty());
+}

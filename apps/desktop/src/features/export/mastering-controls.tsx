@@ -65,6 +65,13 @@ export function MasteringControls({
           </FieldLabel>
         </Field>
         {value.enabled && (
+          <FieldDescription>
+            Targets and review measure the stereo master before encoding.
+            WAV float preserves those samples; lossy encoding or mono conversion
+            can change the final levels.
+          </FieldDescription>
+        )}
+        {value.enabled && (
           <>
             <FieldDescription>
               The mix is measured, evened out and limited on this computer,

@@ -173,3 +173,34 @@ cover all four saved routing masks, real recombination, a disconnected ordinary
 source output, independently muted Attack destination, Sustain-listen reference,
 disabled-slot auxiliary silence, native automation, partitions and allocation
 guards. This closes the previously missing split-frame-to-mixer seam in software.
+
+
+### `wf-cloud-mastering` — full-row candidate for local stereo mastering
+
+The previous worker committed actual K-weighted gated LUFS/true-peak analysis,
+reference normalization, independent three-band dynamics, iterative peak/loudness
+correction, fixed-latency removal, streamed temporary spool and export encoder
+integration, with target/dynamics controls and measured before/after review.
+No cloud provider, service or renamed limiter preset is used.
+Continuation repairs the merge boundary: both UI and native admission refuse
+mastering together with mixer OR playlist stems; playlist-track export otherwise
+remains intact. Native admission now rejects finite out-of-range targets,
+ceilings and dynamics instead of silently sanitizing a caller's request.
+
+Written, not executed:
+- `local_mastering_passes_are_invariant_to_analysis_and_render_block_sizes`:
+  complete analysis/trial/final passes at 1/137/8192 frames, identical output and report.
+- `cancelling_during_mastering_and_encoder_failure_remove_the_spooled_mix`:
+  cancellation in the mastering phase and failed encoder, with spool cleanup.
+- `playlist_stems_and_out_of_range_mastering_are_refused_before_starting_a_job`:
+  real Session admission, unchanged project, no job/progress/output/spool.
+- Mounted `preserves playlist-track export while refusing mastering of separate playlist stems`.
+- Existing `mastering_qa` decodes the actual float WAV, compares its loudness/peak
+  to the review, tests reproducible export, silent failure and session recovery;
+  DSP calibration/gates/range/target/unreachable-target tests and mounted review
+  cases are retained.
+
+Review measures stereo PCM before encoding. The form now explicitly says WAV
+float preserves those samples while lossy encoding or mono conversion may change
+final levels. Exact decoded lossy/mono loudness matching is not claimed. Integrator
+must check codec-output requirements before extending that promise.
