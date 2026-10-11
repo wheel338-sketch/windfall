@@ -2,6 +2,8 @@
 
 ## Running progress
 
+- Final repaired tree: rustfmt and strict workspace Clippy exit 0 with zero warnings (`round2-fmt-final.log`, `round2-clippy-final.log`); rebuilt simulator records current seven-crate provenance and 4,980,098 bytes (`round2-sim-final.log`). Acceptance review keeps Echo Bank/Frequency Delay open for the DELAY-FAMILY shared installed/retiring-owner retained/peak admission gate, despite passing candidate-plan refusal tests. Starting the second complete native gate after its two failures were verified fixed; initial result is preserved separately.
+
 - Every-effect rapid edit/reset/tempo allocator stress passes 1/0/0 (`target/round2-all-effects-stress-final.log`), including the previously failing shortened-loop release. No allocation/free assertion was weakened. Final formatting/Clippy and artifact provenance are being refreshed before the justified complete-suite rerun.
 
 - Full DSP library after final-native repairs passes 623/0/0 (`target/round2-dsp-full-repair.log`). New exact-phase regression first reproduced the overflow, then passed after loop synchronization also normalized the trigger offset. Registry test now compares the precise legacy edit-mask bit while preserving full scalar/state equality. All original descriptor/choice/kind prefixes pass the repeated static audit; allocation stress and complete native rerun are next.
