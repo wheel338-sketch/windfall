@@ -1,5 +1,14 @@
 # Playlist clip slicer foundation
 
+The playable instrument extension is documented in
+[the current sample-instrument seam](integration/seams/granular.md). Slice Map and
+Slice Deck select original imported sources, detect transients/beat grid, edit
+regions and generate key-mapped notes from the instrument panel. Slice Deck adds
+per-slice controls and source B; Grain Cloud and Wave Ride share the immutable
+source path with independent scheduling/curve DSP. Their written, unexecuted
+acceptance gates are in [the worker hand-off](qa/2026-10-11-slices-grains.md).
+Playlist verification below does not establish acceptance of these new paths.
+
 Select one audio clip in the playlist. In its audio settings strip, choose **Slice clip**. Choose a song-aligned beat grid (sixteenth, eighth, quarter, half, or four quarter notes), or **Transients** with a sensitivity from 0 to 100%. Press **Analyze markers**, inspect the waveform and cut list, disable unwanted markers, then press **Apply slices**. Changing the detector settings requires another analysis. Analysis and marker review do not edit the project.
 
 Apply replaces the selected clip with adjacent, positive-length clips using the same sample asset and file. Each slice keeps the playlist track, mixer routing, gain, pan, mute, reverse, and tape pitch. Its start and source offset advance by the same number of ticks, so a trimmed or reversed clip keeps its musical placement and playback direction. Slices remain independently selectable/editable ordinary playlist clips. **Slice audio clip** is one undo step; redo restores the same slice IDs. Save/reopen needs no new format or rendered files. The original audio file is never written.

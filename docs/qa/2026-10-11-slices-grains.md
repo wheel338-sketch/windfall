@@ -104,3 +104,14 @@ asset format only carries one sampler source. Project save and channel duplicati
 retain the complete asset. Portable sample-instrument channel presets remain a
 separate format-extension limitation; plugin presets carry scalar controls only.
 The integrator must also run `cargo test -p windfall-engine --test engine sample_playback`.
+
+## Restart checkpoint after editor bounds
+
+`78398483` makes MIDI-key overflow visible and prevents invalid/empty-target pattern
+requests. Current seam documentation now describes immutable original-source assets
+rather than the obsolete Copy PCM tables. The own-content example uses existing
+Windfall CC0 factory audio and authored slice/grain/curve settings in
+`content/examples/Slice and Grain Study/README.md`. No generated factory files were
+changed. A combined shell edit proposing a new example WAV was blocked by automatic
+approval review (only reason supplied: blocked by policy); text-only existing-content
+examples were used instead. No asset generator, build or test was executed.
