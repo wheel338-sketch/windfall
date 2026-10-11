@@ -1,4 +1,4 @@
-import type { EffectParams, OverdriveParams, WaveshaperParams } from "@/bindings"
+import type { EffectParams, GuitarRackParams, OverdriveParams, WaveshaperParams } from "@/bindings"
 import type { CurvePoint } from "@/bindings/CurvePoint"
 import { ParamControl, ParamRow } from "@/features/params"
 import { dispatch, useProjectStore } from "@/lib/store"
@@ -25,5 +25,19 @@ export function WaveshaperEditor({ effect, track, params, bind }: EditorProps<Wa
   return <div role="group" aria-label="Waveshaper settings" className="flex flex-col gap-2">
     <CurveEditor key={effect} label="Transfer curve" points={params.shape} fallback={fallback} onCommit={(shape) => commitAsset(effect, track, "waveshaper", "shape", shape)} />
     <ParamRow columns={5}>{["inputDb", "outputDb", "oversampling", "mix", "bipolar"].map((id) => <ParamControl key={id} {...bind(id)} />)}</ParamRow>
+  </div>
+}
+
+const PEDALS = ["Boost", "Overdrive", "Fuzz", "Octave", "Treble", "Scoop", "Wah", "Compressor", "Gate", "Spring", "Cabinet"]
+export function GuitarRackEditor({ bind }: EditorProps<GuitarRackParams>) {
+  return <div role="group" aria-label="Guitar Rack settings" className="flex flex-col gap-2">
+    <ParamRow columns={5}>{["model", "driveDb", "outputDb", "cabinet", "oversampling"].map((id) => <ParamControl key={id} {...bind(id)} />)}</ParamRow>
+    <p className="text-xs text-muted-foreground">The legacy Pedal selection also enables that pedal. Choose Clean boost to use only the switches below. Signal: gate → compressor → wah → treble → boost → drive → fuzz → octave → scoop → spring → cabinet.</p>
+    <div className="grid grid-cols-[repeat(auto-fit,minmax(12rem,1fr))] gap-2">
+      {PEDALS.map((name, index) => <div key={name} role="group" aria-label={`${name} pedal`} className="flex flex-col gap-2 rounded border border-border p-2">
+        <ParamControl {...bind(`pedals.${index}.on`)} label={name} />
+        <ParamRow columns={2}><ParamControl {...bind(`pedals.${index}.amount`)} /><ParamControl {...bind(`pedals.${index}.tone`)} /></ParamRow>
+      </div>)}
+    </div>
   </div>
 }

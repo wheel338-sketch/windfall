@@ -134,7 +134,7 @@ struct Recipe {
 
 /// Taps a response has at `sample_rate`.
 pub fn cabinet_taps(sample_rate: f32) -> usize {
-    let rate = crate::balance::rate(sample_rate);
+    let rate = crate::balance::rate(sample_rate).max(3.0);
     ((RESPONSE_SECONDS * rate).round() as usize).clamp(16, MAX_CABINET_TAPS)
 }
 
@@ -142,7 +142,7 @@ pub fn cabinet_taps(sample_rate: f32) -> usize {
 /// values with unit energy. Allocates; the same arguments always give the
 /// same response.
 pub fn cabinet_response(cabinet: Cabinet, sample_rate: f32) -> Vec<f32> {
-    let rate = crate::balance::rate(sample_rate);
+    let rate = crate::balance::rate(sample_rate).max(3.0);
     let taps = cabinet_taps(rate);
     let recipe = cabinet.recipe();
     let sections = [
@@ -322,10 +322,15 @@ mod tests {
                 assert_eq!(response.len(), taps);
                 assert!(response.iter().all(|tap| tap.is_finite()));
                 let energy: f64 = response.iter().map(|tap| f64::from(*tap).powi(2)).sum();
-                assert!((energy - 1.0).abs() < 1.0e-4, "{cabinet:?} at {rate}: {energy}");
+                assert!(
+                    (energy - 1.0).abs() < 1.0e-4,
+                    "{cabinet:?} at {rate}: {energy}"
+                );
                 assert_eq!(response, cabinet_response(cabinet, rate));
                 // Faded out: the last tap is far below the largest.
-                let peak = response.iter().fold(0.0_f32, |peak, tap| peak.max(tap.abs()));
+                let peak = response
+                    .iter()
+                    .fold(0.0_f32, |peak, tap| peak.max(tap.abs()));
                 assert!(response[taps - 1].abs() < peak * 1.0e-2);
             }
         }
@@ -344,8 +349,14 @@ mod tests {
         for (cabinet, response) in Cabinet::ALL.iter().zip(&responses) {
             let mids = gain_db(response, 1_000.0, 48_000.0);
             // Treble is far down, and so is everything under the resonance.
-            assert!(gain_db(response, 12_000.0, 48_000.0) < mids - 24.0, "{cabinet:?} treble");
-            assert!(gain_db(response, 20.0, 48_000.0) < mids - 3.0, "{cabinet:?} sub bass");
+            assert!(
+                gain_db(response, 12_000.0, 48_000.0) < mids - 24.0,
+                "{cabinet:?} treble"
+            );
+            assert!(
+                gain_db(response, 20.0, 48_000.0) < mids - 3.0,
+                "{cabinet:?} sub bass"
+            );
         }
         // The bass cabinet reaches lower and stops sooner than the combo.
         let (combo, bass) = (&responses[0], &responses[3]);
@@ -364,7 +375,10 @@ mod tests {
                     .zip(&responses[b])
                     .map(|(x, y)| (x - y).powi(2))
                     .sum();
-                assert!(distance > 0.05, "cabinets {a} and {b} are alike: {distance}");
+                assert!(
+                    distance > 0.05,
+                    "cabinets {a} and {b} are alike: {distance}"
+                );
             }
         }
     }

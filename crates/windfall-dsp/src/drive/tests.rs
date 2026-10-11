@@ -153,12 +153,14 @@ fn spring_has_a_delayed_tail_and_cabinet_attenuates_treble() {
     let slap = render::<GuitarRack>(
         GuitarRackParams {
             model: GuitarModel::SpringSlap,
+            oversampling: Oversampling::Off,
             ..Default::default()
         },
         &impulse,
     );
-    assert!(slap[1..1_776].iter().all(|x| *x == 0.0));
-    assert!(slap[1_776..].iter().any(|x| x.abs() > 0.001));
+    assert!(slap[..DRIVE_LATENCY_SAMPLES].iter().all(|x| *x == 0.0));
+    assert!(slap[DRIVE_LATENCY_SAMPLES + 1..DRIVE_LATENCY_SAMPLES + 1_776].iter().all(|x| *x == 0.0));
+    assert!(slap[DRIVE_LATENCY_SAMPLES + 1_776..].iter().any(|x| x.abs() > 0.001));
     let high: Vec<_> = (0..8_192)
         .map(|n| 0.3 * (std::f32::consts::TAU * 12_000.0 * n as f32 / RATE).sin())
         .collect();
@@ -298,6 +300,7 @@ fn partition_invariance_including_automation_and_model_retargeting() {
                 model,
                 drive_db: 24.0,
                 output_db: -12.0,
+                ..Default::default()
             },
         );
     }
@@ -450,6 +453,7 @@ fn damaged_parameters_extreme_audio_and_sample_rates_never_produce_nan() {
             model,
             drive_db: f32::MAX,
             output_db: f32::MAX,
+            ..Default::default()
         });
     }
     for model in [

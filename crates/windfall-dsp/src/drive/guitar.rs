@@ -226,8 +226,7 @@ impl GuitarRackParams {
     /// Whether a pedal is in the signal: its own switch, or being the
     /// pedal `model` names. Clean boost is never forced on.
     pub fn pedal_on(&self, pedal: GuitarModel) -> bool {
-        self.pedals[pedal as usize].on
-            || (self.model == pedal && pedal != GuitarModel::CleanBoost)
+        self.pedals[pedal as usize].on || (self.model == pedal && pedal != GuitarModel::CleanBoost)
     }
 }
 
@@ -397,8 +396,10 @@ impl Channel {
     /// Takes the times that follow the knobs, and drops memory that has
     /// decayed below hearing. Called at the control rate.
     fn retime(&mut self, coeffs: &Coeffs, sample_rate: f32) {
-        self.gate_gain.set_times(2.0, coeffs.gate_release_ms, sample_rate);
-        self.compressor.set_times(2.0, coeffs.comp_release_ms, sample_rate);
+        self.gate_gain
+            .set_times(2.0, coeffs.gate_release_ms, sample_rate);
+        self.compressor
+            .set_times(2.0, coeffs.comp_release_ms, sample_rate);
         self.wah.flush();
         self.treble.flush();
         self.tilt.flush();
@@ -570,9 +571,8 @@ impl Effect for GuitarRack {
         self.slap = slap_taps(self.sample_rate);
         self.kernels = Some(Kernels::shared());
         self.bank = CabinetBank::new(self.sample_rate);
-        self.channels = std::array::from_fn(|_| {
-            Channel::new(self.sample_rate, self.slap[1], self.bank.taps())
-        });
+        self.channels =
+            std::array::from_fn(|_| Channel::new(self.sample_rate, self.slap[1], self.bank.taps()));
         self.controls.prepare(self.sample_rate);
         self.fade_samples = ms_to_samples(5.0, self.sample_rate);
         self.reset();

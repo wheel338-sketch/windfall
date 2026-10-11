@@ -157,3 +157,31 @@ completed in this stream, not treated as a passing integrated feature.
   cannot compile until checkpoint 2; verify regenerated TS curve field shape,
   jsdom pointer support, inherited shaping thresholds, and engine render
   sample-rate defaults. Asset store remains bounded and append-only.
+
+## Checkpoint 2 — Guitar Rack
+
+- Completed the inherited eleven-pedal DSP wiring: declared/exported cabinet
+  module and pedal types; reported constant 32-frame drive latency in the
+  effect registry and slot tests; repaired widened old test literals and
+  spring timing expectations. Cabinet response generation now handles even
+  pathological sub-3 Hz prepare rates without a filter clamp panic.
+- The eleven switches and two independent knobs per pedal are exposed in a
+  purpose-built pedalboard editor, with documented fixed signal order,
+  cabinet selection and oversampling. The old `model` remains a compatibility
+  pedal enable; select Clean boost for switch-only operation.
+- Four own cabinet IR recipes are generated in `drive/cabinet.rs` at prepare,
+  never on process/set/reset. Provenance is fully documented there: synthetic
+  filter excitation, baffle reflections and deterministic noise; no recorded
+  or proprietary IR. Max 1,024 taps per cabinet, four banks per processor.
+- Full-row candidate only after integrator checks. Tests **written, not
+  executed**: `drive/guitar_rack_tests.rs` series-rack/control independence,
+  block invariance, legacy/index/persistence and memory/headroom cases;
+  inherited cabinet tests direct FIR reference, deterministic unit energy,
+  response distinction and treble rejection are now registered and reachable.
+- Integrator: `cargo test -p windfall-dsp --lib drive`,
+  `cargo test -p windfall-dsp --test dsp`, plus checkpoint 1 commands.
+  Regenerate PedalParams, Cabinet and widened GuitarRackParams.
+- Risk order: inherited octave harmonic/gate/compressor numerical tests now
+  run against the expanded pedalboard; cabinet response thresholds; direct
+  1,024-tap FIR CPU at high rates (no performance measurement was executed).
+  Existing callback guards will exercise prepared cabinet processing.
