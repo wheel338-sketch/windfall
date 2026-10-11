@@ -1094,6 +1094,8 @@ pub fn handler() -> impl Fn(Invoke) -> bool + Send + Sync + 'static {
         crate::files_commands::plugins_rescan,
         crate::files_commands::score_capture,
         crate::files_commands::score_apply,
+        crate::files_commands::preset_apply_plugin,
+        crate::files_commands::plugins_insert,
     ]
 }
 

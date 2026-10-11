@@ -510,3 +510,5 @@ impl Session {
 }
 
 mod sample_playback;
+
+mod file_edits;

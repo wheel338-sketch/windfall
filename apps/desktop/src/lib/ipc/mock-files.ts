@@ -8,6 +8,7 @@ export function mockNativeFiles(): Omit<ProjectFilesBackend, "scoreCapture" | "s
   const unavailable = async (): Promise<never> => { throw new Error(FILES_NATIVE_ONLY) }
   return {
     presetCaptureChannel: unavailable, presetCapturePlugin: unavailable,
+    presetApplyPlugin: unavailable, pluginsInsert: unavailable,
     presetRead: unavailable, presetWrite: unavailable, presetApplyChannel: unavailable,
     presetLibrary: async () => [], presetLibrarySave: unavailable, presetLibraryDelete: unavailable,
     templates: unavailable, templateSave: unavailable, templateNew: unavailable, templateDelete: unavailable,

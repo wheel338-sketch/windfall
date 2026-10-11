@@ -1,5 +1,5 @@
 //! File semantics shared by browser UI and the native shell.
-use crate::{json, parse, with_document, Reply};
+use crate::{Reply, json, parse, with_document};
 use serde::{Deserialize, Serialize};
 use windfall_project::{ChannelId, Command, NoteId, PatternId, Score, ScoreLoadMode};
 

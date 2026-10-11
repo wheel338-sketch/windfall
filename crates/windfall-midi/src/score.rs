@@ -9,7 +9,7 @@
 //! nothing is dropped without a word.
 
 use windfall_project::score::MAX_SCORE_NOTES;
-use windfall_project::{NoteExpression, Score, ScoreNote, TimeSignature, MAX_PATTERN_TICKS};
+use windfall_project::{MAX_PATTERN_TICKS, NoteExpression, Score, ScoreNote, TimeSignature};
 
 use crate::mix::{velocity_from_midi, velocity_to_midi};
 use crate::song::{MidiNote, MidiSong, MidiTrack, TempoChange, TimeSignatureChange};

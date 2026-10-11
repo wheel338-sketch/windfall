@@ -1,9 +1,9 @@
 import { toast } from "sonner"
-import type { PluginPresetState, PresetCapture } from "@/bindings"
+import type { PresetCapture } from "@/bindings"
 import { registry } from "@/lib/actions"
 import { backend } from "@/lib/ipc"
 import { reportError } from "@/lib/errors"
-import { dispatch, receivePatch, useProjectStore } from "@/lib/store/project"
+import { receivePatch, useProjectStore } from "@/lib/store/project"
 import { getProjectGeneration } from "@/lib/store/replaced"
 import { useUiStore } from "@/lib/store/ui"
 import { askConfirm, askText } from "@/lib/store/prompts"
@@ -20,7 +20,7 @@ export async function captureSelectedPreset(plugin = false): Promise<PresetCaptu
   current(ticket)
   const effect = plugin ? selectedEffect() : undefined
   const channel = useUiStore.getState().selectedChannel
-  const captured = effect ? await backend.presetCapturePlugin({ type: "effect", effect: effect.slot.id }, state.generation, state.revision) : channel !== null ? await backend.presetCaptureChannel(channel, state.generation, state.revision) : null
+  const captured = effect ? await backend.presetCapturePlugin({ type: "effect", effect: effect.slot.id }, state.generation, state.revision) : channel !== null ? plugin ? await backend.presetCapturePlugin({ type: "instrument", channel }, state.generation, state.revision) : await backend.presetCaptureChannel(channel, state.generation, state.revision) : null
   current(ticket)
   if (!captured) throw new Error("Select a channel or plugin first")
   return captured
@@ -35,21 +35,12 @@ export async function saveSelectedPreset(plugin = false, library = false) {
     if (path !== null) await backend.presetWrite(path, capture)
   }
 }
-function expectedPlugin(): { target: import("@/bindings").PluginTarget; expected: PluginPresetState } {
-  const project = useProjectStore.getState().project
-  const found = selectedEffect()
-  const channel = project.channels.find((c) => c.id === useUiStore.getState().selectedChannel)
-  const target = found ? { type: "effect" as const, effect: found.slot.id } : channel ? { type: "instrument" as const, channel: channel.id } : null
-  if (!target) throw new Error("Select a plugin destination")
-  const binding = project.plugins?.find((p) => target.type === "effect" ? p.target.type === "effect" && p.target.effect === target.effect : p.target.type === "instrument" && p.target.channel === target.channel)
-  if (binding) return { target, expected: { type: "hosted", instrument: target.type === "instrument", binding } }
-  if (found) return { target, expected: { type: "effect", params: found.slot.params, impulse: found.slot.impulse } }
-  if (channel?.source.type === "instrument") return { target, expected: { type: "instrument", params: channel.source.params, asset: channel.source.asset } }
-  throw new Error("The selected channel is a sampler; choose a channel preset")
-}
 export async function applyPresetFile(chosen?: string) {
   const ticket = stamp()
   const channel = useProjectStore.getState().project.channels.find((c) => c.id === useUiStore.getState().selectedChannel)
+  const state = await backend.timelineState(); current(ticket)
+  const effect = selectedEffect()
+  const target = effect ? { type: "effect" as const, effect: effect.slot.id } : channel ? { type: "instrument" as const, channel: channel.id } : null
   const path = chosen ?? await backend.pickPresetPath()
   if (path === null) return
   current(ticket)
@@ -64,12 +55,13 @@ export async function applyPresetFile(chosen?: string) {
       if (!withoutAudio) return
     }
     current(ticket)
-    const result = await backend.presetApplyChannel(path, channel.id, channel, false, withoutAudio)
+    const result = await backend.presetApplyChannel(path, channel.id, channel, false, withoutAudio, state.generation, state.revision)
     if (ticket.generation === getProjectGeneration()) receivePatch(result.patch)
   } else if (review.preset.plugin) {
-    const { target, expected } = expectedPlugin()
+    if (!target) throw new Error("Select a plugin destination")
     current(ticket)
-    await dispatch({ type: "applyPluginPreset", target, expected, preset: review.preset.plugin })
+    const result = await backend.presetApplyPlugin(path, target, state.generation, state.revision)
+    if (ticket.generation === getProjectGeneration()) receivePatch(result.patch)
   } else throw new Error("Use the mixer track preset panel for a mixer preset")
 }
 export async function saveScore() {

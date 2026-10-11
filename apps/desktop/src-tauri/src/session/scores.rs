@@ -14,7 +14,7 @@ use std::path::{Path, PathBuf};
 
 use windfall_ipc::{ScoreReview, ScoreWritten};
 use windfall_project::score::MAX_SCORE_FILE_BYTES;
-use windfall_project::{file, Score};
+use windfall_project::{Score, file};
 
 use super::Session;
 use crate::paths;

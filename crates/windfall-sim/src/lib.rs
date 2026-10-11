@@ -310,8 +310,8 @@ fn record_panics() {
     });
 }
 
-/// Runs an operation and wraps what it gives in the `{"ok": â€¦}` or
-/// `{"error": â€¦}` text a caller receives. A panic becomes an error.
+/// Runs an operation and wraps what it gives in the `{"ok": …}` or
+/// `{"error": …}` text a caller receives. A panic becomes an error.
 pub fn call(op: Op, handle: u32, input: &str) -> String {
     record_panics();
     let reply = panic::catch_unwind(AssertUnwindSafe(|| op(handle, input)))

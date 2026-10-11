@@ -33,13 +33,17 @@ export async function insertPlugin(record: PluginRecord, destination: Destinatio
     }
   } else {
     const generation = getProjectGeneration()
-    result = await backend.pluginsAdd(record.path, record.id, record.instrument ? undefined : (destination.track ?? useUiStore.getState().selectedTrack ?? 0))
+    const revision = useProjectStore.getState().revision
+    const state = await backend.timelineState()
+    if (generation !== getProjectGeneration() || revision !== useProjectStore.getState().revision) throw new Error("The project changed during plugin insertion")
+    const target = destination.channel !== undefined ? { type: "instrument" as const, channel: destination.channel } : destination.effect !== undefined ? { type: "effect" as const, effect: destination.effect } : null
+    result = await backend.pluginsInsert(record.path, record.id, target, record.instrument ? null : (destination.track ?? useUiStore.getState().selectedTrack ?? 0), state.generation, state.revision)
     if (generation !== getProjectGeneration()) return
     receivePatch(result.patch)
   }
   if (!result) return
   if (record.instrument) { selectChannel(destination.channel ?? result.created[0], { openSettings: true }); useUiStore.getState().showCenterTab("channelRack") }
-  else openEffect(result.created[0])
+  else openEffect(destination.effect ?? result.created[0])
 }
 export function pluginDropHandlers(destination: Destination) {
   return {

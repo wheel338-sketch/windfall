@@ -18,7 +18,7 @@ const state = () => useProjectStore.getState()
 
 it("mounted controller browser navigates and removes saved links as one reversible edit", async () => {
   const channel = state().project.channels[0].id
-  await dispatch({ type: "setControllerLinks", links: [{ source: { type: "midi", control: { type: "cc", number: 1 } }, target: { type: "param", target: { type: "channelPan", channel } }, map: {} }] })
+  await dispatch({ type: "setControllerLinks", links: [{ source: { type: "midi", control: { type: "cc", number: 1 } }, target: { type: "param", target: { type: "channelPan", channel } }, map: { min: 0, max: 1, smoothingMs: 0, pickup: "inherit", mode: "absolute" } }] })
   const before = state().history.cursor
   render(<ProjectTab />)
   const group = screen.getByRole("region", { name: "Controller links" })

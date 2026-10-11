@@ -2,9 +2,9 @@
 //! timebase.
 
 use windfall_midi::{
-    export_pattern, read, score_from_song, score_to_song, write, ControlCurve, ControlKind,
-    ControlPoint, ExportOptions, MidiNote, MidiSong, MidiTrack, Resolution, TempoChange,
-    TimeSignatureChange, WriteOptions,
+    ControlCurve, ControlKind, ControlPoint, ExportOptions, MidiNote, MidiSong, MidiTrack,
+    Resolution, TempoChange, TimeSignatureChange, WriteOptions, export_pattern, read,
+    score_from_song, score_to_song, write,
 };
 use windfall_project::score::MAX_SCORE_NOTES;
 use windfall_project::timebase::playback_project;
@@ -223,10 +223,12 @@ fn any_midi_file_loads_as_one_lane_with_a_report_of_the_rest() {
         [(0, 48), (0, 76), (960, 72)]
     );
     assert!(score.notes.iter().all(|n| n.velocity == 100.0 / 127.0));
-    assert!(score
-        .notes
-        .iter()
-        .all(|n| n.expression == NoteExpression::default()));
+    assert!(
+        score
+            .notes
+            .iter()
+            .all(|n| n.expression == NoteExpression::default())
+    );
     assert_eq!(left_out.len(), 3, "{left_out:?}");
     assert!(left_out[0].contains("2 tracks"));
     assert!(left_out[1].contains("Controllers"));
@@ -269,9 +271,11 @@ fn any_midi_file_loads_as_one_lane_with_a_report_of_the_rest() {
 
 #[test]
 fn files_a_score_cannot_hold_are_refused_or_cut_with_a_reason() {
-    assert!(score_from_song(&MidiSong::default(), "empty")
-        .unwrap_err()
-        .contains("no notes"));
+    assert!(
+        score_from_song(&MidiSong::default(), "empty")
+            .unwrap_err()
+            .contains("no notes")
+    );
     let crowded = MidiSong {
         tracks: vec![MidiTrack {
             notes: (0..=MAX_SCORE_NOTES as u32)
@@ -281,9 +285,11 @@ fn files_a_score_cannot_hold_are_refused_or_cut_with_a_reason() {
         }],
         ..MidiSong::default()
     };
-    assert!(score_from_song(&crowded, "crowded")
-        .unwrap_err()
-        .contains("Import it as MIDI"));
+    assert!(
+        score_from_song(&crowded, "crowded")
+            .unwrap_err()
+            .contains("Import it as MIDI")
+    );
 
     let long = MidiSong {
         tracks: vec![MidiTrack {
@@ -301,12 +307,16 @@ fn files_a_score_cannot_hold_are_refused_or_cut_with_a_reason() {
     assert_eq!(score.notes.len(), 2);
     assert_eq!(score.notes[1].length, 100);
     assert_eq!(score.length_ticks, MAX_PATTERN_TICKS);
-    assert!(left_out
-        .iter()
-        .any(|line| line.contains("1 notes start past")));
-    assert!(left_out
-        .iter()
-        .any(|line| line.contains("1 notes were cut")));
+    assert!(
+        left_out
+            .iter()
+            .any(|line| line.contains("1 notes start past"))
+    );
+    assert!(
+        left_out
+            .iter()
+            .any(|line| line.contains("1 notes were cut"))
+    );
     score.validate().unwrap();
 }
 
@@ -412,7 +422,9 @@ fn expressive_scores_and_pattern_event_lanes_survive_actual_smf_bytes() {
     }
     let (mut altered, _) = score_to_song(&score, 120.0);
     altered.tracks[0].notes[0].key += 1;
-    assert!(score_from_song(&altered, "changed")
-        .unwrap_err()
-        .contains("changed"));
+    assert!(
+        score_from_song(&altered, "changed")
+            .unwrap_err()
+            .contains("changed")
+    );
 }

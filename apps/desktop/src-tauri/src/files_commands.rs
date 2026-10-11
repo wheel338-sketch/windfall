@@ -93,10 +93,21 @@ pub async fn preset_apply_channel(
     expected: Channel,
     name_color: bool,
     without_audio: bool,
+    generation: u64,
+    revision: u64,
 ) -> Result<DispatchResult, String> {
     let session = session.inner().clone();
-    blocking(move || session.preset_apply_channel(&path, id, expected, name_color, without_audio))
-        .await
+    blocking(move || {
+        session.preset_apply_channel_guarded(
+            &path,
+            id,
+            expected,
+            name_color,
+            without_audio,
+            Some((generation, revision)),
+        )
+    })
+    .await
 }
 
 #[tauri::command]
@@ -238,12 +249,122 @@ pub async fn plugins_rescan(
 }
 
 #[tauri::command]
-pub async fn score_capture(session: State<'_, Session>, pattern: windfall_project::PatternId, channel: ChannelId, only: Option<Vec<windfall_project::NoteId>>, generation: u64, revision: u64) -> Result<Score, String> {
+pub async fn score_capture(
+    session: State<'_, Session>,
+    pattern: windfall_project::PatternId,
+    channel: ChannelId,
+    only: Option<Vec<windfall_project::NoteId>>,
+    generation: u64,
+    revision: u64,
+) -> Result<Score, String> {
     let session = session.inner().clone();
     blocking(move || session.score_capture(pattern, channel, only, generation, revision)).await
 }
 #[tauri::command]
-pub async fn score_apply(session: State<'_, Session>, score: Score, pattern: windfall_project::PatternId, channel: ChannelId, mode: windfall_project::ScoreLoadMode, generation: u64, revision: u64) -> Result<DispatchResult, String> {
+pub async fn score_apply(
+    session: State<'_, Session>,
+    score: Score,
+    pattern: windfall_project::PatternId,
+    channel: ChannelId,
+    mode: windfall_project::ScoreLoadMode,
+    generation: u64,
+    revision: u64,
+) -> Result<DispatchResult, String> {
     let session = session.inner().clone();
     blocking(move || session.score_apply(score, pattern, channel, mode, generation, revision)).await
+}
+
+#[tauri::command]
+pub async fn preset_apply_plugin(
+    session: State<'_, Session>,
+    path: String,
+    target: PluginTarget,
+    generation: u64,
+    revision: u64,
+) -> Result<DispatchResult, String> {
+    let session = session.inner().clone();
+    blocking(move || session.preset_apply_plugin(&path, target, generation, revision)).await
+}
+#[tauri::command]
+pub async fn plugins_insert(
+    app: AppHandle,
+    session: State<'_, Session>,
+    path: String,
+    id: String,
+    destination: Option<PluginTarget>,
+    track: Option<windfall_project::TrackId>,
+    generation: u64,
+    revision: u64,
+) -> Result<DispatchResult, String> {
+    let manager = manager(&app)?;
+    let session = session.inner().clone();
+    blocking(move || {
+        use windfall_project::{
+            ChannelSource, Command, EffectId, InstrumentKind, PluginPreset, PluginPresetState,
+        };
+        let target = destination.unwrap_or_else(|| {
+            if track.is_some() {
+                PluginTarget::Effect {
+                    effect: EffectId(0),
+                }
+            } else {
+                PluginTarget::Instrument {
+                    channel: ChannelId(0),
+                }
+            }
+        });
+        let plugin = session.while_recording_idle(|| manager.binding(&path, &id, target))?;
+        let project = session.document_snapshot().project;
+        let command = match destination {
+            Some(PluginTarget::Instrument { channel }) => {
+                let expected = project
+                    .channel(channel)
+                    .cloned()
+                    .ok_or("This channel no longer exists")?;
+                let (mut preset, _) = windfall_project::ChannelPreset::capture(&project, channel)?;
+                preset.source = ChannelSource::Instrument {
+                    params: InstrumentKind::SubtractiveSynth.default_params(),
+                    asset: None,
+                };
+                preset.sample_asset = None;
+                let mut plugin = plugin;
+                plugin.target = PluginTarget::Instrument {
+                    channel: ChannelId(0),
+                };
+                preset.plugin = Some(plugin);
+                Command::ApplyChannelPreset {
+                    id: channel,
+                    expected,
+                    preset,
+                    sample: None,
+                    audio: None,
+                    name_color: false,
+                }
+            }
+            Some(target @ PluginTarget::Effect { .. }) => {
+                let expected = PluginPreset::capture(&project, target)?.state;
+                let mut binding = plugin;
+                binding.target = PluginTarget::Effect {
+                    effect: EffectId(0),
+                };
+                Command::ApplyPluginPreset {
+                    target,
+                    expected,
+                    preset: PluginPreset {
+                        state: PluginPresetState::Hosted {
+                            instrument: false,
+                            binding,
+                        },
+                    },
+                }
+            }
+            None => match track {
+                Some(track) => Command::AddPluginEffect { track, plugin },
+                None => Command::AddPluginInstrument { plugin },
+            },
+        };
+        let result = session.dispatch_file_command(command, generation, revision)?;
+        Ok(result)
+    })
+    .await
 }

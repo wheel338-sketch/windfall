@@ -6,7 +6,9 @@ export interface ProjectFilesBackend {
   presetCapturePlugin(target: PluginTarget, generation: number, revision: number): Promise<PresetCapture>
   presetWrite(path: string, capture: PresetCapture): Promise<string>
   presetRead(path: string): Promise<PresetReview>
-  presetApplyChannel(path: string, id: ChannelId, expected: Channel, nameColor: boolean, withoutAudio: boolean): Promise<DispatchResult>
+  presetApplyChannel(path: string, id: ChannelId, expected: Channel, nameColor: boolean, withoutAudio: boolean, generation: number, revision: number): Promise<DispatchResult>
+  presetApplyPlugin(path: string, target: PluginTarget, generation: number, revision: number): Promise<DispatchResult>
+  pluginsInsert(path: string, id: string, destination: PluginTarget | null, track: number | null, generation: number, revision: number): Promise<DispatchResult>
   presetLibrary(): Promise<PresetEntry[]>
   presetLibrarySave(name: string, capture: PresetCapture): Promise<PresetEntry>
   presetLibraryDelete(path: string): Promise<void>
