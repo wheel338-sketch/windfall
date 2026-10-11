@@ -1,50 +1,89 @@
-# Slice, grain and curve instruments — implementation hand-off
+# Slice, grain and curve instruments â€” implementation hand-off
 
-Branch: `gpt/w3-slices-grains`, base `87b87bc2439ec076d0f75c5b4d997c9db1faba95`.
-Edit-only worker: no build, test, generator, browser or hardware check executed.
+Branch: `gpt/w3-slices-grains`; base `87b87bc2439ec076d0f75c5b4d997c9db1faba95`.
+Implementation commits: `b1ca47d4` (immutable assets/DSP/hosting), `e1170f09`
+(editors, guarded detection, acceptance cases). Restart checkpoint: worktree was clean.
 
-## Current implementation
+**Edit-only:** no build, test, generator, browser, audio or hardware check executed.
+All tests below are **written, not executed**. No parity status has been changed.
 
-All five rows are in implementation, not accepted. Existing Slice Map, Slice Deck,
-Grain Cloud and Wave Ride registrations are reused; no registry indices reordered.
-SamplePlayback authoring data is stored on Channel, omitted when absent. Source IDs,
-up to 128 regions (including overlapping/reordered regions), deck B, envelopes and
-shared/per-key position or speed curves are separate from scalar Copy parameters.
-Control-side PlaybackAsset retains original decoded stereo AudioBuffer allocations.
-Grain scheduling stays bounded to 16 voices × 32 grain slots. Speed curves use
-analytic piecewise-linear integration independent of callback partitions.
-SetSamplePlayback and GenerateSlicePattern use existing channel/pattern edit history.
-Native plan preparation owns asset validation, unit construction and retirement.
-Saved legacy v1 primitive tables/maps/curves migrate into immutable channel assets.
-Scalar descriptor prefixes stay fixed; former map/curve descriptor suffixes retire.
-Old automation targeting those suffixes must be refused with a migration diagnostic;
-this migration gate needs dedicated tests and integration inspection.
+## Row status at restart
 
-## Remaining work in progress
+| Row | Claim | Implemented | Remaining before acceptance |
+| --- | --- | --- | --- |
+| inst-fruity-slicer | Full-row candidate | Slice Map: shared transient/grid detector, original sources, key mapping, pattern generation, slice editor | Integrator compilation, generated artifacts, test and mounted UI evidence |
+| inst-fruity-slicer-2 | Full-row candidate | Slice Deck: per-slice gain/pitch/reverse/envelopes, overlaps, ordering, dedicated editor | Same integration gates |
+| inst-slicex | Full-row candidate | Slice Deck with two independent source decks, per-region deck selection and editing | Same integration gates; confirm row scope against richer workflow |
+| inst-fruity-granulizer | Full-row candidate | Grain Cloud: size/density/spacing/position/spray/pitch/seed controls, bounded deterministic scheduling | Same integration gates |
+| inst-wave-traveller | Full-row candidate | Wave Ride: shared/per-key drawn position or integrated speed curves, dedicated editor | Same integration gates |
 
-Purpose-built source/slice/grain/curve editors, native/browser detection endpoint,
-and registered acceptance tests have now been written. Test files are all **written,
-not executed**: granular/tests.rs; dsp/sample_playback.rs; project/tests/sample_playback.rs;
-engine/tests/sample_playback.rs; session/tests/sample_playback.rs; frontend
-sample-playback/{editor,detection}.test.{tsx,ts}; params/access.test.ts and EVERY_COMMAND.
-Detection applies one history step after source/generation/revision checks, with
-independent shared Rust execution in a browser worker. Backend mocks label sources
-simulated. Full-row candidacy is awaiting the integrator's compilation and evidence.
+## Implemented contract
+
+Existing Slice Map, Slice Deck, Grain Cloud and Wave Ride registrations are reused;
+no instrument registry indices reordered. Channel.samplePlayback is optional and
+omitted when absent. Original sample IDs, up to 128 arbitrary regions, deck B,
+envelopes and shared/per-key curves live outside scalar Copy parameters. Immutable
+PlaybackAsset retains decoded AudioBuffer allocations. Construction and retirement
+remain control-side; callbacks use fixed 16-voice/32-grain-slot storage.
+
+SetSamplePlayback and GenerateSlicePattern use normal channel/pattern history.
+Native and simulator detection prepare off-thread and reject stale generation,
+revision or source identity before publishing one edit. Asset/source identity joins
+instrument reuse keys; asset replacement copies active fixed playback state into
+an already prepared unit. Ordinary save/reopen and undo/redo retain authoring data.
+
+Legacy v1 mono tables/maps/curves migrate into immutable saved assets. Existing
+scalar descriptor prefixes retain their indices. Former marker/per-slice/curve
+suffix automation is refused with a migration diagnostic; it is not silently
+mapped to a different parameter. Original files must be retained for those lanes.
+
+## Acceptance files (written, not executed)
+
+- DSP: `crates/windfall-dsp/src/granular/tests.rs` and
+  `crates/windfall-dsp/tests/dsp/sample_playback.rs`: measured boundaries, reverse,
+  overlaps/deck B, deterministic density, analytic curves, partition/release and
+  allocation/free guards. `tests/dsp/params.rs` pins scalar descriptor prefixes.
+- Project: `crates/windfall-project/tests/sample_playback.rs`: asset/history/pattern
+  generation, save/reopen, atomic invalid input, synthetic stereo transient/tempo
+  detection and legacy migration.
+- Engine: `crates/windfall-engine/tests/sample_playback.rs`: all four kinds live vs
+  offline PCM, history/reopen, source replacement and silent release/export tail.
+- Native: `apps/desktop/src-tauri/src/session/tests/sample_playback.rs`: one-history
+  detection, source preservation/reopen and stale edits/source/document barriers.
+- Frontend: `apps/desktop/src/features/sample-playback/{editor,detection}.test.*`:
+  mounted slice, grain, curve controls and real shared Rust detector fixtures.
+  `features/params/access.test.ts` and `lib/ipc/sim/document.test.ts` extend the
+  existing descriptor and EVERY_COMMAND acceptance surfaces.
+
+## Remaining static review
+
+Check native fixture source selection, mounted editor replacement scope, legacy
+suffix automation rejection coverage, callback plan-adoption allocator coverage,
+and update the obsolete granular integration seam. Factory content is generated
+and must not be hand-added; use existing CC0 factory samples or authored test PCM.
 
 ## Integrator commands (not run by this worker)
 
-Regenerate bindings/descriptors and simulator using the combined integration branch:
-`scripts/gen-bindings.sh <temporary-output>`; `scripts/build-sim.sh`.
-Then `cargo test -p windfall-dsp --lib granular`,
+On the combined integration branch regenerate using the repository workflows:
+`scripts/gen-bindings.sh <temporary-output>` and `scripts/build-sim.sh`.
+Run `cargo test -p windfall-dsp --lib granular`,
+`cargo test -p windfall-dsp --test dsp sample_playback`,
+`cargo test -p windfall-dsp --test dsp params`,
 `cargo test -p windfall-project --test sample_playback`,
 `cargo test -p windfall-engine --test sample_playback`,
-`cargo test -p windfall-desktop --lib session::tests::sample_playback`,
-`cargo test -p windfall-dsp --test dsp params`, and existing project/engine suites.
-Frontend: `pnpm --dir apps/desktop test src/features/sample-playback src/features/params/access.test.ts src/lib/ipc/sim/document.test.ts --maxWorkers=4`,
-then typecheck/lint and package-scoped strict Clippy.
+`cargo test -p windfall-desktop --lib session::tests::sample_playback`.
+Then run existing project/engine suites, package-scoped strict Clippy and frontend
+`pnpm --dir apps/desktop test src/features/sample-playback src/features/params/access.test.ts src/lib/ipc/sim/document.test.ts --maxWorkers=4`,
+followed by repository typecheck/lint commands. Confirm package/script names before
+running; this worker has not executed any of these commands.
 
-## Risks to inspect first
+## First integration risks
 
-New hand-maintained Rust/TS asset types and old Channel literals; instrument unit reuse
-must account for saved asset and decoded source identity; legacy map automation suffix
-migration. Nothing is claimed to compile or pass before the integrator runs it.
+1. Hand-maintained Rust/TS types and Channel literal additions; regenerate all
+   asset types/descriptors and simulator WASM together before frontend checks.
+2. Prepared unit reuse/adoption and off-thread retirement under active notes.
+3. Legacy custom Channel deserialization and retired automation suffix diagnostics.
+4. Exact live/offline equality and authored transient tolerances are unexecuted.
+5. Existing sequencer seek policy skips notes starting before seek (no note chase).
+   Asset edits capture slice settings for subsequent notes; held notes retain their
+   captured region/envelope while preserving playback progress.
