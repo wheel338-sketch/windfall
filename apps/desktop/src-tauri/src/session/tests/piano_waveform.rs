@@ -2,7 +2,7 @@
 use super::Rig;
 use windfall_codec::{WavSampleFormat, write_wav};
 use windfall_core::AudioBuffer;
-use windfall_project::{Command, NoteInit, SampleId};
+use windfall_project::{ChannelSource, Command, NoteInit, SampleId};
 
 #[test]
 fn piano_waveform_reference_loads_native_peaks_and_retains_note_alignment_on_reopen() {
@@ -14,7 +14,10 @@ fn piano_waveform_reference_loads_native_peaks_and_retains_note_alignment_on_reo
     let channel = rig.channel(0);
     rig.session.set_channel_sample_from_file(channel, &source.to_string_lossy()).unwrap();
     let project = rig.project();
-    let sample = project.samples.iter().find(|sample| sample.name == "reference").unwrap().id;
+    let ChannelSource::Sampler(settings) = &project.channel(channel).unwrap().source else {
+        panic!("the loaded reference must remain on its sampler channel");
+    };
+    let sample = settings.sample.unwrap();
     let info = rig.session.sample_info_by_id(sample).unwrap();
     assert_eq!(info.frames, 48_000);
     assert_eq!(info.duration_secs, 1.0);

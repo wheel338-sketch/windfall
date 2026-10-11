@@ -93,6 +93,27 @@ it("renders a known phrase to inspectable SVG/PDF bytes with matching pages, sta
   expect(file).toContain(`/Title (${title})`)
   expect(file).toContain("(= 120) Tj")
   expect(file.match(/\/Type \/Page\b/g)).toHaveLength(1)
+  // Parse the actual, uncompressed PDF content independently of opPdf. Four
+  // cubic arcs close each filled ellipse; the opposite endpoints recover its
+  // radii even when a notehead is rotated. Tempo and clef dots have other sizes.
+  const number = "(-?\\d+(?:\\.\\d+)?)"
+  const pair = `${number} ${number}`
+  const cubic = `${pair} ${pair} ${pair} c\\n`
+  const ellipses = [...file.matchAll(new RegExp(`${pair} m\\n${cubic.repeat(4)}h\\nf\\n`, "g"))]
+  const musicHeads = ellipses.filter((match) => {
+    const x = (Number(match[1]) + Number(match[13])) / 2
+    const y = (Number(match[2]) + Number(match[14])) / 2
+    const rx = Math.hypot(Number(match[1]) - x, Number(match[2]) - y)
+    const ry = Math.hypot(Number(match[7]) - x, Number(match[8]) - y)
+    return Math.abs(rx - 0.6 * STAFF_SPACE) < .003 && Math.abs(ry - 0.39 * STAFF_SPACE) < .003
+  })
+  expect(musicHeads).toHaveLength(8)
+  const pdfLines = [...file.matchAll(new RegExp(`0\\.5 w\\n${pair} m\\n${pair} l\\nS\\n`, "g"))]
+  expect(pdfLines.filter((match) => Number(match[2]) === Number(match[4]) && Number(match[3]) - Number(match[1]) > 100))
+    .toHaveLength(layout.systems.length * 10)
+  const streams = [...file.matchAll(/<< \/Length (\d+) >>\nstream\n([\s\S]*?)\nendstream/g)]
+  expect(streams).toHaveLength(1)
+  expect(new TextEncoder().encode(streams[0][2]).length).toBe(Number(streams[0][1]))
   // The integrator can open these exact asserted exports in a reader.
   const folder = resolve(process.cwd(), "../../docs/qa/p2-piano-artifacts")
   mkdirSync(folder, { recursive: true })
