@@ -178,3 +178,17 @@ per-graph DSP tests in `polysynth/tests.rs` (names below).
 Use the integrator commands in the Vintage Poly section, after regenerating
 bindings/descriptors and WASM. Check strict Clippy and numerical thresholds first;
 no measured sound/performance claim is made. No external proprietary content.
+
+## 2026-10-11 continuation — MatrixSynth / inst-sytrus
+
+Full-row software candidate, awaiting execution. Six individual operator shapes/ratios/envelopes/key scales/feedback values feed independently editable 6x6 FM and 6x6 ring matrices. Cycles use previous-substep signals, with explicit carrier outputs, filter mix, contours and LFO pitch/phase/filter modulation. The native UI edits both matrices and each operator, not only patches. DSP tests: matrix_synth_fm_sidebands_match_bessel_and_ring_matches_product_identity; matrix_synth_cycles_feedback_key_scaling_modulation_and_filter_are_audible.
+Purpose-built editor group: FM routing matrix. Uses the existing checked instrument
+commands, tagged project persistence, engine hosting and live/offline processor.
+New generated types: `MatrixSynth`, `MatrixSynthParams`, `matrixSynth` tag and descriptors.
+Tests **written, not executed**: `matrixSynth_musical_edit_reaches_history_disk_and_live_offline_pcm`
+in registered `polysynth_acceptance.rs`; the `matrixSynth` mounted editor case
+(edit and undo); complete descriptor/serde/default/range tests in DSP params;
+per-graph DSP tests in `polysynth/tests.rs` (names below).
+Use the integrator commands in the Vintage Poly section, after regenerating
+bindings/descriptors and WASM. Check strict Clippy and numerical thresholds first;
+no measured sound/performance claim is made. No external proprietary content.

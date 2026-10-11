@@ -13,6 +13,7 @@ use crate::polysynth::{VintageSaw, VintageSawParams};
 use crate::polysynth::{PocketSynth, PocketSynthParams};
 use crate::polysynth::{GrooveSynth, GrooveSynthParams};
 use crate::polysynth::{HybridSeq, HybridSeqParams};
+use crate::polysynth::{MatrixSynth, MatrixSynthParams};
 use crate::midi_out::{MidiOut, MidiOutEvent, MidiOutParams};
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
@@ -189,10 +190,11 @@ pub enum InstrumentKind {
     PocketSynth,
     GrooveSynth,
     HybridSeq,
+    MatrixSynth,
 }
 
 impl InstrumentKind {
-    pub const ALL: [InstrumentKind; 34] = [
+    pub const ALL: [InstrumentKind; 35] = [
         InstrumentKind::SubtractiveSynth,
         InstrumentKind::FourOp,
         InstrumentKind::MatrixFm,
@@ -227,6 +229,7 @@ impl InstrumentKind {
         InstrumentKind::PocketSynth,
         InstrumentKind::GrooveSynth,
         InstrumentKind::HybridSeq,
+        InstrumentKind::MatrixSynth,
     ];
 
     /// The instrument's name as shown to the user.
@@ -266,6 +269,7 @@ impl InstrumentKind {
             InstrumentKind::PocketSynth => PocketSynthParams::NAME,
             InstrumentKind::GrooveSynth => GrooveSynthParams::NAME,
             InstrumentKind::HybridSeq => HybridSeqParams::NAME,
+            InstrumentKind::MatrixSynth => MatrixSynthParams::NAME,
         }
     }
 
@@ -306,6 +310,7 @@ impl InstrumentKind {
             InstrumentKind::PocketSynth => PocketSynthParams::descriptors(),
             InstrumentKind::GrooveSynth => GrooveSynthParams::descriptors(),
             InstrumentKind::HybridSeq => HybridSeqParams::descriptors(),
+            InstrumentKind::MatrixSynth => MatrixSynthParams::descriptors(),
         }
     }
 
@@ -354,6 +359,7 @@ impl InstrumentKind {
             InstrumentKind::PocketSynth => InstrumentParams::PocketSynth(PocketSynthParams::default()),
             InstrumentKind::GrooveSynth => InstrumentParams::GrooveSynth(GrooveSynthParams::default()),
             InstrumentKind::HybridSeq => InstrumentParams::HybridSeq(HybridSeqParams::default()),
+            InstrumentKind::MatrixSynth => InstrumentParams::MatrixSynth(MatrixSynthParams::default()),
         }
     }
 }
@@ -398,6 +404,7 @@ pub enum InstrumentParams {
     PocketSynth(PocketSynthParams),
     GrooveSynth(GrooveSynthParams),
     HybridSeq(HybridSeqParams),
+    MatrixSynth(MatrixSynthParams),
 }
 
 impl InstrumentParams {
@@ -437,6 +444,7 @@ impl InstrumentParams {
             InstrumentParams::PocketSynth(_) => InstrumentKind::PocketSynth,
             InstrumentParams::GrooveSynth(_) => InstrumentKind::GrooveSynth,
             InstrumentParams::HybridSeq(_) => InstrumentKind::HybridSeq,
+            InstrumentParams::MatrixSynth(_) => InstrumentKind::MatrixSynth,
         }
     }
 
@@ -491,6 +499,7 @@ impl InstrumentParams {
             InstrumentParams::PocketSynth(params) => InstrumentParams::PocketSynth(params.sanitized()),
             InstrumentParams::GrooveSynth(params) => InstrumentParams::GrooveSynth(params.sanitized()),
             InstrumentParams::HybridSeq(params) => InstrumentParams::HybridSeq(params.sanitized()),
+            InstrumentParams::MatrixSynth(params) => InstrumentParams::MatrixSynth(params.sanitized()),
         }
     }
 
@@ -535,6 +544,7 @@ impl InstrumentParams {
             InstrumentParams::PocketSynth(_) => 0,
             InstrumentParams::GrooveSynth(_) => 0,
             InstrumentParams::HybridSeq(_) => 0,
+            InstrumentParams::MatrixSynth(_) => 0,
         }
     }
 
@@ -576,6 +586,7 @@ impl InstrumentParams {
             InstrumentParams::PocketSynth(params) => params.get(index),
             InstrumentParams::GrooveSynth(params) => params.get(index),
             InstrumentParams::HybridSeq(params) => params.get(index),
+            InstrumentParams::MatrixSynth(params) => params.get(index),
         }
     }
 
@@ -617,6 +628,7 @@ impl InstrumentParams {
             InstrumentParams::PocketSynth(params) => params.set(index, value),
             InstrumentParams::GrooveSynth(params) => params.set(index, value),
             InstrumentParams::HybridSeq(params) => params.set(index, value),
+            InstrumentParams::MatrixSynth(params) => params.set(index, value),
         }
     }
 }
@@ -662,6 +674,7 @@ pub enum AnyInstrument {
     PocketSynth(Box<PocketSynth>),
     GrooveSynth(Box<GrooveSynth>),
     HybridSeq(Box<HybridSeq>),
+    MatrixSynth(Box<MatrixSynth>),
 }
 
 impl AnyInstrument {
@@ -855,6 +868,11 @@ impl AnyInstrument {
                 synth.set_params(params);
                 AnyInstrument::HybridSeq(synth)
             }
+            InstrumentParams::MatrixSynth(params) => {
+                let mut synth = Box::<MatrixSynth>::default();
+                synth.set_params(params);
+                AnyInstrument::MatrixSynth(synth)
+            }
         }
     }
 
@@ -894,6 +912,7 @@ impl AnyInstrument {
             AnyInstrument::PocketSynth(_) => InstrumentKind::PocketSynth,
             AnyInstrument::GrooveSynth(_) => InstrumentKind::GrooveSynth,
             AnyInstrument::HybridSeq(_) => InstrumentKind::HybridSeq,
+            AnyInstrument::MatrixSynth(_) => InstrumentKind::MatrixSynth,
         }
     }
 
@@ -934,6 +953,7 @@ impl AnyInstrument {
             AnyInstrument::PocketSynth(synth) => synth.prepare(sample_rate, max_block),
             AnyInstrument::GrooveSynth(synth) => synth.prepare(sample_rate, max_block),
             AnyInstrument::HybridSeq(synth) => synth.prepare(sample_rate, max_block),
+            AnyInstrument::MatrixSynth(synth) => synth.prepare(sample_rate, max_block),
         }
     }
 
@@ -974,6 +994,7 @@ impl AnyInstrument {
             AnyInstrument::PocketSynth(synth) => synth.reset(),
             AnyInstrument::GrooveSynth(synth) => synth.reset(),
             AnyInstrument::HybridSeq(synth) => synth.reset(),
+            AnyInstrument::MatrixSynth(synth) => synth.reset(),
         }
     }
 
@@ -1086,6 +1107,9 @@ impl AnyInstrument {
             (AnyInstrument::HybridSeq(synth), InstrumentParams::HybridSeq(params)) => {
                 synth.set_params(params);
             }
+            (AnyInstrument::MatrixSynth(synth), InstrumentParams::MatrixSynth(params)) => {
+                synth.set_params(params);
+            }
             _ => return false,
         }
         true
@@ -1128,6 +1152,7 @@ impl AnyInstrument {
             AnyInstrument::PocketSynth(synth) => synth.set_tempo(bpm),
             AnyInstrument::GrooveSynth(synth) => synth.set_tempo(bpm),
             AnyInstrument::HybridSeq(synth) => synth.set_tempo(bpm),
+            AnyInstrument::MatrixSynth(synth) => synth.set_tempo(bpm),
         }
     }
 
@@ -1168,6 +1193,7 @@ impl AnyInstrument {
             AnyInstrument::PocketSynth(synth) => synth.note_on(key, velocity),
             AnyInstrument::GrooveSynth(synth) => synth.note_on(key, velocity),
             AnyInstrument::HybridSeq(synth) => synth.note_on(key, velocity),
+            AnyInstrument::MatrixSynth(synth) => synth.note_on(key, velocity),
         }
     }
 
@@ -1277,6 +1303,9 @@ impl AnyInstrument {
             AnyInstrument::HybridSeq(synth) => {
                 synth.note_on_expression(key, velocity, pan, expression)
             }
+            AnyInstrument::MatrixSynth(synth) => {
+                synth.note_on_expression(key, velocity, pan, expression)
+            }
         }
     }
 
@@ -1317,6 +1346,7 @@ impl AnyInstrument {
             AnyInstrument::PocketSynth(synth) => synth.note_off(key),
             AnyInstrument::GrooveSynth(synth) => synth.note_off(key),
             AnyInstrument::HybridSeq(synth) => synth.note_off(key),
+            AnyInstrument::MatrixSynth(synth) => synth.note_off(key),
         }
     }
 
@@ -1356,6 +1386,7 @@ impl AnyInstrument {
             AnyInstrument::PocketSynth(synth) => synth.supports_note_instances(),
             AnyInstrument::GrooveSynth(synth) => synth.supports_note_instances(),
             AnyInstrument::HybridSeq(synth) => synth.supports_note_instances(),
+            AnyInstrument::MatrixSynth(synth) => synth.supports_note_instances(),
         }
     }
 
@@ -1470,6 +1501,9 @@ impl AnyInstrument {
             AnyInstrument::HybridSeq(synth) => {
                 synth.note_on_instance(id, key, velocity, pan, expression)
             }
+            AnyInstrument::MatrixSynth(synth) => {
+                synth.note_on_instance(id, key, velocity, pan, expression)
+            }
         }
     }
 
@@ -1509,6 +1543,7 @@ impl AnyInstrument {
             AnyInstrument::PocketSynth(synth) => synth.note_off_instance(id, key),
             AnyInstrument::GrooveSynth(synth) => synth.note_off_instance(id, key),
             AnyInstrument::HybridSeq(synth) => synth.note_off_instance(id, key),
+            AnyInstrument::MatrixSynth(synth) => synth.note_off_instance(id, key),
         }
     }
 
@@ -1555,6 +1590,7 @@ impl AnyInstrument {
             AnyInstrument::PocketSynth(synth) => synth.set_note_expression(id, pan, expression),
             AnyInstrument::GrooveSynth(synth) => synth.set_note_expression(id, pan, expression),
             AnyInstrument::HybridSeq(synth) => synth.set_note_expression(id, pan, expression),
+            AnyInstrument::MatrixSynth(synth) => synth.set_note_expression(id, pan, expression),
         }
     }
 
@@ -1594,6 +1630,7 @@ impl AnyInstrument {
             AnyInstrument::PocketSynth(synth) => synth.set_note_pitch(id, pitch),
             AnyInstrument::GrooveSynth(synth) => synth.set_note_pitch(id, pitch),
             AnyInstrument::HybridSeq(synth) => synth.set_note_pitch(id, pitch),
+            AnyInstrument::MatrixSynth(synth) => synth.set_note_pitch(id, pitch),
         }
     }
 
@@ -1647,6 +1684,7 @@ impl AnyInstrument {
             AnyInstrument::PocketSynth(synth) => synth.all_notes_off(),
             AnyInstrument::GrooveSynth(synth) => synth.all_notes_off(),
             AnyInstrument::HybridSeq(synth) => synth.all_notes_off(),
+            AnyInstrument::MatrixSynth(synth) => synth.all_notes_off(),
         }
     }
 
@@ -1687,6 +1725,7 @@ impl AnyInstrument {
             AnyInstrument::PocketSynth(synth) => synth.process(left, right),
             AnyInstrument::GrooveSynth(synth) => synth.process(left, right),
             AnyInstrument::HybridSeq(synth) => synth.process(left, right),
+            AnyInstrument::MatrixSynth(synth) => synth.process(left, right),
         }
     }
 
@@ -1727,6 +1766,7 @@ impl AnyInstrument {
             AnyInstrument::PocketSynth(synth) => synth.active_voices(),
             AnyInstrument::GrooveSynth(synth) => synth.active_voices(),
             AnyInstrument::HybridSeq(synth) => synth.active_voices(),
+            AnyInstrument::MatrixSynth(synth) => synth.active_voices(),
         }
     }
 
@@ -1767,6 +1807,7 @@ impl AnyInstrument {
             AnyInstrument::PocketSynth(synth) => synth.latency_samples(),
             AnyInstrument::GrooveSynth(synth) => synth.latency_samples(),
             AnyInstrument::HybridSeq(synth) => synth.latency_samples(),
+            AnyInstrument::MatrixSynth(synth) => synth.latency_samples(),
         }
     }
 
@@ -1807,6 +1848,7 @@ impl AnyInstrument {
             AnyInstrument::PocketSynth(synth) => synth.tail_samples(),
             AnyInstrument::GrooveSynth(synth) => synth.tail_samples(),
             AnyInstrument::HybridSeq(synth) => synth.tail_samples(),
+            AnyInstrument::MatrixSynth(synth) => synth.tail_samples(),
         }
     }
 }

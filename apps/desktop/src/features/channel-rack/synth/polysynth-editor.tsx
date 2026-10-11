@@ -9,6 +9,13 @@ const amp = ["envelope.attackMs", "envelope.decayMs", "envelope.sustain", "envel
 const filterEnv = ["filterEnvelope.attackMs", "filterEnvelope.decayMs", "filterEnvelope.sustain", "filterEnvelope.releaseMs"]
 const operators: (readonly [string, readonly string[]])[] = Array.from({ length: 6 }, (_, i) => [`Operator ${i + 1}`, ["ratio", "detuneCents", "level", "feedback", "keyScale", "waveform", "envelope.attackMs", "envelope.decayMs", "envelope.sustain", "envelope.releaseMs"].map((field) => `operators.${i}.${field}`)] as const)
 export const POLYSYNTH_PANELS: Record<string, readonly (readonly [string, readonly string[]])[]> = {
+  matrixSynth: [
+    ["Matrix modulation", ["lfoRateHz", "lfoPitch", "lfoIndex", "lfoFilter"]], ...operators,
+    ["Carrier outputs", Array.from({ length: 6 }, (_, i) => `output.${i}`)],
+    ["Subtractive stage", ["filterMix", "cutoffHz", "resonance", "drive", "filterAmount", "keyTrack"]],
+    ["Amp contour", amp], ["Filter contour", filterEnv],
+    ["Voices and effects", ["unison", "detuneCents", "spread", "glideMs", "polyphony", "chorus", "delay", "reverb", "gain"]],
+  ],
   hybridSeq: [
     ["FM and subtractive graph", ["algorithm", "index", "sawMix"]], ...operators,
     ["Sequence clock", ["sequencer", "length", "division", "gate"]],
@@ -69,6 +76,15 @@ export function PolysynthEditor({ channel, params }: { channel: ChannelId; param
     </TabsContent>)}
   </Tabs>
   return <div data-slot="polysynth-editor" role="group" aria-label={`${descriptor.name} settings`} className="flex flex-col gap-2">
+    {params.type === "matrixSynth" && (["fm", "ring"] as const).map((matrix) => <ParamGroup key={matrix} title={matrix === "fm" ? "FM routing matrix" : "Ring routing matrix"}>
+      <p className="text-muted-foreground">Columns send operators into the destination rows. Cycles use the previous synthesis substep.</p>
+      <div className="overflow-auto"><table aria-label={`${matrix.toUpperCase()} operator routing`}>
+        <thead><tr><th scope="col">Destination / Source</th>{Array.from({ length: 6 }, (_, source) => <th key={source} scope="col">Op {source + 1}</th>)}</tr></thead>
+        <tbody>{Array.from({ length: 6 }, (_, destination) => <tr key={destination}><th scope="row">Op {destination + 1}</th>
+          {Array.from({ length: 6 }, (_, source) => <td key={source}><ParamControl size="sm" {...bind(`${matrix}.${destination}.${source}`)} /></td>)}
+        </tr>)}</tbody>
+      </table></div>
+    </ParamGroup>)}
     {POLYSYNTH_PANELS[params.type].map(([title, ids]) => <ParamGroup key={title} title={title}>
       <ParamRow>{ids.map((id) => <ParamControl key={id} {...bind(id)} />)}</ParamRow>
     </ParamGroup>)}

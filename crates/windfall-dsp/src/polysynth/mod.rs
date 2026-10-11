@@ -21,6 +21,8 @@ mod pocket_synth;
 mod groove_synth;
 mod operators;
 mod hybrid_seq;
+mod matrix_synth;
+pub use matrix_synth::{MatrixSynth, MatrixSynthParams};
 pub use operators::MatrixOperator;
 pub use hybrid_seq::{HybridSeq, HybridSeqParams, HybridAlgorithm, HybridStep};
 pub use groove_synth::{GrooveSynth, GrooveSynthParams, GrooveMode};

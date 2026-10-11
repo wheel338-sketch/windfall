@@ -65,3 +65,13 @@ fn hybridSeq_musical_edit_reaches_history_disk_and_live_offline_pcm() {
     assert!(changed.set(param, if info.default == info.max { info.min } else { info.max }));
     acceptance(InstrumentKind::HybridSeq, initial, changed);
 }
+
+#[test]
+fn matrixSynth_musical_edit_reaches_history_disk_and_live_offline_pcm() {
+    let initial = InstrumentKind::MatrixSynth.default_params();
+    let mut changed = initial;
+    let param = InstrumentKind::MatrixSynth.descriptors().iter().position(|p| p.id == "fm.0.1").unwrap();
+    let info = &InstrumentKind::MatrixSynth.descriptors()[param];
+    assert!(changed.set(param, if info.default == info.max { info.min } else { info.max }));
+    acceptance(InstrumentKind::MatrixSynth, initial, changed);
+}

@@ -188,3 +188,41 @@ fn hybrid_sequence_step_pitch_gate_velocity_and_tempo_are_real() {
     synth.note_off(60);synth.process(&mut [0.0;8000],&mut [0.0;8000]);assert_eq!(synth.active_voices(),0);
 }
 
+fn bessel(order:usize,x:f64)->f64 {
+    let factorial=|n:usize| (1..=n).fold(1.0,|a,b|a*b as f64);
+    (0..18).map(|k|(-1.0_f64).powi(k as i32)*(x*0.5).powi((2*k+order) as i32)/(factorial(k)*factorial(k+order))).sum()
+}
+
+#[test]
+fn matrix_synth_fm_sidebands_match_bessel_and_ring_matches_product_identity() {
+    contract(InstrumentKind::MatrixSynth);
+    let mut p=MatrixSynthParams { filter_mix:0.0,..Default::default() };
+    p.operators[1].ratio=3.0;p.fm[0][1]=2.0;
+    let x=render(InstrumentParams::MatrixSynth(p),69,60000,64).0;
+    let carrier=amplitude(&x[12000..],440.0);
+    let sideband=amplitude(&x[12000..],1760.0);
+    // Modulator amplitude = level .5 * operator sustain .8, so depth 2 = .8 rad.
+    let reference=bessel(1,0.8)/bessel(0,0.8);
+    assert!((sideband/carrier-reference).abs()<0.01);
+    p.fm[0][1]=0.0;p.ring[0][1]=1.0;
+    let x=render(InstrumentParams::MatrixSynth(p),69,60000,64).0;
+    let difference=amplitude(&x[12000..],880.0);let sum=amplitude(&x[12000..],1760.0);
+    assert!(difference>0.001);assert!((difference/sum-1.0).abs()<0.01);
+    assert!(amplitude(&x[12000..],440.0)<sum*0.01);
+}
+
+#[test]
+fn matrix_synth_cycles_feedback_key_scaling_modulation_and_filter_are_audible() {
+    let p=MatrixSynthParams::default();let mut changed=p;changed.fm[0][1]=2.0;changed.fm[1][0]=1.0;changed.operators[0].feedback=1.0;
+    different(InstrumentParams::MatrixSynth(p),InstrumentParams::MatrixSynth(changed));
+    let a=render(InstrumentParams::MatrixSynth(changed),60,24000,1);
+    let b=render(InstrumentParams::MatrixSynth(changed),60,24000,257);assert_eq!(a,b);
+    assert!(a.0.iter().chain(&a.1).all(|s|s.is_finite()));
+    different(InstrumentParams::MatrixSynth(p),InstrumentParams::MatrixSynth(MatrixSynthParams { lfo_index:2.0,lfo_pitch:2.0,..p }));
+    different(InstrumentParams::MatrixSynth(p),InstrumentParams::MatrixSynth(MatrixSynthParams { cutoff_hz:100.0,..p }));
+    let base=MatrixSynthParams { filter_mix:0.0,..p };let mut scaled=base;scaled.operators[0].key_scale=1.0;
+    let a=render(InstrumentParams::MatrixSynth(base),72,24000,64).0;
+    let b=render(InstrumentParams::MatrixSynth(scaled),72,24000,64).0;
+    assert!((energy(&b)/energy(&a)-4.0).abs()<0.02);
+}
+
