@@ -97,6 +97,14 @@ pub trait HostedInstrument: HostedEffect {
     fn supports_note_pitch(&self) -> bool {
         false
     }
+    /// What the stored controls of this channel's notes drive in the plugin.
+    /// The engine passes a note's controls as they are stored and leaves the
+    /// translation into plugin expressions to the provider. Called when the
+    /// unit is installed and, on the audio thread, when a plan changes the
+    /// map: no allocation, lock, wait or native call.
+    fn set_expression_map(&mut self, map: windfall_dsp::ExpressionMap) {
+        let _ = map;
+    }
 }
 
 /// Creates independent instances for playback and offline render, off the callback.

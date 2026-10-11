@@ -1204,6 +1204,7 @@ impl PlanState {
                             .polyphony
                             .glide_coefficient(f64::from(sample_rate)),
                     );
+                    unit.set_expression_map(channel.expression_map);
                     if let Some(binding) =
                         plan.plugins.iter().find(|binding| binding.target == target)
                     {
@@ -1522,6 +1523,7 @@ impl PlanState {
                     self.channel_voice[index].envelopes,
                     self.channel_voice[index].glide,
                 );
+                unit.set_expression_map(channel.expression_map);
             }
             let sounding = seat
                 .unit
@@ -2035,6 +2037,7 @@ mod tests {
             solo: false,
             group: String::new(),
             voice: Default::default(),
+            expression_map: Default::default(),
             timing: windfall_project::ChannelTiming::default(),
             mixer_track: TrackId(track),
             source,

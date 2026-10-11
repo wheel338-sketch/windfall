@@ -403,6 +403,7 @@ fn check_channel(project: &Project, channel: &Channel) -> Result<(), String> {
         return Err(format!("channel {} has invalid voice settings", channel.id.0));
     }
     channel.timing.validate().map_err(|reason| format!("channel {}: {reason}", channel.id.0))?;
+    crate::expression_map::check(channel)?;
     if channel.group.len() > crate::MAX_CHANNEL_GROUP_NAME_BYTES
         || channel.group.trim() != channel.group
         || channel.group.chars().any(char::is_control)

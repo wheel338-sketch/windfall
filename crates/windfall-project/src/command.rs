@@ -353,6 +353,13 @@ pub enum Command {
         id: ChannelId,
         patch: ChannelPatch,
     },
+    /// Replaces what the channel's per-note modulation X, modulation Y and
+    /// release drive, in one undoable edit. A map with an amount, pitch
+    /// range or bend range outside its range is refused.
+    SetChannelExpressionMap {
+        id: ChannelId,
+        map: crate::ExpressionMap,
+    },
     /// Moves every listed channel to a named group in one undo entry.
     /// An empty group name means ungrouped. All channel ids are checked
     /// before any membership changes; repeated ids are ignored.

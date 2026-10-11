@@ -71,6 +71,7 @@ pub mod filter_family;
 pub mod frequency_delay;
 mod instrument;
 mod note_expression;
+pub mod expression_map;
 mod limiter;
 pub mod lofi;
 pub mod modulation;
@@ -99,6 +100,10 @@ pub use filter_family::{
 };
 pub use instrument::{AnyInstrument, Instrument, InstrumentKind, InstrumentParams};
 pub use note_expression::{NoteArticulation, NoteExpression, NoteInstanceId};
+pub use expression_map::{
+    ExpressionDestination, ExpressionMap, ExpressionRoute, PluginControls,
+    PluginExpressionDestination, VoiceControls,
+};
 pub use limiter::{Limiter, LimiterParams};
 pub use lofi::{FilterPlacement, Lofi, LofiParams, RunRelation};
 pub use modulation::{Chorus, ChorusParams, Flanger, FlangerParams, Phaser, PhaserParams};

@@ -5,6 +5,7 @@ mod audio_clips;
 mod automation;
 mod device;
 mod effects;
+mod expression_map;
 mod filter_family;
 mod instruments;
 mod lofi;

@@ -115,6 +115,9 @@ macro_rules! instrument {
             fn set_note_pitch(&mut self, id: NoteInstanceId, pitch: f32) {
                 self.engine.pitch(id, pitch);
             }
+            fn set_note_gain(&mut self, id: NoteInstanceId, gain: f32) {
+                self.engine.gain(id, gain);
+            }
             fn all_notes_off(&mut self) {
                 self.engine.stop();
             }

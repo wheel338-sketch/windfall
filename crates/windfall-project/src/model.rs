@@ -451,6 +451,11 @@ pub struct Channel {
     /// The mixer track this channel plays into.
     pub mixer_track: TrackId,
     pub source: ChannelSource,
+    /// What modulation X, modulation Y and release drive in this channel's
+    /// voices. Absent in older files, which is the fixed mapping they had.
+    #[serde(default, skip_serializing_if = "crate::ExpressionMap::is_default")]
+    #[ts(as = "Option<crate::ExpressionMap>", optional)]
+    pub expression_map: crate::ExpressionMap,
 }
 
 /// What makes the sound of a channel: a sample or an instrument. Hosted

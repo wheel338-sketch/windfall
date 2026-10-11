@@ -112,6 +112,8 @@ pub(crate) struct Plan {
 #[derive(Debug, Clone)]
 pub(crate) struct PlanChannel {
     pub voice: windfall_project::ChannelVoiceSettings,
+    /// What the stored controls of a note drive in this channel's voices.
+    pub expression_map: windfall_dsp::ExpressionMap,
     pub id: ChannelId,
     /// Index of the mixer track the channel plays into.
     pub track: usize,
@@ -515,6 +517,7 @@ impl Plan {
             let track = previous.tracks[channel.track].id;
             self.channels.push(PlanChannel {
                 voice: channel.voice,
+                expression_map: channel.expression_map,
                 id: channel.id,
                 track: self.track_ids.get(track.0).unwrap_or(0),
                 gain: channel.gain,
@@ -668,6 +671,7 @@ impl Plan {
             {
                 self.channels.push(PlanChannel {
                 voice: channel.voice,
+                expression_map: channel.expression_map,
                     id: channel.id,
                     track: self
                         .track_ids
@@ -880,6 +884,7 @@ fn compile_channel(
     let audible = !channel.muted && (!any_solo || channel.solo);
     PlanChannel {
         voice: channel.voice.sanitized(),
+        expression_map: channel.expression_map.sanitized(),
         id: channel.id,
         // A channel whose track is gone plays into the master.
         track: track_ids.get(channel.mixer_track.0).unwrap_or(0),
@@ -1914,6 +1919,7 @@ mod tests {
             solo: false,
             group: String::new(),
             voice: Default::default(),
+            expression_map: Default::default(),
             timing: windfall_project::ChannelTiming::default(),
             mixer_track: TrackId::MASTER,
             source: ChannelSource::Sampler(SamplerSettings::default()),

@@ -7,7 +7,7 @@
 //! inside the state they were last in to be dropped off the audio thread.
 
 use windfall_dsp::blocks::tap_crossfade::TapCrossfade;
-use windfall_dsp::{AnyEffect, AnyInstrument, EffectSlot, GainReductionMeter, NoteArticulation, NoteExpression, NoteInstanceId};
+use windfall_dsp::{AnyEffect, AnyInstrument, EffectSlot, ExpressionMap, GainReductionMeter, NoteArticulation, NoteExpression, NoteInstanceId, VoiceControls};
 use windfall_project::{EffectKind, EffectParams, InstrumentKind, InstrumentParams, TrackId};
 
 use crate::mixer::{Frame, MAX_BLOCK};
@@ -434,16 +434,23 @@ struct HeldInstrumentNote {
     origin: Origin,
     pitch: f64,
     glide: Option<NoteGlide>,
+    /// Gain and cents the channel's expression map made of `expression`
+    /// when it was last sent to a built-in instrument.
+    map_gain: f32,
+    map_cents: f32,
 }
 
 impl HeldInstrumentNote {
     const EMPTY: Self = Self { channel_envelopes: None, channel_pitch: 0.0, source: None, active: false, id: NoteInstanceId(0), key: 0, velocity: 0.0,
-        pan: 0.0, expression: NoteExpression::NEUTRAL, end: f64::INFINITY, origin: Origin::Sequenced, pitch: 0.0, glide: None };
+        pan: 0.0, expression: NoteExpression::NEUTRAL, end: f64::INFINITY, origin: Origin::Sequenced, pitch: 0.0, glide: None, map_gain: 1.0, map_cents: 0.0 };
 }
 
 pub(crate) struct InstrumentUnit {
     voice_envelopes: Option<crate::channel_voice::PreparedChannelEnvelopes>,
     voice_glide: f64,
+    /// What the stored controls of a note drive. A built-in instrument is
+    /// given the resolved values; a hosted plugin is given the map.
+    map: ExpressionMap,
     external: Option<Option<Box<dyn crate::plugins::HostedInstrument>>>,
     plugin_params: Box<[(u32, f32)]>,
     instrument: AnyInstrument,
@@ -470,6 +477,7 @@ impl InstrumentUnit {
         instrument.set_params(params);
         Self {
             voice_envelopes: None, voice_glide: 1.0,
+            map: ExpressionMap::DEFAULT,
             external: None,
             plugin_params: Box::new([]),
             instrument,
@@ -487,6 +495,38 @@ impl InstrumentUnit {
         self.voice_envelopes = envelopes.enabled().then_some(envelopes); self.voice_glide = glide;
     }
 
+    /// Takes the channel's expression map. Notes already held follow it at
+    /// once. Runs on the audio thread when a plan changes the map.
+    pub fn set_expression_map(&mut self, map: ExpressionMap) {
+        if map == self.map {
+            return;
+        }
+        self.map = map;
+        if let Some(external) = &mut self.external {
+            if let Some(unit) = external {
+                unit.set_expression_map(map);
+            }
+            return;
+        }
+        for slot in 0..self.notes.len() {
+            let note = self.notes[slot];
+            if !note.active {
+                continue;
+            }
+            let moved = self.apply_expression(note.id, note.pan, note.expression);
+            if moved != 0.0 {
+                self.notes[slot].channel_pitch += moved;
+                self.set_pitch(note.id, self.notes[slot].channel_pitch);
+            }
+        }
+    }
+
+    /// The note's controls as the instrument takes them. A hosted plugin gets
+    /// the stored values, because its provider applies the map itself.
+    fn controls(&self, pan: f32, expression: NoteExpression) -> VoiceControls {
+        voice_controls(self.map, self.external.is_some(), pan, expression)
+    }
+
     pub fn kind(&self) -> InstrumentKind {
         self.params.kind()
     }
@@ -502,6 +542,9 @@ impl InstrumentUnit {
             .iter()
             .map(|param| (param.id, f32::NAN))
             .collect();
+        if let Some(Some(unit)) = &mut self.external {
+            unit.set_expression_map(self.map);
+        }
         self.apply_plugin(binding);
     }
     pub fn plugin_control_boundary(&mut self) {
@@ -607,7 +650,10 @@ impl InstrumentUnit {
     pub fn start_note_source(&mut self, key: u8, velocity: f32, pan: f32, expression: NoteExpression, end: f64, origin: Origin, at: f64, glide_end: f64, source: Option<crate::note_curves::CurveSource>) -> Option<NoteInstanceId> {
         if !velocity.is_finite() || velocity <= 0.0 || end.is_nan() { return None; }
         let expression = expression.clamped();
-        let target_pitch = f64::from(key.min(127)) + f64::from(expression.fine_pitch_cents) / 100.0;
+        let pan = if pan.is_finite() { pan.clamp(-1.0, 1.0) } else { 0.0 };
+        let controls = self.controls(pan, expression);
+        let target_pitch = f64::from(key.min(127)) + f64::from(expression.fine_pitch_cents) / 100.0
+            + f64::from(controls.pitch_cents) / 100.0;
         let from = self.notes.iter().filter(|note| note.active && note.origin == origin && note.expression.color_group.unwrap_or(0) == expression.color_group.unwrap_or(0) && note.end > at)
             .max_by_key(|note| note.id.0).map(|note| note.glide.map_or(note.pitch, |glide| glide.at(at)));
         let glide = if expression.articulation == NoteArticulation::Portamento {
@@ -633,8 +679,9 @@ impl InstrumentUnit {
             channel_pitch: if self.voice_glide < 1.0 { from.unwrap_or(target_pitch) } else { glide.map_or(target_pitch, |g| g.from) },
             source,
             active: true, id, key: key.min(127), velocity: velocity.min(1.0),
-            pan: if pan.is_finite() { pan.clamp(-1.0, 1.0) } else { 0.0 }, expression, end, origin,
+            pan, expression, end, origin,
             pitch: glide.map_or(target_pitch, |glide| glide.from), glide,
+            map_gain: controls.gain, map_cents: controls.pitch_cents,
         };
         self.notes[slot] = note;
         self.held += 1;
@@ -643,9 +690,12 @@ impl InstrumentUnit {
                 unit.note_on_instance(note.id, note.key, note.velocity, note.pan, note.expression);
             }
         } else {
-            self.instrument.note_on_instance(note.id, note.key, note.velocity, note.pan, note.expression);
+            self.instrument.note_on_instance(note.id, note.key, note.velocity, controls.pan, controls.expression);
+            if controls.gain != 1.0 { self.instrument.set_note_gain(note.id, controls.gain); }
         }
-        if note.glide.is_some() { self.set_pitch(note.id, note.pitch); }
+        // The instrument knows the key and fine pitch; a glide or a control
+        // mapped to pitch has to be told.
+        if note.glide.is_some() || controls.pitch_cents != 0.0 { self.set_pitch(note.id, note.pitch); }
         Some(id)
     }
 
@@ -792,6 +842,7 @@ impl InstrumentUnit {
         // Musical pitch is evaluated at the exact output frame, so changing
         // tempo or callback block size does not change the glide trajectory.
         let mut modulation = crate::channel_voice::ModulationBlock::default();
+        let (map, hosted) = (self.map, self.external.is_some());
         for frame in from..to {
             let tick = clock.tick_at(base + frame as u64);
             for slot in 0..self.notes.len() {
@@ -799,9 +850,10 @@ impl InstrumentUnit {
                 if !before.active { continue; }
                 let controls = before.source.filter(|source| source.active).and_then(|source| plan.map(|plan| source.controls(plan, tick)));
                 let mut pitch_changed = false;
-                if let Some((pan, expression)) = controls {
-                    pitch_changed = expression.fine_pitch_cents != before.expression.fine_pitch_cents;
-                    if pan != before.pan || expression != before.expression { self.set_note_expression(before.id, pan, expression); }
+                if let Some((pan, expression)) = controls
+                    && (pan != before.pan || expression != before.expression)
+                {
+                    pitch_changed = self.set_note_expression(before.id, pan, expression);
                 }
                 let note = &mut self.notes[slot];
                 let gliding = pitch_supported && note.glide.is_some();
@@ -813,9 +865,12 @@ impl InstrumentUnit {
                 let mut pitch_offset = 0.0;
                 if let Some(envelopes) = &mut note.channel_envelopes {
                     envelopes.process_block(1, &mut modulation);
-                    let mut expression = note.expression;
+                    // The channel envelopes move the cutoff and the pan
+                    // themselves, on top of what the map made of the note.
+                    let base = voice_controls(map, hosted, note.pan, note.expression);
+                    let mut expression = base.expression;
                     expression.modulation_x = (expression.modulation_x + modulation.filter_cutoff_offset[0] / 8.0).clamp(0.0, 1.0);
-                    let pan = (note.pan + modulation.pan[0]).clamp(-1.0, 1.0);
+                    let pan = (base.pan + modulation.pan[0]).clamp(-1.0, 1.0);
                     modulated_controls = Some((pan, expression));
                     pitch_offset = f64::from(modulation.pitch_cents[0]) / 100.0;
                 }
@@ -886,11 +941,22 @@ impl InstrumentUnit {
         }
     }
 
-    pub fn set_note_expression(&mut self, id: NoteInstanceId, pan: f32, expression: NoteExpression) {
+    /// Returns true when the note's pitch moved, which the caller sends on.
+    pub fn set_note_expression(&mut self, id: NoteInstanceId, pan: f32, expression: NoteExpression) -> bool {
+        self.apply_expression(id, pan, expression) != 0.0
+    }
+
+    /// Stores a note's controls and sends them on through the expression map.
+    /// Returns the keys its pitch moved by.
+    fn apply_expression(&mut self, id: NoteInstanceId, pan: f32, expression: NoteExpression) -> f64 {
         let expression = expression.clamped();
         let pan = if pan.is_finite() { pan.clamp(-1.0, 1.0) } else { 0.0 };
+        let controls = self.controls(pan, expression);
+        let mut moved = 0.0;
+        let mut gain_changed = false;
         if let Some(note) = self.notes.iter_mut().find(|note| note.active && note.id == id) {
-            let moved = f64::from(expression.fine_pitch_cents - note.expression.fine_pitch_cents) / 100.0;
+            moved = f64::from(expression.fine_pitch_cents - note.expression.fine_pitch_cents) / 100.0
+                + f64::from(controls.pitch_cents - note.map_cents) / 100.0;
             note.pitch += moved;
             if let Some(glide) = &mut note.glide {
                 glide.from += moved;
@@ -898,15 +964,25 @@ impl InstrumentUnit {
             }
             note.pan = pan;
             note.expression = expression;
+            gain_changed = note.map_gain != controls.gain;
+            note.map_gain = controls.gain;
+            note.map_cents = controls.pitch_cents;
         }
         if let Some(Some(unit)) = &mut self.external { unit.set_note_expression(id, pan, expression); }
-        else if self.external.is_none() { self.instrument.set_note_expression(id, pan, expression); }
+        else if self.external.is_none() {
+            self.instrument.set_note_expression(id, controls.pan, controls.expression);
+            if gain_changed { self.instrument.set_note_gain(id, controls.gain); }
+        }
+        moved
     }
 
     pub fn retarget_instance(&mut self, id: NoteInstanceId, note: crate::voice::Note, at: f64, glide_end: f64) -> bool {
+        let controls = self.controls(note.pan, note.expression.clamped());
         let Some(held) = self.notes.iter_mut().find(|held| held.active && held.id == id) else { return false; };
         held.key = note.key; held.end = note.end; held.source = note.source; held.origin = note.origin;
-        held.pitch = f64::from(note.key) + f64::from(note.expression.fine_pitch_cents) / 100.0;
+        held.pitch = f64::from(note.key) + f64::from(note.expression.fine_pitch_cents) / 100.0
+            + f64::from(controls.pitch_cents) / 100.0;
+        held.map_cents = controls.pitch_cents;
         let target = held.pitch;
         held.glide = if note.expression.articulation == NoteArticulation::Portamento {
             Some(NoteGlide::new(at, glide_end, held.channel_pitch, target))
@@ -1508,5 +1584,14 @@ mod tests {
         // and from then on the new delay of 6, reading what the small line
         // was given.
         assert_eq!(left, [47.0, 46.5, 46.0, 47.0]);
+    }
+}
+
+/// A note's controls for a built-in instrument, or untouched for a hosted one.
+fn voice_controls(map: ExpressionMap, hosted: bool, pan: f32, expression: NoteExpression) -> VoiceControls {
+    if hosted {
+        VoiceControls { expression, pan, gain: 1.0, pitch_cents: 0.0 }
+    } else {
+        map.resolve(pan, expression)
     }
 }

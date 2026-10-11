@@ -19,6 +19,7 @@ pub mod command;
 pub mod document;
 mod edit;
 pub mod error;
+mod expression_map;
 pub mod file;
 mod lower;
 mod mixer_preset;
@@ -55,5 +56,8 @@ pub use file::{LoadError, ProjectSession, SaveError};
 pub use model::*;
 pub use note_timing::{ChannelTiming, MAX_CHANNEL_SHIFT_TICKS};
 pub use windfall_dsp::{NoteArticulation, NoteExpression};
+pub use windfall_dsp::{
+    ExpressionDestination, ExpressionMap, ExpressionRoute, PluginExpressionDestination,
+};
 pub use patch::*;
 pub use piano_tools::{NoteEdge, NoteGroove, NoteTransform};

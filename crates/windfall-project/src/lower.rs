@@ -1252,6 +1252,16 @@ impl Transaction<'_> {
                 "Set channel voice settings"
             }
             Command::UpdateChannel { id, patch } => self.update_channel(id, patch)?,
+            Command::SetChannelExpressionMap { id, map } => {
+                let old = self
+                    .project
+                    .channel(id)
+                    .ok_or_else(|| CommandError::not_found("channel", id))?
+                    .clone();
+                let new = crate::expression_map::applied(&old, map)?;
+                self.push(Edit::SetChannel(Box::new(Change { old, new })));
+                "Set channel expression mapping"
+            }
             Command::SetChannelGroup { channels, group } => {
                 self.set_channel_group(&channels, &group)?;
                 "Assign channel group"
@@ -1685,6 +1695,7 @@ impl Transaction<'_> {
                 name,
                 group: String::new(),
                 voice: Default::default(),
+                expression_map: Default::default(),
                 timing: crate::ChannelTiming::default(),
                 color,
                 volume: DEFAULT_CHANNEL_VOLUME,

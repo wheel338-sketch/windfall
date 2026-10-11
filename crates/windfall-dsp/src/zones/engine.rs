@@ -13,6 +13,8 @@ struct Voice {
     step: f64,
     pitch: f32,
     velocity_gain: f32,
+    /// Linear gain from the expression map of the channel. 1 is unity.
+    gain: f32,
     pan: f32,
     expression: NoteExpression,
     envelope: f32,
@@ -30,6 +32,7 @@ impl Default for Voice {
             step: 1.0,
             pitch: 60.0,
             velocity_gain: 0.0,
+            gain: 1.0,
             pan: 0.0,
             expression: NoteExpression::default(),
             envelope: 0.0,
@@ -74,7 +77,7 @@ impl Voice {
         let fraction = (self.position - index as f64) as f32;
         let a = self.zone.sample.data[index];
         let b = self.zone.sample.data[next];
-        let value = (a + (b - a) * fraction) * self.envelope * self.velocity_gain * self.zone.gain;
+        let value = (a + (b - a) * fraction) * self.envelope * self.velocity_gain * self.zone.gain * self.gain;
         let pan = (self.zone.pan + self.pan).clamp(-1.0, 1.0);
         let left = ((1.0 - pan) * 0.5).sqrt();
         let right = ((1.0 + pan) * 0.5).sqrt();
@@ -217,6 +220,7 @@ impl Engine {
                 step: 1.0,
                 pitch: key as f32,
                 velocity_gain: velocity * weight,
+                gain: 1.0,
                 pan: clean(pan, -1.0, 1.0, 0.0),
                 expression: expression.clamped(),
                 envelope: 1.0,
@@ -258,6 +262,13 @@ impl Engine {
                 voice.pan = clean(pan, -1.0, 1.0, 0.0);
                 voice.expression = expression.clamped();
                 voice.update_step(self.sample_rate);
+            }
+        }
+    }
+    pub fn gain(&mut self, id: NoteInstanceId, gain: f32) {
+        for voice in &mut self.voices {
+            if voice.active && voice.id == id {
+                voice.gain = clean(gain, 0.0, 16.0, 1.0);
             }
         }
     }
