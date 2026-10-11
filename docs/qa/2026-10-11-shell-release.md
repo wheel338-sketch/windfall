@@ -226,8 +226,17 @@ run for nonmodal/menu/action/replacement regressions.
 pnpm --dir apps/desktop test src/features/help/getting-started.test.tsx src/features/help/guided-tutorial.test.tsx src/lib/i18n/catalogs.test.tsx --maxWorkers=2
 ```
 
-Partial: manual link/manual content service is still absent; guides are explicit
-state-gated assistants, not anchored highlights of every control. Mounted full
+Bundled English/Spanish manual topics now open from Read manual inside Help,
+without network/IPC/navigation. The guide opts out of the shared backdrop and
+uses Base UI disablePointerDismissal to keep focus/outside edits from closing
+it. The dialog primitive gains an opt-in showOverlay=false prop; every other
+dialog retains its default behavior. A mounted actual help-dialog/outside-focus/
+manual-expansion case is written, not executed. Check the pinned Base UI prop
+and native nonmodal behavior before acceptance; reference:
+[Base UI Dialog](https://base-ui.com/react/components/dialog).
+
+Partial: guides are explicit state-gated assistants, not anchored highlights of
+every control. Mounted full
 native record→kept clip and completed file export walkthroughs, error/device
 loss and keyboard focus checks remain. Export completion currently observes a
 successful event in the current project/window, rather than a dedicated tutorial

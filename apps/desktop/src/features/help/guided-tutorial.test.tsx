@@ -12,6 +12,9 @@ import { ContextHelp } from "./context-help"
 import { Overlays } from "@/features/layout/app-shell"
 import { PanelFrame } from "@/features/layout/panel-frame"
 import { closeGettingStarted } from "./getting-started-store"
+import { openGettingStarted } from "./getting-started-store"
+import { GettingStartedDialog } from "./getting-started-dialog"
+import userEvent from "@testing-library/user-event"
 import type { MockBackend } from "@/lib/ipc/mock"
 let backend: MockBackend; let stop: () => void
 beforeEach(async () => {
@@ -22,6 +25,19 @@ beforeEach(async () => {
 })
 afterEach(() => { closeGettingStarted(); stop() })
 describe("real-state guided tutorials", () => {
+  it("keeps help open while focusing the application and provides a bundled manual", async () => {
+    render(<TooltipProvider><button>Song editor control</button><GettingStartedDialog /></TooltipProvider>)
+    act(() => openGettingStarted())
+    const user = userEvent.setup()
+    const editor = screen.getByRole("button", { name: "Song editor control" })
+    await user.click(editor)
+    expect(editor).toHaveFocus()
+    expect(screen.getByRole("dialog", { name: "Getting started" })).toBeVisible()
+    expect(document.querySelector('[data-slot="dialog-overlay"]')).toBeNull()
+    await user.click(screen.getByText("Read manual"))
+    expect(screen.getByRole("article", { name: "Windfall manual" })).toBeVisible()
+    expect(screen.getByText("Patterns and songs")).toBeVisible()
+  })
   it("opens real contextual help from a detached header using the shared window overlays", async () => {
     render(<TooltipProvider>
       <PanelFrame title="Mixer" panel="mixer" detached><p>Detached mixer</p></PanelFrame>

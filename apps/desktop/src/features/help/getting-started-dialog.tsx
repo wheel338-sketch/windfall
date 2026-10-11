@@ -4,6 +4,7 @@ import { Field, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { ContextHelp } from "./context-help"
 import { GuidedTutorial } from "./guided-tutorial"
+import { OfflineManual } from "./offline-manual"
 import { TUTORIALS, type TutorialKind } from "./tutorials"
 import {
   Dialog,
@@ -57,12 +58,13 @@ export function GettingStartedDialog() {
   return (
     <Dialog
       modal={false}
+      disablePointerDismissal
       open={open}
       onOpenChange={(next) => {
         if (!next) { closeGettingStarted(); setTutorial(null) }
       }}
     >
-      <DialogContent className="max-h-[85vh] overflow-y-auto">
+      <DialogContent showOverlay={false} className="max-h-[85vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{t("Getting started")}</DialogTitle>
           <DialogDescription>
@@ -88,6 +90,7 @@ export function GettingStartedDialog() {
             </li>
           ))}
         </ol>}
+        <OfflineManual />
       </DialogContent>
     </Dialog>
   )
