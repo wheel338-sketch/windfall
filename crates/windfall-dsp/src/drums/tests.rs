@@ -207,11 +207,9 @@ fn extremes<I: Instrument + Default>(key: u8, cap: usize) {
             drum.note_on(key, 1.0);
             assert!(drum.active_voices() <= cap);
             let signal = render(&mut drum, 4000, &[64]);
-            assert!(
-                signal
-                    .iter()
-                    .all(|x| x.is_finite() && x.abs() < cap as f32 * 4.0)
-            );
+            assert!(signal
+                .iter()
+                .all(|x| x.is_finite() && x.abs() < cap as f32 * 4.0));
             drum.note_on(key, f32::NAN);
             drum.note_on(255, 1.0);
             drum.all_notes_off();
@@ -311,6 +309,7 @@ fn descriptors_defaults_and_camel_case_persistence_agree() {
         pitch_drop_semitones: f32::NAN,
         pitch_decay_ms: f32::NEG_INFINITY,
         level: f32::NAN,
+        ..Default::default()
     }
     .sanitized();
     assert_eq!(bad.pitch_hz, MembraneParams::default().pitch_hz);
@@ -326,7 +325,15 @@ fn membrane_strike_damping_and_body_change_the_passive_modal_response() {
     let sound = |strike_position, damping, body| {
         let mut drum = Membrane::default();
         drum.prepare(RATE, 257);
-        drum.set_params(&MembraneParams { strike_position, damping, body, snap: 0.0, pitch_drop_semitones: 0.0, decay_ms: 2000.0, ..Default::default() });
+        drum.set_params(&MembraneParams {
+            strike_position,
+            damping,
+            body,
+            snap: 0.0,
+            pitch_drop_semitones: 0.0,
+            decay_ms: 2000.0,
+            ..Default::default()
+        });
         drum.note_on(60, 1.0);
         render(&mut drum, 48_000, &[7, 257, 31])
     };
@@ -335,7 +342,11 @@ fn membrane_strike_damping_and_body_change_the_passive_modal_response() {
     let damped = sound(0.0, 1.0, 0.0);
     let body = sound(0.0, 0.0, 1.0);
     for other in [&rim, &damped, &body] {
-        let delta: Vec<_> = center.iter().zip(other.iter()).map(|(a,b)| a-b).collect();
+        let delta: Vec<_> = center
+            .iter()
+            .zip(other.iter())
+            .map(|(a, b)| a - b)
+            .collect();
         assert!(power(&delta) > 1e-6);
         assert!(other.iter().all(|x| x.is_finite() && x.abs() < 2.0));
     }
@@ -352,12 +363,21 @@ fn membrane_has_measured_circular_mode_frequencies_and_transposes() {
             re += f64::from(x) * window * angle.cos();
             im += f64::from(x) * window * angle.sin();
         }
-        (re*re + im*im).sqrt()
+        (re * re + im * im).sqrt()
     }
     for (key, fundamental) in [(60, 160.0), (72, 320.0)] {
         let mut drum = Membrane::default();
         drum.prepare(RATE, 256);
-        drum.set_params(&MembraneParams { strike_position: 0.0, damping: 0.0, body: 0.0, tone: 1.0, snap: 0.0, pitch_drop_semitones: 0.0, decay_ms: 4000.0, ..Default::default() });
+        drum.set_params(&MembraneParams {
+            strike_position: 0.0,
+            damping: 0.0,
+            body: 0.0,
+            tone: 1.0,
+            snap: 0.0,
+            pitch_drop_semitones: 0.0,
+            decay_ms: 4000.0,
+            ..Default::default()
+        });
         drum.note_on(key, 1.0);
         let signal = render(&mut drum, 24_000, &[127]);
         for ratio in [1.0, 1.59334, 2.13555, 2.29542] {
@@ -382,20 +402,48 @@ fn rack_modal_model_edits_one_pad_without_changing_another() {
     edited.pads[15].damping = 0.95;
     edited.pads[15].body = 0.9;
     assert_eq!(sound(initial, 36), sound(edited, 36));
-    let delta: Vec<_> = sound(initial, 51).iter().zip(sound(edited, 51)).map(|(a,b)| a-b).collect();
+    let delta: Vec<_> = sound(initial, 51)
+        .iter()
+        .zip(sound(edited, 51))
+        .map(|(a, b)| a - b)
+        .collect();
     assert!(power(&delta) > 1e-6);
     assert_eq!(DrumRackParams::descriptors()[64].id, "level");
-    assert_eq!(DrumRackParams::descriptors()[110].id, "pads.15.strikePosition");
+    assert_eq!(
+        DrumRackParams::descriptors()[110].id,
+        "pads.15.strikePosition"
+    );
     let mut rack = DrumRack::default();
     rack.prepare(RATE, 257);
-    for key in 36..52 { rack.note_on(key, 1.0); }
+    for key in 36..52 {
+        rack.note_on(key, 1.0);
+    }
     assert_eq!(rack.active_voices(), 16);
-    assert!(render(&mut rack, 4000, &[257]).iter().all(|x| x.is_finite()));
+    assert!(render(&mut rack, 4000, &[257])
+        .iter()
+        .all(|x| x.is_finite()));
 }
 
 #[test]
 fn drum_key_bank_programs_are_absolute_tuned_independent_and_seeded() {
-    let bank = vec![crate::DrumKeyPatch { key: 36, params: DrumVoiceParams { mode: DrumMode::Kick, pitch_hz: 120.0, ..Default::default() } }, crate::DrumKeyPatch { key: 127, params: DrumVoiceParams { mode: DrumMode::Snare, pitch_hz: 180.0, ..Default::default() } }];
+    let bank = vec![
+        crate::DrumKeyPatch {
+            key: 36,
+            params: DrumVoiceParams {
+                mode: DrumMode::Kick,
+                pitch_hz: 120.0,
+                ..Default::default()
+            },
+        },
+        crate::DrumKeyPatch {
+            key: 127,
+            params: DrumVoiceParams {
+                mode: DrumMode::Snare,
+                pitch_hz: 180.0,
+                ..Default::default()
+            },
+        },
+    ];
     let mut drum = DrumVoice::default();
     drum.set_key_patches(&bank);
     drum.prepare(RATE, 257);
@@ -409,7 +457,14 @@ fn drum_key_bank_programs_are_absolute_tuned_independent_and_seeded() {
     let kick = render(&mut drum, 12_000, &[257]);
     assert!(high_frequency_power(&snare) > high_frequency_power(&kick) * 10.0);
     let mut other = DrumVoice::default();
-    other.set_key_patches(&[crate::DrumKeyPatch { key: 36, params: DrumVoiceParams { mode: DrumMode::Snare, pitch_hz: 180.0, ..Default::default() } }]);
+    other.set_key_patches(&[crate::DrumKeyPatch {
+        key: 36,
+        params: DrumVoiceParams {
+            mode: DrumMode::Snare,
+            pitch_hz: 180.0,
+            ..Default::default()
+        },
+    }]);
     other.prepare(RATE, 257);
     other.note_on(36, 1.0);
     assert_eq!(snare, render(&mut other, 12_000, &[31]));

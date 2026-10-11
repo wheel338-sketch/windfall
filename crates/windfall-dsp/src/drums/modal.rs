@@ -41,7 +41,7 @@ impl ModalDrum {
             let shape = (std::f32::consts::PI * strike * n).cos() * (1.0 - strike * strike);
             let weight = if i == 0 { 1.0 } else { (0.12 + 0.6 * tone) / n };
             let frequency = pitch * ratio;
-            let fade = ((0.49 * rate - frequency) / (0.05 * rate)).clamp(0.0, 1.0);
+            let fade = ((0.24 * rate - frequency) / (0.02 * rate)).clamp(0.0, 1.0);
             sum += self.modes[i].tick(Waveform::Sine, (frequency / rate).min(0.24), 0.5)
                 * self.energy[i]
                 * shape

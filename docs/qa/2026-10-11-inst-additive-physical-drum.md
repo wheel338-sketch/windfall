@@ -208,3 +208,22 @@ PCM; mounted image-only/width/history workflow. Regenerate ColorScanParams,
 InstrumentKind/InstrumentParams, descriptors and simulator. All eleven rows now
 have implementation candidates; runtime acceptance remains exclusively with the
 integrator. Static cross-seam reconciliation follows.
+
+### Static reconciliation / callback and preparation lifecycle checkpoint
+
+Static review corrected duplicated MidiOut arms from the local registry edit
+helper, restored the module-level documentation position and retained the exact
+pre-stream registry order, appending seven distinct kinds once (ALL = 34).
+The helper is not delivered. Updated the pinned display-name list and scalar
+ParamSet contracts for all seven additions. Fixed an old MembraneParams test
+literal for appended fields. Constructor validates external asset data before
+attachment. Modal modes fade before their oscillator frequency clamp rather than
+piling up at the clamp; audition buttons capture pointers and stop on pad changes.
+Per-key queued edits recover/report dispatch failures.
+
+Written, not executed: `dsp/realtime.rs::prepared_i3_i4_assets_events_extremes_and_reset_never_allocate_or_free`
+loads real assets for all appropriate kinds, exercises extreme automation/note
+storms/reset and counts alloc/zeroed/realloc/free with the existing TLS allocator.
+`asset-job.test.ts` covers buffer transfer, success retirement, cancellation,
+late results, timeout, worker error and pre-cancel refusal. Worker dispatch throws
+now terminate/clear the job. Add asset-job.test.ts to the frontend test commands.

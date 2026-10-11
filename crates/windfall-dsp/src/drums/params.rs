@@ -6,7 +6,7 @@ use crate::param::{
     approach_value, param_set, ParamInfo, ParamKind, ParamScale, ParamSet, ParamUnit,
 };
 
-/// Controls for a tunable two-mode drum.
+/// Controls for a tunable eight-mode membrane and coupled cavity.
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase", default)]
 #[ts(export)]
@@ -15,7 +15,7 @@ pub struct MembraneParams {
     pub pitch_hz: f32,
     /// Time from strike to silence, ms, 10..4000, default 600.
     pub decay_ms: f32,
-    /// Second membrane mode and noise brightness, 0..1, default 0.5.
+    /// Upper membrane modes and noise brightness, 0..1, default 0.5.
     pub tone: f32,
     /// Short noisy strike level, 0..1, default 0.2.
     pub snap: f32,

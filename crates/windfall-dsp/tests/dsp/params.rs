@@ -1,9 +1,9 @@
 //! The parameter structs and their descriptions must agree with each
 //! other, with their serde names and with their documented ranges.
 
-use serde::Serialize;
 use serde::de::DeserializeOwned;
-use serde_json::{Value, json};
+use serde::Serialize;
+use serde_json::{json, Value};
 use windfall_dsp::blocks::noise::Rng;
 use windfall_dsp::{
     AnyEffect, AnyInstrument, BalanceParams, ChannelMuteParams, ChorusParams, CompressorParams,
@@ -469,6 +469,13 @@ fn names_are_plain_descriptions() {
             "Macro synth",
             "Speech Voice",
             "MIDI output",
+            "Layer Kick",
+            "Snapshot Morph",
+            "Harmonic Filter",
+            "Metal Voice",
+            "Number Voice",
+            "Spectral Resynth",
+            "Color Scan",
         ]
     );
 }
@@ -478,4 +485,14 @@ fn layer_kick_scalar_controls_round_trip_without_pcm_in_params() {
     check::<windfall_dsp::LayerKickParams>();
     let json = serde_json::to_value(InstrumentKind::LayerKick.default_params()).unwrap();
     assert!(json.get("samples").is_none());
+}
+
+#[test]
+fn immutable_instrument_scalar_descriptor_contracts() {
+    check::<windfall_dsp::SnapshotMorphParams>();
+    check::<windfall_dsp::HarmonicFilterParams>();
+    check::<windfall_dsp::MetalVoiceParams>();
+    check::<windfall_dsp::NumberVoiceParams>();
+    check::<windfall_dsp::SpectralResynthParams>();
+    check::<windfall_dsp::ColorScanParams>();
 }
