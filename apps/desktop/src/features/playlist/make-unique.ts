@@ -1,10 +1,10 @@
 import type { Clip, ClipId } from "@/bindings"
 
-/** Keeps pattern and audio clip ids in selection order, skipping automation. */
+/**
+ * The clips Make unique acts on, in selection order: every kind. A pattern
+ * clip gets a copy of its pattern, an audio clip its own source entry, and
+ * an automation clip a copy of its curve that only it shows.
+ */
 export function makeUniqueClipIds(selected: readonly Clip[]): ClipId[] {
-  return selected
-    .filter(
-      (clip) => clip.content.type === "pattern" || clip.content.type === "audio"
-    )
-    .map((clip) => clip.id)
+  return selected.map((clip) => clip.id)
 }

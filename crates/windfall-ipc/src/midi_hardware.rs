@@ -65,3 +65,17 @@ pub struct MidiHardwareState {
     pub dropped_events: u32,
     pub error: Option<String>,
 }
+
+/// One note a MIDI input played into the audition destination, as the
+/// engine accepted it. The UI keeps these in its played-note log, which
+/// "Dump played notes" quantizes with the shared snap.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct MidiHardwareNote {
+    /// The channel the note was played into.
+    pub channel: ChannelId,
+    pub key: u8,
+    /// 1 to 127 for a key going down, 0 for a key coming up.
+    pub velocity: u8,
+}

@@ -244,10 +244,14 @@ export function createTauriBackend(): Backend {
     addAudioClipFromSample: (sample, place) =>
       call("add_audio_clip_from_sample", { sample, ...place }),
     bounceSelectedClips: (clips) => call("bounce_selected_clips", { clips }),
+    consolidatePlaylistTracks: (tracks) =>
+      call("consolidate_playlist_tracks", { tracks }),
     automate: (target) => call("automate", { target }),
     samplesReload: () => call("samples_reload"),
 
     exportAudio: (options) => call("export_audio", { options }),
+    exportPlaylistTracks: (options, stems) =>
+      call("export_playlist_tracks", { options, stems }),
     exportCancel: () => call("export_cancel"),
 
     onProjectPatch: (handler) => on(EVENTS.projectPatch, handler),
@@ -255,6 +259,7 @@ export function createTauriBackend(): Backend {
     onTransportState: (handler) => on(EVENTS.transportState, handler),
     onEngineStatus: (handler) => on(EVENTS.engineStatus, handler),
     onExportProgress: (handler) => on(EVENTS.exportProgress, handler),
+    onMidiHardwareNote: (handler) => on(EVENTS.midiHardwareNote, handler),
     onProjectWarnings: (handler) => on(EVENTS.projectWarnings, handler),
 
     subscribeRealtime(handler) {

@@ -17,7 +17,7 @@ function clip(id: number, content: ClipContent): Clip {
 }
 
 describe("make unique playlist clips", () => {
-  it("keeps pattern and audio clips in order and drops automation clips", () => {
+  it("keeps pattern, audio and automation clips in selection order", () => {
     const selected = [
       clip(3, { type: "pattern", pattern: 10 }),
       clip(2, { type: "automation", automation: 20 }),
@@ -34,16 +34,16 @@ describe("make unique playlist clips", () => {
       }),
     ]
 
-    expect(makeUniqueClipIds(selected)).toEqual([3, 1])
+    expect(makeUniqueClipIds(selected)).toEqual([3, 2, 1])
   })
 
-  it("returns nothing for a selection of only automation clips", () => {
+  it("keeps a selection of only automation clips", () => {
     expect(
       makeUniqueClipIds([
         clip(1, { type: "automation", automation: 10 }),
         clip(2, { type: "automation", automation: 20 }),
       ])
-    ).toEqual([])
+    ).toEqual([1, 2])
   })
 
   it("returns nothing for an empty selection", () => {

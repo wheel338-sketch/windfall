@@ -6,7 +6,9 @@ export function arrangementPlaylist(playlist: Playlist): Playlist {
   if (!book?.arrangements.length || book.active == null) return playlist
   const active = book.arrangements.find((item) => item.id === book.active)
   const byId = new Map(playlist.tracks.map((track) => [track.id, track]))
-  const tracks = active?.clips.length
+  // An arrangement with no clips yet still shows its lanes, so that the
+  // first clip of a new layout has somewhere to go.
+  const tracks = active
     ? active.tracks.flatMap((id) => {
         const track = byId.get(id)
         return track ? [track] : []
