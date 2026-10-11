@@ -61,6 +61,10 @@ describe("spectral mounted editors", () => {
     expect(screen.getByText(/Mixer sidechain key: modulator/)).toBeTruthy()
     expect(document.querySelector('[data-param="synthCarrier"]')).toBeTruthy()
     expect(document.querySelector('[data-param="keyIsCarrier"]')).toBeTruthy()
+    const effect = useProjectStore.getState().project.mixer.tracks.find((t) => t.id === track)?.effects[0].id
+    if (effect === undefined) throw new Error("Vocoder missing")
+    await act(() => dispatch({ type: "setEffectParam", track, effect, param: 0, value: 32 }))
+    expect(screen.getByRole("img", { name: /32-band filter bank/ })).toBeTruthy()
   })
   it("mounts independent pitch/formant modes and scale/harmony controls", async () => {
     const effect = await open("pitchCorrect")

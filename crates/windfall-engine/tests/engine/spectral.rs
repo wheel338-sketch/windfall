@@ -238,3 +238,129 @@ fn linear_phase_eq_group_delay_is_in_public_mixer_compensation() {
     processor.process(&mut output);
     assert_eq!(controller.latency_frames(), 640);
 }
+
+#[test]
+fn spectral_live_and_offline_audio_match_after_reported_compensation() {
+    for params in [
+        EffectParams::Convolver(ConvolverParams::default()),
+        EffectParams::FrequencyShifter(FrequencyShifterParams {
+            shift_hz: 317.0,
+            mix: 1.0,
+        }),
+        EffectParams::PitchShift(PitchShiftParams {
+            semitones: 4.0,
+            formant_semitones: 2.0,
+            ..Default::default()
+        }),
+        EffectParams::PitchCorrect(PitchCorrectParams {
+            speed_ms: 0.0,
+            harmony_mix: 0.8,
+            ..Default::default()
+        }),
+        EffectParams::Vocoder(VocoderParams {
+            band_count: 16,
+            ..Default::default()
+        }),
+        EffectParams::Vocoder(VocoderParams {
+            band_count: 32,
+            synth_carrier: true,
+            ..Default::default()
+        }),
+    ] {
+        let mut rig = spectral_rig(params);
+        let track = rig.project.mixer.tracks[1].id;
+        let effect = rig.project.mixer.tracks[1].effects[0].id;
+        if matches!(params, EffectParams::Convolver(_)) {
+            rig.effect_mut(effect).impulse = Some(ConvolverImpulse {
+                name: "Export IR".into(),
+                sample_rate: RATE,
+                group_delay: 0,
+                eq_gains: None,
+                frames: vec![[1.0, 0.5], [0.1, -0.1]],
+            });
+        }
+        if let EffectParams::PitchCorrect(mut pitch) = params {
+            let midi = rig.channel(level(RATE, 0.0, 3.0));
+            rig.note(midi, 480, 960).key = 72;
+            rig.note(midi, 1480, 2).key = 76;
+            pitch.harmony_channel = midi.0;
+            rig.effect_mut(effect).params = EffectParams::PitchCorrect(pitch);
+        }
+        if matches!(params, EffectParams::Vocoder(_)) {
+            let key_track = rig.track();
+            let key = rig.channel_on(sine(RATE, 440.0, 3.0), key_track);
+            rig.note(key, 0, 3840);
+            rig.track_mut(key_track).output = None;
+            rig.track_mut(key_track).sidechains.push(Send {
+                target: track,
+                gain: 1.0,
+            });
+        }
+        for rate in [44100, 48000, 96000] {
+            let options = windfall_engine::RenderOptions {
+                sample_rate: rate,
+                block_frames: 173,
+                ..Default::default()
+            };
+            let exported =
+                windfall_engine::render_reporting(&rig.project, &rig.pool, &options, &mut |_| true);
+            assert!(
+                exported.plugin_error.is_none(),
+                "{:?}",
+                exported.plugin_error
+            );
+            let lag = rig.project.mixer.tracks[1].effects[0]
+                .params
+                .latency_samples(rate as f32);
+            let frames = (rate as usize / 2).min(exported.audio.frames());
+            let live = rig.play(rate, frames + lag, 251);
+            assert_eq!(
+                &live[lag * 2..],
+                &exported.audio.samples()[..frames * 2],
+                "{:?} at {rate}",
+                params.kind()
+            );
+        }
+    }
+}
+#[test]
+fn refused_rate_expanded_ir_publication_preserves_the_sounding_owner() {
+    let mut rig = Rig::new();
+    let source = rig.channel(level(RATE, 0.25, 3.0));
+    rig.note(source, 0, 3840);
+    let effect = rig.effect(
+        windfall_project::TrackId::MASTER,
+        EffectParams::Convolver(ConvolverParams::default()),
+    );
+    let (mut processor, controller) = rig.processor(RATE);
+    controller.play();
+    let mut output = [0.0; 512];
+    for _ in 0..20 {
+        processor.process(&mut output);
+    }
+    let before = output;
+    rig.effect_mut(effect).impulse = Some(ConvolverImpulse {
+        name: "Too long at destination rate".into(),
+        sample_rate: 8000,
+        group_delay: 0,
+        eq_gains: None,
+        frames: vec![[0.0; 2]; 65536],
+    });
+    controller.set_project(&rig.project, &rig.pool);
+    assert!(matches!(
+        controller.project_preparation_error(),
+        Some(windfall_engine::ProjectPreparationError::Unsupported(_))
+    ));
+    for _ in 0..20 {
+        assert_eq!(allocator_calls(|| processor.process(&mut output)), 0);
+        assert_eq!(output, before);
+    }
+    let exported = windfall_engine::render_reporting(
+        &rig.project,
+        &rig.pool,
+        &Default::default(),
+        &mut |_| true,
+    );
+    assert!(exported.plugin_error.is_some());
+    assert_eq!(exported.audio.frames(), 0);
+}

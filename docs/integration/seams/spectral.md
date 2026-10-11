@@ -29,7 +29,8 @@ Plan effects retain immutable asset snapshots. IR changes force new prepared
 processor generations; scalar automation preserves an existing owner. The engine
 resamples and constructs `PreparedImpulse` kernels while preparing `EffectUnit`,
 before audio publication. Rate-expanded IRs over 65536 frames refuse preparation
-with a visible error instead of switching to identity. A 128 MiB admission bound
+with a visible error instead of switching to identity. Offline rendering uses
+fallible attachment and returns an empty audio/error report for a refused asset. A 128 MiB admission bound
 accounts for the new plan's stereo kernels/history, dry-delay storage and transient PCM. Historical
 plans still retire through the engine's existing control-side retirement path.
 The bound is per preparation, not a universal process RSS claim.

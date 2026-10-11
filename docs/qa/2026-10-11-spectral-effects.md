@@ -26,6 +26,8 @@ snapshots and prepare resampling, FFT tables, kernels, histories and dry delay
 storage before publication. Asset replacement forces a new owner; scalar changes
 retain it. A 128 MiB preparation bound covers the new plan, not all retained plans
 or process RSS. Oversized rate-expanded IRs refuse rather than become identity.
+Offline attachment now uses the existing fallible admission and returns an empty
+audio/error report on refusal instead of panicking through convenience attachment.
 PCM is embedded in project JSON and individual effect/mixer-track presets. Legacy
 inline IRs migrate before preset scalar cleanup. Preset loading compares the whole
 asset for stale destination refusal and clears it when changing processor kinds.
@@ -83,7 +85,10 @@ partials below 0.45 sample rate). Vocoders report zero transport latency.
 `midi_harmony_source_changes_audio_and_short_notes_are_partition_invariant`,
 `replacing_a_prepared_ir_changes_the_live_owner_without_callback_destruction`,
 `native_convolver_matches_direct_fir_and_offline_compensation`,
-`linear_phase_eq_group_delay_is_in_public_mixer_compensation`.
+`linear_phase_eq_group_delay_is_in_public_mixer_compensation`,
+`spectral_live_and_offline_audio_match_after_reported_compensation` (all six
+behaviours at 44.1/48/96 kHz, including real key and short MIDI harmonies),
+`refused_rate_expanded_ir_publication_preserves_the_sounding_owner`.
 
 `apps/desktop/src/features/effects/spectral/impulse.test.ts`: strict WAV decoding,
 malformed/oversized/nonfinite refusal, generated EQ symmetry and neutral identity.
@@ -124,7 +129,7 @@ Hardware/audio-device evidence stays external.
 ## Shared seams / regeneration
 
 DSP `effect.rs`; project `model.rs`, `command.rs`, `lower.rs`, `check.rs`, `lib.rs`
-preset state/apply/migration and affected slot literals; engine plan/state/rack/processor hosting and test
+preset state/apply/migration and affected slot literals; engine plan/state/rack/processor/render hosting and test
 `main.rs`; core `lib.rs`; analysis pitch helper; frontend effect-editor registry
 and simulator `EVERY_COMMAND`. See `git diff 87b87bc2 --name-only` for exact files.
 No new dependencies or IPC endpoint; the existing document Command transports IRs.

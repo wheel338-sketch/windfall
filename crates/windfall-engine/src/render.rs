@@ -165,7 +165,21 @@ pub fn render_reporting(
     // out on the project instead of changing over to it.
     let controller = Controller::new();
     controller.set_plan(plan);
-    let mut processor = controller.attach(sample_rate);
+    let mut processor = match controller.try_attach(
+        sample_rate,
+        crate::project_preparation::AttachmentMode::Independent,
+    ) {
+        Ok((processor, _, retirement)) => { drop(retirement); processor }
+        Err(error) => {
+            return Rendered {
+                audio: AudioBuffer::from_interleaved(sample_rate, 2, Vec::new()),
+                dropped_clips: 0,
+                sampler_error: None,
+                plugin_error: Some(error.to_string()),
+                timeline_error: None,
+            };
+        }
+    };
     controller.set_transport(TransportPatch {
         mode: Some(options.mode),
         pattern,

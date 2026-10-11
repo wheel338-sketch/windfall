@@ -35,7 +35,14 @@ export function readImpulseWav(buffer: ArrayBuffer, name: string): ConvolverImpu
     if (![left, right].every((v) => Number.isFinite(v) && Math.abs(v) <= 8)) throw new Error("IR contains damaged or excessive samples")
     return [left, right]
   })
-  return { name: name.slice(0, 256) || "Impulse", sampleRate, frames }
+  // The model's limit is UTF-8 bytes, rather than JavaScript code units.
+  let savedName = "", bytes = 0
+  for (const character of name) {
+    const size = new TextEncoder().encode(character).length
+    if (bytes + size > 256) break
+    savedName += character; bytes += size
+  }
+  return { name: savedName || "Impulse", sampleRate, frames }
 }
 /** Windfall-generated symmetric FIR: 512 samples intentional group delay. */
 export function linearPhaseImpulse(lowDb: number, midDb: number, highDb: number): ConvolverImpulse {
