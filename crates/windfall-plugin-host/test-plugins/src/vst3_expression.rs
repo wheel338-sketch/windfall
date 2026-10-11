@@ -39,12 +39,13 @@ impl Voices {
                 if note.noteId < 0 {
                     return;
                 }
-                if let Some(voice) = self
+                let slot = self
                     .0
-                    .iter_mut()
-                    .find(|voice| voice.id == note.noteId || voice.id < 0)
-                {
-                    *voice = Voice {
+                    .iter()
+                    .position(|voice| voice.id == note.noteId)
+                    .or_else(|| self.0.iter().position(|voice| voice.id < 0));
+                if let Some(slot) = slot {
+                    self.0[slot] = Voice {
                         id: note.noteId,
                         velocity: note.velocity,
                         ..Voice::EMPTY
@@ -87,6 +88,33 @@ impl Voices {
             }
         }
         result.map(|value| value as f32)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn reused_identity_updates_existing_owner_even_with_an_earlier_empty_slot() {
+        let mut voices = Voices::default();
+        voices.0[1] = Voice {
+            id: 2048,
+            velocity: 0.75,
+            ..Voice::EMPTY
+        };
+        let mut event: Event = unsafe { std::mem::zeroed() };
+        event.r#type = 0;
+        event.__field0.noteOn = NoteOnEvent {
+            channel: 2,
+            pitch: 69,
+            tuning: 0.0,
+            velocity: 0.5,
+            length: 0,
+            noteId: 2048,
+        };
+        voices.event(&event);
+        assert_eq!(voices.0.iter().filter(|voice| voice.id == 2048).count(), 1);
+        assert_eq!(voices.0[1].velocity, 0.5);
     }
 }
 

@@ -282,3 +282,9 @@ vst3_scan, bridge and realtime tests; Mac vst3_bundle_macos remains external.
 Check generated SDK getNoteExpressionValueByString pointer constness and interface
 tuple, exact capability mask, identity release and reset transition timing first.
 API source: https://github.com/steinbergmedia/vst3_pluginterfaces/blob/master/vst/ivstnoteexpression.h
+
+Fixture follow-up: repeated native identity replaces its existing owner before
+choosing an empty slot. Test written, not executed in the standalone fixture:
+expression::tests::reused_identity_updates_existing_owner_even_with_an_earlier_empty_slot.
+Integrator: cargo test --manifest-path crates/windfall-plugin-host/test-plugins/Cargo.toml
+--lib --jobs 1. This command is integrator-only, not run here.
