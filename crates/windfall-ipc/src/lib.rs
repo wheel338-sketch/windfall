@@ -27,6 +27,8 @@ mod sampler_preprocess;
 pub use sampler_preprocess::*;
 mod files;
 pub use files::*;
+mod assistant;
+pub use assistant::*;
 pub use windfall_project::PlayMode;
 use windfall_project::{AutomationId, EffectId, PatternId, TrackId};
 

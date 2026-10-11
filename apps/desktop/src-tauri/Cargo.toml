@@ -42,6 +42,9 @@ dunce = "1"
 # Unlicense OR MIT. Reuses the workspace's existing transitive package for file identity.
 same-file = "1.0.6"
 tempfile = "3"
+# MIT OR Apache-2.0. Reuse Tauri's locked HTTP client; rustls supplies HTTPS.
+# Integrator regenerates Cargo.lock for this direct edge/TLS feature; no provider SDK.
+reqwest = { version = "=0.13.5", default-features = false, features = ["rustls"] }
 
 [target.'cfg(windows)'.dependencies]
 # MIT OR Apache-2.0. Existing locked package; current-process working set only.

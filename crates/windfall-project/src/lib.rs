@@ -82,3 +82,4 @@ pub mod timebase;
 pub mod scripting;
 pub mod proposal;
 pub mod assistant;
+pub mod assistant_protocol;

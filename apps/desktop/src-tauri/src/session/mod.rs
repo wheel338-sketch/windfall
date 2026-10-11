@@ -102,6 +102,7 @@ mod timeline;
 mod transport;
 mod versions;
 mod scripting;
+mod assistant_connection;
 
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
@@ -200,6 +201,7 @@ struct Inner {
     /// Worker-only gate. Never acquired by audio or MIDI input callbacks.
     script_worker: Mutex<()>,
     script_ticket: std::sync::atomic::AtomicU64,
+    assistant: crate::assistant::Service,
     library: crate::library::Library,
     plugins: Mutex<Option<Arc<crate::plugins::PluginManager>>>,
     /// Held by a save or a backup from before it copies the project until
@@ -467,6 +469,7 @@ impl Session {
                 factory_dir,
                 recording: Mutex::new(None),
                 script_worker: Mutex::new(()),
+                assistant: crate::assistant::Service::default(),
                 script_ticket: std::sync::atomic::AtomicU64::new(0),
                 recording_finishing: AtomicBool::new(false),
                 recording_finish_cancelled: AtomicBool::new(false),

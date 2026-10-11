@@ -26,6 +26,7 @@ mod test_alloc;
 #[global_allocator]
 static TEST_ALLOCATOR: test_alloc::CountingAllocator = test_alloc::CountingAllocator;
 pub mod template;
+mod assistant;
 
 use tauri::{Manager, WindowEvent};
 

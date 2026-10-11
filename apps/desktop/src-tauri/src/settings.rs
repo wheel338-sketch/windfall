@@ -46,6 +46,11 @@ pub struct SettingsStore {
 }
 
 impl SettingsStore {
+    /// Private provider credentials use the authorized per-user file fallback.
+    /// This path is never derived from a project or included in project archives.
+    pub fn assistant_file(&self) -> PathBuf {
+        self.file.parent().unwrap_or(Path::new(".")).join("assistant-connection.json")
+    }
     /// A separate per-user library file; library edits never rewrite device settings.
     pub fn library_file(&self) -> PathBuf {
         self.file
