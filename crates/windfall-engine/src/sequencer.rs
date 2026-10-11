@@ -267,6 +267,24 @@ pub(crate) struct Sequencer {
 }
 
 impl Sequencer {
+    /// Bend the host clock without moving an already sounding note's end.
+    #[cfg(feature = "plugin-export")]
+    pub fn set_plugin_tempo(&mut self, tempo: f64, now: u64) {
+        let frames_per_tick = samples_per_tick(tempo, self.sample_rate);
+        if self.clock.frames_per_tick == frames_per_tick {
+            return;
+        }
+        let before = self.clock;
+        self.clock = Clock {
+            anchor_frame: now,
+            anchor_tick: before.tick_at(now),
+            frames_per_tick,
+        };
+        if self.playing && now > before.anchor_frame {
+            self.floor = Floor::Clock { clock: before, frame: now };
+        }
+    }
+
     pub fn new(sample_rate: u32, plan: &Plan) -> Self {
         let sample_rate = f64::from(sample_rate);
         Self {

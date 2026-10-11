@@ -1,0 +1,25 @@
+[package]
+name = "windfall-plugin"
+description = "Windfall engine embedded as a CLAP plugin"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+publish = false
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+windfall-core.workspace = true
+windfall-project.workspace = true
+windfall-engine = { workspace = true, features = ["plugin-export"] }
+serde.workspace = true
+serde_json.workspace = true
+# MIT OR Apache-2.0. Reuse the raw CLAP ABI already used by host fixtures.
+clap-sys = "0.5.0"
+
+[lints]
+workspace = true

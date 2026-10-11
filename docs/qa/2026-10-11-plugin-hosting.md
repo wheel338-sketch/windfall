@@ -54,10 +54,10 @@ be rebuilt together; ABI 6 helpers are deliberately incompatible.
 | `fmt-host-wrapper-options` | partial | DSP fixed-buffer/smart-disable and native editor policy implemented; persistence/history/UI and threaded owner provider remain. |
 | `fmt-host-au` | partial | macOS AUv2 source adapter written; needs a Mac to compile/execute plus scanner/provider/editor/multi-bus integration. |
 | `fmt-host-vst2` | partial | GPL header evidence documented in docs/plugins/vst2-licensing.md; provenance/distribution decision required before an adapter. |
-| `fmt-host-fl-as-plugin` | partial | Separate export target in progress; actual other-host acceptance external. |
+| `fmt-host-fl-as-plugin` | partial | Separate CLAP engine export target written; VST3 export, editor/export UI, reset/state arbitration, packaging and actual other-host acceptance remain. |
 | `core-vst2-vst3-audio-unit-and-clap-support` | partial | Depends on VST2, VST3, AU, CLAP and platform/containment acceptance; wrapper/export rows tracked separately. |
 
-Shared seam files: none so far. Generated IPC/TS types: none so far. Plugin
+Shared engine seams: crates/windfall-engine/Cargo.toml, src/processor.rs and src/sequencer.rs (feature-gated export hooks only). Generated IPC/TS types: none so far. Plugin
 scanner metadata changes, when added, require the integrator to refresh the
 existing generated plugin catalog bindings; never hand-edit them.
 
@@ -107,3 +107,38 @@ The assigned worktree was clean at restart, at commit 6fec307b. No uncommitted
 implementation was lost. Remaining software work begins with the standalone
 Windfall plugin export target; full-row gates above remain explicit.
 
+
+## Windfall export checkpoint
+
+`crates/windfall-plugin` is a separate CLAP cdylib/rlib target. It embeds the
+engine with host sample rate, sample-offset MIDI/transport, clock bending,
+16 actual stereo mixer outputs, cached engine latency and checked bounded
+project-plus-PCM state. Preparation, state IO and disposal are main-thread only.
+Startup messages are consumed before applying the host song clock. No device
+is opened. Active state load, nested native bindings, hardware recording,
+internal tempo arbitration, navigation markers and tempo ramps are refused.
+Reset currently stops/fades and seeks; strict DSP tail/delay flushing is open.
+There is no editor, desktop export command, VST3 export ABI or installer yet.
+See docs/plugins/windfall-as-plugin.md. This is a partial source candidate.
+
+Tests in crates/windfall-plugin/src/clap/tests.rs, written, not executed:
+- host_clock_places_note_on_exact_frame_and_bends_tempo_without_restarting
+- embedded_state_restores_identical_multibus_pcm_and_host_sample_rate
+- clap_boundary_handles_partial_state_streams_sample_offsets_and_lifecycle
+  (includes actual CLAP callback allocation/free accounting and a PCM ramp reference)
+
+Integrator commands (worker has not run these):
+```sh
+cargo test -p windfall-plugin --lib -- --test-threads=1
+cargo test -p windfall-engine --features plugin-export --lib
+cargo test -p windfall-engine --features plugin-export --test engine
+cargo clippy -p windfall-plugin -p windfall-engine --all-targets --all-features -- -D warnings
+cargo build -p windfall-plugin --release --jobs 1
+```
+On Windows, package target/release/windfall_plugin.dll as Windfall.clap for an
+external host only after source tests pass. Mac/Linux packaging remains external.
+Check raw CLAP callback field types, engine attachment/publication signatures,
+new fixture field literals, independent onset/PCM assumptions and clock-bend
+floors first. Regenerate Cargo.lock for the new workspace package; no IPC/TS
+schema additions in this group. Engine hooks compile only with plugin-export.
+No build/check/test was executed, including by the fixture harness.

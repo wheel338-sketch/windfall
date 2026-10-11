@@ -23,6 +23,10 @@ use crate::stems::Taps;
 use crate::voice::{Note, Origin, Stretch, VoicePool};
 use windfall_dsp::NoteInstanceId;
 
+#[cfg(feature = "plugin-export")]
+#[path = "plugin_export.rs"]
+mod plugin_export;
+
 /// Turns the current plan into audio: sequencer, sampler voices,
 /// instruments, effects and mixer.
 ///
@@ -38,6 +42,8 @@ pub struct Processor {
     /// The selectable analyzer captures of a device stream. `None` offline.
     captures: Option<crate::capture::AudioCaptures>,
     sample_rate: u32,
+    #[cfg(feature = "plugin-export")]
+    plugin_tempo: Option<f64>,
     /// Frames processed so far. It is the engine's clock.
     frame: u64,
     plan: Arc<Plan>,
@@ -123,6 +129,8 @@ impl Processor {
             spectrum: None,
             captures: None,
             sample_rate,
+            #[cfg(feature = "plugin-export")]
+            plugin_tempo: None,
             frame: 0,
             state,
             sequencer: Sequencer::new(sample_rate, &plan),
@@ -377,6 +385,8 @@ impl Processor {
             (Some(Place::Song(tick)), Some(map)) => map.tempo_at(tick),
             _ => self.plan.tempo_bpm,
         };
+        #[cfg(feature = "plugin-export")]
+        let tempo = self.plugin_tempo.unwrap_or(tempo);
         self.state.tell_tempo(tempo);
     }
 
