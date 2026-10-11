@@ -111,6 +111,8 @@ Additional tests, all **written, not executed**:
   real song loading into the wizard; replacement during file picking.
   All written, not executed. Existing checksum/model-absence/cancel/stale
   lifecycle fixtures in M1 are retained.
+  `actions.test.tsx` also pins startup registration of the new remix action;
+  written, not executed.
 
 ## Remaining work
 
