@@ -143,6 +143,8 @@ struct Trial {
     /// Smaller is better: the miss in LU, with a peak over the ceiling
     /// counted ten times as bad.
     score: f32,
+    /// Positive when the measured peak exceeds the requested ceiling.
+    peak_over_db: f32,
 }
 
 /// Masters a mix that is fed to it several times over.
@@ -400,8 +402,16 @@ impl Mastering {
             limiter_ceiling_db: self.limiter_ceiling_db,
             loudness: after.integrated_lufs,
             score: miss.abs() + 10.0 * over.max(0.0),
+            peak_over_db: over,
         };
-        if self.best.is_none_or(|best| trial.score < best.score) {
+        // Peak safety is a constraint, not a preference that can be traded
+        // for a smaller loudness miss. Among safe trials choose the closest
+        // loudness. If none is safe yet, keep the best correction candidate.
+        if self.best.is_none_or(|best| {
+            let safe = trial.peak_over_db <= MASTERING_PEAK_TOLERANCE_DB;
+            let best_safe = best.peak_over_db <= MASTERING_PEAK_TOLERANCE_DB;
+            (safe && !best_safe) || (safe == best_safe && trial.score < best.score)
+        }) {
             self.best = Some(trial);
         }
 
@@ -412,6 +422,10 @@ impl Mastering {
             let best = self.best.unwrap_or(trial);
             self.trim_db = best.trim_db;
             self.limiter_ceiling_db = best.limiter_ceiling_db;
+            if best.peak_over_db > MASTERING_PEAK_TOLERANCE_DB {
+                self.limiter_ceiling_db = (self.limiter_ceiling_db - best.peak_over_db - 0.1)
+                    .max(ceiling - 3.0);
+            }
             self.render = true;
         } else {
             if over > MASTERING_PEAK_TOLERANCE_DB {

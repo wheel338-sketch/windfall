@@ -869,3 +869,14 @@ fn local_mastering_passes_are_invariant_to_analysis_and_render_block_sizes() {
     assert_eq!(expected, render(137));
     assert_eq!(expected, render(1));
 }
+
+
+#[test]
+fn an_unreachable_loudness_target_keeps_peak_safety_ahead_of_loudness_error() {
+    let input = stereo(&programme(0.5, 3));
+    let settings = MasteringSettings { target_lufs: -6.0, ceiling_dbtp: -9.0, dynamics: 0.0 };
+    let (output, report) = master(&input, RATE, &settings).unwrap();
+    assert!(!report.target_reached, "{report:?}");
+    assert!(report.after.true_peak_dbtp <= settings.ceiling_dbtp + MASTERING_PEAK_TOLERANCE_DB, "{report:?}");
+    assert_eq!(report.after, measure(&output, RATE));
+}

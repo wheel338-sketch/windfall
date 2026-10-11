@@ -204,3 +204,11 @@ Review measures stereo PCM before encoding. The form now explicitly says WAV
 float preserves those samples while lossy encoding or mono conversion may change
 final levels. Exact decoded lossy/mono loudness matching is not claimed. Integrator
 must check codec-output requirements before extending that promise.
+
+
+Mastering peak-priority supplement: the best trial now prioritizes satisfying
+the peak ceiling ahead of loudness error. The prior weighted score could prefer
+a slight peak overshoot in exchange for a smaller LUFS miss. If no safe trial
+exists at the pass limit, the final limiter ceiling receives another measured
+peak correction. Added `an_unreachable_loudness_target_keeps_peak_safety_ahead_of_loudness_error`
+(written, not executed) against an impossible -6 LUFS/-9 dBTP request.
