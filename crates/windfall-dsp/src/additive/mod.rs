@@ -79,3 +79,6 @@ mod prepared_tests;
 
 mod harmonic_filter;
 pub use harmonic_filter::{HarmonicFilter,HarmonicFilterParams,HarmonicShape};
+
+mod metal_voice;
+pub use metal_voice::{MetalVoice,MetalVoiceParams};

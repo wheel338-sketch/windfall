@@ -135,3 +135,44 @@ fn subtractive_controls_shape_an_additive_harmonic_spectrum() {
     });
     assert!(band(&resonant, 660.0) > band(&plain, 660.0) * 10.0);
 }
+
+#[test]
+fn metallic_partials_shimmer_decay_and_reset_are_measured() {
+    let sound = |params: MetalVoiceParams| {
+        let mut synth = MetalVoice::default();
+        synth.prepare(48000.0, 257);
+        synth.set_params(&params);
+        synth.note_on(57, 1.0);
+        let mut l = vec![0.0; 48000];
+        let mut r = vec![0.0; 48000];
+        synth.process(&mut l, &mut r);
+        assert!(l.iter().all(|x| x.is_finite()));
+        l
+    };
+    let params = MetalVoiceParams {
+        stretch: 0.0,
+        shimmer_depth: 0.0,
+        decay_seconds: 12.0,
+        ..Default::default()
+    };
+    let base = sound(params);
+    assert!(band(&base[..24000], 220.0 * 2.76) > band(&base[..24000], 440.0) * 100.0);
+    let shimmer = sound(MetalVoiceParams {
+        shimmer_depth: 1.0,
+        shimmer_hz: 8.0,
+        ..params
+    });
+    assert!(
+        base.iter()
+            .zip(shimmer)
+            .map(|(a, b)| (*a - b).abs())
+            .sum::<f32>()
+            > 10.0
+    );
+    let short = sound(MetalVoiceParams {
+        decay_seconds: 0.05,
+        ..params
+    });
+    assert!(short[12000..].iter().all(|x| *x == 0.0));
+    assert_eq!(base, sound(params));
+}

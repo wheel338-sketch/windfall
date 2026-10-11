@@ -11,7 +11,7 @@ benchmarks, generators or audio-device checks were run. Every test below is
 | inst-boobass | Full-row candidate: Finger Bass now replaces its sole string on every positive note, including releases; 4 ms endpoint correction prevents retrigger discontinuities. Existing pluck, damping, pick position and two body resonances provide the bass-guitar tone contract. Six automatable controls retain descriptor indices. | Fresh integration execution and listening. |
 | inst-harmor | Pending this stream. | Audio/image preparation and asset editor. |
 | inst-morphine | Full-row candidate: new Snapshot Morph kind uses immutable worker-prepared 32-harmonic A/B spectra, phase/pan-aware interpolation, polyphony/envelope controls and a two-spectrum harmonic editor. | Fresh integration execution and listening. |
-| inst-ogun | Pending this stream. | Metallic spectrum and editor acceptance. |
+| inst-ogun | Full-row candidate: Metal Voice has prepared inharmonic partials, partial stretch, independent phase-offset amplitude shimmer and exponential decay; dedicated spacing/shimmer editor. | Fresh integration execution and listening. |
 | inst-harmless | Full-row candidate: Harmonic Filter plays an immutable 64-harmonic bank through saw/square/triangle weighting, spectral cutoff/resonance and envelope/polyphony controls; dedicated oscillator/filter/envelope editor. | Fresh integration execution and listening. |
 | inst-autogun | Pending this stream. | Full number domain and preset-only workflow. |
 | inst-beepmap | Pending this stream. | Color/brightness image scan. |
@@ -160,3 +160,12 @@ measures even-harmonic rejection, square/triangle harmonic ratios, low-pass loss
 and resonant gain; engine `harmonic_filter_cutoff_reaches_history_disk_and_live_offline_pcm`;
 mounted response/cutoff/history case. Regenerate HarmonicShape/HarmonicFilterParams
 and union/descriptors/WASM. Run additive, engine and mounted suites above.
+
+### Metal Voice checkpoint
+
+Appends MetalVoice (31 kinds here). Written, not executed: DSP
+`metallic_partials_shimmer_decay_and_reset_are_measured` (off-harmonic peaks,
+audible shimmer, decay silence, reproducibility), engine
+`metallic_shimmer_reaches_history_disk_and_live_offline_pcm`, mounted shimmer/display/history.
+Regenerate MetalVoiceParams and union/descriptors/WASM. The base bank is made
+at construction/preparation, held immutable, and read by the same bounded engine.

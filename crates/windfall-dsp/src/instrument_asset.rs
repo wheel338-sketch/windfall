@@ -85,6 +85,26 @@ impl SpectralBank {
         }
         Ok(())
     }
+    pub fn metallic() -> Self {
+        Self {
+            frames: vec![SpectralFrame {
+                partials: (0..32)
+                    .map(|i| {
+                        let n = (i + 1) as f32;
+                        SpectralPartial {
+                            ratio: if i == 0 { 1.0 } else { n * n * 0.69 },
+                            level: 1.0 / n.powf(1.4),
+                            phase: 0.0,
+                            pan: 0.0,
+                        }
+                    })
+                    .collect(),
+            }],
+            frame_seconds: 0.1,
+            root_hz: 440.0,
+            preset_number: None,
+        }
+    }
     pub fn harmonics() -> Self {
         Self {
             frames: vec![SpectralFrame {
@@ -181,6 +201,7 @@ impl InstrumentAsset {
             (Self::DrumKeys { .. }, InstrumentKind::DrumVoice) => Ok(()),
             (Self::Pcm(_), InstrumentKind::LayerKick) => Ok(()),
             (Self::Spectra(_), InstrumentKind::HarmonicFilter) => Ok(()),
+            (Self::Spectra(_), InstrumentKind::MetalVoice) => Ok(()),
             (Self::Spectra(bank), InstrumentKind::SnapshotMorph) if bank.frames.len() == 2 => {
                 Ok(())
             }

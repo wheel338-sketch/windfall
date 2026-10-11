@@ -338,3 +338,22 @@ fn harmonic_filter_cutoff_reaches_history_disk_and_live_offline_pcm() {
         InstrumentParams::HarmonicFilter(changed),
     );
 }
+
+#[test]
+fn metallic_shimmer_reaches_history_disk_and_live_offline_pcm() {
+    let initial = MetalVoiceParams {
+        shimmer_depth: 0.0,
+        ..Default::default()
+    };
+    let changed = MetalVoiceParams {
+        shimmer_depth: 1.0,
+        shimmer_hz: 9.0,
+        stretch: 0.8,
+        ..initial
+    };
+    acceptance(
+        InstrumentKind::MetalVoice,
+        InstrumentParams::MetalVoice(initial),
+        InstrumentParams::MetalVoice(changed),
+    );
+}

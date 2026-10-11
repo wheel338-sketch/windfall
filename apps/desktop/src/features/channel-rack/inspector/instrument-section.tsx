@@ -5,6 +5,7 @@ import type { InstrumentChannel } from "@/lib/channel-source"
 import { colorToCss } from "@/lib/units"
 
 import { useProjectGeneration } from "@/lib/store"
+import { MetalEditor } from "../instruments/metal-editor"
 import { HarmonicFilterEditor } from "../instruments/harmonic-filter-editor"
 import { SnapshotEditor } from "../instruments/snapshot-editor"
 import { LayerKickEditor } from "../instruments/layer-kick-editor"
@@ -47,6 +48,8 @@ export function InstrumentSection({ channel }: { channel: InstrumentChannel }) {
           params={params}
           color={colorToCss(channel.color)}
         />
+      ) : params.type === "metalVoice" ? (
+        <MetalEditor channel={channel.id} params={params} />
       ) : params.type === "harmonicFilter" ? (
         <HarmonicFilterEditor channel={channel.id} params={params} />
       ) : params.type === "snapshotMorph" ? (

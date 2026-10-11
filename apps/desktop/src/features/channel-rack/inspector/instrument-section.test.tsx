@@ -272,6 +272,13 @@ describe("instrument settings panels", () => {
     expect(channelOf(channel).source.params).not.toEqual(original);await act(()=>undo());expect(channelOf(channel).source.params).toEqual(original)
   })
 
+  it("edits metallic shimmer with its partial-spacing display and history",async()=>{
+    const channel=await open("metalVoice"),original=channelOf(channel).source.params
+    expect(screen.getByRole("img",{name:"Inharmonic metallic partial spacing"})).toBeVisible()
+    const shimmer=screen.getByRole("slider",{name:"Shimmer Depth"});fireEvent.keyDown(shimmer,{key:"End"});fireEvent.keyUp(shimmer,{key:"End"});await flush()
+    expect(channelOf(channel).source.params).not.toEqual(original);await act(()=>undo());expect(channelOf(channel).source.params).toEqual(original)
+  })
+
   it("keeps hosted plugin controls ahead of the built-in panel", async () => {
     const channel = await open("acidLine")
     const plugin: PluginBinding = {
