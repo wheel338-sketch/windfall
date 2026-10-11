@@ -340,9 +340,8 @@ impl Session {
             numbered: stems.numbered,
         });
         let playlist_stems = playlist.as_ref().map(super::playlist_export::stem_options);
-        let (targets, folder) = match (&options.stems, &stem_options) {
-            _ if playlist.is_some() => {
-                let asked = playlist.as_ref().expect("checked by the guard");
+        let (targets, folder) = match (&playlist, &options.stems, &stem_options) {
+            (Some(asked), _, _) => {
                 let list = super::playlist_export::list(&project, asked)?;
                 let folder = asked.folder.then(|| path.with_extension(""));
                 let targets = list
@@ -355,7 +354,7 @@ impl Session {
                     .collect();
                 (targets, folder)
             }
-            (Some(asked), Some(stem_options)) => {
+            (None, Some(asked), Some(stem_options)) => {
                 let list = stems(&project, stem_options).map_err(|error| error.to_string())?;
                 let folder = asked.folder.then(|| path.with_extension(""));
                 let targets = list
@@ -723,17 +722,17 @@ fn write_files(
         progress.report(fraction);
         !cancelled() && prepared_pool.plugin_render_error().is_none()
     };
-    let streamed: Streamed = match &job.stems {
-        _ if job.playlist_stems.is_some() => render_playlist_stems(
+    let streamed: Streamed = match (&job.playlist_stems, &job.stems) {
+        (Some(lanes), _) => render_playlist_stems(
             &job.project,
             &prepared_pool,
             &render,
-            job.playlist_stems.as_ref().expect("checked by the guard"),
+            lanes,
             &mut write,
             &mut report,
         )
         .map_err(|error| error.to_string())?,
-        Some(stems) => render_stems(
+        (None, Some(stems)) => render_stems(
             &job.project,
             &prepared_pool,
             &render,
@@ -742,7 +741,7 @@ fn write_files(
             &mut report,
         )
         .map_err(|error| error.to_string())?,
-        None => render_streaming_checked(
+        (None, None) => render_streaming_checked(
             &job.project,
             &prepared_pool,
             &render,

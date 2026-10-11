@@ -39,3 +39,14 @@ lookup remain required work. Continuous automation points use the existing
 scalar target and playlist playback infrastructure. No builds, tests, QA,
 reviews or artifact generators ran for this source pass. Provisional bindings
 await the later combined artifact pass.
+
+## Opened from a clip — 2026-10-10
+
+The clip menu of one selected automation clip has Write LFO. Opened there,
+the dialog offers the part of the curve that clip shows: Start is the
+clip's offset and End its offset plus its length. The generator and the
+command are unchanged. The engine test
+`an_lfo_written_into_a_curve_moves_the_linked_fader_live_and_offline`
+measures the linked fader offline and in the callback and was run on
+2026-10-10; `features/automation/lfo-automation.qa.test.tsx` covers the
+dialog and is written, not yet run.
