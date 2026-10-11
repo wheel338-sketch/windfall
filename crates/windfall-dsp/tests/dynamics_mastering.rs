@@ -808,3 +808,35 @@ fn slow_leveling_keeps_shared_stereo_gain_and_tonal_balance() {
     assert!(db(largest/smallest) < 0.15, "tonal balance {gains:?}");
     assert!(effect.stage_meters()[0].take_db() > 1.0);
 }
+
+
+#[test]
+fn simplified_two_stages_match_independent_saturation_and_linked_release_reference() {
+    use windfall_dsp::mastering::{StageStack, StageStackParams};
+    let params = StageStackParams { drive_db: 9.0, tone: 0.4, ceiling_db: -6.0, mix: 0.75 };
+    let input = programme(0.6, 1);
+    let mut effect = StageStack::default();
+    effect.prepare(RATE as f32, 512); effect.set_params(&params);
+    let mut left = input.clone();
+    let mut right: Vec<_> = input.iter().map(|x| *x * 0.2).collect();
+    effect.process(&mut left, &mut right);
+    let drive = 10.0_f64.powf(f64::from(params.drive_db)/20.0);
+    let ceiling = 10.0_f64.powf(f64::from(params.ceiling_db)/20.0);
+    let release = 1.0 - (-1000.0/(3.0*f64::from(RATE))).exp();
+    let mut gain = 1.0_f64;
+    for (n,dry) in input.iter().enumerate() {
+        let shape = |x: f64| { let t=(x*drive*0.5).tanh(); 2.0*t + f64::from(params.tone)*0.5*t*t*(1.0-t*t) };
+        let wet = [shape(f64::from(*dry)), shape(f64::from(*dry)*0.2)];
+        let peak = wet[0].abs().max(wet[1].abs());
+        let needed = (ceiling/peak.max(1e-30)).min(1.0);
+        gain = if needed < gain { needed } else { gain + (needed-gain)*release };
+        for c in 0..2 {
+            let d = f64::from(*dry) * if c == 0 { 1.0 } else { 0.2 };
+            let expected = d*0.25 + (wet[c]*gain).clamp(-ceiling,ceiling)*0.75;
+            let actual = if c == 0 { left[n] } else { right[n] };
+            assert!((f64::from(actual)-expected).abs() < 3e-6, "stage reference {n} channel {c}");
+        }
+    }
+    assert_eq!(effect.latency_samples(), 0);
+    assert_eq!(effect.tail_samples(), 0);
+}

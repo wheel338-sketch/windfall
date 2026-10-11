@@ -150,3 +150,17 @@ latency, live parameter invariance, persistence and mounted ordered controls.
 True-peak reconstruction is an estimate: moving gain has a documented 0.3 dB
 DSP tolerance. The offline mastering chain remeasures/corrects to its tighter
 requested ceiling tolerance. Stationary analytic sine cases are separate.
+
+
+### `fx-emphasizer` — full-row candidate
+
+Stage Stack exposes the larger limiter's saturation curve plus an intentionally
+simple immediate stereo-linked safety stage, separate from the three-stage
+workflow. Dedicated two-stage editor, meter, drive/color/ceiling/mix and saved
+history/automation were committed by the previous worker. Added written, not
+executed: `simplified_two_stages_match_independent_saturation_and_linked_release_reference`
+checks sample-by-sample f64 saturation, linked attack/recovery and dry/wet against
+an independent formula; `two_stage_drive_automation_matches_live_export_without_delay_or_callback_allocation`
+covers native DSP hosting and saved automation. Existing eight stage unit tests
+cover reset, extreme inputs, live control ramps, instant lowered ceiling and
+zero delay/tail. No true-peak claim; ceiling protects wet samples only.

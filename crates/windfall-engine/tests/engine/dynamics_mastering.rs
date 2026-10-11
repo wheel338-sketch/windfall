@@ -95,3 +95,8 @@ fn bass_harmonic_amount_automation_matches_live_render_with_compensated_latency(
 fn mastering_limiter_gain_automation_matches_live_export_and_fixed_true_peak_latency() {
     verify(EffectKind::MasterLimiter, "gainDb", 78);
 }
+
+#[test]
+fn two_stage_drive_automation_matches_live_export_without_delay_or_callback_allocation() {
+    verify(EffectKind::StageStack, "driveDb", 0);
+}
