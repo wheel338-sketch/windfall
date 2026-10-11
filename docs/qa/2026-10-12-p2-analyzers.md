@@ -39,3 +39,59 @@ pnpm --dir apps/desktop lint
 ```
 
 After native fixture promotion, the first command also runs without the environment variable. Least-sure areas: native pool replacement invalid-PCM propagation and exact repeat-capture determinism; limiter release envelope under Stop; effect movement ownership; mocked canvas overload typing and animation scheduling. These are strict unexecuted assertions to repair against actual behavior, not accepted evidence.
+
+## Opt-in real-window smoke (written, not executed)
+
+Two debug-only shell overrides were added:
+
+- `WINDFALL_CONFIG_DIR`: absolute configuration directory, separating settings, plugin database, autosave and project artifacts from the user's configuration.
+- `WINDFALL_OUTPUT_GAIN`: finite linear output gain in `[0,1]`; the smoke uses `0.01`. `WINDFALL_SILENT=1` still takes precedence. Nonzero gain is necessary because the mix-output analyzer is post-output-gain.
+
+`analyzer_smoke_enabled` and `analyzer_smoke_control` are off unless this is a debug native build, `WINDFALL_ANALYZER_SMOKE=1`, and an absolute isolated configuration override is present. Release builds refuse controls and do not contain the fixture implementation. The frontend installs `window.__windfallAnalyzerSmoke` and mounts the display host only after the native gate allows it. Ordinary builds/startups mount no smoke views and expose no window bridge.
+
+The native debug fixture creates independently authored stereo WAV tones (440 Hz at 0.8 hard left; 1875 Hz at 0.2 hard right), inserts a real limiter, tuner calibrated to 432 Hz, and EQ, saves a `.windfall` project and reopens it through the normal native project path. The host mounts the real views and the actual effect editors sequentially (respecting two capture seats). It reads the DOM values those consumers wrote. It does not synthesize healthy readings or report native payloads as displayed evidence.
+
+`scripts/analyzer-window-smoke.mjs` launches the prebuilt app with a separate WebView2 profile and loopback DevTools port. It uses Node's built-in fetch/WebSocket, no new dependency or automation framework. It refuses an occupied port and closes its own child app. It collects clock position/time, master readouts, per-source meter values, spectrum peaks, per-track waveform extrema/serials, limiter input/output/reduction/history updates and release, tuner note/cents, EQ live spectrum, source refusal/clears and native subscription replacement after a real 2.3-second webview-thread stall. Both startup and live waits have deadlines; failures produce a JSON report and nonzero exit.
+
+Integrator commands, from repository root:
+
+```bash
+# Existing generation only if needed after integration; this branch adds no generated DTOs.
+# Build a debug app with bundled frontend, not a cargo-only dev executable expecting Vite:
+pnpm --dir apps/desktop tauri build --debug --no-bundle
+# Node 22 or newer; no install step:
+node scripts/analyzer-window-smoke.mjs target/debug/windfall-desktop.exe target/analyzer-window/report.json 9237
+```
+
+A pass is exit 0 plus `passed: true`, every `checks[].pass: true`, and actual display values present in `samples[]`. A missing device, frontend bundle, WebView2 debugging endpoint, native gate or valid frame is a failure, never a passing unavailable/silent fixture. Inspect the report's native project path, source levels, tone bins (within one actual FFT bin), A4/+31.8 cents, limiter reduction above 3 dB with release, loop wrap and post-stall new subscription before recording acceptance. Rate/PDC/invalid-source propagation is covered by the joined suite; the window script does not change hardware sample rate or inject NaNs into a device stream. Physical instrument/microphone listening and other-OS/device timing remain external.
+
+## EQ source-selection decision
+
+No per-slot FFT tap is required by the accepted design. `ANALYZER-INTEGRATION.md` explicitly allows an EQ overlay consuming selected actual PCM separately from the parameter response, with its location disclosed. The actual EQ editor selects its own track post fader and labels that location. Consequently the spectrum includes subsequent effects and fader gain; it is not represented as the EQ slot's input/output or as a response calculated from settings. The joined replay checks native track audio and lifecycle, and the real-window host mounts the real response/FFT overlay together.
+
+## Per-row handoff
+
+All test files/tests above are **written, not executed**. No row is promoted.
+
+| Row | Claim | SOFTWARE still not done and why |
+| --- | --- | --- |
+| `vis-fruity-big-clock` | Partial | Native channel replay and real-window play/seek/loop harness written; native captured fixture bytes and executed joined/window proof remain, forbidden in worker scope. |
+| `vis-fruity-db-meter` | Partial | Captured per-source peaks, deletion/replacement, rate/PDC/invalid/stall assertions and window readouts written; checked capture and executed proof remain. |
+| `vis-fruity-spectroman` | Partial | Spectrum/spectrogram painters receive native channel captures and known-tone/window checks are written; checked capture and executed proof remain. |
+| `vis-wave-candy` | Partial | Real scope/meter/spectrum/spectrogram/vector consumers are mounted with native replay and lifecycle assertions; checked capture and executed proof remain. |
+| `win-mixer-waveform-view` | Partial | Real native interest, track-separated waveform consumer/serial/extrema checks and immediate replacement clearing are written; checked capture and executed proof remain. |
+| `fx-fruity-limiter` | Partial | Actual native history observations reach the scrolling consumer/editor; input/output/reduction/decay and lifecycle checks are written; checked capture and executed proof remain. |
+| `fx-fruity-parametric-eq2` | Partial | Native track post-fader FFT, explicit source policy, held-spectrum clearing and real response-overlay smoke are written; checked capture and executed proof remain. |
+| `fx-tuner` | Partial | Native calibrated tone, effect moved between sources, actual note/cents readout and no-reading clear are written; checked capture and executed proof remain. Instrument listening remains external. |
+
+## Shared seams / generated types
+
+Shared files changed: `apps/desktop/src-tauri/src/{commands.rs,lib.rs}` and `apps/desktop/src/features/layout/app-shell.tsx`. Narrow additional seams: native `session/{analyzers.rs,realtime.rs,tests/analyzers.rs}`, shell configuration, existing analyzer feed/canvas/status, stage clock/meter, mixer waveform and effect consumers. No project model/command, DSP registry, backend interface, generated binding or WASM edits. No new generated types to regenerate for this branch; the two debug commands use a bool and unexported JSON.
+
+## Check in this order
+
+1. Compile the native test and debug command modules. Check the exact native import/clip and region signatures, capture-seat availability after reopen, and injected invalid-pool publication through `Session::dispatch`.
+2. Capture twice and compare the immutable payloads. The comparator intentionally removes only process-issued lease identities, CPU/xruns and temporary sample paths. Do not mask real numerical/order/clock drift to get a pass. Fixture event bytes themselves are untouched.
+3. Run mounted replay/typecheck/lint. Particular risks: overloaded canvas spy return typing, Node file/env imports under the app TS config, effect-observation cadence after Stop, strict calibrated tuner acceptance, and async source replacement/rebind scheduling.
+4. Build the debug bundled app and run the real-window script. Inspect whether WebView2 honors the loopback debugging environment in this build. Source selection waits for the native source identity, and UI-stall recovery requires a changed native subscription plus counted skipped events.
+5. Review fixture size, provenance and JSON report; commit the genuine checked-in capture. No checked-in bytes were fabricated in this worker pass.

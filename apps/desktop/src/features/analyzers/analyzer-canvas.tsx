@@ -41,6 +41,9 @@ function redraw(state: Drawing, element: HTMLCanvasElement | null) {
     element.dataset.pdcFrames = frame ? String(frame.clock.pdcFrames) : ""
     element.dataset.epoch = frame?.clock.epoch ?? ""
     element.dataset.invalid = frame ? String(frame.levels[0].invalid + frame.levels[1].invalid) : ""
+    element.dataset.subscription = frame?.ticket.subscription ?? ""
+    element.dataset.sequence = frame?.sequence ?? ""
+    element.dataset.skippedEvents = frame?.counters.skippedEvents ?? ""
   }
   if (!context || !size || !colors) return
   context.setTransform(size.dpr, 0, 0, size.dpr, 0, 0)

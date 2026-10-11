@@ -3,14 +3,15 @@ import { resolve } from "node:path"
 import { act, render, waitFor } from "@testing-library/react"
 import { afterEach, expect, it, vi } from "vitest"
 
-import type { Project, RealtimeFrame } from "@/bindings"
+import type { DocumentSnapshot, Project, RealtimeFrame } from "@/bindings"
 import { EqLiveSpectrum } from "@/features/effects/eq/live-spectrum"
 import { LimiterHistory } from "@/features/effects/limiter/history"
 import { TunerReadout } from "@/features/effects/tuner/tuner-editor"
 import { StripWaveform } from "@/features/mixer/waveform-meter"
 import { LargeClock } from "@/features/stage/large-clock"
 import { LargeMasterMeter } from "@/features/stage/large-master-meter"
-import { useProjectStore } from "@/lib/store/project"
+import { loadSnapshot, useProjectStore } from "@/lib/store/project"
+import { announceProjectReplaced } from "@/lib/store/replaced"
 import { useTransportStore } from "@/lib/store/transport"
 import { formatMusicalPosition } from "@/lib/timeline"
 import { formatClock, ticksToSeconds } from "@/lib/time"
@@ -28,6 +29,7 @@ type Step = {
   answer?: AnalyzerStatus
   analyzer: string[]
   realtime: string[]
+  projectLoaded?: string
 }
 type Fixture = { schema: number; project: Project; tracks: [number, number]; steps: Step[] }
 
@@ -118,6 +120,17 @@ it("replays real native session channel bytes through the mounted displays and e
   let sawInvalid = false
   let pdcBefore = 0
   for (const step of fixture.steps) {
+    if (step.projectLoaded) {
+      answer = step.answer
+      await act(async () => {
+        // The exact native project:loaded bytes enter the same store/reset
+        // boundary connectStores uses, before any old analyzer callback.
+        loadSnapshot(JSON.parse(step.projectLoaded!) as DocumentSnapshot)
+        announceProjectReplaced()
+        await settle()
+      })
+      await waitFor(() => expect(document.querySelector("[data-slot=analyzer-canvas]")).toHaveAttribute("data-live", "false"))
+    }
     if (step.select && step !== first) {
       answer = step.answer
       view.rerender(<JoinedViews select={step.select} tracks={fixture.tracks} />)

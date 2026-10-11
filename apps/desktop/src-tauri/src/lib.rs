@@ -19,6 +19,7 @@ pub mod samples;
 pub mod session;
 pub mod settings;
 mod shell;
+mod analyzer_smoke;
 mod sync;
 #[cfg(all(test, windows))]
 mod test_alloc;

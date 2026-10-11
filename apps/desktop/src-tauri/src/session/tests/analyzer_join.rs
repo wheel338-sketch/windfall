@@ -304,15 +304,41 @@ fn capture() -> Value {
         .dispatch(Command::RemoveMixerTrack { id: a }, None)
         .unwrap();
     joined.step(&mut bench, "deleted", 9, 10);
-    joined.select(
-        &mut bench,
-        "replacement",
-        10,
-        AnalyzerSource::MixOutput,
-        None,
-    );
+    let (_, replacement) = add_synth(&bench.rig, -1.0);
+    tone(&bench, "replacement-880.wav", 880.0, 0.3, replacement);
+    joined.select(&mut bench, "replacement", 10, track(replacement), None);
     session.project_new().unwrap();
+    let loaded = bench
+        .rig
+        .events
+        .take()
+        .into_iter()
+        .find(|event| matches!(event, crate::events::Event::ProjectLoaded(_)))
+        .expect("native project-loaded event")
+        .payload()
+        .unwrap();
     joined.step(&mut bench, "project-replaced", 10, 10);
+    let renewed = session.analyzer_select_at(
+        WINDOW,
+        AnalyzerSelect {
+            slot: SLOT.to_owned(),
+            request: 11,
+            generation: bench.generation(),
+            source: track(replacement),
+            effect: None,
+            want: AnalyzerWant {
+                scope: true,
+                spectrum: true,
+                vector: true,
+                envelope: true,
+            },
+        },
+        bench.now,
+    );
+    assert_eq!(renewed.reason, Some(AnalyzerReason::SourceMissing));
+    let last = joined.steps.last_mut().unwrap();
+    last["projectLoaded"] = json!(loaded);
+    last["answer"] = serde_json::to_value(renewed).unwrap();
     json!({"schema":1,"project":snapshot.project,"tracks":[a,b],"limiter":limiter,"tuner":tuner,"steps":joined.steps})
 }
 

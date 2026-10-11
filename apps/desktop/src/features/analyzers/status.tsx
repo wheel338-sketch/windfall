@@ -69,6 +69,8 @@ export function AnalyzerStatusLine({ slot, location, className }: StatusProps) {
       data-slot="analyzer-status"
       data-phase={status?.phase ?? "idle"}
       data-reason={status?.reason ?? undefined}
+      data-source={status?.source ? JSON.stringify(status.source) : undefined}
+      data-effect={status?.effect ?? undefined}
       className={cn(
         "flex min-w-0 items-center gap-1.5 text-[10px] leading-snug text-muted-foreground",
         className

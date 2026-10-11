@@ -1018,6 +1018,8 @@ pub fn handler() -> impl Fn(Invoke) -> bool + Send + Sync + 'static {
         analyzer_select,
         analyzer_ack,
         analyzer_unsubscribe,
+        analyzer_smoke_enabled,
+        analyzer_smoke_control,
         engine_status,
         process_memory,
         engine_devices,
@@ -1312,4 +1314,15 @@ fn analyzer_ack(
 #[tauri::command]
 fn analyzer_unsubscribe(session: State<'_, Session>, window: WebviewWindow, slot: String) {
     session.analyzer_unsubscribe(window.label(), &slot);
+}
+
+#[tauri::command]
+fn analyzer_smoke_enabled() -> bool {
+    crate::analyzer_smoke::enabled()
+}
+
+#[tauri::command]
+async fn analyzer_smoke_control(session: State<'_, Session>, operation: String, value: Option<f64>) -> Result<serde_json::Value, String> {
+    let session = session.inner().clone();
+    blocking(move || crate::analyzer_smoke::control(&session, &operation, value)).await
 }
