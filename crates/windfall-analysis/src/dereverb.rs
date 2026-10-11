@@ -318,6 +318,21 @@ fn render_segment(
             let gain = (1.0 - removal * strength[t] * late / power.max(1e-20))
                 .max(floor * floor)
                 .sqrt();
+            let dry_power = original[t * channels..(t + 1) * channels]
+                .iter()
+                .map(|x| x.norm_sqr())
+                .sum::<f64>();
+            let wet_power = (0..channels)
+                .map(|c| {
+                    let dry = original[t * channels + c];
+                    ((dry + (desired[t * channels + c] - dry) * strength[t]) * gain).norm_sqr()
+                })
+                .sum::<f64>();
+            let safety_gain = if wet_power > dry_power && wet_power > 1e-20 {
+                (dry_power / wet_power).sqrt()
+            } else {
+                1.0
+            };
             // Identical spectral attenuation across channels; joint WPE uses
             // the same regression matrix / shared desired-power weights.
             for c in 0..channels {
@@ -325,18 +340,7 @@ fn render_segment(
                 let predicted = desired[t * channels + c] - dry;
                 let correction = predicted * strength[t];
                 // Never let an ill-conditioned prediction amplify a bin.
-                let mut wet = (dry + correction) * gain;
-                let wet_power = desired[t * channels..(t + 1) * channels]
-                    .iter()
-                    .map(|x| x.norm_sqr())
-                    .sum::<f64>();
-                let dry_power = original[t * channels..(t + 1) * channels]
-                    .iter()
-                    .map(|x| x.norm_sqr())
-                    .sum::<f64>();
-                if wet_power > dry_power && wet_power > 1e-20 {
-                    wet *= (dry_power / wet_power).sqrt();
-                }
+                let wet = (dry + correction) * gain * safety_gain;
                 let result = dry + (wet - dry) * settings.amount as f64;
                 spectrum[(t * channels + c) * bins + k] =
                     Complex32::new(result.re as f32, result.im as f32);
