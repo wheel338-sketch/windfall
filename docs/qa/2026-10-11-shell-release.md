@@ -112,6 +112,17 @@ same caller identity to close every stale-window entry point. Native shell event
 wrapping/State generation mirror, changed command arguments and native geometry
 are the first compile/runtime risks to check. Two actual WebViews remain external.
 
+Detached composition also initializes its transient panel shortcut scope (without
+changing the saved center tab) and mounts command palette, Settings, Export,
+recording, MIDI and import dialogs that its real actions can open. This prevents
+an action from opening invisible state in a window missing that dialog. Mounted
+`features/layout/panel-window.test.tsx` scope/cleanup and actual Settings/Export/
+recording surface cases are written, not executed. Its mixer body is stubbed;
+native window focus/menu isolation still requires two separate WebViews.
+```powershell
+pnpm --dir apps/desktop test src/features/layout/panel-window.test.tsx src/features/layout/detach.test.tsx src/features/help/guided-tutorial.test.tsx --maxWorkers=2
+```
+
 ## Remaining streams
 
 Detached windows, scaling, tutorials, languages, updater and scheduler work

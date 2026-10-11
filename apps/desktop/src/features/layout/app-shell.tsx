@@ -33,6 +33,8 @@ import { useAppBoot, useWindowTitle } from "./use-app-boot"
 import { Workspace } from "./workspace"
 import { PluginManager } from "@/features/plugins/manager"
 import { TouchControllersWindow } from "@/features/touch-controllers/window"
+import { RecordingDialog } from "@/features/transport/recording-dialog"
+import { useDetachedScope } from "./detached-scope"
 
 /** The most room a toast takes across, however long its message. */
 const TOAST_WIDTH = 340
@@ -122,6 +124,7 @@ export function AppShell() {
  */
 export function PanelWindow({ panel }: { panel: PanelId }) {
   useAppBoot({ guardClose: false })
+  useDetachedScope(panel)
   const { title, component: Panel } = PANELS[panel]
 
   return (
@@ -132,6 +135,13 @@ export function PanelWindow({ panel }: { panel: PanelId }) {
             <Panel />
           </PanelFrame>
         </div>
+        <CommandPalette />
+        <SettingsDialog />
+        <ExportDialog />
+        <RecordingDialog />
+        <MidiDialogs />
+        <FlpImportDialog />
+        <RetainedSoundsDialog />
         <Overlays />
       </ValueContextMenus>
     </TooltipProvider>
