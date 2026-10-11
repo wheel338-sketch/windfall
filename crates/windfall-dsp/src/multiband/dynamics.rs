@@ -449,3 +449,46 @@ impl Effect for OneKnob {
         self.maximizer.tail_samples()
     }
 }
+
+
+#[cfg(test)]
+mod acceptance {
+    use super::*;
+
+    #[test]
+    fn three_detectors_match_independent_db_ballistics_without_cross_band_pumping() {
+        for rate in [44_100.0, 48_000.0, 96_000.0] {
+            let settings = [
+                BandDynamicsParams { threshold_db: -24.0, ratio: 2.0, attack_ms: 5.0, release_ms: 80.0, makeup_db: 2.0 },
+                BandDynamicsParams { threshold_db: -18.0, ratio: 4.0, attack_ms: 10.0, release_ms: 120.0, makeup_db: -1.0 },
+                BandDynamicsParams { threshold_db: -12.0, ratio: 100.0, attack_ms: 2.0, release_ms: 30.0, makeup_db: 0.0 },
+            ];
+            let mut bands: [BandDynamics; 3] = std::array::from_fn(|i| {
+                let mut band = BandDynamics::default();
+                band.controls.prepare(rate);
+                band.set(&settings[i], rate);
+                band.reset();
+                band
+            });
+            let mut reference = [0.0_f64; 3];
+            for frame in 0..12_000 {
+                for i in 0..3 {
+                    // Each detector has its own transitions and amplitude.
+                    // Right is the louder key; the audible stereo ratio stays 2:1.
+                    let key_db = if (frame / (500 + i * 137)) % 2 == 0 { -3.0 } else { -45.0 };
+                    let key = 10.0_f64.powf(key_db / 20.0) as f32;
+                    let p = settings[i];
+                    let slope = if p.ratio >= 100.0 { 1.0 } else { 1.0 - 1.0 / f64::from(p.ratio) };
+                    let wanted = (key_db - f64::from(p.threshold_db)).max(0.0) * slope;
+                    let milliseconds = if wanted > reference[i] { p.attack_ms } else { p.release_ms };
+                    let keep = (-1000.0 / (f64::from(milliseconds) * f64::from(rate))).exp();
+                    reference[i] = wanted + (reference[i] - wanted) * keep;
+                    let gain = 10.0_f64.powf((f64::from(p.makeup_db) - reference[i]) / 20.0);
+                    let out = bands[i].tick([0.125, -0.25], [key * 0.1, key]);
+                    assert!((f64::from(out[0]) - 0.125 * gain).abs() < 2e-5, "band {i} frame {frame}");
+                    assert!((out[1] + 2.0 * out[0]).abs() < 1e-7);
+                }
+            }
+        }
+    }
+}

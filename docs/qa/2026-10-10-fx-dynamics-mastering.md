@@ -67,3 +67,19 @@ Regenerate descriptors (Transient Shaper effectOutputs), Rust-derived TS and
 WASM before frontend execution. Run the dynamics DSP/project tests and mounted
 routing suite listed in the final command section. Engine audio acceptance is
 being added below. No tests or builds have run in this worker.
+
+
+### `fx-fruity-multiband-compressor` — full-row candidate
+
+Retained the three independent peak-detector bands, compensated LR4 crossover,
+external matched-band key, meter and purpose-built crossover/transfer editor.
+Added independent f64 hard-knee/attack/release reference trajectories at three
+rates: `three_detectors_match_independent_db_ballistics_without_cross_band_pumping`.
+Each detector transitions at different frames; stereo link and unaffected other
+band state are measured. Existing crossover magnitude, external-key, partition,
+finite-audio, editor and persistence/history tests remain in place.
+Added public engine acceptance module and registered it in `engine/main.rs`:
+`multiband_compressor_automation_is_audible_and_matches_live_render_without_allocations`
+measures audible automation, live/offline agreement after PDC, 17/251-frame
+partitions, finite samples, tail decay and zero callback allocations/frees.
+All tests written, not executed. Crossover phase reference follows below.
