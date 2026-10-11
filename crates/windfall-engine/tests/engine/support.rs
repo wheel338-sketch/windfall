@@ -203,6 +203,7 @@ impl Rig {
         let id = PatternId(self.id());
         self.project.patterns.push(Pattern {
             note_curves: Vec::new(),
+            events: Vec::new(),
             time_signature: None,
             timeline: Default::default(),
             id,

@@ -526,6 +526,7 @@ fn check_patterns(project: &Project) -> Result<(), String> {
         check_id(project, "pattern", pattern.id, &mut ids)?;
         check_pattern(project, pattern, &mut notes)?;
     }
+    crate::pattern_events::check(project)?;
     Ok(())
 }
 

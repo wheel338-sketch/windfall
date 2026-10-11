@@ -520,6 +520,7 @@ pub fn make_unique(
             );
             used.extend(pattern.timeline.meters.iter().map(|meter| meter.id.0));
             used.extend(pattern.timeline.markers.iter().map(|marker| marker.id.0));
+            used.extend(pattern.events.iter().map(|lane| lane.id.0));
         }
         UniqueSource::Audio(sample) => {
             used.insert(sample.id.0);
@@ -567,6 +568,9 @@ pub fn make_unique(
             }
             for marker in &mut copy.timeline.markers {
                 marker.id = fresh()?.into();
+            }
+            for lane in &mut copy.events {
+                lane.id = crate::AutomationId(fresh()?);
             }
             Ok((
                 SourceReference::Pattern { pattern: copy.id },

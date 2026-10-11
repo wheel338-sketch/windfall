@@ -101,6 +101,9 @@ pub(crate) struct Plan {
     pub song_end: u32,
     /// What automation does to each of its targets along the song.
     pub lanes: Arc<[Lane]>,
+    /// Some pattern has an event lane, so a pattern playing by itself has
+    /// automation to follow too.
+    pub pattern_lanes: bool,
     /// How long the song takes to get to each of its ticks, when
     /// automation moves the tempo. `None` when the tempo is steady.
     pub tempo_map: Option<TempoMap>,
@@ -840,6 +843,7 @@ pub(crate) fn compile(project: &Project, pool: &SamplePool) -> Plan {
         audio_clip_ids,
         song_end,
         lanes: Arc::from([]),
+        pattern_lanes: false,
         tempo_map: None,
     };
     if plan.meters.is_ok() {
@@ -847,6 +851,7 @@ pub(crate) fn compile(project: &Project, pool: &SamplePool) -> Plan {
     }
     plan.link();
     plan.lanes = automation::compile(project, &playlist, &plan).into();
+    plan.pattern_lanes = plan.lanes.iter().any(|lane| lane.in_patterns());
     let tempo_lane = plan.lanes.iter().find(|lane| lane.is_tempo());
     plan.tempo_map = tempo_lane.map(|lane| TempoMap::new(lane, tempo_bpm, f64::from(song_end)));
     plan

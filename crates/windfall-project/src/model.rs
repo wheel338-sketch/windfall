@@ -261,6 +261,7 @@ impl Project {
                 color: palette_color(0),
                 length_steps: DEFAULT_PATTERN_STEPS,
                 lanes: Vec::new(),
+                events: Vec::new(),
             }],
             mixer: Mixer {
                 tracks: vec![MixerTrack {
@@ -685,6 +686,11 @@ pub struct Pattern {
     /// Notes per channel, sorted by channel id. Channels with no notes have
     /// no lane.
     pub lanes: Vec<Lane>,
+    /// Event automation: curves in pattern ticks that move a control
+    /// wherever this pattern plays. At most one lane per target.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[ts(as = "Option<Vec<crate::PatternEventLane>>", optional)]
+    pub events: Vec<crate::PatternEventLane>,
 }
 
 impl Pattern {

@@ -98,6 +98,7 @@ pub(crate) struct PatternInfo {
     pub length_steps: u32,
     pub time_signature: Option<crate::TimeSignature>,
     pub timeline: crate::Timeline,
+    pub events: Vec<crate::PatternEventLane>,
 }
 
 impl PatternInfo {
@@ -109,6 +110,7 @@ impl PatternInfo {
             length_steps: pattern.length_steps,
             time_signature: pattern.time_signature,
             timeline: pattern.timeline.clone(),
+            events: pattern.events.clone(),
         }
     }
 }
@@ -194,6 +196,7 @@ impl Edit {
                     pattern.time_signature = info.time_signature;
                     pattern.timeline = info.timeline.clone();
                     pattern.note_curves = info.note_curves.clone();
+                    pattern.events = info.events.clone();
                 }
             }
             Edit::Notes {
