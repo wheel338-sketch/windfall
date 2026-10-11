@@ -467,12 +467,11 @@ impl Limiter {
         }
         let mut gain = 1.0_f32;
         if gated {
-            let held = self.gate_level.tick(if level.is_finite() { level } else { 0.0 });
+            let held = self
+                .gate_level
+                .tick(if level.is_finite() { level } else { 0.0 });
             let open = level_to_db(held) >= self.params.gate_threshold_db;
-            let opening = self
-                .gate
-                .tick(if open { 1.0 } else { 0.0 })
-                .clamp(0.0, 1.0);
+            let opening = self.gate.tick(if open { 1.0 } else { 0.0 }).clamp(0.0, 1.0);
             block.gate = block.gate.min(opening);
             gain = opening;
         }

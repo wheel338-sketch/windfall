@@ -501,7 +501,10 @@ mod tests {
             confidence: 0.25,
         };
         let text = serde_json::to_string(&observation).unwrap();
-        assert!(text.starts_with(r#"{"type":"tuner","firstFrame":"0""#), "{text}");
+        assert!(
+            text.starts_with(r#"{"type":"tuner","firstFrame":"0""#),
+            "{text}"
+        );
         assert!(text.contains(r#""frequencyHz":null"#), "{text}");
     }
 }

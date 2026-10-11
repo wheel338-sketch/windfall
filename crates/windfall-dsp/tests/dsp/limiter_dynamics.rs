@@ -95,7 +95,12 @@ fn limit_mode_without_a_gate_ignores_the_compress_and_gate_settings() {
     let mut a: Limiter = prepared(&plain, RATE);
     let mut b: Limiter = prepared(&other, RATE);
     let (out_a, out_b) = (run_mono(&mut a, &input), run_mono(&mut b, &input));
-    assert!(out_a.iter().zip(&out_b).all(|(a, b)| a.to_bits() == b.to_bits()));
+    assert!(
+        out_a
+            .iter()
+            .zip(&out_b)
+            .all(|(a, b)| a.to_bits() == b.to_bits())
+    );
     assert_eq!(other.static_gain_db(0.0), 0.0);
 }
 
@@ -173,9 +178,8 @@ fn compression_arrives_at_the_attack_time_and_leaves_at_the_release_time() {
         *sample = if (index / 48) % 2 == 0 { loud } else { -loud };
     }
     let output = run_mono(&mut limiter, &input);
-    let reduction_at = |index: usize, level: f32| {
-        level_db(level) - level_db(output[index + latency].abs())
-    };
+    let reduction_at =
+        |index: usize, level: f32| level_db(level) - level_db(output[index + latency].abs());
     // One attack time in, 63% of the 20 dB has arrived.
     let attack = reduction_at(24_000 + 960, loud) / 20.0;
     assert!((0.58..=0.68).contains(&attack), "attack reached {attack}");
@@ -183,7 +187,10 @@ fn compression_arrives_at_the_attack_time_and_leaves_at_the_release_time() {
     assert!((reduction_at(90_000, loud) - 20.0).abs() < 0.1);
     // One release time after it ends, 63% has gone again.
     let release = 1.0 - reduction_at(96_000 + 9_600, quiet) / 20.0;
-    assert!((0.58..=0.68).contains(&release), "release reached {release}");
+    assert!(
+        (0.58..=0.68).contains(&release),
+        "release reached {release}"
+    );
 }
 
 #[test]
@@ -364,7 +371,11 @@ fn a_shut_gate_and_compression_are_reported_apart() {
     }
     let loud = seen.unwrap();
     assert!(loud.gate_db < 0.01, "{}", loud.gate_db);
-    assert!((loud.reduction_db - 9.0).abs() < 0.1, "{}", loud.reduction_db);
+    assert!(
+        (loud.reduction_db - 9.0).abs() < 0.1,
+        "{}",
+        loud.reduction_db
+    );
     // Faint: gate shut. The compression lets go at the one-second release,
     // so 9 dB has fallen to 9 * e^-8, a few thousandths, after 8 seconds.
     for _ in 0..1_500 {
@@ -389,7 +400,9 @@ fn only_measuring_effects_report_and_the_tuner_reports_the_calibrated_note() {
 
     // A4 at 440 Hz against a 432 Hz reference is 1200 * log2(440 / 432)
     // cents sharp of A4.
-    let params = windfall_dsp::tuner::TunerParams { reference_hz: 432.0 };
+    let params = windfall_dsp::tuner::TunerParams {
+        reference_hz: 432.0,
+    };
     let mut tuner = AnyEffect::new(&EffectParams::Tuner(params));
     tuner.prepare(RATE, 256);
     tuner.set_params(&EffectParams::Tuner(params));

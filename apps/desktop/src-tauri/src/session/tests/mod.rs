@@ -2,6 +2,7 @@
 //! a [`Processor`] the tests run by hand.
 
 mod analysis_jobs;
+mod analyzers;
 #[path = "../recording_completion_qa.rs"]
 mod recording_completion_qa;
 #[path = "../mixer_render_qa.rs"]

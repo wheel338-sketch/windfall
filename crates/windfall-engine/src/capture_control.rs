@@ -317,6 +317,14 @@ impl Controller {
         }
     }
 
+    /// The heard playhead in ticks and whether the transport is playing, as
+    /// [`Controller::frame`] reports them, without resetting the meters
+    /// that `frame` resets.
+    pub fn heard_position(&self) -> (f64, bool) {
+        let state = self.lock();
+        (self.inner.shared.tick(), self.playing(&state))
+    }
+
     /// Stops a seat's capture. False if the audio thread has not yet taken
     /// the selection made before, in which case nothing changed.
     pub fn capture_clear(&self, seat: usize) -> bool {

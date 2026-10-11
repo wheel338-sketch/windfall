@@ -48,6 +48,7 @@ pub fn run() {
                 && let Some(session) = window.try_state::<Session>()
             {
                 session.unsubscribe_realtime(window.label());
+                session.analyzer_window_closed(window.label());
             }
         })
         .invoke_handler(commands::handler())

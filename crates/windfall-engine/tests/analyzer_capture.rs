@@ -99,7 +99,9 @@ fn look(controller: &Controller, seat: usize, ticket: CaptureTicket) -> Seen {
             state: view.state,
             peak: [0, 1].map(|side| levels(side).map(|l| l.sample_peak)),
             rms: [0, 1].map(|side| levels(side).map(|l| l.rms)),
-            invalid: snapshot.map_or([0; 2], |s| [0, 1].map(|side| s.channels[side].invalid_samples)),
+            invalid: snapshot.map_or([0; 2], |s| {
+                [0, 1].map(|side| s.channels[side].invalid_samples)
+            }),
             spectrum_valid: snapshot.map_or([false; 2], |s| s.spectrum_valid),
             first_frame: snapshot.map_or(0, |s| s.range.first_frame),
             end_frame: snapshot.map_or(0, |s| s.range.end_frame),
@@ -136,7 +138,10 @@ fn settle(
             return seen;
         }
     }
-    panic!("no fresh analysis arrived: {:?}", look(controller, seat, ticket));
+    panic!(
+        "no fresh analysis arrived: {:?}",
+        look(controller, seat, ticket)
+    );
 }
 
 fn close(a: Option<f64>, b: f64) -> bool {
@@ -206,10 +211,19 @@ fn each_source_reports_its_own_audio_and_a_new_selection_never_shows_the_old_one
     assert_ne!(on_a.selection, on_mix.selection);
     assert_eq!(on_a.sample_rate, RATE);
     // Selected is not live: nothing is shown before real audio has arrived.
-    assert_eq!(look(&controller, 0, on_a).state, CaptureState::AwaitingAudio);
-    assert_eq!(look(&controller, 1, on_mix).state, CaptureState::AwaitingAudio);
+    assert_eq!(
+        look(&controller, 0, on_a).state,
+        CaptureState::AwaitingAudio
+    );
+    assert_eq!(
+        look(&controller, 1, on_mix).state,
+        CaptureState::AwaitingAudio
+    );
     run(&mut processor, WINDOW - 256, 256);
-    assert_eq!(look(&controller, 0, on_a).state, CaptureState::AwaitingAudio);
+    assert_eq!(
+        look(&controller, 0, on_a).state,
+        CaptureState::AwaitingAudio
+    );
 
     let out = run(&mut processor, 512, 256);
     let track = look(&controller, 0, on_a);
@@ -217,12 +231,18 @@ fn each_source_reports_its_own_audio_and_a_new_selection_never_shows_the_old_one
     assert_eq!(track.state, CaptureState::Ready);
     assert_eq!(track.source, Some(Source::TrackPostFader(fixture.a)));
     assert_eq!(track.project, 1);
-    assert!(close(track.peak[0], A) && close(track.peak[1], A), "{track:?}");
+    assert!(
+        close(track.peak[0], A) && close(track.peak[1], A),
+        "{track:?}"
+    );
     assert!(close(track.rms[0], A), "{track:?}");
     // The mix is what the device was given: the sum, after the output gain.
     let heard = f64::from(out[out.len() - 2]);
     assert!((heard - (A + B) * f64::from(OUTPUT_GAIN)).abs() < 1.0e-6);
-    assert!(close(mix.peak[0], heard) && close(mix.peak[1], heard), "{mix:?}");
+    assert!(
+        close(mix.peak[0], heard) && close(mix.peak[1], heard),
+        "{mix:?}"
+    );
     assert_eq!(mix.source, Some(Source::MixOutput));
     assert_eq!((track.rate, mix.rate), (RATE, RATE));
     assert_eq!(track.end_frame - track.first_frame, WINDOW as u64);
@@ -255,7 +275,10 @@ fn each_source_reports_its_own_audio_and_a_new_selection_never_shows_the_old_one
         assert_eq!(seen.peak, [None, None]);
     }
     let first = first.expect("track B reported");
-    assert!(close(first.peak[0], B) && close(first.rms[1], B), "{first:?}");
+    assert!(
+        close(first.peak[0], B) && close(first.rms[1], B),
+        "{first:?}"
+    );
     assert_eq!(first.source, Some(Source::TrackPostFader(fixture.b)));
     assert_eq!(look(&controller, 0, on_a).state, CaptureState::Stale);
 
@@ -265,7 +288,10 @@ fn each_source_reports_its_own_audio_and_a_new_selection_never_shows_the_old_one
     run(&mut processor, 512, 256);
 
     drop(processor);
-    assert_eq!(look(&controller, 1, on_master).state, CaptureState::NoStream);
+    assert_eq!(
+        look(&controller, 1, on_master).state,
+        CaptureState::NoStream
+    );
     assert_eq!(controller.capture_capability().stream, None);
 }
 
@@ -329,7 +355,10 @@ fn selections_are_checked_against_the_project_and_refusals_change_nothing() {
         refuse(0, Source::TrackPostFader(fixture.a), None),
         CaptureRefusal::Busy
     );
-    assert_eq!(look(&controller, 0, next).state, CaptureState::AwaitingAudio);
+    assert_eq!(
+        look(&controller, 0, next).state,
+        CaptureState::AwaitingAudio
+    );
     let seen = settle(&mut processor, &controller, 0, next, 0);
     assert!(close(seen.peak[0], B));
     drop(processor);
@@ -384,7 +413,13 @@ fn a_seek_a_transport_change_and_a_new_plan_never_share_a_window_with_what_came_
     });
     run(&mut processor, 256, 256);
     controller.play();
-    seen = settle(&mut processor, &controller, 0, ticket, seen.end_frame + 2_048);
+    seen = settle(
+        &mut processor,
+        &controller,
+        0,
+        ticket,
+        seen.end_frame + 2_048,
+    );
     let (clock, resets) = (seen.clock, seen.resets);
     let started = controller.frame().tick;
     let mut wrapped = false;
@@ -406,7 +441,13 @@ fn a_seek_a_transport_change_and_a_new_plan_never_share_a_window_with_what_came_
     controller.stop();
     run(&mut processor, 256, 256);
     controller.note_on(fixture.channels[0], 60, 1.0);
-    seen = settle(&mut processor, &controller, 0, ticket, seen.end_frame + 4_096);
+    seen = settle(
+        &mut processor,
+        &controller,
+        0,
+        ticket,
+        seen.end_frame + 4_096,
+    );
     assert!(close(seen.peak[0], A), "{seen:?}");
 
     // An edit hands the audio thread a new plan: again a clean break.
@@ -414,7 +455,10 @@ fn a_seek_a_transport_change_and_a_new_plan_never_share_a_window_with_what_came_
     let at = seen.end_frame.next_multiple_of(256);
     controller.set_project(&fixture.rig.project, &fixture.rig.pool);
     run(&mut processor, 256, 256);
-    assert_eq!(look(&controller, 0, ticket).state, CaptureState::AwaitingAudio);
+    assert_eq!(
+        look(&controller, 0, ticket).state,
+        CaptureState::AwaitingAudio
+    );
     // The fader glides to its new place; once there the level is the new one.
     let mut edited = settle(&mut processor, &controller, 0, ticket, at);
     for _ in 0..40 {
@@ -444,7 +488,11 @@ fn a_deleted_source_shows_nothing_and_a_new_stream_or_rate_makes_old_tickets_sta
 
     // Track B leaves the project.
     let track = fixture.b;
-    fixture.rig.project.channels.retain(|c| c.mixer_track != track);
+    fixture
+        .rig
+        .project
+        .channels
+        .retain(|c| c.mixer_track != track);
     fixture.rig.project.mixer.tracks.retain(|t| t.id != track);
     controller.set_project(&fixture.rig.project, &fixture.rig.pool);
     // Even before the audio thread has the new plan nothing of B is shown.
@@ -457,7 +505,13 @@ fn a_deleted_source_shows_nothing_and_a_new_stream_or_rate_makes_old_tickets_sta
     assert_eq!(gone.peak, [None, None]);
     assert!(gone.missing_blocks >= 7, "{gone:?}");
     // The mix goes on, now without B.
-    let mix = settle(&mut processor, &controller, 1, on_mix, seen.end_frame + 4_096);
+    let mix = settle(
+        &mut processor,
+        &controller,
+        1,
+        on_mix,
+        seen.end_frame + 4_096,
+    );
     assert!(close(mix.peak[0], A * f64::from(OUTPUT_GAIN)), "{mix:?}");
     assert_eq!(
         controller
@@ -510,7 +564,10 @@ fn a_look_that_comes_too_late_loses_audio_openly_and_recovers_on_a_fresh_window(
     let back = settle(&mut processor, &controller, 0, ticket, seen.end_frame);
     assert!(close(back.peak[0], A));
     assert!(back.first_frame >= seen.end_frame + 32 * 256, "{back:?}");
-    assert!(back.clock == seen.clock, "an overflow is not a transport break");
+    assert!(
+        back.clock == seen.clock,
+        "an overflow is not a transport break"
+    );
     drop(processor);
 }
 
@@ -598,7 +655,10 @@ fn listening_to_the_mix_changes_no_bit_of_the_device_output_and_reports_bad_samp
         }
     }
     assert!(frames > 4 * WINDOW);
-    assert!(invalid_seen > 0, "the mix capture never saw the bad samples");
+    assert!(
+        invalid_seen > 0,
+        "the mix capture never saw the bad samples"
+    );
     drop((plain, heard));
 }
 
@@ -665,7 +725,10 @@ fn a_limiter_sends_its_own_levels_and_reduction_block_by_block_and_keeps_its_met
     // One observation per 256-frame block, end to end on the engine's clock.
     assert!(observations.len() >= 70, "{}", observations.len());
     for pair in observations.windows(2) {
-        assert_eq!(pair[0].first_frame + u64::from(pair[0].frames), pair[1].first_frame);
+        assert_eq!(
+            pair[0].first_frame + u64::from(pair[0].frames),
+            pair[1].first_frame
+        );
         assert_eq!(pair[0].effect, limiter);
         assert_eq!(pair[0].selection, ticket.selection);
     }
@@ -681,14 +744,18 @@ fn a_limiter_sends_its_own_levels_and_reduction_block_by_block_and_keeps_its_met
         deepest = deepest.max(dynamics.reduction_db);
     }
     // The same figure labels the analysis window, tagged with the effect.
-    let (effect, db) = last.reduction.expect("a window with one effect's reduction");
+    let (effect, db) = last
+        .reduction
+        .expect("a window with one effect's reduction");
     assert_eq!(effect, limiter);
     assert!((f64::from(db) - expected_db).abs() < 0.05);
     assert!((f64::from(metered) - expected_db).abs() < 0.05, "{metered}");
     // The track comes out at the ceiling, and its look-ahead is its latency.
-    assert!(close(last.peak[0], f64::from(10.0_f32.powf(-0.3))) || {
-        (last.peak[0].unwrap() - 10.0_f64.powf(-0.3)).abs() < 1.0e-3
-    });
+    assert!(
+        close(last.peak[0], f64::from(10.0_f32.powf(-0.3))) || {
+            (last.peak[0].unwrap() - 10.0_f64.powf(-0.3)).abs() < 1.0e-3
+        }
+    );
     assert_eq!(last.pdc, 240);
     // A track without the limiter has no reduction and no latency of its own.
     let quiet = look(&controller, 1, on_other);
@@ -780,9 +847,15 @@ fn compression_and_the_gate_are_heard_and_reported_through_the_engine() {
     for _ in 0..20 {
         seen = settle(&mut processor, &controller, 0, ticket, seen.end_frame);
     }
-    assert!((seen.peak[0].unwrap() - expected).abs() < 2.0e-3, "{seen:?}");
+    assert!(
+        (seen.peak[0].unwrap() - expected).abs() < 2.0e-3,
+        "{seen:?}"
+    );
     let (_, db) = seen.reduction.unwrap();
-    assert!((f64::from(db) - (input_db + 18.0) * 0.75).abs() < 0.05, "{db}");
+    assert!(
+        (f64::from(db) - (input_db + 18.0) * 0.75).abs() < 0.05,
+        "{db}"
+    );
 
     // A gate above the signal shuts it: the track goes silent, and the
     // limiter says its gate is what did it.
@@ -797,10 +870,14 @@ fn compression_and_the_gate_are_heard_and_reported_through_the_engine() {
     for _ in 0..200 {
         run(&mut processor, 512, 256);
         let look = look(&controller, 0, ticket);
-        let gate = look.observations.iter().rev().find_map(|packet| match packet.observation {
-            EffectObservation::Dynamics(dynamics) => Some(dynamics.gate_db),
-            _ => None,
-        });
+        let gate = look
+            .observations
+            .iter()
+            .rev()
+            .find_map(|packet| match packet.observation {
+                EffectObservation::Dynamics(dynamics) => Some(dynamics.gate_db),
+                _ => None,
+            });
         if look.state == CaptureState::Ready
             && gate == Some(windfall_dsp::GATE_FLOOR_DB)
             && look.peak[0] == Some(0.0)
@@ -826,7 +903,12 @@ fn a_tuner_on_the_captured_track_reads_the_note_against_its_reference() {
     let mut rig = Rig::new();
     let track = rig.track();
     let channel = rig.channel_on(sine(RATE, 440.0, 6.0), track);
-    let tuner = rig.effect(track, EffectParams::Tuner(TunerParams { reference_hz: 432.0 }));
+    let tuner = rig.effect(
+        track,
+        EffectParams::Tuner(TunerParams {
+            reference_hz: 432.0,
+        }),
+    );
     let (mut processor, controller) = rig.processor(RATE);
     controller.note_on(channel, 60, 1.0);
     let ticket = controller
@@ -856,12 +938,20 @@ fn a_tuner_on_the_captured_track_reads_the_note_against_its_reference() {
     // 440 Hz against A4 = 432 Hz: 1200 * log2(440 / 432) cents sharp of A4.
     let cents = 1200.0 * (440.0_f64 / 432.0).log2();
     assert_eq!(sharp.midi_note, Some(69));
-    assert!((f64::from(sharp.frequency_hz) - 440.0).abs() < 0.3, "{sharp:?}");
-    assert!((f64::from(sharp.cents_error) - cents).abs() < 1.5, "{sharp:?}");
+    assert!(
+        (f64::from(sharp.frequency_hz) - 440.0).abs() < 0.3,
+        "{sharp:?}"
+    );
+    assert!(
+        (f64::from(sharp.cents_error) - cents).abs() < 1.5,
+        "{sharp:?}"
+    );
     assert!(sharp.confidence > 0.9);
 
     // Recalibrated to 440 the same sound is in tune.
-    rig.effect_mut(tuner).params = EffectParams::Tuner(TunerParams { reference_hz: 440.0 });
+    rig.effect_mut(tuner).params = EffectParams::Tuner(TunerParams {
+        reference_hz: 440.0,
+    });
     controller.set_project(&rig.project, &rig.pool);
     let tuned = read(&mut processor);
     assert_eq!(tuned.midi_note, Some(69));
