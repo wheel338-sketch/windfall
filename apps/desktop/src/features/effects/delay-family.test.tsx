@@ -220,6 +220,47 @@ describe("the geometry of the frequency delay's plot", () => {
   })
 })
 
+describe("the delay's inverted stereo mode", () => {
+  it("is the third mode, sent by its index, with history and a file", async () => {
+    const user = userEvent.setup()
+    const effect = await open("delay")
+    const mode = () => (slotOf(effect).params as { mode: string }).mode
+    const modes = within(screen.getByRole("radiogroup", { name: "Mode" }))
+    expect(
+      modes.getAllByRole("radio").map((radio) => radio.textContent)
+    ).toEqual(["Stereo", "Ping-pong", "Inverted"])
+    expect(mode()).toBe("stereo")
+
+    const spy = vi.spyOn(backend, "dispatch")
+    await user.click(modes.getByRole("radio", { name: "Inverted" }))
+    await flush()
+    expect(mode()).toBe("inverted")
+    expect(spy.mock.calls.at(-1)?.[0]).toMatchObject({
+      type: "setEffectParam",
+      track,
+      effect,
+      // The mode keeps the index it always had; only its range grew.
+      param: 4,
+      value: 2,
+    })
+    expect(
+      modes.getByRole("radio", { name: "Inverted" })
+    ).toHaveAttribute("aria-checked", "true")
+
+    await undo()
+    await flush()
+    expect(mode()).toBe("stereo")
+    await redo()
+    await flush()
+    const path = await backend.projectSave("/projects/inverted-delay.windfall")
+    await act(async () => {
+      await backend.projectOpen(path)
+    })
+    await flush()
+    expect(mode()).toBe("inverted")
+  })
+})
+
 describe("the echo bank's editor", () => {
   const bank = (effect: EffectId) => paramsOf<EchoBankParams>(effect)
   const summary = () =>

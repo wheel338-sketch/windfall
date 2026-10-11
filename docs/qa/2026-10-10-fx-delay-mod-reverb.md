@@ -13,7 +13,7 @@ the session stops early. The status column says how far each row got.
 
 | Row | Status | What is in the branch |
 | --- | --- | --- |
-| `fx-fruity-delay` | DSP and importer committed (`61cd12b6`); engine and UI tests pending | Inverted stereo mode in the core Delay |
+| `fx-fruity-delay` | complete in source (`61cd12b6` and the test commit); nothing run | Inverted stereo mode in the core Delay, with DSP, importer, engine and UI tests |
 | `fx-fruity-delay-bank` | all four named gates addressed in source (`7ecea4c7`, `ef0ce026`, editor commit); nothing run | Linked eight-unit editor, fallible host admission, saturating tails |
 | `fx-multiband-delay` | all four named gates addressed in source; nothing run | Drawn sixteen-band delay/level/pan editor, same host gates |
 | `fx-luxeverb` | pending | |
@@ -61,12 +61,23 @@ Tests written, not executed:
   `inverted_keeps_the_stereo_offset_and_the_tail_of_the_other_modes`.
 - `crates/windfall-flp/src/convert/effects.rs`:
   `the_older_delay_keeps_its_inverted_stereo_mode`.
+- `crates/windfall-engine/tests/delay_inverted_qa.rs`:
+  `inverted_delay_swaps_the_echo_sides_persists_and_matches_live_offline`
+  (a hard-left source, echoes only: stereo mode leaves them left, inverted
+  puts the same energy on the right; undo/redo, save/load, offline against
+  live at two block sizes).
+- `apps/desktop/src/features/effects/delay-family.test.tsx`:
+  "the delay's inverted stereo mode" (third segment of the mode control,
+  `setEffectParam` with index 4 and value 2, undo/redo, save/reopen). It
+  needs regenerated descriptors to find the third segment.
 
 Commands:
 
 ```bash
 cargo test -p windfall-dsp --lib delay::tests
 cargo test -p windfall-flp --lib the_older_delay
+cargo test -p windfall-engine --test delay_inverted_qa
+pnpm --dir apps/desktop test src/features/effects/delay-family.test.tsx --maxWorkers=4
 ```
 
 Least sure:
