@@ -684,3 +684,28 @@ fn maximizer_band_ceilings_protect_each_band_before_the_master_sum() {
         assert!(effect.tail_samples() >= effect.latency_samples());
     }
 }
+
+
+#[test]
+fn one_knob_is_constrained_but_still_has_a_real_ceiling_latency_and_finite_tail() {
+    use windfall_dsp::ParamSet;
+    assert_eq!(OneKnobParams::descriptors().len(), 1);
+    assert_eq!(OneKnobParams::descriptors()[0].id, "amount");
+    for amount in [0.0, 0.5, 1.0] {
+        let mut effect = OneKnob::default();
+        effect.prepare(RATE as f32, 512);
+        effect.set_params(&OneKnobParams { amount });
+        let mut input = vec![0.0_f32; RATE as usize];
+        input[0] = 0.01;
+        let output = run(&mut effect, &input, 79);
+        assert_eq!(effect.latency_samples(), 96);
+        assert!(output[..96].iter().all(|x| *x == 0.0));
+        assert!(output[96].abs() > 1e-6);
+        assert!(output[40_000..].iter().all(|x| x.abs() < 1e-8));
+        effect.reset();
+        let hot = programme(2.0, 1);
+        let limited = run(&mut effect, &hot, 257);
+        let ceiling = db_to_gain(-0.3 * amount);
+        assert!(limited.iter().all(|x| x.abs() <= ceiling + 1e-6));
+    }
+}

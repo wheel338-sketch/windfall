@@ -102,3 +102,20 @@ Existing DSP independent detectors, external key, curves, partitions; mounted
 editor controls/automation; file/history tests apply to this distinct kind.
 This effect promises sample ceilings, not calibrated true-peak limiting; the
 Mastering Limiter and local mastering chain supply the true-peak workflow.
+
+
+### `fx-soundgoodizer` — full-row candidate
+
+The constrained One Knob workflow retains exactly one saved/automatable control
+and a separate editor, backed by its own fixed multiband compression/limiting
+recipe. Written, not executed:
+`one_knob_is_constrained_but_still_has_a_real_ceiling_latency_and_finite_tail`
+checks descriptor count, impulse onset after both look-aheads, decay, reset and
+sample ceiling for off/half/full amounts. Existing
+`the_one_knob_enhancer_gets_louder_all_the_way_up` measures actual calibrated
+programme loudness. Engine
+`one_knob_amount_is_audible_and_matches_live_render_without_callback_allocations`
+covers saved amount automation, RT guard, PDC, live/export and partitioning.
+Mounted distinct one-knob control and document/file/history cases already exist.
+Amount zero retains crossover phase and the fixed sample-safety limiter; it is
+not a phase-transparent bypass. No true-peak promise is made for this effect.
