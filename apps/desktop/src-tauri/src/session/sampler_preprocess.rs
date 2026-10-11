@@ -158,14 +158,13 @@ impl Session {
         let ticket = {
             let _recording = self.recording_idle()?;
             let state = self.state();
-            let current = state
-                .document
-                .project()
-                .channel(request.channel)
-                .and_then(|channel| match &channel.source {
-                    ChannelSource::Sampler(now) => Some(now),
-                    ChannelSource::Instrument { .. } => None,
-                });
+            let current =
+                state.document.project().channel(request.channel).and_then(
+                    |channel| match &channel.source {
+                        ChannelSource::Sampler(now) => Some(now),
+                        ChannelSource::Instrument { .. } => None,
+                    },
+                );
             if state.generation != generation
                 || state.edits != edits
                 || state.replacements != replacements

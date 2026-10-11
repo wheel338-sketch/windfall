@@ -80,7 +80,11 @@ pub fn without_child(channels: &[Channel], removed: ChannelId) -> Vec<(usize, Ch
         .filter(|(_, channel)| channel.id != removed)
         .filter_map(|(index, channel)| {
             let mut next = channel.clone();
-            next.voice.layer.children.remove(removed).then_some((index, next))
+            next.voice
+                .layer
+                .children
+                .remove(removed)
+                .then_some((index, next))
         })
         .collect()
 }
@@ -194,7 +198,10 @@ mod tests {
         assert_eq!(edited.iter().map(|id| id.0).collect::<Vec<_>>(), [3, 2]);
         let json = serde_json::to_string(&edited).unwrap();
         assert_eq!(json, "[3,2]");
-        assert_eq!(serde_json::from_str::<LayerChildren>(&json).unwrap(), edited);
+        assert_eq!(
+            serde_json::from_str::<LayerChildren>(&json).unwrap(),
+            edited
+        );
         let long = serde_json::to_string(&(0..17).collect::<Vec<u32>>()).unwrap();
         assert!(serde_json::from_str::<LayerChildren>(&long).is_err());
     }
@@ -256,11 +263,7 @@ mod tests {
 
     #[test]
     fn a_soloed_layer_keeps_its_children_audible() {
-        let mut rack = [
-            channel(1, Some(&[2])),
-            channel(2, None),
-            channel(3, None),
-        ];
+        let mut rack = [channel(1, Some(&[2])), channel(2, None), channel(3, None)];
         assert_eq!(solo_audible(&rack), [true, true, true]);
         rack[0].solo = true;
         assert_eq!(solo_audible(&rack), [true, true, false]);

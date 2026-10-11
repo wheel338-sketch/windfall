@@ -66,7 +66,13 @@ fn close(actual: f32, expected: f32, tolerance: f32) -> bool {
 // Note echo of notes held by hand
 
 /// Holds a key for `held` frames and returns `total` frames of the left side.
-fn hold_and_release(rig: &Rig, channel: ChannelId, held: usize, total: usize, block: usize) -> Vec<f32> {
+fn hold_and_release(
+    rig: &Rig,
+    channel: ChannelId,
+    held: usize,
+    total: usize,
+    block: usize,
+) -> Vec<f32> {
     let (mut processor, controller) = rig.processor(RATE);
     controller.note_on(channel, 60, 1.0);
     let mut out = run(&mut processor, held, block);
@@ -94,7 +100,11 @@ fn a_held_live_note_echoes_while_held_and_each_echo_lasts_as_long_as_the_note() 
     assert!(close(out[1470], dry * 0.75, 1e-5));
     assert!(close(out[1480 + RELEASE_FRAMES + 10], dry * 0.25, 1e-5));
     assert!(close(out[1950], dry * 0.25, 1e-5));
-    assert_eq!(peak(&out[1960 + RELEASE_FRAMES + 1..]), 0.0, "no echo is left held");
+    assert_eq!(
+        peak(&out[1960 + RELEASE_FRAMES + 1..]),
+        0.0,
+        "no echo is left held"
+    );
 }
 
 #[test]
@@ -222,7 +232,11 @@ fn echoes_that_do_not_fit_are_counted_and_their_notes_stay_dry() {
     // Eight repeats of 50 ms end 400 ms after the release.
     let out = left(&run(&mut processor, 24_000, 256));
     assert!(peak(&out[..19_200]) > 0.0);
-    assert_eq!(peak(&out[19_200 + RELEASE_FRAMES + 1..]), 0.0, "no note is stuck");
+    assert_eq!(
+        peak(&out[19_200 + RELEASE_FRAMES + 1..]),
+        0.0,
+        "no note is stuck"
+    );
     assert_eq!(controller.frame().voices, 0);
 }
 
@@ -345,7 +359,11 @@ fn resonance_raises_the_peak_at_the_cutoff() {
     assert!(close(sharp / flat, 8.0, 0.03), "{}", sharp / flat);
     // Away from the cutoff the resonance leaves the level alone.
     let low = tone_level(100.0, filtered(VoiceFilterMode::LowPass, 1000.0, 0.6));
-    assert!(close(low, tone_level(100.0, ChannelVoiceSettings::default()), 0.02));
+    assert!(close(
+        low,
+        tone_level(100.0, ChannelVoiceSettings::default()),
+        0.02
+    ));
 }
 
 fn held(depth: f32) -> ModulationEnvelope {
@@ -590,7 +608,8 @@ fn modulated_rig() -> Rig {
     voice.envelopes.lfo.target = LfoTarget::Resonance;
     voice.envelopes.lfo.depth = 0.1;
     rig.steps(channel, &[0, 2, 5, 9]);
-    rig.note(channel, 12 * TICKS_PER_STEP, 3 * TICKS_PER_STEP).key = 67;
+    rig.note(channel, 12 * TICKS_PER_STEP, 3 * TICKS_PER_STEP)
+        .key = 67;
     rig
 }
 
@@ -675,14 +694,18 @@ fn same_bits(a: &[f32], b: &[f32]) -> bool {
 fn a_layer_plays_its_notes_on_every_child_and_makes_no_sound_itself() {
     let (mut layered_rig, top, low, high) = layered();
     layered_rig.steps(top, &[0, 4]);
-    layered_rig.note(top, 8 * TICKS_PER_STEP, 2 * TICKS_PER_STEP).key = 67;
+    layered_rig
+        .note(top, 8 * TICKS_PER_STEP, 2 * TICKS_PER_STEP)
+        .key = 67;
     let through_layer = layered_rig.play(RATE, 48_000, 256);
 
     // The same notes written on the two children directly.
     let (mut direct_rig, _, _, _) = layered();
     for channel in [low, high] {
         direct_rig.steps(channel, &[0, 4]);
-        direct_rig.note(channel, 8 * TICKS_PER_STEP, 2 * TICKS_PER_STEP).key = 67;
+        direct_rig
+            .note(channel, 8 * TICKS_PER_STEP, 2 * TICKS_PER_STEP)
+            .key = 67;
     }
     let direct = direct_rig.play(RATE, 48_000, 256);
     assert!(peak(&direct) > 0.1);

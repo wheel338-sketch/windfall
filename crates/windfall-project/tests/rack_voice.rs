@@ -85,7 +85,12 @@ fn filter_envelope_and_lfo_settings_are_sanitized_undoable_and_saved() {
     assert_eq!(stored, settings.sanitized());
     let filter = stored.envelopes.filter_settings;
     assert_eq!(
-        (filter.enabled, filter.mode, filter.cutoff_hz, filter.resonance),
+        (
+            filter.enabled,
+            filter.mode,
+            filter.cutoff_hz,
+            filter.resonance
+        ),
         (true, VoiceFilterMode::BandPass, MAX_VOICE_CUTOFF_HZ, 0.0)
     );
     let resonance = stored.envelopes.resonance;
@@ -143,7 +148,10 @@ fn files_from_before_the_filter_and_layers_load_with_neutral_defaults() {
         .as_object()
         .unwrap();
     for key in ["resonance", "lfos", "filterSettings"] {
-        assert!(!envelopes.contains_key(key), "{key} is not written by default");
+        assert!(
+            !envelopes.contains_key(key),
+            "{key} is not written by default"
+        );
     }
     assert!(
         !legacy["channels"][0]["voice"]
@@ -171,7 +179,12 @@ fn files_from_before_the_filter_and_layers_load_with_neutral_defaults() {
         serde_json::json!({"enabled": true, "cutoffHz": 5.0, "resonance": 9.0});
     let repaired = file::from_json(&legacy.to_string()).unwrap();
     repaired.check().unwrap();
-    let filter = repaired.channel(id).unwrap().voice.envelopes.filter_settings;
+    let filter = repaired
+        .channel(id)
+        .unwrap()
+        .voice
+        .envelopes
+        .filter_settings;
     assert_eq!(
         (filter.cutoff_hz, filter.resonance),
         (MIN_VOICE_CUTOFF_HZ, 1.0)
@@ -188,7 +201,11 @@ fn a_layer_is_set_checked_undone_and_saved_as_one_edit() {
     let before = document.history();
     set(&mut document, top, layer(&[bass, lead])).unwrap();
     assert_eq!(
-        voice(&document, top).layer.children.iter().collect::<Vec<_>>(),
+        voice(&document, top)
+            .layer
+            .children
+            .iter()
+            .collect::<Vec<_>>(),
         [bass, lead]
     );
     document.project().check().unwrap();
@@ -219,7 +236,10 @@ fn a_layer_is_set_checked_undone_and_saved_as_one_edit() {
         json["channels"][2]["voice"]["layer"],
         serde_json::json!({"enabled": true, "children": [bass.0, lead.0]})
     );
-    assert_eq!(reload(&document).channel(top).unwrap().voice, layer(&[bass, lead]));
+    assert_eq!(
+        reload(&document).channel(top).unwrap().voice,
+        layer(&[bass, lead])
+    );
 
     document.undo().unwrap();
     assert_eq!(document.history(), before);
@@ -246,17 +266,29 @@ fn deleting_a_child_takes_it_out_of_its_layers_in_the_same_undo_step() {
     document.project().check().unwrap();
     assert!(document.project().channel(lead).is_none());
     assert_eq!(
-        voice(&document, top).layer.children.iter().collect::<Vec<_>>(),
+        voice(&document, top)
+            .layer
+            .children
+            .iter()
+            .collect::<Vec<_>>(),
         [bass]
     );
     assert_eq!(
-        voice(&document, outer).layer.children.iter().collect::<Vec<_>>(),
+        voice(&document, outer)
+            .layer
+            .children
+            .iter()
+            .collect::<Vec<_>>(),
         [top]
     );
     assert_eq!(reload(&document), *document.project());
 
     document.undo().unwrap();
-    assert_eq!(document.project(), &full, "one undo restores the child everywhere");
+    assert_eq!(
+        document.project(),
+        &full,
+        "one undo restores the child everywhere"
+    );
     assert_eq!(document.history(), history);
     document.redo().unwrap();
     assert!(document.project().channel(lead).is_none());

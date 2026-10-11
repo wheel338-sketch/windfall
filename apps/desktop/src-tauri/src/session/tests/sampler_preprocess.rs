@@ -222,14 +222,22 @@ fn reversing_writes_reversed_audio_and_keeps_the_region_and_loop_on_their_frames
         })
         .unwrap();
     let new_sample = SampleId(result.created[0]);
-    let expected: Vec<f32> = source.samples().iter().rev().map(|sample| -sample).collect();
+    let expected: Vec<f32> = source
+        .samples()
+        .iter()
+        .rev()
+        .map(|sample| -sample)
+        .collect();
     assert_eq!(audio(&rig, new_sample).samples(), expected);
     let now = sampler(&rig, channel);
     // The region [500, 1000) of 2000 frames is now [1000, 1500), and the
     // loop [0, 200) of its 500 frames is now [300, 500).
     assert_eq!((now.start, now.end), (0.5, 0.75));
     assert_eq!((now.loop_start, now.loop_end), (0.6, 1.0));
-    assert_eq!(now.reverse, settings.reverse, "the switch is not a treatment");
+    assert_eq!(
+        now.reverse, settings.reverse,
+        "the switch is not a treatment"
+    );
     assert_eq!(now.loop_mode, SamplerLoopMode::PingPong);
     assert_eq!(now.loop_crossfade, settings.loop_crossfade);
 }

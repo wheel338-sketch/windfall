@@ -116,8 +116,8 @@ fn fraction(value: f32, fallback: f32) -> f64 {
 
 /// The frames the sampler plays: the plan compiler's rounding.
 fn region(frames: usize, start: f32, end: f32) -> (usize, usize) {
-    let first = ((fraction(start, 0.0) * frames as f64).round() as usize)
-        .min(frames.saturating_sub(1));
+    let first =
+        ((fraction(start, 0.0) * frames as f64).round() as usize).min(frames.saturating_sub(1));
     let last = ((fraction(end, 1.0) * frames as f64).round() as usize)
         .clamp((first + 1).min(frames), frames);
     (first, last)
@@ -151,7 +151,10 @@ fn reverse_frames(data: &mut [f32], channels: usize) {
 /// shortened loop fades into the loop's start instead, and the returned
 /// loop ends earlier by the length of the blend. Either way the frame after
 /// the loop end is the one the original audio continued with.
-pub fn preprocess(source: &AudioBuffer, options: &SamplePreprocess) -> Result<Preprocessed, String> {
+pub fn preprocess(
+    source: &AudioBuffer,
+    options: &SamplePreprocess,
+) -> Result<Preprocessed, String> {
     let channels = usize::from(source.channels());
     if channels == 0 || channels > 2 {
         return Err("Sample pre-processing supports mono and stereo samples.".into());
@@ -233,18 +236,19 @@ pub fn preprocess(source: &AudioBuffer, options: &SamplePreprocess) -> Result<Pr
         }
     };
     let rate = f64::from(source.sample_rate());
-    let fade_frames =
-        |ms: f32| ((f64::from(ms) / 1000.0 * rate).round() as usize).min(play_frames);
+    let fade_frames = |ms: f32| ((f64::from(ms) / 1000.0 * rate).round() as usize).min(play_frames);
     let fade_in = fade_frames(options.fade_in_ms);
     for index in 0..fade_in {
-        let gain = crate::clips::equal_power(index as f64 / fade_in.max(2).saturating_sub(1) as f64);
+        let gain =
+            crate::clips::equal_power(index as f64 / fade_in.max(2).saturating_sub(1) as f64);
         for channel in 0..channels {
             data[at(index) * channels + channel] *= gain;
         }
     }
     let fade_out = fade_frames(options.fade_out_ms);
     for index in 0..fade_out {
-        let gain = crate::clips::equal_power(index as f64 / fade_out.max(2).saturating_sub(1) as f64);
+        let gain =
+            crate::clips::equal_power(index as f64 / fade_out.max(2).saturating_sub(1) as f64);
         for channel in 0..channels {
             data[at(play_frames - 1 - index) * channels + channel] *= gain;
         }
@@ -256,8 +260,8 @@ pub fn preprocess(source: &AudioBuffer, options: &SamplePreprocess) -> Result<Pr
         // Loop bounds in the region, in source order, with the plan
         // compiler's rounding. Turning the audio around mirrored the region,
         // and the loop goes with its frames.
-        let given_first =
-            ((fraction(seam.start, 0.0) * play_frames as f64).round() as usize).min(play_frames - 1);
+        let given_first = ((fraction(seam.start, 0.0) * play_frames as f64).round() as usize)
+            .min(play_frames - 1);
         let given_end = ((fraction(seam.end, 1.0) * play_frames as f64).round() as usize)
             .clamp(given_first + 1, play_frames);
         let (source_first, source_end) = if options.reverse {
@@ -276,9 +280,8 @@ pub fn preprocess(source: &AudioBuffer, options: &SamplePreprocess) -> Result<Pr
         if count > 0 {
             // Equal-power weights, `(incoming, outgoing)`, `step` of `count`
             // steps through the blend.
-            let weights = |step: usize| {
-                (step as f32 / count as f32 * std::f32::consts::FRAC_PI_2).sin_cos()
-            };
+            let weights =
+                |step: usize| (step as f32 / count as f32 * std::f32::consts::FRAC_PI_2).sin_cos();
             if loop_first >= count {
                 // The loop's tail takes on the audio that leads into it. Its
                 // last frame becomes the frame before the loop start, so the
@@ -321,7 +324,9 @@ pub fn preprocess(source: &AudioBuffer, options: &SamplePreprocess) -> Result<Pr
 
     let mut normalize_gain = 1.0;
     if options.normalize {
-        let peak = data.iter().fold(0.0_f32, |peak, sample| peak.max(sample.abs()));
+        let peak = data
+            .iter()
+            .fold(0.0_f32, |peak, sample| peak.max(sample.abs()));
         if peak == 0.0 {
             return Err("The sample is silent and cannot be normalized.".into());
         }
@@ -355,7 +360,11 @@ mod tests {
     }
 
     fn ramp(frames: usize) -> AudioBuffer {
-        mono((0..frames).map(|frame| (frame + 1) as f32 / 1000.0).collect())
+        mono(
+            (0..frames)
+                .map(|frame| (frame + 1) as f32 / 1000.0)
+                .collect(),
+        )
     }
 
     fn sine(frames: usize, period: f64) -> AudioBuffer {
@@ -443,11 +452,8 @@ mod tests {
 
     #[test]
     fn stereo_frames_stay_paired_through_reverse_swap_and_polarity() {
-        let source = AudioBuffer::from_interleaved(
-            48_000,
-            2,
-            vec![0.1, -0.1, 0.2, -0.2, 0.3, -0.3],
-        );
+        let source =
+            AudioBuffer::from_interleaved(48_000, 2, vec![0.1, -0.1, 0.2, -0.2, 0.3, -0.3]);
         let out = preprocess(
             &source,
             &SamplePreprocess {
@@ -490,7 +496,10 @@ mod tests {
         let samples = out.audio.samples();
         // Left was 0.4 +/- 0.1 and right 0 +/- 0.1: both become +/- 0.1,
         // and one gain of ten brings the peak to full scale.
-        for (index, expected) in [1.0, 1.0, -1.0, -1.0, 1.0, 1.0, -1.0, -1.0].iter().enumerate() {
+        for (index, expected) in [1.0, 1.0, -1.0, -1.0, 1.0, 1.0, -1.0, -1.0]
+            .iter()
+            .enumerate()
+        {
             assert!((samples[index] - expected).abs() < 1e-5, "{samples:?}");
         }
         assert!((out.normalize_gain - 10.0).abs() < 1e-3);
