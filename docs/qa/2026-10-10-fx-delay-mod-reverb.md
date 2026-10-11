@@ -36,7 +36,7 @@ their declared `spatial::model_tests` module absent; this resumption completes i
 | `fx-fruity-reeverb` | full-row candidate; nothing executed | Existing room, reflection readout and grouped room/decay editor |
 | `fx-vintage-chorus` | full-row candidate; nothing executed | Clocked bucket modes, tempo/free controls and mode-aware editor |
 | `fx-vintage-phaser` | full-row candidate; nothing executed | Four-stage pedal circuit and expanded stages/stagger, notch-aware editor |
-| `fx-hyper-chorus` | DSP/test candidate; editor integration in progress | Two to sixteen actual detuned voices per side, tempo sync |
+| `fx-hyper-chorus` | full-row candidate; nothing executed | Two to sixteen actual detuned voices and grouped voice/motion editor |
 | `fx-fruity-flangus` | DSP/test candidate; editor integration in progress | One to four serial swept combs, correct four-comb warmup, tempo sync |
 
 ## `fx-fruity-delay`: basic echo with ping-pong, inverted stereo and a lowpass
@@ -290,7 +290,7 @@ feed-forward and adds no feedback cycle. Zero amount keeps plain hall audio.
 | `fx-luxeverb` | full-row candidate; nothing executed | Sized, pitch-shifted and modulated spaces with dedicated editor |
 | `fx-vintage-chorus` | full-row candidate; nothing executed | Clocked bucket modes, tempo/free controls and mode-aware editor |
 | `fx-vintage-phaser` | full-row candidate; nothing executed | Four-stage pedal circuit and expanded stages/stagger, notch-aware editor |
-| `fx-hyper-chorus` | `swarm_count_measures_the_average_of_independently_delayed_voices` | `sixteen_voice_chorus_changes_native_detuning_and_roundtrips` |
+| `fx-hyper-chorus` | full-row candidate; nothing executed | Two to sixteen actual detuned voices and grouped voice/motion editor |
 | `fx-fruity-flangus` | `stacked_combs_match_an_independent_difference_equation_for_every_order` | `four_stacked_combs_change_native_audio_and_roundtrip` |
 
 All modulation direct cases are in `crates/windfall-dsp/src/spatial/model_tests.rs`.

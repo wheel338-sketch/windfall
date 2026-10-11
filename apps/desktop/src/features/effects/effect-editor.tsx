@@ -25,6 +25,7 @@ import { RoomEditor } from "./circuits/room-editor"
 import { LushSpaceEditor } from "./circuits/lush-space-editor"
 import { BucketChorusEditor } from "./circuits/bucket-chorus-editor"
 import { StagePhaserEditor } from "./circuits/stage-phaser-editor"
+import { SwarmChorusEditor } from "./circuits/swarm-chorus-editor"
 
 type Editors = {
   [Kind in EffectKind]?: ComponentType<EditorProps<EffectParamsOf<Kind>>>
@@ -48,6 +49,7 @@ const EDITORS: Editors = {
   lushSpace: LushSpaceEditor,
   vintageChorus: BucketChorusEditor,
   vintagePhaser: StagePhaserEditor,
+  hyperChorus: SwarmChorusEditor,
 }
 
 type AnyEditor = ComponentType<EditorProps<EffectParams>>
