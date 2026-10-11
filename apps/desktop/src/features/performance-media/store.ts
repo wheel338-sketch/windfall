@@ -1,8 +1,7 @@
 import { create } from "zustand"
 import type { StageMedia } from "@/bindings"
 import { dispatch, useProjectStore } from "@/lib/store/project"
-import { onProjectReplaced } from "@/lib/store/replaced"
-import { getProjectGeneration } from "@/lib/store/replaced"
+import { getProjectGeneration, onProjectReplaced } from "@/lib/store/replaced"
 import { backend } from "@/lib/ipc"
 
 export const DEFAULT_STAGE_MEDIA: StageMedia = {

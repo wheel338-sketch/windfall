@@ -1,4 +1,4 @@
-# Performance, visualizer and video hand-off — 2026-10-11
+# Performance, visualizer and video hand-off â€” 2026-10-11
 
 Branch: `gpt/w3-performance-video`, base `87b87bc2439ec076d0f75c5b4d997c9db1faba95`.
 Edit-only worker: no build, test, typecheck, simulator generation or device check
@@ -19,7 +19,7 @@ accepted callback launch log, channel layer/arpeggiator/echo and expression-curv
 remain. CPU/deadline and realtime allocator acceptance are not yet measured.
 Note-off tests cover the scheduler and actual processor, but have not been run.
 
-Performance grid now exposes 32 tracks � 16 scenes in banks, queued/active state,
+Performance grid now exposes 32 tracks × 16 scenes in banks, queued/active state,
 per-track stops and atomic scene launch. MIDI Learn uses the controller-link action
 contract. Browser/mock audio is explicitly unavailable rather than simulated.
 
@@ -181,3 +181,8 @@ Media IPC guards are acquired from native timelineState rather than treating the
 window replacement counter as a native generation. Mounted launch tests deliberately
 use native generation 55, covering a window reload with a different local counter.
 The local counter still cancels in-flight reads/exports across replacement.
+
+Final source review corrected the mounted analyzer fixture to use the actual
+tagged AnalyzerEvent/AnalyzerFrame intersection and restored hand-off UTF-8.
+Git whitespace inspection was clean; no build or test commands were executed.
+All file groups are committed.

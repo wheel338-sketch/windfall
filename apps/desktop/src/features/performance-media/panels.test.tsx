@@ -18,7 +18,7 @@ import { changeStageMedia, DEFAULT_STAGE_MEDIA, mediaDocumentGuard, useMediaWind
 let backend: MockBackend
 let stop: () => void
 const status = (select: AnalyzerSelect): AnalyzerStatus => ({ slot: select.slot, request: select.request, phase: "preparing", reason: null, ticket: null, source: select.source, effect: null, sourceName: null, sampleRate: null })
-function analyzerFrame(request: number): AnalyzerFrame {
+function analyzerFrame(request: number): { type: "frame" } & AnalyzerFrame {
   const level = { valid: true, peak: 0.25, rms: 0.1767767, peakDb: -12, rmsDb: -15, silent: false, clipped: 0, invalid: 0 }
   return {
     type: "frame", slot: "visualizer", request, sequence: "1",
