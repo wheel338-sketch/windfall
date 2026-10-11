@@ -38,7 +38,7 @@ fn soloed_playlist_span_renders_note_and_audio_into_a_buffer_and_excludes_other_
             path: SamplePath::Project("tone.wav".into()),
         });
         project.channels.push(Channel {
-                sample_playback: None,
+            sample_playback: None,
             id: channel,
             name: "Tone".into(),
             color: 0,

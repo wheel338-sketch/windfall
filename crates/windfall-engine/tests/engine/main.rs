@@ -5,6 +5,7 @@ mod audio_clips;
 mod audio_logger;
 mod automation;
 mod device;
+mod dynamics_mastering;
 mod effects;
 mod expression_map;
 mod filter_family;
@@ -12,6 +13,7 @@ mod instruments;
 mod lofi;
 mod mixer;
 mod modulation;
+mod nonlinear_performance;
 mod playlist_layouts;
 mod playlist_stems;
 mod project_settings;
@@ -25,13 +27,11 @@ mod stems;
 mod support;
 mod timeline;
 mod utility_effects;
-mod dynamics_mastering;
-mod nonlinear_performance;
 
 /// Counts allocator calls for the realtime tests. It does nothing on a
 /// thread that is not being watched, so the other tests are unaffected.
 #[global_allocator]
 static ALLOCATOR: realtime::CountingAllocator = realtime::CountingAllocator;
 
-mod spectral;
 mod sample_playback;
+mod spectral;

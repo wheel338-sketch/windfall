@@ -492,10 +492,12 @@ impl Builder<'_> {
                 Command::SetEffectParams {
                     track,
                     effect: id,
-                    params: windfall_dsp::EffectParams::SendTap(windfall_dsp::sendtap::SendTapParams {
-                        level: (volume as f32 / 256.0).clamp(0.0, 1.0),
-                        ..Default::default()
-                    }),
+                    params: windfall_dsp::EffectParams::SendTap(
+                        windfall_dsp::sendtap::SendTapParams {
+                            level: (volume as f32 / 256.0).clamp(0.0, 1.0),
+                            ..Default::default()
+                        },
+                    ),
                 },
             );
             self.report.say(section, Outcome::Approximated, "Send tap level uses a linear approximation of the source logarithmic level; source pan and dry controls are not mapped.");

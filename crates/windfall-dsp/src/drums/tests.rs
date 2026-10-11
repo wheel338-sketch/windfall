@@ -210,9 +210,11 @@ fn extremes<I: Instrument + Default>(key: u8, cap: usize) {
             drum.note_on(key, 1.0);
             assert!(drum.active_voices() <= cap);
             let signal = render(&mut drum, 4000, &[64]);
-            assert!(signal
-                .iter()
-                .all(|x| x.is_finite() && x.abs() < cap as f32 * 4.0));
+            assert!(
+                signal
+                    .iter()
+                    .all(|x| x.is_finite() && x.abs() < cap as f32 * 4.0)
+            );
             drum.note_on(key, f32::NAN);
             drum.note_on(255, 1.0);
             drum.all_notes_off();
@@ -422,9 +424,11 @@ fn rack_modal_model_edits_one_pad_without_changing_another() {
         rack.note_on(key, 1.0);
     }
     assert_eq!(rack.active_voices(), 16);
-    assert!(render(&mut rack, 4000, &[257])
-        .iter()
-        .all(|x| x.is_finite()));
+    assert!(
+        render(&mut rack, 4000, &[257])
+            .iter()
+            .all(|x| x.is_finite())
+    );
 }
 
 #[test]

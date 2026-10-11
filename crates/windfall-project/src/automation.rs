@@ -289,7 +289,8 @@ impl Project {
                 if let Some(plugin) = self.plugin(crate::PluginTarget::Instrument { channel }) {
                     return plugin_automation(plugin, param);
                 }
-                let ChannelSource::Instrument { params, .. } = &self.channel(channel)?.source else {
+                let ChannelSource::Instrument { params, .. } = &self.channel(channel)?.source
+                else {
                     return None;
                 };
                 let info = params.kind().descriptors().get(param as usize)?;

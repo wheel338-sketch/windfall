@@ -831,7 +831,10 @@ fn bass_octave_survives_fundamental_removal_and_amount_is_additive_after_aligned
         }
     }
     for n in latency..dry.len() {
-        assert!((f64::from(dry[n]) - reference[n - latency]).abs() < 2e-7, "dry sample {n}");
+        assert!(
+            (f64::from(dry[n]) - reference[n - latency]).abs() < 2e-7,
+            "dry sample {n}"
+        );
     }
     let (full, full_r) = render(1.0);
     let (quarter, _) = render(0.25);

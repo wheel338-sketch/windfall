@@ -287,7 +287,9 @@ impl Processor {
         match (source, binding) {
             (ChannelSource::Sampler(_), _) => Processor::Sampler,
             (ChannelSource::Instrument { .. }, Some(binding)) => Self::hosted(binding),
-            (ChannelSource::Instrument { params, .. }, None) => Processor::Instrument(params.kind()),
+            (ChannelSource::Instrument { params, .. }, None) => {
+                Processor::Instrument(params.kind())
+            }
         }
     }
 
@@ -430,7 +432,9 @@ impl PluginPresetState {
         match self {
             PluginPresetState::Effect { params, impulse } => {
                 if let Some(asset) = impulse {
-                    if params.kind() != EffectKind::Convolver { return Err("Only a convolver preset can hold an IR".into()); }
+                    if params.kind() != EffectKind::Convolver {
+                        return Err("Only a convolver preset can hold an IR".into());
+                    }
                     asset.check().map_err(str::to_owned)?;
                 }
                 if params.sanitized() != *params {
@@ -438,7 +442,9 @@ impl PluginPresetState {
                 }
             }
             PluginPresetState::Instrument { params, asset } => {
-                if let Some(asset) = asset { asset.validate(params.kind()).map_err(str::to_owned)?; }
+                if let Some(asset) = asset {
+                    asset.validate(params.kind()).map_err(str::to_owned)?;
+                }
                 if params.sanitized() != *params {
                     return Err(
                         "The preset has instrument settings outside their ranges".to_owned()
@@ -486,7 +492,10 @@ impl PluginPreset {
                         instrument: true,
                         binding,
                     },
-                    None => PluginPresetState::Instrument { params: *params, asset: asset.clone() },
+                    None => PluginPresetState::Instrument {
+                        params: *params,
+                        asset: asset.clone(),
+                    },
                 }
             }
             PluginTarget::Effect { effect } => {
@@ -575,7 +584,12 @@ impl ChannelPreset {
         }
         Channel {
             sample_playback: if matches!(&source, ChannelSource::Instrument { params, .. }
-                if crate::sample_playback::supported(params.kind())) { base.sample_playback.clone() } else { None },
+                if crate::sample_playback::supported(params.kind()))
+            {
+                base.sample_playback.clone()
+            } else {
+                None
+            },
             volume: self.volume,
             pan: self.pan,
             voice: self.voice,
@@ -658,7 +672,7 @@ impl ChannelPreset {
         }
         let id = ChannelId(take());
         let base = Channel {
-                sample_playback: None,
+            sample_playback: None,
             voice: ChannelVoiceSettings::default(),
             id,
             name: "Preset".to_owned(),
@@ -745,9 +759,13 @@ impl Preset {
                 id: binding.id.clone(),
                 instrument: true,
             }),
-            (ChannelSource::Instrument { params, .. }, None) => {
-                Some(PluginPresetState::Instrument { params: *params, asset: None }.identity())
-            }
+            (ChannelSource::Instrument { params, .. }, None) => Some(
+                PluginPresetState::Instrument {
+                    params: *params,
+                    asset: None,
+                }
+                .identity(),
+            ),
         }
     }
 
@@ -982,7 +1000,10 @@ fn migrate_params(
     }
     let unknown: Vec<String> = given
         .keys()
-        .filter(|key| !default.contains_key(*key) && !(tag == "pitchCorrect" && key.as_str() == "harmonyChannel"))
+        .filter(|key| {
+            !default.contains_key(*key)
+                && !(tag == "pitchCorrect" && key.as_str() == "harmonyChannel")
+        })
         .cloned()
         .collect();
     for key in unknown {

@@ -26,7 +26,7 @@ fn existing_correlation_reaches_frames_without_callback_allocation() {
             ),
         );
         project.channels.push(Channel {
-                sample_playback: None,
+            sample_playback: None,
             id: ChannelId(901),
             name: "Stereo source".into(),
             color: 0,

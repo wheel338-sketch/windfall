@@ -204,8 +204,8 @@ mod qa_mixer_pdc_ports;
 
 /// Saturating tail sums and memory admission for effects with long histories.
 mod effect_host;
+mod export_positions;
 #[cfg(test)]
 mod qa_recording_mixer;
 mod sample_playback;
-mod export_positions;
 pub use export_positions::SongFrameMap;

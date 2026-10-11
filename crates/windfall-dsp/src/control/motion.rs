@@ -200,7 +200,6 @@ impl Effect for PanLfo {
         self.apply();
     }
 
-
     fn process(&mut self, left: &mut [f32], right: &mut [f32]) {
         for (l, r) in left.iter_mut().zip(right) {
             let [pan, gain] = self.tick();

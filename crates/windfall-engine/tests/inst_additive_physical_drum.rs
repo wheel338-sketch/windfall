@@ -3,7 +3,7 @@
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicU64, Ordering};
 use windfall_dsp::*;
-use windfall_engine::{render, Processor, RenderOptions, SamplePool};
+use windfall_engine::{Processor, RenderOptions, SamplePool, render};
 use windfall_project::*;
 
 static NEXT_FILE: AtomicU64 = AtomicU64::new(0);

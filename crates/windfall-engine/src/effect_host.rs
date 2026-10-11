@@ -93,7 +93,10 @@ impl HistoryAdmission {
     pub fn budget(&self, kind: EffectKind) -> PreparationBudget {
         match kind.history_bytes(self.sample_rate) {
             Some(bytes) => {
-                debug_assert!(bytes <= self.reserved, "an effect outside the admitted plan");
+                debug_assert!(
+                    bytes <= self.reserved,
+                    "an effect outside the admitted plan"
+                );
                 PreparationBudget {
                     retained_bytes: bytes,
                     peak_bytes: bytes.saturating_add(STAGING_HEADROOM),
@@ -162,7 +165,11 @@ mod tests {
             HistoryAdmission::of_kinds(free, rate, 0).map(|admitted| admitted.reserved),
             Ok(0)
         );
-        let pair = [EffectKind::EchoBank, EffectKind::Eq, EffectKind::FrequencyDelay];
+        let pair = [
+            EffectKind::EchoBank,
+            EffectKind::Eq,
+            EffectKind::FrequencyDelay,
+        ];
         let admitted = HistoryAdmission::of_kinds(pair, rate, bank + bands).unwrap();
         assert_eq!(admitted.reserved, bank + bands);
         assert_eq!(
@@ -195,7 +202,10 @@ mod tests {
         let budget = admitted.budget(EffectKind::EchoBank);
         assert_eq!(budget.retained_bytes, bank);
         assert_eq!(budget.peak_bytes, bank + STAGING_HEADROOM);
-        assert_eq!(admitted.budget(EffectKind::Delay), PreparationBudget::UNLIMITED);
+        assert_eq!(
+            admitted.budget(EffectKind::Delay),
+            PreparationBudget::UNLIMITED
+        );
     }
 
     #[test]

@@ -252,4 +252,3 @@ fn acid_internal_sequence_pitch_reaches_project_history_disk_and_renderer() {
         InstrumentParams::AcidLine(changed),
     );
 }
-

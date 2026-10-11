@@ -81,8 +81,8 @@ fn duplicate_unsorted_and_invalid_key_programs_are_atomically_refused() {
                 })
                 .collect(),
         };
-        assert!(doc
-            .dispatch(
+        assert!(
+            doc.dispatch(
                 Command::SetInstrumentAsset {
                     channel,
                     expected,
@@ -90,7 +90,8 @@ fn duplicate_unsorted_and_invalid_key_programs_are_atomically_refused() {
                 },
                 None
             )
-            .is_err());
+            .is_err()
+        );
         assert_eq!(doc.project(), &before);
     }
 }
@@ -163,8 +164,8 @@ fn instrument_plugin_presets_capture_replace_validate_and_undo_immutable_data() 
     }
     assert!(invalid.validate().is_err());
     let before = doc.project().clone();
-    assert!(doc
-        .dispatch(
+    assert!(
+        doc.dispatch(
             Command::ApplyPluginPreset {
                 target,
                 expected: captured.state,
@@ -172,6 +173,7 @@ fn instrument_plugin_presets_capture_replace_validate_and_undo_immutable_data() 
             },
             None
         )
-        .is_err());
+        .is_err()
+    );
     assert_eq!(doc.project(), &before);
 }

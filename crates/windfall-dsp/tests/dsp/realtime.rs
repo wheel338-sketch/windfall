@@ -3,8 +3,8 @@
 use std::alloc::{GlobalAlloc, Layout, System};
 use std::cell::Cell;
 
-use windfall_dsp::blocks::noise::Rng;
 use windfall_dsp::LofiParams;
+use windfall_dsp::blocks::noise::Rng;
 use windfall_dsp::{
     AnyEffect, AnyInstrument, BalanceParams, BassShelfParams, ChannelMuteParams, ChorusParams,
     CompressorParams, DcBlockParams, DelayParams, DistortionParams, EffectKind, EffectParams,
@@ -249,7 +249,9 @@ fn random_effect_params(kind: EffectKind, rng: &mut Rng) -> EffectParams {
         EffectKind::SendTap => {
             EffectParams::SendTap(random_params::<windfall_dsp::sendtap::SendTapParams>(rng))
         }
-        EffectKind::MasterLimiter => EffectParams::MasterLimiter(random_params::<windfall_dsp::mastering::MasterLimiterParams>(rng)),
+        EffectKind::MasterLimiter => EffectParams::MasterLimiter(random_params::<
+            windfall_dsp::mastering::MasterLimiterParams,
+        >(rng)),
     }
 }
 
@@ -287,7 +289,10 @@ fn effects_never_allocate_after_prepare() {
                 right.copy_from_slice(&source_right);
                 let key = (kind == EffectKind::Vocoder).then_some(key.as_slice());
                 slot.process_sidechain(&mut left, &mut right, key);
-                loudest = left.iter().chain(&right).fold(loudest, |peak, x| peak.max(x.abs()));
+                loudest = left
+                    .iter()
+                    .chain(&right)
+                    .fold(loudest, |peak, x| peak.max(x.abs()));
             }
             slot.reset();
             for step in 0..800_usize {
@@ -309,7 +314,9 @@ fn effects_never_allocate_after_prepare() {
                 let frames = SIZES[step % SIZES.len()];
                 let key = (kind == EffectKind::Vocoder).then_some(&key[..frames]);
                 slot.process_sidechain(&mut left[..frames], &mut right[..frames], key);
-                loudest = left[..frames].iter().chain(&right[..frames])
+                loudest = left[..frames]
+                    .iter()
+                    .chain(&right[..frames])
                     .fold(loudest, |peak, x| peak.max(x.abs()));
                 let _ = (slot.latency_samples(), slot.tail_samples());
                 if let Some(meter) = &meter {
@@ -421,23 +428,42 @@ fn the_synth_never_allocates_after_prepare() {
 
 #[test]
 fn subtractive_hybrid_matrix_and_pack_callbacks_do_not_allocate_or_free() {
-    for kind in [InstrumentKind::VintagePoly,InstrumentKind::DualPoly,InstrumentKind::CompactSynth,
-        InstrumentKind::VintageSaw,InstrumentKind::PocketSynth,InstrumentKind::GrooveSynth,
-        InstrumentKind::HybridSeq,InstrumentKind::MatrixSynth,InstrumentKind::PackSynth] {
-        let mut params=kind.default_params();
-        let mut unit=AnyInstrument::new(&params);unit.prepare(48000.0,64);
-        let mut l=[0.0;257];let mut r=l;
-        let calls=allocator_calls(|| {
+    for kind in [
+        InstrumentKind::VintagePoly,
+        InstrumentKind::DualPoly,
+        InstrumentKind::CompactSynth,
+        InstrumentKind::VintageSaw,
+        InstrumentKind::PocketSynth,
+        InstrumentKind::GrooveSynth,
+        InstrumentKind::HybridSeq,
+        InstrumentKind::MatrixSynth,
+        InstrumentKind::PackSynth,
+    ] {
+        let mut params = kind.default_params();
+        let mut unit = AnyInstrument::new(&params);
+        unit.prepare(48000.0, 64);
+        let mut l = [0.0; 257];
+        let mut r = l;
+        let calls = allocator_calls(|| {
             for i in 0..kind.descriptors().len() {
-                let info=&kind.descriptors()[i];params.set(i,info.max);unit.set_params(&params);
-                unit.note_on((36+i%60) as u8,0.8);unit.process(&mut l,&mut r);
-                unit.note_off((36+i%60) as u8);unit.set_tempo(80.0+i as f32);
-                if i%7==0 { unit.all_notes_off();unit.reset(); }
+                let info = &kind.descriptors()[i];
+                params.set(i, info.max);
+                unit.set_params(&params);
+                unit.note_on((36 + i % 60) as u8, 0.8);
+                unit.process(&mut l, &mut r);
+                unit.note_off((36 + i % 60) as u8);
+                unit.set_tempo(80.0 + i as f32);
+                if i % 7 == 0 {
+                    unit.all_notes_off();
+                    unit.reset();
+                }
             }
-            unit.all_notes_off();unit.process(&mut l,&mut r);unit.reset();
+            unit.all_notes_off();
+            unit.process(&mut l, &mut r);
+            unit.reset();
         });
-        assert_eq!(calls,0,"{kind:?} callback allocation/reallocation/free");
-        assert!(l.iter().chain(&r).all(|x|x.is_finite()));
+        assert_eq!(calls, 0, "{kind:?} callback allocation/reallocation/free");
+        assert!(l.iter().chain(&r).all(|x| x.is_finite()));
     }
 }
 

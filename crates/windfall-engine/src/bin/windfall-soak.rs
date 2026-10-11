@@ -332,7 +332,7 @@ fn drum_project() -> (Project, SamplePool) {
             recording: None,
         });
         project.channels.push(Channel {
-                sample_playback: None,
+            sample_playback: None,
             id: channel,
             name: name.to_owned(),
             color: palette_color(index),
@@ -433,7 +433,7 @@ fn add_effects(project: &mut Project) -> (ChannelId, TrackId) {
         recording: None,
     });
     project.channels.push(Channel {
-                sample_playback: None,
+        sample_playback: None,
         id: channel,
         name: "Bass".to_owned(),
         color: palette_color(3),
@@ -447,7 +447,7 @@ fn add_effects(project: &mut Project) -> (ChannelId, TrackId) {
         timing: windfall_project::ChannelTiming::default(),
         mixer_track: track,
         source: ChannelSource::Instrument {
-                asset: None,
+            asset: None,
             params: InstrumentKind::SubtractiveSynth.default_params(),
         },
     });

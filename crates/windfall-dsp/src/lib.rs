@@ -177,28 +177,28 @@ pub mod notemap;
 pub mod zones;
 
 pub mod polysynth;
-pub use polysynth::{VintagePoly, VintagePolyParams};
-pub use polysynth::{DualPoly, DualPolyParams};
 pub use polysynth::{CompactSynth, CompactSynthParams};
-pub use polysynth::{VintageSaw, VintageSawParams};
-pub use polysynth::{PocketSynth, PocketSynthParams};
+pub use polysynth::{DualPoly, DualPolyParams};
 pub use polysynth::{GrooveSynth, GrooveSynthParams};
 pub use polysynth::{HybridSeq, HybridSeqParams};
 pub use polysynth::{MatrixSynth, MatrixSynthParams};
 pub use polysynth::{PackSynth, PackSynthParams};
+pub use polysynth::{PocketSynth, PocketSynthParams};
+pub use polysynth::{VintagePoly, VintagePolyParams};
+pub use polysynth::{VintageSaw, VintageSawParams};
 pub mod instrument_asset;
 pub use instrument_asset::{DrumKeyPatch, InstrumentAsset};
 
 pub use drums::{LayerKick, LayerKickParams};
 
-pub use additive::{SnapshotMorph,SnapshotMorphParams};
+pub use additive::{SnapshotMorph, SnapshotMorphParams};
 
-pub use additive::{HarmonicFilter,HarmonicFilterParams,HarmonicShape};
+pub use additive::{HarmonicFilter, HarmonicFilterParams, HarmonicShape};
 
-pub use additive::{MetalVoice,MetalVoiceParams};
+pub use additive::{MetalVoice, MetalVoiceParams};
 
-pub use additive::{NumberVoice,NumberVoiceParams};
+pub use additive::{NumberVoice, NumberVoiceParams};
 
-pub use additive::{SpectralResynth,SpectralResynthParams};
+pub use additive::{SpectralResynth, SpectralResynthParams};
 
-pub use additive::{ColorScan,ColorScanParams};
+pub use additive::{ColorScan, ColorScanParams};

@@ -824,7 +824,11 @@ pub enum Command {
     },
     /// Replace/clear a portable IR in one undo transaction. PCM is decoded
     /// before dispatch and FFT partitions are prepared before plan publication.
-    SetConvolverImpulse { track: TrackId, effect: EffectId, impulse: Option<crate::ConvolverImpulse> },
+    SetConvolverImpulse {
+        track: TrackId,
+        effect: EffectId,
+        impulse: Option<crate::ConvolverImpulse>,
+    },
     /// Attaches validated worker-prepared instrument data as one undo step.
     /// The complete captured source guards asynchronous work from stale edits.
     SetInstrumentAsset {
@@ -834,9 +838,15 @@ pub enum Command {
     },
 
     /// One undoable replacement of a sample instrument's immutable assets.
-    SetSamplePlayback { channel: ChannelId, asset: Option<crate::SamplePlayback> },
+    SetSamplePlayback {
+        channel: ChannelId,
+        asset: Option<crate::SamplePlayback>,
+    },
     /// Generates source-length notes in the saved slice order in one history step.
-    GenerateSlicePattern { channel: ChannelId, pattern: PatternId },
+    GenerateSlicePattern {
+        channel: ChannelId,
+        pattern: PatternId,
+    },
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, TS)]

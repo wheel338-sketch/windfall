@@ -247,7 +247,8 @@ fn legacy_v1_source_map_and_curve_migrate_without_pcm_in_copy_controls() {
     assert!(!file::to_json(&loaded).unwrap().contains("\"table\""));
     let (d, _, _) = fixture(InstrumentKind::WaveRide);
     let mut json = serde_json::to_value(d.project()).unwrap();
-    json["channels"][0]["source"]["params"]["table"] = serde_json::json!({"len":0,"data":[],"sampleRate":8000});
+    json["channels"][0]["source"]["params"]["table"] =
+        serde_json::json!({"len":0,"data":[],"sampleRate":8000});
     json["channels"][0]["source"]["params"]["positions"] =
         serde_json::json!([0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0]);
     let loaded: Project = serde_json::from_value(json).unwrap();
@@ -297,13 +298,24 @@ fn scalar_and_original_marker_curve_automation_survive_with_assets() {
         .unwrap();
         let text = file::to_json(d.project()).unwrap();
         assert_eq!(file::from_json(&text).unwrap(), *d.project());
-        let first_legacy = if kind == InstrumentKind::WaveRide { 5 } else { 3 };
+        let first_legacy = if kind == InstrumentKind::WaveRide {
+            5
+        } else {
+            3
+        };
         for param in first_legacy..kind.descriptors().len() {
-            d.dispatch(Command::AddAutomation {
-                name: None,
-                target: AutomationTarget::InstrumentParam { channel, param: param as u32 },
-                points: None,
-            }, None).unwrap();
+            d.dispatch(
+                Command::AddAutomation {
+                    name: None,
+                    target: AutomationTarget::InstrumentParam {
+                        channel,
+                        param: param as u32,
+                    },
+                    points: None,
+                },
+                None,
+            )
+            .unwrap();
         }
         let text = file::to_json(d.project()).unwrap();
         assert_eq!(file::from_json(&text).unwrap(), *d.project());
@@ -380,28 +392,100 @@ fn replacing_instrument_kind_clears_incompatible_assets_and_undo_restores_them()
 #[test]
 fn unrelated_scalar_edits_do_not_override_assets_and_legacy_edits_undo_and_reopen() {
     let (mut d, channel, sample) = fixture(InstrumentKind::SliceDeck);
-    let asset = SamplePlayback { sample: Some(sample), slices: vec![SliceRegion { start: 0.25, end: 0.75, gain: 0.6, ..Default::default() }], ..Default::default() };
-    d.dispatch(Command::SetSamplePlayback { channel, asset: Some(asset.clone()) }, None).unwrap();
-    let mut p = windfall_dsp::granular::SliceDeckParams { level: 0.9, ..Default::default() };
-    d.dispatch(Command::SetInstrumentParams { channel, params: InstrumentParams::SliceDeck(p) }, None).unwrap();
-    let ChannelSource::Instrument { params: InstrumentParams::SliceDeck(saved), .. } = d.project().channel(channel).unwrap().source else { panic!("slice deck") };
+    let asset = SamplePlayback {
+        sample: Some(sample),
+        slices: vec![SliceRegion {
+            start: 0.25,
+            end: 0.75,
+            gain: 0.6,
+            ..Default::default()
+        }],
+        ..Default::default()
+    };
+    d.dispatch(
+        Command::SetSamplePlayback {
+            channel,
+            asset: Some(asset.clone()),
+        },
+        None,
+    )
+    .unwrap();
+    let mut p = windfall_dsp::granular::SliceDeckParams {
+        level: 0.9,
+        ..Default::default()
+    };
+    d.dispatch(
+        Command::SetInstrumentParams {
+            channel,
+            params: InstrumentParams::SliceDeck(p),
+        },
+        None,
+    )
+    .unwrap();
+    let ChannelSource::Instrument {
+        params: InstrumentParams::SliceDeck(saved),
+        ..
+    } = d.project().channel(channel).unwrap().source
+    else {
+        panic!("slice deck")
+    };
     assert_eq!(saved.legacy_edits, [0; 4]);
     let before = d.project().clone();
     // Zero is also the original scalar default, but explicitly targeting its
     // stable index must override the asset's .25 start and survive reopen.
-    d.dispatch(Command::SetInstrumentParam { channel, param: 3, value: 0.0 }, None).unwrap();
+    d.dispatch(
+        Command::SetInstrumentParam {
+            channel,
+            param: 3,
+            value: 0.0,
+        },
+        None,
+    )
+    .unwrap();
     let after = d.project().clone();
-    let ChannelSource::Instrument { params: InstrumentParams::SliceDeck(saved), .. } = after.channel(channel).unwrap().source else { panic!("slice deck") };
+    let ChannelSource::Instrument {
+        params: InstrumentParams::SliceDeck(saved),
+        ..
+    } = after.channel(channel).unwrap().source
+    else {
+        panic!("slice deck")
+    };
     assert_eq!(saved.legacy_edits, [1, 0, 0, 0]);
-    assert_eq!(file::from_json(&file::to_json(&after).unwrap()).unwrap(), after);
+    assert_eq!(
+        file::from_json(&file::to_json(&after).unwrap()).unwrap(),
+        after
+    );
     d.undo().unwrap();
     assert_eq!(d.project(), &before);
     d.redo().unwrap();
     assert_eq!(d.project(), &after);
     p.slice_starts[0] = 0.5;
-    d.dispatch(Command::SetInstrumentParams { channel, params: InstrumentParams::SliceDeck(p) }, None).unwrap();
-    d.dispatch(Command::SetSamplePlayback { channel, asset: Some(asset) }, None).unwrap();
-    let ChannelSource::Instrument { params: InstrumentParams::SliceDeck(saved), .. } = d.project().channel(channel).unwrap().source else { panic!("slice deck") };
+    d.dispatch(
+        Command::SetInstrumentParams {
+            channel,
+            params: InstrumentParams::SliceDeck(p),
+        },
+        None,
+    )
+    .unwrap();
+    d.dispatch(
+        Command::SetSamplePlayback {
+            channel,
+            asset: Some(asset),
+        },
+        None,
+    )
+    .unwrap();
+    let ChannelSource::Instrument {
+        params: InstrumentParams::SliceDeck(saved),
+        ..
+    } = d.project().channel(channel).unwrap().source
+    else {
+        panic!("slice deck")
+    };
     assert_eq!(saved.legacy_edits, [0; 4]);
-    assert_eq!(saved.slice_starts, windfall_dsp::granular::SliceDeckParams::default().slice_starts);
+    assert_eq!(
+        saved.slice_starts,
+        windfall_dsp::granular::SliceDeckParams::default().slice_starts
+    );
 }

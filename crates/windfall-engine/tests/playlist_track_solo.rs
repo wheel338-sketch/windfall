@@ -28,7 +28,7 @@ fn fixture(kind: Kind) -> (Project, SamplePool) {
         path: SamplePath::Project("tone.wav".into()),
     });
     project.channels.push(Channel {
-                sample_playback: None,
+        sample_playback: None,
         id: channel,
         name: "Tone".into(),
         color: 0,

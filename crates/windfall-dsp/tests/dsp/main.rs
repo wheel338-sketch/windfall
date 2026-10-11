@@ -4,11 +4,13 @@
 mod bench;
 mod compressor;
 mod delay;
+mod e3_circuits;
 mod eq;
 mod examples;
 mod limiter;
 mod limiter_dynamics;
 mod modulation;
+mod nonlinear_performance;
 mod params;
 mod properties;
 mod realtime;
@@ -18,8 +20,6 @@ mod support;
 mod synth;
 mod utilities;
 mod utility_repairs;
-mod e3_circuits;
-mod nonlinear_performance;
 
 /// Counts allocator calls for the realtime tests. It does nothing on a
 /// thread that is not being watched, so the other tests are unaffected.

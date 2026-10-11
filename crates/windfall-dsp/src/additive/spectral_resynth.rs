@@ -1,7 +1,7 @@
-use super::prepared::{prepared_instrument, Controls};
+use super::prepared::{Controls, prepared_instrument};
+use crate::ParamSet;
 use crate::instrument_asset::SpectralBank;
 use crate::param::param_set;
-use crate::ParamSet;
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, TS)]

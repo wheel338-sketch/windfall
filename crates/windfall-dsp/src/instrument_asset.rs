@@ -581,12 +581,14 @@ mod tests {
         assert!((short.at(0.5) - 0.25).abs() < 1.0e-3);
         assert_eq!(short.at(-1.0), 0.0);
         assert_eq!(short.at(f64::NAN), 0.0);
-        assert!(InstrumentAsset::Pcm(LayerPcm {
-            sample_rate: 44_100,
-            samples: Vec::new()
-        })
-        .check()
-        .is_err());
+        assert!(
+            InstrumentAsset::Pcm(LayerPcm {
+                sample_rate: 44_100,
+                samples: Vec::new()
+            })
+            .check()
+            .is_err()
+        );
     }
 
     #[test]

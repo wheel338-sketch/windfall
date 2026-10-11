@@ -16,7 +16,11 @@ fn slot(params: EffectParams) -> EffectSlot {
 fn run(slot: &mut EffectSlot, signal: &[f32]) -> (Vec<f32>, Vec<f32>) {
     let (mut left, mut right) = (signal.to_vec(), signal.to_vec());
     let key: Vec<_> = signal.iter().map(|&v| [v, v]).collect();
-    for ((left, right), key) in left.chunks_mut(256).zip(right.chunks_mut(256)).zip(key.chunks(256)) {
+    for ((left, right), key) in left
+        .chunks_mut(256)
+        .zip(right.chunks_mut(256))
+        .zip(key.chunks(256))
+    {
         // Require the same audible contract with the vocoder's actual source.
         let key = (slot.effect().kind() == EffectKind::Vocoder).then_some(key);
         slot.process_sidechain(left, right, key);
@@ -128,7 +132,11 @@ fn any_effect_reports_what_it_holds_and_refuses_other_settings() {
         let (mut left, mut right) = (noise(1, 0.3, 96_000), noise(2, 0.3, 96_000));
         let key: Vec<_> = noise(3, 0.3, 96_000).into_iter().map(|v| [v, v]).collect();
         effect.set_tempo(140.0);
-        for ((l, r), key) in left.chunks_mut(256).zip(right.chunks_mut(256)).zip(key.chunks(256)) {
+        for ((l, r), key) in left
+            .chunks_mut(256)
+            .zip(right.chunks_mut(256))
+            .zip(key.chunks(256))
+        {
             effect.process_sidechain(l, r, (kind == EffectKind::Vocoder).then_some(key));
         }
         assert!(
@@ -295,7 +303,11 @@ fn a_slot_shields_its_effect_from_bad_input() {
         right[20] = f32::NEG_INFINITY;
         right[900] = 1.0e30;
         let key: Vec<_> = left.iter().zip(&right).map(|(&l, &r)| [l, r]).collect();
-        slot.process_sidechain(&mut left, &mut right, (kind == EffectKind::Vocoder).then_some(key.as_slice()));
+        slot.process_sidechain(
+            &mut left,
+            &mut right,
+            (kind == EffectKind::Vocoder).then_some(key.as_slice()),
+        );
         assert!(left.iter().chain(&right).all(|sample| sample.is_finite()));
         // And the effect still works afterwards.
         let (left, _) = run(&mut slot, &noise(9, 0.5, 96_000));

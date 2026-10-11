@@ -460,7 +460,13 @@ pub(crate) struct Ledger {
     departing_plugins: HashMap<(windfall_project::PluginTarget, u64), (u64, usize)>,
     pub sample_rate: u32,
     effects: HashMap<EffectId, (EffectKind, u64)>,
-    instruments: HashMap<ChannelId, (InstrumentKind, Option<std::sync::Arc<windfall_dsp::InstrumentAsset>>)>,
+    instruments: HashMap<
+        ChannelId,
+        (
+            InstrumentKind,
+            Option<std::sync::Arc<windfall_dsp::InstrumentAsset>>,
+        ),
+    >,
     sample_playback: HashMap<ChannelId, crate::sample_playback::Identity>,
     /// The length each compensation delay is set to and the longest its
     /// line can give, plus the identity and prepared bounds of its stages.
@@ -578,10 +584,10 @@ impl Layout {
                 let record =
                     plugins.get(&windfall_project::PluginTarget::Effect { effect: effect.id });
                 out = out
-                    .checked_add(record.map_or_else(
-                        || effect.latency_samples(sample_rate),
-                        |record| record.1,
-                    ))
+                    .checked_add(
+                        record
+                            .map_or_else(|| effect.latency_samples(sample_rate), |record| record.1),
+                    )
                     .ok_or(ProjectPreparationError::SizeOverflow)?;
                 native[index] |= record.is_some();
             }
@@ -700,7 +706,13 @@ impl Layout {
                     } else {
                         reservation.possible().max_by_key(|source| {
                             source.native.map_or_else(
-                                || source.params.kind().max_latency_samples(rate)+source.impulse.as_ref().map_or(0,|asset|asset.group_delay_at(rate as u32)),
+                                || {
+                                    source.params.kind().max_latency_samples(rate)
+                                        + source
+                                            .impulse
+                                            .as_ref()
+                                            .map_or(0, |asset| asset.group_delay_at(rate as u32))
+                                },
                                 |record| record.1,
                             )
                         })
@@ -710,8 +722,9 @@ impl Layout {
                     continue;
                 }
                 let params = source.map_or(effect.params, |source| source.params);
-                let impulse=source.map_or(effect.impulse.as_ref(),|source|source.impulse.as_ref());
-                let impulse_delay=impulse.map_or(0,|asset|asset.group_delay_at(rate as u32));
+                let impulse =
+                    source.map_or(effect.impulse.as_ref(), |source| source.impulse.as_ref());
+                let impulse_delay = impulse.map_or(0, |asset| asset.group_delay_at(rate as u32));
                 let generation =
                     source.map_or(effect.life.generation, |source| source.life.generation);
                 let native = if effect.leaving {
@@ -722,13 +735,16 @@ impl Layout {
                     plugins.get(&key).copied()
                 };
                 let maximum = native.map_or_else(
-                    || params.kind().max_latency_samples(rate)+impulse_delay,
+                    || params.kind().max_latency_samples(rate) + impulse_delay,
                     |record| record.1,
                 );
                 let delay = if effect.leaving {
                     0
                 } else {
-                    native.map_or_else(|| params.latency_samples(rate)+impulse_delay, |record| record.1)
+                    native.map_or_else(
+                        || params.latency_samples(rate) + impulse_delay,
+                        |record| record.1,
+                    )
                 };
                 if maximum > 0 {
                     path.push(DelayStage {
@@ -961,20 +977,42 @@ impl PlanState {
             .ok_or(crate::project_preparation::ProjectPreparationError::SizeOverflow)?;
         // Include both stereo kernel/history and temporary resampling storage.
         // This admission runs before constructing any new convolver owner.
-        let impulse_bytes = plan.tracks.iter().flat_map(|track| &track.effects).try_fold(0_usize, |total, effect| {
-            let Some(asset) = &effect.impulse else { return Some(total); };
-            let frames = (asset.frames.len() as u64 * u64::from(sample_rate)).div_ceil(u64::from(asset.sample_rate.max(1)));
-            let frames = usize::try_from(frames).ok()?;
-            let partitions = frames.div_ceil(windfall_dsp::spectral::CONVOLUTION_PARTITION);
-            // Two stereo complex planes (kernels + history), plus source PCM,
-            // resampled PCM, allocator headers, queue/fixed scratch allowance.
-            let dry=asset.group_delay_at(sample_rate).checked_add(4)?.checked_next_power_of_two()?.checked_mul(8)?;
-            let bytes = partitions.checked_mul(8192)?.checked_add(dry)?.checked_add(frames.checked_mul(8)?)?.checked_add(asset.frames.len().checked_mul(8)?)?.checked_add(16384)?;
-            total.checked_add(bytes)
-        }).ok_or(crate::project_preparation::ProjectPreparationError::SizeOverflow)?;
+        let impulse_bytes = plan
+            .tracks
+            .iter()
+            .flat_map(|track| &track.effects)
+            .try_fold(0_usize, |total, effect| {
+                let Some(asset) = &effect.impulse else {
+                    return Some(total);
+                };
+                let frames = (asset.frames.len() as u64 * u64::from(sample_rate))
+                    .div_ceil(u64::from(asset.sample_rate.max(1)));
+                let frames = usize::try_from(frames).ok()?;
+                let partitions = frames.div_ceil(windfall_dsp::spectral::CONVOLUTION_PARTITION);
+                // Two stereo complex planes (kernels + history), plus source PCM,
+                // resampled PCM, allocator headers, queue/fixed scratch allowance.
+                let dry = asset
+                    .group_delay_at(sample_rate)
+                    .checked_add(4)?
+                    .checked_next_power_of_two()?
+                    .checked_mul(8)?;
+                let bytes = partitions
+                    .checked_mul(8192)?
+                    .checked_add(dry)?
+                    .checked_add(frames.checked_mul(8)?)?
+                    .checked_add(asset.frames.len().checked_mul(8)?)?
+                    .checked_add(16384)?;
+                total.checked_add(bytes)
+            })
+            .ok_or(crate::project_preparation::ProjectPreparationError::SizeOverflow)?;
         const IMPULSE_LIMIT: usize = 128 * 1024 * 1024;
         if impulse_bytes > IMPULSE_LIMIT {
-            return Err(crate::project_preparation::ProjectPreparationError::MemoryLimit { required: impulse_bytes, limit: IMPULSE_LIMIT });
+            return Err(
+                crate::project_preparation::ProjectPreparationError::MemoryLimit {
+                    required: impulse_bytes,
+                    limit: IMPULSE_LIMIT,
+                },
+            );
         }
         let inherited = held.map_or(0, |held| held.history_capacity);
         if conditional {
@@ -1061,7 +1099,9 @@ impl PlanState {
                 .channel(channel)
                 .and_then(|index| plan.channels[index].instrument)
                 .is_some_and(|params| {
-                    held.is_some_and(|held| held.instruments.get(&channel).map(|(kind, _)| *kind) == Some(params.kind()))
+                    held.is_some_and(|held| {
+                        held.instruments.get(&channel).map(|(kind, _)| *kind) == Some(params.kind())
+                    })
                 }),
         });
         // Large echo histories are admitted before anything is prepared.
@@ -1222,8 +1262,13 @@ impl PlanState {
                     ledger.meters.extend(meter.cloned());
                     return Ok(None);
                 }
-                let (mut unit, meter) =
-                    EffectUnit::build(effect, track.id, sample_rate, plan.tempo_bpm, admission.budget(kind))?;
+                let (mut unit, meter) = EffectUnit::build(
+                    effect,
+                    track.id,
+                    sample_rate,
+                    plan.tempo_bpm,
+                    admission.budget(kind),
+                )?;
                 if let Some(binding) = plan.plugins.iter().find(|binding| binding.target == target)
                 {
                     let native = match prepared.remove(&target) {
@@ -1235,7 +1280,11 @@ impl PlanState {
                 ledger.meters.extend(meter.map(|meter| (effect.id, meter)));
                 Ok(Some(unit))
             });
-            chains.push(chain.collect::<Result<Vec<_>, crate::project_preparation::ProjectPreparationError>>()?);
+            chains.push(
+                chain
+                    .collect::<Result<Vec<_>, crate::project_preparation::ProjectPreparationError>>(
+                    )?,
+            );
         }
 
         let printed = if plan.audio_clips.iter().any(|clip| clip.direct_output)
@@ -1291,8 +1340,13 @@ impl PlanState {
             let target = windfall_project::PluginTarget::Instrument {
                 channel: channel.id,
             };
-            let known = held.and_then(|held| held.instruments.get(&channel.id)) == Some(&(kind, channel.instrument_asset.clone()))
-                && held.and_then(|held| held.sample_playback.get(&channel.id)) == channel.sample_playback.as_ref().map(|asset| &asset.identity)
+            let known = held.and_then(|held| held.instruments.get(&channel.id))
+                == Some(&(kind, channel.instrument_asset.clone()))
+                && held.and_then(|held| held.sample_playback.get(&channel.id))
+                    == channel
+                        .sample_playback
+                        .as_ref()
+                        .map(|asset| &asset.identity)
                 && held
                     .is_some_and(|held| held.plugins.get(&target) == ledger.plugins.get(&target));
             let unit = if channel.leaving {
@@ -1301,11 +1355,24 @@ impl PlanState {
                 }
                 None
             } else {
-                ledger.instruments.insert(channel.id, (kind, channel.instrument_asset.clone()));
-                if let Some(asset) = &channel.sample_playback { ledger.sample_playback.insert(channel.id, asset.identity.clone()); }
+                ledger
+                    .instruments
+                    .insert(channel.id, (kind, channel.instrument_asset.clone()));
+                if let Some(asset) = &channel.sample_playback {
+                    ledger
+                        .sample_playback
+                        .insert(channel.id, asset.identity.clone());
+                }
                 (!known).then(|| {
-                    let mut unit = InstrumentUnit::build(params, channel.instrument_asset.as_deref(), sample_rate, plan.tempo_bpm);
-                    if let Some(asset) = &channel.sample_playback { unit.set_playback_asset(asset.asset.clone()); }
+                    let mut unit = InstrumentUnit::build(
+                        params,
+                        channel.instrument_asset.as_deref(),
+                        sample_rate,
+                        plan.tempo_bpm,
+                    );
+                    if let Some(asset) = &channel.sample_playback {
+                        unit.set_playback_asset(asset.asset.clone());
+                    }
                     unit.configure_voice(
                         crate::channel_voice::PreparedChannelEnvelopes::prepare(
                             channel.voice.envelopes,
@@ -2170,7 +2237,7 @@ mod tests {
 
     fn channel(id: u32, track: u32, source: ChannelSource) -> Channel {
         Channel {
-                sample_playback: None,
+            sample_playback: None,
             id: ChannelId(id),
             name: String::new(),
             color: 0,

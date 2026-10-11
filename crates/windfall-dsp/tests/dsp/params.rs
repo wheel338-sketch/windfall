@@ -1,9 +1,9 @@
 //! The parameter structs and their descriptions must agree with each
 //! other, with their serde names and with their documented ranges.
 
-use serde::de::DeserializeOwned;
 use serde::Serialize;
-use serde_json::{json, Value};
+use serde::de::DeserializeOwned;
+use serde_json::{Value, json};
 use windfall_dsp::blocks::noise::Rng;
 use windfall_dsp::{
     AnyEffect, AnyInstrument, BalanceParams, ChannelMuteParams, ChorusParams, CompressorParams,
@@ -519,15 +519,48 @@ fn immutable_instrument_scalar_descriptor_contracts() {
 #[test]
 fn slice_grain_curve_parameter_prefixes_are_stable_and_sources_are_assets() {
     for (kind, ids) in [
-        (InstrumentKind::SliceMap, vec!["baseKey", "level", "releaseMs"]),
-        (InstrumentKind::SliceDeck, vec!["baseKey", "level", "releaseMs"]),
-        (InstrumentKind::GrainCloud, vec!["rootKey", "grainSizeMs", "density", "position", "spray", "pitch", "seed", "level", "releaseMs"]),
-        (InstrumentKind::WaveRide, vec!["rootKey", "durationMs", "pitch", "level", "releaseMs"]),
+        (
+            InstrumentKind::SliceMap,
+            vec!["baseKey", "level", "releaseMs"],
+        ),
+        (
+            InstrumentKind::SliceDeck,
+            vec!["baseKey", "level", "releaseMs"],
+        ),
+        (
+            InstrumentKind::GrainCloud,
+            vec![
+                "rootKey",
+                "grainSizeMs",
+                "density",
+                "position",
+                "spray",
+                "pitch",
+                "seed",
+                "level",
+                "releaseMs",
+            ],
+        ),
+        (
+            InstrumentKind::WaveRide,
+            vec!["rootKey", "durationMs", "pitch", "level", "releaseMs"],
+        ),
     ] {
-        assert_eq!(kind.descriptors()[..ids.len()].iter().map(|p|p.id).collect::<Vec<_>>(),ids);
-        let json=serde_json::to_value(kind.default_params()).unwrap();
+        assert_eq!(
+            kind.descriptors()[..ids.len()]
+                .iter()
+                .map(|p| p.id)
+                .collect::<Vec<_>>(),
+            ids
+        );
+        let json = serde_json::to_value(kind.default_params()).unwrap();
         assert!(json.get("table").is_none());
-        let count = match kind { InstrumentKind::SliceMap => 19, InstrumentKind::SliceDeck => 67, InstrumentKind::WaveRide => 13, _ => 9 };
+        let count = match kind {
+            InstrumentKind::SliceMap => 19,
+            InstrumentKind::SliceDeck => 67,
+            InstrumentKind::WaveRide => 13,
+            _ => 9,
+        };
         assert_eq!(kind.descriptors().len(), count);
     }
 }

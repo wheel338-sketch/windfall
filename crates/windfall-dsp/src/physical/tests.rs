@@ -1,6 +1,6 @@
 use std::f64::consts::TAU;
 
-use serde::{de::DeserializeOwned, Serialize};
+use serde::{Serialize, de::DeserializeOwned};
 
 use super::*;
 use crate::blocks::math::key_to_hz;
@@ -142,10 +142,11 @@ fn assert_extremes<I: Instrument + Default>() {
         }
         for _ in 0..32 {
             instrument.process(&mut left, &mut right);
-            assert!(left
-                .iter()
-                .chain(&right)
-                .all(|x| x.is_finite() && x.abs() < 8.0));
+            assert!(
+                left.iter()
+                    .chain(&right)
+                    .all(|x| x.is_finite() && x.abs() < 8.0)
+            );
             assert!(instrument.active_voices() <= MAX_POLYPHONY);
         }
     }
@@ -161,10 +162,11 @@ fn assert_extremes<I: Instrument + Default>() {
         }
         instrument.set_params(&params);
         instrument.process(&mut left, &mut right);
-        assert!(left
-            .iter()
-            .chain(&right)
-            .all(|x| x.is_finite() && x.abs() < 8.0));
+        assert!(
+            left.iter()
+                .chain(&right)
+                .all(|x| x.is_finite() && x.abs() < 8.0)
+        );
     }
 }
 
@@ -305,9 +307,11 @@ fn assert_lifecycle<I: Instrument + Default>(expected_polyphony: usize) {
     assert_eq!(instrument.active_voices(), 0);
     instrument.prepare(192_000.0, 256);
     instrument.note_on(0, 1.0);
-    assert!(render(&mut instrument, 8000, &[256])
-        .iter()
-        .all(|x| x.is_finite()));
+    assert!(
+        render(&mut instrument, 8000, &[256])
+            .iter()
+            .all(|x| x.is_finite())
+    );
     instrument.reset();
     assert!(render(&mut instrument, 64, &[1]).iter().all(|&x| x == 0.0));
 }

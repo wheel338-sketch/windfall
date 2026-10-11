@@ -97,8 +97,8 @@ impl EffectSlot {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::effect::EffectParams;
     use crate::echo_bank::EchoBankParams;
+    use crate::effect::EffectParams;
 
     const RATE: f32 = 8_000.0;
 
@@ -164,8 +164,14 @@ mod tests {
             );
             let status = slot.effect().preparation_status().unwrap();
             assert!(!status.is_prepared);
-            assert_eq!(status.last_refusal.map(|refusal| refusal.error), refused.err());
-            assert_eq!(slot.effect().preparation_refusal().unwrap().sample_rate, RATE);
+            assert_eq!(
+                status.last_refusal.map(|refusal| refusal.error),
+                refused.err()
+            );
+            assert_eq!(
+                slot.effect().preparation_refusal().unwrap().sample_rate,
+                RATE
+            );
 
             let mut peak = exact(kind);
             peak.peak_bytes = peak.retained_bytes;
@@ -192,7 +198,9 @@ mod tests {
             slot
         };
         let (mut kept, mut untouched) = (build(), build());
-        let input: Vec<f32> = (0..512).map(|n| ((n * 37) % 101) as f32 / 101.0 - 0.5).collect();
+        let input: Vec<f32> = (0..512)
+            .map(|n| ((n * 37) % 101) as f32 / 101.0 - 0.5)
+            .collect();
         let run = |slot: &mut EffectSlot| {
             let (mut left, mut right) = (input.clone(), input.clone());
             for (left, right) in left.chunks_mut(64).zip(right.chunks_mut(64)) {

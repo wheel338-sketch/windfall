@@ -862,13 +862,16 @@ mod tests {
             let k = std::f64::consts::SQRT_2;
             let norm = 1.0 / (1.0 + k * g + g * g);
             let b = if high { norm } else { g * g * norm };
-            ([b, if high { -2.0 * b } else { 2.0 * b }, b],
-                [2.0 * (g * g - 1.0) * norm, (1.0 - k * g + g * g) * norm])
+            (
+                [b, if high { -2.0 * b } else { 2.0 * b }, b],
+                [2.0 * (g * g - 1.0) * norm, (1.0 - k * g + g * g) * norm],
+            )
         }
         fn step(input: f64, coeffs: ([f64; 3], [f64; 2]), state: &mut [f64; 4]) -> f64 {
             let (b, a) = coeffs;
             let output = b[0] * input + b[1] * state[0] + b[2] * state[1]
-                - a[0] * state[2] - a[1] * state[3];
+                - a[0] * state[2]
+                - a[1] * state[3];
             *state = [input, state[0], output, state[2]];
             output
         }

@@ -28,7 +28,6 @@ pub use stereo::{
     StereoInvert,
 };
 
-
 #[cfg(test)]
 mod model_tests;
 #[cfg(test)]

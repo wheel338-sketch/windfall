@@ -5,8 +5,8 @@
 //! selects among four distinct percussion recipes. All callback state is inline.
 
 mod engine;
-mod modal;
 mod layer_kick;
+mod modal;
 pub use layer_kick::{LayerKick, LayerKickParams};
 mod params;
 

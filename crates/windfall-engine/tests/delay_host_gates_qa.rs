@@ -140,5 +140,9 @@ fn a_plan_past_the_echo_history_limit_is_refused_and_the_old_one_plays_on() {
     let fits = rig(&[bank(0.5), bands(0.3)]);
     controller.set_project(&fits.project, &fits.pool);
     assert_eq!(controller.project_preparation_error(), None);
-    assert!(play(4_800, &mut processor).iter().all(|sample| sample.is_finite()));
+    assert!(
+        play(4_800, &mut processor)
+            .iter()
+            .all(|sample| sample.is_finite())
+    );
 }

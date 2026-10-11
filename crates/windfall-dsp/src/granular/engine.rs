@@ -1,6 +1,6 @@
 use super::params::clean;
 use super::{MAX_GRAINS_PER_VOICE, MAX_POLYPHONY};
-use super::{PlaybackAsset, SliceRegion, SliceSettings, SLICE_COUNT};
+use super::{PlaybackAsset, SLICE_COUNT, SliceRegion, SliceSettings};
 use crate::{NoteExpression, NoteInstanceId};
 use windfall_core::AudioBuffer;
 
@@ -366,14 +366,25 @@ impl Engine {
             {
                 let mut region = region.clone();
                 if index < SLICE_COUNT {
-                    let edited = |bit: usize| settings.legacy_edits[bit / 16] & (1 << (bit % 16)) != 0;
-                    if edited(index) { region.start = settings.legacy_starts[index]; }
-                    if index + 1 < SLICE_COUNT && edited(index + 1) { region.end = settings.legacy_starts[index + 1]; }
+                    let edited =
+                        |bit: usize| settings.legacy_edits[bit / 16] & (1 << (bit % 16)) != 0;
+                    if edited(index) {
+                        region.start = settings.legacy_starts[index];
+                    }
+                    if index + 1 < SLICE_COUNT && edited(index + 1) {
+                        region.end = settings.legacy_starts[index + 1];
+                    }
                     if self.mode == Mode::Deck {
                         let base = SLICE_COUNT + index * 3;
-                        if edited(base) { region.pitch = settings.legacy_slices[index].pitch; }
-                        if edited(base + 1) { region.gain = settings.legacy_slices[index].gain; }
-                        if edited(base + 2) { region.reverse = settings.legacy_slices[index].reverse; }
+                        if edited(base) {
+                            region.pitch = settings.legacy_slices[index].pitch;
+                        }
+                        if edited(base + 1) {
+                            region.gain = settings.legacy_slices[index].gain;
+                        }
+                        if edited(base + 2) {
+                            region.reverse = settings.legacy_slices[index].reverse;
+                        }
                     }
                 }
                 let len = Source::new(asset, voice.deck).len();
@@ -478,11 +489,16 @@ impl Engine {
                     // intervals; unedited authored/per-key curves stay exact.
                     let at = (voice.scan * 7.0).clamp(0.0, 7.0);
                     let first = (at.floor() as usize).min(6);
-                    for (index, weight) in [(first, 1.0 - (at - first as f64)), (first + 1, at - first as f64)] {
+                    for (index, weight) in [
+                        (first, 1.0 - (at - first as f64)),
+                        (first + 1, at - first as f64),
+                    ] {
                         if settings.legacy_edits[0] & (1 << index) != 0 {
                             let time = index as f64 / 7.0;
-                            let baseline = asset.map_or(time, |a| a.curve(voice.key).position(time));
-                            position += (f64::from(settings.legacy_positions[index]) - baseline) * weight;
+                            let baseline =
+                                asset.map_or(time, |a| a.curve(voice.key).position(time));
+                            position +=
+                                (f64::from(settings.legacy_positions[index]) - baseline) * weight;
                         }
                     }
                     position = position.clamp(0.0, 1.0);

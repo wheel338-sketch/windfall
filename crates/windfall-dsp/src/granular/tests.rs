@@ -328,11 +328,22 @@ fn invalid_assets_fail_before_publication() {
 
 #[test]
 fn original_slice_scalar_indices_override_only_the_edited_asset_controls() {
-    let a = asset(vec![SliceRegion { start: 0.25, end: 0.75, gain: 0.6, ..Default::default() }], PlaybackCurve::default());
+    let a = asset(
+        vec![SliceRegion {
+            start: 0.25,
+            end: 0.75,
+            gain: 0.6,
+            ..Default::default()
+        }],
+        PlaybackCurve::default(),
+    );
     let mut i = SliceDeck::default();
     i.prepare(RATE, 64);
     i.set_asset(a.clone());
-    let mut p = SliceDeckParams { level: 1.0, ..Default::default() };
+    let mut p = SliceDeckParams {
+        level: 1.0,
+        ..Default::default()
+    };
     // Writing the original default is still an explicit edit: asset start .25
     // must become zero without overwriting its unrelated gain/end controls.
     assert!(p.set(3, 0.0));
@@ -350,18 +361,36 @@ fn original_slice_scalar_indices_override_only_the_edited_asset_controls() {
     let pcm = render(&mut i, 100, 7);
     assert!((pcm[50] - 3050.0 / 15999.0 * SCALE * 0.2).abs() < 1e-6);
     let encoded = serde_json::to_string(&p).unwrap();
-    assert_eq!(serde_json::from_str::<SliceDeckParams>(&encoded).unwrap(), p);
+    assert_eq!(
+        serde_json::from_str::<SliceDeckParams>(&encoded).unwrap(),
+        p
+    );
     assert!(p.sanitized().legacy_edits[0] & 1 != 0);
 }
 
 #[test]
 fn original_position_indices_overlay_authored_curves_and_are_partition_invariant() {
-    let curve = PlaybackCurve { points: vec![PlaybackPoint { time: 0.0, value: 0.8 }, PlaybackPoint { time: 1.0, value: 0.8 }], ..Default::default() };
+    let curve = PlaybackCurve {
+        points: vec![
+            PlaybackPoint {
+                time: 0.0,
+                value: 0.8,
+            },
+            PlaybackPoint {
+                time: 1.0,
+                value: 0.8,
+            },
+        ],
+        ..Default::default()
+    };
     let sound = |block| {
         let mut i = WaveRide::default();
         i.prepare(RATE, 64);
         i.set_asset(asset(vec![SliceRegion::default()], curve.clone()));
-        let mut p = WaveRideParams { level: 1.0, ..Default::default() };
+        let mut p = WaveRideParams {
+            level: 1.0,
+            ..Default::default()
+        };
         assert!(p.set(5, 0.0));
         i.set_params(&p);
         i.note_on(60, 1.0);

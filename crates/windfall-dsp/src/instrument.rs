@@ -1,27 +1,27 @@
 //! The interface every built-in instrument implements, and one type that
 //! can hold any of them.
 
-use crate::drums::{LayerKick, LayerKickParams};
-use crate::additive::{SnapshotMorph, SnapshotMorphParams};
+use crate::additive::{ColorScan, ColorScanParams};
 use crate::additive::{HarmonicFilter, HarmonicFilterParams};
 use crate::additive::{MetalVoice, MetalVoiceParams};
 use crate::additive::{NumberVoice, NumberVoiceParams};
+use crate::additive::{SnapshotMorph, SnapshotMorphParams};
 use crate::additive::{SpectralResynth, SpectralResynthParams};
-use crate::additive::{ColorScan, ColorScanParams};
 use crate::analog::{AcidLine, AcidLineParams};
 use crate::analog::{MacroVoice, MacroVoiceParams};
 use crate::analog::{TripleOsc, TripleOscParams};
 use crate::analog::{WaveLane, WaveLaneParams};
-use crate::polysynth::{VintagePoly, VintagePolyParams};
-use crate::polysynth::{DualPoly, DualPolyParams};
+use crate::drums::{LayerKick, LayerKickParams};
+use crate::midi_out::{MidiOut, MidiOutEvent, MidiOutParams};
 use crate::polysynth::{CompactSynth, CompactSynthParams};
-use crate::polysynth::{VintageSaw, VintageSawParams};
-use crate::polysynth::{PocketSynth, PocketSynthParams};
+use crate::polysynth::{DualPoly, DualPolyParams};
 use crate::polysynth::{GrooveSynth, GrooveSynthParams};
 use crate::polysynth::{HybridSeq, HybridSeqParams};
 use crate::polysynth::{MatrixSynth, MatrixSynthParams};
 use crate::polysynth::{PackSynth, PackSynthParams};
-use crate::midi_out::{MidiOut, MidiOutEvent, MidiOutParams};
+use crate::polysynth::{PocketSynth, PocketSynthParams};
+use crate::polysynth::{VintagePoly, VintagePolyParams};
+use crate::polysynth::{VintageSaw, VintageSawParams};
 use crate::speech::{SpeechVoice, SpeechVoiceParams};
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
@@ -394,21 +394,39 @@ impl InstrumentKind {
                 InstrumentParams::SpeechVoice(SpeechVoiceParams::default())
             }
             InstrumentKind::MidiOut => InstrumentParams::MidiOut(MidiOutParams::default()),
-            InstrumentKind::VintagePoly => InstrumentParams::VintagePoly(VintagePolyParams::default()),
+            InstrumentKind::VintagePoly => {
+                InstrumentParams::VintagePoly(VintagePolyParams::default())
+            }
             InstrumentKind::DualPoly => InstrumentParams::DualPoly(DualPolyParams::default()),
-            InstrumentKind::CompactSynth => InstrumentParams::CompactSynth(CompactSynthParams::default()),
+            InstrumentKind::CompactSynth => {
+                InstrumentParams::CompactSynth(CompactSynthParams::default())
+            }
             InstrumentKind::VintageSaw => InstrumentParams::VintageSaw(VintageSawParams::default()),
-            InstrumentKind::PocketSynth => InstrumentParams::PocketSynth(PocketSynthParams::default()),
-            InstrumentKind::GrooveSynth => InstrumentParams::GrooveSynth(GrooveSynthParams::default()),
+            InstrumentKind::PocketSynth => {
+                InstrumentParams::PocketSynth(PocketSynthParams::default())
+            }
+            InstrumentKind::GrooveSynth => {
+                InstrumentParams::GrooveSynth(GrooveSynthParams::default())
+            }
             InstrumentKind::HybridSeq => InstrumentParams::HybridSeq(HybridSeqParams::default()),
-            InstrumentKind::MatrixSynth => InstrumentParams::MatrixSynth(MatrixSynthParams::default()),
+            InstrumentKind::MatrixSynth => {
+                InstrumentParams::MatrixSynth(MatrixSynthParams::default())
+            }
             InstrumentKind::PackSynth => InstrumentParams::PackSynth(PackSynthParams::default()),
             InstrumentKind::LayerKick => InstrumentParams::LayerKick(LayerKickParams::default()),
-            InstrumentKind::SnapshotMorph => InstrumentParams::SnapshotMorph(SnapshotMorphParams::default()),
-            InstrumentKind::HarmonicFilter => InstrumentParams::HarmonicFilter(HarmonicFilterParams::default()),
+            InstrumentKind::SnapshotMorph => {
+                InstrumentParams::SnapshotMorph(SnapshotMorphParams::default())
+            }
+            InstrumentKind::HarmonicFilter => {
+                InstrumentParams::HarmonicFilter(HarmonicFilterParams::default())
+            }
             InstrumentKind::MetalVoice => InstrumentParams::MetalVoice(MetalVoiceParams::default()),
-            InstrumentKind::NumberVoice => InstrumentParams::NumberVoice(NumberVoiceParams::default()),
-            InstrumentKind::SpectralResynth => InstrumentParams::SpectralResynth(SpectralResynthParams::default()),
+            InstrumentKind::NumberVoice => {
+                InstrumentParams::NumberVoice(NumberVoiceParams::default())
+            }
+            InstrumentKind::SpectralResynth => {
+                InstrumentParams::SpectralResynth(SpectralResynthParams::default())
+            }
             InstrumentKind::ColorScan => InstrumentParams::ColorScan(ColorScanParams::default()),
         }
     }
@@ -564,21 +582,43 @@ impl InstrumentParams {
                 InstrumentParams::SpeechVoice(params.sanitized())
             }
             InstrumentParams::MidiOut(params) => InstrumentParams::MidiOut(params.sanitized()),
-            InstrumentParams::VintagePoly(params) => InstrumentParams::VintagePoly(params.sanitized()),
+            InstrumentParams::VintagePoly(params) => {
+                InstrumentParams::VintagePoly(params.sanitized())
+            }
             InstrumentParams::DualPoly(params) => InstrumentParams::DualPoly(params.sanitized()),
-            InstrumentParams::CompactSynth(params) => InstrumentParams::CompactSynth(params.sanitized()),
-            InstrumentParams::VintageSaw(params) => InstrumentParams::VintageSaw(params.sanitized()),
-            InstrumentParams::PocketSynth(params) => InstrumentParams::PocketSynth(params.sanitized()),
-            InstrumentParams::GrooveSynth(params) => InstrumentParams::GrooveSynth(params.sanitized()),
+            InstrumentParams::CompactSynth(params) => {
+                InstrumentParams::CompactSynth(params.sanitized())
+            }
+            InstrumentParams::VintageSaw(params) => {
+                InstrumentParams::VintageSaw(params.sanitized())
+            }
+            InstrumentParams::PocketSynth(params) => {
+                InstrumentParams::PocketSynth(params.sanitized())
+            }
+            InstrumentParams::GrooveSynth(params) => {
+                InstrumentParams::GrooveSynth(params.sanitized())
+            }
             InstrumentParams::HybridSeq(params) => InstrumentParams::HybridSeq(params.sanitized()),
-            InstrumentParams::MatrixSynth(params) => InstrumentParams::MatrixSynth(params.sanitized()),
+            InstrumentParams::MatrixSynth(params) => {
+                InstrumentParams::MatrixSynth(params.sanitized())
+            }
             InstrumentParams::PackSynth(params) => InstrumentParams::PackSynth(params.sanitized()),
             InstrumentParams::LayerKick(params) => InstrumentParams::LayerKick(params.sanitized()),
-            InstrumentParams::SnapshotMorph(params) => InstrumentParams::SnapshotMorph(params.sanitized()),
-            InstrumentParams::HarmonicFilter(params) => InstrumentParams::HarmonicFilter(params.sanitized()),
-            InstrumentParams::MetalVoice(params) => InstrumentParams::MetalVoice(params.sanitized()),
-            InstrumentParams::NumberVoice(params) => InstrumentParams::NumberVoice(params.sanitized()),
-            InstrumentParams::SpectralResynth(params) => InstrumentParams::SpectralResynth(params.sanitized()),
+            InstrumentParams::SnapshotMorph(params) => {
+                InstrumentParams::SnapshotMorph(params.sanitized())
+            }
+            InstrumentParams::HarmonicFilter(params) => {
+                InstrumentParams::HarmonicFilter(params.sanitized())
+            }
+            InstrumentParams::MetalVoice(params) => {
+                InstrumentParams::MetalVoice(params.sanitized())
+            }
+            InstrumentParams::NumberVoice(params) => {
+                InstrumentParams::NumberVoice(params.sanitized())
+            }
+            InstrumentParams::SpectralResynth(params) => {
+                InstrumentParams::SpectralResynth(params.sanitized())
+            }
             InstrumentParams::ColorScan(params) => InstrumentParams::ColorScan(params.sanitized()),
         }
     }
@@ -803,10 +843,15 @@ impl AnyInstrument {
         true
     }
     /// Called only while constructing a control-side instrument unit.
-    pub fn set_playback_asset(&mut self, asset: std::sync::Arc<crate::granular::PlaybackAsset>) -> bool {
+    pub fn set_playback_asset(
+        &mut self,
+        asset: std::sync::Arc<crate::granular::PlaybackAsset>,
+    ) -> bool {
         match self {
-            Self::SliceMap(i) => i.set_asset(asset), Self::SliceDeck(i) => i.set_asset(asset),
-            Self::GrainCloud(i) => i.set_asset(asset), Self::WaveRide(i) => i.set_asset(asset),
+            Self::SliceMap(i) => i.set_asset(asset),
+            Self::SliceDeck(i) => i.set_asset(asset),
+            Self::GrainCloud(i) => i.set_asset(asset),
+            Self::WaveRide(i) => i.set_asset(asset),
             _ => return false,
         }
         true
@@ -829,19 +874,52 @@ impl AnyInstrument {
     }
 
     /// Build with immutable data on the control/worker side.
-    pub fn new_with_asset(params: &InstrumentParams, asset: Option<&crate::InstrumentAsset>) -> Self {
+    pub fn new_with_asset(
+        params: &InstrumentParams,
+        asset: Option<&crate::InstrumentAsset>,
+    ) -> Self {
         let asset = asset.filter(|asset| asset.validate(params.kind()).is_ok());
         let mut instrument = Self::new(params);
-        if let (Self::DrumVoice(unit), Some(crate::InstrumentAsset::DrumKeys { patches })) = (&mut instrument, asset) {
+        if let (Self::DrumVoice(unit), Some(crate::InstrumentAsset::DrumKeys { patches })) =
+            (&mut instrument, asset)
+        {
             unit.set_key_patches(patches);
         }
-        if let (Self::LayerKick(unit), Some(crate::InstrumentAsset::Pcm(pcm))) = (&mut instrument, asset) { unit.set_layer(pcm); }
-        if let (Self::SnapshotMorph(unit), Some(crate::InstrumentAsset::Spectra(bank))) = (&mut instrument, asset) { unit.set_bank(bank); }
-        if let (Self::HarmonicFilter(unit), Some(crate::InstrumentAsset::Spectra(bank))) = (&mut instrument, asset) { unit.set_bank(bank); }
-        if let (Self::MetalVoice(unit), Some(crate::InstrumentAsset::Spectra(bank))) = (&mut instrument, asset) { unit.set_bank(bank); }
-        if let (Self::NumberVoice(unit), Some(crate::InstrumentAsset::Spectra(bank))) = (&mut instrument, asset) { unit.set_bank(bank); }
-        if let (Self::SpectralResynth(unit), Some(crate::InstrumentAsset::Spectra(bank))) = (&mut instrument, asset) { unit.set_bank(bank); }
-        if let (Self::ColorScan(unit), Some(crate::InstrumentAsset::Spectra(bank))) = (&mut instrument, asset) { unit.set_bank(bank); }
+        if let (Self::LayerKick(unit), Some(crate::InstrumentAsset::Pcm(pcm))) =
+            (&mut instrument, asset)
+        {
+            unit.set_layer(pcm);
+        }
+        if let (Self::SnapshotMorph(unit), Some(crate::InstrumentAsset::Spectra(bank))) =
+            (&mut instrument, asset)
+        {
+            unit.set_bank(bank);
+        }
+        if let (Self::HarmonicFilter(unit), Some(crate::InstrumentAsset::Spectra(bank))) =
+            (&mut instrument, asset)
+        {
+            unit.set_bank(bank);
+        }
+        if let (Self::MetalVoice(unit), Some(crate::InstrumentAsset::Spectra(bank))) =
+            (&mut instrument, asset)
+        {
+            unit.set_bank(bank);
+        }
+        if let (Self::NumberVoice(unit), Some(crate::InstrumentAsset::Spectra(bank))) =
+            (&mut instrument, asset)
+        {
+            unit.set_bank(bank);
+        }
+        if let (Self::SpectralResynth(unit), Some(crate::InstrumentAsset::Spectra(bank))) =
+            (&mut instrument, asset)
+        {
+            unit.set_bank(bank);
+        }
+        if let (Self::ColorScan(unit), Some(crate::InstrumentAsset::Spectra(bank))) =
+            (&mut instrument, asset)
+        {
+            unit.set_bank(bank);
+        }
         instrument
     }
 

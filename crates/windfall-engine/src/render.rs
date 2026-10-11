@@ -169,7 +169,10 @@ pub fn render_reporting(
         sample_rate,
         crate::project_preparation::AttachmentMode::Independent,
     ) {
-        Ok((processor, _, retirement)) => { drop(retirement); processor }
+        Ok((processor, _, retirement)) => {
+            drop(retirement);
+            processor
+        }
         Err(error) => {
             return Rendered {
                 audio: AudioBuffer::from_interleaved(sample_rate, 2, Vec::new()),

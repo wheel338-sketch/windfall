@@ -2,15 +2,18 @@
 //! audio, parameter changes and reset use that storage without allocation.
 
 mod convolver;
-mod frequency;
 mod formants;
+mod frequency;
 mod pitch;
 mod vocoder;
 
-pub use convolver::{CONVOLUTION_PARTITION, Convolver, ConvolverParams, MAX_IMPULSE_SAMPLES, PreparedImpulse};
+pub use convolver::{
+    CONVOLUTION_PARTITION, Convolver, ConvolverParams, MAX_IMPULSE_SAMPLES, PreparedImpulse,
+};
 pub use frequency::{FREQUENCY_SHIFTER_LATENCY, FrequencyShifter, FrequencyShifterParams};
 pub use pitch::{
-    PITCH_SHIFT_LATENCY, PitchCorrect, PitchCorrectParams, PitchScale, PitchShift, PitchShiftParams, PitchShiftMode,
+    PITCH_SHIFT_LATENCY, PitchCorrect, PitchCorrectParams, PitchScale, PitchShift, PitchShiftMode,
+    PitchShiftParams,
 };
 pub use vocoder::{Vocoder, VocoderParams};
 

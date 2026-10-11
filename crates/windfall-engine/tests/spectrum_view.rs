@@ -25,7 +25,7 @@ fn mix_power_reaches_frames_without_cancellation_or_callback_allocation() {
         ),
     );
     project.channels.push(Channel {
-                sample_playback: None,
+        sample_playback: None,
         id: ChannelId(901),
         name: "Spectrum source".into(),
         color: 0,

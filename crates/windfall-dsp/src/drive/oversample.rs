@@ -205,8 +205,8 @@ impl Oversampler {
                 for (phase, branch) in kernel.up.iter().enumerate() {
                     let mut interpolated = 0.0;
                     for (k, coefficient) in branch.iter().enumerate() {
-                        interpolated += coefficient
-                            * self.input[(self.input_at + INPUT_TAPS - k) % INPUT_TAPS];
+                        interpolated +=
+                            coefficient * self.input[(self.input_at + INPUT_TAPS - k) % INPUT_TAPS];
                     }
                     self.high[self.high_at] = shape(interpolated);
                     if phase == 0 {
@@ -316,7 +316,10 @@ mod tests {
         let ramp: Vec<f32> = (0..200).map(|n| n as f32 * 0.001).collect();
         let output = run(Oversampling::Off, &ramp, |x| x);
         assert!(output[..DRIVE_LATENCY_SAMPLES].iter().all(|x| *x == 0.0));
-        assert_eq!(&output[DRIVE_LATENCY_SAMPLES..], &ramp[..200 - DRIVE_LATENCY_SAMPLES]);
+        assert_eq!(
+            &output[DRIVE_LATENCY_SAMPLES..],
+            &ramp[..200 - DRIVE_LATENCY_SAMPLES]
+        );
     }
 
     #[test]
@@ -389,9 +392,9 @@ mod tests {
         }
         assert!(output.iter().all(|x| x.is_finite()));
         // No step larger than the signal's own slope plus the fade's.
-        let steepest = output[1_000..]
-            .windows(2)
-            .fold(0.0_f32, |steepest, pair| steepest.max((pair[1] - pair[0]).abs()));
+        let steepest = output[1_000..].windows(2).fold(0.0_f32, |steepest, pair| {
+            steepest.max((pair[1] - pair[0]).abs())
+        });
         assert!(steepest < 0.2, "steepest step {steepest}");
     }
 

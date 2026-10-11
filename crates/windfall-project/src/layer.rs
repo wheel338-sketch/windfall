@@ -160,7 +160,7 @@ mod tests {
 
     fn channel(id: u32, layer: Option<&[u32]>) -> Channel {
         Channel {
-                sample_playback: None,
+            sample_playback: None,
             voice: ChannelVoiceSettings {
                 layer: LayerSettings {
                     enabled: layer.is_some(),

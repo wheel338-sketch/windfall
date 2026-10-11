@@ -1959,7 +1959,9 @@ impl ParamSet for WaveRideParams {
     }
 }
 
-fn no_legacy_edits(bits: &[u16; 4]) -> bool { bits.iter().all(|&word| word == 0) }
+fn no_legacy_edits(bits: &[u16; 4]) -> bool {
+    bits.iter().all(|&word| word == 0)
+}
 macro_rules! legacy_changes {
     ($ty:ty, $prefix:expr) => {
         impl $ty {
@@ -1982,5 +1984,7 @@ legacy_changes!(SliceMapParams, 3);
 legacy_changes!(SliceDeckParams, 3);
 legacy_changes!(WaveRideParams, 5);
 impl GrainCloudParams {
-    pub fn with_legacy_changes(self, _previous: &Self) -> Self { self }
+    pub fn with_legacy_changes(self, _previous: &Self) -> Self {
+        self
+    }
 }

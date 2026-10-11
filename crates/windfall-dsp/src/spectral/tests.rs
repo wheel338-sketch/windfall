@@ -592,9 +592,14 @@ fn correction_detects_antiphase_and_midi_harmonies_release() {
     let hz = crossing_rate(&left[96000..]);
     assert!(hz > 430.0 && hz < 540.0);
     let harmony_power = tone_power(&left[96000..], 523.251);
-    assert!(harmony_power > 0.0001, "C5 projection: {harmony_power}; strongest harmony: {:?}",
-        (500..550).map(|hz| (hz, tone_power(&left[96000..], f64::from(hz))))
-            .max_by(|a, b| a.1.total_cmp(&b.1)).unwrap());
+    assert!(
+        harmony_power > 0.0001,
+        "C5 projection: {harmony_power}; strongest harmony: {:?}",
+        (500..550)
+            .map(|hz| (hz, tone_power(&left[96000..], f64::from(hz))))
+            .max_by(|a, b| a.1.total_cmp(&b.1))
+            .unwrap()
+    );
     for (a, b) in left.iter().zip(&right) {
         assert!((*a + *b).abs() < 1e-5);
     }

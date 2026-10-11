@@ -62,13 +62,24 @@ pub fn slice_command(_: u32, input: &str) -> Reply {
 pub fn sample_playback_detect(_: u32, input: &str) -> Reply {
     #[derive(Deserialize)]
     #[serde(rename_all = "camelCase")]
-    struct Request { sample: windfall_project::SampleId, bpm: f64, options: SliceOptions,
-        sample_rate: u32, channels: u16, samples: Vec<f32> }
+    struct Request {
+        sample: windfall_project::SampleId,
+        bpm: f64,
+        options: SliceOptions,
+        sample_rate: u32,
+        channels: u16,
+        samples: Vec<f32>,
+    }
     let r: Request = parse("sample instrument detection", input)?;
-    if !(1000..=384000).contains(&r.sample_rate) || !(1..=2).contains(&r.channels)
-        || !r.samples.len().is_multiple_of(usize::from(r.channels)) || r.samples.len() > 64_000_000 {
+    if !(1000..=384000).contains(&r.sample_rate)
+        || !(1..=2).contains(&r.channels)
+        || !r.samples.len().is_multiple_of(usize::from(r.channels))
+        || r.samples.len() > 64_000_000
+    {
         return Err("Invalid/oversized sample instrument source.".into());
     }
     let audio = windfall_core::AudioBuffer::from_interleaved(r.sample_rate, r.channels, r.samples);
-    json(&windfall_project::sample_playback::detect(&audio, r.sample, r.bpm, r.options)?)
+    json(&windfall_project::sample_playback::detect(
+        &audio, r.sample, r.bpm, r.options,
+    )?)
 }

@@ -1,5 +1,23 @@
 # Slice, grain and curve instruments — final implementation hand-off
 
+## Integrator reconciliation — 2026-10-11
+
+The append-only integration instruction supersedes the suffix-refusal proposal
+below. Original SliceMap indices 0–18, SliceDeck 0–66 and WaveRide 0–12 remain
+registered and audible. Embedded PCM still migrates to immutable assets. Small
+saved scalar edit masks activate only explicitly edited marker/pad/curve controls;
+the default value can therefore explicitly override an authored asset. Asset
+authoring clears those overrides in the same history step. Wave knot overrides
+preserve unedited curve intervals and apply without callback allocation.
+
+Passing focused evidence: granular library 14 tests, DSP integration 188 tests
+(five existing timing tests ignored), and sample-playback project eight tests.
+Added measured zero-default marker, held-pad gain, curve partition, unrelated
+scalar edit and undo/reopen regressions. All legacy scalar automation targets
+round-trip; indices beyond the original table are still refused normally.
+Final artifacts, engine/frontend joins and full gates are recorded in
+[wave2 acceptance](2026-10-11-wave2-acceptance.md).
+
 Branch: `gpt/w3-slices-grains`; base `87b87bc2439ec076d0f75c5b4d997c9db1faba95`.
 Last implementation commit: `392d2de9` (this final hand-off is a subsequent docs commit).
 Earlier pieces: `b1ca47d4` assets/DSP/hosting; `e1170f09` editors/detection/tests;

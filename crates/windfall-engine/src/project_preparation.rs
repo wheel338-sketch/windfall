@@ -212,7 +212,8 @@ impl PreparationSnapshot {
         };
         for channel in &project.channels {
             if let Some(settings) = &channel.sample_playback {
-                crate::sample_playback::prepare(settings, pool).map_err(ProjectPreparationError::Unsupported)?;
+                crate::sample_playback::prepare(settings, pool)
+                    .map_err(ProjectPreparationError::Unsupported)?;
             }
         }
         let result = Controller::try_prepare_project(project, pool)
@@ -240,7 +241,9 @@ impl PreparationSnapshot {
             return Err(ProjectPreparationError::StreamTransitioning);
         }
         if prepared.scratch_asset_refused() {
-            return Err(ProjectPreparationError::Unsupported("The scratch source exceeds the effect asset memory budget; restart to release retained sources."));
+            return Err(ProjectPreparationError::Unsupported(
+                "The scratch source exceeds the effect asset memory budget; restart to release retained sources.",
+            ));
         }
         let mut plan = prepared.plan;
         if plan.meters.is_err() {
@@ -978,7 +981,7 @@ mod tests {
             AudioBuffer::from_interleaved(48_000, 1, vec![1.0; 16_000]),
         );
         project.channels.push(Channel {
-                sample_playback: None,
+            sample_playback: None,
             id: channel,
             name: String::new(),
             color: 0,

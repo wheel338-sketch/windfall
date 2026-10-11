@@ -800,7 +800,7 @@ mod tests {
 
     fn channel(id: u32, track: u32) -> Channel {
         Channel {
-                sample_playback: None,
+            sample_playback: None,
             id: ChannelId(id),
             name: String::new(),
             color: 0,

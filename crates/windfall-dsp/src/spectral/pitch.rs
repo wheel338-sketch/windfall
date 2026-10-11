@@ -455,7 +455,9 @@ impl Effect for PitchCorrect {
             } else {
                 GRAIN_SPAN as f32
             };
-            let (mut wet, dry) = self.grains.tick_span(input, (self.correction / 12.0).exp2(), span);
+            let (mut wet, dry) =
+                self.grains
+                    .tick_span(input, (self.correction / 12.0).exp2(), span);
             let source_note = if self.frequency > 0.0 {
                 69.0 + 12.0 * (self.frequency / tuning).log2()
             } else {
@@ -471,7 +473,8 @@ impl Effect for PitchCorrect {
                 } else {
                     0.0
                 };
-                let (harmony, _) = self.harmonies[voice].tick_span(input, (shift / 12.0).exp2(), span);
+                let (harmony, _) =
+                    self.harmonies[voice].tick_span(input, (shift / 12.0).exp2(), span);
                 for ch in 0..2 {
                     wet[ch] += harmony[ch] * self.harmony_levels[voice] * harmony_mix * 0.25;
                 }

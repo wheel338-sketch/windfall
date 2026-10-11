@@ -444,9 +444,6 @@ mod tests {
         }
         assert_eq!(seen[PEAK_DELAY].0, 1.0);
         assert!(seen.iter().all(|(sample, peak)| peak >= sample));
-        assert_eq!(
-            seen.iter().filter(|(sample, _)| *sample != 0.0).count(),
-            1
-        );
+        assert_eq!(seen.iter().filter(|(sample, _)| *sample != 0.0).count(), 1);
     }
 }

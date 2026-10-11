@@ -419,7 +419,9 @@ fn check_effects(
             return Err(format!("{name} has mix {}, outside 0 to 1", effect.mix));
         }
         if let Some(asset) = &effect.impulse {
-            if effect.kind() != crate::EffectKind::Convolver { return Err(format!("{name} has an IR on a non-convolver")); }
+            if effect.kind() != crate::EffectKind::Convolver {
+                return Err(format!("{name} has an IR on a non-convolver"));
+            }
             asset.check().map_err(str::to_owned)?;
         }
         if effect.params.sanitized() != effect.params {
@@ -427,7 +429,10 @@ fn check_effects(
         }
         if let crate::EffectParams::Scratch(p) = effect.params {
             if p.source_id != 0 && project.sample(crate::SampleId(p.source_id)).is_none() {
-                return Err(format!("{name} references missing scratch sample {}", p.source_id));
+                return Err(format!(
+                    "{name} references missing scratch sample {}",
+                    p.source_id
+                ));
             }
         }
     }
@@ -485,7 +490,9 @@ fn check_channels(project: &Project) -> Result<(), String> {
 }
 
 fn check_channel(project: &Project, channel: &Channel) -> Result<(), String> {
-    if let Some(asset) = &channel.sample_playback { asset.check(project, channel)?; }
+    if let Some(asset) = &channel.sample_playback {
+        asset.check(project, channel)?;
+    }
     if channel.voice.sanitized() != channel.voice {
         return Err(format!(
             "channel {} has invalid voice settings",
@@ -526,7 +533,11 @@ fn check_channel(project: &Project, channel: &Channel) -> Result<(), String> {
     match &channel.source {
         ChannelSource::Sampler(sampler) => check_sampler(project, &owner, sampler),
         ChannelSource::Instrument { params, asset } => {
-            if let Some(asset) = asset { asset.validate(params.kind()).map_err(|error| format!("{owner}: {error}"))?; }
+            if let Some(asset) = asset {
+                asset
+                    .validate(params.kind())
+                    .map_err(|error| format!("{owner}: {error}"))?;
+            }
             if params.sanitized() != *params {
                 return Err(format!(
                     "{owner} has an instrument setting outside its range"

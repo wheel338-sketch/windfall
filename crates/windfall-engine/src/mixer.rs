@@ -191,7 +191,11 @@ impl Mixer {
                     let [first, second, third] = &mut self.aux;
                     let mut aux = windfall_dsp::AuxBlock {
                         routed,
-                        outputs: [&mut first[..frames], &mut second[..frames], &mut third[..frames]],
+                        outputs: [
+                            &mut first[..frames],
+                            &mut second[..frames],
+                            &mut third[..frames],
+                        ],
                     };
                     unit.process_routed(
                         left,

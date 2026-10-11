@@ -379,7 +379,13 @@ impl DepartureReservation {
 }
 
 impl PlanEffect {
-    pub fn latency_samples(&self,rate:u32)->usize {self.params.latency_samples(rate as f32)+self.impulse.as_ref().map_or(0,|asset|asset.group_delay_at(rate))}
+    pub fn latency_samples(&self, rate: u32) -> usize {
+        self.params.latency_samples(rate as f32)
+            + self
+                .impulse
+                .as_ref()
+                .map_or(0, |asset| asset.group_delay_at(rate))
+    }
     pub fn native_identity(&self) -> Option<u64> {
         self.native_owner
     }
@@ -549,7 +555,10 @@ impl Plan {
             // querying the previous factory now would observe its new revision.
             let before_native =
                 prepared.map_or(before.native_owner, |held| held.native_identity(effect.id));
-            if effect.params.kind() == before.params.kind() && native == before_native && effect.impulse == before.impulse {
+            if effect.params.kind() == before.params.kind()
+                && native == before_native
+                && effect.impulse == before.impulse
+            {
                 effect.life = before.life.clone();
                 effect.after = before.after.as_ref().filter(|life| life.heard()).cloned();
             }
@@ -756,9 +765,9 @@ impl Plan {
                 && self.channel_ids.get(channel.id.0).is_none()
             {
                 self.channels.push(PlanChannel {
-                sample_playback: channel.sample_playback.clone(),
-                voice: channel.voice,
-                expression_map: channel.expression_map,
+                    sample_playback: channel.sample_playback.clone(),
+                    voice: channel.voice,
+                    expression_map: channel.expression_map,
                     id: channel.id,
                     track: self
                         .track_ids
@@ -899,7 +908,8 @@ pub(crate) fn compile(project: &Project, pool: &SamplePool) -> Plan {
     let (mut tracks, order) = compile_mixer(&project.mixer);
     for effect in tracks.iter_mut().flat_map(|track| &mut track.effects) {
         if let EffectParams::Scratch(p) = &mut effect.params {
-            p.runtime_source = pool.get(windfall_project::SampleId(p.source_id))
+            p.runtime_source = pool
+                .get(windfall_project::SampleId(p.source_id))
                 .and_then(|audio| windfall_dsp::asset::publish_audio(audio).ok())
                 .unwrap_or(windfall_dsp::asset::SourceRef::NONE);
         }
@@ -1006,11 +1016,16 @@ fn compile_channel(
 ) -> PlanChannel {
     let (sampler, instrument) = match &channel.source {
         ChannelSource::Sampler(settings) => (compile_sampler(settings, pool), None),
-        ChannelSource::Instrument { params, .. } => (PlanSampler::silent(), Some(params.sanitized())),
+        ChannelSource::Instrument { params, .. } => {
+            (PlanSampler::silent(), Some(params.sanitized()))
+        }
     };
     let audible = !channel.muted && solo_audible;
     PlanChannel {
-        sample_playback: channel.sample_playback.as_ref().and_then(|settings| crate::sample_playback::prepare(settings, pool).ok()),
+        sample_playback: channel
+            .sample_playback
+            .as_ref()
+            .and_then(|settings| crate::sample_playback::prepare(settings, pool).ok()),
         voice: channel.voice.sanitized(),
         expression_map: channel.expression_map.sanitized(),
         id: channel.id,
@@ -1022,7 +1037,9 @@ fn compile_channel(
         sampler,
         instrument,
         instrument_asset: match &channel.source {
-            ChannelSource::Instrument { asset, .. } => asset.as_ref().map(|asset| Arc::new(asset.clone())),
+            ChannelSource::Instrument { asset, .. } => {
+                asset.as_ref().map(|asset| Arc::new(asset.clone()))
+            }
             ChannelSource::Sampler(_) => None,
         },
         layer: None,
@@ -2133,7 +2150,7 @@ mod tests {
     fn an_unpaired_last_step_is_not_swung() {
         let mut project = Project::new("odd");
         project.channels.push(Channel {
-                sample_playback: None,
+            sample_playback: None,
             id: ChannelId(10),
             name: String::new(),
             color: 0,

@@ -72,22 +72,22 @@ pub use voicing::VoicingParams;
 
 mod prepared;
 mod snapshot_morph;
-pub use snapshot_morph::{SnapshotMorph,SnapshotMorphParams};
+pub use snapshot_morph::{SnapshotMorph, SnapshotMorphParams};
 
 #[cfg(test)]
 mod prepared_tests;
 
 mod harmonic_filter;
-pub use harmonic_filter::{HarmonicFilter,HarmonicFilterParams,HarmonicShape};
+pub use harmonic_filter::{HarmonicFilter, HarmonicFilterParams, HarmonicShape};
 
 mod metal_voice;
-pub use metal_voice::{MetalVoice,MetalVoiceParams};
+pub use metal_voice::{MetalVoice, MetalVoiceParams};
 
 mod number_voice;
-pub use number_voice::{NumberVoice,NumberVoiceParams};
+pub use number_voice::{NumberVoice, NumberVoiceParams};
 
 mod spectral_resynth;
-pub use spectral_resynth::{SpectralResynth,SpectralResynthParams};
+pub use spectral_resynth::{SpectralResynth, SpectralResynthParams};
 
 mod color_scan;
-pub use color_scan::{ColorScan,ColorScanParams};
+pub use color_scan::{ColorScan, ColorScanParams};

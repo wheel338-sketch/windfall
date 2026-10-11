@@ -41,8 +41,8 @@ use crate::eqbank::{MorphEq, MorphEqParams};
 use crate::eqbank::{SevenBand, SevenBandParams};
 use crate::frequency_delay::{FrequencyDelay, FrequencyDelayParams};
 use crate::lush::{LushSpace, LushSpaceParams};
-use crate::mastering::{StageStack, StageStackParams};
 use crate::mastering::{MasterLimiter, MasterLimiterParams, master_limiter_latency};
+use crate::mastering::{StageStack, StageStackParams};
 use crate::polarity::{Polarity, PolarityParams};
 use crate::sendtap::{SendTap, SendTapParams};
 use crate::soft_clipper::{SoftClipper, SoftClipperParams};
@@ -988,9 +988,7 @@ impl EffectParams {
                 EffectParams::ControlSurface(params.sanitized())
             }
             EffectParams::SendTap(params) => EffectParams::SendTap(params.sanitized()),
-            EffectParams::MasterLimiter(params) => {
-                EffectParams::MasterLimiter(params.sanitized())
-            }
+            EffectParams::MasterLimiter(params) => EffectParams::MasterLimiter(params.sanitized()),
         }
     }
 
@@ -1628,7 +1626,9 @@ impl AnyEffect {
     /// `sample_rate`. A host that reserves this much never has to grow a
     /// compensation buffer while playing.
     pub fn max_latency_samples(&self, sample_rate: f32) -> usize {
-        if let Self::Convolver(effect)=self {return effect.latency_samples();}
+        if let Self::Convolver(effect) = self {
+            return effect.latency_samples();
+        }
         self.kind().max_latency_samples(sample_rate)
     }
 
@@ -1727,9 +1727,21 @@ impl EffectKind {
                 },
             ],
             EffectKind::BandSplit => &[
-                AuxOutputInfo { id: "low", label: "Low", splits: true },
-                AuxOutputInfo { id: "mid", label: "Mid", splits: true },
-                AuxOutputInfo { id: "high", label: "High", splits: true },
+                AuxOutputInfo {
+                    id: "low",
+                    label: "Low",
+                    splits: true,
+                },
+                AuxOutputInfo {
+                    id: "mid",
+                    label: "Mid",
+                    splits: true,
+                },
+                AuxOutputInfo {
+                    id: "high",
+                    label: "High",
+                    splits: true,
+                },
             ],
             _ => &[],
         }
@@ -1748,7 +1760,11 @@ impl AnyEffect {
     ) {
         let frames = left.len().min(right.len());
         let [first, second, third] = &mut aux.outputs;
-        let (first, second, third) = (&mut first[..frames], &mut second[..frames], &mut third[..frames]);
+        let (first, second, third) = (
+            &mut first[..frames],
+            &mut second[..frames],
+            &mut third[..frames],
+        );
         match self {
             AnyEffect::SendTap(effect) => {
                 effect.process(left, right);
@@ -1771,9 +1787,16 @@ impl AnyEffect {
                 third.fill([0.0; 2]);
             }
             AnyEffect::BandSplit(effect) => {
-                effect.process_routed(left, right,
-                    [aux.routed & 1 != 0, aux.routed & 2 != 0, aux.routed & 4 != 0],
-                    [first, second, third]);
+                effect.process_routed(
+                    left,
+                    right,
+                    [
+                        aux.routed & 1 != 0,
+                        aux.routed & 2 != 0,
+                        aux.routed & 4 != 0,
+                    ],
+                    [first, second, third],
+                );
             }
             _ => {
                 self.process_sidechain(left, right, key);
@@ -1958,7 +1981,9 @@ impl EffectSlot {
 
     /// Live MIDI harmony state; ownership remains inside the prepared slot.
     pub fn set_harmony_notes(&mut self, notes: [u8; 4]) {
-        if let AnyEffect::PitchCorrect(effect) = &mut self.effect { effect.set_harmony_notes(notes); }
+        if let AnyEffect::PitchCorrect(effect) = &mut self.effect {
+            effect.set_harmony_notes(notes);
+        }
     }
 
     pub fn effect(&self) -> &AnyEffect {
@@ -2051,7 +2076,11 @@ impl EffectSlot {
             let [first, second, third] = &mut aux.outputs;
             let mut part = AuxBlock {
                 routed: aux.routed,
-                outputs: [&mut first[start..end], &mut second[start..end], &mut third[start..end]],
+                outputs: [
+                    &mut first[start..end],
+                    &mut second[start..end],
+                    &mut third[start..end],
+                ],
             };
             self.process_piece(
                 &mut left[start..end],

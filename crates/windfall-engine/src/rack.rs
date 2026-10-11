@@ -116,21 +116,35 @@ impl EffectUnit {
         sample_rate: u32,
         tempo_bpm: f64,
         budget: windfall_dsp::echo_bank::PreparationBudget,
-    ) -> Result<(Self, Option<GainReductionMeter>), crate::project_preparation::ProjectPreparationError> {
+    ) -> Result<
+        (Self, Option<GainReductionMeter>),
+        crate::project_preparation::ProjectPreparationError,
+    > {
         let processor = if let Some(asset) = &effect.impulse {
-            let frames = asset.at_rate(sample_rate).map_err(crate::project_preparation::ProjectPreparationError::Unsupported)?;
-            let impulse = windfall_dsp::spectral::PreparedImpulse::prepare_with_delay(&frames,asset.group_delay_at(sample_rate)).map_err(crate::project_preparation::ProjectPreparationError::Unsupported)?;
-            AnyEffect::Convolver(Box::new(windfall_dsp::spectral::Convolver::with_impulse(std::sync::Arc::new(impulse))))
-        } else { AnyEffect::new(&effect.params) };
+            let frames = asset
+                .at_rate(sample_rate)
+                .map_err(crate::project_preparation::ProjectPreparationError::Unsupported)?;
+            let impulse = windfall_dsp::spectral::PreparedImpulse::prepare_with_delay(
+                &frames,
+                asset.group_delay_at(sample_rate),
+            )
+            .map_err(crate::project_preparation::ProjectPreparationError::Unsupported)?;
+            AnyEffect::Convolver(Box::new(windfall_dsp::spectral::Convolver::with_impulse(
+                std::sync::Arc::new(impulse),
+            )))
+        } else {
+            AnyEffect::new(&effect.params)
+        };
         let meter = processor.gain_reduction();
         let mut slot = EffectSlot::new(processor);
-        slot.try_prepare(sample_rate as f32, MAX_BLOCK, budget).map_err(crate::effect_host::refusal)?;
+        slot.try_prepare(sample_rate as f32, MAX_BLOCK, budget)
+            .map_err(crate::effect_host::refusal)?;
         slot.set_tempo(tempo_bpm as f32);
         slot.set_params(&effect.params);
         slot.set_enabled(effect.enabled);
         slot.set_mix(effect.mix);
         let unit = Self {
-            harmony_frames: [[255;4];MAX_BLOCK],
+            harmony_frames: [[255; 4]; MAX_BLOCK],
             external: None,
             slot,
             params: effect.params,
@@ -149,9 +163,14 @@ impl EffectUnit {
     }
 
     pub fn harmony_channel(&self) -> Option<u32> {
-        match self.params {EffectParams::PitchCorrect(p) if p.harmony_channel != 0 => Some(p.harmony_channel), _ => None}
+        match self.params {
+            EffectParams::PitchCorrect(p) if p.harmony_channel != 0 => Some(p.harmony_channel),
+            _ => None,
+        }
     }
-    pub fn record_harmony_frame(&mut self, frame: usize, notes: [u8;4]) { self.harmony_frames[frame]=notes; }
+    pub fn record_harmony_frame(&mut self, frame: usize, notes: [u8; 4]) {
+        self.harmony_frames[frame] = notes;
+    }
 
     pub fn kind(&self) -> EffectKind {
         self.params.kind()
@@ -194,7 +213,8 @@ impl EffectUnit {
     }
     pub fn plugin_transport(&mut self, transport: crate::plugins::PluginTransport) {
         if self.external.is_none() {
-            self.slot.set_transport(transport.playing, transport.position_beats);
+            self.slot
+                .set_transport(transport.playing, transport.position_beats);
         }
         if let Some(external) = &mut self.external
             && let Some(unit) = &mut external.unit
@@ -491,7 +511,11 @@ impl EffectUnit {
         if self.external.is_none() && matches!(self.params, EffectParams::PitchCorrect(_)) {
             for frame in 0..left.len().min(right.len()) {
                 self.slot.set_harmony_notes(self.harmony_frames[frame]);
-                self.slot.process_sidechain(&mut left[frame..frame+1], &mut right[frame..frame+1], key.and_then(|key| key.get(frame..frame+1)));
+                self.slot.process_sidechain(
+                    &mut left[frame..frame + 1],
+                    &mut right[frame..frame + 1],
+                    key.and_then(|key| key.get(frame..frame + 1)),
+                );
             }
             return;
         }
@@ -583,16 +607,26 @@ pub(crate) struct InstrumentUnit {
 impl InstrumentUnit {
     pub fn inherit_playback_notes(&mut self, previous: &Self) {
         if self.instrument.inherit_playback_state(&previous.instrument) {
-            self.notes.copy_from_slice(&previous.notes); self.next_instance = previous.next_instance;
-            self.held = previous.held; self.last_sound = previous.last_sound;
+            self.notes.copy_from_slice(&previous.notes);
+            self.next_instance = previous.next_instance;
+            self.held = previous.held;
+            self.last_sound = previous.last_sound;
         }
     }
-    pub fn set_playback_asset(&mut self, asset: std::sync::Arc<windfall_dsp::granular::PlaybackAsset>) {
+    pub fn set_playback_asset(
+        &mut self,
+        asset: std::sync::Arc<windfall_dsp::granular::PlaybackAsset>,
+    ) {
         self.instrument.set_playback_asset(asset);
     }
     /// Builds and prepares an instrument. Allocates, so it is for the
     /// control side.
-    pub fn build(params: &InstrumentParams, asset: Option<&windfall_dsp::InstrumentAsset>, sample_rate: u32, tempo_bpm: f64) -> Self {
+    pub fn build(
+        params: &InstrumentParams,
+        asset: Option<&windfall_dsp::InstrumentAsset>,
+        sample_rate: u32,
+        tempo_bpm: f64,
+    ) -> Self {
         let mut instrument = AnyInstrument::new_with_asset(params, asset);
         instrument.prepare(sample_rate as f32, MAX_BLOCK);
         instrument.set_tempo(tempo_bpm as f32);

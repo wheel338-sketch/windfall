@@ -21,12 +21,14 @@ mod flp;
 mod import_formats;
 mod import_recording;
 mod library;
+mod mastering_qa;
 mod midi;
 mod midi_hardware;
 #[path = "../mixer_presets_qa.rs"]
 mod mixer_presets_qa;
 #[path = "../mixer_render_qa.rs"]
 mod mixer_render_qa;
+mod nonlinear_performance;
 mod playback;
 mod playlist_bounce;
 mod playlist_export;
@@ -48,8 +50,6 @@ mod song;
 mod timeline;
 mod transport_acceptance;
 mod versions;
-mod mastering_qa;
-mod nonlinear_performance;
 
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};

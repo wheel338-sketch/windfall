@@ -34,10 +34,10 @@ use crate::model::{
 
 type Label = &'static str;
 
+mod instrument_assets;
 mod playlist_layouts;
 /// Preset commands, lowered beside the rest so they share its transaction.
 mod preset_apply;
-mod instrument_assets;
 mod sample_playback;
 
 /// What a command did to the project.
@@ -1276,8 +1276,12 @@ impl Transaction<'_> {
                 "Change controller links"
             }
             Command::AddSample { name, path } => self.add_sample(name, path)?,
-            Command::SetSamplePlayback { channel, asset } => self.set_sample_playback(channel, asset)?,
-            Command::GenerateSlicePattern { channel, pattern } => self.generate_slice_pattern(channel, pattern)?,
+            Command::SetSamplePlayback { channel, asset } => {
+                self.set_sample_playback(channel, asset)?
+            }
+            Command::GenerateSlicePattern { channel, pattern } => {
+                self.generate_slice_pattern(channel, pattern)?
+            }
             Command::RemoveSample { id } => self.remove_sample(id)?,
             Command::AddChannel {
                 name,
@@ -1353,9 +1357,11 @@ impl Transaction<'_> {
                 param,
                 value,
             } => return self.set_instrument_param(channel, param, value),
-            Command::SetInstrumentAsset { channel, expected, asset } => {
-                self.set_instrument_asset(channel, expected, asset)?
-            }
+            Command::SetInstrumentAsset {
+                channel,
+                expected,
+                asset,
+            } => self.set_instrument_asset(channel, expected, asset)?,
             Command::SetInstrumentParams { channel, params } => {
                 self.set_instrument_params(channel, params)?
             }
@@ -1442,12 +1448,18 @@ impl Transaction<'_> {
                 param,
                 value,
             } => return self.set_effect_param(track, effect, param, value),
-            Command::SetConvolverImpulse { track, effect, impulse } => {
+            Command::SetConvolverImpulse {
+                track,
+                effect,
+                impulse,
+            } => {
                 let (track, slot) = self.effect_index(track, effect)?;
                 if self.project.mixer.tracks[track].effects[slot].kind() != EffectKind::Convolver {
                     return Err(CommandError::invalid("IR assets require a Convolver slot"));
                 }
-                if let Some(asset) = &impulse { asset.check().map_err(CommandError::invalid)?; }
+                if let Some(asset) = &impulse {
+                    asset.check().map_err(CommandError::invalid)?;
+                }
                 self.change_track(track, |track| track.effects[slot].impulse = impulse);
                 "Change impulse response"
             }
@@ -1747,11 +1759,23 @@ impl Transaction<'_> {
 
     fn remove_sample(&mut self, id: SampleId) -> Result<Label, CommandError> {
         let index = self.sample_index(id)?;
-        if self.project.mixer.tracks.iter().flat_map(|track| &track.effects).any(|effect| matches!(effect.params, EffectParams::Scratch(p) if p.source_id == id.0)) {
-            return Err(CommandError::invalid("the sample is still used by a Scratch effect"));
+        if self
+            .project
+            .mixer
+            .tracks
+            .iter()
+            .flat_map(|track| &track.effects)
+            .any(|effect| matches!(effect.params, EffectParams::Scratch(p) if p.source_id == id.0))
+        {
+            return Err(CommandError::invalid(
+                "the sample is still used by a Scratch effect",
+            ));
         }
         let channels = &self.project.channels;
-        let user = channels.iter().find(|c| c.source.sample() == Some(id) || c.sample_playback.as_ref().is_some_and(|a| a.references(id)));
+        let user = channels.iter().find(|c| {
+            c.source.sample() == Some(id)
+                || c.sample_playback.as_ref().is_some_and(|a| a.references(id))
+        });
         if let Some(channel) = user {
             return Err(CommandError::invalid(format!(
                 "the sample is still used by the channel \"{}\"",
@@ -2250,9 +2274,15 @@ impl Transaction<'_> {
             return Err(other_kind(params.kind().name(), current.kind().name()));
         }
         let params = match (params, current) {
-            (InstrumentParams::SliceMap(p), InstrumentParams::SliceMap(old)) => InstrumentParams::SliceMap(p.with_legacy_changes(&old)),
-            (InstrumentParams::SliceDeck(p), InstrumentParams::SliceDeck(old)) => InstrumentParams::SliceDeck(p.with_legacy_changes(&old)),
-            (InstrumentParams::WaveRide(p), InstrumentParams::WaveRide(old)) => InstrumentParams::WaveRide(p.with_legacy_changes(&old)),
+            (InstrumentParams::SliceMap(p), InstrumentParams::SliceMap(old)) => {
+                InstrumentParams::SliceMap(p.with_legacy_changes(&old))
+            }
+            (InstrumentParams::SliceDeck(p), InstrumentParams::SliceDeck(old)) => {
+                InstrumentParams::SliceDeck(p.with_legacy_changes(&old))
+            }
+            (InstrumentParams::WaveRide(p), InstrumentParams::WaveRide(old)) => {
+                InstrumentParams::WaveRide(p.with_legacy_changes(&old))
+            }
             (p, _) => p,
         };
         self.set_instrument(index, checked_instrument(params)?);
@@ -3453,7 +3483,9 @@ impl Transaction<'_> {
         }
         let params = checked_effect(params)?;
         if let EffectParams::Scratch(p) = params {
-            if p.source_id != 0 { self.sample_index(SampleId(p.source_id))?; }
+            if p.source_id != 0 {
+                self.sample_index(SampleId(p.source_id))?;
+            }
         }
         self.change_track(track, |track| track.effects[slot].params = params);
         Ok("Change effect settings")
@@ -4358,7 +4390,12 @@ impl Transaction<'_> {
         let old = self.project.channels[index].clone();
         let new = Channel {
             sample_playback: if matches!(&source, ChannelSource::Instrument { params, .. }
-                if crate::sample_playback::supported(params.kind())) { old.sample_playback.clone() } else { None },
+                if crate::sample_playback::supported(params.kind()))
+            {
+                old.sample_playback.clone()
+            } else {
+                None
+            },
             source,
             ..old.clone()
         };

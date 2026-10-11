@@ -75,7 +75,10 @@ fn inverted_delay_swaps_the_echo_sides_persists_and_matches_live_offline() {
     .unwrap();
     let stereo = audio(doc.project(), &rig, 64);
     let (left, right) = sides(&stereo);
-    assert!(left > 1.0, "the echoes of a left sound are on the left: {left}");
+    assert!(
+        left > 1.0,
+        "the echoes of a left sound are on the left: {left}"
+    );
     assert!(right < left * 1.0e-3, "{right} against {left}");
 
     let mode = DelayParams::descriptors()

@@ -3,7 +3,7 @@ use ts_rs::TS;
 
 use crate::blocks::math::clean;
 use crate::param::{
-    approach_value, param_set, ParamInfo, ParamKind, ParamScale, ParamSet, ParamUnit,
+    ParamInfo, ParamKind, ParamScale, ParamSet, ParamUnit, approach_value, param_set,
 };
 
 /// Controls for a tunable eight-mode membrane and coupled cavity.

@@ -72,7 +72,7 @@ impl Rig {
         });
         let channel = ChannelId(self.id());
         self.project.channels.push(Channel {
-                sample_playback: None,
+            sample_playback: None,
             id: channel,
             name: String::new(),
             color: 0,

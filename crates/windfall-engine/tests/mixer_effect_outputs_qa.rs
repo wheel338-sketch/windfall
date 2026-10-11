@@ -840,8 +840,8 @@ fn qa_transient_split_routes_follow_commands_history_file_and_offline_render() {
 
 #[test]
 fn qa_band_split_routes_each_band_through_tracks_history_files_and_export() {
-    use windfall_dsp::{BandSplit, BandSplitParams};
     use windfall_dsp::multiband::BandCount;
+    use windfall_dsp::{BandSplit, BandSplitParams};
     for mode in [BandCount::Two, BandCount::Three] {
         let mut rig = Rig::new();
         let source = rig.track();
@@ -849,27 +849,47 @@ fn qa_band_split_routes_each_band_through_tracks_history_files_and_export() {
         let channel = rig.channel_on(counting(RATE, 2_000), source);
         rig.steps(channel, &[0]);
         let input = left(&rig.play(RATE, FRAMES, 127));
-        let params = BandSplitParams { bands: mode, ..Default::default() };
+        let params = BandSplitParams {
+            bands: mode,
+            ..Default::default()
+        };
         let effect = rig.effect(source, EffectParams::BandSplit(params));
         // A later processor and the source fader cannot alter routed bands.
         rig.effect(source, flip());
         rig.track_mut(source).volume = 0.25;
         let mut doc = Document::new(rig.project.clone());
         for (output, target) in targets.iter().enumerate() {
-            doc.dispatch(Command::SetEffectOutput {
-                effect, output: output as u8, target: Some(*target),
-            }, None).unwrap();
+            doc.dispatch(
+                Command::SetEffectOutput {
+                    effect,
+                    output: output as u8,
+                    target: Some(*target),
+                },
+                None,
+            )
+            .unwrap();
         }
         let routed = doc.project().clone();
         doc.undo().unwrap();
         assert_eq!(doc.project().mixer.effect_outputs.len(), 2);
         doc.redo().unwrap();
         assert_eq!(doc.project(), &routed);
-        assert!(doc.dispatch(Command::SetEffectOutput {
-            effect, output: 3, target: Some(targets[0]),
-        }, None).is_err());
+        assert!(
+            doc.dispatch(
+                Command::SetEffectOutput {
+                    effect,
+                    output: 3,
+                    target: Some(targets[0]),
+                },
+                None
+            )
+            .is_err()
+        );
         rig.project = file::from_json(&file::to_json(doc.project()).unwrap()).unwrap();
-        assert_eq!(rig.project.mixer.effect_outputs, routed.mixer.effect_outputs);
+        assert_eq!(
+            rig.project.mixer.effect_outputs,
+            routed.mixer.effect_outputs
+        );
         let mut dsp = BandSplit::default();
         dsp.prepare(RATE as f32, 512);
         dsp.set_params(&params);
@@ -881,18 +901,29 @@ fn qa_band_split_routes_each_band_through_tracks_history_files_and_export() {
             let heard = rig.play(RATE, FRAMES, 127);
             for (n, pair) in heard.chunks_exact(2).enumerate() {
                 for side in 0..2 {
-                    assert!((pair[side] - expected[n][band][side]).abs() < 2e-6,
-                        "{mode:?}, band {band}, frame {n}");
+                    assert!(
+                        (pair[side] - expected[n][band][side]).abs() < 2e-6,
+                        "{mode:?}, band {band}, frame {n}"
+                    );
                 }
             }
             assert_eq!(heard, rig.play(RATE, FRAMES, 1));
             assert_eq!(heard, rig.play(RATE, FRAMES, 64));
-            let exported = render(&rig.project, &rig.pool, &RenderOptions {
-                sample_rate: RATE, block_frames: 127, ..Default::default()
-            }, &mut |_| true);
+            let exported = render(
+                &rig.project,
+                &rig.pool,
+                &RenderOptions {
+                    sample_rate: RATE,
+                    block_frames: 127,
+                    ..Default::default()
+                },
+                &mut |_| true,
+            );
             assert_eq!(&heard[..FRAMES * 2], &exported.samples()[..FRAMES * 2]);
         }
-        for target in targets { rig.track_mut(target).muted = false; }
+        for target in targets {
+            rig.track_mut(target).muted = false;
+        }
         let together = left(&rig.play(RATE, FRAMES, 127));
         for n in 0..FRAMES {
             let sum: f32 = expected[n].iter().map(|frame| frame[0]).sum();
@@ -903,9 +934,14 @@ fn qa_band_split_routes_each_band_through_tracks_history_files_and_export() {
         controller.play();
         let mut buffer = [0.0; 254];
         processor.process(&mut buffer);
-        assert_eq!(allocator_calls(|| {
-            for _ in 0..24 { processor.process(&mut buffer); }
-        }), 0);
+        assert_eq!(
+            allocator_calls(|| {
+                for _ in 0..24 {
+                    processor.process(&mut buffer);
+                }
+            }),
+            0
+        );
         // Destinations have independent processors: invert only the low band.
         rig.effect(targets[0], flip());
         let processed = left(&rig.play(RATE, FRAMES, 127));
@@ -915,8 +951,12 @@ fn qa_band_split_routes_each_band_through_tracks_history_files_and_export() {
         }
         // Off at startup: the chain gets dry audio and destinations get silence.
         rig.effect_mut(effect).enabled = false;
-        for target in targets { rig.track_mut(target).muted = true; }
+        for target in targets {
+            rig.track_mut(target).muted = true;
+        }
         let bypass = left(&rig.play(RATE, FRAMES, 127));
-        for n in 0..FRAMES { assert!((bypass[n] + 0.25 * input[n]).abs() < 1e-6); }
+        for n in 0..FRAMES {
+            assert!((bypass[n] + 0.25 * input[n]).abs() < 1e-6);
+        }
     }
 }

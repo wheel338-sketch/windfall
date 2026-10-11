@@ -174,8 +174,13 @@ async fn mixer_preset_library_delete(
 }
 
 #[tauri::command]
-async fn sample_playback_detect(session: State<'_, Session>, channel: windfall_project::ChannelId,
-    options: windfall_ipc::SliceOptions, generation: u64, revision: u64) -> Result<DispatchResult, String> {
+async fn sample_playback_detect(
+    session: State<'_, Session>,
+    channel: windfall_project::ChannelId,
+    options: windfall_ipc::SliceOptions,
+    generation: u64,
+    revision: u64,
+) -> Result<DispatchResult, String> {
     let session = session.inner().clone();
     blocking(move || session.sample_playback_detect(channel, options, generation, revision)).await
 }
