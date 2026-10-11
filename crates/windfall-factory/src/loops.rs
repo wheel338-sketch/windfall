@@ -213,6 +213,28 @@ pub fn metadata_json() -> String {
 mod tests {
     use super::*;
     #[test]
+    fn independent_wav_decode_and_pitch_measurement() {
+        let source = LOOPS[4].render_fit(100.0, 0).unwrap();
+        let fit = LOOPS[4].render_fit(100.0, 2).unwrap();
+        let bytes = fit.to_wav();
+        let mut reader = hound::WavReader::new(bytes.as_slice()).unwrap();
+        assert_eq!(reader.spec().sample_rate, 48000);
+        assert_eq!(reader.spec().channels, 2);
+        let samples: Vec<i32> = reader.samples::<i32>().map(Result::unwrap).collect();
+        assert_eq!(samples, fit.samples());
+        let spectrum = |audio: &Rendered| {
+            let mono: Vec<_> = (12000..24000)
+                .map(|frame| audio.samples()[frame * 2] as f64 / 8_388_608.0)
+                .collect();
+            crate::analysis::Spectrum::of(&mono, 48000.0)
+        };
+        // Independent A440 equal-temperament C2=65.406 and D2=73.416 Hz.
+        let original = spectrum(&source);
+        let shifted = spectrum(&fit);
+        assert!(original.share(61.0, 69.0) > original.share(70.0, 78.0) * 2.0);
+        assert!(shifted.share(70.0, 78.0) > shifted.share(61.0, 69.0) * 2.0);
+    }
+    #[test]
     fn byte_stable_generation_and_metadata() {
         for asset in manifest() {
             assert_eq!(asset.render().to_wav(), asset.render().to_wav());

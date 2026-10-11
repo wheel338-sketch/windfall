@@ -46,6 +46,17 @@ impl Session {
         generation: u64,
         revision: u64,
     ) -> Result<DispatchResult, String> {
+        self.loop_insert_with_rows(id, key, place, generation, revision, None)
+    }
+    pub(crate) fn loop_insert_with_rows(
+        &self,
+        id: &str,
+        key: Option<u8>,
+        place: ClipPlace,
+        generation: u64,
+        revision: u64,
+        row: Option<usize>,
+    ) -> Result<DispatchResult, String> {
         let asset = loops::manifest()
             .iter()
             .find(|l| l.id == id)
@@ -75,7 +86,7 @@ impl Session {
             let project = state.document.project();
             let held = project.samples.iter().find(|s| s.path == path);
             let sample = held.map(|s| s.id).unwrap_or(SampleId(project.next_id));
-            let next = if held.is_some() {
+            let mut next = if held.is_some() {
                 project.next_id
             } else {
                 project.next_id.saturating_add(1)
@@ -91,6 +102,31 @@ impl Session {
                     ),
                     path,
                 });
+            }
+            if let Some(row) = row {
+                match place.track {
+                    Some(id) if project.playlist.tracks.get(row).is_some_and(|t| t.id == id) => {}
+                    Some(_) => {
+                        return Err("Loop drop row no longer matches its playlist track.".into());
+                    }
+                    None if row >= project.playlist.tracks.len()
+                        && row - project.playlist.tracks.len() <= 128 =>
+                    {
+                        for _ in project.playlist.tracks.len()..row {
+                            commands.push(Command::AddPlaylistTrack {
+                                name: None,
+                                index: None,
+                            });
+                            next = next.saturating_add(1);
+                        }
+                    }
+                    None => {
+                        return Err(
+                            "Loop drop destination is invalid or needs more than 128 new rows."
+                                .into(),
+                        );
+                    }
+                }
             }
             let mut clips = audio_clip_commands(project, sample, &buffer, asset.name, place, next);
             // Exact musical span rather than ceil(duration) rounding; source is

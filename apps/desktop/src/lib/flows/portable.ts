@@ -1,6 +1,7 @@
 import { create } from "zustand"
 import { toast } from "sonner"
 import { useRecordingStore } from "@/features/transport/recording-store"
+import { backupAfterSave, prepareBackupAfterSave } from "@/features/backup/store"
 import { backend, errorMessage } from "@/lib/ipc"
 import { registry } from "@/lib/actions/registry"
 import { reportError } from "@/lib/errors"
@@ -49,11 +50,13 @@ export async function saveNewVersion(): Promise<boolean> {
         ? await backend.pickProjectSavePath(projectName())
         : undefined
     if (base === null) return false
+    const backup = await prepareBackupAfterSave()
     const saved = await backend.projectSaveNewVersion(base)
     // Rust publishes the dirty flag. A concurrent edit remains dirty.
     await refetchSnapshot()
     toast.success("Saved new version", { description: fileName(saved) })
     void refreshRecentProjects()
+    void backupAfterSave(backup, saved, true)
     return true
   } catch (error) {
     reportError(error, "Could not save a new version")

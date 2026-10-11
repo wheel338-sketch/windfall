@@ -322,7 +322,7 @@ export function PlaylistGrid({ metrics }: { metrics: GridMetrics }) {
       const row = documentRowFor(place.row)
       if (row === undefined) return
       containerRef.current?.focus({ preventScroll: true })
-      void insertFactoryLoop(loop, place.start, project().playlist.tracks[row]?.id ?? null)
+      void insertFactoryLoop(loop, place.start, project().playlist.tracks[row]?.id ?? null, row)
       return
     }
     const sample = readSampleDrag(event)

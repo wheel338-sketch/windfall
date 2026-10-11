@@ -3,10 +3,12 @@ import userEvent from "@testing-library/user-event"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import type { BackupVersion } from "@/bindings"
 import { setBackend } from "@/lib/ipc"
+import { openProjectPath } from "@/lib/flows/project"
 import { useProjectStore } from "@/lib/store/project"
 import { startTestApp } from "@/test/harness"
 import { FolderBackupPanel } from "./panel"
 import { backupAfterSave, prepareBackupAfterSave, useBackupConfig, useBackupJob } from "./store"
+vi.mock("@/lib/flows/project", () => ({ openProjectPath: vi.fn(async () => {}) }))
 
 const version: BackupVersion = { id: "a".repeat(64), parent: null, checksum: "b".repeat(64), bytes: 42, createdMs: 1000 }
 describe("folder backup panel", () => {
@@ -54,5 +56,15 @@ describe("folder backup panel", () => {
     await backupAfterSave(ticket, "/song.windfall")
     expect(backupSave).toHaveBeenCalledWith("/backup", version.id, 3, 9)
     expect(useBackupConfig.getState().projects["/song.windfall"].head).toBe("c".repeat(64))
+  })
+  it("restores to a chosen new archive and uses the ordinary open flow", async () => {
+    useProjectStore.setState({ path: "/song.windfall" })
+    useBackupConfig.setState({ projects: { "/song.windfall": { folder: "/backup", keep: 2, afterSave: false, head: version.id } } })
+    const backupRestore=vi.fn(async () => "/restored.zip")
+    setBackend({ ...app.backend, kind: "tauri", backupVersions: async () => [version], backupRestore, pickProjectArchivePath: async () => "/restored.zip" })
+    render(<FolderBackupPanel />)
+    await userEvent.setup().click(await screen.findByRole("button", { name: "Restore aaaaaaaa" }))
+    await waitFor(() => expect(backupRestore).toHaveBeenCalledWith("/backup",version.id,"/restored.zip"))
+    expect(openProjectPath).toHaveBeenCalledWith("/restored.zip")
   })
 })

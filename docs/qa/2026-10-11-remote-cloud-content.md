@@ -21,24 +21,29 @@ not executed**. Parity status is owned by the overseer and remains untouched.
   the existing portable archive including plugin/audio state. Browser Cloud
   backup tab exposes folder selection, manual backup, history, refresh, cancel,
   retention and verified restore through the normal project-open flow.
-  Per-project opt-in backup after ordinary Save is wired; original native
+  Per-project opt-in backup after ordinary Save and Save new version is wired; original native
   generation is carried through capture so replacement cannot upload a new song.
 - `core-loop-starter`: eight original two-bar synthesized CC0 genre loops with
   metadata/provenance, deterministic native generator, tempo/key resynthesis,
   guarded source/clip insertion through a single undo batch. Browser Loops tab
   filters genre, source key and tempo, auditions, inserts, and drags a guarded
-  loop payload into the playlist. Derived cache WAVs get provenance sidecars.
+  loop payload into the playlist, including blank destination rows in the same
+  undo batch. Derived cache WAVs get provenance sidecars.
 
 ## Tests written, not executed
 
 - `backup::tests::checksum_conflict_cancel_retention_and_restore_round_trip`
+- `backup::tests::independent_sha256_reference_and_mid_chunk_cancel`
 - `remote_protocol::tests::{rfc6455_handshake_reference,masked_text_and_limits}`
 - `session::phone_remote::tests::authentication_replay_expiry_and_rate_limits`
 - `windfall_factory::loops::tests::{byte_stable_generation_and_metadata,tempo_fit_preserves_bars_and_key_fit_changes_pitch}`
+- `windfall_factory::loops::tests::independent_wav_decode_and_pitch_measurement`
 - `session::tests::remote_cloud_content::{remote_named_command_undo_stale_and_recording_guards,loopback_pair_websocket_fader_and_undo,backup_portable_project_restore_round_trip_and_original_generation,loop_fit_insertion_one_undo_save_reopen_and_provenance,rendered_loop_cannot_attach_to_replaced_or_recording_document}`
+- `session::tests::remote_cloud_content::loop_drop_creates_blank_rows_and_clip_in_one_undo_step`
 - Mounted UI: `features/settings/phone-remote.test.tsx` (explicit enable/pair/
-  disable and native capability error), `features/backup/panel.test.tsx` (explicit
-  folder/manual backup, conflict/cancel, opt-in after-save generation/head),
+  disable, bind failure and native capability error), `features/backup/panel.test.tsx` (explicit
+  folder/manual backup, conflict/cancel, opt-in after-save generation/head,
+  verified archive restore through ordinary open),
   `features/loops/browser.test.tsx` (filter/audition/drop payload and insertion call).
 
 ## Integrator commands (not run by this worker)
@@ -69,14 +74,14 @@ is formatting, not compilation or acceptance evidence.
 | Row | Claim | Remaining |
 | --- | --- | --- |
 | `core-fl-studio-remote` | Full-row software candidate, unverified | Integrator compilation/tests and real phone/LAN/firewall checks. HTTP is local plain text, with no TLS or Internet binding. |
-| `fmt-cloud-backup` | Partial; folder-provider software candidate | User-selected real provider/account and adapter, plus synced-drive/remote CAS validation. Automatic hook currently covers ordinary Save, not Save new version. |
+| `fmt-cloud-backup` | Partial; folder-provider software candidate | User-selected real provider/account and adapter, plus synced-drive/remote CAS validation. |
 | `core-loop-starter` | Full-row software candidate, unverified | Factory asset regeneration, compilation/tests and listening/cross-platform byte checks. All v1 melodic loops are minor; fit is on insertion, not automatic after later project-tempo changes. |
 
 Shared seams touched: native `commands.rs`, `lib.rs`, `session/mod.rs`,
 `session/tests/mod.rs`, `session/archive.rs`, `session/transport.rs`;
 `windfall-ipc/src/lib.rs`, factory `src/lib.rs`; frontend IPC
 `backend.ts`, `tauri.ts`, `mock.ts`, browser `index.tsx`, playlist `grid.tsx`,
-settings `settings-dialog.tsx`, and ordinary Save flow `lib/flows/project.ts`.
+settings `settings-dialog.tsx`, and Save flows `lib/flows/{project,portable}.ts`.
 No new project Command variants, descriptor indices, persisted Project fields,
 DSP callback work or generated binding/WASM edits were introduced.
 

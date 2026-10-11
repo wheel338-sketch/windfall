@@ -5,10 +5,11 @@ import { getProjectGeneration } from "@/lib/store/replaced"
 import { revealClip } from "@/features/playlist/reveal"
 import type { LoopDrag } from "./drag"
 
-export async function insertFactoryLoop(loop: LoopDrag, start: number, track: number | null = null): Promise<boolean> {
+export async function insertFactoryLoop(loop: LoopDrag, start: number, track: number | null = null, row?: number): Promise<boolean> {
   const localGeneration = getProjectGeneration()
   try {
-    const result = await backend.loopInsert(loop.id, loop.key, track, Math.max(0, Math.round(start)), loop.generation, loop.revision)
+    const args = [loop.id, loop.key, track, Math.max(0, Math.round(start)), loop.generation, loop.revision] as const
+    const result = row === undefined ? await backend.loopInsert(...args) : await backend.loopInsert(...args, row)
     if (localGeneration !== getProjectGeneration()) return false
     receivePatch(result.patch)
     // IDs are global, and clips are song-ordered; never assume the last clip.

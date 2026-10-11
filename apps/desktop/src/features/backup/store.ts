@@ -22,8 +22,8 @@ export async function prepareBackupAfterSave(): Promise<SaveTicket | null> {
   try { const { generation } = await backend.loopCatalog(); return { path, generation, config } }
   catch (error) { toast.error("Could not prepare optional backup", { description: errorMessage(error) }); return null }
 }
-export async function backupAfterSave(ticket: SaveTicket | null, saved: string): Promise<void> {
-  if (!ticket || saved !== ticket.path || !ticket.config.folder) return
+export async function backupAfterSave(ticket: SaveTicket | null, saved: string, numberedVersion = false): Promise<void> {
+  if (!ticket || (!numberedVersion && saved !== ticket.path) || !ticket.config.folder) return
   if (useBackupJob.getState().busy) {
     const error = "Project saved. Optional backup skipped because another backup job is running."
     useBackupJob.setState({ error }); toast.error(error); return
@@ -33,7 +33,10 @@ export async function backupAfterSave(ticket: SaveTicket | null, saved: string):
     const row = await backend.backupSave(ticket.config.folder, ticket.config.head, ticket.config.keep, ticket.generation)
     // Do not overwrite settings changed while the job was running.
     const current = useBackupConfig.getState().projects[ticket.path]
-    if (current?.folder === ticket.config.folder) rememberBackup(ticket.path, { ...current, head: row.id })
+    if (current?.folder === ticket.config.folder) {
+      rememberBackup(ticket.path, { ...current, head: row.id })
+      if (numberedVersion && saved !== ticket.path && !useBackupConfig.getState().projects[saved]) rememberBackup(saved, { ...current, head: row.id })
+    }
     useBackupJob.setState({ result: "Backup created after Save." })
   } catch (error) {
     const message = errorMessage(error)

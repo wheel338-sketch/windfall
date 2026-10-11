@@ -15,6 +15,30 @@ fn place() -> ClipPlace {
     }
 }
 #[test]
+fn loop_drop_creates_blank_rows_and_clip_in_one_undo_step() {
+    let rig = Rig::new();
+    let before = rig.project();
+    let catalog = rig.session.loop_catalog();
+    let row = before.playlist.tracks.len() + 3;
+    rig.session
+        .loop_insert_with_rows(
+            "house-a",
+            None,
+            place(),
+            catalog.generation,
+            catalog.revision,
+            Some(row),
+        )
+        .unwrap();
+    let project = rig.project();
+    assert_eq!(
+        project.playlist.clips[0].track,
+        project.playlist.tracks[row].id
+    );
+    rig.session.undo().unwrap();
+    assert_eq!(rig.project(), before);
+}
+#[test]
 fn remote_named_command_undo_stale_and_recording_guards() {
     let rig = Rig::new();
     let generation = rig.session.loop_catalog().generation;

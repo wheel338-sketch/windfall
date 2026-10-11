@@ -82,7 +82,8 @@ impl FolderProvider {
         if file.metadata().map_err(err)?.len() > 2 * 1024 * 1024 {
             return Err("Backup history exceeds its limit.".into());
         }
-        let rows: Vec<BackupVersion> = serde_json::from_reader(file.take(2 * 1024 * 1024 + 1)).map_err(err)?;
+        let rows: Vec<BackupVersion> =
+            serde_json::from_reader(file.take(2 * 1024 * 1024 + 1)).map_err(err)?;
         if rows.len() > MAX_VERSIONS {
             return Err("Too many backup versions.".into());
         }
@@ -90,8 +91,12 @@ impl FolderProvider {
         for (index, row) in rows.iter().enumerate() {
             self.object(&row.id)?;
             self.object(&row.checksum)?;
-            if let Some(parent) = &row.parent { self.object(parent)?; }
-            if index > 0 && row.parent.as_ref() != Some(&rows[index-1].id) {return Err("Backup history has a broken version chain.".into());}
+            if let Some(parent) = &row.parent {
+                self.object(parent)?;
+            }
+            if index > 0 && row.parent.as_ref() != Some(&rows[index - 1].id) {
+                return Err("Backup history has a broken version chain.".into());
+            }
             if row.bytes > MAX_ARCHIVE_BYTES || row.checksum.len() != 64 || !seen.insert(&row.id) {
                 return Err("Invalid backup history.".into());
             }
@@ -167,8 +172,9 @@ impl BackupProvider for FolderProvider {
         // Pruning after commit can leave harmless orphan objects on IO failure.
         for old in expired {
             if let Ok(path) = self.object(&old.id)
-                && let Err(e) = fs::remove_file(path) {
-                    log::warn!("Backup retention left an orphan: {e}");
+                && let Err(e) = fs::remove_file(path)
+            {
+                log::warn!("Backup retention left an orphan: {e}");
             }
         }
         Ok(version)
@@ -204,7 +210,11 @@ fn check(cancel: &AtomicBool) -> Result<(), String> {
         Ok(())
     }
 }
-fn copy_hash(source: &Path, out: &mut impl Write, cancel: &AtomicBool) -> Result<(String, u64), String> {
+fn copy_hash(
+    source: &Path,
+    out: &mut impl Write,
+    cancel: &AtomicBool,
+) -> Result<(String, u64), String> {
     let mut input = File::open(source).map_err(err)?;
     if input.metadata().map_err(err)?.len() > MAX_ARCHIVE_BYTES {
         return Err("Backup archive exceeds 2 GiB.".into());
@@ -231,6 +241,40 @@ fn copy_hash(source: &Path, out: &mut impl Write, cancel: &AtomicBool) -> Result
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn independent_sha256_reference_and_mid_chunk_cancel() {
+        let folder = tempfile::tempdir().unwrap();
+        let source = folder.path().join("source.zip");
+        fs::write(&source, b"abc").unwrap();
+        let cancel = AtomicBool::new(false);
+        let mut output = Vec::new();
+        let (checksum, bytes) = copy_hash(&source, &mut output, &cancel).unwrap();
+        assert_eq!(
+            checksum,
+            "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
+        );
+        assert_eq!(bytes, 3);
+        assert_eq!(output, b"abc");
+        fs::write(&source, vec![0; 128 * 1024]).unwrap();
+        struct CancelWriter<'a>(&'a AtomicBool, usize);
+        impl Write for CancelWriter<'_> {
+            fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+                self.1 += bytes.len();
+                self.0.store(true, Ordering::Release);
+                Ok(bytes.len())
+            }
+            fn flush(&mut self) -> std::io::Result<()> {
+                Ok(())
+            }
+        }
+        let mut writer = CancelWriter(&cancel, 0);
+        assert!(
+            copy_hash(&source, &mut writer, &cancel)
+                .unwrap_err()
+                .contains("cancelled")
+        );
+        assert_eq!(writer.1, 64 * 1024);
+    }
     #[test]
     fn checksum_conflict_cancel_retention_and_restore_round_trip() {
         let folder = tempfile::tempdir().unwrap();

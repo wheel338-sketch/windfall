@@ -9,7 +9,7 @@ export interface RemoteContentBackend {
   backupCancel(): Promise<void>
   loopCatalog(): Promise<LoopCatalog>
   loopPreview(id: string): Promise<void>
-  loopInsert(id: string, key: number | null, track: number | null, start: number, generation: number, revision: number): Promise<DispatchResult>
+  loopInsert(id: string, key: number | null, track: number | null, start: number, generation: number, revision: number, row?: number): Promise<DispatchResult>
 }
 type NativeCall = <T>(command: string, args?: Record<string, unknown>) => Promise<T>
 export function nativeRemoteContent(call: NativeCall): RemoteContentBackend {
@@ -22,7 +22,7 @@ export function nativeRemoteContent(call: NativeCall): RemoteContentBackend {
     backupCancel: () => call("backup_cancel"),
     loopCatalog: () => call("loop_catalog"),
     loopPreview: (id) => call("loop_preview", { id }),
-    loopInsert: (id, key, track, start, generation, revision) => call("loop_insert", { id, key, track, start, generation, revision }),
+    loopInsert: (id, key, track, start, generation, revision, row) => call("loop_insert", { id, key, track, start, generation, revision, row: row ?? null }),
   }
 }
 /** Browser mode must not invent a listener, filesystem or backup success. */

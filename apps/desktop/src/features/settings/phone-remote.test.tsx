@@ -30,4 +30,13 @@ describe("phone remote settings", () => {
     expect(await screen.findByText("This feature requires the Windfall desktop app.")).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "Enable phone remote" })).toBeDisabled()
   })
+  it("reports a refused bind and keeps the listener disabled", async () => {
+    const phoneRemoteSet=vi.fn(async () => {throw new Error("Remote binding requires a specific private IPv4 address.")})
+    setBackend({...app.backend,kind:"tauri",phoneRemoteState:async()=>({enabled:false,address:null,pairingCode:null}),phoneRemoteSet})
+    render(<PhoneRemoteSettings />)
+    await waitFor(()=>expect(screen.getByRole("button",{name:"Enable phone remote"})).toBeEnabled())
+    await userEvent.setup().click(screen.getByRole("button",{name:"Enable phone remote"}))
+    expect(await screen.findByText("Remote binding requires a specific private IPv4 address.")).toBeInTheDocument()
+    expect(screen.getByRole("button",{name:"Enable phone remote"})).toBeEnabled()
+  })
 })

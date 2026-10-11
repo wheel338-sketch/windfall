@@ -57,8 +57,9 @@ async fn loop_preview(session: State<'_, Session>, id: String) -> Result<(),Stri
     let session=session.inner().clone(); blocking(move ||session.loop_preview(&id)).await
 }
 #[tauri::command]
-async fn loop_insert(session: State<'_, Session>, id: String, key: Option<u8>, track: Option<PlaylistTrackId>, start: u32, generation:u64, revision:u64) -> Result<DispatchResult,String> {
-    let session=session.inner().clone(); blocking(move ||session.loop_insert(&id,key,ClipPlace {track,start,mixer_track:None},generation,revision)).await
+#[allow(clippy::too_many_arguments)]
+async fn loop_insert(session: State<'_, Session>, id: String, key: Option<u8>, track: Option<PlaylistTrackId>, start: u32, generation:u64, revision:u64, row:Option<usize>) -> Result<DispatchResult,String> {
+    let session=session.inner().clone(); blocking(move ||session.loop_insert_with_rows(&id,key,ClipPlace {track,start,mixer_track:None},generation,revision,row)).await
 }
 #[tauri::command]
 fn analysis_capability(session: State<'_, Session>) -> windfall_ipc::AnalysisCapability {
