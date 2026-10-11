@@ -2,6 +2,8 @@
 
 ## Running progress
 
+- Remaining engine acceptance targets pass: EQ/filter/stereo 8/0/0, additive/physical/drum 11/0/0, sample playback 4/0/0 (`target/round2-engine-remaining.log`). Native session focused run passes 430/0/8, with 85 unrelated tests filtered (`target/round2-session-focused.log`); ignored hardware cases were not executed. Next: formats/core analysis, final simulator refresh, mounted UI and strict/full gates.
+
 - Nonlinear host fixes verified: all 3 acceptance tests pass (`target/round2-nonlinear-host-repair2.log`). Exact live/export comparisons now align reported PDC. Trigger reference uses the engine's documented next-grid parameter delivery and checks every capture/wrap/release sample at the original 1e-6 bound. This exposed and fixed VolumeGate's delayed absolute-phase restoration on release, which had restarted a fade at arbitrary host block boundaries. Artifact provenance must be refreshed again after this product fix.
 
 - Engine focused checkpoint: echo admission now passes all 3 host gates after distributing fourteen banks across two legal seven-slot tracks (the original fixture exceeded the ten-slot track limit). The broader run passes engine library 238/0/1, built-in acceptance 18/0/0, delay bank 2/0/0, delay host 3/0/0, inverted delay 1/0/0 and E3 circuits 6/0/0; engine main has 363 passed/2 failed. Remaining failures are nonlinear live/offline latency alignment and recorded-trigger boundary expectations (`target/round2-engine-focused-repair.log`); still under diagnosis.
