@@ -198,6 +198,7 @@ pub mod recording;
 pub mod recording_endpoint;
 /// Bounded background history of the output and of chosen mixer tracks.
 pub mod audio_logger;
+pub mod track_workers;
 
 #[cfg(test)]
 mod qa_recording_mixer;

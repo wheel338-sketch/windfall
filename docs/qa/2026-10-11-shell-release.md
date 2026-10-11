@@ -212,3 +212,56 @@ successful event in the current project/window, rather than a dedicated tutorial
 export request token. Nonmodal focus and opening child dialogs require native
 webview verification. Pattern placement currently creates a lane and clip as
 two ordinary history operations when the playlist starts empty.
+
+## Multithreading: contained scheduler foundation, not live integration
+
+Determinism/allocation acceptance source was written before the implementation.
+`windfall-engine::track_workers` adds a safe ownership-transfer boundary for the
+existing `TrackProcessor` (post-slot EQ/stereo). Each value contains prepared DSP
+and two fixed 256-frame buffers. Control-side construction precreates 0–7 workers
+(1–8 total threads) and capacity-one `rtrb` queues using the existing dependency.
+The callback-facing submit/harvest/budget APIs move owners without closures,
+spawn, allocation, locks, OS wakes or blocking waits. Single-thread/refused work
+returns the entire owner for the exact same serial process method.
+
+At most 256 rounds × 7 queue probes are allowed. This is a known operation budget,
+**not a measured microsecond guarantee**. Idle workers park for 50 microseconds;
+OS dispatch latency remains external. A missed budget latches fallback for NEW
+work and leaves the in-flight owner with its worker. It must be harvested before
+replacement/retirement; the callback cannot race a second copy of DSP state.
+Control-side destruction stops and joins workers, never in the callback.
+
+`GraphWaves` compiles consecutive independent ranges of a supplied topological
+order with all audio/detector/aux dependencies. It rejects bad orders/cycles;
+Current/hosted-unsafe tracks can be singleton barriers. Results occupy indexed
+slots so the caller can preserve the original floating-point accumulation order.
+It does not substitute completion order for plan order.
+
+Written, not executed: registered `tests/engine/multithreading.rs`:
+`track_workers_match_serial_bits_across_blocks_and_reversed_completion_order`,
+`bounded_handoff_exhaustion_and_deadline_miss_return_or_retain_the_owner_without_allocator_calls`,
+`one_thread_and_invalid_lane_use_serial_without_spawning_or_losing_track_state`,
+`graph_waves_preserve_serial_sum_order_and_include_detector_dependencies`.
+Unit tests `worker_dsp_allocator_is_guarded_on_the_actual_worker_thread` and
+`malformed_blocks_do_not_change_the_owned_buffers` cover actual worker-thread
+DSP allocator calls and atomic refusal of malformed blocks. The integration
+allocator guard covers submit/poll/refusal/serial process/recovery on the caller.
+
+```powershell
+cargo test -p windfall-engine --lib track_workers
+cargo test -p windfall-engine --test engine multithreading
+cargo test -p windfall-engine --test engine realtime
+```
+
+**Partial. Production processor/mixer/plan are still single-threaded.** No thread
+setting is exposed as if it changed live playback. The serial mixer combines
+mutable effect slots, aux/sidechain/taps, PDC and Current routing inside one track
+loop. Shipping parallel execution needs a prepared per-track owner that covers
+that WHOLE loop, deterministic edge reduction, deadline-output policy, delayed
+owner retirement during plan swaps/project replacement and offline/live parity.
+The present boundary covers only post-slot EQ/stereo and is a reusable source
+foundation, not a multicore DAW claim. Full-render bit identity across routing,
+automation, plugin failure and plan swaps, callback allocator checks of the live
+path, thread-count persistence/mounted Settings, priority/affinity, and measured
+worst-case budgets on Windows/macOS/Linux remain. First compile checks: Send on
+TrackProcessor, ring queue ownership and large by-value error/clippy policy.
