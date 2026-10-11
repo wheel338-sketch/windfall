@@ -10,7 +10,8 @@ and repairs after merging. The two runs that did happen are listed under
 
 No row is claimed done here. Each row lists what was implemented, the tests
 written for it, the spots most likely to fail to compile or pass, and what
-stays open.
+stays open. What the features do is described in
+[RACK-VOICE-TOOLS.md](../RACK-VOICE-TOOLS.md).
 
 ## What was executed, and when
 
@@ -252,7 +253,10 @@ Tests written:
   `mute_and_solo_treat_a_layer_as_the_source_of_its_childrens_notes`,
   `layers_sound_the_same_offline_and_never_allocate_on_the_audio_path`.
   These five passed in the one run above.
-- Project `layer.rs` unit tests (five) and `tests/rack_voice.rs`:
+- Project `layer.rs` unit tests (five). The project crate's unit tests passed
+  (175) in the one full run above, which was made after `layer.rs` existed,
+  so these five ran then. The file was only reformatted since.
+- Project `tests/rack_voice.rs`:
   `a_layer_is_set_checked_undone_and_saved_as_one_edit`,
   `deleting_a_child_takes_it_out_of_its_layers_in_the_same_undo_step`,
   `a_duplicated_layer_keeps_its_children_and_a_new_layer_is_one_batch`,

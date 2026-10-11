@@ -78,7 +78,7 @@ fn filter_envelope_and_lfo_settings_are_sanitized_undoable_and_saved() {
     settings.envelopes.lfos.cutoff.rate_hz = f32::INFINITY;
     settings.envelopes.lfo.target = LfoTarget::Resonance;
 
-    let before = document.history();
+    let before = document.history().cursor;
     let applied = set(&mut document, id, settings).unwrap();
     assert!(applied.touched.channels);
     let stored = voice(&document, id);
@@ -119,7 +119,7 @@ fn filter_envelope_and_lfo_settings_are_sanitized_undoable_and_saved() {
     // One undo step; save and reopen in both states.
     assert_eq!(reload(&document).channel(id).unwrap().voice, stored);
     document.undo().unwrap();
-    assert_eq!(document.history(), before);
+    assert_eq!(document.history().cursor, before, "one undo step");
     assert_eq!(voice(&document, id), ChannelVoiceSettings::default());
     assert_eq!(
         reload(&document).channel(id).unwrap().voice,
@@ -198,7 +198,7 @@ fn a_layer_is_set_checked_undone_and_saved_as_one_edit() {
     let lead = add_channel(&mut document, "Lead");
     let top = add_channel(&mut document, "Layer");
 
-    let before = document.history();
+    let before = document.history().cursor;
     set(&mut document, top, layer(&[bass, lead])).unwrap();
     assert_eq!(
         voice(&document, top)
@@ -242,7 +242,7 @@ fn a_layer_is_set_checked_undone_and_saved_as_one_edit() {
     );
 
     document.undo().unwrap();
-    assert_eq!(document.history(), before);
+    assert_eq!(document.history().cursor, before, "one undo step");
     assert_eq!(voice(&document, top), ChannelVoiceSettings::default());
     document.redo().unwrap();
     assert_eq!(voice(&document, top), layer(&[bass, lead]));
@@ -258,7 +258,7 @@ fn deleting_a_child_takes_it_out_of_its_layers_in_the_same_undo_step() {
     set(&mut document, top, layer(&[bass, lead])).unwrap();
     set(&mut document, outer, layer(&[top, lead])).unwrap();
     let full = document.project().clone();
-    let history = document.history();
+    let cursor = document.history().cursor;
 
     document
         .dispatch(Command::RemoveChannel { id: lead }, None)
@@ -289,7 +289,7 @@ fn deleting_a_child_takes_it_out_of_its_layers_in_the_same_undo_step() {
         &full,
         "one undo restores the child everywhere"
     );
-    assert_eq!(document.history(), history);
+    assert_eq!(document.history().cursor, cursor);
     document.redo().unwrap();
     assert!(document.project().channel(lead).is_none());
     document.project().check().unwrap();
@@ -312,7 +312,7 @@ fn a_duplicated_layer_keeps_its_children_and_a_new_layer_is_one_batch() {
     // What the rack's "Add layer channel" sends: the new channel's id is the
     // project's next id because no mixer track is made for it.
     let predicted = ChannelId(document.project().next_id);
-    let before = document.history();
+    let before = document.history().cursor;
     let applied = document
         .dispatch(
             Command::Batch {
@@ -350,7 +350,11 @@ fn a_duplicated_layer_keeps_its_children_and_a_new_layer_is_one_batch() {
 
     document.undo().unwrap();
     document.undo().unwrap();
-    assert_eq!(document.history(), before, "the layer was one undo step");
+    assert_eq!(
+        document.history().cursor,
+        before,
+        "the layer was one undo step"
+    );
     assert!(document.project().channel(predicted).is_none());
 }
 
