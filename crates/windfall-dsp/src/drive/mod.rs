@@ -1,16 +1,19 @@
 //! Drawn curves, asymmetric overdrive, guitar pedals and a series drive chain.
 //!
-//! All processing is at the host sample rate. Sharp curves and clipping can
-//! alias; see `docs/integration/seams/drive.md` for the integration limits.
+//! The nonlinear stages run above the host rate through `oversample`, which
+//! delays by [`DRIVE_LATENCY_SAMPLES`] at every quality setting. See
+//! `docs/integration/seams/drive.md` for what each processor does.
 
 mod chain;
 mod guitar;
 mod overdrive;
+mod oversample;
 mod waveshaper;
 
 pub use chain::{DriveChain, DriveChainParams, DriveStage, DriveStageParams};
 pub use guitar::{GuitarModel, GuitarRack, GuitarRackParams};
 pub use overdrive::{Overdrive, OverdriveParams};
+pub use oversample::{DRIVE_LATENCY_SAMPLES, Oversampling};
 pub use waveshaper::{CURVE_POINTS, IDENTITY_CURVE, Waveshaper, WaveshaperParams};
 
 /// Different positive and negative ceilings, continuous with unit slope at
@@ -25,5 +28,7 @@ fn asymmetric(input: f32, asymmetry: f32) -> f32 {
     input / (1.0 + input.abs() / ceiling)
 }
 
+#[cfg(test)]
+mod shaping_tests;
 #[cfg(test)]
 mod tests;

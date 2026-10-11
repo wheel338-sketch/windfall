@@ -523,8 +523,8 @@ impl EffectKind {
             }
             EffectKind::BassHarmonics => crate::multiband::HARMONICS_LATENCY_SAMPLES,
             EffectKind::Exciter => crate::multiband::HARMONICS_LATENCY_SAMPLES,
-            EffectKind::Waveshaper => 0,
-            EffectKind::Overdrive => 0,
+            EffectKind::Waveshaper => crate::drive::DRIVE_LATENCY_SAMPLES,
+            EffectKind::Overdrive => crate::drive::DRIVE_LATENCY_SAMPLES,
             EffectKind::GuitarRack => 0,
             EffectKind::DriveChain => 0,
             EffectKind::VintageChorus => 0,
@@ -1013,8 +1013,8 @@ impl EffectParams {
             }
             EffectParams::BassHarmonics(_) => crate::multiband::HARMONICS_LATENCY_SAMPLES,
             EffectParams::Exciter(_) => crate::multiband::HARMONICS_LATENCY_SAMPLES,
-            EffectParams::Waveshaper(_) => 0,
-            EffectParams::Overdrive(_) => 0,
+            EffectParams::Waveshaper(_) => crate::drive::DRIVE_LATENCY_SAMPLES,
+            EffectParams::Overdrive(_) => crate::drive::DRIVE_LATENCY_SAMPLES,
             EffectParams::GuitarRack(_) => 0,
             EffectParams::DriveChain(_) => 0,
             EffectParams::VintageChorus(_) => 0,
