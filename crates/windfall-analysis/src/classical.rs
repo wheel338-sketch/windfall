@@ -1,6 +1,6 @@
 //! Actual CPU algorithms; worker-only, bounded to two minutes / mono/stereo.
 //! Spectral polyphony is a heuristic for sparse tonal audio, not source separation.
-use crate::pitch::{PitchAnalyzer, PitchConfig, PitchLimits, PitchSource};
+use crate::pitch::{PitchAnalyzer, PitchConfig, PitchError, PitchLimits, PitchSource};
 use crate::{AnalysisError, AudioShape, FrameRange, Result, Work};
 use rustfft::{num_complex::Complex, FftPlanner};
 use windfall_core::AudioBuffer;
@@ -116,20 +116,24 @@ fn mono_notes(
     };
     let mut analyzer = PitchAnalyzer::prepare(config, PitchLimits::default(), work)
         .map_err(|e| AnalysisError::Adapter(e.to_string()))?;
-    let analysis = analyzer
-        .analyze(
-            PitchSource {
-                pcm: audio.samples(),
-                shape: AudioShape::of(audio),
-                range: FrameRange {
-                    start: 0,
-                    end: audio.frames() as u64,
-                },
-                frame_origin: 0,
+    let analysis = match analyzer.analyze(
+        PitchSource {
+            pcm: audio.samples(),
+            shape: AudioShape::of(audio),
+            range: FrameRange {
+                start: 0,
+                end: audio.frames() as u64,
             },
-            work,
-        )
-        .map_err(|e| AnalysisError::Adapter(e.to_string()))?;
+            frame_origin: 0,
+        },
+        work,
+    ) {
+        Ok(analysis) => analysis,
+        // A short clip can still use warp/noise tools; never fabricate a pitch
+        // from less than the detector's calibrated support window.
+        Err(PitchError::TooShort { .. }) => return Ok(Vec::new()),
+        Err(error) => return Err(AnalysisError::Adapter(error.to_string())),
+    };
     let mut out: Vec<DetectedAudioNote> = Vec::new();
     let mut count = 0_u32;
     for cell in analysis.estimates() {

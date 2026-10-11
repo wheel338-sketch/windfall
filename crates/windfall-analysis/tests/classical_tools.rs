@@ -199,6 +199,15 @@ fn warp_order_bounds_overrides_and_cancel_are_explicit() {
         classical::detect(&audio, false, &mut cancelled),
         Err(windfall_analysis::AnalysisError::Cancelled)
     ));
+    let short = signal(&[440.0], 640);
+    let r = recipe(&short);
+    assert!(r.analysis.notes.is_empty());
+    assert_eq!(
+        classical::render(&short, &r, &mut work())
+            .unwrap()
+            .samples(),
+        short.samples()
+    );
 }
 #[test]
 fn learned_profile_improves_independent_snr_and_dry_is_exact() {

@@ -41,6 +41,9 @@ two repeated A4 notes, silence, differing amplitudes, mono/poly modes,
 Held spectral notes average their pitch/salience estimates instead of pinning
 an onset-window estimate. Denoise output scans checkpoint and reject nonfinite
 float output before even a neutral recipe can return it.
+Inputs shorter than the calibrated pitch support return no monophonic notes
+rather than guessed pitch, while remaining usable by time/noise controls.
+The short-source neutral case is written, not executed.
 
 These assertions are acceptance targets, not measurements. The SNR fixture
 requires >5 dB improvement and <1.5 dB tone RMS error; no result is claimed.
