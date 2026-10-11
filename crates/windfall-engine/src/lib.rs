@@ -135,6 +135,7 @@ mod note_curves;
 mod plan;
 pub mod plugins;
 mod pool;
+pub mod performance;
 mod processor;
 mod rack;
 mod ramp;

@@ -70,6 +70,8 @@ pub(crate) enum Origin {
     Hardware,
     /// The browser's sample preview.
     Preview,
+    /// One occurrence of one launched note; independent of song navigation.
+    Performance(u64),
 }
 
 /// Where a voice's signal goes and whose gain and pan shape it.

@@ -41,6 +41,7 @@ use crate::model::{
 // allocation to parameter edits and changes Rust callers' construction contract.
 #[allow(clippy::large_enum_variant)]
 pub enum Command {
+    SetStageMedia { media: crate::StageMedia },
     /// Creates an arrangement ID from the document allocator.
     AddArrangement {
         name: String,

@@ -37,6 +37,8 @@ const reductions = new Map<EffectId, number>()
 const automated = new Map<AutomationId, number>()
 
 function receive(frame: RealtimeFrame) {
+  latest.activeNotePoses = frame.activeNotePoses
+  latest.mediaClock = frame.mediaClock
   latest.playing = frame.playing
   latest.tick = frame.tick
   latest.cpu = frame.cpu
@@ -74,6 +76,8 @@ function receive(frame: RealtimeFrame) {
 // Levels and reductions still waiting to be drawn are the old project's,
 // and its tracks and effects share ids with the new one's.
 onProjectReplaced(() => {
+  latest.activeNotePoses = []
+  latest.mediaClock = undefined
   latest.meters = []
   latest.correlation = undefined
   latest.waveforms = []

@@ -46,6 +46,7 @@ impl Project {
             ));
         }
         check_settings(self)?;
+        self.settings.stage_media.check(self)?;
         self.notebook.check().map_err(|error| error.to_string())?;
         if let Some(problem) =
             crate::controller_links::links_problem(&self.settings.controller_links, Some(self))

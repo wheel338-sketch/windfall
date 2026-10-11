@@ -66,6 +66,7 @@
 
 mod analysis_jobs;
 mod analyzers;
+mod performance_media;
 mod archive;
 mod audio;
 mod audio_editor;

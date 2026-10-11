@@ -69,6 +69,8 @@ pub(crate) enum Message {
     },
     Preview(AudioBuffer),
     StopPreview,
+    Performance(crate::performance::LaunchRequest),
+    PerformanceStopAll,
     SetOutputGain(f32),
     SetInputMonitors(Box<[Box<crate::recording_monitor::MonitorReader>]>),
     SetDiskTaps(Box<[crate::recording_disk::DiskWriter]>),

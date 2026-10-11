@@ -243,6 +243,7 @@ type Ids = ReturnType<typeof fullProject>["ids"]
  * for a new entry when the Rust `Command` gains a variant.
  */
 const EVERY_COMMAND: { [Type in Command["type"]]: (ids: Ids) => Command } = {
+  setStageMedia: () => ({ type: "setStageMedia", media: { pads: [], quantization: "bar", videos: [], visual: { scene: "orbit", intensity: 1, hue: 180 }, danceChannel: null } }),
   addArrangement: (ids) => ({
     type: "addArrangement",
     name: "New",

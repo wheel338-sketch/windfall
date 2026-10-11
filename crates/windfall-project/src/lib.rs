@@ -79,3 +79,5 @@ pub use project_settings::PanLaw;
 pub mod score;
 pub use score::{Score, ScoreLoadMode, ScoreNote};
 pub mod timebase;
+pub mod stage_media;
+pub use stage_media::{StageMedia, PerformancePad, VideoPlacement, VisualSettings, VisualScene, LaunchQuantization};

@@ -66,6 +66,10 @@ export function createTauriBackend(): Backend {
 
   return {
     kind: "tauri",
+    mediaRenderAudio: (range, generation, revision) => call("media_render_audio", { range, generation, revision }),
+    performanceState: () => call("performance_state"),
+    performancePad: (track, scene, generation, revision) => call("performance_pad", { track, scene, generation, revision }),
+    performanceStopAll: () => call("performance_stop_all"),
     analyzerCapability: () => call("analyzer_capability"),
     analyzerSubscribe: (slot, handler) => {
       // One channel per slot. Events that arrive after the slot stopped

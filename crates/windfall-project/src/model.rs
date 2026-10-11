@@ -251,6 +251,7 @@ impl Project {
                 pan_law: crate::PanLaw::default(),
                 timebase_ppq: crate::timebase::DEFAULT_TIMEBASE_PPQ,
                 controller_links: Vec::new(),
+                stage_media: crate::StageMedia::default(),
             },
             samples: Vec::new(),
             notebook: crate::Notebook::default(),
@@ -364,6 +365,9 @@ pub struct ProjectSettings {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     #[ts(as = "Option<Vec<crate::ControllerLink>>", optional)]
     pub controller_links: Vec<crate::ControllerLink>,
+    #[serde(default, skip_serializing_if = "crate::StageMedia::is_default")]
+    #[ts(as = "Option<crate::StageMedia>", optional)]
+    pub stage_media: crate::StageMedia,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]

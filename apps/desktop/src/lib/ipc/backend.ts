@@ -70,6 +70,10 @@ export type AudioClipPlace = {
  * plain text that can be shown to the user.
  */
 export interface Backend extends AnalysisBackend, MixerPresetLibraryBackend, AnalyzerBackend {
+  mediaRenderAudio(range: import("@/bindings").TickRange, generation: number, revision: number): Promise<import("@/bindings").MediaRenderAudio>
+  performanceState(): Promise<import("@/bindings").PerformanceState>
+  performancePad(track: number, scene: number | null, generation: number, revision: number): Promise<void>
+  performanceStopAll(): Promise<void>
   mixerWaveformTracks(tracks: TrackId[], generation: number, revision: number): Promise<void>
   mixerPresetCapture(id: TrackId, generation: number, revision: number): Promise<import("@/bindings").MixerTrackPreset>
   mixerPresetSave(preset: import("@/bindings").MixerTrackPreset): Promise<string | null>

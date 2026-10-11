@@ -1009,6 +1009,10 @@ pub fn handler() -> impl Fn(Invoke) -> bool + Send + Sync + 'static {
         analyzer_capability,
         analyzer_subscribe,
         analyzer_select,
+        performance_pad,
+        performance_stop_all,
+        performance_state,
+        media_render_audio,
         analyzer_ack,
         analyzer_unsubscribe,
         engine_status,
@@ -1300,4 +1304,19 @@ fn analyzer_ack(session: State<'_, Session>, window: WebviewWindow, ack: windfal
 #[tauri::command]
 fn analyzer_unsubscribe(session: State<'_, Session>, window: WebviewWindow, slot: String) {
     session.analyzer_unsubscribe(window.label(), &slot);
+}
+
+#[tauri::command]
+fn performance_pad(session: State<'_, Session>, track: u8, scene: Option<u8>, generation: u64, revision: u64) -> Result<(), String> {
+    session.performance_pad(track, scene, generation, revision)
+}
+#[tauri::command]
+fn performance_stop_all(session: State<'_, Session>) { session.performance_stop_all(); }
+#[tauri::command]
+fn performance_state(session: State<'_, Session>) -> windfall_ipc::PerformanceState { session.performance_state() }
+
+#[tauri::command]
+async fn media_render_audio(session: State<'_, Session>, range: windfall_project::TickRange, generation: u64, revision: u64) -> Result<windfall_ipc::MediaRenderAudio, String> {
+    let session = session.inner().clone();
+    blocking(move || session.media_render_audio(range, generation, revision)).await
 }
