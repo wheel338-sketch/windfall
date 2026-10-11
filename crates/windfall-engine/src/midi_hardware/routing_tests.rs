@@ -498,3 +498,66 @@ fn the_worker_sends_clock_start_pulses_and_stop_for_the_transport() {
     });
     assert!(!worker.state().clock_running);
 }
+
+/// Opt-in check against the MIDI ports this machine really has. It lists
+/// every port, then sends one second of clock at 120 bpm to the first
+/// output and reports how evenly the sends were spaced. It measures when
+/// the send calls returned, not what arrived on a wire.
+///
+/// `cargo test -p windfall-engine real_ports -- --ignored --nocapture`
+#[test]
+#[ignore = "opens real MIDI ports; run with `--ignored --nocapture` where they exist"]
+fn real_ports_are_listed_and_the_first_output_takes_a_second_of_clock() {
+    let mut ports = native::Native;
+    let (inputs, outputs) = ports.enumerate().expect("the MIDI backend lists its ports");
+    for port in &inputs {
+        println!("input: {} ({})", port.name, port.id);
+    }
+    for port in &outputs {
+        println!("output: {} ({})", port.name, port.id);
+    }
+    let Some(port) = outputs.first() else {
+        println!("no MIDI output on this machine: nothing was sent");
+        return;
+    };
+    let mut output = ports.output(&port.id).expect("the first output opens");
+    let start = Instant::now();
+    let mut clock = ClockOut::new(start);
+    let mut pulses: Vec<Duration> = Vec::new();
+    while start.elapsed() < Duration::from_secs(1) {
+        let now = Instant::now();
+        let playhead = Playhead {
+            playing: true,
+            tick: now.duration_since(start).as_secs_f64() * 1_920.0,
+            ticks_per_second: 1_920.0,
+            mode: PlayMode::Song,
+            pattern: PatternId(1),
+            pattern_ticks: None,
+            loop_song: false,
+        };
+        let mut due: Vec<Vec<u8>> = Vec::new();
+        clock.poll(&playhead, now, &mut |bytes| due.push(bytes.to_vec()));
+        for bytes in due {
+            output.send(&bytes).expect("the output takes the message");
+            if bytes == [0xf8] {
+                pulses.push(start.elapsed());
+            }
+        }
+        let wait = clock.next_due().map_or(SERVICE, |due| {
+            due.saturating_duration_since(Instant::now()).min(SERVICE)
+        });
+        thread::sleep(wait);
+    }
+    output.send(&[0xfc]).expect("the output takes stop");
+    let ideal = 1_000.0 / 48.0;
+    let worst = pulses
+        .windows(2)
+        .map(|pair| ((pair[1] - pair[0]).as_secs_f64() * 1_000.0 - ideal).abs())
+        .fold(0.0, f64::max);
+    println!(
+        "{} pulses to {}; worst gap is {worst:.3} ms off {ideal:.3} ms",
+        pulses.len(),
+        port.name
+    );
+    assert!(pulses.len() >= 40, "about 48 pulses in a second");
+}
