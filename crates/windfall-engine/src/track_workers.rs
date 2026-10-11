@@ -175,6 +175,8 @@ impl TrackWorkers {
 
     /// Refusal returns the complete owner for serial processing. Even if a
     /// worker finished, no second job enters until the first result is harvested.
+    // Boxing the large refused owner would introduce a callback allocation.
+    #[allow(clippy::result_large_err)]
     pub fn try_submit(&mut self, lane: usize, job: TrackJob) -> Result<(), TrackJob> {
         if self.fallback {
             return Err(job);

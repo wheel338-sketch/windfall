@@ -296,6 +296,8 @@ automation, plugin failure and plan swaps, callback allocator checks of the live
 path, thread-count persistence/mounted Settings, priority/affinity, and measured
 worst-case budgets on Windows/macOS/Linux remain. First compile checks: Send on
 TrackProcessor, ring queue ownership and large by-value error/clippy policy.
+The large-error lint is explicitly allowed only on submit: boxing a refused
+TrackJob would add a callback allocation. Caller retains the by-value owner.
 
 ## Interface/native editor scaling
 

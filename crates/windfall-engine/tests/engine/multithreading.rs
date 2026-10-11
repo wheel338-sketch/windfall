@@ -10,7 +10,7 @@ use windfall_engine::track_workers::{
 fn job(track: usize) -> TrackJob {
     let params = TrackParams {
         separation: 0.23,
-        invert_right: track % 2 == 0,
+        invert_right: track.is_multiple_of(2),
         ..Default::default()
     };
     let mut job = TrackJob::new(
@@ -46,8 +46,8 @@ fn track_workers_match_serial_bits_across_blocks_and_reversed_completion_order()
     let mut serial = [job(0), job(1)];
     let mut parallel = [Some(job(0)), Some(job(1))];
     for block in 0..32 {
-        for lane in 0..2 {
-            serial[lane].process();
+        for (lane, reference) in serial.iter_mut().enumerate() {
+            reference.process();
             assert!(
                 pool.try_submit(lane, parallel[lane].take().unwrap())
                     .is_ok()
@@ -58,21 +58,18 @@ fn track_workers_match_serial_bits_across_blocks_and_reversed_completion_order()
         parallel[0] = Some(harvest(&mut pool, 0));
         let mut expected = [0.0_f32; TRACK_BLOCK_FRAMES];
         let mut actual = [0.0_f32; TRACK_BLOCK_FRAMES];
-        for lane in 0..2 {
+        for (lane, reference) in serial.iter().enumerate() {
             let found = parallel[lane].as_ref().unwrap();
             assert_eq!((found.epoch(), found.track()), (7, lane));
-            for i in 0..TRACK_BLOCK_FRAMES {
+            for (i, (expected, actual)) in expected.iter_mut().zip(&mut actual).enumerate() {
                 assert_eq!(
                     found.left()[i].to_bits(),
-                    serial[lane].left()[i].to_bits(),
+                    reference.left()[i].to_bits(),
                     "block {block}, track {lane}, frame {i}"
                 );
-                assert_eq!(
-                    found.right()[i].to_bits(),
-                    serial[lane].right()[i].to_bits()
-                );
-                expected[i] += serial[lane].left()[i];
-                actual[i] += found.left()[i];
+                assert_eq!(found.right()[i].to_bits(), reference.right()[i].to_bits());
+                *expected += reference.left()[i];
+                *actual += found.left()[i];
             }
         }
         assert_eq!(expected.map(f32::to_bits), actual.map(f32::to_bits));
