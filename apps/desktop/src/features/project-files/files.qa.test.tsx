@@ -3,6 +3,7 @@ import { afterEach, beforeEach, expect, it, vi } from "vitest"
 import { startTestApp, settle } from "@/test/harness"
 import { dispatch, undo, redo, useProjectStore } from "@/lib/store/project"
 import { useUiStore } from "@/lib/store/ui"
+import { instrumentDescriptor } from "@/features/params/descriptors"
 import { ProjectTab } from "@/features/browser/project-tab"
 import { ProjectOverviewView } from "@/features/project-overview/view"
 import { PluginPicker, usePluginPicker } from "@/features/plugins/picker"
@@ -60,6 +61,9 @@ it("mounted catalog inserts a real built-in and undo/save/reopen preserve its st
   await waitFor(() => expect(state().project.channels).toHaveLength(count + 1))
   expect(state().history.cursor).toBe(before + 1)
   expect(state().project.channels.at(-1)?.source.type).toBe("instrument")
+  await act(async () => { await undo() })
+  expect(state().project.channels).toHaveLength(count)
+  await act(async () => { await redo() })
   await app.backend.projectSave("/plugin.windfall")
   await app.backend.projectOpen("/plugin.windfall")
   expect(state().project.channels.at(-1)?.source.type).toBe("instrument")
@@ -186,4 +190,45 @@ it("mounted preset file picker refuses a stale project without invoking apply",a
   await act(async()=>{await app.backend.projectNew();resolve("/stale.wfpreset");await settle()})
   await waitFor(()=>expect(screen.getAllByRole("alert").some((alert)=>alert.textContent?.includes("project changed"))).toBe(true))
   expect(apply).not.toHaveBeenCalled();expect(state().history.cursor).toBe(0)
+})
+
+it("mounted picker drops an effect onto a mixer slot with undo and persistence", async () => {
+  usePluginPicker.setState({ open: true })
+  render(<PluginPicker />)
+  const track = state().project.mixer.tracks[0]
+  const catalog = await app.backend.pluginDatabase()
+  const effect = catalog.records.find((record) => record.format === "builtin" && !record.instrument)!
+  const tile = await screen.findByRole("region", { name: effect.name })
+  const transfer = dragData()
+  fireEvent.dragStart(tile, { dataTransfer: transfer })
+  const before = state().history.cursor
+  fireEvent.drop(screen.getByRole("button", { name: `Drop effect on ${track.name} new slot` }), { dataTransfer: transfer })
+  await waitFor(() => expect(state().project.mixer.tracks.find((t) => t.id === track.id)?.effects).toHaveLength(track.effects.length + 1))
+  expect(state().history.cursor).toBe(before + 1)
+  await act(async () => { await undo() })
+  expect(state().project.mixer.tracks.find((t) => t.id === track.id)?.effects).toHaveLength(track.effects.length)
+  await act(async () => { await redo() })
+  await app.backend.projectSave("/picker-effect.windfall"); await app.backend.projectOpen("/picker-effect.windfall")
+  expect(state().project.mixer.tracks.find((t) => t.id === track.id)?.effects.at(-1)?.params.type).toBe(effect.id)
+})
+it("mounted disk browser applies a real built-in instrument plugin preset and reopens it", async () => {
+  const added = await dispatch({ type: "addChannel", instrument: "subtractiveSynth" })
+  const channel = added.created[0]
+  useUiStore.getState().selectChannel(channel)
+  const ticket = await app.backend.timelineState()
+  const capture = await app.backend.presetCapturePlugin({ type: "instrument", channel }, ticket.generation, ticket.revision)
+  await app.backend.presetWrite("/instrument.wfpreset", capture)
+  const saved = state().project.channels.find((c) => c.id === channel)!.source
+  const destination = state().project.channels.find((c) => c.id === channel)!
+  await dispatch({ type: "applyChannelPreset", id: channel, expected: destination, nameColor: false, preset: { name: destination.name, color: destination.color, volume: destination.volume, pan: destination.pan, source: { type: "instrument", params: instrumentDescriptor("fourOp").defaults } } })
+  const before = state().history.cursor
+  render(<ProjectFilesPanel />)
+  fireEvent.click(screen.getByRole("button", { name: "Browse preset files on disk…" }))
+  await waitFor(() => expect(state().project.channels.find((c) => c.id === channel)?.source).toEqual(saved))
+  expect(state().history.cursor).toBe(before + 1)
+  await act(async () => { await undo() })
+  expect(state().project.channels.find((c) => c.id === channel)?.source).not.toEqual(saved)
+  await act(async () => { await redo() })
+  await app.backend.projectSave("/instrument-preset.windfall"); await app.backend.projectOpen("/instrument-preset.windfall")
+  expect(state().project.channels.find((c) => c.id === channel)?.source).toEqual(saved)
 })

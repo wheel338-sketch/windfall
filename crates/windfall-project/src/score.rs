@@ -449,18 +449,27 @@ impl Score {
             if project.automation_range(&target).is_none() {
                 return Err("This channel does not have a control required by the score".into());
             }
+            let expected = if mode == ScoreLoadMode::Replace {
+                Vec::new()
+            } else {
+                crate::pattern_events::captured(
+                    project.pattern(pattern).expect("checked pattern"),
+                    &target,
+                )
+            };
+            // Merge preserves the destination's other times. Score points win
+            // at the same tick, as the newly imported expression does for notes.
+            let mut points = expected.clone();
+            points.retain(|point| !lane.points.iter().any(|new| new.tick == point.tick));
+            points.extend(lane.points.iter().copied());
+            points.sort_by_key(|point| point.tick);
+            let points =
+                crate::pattern_events::checked_points(points).map_err(|error| error.to_string())?;
             commands.push(Command::SetPatternEvents {
                 pattern,
                 target,
-                expected: if mode == ScoreLoadMode::Replace {
-                    Vec::new()
-                } else {
-                    crate::pattern_events::captured(
-                        project.pattern(pattern).expect("checked pattern"),
-                        &target,
-                    )
-                },
-                points: lane.points.clone(),
+                expected,
+                points,
             });
         }
         Ok(Command::Batch {

@@ -166,8 +166,13 @@ impl Session {
                 if stage == Stage::Publish {
                     self.pause("archive:publish");
                 }
-                let _ = stage;
-                job.check()
+                // Publication already committed the whole no-clobber archive.
+                // A cancellation arriving now cannot turn success into failure.
+                if stage == Stage::Published {
+                    Ok(())
+                } else {
+                    job.check()
+                }
             },
         )
         .map_err(|e| e.to_string())?;

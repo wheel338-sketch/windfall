@@ -178,7 +178,7 @@ export function PluginManager() {
               </Button>
             </div>
           ))}
-          <PluginCatalog key={`${state?.completed ?? 0}:${state?.scanning ?? false}:${busy}`} />
+          <PluginCatalog key={`${state?.completed ?? 0}:${state?.scanning ?? false}:${busy}`} track={requestedTrack ?? selectedTrack ?? 0} searchLabel="Search plugin database" />
           {state?.blocked.map((entry) => (
             <Alert key={`${entry.path}:${entry.id}`}>
               <AlertTitle>{entry.name} is blocked</AlertTitle>

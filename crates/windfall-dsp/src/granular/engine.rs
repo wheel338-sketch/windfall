@@ -477,7 +477,14 @@ impl Engine {
                 }
             }
             voice.age = voice.age.saturating_add(1);
-            let scale = envelope * voice.velocity * settings.level * 0.25 * voice.gain;
+            // Preserve this engine's historical equal-power centre level. The
+            // project law changes relative stereo gains around that reference.
+            let scale = envelope
+                * voice.velocity
+                * settings.level
+                * 0.25
+                * voice.gain
+                * std::f32::consts::FRAC_1_SQRT_2;
             let (left, right) = self.note_law.gains_at(self.pan_clock, voice.pan);
             let sides = [left, right];
             for channel in 0..2 {

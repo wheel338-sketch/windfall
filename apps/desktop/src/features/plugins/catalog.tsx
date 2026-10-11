@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useId, useRef, useState } from "react"
 import type { PluginDatabaseView, PluginRecord, PresetEntry } from "@/bindings"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -29,7 +29,8 @@ function Artwork({ record, image }: { record: PluginRecord; image?: string }) {
 }
 
 /** The database browser and full-screen tile picker share the same persisted catalog. */
-export function PluginCatalog({ tiles = false }: { tiles?: boolean }) {
+export function PluginCatalog({ tiles = false, track, searchLabel = "Search plugins" }: { tiles?: boolean; track?: number; searchLabel?: string }) {
+  const id = useId()
   const [view, setView] = useState<PluginDatabaseView | null>(null)
   const [presets, setPresets] = useState<PresetEntry[]>([])
   const [search, setSearch] = useState("")
@@ -50,8 +51,8 @@ export function PluginCatalog({ tiles = false }: { tiles?: boolean }) {
   }
   const records = view?.records.filter((record) => (!favorites || record.favorite) && `${record.name} ${record.vendor} ${record.category} ${record.format} ${record.status}`.toLowerCase().includes(search.toLowerCase())) ?? []
   return <div className="flex min-h-0 flex-col gap-3 p-2">
-    <FieldGroup><Field><FieldLabel htmlFor={tiles ? "picker-search" : "catalog-search"}>Search plugins</FieldLabel><Input id={tiles ? "picker-search" : "catalog-search"} value={search} onChange={(event) => setSearch(event.target.value)} /></Field>
-      <Field orientation="horizontal"><Checkbox id={tiles ? "picker-favorites" : "catalog-favorites"} checked={favorites} onCheckedChange={(checked) => setFavorites(checked === true)} /><FieldLabel htmlFor={tiles ? "picker-favorites" : "catalog-favorites"}>Favorites only</FieldLabel></Field>
+    <FieldGroup><Field><FieldLabel htmlFor={`${id}-search`}>{searchLabel}</FieldLabel><Input id={`${id}-search`} value={search} onChange={(event) => setSearch(event.target.value)} /></Field>
+      <Field orientation="horizontal"><Checkbox id={`${id}-favorites`} checked={favorites} onCheckedChange={(checked) => setFavorites(checked === true)} /><FieldLabel htmlFor={`${id}-favorites`}>Favorites only</FieldLabel></Field>
     </FieldGroup>
     {(error || view?.error) && <Alert><AlertTitle>Plugin catalog</AlertTitle><AlertDescription>{error ?? view?.error}</AlertDescription></Alert>}
     {!view && !error && <p role="status">Loading plugins…</p>}
@@ -60,16 +61,16 @@ export function PluginCatalog({ tiles = false }: { tiles?: boolean }) {
       {records.map((record) => {
         const key = `${record.format}:${record.id}`
         const usable = record.status === "builtin" || record.status === "verified"
-        return <section key={key} aria-label={record.name} className="flex flex-col gap-2 rounded border p-2" draggable={usable} onDragStart={(event) => startPluginDrag(event, record)} onDoubleClick={(event) => { if (usable && !(event.target instanceof Element && event.target.closest("button,input,label"))) void work(() => insertPlugin(record)) }}>
+        return <section key={key} aria-label={record.name} className="flex flex-col gap-2 rounded border p-2" draggable={usable} onDragStart={(event) => startPluginDrag(event, record)} onDoubleClick={(event) => { if (usable && !(event.target instanceof Element && event.target.closest("button,input,label"))) void work(() => insertPlugin(record, { track: record.instrument ? undefined : track })) }}>
           {tiles && <Artwork record={record} image={images[key]} />}
           <div className="flex flex-wrap items-center gap-2"><h3>{record.name}</h3><Badge variant="outline">{record.status}</Badge></div>
           <p className="text-muted-foreground">{record.vendor} · {record.instrument ? "Instrument" : "Effect"} · {record.category}</p>
           {record.detail && <p>{record.detail}</p>}
-          <div className="flex flex-wrap gap-2"><Button size="sm" variant="outline" disabled={busy || !usable} onClick={() => void work(() => insertPlugin(record))}>Add {record.name}</Button>
+          <div className="flex flex-wrap gap-2"><Button size="sm" variant="outline" disabled={busy || !usable} onClick={() => void work(() => insertPlugin(record, { track: record.instrument ? undefined : track }))}>Add {record.name}</Button>
             <Button size="sm" variant="ghost" disabled={busy} aria-label={`${record.favorite ? "Unfavorite" : "Favorite"} ${record.name}`} onClick={() => void work(async () => setView(await backend.pluginDatabaseAnnotate(record.format, record.id, { favorite: !record.favorite, category: record.categorized ? record.category : null })))}>{record.favorite ? "★" : "☆"}</Button>
           </div>
-          {!tiles && <Field><FieldLabel htmlFor={`category-${key}`}>Category for {record.name}</FieldLabel><Input id={`category-${key}`} defaultValue={record.categorized ? record.category : ""} placeholder={record.category} maxLength={48} disabled={busy} onBlur={(event) => { const category = event.target.value.trim() || null; if (category !== (record.categorized ? record.category : null)) void work(async () => setView(await backend.pluginDatabaseAnnotate(record.format, record.id, { favorite: record.favorite, category }))) }} /></Field>}
-          {tiles && <Field><FieldLabel htmlFor={`image-${key}`}>Tile image for {record.name}</FieldLabel><Input id={`image-${key}`} type="file" accept="image/png,image/jpeg,image/webp" onChange={(event) => void work(async () => {
+          {!tiles && <Field><FieldLabel htmlFor={`${id}-category-${key}`}>Category for {record.name}</FieldLabel><Input id={`${id}-category-${key}`} defaultValue={record.categorized ? record.category : ""} placeholder={record.category} maxLength={48} disabled={busy} onBlur={(event) => { const category = event.target.value.trim() || null; if (category !== (record.categorized ? record.category : null)) void work(async () => setView(await backend.pluginDatabaseAnnotate(record.format, record.id, { favorite: record.favorite, category }))) }} /></Field>}
+          {tiles && <Field><FieldLabel htmlFor={`${id}-image-${key}`}>Tile image for {record.name}</FieldLabel><Input id={`${id}-image-${key}`} type="file" accept="image/png,image/jpeg,image/webp" onChange={(event) => void work(async () => {
             const file = event.target.files?.[0]; if (!file) return
             if (file.size > 2 * 1024 * 1024 || !["image/png", "image/jpeg", "image/webp"].includes(file.type)) throw new Error("Choose a PNG, JPEG or WebP image smaller than 2 MiB")
             const image = await new Promise<string>((resolve, reject) => { const reader = new FileReader(); reader.onload = () => resolve(String(reader.result)); reader.onerror = () => reject(new Error("Could not read tile image")); reader.readAsDataURL(file) })
