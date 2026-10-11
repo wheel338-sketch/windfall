@@ -136,6 +136,7 @@ describe("descriptors", () => {
       dualPoly: true,
       compactSynth: true,
       vintageSaw: true,
+      pocketSynth: true,
     }
     expect([...EFFECT_KINDS].sort()).toEqual(Object.keys(effects).sort())
     expect([...INSTRUMENT_KINDS].sort()).toEqual(

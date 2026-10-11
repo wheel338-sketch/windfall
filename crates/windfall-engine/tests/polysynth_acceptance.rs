@@ -35,3 +35,13 @@ fn vintageSaw_musical_edit_reaches_history_disk_and_live_offline_pcm() {
     assert!(changed.set(param, if info.default == info.max { info.min } else { info.max }));
     acceptance(InstrumentKind::VintageSaw, initial, changed);
 }
+
+#[test]
+fn pocketSynth_musical_edit_reaches_history_disk_and_live_offline_pcm() {
+    let initial = InstrumentKind::PocketSynth.default_params();
+    let mut changed = initial;
+    let param = InstrumentKind::PocketSynth.descriptors().iter().position(|p| p.id == "cutoffHz").unwrap();
+    let info = &InstrumentKind::PocketSynth.descriptors()[param];
+    assert!(changed.set(param, if info.default == info.max { info.min } else { info.max }));
+    acceptance(InstrumentKind::PocketSynth, initial, changed);
+}

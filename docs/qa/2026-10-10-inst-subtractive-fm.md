@@ -136,3 +136,17 @@ per-graph DSP tests in `polysynth/tests.rs` (names below).
 Use the integrator commands in the Vintage Poly section, after regenerating
 bindings/descriptors and WASM. Check strict Clippy and numerical thresholds first;
 no measured sound/performance claim is made. No external proprietary content.
+
+## 2026-10-11 continuation — PocketSynth / inst-minisynth
+
+Full-row software candidate, awaiting execution. A bounded one-oscillator mobile-style engine with five shapes, sub divider, warmth, two-pole filter, envelope, vibrato, mono glide, chorus and tempo echo. Purpose-built Oscillator/Filter/Envelope/Motion/Effects tabs keep programming compact. DSP test: pocket_synth_each_shape_tunes_and_mobile_controls_reach_audio.
+Purpose-built editor group: Oscillator. Uses the existing checked instrument
+commands, tagged project persistence, engine hosting and live/offline processor.
+New generated types: `PocketSynth`, `PocketSynthParams`, `pocketSynth` tag and descriptors.
+Tests **written, not executed**: `pocketSynth_musical_edit_reaches_history_disk_and_live_offline_pcm`
+in registered `polysynth_acceptance.rs`; the `pocketSynth` mounted editor case
+(edit and undo); complete descriptor/serde/default/range tests in DSP params;
+per-graph DSP tests in `polysynth/tests.rs` (names below).
+Use the integrator commands in the Vintage Poly section, after regenerating
+bindings/descriptors and WASM. Check strict Clippy and numerical thresholds first;
+no measured sound/performance claim is made. No external proprietary content.

@@ -128,3 +128,16 @@ fn vintage_saw_asymmetric_charge_pitch_contour_and_saturating_filter() {
     }
 }
 
+#[test]
+fn pocket_synth_each_shape_tunes_and_mobile_controls_reach_audio() {
+    contract(InstrumentKind::PocketSynth);
+    let p=PocketSynthParams { waveform:crate::Waveform::Sine,sub:0.0,filter_amount:0.0,key_track:0.0,cutoff_hz:18000.0,..Default::default() };
+    for waveform in [crate::Waveform::Sine,crate::Waveform::Saw,crate::Waveform::Pulse,crate::Waveform::Triangle,crate::Waveform::Square] {
+        let x=render(InstrumentParams::PocketSynth(PocketSynthParams { waveform,..p }),69,60000,64).0;
+        assert!(amplitude(&x[12000..],440.0)>amplitude(&x[12000..],442.0)*10.0);
+    }
+    for changed in [PocketSynthParams { cutoff_hz:200.0,..p },PocketSynthParams { vibrato:1.0,..p },PocketSynthParams { delay:0.8,..p },PocketSynthParams { sub:0.8,..p }] {
+        different(InstrumentParams::PocketSynth(p),InstrumentParams::PocketSynth(changed));
+    }
+}
+

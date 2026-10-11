@@ -201,6 +201,7 @@ fn every_parameter_struct_agrees_with_its_description() {
     check::<FlangerParams>();
     check::<PhaserParams>();
     check::<SynthParams>();
+    check::<windfall_dsp::PocketSynthParams>();
     check::<windfall_dsp::VintageSawParams>();
     check::<windfall_dsp::CompactSynthParams>();
     check::<windfall_dsp::DualPolyParams>();
@@ -477,6 +478,7 @@ fn names_are_plain_descriptions() {
             "Dual vintage poly",
             "Compact synth",
             "Vintage saw",
+            "Pocket synth",
         ]
     );
 }

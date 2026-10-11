@@ -3,10 +3,17 @@ import type { ChannelId, InstrumentParams } from "@/bindings"
 import { useParamAutomation } from "@/features/automation/live"
 import { instrumentDescriptor, ParamControl, ParamGroup, ParamRow, useParamBinding, type SetParam } from "@/features/params"
 import { dispatch } from "@/lib/store"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 
 const amp = ["envelope.attackMs", "envelope.decayMs", "envelope.sustain", "envelope.releaseMs"]
 const filterEnv = ["filterEnvelope.attackMs", "filterEnvelope.decayMs", "filterEnvelope.sustain", "filterEnvelope.releaseMs"]
 export const POLYSYNTH_PANELS: Record<string, readonly (readonly [string, readonly string[]])[]> = {
+  pocketSynth: [
+    ["Oscillator", ["waveform", "pulseWidth", "sub", "drive"]],
+    ["Filter", ["cutoffHz", "resonance", "filterAmount", "keyTrack"]],
+    ["Envelope", amp], ["Motion", ["lfoRateHz", "vibrato", "glideMs", "polyphony"]],
+    ["Effects", ["chorus", "delay", "gain"]],
+  ],
   vintageSaw: [
     ["Charging saw oscillator", ["pulse", "sub", "pulseWidth", "pwm", "drift", "asymmetry", "pitchDrop", "pitchDecayMs"]],
     ["Saturating vintage filter", ["cutoffHz", "resonance", "drive", "filterAmount", "keyTrack"]],
@@ -40,6 +47,12 @@ export function PolysynthEditor({ channel, params }: { channel: ChannelId; param
   const setParam: SetParam = useCallback((param, value, gesture) => dispatch({ type: "setInstrumentParam", channel, param, value }, gesture), [channel])
   const automation = useParamAutomation((param) => ({ type: "instrumentParam", channel, param }), String(channel))
   const bind = useParamBinding({ descriptor, params, setParam, ...automation })
+  if (params.type === "pocketSynth") return <Tabs defaultValue="Oscillator" aria-label="Pocket synth pages">
+    <TabsList>{POLYSYNTH_PANELS.pocketSynth.map(([title]) => <TabsTrigger key={title} value={title}>{title}</TabsTrigger>)}</TabsList>
+    {POLYSYNTH_PANELS.pocketSynth.map(([title, ids]) => <TabsContent key={title} value={title}>
+      <ParamGroup title={title}><ParamRow>{ids.map((id) => <ParamControl key={id} {...bind(id)} />)}</ParamRow></ParamGroup>
+    </TabsContent>)}
+  </Tabs>
   return <div data-slot="polysynth-editor" role="group" aria-label={`${descriptor.name} settings`} className="flex flex-col gap-2">
     {POLYSYNTH_PANELS[params.type].map(([title, ids]) => <ParamGroup key={title} title={title}>
       <ParamRow>{ids.map((id) => <ParamControl key={id} {...bind(id)} />)}</ParamRow>
