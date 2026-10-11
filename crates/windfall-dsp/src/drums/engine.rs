@@ -26,6 +26,9 @@ pub(super) struct Patch {
     drop: f32,
     pitch_decay: f32,
     level: f32,
+    strike: f32,
+    damping: f32,
+    body: f32,
 }
 
 pub(super) trait Settings: ParamSet {
@@ -50,6 +53,9 @@ impl Settings for MembraneParams {
             drop: self.pitch_drop_semitones,
             pitch_decay: self.pitch_decay_ms,
             level: self.level,
+            strike: self.strike_position,
+            damping: self.damping,
+            body: self.body,
         }
     }
 }
@@ -64,6 +70,9 @@ impl Settings for KickParams {
             drop: self.pitch_drop_semitones,
             pitch_decay: self.pitch_decay_ms,
             level: self.level,
+            strike: 0.25,
+            damping: 0.35,
+            body: 0.4,
         }
     }
 }
@@ -79,6 +88,9 @@ impl Settings for DrumRackParams {
             drop: 5.0,
             pitch_decay: 45.0,
             level: self.level,
+            strike: 0.25,
+            damping: 0.35,
+            body: 0.4,
         }
     }
 }
@@ -107,6 +119,9 @@ impl Settings for DrumVoiceParams {
             drop,
             pitch_decay,
             level: self.level,
+            strike: 0.25,
+            damping: 0.35,
+            body: 0.4,
         }
     }
 }
@@ -130,6 +145,7 @@ struct Voice {
     release: LinearRamp,
     correction: LinearRamp,
     last: f32,
+    membrane: super::modal::ModalDrum,
 }
 
 impl Default for Voice {
@@ -152,6 +168,7 @@ impl Default for Voice {
             release: LinearRamp::new(1.0),
             correction: LinearRamp::new(0.0),
             last: 0.0,
+            membrane: super::modal::ModalDrum::default(),
         }
     }
 }
@@ -230,8 +247,15 @@ impl Voice {
                     + 0.07 * patch.snap * filtered.low * self.transient
             }
             _ => {
-                let body =
-                    (first + 0.5 * patch.tone * second * self.modal_env) / (1.0 + 0.5 * patch.tone);
+                let body = self.membrane.tick(
+                    pitch,
+                    patch.decay,
+                    patch.tone,
+                    patch.strike,
+                    patch.damping,
+                    patch.body,
+                    rate,
+                );
                 (1.0 - patch.noise_mix) * body
                     + patch.noise_mix * filtered.low
                     + 0.35 * patch.snap * filtered.low * self.transient

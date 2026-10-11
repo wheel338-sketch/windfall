@@ -194,6 +194,21 @@ describe("instrument settings panels", () => {
     expect(screen.getAllByRole("slider")).toHaveLength(6)
   })
 
+  it("edits the single membrane's strike position and retains it through undo", async () => {
+    const channel = await open("membrane")
+    const original = channelOf(channel).source.params
+    expect(screen.getByRole("img", { name: /Strike at 25 percent/ })).toBeVisible()
+    const strike = screen.getByRole("slider", { name: "Strike Position" })
+    fireEvent.keyDown(strike, { key: "End" })
+    fireEvent.keyUp(strike, { key: "End" })
+    await flush()
+    expect(screen.getByRole("img", { name: /Strike at 95 percent/ })).toBeVisible()
+    expect(screen.getByRole("slider", { name: "Damping" })).toBeVisible()
+    expect(screen.getByRole("slider", { name: "Body" })).toBeVisible()
+    await act(() => undo())
+    expect(channelOf(channel).source.params).toEqual(original)
+  })
+
   it("keeps hosted plugin controls ahead of the built-in panel", async () => {
     const channel = await open("acidLine")
     const plugin: PluginBinding = {

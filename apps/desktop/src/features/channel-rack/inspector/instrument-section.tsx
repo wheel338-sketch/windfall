@@ -4,6 +4,8 @@ import { usePluginBinding } from "@/features/plugins/store"
 import type { InstrumentChannel } from "@/lib/channel-source"
 import { colorToCss } from "@/lib/units"
 
+import { MembraneEditor } from "../instruments/membrane-editor"
+
 import { SoundMenu } from "../synth/sound-menu"
 import { SynthEditor } from "../synth/synth-editor"
 import { GenericInstrumentEditor } from "./generic-instrument-editor"
@@ -37,6 +39,8 @@ export function InstrumentSection({ channel }: { channel: InstrumentChannel }) {
           params={params}
           color={colorToCss(channel.color)}
         />
+      ) : params.type === "membrane" ? (
+        <MembraneEditor channel={channel.id} params={params} />
       ) : (
         <GenericInstrumentEditor channel={channel.id} params={params} />
       )}

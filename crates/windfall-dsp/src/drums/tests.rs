@@ -320,3 +320,49 @@ fn descriptors_defaults_and_camel_case_persistence_agree() {
     rack.pads[15].pitch_hz = f32::NAN;
     assert_eq!(rack.sanitized(), DrumRackParams::default());
 }
+
+#[test]
+fn membrane_strike_damping_and_body_change_the_passive_modal_response() {
+    let sound = |strike_position, damping, body| {
+        let mut drum = Membrane::default();
+        drum.prepare(RATE, 257);
+        drum.set_params(&MembraneParams { strike_position, damping, body, snap: 0.0, pitch_drop_semitones: 0.0, decay_ms: 2000.0, ..Default::default() });
+        drum.note_on(60, 1.0);
+        render(&mut drum, 48_000, &[7, 257, 31])
+    };
+    let center = sound(0.0, 0.0, 0.0);
+    let rim = sound(0.75, 0.0, 0.0);
+    let damped = sound(0.0, 1.0, 0.0);
+    let body = sound(0.0, 0.0, 1.0);
+    for other in [&rim, &damped, &body] {
+        let delta: Vec<_> = center.iter().zip(other.iter()).map(|(a,b)| a-b).collect();
+        assert!(power(&delta) > 1e-6);
+        assert!(other.iter().all(|x| x.is_finite() && x.abs() < 2.0));
+    }
+    assert!(high_frequency_power(&damped[12_000..]) < high_frequency_power(&center[12_000..]));
+}
+
+#[test]
+fn membrane_has_measured_circular_mode_frequencies_and_transposes() {
+    fn amplitude(signal: &[f32], frequency: f64) -> f64 {
+        let (mut re, mut im) = (0.0, 0.0);
+        for (i, &x) in signal.iter().enumerate() {
+            let angle = std::f64::consts::TAU * frequency * i as f64 / 48_000.0;
+            let window = 0.5 - 0.5 * (std::f64::consts::TAU * i as f64 / signal.len() as f64).cos();
+            re += f64::from(x) * window * angle.cos();
+            im += f64::from(x) * window * angle.sin();
+        }
+        (re*re + im*im).sqrt()
+    }
+    for (key, fundamental) in [(60, 160.0), (72, 320.0)] {
+        let mut drum = Membrane::default();
+        drum.prepare(RATE, 256);
+        drum.set_params(&MembraneParams { strike_position: 0.0, damping: 0.0, body: 0.0, tone: 1.0, snap: 0.0, pitch_drop_semitones: 0.0, decay_ms: 4000.0, ..Default::default() });
+        drum.note_on(key, 1.0);
+        let signal = render(&mut drum, 24_000, &[127]);
+        for ratio in [1.0, 1.59334, 2.13555, 2.29542] {
+            let f = fundamental * ratio;
+            assert!(amplitude(&signal, f) > amplitude(&signal, f + 20.0) * 5.0);
+        }
+    }
+}

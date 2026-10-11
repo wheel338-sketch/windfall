@@ -172,3 +172,22 @@ fn finger_bass_tone_reaches_history_disk_and_live_offline_pcm() {
         InstrumentParams::FingerBass(changed),
     );
 }
+
+#[test]
+fn single_membrane_strike_reaches_history_disk_and_live_offline_pcm() {
+    let initial = MembraneParams {
+        strike_position: 0.0,
+        ..Default::default()
+    };
+    let changed = MembraneParams {
+        strike_position: 0.75,
+        damping: 0.9,
+        body: 0.9,
+        ..initial
+    };
+    acceptance(
+        InstrumentKind::Membrane,
+        InstrumentParams::Membrane(initial),
+        InstrumentParams::Membrane(changed),
+    );
+}

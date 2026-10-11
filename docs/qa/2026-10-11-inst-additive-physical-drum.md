@@ -17,7 +17,7 @@ benchmarks, generators or audio-device checks were run. Every test below is
 | inst-beepmap | Pending this stream. | Color/brightness image scan. |
 | inst-drumaxx | Pending this stream. | Membrane/body model, 16-pad editor. |
 | inst-bassdrum | Pending this stream. | Optional immutable sample layer. |
-| inst-drumpad | Pending this stream. | Single physically modeled drum. |
+| inst-drumpad | Full-row candidate: Membrane adds eight circular membrane eigenmodes plus a damped cavity, radial strike position, and frequency-dependent damping. One voice per channel, chromatic tuning, finite passive losses and deterministic noisy excitation; editor shows strike radius and grouped model controls. | Fresh integration execution and listening. |
 | inst-fruity-drumsynth-live | Pending this stream. | Independent per-key programmable patches. |
 
 ## Written acceptance
@@ -51,3 +51,19 @@ pnpm --dir apps/desktop lint
 - The new engine test is an automatically discovered Cargo integration target.
 - Inspect mono retrigger continuity and tone-difference threshold first; no runtime evidence is claimed.
 - Shared seams touched so far: none.
+
+### Single drum checkpoint
+
+New `drums/modal.rs` owns the fixed modal response. `MembraneParams` appends
+`strikePosition`, `damping`, `body` at indices 7–9; old indices 0–6 are preserved.
+Missing fields receive defaults. All control edits retain automation/history.
+
+Written, not executed: `drums/tests.rs::membrane_strike_damping_and_body_change_the_passive_modal_response`,
+`membrane_has_measured_circular_mode_frequencies_and_transposes`, engine
+`single_membrane_strike_reaches_history_disk_and_live_offline_pcm`, and mounted
+single-membrane strike/undo test in `instrument-section.test.tsx`.
+Run `cargo test -p windfall-dsp --lib drums` in addition to the commands above.
+Regenerate `MembraneParams` and instrument descriptors/WASM. Shared seam:
+`inspector/instrument-section.tsx` (editor routing only). Check the measured
+modal-frequency and damping assertions first. The finite modal impulse model is
+an original bounded approximation, not a vendor model/sound compatibility claim.

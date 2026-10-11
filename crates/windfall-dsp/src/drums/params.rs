@@ -3,7 +3,7 @@ use ts_rs::TS;
 
 use crate::blocks::math::clean;
 use crate::param::{
-    ParamInfo, ParamKind, ParamScale, ParamSet, ParamUnit, approach_value, param_set,
+    approach_value, param_set, ParamInfo, ParamKind, ParamScale, ParamSet, ParamUnit,
 };
 
 /// Controls for a tunable two-mode drum.
@@ -25,6 +25,12 @@ pub struct MembraneParams {
     pub pitch_decay_ms: f32,
     /// Linear output gain, 0..1, default 0.8.
     pub level: f32,
+    /// Radial strike position: center 0, near rim 0.95.
+    pub strike_position: f32,
+    /// Frequency-dependent loss of the membrane modes.
+    pub damping: f32,
+    /// Coupled low-frequency cavity resonance.
+    pub body: f32,
 }
 
 impl Default for MembraneParams {
@@ -37,6 +43,9 @@ impl Default for MembraneParams {
             pitch_drop_semitones: 7.0,
             pitch_decay_ms: 65.0,
             level: 0.8,
+            strike_position: 0.25,
+            damping: 0.35,
+            body: 0.4,
         }
     }
 }
@@ -49,6 +58,9 @@ param_set!(MembraneParams, "Membrane", {
     float [pitch_drop_semitones] "pitchDropSemitones" "Pitch Drop" { Semitones, Linear, 0.0, 24.0, 7.0 }
     float [pitch_decay_ms] "pitchDecayMs" "Pitch Decay" { Milliseconds, Logarithmic, 1.0, 500.0, 65.0 }
     float [level] "level" "Level" { Gain, Linear, 0.0, 1.0, 0.8 }
+    float [strike_position] "strikePosition" "Strike Position" { Fraction, Linear, 0.0, 0.95, 0.25 }
+    float [damping] "damping" "Damping" { Fraction, Linear, 0.0, 1.0, 0.35 }
+    float [body] "body" "Body" { Fraction, Linear, 0.0, 1.0, 0.4 }
 });
 
 /// Controls for the fast swept kick.

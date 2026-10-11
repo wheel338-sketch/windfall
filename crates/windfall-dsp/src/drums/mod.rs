@@ -5,6 +5,7 @@
 //! selects among four distinct percussion recipes. All callback state is inline.
 
 mod engine;
+mod modal;
 mod params;
 
 pub use params::{
@@ -14,7 +15,7 @@ pub use params::{
 use crate::instrument::Instrument;
 use engine::{Engine, Recipe};
 
-/// A tunable two-mode membrane with a noisy strike. MIDI 60 is its base pitch.
+/// A tunable eight-mode membrane and coupled cavity with a noisy strike. MIDI 60 is its base pitch.
 #[derive(Default)]
 pub struct Membrane(Engine<MembraneParams, 1>);
 
