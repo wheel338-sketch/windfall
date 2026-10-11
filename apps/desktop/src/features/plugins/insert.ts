@@ -13,13 +13,16 @@ const MIME = "application/x-windfall-plugin"
 type Destination = { channel?: number; track?: number; effect?: number; index?: number }
 export function startPluginDrag(event: DragEvent, record: PluginRecord) {
   event.dataTransfer.effectAllowed = "copy"
-  event.dataTransfer.setData(MIME, JSON.stringify({ format: record.format, id: record.id, generation: getProjectGeneration() }))
+  event.dataTransfer.setData(MIME, JSON.stringify({ format: record.format, id: record.id, generation: getProjectGeneration(), revision: useProjectStore.getState().revision }))
   event.dataTransfer.setData("text/plain", record.name)
 }
 export async function insertPlugin(record: PluginRecord, destination: Destination = {}) {
   if (record.status !== "builtin" && record.status !== "verified") throw new Error(record.detail ?? "This plugin is unavailable")
   let result
   const project = useProjectStore.getState().project
+  if (destination.channel !== undefined && !project.channels.some((channel) => channel.id === destination.channel)) throw new Error("The destination channel was removed")
+  if (destination.track !== undefined && !project.mixer.tracks.some((track) => track.id === destination.track)) throw new Error("The destination mixer track was removed")
+  if (destination.effect !== undefined && !project.mixer.tracks.some((track) => (destination.track === undefined || track.id === destination.track) && track.effects.some((effect) => effect.id === destination.effect))) throw new Error("The destination effect slot was removed")
   if (record.format === "builtin") {
     if (record.instrument) {
       if (!INSTRUMENT_KINDS.includes(record.id as InstrumentKind)) throw new Error("Unknown built-in instrument")
@@ -52,10 +55,10 @@ export function pluginDropHandlers(destination: Destination) {
       const text = event.dataTransfer.getData(MIME); if (!text) return
       event.preventDefault(); event.stopPropagation()
       void (async () => {
-        const value = JSON.parse(text) as { format: string; id: string; generation: number }
-        if (value.generation !== getProjectGeneration()) throw new Error("The project changed during the plugin drag")
+        const value = JSON.parse(text) as { format: string; id: string; generation: number; revision: number }
+        if (value.generation !== getProjectGeneration() || value.revision !== useProjectStore.getState().revision) throw new Error("The project changed during the plugin drag")
         const catalog = await backend.pluginDatabase()
-        if (value.generation !== getProjectGeneration()) throw new Error("The project changed during the plugin drag")
+        if (value.generation !== getProjectGeneration() || value.revision !== useProjectStore.getState().revision) throw new Error("The project changed during the plugin drag")
         const record = catalog.records.find((r) => r.format === value.format && r.id === value.id)
         if (!record) throw new Error("This plugin is no longer in the catalog")
         if ((destination.channel !== undefined) !== record.instrument && destination.channel !== undefined) throw new Error("Drop an instrument onto a channel")

@@ -1,3 +1,4 @@
+import { toast } from "sonner"
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react"
 import { afterEach, beforeEach, expect, it, vi } from "vitest"
 import { startTestApp, settle } from "@/test/harness"
@@ -253,4 +254,20 @@ it.each([...PROJECT_TIMEBASES, 1, 123, 32767])("mounted MIDI export emits the re
   expect(new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength).getUint16(12)).toBe(ppq)
   expect(state().project).toEqual(original)
   expect(state().history.cursor).toBe(history)
+})
+
+it("mounted picker refuses a drag after an intervening document edit", async () => {
+  usePluginPicker.setState({ open: true })
+  render(<PluginPicker />)
+  const channel = state().project.channels[0]
+  const tile = await screen.findByRole("region", { name: "Subtractive synth" })
+  const transfer = dragData()
+  fireEvent.dragStart(tile, { dataTransfer: transfer })
+  await act(async () => { await dispatch({ type: "updateSettings", patch: { name: "Changed during drag" } }) })
+  const before = state().history.cursor
+  const error = vi.spyOn(toast, "error")
+  fireEvent.drop(screen.getByRole("button", { name: `Drop instrument on ${channel.name}` }), { dataTransfer: transfer })
+  await waitFor(() => expect(error).toHaveBeenCalledWith("Could not add plugin", { description: "The project changed during the plugin drag" }))
+  expect(state().history.cursor).toBe(before)
+  expect(state().project.channels.find((c) => c.id === channel.id)?.source).toEqual(channel.source)
 })
