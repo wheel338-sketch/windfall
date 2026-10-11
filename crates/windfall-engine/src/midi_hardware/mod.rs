@@ -10,6 +10,7 @@
 //! in a preallocated queue, and this worker sends them.
 pub mod clock;
 pub mod general_midi;
+pub mod feedback;
 mod message;
 mod native;
 #[cfg(test)]

@@ -57,3 +57,7 @@ tempfile = "3"
 
 [lints]
 workspace = true
+
+[features]
+# Public XInput import library only; opt-in Windows controller output worker.
+xinput = ["windfall-engine/xinput"]
