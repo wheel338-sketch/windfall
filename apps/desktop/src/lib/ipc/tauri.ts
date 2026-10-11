@@ -66,6 +66,12 @@ export function createTauriBackend(): Backend {
 
   return {
     kind: "tauri",
+    async pickVideoFile() {
+      const picked = await open({ title: "Choose a local video", multiple: false, filters: [{ name: "Video", extensions: ["mp4", "webm", "ogv", "mov"] }] })
+      return typeof picked === "string" ? picked : null
+    },
+    mediaVideoRead: (path, generation) => call("media_video_read", { path, generation }),
+    performanceScene: (scene, generation, revision) => call("performance_scene", { scene, generation, revision }),
     mediaRenderAudio: (range, generation, revision) => call("media_render_audio", { range, generation, revision }),
     performanceState: () => call("performance_state"),
     performancePad: (track, scene, generation, revision) => call("performance_pad", { track, scene, generation, revision }),

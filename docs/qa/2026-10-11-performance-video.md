@@ -9,7 +9,7 @@ No dependencies or generated files changed. Parity statuses remain overseer-owne
 
 `wf-performance-mode`: bounded 32-track/16-scene saved pattern pads; separate
 sample-driven musical scheduler, last queued request wins, beat/bar/immediate
-launch and stop, owned note releases, counted note overload, plan-exchange release,
+launch and stop, owned note releases, counted note overload, selective plan-exchange release (unchanged pattern/channel owners survive tempo/meter edits),
 tempo-map progression and meter-local quantization. Hardware action targets reuse
 controller links and rising-edge dispatch. Public `performance::render_capture`
 replays a frame-stamped script through the real processor, without song seek or
@@ -18,7 +18,31 @@ Partial: audio/automation clip pads, native plugin capture, live recording of th
 accepted callback launch log, channel arpeggiator/echo and expression-curve parity
 remain. CPU/deadline and realtime allocator acceptance are not yet measured.
 
-Video/visualizer/character UI and export work is in progress in the next checkpoint.
+Performance grid now exposes 32 tracks × 16 scenes in banks, queued/active state,
+per-track stops and atomic scene launch. MIDI Learn uses the controller-link action
+contract. Browser/mock audio is explicitly unavailable rather than simulated.
+
+`vis-video-visualizer-zgameeditor`: webview canvas consumes the native visualizer
+analyzer slot, with mix/track source selection and three authored scenes (orbit,
+bars, ribbon), persisted hue/intensity. A deterministic software rasterizer and
+1024-point Hann FFT consume native offline stereo render for synchronized AVI 1.0
+(BGR24 raw video + 16-bit PCM) and frame-hash metadata. Export is bounded by duration,
+resolution and 128 MiB file budget; temporary working copies require extra memory.
+No new native dependency. H.264/AAC compression remains a user licensing decision.
+
+`vis-fruity-video-player`: saved local-file placements appear on the playlist,
+with mute, tick position/length and second offset. Authorized native byte reads
+(maximum 64 MiB) create webview Blob URLs; HTML video owns decoding. The follower
+uses audio sample clocks/epochs and tempo-map tick position, with measured drift,
+hard seeks, bounded rate correction and stale-clock pause; no wall-clock timers.
+Unmuted video sound belongs to the webview, not the Windfall mixer/offline mix.
+Device presentation latency remains unknown where the driver cannot report it.
+Paths are local references, not portable embedded project assets.
+
+`vis-fruity-dance`: newly authored CC0 procedural vector character Moss exposes
+rest/step/wave/jump/lean poses, driven by real held-note owners of a saved chosen
+channel and the audio frame phase. No third-party art or assets.
+
 Saved stage settings already include checked video placements/mute/offset,
 scene parameters and chosen note channel, with deletion-following/history.
 Native realtime additions carry PDC-aligned media clock (driver latency explicitly

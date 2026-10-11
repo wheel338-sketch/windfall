@@ -484,6 +484,7 @@ impl Processor {
             | Message::StopPreview
             | Message::Performance(_)
             | Message::PerformanceStopAll
+            | Message::PerformanceScene(_)
             | Message::SetInputMonitors(_)
             | Message::SetDiskTaps(_)
             | Message::SetAudioLogger(_)
@@ -569,6 +570,7 @@ impl Processor {
             }
             Message::Performance(request) => self.performance.request(request, &self.plan),
             Message::PerformanceStopAll => self.release_performance(true),
+            Message::PerformanceScene(requests) => { for request in requests.into_iter().flatten() { self.performance.request(request, &self.plan); } },
             Message::Stop { sequence } => {
                 self.release_performance(true);
                 self.sequencer.set_recording(false);
@@ -1181,7 +1183,7 @@ impl Processor {
     /// back from changing at once.
     fn adopt(&mut self, plan: Arc<Plan>, mut state: Box<PlanState>) {
         let now = self.frame;
-        self.release_performance(false);
+        if !self.performance.compatible(&self.plan, &plan) { self.release_performance(false); }
         self.performance.retime(&plan);
         for channel in 0..self.plan.channels.len() {
             let old = &self.plan.channels[channel];

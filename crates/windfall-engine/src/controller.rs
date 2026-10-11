@@ -155,6 +155,14 @@ impl Controller {
         let Some(link) = &mut state.link else { return Err("Audio stream changed"); };
         link.messages.push(Message::Performance(request)).map_err(|_| "Performance launch queue is full")
     }
+    pub fn performance_scene(&self, requests: [Option<crate::performance::LaunchRequest>; crate::performance::TRACKS]) -> Result<(), &'static str> {
+        let mut state = self.lock();
+        state.maintain();
+        if state.link.is_none() { return Err("Performance launching needs an active audio stream"); }
+        if requests.iter().flatten().any(|request| usize::from(request.track) >= crate::performance::TRACKS || request.pattern.is_some_and(|id| state.plan.pattern_ids.get(id.0).is_none())) { return Err("A scene pattern no longer exists"); }
+        if !state.backlog.is_empty() { return Err("Performance launch queue is full"); }
+        state.link.as_mut().ok_or("Audio stream changed")?.messages.push(Message::PerformanceScene(requests)).map_err(|_| "Performance launch queue is full")
+    }
     pub fn performance_stop_all(&self) { self.lock().send(Message::PerformanceStopAll); }
     pub fn performance_state(&self) -> windfall_ipc::PerformanceState {
         let state = self.lock();

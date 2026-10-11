@@ -134,6 +134,18 @@ impl Launcher {
             }
         }
     }
+    /// Tempo/meter/mixer edits keep the exact owners and note ends. A changed
+    /// pattern or channel-index layout is released before its new data arrives.
+    pub fn compatible(&self, old: &Plan, new: &Plan) -> bool {
+        if old.channels.len() != new.channels.len() || old.channels.iter().zip(&new.channels).any(|(a, b)| a.id != b.id) { return false; }
+        self.slots.iter().filter_map(|slot| slot.pattern).all(|id| {
+            let Some(a) = old.pattern_ids.get(id.0).map(|i| &old.patterns[i]) else { return false; };
+            let Some(b) = new.pattern_ids.get(id.0).map(|i| &new.patterns[i]) else { return false; };
+            a.length == b.length && a.events.len() == b.events.len() && a.events.iter().zip(&b.events).all(|(x, y)| {
+                x.source == y.source && x.tick == y.tick && x.length == y.length && x.channel == y.channel && x.key == y.key && x.velocity == y.velocity && x.pan == y.pan && x.expression == y.expression
+            })
+        })
+    }
     pub fn active(&self) -> bool {
         self.slots
             .iter()

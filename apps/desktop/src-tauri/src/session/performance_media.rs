@@ -57,6 +57,38 @@ impl Session {
         self.controller().performance_stop_all();
     }
 
+    pub fn performance_scene(&self, scene: u8, generation: u64, revision: u64) -> Result<(), String> {
+        let _recording = self.recording_idle()?;
+        let state = self.state();
+        if state.generation != generation || state.document.revision() != revision { return Err("The project changed before the scene launch".into()); }
+        let media = &state.document.project().settings.stage_media;
+        let mut requests = [None; windfall_engine::performance::TRACKS];
+        for pad in media.pads.iter().filter(|pad| pad.scene == scene) {
+            requests[usize::from(pad.track)] = Some(LaunchRequest { track: pad.track, pattern: Some(pad.pattern), quantization: media.quantization });
+        }
+        if requests.iter().all(Option::is_none) { return Err("This scene has no assigned pads".into()); }
+        self.controller().performance_scene(requests).map_err(str::to_owned)
+    }
+
+    /// Only paths already saved in this exact project can be decoded. Reading
+    /// and stale recheck happen off the document lock; no asset-scheme wildcard.
+    pub fn media_video_read(&self, path: &str, generation: u64) -> Result<Vec<u8>, String> {
+        let allowed = || {
+            let state = self.state();
+            state.generation == generation && state.document.project().settings.stage_media.videos.iter().any(|video| video.path == path)
+        };
+        if !allowed() { return Err("The video is not in this project".into()); }
+        let mut file = std::fs::File::open(path).map_err(|error| format!("Cannot open video: {error}"))?;
+        let max = 64 * 1024 * 1024;
+        if file.metadata().map_err(|e| e.to_string())?.len() > max { return Err("Video exceeds the 64 MiB decoder budget".into()); }
+        use std::io::Read;
+        let mut bytes = Vec::new();
+        (&mut file).take(max + 1).read_to_end(&mut bytes).map_err(|e| e.to_string())?;
+        if bytes.len() as u64 > max { return Err("Video grew beyond the decoder budget".into()); }
+        if !allowed() { return Err("The project changed while reading video".into()); }
+        Ok(bytes)
+    }
+
     /// Small audiovisual export snapshot. Offline render is the engine's real
     /// mix, including tempo, PDC and independent plugin render ownership.
     pub fn media_render_audio(

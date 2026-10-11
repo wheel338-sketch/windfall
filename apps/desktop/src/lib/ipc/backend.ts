@@ -70,6 +70,9 @@ export type AudioClipPlace = {
  * plain text that can be shown to the user.
  */
 export interface Backend extends AnalysisBackend, MixerPresetLibraryBackend, AnalyzerBackend {
+  pickVideoFile(): Promise<string | null>
+  mediaVideoRead(path: string, generation: number): Promise<ArrayBuffer>
+  performanceScene(scene: number, generation: number, revision: number): Promise<void>
   mediaRenderAudio(range: import("@/bindings").TickRange, generation: number, revision: number): Promise<import("@/bindings").MediaRenderAudio>
   performanceState(): Promise<import("@/bindings").PerformanceState>
   performancePad(track: number, scene: number | null, generation: number, revision: number): Promise<void>

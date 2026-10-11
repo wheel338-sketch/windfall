@@ -18,6 +18,9 @@ import { SpectrumPanel } from "@/features/spectrum/panel"
 import { ProjectOverviewPanel } from "@/features/project-overview/panel"
 import { PhaseMeterPanel } from "@/features/phase-meter/panel"
 import { SpectrogramPanel } from "@/features/spectrogram/panel"
+import { PerformancePanel } from "@/features/performance/grid"
+import { VisualizerPanel } from "@/features/visualizer/panel"
+import { VideoPanel } from "@/features/video/panel"
 import { ScopePanel } from "@/features/analyzers/scope-panel"
 import { TransportBar } from "@/features/transport/transport-bar"
 import { resolveTheme, useUiStore } from "@/lib/store/ui"
@@ -72,6 +75,9 @@ export function Overlays() {
       <PhaseMeterPanel />
       <SpectrogramPanel />
       <ScopePanel />
+      <PerformancePanel />
+      <VisualizerPanel />
+      <VideoPanel />
       <TouchControllersWindow />
       <Toaster
         theme={theme}

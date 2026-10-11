@@ -1013,6 +1013,8 @@ pub fn handler() -> impl Fn(Invoke) -> bool + Send + Sync + 'static {
         performance_stop_all,
         performance_state,
         media_render_audio,
+        media_video_read,
+        performance_scene,
         analyzer_ack,
         analyzer_unsubscribe,
         engine_status,
@@ -1319,4 +1321,14 @@ fn performance_state(session: State<'_, Session>) -> windfall_ipc::PerformanceSt
 async fn media_render_audio(session: State<'_, Session>, range: windfall_project::TickRange, generation: u64, revision: u64) -> Result<windfall_ipc::MediaRenderAudio, String> {
     let session = session.inner().clone();
     blocking(move || session.media_render_audio(range, generation, revision)).await
+}
+
+#[tauri::command]
+fn performance_scene(session: State<'_, Session>, scene: u8, generation: u64, revision: u64) -> Result<(), String> {
+    session.performance_scene(scene, generation, revision)
+}
+#[tauri::command]
+async fn media_video_read(session: State<'_, Session>, path: String, generation: u64) -> Result<tauri::ipc::Response, String> {
+    let session = session.inner().clone();
+    blocking(move || session.media_video_read(&path, generation)).await.map(tauri::ipc::Response::new)
 }
