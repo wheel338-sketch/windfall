@@ -51,8 +51,12 @@ beats across tempo changes. Parent fine pitch and envelope pitch offsets compose
 Latency metadata now passes absolute source arrival into nested audio inputs;
 independent instruments keep their own source origin, matching flattened DSP.
 
-Engine audio/allocation and mounted editor cases will be added next; they are
-not claimed as present or passing. Existing EVERY_COMMAND gains setChannelRack.
+Engine `tests/engine/modular_rack.rs` is registered and now contains seven
+written, not executed cases: synth/effect and disconnected-wire reference,
+parallel compensated dry/wet reference, nested/source latency agreement,
+per-frame gain-envelope reference, live property-update reference, independent
+sequence/arpeggio schedules across four block sizes, and allocator/overflow
+admission coverage. Mounted cases and further ownership cases follow. Existing EVERY_COMMAND gains setChannelRack.
 
 ## Integrator commands (not executed here)
 
