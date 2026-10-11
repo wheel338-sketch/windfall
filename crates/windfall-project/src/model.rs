@@ -248,6 +248,7 @@ impl Project {
                     denominator: 4,
                 },
                 swing: 0.0,
+                controller_links: Vec::new(),
             },
             samples: Vec::new(),
             notebook: crate::Notebook::default(),
@@ -339,6 +340,12 @@ pub struct ProjectSettings {
     /// At 1 that step lands two thirds of the way through its pair of steps,
     /// which is a full triplet feel.
     pub swing: f32,
+    /// What hardware and internal controllers move in this project, at most
+    /// [`MAX_CONTROLLER_LINKS`](crate::controller_links::MAX_CONTROLLER_LINKS).
+    /// Edited by [`Command::SetControllerLinks`](crate::Command).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[ts(as = "Option<Vec<crate::ControllerLink>>", optional)]
+    pub controller_links: Vec<crate::ControllerLink>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]

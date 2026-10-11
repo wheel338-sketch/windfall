@@ -14,6 +14,11 @@ pub mod curve_lfo;
 pub use curve_lfo::{CurveLfo, CurveLfoWave};
 pub mod channel_voice;
 pub use channel_voice::*;
+pub mod controller_links;
+pub use controller_links::{
+    ControlAction, ControlMap, ControlSource, ControllerLink, ControllerProfile, LinkTarget,
+    MidiControl, PickupMode, ProfileControl, SlotTarget, SourceMode,
+};
 mod check;
 pub mod command;
 pub mod document;
