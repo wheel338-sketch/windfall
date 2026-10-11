@@ -19,6 +19,7 @@ import { EqEditor } from "./eq/eq-editor"
 import { LimiterEditor } from "./limiter/limiter-editor"
 import { ReverbEditor } from "./reverb/reverb-editor"
 import { TunerEditor } from "./tuner/tuner-editor"
+import { OverdriveEditor, WaveshaperEditor } from "./nonlinear/editors"
 
 type Editors = {
   [Kind in EffectKind]?: ComponentType<EditorProps<EffectParamsOf<Kind>>>
@@ -36,6 +37,8 @@ const EDITORS: Editors = {
   reverb: ReverbEditor,
   delay: DelayEditor,
   tuner: TunerEditor,
+  overdrive: OverdriveEditor,
+  waveshaper: WaveshaperEditor,
 }
 
 type AnyEditor = ComponentType<EditorProps<EffectParams>>

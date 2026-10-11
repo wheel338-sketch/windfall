@@ -121,3 +121,39 @@ Ordered by how likely I think each is to need a fix.
 ## Remaining gates
 
 Filled in at wrap-up.
+
+## Resumed implementation — 2026-10-11, checkpoint 1
+
+The inherited hand-off above describes an earlier checkpoint and is not current
+completion evidence. HEAD on arrival was `8e946db2`; a checkpoint also contains
+an unfinished eleven-pedal guitar implementation and synthetic cabinet source.
+The guitar module does not yet declare its cabinet sibling. This is being
+completed in this stream, not treated as a passing integrated feature.
+
+- Overdrive: purpose-built editor exposes all eight existing controls. Full-row
+  candidate after integration checks; no new DSP claim in this checkpoint.
+- Waveshaper: mounted-purpose curve editor supports adding/moving up to 64
+  points, bending segments, precise numeric edits, deletion, reset, keyboard
+  arrows, and draft cancellation on Escape/capture loss/focus loss. Pointer
+  moves remain local; release sends one checked `SetEffectParams`. Commit reads
+  the current slot to preserve concurrent scalar changes.
+- Tests **written, not executed**: `crates/windfall-project/tests/nonlinear_performance.rs`
+  (`settings_gestures_noops_and_disk_save_reopen_preserve_every_control`,
+  `invalid_edits_are_atomic_and_finite_extrema_use_descriptor_sanitization`,
+  `every_control_has_the_correct_automation_range_and_removal_history_restores_curves`,
+  `old_v1_parameters_and_drawn_shapes_roundtrip_with_exact_history`);
+  `crates/windfall-engine/tests/engine/nonlinear_performance.rs`
+  (`all_eight_processors_capture_the_same_pcm_live_offline_and_under_block_partitions`,
+  registered in engine/main.rs); `nonlinear/curve-editor.test.tsx` (release-only
+  publication, cancellation, keyboard and bend edits).
+- Integrator: regenerate bindings/descriptors and WASM first. Then run
+  `cargo test -p windfall-project --test nonlinear_performance`,
+  `cargo test -p windfall-engine --test engine nonlinear_performance`,
+  `pnpm --dir apps/desktop test src/features/effects/nonlinear --maxWorkers=4`.
+- Shared seams added: effects/effect-editor.tsx editor registrations;
+  engine/tests/engine/main.rs test module registration. Generated CurvePoint
+  and widened Overdrive/Waveshaper parameter bindings are required.
+- Risks: source inspection found an unfinished inherited guitar module that
+  cannot compile until checkpoint 2; verify regenerated TS curve field shape,
+  jsdom pointer support, inherited shaping thresholds, and engine render
+  sample-rate defaults. Asset store remains bounded and append-only.
