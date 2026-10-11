@@ -33,6 +33,8 @@ not executed**. Parity status is owned by the overseer and remains untouched.
   filters genre, source key and tempo, auditions, inserts, and drags a guarded
   loop payload into the playlist, including blank destination rows in the same
   undo batch. Derived cache WAVs get provenance sidecars.
+  Generated audition reserves the existing preview ticket before synthesis, so
+  Stop preview or a newer file preview supersedes an in-flight loop render.
 
 User workflows, protocol bounds, provider adapter transaction contract, account
 decisions and per-asset provenance are documented in
@@ -52,6 +54,7 @@ integrator, not edited by this worker.
 - `windfall_factory::loops::tests::independent_wav_decode_and_pitch_measurement`
 - `session::tests::remote_cloud_content::{remote_named_command_undo_stale_and_recording_guards,loopback_pair_websocket_fader_and_undo,backup_portable_project_restore_round_trip_and_original_generation,loop_fit_insertion_one_undo_save_reopen_and_provenance,rendered_loop_cannot_attach_to_replaced_or_recording_document}`
 - `session::tests::remote_cloud_content::loop_drop_creates_blank_rows_and_clip_in_one_undo_step`
+- `session::tests::remote_cloud_content::generated_loop_preview_is_superseded_by_stop_or_newer_file_preview`
 - Mounted UI `features/settings/phone-remote.test.tsx`:
   `starts only on explicit enable, shows pairing, and revokes on disable`;
   `shows native capability and bind errors without simulated success`;
@@ -90,6 +93,7 @@ cargo test -p windfall-desktop --lib remote_protocol
 cargo test -p windfall-desktop --lib phone_remote
 cargo test -p windfall-desktop --lib session::tests::archive
 cargo test -p windfall-desktop --lib session::tests::remote_cloud_content
+cargo test -p windfall-desktop --lib session::tests::playback
 cargo clippy -p windfall-factory -p windfall-ipc -p windfall-desktop --all-targets -- -D warnings
 pnpm --dir apps/desktop test src/features/settings/phone-remote.test.tsx src/features/backup/panel.test.tsx src/features/loops/browser.test.tsx --maxWorkers=4
 pnpm --dir apps/desktop test src/lib/flows/portable.test.ts src/lib/flows/project-generation.test.ts src/lib/actions/shortcuts.test.tsx --maxWorkers=4
@@ -113,7 +117,7 @@ is formatting, not compilation or acceptance evidence.
 | `core-loop-starter` | Full-row software candidate, unverified | Factory asset regeneration, compilation/tests and listening/cross-platform byte checks. All v1 melodic loops are minor; fit is on insertion, not automatic after later project-tempo changes. |
 
 Shared seams touched: native `commands.rs`, `lib.rs`, `session/mod.rs`,
-`session/tests/mod.rs`, `session/archive.rs`, `session/transport.rs`;
+`session/tests/mod.rs`, `session/archive.rs`, `session/transport.rs`, `session/audio.rs`;
 `windfall-ipc/src/lib.rs`, factory `src/lib.rs`; frontend IPC
 `backend.ts`, `tauri.ts`, `mock.ts`, browser `index.tsx`, playlist `grid.tsx`,
 settings `settings-dialog.tsx`, and Save flows `lib/flows/{project,portable}.ts`.

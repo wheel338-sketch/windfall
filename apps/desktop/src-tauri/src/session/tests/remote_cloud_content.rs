@@ -15,6 +15,31 @@ fn place() -> ClipPlace {
     }
 }
 #[test]
+fn generated_loop_preview_is_superseded_by_stop_or_newer_file_preview() {
+    for newer in [false, true] {
+        let mut rig = Rig::new();
+        let hold = rig.session.hold("loop:preview-rendered");
+        let worker = rig.session.background(|s| s.loop_preview("house-a"));
+        hold.wait();
+        if newer {
+            let silence = paths::display(&rig.folder.path().join("silence.wav"));
+            windfall_codec::write_wav(
+                &silence,
+                &windfall_core::AudioBuffer::from_interleaved(48000, 1, vec![0.0; 48000]),
+                windfall_codec::WavSampleFormat::Float32,
+            )
+            .unwrap();
+            rig.session.preview_play(&silence).unwrap();
+        } else {
+            rig.session.preview_stop();
+        }
+        hold.release();
+        worker.join().unwrap().unwrap();
+        rig.run(4800);
+        assert!(super::rms(&rig.run(4800)) < 1e-4);
+    }
+}
+#[test]
 fn loop_drop_creates_blank_rows_and_clip_in_one_undo_step() {
     let rig = Rig::new();
     let before = rig.project();

@@ -32,9 +32,14 @@ impl Session {
             .iter()
             .find(|l| l.id == id)
             .ok_or("Unknown factory loop.")?;
+        let ticket = self.preview_request();
         let rendered = asset.render();
+        #[cfg(test)]
+        self.pause("loop:preview-rendered");
         let path = self.loop_file(&rendered, asset, f64::from(asset.tempo), asset.key)?;
-        self.preview_play(&paths::display(&path))
+        let buffer = self.inner.cache.decode(&path)?;
+        self.preview_submit(ticket, buffer);
+        Ok(())
     }
     /// Synthesize at the project's current tempo and selected pitch class,
     /// then atomically install sources + tracks + clip as a single undo step.
