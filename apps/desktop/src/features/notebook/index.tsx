@@ -1,3 +1,4 @@
+import { useTranslation } from "@/lib/i18n"
 import { Button } from "@/components/ui/button"
 import {
   Popover,
@@ -12,6 +13,7 @@ import { useProjectGeneration } from "@/lib/store/replaced"
 import { NotebookPanel } from "./panel"
 
 export function NotebookControls() {
+  const t = useTranslation()
   const notebook = useProjectStore((state) => state.project.notebook)
   const generation = useProjectGeneration()
 
@@ -20,7 +22,7 @@ export function NotebookControls() {
       <PopoverTrigger
         render={
           <Button variant="ghost" size="sm">
-            Notebook
+            {t("Notebook")}
           </Button>
         }
       />
@@ -29,7 +31,7 @@ export function NotebookControls() {
         className="max-h-[75vh] w-96 max-w-[90vw] overflow-y-auto"
       >
         <PopoverHeader>
-          <PopoverTitle>Song notebook</PopoverTitle>
+          <PopoverTitle>{t("Song notebook")}</PopoverTitle>
         </PopoverHeader>
         <NotebookPanel
           key={JSON.stringify([generation, notebook])}

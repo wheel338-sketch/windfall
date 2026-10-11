@@ -8,6 +8,7 @@ import { runAction, useShortcutLabel } from "@/lib/actions"
 import { useHint } from "@/lib/store/hint"
 import { useDirty, useProjectName } from "@/lib/store/selectors"
 import { resolveTheme, useUiStore } from "@/lib/store/ui"
+import { useTranslation } from "@/lib/i18n"
 
 import { TITLE_MENU } from "./chrome-menus"
 import { AppMenuBar } from "./menu-bar"
@@ -48,6 +49,7 @@ function ProjectTitle() {
 }
 
 function PaletteButton() {
+  const t = useTranslation()
   const shortcut = useShortcutLabel("view.commandPalette")
   const hint = useHint("Find any action by name and see its shortcut")
   return (
@@ -58,7 +60,7 @@ function PaletteButton() {
       {...hint}
     >
       <HugeiconsIcon icon={Search01Icon} strokeWidth={2} className="size-3" />
-      <span className="flex-1 text-left">Search actions</span>
+      <span className="flex-1 text-left">{t("Search actions")}</span>
       {shortcut && <Kbd className="h-4 min-w-4">{shortcut}</Kbd>}
     </button>
   )

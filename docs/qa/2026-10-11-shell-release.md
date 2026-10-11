@@ -148,3 +148,32 @@ Primary API sources read (implementation references, not runtime evidence):
 [Tauri updater](https://v2.tauri.app/plugin/updater/),
 [Update download/install](https://docs.rs/tauri-plugin-updater/latest/tauri_plugin_updater/struct.Update.html),
 [UpdaterBuilder](https://docs.rs/tauri-plugin-updater/latest/tauri_plugin_updater/struct.UpdaterBuilder.html).
+
+## Languages
+
+Adds typed English/Spanish catalogs, plural forms, named interpolation, Intl
+number/date formatting, a Settings language selector, persisted `windfall.language`
+outside the document, cross-window storage rehydration without write echoes,
+and document language accessibility metadata. Every catalog contains all defined
+keys with matching placeholders. Static action IDs map to catalog messages;
+user-named recent projects are not passed through action-title translation.
+Menus, all main panel headings/tabs/dock controls, builtin transport/action
+labels, Browser navigation, notebook primary controls and Settings core navigation
+consume the catalog. English remains the compatibility fallback for unmigrated
+messages. The second catalog is complete **for the migrated message set**.
+
+Written, not executed: `lib/i18n/catalogs.test.tsx` all-key/plural/placeholder
+coverage, Spanish plural/decimal/date formatting, mounted language/panel
+translation/persistence, other-window rehydration/invalid recovery/cleanup.
+
+```powershell
+pnpm --dir apps/desktop test src/lib/i18n/catalogs.test.tsx src/features/layout/menus.test.ts src/features/layout/detach.test.tsx src/features/settings/settings.test.tsx src/features/notebook/panel.test.tsx --maxWorkers=2
+```
+
+Partial: remaining panel-local inspectors, dynamic status/error/help text, MIDI/
+plugin dialogs, full command palette search and native dialog/menu localization
+are not fully migrated. Existing technical number entry retains its canonical
+parse contract; all number/date consumers have not yet adopted Intl helpers.
+Do not call Spanish a complete application/main-panel translation. Translator
+review, text expansion at 75–200% and accessibility/native OS runs remain.
+No IPC/generated type or project-format change for language preferences.

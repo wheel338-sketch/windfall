@@ -23,6 +23,8 @@ import {
 } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
 
+import { message, useTranslation } from "@/lib/i18n"
+
 import { duplicatePage } from "./duplicate-page"
 import { pageAtTick } from "./playback"
 import { notebookHtmlDocument } from "./safe-html"
@@ -43,6 +45,7 @@ export function NotebookPanel({
   notebook?: Notebook
   onSave(notebook: Notebook): Promise<boolean>
 }) {
+  const t = useTranslation()
   const id = useId()
   const [pages, setPages] = useState(() => notebook?.pages ?? [])
   const [saved, setSaved] = useState(() => normalize(notebook?.pages ?? []))
@@ -68,7 +71,7 @@ export function NotebookPanel({
   const invalid = invalidPage !== -1 || pages.length > MAX_PAGES || cueInvalid
   const items = visiblePages.map((item, index) => ({
     value: index,
-    label: `${index + 1}. ${item.title.trim() || "Untitled page"}`,
+    label: `${index + 1}. ${item.title.trim() || t("Untitled page")}`,
   }))
 
   // Only a page transition renders React, not each realtime frame. Keep drafts
@@ -105,10 +108,10 @@ export function NotebookPanel({
         setSaved(next)
         setPages(next.pages)
       } else {
-        setError("Could not save notebook.")
+        setError(t("Could not save notebook."))
       }
     } catch {
-      setError("Could not save notebook.")
+      setError(t("Could not save notebook."))
     } finally {
       pending.current = false
       setSaving(false)
@@ -128,10 +131,10 @@ export function NotebookPanel({
       <FieldGroup>
         <Field orientation="horizontal">
           <Checkbox id={`${id}-follow`} checked={follow} onCheckedChange={setFollow} />
-          <FieldLabel htmlFor={`${id}-follow`}>Follow song playback</FieldLabel>
+          <FieldLabel htmlFor={`${id}-follow`}>{t("Follow song playback")}</FieldLabel>
         </Field>
         <Field data-disabled={saving}>
-          <FieldLabel htmlFor={`${id}-page`}>Page</FieldLabel>
+          <FieldLabel htmlFor={`${id}-page`}>{t("Page")}</FieldLabel>
           <Select
             items={items}
             value={selected}
@@ -155,8 +158,8 @@ export function NotebookPanel({
           </Select>
           <FieldDescription>
             {pages.length
-              ? `${pages.length} of ${MAX_PAGES} pages`
-              : "No saved pages. Start with this blank page."}
+              ? message("{count} of {max} pages", { count: pages.length, max: MAX_PAGES })
+              : t("No saved pages. Start with this blank page.")}
           </FieldDescription>
           <div className="flex gap-2">
             <Button
@@ -201,7 +204,7 @@ export function NotebookPanel({
           </div>
         </Field>
         <Field data-invalid={cueInvalid}>
-          <FieldLabel htmlFor={`${id}-cue`}>Page starts at song tick</FieldLabel>
+          <FieldLabel htmlFor={`${id}-cue`}>{t("Page starts at song tick")}</FieldLabel>
           <Input id={`${id}-cue`} type="number" min={0} max={960_000_000}
             step={1} value={page.startTick ?? ""} disabled={saving}
             aria-invalid={cueInvalid}
@@ -212,10 +215,10 @@ export function NotebookPanel({
         <Field orientation="horizontal">
           <Checkbox id={`${id}-html`} disabled={saving} checked={page.html ?? false}
             onCheckedChange={(html) => edit({ html: html || undefined })} />
-          <FieldLabel htmlFor={`${id}-html`}>Safe HTML preview</FieldLabel>
+          <FieldLabel htmlFor={`${id}-html`}>{t("Safe HTML preview")}</FieldLabel>
         </Field>
         <Field data-disabled={saving} data-invalid={titleInvalid}>
-          <FieldLabel htmlFor={`${id}-title`}>Page title</FieldLabel>
+          <FieldLabel htmlFor={`${id}-title`}>{t("Page title")}</FieldLabel>
           <Input
             id={`${id}-title`}
             value={page.title}
@@ -231,7 +234,7 @@ export function NotebookPanel({
           )}
         </Field>
         <Field data-disabled={saving} data-invalid={bodyInvalid}>
-          <FieldLabel htmlFor={`${id}-body`}>Page body</FieldLabel>
+          <FieldLabel htmlFor={`${id}-body`}>{t("Page body")}</FieldLabel>
           <Textarea
             id={`${id}-body`}
             className="min-h-48"

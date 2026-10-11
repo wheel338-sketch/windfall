@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { openPluginManager } from "@/features/plugins/store"
 import { useShortcutScope } from "@/lib/actions"
+import { useTranslation } from "@/lib/i18n"
 
 import { BackupsTab } from "./backups"
 import { BrowserHeader } from "./browser-header"
@@ -22,6 +23,7 @@ import { TreeView } from "./tree-view"
  * Its state lives in a store of its own, so hiding the panel loses nothing.
  */
 export default function BrowserPanel() {
+  const t = useTranslation()
   useEffect(() => {
     ensureRootsLoaded()
     // The scroll position is saved a moment after scrolling stops; make sure
@@ -37,10 +39,10 @@ export default function BrowserPanel() {
 
   return (
     <Tabs defaultValue="library" className="h-full min-h-0 gap-0">
-      <TabsList aria-label="Browser view" className="m-1 shrink-0">
-        <TabsTrigger value="library">Library</TabsTrigger>
-        <TabsTrigger value="project">Project</TabsTrigger>
-        <TabsTrigger value="backups">Backups</TabsTrigger>
+      <TabsList aria-label={t("Browser view")} className="m-1 shrink-0">
+        <TabsTrigger value="library">{t("Library")}</TabsTrigger>
+        <TabsTrigger value="project">{t("Project")}</TabsTrigger>
+        <TabsTrigger value="backups">{t("Backups")}</TabsTrigger>
       </TabsList>
       <TabsContent value="library" className="min-h-0">
         <ContextActions items={BROWSER_MENU}>
@@ -56,7 +58,7 @@ export default function BrowserPanel() {
               size="sm"
               onClick={() => openPluginManager()}
             >
-              Browse plugins
+              {t("Browse plugins")}
             </Button>
             {/* Keep usable controls and a virtual window when zoom or a small panel
             makes them larger than the panel. The outer panel scrolls both axes. */}

@@ -18,6 +18,7 @@ import { runAction, useShortcutLabel } from "@/lib/actions"
 import { useChannelCount, useProjectReady } from "@/lib/store/selectors"
 import { useUiStore, type CenterTab, type PanelSizes } from "@/lib/store/ui"
 import { cn } from "@/lib/utils"
+import { message, useTranslation } from "@/lib/i18n"
 
 import { dividerMenu, EMPTY_PROJECT_MENU, TABS_MENU } from "./chrome-menus"
 import { EmptyProject } from "./empty-states"
@@ -42,6 +43,7 @@ const MIXER_DIVIDER_MENU = dividerMenu("main", "view.mixer")
 const BROWSER_DIVIDER_MENU = dividerMenu("workspace", "view.browser")
 
 function CenterTabButton({ tab, active }: { tab: CenterTab; active: boolean }) {
+  const t = useTranslation()
   const { title, action } = PANELS[tab]
   const shortcut = useShortcutLabel(action)
 
@@ -60,10 +62,10 @@ function CenterTabButton({ tab, active }: { tab: CenterTab; active: boolean }) {
             "font-medium text-foreground after:absolute after:inset-x-2.5 after:bottom-0 after:h-0.5 after:rounded-t-full after:bg-brand"
         )}
       >
-        {title}
+        {t(title)}
       </TooltipTrigger>
       <TooltipContent side="bottom">
-        Show the {title.toLowerCase()}
+        {message("Show the {panel}", { panel: t(title).toLowerCase() })}
         {shortcut && <Kbd>{shortcut}</Kbd>}
       </TooltipContent>
     </Tooltip>
