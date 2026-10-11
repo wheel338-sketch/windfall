@@ -2,6 +2,8 @@
 
 ## Running progress
 
+- Four further mixed UTF-8/CP1252 files repaired narrowly (only invalid en-dash/middle-dot bytes), including user-facing filter/drum/asset-preparation labels. Affected mounted suites pass 56/0 across 3 files (`round2-frontend-encoding.log`). Final `pnpm.cmd typecheck` and `pnpm.cmd lint` both exit 0 with no diagnostics (`round2-typecheck-final.log`, `round2-lint-final.log`). All worker-focused paths have now passed; fresh binding comparison and complete suites are next.
+
 - Focused mounted run: 863 passed/3 failed across 28 files (`round2-frontend-focused.log`). The three failed files now pass all 41 tests (`round2-frontend-repair.log`): repaired CP1252 ellipsis in the test's button label; correctly adopted the controlled curve parent's edited last endpoint and added focus-loss cancellation evidence; split eight complete Filter Bank workflows into eight cases without increasing the five-second timeout or dropping assertions. Four further mixed-encoding frontend files found by strict UTF-8 source scan are being repaired before final lint/typecheck/full execution.
 
 - Final simulator generation passes: 4,980,098 bytes, fresh seven-crate provenance (`target/round2-sim-final.log`), following strict-Clippy product cleanups and gate-release repair. Focused mounted tests are next; full native/frontend suites and final row reconciliation remain pending.

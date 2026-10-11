@@ -12,7 +12,7 @@ export function DrumRackEditor({ channel, params }: { channel: ChannelId; params
   const bind = useInstrumentBinding(channel, params)
   return <div role="group" aria-label="Drum Rack settings" className="flex flex-col gap-3">
     <div role="group" aria-label="Sixteen synthesized pads" className="grid grid-cols-4 gap-2">
-      {params.pads.map((_, index) => <Button key={index} variant={pad === index ? "secondary" : "outline"} aria-pressed={pad === index} onClick={() => { audition.stop(); setPad(index) }}>Pad {index + 1} · MIDI {36 + index}</Button>)}
+      {params.pads.map((_, index) => <Button key={index} variant={pad === index ? "secondary" : "outline"} aria-pressed={pad === index} onClick={() => { audition.stop(); setPad(index) }}>Pad {index + 1} Â· MIDI {36 + index}</Button>)}
     </div>
     <ParamGroup title={`Pad ${pad + 1} membrane`}>
       <Button onPointerDown={event => { event.currentTarget.setPointerCapture(event.pointerId); audition.start() }} onPointerUp={audition.stop} onPointerCancel={audition.stop} onLostPointerCapture={audition.stop} onKeyDown={event => { if (event.key === " " || event.key === "Enter") audition.start() }} onKeyUp={audition.stop} onBlur={audition.stop}>Hold to audition pad {pad + 1}</Button>

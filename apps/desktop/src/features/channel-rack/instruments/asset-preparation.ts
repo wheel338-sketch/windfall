@@ -55,7 +55,7 @@ export function prepareInstrumentAsset(request: AssetRequest): InstrumentAsset {
     if (tag === "data") { start = at+8; length = count }
     at = next + (count % 2)
   }
-  if (![1,3].includes(format) || channels < 1 || channels > 8 || rate < 8000 || rate > 192000 || ![16,24,32].includes(bits) || (format === 3 && bits !== 32) || stride !== channels * (bits/8) || length < stride) throw new Error("Supported WAV: 8–192 kHz, 1–8 channels, PCM 16/24/32-bit or float 32-bit")
+  if (![1,3].includes(format) || channels < 1 || channels > 8 || rate < 8000 || rate > 192000 || ![16,24,32].includes(bits) || (format === 3 && bits !== 32) || stride !== channels * (bits/8) || length < stride) throw new Error("Supported WAV: 8â€“192 kHz, 1â€“8 channels, PCM 16/24/32-bit or float 32-bit")
   const frames = Math.floor(length / stride), kept = Math.min(frames,32768)
   const samples = Array.from({ length: kept }, (_, frame) => {
     let sample = 0

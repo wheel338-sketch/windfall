@@ -12,7 +12,7 @@ export function FilterBankEditor({ bind }: EditorProps<FilterBankParams>) {
     <div role="group" aria-label="Filter Bank settings" className="flex min-w-0 flex-col gap-2">
       <ParamControl {...bind("routing")} layout="inline" />
       <p className="text-[10px] text-muted-foreground">
-        Serial passes audio through units 1–8. Parallel feeds each active unit the input and averages their outputs.
+        Serial passes audio through units 1â€“8. Parallel feeds each active unit the input and averages their outputs.
         Bypass skips a unit; Dry enables an unfiltered branch for gate-only patterns.
       </p>
       <Tabs defaultValue="0">

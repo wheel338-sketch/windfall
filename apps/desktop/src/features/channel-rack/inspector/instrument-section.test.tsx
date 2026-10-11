@@ -217,7 +217,7 @@ describe("instrument settings panels", () => {
   it("selects and edits the sixteenth synthesized membrane without changing pad one", async () => {
     const channel = await open("drumRack")
     const original = channelOf(channel).source.params
-    await userEvent.setup().click(screen.getByRole("button", { name: "Pad 16 · MIDI 51" }))
+    await userEvent.setup().click(screen.getByRole("button", { name: "Pad 16 Â· MIDI 51" }))
     const strike = screen.getByRole("slider", { name: "Strike Position" })
     fireEvent.keyDown(strike, { key: "End" })
     fireEvent.keyUp(strike, { key: "End" })
