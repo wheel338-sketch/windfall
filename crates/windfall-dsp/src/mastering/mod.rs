@@ -1,4 +1,10 @@
 //! Stage Stack: soft harmonic shaping followed by a zero-delay safety clip.
+//!
+//! The submodules hold what a master is measured by ([`loudness`]).
+
+pub mod loudness;
+
+pub use loudness::{LOUDNESS_FLOOR, LoudnessMeter, LoudnessMetrics, measure};
 
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
