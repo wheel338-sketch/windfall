@@ -496,6 +496,7 @@ fn song_wav_navigation_refusal_preserves_destination_and_a_region_before_navigat
     assert_eq!(rig.session.document_snapshot(), before);
     let guard = rig.session.timeline_state();
     export.path = rig.file("before-navigation.wav");
+    rig.events.take();
     export.region = Some(TickRange { start: 0, end: 480 });
     export.region_generation = Some(guard.generation);
     export.region_revision = Some(guard.revision);
