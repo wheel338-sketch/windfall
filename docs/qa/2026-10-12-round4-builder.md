@@ -18,9 +18,11 @@ files; this independent commit was retained, not reverted.
 
 - **A2 fixed:** desktop's 256-frame helper block could be submitted and expire
   inside one 480-frame callback, forcing latency-aligned dry fallback even for
-  healthy native PCM. Desktop bridge now uses 512-frame helper blocks (existing
-  protocol capacity); two-block pipeline/PDC reports the resulting latency,
-  with no callback waits/allocations. Existing assertions unchanged.
+  healthy native PCM. Live desktop bridge now uses 512-frame helper blocks
+  (existing protocol capacity); two-block pipeline/PDC reports the resulting
+  latency, with no callback waits/allocations. Offline keeps 256-frame blocks
+  under its explicit render scheduler. Preset assertions unchanged; follow-up
+  exact PDC expectations and repeated-capture fixes are derived below.
   `cargo test -p windfall-desktop --lib session::tests::mixer_preset_native --
   --test-threads=1 --nocapture`: **2 passed / 0 failed / 0 ignored** including
   capture, undo/redo, restore and reopen, all-frame PCM and allocator checks;
@@ -299,5 +301,52 @@ simulator build/check and frontend gates are not triggered.
 - `cargo clippy --workspace --all-targets -- -D warnings`: **PASS**, zero
   warnings/errors, exit 0, 19.43 s,
   `target/round4-builder-final-clippy-repeat.log`.
-- Full workspace test running serially, followed by the two required release
-  budget commands. Source checkpoint: `2e554923`.
+- `cargo test --workspace --no-fail-fast -- --test-threads=1`: **4317 passed /
+  0 failed / 37 ignored**, 171 result blocks, exit 0,
+  `target/round4-builder-final-workspace-repeat.log`. All A1–A7 requests and
+  corrected desktop/VST3 lifecycle/deadline regressions pass. The ignore count
+  is unchanged; no opt-ins/hardware tests were run. Source checkpoint:
+  `2e554923`. The two required explicit release budget gates follow serially.
+- `cargo test --release -p windfall-dsp --test dsp instrument_deadlines --
+  --test-threads=1 --nocapture`: **20/0/0**, 72.31 s, exit 0,
+  `target/round4-builder-final-instruments.log`. Unchanged **0.75x** admission
+  limit, declared voices/partials/routes/unison, all variants, tails, bounded
+  output, repeatability and callback allocation assertions pass. Originally
+  failing maximum held ratios: **beepmap/Color Scan 0.4524x; gms/Groove
+  0.5492x (all four modes); harmless/Harmonic Filter 0.4431x; harmor/Spectral
+  Resynth 0.4531x; morphine/Snapshot Morph 0.4454x; ogun/Metal Voice 0.4751x;
+  sytrus/Matrix 0.4975x; toxic_biohazard/Hybrid 0.4893x (all four algorithms)**.
+  GMS's maximum tail render is **191.3806 ms / 43.464 s = 0.004403x**.
+  Remaining held maxima: autogun **0.2742x**, bassdrum **0.0138x**, boobass
+  **0.0009x**, drumaxx **0.1132x**, drumpad **0.0063x**, drumsynth_live
+  **0.0124x** (all four modes), flex **0.3239x** (all 12 packs), kepler_exo
+  **0.4048x**, kepler **0.3482x**, minisynth **0.0667x**, poizone **0.2622x**,
+  sawer **0.3589x**. Every released/tail gate passes. Largest logged single
+  instrument callback is **10.6206 ms** (Hybrid Pairs); this is a logged
+  observation, not a hardware deadline claim or a changed admission metric.
+- `cargo test --release -p windfall-dsp --test dsp p2_effect_budgets --
+  --test-threads=1 --nocapture`: **3/0/0**, 3.07 s, exit 0,
+  `target/round4-builder-final-effects.log`. Worst admitted CPU shares across
+  blocks **64/256/2048** at **384 kHz**: Overdrive **0.143991 / 0.20**,
+  Waveshaper **0.161477 / 0.20**, Guitar Rack **0.302123 / 0.75** (all cabinets,
+  all 11 pedals), Drive Chain **0.694088 / 0.75** (all three graphs). Original
+  8x oversampling filters/coefficients and all cabinet taps remain.
+  Other included budgets pass: Time Transport **0.006581 / 0.25**,
+  Performance Rack **0.029386 / 0.25** (all 12 models), Pitch Shift Mix
+  **0.194965 / 0.50**, Voice **0.367322 / 0.50**, Pitch Correct with all four
+  harmonies **0.080733 / 0.50**. All reset/maximum-callback budgets and the
+  one-frame diagnostics pass with their original assertions.
+
+All requested A1–A7 correctness fixes and both required release admission gates
+are complete. No budget workload, limit, tolerance or skip was weakened.
+The documented expectation corrections are the gated sampler fixture, causal
+32-frame native stop delay, exact new live pipeline/PDC values, and the newly
+implemented editor capability; original signal/partition/history assertions
+remain. All existing accuracy/reference checks pass in the final workspace run.
+
+Non-gate issue retained for a successor: the optional extra release `--lib`
+run's three standalone allocator probe harnesses failed to link plain `rustc`
+objects against ThinLTO core archives. All 671 normal-profile unit tests,
+including those exact allocator probes, and release integration callback heap
+checks pass. No claim is made that this separate release probe-linking harness
+has been repaired. No requested product fix or final gate remains unresolved.
