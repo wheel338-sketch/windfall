@@ -671,4 +671,17 @@ describe("analysis app controls", () => {
     expect(useProjectStore.getState().project.playlist.clips).toEqual(before.project.playlist.clips)
     expect(useProjectStore.getState().project.playlist.tracks).toEqual(before.project.playlist.tracks)
   })
+  it("shows a missing-runtime capability error and refuses separation without changing simulator history", async () => {
+    const stems = { ...model, outputs: ["drums", "bass", "vocals", "other"].map((role) => ({ role, channels: 2 })) }
+    const submit = vi.spyOn(backend, "analysisSubmit")
+    vi.spyOn(backend, "analysisCapability").mockResolvedValue({ native: true, available: true, classicalDereverb: true,
+      stemSeparation: false, reason: "ONNX Runtime library is missing. Choose the installed library in Settings.", models: [stems] })
+    const before = useProjectStore.getState()
+    render(<AnalysisPanel clip={clip} initialTask="stemSeparation" />)
+    expect(await screen.findByRole("status")).toHaveTextContent("ONNX Runtime library is missing")
+    await waitFor(() => expect(screen.getByRole("button", { name: "Submit analysis" })).toBeDisabled())
+    expect(disabledReason("analysis.submit")).toContain("ONNX Runtime library is missing")
+    expect(submit).not.toHaveBeenCalled()
+    expect(useProjectStore.getState()).toBe(before)
+  })
 })

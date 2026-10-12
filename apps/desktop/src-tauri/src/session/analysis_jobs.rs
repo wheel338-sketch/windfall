@@ -23,7 +23,7 @@ use windfall_project::{
     SamplePath,
 };
 
-pub(super) const UNAVAILABLE: &str = "Stem separation/remix require an imported licensed ONNX pack and an installed ONNX Runtime adapter. Pack registration does not install executable code. Classical dereverb is built in.";
+pub(super) const UNAVAILABLE: &str = "Stem separation/remix require an imported licensed waveform ONNX pack and an installed ONNX Runtime CPU shared library. Choose both in Settings → Stem separation. Classical dereverb is built in.";
 const PCM_LIMIT: u64 = 16 * 1024 * 1024;
 const OUTPUT_PCM_LIMIT: u64 = 32 * 1024 * 1024;
 const MODEL_LIMIT: u64 = 256 * 1024 * 1024;
@@ -558,7 +558,8 @@ impl Session {
             classical_dereverb: owned
                 .adapter
                 .as_ref()
-                .is_some_and(|a| a.supports(native::InferenceTask::DereverbGeneral))
+                .is_some_and(|a| (a.id() == native::BUILTIN_DEREVERB_ID || a.id() == native::separation::ADAPTER_ID)
+                    && a.supports(native::InferenceTask::DereverbGeneral))
                 && !owned.closed,
             available,
             reason: registry_error.or_else(|| (!available).then(|| UNAVAILABLE.into()))
