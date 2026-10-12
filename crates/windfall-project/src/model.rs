@@ -195,6 +195,19 @@ pub struct Project {
     /// Opaque states from imported plugins, kept even before a compatible host exists.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub retained_plugins: Vec<RetainedPluginState>,
+    /// Import provenance and uninterpreted controls; descriptive, never executed.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[ts(as = "Option<Vec<RetainedSourceData>>", optional)]
+    pub retained_source_data: Vec<RetainedSourceData>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct RetainedSourceData {
+    pub source: String,
+    pub format: String,
+    pub data: Vec<u8>,
 }
 
 /// A plugin state the importer understands only as opaque bytes. Source ids
@@ -302,6 +315,7 @@ impl Project {
             automations: Vec::new(),
             plugins: Vec::new(),
             retained_plugins: Vec::new(),
+            retained_source_data: Vec::new(),
         }
     }
 

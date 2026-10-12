@@ -53,6 +53,7 @@ fn metadata() -> WavMetadata {
             one_shot: false,
         }),
         root_key: Some(57),
+        notes: Vec::new(),
     }
 }
 #[test]
@@ -114,6 +115,56 @@ fn cue_labels_slices_loops_and_tempo_have_independent_expected_bytes() {
     assert_eq!(read_wav_metadata_file(&path).unwrap(), expected);
     let audio = decode_file(&path).unwrap();
     assert_eq!(audio.frames(), 32);
+    std::fs::remove_file(path).unwrap();
+}
+
+#[test]
+fn riff_notes_have_independent_utf8_lengths_padding_ids_and_strict_reader_bounds() {
+    let path = std::env::temp_dir().join(format!("windfall-note-bytes-{}.wav", std::process::id()));
+    let mut expected = metadata();
+    expected.notes = vec![
+        WavNote { cue_id: 8, text: "WindfallSlice/1 0.5 -12 3 25 1 1".into() },
+        WavNote { cue_id: 8, text: "WindfallBeats/1 97.5 3.125".into() },
+        WavNote { cue_id: 7, text: "Authored note ✓".into() },
+    ];
+    let mut writer = WavWriter::create_with_metadata(&path, 48000, 1,
+        WavSampleFormat::Float32, &AudioTags::default(), &expected).unwrap();
+    writer.write(&[0.25; 32]).unwrap();
+    writer.finalize().unwrap();
+    let bytes = std::fs::read(&path).unwrap();
+    let table = chunks(&bytes);
+    let list = table.iter().find(|(id, body)| id == b"LIST" && body.starts_with(b"adtl")).unwrap().1;
+    let mut pos = 4;
+    let mut notes = Vec::new();
+    while pos < list.len() {
+        let size = le(list, pos + 4) as usize;
+        if &list[pos..pos + 4] == b"note" {
+            let body = &list[pos + 8..pos + 8 + size];
+            assert_eq!(body[size - 1], 0);
+            notes.push((le(body, 0), std::str::from_utf8(&body[4..size - 1]).unwrap()));
+        }
+        pos += 8 + size + size % 2;
+    }
+    assert_eq!(notes, vec![(8, "WindfallSlice/1 0.5 -12 3 25 1 1"),
+        (8, "WindfallBeats/1 97.5 3.125"), (7, "Authored note ✓")]);
+    assert_eq!(read_wav_metadata(&bytes).unwrap(), expected);
+    assert_eq!(decode_file(&path).unwrap().samples(), &[0.25; 32]);
+    for note in [WavNote { cue_id: 99, text: "orphan".into() },
+        WavNote { cue_id: 8, text: "embedded\0NUL".into() },
+        WavNote { cue_id: 8, text: "x".repeat(1025) }] {
+        let mut invalid = expected.clone();
+        invalid.notes.push(note);
+        assert!(invalid.validate(Some(32)).is_err());
+    }
+    // Independently corrupt a known note's cue ID, then its terminator.
+    let note = bytes.windows(4).position(|id| id == b"note").unwrap();
+    let mut corrupt = bytes.clone();
+    corrupt[note + 8..note + 12].copy_from_slice(&99_u32.to_le_bytes());
+    assert!(read_wav_metadata(&corrupt).is_err());
+    let mut corrupt = bytes;
+    let size = le(&corrupt, note + 4) as usize;
+    corrupt[note + 8 + size - 1] = b'x';
+    assert!(read_wav_metadata(&corrupt).is_err());
     std::fs::remove_file(path).unwrap();
 }
 fn fixture(parts: &[(&[u8; 4], Vec<u8>)]) -> Vec<u8> {

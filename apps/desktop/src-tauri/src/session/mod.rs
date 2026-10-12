@@ -70,6 +70,7 @@ mod archive;
 mod assistant_connection;
 mod audio;
 mod audio_editor;
+mod preset_assets;
 mod audio_logger;
 mod autosave;
 mod capture_expression;

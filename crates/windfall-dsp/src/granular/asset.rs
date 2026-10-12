@@ -21,6 +21,10 @@ pub struct SliceRegion {
     pub release_ms: f32,
     /// Zero selects A; one selects B. Keys follow vector order.
     pub deck: u8,
+    /// Authored name; prepared runtime voice controls contain only numeric fields.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    #[ts(as = "Option<String>", optional)]
+    pub label: String,
 }
 impl Default for SliceRegion {
     fn default() -> Self {
@@ -33,6 +37,7 @@ impl Default for SliceRegion {
             attack_ms: 1.0,
             release_ms: 4.0,
             deck: 0,
+            label: String::new(),
         }
     }
 }
@@ -150,6 +155,8 @@ pub fn validate_slices(slices: &[SliceRegion]) -> Result<(), &'static str> {
             || !s.release_ms.is_finite()
             || !(1.0..=1000.0).contains(&s.release_ms)
             || s.deck > 1
+            || s.label.len() > 256
+            || s.label.contains('\0')
         {
             return Err("Invalid slice boundaries, deck, gain, pitch or envelope.");
         }
