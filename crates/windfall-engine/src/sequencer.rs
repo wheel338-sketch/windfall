@@ -108,6 +108,8 @@ pub(crate) struct Trigger {
 /// What a [`Trigger`] starts.
 #[derive(Debug, Clone, Copy)]
 pub(crate) enum Fire {
+    /// Cancel delayed transport-owned notes before the new pass's notes.
+    PassBoundary,
     Click {
         accent: bool,
     },
@@ -699,6 +701,14 @@ impl Sequencer {
     }
 
     fn gather(&self, plan: &Plan, from: u64, to: u64, triggers: &mut Triggers) {
+        let boundary = self.clock.frame_of(self.pass_start);
+        if self.pass_start > 0.0 && boundary >= from && boundary < to {
+            triggers.push(Trigger {
+                frame: boundary,
+                order: 0,
+                what: Fire::PassBoundary,
+            });
+        }
         match self.mode {
             PlayMode::Pattern => {
                 if let Some(pattern) = self.pattern(plan) {
@@ -1198,6 +1208,12 @@ mod tests {
                 for index in 0..triggers.len() {
                     let trigger = triggers.get(index);
                     assert!(trigger.frame >= cursor.frame && trigger.frame < end);
+                    // Collect musical note-ons; pass cleanup is a control
+                    // event (old-pass notes can round onto its frame too).
+                    if matches!(trigger.what, Fire::PassBoundary) {
+                        assert!(trigger.frame > 0);
+                        continue;
+                    }
                     let Fire::Note { key, .. } = trigger.what else {
                         panic!("{trigger:?} is not a note");
                     };
@@ -1287,9 +1303,15 @@ mod tests {
                 None
             );
             let frames: Vec<u64> = (0..triggers.len())
+                .filter(|&index| matches!(triggers.get(index).what, Fire::Note { .. }))
                 .map(|index| triggers.get(index).frame)
                 .collect();
             assert_eq!(frames, [0, 22_500, 24_000, 46_500, 48_000]);
+            let boundaries: Vec<u64> = (0..triggers.len())
+                .filter(|&index| matches!(triggers.get(index).what, Fire::PassBoundary))
+                .map(|index| triggers.get(index).frame)
+                .collect();
+            assert_eq!(boundaries, [24_000, 48_000]);
         }
         assert_eq!(sequencer.tick(&plan, 0), 0.0);
     }

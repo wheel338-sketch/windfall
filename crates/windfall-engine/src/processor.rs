@@ -1298,7 +1298,8 @@ impl Processor {
         for channel in 0..self.state.channel_voice.len() {
             for slot in 0..self.state.channel_voice[channel].owners.len() {
                 if let Some(owner) = self.state.channel_voice[channel].owners[slot]
-                    && (owner.note.origin == Origin::Sequenced || owner.generated.is_some())
+                    && (owner.note.origin == Origin::Sequenced
+                        || matches!(owner.generated, Some((Generator::Arp, _))))
                 {
                     self.release_instance(channel, owner.instance);
                     self.state.channel_voice[channel].owners[slot] = None;
@@ -1576,6 +1577,7 @@ impl Processor {
                 self.render_voices(base, rendered, offset);
                 rendered = offset;
                 match trigger.what {
+                    Fire::PassBoundary => self.cut_echoes_of(Origin::Sequenced),
                     Fire::Click { accent } => self.metronome.trigger(accent, self.sample_rate),
                     Fire::Note {
                         source,

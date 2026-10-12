@@ -297,9 +297,7 @@ impl ChannelVoiceRuntime {
     /// Flush transport-owned scheduling without retiring notes held by hand.
     pub fn end_sequenced(&mut self) {
         self.arp.reset();
-        self.echo.reset();
-        self.echo_sources.fill(None);
-        self.held_echoes.fill(None);
+        self.cancel_echoes_of(Origin::Sequenced);
         for note in &mut self.chord {
             if note.is_some_and(|note| note.origin == Origin::Sequenced) {
                 *note = None;

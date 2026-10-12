@@ -65,6 +65,22 @@ temporary native `TS_RS_EXPORT_DIR`. No worktree changes or hardware tests.
   Full spectral units **23/0/0**, `target/round4-builder-a4-spectral-fixed.log`.
   High-rate model CPU budget remains to be measured in B.
 
+- **A5 fixed:** queued sequenced echoes survived pattern loops, while Seek
+  reset all echo metadata and released generated live owners. Emit a bounded
+  pass-boundary control trigger before the next pass's note-ons and cancel
+  only sequenced echoes there. Seek retains live echo queues/owners; arpeggio
+  scheduling is rebuilt as before. `cargo test -p windfall-engine --test engine
+  rack_voice -- --test-threads=1 --nocapture`: **27/0/0**, including original
+  unchanged seek/loop PCM comparison and callback allocator/partition gates;
+  `target/round4-builder-a5-fixed.log`. Baseline **0/1/0**:
+  `target/round4-builder-a5-baseline.log`. Internal sequencer note-collection
+  test helpers now distinguish the new control trigger, verify the two exact
+  pass-boundary frames, and retain every note-list assertion; they previously
+  assumed all trigger variants were note-ons in this fixture.
+  `cargo test -p windfall-engine --lib sequencer -- --test-threads=1`:
+  **10/0/0**, `target/round4-builder-a5-sequencer-fixed.log` (first run 8/2/0
+  identified those helper assumptions; no note/frame expectations relaxed).
+
 ## Resume / final gates
 
-A5 is next. A5–A7, release budgets and final gates not yet run.
+A6 is next. A6–A7, release budgets and final gates not yet run.
