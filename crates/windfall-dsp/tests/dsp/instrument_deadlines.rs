@@ -1,16 +1,18 @@
 //! Non-ignored offline load gates for the parity instruments. Run this module
 //! with --test-threads=1 for acceptance; it needs no audio device or content IO.
 //! Construction/preparation are measured separately from the guarded callback.
+//! The original stress spectra, PCM and key-program values here are CC0-1.0.
 
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
 
+use windfall_dsp::drums::DrumMode;
 use windfall_dsp::instrument_asset::{
     LayerPcm, MAX_LAYER_FRAMES, MIN_LAYER_RATE, SpectralBank, SpectralFrame, SpectralPartial,
 };
 use windfall_dsp::polysynth::{GrooveMode, HybridAlgorithm, PackPatch};
 use windfall_dsp::{
-    AnyInstrument, DrumKeyPatch, DrumMode, InstrumentAsset, InstrumentKind, InstrumentParams,
+    AnyInstrument, DrumKeyPatch, InstrumentAsset, InstrumentKind, InstrumentParams,
 };
 
 use super::realtime::{allocated_bytes, allocator_calls};
