@@ -174,15 +174,20 @@ fn e1_parametric_eq_workloads_keep_all_seven_bands_active_during_automation() {
             panic!("Eq must instantiate the seven-band parametric processor");
         };
         assert!(eq.low_cut.enabled && eq.high_cut.enabled);
-        assert_eq!(eq.low_cut.slope, windfall_dsp::eq::CutSlope::Db48);
-        assert_eq!(eq.high_cut.slope, windfall_dsp::eq::CutSlope::Db48);
+        assert_eq!(eq.low_cut.slope, windfall_dsp::CutSlope::Db48);
+        assert_eq!(eq.high_cut.slope, windfall_dsp::CutSlope::Db48);
         assert!(eq.low_cut.frequency_hz < eq.high_cut.frequency_hz);
         for band in [eq.low_shelf, eq.peak1, eq.peak2, eq.peak3, eq.high_shelf] {
             assert!(band.enabled && band.gain_db != 0.0);
         }
     }
-    assert_ne!(active, extreme, "the timed edit must change real parameters");
-    let EffectParams::Eq(eq) = extreme else { unreachable!() };
+    assert_ne!(
+        active, extreme,
+        "the timed edit must change real parameters"
+    );
+    let EffectParams::Eq(eq) = extreme else {
+        unreachable!()
+    };
     assert_eq!((eq.low_cut.q, eq.high_cut.q), (8.0, 8.0));
     assert_eq!((eq.low_shelf.q, eq.high_shelf.q), (2.0, 2.0));
     assert_eq!((eq.peak1.q, eq.peak2.q, eq.peak3.q), (18.0, 18.0, 18.0));
