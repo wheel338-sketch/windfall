@@ -123,7 +123,7 @@ execution and hardware controllers are unavailable.
 ## Controller scripts and existing profiles
 
 A saved controller binding declares a `ControlSource::Midi`, exact script
-revision, parameters, optional checked `LinkTarget::Param` / `Slot`, and
+revision, parameters, optional checked `LinkTarget::Param` / `Slot` / `Action`, and
 optional feedback channel (1..16). Device/channel wildcards and CC, note,
 pitch wheel and pressure sources follow `CONTROLLER-LINKS.md`. Normalized input
 is supplied by the existing controller hub. A script binding takes precedence

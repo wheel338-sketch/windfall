@@ -127,6 +127,13 @@ fn scripted_short_long_and_duplicated_durations_match_manual_score_live_and_offl
         assert!(actual.samples().iter().any(|s| s.abs() > 0.001));
         assert_eq!(actual.samples(), expected.samples(), "scale={scale} copies={copies}");
         assert_eq!(actual.samples(), rig.play_song(48_000, actual.frames(), 251));
+        let (mut processor, controller) = rig.song_processor(48_000);
+        controller.play();
+        let mut block = [0.0; 502];
+        for _ in 0..actual.frames().div_ceil(251) {
+            assert_eq!(crate::realtime::allocator_calls(|| processor.process(&mut block)), 0);
+            controller.frame();
+        }
         let json = windfall_project::file::to_json(&rig.project).unwrap();
         rig.project = windfall_project::file::from_json(&json).unwrap();
         assert_eq!(actual.samples(), render(&rig.project, &rig.pool, &RenderOptions { block_frames: 1024, ..options }, &mut |_| true).samples());
