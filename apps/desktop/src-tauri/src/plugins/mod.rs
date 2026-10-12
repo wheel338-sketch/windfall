@@ -291,6 +291,10 @@ impl PluginManager {
         });
     }
     fn update_entries(&self) {
+        // Registry discovery happens on Cocoa main before acquiring manager
+        // locks. AUv2 has registry identities, not a loadable .component path.
+        #[cfg(target_os = "macos")]
+        let audio_units = self.runtime.audio_unit_catalog();
         let catalog = self
             .catalog
             .lock()
@@ -321,6 +325,16 @@ impl PluginManager {
                     .map(|failure| failure.message.clone()),
             })
             .collect();
+        #[cfg(target_os = "macos")]
+        match audio_units {
+            Ok(catalog) => state.entries.extend(catalog.entries.iter().map(|entry| {
+                let descriptor = entry.descriptor();
+                PluginEntry { path: entry.component.path(), format: "au".into(), id: descriptor.id,
+                    name: descriptor.name, vendor: descriptor.vendor, instrument: descriptor.kind == PluginKind::Instrument,
+                    usable: true, error: None }
+            })),
+            Err(error) => state.error = Some(format!("Audio Unit registry discovery failed: {error}")),
+        }
         let mut blocked = catalog.blocked();
         // Safe loader refusals still need a visible diagnostic. The catalog's
         // crash/hang blocklist remains separate from these rejected files.

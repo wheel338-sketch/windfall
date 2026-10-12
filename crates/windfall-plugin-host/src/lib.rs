@@ -94,6 +94,7 @@ pub mod gui;
 pub mod ownership;
 pub mod paths;
 pub mod scan;
+pub mod au_model;
 
 mod adapter;
 mod check;

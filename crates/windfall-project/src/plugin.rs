@@ -51,7 +51,7 @@ pub struct PluginBinding {
     #[ts(as = "Option<PluginWrapperOptions>", optional)]
     pub wrapper: PluginWrapperOptions,
     pub target: PluginTarget,
-    /// "clap" or "vst3"; the model does not load either format.
+    /// "clap", "vst3" or "au"; the model does not load native formats.
     pub format: String,
     pub path: String,
     pub id: String,
@@ -88,7 +88,7 @@ impl PluginBinding {
         {
             return Err("the plugin auxiliary input list or selection is invalid");
         }
-        if !["clap", "vst3"].contains(&self.format.as_str())
+        if !["clap", "vst3", "au"].contains(&self.format.as_str())
             || self.id.is_empty()
             || self.path.is_empty()
         {
