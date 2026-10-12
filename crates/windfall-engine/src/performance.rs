@@ -324,18 +324,18 @@ pub fn render_capture(
     let mut at = 0;
     let mut next = 0;
     while at < frames + latency {
-        while next < launches.len() && launches[next].frame == at as u64 {
+        // Captured frames are output-timeline positions. The warm-up region
+        // trimmed below must also offset control admission; otherwise a causal
+        // processor's attack is moved before the recorded launch by trimming.
+        while next < launches.len() && launches[next].frame + latency as u64 == at as u64 {
             controller
                 .performance_launch(launches[next].request)
                 .map_err(str::to_owned)?;
             next += 1;
         }
-        if at == frames {
-            controller.performance_stop_all();
-        }
         let until = launches
             .get(next)
-            .map_or(frames + latency, |e| e.frame as usize);
+            .map_or(frames + latency, |e| e.frame as usize + latency);
         let end = (at + block.clamp(1, 4096)).min(until).min(if at < frames {
             frames
         } else {

@@ -81,6 +81,16 @@ temporary native `TS_RS_EXPORT_DIR`. No worktree changes or hardware tests.
   **10/0/0**, `target/round4-builder-a5-sequencer-fixed.log` (first run 8/2/0
   identified those helper assumptions; no note/frame expectations relaxed).
 
+- **A6 fixed:** capture trimmed 12 frames of warm-up/group delay without
+  offsetting launch admission. Source attack at input frame 1532 therefore
+  appeared at output frame 1520 (peak 0.000154 before requested frame 1531).
+  Offset recorded control frames by the trimmed warm-up and preserve stable
+  same-frame request order. `cargo test -p windfall-engine --test performance
+  -- --test-threads=1 --nocapture`: **4/0/0**, unchanged assertions;
+  `target/round4-builder-a6-fixed.log`. Baseline **0/1/0**, diagnostic
+  `target/round4-builder-a6-baseline.log`, `target/round4-builder-a6-probe.log`;
+  temporary instrumentation removed.
+
 ## Resume / final gates
 
-A6 is next. A6–A7, release budgets and final gates not yet run.
+B is next, then A7. Release budgets and final gates not yet run.
