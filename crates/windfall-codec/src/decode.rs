@@ -1,5 +1,5 @@
 use std::fs::File;
-use std::io::Cursor;
+use std::io::{Cursor, Read};
 use std::panic::{self, AssertUnwindSafe};
 use std::path::Path;
 
@@ -89,6 +89,7 @@ pub fn decode_file_with(
     options: &DecodeOptions,
 ) -> Result<AudioBuffer, CodecError> {
     let path = path.as_ref();
+    if is_wavpack_file(path)? { return crate::wavpack::decode(&mut File::open(path)?, options); }
     if is_drumsynth(extension_of(path)) {
         return Ok(crate::render_drumsynth_file(path, options)?.audio);
     }
@@ -107,6 +108,7 @@ pub fn decode_file_strict_with(
     options: &DecodeOptions,
 ) -> Result<AudioBuffer, CodecError> {
     let path = path.as_ref();
+    if is_wavpack_file(path)? { return crate::wavpack::decode(&mut File::open(path)?, options); }
     if is_drumsynth(extension_of(path)) {
         return Ok(crate::render_drumsynth_file(path, options)?.audio);
     }
@@ -128,6 +130,7 @@ pub fn decode_bytes_strict_with(
     hint_ext: Option<&str>,
     options: &DecodeOptions,
 ) -> Result<AudioBuffer, CodecError> {
+    if is_wavpack_bytes(bytes, hint_ext) { return crate::wavpack::decode(&mut Cursor::new(bytes), options); }
     if is_drumsynth(hint_ext) {
         return Ok(crate::render_drumsynth_source(bytes, options)?.audio);
     }
@@ -159,6 +162,7 @@ pub fn decode_bytes_with(
     hint_ext: Option<&str>,
     options: &DecodeOptions,
 ) -> Result<AudioBuffer, CodecError> {
+    if is_wavpack_bytes(bytes, hint_ext) { return crate::wavpack::decode(&mut Cursor::new(bytes), options); }
     if is_drumsynth(hint_ext) {
         return Ok(crate::render_drumsynth_source(bytes, options)?.audio);
     }
@@ -176,6 +180,7 @@ pub fn decode_bytes_with(
 /// refuses for its channel count or sample rate is refused here as well.
 pub fn probe_file(path: impl AsRef<Path>) -> Result<AudioInfo, CodecError> {
     let path = path.as_ref();
+    if is_wavpack_file(path)? { return crate::wavpack::probe(&mut File::open(path)?); }
     if is_drumsynth(extension_of(path)) {
         return Ok(drumsynth_info(
             &crate::render_drumsynth_file(path, &DecodeOptions::default())?.audio,
@@ -189,6 +194,7 @@ pub fn probe_file(path: impl AsRef<Path>) -> Result<AudioInfo, CodecError> {
 
 /// Reads the same information as [`probe_file`] from audio held in memory.
 pub fn probe_bytes(bytes: &[u8], hint_ext: Option<&str>) -> Result<AudioInfo, CodecError> {
+    if is_wavpack_bytes(bytes, hint_ext) { return crate::wavpack::probe(&mut Cursor::new(bytes)); }
     if is_drumsynth(hint_ext) {
         return Ok(drumsynth_info(
             &crate::render_drumsynth_source(bytes, &DecodeOptions::default())?.audio,
@@ -216,6 +222,15 @@ fn extension_of(path: &Path) -> Option<&str> {
 
 fn is_drumsynth(ext: Option<&str>) -> bool {
     ext.is_some_and(|ext| ext.eq_ignore_ascii_case("ds"))
+}
+fn is_wavpack_bytes(bytes: &[u8], ext: Option<&str>) -> bool {
+    bytes.starts_with(b"wvpk") || (bytes.len() < 4 && ext.is_some_and(|e| e.eq_ignore_ascii_case("wv")))
+}
+fn is_wavpack_file(path: &Path) -> Result<bool, CodecError> {
+    let mut file = File::open(path)?;
+    let mut magic = [0; 4];
+    let n = file.read(&mut magic)?;
+    Ok(is_wavpack_bytes(&magic[..n], extension_of(path)))
 }
 fn drumsynth_info(audio: &AudioBuffer) -> AudioInfo {
     AudioInfo {

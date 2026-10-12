@@ -26,6 +26,8 @@ pub enum AudioFormat {
     Ogg,
     /// MPEG Layer III audio with gapless delay and padding metadata.
     Mp3,
+    WavPack,
+    M4a,
 }
 
 impl AudioFormat {
@@ -36,6 +38,8 @@ impl AudioFormat {
             Self::Flac => "flac",
             Self::Ogg => "ogg",
             Self::Mp3 => "mp3",
+            Self::WavPack => "wv",
+            Self::M4a => "m4a",
         }
     }
 
@@ -46,6 +50,8 @@ impl AudioFormat {
             Self::Flac => "FLAC",
             Self::Ogg => "Ogg Vorbis",
             Self::Mp3 => "MP3",
+            Self::WavPack => "WavPack",
+            Self::M4a => "M4A (AAC)",
         }
     }
 }
@@ -65,6 +71,8 @@ pub enum EncoderSettings {
     Vorbis { quality: f32 },
     /// Lossy MP3 rate and channel coding. See [`Mp3Writer`].
     Mp3 { settings: Mp3Settings },
+    WavPack { depth: crate::WavPackDepth },
+    M4a { bitrate: u16 },
 }
 
 impl EncoderSettings {
@@ -74,14 +82,18 @@ impl EncoderSettings {
             Self::Flac { .. } => AudioFormat::Flac,
             Self::Vorbis { .. } => AudioFormat::Ogg,
             Self::Mp3 { .. } => AudioFormat::Mp3,
+            Self::WavPack { .. } => AudioFormat::WavPack,
+            Self::M4a { .. } => AudioFormat::M4a,
         }
     }
 
-    /// Says whether audio at `sample_rate` on `channels` channels can be
-    /// written with these settings, without creating a file. What fails
-    /// here is what [`Encoder::open`] would refuse, with the same message.
+    /// Checks format/layout settings without creating a file. M4A activation
+    /// additionally depends on the installed OS codec; [`crate::m4a_capability`]
+    /// checks that capability and `open` propagates any activation error.
     pub fn check(&self, sample_rate: u32, channels: u16) -> Result<(), CodecError> {
         match *self {
+            Self::WavPack { .. } => crate::wavpack::check_layout(sample_rate, channels),
+            Self::M4a { bitrate } => crate::aac::check_layout(sample_rate, channels, bitrate),
             Self::Mp3 { settings } => mp3::check_layout(sample_rate, channels, settings),
             Self::Wav { format } => wav::check_layout(sample_rate, channels, format),
             Self::Flac { level, .. } => flac::check_layout(sample_rate, channels, level),
@@ -103,6 +115,7 @@ impl EncoderSettings {
 ///
 /// The same samples and settings always give the same file, byte for byte:
 /// nothing in a file comes from the clock or from the system's randomness.
+/// M4A output also depends on the installed operating system codec version.
 #[derive(Debug)]
 pub struct Encoder {
     inner: Inner,
@@ -114,6 +127,8 @@ enum Inner {
     Flac(Box<FlacWriter>),
     Vorbis(Box<VorbisWriter>),
     Mp3(Mp3Writer),
+    WavPack(crate::WavPackWriter),
+    M4a(Box<crate::NativeAacWriter>),
 }
 
 impl Encoder {
@@ -163,6 +178,12 @@ impl Encoder {
             ));
         }
         let inner = match *settings {
+            EncoderSettings::WavPack { depth } => Inner::WavPack(crate::WavPackWriter::create_with_tags(
+                path, sample_rate, channels, depth, crate::DEFAULT_WAVPACK_BLOCK_FRAMES, tags,
+            )?),
+            EncoderSettings::M4a { bitrate } => Inner::M4a(Box::new(crate::NativeAacWriter::create(
+                path, crate::AacConfig { sample_rate, channels }, bitrate, tags,
+            )?)),
             EncoderSettings::Mp3 { settings } => Inner::Mp3(Mp3Writer::create_with_tags(
                 path,
                 sample_rate,
@@ -200,6 +221,8 @@ impl Encoder {
             Inner::Flac(writer) => writer.write(interleaved),
             Inner::Vorbis(writer) => writer.write(interleaved),
             Inner::Mp3(writer) => writer.write(interleaved),
+            Inner::WavPack(writer) => writer.write(interleaved),
+            Inner::M4a(writer) => writer.write(interleaved),
         }
     }
 
@@ -211,6 +234,8 @@ impl Encoder {
             Inner::Flac(writer) => writer.finalize(),
             Inner::Vorbis(writer) => writer.finalize(),
             Inner::Mp3(writer) => writer.finalize(),
+            Inner::WavPack(writer) => writer.finalize(),
+            Inner::M4a(writer) => writer.finalize(),
         }
     }
 }

@@ -56,6 +56,7 @@ pub struct M4aWriter {
     bytes: u32,
     sizes: Vec<u32>,
     tags: Vec<u8>,
+    asc: Vec<u8>,
     broken: bool,
 }
 fn invalid(what: &str) -> CodecError {
@@ -129,6 +130,15 @@ impl M4aWriter {
         config: AacConfig,
         metadata: &AudioTags<'_>,
     ) -> Result<Self, CodecError> {
+        let index = RATES.iter().position(|r| *r == config.sample_rate).ok_or_else(|| invalid("unsupported AAC rate"))? as u16;
+        let asc = ((2_u16 << 11) | (index << 7) | (config.channels << 3)).to_be_bytes();
+        Self::create_with_asc(path, config, metadata, &asc)
+    }
+    /// Uses the encoder-supplied AudioSpecificConfig; refuses a configuration
+    /// this AAC-LC / fixed-frame muxer cannot represent.
+    pub fn create_with_asc(
+        path: impl AsRef<Path>, config: AacConfig, metadata: &AudioTags<'_>, asc: &[u8],
+    ) -> Result<Self, CodecError> {
         // The version-zero sample entry has a 16.16 sample rate.
         if !RATES.contains(&config.sample_rate)
             || config.sample_rate > 65535
@@ -138,6 +148,9 @@ impl M4aWriter {
                 "AAC-LC muxing requires a standard rate at most 64 kHz and one or two channels",
             ));
         }
+        let index = RATES.iter().position(|r| *r == config.sample_rate).ok_or_else(|| invalid("unsupported AAC rate"))? as u16;
+        let expected = ((2_u16 << 11) | (index << 7) | (config.channels << 3)).to_be_bytes();
+        if asc != expected { return Err(invalid("encoder supplied an unsupported AudioSpecificConfig")); }
         let tags = tags(metadata)?;
         let mut file = AtomicFile::create(path.as_ref())?;
         let ftyp = atom(b"ftyp", b"M4A \0\0\0\0M4A isommp42");
@@ -151,6 +164,7 @@ impl M4aWriter {
             bytes: 0,
             sizes: Vec::new(),
             tags,
+            asc: asc.to_vec(),
             broken: false,
         })
     }
@@ -281,17 +295,12 @@ impl M4aWriter {
         atom(b"moov", &body)
     }
     fn sample_table(&self) -> Vec<u8> {
-        let index = RATES
-            .iter()
-            .position(|r| *r == self.config.sample_rate)
-            .expect("validated config") as u16;
-        let asc = (2_u16 << 11) | (index << 7) | (self.config.channels << 3);
         // ES_Descriptor / DecoderConfigDescriptor / DecoderSpecificInfo /
         // SLConfigDescriptor. These small descriptor sizes fit one VLQ byte.
         let mut decoder = vec![0x40, 0x15, 0x04, 0, 0];
         decoder.extend_from_slice(&[0; 8]);
         decoder.extend([5, 2]);
-        decoder.extend_from_slice(&asc.to_be_bytes());
+        decoder.extend_from_slice(&self.asc);
         let mut es = vec![0, 1, 0, 4, decoder.len() as u8];
         es.extend(decoder);
         es.extend([6, 1, 2]);
