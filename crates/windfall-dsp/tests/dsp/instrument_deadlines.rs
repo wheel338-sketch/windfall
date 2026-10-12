@@ -5,8 +5,13 @@
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
 
+use windfall_dsp::instrument_asset::{
+    LayerPcm, MAX_LAYER_FRAMES, MIN_LAYER_RATE, SpectralBank, SpectralFrame, SpectralPartial,
+};
 use windfall_dsp::polysynth::{GrooveMode, HybridAlgorithm, PackPatch};
-use windfall_dsp::{AnyInstrument, InstrumentKind, InstrumentParams};
+use windfall_dsp::{
+    AnyInstrument, DrumKeyPatch, DrumMode, InstrumentAsset, InstrumentKind, InstrumentParams,
+};
 
 use super::realtime::{allocated_bytes, allocator_calls};
 
@@ -58,8 +63,11 @@ fn dense_params(kind: InstrumentKind) -> InstrumentParams {
             "polyphony" | "unison" | "chorus" | "delay" | "phaser" | "reverb"
             | "echo" | "space" | "width" | "air" | "crunch" | "drive" | "motion"
             | "saw" | "pulse" | "sub" | "noise" | "pwm" | "crossMod" | "index"
-            | "sustain" | "feedback" | "cutoffHz" => Some(info.max),
+            | "sustain" | "feedback" | "cutoffHz" | "decayMs" | "decaySeconds"
+            | "body" | "tone" | "noiseMix" | "snap" | "shimmerHz" | "shimmerDepth"
+            | "scanRate" | "stereoWidth" => Some(info.max),
             "attackMs" | "attack" => Some(info.min),
+            "damping" => Some(info.min),
             "releaseMs" => Some(40.0),
             "gain" | "level" => Some(if info.id.starts_with("operators.") {
                 1.0
@@ -88,6 +96,13 @@ fn dense_params(kind: InstrumentKind) -> InstrumentParams {
             step.velocity = 1.0;
             step.pitch = (index % 5) as i8 - 2;
         }
+    }
+    if let InstrumentParams::LayerKick(ref mut p) = params {
+        // Both branches sound; slowest legal layer playback keeps every PCM
+        // voice busy even at the highest note of the test chord.
+        p.sample_mix = 0.5;
+        p.sample_tune = -24.0;
+        p.sample_start = 0.0;
     }
     assert_eq!(params, params.sanitized());
     params
@@ -139,6 +154,69 @@ fn variants(kind: InstrumentKind) -> Vec<InstrumentParams> {
     }
 }
 
+/// Original deterministic stress fixtures, prepared only on the control side.
+/// They fill the accepted asset capacities, including all 256 scan columns.
+fn maximum_asset(kind: InstrumentKind) -> Option<InstrumentAsset> {
+    match kind {
+        InstrumentKind::LayerKick => {
+            let samples: Vec<_> = (0..MAX_LAYER_FRAMES)
+                .map(|index| (index as f32 * 0.071).sin() * 0.6)
+                .collect();
+            let pcm = LayerPcm::from_samples(MIN_LAYER_RATE, &samples);
+            assert_eq!(pcm.samples.len(), MAX_LAYER_FRAMES);
+            Some(InstrumentAsset::Pcm(pcm))
+        }
+        InstrumentKind::DrumVoice => {
+            let InstrumentParams::DrumVoice(mut params) = dense_params(kind) else {
+                unreachable!();
+            };
+            params.mode = DrumMode::Hat;
+            params.level = 1.0;
+            Some(InstrumentAsset::DrumKeys {
+                patches: (0..128).map(|key| DrumKeyPatch { key, params }).collect(),
+            })
+        }
+        InstrumentKind::NumberVoice => {
+            let bank = SpectralBank::numbered(u32::MAX);
+            assert_eq!(bank.frames[0].partials.len(), 64);
+            Some(InstrumentAsset::Spectra(bank))
+        }
+        InstrumentKind::SnapshotMorph
+        | InstrumentKind::HarmonicFilter
+        | InstrumentKind::MetalVoice
+        | InstrumentKind::SpectralResynth
+        | InstrumentKind::ColorScan => {
+            let frames = match kind {
+                InstrumentKind::SnapshotMorph => 2,
+                InstrumentKind::SpectralResynth | InstrumentKind::ColorScan => 256,
+                _ => 1,
+            };
+            Some(InstrumentAsset::Spectra(SpectralBank {
+                frames: (0..frames)
+                    .map(|frame| SpectralFrame {
+                        partials: (0..64)
+                            .map(|partial| SpectralPartial {
+                                ratio: if kind == InstrumentKind::MetalVoice {
+                                    1.0 + partial as f32 * 0.271
+                                } else {
+                                    (partial + 1) as f32
+                                },
+                                level: 0.75 + (frame % 5) as f32 * 0.05,
+                                phase: ((partial * 7 + frame) % 64) as f32 / 64.0,
+                                pan: if partial % 2 == 0 { -0.5 } else { 0.5 },
+                            })
+                            .collect(),
+                    })
+                    .collect(),
+                frame_seconds: 0.001,
+                root_hz: 440.0,
+                preset_number: None,
+            }))
+        }
+        _ => None,
+    }
+}
+
 fn start_maximum(unit: &mut AnyInstrument, voices: usize) {
     for key in 36..36 + voices as u8 {
         unit.note_on(key, 1.0);
@@ -150,7 +228,13 @@ fn profile(params: InstrumentParams, voices: usize) {
     let started = Instant::now();
     let mut prepared = None;
     let bytes = allocated_bytes(|| {
-        let mut unit = AnyInstrument::new(&params);
+        let asset = maximum_asset(params.kind());
+        if let Some(asset) = &asset {
+            // new_with_asset refuses invalid data by falling back to defaults.
+            // Reject it here so such a fallback cannot pass a maximum-load gate.
+            assert_eq!(asset.validate(params.kind()), Ok(()));
+        }
+        let mut unit = AnyInstrument::new_with_asset(&params, asset.as_ref());
         unit.prepare(RATE as f32, BLOCK);
         prepared = Some(unit);
     });
@@ -265,6 +349,38 @@ fn profile(params: InstrumentParams, voices: usize) {
         "{}: released/tail render={tail_elapsed:?}, audio={tail_seconds:.3}s",
         params.kind().name()
     );
+
+    // Exercise a real control transition as well as the repeated publications
+    // in the timing loop. Build the Copy settings outside the allocator guard.
+    let mut changed = params;
+    let output_index = params
+        .kind()
+        .descriptors()
+        .iter()
+        .position(|info| matches!(info.id, "gain" | "level"))
+        .expect("every parity instrument exposes an output level");
+    assert!(changed.set(output_index, 0.2));
+    assert_ne!(changed, params);
+    let mut event_stats = PcmStats::default();
+    let calls = allocator_calls(|| {
+        unit.reset();
+        unit.set_params(&changed);
+        start_maximum(&mut unit, voices);
+        unit.process(&mut left, &mut right);
+        event_stats.observe(&left, &right);
+        unit.set_params(&params);
+        unit.process(&mut left, &mut right);
+        event_stats.observe(&left, &right);
+        unit.all_notes_off();
+        unit.process(&mut left, &mut right);
+        event_stats.observe(&left, &right);
+        unit.reset();
+        unit.process(&mut left, &mut right);
+    });
+    assert_eq!(calls, 0, "{label}: control/stop/reset touched the allocator");
+    event_stats.assert_bounded(&label);
+    assert_eq!(unit.active_voices(), 0);
+    assert!(left.iter().chain(&right).all(|x| *x == 0.0));
 }
 
 fn maximum(kind: InstrumentKind, voices: usize) {
@@ -294,3 +410,14 @@ maximum_test!(gms_maximum_load_deadline, GrooveSynth, 16);
 maximum_test!(toxic_biohazard_maximum_load_deadline, HybridSeq, 16);
 maximum_test!(sytrus_maximum_load_deadline, MatrixSynth, 16);
 maximum_test!(flex_maximum_load_deadline, PackSynth, 16);
+maximum_test!(drumaxx_maximum_load_deadline, DrumRack, 16);
+maximum_test!(harmor_maximum_load_deadline, SpectralResynth, 16);
+maximum_test!(morphine_maximum_load_deadline, SnapshotMorph, 16);
+maximum_test!(ogun_maximum_load_deadline, MetalVoice, 16);
+maximum_test!(harmless_maximum_load_deadline, HarmonicFilter, 16);
+maximum_test!(autogun_maximum_load_deadline, NumberVoice, 8);
+maximum_test!(bassdrum_maximum_load_deadline, LayerKick, 8);
+maximum_test!(beepmap_maximum_load_deadline, ColorScan, 16);
+maximum_test!(boobass_maximum_load_deadline, FingerBass, 1);
+maximum_test!(drumpad_maximum_load_deadline, Membrane, 1);
+maximum_test!(drumsynth_live_maximum_load_deadline, DrumVoice, 8);
