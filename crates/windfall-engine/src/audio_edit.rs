@@ -30,7 +30,13 @@ fn bounded(frames: f64, rate: u32, channels: u16) -> Result<usize, String> {
 /// Renders the clip's visible window at the source rate, with silence after
 /// the source ends, at a fixed tempo. Timeline editors use view_timing instead.
 pub fn render_view(pool: &SamplePool, clip: &Clip, tempo: f64) -> Result<AudioBuffer, String> {
-    let ClipContent::Audio { sample, fade_in, fade_out, .. } = clip.content else {
+    let ClipContent::Audio {
+        sample,
+        fade_in,
+        fade_out,
+        ..
+    } = clip.content
+    else {
         return Err("Select an audio clip.".into());
     };
     if !tempo.is_finite() || tempo <= 0.0 {
@@ -38,26 +44,68 @@ pub fn render_view(pool: &SamplePool, clip: &Clip, tempo: f64) -> Result<AudioBu
     }
     let source = pool.get(sample).ok_or("The source is unavailable.")?;
     let per_tick = samples_per_tick(tempo, f64::from(source.sample_rate()));
-    render_view_timed(pool, clip, &windfall_project::AudioViewTiming {
-        duration_frames: f64::from(clip.length) * per_tick,
-        offset_frames: f64::from(clip.offset) * per_tick,
-        fade_in_frames: f64::from(fade_in.min(clip.length)) * per_tick,
-        fade_out_frames: f64::from(fade_out.min(clip.length)) * per_tick,
-    })
+    render_view_timed(
+        pool,
+        clip,
+        &windfall_project::AudioViewTiming {
+            duration_frames: f64::from(clip.length) * per_tick,
+            offset_frames: f64::from(clip.offset) * per_tick,
+            fade_in_frames: f64::from(fade_in.min(clip.length)) * per_tick,
+            fade_out_frames: f64::from(fade_out.min(clip.length)) * per_tick,
+        },
+    )
 }
 
-pub fn render_view_with_law(pool: &SamplePool, clip: &Clip, tempo: f64, law: PanLaw) -> Result<AudioBuffer, String> {
-    let ClipContent::Audio { sample, fade_in, fade_out, .. } = clip.content else { return Err("Select an audio clip.".into()); };
-    if !tempo.is_finite() || tempo <= 0.0 { return Err("The project tempo is invalid.".into()); }
-    let rate = f64::from(pool.get(sample).ok_or("The source is unavailable.")?.sample_rate());
+pub fn render_view_with_law(
+    pool: &SamplePool,
+    clip: &Clip,
+    tempo: f64,
+    law: PanLaw,
+) -> Result<AudioBuffer, String> {
+    let ClipContent::Audio {
+        sample,
+        fade_in,
+        fade_out,
+        ..
+    } = clip.content
+    else {
+        return Err("Select an audio clip.".into());
+    };
+    if !tempo.is_finite() || tempo <= 0.0 {
+        return Err("The project tempo is invalid.".into());
+    }
+    let rate = f64::from(
+        pool.get(sample)
+            .ok_or("The source is unavailable.")?
+            .sample_rate(),
+    );
     let per_tick = samples_per_tick(tempo, rate);
-    render_view_timed_with_law(pool, clip, &windfall_project::AudioViewTiming { duration_frames: f64::from(clip.length)*per_tick, offset_frames: f64::from(clip.offset)*per_tick, fade_in_frames: f64::from(fade_in.min(clip.length))*per_tick, fade_out_frames: f64::from(fade_out.min(clip.length))*per_tick }, law)
+    render_view_timed_with_law(
+        pool,
+        clip,
+        &windfall_project::AudioViewTiming {
+            duration_frames: f64::from(clip.length) * per_tick,
+            offset_frames: f64::from(clip.offset) * per_tick,
+            fade_in_frames: f64::from(fade_in.min(clip.length)) * per_tick,
+            fade_out_frames: f64::from(fade_out.min(clip.length)) * per_tick,
+        },
+        law,
+    )
 }
 
-fn render_timed(pool: &SamplePool, clip: &Clip, timing: &windfall_project::AudioViewTiming) -> Result<AudioBuffer, String> {
+fn render_timed(
+    pool: &SamplePool,
+    clip: &Clip,
+    timing: &windfall_project::AudioViewTiming,
+) -> Result<AudioBuffer, String> {
     render_view_timed_with_law(pool, clip, timing, PanLaw::Balance)
 }
-pub fn render_view_timed_with_law(pool: &SamplePool, clip: &Clip, timing: &windfall_project::AudioViewTiming, law: PanLaw) -> Result<AudioBuffer, String> {
+pub fn render_view_timed_with_law(
+    pool: &SamplePool,
+    clip: &Clip,
+    timing: &windfall_project::AudioViewTiming,
+    law: PanLaw,
+) -> Result<AudioBuffer, String> {
     timing.check()?;
     let ClipContent::Audio {
         sample,
@@ -114,9 +162,18 @@ pub fn render_view_timed_with_law(pool: &SamplePool, clip: &Clip, timing: &windf
     };
     let (left, right) = law.gains(pan);
     let gain = if normalize {
-        let peak = audio.samples().iter().fold(0.0_f32, |peak, s| peak.max(s.abs()));
-        if peak >= 1e-8 { (gain / peak).min(windfall_project::MAX_GAIN) } else { gain }
-    } else { gain };
+        let peak = audio
+            .samples()
+            .iter()
+            .fold(0.0_f32, |peak, s| peak.max(s.abs()));
+        if peak >= 1e-8 {
+            (gain / peak).min(windfall_project::MAX_GAIN)
+        } else {
+            gain
+        }
+    } else {
+        gain
+    };
     let mut data = Vec::with_capacity(frames * 2);
     for frame in 0..frames {
         let mut level = gain;
@@ -797,7 +854,7 @@ mod project_pan_qa {
         }
         for (law, gains) in [(PanLaw::Balance, (0.5, 1.0)), (PanLaw::Linear, (0.5, 1.5))] {
             let pcm = render_view_with_law(&pool, &clip, 60.0, law).unwrap();
-            for frame in pcm.samples().chunks_exact(2) {
+            for &frame in pcm.samples().as_chunks::<2>().0 {
                 assert_eq!(frame, [0.25 * gains.0, -0.5 * gains.1]);
             }
         }

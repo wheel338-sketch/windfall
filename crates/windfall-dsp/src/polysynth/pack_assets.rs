@@ -157,10 +157,10 @@ mod preparation_tests {
         );
         // Every bank, root zone and mip must contain actual content. Checking
         // the entire slab also catches an accidentally unprepared final zone.
-        for table in bank.tables.chunks_exact(TABLE) {
+        for table in bank.tables.as_chunks::<TABLE>().0 {
             assert!(table.iter().any(|value| value.abs() > 0.01));
         }
-        for sample in bank.samples.chunks_exact(PCM) {
+        for sample in bank.samples.as_chunks::<PCM>().0 {
             assert!(sample.iter().any(|value| value.abs() > 0.01));
         }
         eprintln!("cold own pack bank: {elapsed:?}, {bytes} bytes, all zones/mips populated");

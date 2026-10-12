@@ -249,7 +249,16 @@ impl Session {
         // never land on top of a newer one.
         let saving = lock(&self.inner.save);
         drop(self.recording_idle()?);
-        let (mut project, _asset_pins, played, target, previous_dir, edits, generation, plugin_revision) = {
+        let (
+            mut project,
+            _asset_pins,
+            played,
+            target,
+            previous_dir,
+            edits,
+            generation,
+            plugin_revision,
+        ) = {
             let state = self.state();
             let target = match chosen {
                 Some(target) => target,
@@ -554,7 +563,9 @@ impl Session {
                         candidate.midi_ticket = state.midi_ticket;
                         candidate.slice_ticket = state.slice_ticket;
                         old_state = Some(std::mem::replace(&mut *state, candidate));
-                        self.inner.window_document_generation.store(generation, std::sync::atomic::Ordering::Release);
+                        self.inner
+                            .window_document_generation
+                            .store(generation, std::sync::atomic::Ordering::Release);
                         self.analyzer_project_replaced(generation);
                         retirement = Some(lease.install());
                         self.refresh_input_monitor_signature(&state);
@@ -613,7 +624,13 @@ impl Session {
             ]));
             prepared = next
                 .expect("retry admitted")
-                .with_sample_dir(candidate.as_ref().expect("uncommitted replacement").sample_dir.clone())
+                .with_sample_dir(
+                    candidate
+                        .as_ref()
+                        .expect("uncommitted replacement")
+                        .sample_dir
+                        .clone(),
+                )
                 .prepare(
                     candidate
                         .as_ref()

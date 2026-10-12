@@ -146,41 +146,89 @@ pub struct StreamStats {
 
 impl Controller {
     /// Admits a bounded performance request without changing song transport.
-    pub fn performance_launch(&self, request: crate::performance::LaunchRequest) -> Result<(), &'static str> {
+    pub fn performance_launch(
+        &self,
+        request: crate::performance::LaunchRequest,
+    ) -> Result<(), &'static str> {
         let mut state = self.lock();
-        if state.link.is_none() { return Err("Performance launching needs an active audio stream"); }
-        if usize::from(request.track) >= crate::performance::TRACKS || request.pattern.is_some_and(|id| state.plan.pattern_ids.get(id.0).is_none()) {
+        if state.link.is_none() {
+            return Err("Performance launching needs an active audio stream");
+        }
+        if usize::from(request.track) >= crate::performance::TRACKS
+            || request
+                .pattern
+                .is_some_and(|id| state.plan.pattern_ids.get(id.0).is_none())
+        {
             return Err("Performance track or pattern no longer exists");
         }
         // No unbounded control-side backlog for launch traffic. Refuse new
         // requests observably, preserving every earlier request and release.
         state.maintain();
-        if !state.backlog.is_empty() { return Err("Performance launch queue is full"); }
-        let Some(link) = &mut state.link else { return Err("Audio stream changed"); };
-        link.messages.push(Message::Performance(request)).map_err(|_| "Performance launch queue is full")
+        if !state.backlog.is_empty() {
+            return Err("Performance launch queue is full");
+        }
+        let Some(link) = &mut state.link else {
+            return Err("Audio stream changed");
+        };
+        link.messages
+            .push(Message::Performance(request))
+            .map_err(|_| "Performance launch queue is full")
     }
-    pub fn performance_scene(&self, requests: [Option<crate::performance::LaunchRequest>; crate::performance::TRACKS]) -> Result<(), &'static str> {
+    pub fn performance_scene(
+        &self,
+        requests: [Option<crate::performance::LaunchRequest>; crate::performance::TRACKS],
+    ) -> Result<(), &'static str> {
         let mut state = self.lock();
         state.maintain();
-        if state.link.is_none() { return Err("Performance launching needs an active audio stream"); }
-        if requests.iter().flatten().any(|request| usize::from(request.track) >= crate::performance::TRACKS || request.pattern.is_some_and(|id| state.plan.pattern_ids.get(id.0).is_none())) { return Err("A scene pattern no longer exists"); }
-        if !state.backlog.is_empty() { return Err("Performance launch queue is full"); }
-        state.link.as_mut().ok_or("Audio stream changed")?.messages.push(Message::PerformanceScene(requests)).map_err(|_| "Performance launch queue is full")
+        if state.link.is_none() {
+            return Err("Performance launching needs an active audio stream");
+        }
+        if requests.iter().flatten().any(|request| {
+            usize::from(request.track) >= crate::performance::TRACKS
+                || request
+                    .pattern
+                    .is_some_and(|id| state.plan.pattern_ids.get(id.0).is_none())
+        }) {
+            return Err("A scene pattern no longer exists");
+        }
+        if !state.backlog.is_empty() {
+            return Err("Performance launch queue is full");
+        }
+        state
+            .link
+            .as_mut()
+            .ok_or("Audio stream changed")?
+            .messages
+            .push(Message::PerformanceScene(requests))
+            .map_err(|_| "Performance launch queue is full")
     }
-    pub fn performance_stop_all(&self) { self.lock().send(Message::PerformanceStopAll); }
+    pub fn performance_stop_all(&self) {
+        self.lock().send(Message::PerformanceStopAll);
+    }
     pub fn performance_state(&self) -> windfall_ipc::PerformanceState {
         let state = self.lock();
         let shared = &self.inner.shared;
         windfall_ipc::PerformanceState {
             available: state.link.is_some(),
             tick: f64::from_bits(shared.performance_tick.load(Ordering::Acquire)),
-            dropped_notes: shared.performance_dropped.load(Ordering::Acquire).to_string(),
-            tracks: shared.performance_slots.iter().map(|slot| {
-                let value = slot.load(Ordering::Acquire);
-                let active = value as u32;
-                let pending = (value >> 32) as u32;
-                windfall_ipc::PerformanceTrackState { active: (active != 0).then_some(PatternId(active)), queued: (pending != 0 && pending != u32::MAX).then_some(PatternId(pending)), queued_stop: pending == u32::MAX }
-            }).collect(),
+            dropped_notes: shared
+                .performance_dropped
+                .load(Ordering::Acquire)
+                .to_string(),
+            tracks: shared
+                .performance_slots
+                .iter()
+                .map(|slot| {
+                    let value = slot.load(Ordering::Acquire);
+                    let active = value as u32;
+                    let pending = (value >> 32) as u32;
+                    windfall_ipc::PerformanceTrackState {
+                        active: (active != 0).then_some(PatternId(active)),
+                        queued: (pending != 0 && pending != u32::MAX).then_some(PatternId(pending)),
+                        queued_stop: pending == u32::MAX,
+                    }
+                })
+                .collect(),
         }
     }
 
@@ -962,21 +1010,42 @@ impl Controller {
         }
         RealtimeFrame {
             rejected_echoes: Some(shared.rejected_echoes.load(Ordering::Relaxed)),
-            media_clock: state.link.as_ref().and_then(|_| state.hosted.as_ref()).map(|hosted| windfall_ipc::MediaClock {
-                epoch: shared.presentation_epoch.load(Ordering::Acquire).to_string(),
-                output_frame: shared.presentation_frame.load(Ordering::Acquire).to_string(),
-                sample_rate: hosted.sample_rate,
-                pdc_frames: state.hosted.as_ref().map_or(0, |ledger| ledger.latency as u32),
-                device_latency_frames: None,
-                playing: shared.transport().1, mode: state.transport.mode, tick: shared.tick(),
-            }),
-            active_note_poses: if state.link.is_some() { shared.note_poses.iter().filter_map(|slot| {
-                let packed = slot.load(Ordering::Acquire);
-                (packed != 0).then_some(windfall_ipc::ActiveNotePose {
-                    channel: ChannelId(packed as u32), key: ((packed >> 32) & 127) as u8,
-                    velocity: ((packed >> 40) & 127) as f32 / 127.0,
-                })
-            }).collect() } else { Vec::new() },
+            media_clock: state
+                .link
+                .as_ref()
+                .and_then(|_| state.hosted.as_ref())
+                .map(|hosted| windfall_ipc::MediaClock {
+                    epoch: shared
+                        .presentation_epoch
+                        .load(Ordering::Acquire)
+                        .to_string(),
+                    output_frame: shared
+                        .presentation_frame
+                        .load(Ordering::Acquire)
+                        .to_string(),
+                    sample_rate: hosted.sample_rate,
+                    pdc_frames: state.hosted.as_ref().map_or(0, |ledger| ledger.latency),
+                    device_latency_frames: None,
+                    playing: shared.transport().1,
+                    mode: state.transport.mode,
+                    tick: shared.tick(),
+                }),
+            active_note_poses: if state.link.is_some() {
+                shared
+                    .note_poses
+                    .iter()
+                    .filter_map(|slot| {
+                        let packed = slot.load(Ordering::Acquire);
+                        (packed != 0).then_some(windfall_ipc::ActiveNotePose {
+                            channel: ChannelId(packed as u32),
+                            key: ((packed >> 32) & 127) as u8,
+                            velocity: ((packed >> 40) & 127) as f32 / 127.0,
+                        })
+                    })
+                    .collect()
+            } else {
+                Vec::new()
+            },
             correlation,
             spectrum,
             spectrogram,
@@ -1048,9 +1117,16 @@ impl Controller {
     /// last is the one that counts.
     pub(crate) fn attach(&self, sample_rate: u32) -> Processor {
         self.inner.shared.recording_clock.reset_output();
-        self.inner.shared.presentation_epoch.fetch_add(1, Ordering::AcqRel);
-        for slot in &self.inner.shared.performance_slots { slot.store(0, Ordering::Release); }
-        for slot in &self.inner.shared.note_poses { slot.store(0, Ordering::Release); }
+        self.inner
+            .shared
+            .presentation_epoch
+            .fetch_add(1, Ordering::AcqRel);
+        for slot in &self.inner.shared.performance_slots {
+            slot.store(0, Ordering::Release);
+        }
+        for slot in &self.inner.shared.note_poses {
+            slot.store(0, Ordering::Release);
+        }
         let (processor, _, retirement) = self
             .try_attach(
                 sample_rate,

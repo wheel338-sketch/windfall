@@ -150,7 +150,7 @@ enum Dsp {
     Envelope(NoteEnvelope),
     Peak(EnvelopeFollower),
     Keyboard(KeyboardSource),
-    Formula(FormulaSource),
+    Formula(Box<FormulaSource>),
     Xy(XyPad),
     Xyz(XyzPad),
     Surface,
@@ -208,7 +208,7 @@ impl Node {
                 if let Some(text) = &source.config.expression {
                     let _ = d.set_expression(text);
                 }
-                Dsp::Formula(d)
+                Dsp::Formula(Box::new(d))
             }
             EffectParams::XyPad(p) => {
                 let mut d = XyPad::default();
@@ -304,13 +304,12 @@ impl Node {
         &mut self,
         source: &Source,
         params: EffectParams,
-        left: &[f32],
-        right: &[f32],
+        audio: (&[f32], &[f32]),
         base: u64,
         clock: Clock,
         tempo: f64,
     ) {
-        for (offset, (&left, &right)) in left.iter().zip(right).enumerate() {
+        for (offset, (&left, &right)) in audio.0.iter().zip(audio.1).enumerate() {
             let now = base + offset as u64;
             for held in &mut self.held {
                 if held.is_some_and(|n| n.started <= now && clock.frame_of(n.end_tick) <= now) {
@@ -482,14 +481,13 @@ impl Runtime {
         plan: &Plan,
         id: EffectId,
         params: EffectParams,
-        left: &[f32],
-        right: &[f32],
+        audio: (&[f32], &[f32]),
         base: u64,
         tempo: f64,
     ) {
         for (i, source) in plan.control_sources.iter().enumerate() {
             if source.id == id {
-                self.nodes[i].process(source, params, left, right, base, self.clock, tempo);
+                self.nodes[i].process(source, params, audio, base, self.clock, tempo);
             }
         }
     }
@@ -516,8 +514,7 @@ impl Runtime {
                 self.nodes[i].process(
                     source,
                     dashboard_params(params),
-                    &[0.0],
-                    &[0.0],
+                    (&[0.0], &[0.0]),
                     base,
                     self.clock,
                     plan.tempo_bpm,

@@ -6,27 +6,27 @@
 //! the tests drive it. `commands` and `shell` are the thin layer that puts
 //! it inside a Tauri app.
 
-pub mod browser;
+mod analyzer_smoke;
 pub mod backup;
-mod remote_protocol;
+pub mod browser;
 mod commands;
 pub mod events;
 mod files_commands;
 pub mod library;
+mod panel_layout;
 pub mod paths;
 pub mod plugin_database;
 pub mod plugins;
 mod process_memory;
-mod panel_layout;
-mod updates;
+mod remote_protocol;
 pub mod samples;
 pub mod session;
 pub mod settings;
 mod shell;
-mod analyzer_smoke;
 mod sync;
 #[cfg(all(test, windows))]
 mod test_alloc;
+mod updates;
 #[cfg(all(test, windows))]
 #[global_allocator]
 static TEST_ALLOCATOR: test_alloc::CountingAllocator = test_alloc::CountingAllocator;
@@ -49,7 +49,9 @@ pub fn run() {
         )
         .setup(|app| {
             app.manage(updates::Updates::default());
-            app.manage(panel_layout::PanelLayouts::load(app.path().app_config_dir()?.join("panel-layouts.json")));
+            app.manage(panel_layout::PanelLayouts::load(
+                app.path().app_config_dir()?.join("panel-layouts.json"),
+            ));
             let session = shell::start(app.handle())?;
             app.manage(session);
             Ok(())
@@ -57,7 +59,9 @@ pub fn run() {
         .on_window_event(|window, event| {
             if let Some(view) = window.app_handle().get_webview_window(window.label()) {
                 match event {
-                    WindowEvent::Moved(_) | WindowEvent::Resized(_) => panel_layout::capture(&view, false),
+                    WindowEvent::Moved(_) | WindowEvent::Resized(_) => {
+                        panel_layout::capture(&view, false)
+                    }
                     WindowEvent::CloseRequested { .. } => panel_layout::capture(&view, true),
                     _ => {}
                 }

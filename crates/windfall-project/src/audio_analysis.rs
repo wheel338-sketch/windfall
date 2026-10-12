@@ -186,16 +186,15 @@ impl AudioEditRecipe {
         if !self.analysis.polyphonic && spans.windows(2).any(|w| w[0].1 > w[1].0) {
             return Err("Corrected monophonic notes must stay ordered without overlap.".into());
         }
-        if let Some(d) = self.denoise {
-            if d.profile_start >= d.profile_end
+        if let Some(d) = self.denoise
+            && (d.profile_start >= d.profile_end
                 || d.profile_end > self.analysis.frames
                 || !d.reduction_db.is_finite()
                 || !(0.0..=40.0).contains(&d.reduction_db)
                 || !d.wet.is_finite()
-                || !(0.0..=1.0).contains(&d.wet)
-            {
-                return Err("Select a noise-only profile and valid attenuation/wet mix.".into());
-            }
+                || !(0.0..=1.0).contains(&d.wet))
+        {
+            return Err("Select a noise-only profile and valid attenuation/wet mix.".into());
         }
         Ok(())
     }

@@ -312,7 +312,11 @@ fn numbered_publication_child() {
     let project = file::load(folder.join("input.windfall")).unwrap();
     let _ = crate::session::versions::write_checked(
         &project,
-        &windfall_project::ProjectSession { mode: windfall_project::PlayMode::Pattern, loop_song: false, pattern: None },
+        &windfall_project::ProjectSession {
+            mode: windfall_project::PlayMode::Pattern,
+            loop_song: false,
+            pattern: None,
+        },
         &folder.join("Song.windfall"),
         |_, _| {
             crate::session::files::copy_into_place_checked(
@@ -421,7 +425,11 @@ fn large_numbered_project_survives_real_child_termination_at_every_publication_b
         }
         let (saved, actual, ()) = crate::session::versions::write(
             &project,
-            &windfall_project::ProjectSession { mode: windfall_project::PlayMode::Pattern, loop_song: false, pattern: None },
+            &windfall_project::ProjectSession {
+                mode: windfall_project::PlayMode::Pattern,
+                loop_song: false,
+                pattern: None,
+            },
             &root.path().join("Song.windfall"),
             |_, _| {
                 crate::session::files::copy_into_place_checked(
@@ -453,7 +461,11 @@ fn injected_numbered_io_faults_never_expose_partial_projects_or_change_the_snaps
         let root = tempfile::tempdir().unwrap();
         let result = write_checked(
             &original,
-            &windfall_project::ProjectSession { mode: windfall_project::PlayMode::Pattern, loop_song: false, pattern: None },
+            &windfall_project::ProjectSession {
+                mode: windfall_project::PlayMode::Pattern,
+                loop_song: false,
+                pattern: None,
+            },
             &root.path().join("Song.windfall"),
             |_, _| Ok(()),
             &mut |stage| {

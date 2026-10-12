@@ -288,7 +288,10 @@ impl Sequencer {
             frames_per_tick,
         };
         if self.playing && now > before.anchor_frame {
-            self.floor = Floor::Clock { clock: before, frame: now };
+            self.floor = Floor::Clock {
+                clock: before,
+                frame: now,
+            };
         }
     }
 

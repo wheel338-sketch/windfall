@@ -133,12 +133,13 @@ fn midi_note_pad_rising_edges_launch_and_stop_via_controller_links_without_song_
     );
     rig.session.performance_stop_all();
     rig.run(48000);
-    assert!(rig
-        .session
-        .performance_state()
-        .tracks
-        .iter()
-        .all(|track| track.active.is_none()));
+    assert!(
+        rig.session
+            .performance_state()
+            .tracks
+            .iter()
+            .all(|track| track.active.is_none())
+    );
     assert_eq!(rig.session.controller().frame().voices, 0);
 }
 
@@ -148,18 +149,21 @@ fn scene_is_one_admission_and_stale_pad_requests_are_refused() {
     seed(&rig);
     let generation = rig.session.controller_state().generation;
     let revision = rig.session.document_snapshot().revision;
-    assert!(rig
-        .session
-        .performance_pad(0, Some(0), generation + 1, revision)
-        .is_err());
-    assert!(rig
-        .session
-        .performance_pad(0, Some(0), generation, revision + 1)
-        .is_err());
-    assert!(rig
-        .session
-        .performance_scene(1, generation, revision)
-        .is_err());
+    assert!(
+        rig.session
+            .performance_pad(0, Some(0), generation + 1, revision)
+            .is_err()
+    );
+    assert!(
+        rig.session
+            .performance_pad(0, Some(0), generation, revision + 1)
+            .is_err()
+    );
+    assert!(
+        rig.session
+            .performance_scene(1, generation, revision)
+            .is_err()
+    );
     rig.session
         .performance_scene(0, generation, revision)
         .unwrap();
@@ -199,10 +203,11 @@ fn saved_media_reopens_and_only_saved_paths_in_current_generation_can_be_read() 
         b"fixture bytes, no codec execution"
     );
     assert!(rig.session.media_video_read(&path, generation + 1).is_err());
-    assert!(rig
-        .session
-        .media_video_read(&rig.file("not-saved.webm"), generation)
-        .is_err());
+    assert!(
+        rig.session
+            .media_video_read(&rig.file("not-saved.webm"), generation)
+            .is_err()
+    );
     let saved = rig
         .session
         .project_save(Some(&rig.file("media.windfall")))

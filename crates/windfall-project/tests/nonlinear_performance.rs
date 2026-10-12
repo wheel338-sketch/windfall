@@ -21,71 +21,156 @@ fn replay_and_scratch_history_release_reclaims_only_discarded_gesture_curves() {
         let mut doc = Document::new(Project::new("Curve gestures"));
         let effect = add(&mut doc, kind);
         let make = |value| {
-            let curve = CurveRef::new(&[CurvePoint::new(0.0, value), CurvePoint::new(1.0, 0.912173)]).unwrap();
+            let curve =
+                CurveRef::new(&[CurvePoint::new(0.0, value), CurvePoint::new(1.0, 0.912173)])
+                    .unwrap();
             let mut params = kind.default_params();
             match &mut params {
-                EffectParams::VolumeGate(p) => { p.time_curve = curve; p.volume_curve = curve; }
-                EffectParams::Scratch(p) => { p.position_curve = curve; p.curve_enabled = true; }
+                EffectParams::VolumeGate(p) => {
+                    p.time_curve = curve;
+                    p.volume_curve = curve;
+                }
+                EffectParams::Scratch(p) => {
+                    p.position_curve = curve;
+                    p.curve_enabled = true;
+                }
                 _ => unreachable!(),
             }
             (curve, params)
         };
-        let (first, first_params) = make(if kind == EffectKind::Scratch { 0.018391 } else { 0.028391 });
-        let (last, last_params) = make(if kind == EffectKind::Scratch { 0.038391 } else { 0.048391 });
-        doc.dispatch(Command::SetEffectParams { track: TrackId::MASTER, effect, params: first_params }, Some(917)).unwrap();
-        doc.dispatch(Command::SetEffectParams { track: TrackId::MASTER, effect, params: last_params }, Some(917)).unwrap();
+        let (first, first_params) = make(if kind == EffectKind::Scratch {
+            0.018391
+        } else {
+            0.028391
+        });
+        let (last, last_params) = make(if kind == EffectKind::Scratch {
+            0.038391
+        } else {
+            0.048391
+        });
+        doc.dispatch(
+            Command::SetEffectParams {
+                track: TrackId::MASTER,
+                effect,
+                params: first_params,
+            },
+            Some(917),
+        )
+        .unwrap();
+        doc.dispatch(
+            Command::SetEffectParams {
+                track: TrackId::MASTER,
+                effect,
+                params: last_params,
+            },
+            Some(917),
+        )
+        .unwrap();
         collect_retired();
-        assert!(first.asset().is_none(), "merged history must not retain intermediate curves");
+        assert!(
+            first.asset().is_none(),
+            "merged history must not retain intermediate curves"
+        );
         assert!(last.asset().is_some());
-        doc.undo().unwrap(); collect_retired();
+        doc.undo().unwrap();
+        collect_retired();
         assert!(last.asset().is_some(), "redo owns the final gesture curve");
         doc.redo().unwrap();
         assert_eq!(params(&doc, effect), last_params);
-        drop(doc); collect_retired();
-        assert!(last.asset().is_none(), "project replacement releases replay and scratch roots");
+        drop(doc);
+        collect_retired();
+        assert!(
+            last.asset().is_none(),
+            "project replacement releases replay and scratch roots"
+        );
     }
 }
 
 #[test]
 fn released_redo_and_replaced_documents_reclaim_curves_but_clones_and_undo_keep_them() {
-    use windfall_dsp::asset::{CurvePoint, ShapeRef, collect_retired};
     use std::sync::Arc;
+    use windfall_dsp::asset::{CurvePoint, ShapeRef, collect_retired};
     let mut doc = Document::new(Project::new("Asset lifetime"));
     let id = add(&mut doc, EffectKind::Waveshaper);
     let shape = ShapeRef::new(&[
-        CurvePoint::new(0.0, 0.031417), CurvePoint::new(1.0, 0.964183),
-    ]).unwrap();
+        CurvePoint::new(0.0, 0.031417),
+        CurvePoint::new(1.0, 0.964183),
+    ])
+    .unwrap();
     let weak = Arc::downgrade(&shape.asset().unwrap());
     let drawn = EffectParams::Waveshaper(windfall_dsp::drive::WaveshaperParams {
-        shape, ..Default::default()
+        shape,
+        ..Default::default()
     });
-    doc.dispatch(Command::SetEffectParams { track: TrackId::MASTER, effect: id, params: drawn }, None).unwrap();
+    doc.dispatch(
+        Command::SetEffectParams {
+            track: TrackId::MASTER,
+            effect: id,
+            params: drawn,
+        },
+        None,
+    )
+    .unwrap();
     let clone = doc.clone();
     doc.undo().unwrap();
     collect_retired();
-    assert!(weak.upgrade().is_some(), "redo and cloned documents own the curve");
+    assert!(
+        weak.upgrade().is_some(),
+        "redo and cloned documents own the curve"
+    );
     doc.redo().unwrap();
     assert_eq!(params(&doc, id), drawn);
-    assert_eq!(file::from_json(&file::to_json(doc.project()).unwrap()).unwrap(), *doc.project());
+    assert_eq!(
+        file::from_json(&file::to_json(doc.project()).unwrap()).unwrap(),
+        *doc.project()
+    );
     doc.undo().unwrap();
-    doc.dispatch(Command::SetEffectParam { track: TrackId::MASTER, effect: id, param: 0, value: 3.0 }, None).unwrap();
+    doc.dispatch(
+        Command::SetEffectParam {
+            track: TrackId::MASTER,
+            effect: id,
+            param: 0,
+            value: 3.0,
+        },
+        None,
+    )
+    .unwrap();
     collect_retired();
-    assert!(weak.upgrade().is_some(), "the independent document still owns its shape");
+    assert!(
+        weak.upgrade().is_some(),
+        "the independent document still owns its shape"
+    );
     drop(clone);
     collect_retired();
-    assert!(weak.upgrade().is_none(), "discarded redo no longer roots the curve");
+    assert!(
+        weak.upgrade().is_none(),
+        "discarded redo no longer roots the curve"
+    );
 
     let shape = ShapeRef::new(&[
-        CurvePoint::new(0.0, 0.041417), CurvePoint::new(1.0, 0.954183),
-    ]).unwrap();
+        CurvePoint::new(0.0, 0.041417),
+        CurvePoint::new(1.0, 0.954183),
+    ])
+    .unwrap();
     let weak = Arc::downgrade(&shape.asset().unwrap());
-    doc.dispatch(Command::SetEffectParams { track: TrackId::MASTER, effect: id,
-        params: EffectParams::Waveshaper(windfall_dsp::drive::WaveshaperParams {
-            shape, ..Default::default()
-        }) }, None).unwrap();
+    doc.dispatch(
+        Command::SetEffectParams {
+            track: TrackId::MASTER,
+            effect: id,
+            params: EffectParams::Waveshaper(windfall_dsp::drive::WaveshaperParams {
+                shape,
+                ..Default::default()
+            }),
+        },
+        None,
+    )
+    .unwrap();
     drop(doc);
     collect_retired();
-    assert!(weak.upgrade().is_none(), "project replacement releases current and history roots");
+    assert!(
+        weak.upgrade().is_none(),
+        "project replacement releases current and history roots"
+    );
 }
 
 #[test]

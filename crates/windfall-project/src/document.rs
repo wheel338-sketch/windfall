@@ -65,13 +65,20 @@ struct Entry {
 }
 
 fn project_asset_pins(project: &Project) -> windfall_dsp::asset::AssetPins {
-    windfall_dsp::asset::AssetPins::for_effects(project.mixer.tracks.iter()
-        .flat_map(|track| track.effects.iter().map(|effect| &effect.params)))
+    windfall_dsp::asset::AssetPins::for_effects(
+        project
+            .mixer
+            .tracks
+            .iter()
+            .flat_map(|track| track.effects.iter().map(|effect| &effect.params)),
+    )
 }
 
 fn history_asset_pins(edits: &[Edit]) -> windfall_dsp::asset::AssetPins {
     let mut pins = windfall_dsp::asset::AssetPins::default();
-    for edit in edits { pins.extend(edit.effect_asset_pins()); }
+    for edit in edits {
+        pins.extend(edit.effect_asset_pins());
+    }
     pins
 }
 

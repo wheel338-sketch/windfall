@@ -149,7 +149,9 @@ impl SamplePool {
         }
         let mut result = self.clone();
         result.sampler_audio = Arc::new(Mutex::new(cache));
-        result.prepare_sample_instruments(project, keep_going).map_err(SamplerPreparationError::Asset)
+        result
+            .prepare_sample_instruments(project, keep_going)
+            .map_err(SamplerPreparationError::Asset)
     }
 
     /// Installs worker results only after the session has checked its tickets.

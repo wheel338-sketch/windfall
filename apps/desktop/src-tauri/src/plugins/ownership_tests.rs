@@ -13,19 +13,37 @@ fn clap_expression_fixture(midi: bool) -> (Arc<Runtime>, PluginBinding) {
         path
     });
     let runtime = Arc::new(Runtime::new().unwrap());
-    let id = if midi { "org.windfall.test.midi-sine" } else { "org.windfall.test.sine" };
+    let id = if midi {
+        "org.windfall.test.midi-sine"
+    } else {
+        "org.windfall.test.sine"
+    };
     runtime.approve(&[windfall_ipc::PluginEntry {
-        path: path.to_string_lossy().into_owned(), id: id.into(), format: "clap".into(),
-        name: "Expression fixture".into(), vendor: "Fixture".into(), instrument: true,
-        usable: true, error: None,
+        path: path.to_string_lossy().into_owned(),
+        id: id.into(),
+        format: "clap".into(),
+        name: "Expression fixture".into(),
+        vendor: "Fixture".into(),
+        instrument: true,
+        usable: true,
+        error: None,
     }]);
-    let binding = runtime.discover(PluginBinding {
-        wrapper: Default::default(),
-        target: PluginTarget::Instrument { channel: windfall_project::ChannelId(900) },
-        format: "clap".into(), path: path.to_string_lossy().into_owned(), id: id.into(),
-        name: "Expression fixture".into(), state: vec![], parameters: vec![],
-        sidechain_input: None, auxiliary_inputs: vec![],
-    }).unwrap();
+    let binding = runtime
+        .discover(PluginBinding {
+            wrapper: Default::default(),
+            target: PluginTarget::Instrument {
+                channel: windfall_project::ChannelId(900),
+            },
+            format: "clap".into(),
+            path: path.to_string_lossy().into_owned(),
+            id: id.into(),
+            name: "Expression fixture".into(),
+            state: vec![],
+            parameters: vec![],
+            sidechain_input: None,
+            auxiliary_inputs: vec![],
+        })
+        .unwrap();
     (runtime, binding)
 }
 
@@ -34,23 +52,36 @@ fn expression_audio(audio: &mut dyn HostedInstrument, frames: usize) -> Vec<[f32
     for _ in 0..frames.div_ceil(64) {
         let mut left = [0.0; 64];
         let mut right = [0.0; 64];
-        assert_eq!(crate::test_alloc::allocator_calls(|| audio.process(&mut left, &mut right)), 0);
-        output.extend(left.into_iter().zip(right).map(|(left, right)| [left, right]));
+        assert_eq!(
+            crate::test_alloc::allocator_calls(|| audio.process(&mut left, &mut right)),
+            0
+        );
+        output.extend(
+            left.into_iter()
+                .zip(right)
+                .map(|(left, right)| [left, right]),
+        );
     }
     output.truncate(frames);
     output
 }
 
 fn expression_frequency(audio: &[[f32; 2]], side: usize) -> f64 {
-    let crossings: Vec<_> = audio.windows(2).enumerate().filter(|(_, pair)| pair[0][side] < 0.0 && pair[1][side] >= 0.0)
-        .map(|(index, _)| index).collect();
+    let crossings: Vec<_> = audio
+        .windows(2)
+        .enumerate()
+        .filter(|(_, pair)| pair[0][side] < 0.0 && pair[1][side] >= 0.0)
+        .map(|(index, _)| index)
+        .collect();
     assert!(crossings.len() > 3);
     48_000.0 * (crossings.len() - 1) as f64 / (crossings[crossings.len() - 1] - crossings[0]) as f64
 }
 
 #[test]
 fn native_expression_map_groups_and_latest_instance_survive_owner_exchange_without_allocation() {
-    use windfall_dsp::{ExpressionMap, NoteExpression, NoteInstanceId, PluginExpressionDestination};
+    use windfall_dsp::{
+        ExpressionMap, NoteExpression, NoteInstanceId, PluginExpressionDestination,
+    };
     let (runtime, binding) = clap_expression_fixture(false);
     let mut audio = runtime.instrument(&binding, 48_000, 64).unwrap();
     audio.transport(transport());
@@ -60,24 +91,57 @@ fn native_expression_map_groups_and_latest_instance_survive_owner_exchange_witho
     map.modulation_x.plugin = PluginExpressionDestination::Pressure;
     map.modulation_x.amount = 0.5;
     map.modulation_x.invert = true;
-    let note = NoteExpression { modulation_x: 1.0, color_group: Some(2), ..NoteExpression::NEUTRAL };
-    assert_eq!(crate::test_alloc::allocator_calls(|| {
-        audio.set_expression_map(map);
-        audio.note_on_instance(NoteInstanceId(1), 69, 1.0, -1.0, note);
-        audio.note_on_instance(NoteInstanceId(2), 69, 1.0, 1.0, NoteExpression { color_group: Some(5), ..note });
-        audio.set_note_pitch(NoteInstanceId(2), 81.0);
-    }), 0);
+    let note = NoteExpression {
+        modulation_x: 1.0,
+        color_group: Some(2),
+        ..NoteExpression::NEUTRAL
+    };
+    assert_eq!(
+        crate::test_alloc::allocator_calls(|| {
+            audio.set_expression_map(map);
+            audio.note_on_instance(NoteInstanceId(1), 69, 1.0, -1.0, note);
+            audio.note_on_instance(
+                NoteInstanceId(2),
+                69,
+                1.0,
+                1.0,
+                NoteExpression {
+                    color_group: Some(5),
+                    ..note
+                },
+            );
+            audio.set_note_pitch(NoteInstanceId(2), 81.0);
+        }),
+        0
+    );
     let initial = expression_audio(audio.as_mut(), 8192);
     assert!((expression_frequency(&initial[64..], 0) - 440.0).abs() < 1.0);
     assert!((expression_frequency(&initial[64..], 1) - 880.0).abs() < 1.0);
-    let peak = initial.iter().map(|frame| frame[0].abs()).fold(0.0, f32::max);
-    assert!((peak - 0.5).abs() < 0.01, "mapped pressure .25, hard pan doubles the fixture level");
+    let peak = initial
+        .iter()
+        .map(|frame| frame[0].abs())
+        .fold(0.0, f32::max);
+    assert!(
+        (peak - 0.5).abs() < 0.01,
+        "mapped pressure .25, hard pan doubles the fixture level"
+    );
     let resume = pause_adapter(&runtime, audio.as_mut());
-    assert_eq!(crate::test_alloc::allocator_calls(|| {
-        audio.note_off_instance(NoteInstanceId(1), 69);
-        audio.set_note_expression(NoteInstanceId(2), 1.0, NoteExpression { modulation_x: 0.0, color_group: Some(5), ..note });
-        audio.set_note_pitch(NoteInstanceId(2), 72.0);
-    }), 0);
+    assert_eq!(
+        crate::test_alloc::allocator_calls(|| {
+            audio.note_off_instance(NoteInstanceId(1), 69);
+            audio.set_note_expression(
+                NoteInstanceId(2),
+                1.0,
+                NoteExpression {
+                    modulation_x: 0.0,
+                    color_group: Some(5),
+                    ..note
+                },
+            );
+            audio.set_note_pitch(NoteInstanceId(2), 72.0);
+        }),
+        0
+    );
     resume.send(()).unwrap();
     runtime.call(|_| Ok(())).unwrap();
     audio.control_boundary();
@@ -86,7 +150,11 @@ fn native_expression_map_groups_and_latest_instance_survive_owner_exchange_witho
     assert!((expression_frequency(&replayed[64..], 1) - 523.251).abs() < 1.0);
     assert!(replayed.iter().any(|frame| frame[1].abs() > 1.4));
     audio.all_notes_off();
-    assert!(expression_audio(audio.as_mut(), 128)[64..].iter().all(|frame| *frame == [0.0; 2]));
+    assert!(
+        expression_audio(audio.as_mut(), 128)[64..]
+            .iter()
+            .all(|frame| *frame == [0.0; 2])
+    );
     assert_eq!(audio.voices(), 0);
 }
 
@@ -97,7 +165,11 @@ fn midi_only_input_receives_bend_before_onset_and_replays_the_latest_group_pitch
     let mut audio = runtime.instrument(&binding, 48_000, 64).unwrap();
     audio.transport(transport());
     assert!(audio.supports_note_pitch());
-    let note = NoteExpression { fine_pitch_cents: 100.0, color_group: Some(7), ..NoteExpression::NEUTRAL };
+    let note = NoteExpression {
+        fine_pitch_cents: 100.0,
+        color_group: Some(7),
+        ..NoteExpression::NEUTRAL
+    };
     audio.note_on_instance(NoteInstanceId(1), 69, 1.0, 0.0, note);
     let bent = expression_audio(audio.as_mut(), 8192);
     assert!((expression_frequency(&bent[64..], 0) - 466.164).abs() < 1.0);
@@ -109,7 +181,11 @@ fn midi_only_input_receives_bend_before_onset_and_replays_the_latest_group_pitch
     let replayed = expression_audio(audio.as_mut(), 8192);
     assert!((expression_frequency(&replayed[64..], 0) - 493.883).abs() < 1.0);
     audio.note_off_on_channel(NoteInstanceId(1), 69, 7);
-    assert!(expression_audio(audio.as_mut(), 128)[64..].iter().all(|frame| *frame == [0.0; 2]));
+    assert!(
+        expression_audio(audio.as_mut(), 128)[64..]
+            .iter()
+            .all(|frame| *frame == [0.0; 2])
+    );
 }
 
 #[test]
@@ -119,12 +195,23 @@ fn vst3_cached_midi_mapping_routes_color_channels_replays_owner_and_matches_rend
     let mut audio = runtime.instrument(&binding, 48_000, 64).unwrap();
     audio.transport(transport());
     assert!(audio.supports_note_pitch() && audio.supports_note_instances());
-    let left = NoteExpression { fine_pitch_cents: 100.0, color_group: Some(2), ..NoteExpression::NEUTRAL };
-    let right = NoteExpression { fine_pitch_cents: -100.0, color_group: Some(5), ..NoteExpression::NEUTRAL };
-    assert_eq!(crate::test_alloc::allocator_calls(|| {
-        audio.note_on_instance(NoteInstanceId(1), 69, 1.0, 0.0, left);
-        audio.note_on_instance(NoteInstanceId(2), 69, 1.0, 0.0, right);
-    }), 0);
+    let left = NoteExpression {
+        fine_pitch_cents: 100.0,
+        color_group: Some(2),
+        ..NoteExpression::NEUTRAL
+    };
+    let right = NoteExpression {
+        fine_pitch_cents: -100.0,
+        color_group: Some(5),
+        ..NoteExpression::NEUTRAL
+    };
+    assert_eq!(
+        crate::test_alloc::allocator_calls(|| {
+            audio.note_on_instance(NoteInstanceId(1), 69, 1.0, 0.0, left);
+            audio.note_on_instance(NoteInstanceId(2), 69, 1.0, 0.0, right);
+        }),
+        0
+    );
     let native = expression_audio(audio.as_mut(), 8192);
     assert!((expression_frequency(&native, 0) - 466.164).abs() < 1.0);
     assert!((expression_frequency(&native, 1) - 415.305).abs() < 1.0);
@@ -144,12 +231,24 @@ fn vst3_cached_midi_mapping_routes_color_channels_replays_owner_and_matches_rend
     assert!(replayed.iter().all(|frame| frame[0] == 0.0));
     assert!((expression_frequency(&replayed, 1) - 493.883).abs() < 1.0);
     audio.all_notes_off();
-    assert!(expression_audio(audio.as_mut(), 128).iter().all(|frame| *frame == [0.0; 2]));
+    assert!(
+        expression_audio(audio.as_mut(), 128)
+            .iter()
+            .all(|frame| *frame == [0.0; 2])
+    );
 }
 
 pub(crate) fn fixture(index: usize) -> (Arc<Runtime>, PluginBinding) {
     static FILE: OnceLock<PathBuf> = OnceLock::new();
     let path = FILE.get_or_init(|| {
+        if let Some(source) = std::env::var_os("WINDFALL_BRIDGE_FIXTURE") {
+            let folder = Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("../../../target/vst3-ownership-fixture");
+            std::fs::create_dir_all(&folder).unwrap();
+            let path = folder.join(format!("fixture-{}.vst3", std::process::id()));
+            std::fs::copy(source, &path).unwrap();
+            return path;
+        }
         let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../..");
         let target = root.join("target/vst3-ownership-fixture");
         let output = std::process::Command::new(env!("CARGO"))

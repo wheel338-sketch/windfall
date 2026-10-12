@@ -107,7 +107,6 @@ fn synth_effect_wires_match_independent_audio_and_disconnect_silences_output() {
     let effect_params = EffectParams::Polarity(PolarityParams {
         left: true,
         right: true,
-        ..Default::default()
     });
     let mut graph = graph(None);
     graph.nodes.push(node(
@@ -127,7 +126,7 @@ fn synth_effect_wires_match_independent_audio_and_disconnect_silences_output() {
     effect.prepare(RATE as f32, 1);
     effect.set_params(&effect_params);
     let mut expected = reference(&mut instrument, 4096);
-    for sample in expected.chunks_exact_mut(2) {
+    for sample in expected.as_chunks_mut::<2>().0 {
         let mut left = [sample[0]];
         let mut right = [sample[1]];
         effect.process(&mut left, &mut right);

@@ -145,7 +145,7 @@ fn stereo_image_partition_invariance_and_distinct_modes() {
     let stereo: Vec<_> = wet.iter().flat_map(|x| [*x, -*x * 0.5]).collect();
     let vocal = process(&stereo, 2, DereverbMode::Vocal, 1.0, 31);
     assert_eq!(vocal, process(&stereo, 2, DereverbMode::Vocal, 1.0, 4096));
-    for frame in vocal.chunks_exact(2) {
+    for frame in vocal.as_chunks::<2>().0 {
         assert!((frame[1] + frame[0] * 0.5).abs() < 1e-5);
     }
     let general = process(&stereo, 2, DereverbMode::General, 1.0, 211);

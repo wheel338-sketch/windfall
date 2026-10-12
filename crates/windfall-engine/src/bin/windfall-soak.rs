@@ -447,7 +447,7 @@ fn add_effects(project: &mut Project) -> (ChannelId, TrackId) {
         group: String::new(),
         voice: Default::default(),
         expression_map: Default::default(),
-            sample_instrument: None,
+        sample_instrument: None,
         timing: windfall_project::ChannelTiming::default(),
         mixer_track: track,
         source: ChannelSource::Instrument {
@@ -561,7 +561,7 @@ fn add_song(project: &mut Project, pool: &mut SamplePool, bass: ChannelId, bass_
 
     pool.insert(sample, riser());
     project.samples.push(SampleAsset {
-            processing: None,
+        processing: None,
         regions: Vec::new(),
         id: sample,
         name: "Riser".to_owned(),

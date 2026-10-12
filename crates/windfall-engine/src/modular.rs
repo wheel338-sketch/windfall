@@ -168,11 +168,11 @@ enum Unit {
     },
     Instrument {
         dsp: AnyInstrument,
-        params: InstrumentParams,
+        params: Box<InstrumentParams>,
     },
     Effect {
         dsp: EffectSlot,
-        params: EffectParams,
+        params: Box<EffectParams>,
     },
     Note(RackNoteModule),
 }
@@ -384,7 +384,7 @@ impl ModularRack {
                         dsp.set_tempo(tempo as f32);
                         Unit::Instrument {
                             dsp,
-                            params: *params,
+                            params: Box::new(*params),
                         }
                     }
                     RackProcessor::Effect { params, mix } => {
@@ -396,7 +396,7 @@ impl ModularRack {
                         dsp.set_enabled(!node.muted);
                         Unit::Effect {
                             dsp,
-                            params: *params,
+                            params: Box::new(*params),
                         }
                     }
                     RackProcessor::Note { module } => Unit::Note(*module),
@@ -549,10 +549,9 @@ impl ModularRack {
                 index: Some(control),
                 value: stored,
             } = &mut node.unit
+                && usize::from(*control) == index
             {
-                if usize::from(*control) == index {
-                    *stored = value.clamp(0.0, 1.0);
-                }
+                *stored = value.clamp(0.0, 1.0);
             }
         }
     }
@@ -742,10 +741,10 @@ impl ModularRack {
         let other = self.owners.iter().any(|other| {
             other.active && other.node == owner.node && other.note.key == owner.note.key
         });
-        if let Unit::Instrument { dsp, .. } = &mut self.nodes[owner.node].unit {
-            if dsp.supports_note_instances() || !other {
-                dsp.note_off_instance(owner.child, owner.note.key);
-            }
+        if let Unit::Instrument { dsp, .. } = &mut self.nodes[owner.node].unit
+            && (dsp.supports_note_instances() || !other)
+        {
+            dsp.note_off_instance(owner.child, owner.note.key);
         }
     }
     fn updated_note(
@@ -758,16 +757,15 @@ impl ModularRack {
         note.pan = pan.clamp(-1.0, 1.0);
         note.expression = expression.clamped();
         for &index in &self.order {
-            if transforms & (1u64 << index) != 0 {
-                if let Unit::Note(module @ RackNoteModule::PropertyScaler { params }) =
+            if transforms & (1u64 << index) != 0
+                && let Unit::Note(module @ RackNoteModule::PropertyScaler { params }) =
                     self.nodes[index].unit
-                {
-                    // Velocity is fixed at admission; other properties track live curves.
-                    if params.property != windfall_dsp::rack_note::NoteProperty::Velocity {
-                        let mut mapped = [RackNote::default(); 4];
-                        module.map(note, &mut mapped);
-                        note = mapped[0];
-                    }
+            {
+                // Velocity is fixed at admission; other properties track live curves.
+                if params.property != windfall_dsp::rack_note::NoteProperty::Velocity {
+                    let mut mapped = [RackNote::default(); 4];
+                    module.map(note, &mut mapped);
+                    note = mapped[0];
                 }
             }
         }
@@ -820,10 +818,9 @@ impl ModularRack {
                     .note
                     .envelope
                     .is_none_or(|envelope| envelope.destination != EnvelopeDestination::Gain)
+                    && let Unit::Instrument { dsp, .. } = &mut self.nodes[owner.node].unit
                 {
-                    if let Unit::Instrument { dsp, .. } = &mut self.nodes[owner.node].unit {
-                        dsp.set_note_gain(owner.child, gain);
-                    }
+                    dsp.set_note_gain(owner.child, gain);
                 }
             }
         }

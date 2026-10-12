@@ -436,7 +436,11 @@ pub struct AudioRegion {
     pub end_frame: u32,
 }
 pub fn check_audio_regions(regions: &[AudioRegion]) -> Result<(), String> {
-    if regions.len() > 256 || regions.iter().any(|r| r.name.trim().is_empty() || r.name.len() > 256 || r.start_frame > r.end_frame) {
+    if regions.len() > 256
+        || regions
+            .iter()
+            .any(|r| r.name.trim().is_empty() || r.name.len() > 256 || r.start_frame > r.end_frame)
+    {
         return Err("Use at most 256 named audio regions with ordered frame endpoints.".into());
     }
     Ok(())

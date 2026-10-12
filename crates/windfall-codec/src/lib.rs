@@ -97,6 +97,7 @@ pub use m4a::{
 
 mod drumsynth;
 pub use drumsynth::{
-    DrumSynthPreset, DrumSynthRendered, MAX_DRUMSYNTH_FRAMES, MAX_DRUMSYNTH_PRESET_BYTES,
-    DRUMSYNTH_SOURCE_RATE, DRUMSYNTH_SOURCE_SEED, render_drumsynth_file, render_drumsynth_source,
+    DRUMSYNTH_SOURCE_RATE, DRUMSYNTH_SOURCE_SEED, DrumSynthPreset, DrumSynthRendered,
+    MAX_DRUMSYNTH_FRAMES, MAX_DRUMSYNTH_PRESET_BYTES, render_drumsynth_file,
+    render_drumsynth_source,
 };

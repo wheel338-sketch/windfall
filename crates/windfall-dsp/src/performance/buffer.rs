@@ -48,7 +48,11 @@ impl Ring {
         let read = |index: usize| {
             let index = index % self.data.len();
             let age = (self.write + self.data.len() - index - 1) % self.data.len();
-            if age < self.filled { self.data[index] } else { [0.0; 2] }
+            if age < self.filled {
+                self.data[index]
+            } else {
+                [0.0; 2]
+            }
         };
         let a = read(start + index);
         let b = read(start + (index + 1) % length);

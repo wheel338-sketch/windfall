@@ -349,12 +349,11 @@ unsafe extern "C" fn process(
                     if midi.port_index != 0 || midi.data[1] >= 128 || midi.data[2] >= 128 {
                         return CLAP_PROCESS_ERROR;
                     }
-                } else if header.type_ == CLAP_EVENT_TRANSPORT {
-                    if header.size < size_of::<clap_event_transport>() as u32
-                        || clock(unsafe { &*event.cast::<clap_event_transport>() }).is_none()
-                    {
-                        return CLAP_PROCESS_ERROR;
-                    }
+                } else if header.type_ == CLAP_EVENT_TRANSPORT
+                    && (header.size < size_of::<clap_event_transport>() as u32
+                        || clock(unsafe { &*event.cast::<clap_event_transport>() }).is_none())
+                {
+                    return CLAP_PROCESS_ERROR;
                 }
             }
         }
@@ -362,10 +361,10 @@ unsafe extern "C" fn process(
     let mut frame = 0usize;
     let mut event_index = 0;
     while frame < block.frames_count as usize {
-        if let Some(clock) = transport {
-            if !engine.sync_transport(clock.beats, clock.tempo, clock.playing) {
-                return CLAP_PROCESS_ERROR;
-            }
+        if let Some(clock) = transport
+            && !engine.sync_transport(clock.beats, clock.tempo, clock.playing)
+        {
+            return CLAP_PROCESS_ERROR;
         }
         let mut next = block.frames_count as usize;
         while event_index < event_count {
@@ -393,10 +392,10 @@ unsafe extern "C" fn process(
                     }
                 } else if header.type_ == CLAP_EVENT_TRANSPORT {
                     transport = clock(unsafe { &*event.cast::<clap_event_transport>() });
-                    if let Some(clock) = transport {
-                        if !engine.sync_transport(clock.beats, clock.tempo, clock.playing) {
-                            return CLAP_PROCESS_ERROR;
-                        }
+                    if let Some(clock) = transport
+                        && !engine.sync_transport(clock.beats, clock.tempo, clock.playing)
+                    {
+                        return CLAP_PROCESS_ERROR;
                     }
                 }
             }
@@ -428,10 +427,10 @@ unsafe extern "C" fn process(
                 }
             }
         }
-        if let Some(clock) = &mut transport {
-            if clock.playing {
-                clock.beats += frames as f64 * clock.tempo / (60.0 * f64::from(rate));
-            }
+        if let Some(clock) = &mut transport
+            && clock.playing
+        {
+            clock.beats += frames as f64 * clock.tempo / (60.0 * f64::from(rate));
         }
         frame += frames;
     }

@@ -3,12 +3,12 @@
 //! their memory before anything is prepared. Both are for the echo bank and
 //! the sixteen-band frequency delay; see docs/DELAY-FAMILY.md.
 
-use windfall_dsp::echo_bank::{PreparationBudget, PreparationError};
-use windfall_project::EffectKind;
 use std::sync::{
     Arc,
     atomic::{AtomicUsize, Ordering},
 };
+use windfall_dsp::echo_bank::{PreparationBudget, PreparationError};
+use windfall_project::EffectKind;
 
 use crate::plan::Plan;
 use crate::project_preparation::ProjectPreparationError;
@@ -56,23 +56,36 @@ impl HistoryPool {
     /// Reserves ALL new payload before constructing any replacement effect.
     /// Concurrent preparations also charge their fixed staging headroom.
     /// Existing staging is conservatively counted in the retained check.
-    pub fn reserve(self: &Arc<Self>, bytes: usize) -> Result<HistoryReservation, ProjectPreparationError> {
+    pub fn reserve(
+        self: &Arc<Self>,
+        bytes: usize,
+    ) -> Result<HistoryReservation, ProjectPreparationError> {
         // Reused owners require no new memory, even while another worker holds
         // transient staging above the retained ceiling.
         if bytes == 0 {
-            return Ok(HistoryReservation { pool: self.clone(), charge: 0, payload: 0 });
+            return Ok(HistoryReservation {
+                pool: self.clone(),
+                charge: 0,
+                payload: 0,
+            });
         }
-        let charge = bytes.checked_add(STAGING_HEADROOM).ok_or(ProjectPreparationError::SizeOverflow)?;
+        let charge = bytes
+            .checked_add(STAGING_HEADROOM)
+            .ok_or(ProjectPreparationError::SizeOverflow)?;
         let mut occupied = self.occupied.load(Ordering::Acquire);
         loop {
-            let retained = occupied.checked_add(bytes).ok_or(ProjectPreparationError::SizeOverflow)?;
+            let retained = occupied
+                .checked_add(bytes)
+                .ok_or(ProjectPreparationError::SizeOverflow)?;
             if retained > self.retained_limit {
                 return Err(ProjectPreparationError::MemoryLimit {
                     required: retained,
                     limit: self.retained_limit,
                 });
             }
-            let peak = occupied.checked_add(charge).ok_or(ProjectPreparationError::SizeOverflow)?;
+            let peak = occupied
+                .checked_add(charge)
+                .ok_or(ProjectPreparationError::SizeOverflow)?;
             if peak > self.peak_limit {
                 return Err(ProjectPreparationError::MemoryLimit {
                     required: peak,
@@ -80,13 +93,18 @@ impl HistoryPool {
                 });
             }
             match self.occupied.compare_exchange_weak(
-                occupied, peak, Ordering::AcqRel, Ordering::Acquire,
+                occupied,
+                peak,
+                Ordering::AcqRel,
+                Ordering::Acquire,
             ) {
-                Ok(_) => return Ok(HistoryReservation {
-                    pool: self.clone(),
-                    charge,
-                    payload: bytes,
-                }),
+                Ok(_) => {
+                    return Ok(HistoryReservation {
+                        pool: self.clone(),
+                        charge,
+                        payload: bytes,
+                    });
+                }
                 Err(current) => occupied = current,
             }
         }
@@ -113,7 +131,11 @@ impl HistoryReservation {
         }
         self.payload -= bytes;
         self.charge -= bytes;
-        Ok(Self { pool: self.pool.clone(), charge: bytes, payload: bytes })
+        Ok(Self {
+            pool: self.pool.clone(),
+            charge: bytes,
+            payload: bytes,
+        })
     }
 }
 
@@ -250,8 +272,13 @@ mod tests {
         let fading = installed; // callback adoption only moves ownership
         assert_eq!(pool.occupied(), 100);
         let retirement = vec![fading]; // control-side carrier has not dropped it
-        assert!(matches!(pool.reserve(1),
-            Err(ProjectPreparationError::MemoryLimit { required: 101, limit: 100 })));
+        assert!(matches!(
+            pool.reserve(1),
+            Err(ProjectPreparationError::MemoryLimit {
+                required: 101,
+                limit: 100
+            })
+        ));
         assert_eq!(pool.occupied(), 100);
         drop(retirement);
         assert_eq!(pool.occupied(), 40);
@@ -274,7 +301,10 @@ mod tests {
         drop(candidate);
         assert_eq!(pool.occupied(), 0);
         assert!(pool.reserve(99).is_ok());
-        assert!(matches!(pool.reserve(usize::MAX), Err(ProjectPreparationError::SizeOverflow)));
+        assert!(matches!(
+            pool.reserve(usize::MAX),
+            Err(ProjectPreparationError::SizeOverflow)
+        ));
         assert_eq!(pool.occupied(), 0);
     }
 
@@ -282,15 +312,21 @@ mod tests {
     fn leaving_plan_definitions_are_included_in_history_admission() {
         let mut plan = Plan::empty();
         let mut doc = windfall_project::Document::new(windfall_project::Project::new("leaving"));
-        doc.dispatch(windfall_project::Command::AddEffect {
-            track: windfall_project::TrackId::MASTER,
-            kind: EffectKind::EchoBank,
-            index: None,
-        }, None).unwrap();
+        doc.dispatch(
+            windfall_project::Command::AddEffect {
+                track: windfall_project::TrackId::MASTER,
+                kind: EffectKind::EchoBank,
+                index: None,
+            },
+            None,
+        )
+        .unwrap();
         plan.tracks = crate::plan::compile(doc.project(), &crate::SamplePool::new()).tracks;
         plan.tracks[0].effects[0].leaving = true;
-        assert_eq!(HistoryAdmission::of(&plan, 8_000).unwrap().reserved,
-            EffectKind::EchoBank.history_bytes(8_000.0).unwrap());
+        assert_eq!(
+            HistoryAdmission::of(&plan, 8_000).unwrap().reserved,
+            EffectKind::EchoBank.history_bytes(8_000.0).unwrap()
+        );
     }
 
     #[test]
@@ -300,21 +336,30 @@ mod tests {
             let bytes = kind.history_bytes(rate as f32).unwrap();
             let pool = Arc::new(HistoryPool::with_limits(bytes, bytes + STAGING_HEADROOM));
             let mut doc = windfall_project::Document::new(windfall_project::Project::new("reuse"));
-            doc.dispatch(windfall_project::Command::AddEffect {
-                track: windfall_project::TrackId::MASTER, kind, index: None,
-            }, None).unwrap();
+            doc.dispatch(
+                windfall_project::Command::AddEffect {
+                    track: windfall_project::TrackId::MASTER,
+                    kind,
+                    index: None,
+                },
+                None,
+            )
+            .unwrap();
             let mut plan = crate::plan::compile(doc.project(), &crate::SamplePool::new());
             plan.echo_history = pool.clone();
             let (state, ledger) = crate::state::PlanState::try_build(&plan, rate, None).unwrap();
             assert_eq!(pool.occupied(), bytes);
             // Same concrete generation/kind, no new effect owner is constructed.
-            let (reusing, _) = crate::state::PlanState::try_build(&plan, rate, Some(&ledger)).unwrap();
+            let (reusing, _) =
+                crate::state::PlanState::try_build(&plan, rate, Some(&ledger)).unwrap();
             assert_eq!(pool.occupied(), bytes);
             drop(reusing);
             let fresh = plan.for_attachment();
-            assert!(matches!(crate::state::PlanState::try_build(&fresh, rate, None),
+            assert!(
+                matches!(crate::state::PlanState::try_build(&fresh, rate, None),
                 Err(ProjectPreparationError::MemoryLimit { required, limit })
-                    if required == 2 * bytes && limit == bytes));
+                    if required == 2 * bytes && limit == bytes)
+            );
             assert_eq!(pool.occupied(), bytes);
             drop(state);
             // Metadata/ledger clones do not keep a destroyed owner charged.
@@ -335,19 +380,28 @@ mod tests {
         let new_bytes = kind.history_bytes(new_rate as f32).unwrap();
         let limit = old_bytes + new_bytes - 1;
         let pool = Arc::new(HistoryPool::with_limits(limit, limit + STAGING_HEADROOM));
-        let mut doc = windfall_project::Document::new(windfall_project::Project::new("clock change"));
-        doc.dispatch(windfall_project::Command::AddEffect {
-            track: windfall_project::TrackId::MASTER, kind, index: None,
-        }, None).unwrap();
+        let mut doc =
+            windfall_project::Document::new(windfall_project::Project::new("clock change"));
+        doc.dispatch(
+            windfall_project::Command::AddEffect {
+                track: windfall_project::TrackId::MASTER,
+                kind,
+                index: None,
+            },
+            None,
+        )
+        .unwrap();
         let mut plan = crate::plan::compile(doc.project(), &crate::SamplePool::new());
         plan.echo_history = pool.clone();
         let (state, ledger) = crate::state::PlanState::try_build(&plan, old_rate, None).unwrap();
         // A newly compiled plan has a fresh pool, but its old-rate ledger still
         // identifies the live controller's shared admission.
         let candidate = crate::plan::compile(doc.project(), &crate::SamplePool::new());
-        assert!(matches!(crate::state::PlanState::try_build(&candidate, new_rate, Some(&ledger)),
+        assert!(
+            matches!(crate::state::PlanState::try_build(&candidate, new_rate, Some(&ledger)),
             Err(ProjectPreparationError::MemoryLimit { required, limit: bound })
-                if required == old_bytes + new_bytes && bound == limit));
+                if required == old_bytes + new_bytes && bound == limit)
+        );
         assert_eq!(pool.occupied(), old_bytes);
         drop(state);
         assert_eq!(pool.occupied(), 0);

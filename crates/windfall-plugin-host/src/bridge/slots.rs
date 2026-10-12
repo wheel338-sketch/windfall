@@ -553,7 +553,7 @@ impl NoteSnapshot {
         channel: 0,
         velocity: 0.0,
         controls: crate::PluginNoteControls {
-                volume: 1.0,
+            volume: 1.0,
             pan: 0.0,
             pitch: 0.0,
             modulation_x: 0.5,

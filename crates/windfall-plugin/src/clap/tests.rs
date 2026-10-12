@@ -143,7 +143,9 @@ fn host_clock_places_note_on_exact_frame_and_bends_tempo_without_restarting() {
         assert!(engine.sync_transport(0.99, tempo, true));
         let pcm = engine.render(256).unwrap();
         assert!(
-            pcm.chunks_exact(OUTPUT_CHANNELS)
+            pcm.as_chunks::<OUTPUT_CHANNELS>()
+                .0
+                .iter()
                 .take(onset)
                 .all(|frame| frame[2] == 0.0)
         );
@@ -153,7 +155,9 @@ fn host_clock_places_note_on_exact_frame_and_bends_tempo_without_restarting() {
             -pcm[onset * OUTPUT_CHANNELS + 2]
         );
         assert!(
-            pcm.chunks_exact(OUTPUT_CHANNELS)
+            pcm.as_chunks::<OUTPUT_CHANNELS>()
+                .0
+                .iter()
                 .all(|frame| frame[0] == 0.0 && frame[1] == 0.0)
         );
     }
@@ -169,7 +173,9 @@ fn host_clock_places_note_on_exact_frame_and_bends_tempo_without_restarting() {
     assert!(engine.sync_transport(0.995, 240.0, true));
     let pcm = engine.render(100).unwrap();
     let onset = pcm
-        .chunks_exact(OUTPUT_CHANNELS)
+        .as_chunks::<OUTPUT_CHANNELS>()
+        .0
+        .iter()
         .position(|frame| frame[2] != 0.0)
         .unwrap();
     assert_eq!(onset, 60);
@@ -341,10 +347,10 @@ fn clap_boundary_handles_partial_state_streams_sample_offsets_and_lifecycle() {
     );
     assert!(pcm[0].iter().flatten().all(|sample| *sample == 0.0));
     assert!(pcm[1][0][..7].iter().all(|sample| *sample == 0.0));
-    for index in 7..64 {
+    for (index, (&left, &right)) in pcm[1][0].iter().zip(&pcm[1][1]).enumerate().skip(7) {
         let expected = 0.125 + ((index - 7) % 31) as f32 / 64.0;
-        assert!((pcm[1][0][index] - expected).abs() < 1e-6, "frame {index}");
-        assert_eq!(pcm[1][1][index], -pcm[1][0][index]);
+        assert!((left - expected).abs() < 1e-6, "frame {index}");
+        assert_eq!(right, -left);
     }
     unsafe {
         stop(plugin);

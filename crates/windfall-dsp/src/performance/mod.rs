@@ -237,10 +237,9 @@ impl Effect for VolumeGate {
                 dry
             };
             // Apply the curve AFTER the head transition: a zero step is exactly silent.
-            let gain = self.volume_curve.as_deref()
-                .map_or(p.steps[step], |curve| {
-                    curve.value(self.phase as f32 / self.history.length as f32)
-                });
+            let gain = self.volume_curve.as_deref().map_or(p.steps[step], |curve| {
+                curve.value(self.phase as f32 / self.history.length as f32)
+            });
             let wet = self.history.fade.tick(replay).map(|v| finite(v * gain));
             if !p.trigger {
                 self.history.ring.push(std::array::from_fn(|c| {
@@ -573,7 +572,8 @@ impl Effect for Scratch {
             if self.controls.target.source_id != 0 {
                 let progress = self.phase as f32 / self.history.length as f32;
                 let position = if p.curve_enabled {
-                    self.position_curve.as_deref()
+                    self.position_curve
+                        .as_deref()
                         .map_or(progress, |curve| curve.value(progress))
                 } else {
                     p.position
@@ -586,7 +586,8 @@ impl Effect for Scratch {
                 }
                 self.last_position = Some(position);
                 let wet = self
-                    .source.as_deref()
+                    .source
+                    .as_deref()
                     .map_or([0.0; 2], |audio| Self::read_source(audio, position));
                 let wet = self.history.fade.tick(wet);
                 let out = blend(dry, wet, p.mix);

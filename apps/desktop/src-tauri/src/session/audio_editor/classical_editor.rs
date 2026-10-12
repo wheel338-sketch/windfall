@@ -1,12 +1,12 @@
 //! Prepared analysis editor. All FFT/stretch/IO occurs outside recording/State.
-use super::{lock, Editor, Session, STALE};
+use super::{Editor, STALE, Session, lock};
 use std::time::Duration;
-use windfall_analysis::{classical, CancelToken, Work};
+use windfall_analysis::{CancelToken, Work, classical};
 use windfall_core::TICKS_PER_STEP;
 use windfall_ipc::{AudioAnalysisEdit, AudioAnalysisPreview, AudioEditOperation, AudioEditRequest};
 use windfall_project::{
     AudioEditRecipe, AudioWarpMarker, ChannelId, ClipContent, ClipInit, Command, DispatchResult,
-    NoteInit, PatternId, PatternPatch, MAX_PATTERN_TICKS,
+    MAX_PATTERN_TICKS, NoteInit, PatternId, PatternPatch,
 };
 
 struct Preparation<'a>(&'a Session);

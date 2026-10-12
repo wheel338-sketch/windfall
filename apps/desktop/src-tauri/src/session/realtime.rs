@@ -44,7 +44,12 @@ impl Session {
         self.subscribe_realtime_owned(key, None, send);
     }
 
-    pub fn subscribe_realtime_owned(&self, key: impl Into<String>, token: Option<String>, send: FrameSender) {
+    pub fn subscribe_realtime_owned(
+        &self,
+        key: impl Into<String>,
+        token: Option<String>,
+        send: FrameSender,
+    ) {
         let key = key.into();
         let mut subscribers = lock(&self.inner.subscribers);
         subscribers.retain(|subscriber| subscriber.key != key);
@@ -53,8 +58,9 @@ impl Session {
 
     /// A delayed cleanup from a previous mount must not remove a new sender.
     pub fn unsubscribe_realtime_owned(&self, key: &str, token: &str) {
-        lock(&self.inner.subscribers).retain(|subscriber|
-            subscriber.key != key || subscriber.token.as_deref() != Some(token));
+        lock(&self.inner.subscribers).retain(|subscriber| {
+            subscriber.key != key || subscriber.token.as_deref() != Some(token)
+        });
     }
 
     /// Stops sending realtime frames to a window, as when it closes.

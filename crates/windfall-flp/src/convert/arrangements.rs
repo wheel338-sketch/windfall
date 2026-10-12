@@ -84,7 +84,11 @@ impl Builder<'_> {
                 1,
             );
             self.arrangement_timeline(&source.markers);
-            self.apply(section, "An independent musical timeline", Command::CaptureArrangementTimeline { id });
+            self.apply(
+                section,
+                "An independent musical timeline",
+                Command::CaptureArrangementTimeline { id },
+            );
             if std::ptr::eq(source, selected) {
                 selected_id = Some(id);
             }

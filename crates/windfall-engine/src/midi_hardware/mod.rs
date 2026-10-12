@@ -9,8 +9,8 @@
 //! Nothing here runs on the audio thread: it only leaves fixed-size messages
 //! in a preallocated queue, and this worker sends them.
 pub mod clock;
-pub mod general_midi;
 pub mod feedback;
+pub mod general_midi;
 mod message;
 mod native;
 #[cfg(test)]

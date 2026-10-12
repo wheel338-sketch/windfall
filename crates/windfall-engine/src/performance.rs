@@ -354,7 +354,7 @@ pub fn render_capture(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{plan::compile, SamplePool};
+    use crate::{SamplePool, plan::compile};
     use windfall_project::{Project, StageMedia};
 
     #[test]

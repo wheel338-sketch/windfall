@@ -1,5 +1,5 @@
 //! Instrument-lane filtering must be identical in playback and MIDI files.
-use windfall_midi::{export_pattern, export_song, read, write, ExportOptions, WriteOptions};
+use windfall_midi::{ExportOptions, WriteOptions, export_pattern, export_song, read, write};
 use windfall_project::{arrangement::TrackKind, *};
 
 #[test]
@@ -94,7 +94,8 @@ fn song_export_filters_each_placement_without_filtering_shared_patterns() {
         2
     );
     let reopened: Project =
-        windfall_project::file::from_json(&windfall_project::file::to_json(doc.project()).unwrap()).unwrap();
+        windfall_project::file::from_json(&windfall_project::file::to_json(doc.project()).unwrap())
+            .unwrap();
     assert_eq!(
         export_song(&reopened, &ExportOptions::default()).unwrap(),
         filtered

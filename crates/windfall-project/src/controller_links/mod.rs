@@ -156,8 +156,13 @@ pub enum ControlAction {
     BankNext,
     PanicMidi,
     /// Launch the assigned pad using the project quantization.
-    PerformancePad { track: u8, scene: u8 },
-    PerformanceStop { track: u8 },
+    PerformancePad {
+        track: u8,
+        scene: u8,
+    },
+    PerformanceStop {
+        track: u8,
+    },
     PerformanceStopAll,
 }
 
@@ -340,11 +345,18 @@ impl ControllerLink {
         }
         if let LinkTarget::Action { action } = self.target {
             let invalid = match action {
-                ControlAction::PerformancePad { track, scene } => usize::from(track) >= crate::stage_media::PERFORMANCE_TRACKS || usize::from(scene) >= crate::stage_media::PERFORMANCE_SCENES,
-                ControlAction::PerformanceStop { track } => usize::from(track) >= crate::stage_media::PERFORMANCE_TRACKS,
+                ControlAction::PerformancePad { track, scene } => {
+                    usize::from(track) >= crate::stage_media::PERFORMANCE_TRACKS
+                        || usize::from(scene) >= crate::stage_media::PERFORMANCE_SCENES
+                }
+                ControlAction::PerformanceStop { track } => {
+                    usize::from(track) >= crate::stage_media::PERFORMANCE_TRACKS
+                }
                 _ => false,
             };
-            if invalid { return Some("Performance controller action position is out of range".into()); }
+            if invalid {
+                return Some("Performance controller action position is out of range".into());
+            }
         }
         self.map.compile().err()
     }

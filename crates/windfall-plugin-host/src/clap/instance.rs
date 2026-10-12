@@ -526,7 +526,10 @@ impl InstanceBackend for ClapInstance {
     }
 
     fn set_editor_scale(&mut self, application: f64) -> Result<EditorInfo, EditorError> {
-        self.editor.as_mut().ok_or(EditorError::NoEditor)?.set_scale(&mut self.instance, application)
+        self.editor
+            .as_mut()
+            .ok_or(EditorError::NoEditor)?
+            .set_scale(&mut self.instance, application)
     }
 }
 

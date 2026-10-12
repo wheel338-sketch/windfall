@@ -30,7 +30,9 @@ fn synchronous_span(frequency: f32, sample_rate: f32, capacity: usize) -> f32 {
         let pair = 2.0 * sample_rate / frequency;
         // Never truncate a period pair: both heads must have the same phase.
         (capacity as f32 / pair).floor().max(1.0) * pair
-    } else { capacity as f32 }
+    } else {
+        capacity as f32
+    }
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize, TS)]
@@ -185,7 +187,11 @@ impl Effect for PitchShift {
             let [semitones, mix, formant] = self.controls.tick();
             let input = [audio(*l), audio(*r)];
             self.tracker.observe(input);
-            let span = synchronous_span(self.tracker.frequency, self.sample_rate, self.grains.span_capacity);
+            let span = synchronous_span(
+                self.tracker.frequency,
+                self.sample_rate,
+                self.grains.span_capacity,
+            );
             let ratio = (semitones / 12.0).exp2();
             let (plain, dry) = self.grains.tick_span(input, ratio, span);
             let excitation = self
@@ -357,7 +363,9 @@ impl PitchCorrect {
             self.hop += 1;
             if self.hop == TRACK_HOP {
                 self.hop = 0;
-                if self.tracked == TRACK_SIZE { self.estimate(); }
+                if self.tracked == TRACK_SIZE {
+                    self.estimate();
+                }
             }
         }
     }
@@ -408,7 +416,9 @@ impl PitchCorrect {
                     windfall_core::yin::parabolic_minimum(raw[lag - 1], raw[lag], raw[lag + 1]).0;
                 let hz = f64::from(self.tracker_rate) / (lag as f64 + offset);
                 // Allow estimator interpolation error at the declared endpoints.
-                (59.0..=1005.0).contains(&hz).then_some(hz.clamp(60.0, 1000.0) as f32)
+                (59.0..=1005.0)
+                    .contains(&hz)
+                    .then_some(hz.clamp(60.0, 1000.0) as f32)
             })
             .unwrap_or(0.0);
     }
@@ -442,7 +452,8 @@ impl Effect for PitchCorrect {
         self.lowpass_coeffs =
             BiquadCoeffs::low_pass(self.tracker_rate * 0.4, 0.707, self.sample_rate);
         let span = pitch_span_capacity(self.sample_rate);
-        self.grains.prepare_span(TRACK_SIZE * self.decimation, span, PITCH_SHIFT_LATENCY);
+        self.grains
+            .prepare_span(TRACK_SIZE * self.decimation, span, PITCH_SHIFT_LATENCY);
         for harmony in &mut self.harmonies {
             harmony.prepare_span(TRACK_SIZE * self.decimation, span, PITCH_SHIFT_LATENCY);
         }
@@ -483,7 +494,8 @@ impl Effect for PitchCorrect {
             // Both read heads must differ by whole source periods. Otherwise
             // their windows cancel/beat and quantize a harmony onto grain-rate
             // sidebands instead of the requested MIDI pitch.
-            let span = synchronous_span(self.frequency, self.sample_rate, self.grains.span_capacity);
+            let span =
+                synchronous_span(self.frequency, self.sample_rate, self.grains.span_capacity);
             let (mut wet, dry) =
                 self.grains
                     .tick_span(input, (self.correction / 12.0).exp2(), span);

@@ -288,13 +288,21 @@ impl Instance {
         let adapter = if self.instrument {
             Adapter::Instrument(
                 self.plugin
-                    .prepare_instrument_with_options(self.rate as f32, super::wrapper::max_block(&self.binding, self.block), &super::wrapper::native(&self.binding)?)
+                    .prepare_instrument_with_options(
+                        self.rate as f32,
+                        super::wrapper::max_block(&self.binding, self.block),
+                        &super::wrapper::native(&self.binding)?,
+                    )
                     .map_err(|error| error.to_string())?,
             )
         } else {
             Adapter::Effect(
                 self.plugin
-                    .prepare_effect_with_options(self.rate as f32, super::wrapper::max_block(&self.binding, self.block), &super::wrapper::native(&self.binding)?)
+                    .prepare_effect_with_options(
+                        self.rate as f32,
+                        super::wrapper::max_block(&self.binding, self.block),
+                        &super::wrapper::native(&self.binding)?,
+                    )
                     .map_err(|error| error.to_string())?,
             )
         };
@@ -476,7 +484,9 @@ pub(crate) fn binding_identity(binding: &PluginBinding) -> u64 {
     binding.path.hash(&mut hash);
     binding.id.hash(&mut hash);
     binding.state.hash(&mut hash);
-    if !binding.wrapper.is_default() { binding.wrapper.hash(&mut hash); }
+    if !binding.wrapper.is_default() {
+        binding.wrapper.hash(&mut hash);
+    }
     hash.finish()
 }
 struct Owner {
@@ -581,9 +591,20 @@ impl Runtime {
                                     == owner_revision.load(std::sync::atomic::Ordering::Acquire)
                             {
                                 record.dirty_serial = record.control.native_change_serial();
-                                if record.dirty_serial > record.acknowledged_serial && !record.capture_sent {
-                                    record.capture_sent = updates.try_send(PendingUpdate { binding: binding_identity(&record.binding), token: *token, revision: record.revision,
-                                        update: Update::Capture { target: record.binding.target, serial: record.dirty_serial } }).is_ok();
+                                if record.dirty_serial > record.acknowledged_serial
+                                    && !record.capture_sent
+                                {
+                                    record.capture_sent = updates
+                                        .try_send(PendingUpdate {
+                                            binding: binding_identity(&record.binding),
+                                            token: *token,
+                                            revision: record.revision,
+                                            update: Update::Capture {
+                                                target: record.binding.target,
+                                                serial: record.dirty_serial,
+                                            },
+                                        })
+                                        .is_ok();
                                 }
                                 let status = record.status();
                                 if status.failed {
@@ -1216,16 +1237,37 @@ impl Runtime {
                     return Ok(None);
                 }
                 #[cfg(windows)]
-                if let Some(record) = owner.bridges.get_mut(&request.token).filter(|record| record.playback && record.revision == request.revision
-                    && binding_identity(&record.binding) == request.binding && record.dirty_serial >= serial && record.dirty_serial > record.acknowledged_serial) {
-                    if lifetime.cancelled() { record.capture_sent = false; return Err("Plugin capture was cancelled".into()); }
+                if let Some(record) = owner.bridges.get_mut(&request.token).filter(|record| {
+                    record.playback
+                        && record.revision == request.revision
+                        && binding_identity(&record.binding) == request.binding
+                        && record.dirty_serial >= serial
+                        && record.dirty_serial > record.acknowledged_serial
+                }) {
+                    if lifetime.cancelled() {
+                        record.capture_sent = false;
+                        return Err("Plugin capture was cancelled".into());
+                    }
                     let serial = record.dirty_serial;
                     let (bytes, parameters) = match record.capture(&desired) {
                         Ok(captured) => captured,
-                        Err(error) => { record.capture_sent = false; return Err(error); }
+                        Err(error) => {
+                            record.capture_sent = false;
+                            return Err(error);
+                        }
                     };
-                    if lifetime.cancelled() || revision.load(std::sync::atomic::Ordering::Acquire) != request.revision { record.capture_sent = false; return Err("Plugin capture ownership changed".into()); }
-                    return Ok(Some(CapturedState { bytes, parameters, restart: false, serial }));
+                    if lifetime.cancelled()
+                        || revision.load(std::sync::atomic::Ordering::Acquire) != request.revision
+                    {
+                        record.capture_sent = false;
+                        return Err("Plugin capture ownership changed".into());
+                    }
+                    return Ok(Some(CapturedState {
+                        bytes,
+                        parameters,
+                        restart: false,
+                        serial,
+                    }));
                 }
                 let Some(record) = owner.instances.get_mut(&request.token).filter(|record| {
                     record.playback
@@ -1365,7 +1407,11 @@ impl Runtime {
         self.editor_binding_with_parent(target, binding, open, None)
     }
     pub fn editor_binding_with_parent(
-        &self, target: PluginTarget, binding: Option<PluginBinding>, open: bool, parent: Option<usize>,
+        &self,
+        target: PluginTarget,
+        binding: Option<PluginBinding>,
+        open: bool,
+        parent: Option<usize>,
     ) -> Result<(), String> {
         let revision = self.revision.load(std::sync::atomic::Ordering::Relaxed);
         let scale = self.editor_scale_percent.clone();
@@ -1383,7 +1429,9 @@ impl Runtime {
                         && binding.wrapper == record.binding.wrapper
                 })
             {
-                return record.control.editor_with_options(open, super::wrapper::editor(&record.binding, parent));
+                return record
+                    .control
+                    .editor_with_options(open, super::wrapper::editor(&record.binding, parent));
             }
             let record = selected(&owner.selection, target)
                 .and_then(|token| owner.instances.get_mut(&token))
@@ -1403,11 +1451,15 @@ impl Runtime {
                 instance
                     .open_editor(&super::wrapper::editor(&record.binding, parent))
                     .map_err(|error| error.to_string())?;
-                let application = f64::from(scale.load(std::sync::atomic::Ordering::Relaxed)) / 100.0;
+                let application =
+                    f64::from(scale.load(std::sync::atomic::Ordering::Relaxed)) / 100.0;
                 if let Err(error) = instance.set_editor_scale(application)
-                    && (application != 1.0 || error != windfall_plugin_host::gui::EditorError::UnsupportedScale)
+                    && (application != 1.0
+                        || error != windfall_plugin_host::gui::EditorError::UnsupportedScale)
                 {
-                    return Err(format!("The editor opened, but its content could not be scaled: {error}"));
+                    return Err(format!(
+                        "The editor opened, but its content could not be scaled: {error}"
+                    ));
                 }
             } else {
                 instance.close_editor();
@@ -1424,7 +1476,10 @@ impl Runtime {
         }
         let preference = self.editor_scale_percent.clone();
         self.call(move |owner| {
-            preference.store((application * 100.0).round() as u32, std::sync::atomic::Ordering::Relaxed);
+            preference.store(
+                (application * 100.0).round() as u32,
+                std::sync::atomic::Ordering::Relaxed,
+            );
             let mut errors = Vec::new();
             for record in owner.instances.values_mut() {
                 if record.plugin.editor().is_some()
@@ -1433,7 +1488,11 @@ impl Runtime {
                     errors.push(format!("{}: {error}", record.binding.name));
                 }
             }
-            if errors.is_empty() { Ok(()) } else { Err(errors.join("; ")) }
+            if errors.is_empty() {
+                Ok(())
+            } else {
+                Err(errors.join("; "))
+            }
         })
     }
     #[cfg(all(test, windows))]
@@ -1599,14 +1658,31 @@ impl ExpressionOwner {
         started: false,
         dirty: false,
     };
-    fn controls(self, map: windfall_dsp::ExpressionMap, law: windfall_core::PanLawRamp, clock: u64) -> windfall_plugin_host::PluginNoteExpression {
-        let mut controls = map.plugin_controls(self.pan, f64::from(self.pitch) - f64::from(self.key), self.expression);
+    fn controls(
+        self,
+        map: windfall_dsp::ExpressionMap,
+        law: windfall_core::PanLawRamp,
+        clock: u64,
+    ) -> windfall_plugin_host::PluginNoteExpression {
+        let mut controls = map.plugin_controls(
+            self.pan,
+            f64::from(self.pitch) - f64::from(self.key),
+            self.expression,
+        );
         let (left, right) = law.gains_at(clock, (controls.values[1] * 2.0 - 1.0) as f32);
         let volume = left.max(right);
-        controls.values[1] = if volume > 0.0 { f64::from((right-left) / volume + 1.0) * 0.5 } else { 0.5 };
+        controls.values[1] = if volume > 0.0 {
+            f64::from((right - left) / volume + 1.0) * 0.5
+        } else {
+            0.5
+        };
         controls.values[0] *= f64::from(volume);
-        controls.mask |= windfall_plugin_host::NoteExpressionKind::Pan.mask() | windfall_plugin_host::NoteExpressionKind::Volume.mask();
-        windfall_plugin_host::PluginNoteExpression { values: controls.values, mask: controls.mask }
+        controls.mask |= windfall_plugin_host::NoteExpressionKind::Pan.mask()
+            | windfall_plugin_host::NoteExpressionKind::Volume.mask();
+        windfall_plugin_host::PluginNoteExpression {
+            values: controls.values,
+            mask: controls.mask,
+        }
     }
 }
 
@@ -1707,7 +1783,10 @@ impl Audio {
                         note.controls(*expression_map, *note_law, *pan_clock),
                     )
                 } else if note.dirty {
-                    instrument.set_note_expression(note.native, note.controls(*expression_map, *note_law, *pan_clock))
+                    instrument.set_note_expression(
+                        note.native,
+                        note.controls(*expression_map, *note_law, *pan_clock),
+                    )
                 } else {
                     true
                 };
@@ -2008,7 +2087,9 @@ impl HostedInstrument for Audio {
     }
 
     fn set_expression_map(&mut self, map: windfall_dsp::ExpressionMap) {
-        if self.expression_map == map { return; }
+        if self.expression_map == map {
+            return;
+        }
         self.expression_map = map;
         for slot in 0..self.expression_owners.len() {
             if self.expression_owners[slot].native != 0 {
@@ -2021,7 +2102,8 @@ impl HostedInstrument for Audio {
         if self.pan_clock == 0 {
             self.note_law = windfall_core::PanLawRamp::at_rest(law);
         } else {
-            self.note_law.retarget(law, self.pan_clock, self.pan_ramp_frames);
+            self.note_law
+                .retarget(law, self.pan_clock, self.pan_ramp_frames);
         }
         for note in self
             .expression_owners
@@ -2339,7 +2421,10 @@ impl PluginFactory for Runtime {
         let default_bridge = self.bridge_enabled;
         #[cfg(not(windows))]
         let default_bridge = false;
-        let bridged = self.record(binding.target, super::wrapper::use_bridge(binding, default_bridge))?;
+        let bridged = self.record(
+            binding.target,
+            super::wrapper::use_bridge(binding, default_bridge),
+        )?;
         #[cfg(windows)]
         if bridged {
             let result = self.bridge_audio(binding, rate);
@@ -2369,7 +2454,11 @@ impl PluginFactory for Runtime {
             self.call(move |owner| {
                 let mut instance = Self::create(owner, &binding)?;
                 let adapter = instance
-                    .prepare_effect_with_options(rate as f32, super::wrapper::max_block(&binding, block), &super::wrapper::native(&binding)?)
+                    .prepare_effect_with_options(
+                        rate as f32,
+                        super::wrapper::max_block(&binding, block),
+                        &super::wrapper::native(&binding)?,
+                    )
                     .map_err(|error| error.to_string())?;
                 if adapter.latency_samples() > rate as usize {
                     let _ = instance.release_effect(adapter);
@@ -2492,7 +2581,10 @@ impl PluginFactory for Runtime {
         let default_bridge = self.bridge_enabled;
         #[cfg(not(windows))]
         let default_bridge = false;
-        let bridged = self.record(binding.target, super::wrapper::use_bridge(binding, default_bridge))?;
+        let bridged = self.record(
+            binding.target,
+            super::wrapper::use_bridge(binding, default_bridge),
+        )?;
         #[cfg(windows)]
         if bridged {
             let result = self.bridge_audio(binding, rate);
@@ -2522,7 +2614,11 @@ impl PluginFactory for Runtime {
             self.call(move |owner| {
                 let mut instance = Self::create(owner, &binding)?;
                 let adapter = instance
-                    .prepare_instrument_with_options(rate as f32, super::wrapper::max_block(&binding, block), &super::wrapper::native(&binding)?)
+                    .prepare_instrument_with_options(
+                        rate as f32,
+                        super::wrapper::max_block(&binding, block),
+                        &super::wrapper::native(&binding)?,
+                    )
                     .map_err(|error| error.to_string())?;
                 if adapter.latency_samples() > rate as usize {
                     let _ = instance.release_instrument(adapter);

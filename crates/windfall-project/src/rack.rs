@@ -195,10 +195,10 @@ impl RackGraph {
         let mut endpoints = std::collections::HashSet::new();
         let mut macros = std::collections::HashSet::new();
         for node in &self.nodes {
-            if let RackProcessor::ControlInput { index, .. } = &node.processor {
-                if !macros.insert(*index) {
-                    return Err("Rack macro indices must be unique".into());
-                }
+            if let RackProcessor::ControlInput { index, .. } = &node.processor
+                && !macros.insert(*index)
+            {
+                return Err("Rack macro indices must be unique".into());
             }
         }
         for edge in &self.edges {

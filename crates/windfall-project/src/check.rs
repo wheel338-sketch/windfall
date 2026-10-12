@@ -74,7 +74,12 @@ impl Project {
         }
         for timeline in std::iter::once(&self.playlist.timeline)
             .chain(self.patterns.iter().map(|pattern| &pattern.timeline))
-            .chain(book.timelines.iter().filter(|(id, _)| Some(**id) != book.active).map(|(_, timeline)| timeline))
+            .chain(
+                book.timelines
+                    .iter()
+                    .filter(|(id, _)| Some(**id) != book.active)
+                    .map(|(_, timeline)| timeline),
+            )
         {
             for id in timeline
                 .meters
@@ -268,8 +273,16 @@ fn check_samples(project: &Project) -> Result<(), String> {
         check_id(project, "sample", sample.id, &mut ids)?;
         if let Some(recipe) = &sample.processing {
             recipe.check()?;
-            let source = recipe.source_clip.content.sample().expect("checked audio recipe");
-            if source == sample.id || project.sample(source).is_none_or(|s|s.processing.is_some()) {
+            let source = recipe
+                .source_clip
+                .content
+                .sample()
+                .expect("checked audio recipe");
+            if source == sample.id
+                || project
+                    .sample(source)
+                    .is_none_or(|s| s.processing.is_some())
+            {
                 return Err("A processed sample has lost its original source.".into());
             }
         }

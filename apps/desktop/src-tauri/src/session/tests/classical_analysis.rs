@@ -240,11 +240,12 @@ fn immutable_estimates_bad_warp_and_stale_source_cannot_apply() {
     let mut edit = reviewed(&rig, clip);
     let before = rig.session.document_snapshot();
     edit.recipe.analysis.notes[0].midi_pitch = 60.0;
-    assert!(rig
-        .session
-        .audio_analysis_apply(edit)
-        .unwrap_err()
-        .contains("cannot be rewritten"));
+    assert!(
+        rig.session
+            .audio_analysis_apply(edit)
+            .unwrap_err()
+            .contains("cannot be rewritten")
+    );
     assert_eq!(rig.session.document_snapshot(), before);
     let mut edit = reviewed(&rig, clip);
     edit.recipe.markers.last_mut().unwrap().target_frame = 1;

@@ -39,7 +39,10 @@ impl Ports for Native {
         #[cfg(all(target_os = "windows", feature = "xinput"))]
         let outputs = {
             let mut outputs = outputs;
-            outputs.push(MidiPort { id: super::feedback::CONTROLLER_FEEDBACK_OUTPUT.into(), name: "Game controller feedback (XInput)".into() });
+            outputs.push(MidiPort {
+                id: super::feedback::CONTROLLER_FEEDBACK_OUTPUT.into(),
+                name: "Game controller feedback (XInput)".into(),
+            });
             outputs
         };
         Ok((inputs, outputs))
@@ -66,15 +69,28 @@ impl Ports for Native {
     fn output(&mut self, id: &str) -> Result<Box<dyn Output>, String> {
         #[cfg(all(target_os = "windows", feature = "xinput"))]
         if id == super::feedback::CONTROLLER_FEEDBACK_OUTPUT {
-            return Ok(Box::new(super::feedback::FeedbackOutput::new(crate::peripherals::windows::XInputAdapter)));
+            return Ok(Box::new(super::feedback::FeedbackOutput::new(
+                crate::peripherals::windows::XInputAdapter,
+            )));
         }
         let output = MidiOutput::new("Windfall MIDI output").map_err(|e| e.to_string())?;
         let port = if id == super::general_midi::SYSTEM_GM_OUTPUT {
-            if !cfg!(target_os = "windows") { return Err("System General MIDI output is only available on Windows".into()); }
-            output.ports().into_iter().find(|port| output.port_name(port).is_ok_and(|name|super::general_midi::is_system_synth_name(&name)))
+            if !cfg!(target_os = "windows") {
+                return Err("System General MIDI output is only available on Windows".into());
+            }
+            output
+                .ports()
+                .into_iter()
+                .find(|port| {
+                    output
+                        .port_name(port)
+                        .is_ok_and(|name| super::general_midi::is_system_synth_name(&name))
+                })
                 .ok_or("The operating system General MIDI synthesizer is unavailable.")?
         } else {
-            output.find_port_by_id(id).ok_or("MIDI output is unavailable.")?
+            output
+                .find_port_by_id(id)
+                .ok_or("MIDI output is unavailable.")?
         };
         output
             .connect(&port, "Windfall live notes")

@@ -31,7 +31,10 @@ pub(crate) struct ArchiveJob {
     generation: Option<u64>,
 }
 impl ArchiveJob {
-    pub(crate) fn for_generation(mut self, generation: u64) -> Self { self.generation = Some(generation); self }
+    pub(crate) fn for_generation(mut self, generation: u64) -> Self {
+        self.generation = Some(generation);
+        self
+    }
     fn check(&self) -> Result<(), Error> {
         if self.cancelled.load(Ordering::Acquire) {
             Err(Error::Cancelled)
@@ -51,7 +54,10 @@ impl Session {
     pub(crate) fn archive_job(&self) -> Result<ArchiveJob, String> {
         self.archive_job_with_cancel(Arc::new(AtomicBool::new(false)))
     }
-    pub(crate) fn archive_job_with_cancel(&self, cancelled: Arc<AtomicBool>) -> Result<ArchiveJob, String> {
+    pub(crate) fn archive_job_with_cancel(
+        &self,
+        cancelled: Arc<AtomicBool>,
+    ) -> Result<ArchiveJob, String> {
         let mut active = lock(&self.inner.archive_job);
         if active.is_some() {
             return Err("Another project archive operation is running.".into());
@@ -105,7 +111,12 @@ impl Session {
         drop(self.recording_idle()?);
         let (project, _asset_pins, played, directory, revision, _extraction) = {
             let state = self.state();
-            if job.generation.is_some_and(|generation| state.generation != generation) { return Err("The project changed before backup capture.".into()); }
+            if job
+                .generation
+                .is_some_and(|generation| state.generation != generation)
+            {
+                return Err("The project changed before backup capture.".into());
+            }
             (
                 state.document.project().clone(),
                 state.document.effect_asset_pins(),

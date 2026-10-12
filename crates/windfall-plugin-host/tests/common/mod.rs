@@ -56,6 +56,11 @@ pub const SINE_LATENCY: usize = 32;
 fn built_library() -> &'static Path {
     static LIBRARY: OnceLock<PathBuf> = OnceLock::new();
     LIBRARY.get_or_init(|| {
+        if let Some(path) = std::env::var_os("WINDFALL_BRIDGE_FIXTURE") {
+            let path = PathBuf::from(path);
+            assert!(path.is_file(), "explicit prebuilt fixture must exist");
+            return path;
+        }
         let manifest = Path::new(env!("CARGO_MANIFEST_DIR")).join("test-plugins/Cargo.toml");
         let target = Path::new(env!("CARGO_TARGET_TMPDIR")).join("windfall-test-plugins");
         let output = Command::new(env!("CARGO"))

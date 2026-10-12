@@ -457,7 +457,7 @@ pub fn launch(options: Launch) -> Result<(Control, Audio, usize), String> {
         1,
         owner,
         Message::Load {
-            wrapper: options.wrapper.clone(),
+            wrapper: Box::new(options.wrapper.clone()),
             mapping: name,
             settings: options.config.into(),
             path: options.plugin.to_string_lossy().into_owned(),

@@ -217,9 +217,9 @@ fn all_audio_origins_edited_and_sliced_sources_survive_removal_and_archive_open(
 fn missing_plugins_retain_opaque_state_and_parameters_without_bundling_binaries() {
     let rig = Rig::new();
     let plugin = PluginBinding {
-            sidechain_input: None,
-            auxiliary_inputs: Vec::new(),
-            wrapper: Default::default(),
+        sidechain_input: None,
+        auxiliary_inputs: Vec::new(),
+        wrapper: Default::default(),
         target: PluginTarget::Instrument {
             channel: ChannelId(0),
         },

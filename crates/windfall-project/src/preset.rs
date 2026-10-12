@@ -596,8 +596,10 @@ impl ChannelPreset {
             sampler.sample = sample;
         }
         let sample_instrument = match (&base.source, &source) {
-            (ChannelSource::Instrument { params: old, .. }, ChannelSource::Instrument { params: new, .. })
-                if old.kind() == new.kind() => base.sample_instrument.clone(),
+            (
+                ChannelSource::Instrument { params: old, .. },
+                ChannelSource::Instrument { params: new, .. },
+            ) if old.kind() == new.kind() => base.sample_instrument.clone(),
             _ => None,
         };
         Channel {
@@ -684,7 +686,7 @@ impl ChannelPreset {
         let sample = self.sample_asset.map(|_| SampleId(take()));
         if let Some(id) = sample {
             project.samples.push(SampleAsset {
-            processing: None,
+                processing: None,
                 regions: Vec::new(),
                 id,
                 name: "Preset audio".to_owned(),

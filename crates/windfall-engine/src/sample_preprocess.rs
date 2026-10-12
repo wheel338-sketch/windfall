@@ -500,7 +500,10 @@ mod tests {
             .iter()
             .enumerate()
         {
-            assert!((samples[index] - expected * NORMALIZE_PEAK).abs() < 1e-5, "{samples:?}");
+            assert!(
+                (samples[index] - expected * NORMALIZE_PEAK).abs() < 1e-5,
+                "{samples:?}"
+            );
         }
         assert!((out.normalize_gain - 10.0 * NORMALIZE_PEAK).abs() < 1e-3);
         let silent = preprocess(

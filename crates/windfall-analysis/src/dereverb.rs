@@ -381,7 +381,7 @@ fn render_segment(
     let mut since_attack: usize = 0;
     let protect_samples = (rate as f64 * 0.045) as usize;
     let release_samples = (rate as f64 * 0.01).max(1.0);
-    for f in 0..frames {
+    for (f, &normalization) in norm.iter().enumerate() {
         if f.is_multiple_of(2048) {
             work.checkpoint((2048 * channels) as u64)?;
         }
@@ -395,8 +395,8 @@ fn render_segment(
             let i = f * channels + c;
             let blend =
                 (since_attack.saturating_sub(protect_samples) as f64 / release_samples).min(1.0);
-            output[i] =
-                samples[i] as f64 + (output[i] / norm[f].max(1e-20) - samples[i] as f64) * blend;
+            output[i] = samples[i] as f64
+                + (output[i] / normalization.max(1e-20) - samples[i] as f64) * blend;
         }
         since_attack = since_attack.saturating_add(1);
     }

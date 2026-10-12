@@ -75,13 +75,13 @@ impl Service {
         }
         std::fs::create_dir_all(&self.root).map_err(|e| error("io", e))?;
         let path = self.root.join("packs.json");
-        if let Ok(meta) = std::fs::symlink_metadata(&path) {
-            if !meta.is_file() || meta.file_type().is_symlink() {
-                return Err(error(
-                    "invalid",
-                    "Pack registry target is not a regular file.",
-                ));
-            }
+        if let Ok(meta) = std::fs::symlink_metadata(&path)
+            && (!meta.is_file() || meta.file_type().is_symlink())
+        {
+            return Err(error(
+                "invalid",
+                "Pack registry target is not a regular file.",
+            ));
         }
         let mut staged = tempfile::NamedTempFile::new_in(&self.root).map_err(|e| error("io", e))?;
         staged.write_all(&bytes).map_err(|e| error("io", e))?;

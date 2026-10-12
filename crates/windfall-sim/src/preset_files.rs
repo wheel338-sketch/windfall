@@ -10,19 +10,18 @@ fn supported(preset: &Preset) -> Result<(), String> {
     if !preset.assets.is_empty() || preset.mixer_track.is_some() {
         return Err(NATIVE.into());
     }
-    if let Some(channel) = &preset.channel {
-        if channel.sample_asset.is_some()
+    if let Some(channel) = &preset.channel
+        && (channel.sample_asset.is_some()
             || channel.plugin.is_some()
             || matches!(
                 &channel.source,
                 ChannelSource::Instrument { asset: Some(_), .. }
-            )
-        {
-            return Err(NATIVE.into());
-        }
+            ))
+    {
+        return Err(NATIVE.into());
     }
-    if let Some(plugin) = &preset.plugin {
-        if matches!(
+    if let Some(plugin) = &preset.plugin
+        && matches!(
             &plugin.state,
             PluginPresetState::Hosted { .. }
                 | PluginPresetState::Instrument { asset: Some(_), .. }
@@ -30,9 +29,9 @@ fn supported(preset: &Preset) -> Result<(), String> {
                     impulse: Some(_),
                     ..
                 }
-        ) {
-            return Err(NATIVE.into());
-        }
+        )
+    {
+        return Err(NATIVE.into());
     }
     Ok(())
 }

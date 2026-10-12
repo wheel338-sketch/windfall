@@ -219,7 +219,11 @@ impl Session {
             if state.generation != generation || state.document.revision() != revision {
                 return Err("The project changed before preset capture; try again".into());
             }
-            (state.document.project().clone(), state.document.effect_asset_pins(), self.plugin_revision())
+            (
+                state.document.project().clone(),
+                state.document.effect_asset_pins(),
+                self.plugin_revision(),
+            )
         };
         #[cfg(test)]
         self.pause("mixer-preset:capture");

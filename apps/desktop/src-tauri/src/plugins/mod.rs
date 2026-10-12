@@ -5,8 +5,8 @@ mod capture_ack;
 mod manager_workflows;
 mod runtime;
 mod wrapper;
-pub use manager_workflows::Rescan;
 pub(crate) use capture_ack::{CaptureAcknowledgement, CaptureOutcome};
+pub use manager_workflows::Rescan;
 pub use runtime::Runtime;
 pub(crate) use runtime::binding_identity;
 #[cfg(all(test, windows))]
@@ -75,7 +75,8 @@ impl PluginManager {
     pub(crate) fn fixture(folder: &Path, file: &Path, scanner: &Path) -> Arc<Self> {
         let manager = Self::new(folder).unwrap();
         *manager.fixture_scanner.lock().unwrap() = Some(scanner.to_path_buf());
-        manager.status.lock().unwrap().folders = vec![file.parent().unwrap().to_string_lossy().into_owned()];
+        manager.status.lock().unwrap().folders =
+            vec![file.parent().unwrap().to_string_lossy().into_owned()];
         let files = paths::find_plugins(&[file.parent().unwrap().to_path_buf()]);
         manager
             .catalog
@@ -414,7 +415,12 @@ impl PluginManager {
                     }
                     let program = std::env::current_exe().map_err(|error| error.to_string())?;
                     #[cfg(test)]
-                    let program = manager.fixture_scanner.lock().unwrap().clone().unwrap_or(program);
+                    let program = manager
+                        .fixture_scanner
+                        .lock()
+                        .unwrap()
+                        .clone()
+                        .unwrap_or(program);
                     catalog
                         .refresh(&files, &ProcessRunner::new(program), &mut |path| {
                             let mut state = manager

@@ -2,13 +2,13 @@
 //! Spectral polyphony is a heuristic for sparse tonal audio, not source separation.
 use crate::pitch::{PitchAnalyzer, PitchConfig, PitchError, PitchLimits, PitchSource};
 use crate::{AnalysisError, AudioShape, FrameRange, Result, Work};
-use rustfft::{num_complex::Complex, FftPlanner};
+use rustfft::{FftPlanner, num_complex::Complex};
 use windfall_core::AudioBuffer;
 use windfall_project::{
     AudioAnalysisData, AudioDenoiseSettings, AudioEditRecipe, AudioWarpMarker, DetectedAudioNote,
     MAX_AUDIO_NOTES, MAX_WARP_MARKERS,
 };
-use windfall_stretch::{stretch_with_formants_cancellable, Quality};
+use windfall_stretch::{Quality, stretch_with_formants_cancellable};
 
 fn invalid(message: &'static str) -> AnalysisError {
     AnalysisError::Invalid(message)

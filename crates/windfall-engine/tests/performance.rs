@@ -1,6 +1,6 @@
 use windfall_engine::{
-    performance::{render_capture, CapturedLaunch, LaunchRequest},
     Processor, SamplePool,
+    performance::{CapturedLaunch, LaunchRequest, render_capture},
 };
 use windfall_project::*;
 
@@ -104,11 +104,13 @@ fn retrigger_stop_and_tempo_plan_exchange_release_every_performance_note() {
     controller.performance_stop_all();
     let mut tail = vec![0.0; 96000];
     processor.process(&mut tail);
-    assert!(controller
-        .performance_state()
-        .tracks
-        .iter()
-        .all(|s| s.active.is_none()));
+    assert!(
+        controller
+            .performance_state()
+            .tracks
+            .iter()
+            .all(|s| s.active.is_none())
+    );
     assert!(tail[90000..].iter().all(|x| x.abs() < 0.0001));
     assert_eq!(controller.frame().voices, 0);
 }
@@ -117,41 +119,47 @@ fn retrigger_stop_and_tempo_plan_exchange_release_every_performance_note() {
 fn capture_rejects_unsorted_events_missing_targets_and_unbounded_duration() {
     let project = project();
     let request = launch(PatternId(u32::MAX), LaunchQuantization::Bar);
-    assert!(render_capture(
-        &project,
-        &SamplePool::new(),
-        48000,
-        500,
-        64,
-        &[CapturedLaunch { frame: 0, request }]
-    )
-    .is_err());
+    assert!(
+        render_capture(
+            &project,
+            &SamplePool::new(),
+            48000,
+            500,
+            64,
+            &[CapturedLaunch { frame: 0, request }]
+        )
+        .is_err()
+    );
     assert!(render_capture(&project, &SamplePool::new(), 48000, 48000 * 61, 64, &[]).is_err());
     let request = launch(project.patterns[0].id, LaunchQuantization::Immediate);
-    assert!(render_capture(
-        &project,
-        &SamplePool::new(),
-        48000,
-        500,
-        64,
-        &[
-            CapturedLaunch { frame: 2, request },
-            CapturedLaunch { frame: 1, request },
-        ]
-    )
-    .is_err());
-    assert!(render_capture(
-        &project,
-        &SamplePool::new(),
-        48000,
-        500,
-        64,
-        &[CapturedLaunch {
-            frame: 500,
-            request
-        },]
-    )
-    .is_err());
+    assert!(
+        render_capture(
+            &project,
+            &SamplePool::new(),
+            48000,
+            500,
+            64,
+            &[
+                CapturedLaunch { frame: 2, request },
+                CapturedLaunch { frame: 1, request },
+            ]
+        )
+        .is_err()
+    );
+    assert!(
+        render_capture(
+            &project,
+            &SamplePool::new(),
+            48000,
+            500,
+            64,
+            &[CapturedLaunch {
+                frame: 500,
+                request
+            },]
+        )
+        .is_err()
+    );
 }
 
 #[test]
@@ -184,10 +192,14 @@ fn delayed_launch_and_same_frame_stop_retrigger_capture_are_partition_independen
     let b = render_capture(&project, &SamplePool::new(), 48000, 30000, 4096, &log).unwrap();
     assert_eq!(a.samples(), b.samples());
     assert!(a.samples()[..1531 * 2].iter().all(|sample| *sample == 0.0));
-    assert!(a.samples()[4000..20000]
-        .iter()
-        .any(|sample| sample.abs() > 0.001));
-    assert!(a.samples()[50000..]
-        .iter()
-        .all(|sample| sample.abs() < 0.0001));
+    assert!(
+        a.samples()[4000..20000]
+            .iter()
+            .any(|sample| sample.abs() > 0.001)
+    );
+    assert!(
+        a.samples()[50000..]
+            .iter()
+            .all(|sample| sample.abs() < 0.0001)
+    );
 }

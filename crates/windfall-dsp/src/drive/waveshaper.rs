@@ -12,8 +12,8 @@ use crate::blocks::math::{db_to_gain, ms_to_samples};
 use crate::blocks::smooth::LinearRamp;
 use crate::effect::Effect;
 use crate::param::{ParamSet, param_set};
-use std::sync::Arc;
 use serde::{Deserialize, Serialize};
+use std::sync::Arc;
 use ts_rs::TS;
 
 pub const CURVE_POINTS: usize = 33;

@@ -27,8 +27,8 @@ mod utility_repairs;
 #[global_allocator]
 static ALLOCATOR: realtime::CountingAllocator = realtime::CountingAllocator;
 
-mod sample_playback;
-mod sample_bank;
 mod e1_cpu;
-mod p2_pitch_quality;
 mod p2_effect_budgets;
+mod p2_pitch_quality;
+mod sample_bank;
+mod sample_playback;

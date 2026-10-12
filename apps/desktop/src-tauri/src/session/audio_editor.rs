@@ -54,8 +54,10 @@ impl Prepared {
                 .pool
                 .get(sample)
                 .is_some_and(|now| same_audio(now, &self.source))
-            && self.analysis_source.as_ref().is_none_or(|(id, old)|
-                state.pool.get(*id).is_some_and(|now| same_audio(now, old)))
+            && self
+                .analysis_source
+                .as_ref()
+                .is_none_or(|(id, old)| state.pool.get(*id).is_some_and(|now| same_audio(now, old)))
     }
 }
 fn same_audio(a: &AudioBuffer, b: &AudioBuffer) -> bool {
@@ -248,20 +250,49 @@ impl Session {
             .ok_or("The clip's audio is not loaded. Reload samples first.")?;
         let clock = windfall_engine::SongClock::new(&project)?;
         let timing = audio_edit::view_timing(&pool, &clip, project.settings.tempo_bpm, &clock)?;
-        let view = audio_edit::render_view_timed_with_law(&pool, &clip, &timing, project.settings.pan_law.core())?;
+        let view = audio_edit::render_view_timed_with_law(
+            &pool,
+            &clip,
+            &timing,
+            project.settings.pan_law.core(),
+        )?;
         let analysis_timing = if let Some(recipe) = &recipe {
             match recipe.source_timing {
                 Some(timing) => timing,
-                None => audio_edit::view_timing(&pool, &recipe.source_clip, project.settings.tempo_bpm, &clock)?,
+                None => audio_edit::view_timing(
+                    &pool,
+                    &recipe.source_clip,
+                    project.settings.tempo_bpm,
+                    &clock,
+                )?,
             }
-        } else { timing };
+        } else {
+            timing
+        };
         let analysis_view = if let Some(recipe) = &recipe {
-            audio_edit::render_view_timed_with_law(&pool, &recipe.source_clip, &analysis_timing, project.settings.pan_law.core())?
-        } else { view.clone() };
-        let analysis_source = recipe.as_ref().map(|recipe| {
-            let id = recipe.source_clip.content.sample().expect("checked saved recipe");
-            pool.get(id).cloned().map(|audio| (id, audio)).ok_or("The original source is not loaded.")
-        }).transpose()?;
+            audio_edit::render_view_timed_with_law(
+                &pool,
+                &recipe.source_clip,
+                &analysis_timing,
+                project.settings.pan_law.core(),
+            )?
+        } else {
+            view.clone()
+        };
+        let analysis_source = recipe
+            .as_ref()
+            .map(|recipe| {
+                let id = recipe
+                    .source_clip
+                    .content
+                    .sample()
+                    .expect("checked saved recipe");
+                pool.get(id)
+                    .cloned()
+                    .map(|audio| (id, audio))
+                    .ok_or("The original source is not loaded.")
+            })
+            .transpose()?;
         editor.serial = editor
             .serial
             .checked_add(1)
@@ -448,15 +479,24 @@ impl Session {
     }
 
     fn audio_editor_commit(
-        &self, editor: &mut Editor, request: AudioEditRequest,
+        &self,
+        editor: &mut Editor,
+        request: AudioEditRequest,
         rendered: Option<(AudioBuffer, windfall_project::AudioEditRecipe)>,
     ) -> Result<DispatchResult, String> {
         self.audio_editor_commit_with(editor, request, None, rendered, |view, request| {
-            audio_edit::apply(view, request.operation, request.start_frame, request.end_frame)
+            audio_edit::apply(
+                view,
+                request.operation,
+                request.start_frame,
+                request.end_frame,
+            )
         })
     }
     fn audio_editor_commit_with(
-        &self, editor: &mut Editor, request: AudioEditRequest,
+        &self,
+        editor: &mut Editor,
+        request: AudioEditRequest,
         destination: Option<windfall_ipc::AudioEditDestination>,
         rendered: Option<(AudioBuffer, windfall_project::AudioEditRecipe)>,
         render: impl FnOnce(&AudioBuffer, AudioEditRequest) -> Result<audio_edit::Edited, String>,
@@ -481,11 +521,19 @@ impl Session {
             )
         };
         let recipe = rendered.as_ref().map(|(_, recipe)| recipe.clone());
-        let operation_label = if recipe.is_some() { "Pitch/time/noise" } else { request.operation.label() };
+        let operation_label = if recipe.is_some() {
+            "Pitch/time/noise"
+        } else {
+            request.operation.label()
+        };
         let audio_edit::Edited {
             audio: output,
             lead,
-} = if let Some((audio, _)) = rendered { audio_edit::Edited { audio, lead: 0 } } else { render(&prepared.view, request)? };
+        } = if let Some((audio, _)) = rendered {
+            audio_edit::Edited { audio, lead: 0 }
+        } else {
+            render(&prepared.view, request)?
+        };
         let strip_regions = if let AudioEditOperation::StripSilence {
             threshold_db,
             min_silence_frames,
@@ -510,8 +558,14 @@ impl Session {
         } else if request.operation == AudioEditOperation::Extract {
             prepared.clip.length
         } else {
-            prepared.clock.tick_after(prepared.clip.start, lead as f64 / f64::from(output.sample_rate()))?
-                .checked_sub(prepared.clip.start).ok_or("Invalid edit onset.")?
+            prepared
+                .clock
+                .tick_after(
+                    prepared.clip.start,
+                    lead as f64 / f64::from(output.sample_rate()),
+                )?
+                .checked_sub(prepared.clip.start)
+                .ok_or("Invalid edit onset.")?
         };
         let clip = &prepared.clip;
         let mut start = clip
@@ -526,10 +580,19 @@ impl Session {
         let length = if output.frames() == prepared.view.frames() && shift == 0 {
             clip.length
         } else {
-            let last_frame = (output.frames() as f64 - 1.0 + 1e-6) / f64::from(output.sample_rate());
-            let end = prepared.clock.tick_after_precise(start, last_frame)?.floor() + 1.0;
-            if end > f64::from(MAX_SONG_TICKS) { return Err("Edit falls outside the song.".into()); }
-            (end as u32).checked_sub(start).filter(|length| *length > 0)
+            let last_frame =
+                (output.frames() as f64 - 1.0 + 1e-6) / f64::from(output.sample_rate());
+            let end = prepared
+                .clock
+                .tick_after_precise(start, last_frame)?
+                .floor()
+                + 1.0;
+            if end > f64::from(MAX_SONG_TICKS) {
+                return Err("Edit falls outside the song.".into());
+            }
+            (end as u32)
+                .checked_sub(start)
+                .filter(|length| *length > 0)
                 .ok_or("Invalid edited clip duration.")?
         };
         if start.saturating_add(length) > MAX_SONG_TICKS {
@@ -666,9 +729,18 @@ impl Session {
             let mut previous_end = 0;
             for (first, end) in regions {
                 let offset = (first as f64 / per_tick).round() as u32;
-                let start = prepared.clock.tick_after(clip.start, first as f64 / f64::from(prepared.view.sample_rate()))?;
-                let finish = prepared.clock.tick_after(clip.start, end as f64 / f64::from(prepared.view.sample_rate()))?;
-                let length = finish.checked_sub(start).filter(|length| *length > 0).ok_or("Silence split is shorter than one tick.")?;
+                let start = prepared.clock.tick_after(
+                    clip.start,
+                    first as f64 / f64::from(prepared.view.sample_rate()),
+                )?;
+                let finish = prepared.clock.tick_after(
+                    clip.start,
+                    end as f64 / f64::from(prepared.view.sample_rate()),
+                )?;
+                let length = finish
+                    .checked_sub(start)
+                    .filter(|length| *length > 0)
+                    .ok_or("Silence split is shorter than one tick.")?;
                 if start < previous_end || start.saturating_add(length) > MAX_SONG_TICKS {
                     return Err("Silence splits overlap at this tempo/timebase. Increase the minimum silence duration.".into());
                 }
@@ -705,7 +777,10 @@ impl Session {
             commands.push(Command::AddClips { clips });
         }
         if let Some(processing) = recipe {
-            commands.push(Command::SetSampleProcessing { id: sample, processing: Some(processing) });
+            commands.push(Command::SetSampleProcessing {
+                id: sample,
+                processing: Some(processing),
+            });
         }
         let command = Command::Batch {
             label: Some(label),
@@ -728,8 +803,10 @@ impl Session {
         let result = {
             let _recording = self.recording_idle()?;
             let mut state = self.state();
-            if let Some(cancel) = &*lock(&self.inner.audio_analysis_cancel) {
-                if cancel.is_cancelled() { return Err("Analysis cancelled.".into()); }
+            if let Some(cancel) = &*lock(&self.inner.audio_analysis_cancel)
+                && cancel.is_cancelled()
+            {
+                return Err("Analysis cancelled.".into());
             }
             if state.generation != generation
                 || state.edits != edits

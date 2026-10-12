@@ -34,7 +34,10 @@ impl EventSink for WindowEvents {
         let payload = match &event {
             Event::ProjectLoaded(snapshot) => {
                 let generation = self.0.state::<Session>().window_document_generation();
-                serde_json::to_string(&crate::session::WindowDocumentSnapshot { generation, snapshot: snapshot.clone() })
+                serde_json::to_string(&crate::session::WindowDocumentSnapshot {
+                    generation,
+                    snapshot: snapshot.clone(),
+                })
             }
             _ => event.payload(),
         };

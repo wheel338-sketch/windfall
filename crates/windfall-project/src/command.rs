@@ -1003,9 +1003,15 @@ pub enum Command {
     },
 
     /// Immutable asset metadata, guarded against concurrent region edits.
-    SetSampleRegions { sample: SampleId, expected: Vec<crate::AudioRegion>, regions: Vec<crate::AudioRegion> },
+    SetSampleRegions {
+        sample: SampleId,
+        expected: Vec<crate::AudioRegion>,
+        regions: Vec<crate::AudioRegion>,
+    },
 
-    SetStageMedia { media: crate::StageMedia },
+    SetStageMedia {
+        media: crate::StageMedia,
+    },
 
     /// Captures the active layout's independent musical timeline. Subsequent
     /// switches snapshot current edits and restore the destination timeline.

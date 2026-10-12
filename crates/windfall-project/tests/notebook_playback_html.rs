@@ -1,4 +1,4 @@
-use windfall_project::{Command, Document, Notebook, NotebookPage, Project, MAX_SONG_TICKS};
+use windfall_project::{Command, Document, MAX_SONG_TICKS, Notebook, NotebookPage, Project};
 
 #[test]
 fn notebook_cues_html_history_and_legacy_json_roundtrip() {
@@ -51,14 +51,16 @@ fn notebook_out_of_range_cue_is_refused_atomically_and_on_load() {
             ..Default::default()
         }],
     };
-    assert!(document
-        .dispatch(
-            Command::ReplaceNotebook {
-                notebook: notebook.clone()
-            },
-            None
-        )
-        .is_err());
+    assert!(
+        document
+            .dispatch(
+                Command::ReplaceNotebook {
+                    notebook: notebook.clone()
+                },
+                None
+            )
+            .is_err()
+    );
     assert_eq!(document.snapshot(None), before);
     let mut invalid = document.project().clone();
     invalid.notebook = notebook;

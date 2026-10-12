@@ -275,20 +275,32 @@ impl Processor {
         self.shared
             .position_frame
             .store(self.frame, Ordering::Release);
-        self.shared.presentation_frame.store(self.frame, Ordering::Release);
+        self.shared
+            .presentation_frame
+            .store(self.frame, Ordering::Release);
         self.publish_performance();
         let mut pose = 0;
         for (channel, runtime) in self.state.channel_voice.iter().enumerate() {
-            if pose == self.shared.note_poses.len() { break; }
-            if let Some(owner) = runtime.owners.iter().flatten().max_by_key(|owner| owner.instance.0) {
+            if pose == self.shared.note_poses.len() {
+                break;
+            }
+            if let Some(owner) = runtime
+                .owners
+                .iter()
+                .flatten()
+                .max_by_key(|owner| owner.instance.0)
+            {
                 let packed = u64::from(self.plan.channels[channel].id.0)
                     | (u64::from(owner.note.key) << 32)
-                    | (u64::from((owner.note.velocity.clamp(0.0, 1.0) * 127.0).round() as u8) << 40);
+                    | (u64::from((owner.note.velocity.clamp(0.0, 1.0) * 127.0).round() as u8)
+                        << 40);
                 self.shared.note_poses[pose].store(packed, Ordering::Release);
                 pose += 1;
             }
         }
-        for slot in &self.shared.note_poses[pose..] { slot.store(0, Ordering::Release); }
+        for slot in &self.shared.note_poses[pose..] {
+            slot.store(0, Ordering::Release);
+        }
         let missing = self.clips.missing(self.sequencer.clock(), self.frame);
         self.shared
             .publish_clips(self.clips.playing() as u32, missing as u32);
@@ -479,8 +491,17 @@ impl Processor {
         {
             spectrum.reset();
         }
-        if matches!(&message, Message::SetPlan { .. } | Message::Play { .. } | Message::Stop { .. } | Message::Seek(_) | Message::SetTransport { .. }) {
-            self.shared.presentation_epoch.fetch_add(1, Ordering::AcqRel);
+        if matches!(
+            &message,
+            Message::SetPlan { .. }
+                | Message::Play { .. }
+                | Message::Stop { .. }
+                | Message::Seek(_)
+                | Message::SetTransport { .. }
+        ) {
+            self.shared
+                .presentation_epoch
+                .fetch_add(1, Ordering::AcqRel);
         }
         if let Some(captures) = &mut self.captures
             && matches!(
@@ -614,7 +635,11 @@ impl Processor {
             }
             Message::Performance(request) => self.performance.request(request, &self.plan),
             Message::PerformanceStopAll => self.release_performance(true),
-            Message::PerformanceScene(requests) => { for request in requests.into_iter().flatten() { self.performance.request(request, &self.plan); } },
+            Message::PerformanceScene(requests) => {
+                for request in requests.into_iter().flatten() {
+                    self.performance.request(request, &self.plan);
+                }
+            }
             Message::Stop { sequence } => {
                 self.automation_touches.fill(None);
                 self.release_performance(true);
@@ -1263,7 +1288,9 @@ impl Processor {
     /// back from changing at once.
     fn adopt(&mut self, plan: Arc<Plan>, mut state: Box<PlanState>) {
         let now = self.frame;
-        if !self.performance.compatible(&self.plan, &plan) { self.release_performance(false); }
+        if !self.performance.compatible(&self.plan, &plan) {
+            self.release_performance(false);
+        }
         self.performance.retime(&plan);
         for channel in 0..self.plan.channels.len() {
             let old = &self.plan.channels[channel];
@@ -1712,20 +1739,34 @@ impl Processor {
     fn performance_events(&mut self, now: u64) {
         for index in 0..self.performance.events_len() {
             match self.performance.event(index) {
-                crate::performance::Event::On { token, note } => self.start_output(Note {
-                    source: None, channel: note.channel, key: note.key, velocity: note.velocity,
-                    pan: note.pan, expression: note.expression, end: f64::INFINITY,
-                    origin: Origin::Performance(token),
-                }, now, None),
+                crate::performance::Event::On { token, note } => self.start_output(
+                    Note {
+                        source: None,
+                        channel: note.channel,
+                        key: note.key,
+                        velocity: note.velocity,
+                        pan: note.pan,
+                        expression: note.expression,
+                        end: f64::INFINITY,
+                        origin: Origin::Performance(token),
+                    },
+                    now,
+                    None,
+                ),
                 crate::performance::Event::Off { token } => {
                     let origin = Origin::Performance(token);
                     self.cut_echoes_of(origin);
                     for channel in 0..self.state.channel_voice.len() {
                         for slot in 0..self.state.channel_voice[channel].owners.len() {
                             if let Some(owner) = self.state.channel_voice[channel].owners[slot]
-                                && owner.note.origin == origin {
+                                && owner.note.origin == origin
+                            {
                                 self.release_instance(channel, owner.instance);
-                                if owner.admitted { self.state.channel_voice[channel].held.note_off(owner.note.key); }
+                                if owner.admitted {
+                                    self.state.channel_voice[channel]
+                                        .held
+                                        .note_off(owner.note.key);
+                                }
                                 self.state.channel_voice[channel].owners[slot] = None;
                             }
                         }
@@ -1737,24 +1778,31 @@ impl Processor {
     }
 
     fn publish_performance(&self) {
-        self.shared.performance_tick.store(self.performance.tick().to_bits(), Ordering::Release);
-        self.shared.performance_dropped.store(self.performance.dropped, Ordering::Release);
+        self.shared
+            .performance_tick
+            .store(self.performance.tick().to_bits(), Ordering::Release);
+        self.shared
+            .performance_dropped
+            .store(self.performance.dropped, Ordering::Release);
         for track in 0..crate::performance::TRACKS {
             let (active, pending, stop) = self.performance.slot(track);
-            let packed = u64::from(active.map_or(0, |id| id.0)) | (u64::from(pending.map_or(if stop { u32::MAX } else { 0 }, |id| id.0)) << 32);
+            let packed = u64::from(active.map_or(0, |id| id.0))
+                | (u64::from(pending.map_or(if stop { u32::MAX } else { 0 }, |id| id.0)) << 32);
             self.shared.performance_slots[track].store(packed, Ordering::Release);
         }
     }
 
     fn render_voices(&mut self, base: u64, from: usize, to: usize) {
         let routed = self.plan.channels.iter().any(|channel| channel.instrument.is_some_and(|params| matches!(params, windfall_dsp::InstrumentParams::MidiOut(params) if params.plugin_destination != 0)));
-        if !self.performance.active() && !routed
+        if !self.performance.active()
+            && !routed
             && self.state.channel_voice.iter().all(|runtime| {
                 runtime.settings.arpeggiator.mode == ArpeggiatorMode::Off
                     && runtime.echo.pending_events() == 0
             })
         {
-            self.performance.advance(&self.plan, to - from, self.sample_rate);
+            self.performance
+                .advance(&self.plan, to - from, self.sample_rate);
             self.render_voice_audio(base, from, to);
             return;
         }

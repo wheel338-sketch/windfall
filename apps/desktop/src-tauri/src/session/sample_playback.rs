@@ -34,10 +34,19 @@ impl Session {
                 .cloned()
                 .ok_or("The sample is not loaded. Reload samples and try again.")?;
             let file = if matches!(options, SliceOptions::WavMarkers) {
-                let source = state.document.project().sample(sample)
+                let source = state
+                    .document
+                    .project()
+                    .sample(sample)
                     .ok_or("The source sample no longer exists.")?;
-                Some(super::samples::locate(source, state.project_dir(), &self.inner.factory_dir)?)
-            } else { None };
+                Some(super::samples::locate(
+                    source,
+                    state.project_dir(),
+                    &self.inner.factory_dir,
+                )?)
+            } else {
+                None
+            };
             (
                 state.document.clone(),
                 state.pool.clone(),
@@ -49,8 +58,11 @@ impl Session {
                 file,
             )
         };
-        let metadata = file.as_ref().map(windfall_codec::read_wav_metadata_file)
-            .transpose().map_err(|e| e.to_string())?;
+        let metadata = file
+            .as_ref()
+            .map(windfall_codec::read_wav_metadata_file)
+            .transpose()
+            .map_err(|e| e.to_string())?;
         let detected = if let Some(metadata) = &metadata {
             let current = self.inner.cache.decode(file.as_ref().unwrap())?;
             if !self.inner.cache.same_file_version(&audio, &current) {
@@ -86,7 +98,9 @@ impl Session {
         if let Some(file) = &file {
             let current = self.inner.cache.decode(file)?;
             let now = windfall_codec::read_wav_metadata_file(file).map_err(|e| e.to_string())?;
-            if !self.inner.cache.same_file_version(&audio, &current) || metadata.as_ref() != Some(&now) {
+            if !self.inner.cache.same_file_version(&audio, &current)
+                || metadata.as_ref() != Some(&now)
+            {
                 return Err("The source file changed during WAV marker import. Try again.".into());
             }
         }
@@ -136,10 +150,17 @@ impl Session {
 
     /// Exports source A positions. Per-slice sound edits remain in the project.
     pub fn sample_playback_export(
-        &self, channel: ChannelId, path: &str, generation: u64, revision: u64,
+        &self,
+        channel: ChannelId,
+        path: &str,
+        generation: u64,
+        revision: u64,
     ) -> Result<(), String> {
         let path = crate::paths::absolute(path)?;
-        if !path.extension().is_some_and(|e| e.eq_ignore_ascii_case("wav")) {
+        if !path
+            .extension()
+            .is_some_and(|e| e.eq_ignore_ascii_case("wav"))
+        {
             return Err("Slice metadata export requires a .wav filename.".into());
         }
         let (asset, audio) = {
@@ -148,17 +169,29 @@ impl Session {
             if state.generation != generation || state.document.revision() != revision {
                 return Err("The project changed before slice export started.".into());
             }
-            let asset = state.document.project().channel(channel)
-                .and_then(|c| c.sample_playback.clone()).ok_or("Load a sample instrument source first.")?;
-            let audio = asset.sample.and_then(|id| state.pool.get(id)).cloned()
+            let asset = state
+                .document
+                .project()
+                .channel(channel)
+                .and_then(|c| c.sample_playback.clone())
+                .ok_or("Load a sample instrument source first.")?;
+            let audio = asset
+                .sample
+                .and_then(|id| state.pool.get(id))
+                .cloned()
                 .ok_or("Source A is not loaded. Reload samples first.")?;
             (asset, audio)
         };
         let metadata = wav_metadata::write(&asset, &audio)?;
         let mut writer = windfall_codec::WavWriter::create_with_metadata(
-            &path, audio.sample_rate(), audio.channels(), windfall_codec::WavSampleFormat::Float32,
-            &windfall_codec::AudioTags::default(), &metadata,
-        ).map_err(|e| e.to_string())?;
+            &path,
+            audio.sample_rate(),
+            audio.channels(),
+            windfall_codec::WavSampleFormat::Float32,
+            &windfall_codec::AudioTags::default(),
+            &metadata,
+        )
+        .map_err(|e| e.to_string())?;
         writer.write(audio.samples()).map_err(|e| e.to_string())?;
         writer.finalize().map_err(|e| e.to_string())
     }

@@ -198,7 +198,10 @@ impl PluginNoteControls {
     }
     fn mapped(self, key: u8) -> PluginNoteExpression {
         let [pan, tuning, brightness, expression, volume] = self.values(key);
-        PluginNoteExpression { values: [volume, pan, tuning, 0.5, expression, brightness, 0.5], mask: 0b0110111 }
+        PluginNoteExpression {
+            values: [volume, pan, tuning, 0.5, expression, brightness, 0.5],
+            mask: 0b0110111,
+        }
     }
 }
 /// Standard expressions, ordered like `NoteExpressionKind`. Prepared masks are
@@ -209,14 +212,21 @@ pub struct PluginNoteExpression {
     pub mask: u32,
 }
 const EXPRESSION_KINDS: [NoteExpressionKind; 7] = [
-    NoteExpressionKind::Volume, NoteExpressionKind::Pan, NoteExpressionKind::Tuning,
-    NoteExpressionKind::Vibrato, NoteExpressionKind::Expression,
-    NoteExpressionKind::Brightness, NoteExpressionKind::Pressure,
+    NoteExpressionKind::Volume,
+    NoteExpressionKind::Pan,
+    NoteExpressionKind::Tuning,
+    NoteExpressionKind::Vibrato,
+    NoteExpressionKind::Expression,
+    NoteExpressionKind::Brightness,
+    NoteExpressionKind::Pressure,
 ];
 impl PluginNoteExpression {
     fn valid(self) -> bool {
-        self.mask & !0x7f == 0 && EXPRESSION_KINDS.into_iter().enumerate()
-            .all(|(index, kind)| self.mask & kind.mask() == 0 || kind.valid(self.values[index]))
+        self.mask & !0x7f == 0
+            && EXPRESSION_KINDS
+                .into_iter()
+                .enumerate()
+                .all(|(index, kind)| self.mask & kind.mask() == 0 || kind.valid(self.values[index]))
     }
 }
 #[derive(Clone, Copy)]
@@ -231,7 +241,10 @@ impl HeldInstance {
         id: 0,
         key: 0,
         channel: 0,
-        controls: PluginNoteExpression { values: [1.0, 0.5, 0.0, 0.5, 0.5, 0.5, 0.5], mask: 0 },
+        controls: PluginNoteExpression {
+            values: [1.0, 0.5, 0.0, 0.5, 0.5, 0.5, 0.5],
+            mask: 0,
+        },
     };
 }
 
@@ -326,12 +339,16 @@ impl PluginInstrument {
         self.processor.supports_note_instances() || self.processor.supports_midi_expression()
     }
     pub fn supports_note_pitch(&self) -> bool {
-        self.processor.supports_midi_expression() || (0..16).any(|channel| {
-            self.processor.note_expression_mask(channel) & NoteExpressionKind::Tuning.mask() != 0
-        })
+        self.processor.supports_midi_expression()
+            || (0..16).any(|channel| {
+                self.processor.note_expression_mask(channel) & NoteExpressionKind::Tuning.mask()
+                    != 0
+            })
     }
     pub fn set_bend_range_semitones(&mut self, range: f32) {
-        if range.is_finite() { self.bend_range_semitones = f64::from(range.clamp(1.0, 96.0)); }
+        if range.is_finite() {
+            self.bend_range_semitones = f64::from(range.clamp(1.0, 96.0));
+        }
     }
     fn controls_events(
         &self,
@@ -345,16 +362,25 @@ impl PluginInstrument {
         let driven = controls.mask | before.map_or(0, |before| before.mask);
         let neutral = [1.0, 0.5, 0.0, 0.5, 0.5, 0.5, 0.5];
         for (index, kind) in EXPRESSION_KINDS.into_iter().enumerate() {
-            if controls.mask & kind.mask() == 0 { values[index] = neutral[index]; }
+            if controls.mask & kind.mask() == 0 {
+                values[index] = neutral[index];
+            }
         }
         let midi = self.processor.supports_midi_expression();
-        let mask = if midi { self.processor.midi_expression_mask(note.channel) } else { self.processor.note_expression_mask(note.channel) };
-        if midi { values[2] = (values[2] / self.bend_range_semitones).clamp(-1.0, 1.0); }
-        for (index, kind) in EXPRESSION_KINDS
-        .into_iter()
-        .enumerate()
-        {
-            if mask & driven & kind.mask() != 0 && (midi || before.is_none_or(|before| before.mask & kind.mask() == 0 || before.values[index] != values[index]))
+        let mask = if midi {
+            self.processor.midi_expression_mask(note.channel)
+        } else {
+            self.processor.note_expression_mask(note.channel)
+        };
+        if midi {
+            values[2] = (values[2] / self.bend_range_semitones).clamp(-1.0, 1.0);
+        }
+        for (index, kind) in EXPRESSION_KINDS.into_iter().enumerate() {
+            if mask & driven & kind.mask() != 0
+                && (midi
+                    || before.is_none_or(|before| {
+                        before.mask & kind.mask() == 0 || before.values[index] != values[index]
+                    }))
             {
                 events[count] = HostEvent::NoteExpression {
                     time: 0,
@@ -377,11 +403,18 @@ impl PluginInstrument {
         velocity: f32,
         controls: PluginNoteControls,
     ) -> bool {
-        if !controls.valid(key) { return false; }
+        if !controls.valid(key) {
+            return false;
+        }
         self.note_on_expression_instance(id, key, channel, velocity, controls.mapped(key))
     }
     pub fn note_on_expression_instance(
-        &mut self, id: u32, key: u8, channel: u8, velocity: f32, controls: PluginNoteExpression,
+        &mut self,
+        id: u32,
+        key: u8,
+        channel: u8,
+        velocity: f32,
+        controls: PluginNoteExpression,
     ) -> bool {
         if !self.supports_note_instances()
             || key > 127
@@ -411,7 +444,12 @@ impl PluginInstrument {
         let count = self.controls_events(note, None, controls, &mut events, 1);
         if self.processor.supports_midi_expression() {
             // Bend precedes onset, including a fractional note's first sample.
-            events[0] = HostEvent::NoteOn { time: 0, key, channel, velocity };
+            events[0] = HostEvent::NoteOn {
+                time: 0,
+                key,
+                channel,
+                velocity,
+            };
             events[..count].rotate_left(1);
         }
         if !self.processor.push_events(&events[..count]) {
@@ -421,8 +459,12 @@ impl PluginInstrument {
         true
     }
     pub fn set_note_controls(&mut self, id: u32, controls: PluginNoteControls) -> bool {
-        let Some(note) = self.instances.iter().find(|note| note.id == id && id != 0) else { return false; };
-        if !controls.valid(note.key) { return false; }
+        let Some(note) = self.instances.iter().find(|note| note.id == id && id != 0) else {
+            return false;
+        };
+        if !controls.valid(note.key) {
+            return false;
+        }
         self.set_note_expression(id, controls.mapped(note.key))
     }
     pub fn set_note_expression(&mut self, id: u32, controls: PluginNoteExpression) -> bool {
@@ -456,15 +498,29 @@ impl PluginInstrument {
         let note = self.instances[slot];
         if self.processor.supports_midi_expression() {
             self.instances[slot] = HeldInstance::EMPTY;
-            if !self.instances.iter().any(|other| other.id != 0 && other.channel == note.channel && other.key == note.key) {
-                self.processor.release_note_on_channel(note.key, note.channel);
+            if !self.instances.iter().any(|other| {
+                other.id != 0 && other.channel == note.channel && other.key == note.key
+            }) {
+                self.processor
+                    .release_note_on_channel(note.key, note.channel);
             }
             // Restore another owner on the shared MIDI channel, or neutralize
             // controls after its final release. The caller retries saturation.
-            let other = self.instances.iter().filter(|other| other.id != 0 && other.channel == note.channel).max_by_key(|other| other.id).copied();
+            let other = self
+                .instances
+                .iter()
+                .filter(|other| other.id != 0 && other.channel == note.channel)
+                .max_by_key(|other| other.id)
+                .copied();
             let controls = other.map_or(HeldInstance::EMPTY.controls, |other| other.controls);
             let mut events = [HostEvent::AllNotesOff { time: 0 }; 8];
-            let count = self.controls_events(other.unwrap_or(note), Some(note.controls), controls, &mut events, 0);
+            let count = self.controls_events(
+                other.unwrap_or(note),
+                Some(note.controls),
+                controls,
+                &mut events,
+                0,
+            );
             return self.processor.push_events(&events[..count]);
         }
         if !self

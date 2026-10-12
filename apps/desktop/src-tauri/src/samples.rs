@@ -209,12 +209,20 @@ impl SampleCache {
             return Ok(info);
         }
         let buffer = self.decode(path)?;
-        let source_warnings = if path.extension().is_some_and(|e| e.eq_ignore_ascii_case("ds")) {
+        let source_warnings = if path
+            .extension()
+            .is_some_and(|e| e.eq_ignore_ascii_case("ds"))
+        {
             windfall_codec::render_drumsynth_file(path, &windfall_codec::DecodeOptions::default())
-                .map_err(|error| unreadable(path, &error))?.warnings
-        } else { Vec::new() };
+                .map_err(|error| unreadable(path, &error))?
+                .warnings
+        } else {
+            Vec::new()
+        };
         if FileKey::of(path)? != key {
-            return Err("The source file changed while its information was being read. Try again.".into());
+            return Err(
+                "The source file changed while its information was being read. Try again.".into(),
+            );
         }
         let info = SampleInfo {
             path: paths::display(path),

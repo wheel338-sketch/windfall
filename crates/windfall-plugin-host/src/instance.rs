@@ -476,7 +476,9 @@ impl PluginInstance {
     /// Refusal keeps the current editor alive at its previous scale.
     pub fn set_editor_scale(&mut self, application: f64) -> Result<EditorInfo, EditorError> {
         crate::gui::scaling::content_scale(application, 1.0)?;
-        if self.editor().is_none() { return Err(EditorError::NoEditor); }
+        if self.editor().is_none() {
+            return Err(EditorError::NoEditor);
+        }
         self.backend.set_editor_scale(application)
     }
 }

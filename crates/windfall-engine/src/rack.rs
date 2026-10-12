@@ -678,7 +678,10 @@ impl InstrumentUnit {
     }
 
     /// Control side only, before the unit is published.
-    pub fn install_sample_bank(&mut self, bank: std::sync::Arc<windfall_dsp::sample_bank::SampleBank>) {
+    pub fn install_sample_bank(
+        &mut self,
+        bank: std::sync::Arc<windfall_dsp::sample_bank::SampleBank>,
+    ) {
         let _ = self.instrument.install_sample_bank(bank);
     }
 
@@ -742,7 +745,9 @@ impl InstrumentUnit {
     /// once. Runs on the audio thread when a plan changes the map.
     pub fn set_note_pan_law(&mut self, law: windfall_core::PanLaw) {
         self.instrument.set_note_pan_law(law);
-        if let Some(Some(unit)) = &mut self.external { unit.set_note_pan_law(law); }
+        if let Some(Some(unit)) = &mut self.external {
+            unit.set_note_pan_law(law);
+        }
     }
     pub fn set_expression_map(&mut self, map: ExpressionMap) {
         if map == self.map {

@@ -66,29 +66,32 @@
 
 mod analysis_jobs;
 mod analyzers;
-mod performance_media;
 mod archive;
 mod assistant_connection;
 mod audio;
 mod audio_editor;
-mod derived_assets;
 mod audio_logger;
 mod autosave;
 mod capture_expression;
 mod clip_processing;
+mod cloud_backup;
 mod consolidate;
 mod controller_capture;
-mod pattern_movement;
 mod controllers;
+mod derived_assets;
 mod edit;
 mod export;
 mod files;
 mod flp;
 mod input_monitor;
 mod library;
+mod loop_content;
 mod midi;
 mod midi_hardware;
 mod mixer_presets;
+mod pattern_movement;
+mod performance_media;
+mod phone_remote;
 mod playlist_bounce;
 mod playlist_export;
 mod preparation;
@@ -107,9 +110,6 @@ mod tests;
 mod timeline;
 mod transport;
 mod versions;
-mod cloud_backup;
-mod loop_content;
-mod phone_remote;
 mod window_document;
 
 use std::collections::HashSet;
@@ -540,9 +540,9 @@ impl Session {
     }
 }
 
-mod sample_playback;
-mod sample_instruments;
 mod sample_bank_files;
+mod sample_instruments;
+mod sample_playback;
 
 mod file_edits;
 

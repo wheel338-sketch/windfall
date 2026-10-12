@@ -435,17 +435,50 @@ fn pattern_wav_note_cues_follow_swing_shift_repeats_and_saved_notes() {
     use windfall_project::{ChannelPatch, ChannelTiming, NoteInit, SettingsPatch};
     let rig = Rig::new();
     let c = rig.channel(0);
-    rig.session.dispatch(Command::AddNotes {
-        pattern: rig.pattern(), channel: c,
-        notes: vec![NoteInit { start: 240, length: 240, key: 65, velocity: None, pan: None, expression: None }],
-    }, None).unwrap();
-    rig.session.dispatch(Command::UpdateSettings { patch: SettingsPatch {
-        swing: Some(0.75), ..Default::default()
-    } }, None).unwrap();
-    rig.session.dispatch(Command::UpdateChannel { id: c, patch: ChannelPatch {
-        timing: Some(ChannelTiming { swing_mix: 1.0, gate_ticks: 120, shift_ticks: 40 }),
-        ..Default::default()
-    } }, None).unwrap();
+    rig.session
+        .dispatch(
+            Command::AddNotes {
+                pattern: rig.pattern(),
+                channel: c,
+                notes: vec![NoteInit {
+                    start: 240,
+                    length: 240,
+                    key: 65,
+                    velocity: None,
+                    pan: None,
+                    expression: None,
+                }],
+            },
+            None,
+        )
+        .unwrap();
+    rig.session
+        .dispatch(
+            Command::UpdateSettings {
+                patch: SettingsPatch {
+                    swing: Some(0.75),
+                    ..Default::default()
+                },
+            },
+            None,
+        )
+        .unwrap();
+    rig.session
+        .dispatch(
+            Command::UpdateChannel {
+                id: c,
+                patch: ChannelPatch {
+                    timing: Some(ChannelTiming {
+                        swing_mix: 1.0,
+                        gate_ticks: 120,
+                        shift_ticks: 40,
+                    }),
+                    ..Default::default()
+                },
+            },
+            None,
+        )
+        .unwrap();
     let save = rig.file("note-markers.windfall");
     rig.session.project_save(Some(&save)).unwrap();
     rig.session.project_open(&save).unwrap();
@@ -455,9 +488,21 @@ fn pattern_wav_note_cues_follow_swing_shift_repeats_and_saved_notes() {
     rig.session.export_audio(export.clone()).unwrap();
     assert_eq!(rig.events.wait_for_export().error, None);
     let metadata = windfall_codec::read_wav_metadata_file(&export.path).unwrap();
-    assert_eq!(metadata.cues.iter().map(|cue| cue.frame).collect::<Vec<_>>(), vec![8500, 104500]);
+    assert_eq!(
+        metadata
+            .cues
+            .iter()
+            .map(|cue| cue.frame)
+            .collect::<Vec<_>>(),
+        vec![8500, 104500]
+    );
     assert_ne!(metadata.cues[0].id, metadata.cues[1].id);
-    assert!(metadata.cues.iter().all(|cue| cue.label.ends_with("MIDI 65")));
+    assert!(
+        metadata
+            .cues
+            .iter()
+            .all(|cue| cue.label.ends_with("MIDI 65"))
+    );
     let decoded = windfall_codec::decode_file(&export.path).unwrap();
     assert_eq!(decoded.frames(), 192000);
     // Inspect the first cue without using Windfall's metadata reader.
@@ -466,7 +511,10 @@ fn pattern_wav_note_cues_follow_swing_shift_repeats_and_saved_notes() {
     loop {
         let size = u32::from_le_bytes(bytes[at + 4..at + 8].try_into().unwrap()) as usize;
         if &bytes[at..at + 4] == b"cue " {
-            assert_eq!(u32::from_le_bytes(bytes[at + 32..at + 36].try_into().unwrap()), 8500);
+            assert_eq!(
+                u32::from_le_bytes(bytes[at + 32..at + 36].try_into().unwrap()),
+                8500
+            );
             break;
         }
         at += 8 + size + size % 2;
@@ -479,20 +527,48 @@ fn song_wav_navigation_refusal_preserves_destination_and_a_region_before_navigat
     use windfall_project::{MarkerKind, TickRange};
     let rig = Rig::new();
     let input = rig.file("navigation-source.wav");
-    windfall_codec::write_wav(&input,
+    windfall_codec::write_wav(
+        &input,
         &windfall_core::AudioBuffer::from_interleaved(48000, 1, vec![0.25; 48000]),
-        windfall_codec::WavSampleFormat::Float32).unwrap();
-    rig.session.add_audio_clip_from_file(&input, ClipPlace { start: 0, track: None, mixer_track: None }).unwrap();
-    rig.session.dispatch(Command::AddTimelineMarker {
-        tick: 960, name: "Skip source".into(), kind: MarkerKind::Skip { end: 1440 },
-    }, None).unwrap();
+        windfall_codec::WavSampleFormat::Float32,
+    )
+    .unwrap();
+    rig.session
+        .add_audio_clip_from_file(
+            &input,
+            ClipPlace {
+                start: 0,
+                track: None,
+                mixer_track: None,
+            },
+        )
+        .unwrap();
+    rig.session
+        .dispatch(
+            Command::AddTimelineMarker {
+                tick: 960,
+                name: "Skip source".into(),
+                kind: MarkerKind::Skip { end: 1440 },
+            },
+            None,
+        )
+        .unwrap();
     let before = rig.session.document_snapshot();
     let mut export = options(&rig, "navigation.wav");
     export.mode = PlayMode::Song;
     std::fs::write(&export.path, b"existing destination").unwrap();
     rig.session.export_audio(export.clone()).unwrap();
-    assert!(rig.events.wait_for_export().error.unwrap().contains("skip or pause"));
-    assert_eq!(std::fs::read(&export.path).unwrap(), b"existing destination");
+    assert!(
+        rig.events
+            .wait_for_export()
+            .error
+            .unwrap()
+            .contains("skip or pause")
+    );
+    assert_eq!(
+        std::fs::read(&export.path).unwrap(),
+        b"existing destination"
+    );
     assert_eq!(rig.session.document_snapshot(), before);
     let guard = rig.session.timeline_state();
     export.path = rig.file("before-navigation.wav");
@@ -502,7 +578,15 @@ fn song_wav_navigation_refusal_preserves_destination_and_a_region_before_navigat
     export.region_revision = Some(guard.revision);
     rig.session.export_audio(export.clone()).unwrap();
     assert_eq!(rig.events.wait_for_export().error, None);
-    assert_eq!(windfall_codec::decode_file(&export.path).unwrap().frames(), 12000);
-    assert!(windfall_codec::read_wav_metadata_file(&export.path).unwrap().cues.is_empty());
+    assert_eq!(
+        windfall_codec::decode_file(&export.path).unwrap().frames(),
+        12000
+    );
+    assert!(
+        windfall_codec::read_wav_metadata_file(&export.path)
+            .unwrap()
+            .cues
+            .is_empty()
+    );
     assert_eq!(rig.session.document_snapshot(), before);
 }

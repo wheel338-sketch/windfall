@@ -62,12 +62,11 @@ fn dense_params(kind: InstrumentKind) -> InstrumentParams {
     for (index, info) in kind.descriptors().iter().enumerate() {
         let leaf = info.id.rsplit('.').next().unwrap();
         let value = match leaf {
-            "polyphony" | "unison" | "chorus" | "delay" | "phaser" | "reverb"
-            | "echo" | "space" | "width" | "air" | "crunch" | "drive" | "motion"
-            | "saw" | "pulse" | "sub" | "noise" | "pwm" | "crossMod" | "index"
-            | "sustain" | "feedback" | "cutoffHz" | "decayMs" | "decaySeconds"
-            | "body" | "tone" | "noiseMix" | "snap" | "shimmerHz" | "shimmerDepth"
-            | "scanRate" | "stereoWidth" => Some(info.max),
+            "polyphony" | "unison" | "chorus" | "delay" | "phaser" | "reverb" | "echo"
+            | "space" | "width" | "air" | "crunch" | "drive" | "motion" | "saw" | "pulse"
+            | "sub" | "noise" | "pwm" | "crossMod" | "index" | "sustain" | "feedback"
+            | "cutoffHz" | "decayMs" | "decaySeconds" | "body" | "tone" | "noiseMix" | "snap"
+            | "shimmerHz" | "shimmerDepth" | "scanRate" | "stereoWidth" => Some(info.max),
             "attackMs" | "attack" => Some(info.min),
             "damping" => Some(info.min),
             "releaseMs" => Some(40.0),
@@ -184,9 +183,7 @@ fn maximum_asset(params: &InstrumentParams) -> Option<InstrumentAsset> {
             };
             params.level = 1.0;
             Some(InstrumentAsset::DrumKeys {
-                patches: (0..128)
-                    .map(|key| DrumKeyPatch { key, params })
-                    .collect(),
+                patches: (0..128).map(|key| DrumKeyPatch { key, params }).collect(),
             })
         }
         InstrumentKind::NumberVoice => {
@@ -314,12 +311,24 @@ fn profile(params: InstrumentParams, voices: usize) {
             }
         });
         best = best.min(started.elapsed());
-        assert_eq!(calls, 0, "{label}: process/events/reset touched the allocator");
-        assert!(full_load, "{label}: did not hold the declared {voices} voices");
+        assert_eq!(
+            calls, 0,
+            "{label}: process/events/reset touched the allocator"
+        );
+        assert!(
+            full_load,
+            "{label}: did not hold the declared {voices} voices"
+        );
         stats.assert_bounded(&label);
-        assert!(stats.energy > 1e-8, "{label}: maximum-load patch was silent");
+        assert!(
+            stats.energy > 1e-8,
+            "{label}: maximum-load patch was silent"
+        );
         if let Some(hash) = reference {
-            assert_eq!(stats.hash, hash, "{label}: reset changed the deterministic PCM");
+            assert_eq!(
+                stats.hash, hash,
+                "{label}: reset changed the deterministic PCM"
+            );
         }
         reference = Some(stats.hash);
         overall_peak = overall_peak.max(stats.peak);
@@ -360,7 +369,10 @@ fn profile(params: InstrumentParams, voices: usize) {
     });
     let tail_elapsed = started.elapsed();
     assert_eq!(calls, 0, "{label}: release/tail touched the allocator");
-    assert!(drained, "{label}: voices exceeded the five-second release allowance");
+    assert!(
+        drained,
+        "{label}: voices exceeded the five-second release allowance"
+    );
     stats.assert_bounded(&label);
     assert!(
         left.iter().chain(&right).all(|x| *x == 0.0),
@@ -403,7 +415,10 @@ fn profile(params: InstrumentParams, voices: usize) {
         unit.reset();
         unit.process(&mut left, &mut right);
     });
-    assert_eq!(calls, 0, "{label}: control/stop/reset touched the allocator");
+    assert_eq!(
+        calls, 0,
+        "{label}: control/stop/reset touched the allocator"
+    );
     event_stats.assert_bounded(&label);
     assert_eq!(unit.active_voices(), 0);
     assert!(left.iter().chain(&right).all(|x| *x == 0.0));

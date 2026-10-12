@@ -24,9 +24,9 @@
 
 use std::time::Duration;
 
+pub(crate) mod scaling;
 #[cfg(windows)]
 pub(crate) mod win32;
-pub(crate) mod scaling;
 
 /// How to open an editor.
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]

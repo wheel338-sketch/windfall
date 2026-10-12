@@ -5,8 +5,8 @@
 
 pub mod arrangement;
 pub mod audio_analysis;
-pub use audio_analysis::*;
 pub use arrangement::ArrangementBook;
+pub use audio_analysis::*;
 mod audio_comp;
 pub mod automation;
 pub use audio_comp::AudioCompSegment;
@@ -100,12 +100,14 @@ pub use rack::{
 pub mod assistant;
 pub mod assistant_protocol;
 pub mod proposal;
-pub mod scripting;
 pub mod sample_instrument;
+pub mod scripting;
 pub use sample_instrument::SampleInstrumentAsset;
 
 pub use score::ScoreEventLane;
 pub mod stage_media;
-pub use stage_media::{StageMedia, PerformancePad, VideoPlacement, VisualSettings, VisualScene, LaunchQuantization};
+pub use stage_media::{
+    LaunchQuantization, PerformancePad, StageMedia, VideoPlacement, VisualScene, VisualSettings,
+};
 
 pub mod effect_examples;

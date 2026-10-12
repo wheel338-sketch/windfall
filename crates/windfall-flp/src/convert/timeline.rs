@@ -97,7 +97,15 @@ impl Builder<'_> {
     }
 
     pub(super) fn timeline(&mut self) {
-        if !self.project().playlist.arrangement_book.timelines.is_empty() { return; }
+        if !self
+            .project()
+            .playlist
+            .arrangement_book
+            .timelines
+            .is_empty()
+        {
+            return;
+        }
         let markers = self
             .flp
             .main_arrangement()
@@ -142,8 +150,12 @@ impl Builder<'_> {
                 }
                 0 => Command::AddTimelineMarker {
                     tick,
-                    name: marker.name.as_deref().filter(|name| !name.trim().is_empty())
-                        .unwrap_or("Marker").to_owned(),
+                    name: marker
+                        .name
+                        .as_deref()
+                        .filter(|name| !name.trim().is_empty())
+                        .unwrap_or("Marker")
+                        .to_owned(),
                     kind: MarkerKind::Named,
                 },
                 kind => {

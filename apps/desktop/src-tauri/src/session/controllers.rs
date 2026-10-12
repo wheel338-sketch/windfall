@@ -200,20 +200,38 @@ impl Hub {
         profiles
     }
 
-    fn record_movement(&mut self, project: &Project, place: super::controller_capture::Position,
-        target: AutomationTarget, before: f32, value: f32) {
+    fn record_movement(
+        &mut self,
+        project: &Project,
+        place: super::controller_capture::Position,
+        target: AutomationTarget,
+        before: f32,
+        value: f32,
+    ) {
         if place.mode == PlayMode::Pattern && target == AutomationTarget::Tempo {
             self.error = Some("Record tempo movement in song mode.".into());
             return;
         }
         if self.automation_destination.is_none() {
-            self.automation_destination = super::pattern_movement::Destination::capture(project, place);
+            self.automation_destination =
+                super::pattern_movement::Destination::capture(project, place);
         }
-        if !self.automation_destination.as_ref().is_some_and(|destination| destination.matches(place)) {
-            self.error = Some("Recording destination changed. Stop and start a new automation pass.".into());
+        if !self
+            .automation_destination
+            .as_ref()
+            .is_some_and(|destination| destination.matches(place))
+        {
+            self.error =
+                Some("Recording destination changed. Stop and start a new automation pass.".into());
             return;
         }
-        self.automation.record_in((place.mode == PlayMode::Pattern).then_some(place.pattern), target, before, place.tick, value);
+        self.automation.record_in(
+            (place.mode == PlayMode::Pattern).then_some(place.pattern),
+            target,
+            before,
+            place.tick,
+            value,
+        );
     }
 
     /// Reads which inputs are open and what profiles they have.
@@ -1170,9 +1188,16 @@ impl Session {
                 };
                 Ok(())
             }
-            ControlAction::PerformancePad { track, scene } => self.performance_controller_pad(track, Some(scene)),
-            ControlAction::PerformanceStop { track } => self.performance_controller_pad(track, None),
-            ControlAction::PerformanceStopAll => { self.performance_stop_all(); Ok(()) },
+            ControlAction::PerformancePad { track, scene } => {
+                self.performance_controller_pad(track, Some(scene))
+            }
+            ControlAction::PerformanceStop { track } => {
+                self.performance_controller_pad(track, None)
+            }
+            ControlAction::PerformanceStopAll => {
+                self.performance_stop_all();
+                Ok(())
+            }
             ControlAction::PanicMidi => {
                 self.performance_stop_all();
                 self.midi_hardware_panic();
@@ -1237,13 +1262,19 @@ impl Session {
         self.controller_tweaked_guarded(tweaks, None);
     }
 
-    pub(super) fn controller_tweaked_guarded(&self, tweaks: &[(AutomationTarget, f32)], generation: Option<u64>) {
+    pub(super) fn controller_tweaked_guarded(
+        &self,
+        tweaks: &[(AutomationTarget, f32)],
+        generation: Option<u64>,
+    ) {
         let Some((last, _)) = tweaks.last() else {
             return;
         };
         let now = Instant::now();
         let state = self.state();
-        if generation.is_some_and(|expected| state.generation != expected) { return; }
+        if generation.is_some_and(|expected| state.generation != expected) {
+            return;
+        }
         let project = state.document.project();
         let mut guard = lock(&self.inner.controllers);
         let hub = &mut *guard;
@@ -1519,16 +1550,22 @@ impl Session {
                 return;
             }
             destination.as_ref().map_or_else(
-                || Ok(recorded_automation_command(state.document.project(), &lanes)),
+                || {
+                    Ok(recorded_automation_command(
+                        state.document.project(),
+                        &lanes,
+                    ))
+                },
                 |destination| destination.command(state.document.project(), &lanes),
             )
         };
         for lane in &lanes {
-            self.controller()
-                .automation_touch(lane.target.clone(), None);
+            self.controller().automation_touch(lane.target, None);
         }
         let result = command.and_then(|command| match command {
-            Some(command) => self.dispatch_controller_capture(command, gesture, generation).map(|_| ()),
+            Some(command) => self
+                .dispatch_controller_capture(command, gesture, generation)
+                .map(|_| ()),
             None => Ok(()),
         });
         if let Err(error) = result {

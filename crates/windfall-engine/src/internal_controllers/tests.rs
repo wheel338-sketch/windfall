@@ -33,8 +33,7 @@ fn tick(node: &mut Node, source: &Source, now: u64, tempo: f64) -> [f32; 8] {
     node.process(
         source,
         source.params,
-        &[0.0],
-        &[0.0],
+        (&[0.0], &[0.0]),
         now,
         Clock::control_default(1000, 120.0),
         tempo,

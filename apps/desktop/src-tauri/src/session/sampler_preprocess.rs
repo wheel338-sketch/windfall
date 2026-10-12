@@ -67,7 +67,7 @@ impl Session {
         request: SamplerPreprocessRequest,
     ) -> Result<DispatchResult, String> {
         match self.sampler_preprocess_job(request, false)? {
-            PreprocessReply::Applied(result) => Ok(result),
+            PreprocessReply::Applied(result) => Ok(*result),
             PreprocessReply::Preview(_) => unreachable!(),
         }
     }
@@ -271,11 +271,11 @@ impl Session {
         let result = self.finish_sample_edit(ticket)?;
         self.own_derived(&file.0);
         file.0 = PathBuf::new(); // The document and its history now own the file.
-        Ok(PreprocessReply::Applied(result))
+        Ok(PreprocessReply::Applied(Box::new(result)))
     }
 }
 
 enum PreprocessReply {
-    Applied(DispatchResult),
+    Applied(Box<DispatchResult>),
     Preview(SampleInfo),
 }

@@ -54,7 +54,11 @@ fn workload(kind: EffectKind, extreme: bool) -> EffectParams {
         } else if info.id.contains("gainDb") || info.id.contains("gainsDb") {
             Some(if index % 2 == 0 {
                 if extreme { 18.0 } else { 3.0 }
-            } else if extreme { -18.0 } else { -3.0 })
+            } else if extreme {
+                -18.0
+            } else {
+                -3.0
+            })
         } else if info.id == "sync" {
             Some(0.0) // exercise the maximum free-running LFO rate
         } else {
@@ -72,7 +76,10 @@ fn input(frame: usize, rate: f32) -> [f32; 2] {
     let x = 0.1 * (std::f64::consts::TAU * 63.0 * t).sin()
         + 0.07 * (std::f64::consts::TAU * 1_000.0 * t).sin()
         + 0.05 * (std::f64::consts::TAU * 6_300.0 * t).sin();
-    [x as f32, (0.6 * x + 0.03 * (std::f64::consts::TAU * 160.0 * t).sin()) as f32]
+    [
+        x as f32,
+        (0.6 * x + 0.03 * (std::f64::consts::TAU * 160.0 * t).sin()) as f32,
+    ]
 }
 
 fn render(kind: EffectKind, extreme: bool, block: usize) -> Vec<[f32; 2]> {
@@ -90,17 +97,25 @@ fn render(kind: EffectKind, extreme: bool, block: usize) -> Vec<[f32; 2]> {
         for i in 0..count {
             [left[i], right[i]] = input(from + i, rate);
         }
-        assert_eq!(crate::realtime::allocator_calls(|| {
-            effect.process(&mut left[..count], &mut right[..count]);
-        }), 0, "{kind:?}");
+        assert_eq!(
+            crate::realtime::allocator_calls(|| {
+                effect.process(&mut left[..count], &mut right[..count]);
+            }),
+            0,
+            "{kind:?}"
+        );
         result.extend((0..count).map(|i| [left[i], right[i]]));
     }
-    assert_eq!(crate::realtime::allocator_calls(|| {
-        effect.set_params(&workload(kind, !extreme));
-        effect.set_tempo(75.0);
-        effect.reset();
-        effect.process(&mut left, &mut right);
-    }), 0, "{kind:?} edit/reset");
+    assert_eq!(
+        crate::realtime::allocator_calls(|| {
+            effect.set_params(&workload(kind, !extreme));
+            effect.set_tempo(75.0);
+            effect.reset();
+            effect.process(&mut left, &mut right);
+        }),
+        0,
+        "{kind:?} edit/reset"
+    );
     result
 }
 
@@ -111,11 +126,20 @@ fn e1_cpu_workloads_are_active_finite_partition_invariant_and_allocate_nothing()
             let single = render(kind, extreme, 1);
             let blocks = render(kind, extreme, 257);
             assert!(single.iter().flatten().all(|sample| sample.is_finite()));
-            assert!(single.iter().flatten().any(|sample| sample.abs() > 1e-6),
-                "silent workload {kind:?} extreme={extreme}");
-            let difference = single.iter().flatten().zip(blocks.iter().flatten())
-                .map(|(a, b)| (a - b).abs()).fold(0.0_f32, f32::max);
-            assert!(difference < 2e-5, "{kind:?} extreme={extreme}: {difference}");
+            assert!(
+                single.iter().flatten().any(|sample| sample.abs() > 1e-6),
+                "silent workload {kind:?} extreme={extreme}"
+            );
+            let difference = single
+                .iter()
+                .flatten()
+                .zip(blocks.iter().flatten())
+                .map(|(a, b)| (a - b).abs())
+                .fold(0.0_f32, f32::max);
+            assert!(
+                difference < 2e-5,
+                "{kind:?} extreme={extreme}: {difference}"
+            );
         }
     }
 }
@@ -155,8 +179,7 @@ fn cpu_share(kind: EffectKind, extreme: bool, rate: f32, block: usize, edits: bo
             effect.process(&mut left, &mut right);
             std::hint::black_box((&left, &right));
         }
-        *trial = start.elapsed().as_secs_f64()
-            / (blocks * block) as f64 * f64::from(rate);
+        *trial = start.elapsed().as_secs_f64() / (blocks * block) as f64 * f64::from(rate);
     }
     assert!(left.iter().chain(&right).all(|value| value.is_finite()));
     trials.sort_by(f64::total_cmp);
@@ -165,23 +188,44 @@ fn cpu_share(kind: EffectKind, extreme: bool, rate: f32, block: usize, edits: bo
 
 #[test]
 fn e1_active_and_extreme_cpu_measurements_meet_the_declared_target_budget() {
-    let profile = if cfg!(debug_assertions) { "debug-diagnostic" } else { "release-acceptance" };
-    println!("E1_CPU profile={profile} arch={} os={} median_trials=5; includes block edits",
-        std::env::consts::ARCH, std::env::consts::OS);
+    let profile = if cfg!(debug_assertions) {
+        "debug-diagnostic"
+    } else {
+        "release-acceptance"
+    };
+    println!(
+        "E1_CPU profile={profile} arch={} os={} median_trials=5; includes block edits",
+        std::env::consts::ARCH,
+        std::env::consts::OS
+    );
     for kind in KINDS {
         // Fraction of one logical core's audio duration, including parameter writes.
         // Seven fixed bands have the stricter low-CPU gate.
-        let release_budget = if kind == EffectKind::SevenBand { 0.10 } else { 0.35 };
-        let budget = if cfg!(debug_assertions) { release_budget * 40.0 } else { release_budget };
+        let release_budget = if kind == EffectKind::SevenBand {
+            0.10
+        } else {
+            0.35
+        };
+        let budget = if cfg!(debug_assertions) {
+            release_budget * 40.0
+        } else {
+            release_budget
+        };
         for rate in [48_000.0, 96_000.0] {
             for block in [64, 256] {
                 for extreme in [false, true] {
                     for edits in [false, true] {
                         let share = cpu_share(kind, extreme, rate, block, edits);
-                        println!("E1_CPU kind={kind:?} extreme={extreme} edits={edits} rate={rate} block={block} cpu_pct={:.4} budget_pct={:.2} ns_per_frame={:.2}",
-                            share * 100.0, budget * 100.0, share / f64::from(rate) * 1e9);
-                        assert!(share <= budget,
-                            "{kind:?} extreme={extreme} edits={edits} rate={rate} block={block}: {share:.5} > {budget:.5}; inspect target load/profile before changing budgets");
+                        println!(
+                            "E1_CPU kind={kind:?} extreme={extreme} edits={edits} rate={rate} block={block} cpu_pct={:.4} budget_pct={:.2} ns_per_frame={:.2}",
+                            share * 100.0,
+                            budget * 100.0,
+                            share / f64::from(rate) * 1e9
+                        );
+                        assert!(
+                            share <= budget,
+                            "{kind:?} extreme={extreme} edits={edits} rate={rate} block={block}: {share:.5} > {budget:.5}; inspect target load/profile before changing budgets"
+                        );
                     }
                 }
             }

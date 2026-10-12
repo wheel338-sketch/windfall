@@ -108,7 +108,10 @@ impl Session {
         self.transport_play_checked(None)
     }
 
-    pub(super) fn transport_play_checked(&self, generation: Option<u64>) -> Result<TransportState, String> {
+    pub(super) fn transport_play_checked(
+        &self,
+        generation: Option<u64>,
+    ) -> Result<TransportState, String> {
         let _recording = generation.map(|_| self.recording_idle()).transpose()?;
         // Held across the check and the start, so the last clip cannot be
         // removed in between.
@@ -136,10 +139,14 @@ impl Session {
 
     /// Stops playback. The playhead returns to where playback started.
     pub fn transport_stop(&self) -> TransportState {
-        self.transport_stop_checked(None).expect("unguarded stop cannot fail")
+        self.transport_stop_checked(None)
+            .expect("unguarded stop cannot fail")
     }
 
-    pub(super) fn transport_stop_checked(&self, generation: Option<u64>) -> Result<TransportState, String> {
+    pub(super) fn transport_stop_checked(
+        &self,
+        generation: Option<u64>,
+    ) -> Result<TransportState, String> {
         let _recording = generation.map(|_| self.recording_idle()).transpose()?;
         let state = self.state();
         if generation.is_some_and(|generation| state.generation != generation) {

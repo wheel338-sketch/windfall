@@ -83,7 +83,11 @@ impl PluginHost {
         let inner = match format {
             PluginFormat::Clap => ModuleInner::Clap(ClapModule::load(path)?),
             PluginFormat::Vst3 => ModuleInner::Vst3(Vst3Module::load(path)?),
-            PluginFormat::Au => return Err(PluginError::Unsupported("file-based AU; use installed component identity")),
+            PluginFormat::Au => {
+                return Err(PluginError::Unsupported(
+                    "file-based AU; use installed component identity",
+                ));
+            }
         };
         Ok(PluginModule {
             path: path.to_path_buf(),

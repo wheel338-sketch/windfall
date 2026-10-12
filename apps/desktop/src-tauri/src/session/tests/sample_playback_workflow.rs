@@ -61,7 +61,12 @@ fn export(rig: &Rig, name: &str) -> AudioBuffer {
     let audio = decode_file(&options.path).unwrap();
     assert_eq!(audio.sample_rate(), SAMPLE_RATE);
     assert_eq!(audio.frames(), 96_000);
-    assert!(audio.samples().iter().all(|v| v.is_finite() && v.abs() <= 4.0));
+    assert!(
+        audio
+            .samples()
+            .iter()
+            .all(|v| v.is_finite() && v.abs() <= 4.0)
+    );
     assert!(rms(audio.samples()) > 1e-4);
     audio
 }
@@ -313,10 +318,16 @@ fn workflow(kind: InstrumentKind) {
     assert!(rms(quieter.samples()) < rms(edited.samples()) * 0.6);
     rig.session.undo().unwrap();
     assert_eq!(rig.project(), reopened);
-    assert_eq!(export(&rig, "reopened-undo.wav").samples(), edited.samples());
+    assert_eq!(
+        export(&rig, "reopened-undo.wav").samples(),
+        edited.samples()
+    );
     rig.session.redo().unwrap();
     assert_eq!(rig.project(), after_reopen_edit);
-    assert_eq!(export(&rig, "reopened-redo.wav").samples(), quieter.samples());
+    assert_eq!(
+        export(&rig, "reopened-redo.wav").samples(),
+        quieter.samples()
+    );
     rig.session.undo().unwrap();
 
     rig.session

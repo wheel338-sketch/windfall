@@ -128,7 +128,9 @@ pub fn decode_bytes_strict_with(
     hint_ext: Option<&str>,
     options: &DecodeOptions,
 ) -> Result<AudioBuffer, CodecError> {
-    if is_drumsynth(hint_ext) { return Ok(crate::render_drumsynth_source(bytes, options)?.audio); }
+    if is_drumsynth(hint_ext) {
+        return Ok(crate::render_drumsynth_source(bytes, options)?.audio);
+    }
     if bytes.is_empty() {
         return Err(CodecError::NoAudio);
     }
@@ -157,7 +159,9 @@ pub fn decode_bytes_with(
     hint_ext: Option<&str>,
     options: &DecodeOptions,
 ) -> Result<AudioBuffer, CodecError> {
-    if is_drumsynth(hint_ext) { return Ok(crate::render_drumsynth_source(bytes, options)?.audio); }
+    if is_drumsynth(hint_ext) {
+        return Ok(crate::render_drumsynth_source(bytes, options)?.audio);
+    }
     if bytes.is_empty() {
         return Err(CodecError::NoAudio);
     }
@@ -173,7 +177,9 @@ pub fn decode_bytes_with(
 pub fn probe_file(path: impl AsRef<Path>) -> Result<AudioInfo, CodecError> {
     let path = path.as_ref();
     if is_drumsynth(extension_of(path)) {
-        return Ok(drumsynth_info(&crate::render_drumsynth_file(path, &DecodeOptions::default())?.audio));
+        return Ok(drumsynth_info(
+            &crate::render_drumsynth_file(path, &DecodeOptions::default())?.audio,
+        ));
     }
     try_both_ways(|seekable| {
         let (file, _) = open_file(path)?;
@@ -184,7 +190,9 @@ pub fn probe_file(path: impl AsRef<Path>) -> Result<AudioInfo, CodecError> {
 /// Reads the same information as [`probe_file`] from audio held in memory.
 pub fn probe_bytes(bytes: &[u8], hint_ext: Option<&str>) -> Result<AudioInfo, CodecError> {
     if is_drumsynth(hint_ext) {
-        return Ok(drumsynth_info(&crate::render_drumsynth_source(bytes, &DecodeOptions::default())?.audio));
+        return Ok(drumsynth_info(
+            &crate::render_drumsynth_source(bytes, &DecodeOptions::default())?.audio,
+        ));
     }
     if bytes.is_empty() {
         return Err(CodecError::NoAudio);
@@ -211,9 +219,13 @@ fn is_drumsynth(ext: Option<&str>) -> bool {
 }
 fn drumsynth_info(audio: &AudioBuffer) -> AudioInfo {
     AudioInfo {
-        sample_rate: audio.sample_rate(), channels: audio.channels(),
-        frames: Some(audio.frames() as u64), duration_secs: Some(audio.duration_secs()),
-        format: "drumsynth".into(), codec: "drumsynth-approximate".into(), bits_per_sample: None,
+        sample_rate: audio.sample_rate(),
+        channels: audio.channels(),
+        frames: Some(audio.frames() as u64),
+        duration_secs: Some(audio.duration_secs()),
+        format: "drumsynth".into(),
+        codec: "drumsynth-approximate".into(),
+        bits_per_sample: None,
     }
 }
 

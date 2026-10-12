@@ -284,8 +284,16 @@ fn transport_event(transport: &Transport) -> Result<TransportEvent, ProcessFaile
 }
 
 impl ProcessorBackend for ClapProcessor {
-    fn supports_midi_expression(&self) -> bool { self.dialect == Dialect::Midi }
-    fn midi_expression_mask(&self, _channel: u8) -> u32 { if self.dialect == Dialect::Midi { 0x7f } else { 0 } }
+    fn supports_midi_expression(&self) -> bool {
+        self.dialect == Dialect::Midi
+    }
+    fn midi_expression_mask(&self, _channel: u8) -> u32 {
+        if self.dialect == Dialect::Midi {
+            0x7f
+        } else {
+            0
+        }
+    }
     fn supports_note_instances(&self) -> bool {
         self.dialect == Dialect::Clap
     }

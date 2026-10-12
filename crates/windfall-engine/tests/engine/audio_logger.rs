@@ -20,8 +20,8 @@ const MASTER: AudioLoggerSource = AudioLoggerSource::Master;
 
 #[test]
 fn effect_slot_tap_measures_its_chain_position_and_never_allocates() {
-    use windfall_dsp::{BalanceParams, EffectParams};
     use windfall_dsp::sendtap::SendTapParams;
+    use windfall_dsp::{BalanceParams, EffectParams};
     let mut rig = Rig::new();
     let track = rig.track();
     let channel = rig.channel_on(crate::support::level(RATE, 0.4, 4.0), track);

@@ -23,7 +23,7 @@ fn fixture(kind: Kind) -> (Project, SamplePool) {
     let sample = SampleId(11);
     let channel = ChannelId(10);
     project.samples.push(SampleAsset {
-            processing: None,
+        processing: None,
         regions: Vec::new(),
         id: sample,
         name: "Tone".into(),
@@ -41,7 +41,7 @@ fn fixture(kind: Kind) -> (Project, SamplePool) {
         group: String::new(),
         voice: Default::default(),
         expression_map: Default::default(),
-            sample_instrument: None,
+        sample_instrument: None,
         timing: Default::default(),
         mixer_track: TrackId::MASTER,
         source: ChannelSource::Sampler(SamplerSettings {

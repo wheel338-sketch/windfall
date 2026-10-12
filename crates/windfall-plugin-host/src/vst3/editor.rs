@@ -116,27 +116,46 @@ impl Editor {
     pub fn set_scale(&mut self, application: f64) -> Result<EditorInfo, EditorError> {
         #[cfg(windows)]
         {
-            let factor = crate::gui::scaling::content_scale(application, crate::gui::win32::window_scale(self.window.handle()))?;
-            let support = self.view.cast::<IPlugViewContentScaleSupport>().ok_or(EditorError::UnsupportedScale)?;
+            let factor = crate::gui::scaling::content_scale(
+                application,
+                crate::gui::win32::window_scale(self.window.handle()),
+            )?;
+            let support = self
+                .view
+                .cast::<IPlugViewContentScaleSupport>()
+                .ok_or(EditorError::UnsupportedScale)?;
             // SAFETY: live view on its owning GUI thread. Its frame remains
             // installed throughout synchronous scale/resize callbacks.
             if unsafe { support.setContentScaleFactor(factor as f32) } != kResultOk {
                 return Err(EditorError::UnsupportedScale);
             }
-            let mut rect = ViewRect { left: 0, top: 0, right: 0, bottom: 0 };
+            let mut rect = ViewRect {
+                left: 0,
+                top: 0,
+                right: 0,
+                bottom: 0,
+            };
             if unsafe { self.view.getSize(&mut rect) } != kResultOk {
-                return Err(EditorError::Failed("scaled editor did not supply a size".into()));
+                return Err(EditorError::Failed(
+                    "scaled editor did not supply a size".into(),
+                ));
             }
-            let (width, height) = dimensions(&rect).ok_or_else(|| EditorError::Failed("invalid scaled editor dimensions".into()))?;
+            let (width, height) = dimensions(&rect)
+                .ok_or_else(|| EditorError::Failed("invalid scaled editor dimensions".into()))?;
             self.size.width.set(width);
             self.size.height.set(height);
             self.window.set_client_size(width, height);
             // SAFETY: matching bounded rectangle on the same GUI thread.
-            unsafe { self.view.onSize(&mut rect); }
+            unsafe {
+                self.view.onSize(&mut rect);
+            }
             Ok(self.info())
         }
         #[cfg(not(windows))]
-        { let _ = application; Err(EditorError::UnsupportedScale) }
+        {
+            let _ = application;
+            Err(EditorError::UnsupportedScale)
+        }
     }
     pub fn open(
         controller: &ComPtr<IEditController>,

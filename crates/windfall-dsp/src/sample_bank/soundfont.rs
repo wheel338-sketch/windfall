@@ -1,7 +1,7 @@
 //! Worker-side RIFF/SF2 parsing. No file IO, native libraries or hidden truncation.
 use super::{
-    BankLoop as LoopMode, LoadedZone, SampleBank, SampleZone as Zone, MAX_BANK_BYTES,
-    MAX_BANK_ZONES as MAX_ZONES,
+    BankLoop as LoopMode, LoadedZone, MAX_BANK_BYTES, MAX_BANK_ZONES as MAX_ZONES, SampleBank,
+    SampleZone as Zone,
 };
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
@@ -70,7 +70,9 @@ pub fn presets(bytes: &[u8]) -> Result<Vec<SoundFontPreset>, SoundFontError> {
     let tables = Tables::read(bytes)?;
     Ok(tables
         .phdr
-        .chunks_exact(38)
+        .as_chunks::<38>()
+        .0
+        .iter()
         .take(tables.phdr.len() / 38 - 1)
         .map(|r| {
             let end = r[..20].iter().position(|&x| x == 0).unwrap_or(20);

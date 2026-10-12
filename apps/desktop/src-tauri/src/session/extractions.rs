@@ -112,14 +112,13 @@ impl Session {
             }
             if std::fs::symlink_metadata(&root)
                 .is_ok_and(|meta| meta.file_type().is_dir() && !meta.file_type().is_symlink())
+                && let Err(error) = std::fs::remove_dir_all(&root)
             {
-                if let Err(error) = std::fs::remove_dir_all(&root) {
-                    self.emit(crate::events::Event::ProjectWarnings(vec![format!(
-                        "Could not remove unused extracted audio {}: {error}",
-                        paths::display(&root)
-                    )]));
-                    lock(&self.inner.extractions).roots.push(root);
-                }
+                self.emit(crate::events::Event::ProjectWarnings(vec![format!(
+                    "Could not remove unused extracted audio {}: {error}",
+                    paths::display(&root)
+                )]));
+                lock(&self.inner.extractions).roots.push(root);
             }
         }
     }

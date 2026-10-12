@@ -14,7 +14,9 @@ mod dos_device;
 
 struct CopyAdapter;
 impl native::AnalysisAdapter for CopyAdapter {
-    fn supports(&self, _task: native::InferenceTask) -> bool { true }
+    fn supports(&self, _task: native::InferenceTask) -> bool {
+        true
+    }
     fn id(&self) -> &str {
         "test-only-copy"
     }
@@ -1124,75 +1126,148 @@ fn request(clip: ClipId) -> AnalysisSubmit {
 #[test]
 fn analysis_stem_review_preview_selected_remix_layout_is_aligned_and_one_undo() {
     let rig = Rig::new();
-    let (clip,path,original) = fixture(&rig);
+    let (clip, path, original) = fixture(&rig);
     let weights = rig.file("authored.model");
     let mut spec = model();
     spec.revision = "2".into();
-    spec.outputs = ["drums","bass","vocals","other"].into_iter().map(|role|
-        AnalysisOutputRole{role:role.into(),channels:2}).collect();
-    rig.session.analysis_model_import(&weights,spec).unwrap();
+    spec.outputs = ["drums", "bass", "vocals", "other"]
+        .into_iter()
+        .map(|role| AnalysisOutputRole {
+            role: role.into(),
+            channels: 2,
+        })
+        .collect();
+    rig.session.analysis_model_import(&weights, spec).unwrap();
     let mut submit = request(clip);
     submit.task = windfall_ipc::AnalysisTask::StemSeparation;
     submit.model_revision = "2".into();
     let job = rig.session.analysis_submit(submit).unwrap();
-    rig.session.inner.analysis.test_manager().wait(native::JobId(job.job.parse().unwrap())).unwrap();
+    rig.session
+        .inner
+        .analysis
+        .test_manager()
+        .wait(native::JobId(job.job.parse().unwrap()))
+        .unwrap();
     let review = rig.session.analysis_review(&job.ticket).unwrap();
-    assert_eq!(review.task,windfall_ipc::AnalysisTask::StemSeparation);
+    assert_eq!(review.task, windfall_ipc::AnalysisTask::StemSeparation);
     let before = rig.session.document_snapshot();
-    rig.session.analysis_preview(&job.ticket,"vocals").unwrap();
-    assert_eq!(rig.session.document_snapshot(),before);
-    let mut request = apply(&job,false);
-    request.selected_roles = Some(vec!["drums".into(),"vocals".into()]);
-    request.separate_tracks = true; request.mute_original = true;
+    rig.session.analysis_preview(&job.ticket, "vocals").unwrap();
+    assert_eq!(rig.session.document_snapshot(), before);
+    let mut request = apply(&job, false);
+    request.selected_roles = Some(vec!["drums".into(), "vocals".into()]);
+    request.separate_tracks = true;
+    request.mute_original = true;
     let result = rig.session.analysis_apply(request).unwrap();
-    assert_eq!(result.created.len(),8);
+    assert_eq!(result.created.len(), 8);
     let project = rig.project();
-    assert_eq!(project.mixer.tracks.len(),before.project.mixer.tracks.len()+2);
-    assert_eq!(project.playlist.tracks.len(),before.project.playlist.tracks.len()+2);
-    assert_eq!(rig.session.document_snapshot().history.cursor,before.history.cursor+1);
-    let added:Vec<_>=project.playlist.clips.iter().filter(|c|c.id!=clip).collect();
-    assert_eq!(added.len(),2); assert_eq!(added[0].start,added[1].start);
-    assert_eq!(added[0].length,added[1].length); assert_ne!(added[0].track,added[1].track);
-    assert!(project.playlist.clips.iter().find(|c|c.id==clip).unwrap().muted);
-    assert_eq!(std::fs::read(path).unwrap(),original);
+    assert_eq!(
+        project.mixer.tracks.len(),
+        before.project.mixer.tracks.len() + 2
+    );
+    assert_eq!(
+        project.playlist.tracks.len(),
+        before.project.playlist.tracks.len() + 2
+    );
+    assert_eq!(
+        rig.session.document_snapshot().history.cursor,
+        before.history.cursor + 1
+    );
+    let added: Vec<_> = project
+        .playlist
+        .clips
+        .iter()
+        .filter(|c| c.id != clip)
+        .collect();
+    assert_eq!(added.len(), 2);
+    assert_eq!(added[0].start, added[1].start);
+    assert_eq!(added[0].length, added[1].length);
+    assert_ne!(added[0].track, added[1].track);
+    assert!(
+        project
+            .playlist
+            .clips
+            .iter()
+            .find(|c| c.id == clip)
+            .unwrap()
+            .muted
+    );
+    assert_eq!(std::fs::read(path).unwrap(), original);
     rig.session.undo().unwrap();
-    assert_eq!(rig.project().playlist.tracks,before.project.playlist.tracks);
+    assert_eq!(
+        rig.project().playlist.tracks,
+        before.project.playlist.tracks
+    );
     rig.session.redo().unwrap();
-    let saved=rig.file("remix.windfall");rig.session.project_save(Some(&saved)).unwrap();
-    let rig=rig.restart();rig.session.project_open(&saved).unwrap();
-    assert_eq!(rig.project().playlist,project.playlist);
+    let saved = rig.file("remix.windfall");
+    rig.session.project_save(Some(&saved)).unwrap();
+    let rig = rig.restart();
+    rig.session.project_open(&saved).unwrap();
+    assert_eq!(rig.project().playlist, project.playlist);
 }
 
 #[test]
 fn analysis_dereverb_modes_reach_adapter_and_refuse_mismatched_model_roles() {
-    for (task,role) in [(windfall_ipc::AnalysisTask::DereverbGeneral,"dereverb-general"),
-        (windfall_ipc::AnalysisTask::DereverbVocal,"dereverb-vocal")] {
-        let rig=Rig::new();let (clip,_,_)=fixture(&rig);
-        let mut spec=model();spec.revision="2".into();
-        spec.outputs=vec![AnalysisOutputRole{role:role.into(),channels:2}];
-        rig.session.analysis_model_import(&rig.file("authored.model"),spec).unwrap();
-        let mut submit=request(clip);submit.model_revision="2".into();submit.task=task;
-        let job=rig.session.analysis_submit(submit).unwrap();
-        rig.session.inner.analysis.test_manager().wait(native::JobId(job.job.parse().unwrap())).unwrap();
-        let review=rig.session.analysis_review(&job.ticket).unwrap();
-        assert_eq!(review.task,task);assert_eq!(review.artifacts[0].role,role);
-        rig.session.analysis_apply(apply(&job,true)).unwrap();
+    for (task, role) in [
+        (
+            windfall_ipc::AnalysisTask::DereverbGeneral,
+            "dereverb-general",
+        ),
+        (windfall_ipc::AnalysisTask::DereverbVocal, "dereverb-vocal"),
+    ] {
+        let rig = Rig::new();
+        let (clip, _, _) = fixture(&rig);
+        let mut spec = model();
+        spec.revision = "2".into();
+        spec.outputs = vec![AnalysisOutputRole {
+            role: role.into(),
+            channels: 2,
+        }];
+        rig.session
+            .analysis_model_import(&rig.file("authored.model"), spec)
+            .unwrap();
+        let mut submit = request(clip);
+        submit.model_revision = "2".into();
+        submit.task = task;
+        let job = rig.session.analysis_submit(submit).unwrap();
+        rig.session
+            .inner
+            .analysis
+            .test_manager()
+            .wait(native::JobId(job.job.parse().unwrap()))
+            .unwrap();
+        let review = rig.session.analysis_review(&job.ticket).unwrap();
+        assert_eq!(review.task, task);
+        assert_eq!(review.artifacts[0].role, role);
+        rig.session.analysis_apply(apply(&job, true)).unwrap();
     }
-    let rig=Rig::new();let (clip,_,_)=fixture(&rig);let before=rig.session.document_snapshot();
-    let mut submit=request(clip);submit.task=windfall_ipc::AnalysisTask::DereverbVocal;
+    let rig = Rig::new();
+    let (clip, _, _) = fixture(&rig);
+    let before = rig.session.document_snapshot();
+    let mut submit = request(clip);
+    submit.task = windfall_ipc::AnalysisTask::DereverbVocal;
     assert!(rig.session.analysis_submit(submit).is_err());
-    assert_eq!(rig.session.document_snapshot(),before);
+    assert_eq!(rig.session.document_snapshot(), before);
 }
 
 #[test]
 fn analysis_unknown_duplicate_or_empty_stem_selection_leaves_ready_review_unchanged() {
-    let rig=Rig::new();let (clip,_,_)=fixture(&rig);let job=ready(&rig,clip);
-    let before=rig.session.document_snapshot();
-    for roles in [vec![],vec!["unknown".into()],vec!["lifecycle-copy".into(),"lifecycle-copy".into()]] {
-        let mut request=apply(&job,false);request.selected_roles=Some(roles);
+    let rig = Rig::new();
+    let (clip, _, _) = fixture(&rig);
+    let job = ready(&rig, clip);
+    let before = rig.session.document_snapshot();
+    for roles in [
+        vec![],
+        vec!["unknown".into()],
+        vec!["lifecycle-copy".into(), "lifecycle-copy".into()],
+    ] {
+        let mut request = apply(&job, false);
+        request.selected_roles = Some(roles);
         assert!(rig.session.analysis_apply(request).is_err());
-        assert_eq!(rig.session.document_snapshot(),before);
-        assert_eq!(rig.session.analysis_status(&job.job).unwrap().status,AnalysisStatus::Ready);
+        assert_eq!(rig.session.document_snapshot(), before);
+        assert_eq!(
+            rig.session.analysis_status(&job.job).unwrap().status,
+            AnalysisStatus::Ready
+        );
     }
 }
 #[test]
@@ -1235,46 +1310,96 @@ fn analysis_production_local_import_is_explicit_and_never_fakes_inference() {
 
 #[test]
 fn builtin_dereverb_without_weights_reviews_amount_and_applies_one_saved_undo_step() {
-    for task in [windfall_ipc::AnalysisTask::DereverbGeneral, windfall_ipc::AnalysisTask::DereverbVocal] {
+    for task in [
+        windfall_ipc::AnalysisTask::DereverbGeneral,
+        windfall_ipc::AnalysisTask::DereverbVocal,
+    ] {
         let rig = Rig::new();
         assert!(rig.session.analysis_capability().classical_dereverb);
         let path = rig.file("authored-dry.wav");
-        let audio = AudioBuffer::from_interleaved(8_000, 2, (0..8_000).flat_map(|i| {
-            let x = (std::f32::consts::TAU * 220.0 * i as f32 / 8_000.0).sin() * 0.2;
-            [x, -0.5*x]
-        }).collect());
+        let audio = AudioBuffer::from_interleaved(
+            8_000,
+            2,
+            (0..8_000)
+                .flat_map(|i| {
+                    let x = (std::f32::consts::TAU * 220.0 * i as f32 / 8_000.0).sin() * 0.2;
+                    [x, -0.5 * x]
+                })
+                .collect(),
+        );
         windfall_codec::write_wav(&path, &audio, windfall_codec::WavSampleFormat::Float32).unwrap();
         let original = std::fs::read(&path).unwrap();
-        let imported = rig.session.add_audio_clip_from_file(&path, ClipPlace { track: None, start: 0, mixer_track: None }).unwrap();
+        let imported = rig
+            .session
+            .add_audio_clip_from_file(
+                &path,
+                ClipPlace {
+                    track: None,
+                    start: 0,
+                    mixer_track: None,
+                },
+            )
+            .unwrap();
         let clip = ClipId(*imported.created.last().unwrap());
         let before = rig.session.document_snapshot();
         let mut request = request(clip);
-        request.task = task; request.model_id = native::BUILTIN_DEREVERB_ID.into();
-        request.end_frame = "8000".into(); request.amount = Some(0.4);
+        request.task = task;
+        request.model_id = native::BUILTIN_DEREVERB_ID.into();
+        request.end_frame = "8000".into();
+        request.amount = Some(0.4);
         let job = rig.session.analysis_submit(request).unwrap();
-        let settled = rig.session.inner.analysis.test_manager().wait(native::JobId(job.job.parse().unwrap())).unwrap();
+        let settled = rig
+            .session
+            .inner
+            .analysis
+            .test_manager()
+            .wait(native::JobId(job.job.parse().unwrap()))
+            .unwrap();
         assert_eq!(settled.status, native::JobStatus::Ready, "{settled:?}");
         let review = rig.session.analysis_review(&job.ticket).unwrap();
-        assert_eq!(review.task, task); assert_eq!(review.amount, 0.4);
-        assert_eq!(review.model.bytes, "0"); assert_eq!(review.artifacts[0].frames, "8000");
+        assert_eq!(review.task, task);
+        assert_eq!(review.amount, 0.4);
+        assert_eq!(review.model.bytes, "0");
+        assert_eq!(review.artifacts[0].frames, "8000");
         assert_eq!(review.artifacts[0].frame_origin, "0");
         assert!(rig.session.analysis_capability().models.is_empty());
-        rig.session.analysis_preview(&job.ticket, &review.artifacts[0].role).unwrap();
-        rig.session.analysis_preview(&job.ticket, "dry-input").unwrap();
+        rig.session
+            .analysis_preview(&job.ticket, &review.artifacts[0].role)
+            .unwrap();
+        rig.session
+            .analysis_preview(&job.ticket, "dry-input")
+            .unwrap();
         let result = rig.session.analysis_apply(apply(&job, true)).unwrap();
-        assert_eq!(rig.session.document_snapshot().history.cursor, before.history.cursor + 1);
+        assert_eq!(
+            rig.session.document_snapshot().history.cursor,
+            before.history.cursor + 1
+        );
         assert_eq!(std::fs::read(&path).unwrap(), original);
         let derived = SampleId(result.created[0]);
         let edited = rig.project();
-        let rendered = rig.session.state().pool.get(derived).unwrap().samples().to_vec();
+        let rendered = rig
+            .session
+            .state()
+            .pool
+            .get(derived)
+            .unwrap()
+            .samples()
+            .to_vec();
         rig.session.undo().unwrap();
-        let mut restored = before.project; restored.next_id = rig.project().next_id;
+        let mut restored = before.project;
+        restored.next_id = rig.project().next_id;
         assert_eq!(rig.project(), restored);
-        rig.session.redo().unwrap(); assert_eq!(rig.project(), edited);
-        let saved = rig.file("dereverb.windfall"); rig.session.project_save(Some(&saved)).unwrap();
-        let rig = rig.restart(); rig.session.project_open(&saved).unwrap();
+        rig.session.redo().unwrap();
         assert_eq!(rig.project(), edited);
-        assert_eq!(rig.session.state().pool.get(derived).unwrap().samples(), rendered);
+        let saved = rig.file("dereverb.windfall");
+        rig.session.project_save(Some(&saved)).unwrap();
+        let rig = rig.restart();
+        rig.session.project_open(&saved).unwrap();
+        assert_eq!(rig.project(), edited);
+        assert_eq!(
+            rig.session.state().pool.get(derived).unwrap().samples(),
+            rendered
+        );
         assert_eq!(std::fs::read(&path).unwrap(), original);
     }
 }
@@ -1282,20 +1407,33 @@ fn builtin_dereverb_without_weights_reviews_amount_and_applies_one_saved_undo_st
 #[test]
 fn builtin_descriptor_cannot_be_imported_as_fake_weights() {
     let rig = Rig::new();
-    let mut spec = model(); spec.id = native::BUILTIN_DEREVERB_ID.into();
-    let path = rig.file("fake.model"); std::fs::write(&path, MODEL).unwrap();
-    assert!(rig.session.analysis_model_import(&path, spec).unwrap_err().contains("not an imported model"));
+    let mut spec = model();
+    spec.id = native::BUILTIN_DEREVERB_ID.into();
+    let path = rig.file("fake.model");
+    std::fs::write(&path, MODEL).unwrap();
+    assert!(
+        rig.session
+            .analysis_model_import(&path, spec)
+            .unwrap_err()
+            .contains("not an imported model")
+    );
     assert!(rig.session.analysis_capability().models.is_empty());
 }
 
 #[test]
 fn explicit_pack_registration_is_restored_on_actual_session_restart() {
     let rig = Rig::new();
-    let path = rig.file("authored.model"); std::fs::write(&path, MODEL).unwrap();
+    let path = rig.file("authored.model");
+    std::fs::write(&path, MODEL).unwrap();
     rig.session.analysis_model_import(&path, model()).unwrap();
     let rig = rig.restart();
     assert_eq!(rig.session.analysis_capability().models, vec![model()]);
     assert!(rig.session.analysis_capability().classical_dereverb);
     // Registration survives, inference support is still a separate native gate.
-    assert!(rig.session.analysis_submit(request(ClipId(1))).unwrap_err().contains("analysis:unavailable"));
+    assert!(
+        rig.session
+            .analysis_submit(request(ClipId(1)))
+            .unwrap_err()
+            .contains("analysis:unavailable")
+    );
 }

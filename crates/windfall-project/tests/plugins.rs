@@ -121,27 +121,66 @@ fn rejects_duplicate_owners_and_invalid_parameter_ids() {
 #[test]
 fn wrapper_options_preserve_legacy_json_and_roundtrip_history_clone_and_reopen() {
     let mut doc = Document::new(Project::new("Wrapper"));
-    doc.dispatch(Command::AddPluginInstrument { plugin: binding() }, None).unwrap();
+    doc.dispatch(Command::AddPluginInstrument { plugin: binding() }, None)
+        .unwrap();
     let original = doc.project().plugins[0].clone();
     let json = file::to_json(doc.project()).unwrap();
     assert!(!json.contains("\"wrapper\""));
-    assert_eq!(file::from_json(&json).unwrap().plugins[0].wrapper, PluginWrapperOptions::default());
-    let options = PluginWrapperOptions { smart_disable: true, fixed_buffer: Some(128),
-        processing: PluginProcessingMode::Bridged, editor_scale: 1.5, detached: false };
-    doc.dispatch(Command::SetPluginWrapper { target: original.target, options }, None).unwrap();
+    assert_eq!(
+        file::from_json(&json).unwrap().plugins[0].wrapper,
+        PluginWrapperOptions::default()
+    );
+    let options = PluginWrapperOptions {
+        smart_disable: true,
+        fixed_buffer: Some(128),
+        processing: PluginProcessingMode::Bridged,
+        editor_scale: 1.5,
+        detached: false,
+    };
+    doc.dispatch(
+        Command::SetPluginWrapper {
+            target: original.target,
+            options,
+        },
+        None,
+    )
+    .unwrap();
     let changed = doc.project().clone();
-    assert_eq!(file::from_json(&file::to_json(&changed).unwrap()).unwrap(), changed);
+    assert_eq!(
+        file::from_json(&file::to_json(&changed).unwrap()).unwrap(),
+        changed
+    );
     doc.undo().unwrap();
     assert_eq!(doc.project().plugins[0], original);
     doc.redo().unwrap();
     assert_eq!(doc.project(), &changed);
-    let PluginTarget::Instrument { channel } = original.target else { panic!() };
-    doc.dispatch(Command::DuplicateChannel { id: channel }, None).unwrap();
+    let PluginTarget::Instrument { channel } = original.target else {
+        panic!()
+    };
+    doc.dispatch(Command::DuplicateChannel { id: channel }, None)
+        .unwrap();
     assert_eq!(doc.project().plugins[1].wrapper, options);
     let before = doc.project().clone();
-    for options in [PluginWrapperOptions { fixed_buffer: Some(0), ..Default::default() },
-        PluginWrapperOptions { editor_scale: f32::NAN, ..Default::default() }] {
-        assert!(doc.dispatch(Command::SetPluginWrapper { target: original.target, options }, None).is_err());
+    for options in [
+        PluginWrapperOptions {
+            fixed_buffer: Some(0),
+            ..Default::default()
+        },
+        PluginWrapperOptions {
+            editor_scale: f32::NAN,
+            ..Default::default()
+        },
+    ] {
+        assert!(
+            doc.dispatch(
+                Command::SetPluginWrapper {
+                    target: original.target,
+                    options
+                },
+                None
+            )
+            .is_err()
+        );
         assert_eq!(doc.project(), &before);
     }
 }

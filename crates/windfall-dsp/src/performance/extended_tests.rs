@@ -326,11 +326,17 @@ fn deliberate_source_discontinuities_follow_a_two_millisecond_crossfade() {
 fn metadata_reset_masks_old_replay_pcm_before_and_after_partial_refill() {
     let mut ring = Ring::default();
     ring.prepare(384_000.0);
-    for _ in 0..ring.data.len() { ring.push([0.3, -0.7]); }
+    for _ in 0..ring.data.len() {
+        ring.push([0.3, -0.7]);
+    }
     let allocation = ring.data.as_ptr();
     ring.clear();
     assert_eq!(ring.data.as_ptr(), allocation);
-    assert_eq!(ring.data[100], [0.3, -0.7], "reset does not clear the large allocation");
+    assert_eq!(
+        ring.data[100],
+        [0.3, -0.7],
+        "reset does not clear the large allocation"
+    );
     for position in [0.0, 100.5, 400_000.0, -1.5] {
         assert_eq!(ring.read(0, ring.data.len(), position), [0.0; 2]);
     }
@@ -357,27 +363,49 @@ fn representative_original_kick_snare_and_pick_transients_detect_without_sustain
                 for onset in onsets {
                     if n >= onset {
                         let age = (n - onset) as f64 / rate as f64;
-                        random ^= random << 13; random ^= random >> 17; random ^= random << 5;
+                        random ^= random << 13;
+                        random ^= random >> 17;
+                        random ^= random << 5;
                         let noise = random as f64 / u32::MAX as f64 * 2.0 - 1.0;
                         sample += match model {
                             // Pitch-dropping membrane with a short original beater click.
-                            0 => 0.6 * (-age / 0.06).exp() * (std::f64::consts::TAU * (55.0 * age + 3.0 * (1.0 - (-age / 0.01).exp()))).sin()
-                                + 0.3 * (-age / 0.001).exp(),
+                            0 => {
+                                0.6 * (-age / 0.06).exp()
+                                    * (std::f64::consts::TAU
+                                        * (55.0 * age + 3.0 * (1.0 - (-age / 0.01).exp())))
+                                    .sin()
+                                    + 0.3 * (-age / 0.001).exp()
+                            }
                             // Seeded noise and an independently decaying body resonance.
-                            1 => 0.5 * noise * (-age / 0.025).exp()
-                                + 0.2 * (-age / 0.05).exp() * (std::f64::consts::TAU * 183.7 * age).sin(),
+                            1 => {
+                                0.5 * noise * (-age / 0.025).exp()
+                                    + 0.2
+                                        * (-age / 0.05).exp()
+                                        * (std::f64::consts::TAU * 183.7 * age).sin()
+                            }
                             // Plucked harmonic excitation with a bounded pick click.
-                            _ => 0.35 * (-age / 0.08).exp() * (std::f64::consts::TAU * 233.1 * age).sin()
-                                + 0.25 * (-age / 0.001).exp(),
+                            _ => {
+                                0.35 * (-age / 0.08).exp()
+                                    * (std::f64::consts::TAU * 233.1 * age).sin()
+                                    + 0.25 * (-age / 0.001).exp()
+                            }
                         };
                     }
                 }
-                if detector.tick(sample as f32, 0.04, 2.0, (rate * 0.12) as usize) { detections.push(n); }
+                if detector.tick(sample as f32, 0.04, 2.0, (rate * 0.12) as usize) {
+                    detections.push(n);
+                }
             }
-            assert_eq!(detections.len(), onsets.len(), "rate={rate} model={model} detections={detections:?}");
+            assert_eq!(
+                detections.len(),
+                onsets.len(),
+                "rate={rate} model={model} detections={detections:?}"
+            );
             for (actual, onset) in detections.into_iter().zip(onsets) {
-                assert!(actual >= onset && actual - onset <= (rate * 0.003) as usize,
-                    "rate={rate} model={model}: onset {onset}, detection {actual}");
+                assert!(
+                    actual >= onset && actual - onset <= (rate * 0.003) as usize,
+                    "rate={rate} model={model}: onset {onset}, detection {actual}"
+                );
             }
         }
     }

@@ -698,19 +698,24 @@ fn write_files(
         genre: &project_settings.genre,
         comments: &project_settings.comments,
     };
-    let wav_metadata =
-        if matches!(job.settings, EncoderSettings::Wav { .. }) {
-            match options.mode {
-                PlayMode::Song => markers::song_metadata(
-                    &job.project, &prepared_pool, options.sample_rate, options.region,
-                )?,
-                PlayMode::Pattern => markers::pattern_metadata(
-                    &job.project, job.pattern, options.sample_rate, options.pattern_loops,
-                )?,
-            }
-        } else {
-            windfall_codec::WavMetadata::default()
-        };
+    let wav_metadata = if matches!(job.settings, EncoderSettings::Wav { .. }) {
+        match options.mode {
+            PlayMode::Song => markers::song_metadata(
+                &job.project,
+                &prepared_pool,
+                options.sample_rate,
+                options.region,
+            )?,
+            PlayMode::Pattern => markers::pattern_metadata(
+                &job.project,
+                job.pattern,
+                options.sample_rate,
+                options.pattern_loops,
+            )?,
+        }
+    } else {
+        windfall_codec::WavMetadata::default()
+    };
     for (target, file) in job.targets.iter().zip(&transaction.files) {
         let encoder = Encoder::open_with_wav_metadata(
             &file.stage,

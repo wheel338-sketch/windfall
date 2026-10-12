@@ -1,16 +1,16 @@
 //! Native control/worker APIs. None of these APIs belong on an audio callback
 //! or underneath a document/engine lock. This crate never edits a document.
 mod artifacts;
-mod input;
 mod inference;
+mod input;
 pub use inference::{InferenceTask, NoteInferenceAdapter};
-mod jobs;
-mod model;
-pub mod pitch;
 pub mod classical;
 pub mod dereverb;
 mod dereverb_adapter;
-pub use dereverb_adapter::{ClassicalDereverbAdapter, BUILTIN_DEREVERB_ID, DEREVERB_SCRATCH_BYTES};
+mod jobs;
+mod model;
+pub mod pitch;
+pub use dereverb_adapter::{BUILTIN_DEREVERB_ID, ClassicalDereverbAdapter, DEREVERB_SCRATCH_BYTES};
 mod work;
 
 pub use artifacts::{ArtifactMetadata, ArtifactWriter, RelativeName};
@@ -23,7 +23,8 @@ pub use jobs::{
     JobSnapshot, JobStatus, ManagerConfig, PreparedApply, Review, TicketId, Usage, WorkerContext,
 };
 pub use model::{
-    ModelCache, ModelCacheLimits, ModelManifest, ModelProvenance, OutputRole, VerifiedModel, OnnxContract, TensorSpec, TensorDimension,
+    ModelCache, ModelCacheLimits, ModelManifest, ModelProvenance, OnnxContract, OutputRole,
+    TensorDimension, TensorSpec, VerifiedModel,
 };
 pub use work::{CancelToken, Work};
 

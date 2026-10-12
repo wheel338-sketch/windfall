@@ -1,7 +1,6 @@
 //! The interface every built-in instrument implements, and one type that
 //! can hold any of them.
 
-use crate::sample_bank::{MultiSampler, MultiSamplerParams, SamplePlayer, SamplePlayerParams, SoundFont, SoundFontParams, PadBank, PadBankParams, PianoKeys, PianoKeysParams, TextVoice, TextVoiceParams};
 use crate::additive::{ColorScan, ColorScanParams};
 use crate::additive::{HarmonicFilter, HarmonicFilterParams};
 use crate::additive::{MetalVoice, MetalVoiceParams};
@@ -23,6 +22,10 @@ use crate::polysynth::{PackSynth, PackSynthParams};
 use crate::polysynth::{PocketSynth, PocketSynthParams};
 use crate::polysynth::{VintagePoly, VintagePolyParams};
 use crate::polysynth::{VintageSaw, VintageSawParams};
+use crate::sample_bank::{
+    MultiSampler, MultiSamplerParams, PadBank, PadBankParams, PianoKeys, PianoKeysParams,
+    SamplePlayer, SamplePlayerParams, SoundFont, SoundFontParams, TextVoice, TextVoiceParams,
+};
 use crate::speech::{SpeechVoice, SpeechVoiceParams};
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
@@ -82,7 +85,9 @@ pub trait Instrument: Send {
     }
 
     /// Selects the project law for per-note panning. Implementations ramp live changes.
-    fn set_note_pan_law(&mut self, law: windfall_core::PanLaw) { let _ = law; }
+    fn set_note_pan_law(&mut self, law: windfall_core::PanLaw) {
+        let _ = law;
+    }
 
     /// Starts a note. `key` is a MIDI key number, where 60 is middle C and
     /// 69 is the A at 440 Hz. `velocity` runs from 0 to 1; zero or less is
@@ -461,8 +466,12 @@ impl InstrumentKind {
             }
             InstrumentKind::ColorScan => InstrumentParams::ColorScan(ColorScanParams::default()),
             InstrumentKind::Dashboard => InstrumentParams::Dashboard(MidiOutParams::default()),
-            InstrumentKind::MultiSampler => InstrumentParams::MultiSampler(MultiSamplerParams::default()),
-            InstrumentKind::SamplePlayer => InstrumentParams::SamplePlayer(SamplePlayerParams::default()),
+            InstrumentKind::MultiSampler => {
+                InstrumentParams::MultiSampler(MultiSamplerParams::default())
+            }
+            InstrumentKind::SamplePlayer => {
+                InstrumentParams::SamplePlayer(SamplePlayerParams::default())
+            }
             InstrumentKind::SoundFont => InstrumentParams::SoundFont(SoundFontParams::default()),
             InstrumentKind::PadBank => InstrumentParams::PadBank(PadBankParams::default()),
             InstrumentKind::PianoKeys => InstrumentParams::PianoKeys(PianoKeysParams::default()),
@@ -674,8 +683,12 @@ impl InstrumentParams {
             }
             InstrumentParams::ColorScan(params) => InstrumentParams::ColorScan(params.sanitized()),
             InstrumentParams::Dashboard(params) => InstrumentParams::Dashboard(params.sanitized()),
-            InstrumentParams::MultiSampler(params) => InstrumentParams::MultiSampler(params.sanitized()),
-            InstrumentParams::SamplePlayer(params) => InstrumentParams::SamplePlayer(params.sanitized()),
+            InstrumentParams::MultiSampler(params) => {
+                InstrumentParams::MultiSampler(params.sanitized())
+            }
+            InstrumentParams::SamplePlayer(params) => {
+                InstrumentParams::SamplePlayer(params.sanitized())
+            }
             InstrumentParams::SoundFont(params) => InstrumentParams::SoundFont(params.sanitized()),
             InstrumentParams::PadBank(params) => InstrumentParams::PadBank(params.sanitized()),
             InstrumentParams::PianoKeys(params) => InstrumentParams::PianoKeys(params.sanitized()),
@@ -919,7 +932,10 @@ pub enum AnyInstrument {
 
 impl AnyInstrument {
     /// Worker-side asset installation before publication. Does not run on audio.
-    pub fn install_sample_bank(&mut self, bank: std::sync::Arc<crate::sample_bank::SampleBank>) -> bool {
+    pub fn install_sample_bank(
+        &mut self,
+        bank: std::sync::Arc<crate::sample_bank::SampleBank>,
+    ) -> bool {
         match self {
             Self::MultiSampler(unit) => unit.install_bank(bank),
             Self::SamplePlayer(unit) => unit.install_bank(bank),
@@ -2333,7 +2349,7 @@ impl AnyInstrument {
             Self::SliceDeck(unit) => unit.set_note_pan_law(law),
             Self::GrainCloud(unit) => unit.set_note_pan_law(law),
             Self::WaveRide(unit) => unit.set_note_pan_law(law),
-            _ => {},
+            _ => {}
         }
     }
 

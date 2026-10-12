@@ -151,9 +151,9 @@ fn maximum_load_render(kind: InstrumentKind) {
                 );
             }
             assert_eq!(instrument.active_voices(), MAX_POLYPHONY);
-            for block in output.chunks_exact_mut(BLOCK * 2) {
+            for block in output.as_chunks_mut::<{ BLOCK * 2 }>().0 {
                 instrument.process(&mut left, &mut right);
-                for (frame, pair) in block.chunks_exact_mut(2).enumerate() {
+                for (frame, pair) in block.as_chunks_mut::<2>().0.iter_mut().enumerate() {
                     pair[0] = left[frame];
                     pair[1] = right[frame];
                 }
@@ -183,7 +183,9 @@ fn maximum_load_render(kind: InstrumentKind) {
             _ => 1.0,
         };
     assert!(
-        first.iter().all(|v| v.is_finite() && v.abs() <= bound + 1e-4),
+        first
+            .iter()
+            .all(|v| v.is_finite() && v.abs() <= bound + 1e-4),
         "{kind:?} bounded PCM"
     );
     assert!(
@@ -207,7 +209,8 @@ fn slice_deck_maximum_load_offline_48khz_128_frames_is_bounded_deterministic_and
 }
 
 #[test]
-fn grain_cloud_maximum_load_offline_48khz_128_frames_is_bounded_deterministic_and_allocation_free() {
+fn grain_cloud_maximum_load_offline_48khz_128_frames_is_bounded_deterministic_and_allocation_free()
+{
     maximum_load_render(InstrumentKind::GrainCloud);
 }
 

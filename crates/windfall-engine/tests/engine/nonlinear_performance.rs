@@ -15,24 +15,47 @@ fn independent_scratch_plans_keep_sources_until_control_side_engine_retirement()
     let sample = rig.sample(audio.clone());
     let channel = rig.channel_on(audio, track);
     rig.steps(channel, &[0]);
-    rig.effect(track, EffectParams::Scratch(windfall_dsp::performance::ScratchParams {
-        source_id: sample.0, ..Default::default()
-    }));
+    rig.effect(
+        track,
+        EffectParams::Scratch(windfall_dsp::performance::ScratchParams {
+            source_id: sample.0,
+            ..Default::default()
+        }),
+    );
     let (mut first, first_controller) = rig.processor(48_000);
     let (mut second, second_controller) = rig.processor(48_000);
-    first_controller.play(); second_controller.play();
+    first_controller.play();
+    second_controller.play();
     let mut output = [0.0; 512];
-    first.process(&mut output); second.process(&mut output);
-    first_controller.set_project(&windfall_project::Project::new("Replacement"), &windfall_engine::SamplePool::new());
+    first.process(&mut output);
+    second.process(&mut output);
+    first_controller.set_project(
+        &windfall_project::Project::new("Replacement"),
+        &windfall_engine::SamplePool::new(),
+    );
     first.process(&mut output);
     let mut retirement = windfall_engine::ProjectRetirement::default();
-    first_controller.take_retired(&mut retirement); retirement.clear();
+    first_controller.take_retired(&mut retirement);
+    retirement.clear();
     collect_retired();
-    assert_eq!(source.audio().unwrap().samples()[0], 0.23719, "the second engine still owns its source");
-    assert_eq!(crate::realtime::allocator_calls(|| second.process(&mut output)), 0);
-    drop(first); drop(first_controller); drop(second); drop(second_controller);
+    assert_eq!(
+        source.audio().unwrap().samples()[0],
+        0.23719,
+        "the second engine still owns its source"
+    );
+    assert_eq!(
+        crate::realtime::allocator_calls(|| second.process(&mut output)),
+        0
+    );
+    drop(first);
+    drop(first_controller);
+    drop(second);
+    drop(second_controller);
     collect_retired();
-    assert!(source.audio().is_none(), "all plan/processor owners have retired on control");
+    assert!(
+        source.audio().is_none(),
+        "all plan/processor owners have retired on control"
+    );
 }
 
 /// Export removes PDC latency; align the live capture by the same reported

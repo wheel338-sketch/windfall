@@ -25,14 +25,14 @@ fn native_numeric_expression_controls_distinct_overlapping_note_identities() {
     assert_eq!(instrument.processor().note_expression_mask(15), 0);
     assert_eq!(instrument.latency_samples(), 0);
     let a = PluginNoteControls {
-                volume: 1.0,
+        volume: 1.0,
         pan: -0.5,
         pitch: 69.5,
         modulation_x: 0.25,
         modulation_y: 0.75,
     };
     let b = PluginNoteControls {
-                volume: 1.0,
+        volume: 1.0,
         pan: 0.5,
         pitch: 75.0,
         modulation_x: 0.5,

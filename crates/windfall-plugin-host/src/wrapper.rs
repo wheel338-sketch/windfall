@@ -110,16 +110,14 @@ fn quiet(samples: &[f32]) -> bool {
 impl Policy {
     fn native_process(
         &mut self,
-        il: &mut [f32],
-        ir: &mut [f32],
-        ol: &mut [f32],
-        or: &mut [f32],
+        audio: (&mut [f32], &mut [f32], &mut [f32], &mut [f32]),
         key: Option<&[[f32; 2]]>,
         events: &[HostEvent],
         transport: &Transport,
         steady: u64,
         out: &mut dyn FnMut(PluginEvent),
     ) -> Result<BlockResult, ProcessFailed> {
+        let (il, ir, ol, or) = audio;
         let idle = events.is_empty()
             && quiet(il)
             && quiet(ir)
@@ -214,7 +212,7 @@ impl ProcessorBackend for Policy {
             return Err(ProcessFailed);
         };
         let Some(mut fixed) = self.fixed.take() else {
-            return self.native_process(il, ir, ol, or, key, events, transport, steady, out);
+            return self.native_process((il, ir, ol, or), key, events, transport, steady, out);
         };
         // Moving a preallocated option does not allocate or free. Always return
         // it, including native failure, before propagating the result.
@@ -252,10 +250,7 @@ impl ProcessorBackend for Policy {
                     let [in_left, in_right] = &mut fixed.input;
                     let [out_left, out_right] = &mut fixed.output;
                     let result = self.native_process(
-                        in_left,
-                        in_right,
-                        out_left,
-                        out_right,
+                        (in_left, in_right, out_left, out_right),
                         Some(&fixed.key),
                         &fixed.events,
                         &fixed.transport,

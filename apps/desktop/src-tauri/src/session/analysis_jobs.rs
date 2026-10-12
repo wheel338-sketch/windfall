@@ -2,8 +2,8 @@
 //! Gate -> recording -> State is the capture/apply order. IO, hashes, decoding,
 //! model/worker waits and retirement always run outside recording/State guards.
 use super::{Session, State};
-mod source_namespace;
 mod pack_registry;
+mod source_namespace;
 use crate::sync::lock;
 use std::collections::BTreeMap;
 use std::io::Read;
@@ -17,8 +17,8 @@ use windfall_ipc::{
     AnalysisOutputRole, AnalysisProvenance, AnalysisReview, AnalysisStatus, AnalysisSubmit,
 };
 use windfall_project::{
-    Clip, ClipContent, ClipInit, Command, DispatchResult, MAX_SONG_TICKS,
-    SampleAsset, SampleId, SamplePath,
+    Clip, ClipContent, ClipInit, Command, DispatchResult, MAX_SONG_TICKS, SampleAsset, SampleId,
+    SamplePath,
 };
 
 pub(super) const UNAVAILABLE: &str = "Stem separation/remix require an imported licensed ONNX pack and an installed ONNX Runtime adapter. Pack registration does not install executable code. Classical dereverb is built in.";
@@ -87,7 +87,12 @@ fn input_limits() -> native::InputLimits {
 }
 fn manifest(spec: AnalysisModel) -> Result<native::ModelManifest, String> {
     let p = spec.provenance;
-    if spec.id == native::BUILTIN_DEREVERB_ID { return Err(error("invalid", "Built-in dereverb is code, not an imported model pack.")); }
+    if spec.id == native::BUILTIN_DEREVERB_ID {
+        return Err(error(
+            "invalid",
+            "Built-in dereverb is code, not an imported model pack.",
+        ));
+    }
     let model = native::ModelManifest {
         onnx: spec.onnx.map(onnx_native),
         id: spec.id,
@@ -160,21 +165,65 @@ fn model_wire(model: &native::ModelManifest) -> AnalysisModel {
 }
 fn onnx_native(o: windfall_ipc::AnalysisOnnxContract) -> native::OnnxContract {
     fn tensors(items: Vec<windfall_ipc::AnalysisTensorSpec>) -> Vec<native::TensorSpec> {
-        items.into_iter().map(|t| native::TensorSpec { name: t.name, shape: t.shape.into_iter().map(|d| match d {
-            windfall_ipc::AnalysisTensorDimension::Fixed(n) => native::TensorDimension::Fixed(n),
-            windfall_ipc::AnalysisTensorDimension::Symbol(s) => native::TensorDimension::Symbol(s),
-        }).collect() }).collect()
+        items
+            .into_iter()
+            .map(|t| native::TensorSpec {
+                name: t.name,
+                shape: t
+                    .shape
+                    .into_iter()
+                    .map(|d| match d {
+                        windfall_ipc::AnalysisTensorDimension::Fixed(n) => {
+                            native::TensorDimension::Fixed(n)
+                        }
+                        windfall_ipc::AnalysisTensorDimension::Symbol(s) => {
+                            native::TensorDimension::Symbol(s)
+                        }
+                    })
+                    .collect(),
+            })
+            .collect()
     }
-    native::OnnxContract { opset: o.opset, inputs: tensors(o.inputs), outputs: tensors(o.outputs), sample_rate: o.sample_rate, segment_frames: o.segment_frames, overlap_frames: o.overlap_frames, stem_roles: o.stem_roles }
+    native::OnnxContract {
+        opset: o.opset,
+        inputs: tensors(o.inputs),
+        outputs: tensors(o.outputs),
+        sample_rate: o.sample_rate,
+        segment_frames: o.segment_frames,
+        overlap_frames: o.overlap_frames,
+        stem_roles: o.stem_roles,
+    }
 }
 fn onnx_wire(o: &native::OnnxContract) -> windfall_ipc::AnalysisOnnxContract {
     fn tensors(items: &[native::TensorSpec]) -> Vec<windfall_ipc::AnalysisTensorSpec> {
-        items.iter().map(|t| windfall_ipc::AnalysisTensorSpec { name: t.name.clone(), shape: t.shape.iter().map(|d| match d {
-            native::TensorDimension::Fixed(n) => windfall_ipc::AnalysisTensorDimension::Fixed(*n),
-            native::TensorDimension::Symbol(s) => windfall_ipc::AnalysisTensorDimension::Symbol(s.clone()),
-        }).collect() }).collect()
+        items
+            .iter()
+            .map(|t| windfall_ipc::AnalysisTensorSpec {
+                name: t.name.clone(),
+                shape: t
+                    .shape
+                    .iter()
+                    .map(|d| match d {
+                        native::TensorDimension::Fixed(n) => {
+                            windfall_ipc::AnalysisTensorDimension::Fixed(*n)
+                        }
+                        native::TensorDimension::Symbol(s) => {
+                            windfall_ipc::AnalysisTensorDimension::Symbol(s.clone())
+                        }
+                    })
+                    .collect(),
+            })
+            .collect()
     }
-    windfall_ipc::AnalysisOnnxContract { opset: o.opset, inputs: tensors(&o.inputs), outputs: tensors(&o.outputs), sample_rate: o.sample_rate, segment_frames: o.segment_frames, overlap_frames: o.overlap_frames, stem_roles: o.stem_roles.clone() }
+    windfall_ipc::AnalysisOnnxContract {
+        opset: o.opset,
+        inputs: tensors(&o.inputs),
+        outputs: tensors(&o.outputs),
+        sample_rate: o.sample_rate,
+        segment_frames: o.segment_frames,
+        overlap_frames: o.overlap_frames,
+        stem_roles: o.stem_roles.clone(),
+    }
 }
 fn job_wire(job: native::JobSnapshot) -> AnalysisJob {
     AnalysisJob {
@@ -224,10 +273,22 @@ struct Owned {
     closed: bool,
 }
 fn current_model(owned: &Owned, review: &native::Review) -> Result<native::ModelManifest, String> {
-    if review.model.is_builtin_dereverb() && owned.adapter.as_ref().is_some_and(|a| a.id() == native::BUILTIN_DEREVERB_ID) {
-        return native::ClassicalDereverbAdapter::descriptor(review.capture.input_shape, review.task).map_err(native_error);
+    if review.model.is_builtin_dereverb()
+        && owned
+            .adapter
+            .as_ref()
+            .is_some_and(|a| a.id() == native::BUILTIN_DEREVERB_ID)
+    {
+        return native::ClassicalDereverbAdapter::descriptor(
+            review.capture.input_shape,
+            review.task,
+        )
+        .map_err(native_error);
     }
-    owned.models.get(&(review.model.id.clone(), review.model.version.clone())).cloned()
+    owned
+        .models
+        .get(&(review.model.id.clone(), review.model.version.clone()))
+        .cloned()
         .ok_or_else(|| error("modelAbsent", "Pinned model is missing."))
 }
 pub(super) struct Service {
@@ -447,13 +508,23 @@ impl Session {
         let service = &self.inner.analysis;
         // Capability must remain nonblocking while shutdown joins a worker.
         let registry_error = if let Ok(_gate) = service.gate.try_lock() {
-            if lock(&service.owned).closed { None } else { service.restore_packs().err() }
-        } else { None };
+            if lock(&service.owned).closed {
+                None
+            } else {
+                service.restore_packs().err()
+            }
+        } else {
+            None
+        };
         let owned = lock(&service.owned);
         let available = owned.adapter.is_some() && !owned.closed;
         AnalysisCapability {
             native: true,
-            classical_dereverb: owned.adapter.as_ref().is_some_and(|a| a.id() == native::BUILTIN_DEREVERB_ID) && !owned.closed,
+            classical_dereverb: owned
+                .adapter
+                .as_ref()
+                .is_some_and(|a| a.id() == native::BUILTIN_DEREVERB_ID)
+                && !owned.closed,
             available,
             reason: registry_error.or_else(|| (!available).then(|| UNAVAILABLE.into())),
             models: owned.models.values().map(model_wire).collect(),
@@ -516,18 +587,37 @@ impl Session {
         let service = &self.inner.analysis;
         let _gate = lock(&service.gate);
         let builtin = request.model_id == native::BUILTIN_DEREVERB_ID;
-        if !builtin { service.restore_packs()?; }
+        if !builtin {
+            service.restore_packs()?;
+        }
         let manager = service.ensure_manager()?;
         let amount = request.amount.unwrap_or(1.0);
-        if !amount.is_finite() || !(0.0..=1.0).contains(&amount) { return Err(error("invalid", "Wet/dry amount must be 0 to 1.")); }
+        if !amount.is_finite() || !(0.0..=1.0).contains(&amount) {
+            return Err(error("invalid", "Wet/dry amount must be 0 to 1."));
+        }
         let imported = if builtin {
-            if request.model_version != "1" || number(&request.model_revision)? != 1 { return Err(error("stale", "Built-in algorithm revision changed.")); }
+            if request.model_version != "1" || number(&request.model_revision)? != 1 {
+                return Err(error("stale", "Built-in algorithm revision changed."));
+            }
             None
-        } else { Some(lock(&service.owned).models.get(&(request.model_id, request.model_version)).cloned()
-            .ok_or_else(|| error("modelAbsent", "Explicitly import this pinned local model."))?) };
+        } else {
+            Some(
+                lock(&service.owned)
+                    .models
+                    .get(&(request.model_id, request.model_version))
+                    .cloned()
+                    .ok_or_else(|| {
+                        error("modelAbsent", "Explicitly import this pinned local model.")
+                    })?,
+            )
+        };
         if let Some(model) = &imported {
             let owned = lock(&service.owned);
-            if !owned.adapter.as_ref().is_some_and(|a| a.id() == model.provenance.adapter_id && a.version() == model.provenance.adapter_version && a.supports(task_native(request.task))) {
+            if !owned.adapter.as_ref().is_some_and(|a| {
+                a.id() == model.provenance.adapter_id
+                    && a.version() == model.provenance.adapter_version
+                    && a.supports(task_native(request.task))
+            }) {
                 return Err(error("unavailable", UNAVAILABLE));
             }
         }
@@ -537,7 +627,17 @@ impl Session {
         };
         let preparation = service.begin_preparation();
         let mut work = work(preparation.cancel.clone())?;
-        let (clip, sample, source, generation, edits, replacements, project_path, directory, project) = {
+        let (
+            clip,
+            sample,
+            source,
+            generation,
+            edits,
+            replacements,
+            project_path,
+            directory,
+            project,
+        ) = {
             let _recording = self.recording_idle()?;
             let state = self.state();
             let project = state.document.project();
@@ -637,12 +737,19 @@ impl Session {
         selection
             .validate(rendered_frames as u64)
             .map_err(native_error)?;
-        let shape = native::AudioShape { frames: rendered_frames as u64, channels: 2, sample_rate: source.sample_rate() };
+        let shape = native::AudioShape {
+            frames: rendered_frames as u64,
+            channels: 2,
+            sample_rate: source.sample_rate(),
+        };
         let model = match imported {
             Some(model) => model,
-            None => native::ClassicalDereverbAdapter::descriptor(shape, task_native(request.task)).map_err(native_error)?,
+            None => native::ClassicalDereverbAdapter::descriptor(shape, task_native(request.task))
+                .map_err(native_error)?,
         };
-        if number(&request.model_revision)? != model.revision { return Err(error("stale", "Model revision changed.")); }
+        if number(&request.model_revision)? != model.revision {
+            return Err(error("stale", "Model revision changed."));
+        }
         model
             .validate_input(
                 native::AudioShape {
@@ -726,12 +833,20 @@ impl Session {
                 input,
                 model,
                 budget: native::JobBudget {
-                    scratch_bytes: if builtin { native::DEREVERB_SCRATCH_BYTES } else { OUTPUT_PCM_LIMIT },
+                    scratch_bytes: if builtin {
+                        native::DEREVERB_SCRATCH_BYTES
+                    } else {
+                        OUTPUT_PCM_LIMIT
+                    },
                     output_bytes: output_pcm
                         .checked_mul(3)
                         .and_then(|n| n.checked_add(16 * 4096))
                         .ok_or_else(|| error("budget", "Output bytes overflow."))?,
-                    work_units: if builtin { 100_000_000_000 } else { 500_000_000 },
+                    work_units: if builtin {
+                        100_000_000_000
+                    } else {
+                        500_000_000
+                    },
                     timeout: Duration::from_secs(if builtin { 600 } else { 120 }),
                 },
             })
@@ -814,7 +929,9 @@ impl Session {
     pub fn analysis_preview(&self, ticket: &str, role: &str) -> Result<(), String> {
         let preview_ticket = {
             let mut latest = lock(&self.inner.preview);
-            *latest = latest.checked_add(1).ok_or_else(|| error("exhausted", "Preview tickets exhausted."))?;
+            *latest = latest
+                .checked_add(1)
+                .ok_or_else(|| error("exhausted", "Preview tickets exhausted."))?;
             *latest
         };
         let service = &self.inner.analysis;
@@ -824,26 +941,41 @@ impl Session {
         let review = manager.review(ticket).map_err(native_error)?;
         let (binding, model) = {
             let owned = lock(&service.owned);
-            let binding = owned.bindings.get(&review.job).cloned()
+            let binding = owned
+                .bindings
+                .get(&review.job)
+                .cloned()
                 .ok_or_else(|| error("stale", "This review expired."))?;
             let model = current_model(&owned, &review)?;
-            (binding,model)
+            (binding, model)
         };
-        { let _recording = self.recording_idle()?; if !binding.current(&self.state()) {
-            return Err(error("stale","The source or project changed."));
-        }}
+        {
+            let _recording = self.recording_idle()?;
+            if !binding.current(&self.state()) {
+                return Err(error("stale", "The source or project changed."));
+            }
+        }
         let preparation = service.begin_preparation();
         let mut work = work(preparation.cancel.clone())?;
-        let lease = manager.claim(ticket,&binding.stamp,&model).map_err(native_error)?;
+        let lease = manager
+            .claim(ticket, &binding.stamp, &model)
+            .map_err(native_error)?;
         let audio = if role == "dry-input" && review.model.is_builtin_dereverb() {
             lease.preview_input(&mut work).map_err(native_error)?
-        } else { lease.preview_audio(role,&mut work).map_err(native_error)? };
-        { let _recording = self.recording_idle()?; if !binding.current(&self.state()) {
-            return Err(error("stale","The source or project changed."));
-        }}
+        } else {
+            lease.preview_audio(role, &mut work).map_err(native_error)?
+        };
+        {
+            let _recording = self.recording_idle()?;
+            if !binding.current(&self.state()) {
+                return Err(error("stale", "The source or project changed."));
+            }
+        }
         work.check().map_err(native_error)?;
         let latest = lock(&self.inner.preview);
-        if *latest == preview_ticket { self.controller().preview(audio); }
+        if *latest == preview_ticket {
+            self.controller().preview(audio);
+        }
         Ok(())
     }
     pub fn analysis_apply(&self, request: AnalysisApply) -> Result<DispatchResult, String> {
@@ -852,14 +984,23 @@ impl Session {
         let manager = service.manager()?;
         let ticket = native::TicketId(number(&request.ticket)?);
         let review = manager.review(ticket).map_err(native_error)?;
-        if let Some(roles) = &request.selected_roles {
-            if roles.is_empty() || roles.len() > 16 || roles.iter().enumerate().any(|(i, role)|
-                !review.artifacts.iter().any(|a| &a.role == role) || roles[..i].contains(role)) {
-                return Err(error("invalid", "Select unique roles from this exact review."));
-            }
+        if let Some(roles) = &request.selected_roles
+            && (roles.is_empty()
+                || roles.len() > 16
+                || roles.iter().enumerate().any(|(i, role)| {
+                    !review.artifacts.iter().any(|a| &a.role == role) || roles[..i].contains(role)
+                }))
+        {
+            return Err(error(
+                "invalid",
+                "Select unique roles from this exact review.",
+            ));
         }
         if request.separate_tracks && review.task != native::InferenceTask::StemSeparation {
-            return Err(error("invalid", "Remix track layout requires a stem separation review."));
+            return Err(error(
+                "invalid",
+                "Remix track layout requires a stem separation review.",
+            ));
         }
         if manager.snapshot(review.job).map_err(native_error)?.request != number(&request.request)?
         {
@@ -951,22 +1092,36 @@ impl Session {
                 clips: vec![binding.clip.id],
             });
         } else if request.mute_original {
-            commands.push(Command::UpdateClips { updates: vec![windfall_project::ClipUpdate {
-                id: binding.clip.id, patch: windfall_project::ClipPatch {
-                    muted: Some(true), ..Default::default()
-                }
-            }] });
+            commands.push(Command::UpdateClips {
+                updates: vec![windfall_project::ClipUpdate {
+                    id: binding.clip.id,
+                    patch: windfall_project::ClipPatch {
+                        muted: Some(true),
+                        ..Default::default()
+                    },
+                }],
+            });
         }
         let rate = f64::from(model.sample_rate);
-        let start = binding.clock.tick_after(binding.clip.start,
-            binding.stamp.selection.start as f64 / rate)?;
+        let start = binding.clock.tick_after(
+            binding.clip.start,
+            binding.stamp.selection.start as f64 / rate,
+        )?;
         let length = if binding.stamp.selection.start == 0
-            && binding.stamp.selection.end == binding.stamp.input_shape.frames {
+            && binding.stamp.selection.end == binding.stamp.input_shape.frames
+        {
             binding.clip.length
         } else {
-            let end = binding.clock.tick_after_precise(start,
-                binding.stamp.selection.frames().map_err(native_error)? as f64 / rate)?.ceil();
-            (end as u32).checked_sub(start).filter(|length| *length > 0)
+            let end = binding
+                .clock
+                .tick_after_precise(
+                    start,
+                    binding.stamp.selection.frames().map_err(native_error)? as f64 / rate,
+                )?
+                .ceil();
+            (end as u32)
+                .checked_sub(start)
+                .filter(|length| *length > 0)
                 .ok_or_else(|| error("invalid", "Invalid output duration."))?
         };
         if start
@@ -985,7 +1140,11 @@ impl Session {
         };
         let mut next_id = document.project().next_id;
         for artifact in prepared.artifacts() {
-            if request.selected_roles.as_ref().is_some_and(|roles| !roles.contains(&artifact.role)) {
+            if request
+                .selected_roles
+                .as_ref()
+                .is_some_and(|roles| !roles.contains(&artifact.role))
+            {
                 continue;
             }
             work.check().map_err(native_error)?;
@@ -1021,13 +1180,25 @@ impl Session {
             drop(strict);
             let (track, mixer_track, output) = if request.separate_tracks {
                 let mixer = windfall_project::TrackId(next_id);
-                let playlist = windfall_project::PlaylistTrackId(next_id.checked_add(1)
-                    .ok_or_else(|| error("invalid", "Document identifiers exhausted."))?);
-                next_id = next_id.checked_add(2).ok_or_else(|| error("invalid", "Document identifiers exhausted."))?;
-                commands.push(Command::AddMixerTrack { name: Some(format!("{} — {}", binding.sample.name, artifact.role)) });
-                commands.push(Command::AddPlaylistTrack { name: Some(artifact.role.clone()), index: None });
+                let playlist = windfall_project::PlaylistTrackId(
+                    next_id
+                        .checked_add(1)
+                        .ok_or_else(|| error("invalid", "Document identifiers exhausted."))?,
+                );
+                next_id = next_id
+                    .checked_add(2)
+                    .ok_or_else(|| error("invalid", "Document identifiers exhausted."))?;
+                commands.push(Command::AddMixerTrack {
+                    name: Some(format!("{} — {}", binding.sample.name, artifact.role)),
+                });
+                commands.push(Command::AddPlaylistTrack {
+                    name: Some(artifact.role.clone()),
+                    index: None,
+                });
                 (playlist, mixer, windfall_project::ClipAudioOutput::Mixer)
-            } else { (binding.clip.track, mixer_track, output) };
+            } else {
+                (binding.clip.track, mixer_track, output)
+            };
             let sample = SampleId(next_id);
             next_id = next_id
                 .checked_add(2)
@@ -1063,7 +1234,14 @@ impl Session {
             output_files.push(output_file);
         }
         let command = Command::Batch {
-            label: Some(if request.separate_tracks { "Remix: import aligned stems" } else { "Apply analysis outputs" }.into()),
+            label: Some(
+                if request.separate_tracks {
+                    "Remix: import aligned stems"
+                } else {
+                    "Apply analysis outputs"
+                }
+                .into(),
+            ),
             commands,
         };
         document

@@ -86,6 +86,10 @@ pub async fn preset_read(
 }
 
 #[tauri::command]
+#[allow(
+    clippy::too_many_arguments,
+    reason = "Tauri maps named IPC arguments; retain the guarded wire contract"
+)]
 pub async fn preset_apply_channel(
     session: State<'_, Session>,
     path: String,
@@ -286,6 +290,10 @@ pub async fn preset_apply_plugin(
     blocking(move || session.preset_apply_plugin(&path, target, generation, revision)).await
 }
 #[tauri::command]
+#[allow(
+    clippy::too_many_arguments,
+    reason = "Tauri maps named IPC arguments; retain the guarded wire contract"
+)]
 pub async fn plugins_insert(
     app: AppHandle,
     session: State<'_, Session>,

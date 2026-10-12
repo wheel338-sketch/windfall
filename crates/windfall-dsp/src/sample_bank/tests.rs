@@ -174,24 +174,28 @@ fn live_style_partitions_match_offline_pcm_with_loops_and_envelopes() {
 #[test]
 fn invalid_pcm_mapping_and_loops_fail_before_publication() {
     assert!(SampleBank::new(vec![zone(f32::NAN, SampleZone::default())]).is_err());
-    assert!(SampleBank::new(vec![zone(
-        0.0,
-        SampleZone {
-            key_low: 100,
-            key_high: 2,
-            ..Default::default()
-        }
-    )])
-    .is_err());
-    assert!(SampleBank::new(vec![zone(
-        0.0,
-        SampleZone {
-            loop_mode: BankLoop::Continuous,
-            loop_end: 5000,
-            ..Default::default()
-        }
-    )])
-    .is_err());
+    assert!(
+        SampleBank::new(vec![zone(
+            0.0,
+            SampleZone {
+                key_low: 100,
+                key_high: 2,
+                ..Default::default()
+            }
+        )])
+        .is_err()
+    );
+    assert!(
+        SampleBank::new(vec![zone(
+            0.0,
+            SampleZone {
+                loop_mode: BankLoop::Continuous,
+                loop_end: 5000,
+                ..Default::default()
+            }
+        )])
+        .is_err()
+    );
 }
 #[test]
 fn speech_render_is_deterministic_bounded_and_cancellable() {

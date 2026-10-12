@@ -104,16 +104,30 @@ impl Editor {
         self.info
     }
 
-    pub fn set_scale(&mut self, instance: &mut PluginInstance<WindfallHost>, application: f64) -> Result<EditorInfo, EditorError> {
+    pub fn set_scale(
+        &mut self,
+        instance: &mut PluginInstance<WindfallHost>,
+        application: f64,
+    ) -> Result<EditorInfo, EditorError> {
         #[cfg(windows)]
         {
             let window = self.window.as_ref().ok_or(EditorError::UnsupportedScale)?;
-            let factor = crate::gui::scaling::content_scale(application, crate::gui::win32::window_scale(window.window.handle()))?;
+            let factor = crate::gui::scaling::content_scale(
+                application,
+                crate::gui::win32::window_scale(window.window.handle()),
+            )?;
             let plugin = instance.plugin_handle();
-            self.gui.set_scale(&plugin, factor).map_err(|_| EditorError::UnsupportedScale)?;
-            let size = self.gui.get_size(&plugin).ok_or_else(|| EditorError::Failed("scaled editor did not supply a size".into()))?;
+            self.gui
+                .set_scale(&plugin, factor)
+                .map_err(|_| EditorError::UnsupportedScale)?;
+            let size = self
+                .gui
+                .get_size(&plugin)
+                .ok_or_else(|| EditorError::Failed("scaled editor did not supply a size".into()))?;
             if !(1..=32768).contains(&size.width) || !(1..=32768).contains(&size.height) {
-                return Err(EditorError::Failed("invalid scaled editor dimensions".into()));
+                return Err(EditorError::Failed(
+                    "invalid scaled editor dimensions".into(),
+                ));
             }
             self.apply_requested_size(size.width, size.height);
             Ok(self.info)
@@ -266,11 +280,11 @@ mod embedded {
         gui.create(&plugin, configuration)
             .map_err(failed("the plugin could not create its editor"))?;
         // A plugin that refuses the scale reads it from the system itself.
-        if let Err(error) = gui.set_scale(&plugin, system_scale() * options.scale) {
-            if options.scale != 1.0 {
-                gui.destroy(&plugin);
-                return Err(failed("plugin refused editor scaling")(error));
-            }
+        if let Err(error) = gui.set_scale(&plugin, system_scale() * options.scale)
+            && options.scale != 1.0
+        {
+            gui.destroy(&plugin);
+            return Err(failed("plugin refused editor scaling")(error));
         }
         let size = gui.get_size(&plugin).unwrap_or(FALLBACK_SIZE);
         let resizable = gui.can_resize(&plugin);

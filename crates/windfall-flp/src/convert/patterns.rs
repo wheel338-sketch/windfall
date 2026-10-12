@@ -20,8 +20,16 @@ impl Builder<'_> {
         let mut groups: BTreeMap<u32, Vec<&crate::model::ControlEvent>> = BTreeMap::new();
         let budget = crate::parse::MAX_RECORDED_CONTROL_EVENTS;
         if events.len() > budget {
-            self.report.count(section, Outcome::Dropped, (events.len() - budget).min(u32::MAX as usize) as u32);
-            self.report.say(section, Outcome::Dropped, "Recorded controls exceed the import event budget.");
+            self.report.count(
+                section,
+                Outcome::Dropped,
+                (events.len() - budget).min(u32::MAX as usize) as u32,
+            );
+            self.report.say(
+                section,
+                Outcome::Dropped,
+                "Recorded controls exceed the import event budget.",
+            );
         }
         for event in events.iter().take(budget) {
             groups.entry(event.location).or_default().push(event);
@@ -29,7 +37,8 @@ impl Builder<'_> {
         for (location, events) in groups {
             let source = crate::target::ControlTarget::decode(location);
             let Some(target) = self.automation_target(source) else {
-                self.report.count(section, Outcome::Dropped, events.len() as u32);
+                self.report
+                    .count(section, Outcome::Dropped, events.len() as u32);
                 self.report.say(section, Outcome::Dropped,
                     format!("Recorded pattern target {location:#010x} is unsupported; source event records remain in the FLP reader model."));
                 continue;
@@ -38,22 +47,48 @@ impl Builder<'_> {
             let mut accepted = 0;
             for event in &events {
                 let tick = units::rescale(event.position, self.ppq).ticks;
-                let Some(value) = self.recorded_value(source, &target, event.value) else { continue; };
-                if tick > u64::from(MAX_PATTERN_TICKS) ||
-                    (points.len() >= MAX_AUTOMATION_POINTS && !points.contains_key(&(tick as u32))) {
+                let Some(value) = self.recorded_value(source, &target, event.value) else {
+                    continue;
+                };
+                if tick > u64::from(MAX_PATTERN_TICKS)
+                    || (points.len() >= MAX_AUTOMATION_POINTS
+                        && !points.contains_key(&(tick as u32)))
+                {
                     continue;
                 }
-                points.insert(tick as u32, AutomationPoint { tick: tick as u32, value, curve: 0.0, hold: true });
+                points.insert(
+                    tick as u32,
+                    AutomationPoint {
+                        tick: tick as u32,
+                        value,
+                        curve: 0.0,
+                        hold: true,
+                    },
+                );
                 accepted += 1;
             }
-            if accepted != 0 && self.apply(section, "Recorded pattern automation", Command::SetPatternEvents {
-                pattern, target, expected: Vec::new(), points: points.into_values().collect(),
-            }).is_some() {
+            if accepted != 0
+                && self
+                    .apply(
+                        section,
+                        "Recorded pattern automation",
+                        Command::SetPatternEvents {
+                            pattern,
+                            target,
+                            expected: Vec::new(),
+                            points: points.into_values().collect(),
+                        },
+                    )
+                    .is_some()
+            {
                 self.report.count(section, Outcome::Approximated, accepted);
                 self.report.say(section, Outcome::Approximated,
                     "Recorded control integers were mapped to held pattern events; source interpolation and nonlinear control tapers may differ.");
-            } else { accepted = 0; }
-            self.report.count(section, Outcome::Dropped, events.len() as u32 - accepted);
+            } else {
+                accepted = 0;
+            }
+            self.report
+                .count(section, Outcome::Dropped, events.len() as u32 - accepted);
         }
     }
 
@@ -101,7 +136,14 @@ impl Builder<'_> {
                 })
                 .max()
                 .unwrap_or(u64::from(self.ppq) * 4);
-            let notes_end = notes_end.max(pattern.control_events.iter().map(|event| u64::from(event.position) + 1).max().unwrap_or(0));
+            let notes_end = notes_end.max(
+                pattern
+                    .control_events
+                    .iter()
+                    .map(|event| u64::from(event.position) + 1)
+                    .max()
+                    .unwrap_or(0),
+            );
             let source_length = pattern
                 .length
                 .filter(|l| *l != 0)

@@ -156,7 +156,7 @@ pub enum Message {
     },
     Load {
         #[serde(default)]
-        wrapper: crate::wrapper::WrapperOptions,
+        wrapper: Box<crate::wrapper::WrapperOptions>,
         mapping: String,
         settings: Settings,
         path: String,

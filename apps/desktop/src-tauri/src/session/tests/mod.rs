@@ -7,9 +7,11 @@ mod archive;
 mod audio_editor;
 mod audio_logger;
 mod beat;
+mod classical_analysis;
 mod clip_recording;
 mod consolidate;
 mod controllers;
+mod detached_windows;
 mod device_acceptance;
 mod document;
 mod effects;
@@ -24,11 +26,17 @@ mod library;
 mod mastering_qa;
 mod midi;
 mod midi_hardware;
+#[cfg(windows)]
+mod mixer_preset_native;
 #[path = "../mixer_presets_qa.rs"]
 mod mixer_presets_qa;
 #[path = "../mixer_render_qa.rs"]
 mod mixer_render_qa;
 mod nonlinear_performance;
+mod p2_convolver;
+mod pattern_movement;
+mod performance_media;
+mod piano_waveform;
 mod playback;
 mod playlist_bounce;
 mod playlist_export;
@@ -37,12 +45,13 @@ mod plugin_recording;
 mod plugin_update;
 #[cfg(windows)]
 mod plugins;
-mod piano_waveform;
-mod pattern_movement;
 mod project_preparation;
+mod rack_second_pass;
 mod recording;
 #[path = "../recording_completion_qa.rs"]
 mod recording_completion_qa;
+mod remote_cloud_content;
+mod sample_playback;
 mod sampler_preprocess;
 mod sampler_processing;
 mod scripting;
@@ -53,15 +62,6 @@ mod song;
 mod timeline;
 mod transport_acceptance;
 mod versions;
-mod classical_analysis;
-#[cfg(windows)]
-mod mixer_preset_native;
-mod rack_second_pass;
-mod performance_media;
-mod remote_cloud_content;
-mod detached_windows;
-mod p2_convolver;
-mod sample_playback;
 
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};

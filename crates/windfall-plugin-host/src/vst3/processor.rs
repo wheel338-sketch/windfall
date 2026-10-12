@@ -379,8 +379,12 @@ impl VstProcessor {
                 }
             }
         }
-        let midi_fallback = expression_masks.iter().all(|mask| mask & NoteExpressionKind::Tuning.mask() == 0) &&
-            midi_expression.iter().any(|assignments| assignments[2].is_some());
+        let midi_fallback = expression_masks
+            .iter()
+            .all(|mask| mask & NoteExpressionKind::Tuning.mask() == 0)
+            && midi_expression
+                .iter()
+                .any(|assignments| assignments[2].is_some());
         Ok(Self {
             objects,
             midi_mapping,
@@ -504,8 +508,13 @@ impl VstProcessor {
     fn expression(&self, time: u32, id: u32, channel: u8, kind: NoteExpressionKind, value: f64) {
         if self.midi_fallback {
             if let Some(parameter) = self.midi_expression[channel as usize][kind as usize] {
-                let normalized = if kind == NoteExpressionKind::Tuning { (value + 1.0) / 2.0 } else { value };
-                self.parameters.push(parameter, time, normalized.clamp(0.0, 1.0));
+                let normalized = if kind == NoteExpressionKind::Tuning {
+                    (value + 1.0) / 2.0
+                } else {
+                    value
+                };
+                self.parameters
+                    .push(parameter, time, normalized.clamp(0.0, 1.0));
             }
             return;
         }
@@ -539,10 +548,19 @@ impl VstProcessor {
     }
 }
 impl ProcessorBackend for VstProcessor {
-    fn supports_midi_expression(&self) -> bool { self.event_input && self.midi_fallback }
+    fn supports_midi_expression(&self) -> bool {
+        self.event_input && self.midi_fallback
+    }
     fn midi_expression_mask(&self, channel: u8) -> u32 {
-        if !self.midi_fallback { return 0; }
-        self.midi_expression[channel.min(15) as usize].iter().enumerate().fold(0, |mask, (index, id)| mask | if id.is_some() { 1 << index } else { 0 })
+        if !self.midi_fallback {
+            return 0;
+        }
+        self.midi_expression[channel.min(15) as usize]
+            .iter()
+            .enumerate()
+            .fold(0, |mask, (index, id)| {
+                mask | if id.is_some() { 1 << index } else { 0 }
+            })
     }
     fn supports_note_instances(&self) -> bool {
         self.event_input
@@ -718,8 +736,16 @@ impl ProcessorBackend for VstProcessor {
                     self.release_instances(time);
                     for channel in 0..16 {
                         if self.midi_fallback {
-                            for (index, value) in [1.0, 0.5, 0.0, 0.5, 0.5, 0.5, 0.5].into_iter().enumerate() {
-                                self.expression(time, crate::events::FIRST_NOTE_INSTANCE_ID, channel as u8, NoteExpressionKind::from_raw(index as u32).unwrap(), value);
+                            for (index, value) in
+                                [1.0, 0.5, 0.0, 0.5, 0.5, 0.5, 0.5].into_iter().enumerate()
+                            {
+                                self.expression(
+                                    time,
+                                    crate::events::FIRST_NOTE_INSTANCE_ID,
+                                    channel as u8,
+                                    NoteExpressionKind::from_raw(index as u32).unwrap(),
+                                    value,
+                                );
                             }
                         }
                         for key in 0..128 {
@@ -821,21 +847,26 @@ impl ProcessorBackend for VstProcessor {
 fn r4_unexpected_native_point_refusal_counts_drops_without_false_readback_and_recovers() {
     let manifest = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
     let target = manifest.join("../../target/vst3-ownership-fixture");
-    let build = std::process::Command::new(env!("CARGO"))
-        .args(["build", "--manifest-path"])
-        .arg(manifest.join("test-plugins/Cargo.toml"))
-        .arg("--target-dir")
-        .arg(&target)
-        .env("CARGO_BUILD_JOBS", "1")
-        .output()
-        .unwrap();
-    assert!(
-        build.status.success(),
-        "{}",
-        String::from_utf8_lossy(&build.stderr)
-    );
-    let path = target.join("point-refusal.vst3");
-    std::fs::copy(target.join("debug/windfall_test_plugins.dll"), &path).unwrap();
+    std::fs::create_dir_all(&target).unwrap();
+    let path = target.join(format!("point-refusal-{}.vst3", std::process::id()));
+    if let Some(source) = std::env::var_os("WINDFALL_BRIDGE_FIXTURE") {
+        std::fs::copy(source, &path).unwrap();
+    } else {
+        let build = std::process::Command::new(env!("CARGO"))
+            .args(["build", "--manifest-path"])
+            .arg(manifest.join("test-plugins/Cargo.toml"))
+            .arg("--target-dir")
+            .arg(&target)
+            .env("CARGO_BUILD_JOBS", "1")
+            .output()
+            .unwrap();
+        assert!(
+            build.status.success(),
+            "{}",
+            String::from_utf8_lossy(&build.stderr)
+        );
+        std::fs::copy(target.join("debug/windfall_test_plugins.dll"), &path).unwrap();
+    }
     let module = crate::PluginHost::windfall().load(&path).unwrap();
     let mut instance = module.create(&module.descriptors()[0].id).unwrap();
     let mut processor = instance.activate(48_000.0, 64).unwrap();

@@ -17,9 +17,9 @@ fn imported_source_state_and_missing_live_instances_survive_file_and_history_rou
     seed.dispatch(
         Command::AddPluginInstrument {
             plugin: PluginBinding {
-            sidechain_input: None,
-            auxiliary_inputs: Vec::new(),
-            wrapper: Default::default(),
+                sidechain_input: None,
+                auxiliary_inputs: Vec::new(),
+                wrapper: Default::default(),
                 // AddPluginInstrument allocates the actual owner, independent of this hint.
                 target: PluginTarget::Instrument {
                     channel: ChannelId(999),

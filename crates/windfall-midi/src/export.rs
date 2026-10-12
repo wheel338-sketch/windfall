@@ -255,7 +255,10 @@ pub fn export_song_reported(
         }
         // Match song playback: an instrument lane places only its linked
         // channel, even when the pattern contains other channels or slides.
-        let only = playlist.arrangement_book.linked_tracks.get(&clip.track)
+        let only = playlist
+            .arrangement_book
+            .linked_tracks
+            .get(&clip.track)
             .and_then(|kind| match *kind {
                 TrackKind::Instrument { channel } => Some(channel),
                 _ => None,

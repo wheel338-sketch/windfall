@@ -803,8 +803,11 @@ impl Plan {
 
     /// Works out the lists that follow from the channels and the chains.
     fn link(&mut self) {
-        self._asset_pins = windfall_dsp::asset::AssetPins::for_effects(self.tracks.iter()
-            .flat_map(|track| track.effects.iter().map(|effect| &effect.params)));
+        self._asset_pins = windfall_dsp::asset::AssetPins::for_effects(
+            self.tracks
+                .iter()
+                .flat_map(|track| track.effects.iter().map(|effect| &effect.params)),
+        );
         for track in &mut self.tracks {
             track.instruments.clear();
         }

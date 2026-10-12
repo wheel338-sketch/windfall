@@ -293,7 +293,9 @@ fn enable_song_play_dump_preserves_sample_alignment_through_playlist_and_reopen(
     assert_eq!(recovered.samples(), played);
     let bursts = |audio: &[f32]| {
         audio
-            .chunks_exact(2)
+            .as_chunks::<2>()
+            .0
+            .iter()
             .enumerate()
             .filter(|(_, frame)| frame[0].abs() > 1e-4)
             .map(|(frame, _)| frame)

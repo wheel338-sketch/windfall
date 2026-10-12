@@ -195,7 +195,7 @@ fn dc_routes_generate_calibrated_samples_only_on_chosen_spare_channels() {
     processor.process(&mut out);
     assert_eq!(processor.unavailable_dc_routes(), 0);
     assert!(out.iter().all(|v| *v == 0.0));
-    for frame in processor.hardware_samples().chunks_exact(4) {
+    for frame in processor.hardware_samples().as_chunks::<4>().0 {
         assert_eq!(frame[0], 0.0);
         assert_eq!(frame[1], 0.0);
         assert!((frame[2] - 0.2).abs() < 1e-6);

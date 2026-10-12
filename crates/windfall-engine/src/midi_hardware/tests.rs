@@ -86,7 +86,7 @@ fn engine_with_loop(loop_mode: SamplerLoopMode) -> (Processor, Controller) {
         group: String::new(),
         voice: Default::default(),
         expression_map: Default::default(),
-            sample_instrument: None,
+        sample_instrument: None,
         timing: windfall_project::ChannelTiming::default(),
         mixer_track: TrackId::MASTER,
         source: ChannelSource::Sampler(SamplerSettings {
@@ -239,24 +239,45 @@ fn hardware_sustain_filter_and_multichannel_release_are_exact() {
 
 #[test]
 fn accepted_hardware_chord_feed_defers_sustain_filters_repeats_and_releases_on_panic() {
-    struct Recorded { controller: Controller, notes: Arc<Mutex<Vec<(u8, u8)>>> }
+    struct Recorded {
+        controller: Controller,
+        notes: Arc<Mutex<Vec<(u8, u8)>>>,
+    }
     impl Audition for Recorded {
         fn note(&self, epoch: u64, key: u8, velocity: u8) -> bool {
-            let accepted = self.controller.hardware_note(epoch, ChannelId(901), key, velocity);
-            if accepted { self.notes.lock().unwrap().push((key, velocity)); }
+            let accepted = self
+                .controller
+                .hardware_note(epoch, ChannelId(901), key, velocity);
+            if accepted {
+                self.notes.lock().unwrap().push((key, velocity));
+            }
             accepted
         }
     }
     let (_, controller, mut worker, state) = rig();
     let notes = Arc::new(Mutex::new(Vec::new()));
-    worker.audition = Arc::new(Recorded { controller, notes: notes.clone() });
+    worker.audition = Arc::new(Recorded {
+        controller,
+        notes: notes.clone(),
+    });
     worker.state.settings.input_channel = Some(1);
-    for bytes in [[0x90, 60, 100], [0x90, 64, 100], [0x90, 67, 100], [0x90, 64, 110],
-        [0xb0, 64, 127], [0x80, 60, 0], [0x80, 64, 0], [0x91, 80, 100]] {
+    for bytes in [
+        [0x90, 60, 100],
+        [0x90, 64, 100],
+        [0x90, 67, 100],
+        [0x90, 64, 110],
+        [0xb0, 64, 127],
+        [0x80, 60, 0],
+        [0x80, 64, 0],
+        [0x91, 80, 100],
+    ] {
         input(&state, &bytes);
     }
     worker.service();
-    assert_eq!(*notes.lock().unwrap(), vec![(60, 100), (64, 100), (67, 100), (64, 110)]);
+    assert_eq!(
+        *notes.lock().unwrap(),
+        vec![(60, 100), (64, 100), (67, 100), (64, 110)]
+    );
     input(&state, &[0xb0, 123, 0]);
     worker.service();
     assert_eq!(&notes.lock().unwrap()[4..], &[(60, 0), (64, 0), (67, 0)]);

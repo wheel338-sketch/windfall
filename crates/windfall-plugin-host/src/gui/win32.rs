@@ -237,7 +237,11 @@ pub(crate) fn system_scale() -> f64 {
 pub(crate) fn window_scale(handle: HWND) -> f64 {
     // SAFETY: caller owns a live editor HWND on its GUI thread; read-only call.
     let dpi = unsafe { GetDpiForWindow(handle) };
-    if dpi == 0 { system_scale() } else { f64::from(dpi) / 96.0 }
+    if dpi == 0 {
+        system_scale()
+    } else {
+        f64::from(dpi) / 96.0
+    }
 }
 
 pub(crate) fn pump_events(wait: Option<Duration>) {

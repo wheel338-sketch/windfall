@@ -27,9 +27,9 @@
 //! plus the latency of its own effects. The master's figure is the latency
 //! of the whole engine, [`PlanState::latency`].
 
-use std::sync::Arc;
 use std::collections::HashMap;
 use std::ops::Range;
+use std::sync::Arc;
 
 use windfall_core::{PanLaw, db_to_gain};
 use windfall_dsp::GainReductionMeter;
@@ -1145,7 +1145,10 @@ impl PlanState {
         });
         // Large echo histories are admitted before anything is prepared.
         let admission = crate::effect_host::HistoryAdmission::of(plan, sample_rate)?;
-        let new_histories = plan.tracks.iter().flat_map(|track| &track.effects)
+        let new_histories = plan
+            .tracks
+            .iter()
+            .flat_map(|track| &track.effects)
             .filter(|effect| !effect.leaving)
             .filter(|effect| {
                 let target = windfall_project::PluginTarget::Effect { effect: effect.id };
@@ -1334,7 +1337,8 @@ impl PlanState {
                     plan.tempo_bpm,
                     admission.budget(kind),
                     kind.history_bytes(sample_rate as f32)
-                        .map(|bytes| echo_reservation.take(bytes)).transpose()?,
+                        .map(|bytes| echo_reservation.take(bytes))
+                        .transpose()?,
                 )?;
                 if let Some(binding) = plan.plugins.iter().find(|binding| binding.target == target)
                 {
@@ -1407,12 +1411,20 @@ impl PlanState {
             let target = windfall_project::PluginTarget::Instrument {
                 channel: channel.id,
             };
-            let same_bank = match (channel.sample_bank.as_ref(), held.and_then(|held| held.sample_banks.get(&channel.id))) {
-                (Some(a),Some(b)) => Arc::ptr_eq(a,b), (None,None) => true, _ => false,
+            let same_bank = match (
+                channel.sample_bank.as_ref(),
+                held.and_then(|held| held.sample_banks.get(&channel.id)),
+            ) {
+                (Some(a), Some(b)) => Arc::ptr_eq(a, b),
+                (None, None) => true,
+                _ => false,
             };
-            if let Some(bank) = &channel.sample_bank { ledger.sample_banks.insert(channel.id,bank.clone()); }
-            let known = same_bank && held.and_then(|held| held.instruments.get(&channel.id))
-                == Some(&(kind, channel.instrument_asset.clone()))
+            if let Some(bank) = &channel.sample_bank {
+                ledger.sample_banks.insert(channel.id, bank.clone());
+            }
+            let known = same_bank
+                && held.and_then(|held| held.instruments.get(&channel.id))
+                    == Some(&(kind, channel.instrument_asset.clone()))
                 && held.and_then(|held| held.sample_playback.get(&channel.id))
                     == channel
                         .sample_playback
@@ -1448,7 +1460,9 @@ impl PlanState {
                     if let Some(rack) = prepared_racks.remove(&channel.id) {
                         unit.install_rack(rack);
                     }
-                    if let Some(bank) = &channel.sample_bank { unit.install_sample_bank(bank.clone()); }
+                    if let Some(bank) = &channel.sample_bank {
+                        unit.install_sample_bank(bank.clone());
+                    }
                     unit.configure_voice(
                         crate::channel_voice::PreparedChannelEnvelopes::prepare(
                             channel.voice.envelopes,
@@ -1460,7 +1474,7 @@ impl PlanState {
                             .glide_coefficient(f64::from(sample_rate)),
                     );
                     unit.set_expression_map(channel.expression_map);
-                unit.set_note_pan_law(plan.pan_law);
+                    unit.set_note_pan_law(plan.pan_law);
                     if let Some(binding) =
                         plan.plugins.iter().find(|binding| binding.target == target)
                     {

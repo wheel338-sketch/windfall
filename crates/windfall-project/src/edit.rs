@@ -173,8 +173,12 @@ impl Edit {
             Self::SetMixerTrack(change) => [Some(&change.old), Some(&change.new)],
             _ => [None, None],
         };
-        windfall_dsp::asset::AssetPins::for_effects(tracks.into_iter().flatten()
-            .flat_map(|track| track.effects.iter().map(|effect| &effect.params)))
+        windfall_dsp::asset::AssetPins::for_effects(
+            tracks
+                .into_iter()
+                .flatten()
+                .flat_map(|track| track.effects.iter().map(|effect| &effect.params)),
+        )
     }
 
     pub(crate) fn apply(&self, project: &mut Project, direction: Direction) {

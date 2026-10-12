@@ -569,9 +569,10 @@ fn real_ports_are_listed_and_the_first_output_takes_a_second_of_clock() {
 fn injected_audio_clock_and_port_measure_compensated_notes_and_clock_jitter() {
     use crate::recording_clock::OutputClock;
     use std::sync::atomic::AtomicU64;
+    type MeasuredMessages = Arc<Mutex<Vec<(u64, Vec<u8>)>>>;
     struct Measured {
         now: Arc<AtomicU64>,
-        sent: Arc<Mutex<Vec<(u64, Vec<u8>)>>>,
+        sent: MeasuredMessages,
     }
     impl Output for Measured {
         fn latency_nanos(&self) -> u64 {

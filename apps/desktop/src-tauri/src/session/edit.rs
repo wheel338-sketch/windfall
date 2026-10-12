@@ -399,23 +399,44 @@ impl Session {
     pub fn redo_from_window(&self, generation: u64) -> Result<Option<ProjectPatch>, String> {
         self.history_from_window(generation, HistoryMove::Redo)
     }
-    pub fn history_jump_from_window(&self, generation: u64, cursor: u32) -> Result<ProjectPatch, String> {
+    pub fn history_jump_from_window(
+        &self,
+        generation: u64,
+        cursor: u32,
+    ) -> Result<ProjectPatch, String> {
         self.history_from_window(generation, HistoryMove::Jump(cursor))?
             .ok_or_else(|| "The history operation was superseded".into())
     }
-    fn history_from_window(&self, generation: u64, action: HistoryMove) -> Result<Option<ProjectPatch>, String> {
-        if self.window_document_generation() != generation { return Err(super::PROJECT_REPLACED.into()); }
+    fn history_from_window(
+        &self,
+        generation: u64,
+        action: HistoryMove,
+    ) -> Result<Option<ProjectPatch>, String> {
+        if self.window_document_generation() != generation {
+            return Err(super::PROJECT_REPLACED.into());
+        }
         let result = self.prepare_history(action, Some(generation));
-        if self.window_document_generation() != generation { return Err(super::PROJECT_REPLACED.into()); }
+        if self.window_document_generation() != generation {
+            return Err(super::PROJECT_REPLACED.into());
+        }
         Ok(result)
     }
 
     // History can refer to a variant evicted from the bounded cache. Compile
     // its target snapshot before reacquiring the session lock as well.
-    fn prepare_history(&self, action: HistoryMove, generation: Option<u64>) -> Option<ProjectPatch> {
+    fn prepare_history(
+        &self,
+        action: HistoryMove,
+        generation: Option<u64>,
+    ) -> Option<ProjectPatch> {
         self.prepare_history_guarded(action, None, generation)
     }
-    fn prepare_history_guarded(&self, action: HistoryMove, expected: Option<windfall_project::proposal::ProposalStamp>, generation: Option<u64>) -> Option<ProjectPatch> {
+    fn prepare_history_guarded(
+        &self,
+        action: HistoryMove,
+        expected: Option<windfall_project::proposal::ProposalStamp>,
+        generation: Option<u64>,
+    ) -> Option<ProjectPatch> {
         drop(self.recording_idle().ok()?);
         for _ in 0..8 {
             let (
@@ -435,7 +456,9 @@ impl Session {
                 }) {
                     return None;
                 }
-                if generation.is_some_and(|generation| state.generation != generation) { return None; }
+                if generation.is_some_and(|generation| state.generation != generation) {
+                    return None;
+                }
                 (
                     state.document.clone(),
                     state.pool.clone(),

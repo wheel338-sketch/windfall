@@ -593,36 +593,88 @@ fn make_unique_copies_sources_and_redirects_only_chosen_clip() {
 #[test]
 fn independent_timeline_capture_switch_copy_delete_and_legacy_load_are_checked_and_undoable() {
     let (mut doc, _, _) = fixture();
-    let first = edit(&mut doc, Command::AddArrangement {
-        name: "Verse".into(), clips: vec![], tracks: vec![],
-    })[0];
-    edit(&mut doc, Command::AddTimelineMarker { tick: 960, name: "Verse".into(), kind: MarkerKind::Named });
+    let first = edit(
+        &mut doc,
+        Command::AddArrangement {
+            name: "Verse".into(),
+            clips: vec![],
+            tracks: vec![],
+        },
+    )[0];
+    edit(
+        &mut doc,
+        Command::AddTimelineMarker {
+            tick: 960,
+            name: "Verse".into(),
+            kind: MarkerKind::Named,
+        },
+    );
     edit(&mut doc, Command::CaptureArrangementTimeline { id: first });
-    let second = edit(&mut doc, Command::AddArrangementLayout { name: "Chorus".into(), copy: false })[0];
+    let second = edit(
+        &mut doc,
+        Command::AddArrangementLayout {
+            name: "Chorus".into(),
+            copy: false,
+        },
+    )[0];
     assert!(doc.project().playlist.timeline.is_empty());
-    edit(&mut doc, Command::AddMeterChange { tick: 0, signature: TimeSignature { numerator: 3, denominator: 4 } });
-    edit(&mut doc, Command::AddTimelineMarker { tick: 1920, name: "Chorus".into(), kind: MarkerKind::Named });
+    edit(
+        &mut doc,
+        Command::AddMeterChange {
+            tick: 0,
+            signature: TimeSignature {
+                numerator: 3,
+                denominator: 4,
+            },
+        },
+    );
+    edit(
+        &mut doc,
+        Command::AddTimelineMarker {
+            tick: 1920,
+            name: "Chorus".into(),
+            kind: MarkerKind::Named,
+        },
+    );
     let chorus = doc.project().playlist.timeline.clone();
     edit(&mut doc, Command::SwitchArrangement { id: first });
     assert_eq!(doc.project().playlist.timeline.markers[0].name, "Verse");
     edit(&mut doc, Command::SwitchArrangement { id: second });
     assert_eq!(doc.project().playlist.timeline, chorus);
-    let copied = edit(&mut doc, Command::AddArrangementLayout { name: "Chorus copy".into(), copy: true })[0];
+    let copied = edit(
+        &mut doc,
+        Command::AddArrangementLayout {
+            name: "Chorus copy".into(),
+            copy: true,
+        },
+    )[0];
     assert_eq!(doc.project().playlist.timeline.markers[0].name, "Chorus");
-    assert_ne!(doc.project().playlist.timeline.markers[0].id, chorus.markers[0].id);
+    assert_ne!(
+        doc.project().playlist.timeline.markers[0].id,
+        chorus.markers[0].id
+    );
     edit(&mut doc, Command::RemoveArrangement { id: copied });
     assert_eq!(doc.project().playlist.timeline, chorus);
     let before = doc.project().clone();
     let history = doc.history().cursor;
-    assert!(doc.dispatch(Command::CaptureArrangementTimeline { id: first }, None).is_err());
+    assert!(
+        doc.dispatch(Command::CaptureArrangementTimeline { id: first }, None)
+            .is_err()
+    );
     assert_eq!(doc.project(), &before);
     assert_eq!(doc.history().cursor, history);
     // A v1 document without the added field keeps the historical shared timeline.
-    let mut legacy: serde_json::Value = serde_json::from_str(&file::to_json(doc.project()).unwrap()).unwrap();
-    legacy["playlist"]["arrangementBook"].as_object_mut().unwrap().remove("timelines");
+    let mut legacy: serde_json::Value =
+        serde_json::from_str(&file::to_json(doc.project()).unwrap()).unwrap();
+    legacy["playlist"]["arrangementBook"]
+        .as_object_mut()
+        .unwrap()
+        .remove("timelines");
     let loaded = file::from_json(&serde_json::to_string(&legacy).unwrap()).unwrap();
     assert!(loaded.playlist.arrangement_book.timelines.is_empty());
     let mut legacy_doc = Document::new(loaded);
-    legacy_doc.dispatch(Command::SwitchArrangement { id: first }, None).unwrap();
+    legacy_doc
+        .dispatch(Command::SwitchArrangement { id: first }, None)
+        .unwrap();
     assert_eq!(legacy_doc.project().playlist.timeline, chorus);
 }

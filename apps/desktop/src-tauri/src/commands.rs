@@ -29,65 +29,143 @@ use windfall_ipc::{MidiExportOptions, MidiImportOptions, MidiImportPreview};
 // Native analysis controls. Slow preparation, cleanup and joining stay on
 // blocking tasks; cancellation itself never waits for the preparation gate.
 #[tauri::command]
-async fn sample_instrument_load_bank(session: State<'_, Session>, channel: ChannelId,
-    expected: Option<windfall_project::SampleInstrumentAsset>, path: String) -> Result<DispatchResult, String> {
+async fn sample_instrument_load_bank(
+    session: State<'_, Session>,
+    channel: ChannelId,
+    expected: Option<windfall_project::SampleInstrumentAsset>,
+    path: String,
+) -> Result<DispatchResult, String> {
     let session = session.inner().clone();
     blocking(move || session.sample_instrument_load_bank(channel, expected, path)).await
 }
 #[tauri::command]
-async fn sample_instrument_save_bank(session: State<'_, Session>, channel: ChannelId,
-    expected: Option<windfall_project::SampleInstrumentAsset>, path: String) -> Result<(), String> {
+async fn sample_instrument_save_bank(
+    session: State<'_, Session>,
+    channel: ChannelId,
+    expected: Option<windfall_project::SampleInstrumentAsset>,
+    path: String,
+) -> Result<(), String> {
     let session = session.inner().clone();
     blocking(move || session.sample_instrument_save_bank(channel, expected, path)).await
 }
 #[tauri::command]
-async fn sample_instrument_import_zone(session: State<'_, Session>, channel: ChannelId,
-    expected: Option<windfall_project::SampleInstrumentAsset>, path: String, pad: Option<u8>) -> Result<DispatchResult, String> {
+async fn sample_instrument_import_zone(
+    session: State<'_, Session>,
+    channel: ChannelId,
+    expected: Option<windfall_project::SampleInstrumentAsset>,
+    path: String,
+    pad: Option<u8>,
+) -> Result<DispatchResult, String> {
     let session = session.inner().clone();
     blocking(move || session.sample_instrument_import_zone(channel, expected, path, pad)).await
 }
 #[tauri::command]
-async fn soundfont_presets(session: State<'_,Session>, path: String) -> Result<Vec<windfall_dsp::sample_bank::soundfont::SoundFontPreset>,String> {
-    let session = session.inner().clone(); blocking(move || session.soundfont_presets(&path)).await
+async fn soundfont_presets(
+    session: State<'_, Session>,
+    path: String,
+) -> Result<Vec<windfall_dsp::sample_bank::soundfont::SoundFontPreset>, String> {
+    let session = session.inner().clone();
+    blocking(move || session.soundfont_presets(&path)).await
 }
 #[tauri::command]
-async fn sample_instrument_speech(session: State<'_,Session>, channel: ChannelId,
-    expected: Option<windfall_project::SampleInstrumentAsset>, text: String, pitch: f32, duration: f32) -> Result<DispatchResult,String> {
-    let session = session.inner().clone(); blocking(move || session.sample_instrument_speech(channel,expected,text,pitch,duration)).await
+async fn sample_instrument_speech(
+    session: State<'_, Session>,
+    channel: ChannelId,
+    expected: Option<windfall_project::SampleInstrumentAsset>,
+    text: String,
+    pitch: f32,
+    duration: f32,
+) -> Result<DispatchResult, String> {
+    let session = session.inner().clone();
+    blocking(move || session.sample_instrument_speech(channel, expected, text, pitch, duration))
+        .await
 }
 
 #[tauri::command]
-fn phone_remote_state(session: State<'_, Session>) -> windfall_ipc::RemoteSettingsState { session.phone_remote_state() }
-#[tauri::command]
-async fn phone_remote_set(session: State<'_, Session>, address: Option<String>) -> Result<windfall_ipc::RemoteSettingsState, String> {
-    let session=session.inner().clone(); blocking(move ||session.phone_remote_set(address.as_deref())).await
+fn phone_remote_state(session: State<'_, Session>) -> windfall_ipc::RemoteSettingsState {
+    session.phone_remote_state()
 }
 #[tauri::command]
-async fn backup_versions(session: State<'_, Session>, folder: String) -> Result<Vec<windfall_ipc::BackupVersion>,String> {
-    let session=session.inner().clone(); blocking(move ||session.backup_versions(&folder)).await
+async fn phone_remote_set(
+    session: State<'_, Session>,
+    address: Option<String>,
+) -> Result<windfall_ipc::RemoteSettingsState, String> {
+    let session = session.inner().clone();
+    blocking(move || session.phone_remote_set(address.as_deref())).await
 }
 #[tauri::command]
-async fn backup_save(session: State<'_, Session>, folder: String, expected: Option<String>, keep: usize, generation: u64) -> Result<windfall_ipc::BackupVersion,String> {
-    let job=session.backup_job()?;
-    let session=session.inner().clone(); blocking(move ||session.backup_save_with(&folder,expected.as_deref(),keep,generation,job)).await
+async fn backup_versions(
+    session: State<'_, Session>,
+    folder: String,
+) -> Result<Vec<windfall_ipc::BackupVersion>, String> {
+    let session = session.inner().clone();
+    blocking(move || session.backup_versions(&folder)).await
 }
 #[tauri::command]
-async fn backup_restore(session: State<'_, Session>, folder: String, id: String, target: String) -> Result<String,String> {
-    let job=session.backup_job()?;
-    let session=session.inner().clone(); blocking(move ||session.backup_restore_with(&folder,&id,&target,job)).await
+async fn backup_save(
+    session: State<'_, Session>,
+    folder: String,
+    expected: Option<String>,
+    keep: usize,
+    generation: u64,
+) -> Result<windfall_ipc::BackupVersion, String> {
+    let job = session.backup_job()?;
+    let session = session.inner().clone();
+    blocking(move || session.backup_save_with(&folder, expected.as_deref(), keep, generation, job))
+        .await
 }
 #[tauri::command]
-fn backup_cancel(session: State<'_, Session>) { session.backup_cancel(); }
+async fn backup_restore(
+    session: State<'_, Session>,
+    folder: String,
+    id: String,
+    target: String,
+) -> Result<String, String> {
+    let job = session.backup_job()?;
+    let session = session.inner().clone();
+    blocking(move || session.backup_restore_with(&folder, &id, &target, job)).await
+}
 #[tauri::command]
-fn loop_catalog(session: State<'_, Session>) -> windfall_ipc::LoopCatalog { session.loop_catalog() }
+fn backup_cancel(session: State<'_, Session>) {
+    session.backup_cancel();
+}
 #[tauri::command]
-async fn loop_preview(session: State<'_, Session>, id: String) -> Result<(),String> {
-    let session=session.inner().clone(); blocking(move ||session.loop_preview(&id)).await
+fn loop_catalog(session: State<'_, Session>) -> windfall_ipc::LoopCatalog {
+    session.loop_catalog()
+}
+#[tauri::command]
+async fn loop_preview(session: State<'_, Session>, id: String) -> Result<(), String> {
+    let session = session.inner().clone();
+    blocking(move || session.loop_preview(&id)).await
 }
 #[tauri::command]
 #[allow(clippy::too_many_arguments)]
-async fn loop_insert(session: State<'_, Session>, id: String, key: Option<u8>, track: Option<PlaylistTrackId>, start: u32, generation:u64, revision:u64, row:Option<usize>) -> Result<DispatchResult,String> {
-    let session=session.inner().clone(); blocking(move ||session.loop_insert_with_rows(&id,key,ClipPlace {track,start,mixer_track:None},generation,revision,row)).await
+async fn loop_insert(
+    session: State<'_, Session>,
+    id: String,
+    key: Option<u8>,
+    track: Option<PlaylistTrackId>,
+    start: u32,
+    generation: u64,
+    revision: u64,
+    row: Option<usize>,
+) -> Result<DispatchResult, String> {
+    let session = session.inner().clone();
+    blocking(move || {
+        session.loop_insert_with_rows(
+            &id,
+            key,
+            ClipPlace {
+                track,
+                start,
+                mixer_track: None,
+            },
+            generation,
+            revision,
+            row,
+        )
+    })
+    .await
 }
 #[tauri::command]
 fn analysis_capability(session: State<'_, Session>) -> windfall_ipc::AnalysisCapability {
@@ -148,7 +226,11 @@ async fn analysis_review(
     blocking(move || session.analysis_review(&ticket)).await
 }
 #[tauri::command]
-async fn analysis_preview(session: State<'_, Session>, ticket: String, role: String) -> Result<(), String> {
+async fn analysis_preview(
+    session: State<'_, Session>,
+    ticket: String,
+    role: String,
+) -> Result<(), String> {
     let session = session.inner().clone();
     blocking(move || session.analysis_preview(&ticket, &role)).await
 }
@@ -383,33 +465,55 @@ async fn audio_editor_discard(session: State<'_, Session>, token: u32) -> Result
 }
 
 #[tauri::command]
-async fn audio_editor_regions(session: State<'_, Session>, token: u32, regions: Vec<windfall_project::AudioRegion>) -> Result<DispatchResult, String> {
+async fn audio_editor_regions(
+    session: State<'_, Session>,
+    token: u32,
+    regions: Vec<windfall_project::AudioRegion>,
+) -> Result<DispatchResult, String> {
     let session = session.inner().clone();
     blocking(move || session.audio_editor_regions(token, regions)).await
 }
 
 #[tauri::command]
-async fn audio_editor_transfer(session: State<'_, Session>, request: windfall_ipc::AudioEditTransferRequest) -> Result<DispatchResult, String> {
+async fn audio_editor_transfer(
+    session: State<'_, Session>,
+    request: windfall_ipc::AudioEditTransferRequest,
+) -> Result<DispatchResult, String> {
     let session = session.inner().clone();
     blocking(move || session.audio_editor_transfer(request)).await
 }
 #[tauri::command]
-async fn audio_analysis_detect(session: State<'_, Session>, token: u32, polyphonic: bool) -> Result<windfall_ipc::AudioAnalysisPreview, String> {
+async fn audio_analysis_detect(
+    session: State<'_, Session>,
+    token: u32,
+    polyphonic: bool,
+) -> Result<windfall_ipc::AudioAnalysisPreview, String> {
     let session = session.inner().clone();
     blocking(move || session.audio_analysis_detect(token, polyphonic)).await
 }
 #[tauri::command]
-async fn audio_analysis_audition(session: State<'_, Session>, edit: windfall_ipc::AudioAnalysisEdit, dry: bool) -> Result<(), String> {
+async fn audio_analysis_audition(
+    session: State<'_, Session>,
+    edit: windfall_ipc::AudioAnalysisEdit,
+    dry: bool,
+) -> Result<(), String> {
     let session = session.inner().clone();
     blocking(move || session.audio_analysis_audition(edit, dry)).await
 }
 #[tauri::command]
-async fn audio_analysis_apply(session: State<'_, Session>, edit: windfall_ipc::AudioAnalysisEdit) -> Result<DispatchResult, String> {
+async fn audio_analysis_apply(
+    session: State<'_, Session>,
+    edit: windfall_ipc::AudioAnalysisEdit,
+) -> Result<DispatchResult, String> {
     let session = session.inner().clone();
     blocking(move || session.audio_analysis_apply(edit)).await
 }
 #[tauri::command]
-async fn audio_analysis_send_midi(session: State<'_, Session>, edit: windfall_ipc::AudioAnalysisEdit, selected: Vec<u32>) -> Result<DispatchResult, String> {
+async fn audio_analysis_send_midi(
+    session: State<'_, Session>,
+    edit: windfall_ipc::AudioAnalysisEdit,
+    selected: Vec<u32>,
+) -> Result<DispatchResult, String> {
     let session = session.inner().clone();
     blocking(move || session.audio_analysis_send_midi(edit, selected)).await
 }
@@ -426,19 +530,29 @@ fn automate(
 }
 
 #[tauri::command]
-async fn undo(session: State<'_, Session>, generation: u64) -> Result<Option<ProjectPatch>, String> {
+async fn undo(
+    session: State<'_, Session>,
+    generation: u64,
+) -> Result<Option<ProjectPatch>, String> {
     let session = session.inner().clone();
     blocking(move || session.undo_from_window(generation)).await
 }
 
 #[tauri::command]
-async fn redo(session: State<'_, Session>, generation: u64) -> Result<Option<ProjectPatch>, String> {
+async fn redo(
+    session: State<'_, Session>,
+    generation: u64,
+) -> Result<Option<ProjectPatch>, String> {
     let session = session.inner().clone();
     blocking(move || session.redo_from_window(generation)).await
 }
 
 #[tauri::command]
-async fn history_jump(session: State<'_, Session>, cursor: u32, generation: u64) -> Result<ProjectPatch, String> {
+async fn history_jump(
+    session: State<'_, Session>,
+    cursor: u32,
+    generation: u64,
+) -> Result<ProjectPatch, String> {
     let session = session.inner().clone();
     blocking(move || session.history_jump_from_window(generation, cursor)).await
 }
@@ -888,7 +1002,10 @@ async fn sampler_preprocess(
 }
 
 #[tauri::command]
-async fn sampler_preprocess_preview(session: State<'_, Session>, request: windfall_ipc::SamplerPreprocessRequest) -> Result<windfall_ipc::SampleInfo, String> {
+async fn sampler_preprocess_preview(
+    session: State<'_, Session>,
+    request: windfall_ipc::SamplerPreprocessRequest,
+) -> Result<windfall_ipc::SampleInfo, String> {
     let session = session.inner().clone();
     blocking(move || session.sampler_preprocess_preview(request)).await
 }
@@ -1009,9 +1126,15 @@ async fn plugin_editor(
     open: bool,
 ) -> Result<(), String> {
     #[cfg(windows)]
-    let parent = app.get_webview_window("main").and_then(|window| window.hwnd().ok()).map(|handle| handle.0 as usize);
+    let parent = app
+        .get_webview_window("main")
+        .and_then(|window| window.hwnd().ok())
+        .map(|handle| handle.0 as usize);
     #[cfg(not(windows))]
-    let parent = { let _ = app; None };
+    let parent = {
+        let _ = app;
+        None
+    };
     let runtime = manager.runtime.clone();
     let session = session.inner().clone();
     blocking(move || {
@@ -1300,7 +1423,11 @@ pub fn handler() -> impl Fn(Invoke) -> bool + Send + Sync + 'static {
 
 #[tauri::command]
 async fn sample_playback_export(
-    session: State<'_, Session>, channel: ChannelId, path: String, generation: u64, revision: u64,
+    session: State<'_, Session>,
+    channel: ChannelId,
+    path: String,
+    generation: u64,
+    revision: u64,
 ) -> Result<(), String> {
     let session = session.inner().clone();
     blocking(move || session.sample_playback_export(channel, &path, generation, revision)).await
@@ -1618,32 +1745,62 @@ fn analyzer_smoke_enabled() -> bool {
 }
 
 #[tauri::command]
-async fn analyzer_smoke_control(session: State<'_, Session>, operation: String, value: Option<f64>) -> Result<serde_json::Value, String> {
+async fn analyzer_smoke_control(
+    session: State<'_, Session>,
+    operation: String,
+    value: Option<f64>,
+) -> Result<serde_json::Value, String> {
     let session = session.inner().clone();
     blocking(move || crate::analyzer_smoke::control(&session, &operation, value)).await
 }
 
 #[tauri::command]
-fn performance_pad(session: State<'_, Session>, track: u8, scene: Option<u8>, generation: u64, revision: u64) -> Result<(), String> {
+fn performance_pad(
+    session: State<'_, Session>,
+    track: u8,
+    scene: Option<u8>,
+    generation: u64,
+    revision: u64,
+) -> Result<(), String> {
     session.performance_pad(track, scene, generation, revision)
 }
 #[tauri::command]
-fn performance_stop_all(session: State<'_, Session>) { session.performance_stop_all(); }
+fn performance_stop_all(session: State<'_, Session>) {
+    session.performance_stop_all();
+}
 #[tauri::command]
-fn performance_state(session: State<'_, Session>) -> windfall_ipc::PerformanceState { session.performance_state() }
+fn performance_state(session: State<'_, Session>) -> windfall_ipc::PerformanceState {
+    session.performance_state()
+}
 
 #[tauri::command]
-async fn media_render_audio(session: State<'_, Session>, range: windfall_project::TickRange, generation: u64, revision: u64) -> Result<windfall_ipc::MediaRenderAudio, String> {
+async fn media_render_audio(
+    session: State<'_, Session>,
+    range: windfall_project::TickRange,
+    generation: u64,
+    revision: u64,
+) -> Result<windfall_ipc::MediaRenderAudio, String> {
     let session = session.inner().clone();
     blocking(move || session.media_render_audio(range, generation, revision)).await
 }
 
 #[tauri::command]
-fn performance_scene(session: State<'_, Session>, scene: u8, generation: u64, revision: u64) -> Result<(), String> {
+fn performance_scene(
+    session: State<'_, Session>,
+    scene: u8,
+    generation: u64,
+    revision: u64,
+) -> Result<(), String> {
     session.performance_scene(scene, generation, revision)
 }
 #[tauri::command]
-async fn media_video_read(session: State<'_, Session>, path: String, generation: u64) -> Result<tauri::ipc::Response, String> {
+async fn media_video_read(
+    session: State<'_, Session>,
+    path: String,
+    generation: u64,
+) -> Result<tauri::ipc::Response, String> {
     let session = session.inner().clone();
-    blocking(move || session.media_video_read(&path, generation)).await.map(tauri::ipc::Response::new)
+    blocking(move || session.media_video_read(&path, generation))
+        .await
+        .map(tauri::ipc::Response::new)
 }

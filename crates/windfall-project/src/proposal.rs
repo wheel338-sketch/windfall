@@ -44,10 +44,7 @@ impl CommandProposal {
                         == &(SettingsPatch {
                             tempo_bpm: patch.tempo_bpm,
                             ..SettingsPatch::default()
-                        }) =>
-                {
-                    ()
-                }
+                        }) => {}
                 Command::AddPattern { .. }
                 | Command::UpdatePattern { .. }
                 | Command::AddChannel { .. }

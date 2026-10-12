@@ -1,6 +1,6 @@
 //! Calibrated acceptance fixtures. Written, not executed by implementation worker.
 use std::time::Duration;
-use windfall_analysis::{classical, CancelToken, Work};
+use windfall_analysis::{CancelToken, Work, classical};
 use windfall_core::AudioBuffer;
 use windfall_project::{
     AudioDenoiseSettings, AudioEditRecipe, AudioNoteOverride, AudioWarpMarker, Clip, ClipContent,
@@ -120,20 +120,26 @@ fn repeated_and_held_notes_silence_and_polyphonic_chord() {
     )
     .unwrap();
     for key in [60.0, 64.0, 67.0] {
-        assert!(chord
-            .notes
-            .iter()
-            .any(|n| (n.midi_pitch - key).abs() < 0.1 && n.end_frame - n.start_frame > 24000));
+        assert!(
+            chord
+                .notes
+                .iter()
+                .any(|n| (n.midi_pitch - key).abs() < 0.1 && n.end_frame - n.start_frame > 24000)
+        );
     }
     let silent = AudioBuffer::from_interleaved(16000, 1, vec![0.0; 16000]);
-    assert!(classical::detect(&silent, false, &mut work())
-        .unwrap()
-        .notes
-        .is_empty());
-    assert!(classical::detect(&silent, true, &mut work())
-        .unwrap()
-        .notes
-        .is_empty());
+    assert!(
+        classical::detect(&silent, false, &mut work())
+            .unwrap()
+            .notes
+            .is_empty()
+    );
+    assert!(
+        classical::detect(&silent, true, &mut work())
+            .unwrap()
+            .notes
+            .is_empty()
+    );
 }
 #[test]
 fn glide_vibrato_and_noise_keep_bounded_estimates() {
@@ -157,10 +163,11 @@ fn glide_vibrato_and_noise_keep_bounded_estimates() {
         );
         let data = classical::detect(&audio, false, &mut work()).unwrap();
         assert!(!data.notes.is_empty());
-        assert!(data
-            .notes
-            .iter()
-            .all(|n| (55.0..71.0).contains(&n.midi_pitch)));
+        assert!(
+            data.notes
+                .iter()
+                .all(|n| (55.0..71.0).contains(&n.midi_pitch))
+        );
     }
     let mut seed = 777_u32;
     let noise = AudioBuffer::from_interleaved(
@@ -173,10 +180,12 @@ fn glide_vibrato_and_noise_keep_bounded_estimates() {
             })
             .collect(),
     );
-    assert!(classical::detect(&noise, false, &mut work())
-        .unwrap()
-        .notes
-        .is_empty());
+    assert!(
+        classical::detect(&noise, false, &mut work())
+            .unwrap()
+            .notes
+            .is_empty()
+    );
 }
 #[test]
 fn warp_order_bounds_overrides_and_cancel_are_explicit() {
@@ -336,10 +345,13 @@ fn corrected_note_duration_pitch_and_stereo_seams_match_waveform_reference() {
         .map(|i| (out.samples()[i * 2] - out.samples()[(i - 1) * 2]).abs())
         .fold(0.0_f32, f32::max);
     assert!(max_step < 0.1, "seam adjacent-sample step {max_step}");
-    assert!(out
-        .samples()
-        .chunks_exact(2)
-        .all(|f| (f[0] + f[1]).abs() < 1e-4));
+    assert!(
+        out.samples()
+            .as_chunks::<2>()
+            .0
+            .iter()
+            .all(|f| (f[0] + f[1]).abs() < 1e-4)
+    );
     assert_eq!(stereo.samples()[100], -stereo.samples()[101]);
     let review = classical::reviewed_notes(&r).unwrap();
     assert_eq!((review[0].start_frame, review[0].end_frame), (0, 24000));
@@ -389,10 +401,13 @@ fn stationary_hum_profile_preserves_tone_stereo_and_linear_wet_mix() {
     for (i, value) in mix.samples().iter().enumerate() {
         assert!((*value - (wet.samples()[i] * 0.35 + noisy[i] * 0.65)).abs() < 1e-6);
     }
-    assert!(wet
-        .samples()
-        .chunks_exact(2)
-        .all(|f| (f[0] + f[1]).abs() < 1e-6));
+    assert!(
+        wet.samples()
+            .as_chunks::<2>()
+            .0
+            .iter()
+            .all(|f| (f[0] + f[1]).abs() < 1e-6)
+    );
     assert_eq!(audio.samples(), noisy);
 }
 

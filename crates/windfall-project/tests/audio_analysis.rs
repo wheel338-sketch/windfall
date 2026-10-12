@@ -109,9 +109,10 @@ fn processing_metadata_legacy_defaults_history_reopen_and_retained_source() {
     )
     .unwrap();
     assert_eq!(doc.history().cursor, cursor + 1);
-    assert!(doc
-        .dispatch(Command::RemoveSample { id: source }, None)
-        .is_err());
+    assert!(
+        doc.dispatch(Command::RemoveSample { id: source }, None)
+            .is_err()
+    );
     let json = file::to_json(doc.project()).unwrap();
     let loaded = file::from_json(&json).unwrap();
     assert_eq!(loaded.sample(derived).unwrap().processing, Some(recipe));
@@ -133,15 +134,16 @@ fn shorter_warp_duration_and_crossing_note_anchors_are_checked_atomically() {
     });
     let before = doc.project().clone();
     let cursor = doc.history().cursor;
-    assert!(doc
-        .dispatch(
+    assert!(
+        doc.dispatch(
             Command::SetSampleProcessing {
                 id: derived,
                 processing: Some(recipe)
             },
             None
         )
-        .is_err());
+        .is_err()
+    );
     assert_eq!(doc.project(), &before);
     assert_eq!(doc.history().cursor, cursor);
 }

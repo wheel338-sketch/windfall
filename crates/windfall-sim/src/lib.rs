@@ -39,8 +39,8 @@ use std::sync::{Mutex, MutexGuard, Once, PoisonError};
 
 use serde::{Deserialize, Serialize};
 use windfall_project::Document;
-mod midi;
 mod files;
+mod midi;
 mod preset_files;
 mod slicer;
 mod timeline;
@@ -143,9 +143,13 @@ pub mod ops {
         let tags: Vec<String> = super::parse("library tags", input)?;
         super::json(&windfall_ipc::normalize_tags(&tags)?)
     }
-    pub use crate::preset_files::{doc_preset_capture, doc_preset_command, preset_parse, preset_entry};
-    pub use crate::files::{doc_score_capture, doc_score_command, doc_score_write, score_read, plugin_database_view};
+    pub use crate::files::{
+        doc_score_capture, doc_score_command, doc_score_write, plugin_database_view, score_read,
+    };
     pub use crate::midi::{doc_midi_export, doc_midi_import, midi_preview};
+    pub use crate::preset_files::{
+        doc_preset_capture, doc_preset_command, preset_entry, preset_parse,
+    };
     pub use crate::slicer::{sample_playback_detect, slice_analyze, slice_command};
     pub use crate::timeline::{timeline_position, timeline_range};
     use serde::Deserialize;

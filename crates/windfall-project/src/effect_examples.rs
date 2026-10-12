@@ -37,43 +37,59 @@ pub const EFFECT_EXAMPLES: &[EffectExample] = &[
         kind: EffectKind::MasterLimiter,
         name: "Gentle level and color",
         file_name: "gentle-level-and-color.wfpreset",
-        project_json: include_str!("../../../docs/examples/dynamics-eq/gentle-level-and-color.windfall"),
+        project_json: include_str!(
+            "../../../docs/examples/dynamics-eq/gentle-level-and-color.windfall"
+        ),
         bytes: include_bytes!("../../../docs/examples/dynamics-eq/gentle-level-and-color.wfpreset"),
     },
     EffectExample {
         kind: EffectKind::BassHarmonics,
         name: "Bass octave support",
         file_name: "bass-octave-support.wfpreset",
-        project_json: include_str!("../../../docs/examples/dynamics-eq/bass-octave-support.windfall"),
+        project_json: include_str!(
+            "../../../docs/examples/dynamics-eq/bass-octave-support.windfall"
+        ),
         bytes: include_bytes!("../../../docs/examples/dynamics-eq/bass-octave-support.wfpreset"),
     },
     EffectExample {
         kind: EffectKind::MultibandMaximizer,
         name: "Balanced band lift",
         file_name: "balanced-band-lift.wfpreset",
-        project_json: include_str!("../../../docs/examples/dynamics-eq/balanced-band-lift.windfall"),
+        project_json: include_str!(
+            "../../../docs/examples/dynamics-eq/balanced-band-lift.windfall"
+        ),
         bytes: include_bytes!("../../../docs/examples/dynamics-eq/balanced-band-lift.wfpreset"),
     },
     EffectExample {
         kind: EffectKind::FrequencyDelay,
         name: "Alternating short band echoes",
         file_name: "alternating-short-band-echoes.wfpreset",
-        project_json: include_str!("../../../docs/examples/dynamics-eq/alternating-short-band-echoes.windfall"),
-        bytes: include_bytes!("../../../docs/examples/dynamics-eq/alternating-short-band-echoes.wfpreset"),
+        project_json: include_str!(
+            "../../../docs/examples/dynamics-eq/alternating-short-band-echoes.windfall"
+        ),
+        bytes: include_bytes!(
+            "../../../docs/examples/dynamics-eq/alternating-short-band-echoes.wfpreset"
+        ),
     },
     EffectExample {
         kind: EffectKind::Spreader,
         name: "Short stereo space",
         file_name: "short-stereo-space.wfpreset",
-        project_json: include_str!("../../../docs/examples/dynamics-eq/short-stereo-space.windfall"),
+        project_json: include_str!(
+            "../../../docs/examples/dynamics-eq/short-stereo-space.windfall"
+        ),
         bytes: include_bytes!("../../../docs/examples/dynamics-eq/short-stereo-space.wfpreset"),
     },
     EffectExample {
         kind: EffectKind::MorphEq,
         name: "Low to high curve blend",
         file_name: "low-to-high-curve-blend.wfpreset",
-        project_json: include_str!("../../../docs/examples/dynamics-eq/low-to-high-curve-blend.windfall"),
-        bytes: include_bytes!("../../../docs/examples/dynamics-eq/low-to-high-curve-blend.wfpreset"),
+        project_json: include_str!(
+            "../../../docs/examples/dynamics-eq/low-to-high-curve-blend.windfall"
+        ),
+        bytes: include_bytes!(
+            "../../../docs/examples/dynamics-eq/low-to-high-curve-blend.wfpreset"
+        ),
     },
     EffectExample {
         kind: EffectKind::BandSplit,
@@ -86,56 +102,80 @@ pub const EFFECT_EXAMPLES: &[EffectExample] = &[
         kind: EffectKind::EchoBank,
         name: "Two linked filtered echoes",
         file_name: "two-linked-filtered-echoes.wfpreset",
-        project_json: include_str!("../../../docs/examples/dynamics-eq/two-linked-filtered-echoes.windfall"),
-        bytes: include_bytes!("../../../docs/examples/dynamics-eq/two-linked-filtered-echoes.wfpreset"),
+        project_json: include_str!(
+            "../../../docs/examples/dynamics-eq/two-linked-filtered-echoes.windfall"
+        ),
+        bytes: include_bytes!(
+            "../../../docs/examples/dynamics-eq/two-linked-filtered-echoes.wfpreset"
+        ),
     },
     EffectExample {
         kind: EffectKind::SelectableFilter,
         name: "Soft resonant lowpass",
         file_name: "soft-resonant-lowpass.wfpreset",
-        project_json: include_str!("../../../docs/examples/dynamics-eq/soft-resonant-lowpass.windfall"),
+        project_json: include_str!(
+            "../../../docs/examples/dynamics-eq/soft-resonant-lowpass.windfall"
+        ),
         bytes: include_bytes!("../../../docs/examples/dynamics-eq/soft-resonant-lowpass.wfpreset"),
     },
     EffectExample {
         kind: EffectKind::FilterBank,
         name: "Alternating drawn gate",
         file_name: "alternating-drawn-gate.wfpreset",
-        project_json: include_str!("../../../docs/examples/dynamics-eq/alternating-drawn-gate.windfall"),
+        project_json: include_str!(
+            "../../../docs/examples/dynamics-eq/alternating-drawn-gate.windfall"
+        ),
         bytes: include_bytes!("../../../docs/examples/dynamics-eq/alternating-drawn-gate.wfpreset"),
     },
     EffectExample {
         kind: EffectKind::MultibandCompressor,
         name: "Gentle three band control",
         file_name: "gentle-three-band-control.wfpreset",
-        project_json: include_str!("../../../docs/examples/dynamics-eq/gentle-three-band-control.windfall"),
-        bytes: include_bytes!("../../../docs/examples/dynamics-eq/gentle-three-band-control.wfpreset"),
+        project_json: include_str!(
+            "../../../docs/examples/dynamics-eq/gentle-three-band-control.windfall"
+        ),
+        bytes: include_bytes!(
+            "../../../docs/examples/dynamics-eq/gentle-three-band-control.wfpreset"
+        ),
     },
     EffectExample {
         kind: EffectKind::PanLfo,
         name: "Slow pan and pulse",
         file_name: "slow-pan-and-pulse.wfpreset",
-        project_json: include_str!("../../../docs/examples/dynamics-eq/slow-pan-and-pulse.windfall"),
+        project_json: include_str!(
+            "../../../docs/examples/dynamics-eq/slow-pan-and-pulse.windfall"
+        ),
         bytes: include_bytes!("../../../docs/examples/dynamics-eq/slow-pan-and-pulse.wfpreset"),
     },
     EffectExample {
         kind: EffectKind::StereoEnhancer,
         name: "Right offset and narrow sides",
         file_name: "right-offset-and-narrow-sides.wfpreset",
-        project_json: include_str!("../../../docs/examples/dynamics-eq/right-offset-and-narrow-sides.windfall"),
-        bytes: include_bytes!("../../../docs/examples/dynamics-eq/right-offset-and-narrow-sides.wfpreset"),
+        project_json: include_str!(
+            "../../../docs/examples/dynamics-eq/right-offset-and-narrow-sides.windfall"
+        ),
+        bytes: include_bytes!(
+            "../../../docs/examples/dynamics-eq/right-offset-and-narrow-sides.wfpreset"
+        ),
     },
     EffectExample {
         kind: EffectKind::OneKnob,
         name: "Moderate band enhancement",
         file_name: "moderate-band-enhancement.wfpreset",
-        project_json: include_str!("../../../docs/examples/dynamics-eq/moderate-band-enhancement.windfall"),
-        bytes: include_bytes!("../../../docs/examples/dynamics-eq/moderate-band-enhancement.wfpreset"),
+        project_json: include_str!(
+            "../../../docs/examples/dynamics-eq/moderate-band-enhancement.windfall"
+        ),
+        bytes: include_bytes!(
+            "../../../docs/examples/dynamics-eq/moderate-band-enhancement.wfpreset"
+        ),
     },
     EffectExample {
         kind: EffectKind::StageStack,
         name: "Warm safety stages",
         file_name: "warm-safety-stages.wfpreset",
-        project_json: include_str!("../../../docs/examples/dynamics-eq/warm-safety-stages.windfall"),
+        project_json: include_str!(
+            "../../../docs/examples/dynamics-eq/warm-safety-stages.windfall"
+        ),
         bytes: include_bytes!("../../../docs/examples/dynamics-eq/warm-safety-stages.wfpreset"),
     },
     EffectExample {

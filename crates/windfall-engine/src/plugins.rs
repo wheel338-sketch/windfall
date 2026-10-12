@@ -107,7 +107,9 @@ pub trait HostedInstrument: HostedEffect {
     /// translation into plugin expressions to the provider. Called when the
     /// unit is installed and, on the audio thread, when a plan changes the
     /// map: no allocation, lock, wait or native call.
-    fn set_note_pan_law(&mut self, law: windfall_core::PanLaw) { let _ = law; }
+    fn set_note_pan_law(&mut self, law: windfall_core::PanLaw) {
+        let _ = law;
+    }
     fn set_expression_map(&mut self, map: windfall_dsp::ExpressionMap) {
         let _ = map;
     }
@@ -172,7 +174,9 @@ pub(crate) fn identity(binding: &PluginBinding) -> u64 {
     binding.id.hash(&mut hash);
     binding.format.hash(&mut hash);
     binding.state.hash(&mut hash);
-    if !binding.wrapper.is_default() { binding.wrapper.hash(&mut hash); }
+    if !binding.wrapper.is_default() {
+        binding.wrapper.hash(&mut hash);
+    }
     for parameter in &binding.parameters {
         parameter.id.hash(&mut hash);
     }

@@ -80,7 +80,9 @@ pub(super) fn pattern_metadata(
     rate: u32,
     passes: u32,
 ) -> Result<WavMetadata, String> {
-    let pattern = project.pattern(pattern).ok_or("The export pattern no longer exists.")?;
+    let pattern = project
+        .pattern(pattern)
+        .ok_or("The export pattern no longer exists.")?;
     let length = pattern.length_ticks();
     let per_tick = windfall_core::samples_per_tick(project.settings.tempo_bpm, f64::from(rate));
     let frame = |tick: f64| -> Result<u32, String> {
@@ -112,15 +114,23 @@ pub(super) fn pattern_metadata(
         }
         for lane in &pattern.lanes {
             let solo = project.channels.iter().any(|c| c.solo);
-            let Some(channel) = project.channel(lane.channel)
-                .filter(|c| !c.muted && (!solo || c.solo)) else {
+            let Some(channel) = project
+                .channel(lane.channel)
+                .filter(|c| !c.muted && (!solo || c.solo))
+            else {
                 continue;
             };
             for note in &lane.notes {
                 if let Some((tick, _)) = channel.timing.place(
-                    note.start, note.length, length, f64::from(project.settings.swing),
+                    note.start,
+                    note.length,
+                    length,
+                    f64::from(project.settings.swing),
                 ) {
-                    cue(origin + tick, format!("{}: MIDI {}", channel.name, note.key))?;
+                    cue(
+                        origin + tick,
+                        format!("{}: MIDI {}", channel.name, note.key),
+                    )?;
                 }
             }
         }
@@ -129,7 +139,8 @@ pub(super) fn pattern_metadata(
     if pattern.timeline.meters.is_empty() && length.is_multiple_of(windfall_project::PPQ) {
         metadata.tempo = Some(WavTempo {
             bpm: project.settings.tempo_bpm as f32,
-            beats: (length / windfall_project::PPQ).checked_mul(passes)
+            beats: (length / windfall_project::PPQ)
+                .checked_mul(passes)
                 .ok_or("The pattern beat count exceeds the WAV metadata range.")?,
             numerator: u16::from(signature.numerator),
             denominator: u16::from(signature.denominator),
@@ -137,7 +148,10 @@ pub(super) fn pattern_metadata(
             one_shot: true,
         });
     }
-    metadata.validate(Some(u64::from(frame(f64::from(length) * f64::from(passes))?)))
+    metadata
+        .validate(Some(u64::from(frame(
+            f64::from(length) * f64::from(passes),
+        )?)))
         .map_err(|e| e.to_string())?;
     Ok(metadata)
 }

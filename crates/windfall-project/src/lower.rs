@@ -34,12 +34,12 @@ use crate::model::{
 
 type Label = &'static str;
 
+mod audio_regions;
 mod instrument_assets;
 mod playlist_layouts;
 /// Preset commands, lowered beside the rest so they share its transaction.
 mod preset_apply;
 mod sample_playback;
-mod audio_regions;
 
 /// What a command did to the project.
 pub(crate) struct Outcome {
@@ -155,7 +155,11 @@ pub(crate) fn execute(project: &mut Project, command: Command) -> Result<Outcome
             if old != new {
                 transaction.push(Edit::Settings(Change { old, new }));
             }
-            let followed = transaction.project.settings.stage_media.followed(transaction.project);
+            let followed = transaction
+                .project
+                .settings
+                .stage_media
+                .followed(transaction.project);
             if followed != transaction.project.settings.stage_media {
                 let old = transaction.project.settings.clone();
                 let mut new = old.clone();
@@ -304,16 +308,25 @@ impl Transaction<'_> {
         let current = &self.project.playlist.arrangement_book;
         let timeline = if !current.timelines.is_empty() || !next.timelines.is_empty() {
             if let Some(id) = current.active
-                && next.arrangements.iter().any(|a| a.id == id) {
-                next.timelines.insert(id, self.project.playlist.timeline.clone());
+                && next.arrangements.iter().any(|a| a.id == id)
+            {
+                next.timelines
+                    .insert(id, self.project.playlist.timeline.clone());
             }
             if current.active != next.active {
-                next.active.map(|id| next.timelines.entry(id).or_default().clone())
-            } else { None }
-        } else { None };
+                next.active
+                    .map(|id| next.timelines.entry(id).or_default().clone())
+            } else {
+                None
+            }
+        } else {
+            None
+        };
         let mut proposed = self.project.clone();
         proposed.playlist.arrangement_book = next.clone();
-        if let Some(timeline) = &timeline { proposed.playlist.timeline = timeline.clone(); }
+        if let Some(timeline) = &timeline {
+            proposed.playlist.timeline = timeline.clone();
+        }
         proposed.next_id = cursor;
         proposed.check().map_err(CommandError::invalid)?;
         let old = self.project.playlist.arrangement_book.clone();
@@ -432,8 +445,13 @@ impl Transaction<'_> {
         let label = match command {
             Command::CaptureArrangementTimeline { id } => {
                 let mut book = self.project.playlist.arrangement_book.clone();
-                if book.active != Some(id) { return Err(CommandError::invalid("Capture the active arrangement timeline only.")); }
-                book.timelines.insert(id, self.project.playlist.timeline.clone());
+                if book.active != Some(id) {
+                    return Err(CommandError::invalid(
+                        "Capture the active arrangement timeline only.",
+                    ));
+                }
+                book.timelines
+                    .insert(id, self.project.playlist.timeline.clone());
                 self.replace_arrangement_book(Ok(book), self.project.next_id)?;
                 "Capture arrangement timeline"
             }
@@ -1339,10 +1357,15 @@ impl Transaction<'_> {
             Command::SetPluginWrapper { target, options } => {
                 options.validate().map_err(CommandError::invalid)?;
                 let mut plugins = self.project.plugins.clone();
-                let plugin = plugins.iter_mut().find(|plugin| plugin.target == target)
+                let plugin = plugins
+                    .iter_mut()
+                    .find(|plugin| plugin.target == target)
                     .ok_or_else(|| CommandError::invalid("the plugin is not in this project"))?;
                 plugin.wrapper = options;
-                self.push(Edit::Plugins(Change { old: self.project.plugins.clone(), new: plugins }));
+                self.push(Edit::Plugins(Change {
+                    old: self.project.plugins.clone(),
+                    new: plugins,
+                }));
                 "Change plugin wrapper"
             }
             Command::UpdateSettings { patch } => self.update_settings(patch)?,
@@ -1410,8 +1433,15 @@ impl Transaction<'_> {
                 if let Some(recipe) = &processing {
                     recipe.check().map_err(CommandError::invalid)?;
                     let source = recipe.source_clip.content.sample().expect("checked audio");
-                    if source == id || self.project.sample(source).is_none_or(|s|s.processing.is_some()) {
-                        return Err(CommandError::invalid("Processing needs a retained original sample."));
+                    if source == id
+                        || self
+                            .project
+                            .sample(source)
+                            .is_none_or(|s| s.processing.is_some())
+                    {
+                        return Err(CommandError::invalid(
+                            "Processing needs a retained original sample.",
+                        ));
                     }
                 }
                 let index = self.sample_index(id)?;
@@ -1420,8 +1450,12 @@ impl Transaction<'_> {
                 new.processing = processing;
                 self.push(Edit::SetSample(Change { old, new }));
                 "Audio analysis recipe"
-            },
-            Command::SetSampleRegions { sample, expected, regions } => self.set_sample_regions(sample, expected, regions)?,
+            }
+            Command::SetSampleRegions {
+                sample,
+                expected,
+                regions,
+            } => self.set_sample_regions(sample, expected, regions)?,
             Command::RemoveSample { id } => self.remove_sample(id)?,
             Command::AddChannel {
                 name,
@@ -1528,7 +1562,13 @@ impl Transaction<'_> {
                 self.set_channel_group(&channels, &group)?;
                 "Assign channel group"
             }
-            Command::InsertReviewedNotes { expected, channel, notes, remove, extend } => {
+            Command::InsertReviewedNotes {
+                expected,
+                channel,
+                notes,
+                remove,
+                extend,
+            } => {
                 if self.project.pattern(expected.id) != Some(&expected) {
                     return Err(CommandError::invalid("the reviewed pattern changed"));
                 }
@@ -1536,20 +1576,49 @@ impl Transaction<'_> {
                     return Err(CommandError::invalid("generate from 1 to 16384 notes"));
                 }
                 let lane = expected.lane(channel);
-                if remove.iter().any(|id| !lane.is_some_and(|lane| lane.notes.iter().any(|note| note.id == *id))) {
-                    return Err(CommandError::invalid("a replaced note is outside the reviewed lane"));
+                if remove.iter().any(|id| {
+                    !lane.is_some_and(|lane| lane.notes.iter().any(|note| note.id == *id))
+                }) {
+                    return Err(CommandError::invalid(
+                        "a replaced note is outside the reviewed lane",
+                    ));
                 }
-                let end = notes.iter().map(|note| u64::from(note.start) + u64::from(note.length)).max().unwrap_or(0);
+                let end = notes
+                    .iter()
+                    .map(|note| u64::from(note.start) + u64::from(note.length))
+                    .max()
+                    .unwrap_or(0);
                 if end > u64::from(MAX_PATTERN_TICKS) {
-                    return Err(CommandError::invalid("generated notes exceed the pattern limit"));
+                    return Err(CommandError::invalid(
+                        "generated notes exceed the pattern limit",
+                    ));
                 }
                 let mut commands = Vec::new();
-                if !remove.is_empty() { commands.push(Command::RemoveNotes { pattern: expected.id, channel, notes: remove }); }
-                commands.push(Command::AddNotes { pattern: expected.id, channel, notes });
-                if extend && end > u64::from(expected.length_steps * TICKS_PER_STEP) {
-                    commands.push(Command::UpdatePattern { id: expected.id, patch: PatternPatch { length_steps: Some((end as u32).div_ceil(TICKS_PER_STEP)), ..Default::default() } });
+                if !remove.is_empty() {
+                    commands.push(Command::RemoveNotes {
+                        pattern: expected.id,
+                        channel,
+                        notes: remove,
+                    });
                 }
-                return self.run(Command::Batch { label: Some("Generate riff".into()), commands });
+                commands.push(Command::AddNotes {
+                    pattern: expected.id,
+                    channel,
+                    notes,
+                });
+                if extend && end > u64::from(expected.length_steps * TICKS_PER_STEP) {
+                    commands.push(Command::UpdatePattern {
+                        id: expected.id,
+                        patch: PatternPatch {
+                            length_steps: Some((end as u32).div_ceil(TICKS_PER_STEP)),
+                            ..Default::default()
+                        },
+                    });
+                }
+                return self.run(Command::Batch {
+                    label: Some("Generate riff".into()),
+                    commands,
+                });
             }
             Command::RenameChannelGroup { name, new_name } => {
                 let name = checked_group_name(&name)?;
@@ -1589,31 +1658,62 @@ impl Transaction<'_> {
                 expected,
                 asset,
             } => self.set_instrument_asset(channel, expected, asset)?,
-            Command::SetSampleInstrumentAsset { channel, expected, asset } => {
+            Command::SetSampleInstrumentAsset {
+                channel,
+                expected,
+                asset,
+            } => {
                 let index = self.channel_index(channel)?;
                 let old = self.project.channels[index].clone();
-                if old.sample_instrument != expected { return Err(CommandError::invalid("sample instrument changed; reload its editor")); }
+                if old.sample_instrument != expected {
+                    return Err(CommandError::invalid(
+                        "sample instrument changed; reload its editor",
+                    ));
+                }
                 let kind = self.instrument(index)?.kind();
-                if let Some(asset) = &asset { asset.validate(self.project,kind).map_err(CommandError::invalid)?; }
-                let mut new = old.clone(); new.sample_instrument = asset;
+                if let Some(asset) = &asset {
+                    asset
+                        .validate(self.project, kind)
+                        .map_err(CommandError::invalid)?;
+                }
+                let mut new = old.clone();
+                new.sample_instrument = asset;
                 self.push(Edit::SetChannel(Box::new(Change { old, new })));
                 "Load sample instrument"
             }
-            Command::EditSampleZones { channel, expected, zones } => {
+            Command::EditSampleZones {
+                channel,
+                expected,
+                zones,
+            } => {
                 let index = self.channel_index(channel)?;
                 let kind = self.instrument(index)?.kind();
                 if !matches!(kind, InstrumentKind::MultiSampler | InstrumentKind::PadBank) {
-                    return Err(CommandError::invalid("this is a playback-only instrument; load a bank instead"));
+                    return Err(CommandError::invalid(
+                        "this is a playback-only instrument; load a bank instead",
+                    ));
                 }
                 let old = self.project.channels[index].clone();
                 let current = match &old.sample_instrument {
                     Some(crate::SampleInstrumentAsset::Zones { zones }) => zones.as_slice(),
-                    None => &[], _ => return Err(CommandError::invalid("this instrument does not have editable zones")),
+                    None => &[],
+                    _ => {
+                        return Err(CommandError::invalid(
+                            "this instrument does not have editable zones",
+                        ));
+                    }
                 };
-                if current != expected { return Err(CommandError::invalid("zone mapping changed; reload its editor")); }
+                if current != expected {
+                    return Err(CommandError::invalid(
+                        "zone mapping changed; reload its editor",
+                    ));
+                }
                 let asset = crate::SampleInstrumentAsset::Zones { zones };
-                asset.validate(self.project,kind).map_err(CommandError::invalid)?;
-                let mut new = old.clone(); new.sample_instrument = Some(asset);
+                asset
+                    .validate(self.project, kind)
+                    .map_err(CommandError::invalid)?;
+                let mut new = old.clone();
+                new.sample_instrument = Some(asset);
                 self.push(Edit::SetChannel(Box::new(Change { old, new })));
                 "Edit sample zones"
             }
@@ -2070,7 +2170,13 @@ impl Transaction<'_> {
         let id = SampleId(self.allocate()?);
         self.push(Edit::Sample(ListEdit::Insert {
             index: self.project.samples.len(),
-            item: SampleAsset { id, name, path, processing: None, regions: Vec::new() },
+            item: SampleAsset {
+                id,
+                name,
+                path,
+                processing: None,
+                regions: Vec::new(),
+            },
         }));
         self.created.push(id.0);
         Ok(label)
@@ -2090,13 +2196,21 @@ impl Transaction<'_> {
                 "the sample is still used by a Scratch effect",
             ));
         }
-        if self.project.samples.iter().any(|s| s.processing.as_ref()
-            .is_some_and(|r| r.source_clip.content.sample() == Some(id))) {
-            return Err(CommandError::invalid("The sample is retained by an audio analysis recipe."));
+        if self.project.samples.iter().any(|s| {
+            s.processing
+                .as_ref()
+                .is_some_and(|r| r.source_clip.content.sample() == Some(id))
+        }) {
+            return Err(CommandError::invalid(
+                "The sample is retained by an audio analysis recipe.",
+            ));
         }
         let channels = &self.project.channels;
         let user = channels.iter().find(|c| {
-            c.source.sample() == Some(id) || c.sample_instrument.as_ref().is_some_and(|a| a.samples().any(|sample| sample == id))
+            c.source.sample() == Some(id)
+                || c.sample_instrument
+                    .as_ref()
+                    .is_some_and(|a| a.samples().any(|sample| sample == id))
                 || c.sample_playback.as_ref().is_some_and(|a| a.references(id))
         });
         if let Some(channel) = user {
@@ -2193,7 +2307,7 @@ impl Transaction<'_> {
                 group: String::new(),
                 voice: Default::default(),
                 expression_map: Default::default(),
-            sample_instrument: None,
+                sample_instrument: None,
                 timing: crate::ChannelTiming::default(),
                 color,
                 volume: DEFAULT_CHANNEL_VOLUME,
@@ -4794,8 +4908,10 @@ impl Transaction<'_> {
     fn set_source(&mut self, index: usize, source: ChannelSource) {
         let old = self.project.channels[index].clone();
         let sample_instrument = match (&old.source, &source) {
-            (ChannelSource::Instrument { params: before, .. }, ChannelSource::Instrument { params: after, .. })
-                if before.kind() == after.kind() => old.sample_instrument.clone(),
+            (
+                ChannelSource::Instrument { params: before, .. },
+                ChannelSource::Instrument { params: after, .. },
+            ) if before.kind() == after.kind() => old.sample_instrument.clone(),
             _ => None,
         };
         let new = Channel {

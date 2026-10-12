@@ -539,24 +539,27 @@ impl Parser {
                 });
             }
             223 => {
-                if self.pattern.is_none() { return false; }
+                if self.pattern.is_none() {
+                    return false;
+                }
                 let records = data.as_chunks::<CONTROL_BYTES>().0;
-                let allowed = records.len().min(MAX_RECORDED_CONTROL_EVENTS - self.recorded_control_count);
+                let allowed = records
+                    .len()
+                    .min(MAX_RECORDED_CONTROL_EVENTS - self.recorded_control_count);
                 self.recorded_control_count += allowed;
                 let Some(pattern) = self.current_pattern() else {
                     return false;
                 };
                 pattern
                     .control_events
-                    .extend(records.iter().take(allowed).map(|record| {
-                        ControlEvent {
-                            position: u32_at(record, 0),
-                            location: u32_at(record, 4),
-                            value: u32_at(record, 8) as i32,
-                        }
+                    .extend(records.iter().take(allowed).map(|record| ControlEvent {
+                        position: u32_at(record, 0),
+                        location: u32_at(record, 4),
+                        value: u32_at(record, 8) as i32,
                     }));
                 if records.len() > allowed {
-                    *self.over_cap.entry("recorded control events").or_default() += records.len() - allowed;
+                    *self.over_cap.entry("recorded control events").or_default() +=
+                        records.len() - allowed;
                 }
                 if !data.len().is_multiple_of(CONTROL_BYTES) {
                     self.note(offset, "A recorded-control event has an incomplete 12-byte record; trailing bytes were not decoded.");
