@@ -1,5 +1,33 @@
 # E3 delay-family source contract
 
+## 2026-10-12 shared host admission
+
+The host now keeps a controller-wide echo-history pool across publications and
+stream attachments. Its retained limit is 1 GiB and peak limit is 1 GiB plus
+64 KiB of fixed staging headroom. Before constructing replacement effects, it
+atomically reserves the entire candidate's new echo payload against all
+installed, fading, queued, speculative and retiring owners. Reused owners are
+charged once. Leaving plan definitions also participate in the existing
+per-plan size check; omitting them from a later plan does not release their
+actual owner charge.
+
+A reservation moves with each prepared effect unit through callback adoption
+and retirement. It is released only after the concrete unit's history storage
+is destroyed on the control side. Candidate cancellation/failure returns unused
+payload and staging. Concurrent preparation includes other workers' staging
+conservatively in retained admission; zero-allocation owner reuse still proceeds.
+Old-rate owners stay charged during preparation at another rate. Standalone
+offline renderers have their own pool; this is a bound on echo payload for one
+controller, not a cap on all engine/plugin/audio-asset memory or allocator
+bookkeeping.
+
+New deterministic small-budget tests cover retained/peak refusal with unchanged
+installed PCM, full-budget parameter reuse, queued/cancelled candidates, fading
+and retirement capture/drop, changed-rate admission, and returning failed-build
+charges. Existing saturating-tail and processor preparation tests are retained.
+All additions are authored, not executed by the edit-only worker. See
+`docs/qa/2026-10-12-p2-fx-dyn-eq.md` for the integration hand-off.
+
 2026-10-11 continuation: both registered processors now have purpose-built
 editors (linked eight-unit routing and drawn sixteen-band delay/level/pan),
 fallible host admission and saturating aggregate tails. The original DSP

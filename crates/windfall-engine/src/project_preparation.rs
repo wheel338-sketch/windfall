@@ -3,6 +3,10 @@
 //! A lease owns no native units. Its caller keeps both the ready token and an
 //! outer retirement slot alive until all document/recording guards are gone.
 
+#[cfg(test)]
+#[path = "project_preparation/echo_history_tests.rs"]
+mod echo_history_tests;
+
 use super::*;
 use std::fmt;
 
@@ -246,6 +250,9 @@ impl PreparationSnapshot {
             ));
         }
         let mut plan = prepared.plan;
+        // Also retain the budget while detached: an old processor/retirement
+        // carrier can still own histories when its replacement attaches.
+        plan.echo_history = self.plan.echo_history.clone();
         if plan.meters.is_err() {
             return Err(ProjectPreparationError::Unsupported(
                 "Invalid song meter map; project preparation refused.",
