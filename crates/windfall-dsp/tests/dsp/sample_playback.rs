@@ -114,7 +114,9 @@ fn maximum_load_render(kind: InstrumentKind) {
         let value = match info.id {
             "baseKey" => Some(0.0),
             "rootKey" => Some(127.0),
-            "grainSizeMs" | "density" | "durationMs" | "level" => Some(info.max),
+            "grainSizeMs" | "density" | "level" => Some(info.max),
+            // All Wave voices traverse every curve interval during the render.
+            "durationMs" => Some(1000.0),
             _ => None,
         };
         if let Some(value) = value {
@@ -135,7 +137,11 @@ fn maximum_load_render(kind: InstrumentKind) {
             // Seventeen identified notes exercise deterministic stealing at 16.
             // High keys also reach the end of the slice and per-key curve tables.
             for voice in 0..=MAX_POLYPHONY {
-                let key = 112 + (voice % MAX_POLYPHONY) as u8;
+                let key = if kind == InstrumentKind::WaveRide {
+                    127
+                } else {
+                    112 + voice.min(MAX_POLYPHONY - 1) as u8
+                };
                 instrument.note_on_instance(
                     NoteInstanceId(voice as u64 + 1),
                     key,

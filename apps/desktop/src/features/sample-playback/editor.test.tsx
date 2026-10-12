@@ -109,12 +109,23 @@ describe("purpose-built sample instrument editors", () => {
       expect(on).toHaveBeenCalledWith(id, 60, 0.8)
       expect(off).toHaveBeenCalledWith(id, 60)
 
+      const patterns = useProjectStore.getState().project.patterns
       const saved = `/sample-workflow-${kind}.windfall`
       await act(() => backend.projectSave(saved)); await flush()
       await act(() => backend.projectNew()); await flush()
       await act(() => backend.projectOpen(saved)); await flush()
       expect(useProjectStore.getState().project.channels.find((c) => c.id === id)).toEqual(edited)
+      expect(useProjectStore.getState().project.patterns).toEqual(patterns)
       expect(screen.getByRole("combobox", { name: "Source A" })).toHaveTextContent(sample.name)
+      await user.click(screen.getByRole("combobox", { name: "Source A" }))
+      await user.click(await screen.findByRole("option", { name: "No source" }))
+      await flush()
+      expect(asset(id).sample).toBeNull()
+      await act(() => undo()); await flush()
+      expect(useProjectStore.getState().project.channels.find((c) => c.id === id)).toEqual(edited)
+      await act(() => redo()); await flush()
+      expect(asset(id).sample).toBeNull()
+      await act(() => undo()); await flush()
       const exported = vi.spyOn(backend, "exportAudio")
       act(() => useUiStore.getState().openDialog("export"))
       await user.click(screen.getByRole("button", { name: "Choose…" }))

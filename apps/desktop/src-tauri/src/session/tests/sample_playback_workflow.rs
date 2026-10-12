@@ -290,6 +290,35 @@ fn workflow(kind: InstrumentKind) {
     assert_eq!(export(&rig, "reopened.wav").samples(), edited.samples());
     assert_eq!(std::fs::read(&original_path).unwrap(), original_bytes);
 
+    // Opening starts a fresh history. A subsequent edit must still publish to
+    // the native engine and undo/redo without losing the reopened asset.
+    let reopened = rig.project();
+    let level = kind
+        .descriptors()
+        .iter()
+        .position(|p| p.id == "level")
+        .unwrap() as u32;
+    rig.session
+        .dispatch(
+            Command::SetInstrumentParam {
+                channel,
+                param: level,
+                value: 0.25,
+            },
+            None,
+        )
+        .unwrap();
+    let after_reopen_edit = rig.project();
+    let quieter = export(&rig, "reopened-edit.wav");
+    assert!(rms(quieter.samples()) < rms(edited.samples()) * 0.6);
+    rig.session.undo().unwrap();
+    assert_eq!(rig.project(), reopened);
+    assert_eq!(export(&rig, "reopened-undo.wav").samples(), edited.samples());
+    rig.session.redo().unwrap();
+    assert_eq!(rig.project(), after_reopen_edit);
+    assert_eq!(export(&rig, "reopened-redo.wav").samples(), quieter.samples());
+    rig.session.undo().unwrap();
+
     rig.session
         .transport_set(TransportPatch {
             mode: Some(PlayMode::Pattern),
