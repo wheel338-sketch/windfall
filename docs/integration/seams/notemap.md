@@ -1,8 +1,9 @@
 # Bounded note transforms
 
 Windfall's `notemap/` module contains note-event processors, with no audio processing
-or `EffectKind` registration. The module declaration is intentionally left for
-host integration; these types are not currently reachable through the crate root.
+or `EffectKind` registration. The modular-rack stream registers `pub mod notemap` and integrates these
+foundations through `dsp/rack_note.rs`, `project/rack.rs` and `engine/modular.rs`.
+See [the rack host seam](modular-rack.md).
 
 ## Types and parity scope
 
@@ -12,8 +13,8 @@ Non-finite velocity becomes zero before the processor applies its controls.
 
 All five processors are Copy + Default. Their corresponding `*Params` types are
 Copy + Default, serde camelCase, and `ts_rs::TS`, with every control described and
-addressed through `ParamSet` implemented by `param_set!`. No automatic TS export
-tests or binding generation are enabled here. Parameters are sanitized in
+addressed through `ParamSet` implemented by `param_set!`. RackNoteModule references now export these TS dependencies during the normal
+binding generator pass; fixed Rust tables have TS array views for editor copies. Parameters are sanitized in
 `set_params`; changes apply immediately without smoothing.
 
 | Processor / parameters | Parity ID | Behavior and limits |
@@ -68,7 +69,7 @@ UI, project persistence wiring, or registry integration.
 
 ## Validation
 
-Temporarily add exactly `pub mod notemap;` to `crates/windfall-dsp/src/lib.rs`.
+The declaration is now permanent; no temporary source changes are needed.
 From Git Bash (`C:\Program Files\Git\bin\bash.exe`) at the workspace root:
 
 ```bash
@@ -76,7 +77,7 @@ source scripts/msvc-env.sh
 cargo test -p windfall-dsp --lib notemap
 ```
 
-Remove only that temporary declaration afterward, preserving concurrent changes.
+Keep the permanent declaration: modular rack note processors depend on it.
 Unit tests under `notemap/tests.rs` cover color tables, velocity bounds,
 identity/colliding remaps, split boundary/drop compaction, tempo/gate/pitch/velocity,
 non-finite input, parameter descriptors, JSON tables, and TS declarations.

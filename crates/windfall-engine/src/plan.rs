@@ -116,6 +116,7 @@ pub(crate) struct Plan {
 #[derive(Debug, Clone)]
 pub(crate) struct PlanChannel {
     pub sample_playback: Option<Arc<crate::sample_playback::Prepared>>,
+    pub rack: Option<Arc<windfall_project::RackGraph>>,
     pub voice: windfall_project::ChannelVoiceSettings,
     /// What the stored controls of a note drive in this channel's voices.
     pub expression_map: windfall_dsp::ExpressionMap,
@@ -609,6 +610,7 @@ impl Plan {
             let track = previous.tracks[channel.track].id;
             self.channels.push(PlanChannel {
                 sample_playback: channel.sample_playback.clone(),
+                rack: channel.rack.clone(),
                 voice: channel.voice,
                 expression_map: channel.expression_map,
                 id: channel.id,
@@ -770,6 +772,7 @@ impl Plan {
                     sample_playback: channel.sample_playback.clone(),
                     voice: channel.voice,
                     expression_map: channel.expression_map,
+                    rack: channel.rack.clone(),
                     id: channel.id,
                     track: self
                         .track_ids
@@ -927,6 +930,7 @@ pub(crate) fn compile(project: &Project, pool: &SamplePool) -> Plan {
         .enumerate()
         .map(|(index, channel)| {
             let mut compiled = compile_channel(channel, pool, &track_ids, solo_audible[index]);
+            compiled.rack = project.settings.modular_racks.iter().find(|rack| rack.channel == channel.id).map(|rack| Arc::new(rack.graph.clone()));
             if windfall_project::layer::is_layer(channel) {
                 compiled.layer =
                     Some(windfall_project::layer::targets(&project.channels, index).into());
@@ -1031,6 +1035,7 @@ fn compile_channel(
             .sample_playback
             .as_ref()
             .and_then(|settings| crate::sample_playback::prepare(settings, pool).ok()),
+        rack: None,
         voice: channel.voice.sanitized(),
         expression_map: channel.expression_map.sanitized(),
         id: channel.id,
@@ -1049,6 +1054,12 @@ fn compile_channel(
         },
         layer: None,
         leaving: false,
+    }
+}
+
+impl PlanChannel {
+    pub fn latency_samples(&self, rate: f32) -> usize {
+        self.rack.as_ref().map_or_else(|| self.instrument.map_or(0, |params| params.latency_samples(rate)), |graph| graph.latency_with_input(rate, self.instrument.map_or(0, |params| params.latency_samples(rate))))
     }
 }
 

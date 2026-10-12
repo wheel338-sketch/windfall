@@ -180,6 +180,15 @@ export function targetState(
         : null
     }
     case "instrumentParam": {
+      const rack = project.settings.modularRacks?.find((rack) => rack.channel === target.channel)
+      if (rack) {
+        const node = rack.graph.nodes.find((node) => node.processor.type === "controlInput" && node.processor.index === target.param)
+        if (!node || node.processor.type !== "controlInput") return null
+        return { range: MIX_RANGE, stored: node.processor.value, info: {
+          id: String(node.id), name: node.name, min: 0, max: 1, default: 0,
+          kind: "float", unit: "fraction", scale: "linear", choices: [],
+        } }
+      }
       const plugin = project.plugins?.find(
         (plugin) =>
           plugin.target.type === "instrument" &&

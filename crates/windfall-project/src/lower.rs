@@ -58,6 +58,7 @@ pub(crate) fn execute(project: &mut Project, command: Command) -> Result<Outcome
         created: Vec::new(),
     };
     let result = transaction.run(command).and_then(|label| {
+        crate::rack::check_project(transaction.project).map_err(CommandError::invalid)?;
         if transaction.edits.iter().any(|edit| match edit {
             Edit::Clips { remove, insert } => remove
                 .iter()
@@ -1351,6 +1352,45 @@ impl Transaction<'_> {
                 self.push(Edit::SetChannel(Box::new(Change { old, new })));
                 "Set channel expression mapping"
             }
+            Command::SetChannelRack { id, graph, expected } => {
+                self.channel_index(id)?;
+                if expected.as_ref().is_some_and(|expected| self.project.settings.modular_racks.iter().find(|rack| rack.channel == id).map(|rack| &rack.graph) != Some(expected)) {
+                    return Err(CommandError::invalid("Rack changed while the editor was open; retry from its current graph"));
+                }
+                let old = self.project.settings.clone();
+                let mut new = old.clone();
+                let previous = new.modular_racks.iter().find(|rack| rack.channel == id);
+                let retained_macros: Vec<(u8, u32)> = previous.into_iter().flat_map(|rack| &rack.graph.nodes)
+                    .filter_map(|node| match &node.processor {
+                        crate::RackProcessor::ControlInput { index, .. } => Some((*index, node.id)),
+                        _ => None,
+                    }).collect();
+                let graph = graph.map(|mut graph| {
+                    if let Some(previous) = previous { graph.next_id = graph.next_id.max(previous.graph.next_id); }
+                    graph
+                });
+                new.modular_racks.retain(|rack| rack.channel != id);
+                if let Some(graph) = graph { new.modular_racks.push(crate::ChannelRack { channel: id, graph }); }
+                let mut proposed = self.project.clone();
+                proposed.settings = new.clone();
+                crate::rack::check_project(&proposed).map_err(CommandError::invalid)?;
+                // Macro ownership is the inlet node plus its stable index.
+                // A new inlet at a retired index does not inherit its lane.
+                let current = new.modular_racks.iter().find(|rack| rack.channel == id);
+                self.remove_automations_of(|target| match *target {
+                    AutomationTarget::InstrumentParam { channel, param } if channel == id => {
+                        !retained_macros.iter().any(|&(index, node)| u32::from(index) == param
+                            && current.is_some_and(|rack| rack.graph.nodes.iter().any(|candidate| candidate.id == node
+                                && matches!(candidate.processor, crate::RackProcessor::ControlInput { index: next, .. } if next == index))))
+                    },
+                    _ => false,
+                });
+                let old = self.project.settings.clone();
+                let mut updated = old.clone();
+                updated.modular_racks = new.modular_racks;
+                self.push(Edit::Settings(Change { old, new: updated }));
+                "Set modular rack"
+            }
             Command::SetChannelGroup { channels, group } => {
                 self.set_channel_group(&channels, &group)?;
                 "Assign channel group"
@@ -1933,6 +1973,12 @@ impl Transaction<'_> {
 
     fn remove_channel(&mut self, id: ChannelId) -> Result<Label, CommandError> {
         let index = self.channel_index(id)?;
+        if self.project.settings.modular_racks.iter().any(|rack| rack.channel == id) {
+            let old = self.project.settings.clone();
+            let mut new = old.clone();
+            new.modular_racks.retain(|rack| rack.channel != id);
+            self.push(Edit::Settings(Change { old, new }));
+        }
         self.remove_automations_of(|target| match *target {
             AutomationTarget::ChannelVolume { channel }
             | AutomationTarget::ChannelPan { channel }
@@ -1990,6 +2036,12 @@ impl Transaction<'_> {
             }
         }
         let copy_id = copy.id;
+        if let Some(rack) = self.project.settings.modular_racks.iter().find(|rack| rack.channel == id).cloned() {
+            let old = self.project.settings.clone();
+            let mut new = old.clone();
+            new.modular_racks.push(crate::ChannelRack { channel: copy_id, graph: rack.graph });
+            self.push(Edit::Settings(Change { old, new }));
+        }
         self.push(Edit::Channel(Box::new(ListEdit::Insert {
             index: index + 1,
             item: copy,
@@ -2279,6 +2331,15 @@ impl Transaction<'_> {
         param: u32,
         value: f32,
     ) -> Result<String, CommandError> {
+        if let Some(rack) = self.project.settings.modular_racks.iter().find(|rack| rack.channel == channel) {
+            if !value.is_finite() { return Err(CommandError::invalid("Rack macro must be finite")); }
+            let mut graph = rack.graph.clone();
+            let inlet = graph.nodes.iter_mut().find(|node| matches!(node.processor, crate::RackProcessor::ControlInput { index, .. } if u32::from(index) == param))
+                .ok_or_else(|| CommandError::invalid("Rack macro was removed"))?;
+            if let crate::RackProcessor::ControlInput { value: stored, .. } = &mut inlet.processor { *stored = value.clamp(0.0, 1.0); }
+            self.run(Command::SetChannelRack { id: channel, graph: Some(graph), expected: None })?;
+            return Ok("Change rack macro".into());
+        }
         let target = crate::PluginTarget::Instrument { channel };
         if let Some(plugin) = self.project.plugin(target) {
             let parameter = plugin

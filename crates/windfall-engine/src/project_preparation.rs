@@ -40,6 +40,7 @@ pub enum ProjectPublicationIntent {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ProjectPreparationError {
+    Rack(String),
     Sampler(crate::sampler_processing::SamplerPreparationError),
     Native {
         target: windfall_project::PluginTarget,
@@ -75,6 +76,7 @@ pub enum PublicationRefusal {
 impl fmt::Display for ProjectPreparationError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::Rack(reason) => write!(formatter, "Rack preparation failed: {reason}"),
             Self::Sampler(error) => write!(formatter, "{error}"),
             Self::Native { target, reason } => write!(
                 formatter,

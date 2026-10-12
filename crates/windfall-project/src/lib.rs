@@ -89,3 +89,5 @@ pub use sample_playback::{KeyPlaybackCurve, SamplePlayback};
 
 mod legacy_sample_playback;
 pub use sample_playback::InlinePlaybackSource;
+pub mod rack;
+pub use rack::{ChannelRack, RackEdge, RackEndpoint, RackGraph, RackNode, RackPreset, RackProcessor};

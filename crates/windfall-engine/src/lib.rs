@@ -134,6 +134,7 @@ pub mod midi_hardware;
 mod mixer;
 mod note_curves;
 mod note_glide;
+pub mod modular;
 mod plan;
 pub mod plugins;
 mod pool;

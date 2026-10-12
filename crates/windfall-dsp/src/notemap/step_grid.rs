@@ -25,6 +25,7 @@ impl Default for GridStep {
 pub struct StepGridParams {
     /// Whole steps per quarter-note beat, 1..16, default 4.
     pub steps_per_beat: u8,
+    #[ts(as = "Vec<GridStep>")]
     pub steps: [GridStep; 16],
 }
 impl Default for StepGridParams {
