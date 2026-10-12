@@ -106,9 +106,9 @@ impl AnalysisAdapter for ClassicalDereverbAdapter {
         )?;
         let mut emit =
             |samples: &[f32], work: &mut crate::Work| artifacts.write_audio(samples, work);
-        for block in input.selected_samples().chunks(4096) {
-            processor.push(block, context.work(), &mut emit)?;
-        }
+        input.for_each_selected(context.work(), |block, work| {
+            processor.push(block, work, &mut emit)
+        })?;
         processor.finish(context.work(), &mut emit)?;
         artifacts.finish_audio(context.work())
     }

@@ -94,6 +94,7 @@ struct State {
     output_gain: f32,
     /// Messages that did not fit in the queue, oldest first.
     backlog: VecDeque<Message>,
+    preview_memory: crate::preview_memory::PreviewMemory,
     /// The stream that went away was playing, and the one that takes its
     /// place carries on. [`Controller::suspend`] decides this and
     /// [`Controller::detach`] calls it off.
@@ -290,6 +291,7 @@ impl Controller {
                     sequence: 0,
                     output_gain: 1.0,
                     backlog: VecDeque::new(),
+                    preview_memory: Default::default(),
                     resume: false,
                 }),
             }),
@@ -952,7 +954,15 @@ impl Controller {
     /// Previews play at [`PREVIEW_GAIN_DB`](crate::PREVIEW_GAIN_DB), so one
     /// heard over a full mix does not clip the master.
     pub fn preview(&self, sample: AudioBuffer) {
-        self.lock().send(Message::Preview(sample));
+        let mut state = self.lock();
+        state.preview_memory.remember(&sample);
+        state.send(Message::Preview(sample));
+    }
+
+    /// Worker-side retained audition capacity, including pending messages and
+    /// garbage not yet retired. No callback allocation, lock or scan is added.
+    pub fn preview_retained_bytes(&self) -> u64 {
+        self.lock().preview_memory.bytes()
     }
 
     pub fn stop_preview(&self) {

@@ -91,6 +91,12 @@ impl AudioBuffer {
         &self.data
     }
 
+    /// Retained heap capacity, including unused sample slots. Shared clones
+    /// have the same identity and must be counted only once by their owner.
+    pub fn retained_bytes(&self) -> u64 {
+        self.data.capacity() as u64 * 4 + std::mem::size_of::<Vec<f32>>() as u64 + 16
+    }
+
     /// Left and right samples of one frame. Mono buffers return the same
     /// value twice, and channels past the second are ignored.
     #[inline]

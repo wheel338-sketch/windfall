@@ -10,7 +10,9 @@ use crate::{SamplePool, clips::equal_power, voice::Region};
 pub mod advanced;
 pub mod clean;
 pub mod process;
+mod streaming;
 mod timeline;
+pub use streaming::stream_prepared_view;
 pub use timeline::{render_view_timed, view_timing};
 
 pub const MAX_EDIT_SECONDS: f64 = 120.0;

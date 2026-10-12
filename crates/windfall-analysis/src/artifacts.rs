@@ -298,20 +298,20 @@ impl ArtifactWriter {
 
 fn validate_decoded(path: &Path, shape: AudioShape, work: &mut Work) -> Result<()> {
     work.check()?;
-    let decoded = windfall_codec::decode_file_strict_with(
+    let (rate, channels, frames) = windfall_codec::decode_file_blocks::<AnalysisError>(
         path,
         &DecodeOptions {
             max_decoded_bytes: shape.pcm_bytes()?,
         },
+        |_, _, samples| work.checkpoint(samples.len() as u64),
     )?;
-    if AudioShape::of(&decoded) != shape {
+    if (AudioShape {
+        sample_rate: rate,
+        channels,
+        frames,
+    }) != shape
+    {
         return Err(AnalysisError::Invalid("output decode/alignment"));
-    }
-    for chunk in decoded.samples().chunks(CHUNK_SAMPLES) {
-        work.checkpoint(chunk.len() as u64)?;
-        if chunk.iter().any(|x| !x.is_finite()) {
-            return Err(AnalysisError::Invalid("nonfinite decoded output"));
-        }
     }
     Ok(())
 }

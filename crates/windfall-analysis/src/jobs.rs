@@ -326,6 +326,37 @@ pub struct JobManager {
     lifecycle: Mutex<()>,
 }
 impl JobManager {
+    /// Recheck caller-owned auditions before any capture/preview/apply working
+    /// allocation. Included reservations remain held during a claimed review.
+    pub fn check_retained_memory(&self, retained: u64) -> Result<()> {
+        let state = lock(&self.shared.state);
+        if add(state.usage.memory_bytes, retained)? > self.shared.config.memory_bytes {
+            return Err(AnalysisError::Budget(
+                "retained previews and analysis memory",
+            ));
+        }
+        Ok(())
+    }
+    /// Control-side preflight for the Session's serialized, bounded anonymous
+    /// capture files. Existing jobs cannot grow beyond their held reservations.
+    /// Submit separately charges the retained input file for its whole lifetime.
+    pub fn check_capture_disk(&self, bytes: u64) -> Result<()> {
+        let state = lock(&self.shared.state);
+        if state.shutdown {
+            return Err(AnalysisError::Shutdown);
+        }
+        if add(
+            add(
+                state.usage.reserved_disk_bytes,
+                state.usage.published_disk_bytes,
+            )?,
+            bytes,
+        )? > self.shared.config.disk_bytes
+        {
+            return Err(AnalysisError::Budget("capture/staging/publication disk"));
+        }
+        Ok(())
+    }
     pub fn new(
         mut config: ManagerConfig,
         cache: ModelCache,
@@ -415,6 +446,11 @@ impl JobManager {
         Ok(manager)
     }
     pub fn submit(&self, request: JobRequest) -> Result<JobId> {
+        self.submit_with_retained_memory(request, 0)
+    }
+    /// Session-owned audition capacity remains reserved with this job, even
+    /// if a previous job was consumed while the callback still owns its audio.
+    pub fn submit_with_retained_memory(&self, request: JobRequest, retained: u64) -> Result<JobId> {
         if !request.amount.is_finite() || !(0.0..=1.0).contains(&request.amount) {
             return Err(AnalysisError::Invalid("analysis wet/dry amount"));
         }
@@ -447,7 +483,13 @@ impl JobManager {
             return Err(AnalysisError::Invalid("job budget bounds"));
         }
         let limits = config.input_limits;
+        if request.input.is_file_backed() && !request.model.is_builtin_dereverb() {
+            return Err(AnalysisError::Invalid(
+                "file-backed input requires built-in dereverb",
+            ));
+        }
         if request.input.retained_bytes() > limits.max_bytes
+            || request.input.disk_bytes()? > limits.max_bytes
             || shape.frames > limits.max_frames
             || shape.channels > limits.max_channels
             || shape.sample_rate < limits.min_sample_rate
@@ -468,15 +510,26 @@ impl JobManager {
         if minimum_output > b.output_bytes {
             return Err(AnalysisError::Budget("aligned output reservation"));
         }
+        // A built-in audition may retain the previous result while preparing
+        // the next wet/dry preview or the committed pool source. Reserve a
+        // third result for the codec sink's grow/reallocation coexistence.
+        if request.model.is_builtin_dereverb() {
+            decode_bytes = decode_bytes
+                .checked_mul(3)
+                .ok_or(AnalysisError::Exhausted)?;
+        }
         let memory = add(
+            retained,
             add(
                 add(
-                    add(request.input.retained_bytes(), request.model.bytes)?,
-                    b.scratch_bytes,
+                    add(
+                        add(request.input.retained_bytes(), request.model.bytes)?,
+                        b.scratch_bytes,
+                    )?,
+                    decode_bytes,
                 )?,
-                decode_bytes,
+                CODEC_ALLOWANCE,
             )?,
-            CODEC_ALLOWANCE,
         )?;
         let memory = add(
             memory,
@@ -489,15 +542,17 @@ impl JobManager {
                     .ok_or(AnalysisError::Exhausted)?,
             )?,
         )?;
-        let disk = b
-            .output_bytes
-            .checked_mul(3)
-            .ok_or(AnalysisError::Exhausted)?;
+        let disk = add(
+            request.input.disk_bytes()?,
+            b.output_bytes
+                .checked_mul(3)
+                .ok_or(AnalysisError::Exhausted)?,
+        )?;
         let deadline = Instant::now()
             .checked_add(b.timeout)
             .ok_or(AnalysisError::Exhausted)?;
         // One sequential publication temporary plus the bounded final set.
-        let files = request.model.outputs.len() + 1;
+        let files = request.model.outputs.len() + 1 + usize::from(request.input.is_file_backed());
         let mut state = lock(&self.shared.state);
         if state.shutdown {
             return Err(AnalysisError::Shutdown);
@@ -1120,14 +1175,21 @@ impl ApplyLease {
     /// uses immutable prepared input, never the source pathname or a new view.
     pub fn preview_input(&self, work: &mut Work) -> Result<windfall_core::AudioBuffer> {
         let input = self.input();
-        let samples = input.selected_samples();
+        let count = input
+            .stamp()
+            .selection
+            .frames()?
+            .checked_mul(u64::from(input.stamp().input_shape.channels))
+            .ok_or(AnalysisError::Exhausted)?;
+        let count = usize::try_from(count).map_err(|_| AnalysisError::Exhausted)?;
         let mut copy = Vec::new();
-        copy.try_reserve_exact(samples.len())
+        copy.try_reserve_exact(count)
             .map_err(|_| AnalysisError::Budget("dry preview allocation"))?;
-        for block in samples.chunks(crate::CHUNK_SAMPLES) {
+        input.for_each_selected(work, |block, work| {
             work.checkpoint(block.len() as u64)?;
             copy.extend_from_slice(block);
-        }
+            Ok(())
+        })?;
         work.check()?;
         Ok(windfall_core::AudioBuffer::from_interleaved(
             input.stamp().input_shape.sample_rate,
