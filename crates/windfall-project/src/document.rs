@@ -43,7 +43,7 @@ pub struct Applied {
 /// though `next_id` is higher than in the file.
 #[derive(Debug, Clone)]
 pub struct Document {
-    asset_pins: windfall_dsp::asset::AssetPins,
+    _asset_pins: windfall_dsp::asset::AssetPins,
     project: Project,
     revision: u64,
     entries: Vec<Entry>,
@@ -59,7 +59,7 @@ pub struct Document {
 
 #[derive(Debug, Clone)]
 struct Entry {
-    asset_pins: windfall_dsp::asset::AssetPins,
+    _asset_pins: windfall_dsp::asset::AssetPins,
     label: String,
     edits: Vec<Edit>,
 }
@@ -81,7 +81,7 @@ impl Document {
     /// outside.
     pub fn new(project: Project) -> Self {
         Self {
-            asset_pins: project_asset_pins(&project),
+            _asset_pins: project_asset_pins(&project),
             project,
             revision: 0,
             entries: Vec::new(),
@@ -161,7 +161,7 @@ impl Document {
             for edit in outcome.edits {
                 edit::push(&mut entry.edits, edit);
             }
-            entry.asset_pins = history_asset_pins(&entry.edits);
+            entry._asset_pins = history_asset_pins(&entry.edits);
             if entry.edits.is_empty() {
                 self.entries.pop();
                 self.cursor -= 1;
@@ -174,7 +174,7 @@ impl Document {
             }
             self.entries.truncate(self.cursor);
             self.entries.push(Entry {
-                asset_pins: history_asset_pins(&outcome.edits),
+                _asset_pins: history_asset_pins(&outcome.edits),
                 label: outcome.label.clone(),
                 edits: outcome.edits,
             });
@@ -182,7 +182,7 @@ impl Document {
             self.open_gesture = gesture;
         }
 
-        self.asset_pins = next_pins;
+        self._asset_pins = next_pins;
 
         Ok(Applied {
             created: outcome.created,
@@ -199,7 +199,7 @@ impl Document {
             return None;
         }
         self.drop_removed_patterns(&mut touched);
-        self.asset_pins = project_asset_pins(&self.project);
+        self._asset_pins = project_asset_pins(&self.project);
         Some(touched)
     }
 
@@ -211,7 +211,7 @@ impl Document {
             return None;
         }
         self.drop_removed_patterns(&mut touched);
-        self.asset_pins = project_asset_pins(&self.project);
+        self._asset_pins = project_asset_pins(&self.project);
         Some(touched)
     }
 
@@ -224,7 +224,7 @@ impl Document {
         while self.cursor > target && self.step_back(&mut touched) {}
         while self.cursor < target && self.step_forward(&mut touched) {}
         self.drop_removed_patterns(&mut touched);
-        self.asset_pins = project_asset_pins(&self.project);
+        self._asset_pins = project_asset_pins(&self.project);
         touched
     }
 

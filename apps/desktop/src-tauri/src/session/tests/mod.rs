@@ -50,6 +50,7 @@ mod song;
 mod timeline;
 mod transport_acceptance;
 mod versions;
+mod p2_convolver;
 
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};

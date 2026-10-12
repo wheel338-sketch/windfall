@@ -62,7 +62,7 @@ impl IdIndex {
 
 #[derive(Debug, Clone)]
 pub(crate) struct Plan {
-    asset_pins: windfall_dsp::asset::AssetPins,
+    _asset_pins: windfall_dsp::asset::AssetPins,
     pub navigation: Vec<crate::timeline::NavigationPoint>,
     pub signature: windfall_project::TimeSignature,
     pub meters: Result<
@@ -791,7 +791,7 @@ impl Plan {
 
     /// Works out the lists that follow from the channels and the chains.
     fn link(&mut self) {
-        self.asset_pins = windfall_dsp::asset::AssetPins::for_effects(self.tracks.iter()
+        self._asset_pins = windfall_dsp::asset::AssetPins::for_effects(self.tracks.iter()
             .flat_map(|track| track.effects.iter().map(|effect| &effect.params)));
         for track in &mut self.tracks {
             track.instruments.clear();
@@ -958,7 +958,7 @@ pub(crate) fn compile(project: &Project, pool: &SamplePool) -> Plan {
     let audio_clip_ids = IdIndex::new(audio_clips.iter().map(|clip| clip.id.0));
 
     let mut plan = Plan {
-        asset_pins: windfall_dsp::asset::AssetPins::default(),
+        _asset_pins: windfall_dsp::asset::AssetPins::default(),
         navigation: crate::timeline::compile(&project.playlist.timeline),
         signature: project.settings.time_signature,
         meters: windfall_project::timeline::MeterMap::checked(
