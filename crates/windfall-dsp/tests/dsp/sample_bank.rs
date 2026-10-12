@@ -91,3 +91,19 @@ fn replacement_chokes_and_bank_retirement_transfer_never_allocate_or_free_on_aud
         drop(retired);
     }
 }
+
+#[test]
+fn multisampler_modulation_effect_changes_and_reset_are_allocator_free() {
+    let mut unit = AnyInstrument::new(&InstrumentKind::MultiSampler.default_params()); unit.prepare(48000.0,64);
+    unit.install_sample_bank(Arc::new(SampleBank::new(vec![LoadedZone { audio: AudioBuffer::from_interleaved(48000,1,vec![0.25;16384]), mapping: SampleZone {
+        modulation: windfall_dsp::sample_bank::ZoneModulation { lfos: [windfall_dsp::sample_bank::ZoneLfo { pitch_cents:100.0,filter_cents:1200.0,amplitude:0.5,..Default::default() };2], ..Default::default() }, ..Default::default() } }]).unwrap()));
+    let mut params = windfall_dsp::sample_bank::MultiSamplerParams::default(); params.chorus.mix=0.5;params.delay.mix=0.3;params.reverb.mix=0.2;
+    let mut left=[0.0;64];let mut right=[0.0;64];
+    let calls=allocator_calls(||{
+        unit.set_params(&windfall_dsp::InstrumentParams::MultiSampler(params));unit.set_tempo(90.0);
+        unit.note_on_instance(NoteInstanceId(1),60,1.0,0.0,NoteExpression::default());
+        for _ in 0..64 {unit.process(&mut left,&mut right);}
+        unit.note_off_instance(NoteInstanceId(1),60);unit.reset();
+    });
+    assert_eq!(calls,0);assert_eq!(unit.active_voices(),0);
+}

@@ -2,11 +2,15 @@
 //! voices retain indexes into a bank and never own/drop individual Arcs.
 mod asset;
 mod budget;
+mod effects;
+mod modulation;
 mod params;
 pub mod soundfont;
 pub mod sources;
 pub use asset::*;
 pub use budget::*;
+pub use modulation::*;
+use params::BankControls;
 pub use params::*;
 
 use crate::{Instrument, NoteExpression, NoteInstanceId, ParamSet};
@@ -35,6 +39,9 @@ struct Voice {
     releasing: bool,
     filtered: [f32; 2],
     fade_in: f32,
+    mod_envelope: f32,
+    mod_release: f32,
+    lfo_phase: [f32; 2],
 }
 impl Default for Voice {
     fn default() -> Self {
@@ -60,6 +67,7 @@ impl Default for Voice {
             releasing: false,
             filtered: [0.0; 2],
             fade_in: 1.0,
+            mod_envelope: 0.0, mod_release: 0.0, lfo_phase: [0.0; 2],
         }
     }
 }
@@ -86,6 +94,7 @@ struct Engine {
     sweep_bank: usize,
     voices: Box<[Voice]>,
     choked: Box<[Voice]>,
+    effects: Option<Box<effects::BankEffects>>,
     rate: f32,
     level: f32,
     target_level: f32,
@@ -105,6 +114,7 @@ impl Default for Engine {
         Self {
             banks: (0..BANK_VOICES * 2 + 1).map(|_| None).collect(),
             current_bank: 0,
+            effects: None,
             sweep_bank: 0,
             choked: vec![Voice::default(); BANK_VOICES].into_boxed_slice(),
             voices: vec![Voice::default(); BANK_VOICES].into_boxed_slice(),
@@ -141,6 +151,10 @@ impl Engine {
             } else {
                 step
             };
+            if !voice.releasing {
+                let modulation = self.banks[voice.bank].as_ref().expect("active voice bank").zones()[voice.zone].mapping.modulation;
+                voice.mod_release = voice.mod_envelope / (modulation.release_ms * 0.001 * self.rate).max(1.0);
+            }
             voice.releasing = true;
         }
     }
@@ -238,6 +252,7 @@ impl Engine {
                 zone: index,
                 bank: self.current_bank,
                 fade_in: if needed > 0 { 0.0 } else { 1.0 },
+                lfo_phase: map.modulation.lfos.map(|lfo| lfo.phase),
                 pitch: f32::from(key) + expression.fine_pitch_cents / 100.0,
                 velocity: velocity * zone.mapping.weight(key, midi_velocity),
                 pan: if pan.is_finite() {
@@ -299,8 +314,8 @@ impl Engine {
                         continue;
                     }
                 } else {
-                    let time = voice.elapsed as f32 / self.rate * 1000.0;
-                    voice.envelope = if time < map.attack_ms {
+                    let time = voice.elapsed as f32 / self.rate * 1000.0 - map.delay_ms;
+                    voice.envelope = if time < 0.0 { 0.0 } else if time < map.attack_ms {
                         time / map.attack_ms
                     } else if time < map.attack_ms + map.hold_ms {
                         1.0
@@ -311,6 +326,27 @@ impl Engine {
                         map.sustain
                     };
                 }
+                let modulation = map.modulation;
+                let time_ms = voice.elapsed as f32 / self.rate * 1000.0;
+                if modulation.envelope_pitch_cents != 0.0 || modulation.envelope_filter_cents != 0.0 || modulation.envelope_amplitude != 0.0 {
+                    voice.mod_envelope = if voice.releasing { (voice.mod_envelope - voice.mod_release).max(0.0) }
+                        else { modulation.envelope(time_ms) };
+                }
+                let mut mod_pitch = modulation.envelope_pitch_cents * voice.mod_envelope;
+                let mut mod_filter = modulation.envelope_filter_cents * voice.mod_envelope;
+                let mut mod_amplitude = modulation.envelope_amplitude * voice.mod_envelope;
+                for (index, lfo) in modulation.lfos.iter().enumerate() {
+                    if !lfo.enabled() || time_ms < lfo.delay_ms { continue; }
+                    let value = (std::f32::consts::TAU * voice.lfo_phase[index]).sin();
+                    voice.lfo_phase[index] = (voice.lfo_phase[index] + lfo.rate_hz / self.rate).fract();
+                    mod_pitch += value * lfo.pitch_cents;
+                    mod_filter += value * lfo.filter_cents;
+                    mod_amplitude += value * lfo.amplitude;
+                }
+                let coefficient = if mod_filter == 0.0 && modulation.cutoff_hz >= cutoff { coefficient } else {
+                    let hz = (modulation.cutoff_hz * (mod_filter / 1200.0).exp2()).clamp(20.0, cutoff);
+                    1.0 - (-std::f32::consts::TAU * hz / self.rate).exp()
+                };
                 voice.elapsed += 1;
                 let frame = voice.position as usize;
                 let next = if looped && frame + 1 >= map.loop_end as usize {
@@ -324,16 +360,16 @@ impl Engine {
                 voice.filtered[0] += (a + (c - a) * fraction - voice.filtered[0]) * coefficient;
                 voice.filtered[1] += (b + (d - b) * fraction - voice.filtered[1]) * coefficient;
                 voice.fade_in = (voice.fade_in + 1.0 / (self.rate * 0.001).max(1.0)).min(1.0);
-                let gain = voice.velocity * voice.gain * map.gain * voice.envelope * self.level * voice.fade_in;
+                let gain = voice.velocity * voice.gain * map.gain * voice.envelope * self.level * voice.fade_in * (1.0 + mod_amplitude).clamp(0.0, 2.0);
                 *l += voice.filtered[0] * gain * voice.pan_gains[0];
                 *r += voice.filtered[1] * gain * voice.pan_gains[1];
-                let pitch = voice.source_pitch + self.tune;
+                let pitch = voice.source_pitch + self.tune + mod_pitch / 100.0;
                 voice.position += if pitch >= 96.0 {
                     voice.source_rate_ratio * 256.0
                 } else if pitch <= -96.0 {
                     voice.source_rate_ratio / 256.0
                 } else {
-                    voice.step * transpose
+                    voice.step * transpose * if mod_pitch == 0.0 { 1.0 } else { f64::from((mod_pitch / 1200.0).exp2()) }
                 };
             }
         }
@@ -341,11 +377,17 @@ impl Engine {
 }
 
 macro_rules! instrument {
-    ($name:ident, $params:ident) => {
-        #[derive(Default)]
+    ($name:ident, $params:ident, $fx:expr) => {
         pub struct $name {
             engine: Engine,
             params: $params,
+        }
+        impl Default for $name {
+            fn default() -> Self {
+                let mut engine = Engine::default();
+                if $fx { engine.effects = Some(Box::default()); }
+                Self { engine, params: $params::default() }
+            }
         }
         impl $name {
             /// Off audio only. The host retires the entire old processor off audio.
@@ -373,6 +415,10 @@ macro_rules! instrument {
                 self.engine.level = previous.engine.level;
                 self.engine.tune = previous.engine.tune;
                 self.engine.started = previous.engine.started;
+                self.engine.missed = previous.engine.missed;
+                self.engine.stolen = previous.engine.stolen;
+                std::mem::swap(&mut self.engine.effects, &mut previous.engine.effects);
+                if let (Some(effects), Some(params)) = (&mut self.engine.effects, self.params.internal_effects()) { effects.set_params(params); }
             }
             /// Moves one unused bank to the host retirement ring. No Arc is
             /// dropped here. A full ring simply defers this bounded sweep.
@@ -394,12 +440,15 @@ macro_rules! instrument {
         }
         impl Instrument for $name {
             type Params = $params;
-            fn prepare(&mut self, rate: f32, _block: usize) {
+            fn prepare(&mut self, rate: f32, block: usize) {
                 self.engine.rate = if rate.is_finite() {
                     rate.clamp(1000.0, 384000.0)
                 } else {
                     48000.0
                 };
+                if let (Some(effects), Some(params)) = (&mut self.engine.effects, self.params.internal_effects()) {
+                    effects.set_params(params); effects.prepare(self.engine.rate, block);
+                }
                 self.reset();
             }
             fn reset(&mut self) {
@@ -410,9 +459,11 @@ macro_rules! instrument {
                 self.engine.sequence = 0;
                 let params = self.params;
                 self.set_params(&params);
+                if let Some(effects) = &mut self.engine.effects { effects.reset(); }
             }
             fn set_params(&mut self, params: &$params) {
                 self.params = params.sanitized();
+                if let (Some(effects), Some(params)) = (&mut self.engine.effects, self.params.internal_effects()) { effects.set_params(params); }
                 self.engine.target_level = self.params.level;
                 self.engine.target_tune = self.params.tune;
                 self.engine.release_ms = self.params.release_ms;
@@ -422,6 +473,10 @@ macro_rules! instrument {
                     self.engine.tune = self.params.tune;
                 }
             }
+            fn set_tempo(&mut self, bpm: f32) {
+                if let Some(effects) = &mut self.engine.effects { effects.set_tempo(bpm); }
+            }
+            fn tail_samples(&self) -> usize { self.engine.effects.as_ref().map_or(0, |effects| effects.tail_samples()) }
             fn note_on(&mut self, key: u8, velocity: f32) {
                 self.note_on_expression(key, velocity, 0.0, NoteExpression::default());
             }
@@ -512,6 +567,7 @@ macro_rules! instrument {
             }
             fn process(&mut self, left: &mut [f32], right: &mut [f32]) {
                 self.engine.process(left, right);
+                if let Some(effects) = &mut self.engine.effects { effects.process(left, right); }
             }
             fn active_voices(&self) -> usize {
                 self.engine.voices.iter().filter(|v| v.active).count()
@@ -519,12 +575,12 @@ macro_rules! instrument {
         }
     };
 }
-instrument!(MultiSampler, MultiSamplerParams);
-instrument!(SamplePlayer, SamplePlayerParams);
-instrument!(SoundFont, SoundFontParams);
-instrument!(PadBank, PadBankParams);
-instrument!(PianoKeys, PianoKeysParams);
-instrument!(TextVoice, TextVoiceParams);
+instrument!(MultiSampler, MultiSamplerParams, true);
+instrument!(SamplePlayer, SamplePlayerParams, false);
+instrument!(SoundFont, SoundFontParams, false);
+instrument!(PadBank, PadBankParams, false);
+instrument!(PianoKeys, PianoKeysParams, false);
+instrument!(TextVoice, TextVoiceParams, false);
 
 #[cfg(test)]
 mod tests;

@@ -151,4 +151,15 @@ describe("sample instrument purpose-built editors",()=>{
     expect(useProjectStore.getState().project.samples.find(sample=>sample.id===source.id)?.path).toEqual(source.path)
   })
 
+  it("edits grouped modulation and restores the routes with undo",async()=>{
+    const id=await open("multiSampler")
+    fireEvent.click(screen.getByRole("button",{name:"Add zone"}));await act(()=>settle())
+    const pitch=screen.getByRole("spinbutton",{name:"Zone 1 Envelope to pitch cents"})
+    fireEvent.change(pitch,{target:{value:"1200"}});fireEvent.blur(pitch);await act(()=>settle())
+    expect(useProjectStore.getState().project.channels.find(channel=>channel.id===id)?.sampleInstrument).toMatchObject({type:"zones",zones:[{modulation:{envelopePitchCents:1200}}]})
+    await undo();await act(()=>settle())
+    expect(screen.getByRole("spinbutton",{name:"Zone 1 Envelope to pitch cents"})).toHaveValue(0)
+    expect(screen.getByRole("spinbutton",{name:"Zone 1 LFO 2 to amplitude"})).toBeInTheDocument()
+  })
+
 })

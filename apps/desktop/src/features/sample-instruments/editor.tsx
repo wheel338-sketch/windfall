@@ -15,13 +15,16 @@ import { receivePatch } from "@/lib/store/project"
 import { getProjectGeneration } from "@/lib/store/replaced"
 import { TICKS_PER_STEP } from "@/lib/units"
 
+import { ZoneModulationEditor, DEFAULT_ZONE_MODULATION } from "./zone-modulation-editor"
+
 import { GenericInstrumentEditor } from "../channel-rack/inspector/generic-instrument-editor"
 
 export function newZone(sample: number, key?: number): SampleZone {
   return { sample, keyLow: key ?? 0, keyHigh: key ?? 127, velocityLow: 0, velocityHigh: 127,
     rootKey: key ?? 60, tuneCents: 0, gain: 1, pan: 0, keyFade: 0, velocityFade: 0,
     roundRobin: 0, chokeGroup: 0, loopMode: "off", loopStart: 0, loopEnd: 0,
-    attackMs: 0, holdMs: 0, decayMs: 0, sustain: 1, releaseMs: 100, scaleTuning: 100 }
+    attackMs: 0, holdMs: 0, decayMs: 0, sustain: 1, releaseMs: 100, scaleTuning: 100,
+    delayMs: 0, modulationGroup: 0, modulation: DEFAULT_ZONE_MODULATION }
 }
 
 function ZoneMap({ zones }: { zones: SampleZone[] }) {
@@ -137,6 +140,12 @@ function ZonesEditor({ channel, pads }: { channel: InstrumentChannel; pads: bool
           </Select>
           <NumberEdit label={`Zone ${index+1} loop start`} value={zone.loopStart} max={4294967295} commit={value=>change(index,{loopStart:value})} />
           <NumberEdit label={`Zone ${index+1} loop end`} value={zone.loopEnd} max={4294967295} commit={value=>change(index,{loopEnd:value})} />
+          {!pads && <>
+            <NumberEdit label={`Zone ${index+1} modulation group`} value={zone.modulationGroup??0} max={255} commit={value=>change(index,{modulationGroup:value})} />
+            <ZoneModulationEditor zone={{...zone,modulation: zone.modulationGroup ? zones.find(item=>item.modulationGroup===zone.modulationGroup)?.modulation??DEFAULT_ZONE_MODULATION : zone.modulation}} index={index}
+              commit={modulation=>replace(zones.map((item,i)=>i===index || (zone.modulationGroup && item.modulationGroup===zone.modulationGroup) ? {...item,modulation} : item))} />
+          </>}
+          <NumberEdit label={`Zone ${index+1} delay ms`} value={zone.delayMs??0} max={100000} commit={value=>change(index,{delayMs:value})} />
           <NumberEdit label={`Zone ${index+1} attack ms`} value={zone.attackMs} max={100000} commit={value=>change(index,{attackMs:value})} />
           <NumberEdit label={`Zone ${index+1} hold ms`} value={zone.holdMs} max={100000} commit={value=>change(index,{holdMs:value})} />
           <NumberEdit label={`Zone ${index+1} scale tuning`} value={zone.scaleTuning} max={1200} commit={value=>change(index,{scaleTuning:value})} />

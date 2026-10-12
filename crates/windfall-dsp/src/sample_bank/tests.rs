@@ -597,3 +597,61 @@ fn concurrent_bank_jobs_cannot_overbook_the_shared_budget() {
     barrier.wait(); assert_eq!(budget.used(), 64); assert!(budget.reserve(1).is_err()); release.wait();
     for job in jobs { job.join().unwrap(); } assert_eq!(budget.used(), 0);
 }
+
+#[test]
+fn zone_modulation_envelope_measures_pitch_filter_and_amplitude_routes() {
+    let audio = AudioBuffer::from_interleaved(48000, 1, (0..48000).map(|i| (std::f32::consts::TAU * 440.0 * i as f32 / RATE).sin() * 0.4).collect());
+    let map = SampleZone { loop_mode: BankLoop::Continuous, loop_start: 0, loop_end: 48000,
+        modulation: ZoneModulation { decay_ms: 0.0, sustain: 1.0, envelope_pitch_cents: 1200.0, ..Default::default() }, ..Default::default() };
+    let mut pitched = sampler(vec![LoadedZone { mapping: map, audio }]); pitched.note_on(60, 1.0);
+    let pcm = render(&mut pitched, 48000, 17);
+    let crossings = pcm.windows(2).filter(|x| x[0] <= 0.0 && x[1] > 0.0).count();
+    assert!((crossings as i32 - 880).abs() <= 1, "octave envelope: {crossings} crossings/sec");
+    let mut amplitude = sampler(vec![zone(0.4, SampleZone { modulation: ZoneModulation {
+        envelope_amplitude: -1.0, decay_ms: 50.0, ..Default::default() }, ..Default::default() })]);
+    amplitude.note_on(60, 1.0); let pcm = render(&mut amplitude, 3000, 7);
+    assert_eq!(pcm[0], 0.0); assert!((pcm[2999] - 0.2).abs() < 1e-5);
+    let play = |cutoff| {
+        let audio = AudioBuffer::from_interleaved(48000, 1, (0..48000).map(|i| (std::f32::consts::TAU * 4000.0 * i as f32 / RATE).sin() * 0.4).collect());
+        let mut unit = sampler(vec![LoadedZone { audio, mapping: SampleZone { modulation: ZoneModulation {
+            decay_ms: 0.0, sustain: 1.0, envelope_filter_cents: cutoff, ..Default::default() }, ..Default::default() } }]);
+        unit.note_on(60, 1.0); render(&mut unit, 12000, 127)
+    };
+    let power = |pcm: &[f32]| pcm[2000..].iter().map(|x| x*x).sum::<f32>() / (pcm.len()-2000) as f32;
+    assert!(power(&play(-9600.0)) < power(&play(0.0)) * 0.001, "filter envelope attenuates a measured 4 kHz tone");
+}
+
+#[test]
+fn grouped_lfos_share_routes_and_delay_while_partitioning_remains_exact() {
+    let modulation = ZoneModulation { lfos: [ZoneLfo { rate_hz: 5.0, delay_ms: 10.0, amplitude: 0.8, ..Default::default() }, ZoneLfo { rate_hz: 3.0, pitch_cents: 50.0, filter_cents: 1200.0, ..Default::default() }], ..Default::default() };
+    let map = SampleZone { modulation_group: 4, modulation, loop_mode: BankLoop::Continuous, loop_start: 0, loop_end: 4096, ..Default::default() };
+    let bank = Arc::new(SampleBank::new(vec![zone(0.2, map),zone(0.2,SampleZone { modulation: ZoneModulation::default(), ..map })]).unwrap());
+    assert_eq!(bank.zones()[1].mapping.modulation, modulation);
+    let play = |block| { let mut unit = MultiSampler::default(); unit.prepare(RATE, 128); unit.install_bank(bank.clone()); unit.note_on(60, 1.0); render(&mut unit, 12000, block) };
+    let pcm = play(1); assert_eq!(pcm, play(127));
+    let first = pcm[400]; let high = pcm[2400]; let low = pcm[7200];
+    assert!((first - 0.2).abs() < 1e-4, "amplitude LFO waits for its delay");
+    assert!(high > low * 2.0, "LFO modulates measured amplitude");
+}
+
+#[test]
+fn multisampler_internal_effects_have_measured_echoes_chorus_and_reverb_tails() {
+    let impulse = || LoadedZone { mapping: SampleZone { release_ms: 1.0, ..Default::default() }, audio: AudioBuffer::from_interleaved(48000, 1, {
+        let mut pcm=vec![0.0;480];pcm[0]=0.5;pcm }) };
+    let play = |kind: u8, block| {
+        let mut unit = sampler(vec![impulse()]); let mut params = MultiSamplerParams::default();
+        match kind {
+            1 => { params.delay.sync=false; params.delay.time_ms=20.0; params.delay.feedback=0.5;params.delay.mix=1.0; }
+            2 => params.chorus.mix=1.0,
+            3 => params.reverb.mix=1.0,
+            _ => {}
+        }
+        unit.set_params(&params); unit.reset(); unit.note_on(60,1.0); render(&mut unit,24000,block)
+    };
+    let dry=play(0,64);assert!(dry[1000..].iter().all(|x| *x==0.0));
+    let delay=play(1,7);assert_eq!(delay,play(1,127));
+    assert!(delay[900..1100].iter().any(|x| x.abs()>0.01),"20 ms echo");
+    assert!(delay[1800..2100].iter().any(|x| x.abs()>0.001),"feedback second repeat");
+    let chorus=play(2,7);assert_eq!(chorus,play(2,127));assert!(chorus[480..2000].iter().any(|x| x.abs()>0.01));
+    let reverb=play(3,7);assert_eq!(reverb,play(3,127));assert!(reverb[3000..12000].iter().any(|x| x.abs()>0.0001));
+}

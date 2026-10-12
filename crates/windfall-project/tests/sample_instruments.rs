@@ -224,3 +224,24 @@ fn source_relink_is_checked_undoable_and_preserves_player_bank_identity() {
     doc.undo().unwrap(); assert_eq!(doc.project(), &before);
     doc.redo().unwrap(); assert_eq!(doc.project(), &linked);
 }
+
+#[test]
+fn multisampler_modulation_and_effects_persist_and_legacy_fields_default_to_dry() {
+    let mut doc = Document::new(Project::new("Modulation")); let source=sample(&mut doc); let id=channel(&mut doc,InstrumentKind::MultiSampler);
+    let modulation=windfall_dsp::sample_bank::ZoneModulation { envelope_pitch_cents:1200.0,..Default::default() };
+    doc.dispatch(Command::EditSampleZones { channel:id,expected:vec![],zones:vec![SampleZone { sample:source.0,modulation_group:2,modulation,..Default::default() }] },None).unwrap();
+    let before=doc.project().clone();
+    doc.dispatch(Command::SetInstrumentParam { channel:id,param:9,value:0.3 },None).unwrap();
+    let saved=serde_json::to_value(doc.project()).unwrap(); let loaded:Project=serde_json::from_value(saved.clone()).unwrap();
+    assert_eq!(loaded,doc.project().clone()); loaded.check().unwrap();
+    doc.undo().unwrap();assert_eq!(doc.project(),&before);doc.redo().unwrap();assert_eq!(doc.project(),&loaded);
+    let mut legacy=saved;
+    let channel=legacy["channels"].as_array_mut().unwrap().iter_mut().find(|c| c["id"]==id.0).unwrap();
+    let params=channel["source"]["params"].as_object_mut().unwrap(); for name in ["chorus","delay","reverb"] { params.remove(name); }
+    let zone=channel["sampleInstrument"]["zones"][0].as_object_mut().unwrap(); for name in ["modulationGroup","modulation","delayMs"] { zone.remove(name); }
+    let legacy:Project=serde_json::from_value(legacy).unwrap(); legacy.check().unwrap();
+    let ChannelSource::Instrument { params:InstrumentParams::MultiSampler(params),.. }=legacy.channel(id).unwrap().source else { panic!() };
+    assert_eq!(params.delay.mix,0.0);assert_eq!(params.chorus.mix,0.0);assert_eq!(params.reverb.mix,0.0);
+    let Some(SampleInstrumentAsset::Zones { zones })=&legacy.channel(id).unwrap().sample_instrument else { panic!() };
+    assert_eq!(zones[0].modulation,Default::default());assert_eq!(zones[0].modulation_group,0);
+}
