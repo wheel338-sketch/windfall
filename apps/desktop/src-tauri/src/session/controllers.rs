@@ -107,6 +107,7 @@ pub(super) struct Hub {
     queue: VecDeque<Incoming>,
     dropped: u32,
     states: HashMap<(ControlSource, LinkTarget), LinkState>,
+    script_bindings: Vec<windfall_project::scripting::ControllerScript>,
     learn: Option<Learn>,
     bank: u32,
     last_input: Option<ControlSource>,
@@ -155,6 +156,7 @@ impl Hub {
             queue: VecDeque::with_capacity(QUEUE),
             dropped: 0,
             states: HashMap::new(),
+            script_bindings: Vec::new(),
             learn: None,
             bank: 0,
             last_input: None,
@@ -285,6 +287,11 @@ impl Hub {
             self.queue.clear();
         }
         if self.stamp != Some((generation, revision)) {
+            if self.script_bindings != project.settings.scripts.controllers {
+                self.states.clear();
+                self.waiting.clear();
+                self.script_bindings = project.settings.scripts.controllers.clone();
+            }
             let identity = serde_json::to_string(&(
                 project.settings.name.as_str(),
                 project
@@ -424,11 +431,12 @@ fn load_profiles(dir: &Path) -> Vec<ControllerProfile> {
 /// What the pump worked out under the locks, to carry out once they are
 /// released.
 #[derive(Default)]
-struct Plan {
-    generation: u64,
-    revision: u64,
-    script_events: Vec<(ControlSource, f32, u8)>,
-    script_bank: u32,
+pub(super) struct Plan {
+    pub(super) generation: u64,
+    pub(super) revision: u64,
+    pub(super) script_events: Vec<(ControlSource, SourceInput, u8)>,
+    pub(super) script_bank: u32,
+    script_overflow: bool,
     /// The targets to move, each with the value it had, the value it gets
     /// (both 0 to 1) and the link that moves it.
     writes: Vec<Write>,
@@ -439,6 +447,8 @@ struct Plan {
     stopped: bool,
     gesture: u64,
 }
+
+pub(super) type ScriptMotion = (ControlSource, LinkTarget, ControlMap, SourceInput);
 
 struct Write {
     target: AutomationTarget,
@@ -700,18 +710,36 @@ impl Session {
                 state.document.project(),
             );
         }
-        if !plan.script_events.is_empty() {
-            let stamp = windfall_project::proposal::ProposalStamp {
-                generation: plan.generation,
-                revision: plan.revision,
-            };
-            let events = std::mem::take(&mut plan.script_events);
-            let commands = std::mem::take(&mut plan.commands);
-            match self.controller_scripts(events, stamp, plan.script_bank, commands) {
-                Ok(()) => self.controllers_wrote(&plan, now),
-                Err(error) => lock(&self.inner.controllers).error = Some(error),
+        let feedback = if plan.script_overflow {
+            plan.commands.clear();
+            plan.actions.clear();
+            let mut hub = lock(&self.inner.controllers);
+            hub.states.clear();
+            hub.waiting.clear();
+            hub.error = Some("controller script event budget exceeded; batch refused".into());
+            Vec::new()
+        } else if !plan.script_events.is_empty() {
+            match self.controller_scripts(&mut plan, now) {
+                Ok(feedback) => feedback,
+                Err(error) => {
+                    plan.commands.clear();
+                    plan.actions.clear();
+                    let mut hub = lock(&self.inner.controllers);
+                    hub.states.clear();
+                    hub.waiting.clear();
+                    hub.error = Some(error);
+                    Vec::new()
+                }
             }
-        } else if !plan.commands.is_empty() {
+        } else { Vec::new() };
+        let mut committed = plan.commands.is_empty();
+        let mut applied_revision = plan.revision;
+        if !plan.commands.is_empty() {
+            // Keep revision admission identical for scripts and ordinary controls.
+            if self.proposal_stamp().revision != plan.revision {
+                lock(&self.inner.controllers).error = Some("controller batch became stale".into());
+                return;
+            }
             let command = if plan.commands.len() == 1 {
                 plan.commands.remove(0)
             } else {
@@ -720,13 +748,18 @@ impl Session {
                     commands: std::mem::take(&mut plan.commands),
                 }
             };
-            match self.dispatch_controller_capture(command, Some(plan.gesture), plan.generation) {
-                Ok(_) => self.controllers_wrote(&plan, now),
+            match self.dispatch_controller_batch(command, Some(plan.gesture), plan.generation, Some(plan.revision)) {
+                Ok(result) => { self.controllers_wrote(&plan, now); committed = true; applied_revision = result.patch.revision; },
                 Err(error) => lock(&self.inner.controllers).error = Some(error),
             }
         }
-        for action in std::mem::take(&mut plan.actions) {
-            self.controller_action(action);
+        if committed && let Err(error) = self.controller_script_feedback(feedback, plan.generation, applied_revision) {
+            lock(&self.inner.controllers).error = Some(format!("Controller movement applied; MIDI feedback failed: {error}"));
+        }
+        if committed {
+            for action in std::mem::take(&mut plan.actions) {
+                self.controller_action(action);
+            }
         }
         for event in std::mem::take(&mut plan.clock) {
             self.follow_clock(event);
@@ -867,7 +900,7 @@ impl Session {
         hub.last_pump = Some(now);
         let pickup = hub.settings.pickup;
         let bank = hub.bank;
-        let links: Vec<ControllerLink> = project
+        let mut links: Vec<ControllerLink> = project
             .settings
             .controller_links
             .iter()
@@ -875,6 +908,15 @@ impl Session {
             .chain(&hub.profile_links)
             .cloned()
             .collect();
+        // Script outputs enter these same states after interpretation. Include
+        // them here so glides and pickup indicators continue on idle pumps.
+        for binding in &project.settings.scripts.controllers {
+            for target in binding.target.into_iter().chain(std::iter::once(LinkTarget::Param { target: AutomationTarget::Tempo })) {
+                let link = ControllerLink { source: binding.source.clone(), target, map: binding.map.clone() };
+                links.retain(|old| old.source != link.source || old.target != link.target);
+                links.push(link);
+            }
+        }
         hub.waiting.clear();
         let events: Vec<Incoming> = hub.queue.drain(..).collect();
         if !events.is_empty() {
@@ -961,8 +1003,9 @@ impl Session {
                         _ => 0,
                     };
                     plan.script_events
-                        .push((event.source.clone(), event.input.value, number));
+                        .push((event.source.clone(), event.input, number));
                 } else {
+                    plan.script_overflow = true;
                     hub.dropped = hub.dropped.saturating_add(1);
                     hub.error = Some("controller script event budget exceeded".into());
                 }
@@ -1080,6 +1123,67 @@ impl Session {
         drop(guard);
         drop(state);
         self.recording_touch_refresh();
+    }
+
+    pub(super) fn controllers_script_motion(
+        &self,
+        plan: &mut Plan,
+        motions: Vec<ScriptMotion>,
+        now: Instant,
+    ) -> Result<(), String> {
+        let state = self.state();
+        if state.generation != plan.generation || state.document.revision() != plan.revision {
+            return Err("controller script output became stale".into());
+        }
+        let project = state.document.project();
+        let mut guard = lock(&self.inner.controllers);
+        let hub = &mut *guard;
+        let mut states = hub.states.clone();
+        for (source, target, map, input) in motions {
+            let compiled = map.compile()?;
+            let link_state = states.entry((source.clone(), target)).or_default();
+            if let LinkTarget::Action { action } = target {
+                if link_state.pressed(SourceInput { value: compiled.shape(input.value), raw: input.raw }) {
+                    plan.actions.push(action);
+                }
+                continue;
+            }
+            let resolved = match target {
+                LinkTarget::Param { target } => Some(target),
+                LinkTarget::Slot { slot } => slot.resolve(project, plan.script_bank),
+                LinkTarget::Action { .. } => None,
+            }.ok_or("controller script target is unavailable")?;
+            let range = project.automation_range(&resolved).ok_or("controller script target is unavailable")?;
+            let before = range.normalized(project.automation_stored_value(&resolved).ok_or("controller script target is unavailable")?);
+            let value = plan.writes.iter().rev().find(|w| w.target == resolved).map_or(before, |w| w.value);
+            match link_state.input(&compiled, input, value, hub.settings.pickup) {
+                Motion::Write(value) => {
+                    if let Some(write) = plan.writes.iter_mut().find(|w| w.target == resolved) {
+                        write.value = value;
+                        write.link = (source, target);
+                    } else {
+                        plan.writes.push(Write { target: resolved, before, value, link: (source, target) });
+                    }
+                }
+                Motion::Held => { if !hub.waiting.contains(&resolved) { hub.waiting.push(resolved); } },
+                Motion::None => {},
+            }
+        }
+        plan.commands.clear();
+        for write in &plan.writes {
+            let range = project.automation_range(&write.target).ok_or("controller script target is unavailable")?;
+            plan.commands.push(target_command(project, &write.target, range.value(write.value))
+                .ok_or("controller script target has no checked command")?);
+        }
+        if plan.commands.len() > 128 || plan.actions.len() > 128 { return Err("controller output budget exceeded".into()); }
+        hub.states = states;
+        if !plan.commands.is_empty() {
+            plan.gesture = if hub.automation_armed && hub.clock.playing() {
+                if hub.recording_gesture.is_none() { hub.recording_gesture = Some(hub.fresh_gesture()); }
+                hub.recording_gesture.unwrap()
+            } else { hub.gesture_at(now) };
+        }
+        Ok(())
     }
 
     /// Adds one link made by a pass of linking: to the project as an edit,
