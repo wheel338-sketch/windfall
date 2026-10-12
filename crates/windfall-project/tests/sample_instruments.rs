@@ -185,6 +185,7 @@ fn incompatible_instrument_changes_clear_bank_references_and_undo_restores_them(
             target: PluginTarget::Instrument { channel: id },
             expected: current,
             preset: PluginPreset {
+                tables: None,
                 state: PluginPresetState::Instrument {
                     asset: None,
                     params: InstrumentKind::PianoKeys.default_params(),

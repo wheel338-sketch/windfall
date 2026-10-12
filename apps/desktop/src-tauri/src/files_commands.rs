@@ -359,6 +359,7 @@ pub async fn plugins_insert(
                     target,
                     expected,
                     preset: PluginPreset {
+                        tables: None,
                         state: PluginPresetState::Hosted {
                             instrument: false,
                             binding,

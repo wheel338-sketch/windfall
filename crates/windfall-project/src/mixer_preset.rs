@@ -11,6 +11,9 @@ use windfall_dsp::ParamSet;
 #[serde(rename_all = "camelCase")]
 #[ts(export)]
 pub struct MixerTrackPreset {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub tables: Option<crate::preset_tables::PresetTables>,
     pub version: u32,
     pub name: String,
     pub color: u32,
@@ -29,7 +32,14 @@ impl MixerTrackPreset {
             .mixer
             .track(id)
             .ok_or("The preset source track no longer exists")?;
+        let tables = crate::preset_tables::PresetTables::capture(
+            project,
+            std::iter::once(id.0)
+                .chain(track.effects.iter().map(|slot| slot.id.0))
+                .collect(),
+        );
         let preset = Self {
+            tables: tables.has_configuration().then_some(tables),
             version: 1, name: track.name.clone(), color: track.color, volume: track.volume,
             pan: track.pan, muted: track.muted, processing: track.processing,
             latency_offset_ms: track.latency_offset_ms, effects: track.effects.clone(),
@@ -40,6 +50,24 @@ impl MixerTrackPreset {
     }
 
     pub fn validate(&self) -> Result<(), String> {
+        if let Some(tables) = &self.tables {
+            tables.check()?;
+            if tables.owners.len() != self.effects.len() + 1
+                || tables
+                    .objects
+                    .iter()
+                    .find(|o| Some(&o.id) == tables.owners.first())
+                    .is_none_or(|o| o.role != "track")
+                || self
+                    .effects
+                    .iter()
+                    .any(|effect| !tables.owners[1..].contains(&effect.id.0))
+            {
+                return Err(
+                    "Mixer preset side table owner namespace differs from its chain".into(),
+                );
+            }
+        }
         if self.version != 1 {
             return Err("Unsupported mixer preset version".into());
         }

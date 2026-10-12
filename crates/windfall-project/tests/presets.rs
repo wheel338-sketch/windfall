@@ -134,6 +134,428 @@ fn channel_of(doc: &Document, id: ChannelId) -> Channel {
     doc.project().channel(id).unwrap().clone()
 }
 
+fn apply_body(
+    doc: &mut Document,
+    channel: ChannelId,
+    body: ChannelPreset,
+) -> Result<Applied, CommandError> {
+    doc.dispatch(
+        Command::ApplyChannelPreset {
+            id: channel,
+            expected: channel_of(doc, channel),
+            preset: body,
+            sample: None,
+            audio: None,
+            name_color: false,
+        },
+        None,
+    )
+}
+
+#[test]
+fn midi_preset_optional_destinations_round_trip_and_remap_by_hosted_identity() {
+    let mut source = Document::new(Project::new("Source"));
+    let midi = synth(&mut source, "MIDI", InstrumentKind::MidiOut);
+    let target = synth(&mut source, "Receiver", InstrumentKind::SubtractiveSynth);
+    let mut project = source.project().clone();
+    let mut host = binding("receiver", &[], &[7]);
+    host.target = PluginTarget::Instrument { channel: target };
+    project.plugins.push(host.clone());
+    if let ChannelSource::Instrument {
+        params: InstrumentParams::MidiOut(p),
+        ..
+    } = &mut project.channels[0].source
+    {
+        p.output_port = 6;
+        p.plugin_destination = target.0 as i32;
+    }
+    project.check().unwrap();
+    let (body, _) = ChannelPreset::capture(&project, midi).unwrap();
+    let file = Preset::of_channel("MIDI", body, None).to_json().unwrap();
+    let (read, notes) = Preset::from_json(file.as_bytes()).unwrap();
+    assert!(notes.is_empty(), "{notes:?}");
+    let mut destination = Document::new(Project::new("Destination"));
+    synth(&mut destination, "Unrelated", InstrumentKind::Kick);
+    synth(&mut destination, "Another unrelated", InstrumentKind::Kick);
+    let receiver = synth(
+        &mut destination,
+        "Receiver",
+        InstrumentKind::SubtractiveSynth,
+    );
+    assert_ne!(receiver, target);
+    let channel = synth(&mut destination, "Destination", InstrumentKind::MidiOut);
+    let mut dest = destination.project().clone();
+    host.target = PluginTarget::Instrument { channel: receiver };
+    dest.plugins.push(host);
+    destination = Document::new(dest);
+    let before = destination.project().clone();
+    let plugin =
+        PluginPreset::capture(&project, PluginTarget::Instrument { channel: midi }).unwrap();
+    let (plugin_file, plugin_notes) = Preset::from_json(
+        Preset::of_plugin("MIDI", plugin)
+            .to_json()
+            .unwrap()
+            .as_bytes(),
+    )
+    .unwrap();
+    assert!(plugin_notes.is_empty());
+    let mut plugin_destination = Document::new(before.clone());
+    let destination_target = PluginTarget::Instrument { channel };
+    let expected = PluginPreset::capture(plugin_destination.project(), destination_target)
+        .unwrap()
+        .state;
+    plugin_destination
+        .dispatch(
+            Command::ApplyPluginPreset {
+                target: destination_target,
+                expected,
+                preset: plugin_file.plugin.unwrap(),
+            },
+            None,
+        )
+        .unwrap();
+    let ChannelSource::Instrument {
+        params: InstrumentParams::MidiOut(p),
+        ..
+    } = &plugin_destination
+        .project()
+        .channel(channel)
+        .unwrap()
+        .source
+    else {
+        panic!()
+    };
+    assert_eq!(
+        (p.output_port, p.plugin_destination),
+        (6, receiver.0 as i32)
+    );
+    assert_eq!(plugin_destination.history().entries.len(), 1);
+    plugin_destination.undo().unwrap();
+    assert_eq!(plugin_destination.project(), &before);
+    let body = read.channel.unwrap();
+    apply_body(&mut destination, channel, body.clone()).unwrap();
+    let ChannelSource::Instrument {
+        params: InstrumentParams::MidiOut(p),
+        ..
+    } = &destination.project().channel(channel).unwrap().source
+    else {
+        panic!()
+    };
+    assert_eq!(
+        (p.output_port, p.plugin_destination),
+        (6, receiver.0 as i32)
+    );
+    let loaded = destination.project().clone();
+    assert_eq!(destination.history().entries.len(), 1);
+    destination.undo().unwrap();
+    assert_eq!(destination.project().channels, before.channels);
+    destination.redo().unwrap();
+    assert_eq!(
+        file::from_json(&file::to_json(destination.project()).unwrap()).unwrap(),
+        loaded
+    );
+    // Missing, ambiguous and legacy identity-less targets refuse, never fall
+    // back to hardware or accidentally bind the same integer in another project.
+    for legacy in [false, true] {
+        let mut missing = Document::new(before.clone());
+        let mut bad = body.clone();
+        if legacy {
+            bad.tables = None;
+        } else {
+            bad.tables
+                .as_mut()
+                .unwrap()
+                .objects
+                .iter_mut()
+                .find(|o| o.id == target.0)
+                .unwrap()
+                .name = "Missing".into();
+        }
+        let error = apply_body(&mut missing, channel, bad)
+            .unwrap_err()
+            .to_string();
+        assert!(error.contains("remap"), "{error}");
+        assert_eq!(missing.project(), &before);
+        assert!(missing.history().entries.is_empty());
+    }
+    let mut ambiguous = Document::new(before.clone());
+    let duplicate = synth(&mut ambiguous, "Receiver", InstrumentKind::SubtractiveSynth);
+    let mut duplicated_project = ambiguous.project().clone();
+    let mut duplicate_binding = duplicated_project.plugins[0].clone();
+    duplicate_binding.target = PluginTarget::Instrument { channel: duplicate };
+    duplicated_project.plugins.push(duplicate_binding);
+    ambiguous = Document::new(duplicated_project.clone());
+    let error = apply_body(&mut ambiguous, channel, body.clone())
+        .unwrap_err()
+        .to_string();
+    assert!(error.contains("2 matching destinations"), "{error}");
+    assert_eq!(ambiguous.project(), &duplicated_project);
+    assert!(ambiguous.history().entries.is_empty());
+    for destination_value in [0, -1] {
+        let mut hardware = project.clone();
+        if let ChannelSource::Instrument {
+            params: InstrumentParams::MidiOut(p),
+            ..
+        } = &mut hardware.channels[0].source
+        {
+            p.plugin_destination = destination_value;
+        }
+        let (body, _) = ChannelPreset::capture(&hardware, midi).unwrap();
+        let (read, notes) = Preset::from_json(
+            Preset::of_channel("MIDI", body, None)
+                .to_json()
+                .unwrap()
+                .as_bytes(),
+        )
+        .unwrap();
+        assert!(notes.is_empty());
+        let ChannelSource::Instrument {
+            params: InstrumentParams::MidiOut(p),
+            ..
+        } = read.channel.unwrap().source
+        else {
+            panic!()
+        };
+        assert_eq!(
+            (p.output_port, p.plugin_destination),
+            (6, destination_value)
+        );
+    }
+}
+
+#[test]
+fn channel_preset_controller_panel_rack_and_script_are_one_portable_history_edit() {
+    use windfall_project::scripting::{
+        ChannelScript, ControllerScript, ScriptAsset, ScriptKind, ScriptReference,
+    };
+    let mut source = Document::new(Project::new("Source"));
+    let channel = synth(&mut source, "Panel", InstrumentKind::Dashboard);
+    let mut project = source.project().clone();
+    project.channels[0].expression_map.bend_range_semitones = 12.0;
+    project
+        .settings
+        .internal_controllers
+        .push(InternalControllerSettings {
+            controller: channel.0,
+            controls: vec![SurfaceControl {
+                output: 0,
+                name: "Level".into(),
+                kind: SurfaceControlKind::Slider,
+                column: 3,
+                row: 2,
+            }],
+            ..Default::default()
+        });
+    let reference = ScriptReference {
+        id: "transpose".into(),
+        revision: 1,
+    };
+    project.settings.scripts.assets.push(ScriptAsset {
+        reference: reference.clone(),
+        language_version: 1,
+        kind: ScriptKind::NoteTransform,
+        name: "Transpose".into(),
+        source: "set key key 12 + 0 127 clamp\nemit".into(),
+    });
+    project.settings.scripts.channels.push(ChannelScript {
+        channel,
+        script: reference,
+        parameters: vec![],
+    });
+    let controller_reference = ScriptReference {
+        id: "device".into(),
+        revision: 1,
+    };
+    project.settings.scripts.assets.push(ScriptAsset {
+        reference: controller_reference.clone(),
+        language_version: 1,
+        kind: ScriptKind::Controller,
+        name: "Device".into(),
+        source: "map 1 value -\nfeedback 7 value 127 *".into(),
+    });
+    project.settings.scripts.controllers.push(ControllerScript {
+        source: ControlSource::Midi {
+            device: Some("Keyboard".into()),
+            channel: Some(2),
+            control: MidiControl::Cc { number: 17 },
+        },
+        script: controller_reference,
+        parameters: vec![],
+        target: Some(LinkTarget::Slot {
+            slot: SlotTarget::ChannelVolume { index: 0 },
+        }),
+        feedback_channel: Some(2),
+    });
+    project.settings.modular_racks.push(ChannelRack {
+        channel,
+        graph: RackGraph::default(),
+    });
+    project.check().unwrap();
+    let (body, _) = ChannelPreset::capture(&project, channel).unwrap();
+    let (read, _) = Preset::from_json(
+        Preset::of_channel("Panel", body, None)
+            .to_json()
+            .unwrap()
+            .as_bytes(),
+    )
+    .unwrap();
+    let mut dest = Document::new(Project::new("Destination"));
+    synth(&mut dest, "Retired", InstrumentKind::Kick);
+    let target = synth(&mut dest, "Target", InstrumentKind::Dashboard);
+    dest = Document::new(dest.project().clone());
+    let before = dest.project().clone();
+    let body = read.channel.unwrap();
+    apply_body(&mut dest, target, body.clone()).unwrap();
+    assert_eq!(dest.history().entries.len(), 1);
+    assert_eq!(
+        dest.project().settings.internal_controllers[0].controller,
+        target.0
+    );
+    assert_eq!(
+        dest.project().settings.internal_controllers[0].controls[0].column,
+        3
+    );
+    assert_eq!(dest.project().settings.scripts.channels[0].channel, target);
+    assert_eq!(
+        dest.project().settings.scripts.assets,
+        project.settings.scripts.assets
+    );
+    assert_eq!(
+        dest.project().settings.scripts.controllers[0].target,
+        Some(LinkTarget::Param {
+            target: AutomationTarget::ChannelVolume { channel: target }
+        })
+    );
+    assert_eq!(
+        dest.project().settings.scripts.controllers[0].feedback_channel,
+        Some(2)
+    );
+    assert_eq!(
+        dest.project()
+            .channel(target)
+            .unwrap()
+            .expression_map
+            .bend_range_semitones,
+        12.0
+    );
+    assert_eq!(dest.project().settings.modular_racks[0].channel, target);
+    let loaded = dest.project().clone();
+    dest.undo().unwrap();
+    assert_eq!(dest.project().settings, before.settings);
+    dest.redo().unwrap();
+    assert_eq!(dest.project().settings, loaded.settings);
+    assert_eq!(
+        file::from_json(&file::to_json(dest.project()).unwrap()).unwrap(),
+        loaded
+    );
+    let mut conflicted = before;
+    let mut asset = project.settings.scripts.assets[0].clone();
+    asset.source = "emit".into();
+    conflicted.settings.scripts.assets.push(asset);
+    let mut refused = Document::new(conflicted.clone());
+    let error = apply_body(&mut refused, target, body)
+        .unwrap_err()
+        .to_string();
+    assert!(error.contains("immutable revision"), "{error}");
+    assert_eq!(refused.project(), &conflicted);
+    assert!(refused.history().entries.is_empty());
+}
+
+#[test]
+fn mixer_preset_controller_sources_and_links_follow_fresh_effect_ids() {
+    let mut source = Document::new(Project::new("Source"));
+    let track = TrackId(created(
+        &mut source,
+        Command::AddMixerTrack {
+            name: Some("Panel bus".into()),
+        },
+    ));
+    let controller = effect(&mut source, track, EffectKind::ControlSurface);
+    let mut project = source.project().clone();
+    project
+        .settings
+        .internal_controllers
+        .push(InternalControllerSettings {
+            controller: controller.0,
+            controls: vec![SurfaceControl {
+                output: 0,
+                name: "Fader".into(),
+                kind: SurfaceControlKind::Knob,
+                column: 1,
+                row: 4,
+            }],
+            ..Default::default()
+        });
+    project.settings.controller_links.push(ControllerLink {
+        source: ControlSource::Midi {
+            device: None,
+            channel: Some(1),
+            control: MidiControl::Cc { number: 12 },
+        },
+        target: LinkTarget::Param {
+            target: AutomationTarget::EffectParam {
+                track,
+                effect: controller,
+                param: 0,
+            },
+        },
+        map: Default::default(),
+    });
+    project.check().unwrap();
+    let body = MixerTrackPreset::capture(&project, track).unwrap();
+    let body = Preset::from_json(Preset::of_mixer_track(body).to_json().unwrap().as_bytes())
+        .unwrap()
+        .0
+        .mixer_track
+        .unwrap();
+    let mut dest = Document::new(Project::new("Destination"));
+    let target = TrackId(created(
+        &mut dest,
+        Command::AddMixerTrack {
+            name: Some("Target".into()),
+        },
+    ));
+    let obsolete = effect(&mut dest, target, EffectKind::ControlSurface);
+    dest = Document::new(dest.project().clone());
+    let before = dest.project().clone();
+    dest.dispatch(
+        Command::ApplyMixerTrackPreset {
+            id: target,
+            expected: before.mixer.track(target).unwrap().clone(),
+            preset: body,
+            name_color: false,
+        },
+        None,
+    )
+    .unwrap();
+    let fresh = dest.project().mixer.track(target).unwrap().effects[0].id;
+    assert_ne!(fresh, obsolete);
+    assert_eq!(
+        dest.project().settings.internal_controllers[0].controller,
+        fresh.0
+    );
+    assert_eq!(
+        dest.project().settings.controller_links[0].target,
+        LinkTarget::Param {
+            target: AutomationTarget::EffectParam {
+                track: target,
+                effect: fresh,
+                param: 0
+            }
+        }
+    );
+    assert_eq!(dest.history().entries.len(), 1);
+    let loaded = dest.project().clone();
+    dest.undo().unwrap();
+    assert_eq!(dest.project().settings, before.settings);
+    dest.redo().unwrap();
+    assert_eq!(dest.project().settings, loaded.settings);
+    assert_eq!(
+        file::from_json(&file::to_json(dest.project()).unwrap()).unwrap(),
+        loaded
+    );
+}
+
 /// The `type` a file gives a processor's settings.
 fn tag(params: impl serde::Serialize) -> String {
     serde_json::to_value(params).unwrap()["type"]
@@ -761,6 +1183,7 @@ fn a_plugin_preset_replaces_one_effect_and_leaves_its_slot_alone() {
             target,
             expected,
             preset: PluginPreset {
+                tables: None,
                 state: PluginPresetState::Hosted {
                     instrument: false,
                     binding: hosted,
@@ -1012,6 +1435,7 @@ fn a_hosted_destination_is_recognised_by_its_plugin_not_by_its_changing_state() 
     )
     .unwrap();
     let preset = PluginPreset {
+        tables: None,
         state: PluginPresetState::Hosted {
             instrument: true,
             binding: PluginBinding {

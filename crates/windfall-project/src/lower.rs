@@ -828,6 +828,14 @@ impl Transaction<'_> {
                     effect.id = fresh;
                     self.created.push(fresh.0);
                 }
+                let tables = preset.tables.clone();
+                let mut portable = std::collections::HashMap::new();
+                if let Some(tables) = &tables {
+                    if let Some(owner) = tables.owners.first() {
+                        portable.insert(*owner, id.0);
+                    }
+                    portable.extend(remap.iter().map(|(old, new)| (old.0, new.0)));
+                }
                 let mut new = expected.clone();
                 preset.settings_into(&mut new, name_color);
                 new.effects = effects;
@@ -839,6 +847,16 @@ impl Transaction<'_> {
                         };
                     }
                     self.bind_plugin(plugin);
+                }
+                if let Some(tables) = tables {
+                    let old = self.project.settings.clone();
+                    let retired: Vec<_> = std::iter::once(id.0)
+                        .chain(removed.iter().map(|id| id.0))
+                        .collect();
+                    let new = tables
+                        .apply(self.project, &portable, &retired)
+                        .map_err(CommandError::invalid)?;
+                    self.push(Edit::Settings(Change { old, new }));
                 }
                 "Load mixer track preset"
             }

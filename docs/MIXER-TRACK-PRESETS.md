@@ -46,6 +46,20 @@ quota errors and file cancellation. Bindings are provisionally synchronized;
 the simulator artifact remains the earlier advanced-fill build until the later
 combined artifact pass. No GitHub CI or Actions are used.
 
+## Portable controller and script configuration — round four
+
+Optional `tables` stores controller-panel configuration, incoming/outgoing
+controller links and the exact script revisions assigned to the preset's track
+or effects. The source IDs form a local namespace: the destination track and
+newly allocated effect IDs replace them in the same checked undo transaction.
+Slot links are captured against their concrete source objects. External targets
+require a unique match by role, name, built-in kind and hosted plugin identity
+and parameter-ID order. Missing or ambiguous targets, conflicting immutable
+script revisions and invalid controller configurations refuse the entire edit
+with the existing visible command error. The file retains all configuration.
+Older presets without this optional table still load. Round-four tests are
+written for integration verification; no build or passing evidence is claimed.
+
 ## Follow-up, 2026-10-10
 
 Presets can now be kept in a per-user library folder (`mixer-presets` beside
