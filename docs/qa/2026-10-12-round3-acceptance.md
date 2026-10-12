@@ -132,3 +132,5 @@ These are checkpoint results, not final acceptance. **Committed hand-off rows: 3
 - Late p2-inst (ready tip 14575c8d) merged at 0b081341; workspace check exit 0, zero warnings (target/round3-late-inst-check.log). Registered twenty maximum-load deadline cases and cold-pack gate; production schema/registries/dependencies unchanged.
 
 - Late p2-slices (ready tip 1ce9dbff) merged at 09a308b4; workspace check exit 0, zero warnings (target/round3-late-slices-check-repair1.log). Retained both native test registrations. Initial check mistakenly launched before the registration conflict was resolved and failed on its markers (target/round3-late-slices-check.log); no marker committed. No production/dependency changes.
+
+- Late p2-fx-dyn-eq (ready tip 35e0cb13) merged at 52906cb3; workspace check exit 0, zero warnings (target/round3-late-fx-dyn-eq-check.log). Retained all registrations, concrete-owner history reservation/admission and original seventeen examples. Tauri resource mapping accepted; no manifest/lock/dependency change. Drive/spectral hand-off became ready during these serial merges.
