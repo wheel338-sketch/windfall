@@ -502,6 +502,10 @@ pub struct Channel {
     #[serde(default, skip_serializing_if = "crate::ExpressionMap::is_default")]
     #[ts(as = "Option<crate::ExpressionMap>", optional)]
     pub expression_map: crate::ExpressionMap,
+    /// Immutable bank's saved references/recipe. PCM is worker-owned runtime data.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub sample_instrument: Option<crate::SampleInstrumentAsset>,
 }
 
 /// What makes the sound of a channel: a sample or an instrument. Hosted

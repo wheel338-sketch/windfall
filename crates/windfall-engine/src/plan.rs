@@ -134,6 +134,7 @@ pub(crate) struct PlanChannel {
     /// The settings of the instrument an instrument channel plays.
     pub instrument: Option<InstrumentParams>,
     pub instrument_asset: Option<Arc<windfall_dsp::InstrumentAsset>>,
+    pub sample_bank: Option<Arc<windfall_dsp::sample_bank::SampleBank>>,
     /// For a layer channel, the indexes of the channels its notes play on,
     /// nested layers already followed. `None` for every other channel. A
     /// layer never sounds itself, so an empty list is silence.
@@ -621,6 +622,7 @@ impl Plan {
                 sampler: PlanSampler::silent(),
                 instrument,
                 instrument_asset: channel.instrument_asset.clone(),
+                sample_bank: channel.sample_bank.clone(),
                 layer: None,
                 leaving: true,
             });
@@ -784,6 +786,7 @@ impl Plan {
                     sampler: PlanSampler::silent(),
                     instrument: Some(instrument),
                     instrument_asset: channel.instrument_asset.clone(),
+                    sample_bank: channel.sample_bank.clone(),
                     layer: None,
                     leaving: true,
                 });
@@ -1060,6 +1063,7 @@ fn compile_channel(
             }
             ChannelSource::Sampler(_) => None,
         },
+        sample_bank: pool.sample_instrument_bank(channel.id),
         layer: None,
         leaving: false,
     }
@@ -2203,6 +2207,7 @@ mod tests {
             group: String::new(),
             voice: Default::default(),
             expression_map: Default::default(),
+            sample_instrument: None,
             timing: windfall_project::ChannelTiming::default(),
             mixer_track: TrackId::MASTER,
             source: ChannelSource::Sampler(SamplerSettings::default()),

@@ -322,6 +322,11 @@ export function createTauriBackend(): Backend {
       call("consolidate_playlist_tracks", { tracks }),
     automate: (target) => call("automate", { target }),
     samplesReload: () => call("samples_reload"),
+    sampleInstrumentLoadBank: (channel, expected, path) => call("sample_instrument_load_bank", { channel, expected, path }),
+    sampleInstrumentSaveBank: (channel, expected, path) => call("sample_instrument_save_bank", { channel, expected, path }),
+    sampleInstrumentImportZone: (channel, expected, path, pad) => call("sample_instrument_import_zone", { channel, expected, path, pad }),
+    soundfontPresets: (path) => call("soundfont_presets", { path }),
+    sampleInstrumentSpeech: (channel, expected, text, pitch, duration) => call("sample_instrument_speech", { channel, expected, text, pitch, duration }),
 
     exportAudio: (options) => call("export_audio", { options }),
     exportPlaylistTracks: (options, stems) =>

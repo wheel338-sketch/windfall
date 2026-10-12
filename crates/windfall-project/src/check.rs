@@ -513,6 +513,7 @@ fn check_channel(project: &Project, channel: &Channel) -> Result<(), String> {
         .validate()
         .map_err(|reason| format!("channel {}: {reason}", channel.id.0))?;
     crate::expression_map::check(channel)?;
+    crate::sample_instrument::check(project, channel)?;
     if channel.group.len() > crate::MAX_CHANNEL_GROUP_NAME_BYTES
         || channel.group.trim() != channel.group
         || channel.group.chars().any(char::is_control)

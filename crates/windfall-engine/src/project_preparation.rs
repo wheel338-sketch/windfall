@@ -997,6 +997,7 @@ mod tests {
             timing: Default::default(),
             voice: Default::default(),
             expression_map: Default::default(),
+            sample_instrument: None,
             source: ChannelSource::Sampler(SamplerSettings {
                 sample: Some(sample),
                 ..Default::default()

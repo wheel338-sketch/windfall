@@ -212,3 +212,6 @@ mod export_positions;
 mod qa_recording_mixer;
 mod sample_playback;
 pub use export_positions::SongFrameMap;
+mod sample_instruments;
+
+pub mod peripherals;

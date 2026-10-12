@@ -495,6 +495,12 @@ fn names_are_plain_descriptions() {
             "Number Voice",
             "Spectral Resynth",
             "Color Scan",
+            "Multisampler",
+            "Sample player",
+            "SoundFont bank",
+            "Layered pads",
+            "Piano keys",
+            "Text voice",
         ]
     );
 }

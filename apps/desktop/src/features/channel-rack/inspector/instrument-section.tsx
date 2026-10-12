@@ -1,4 +1,6 @@
 import { DashboardEditor } from "@/features/internal-controllers/dashboard"
+import { SpecialOutputEditor } from "@/features/sample-instruments/special-output-editor"
+import { SampleInstrumentEditor } from "@/features/sample-instruments/editor"
 import { instrumentDescriptor } from "@/features/params"
 import { PluginControls } from "@/features/plugins/controls"
 import { usePluginBinding } from "@/features/plugins/store"
@@ -75,15 +77,19 @@ export function InstrumentSection({ channel }: { channel: InstrumentChannel }) {
       ) : params.type === "drumRack" ? (
         <DrumRackEditor channel={channel.id} params={params} />
       ) : params.type === "midiOut" ? (
-        <MidiOutputEditor channel={channel} />
+        <div className="flex flex-col gap-3"><MidiOutputEditor channel={channel} /><SpecialOutputEditor key={`${generation}:${channel.id}`} /></div>
       ) : params.type === "membrane" ? (
         <MembraneEditor channel={channel.id} params={params} />
       ) : ["sliceMap", "sliceDeck", "grainCloud", "waveRide"].includes(params.type) ? (
         <SamplePlaybackEditor key={`${generation}:${channel.id}:${params.type}`} channel={channel} />
       ) : params.type === "dashboard" ? (
         <DashboardEditor key={channel.id} channel={channel.id} params={params} />
+      ) : ["multiSampler","samplePlayer","soundFont","padBank","pianoKeys","textVoice"].includes(params.type) ? (
+        <SampleInstrumentEditor key={`${generation}:${channel.id}:${params.type}`} channel={channel} />
       ) : (
+        <div className="flex flex-col gap-3">
         <GenericInstrumentEditor channel={channel.id} params={params} />
+        </div>
       )}
     </Section>
   )

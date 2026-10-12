@@ -27,6 +27,7 @@
 //! plus the latency of its own effects. The master's figure is the latency
 //! of the whole engine, [`PlanState::latency`].
 
+use std::sync::Arc;
 use std::collections::HashMap;
 use std::ops::Range;
 
@@ -469,6 +470,7 @@ pub(crate) struct Ledger {
     >,
     sample_playback: HashMap<ChannelId, crate::sample_playback::Identity>,
     racks: HashMap<ChannelId, std::sync::Arc<windfall_project::RackGraph>>,
+    sample_banks: HashMap<ChannelId, Arc<windfall_dsp::sample_bank::SampleBank>>,
     /// The length each compensation delay is set to and the longest its
     /// line can give, plus the identity and prepared bounds of its stages.
     delays: HashMap<DelayKey, (usize, usize, Vec<DelayStage>)>,
@@ -1195,6 +1197,7 @@ impl PlanState {
                 .iter()
                 .filter_map(|channel| channel.rack.clone().map(|graph| (channel.id, graph)))
                 .collect(),
+            sample_banks: HashMap::new(),
             delays: HashMap::new(),
             meters: Vec::new(),
             latency: u32::try_from(output_latency).unwrap_or(u32::MAX),
@@ -1375,7 +1378,11 @@ impl PlanState {
             let target = windfall_project::PluginTarget::Instrument {
                 channel: channel.id,
             };
-            let known = held.and_then(|held| held.instruments.get(&channel.id))
+            let same_bank = match (channel.sample_bank.as_ref(), held.and_then(|held| held.sample_banks.get(&channel.id))) {
+                (Some(a),Some(b)) => Arc::ptr_eq(a,b), (None,None) => true, _ => false,
+            };
+            if let Some(bank) = &channel.sample_bank { ledger.sample_banks.insert(channel.id,bank.clone()); }
+            let known = same_bank && held.and_then(|held| held.instruments.get(&channel.id))
                 == Some(&(kind, channel.instrument_asset.clone()))
                 && held.and_then(|held| held.sample_playback.get(&channel.id))
                     == channel
@@ -1412,6 +1419,7 @@ impl PlanState {
                     if let Some(rack) = prepared_racks.remove(&channel.id) {
                         unit.install_rack(rack);
                     }
+                    if let Some(bank) = &channel.sample_bank { unit.install_sample_bank(bank.clone()); }
                     unit.configure_voice(
                         crate::channel_voice::PreparedChannelEnvelopes::prepare(
                             channel.voice.envelopes,
@@ -2304,6 +2312,7 @@ mod tests {
             group: String::new(),
             voice: Default::default(),
             expression_map: Default::default(),
+            sample_instrument: None,
             timing: windfall_project::ChannelTiming::default(),
             mixer_track: TrackId(track),
             source,

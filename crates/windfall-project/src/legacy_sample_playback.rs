@@ -138,6 +138,7 @@ impl<'de> Deserialize<'de> for Channel {
         }
         let source = serde_json::from_value(wire.source).map_err(D::Error::custom)?;
         Ok(Channel {
+            sample_instrument: None,
             sample_playback: asset,
             voice: wire.voice,
             id: wire.id,

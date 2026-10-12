@@ -25,6 +25,7 @@ function fullProject() {
     synth: 0,
     keyDrum: 0,
     slicer: 0,
+    sampleInstrument: 0,
     effect: 0,
     tap: 0,
     convolver: 0,
@@ -64,6 +65,7 @@ function fullProject() {
     ;[ids.keyDrum] = run({ type: "addChannel", instrument: "drumVoice" })
     ;[ids.slicer] = run({ type: "addChannel", instrument: "sliceDeck" })
     run({ type: "setSamplePlayback", channel: ids.slicer, asset: { ...defaultAsset(), sample: ids.sample } })
+    ;[ids.sampleInstrument] = run({ type: "addChannel", instrument: "multiSampler" })
     ;[ids.effect] = run({
       type: "addEffect",
       track: ids.track,
@@ -631,6 +633,13 @@ const EVERY_COMMAND: { [Type in Command["type"]]: (ids: Ids) => Command } = {
     type: "setInstrumentAsset", channel: ids.keyDrum,
     expected: ids.project.channels.find(channel => channel.id === ids.keyDrum)!.source,
     asset: { type: "drumKeys", patches: [{ key: 36, params: { mode: "snare", pitchHz: 170, decayMs: 400, tone: 0.6, snap: 0.8, level: 0.8 } }] },
+  }),
+  setSampleInstrumentAsset: (ids) => ({
+    type: "setSampleInstrumentAsset", channel: ids.sampleInstrument,
+    expected: null, asset: { type: "zones", zones: [] },
+  }),
+  editSampleZones: (ids) => ({
+    type: "editSampleZones", channel: ids.sampleInstrument, expected: [], zones: [],
   }),
   setInstrumentParams: (ids) => ({
     type: "setInstrumentParams",

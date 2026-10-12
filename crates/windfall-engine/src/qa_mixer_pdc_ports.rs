@@ -84,6 +84,7 @@ impl Rig {
             voice: Default::default(),
             timing: windfall_project::ChannelTiming::default(),
             expression_map: Default::default(),
+            sample_instrument: None,
             mixer_track: track,
             source: ChannelSource::Sampler(SamplerSettings {
                 sample: Some(sample),

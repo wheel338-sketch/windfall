@@ -546,6 +546,9 @@ impl ChannelPreset {
         if channel.sample_playback.is_some() {
             return Err("Sample playback sources, maps and curves cannot be bundled in a channel preset yet. Save a project or duplicate the channel to retain them.".into());
         }
+        if channel.sample_instrument.is_some() {
+            return Err("Save this sample-bank instrument in its project; portable bank preset export is not supported yet".into());
+        }
         let mut source = channel.source.clone();
         let mut sample = None;
         if let ChannelSource::Sampler(sampler) = &mut source {
@@ -592,6 +595,11 @@ impl ChannelPreset {
         if let ChannelSource::Sampler(sampler) = &mut source {
             sampler.sample = sample;
         }
+        let sample_instrument = match (&base.source, &source) {
+            (ChannelSource::Instrument { params: old, .. }, ChannelSource::Instrument { params: new, .. })
+                if old.kind() == new.kind() => base.sample_instrument.clone(),
+            _ => None,
+        };
         Channel {
             sample_playback: if matches!(&source, ChannelSource::Instrument { params, .. }
                 if crate::sample_playback::supported(params.kind()))
@@ -600,6 +608,7 @@ impl ChannelPreset {
             } else {
                 None
             },
+            sample_instrument,
             volume: self.volume,
             pan: self.pan,
             voice: self.voice,
@@ -696,6 +705,7 @@ impl ChannelPreset {
             mixer_track: TrackId::MASTER,
             source: self.source.clone(),
             expression_map: Default::default(),
+            sample_instrument: None,
         };
         project.channels.push(self.onto(&base, sample));
         if let Some(graph) = &self.rack {

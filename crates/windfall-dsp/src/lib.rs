@@ -202,3 +202,4 @@ pub use additive::{NumberVoice, NumberVoiceParams};
 pub use additive::{SpectralResynth, SpectralResynthParams};
 
 pub use additive::{ColorScan, ColorScanParams};
+pub mod sample_bank;

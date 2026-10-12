@@ -99,3 +99,5 @@ pub mod assistant;
 pub mod assistant_protocol;
 pub mod proposal;
 pub mod scripting;
+pub mod sample_instrument;
+pub use sample_instrument::SampleInstrumentAsset;

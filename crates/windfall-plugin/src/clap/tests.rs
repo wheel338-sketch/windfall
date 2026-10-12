@@ -73,6 +73,7 @@ fn program() -> Program {
             .collect(),
     });
     program.project.channels.push(Channel {
+        sample_instrument: None,
         sample_playback: None,
         id: ChannelId(3),
         name: "sampler".into(),

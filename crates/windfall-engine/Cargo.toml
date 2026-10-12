@@ -11,6 +11,8 @@ authors.workspace = true
 [features]
 # Host-clock entry points for the separate CLAP export target. No device is opened.
 plugin-export = []
+# Public Windows XInput import library; no SDK/content dependency is bundled.
+xinput = []
 # ASIO needs the Steinberg ASIO SDK at build time, so it is off by default.
 asio = ["cpal/asio"]
 

@@ -521,3 +521,5 @@ impl Session {
 }
 
 mod sample_playback;
+mod sample_instruments;
+mod sample_bank_files;
