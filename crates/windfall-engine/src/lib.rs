@@ -124,6 +124,7 @@ mod clip_processing;
 mod clips;
 mod controller;
 mod internal_controllers;
+mod preview_memory;
 pub(crate) use controller::preparation as project_preparation;
 mod capture;
 mod device;

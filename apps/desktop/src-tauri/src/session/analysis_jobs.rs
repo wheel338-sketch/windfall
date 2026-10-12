@@ -2,6 +2,7 @@
 //! Gate -> recording -> State is the capture/apply order. IO, hashes, decoding,
 //! model/worker waits and retirement always run outside recording/State guards.
 use super::{Session, State};
+mod file_capture;
 mod pack_registry;
 mod source_namespace;
 use crate::sync::lock;
@@ -365,9 +366,9 @@ impl Service {
         config.workers = 1;
         config.max_queued = 2;
         config.max_retained_jobs = JOBS;
-        config.memory_bytes = 192 * 1024 * 1024;
+        config.memory_bytes = 512 * 1024 * 1024;
         config.max_work_units = 100_000_000_000;
-        config.input_limits = input_limits();
+        config.input_limits = file_capture::limits();
         let manager =
             Arc::new(native::JobManager::new(config, cache, adapter).map_err(native_error)?);
         let mut owned = lock(&self.owned);
@@ -673,10 +674,11 @@ impl Session {
                 project.clone(),
             )
         };
-        if native::AudioShape::of(&source)
-            .pcm_bytes()
-            .map_err(native_error)?
-            > PCM_LIMIT
+        if !builtin
+            && native::AudioShape::of(&source)
+                .pcm_bytes()
+                .map_err(native_error)?
+                > PCM_LIMIT
         {
             return Err(error("budget", "Loaded source limit is 16 MiB."));
         }
@@ -688,28 +690,51 @@ impl Session {
             return Err(error("budget", "Source metadata is too large."));
         }
         let mut file = source_file(&path)?;
-        let bytes = file_bytes(&mut file, &mut work)?;
-        let fingerprint =
-            native::ContentFingerprint::reader(std::io::Cursor::new(&bytes), PCM_LIMIT, &mut work)
-                .map_err(native_error)?;
-        let decoded = windfall_codec::decode_bytes_with(
-            &bytes,
-            path.extension().and_then(|e| e.to_str()),
-            &windfall_codec::DecodeOptions {
-                max_decoded_bytes: PCM_LIMIT,
-            },
-        )
-        .map_err(|e| error("io", e))?;
-        if native::ContentFingerprint::audio(&decoded, &mut work).map_err(native_error)?
-            != native::ContentFingerprint::audio(&source, &mut work).map_err(native_error)?
-        {
-            return Err(error(
-                "stale",
-                "The source file changed; reload its audio first.",
-            ));
-        }
-        drop(decoded);
-        drop(bytes);
+        manager
+            .check_retained_memory(
+                self.controller()
+                    .preview_retained_bytes()
+                    .checked_add(native::DEREVERB_SCRATCH_BYTES)
+                    .ok_or_else(|| error("budget", "Preview memory overflow."))?,
+            )
+            .map_err(native_error)?;
+        let fingerprint = if builtin {
+            let fingerprint = native::ContentFingerprint::reader(
+                &mut file,
+                file_capture::SOURCE_FILE_LIMIT,
+                &mut work,
+            )
+            .map_err(native_error)?;
+            file_capture::verify_source(&path, &source, &mut work)?;
+            fingerprint
+        } else {
+            let bytes = file_bytes(&mut file, &mut work)?;
+            let fingerprint = native::ContentFingerprint::reader(
+                std::io::Cursor::new(&bytes),
+                PCM_LIMIT,
+                &mut work,
+            )
+            .map_err(native_error)?;
+            let decoded = windfall_codec::decode_bytes_with(
+                &bytes,
+                path.extension().and_then(|e| e.to_str()),
+                &windfall_codec::DecodeOptions {
+                    max_decoded_bytes: PCM_LIMIT,
+                },
+            )
+            .map_err(|e| error("io", e))?;
+            if native::ContentFingerprint::audio(&decoded, &mut work).map_err(native_error)?
+                != native::ContentFingerprint::audio(&source, &mut work).map_err(native_error)?
+            {
+                return Err(error(
+                    "stale",
+                    "The source file changed; reload its audio first.",
+                ));
+            }
+            drop(decoded);
+            drop(bytes);
+            fingerprint
+        };
         let mut render_pool = SamplePool::new();
         render_pool.insert(sample.id, source.clone());
         let tempo = project.settings.tempo_bpm;
@@ -723,13 +748,14 @@ impl Session {
                 && frames >= 1.0
                 && frames * f64::from(channels) * 4.0 <= PCM_LIMIT as f64
         };
-        if !bounded_frames(rendered_frames, 2) {
+        if !builtin && !bounded_frames(rendered_frames, 2) {
             return Err(error("budget", "Rendered clip limit is 16 MiB."));
         }
-        if let ClipContent::Audio {
-            stretch: windfall_project::ClipStretch::Spectral { ratio, .. },
-            ..
-        } = clip.content
+        if !builtin
+            && let ClipContent::Audio {
+                stretch: windfall_project::ClipStretch::Spectral { ratio, .. },
+                ..
+            } = clip.content
             && !bounded_frames((source.frames() as f64 * ratio).round(), source.channels())
         {
             return Err(error("budget", "Stretched source limit is 16 MiB."));
@@ -760,7 +786,30 @@ impl Session {
                 selection.frames().map_err(native_error)?,
             )
             .map_err(native_error)?;
-        let view = windfall_engine::audio_edit::render_view_timed(&render_pool, &clip, &timing)?;
+        if builtin
+            && (!rendered_frames.is_finite()
+                || rendered_frames < 1.0
+                || rendered_frames > f64::from(source.sample_rate()) * 3600.0
+                || selection
+                    .frames()
+                    .map_err(native_error)?
+                    .checked_mul(8)
+                    .is_none_or(|bytes| bytes > file_capture::STREAM_PCM_LIMIT))
+        {
+            return Err(error(
+                "budget",
+                "Dereverb supports up to one hour and 128 MiB of selected PCM; reduce the selection/clip length.",
+            ));
+        }
+        let view = if builtin {
+            None
+        } else {
+            Some(windfall_engine::audio_edit::render_view_timed(
+                &render_pool,
+                &clip,
+                &timing,
+            )?)
+        };
         work.check().map_err(native_error)?;
         let encoded_binding =
             serde_json::to_vec(&(&clip, &sample, tempo, timing, &directory, &project_path))
@@ -779,11 +828,58 @@ impl Session {
             binding: binding_digest,
             source_identity: source.identity(),
             source_fingerprint: fingerprint,
-            input_shape: native::AudioShape::of(&view),
+            input_shape: shape,
             selection,
         };
-        let input = native::CapturedInput::capture(&view, stamp.clone(), input_limits(), &mut work)
-            .map_err(native_error)?;
+        let input = if builtin {
+            // Capture plus optional spectral file, and all eventual output
+            // publication copies, must fit alongside already retained jobs.
+            let spectral_bytes = if let ClipContent::Audio {
+                stretch: windfall_project::ClipStretch::Spectral { ratio, .. },
+                ..
+            } = clip.content
+            {
+                let frames = windfall_stretch::stretched_frames(source.frames(), ratio) as u64;
+                let bytes = frames
+                    .checked_mul(u64::from(source.channels()) * 4)
+                    .ok_or_else(|| error("budget", "Spectral file shape overflow."))?;
+                if bytes > file_capture::STREAM_PCM_LIMIT {
+                    return Err(error(
+                        "budget",
+                        "Spectral preparation file limit is 128 MiB.",
+                    ));
+                }
+                bytes
+            } else {
+                0
+            };
+            let capture_disk = selection
+                .frames()
+                .map_err(native_error)?
+                .checked_mul(8 * 4)
+                .and_then(|total| total.checked_add(spectral_bytes))
+                .and_then(|total| total.checked_add(64 * 1024))
+                .ok_or_else(|| error("budget", "Capture disk overflow."))?;
+            manager
+                .check_capture_disk(capture_disk)
+                .map_err(native_error)?;
+            file_capture::capture(
+                &service.root,
+                &source,
+                &clip,
+                &timing,
+                stamp.clone(),
+                &mut work,
+            )?
+        } else {
+            native::CapturedInput::capture(
+                view.as_ref().expect("memory view"),
+                stamp.clone(),
+                input_limits(),
+                &mut work,
+            )
+            .map_err(native_error)?
+        };
         drop(view);
         drop(render_pool);
         drop(source);
@@ -811,7 +907,13 @@ impl Session {
                 })
             })
             .map_err(native_error)?;
-        if output_pcm > OUTPUT_PCM_LIMIT {
+        if output_pcm
+            > if builtin {
+                file_capture::STREAM_PCM_LIMIT
+            } else {
+                OUTPUT_PCM_LIMIT
+            }
+        {
             return Err(error("budget", "Combined output PCM limit is 32 MiB."));
         }
         #[cfg(test)]
@@ -827,29 +929,32 @@ impl Session {
         }
         work.check().map_err(native_error)?;
         let id = manager
-            .submit(native::JobRequest {
-                amount,
-                task: task_native(request.task),
-                input,
-                model,
-                budget: native::JobBudget {
-                    scratch_bytes: if builtin {
-                        native::DEREVERB_SCRATCH_BYTES
-                    } else {
-                        OUTPUT_PCM_LIMIT
+            .submit_with_retained_memory(
+                native::JobRequest {
+                    amount,
+                    task: task_native(request.task),
+                    input,
+                    model,
+                    budget: native::JobBudget {
+                        scratch_bytes: if builtin {
+                            native::DEREVERB_SCRATCH_BYTES
+                        } else {
+                            OUTPUT_PCM_LIMIT
+                        },
+                        output_bytes: output_pcm
+                            .checked_mul(if builtin { 1 } else { 3 })
+                            .and_then(|n| n.checked_add(16 * 4096))
+                            .ok_or_else(|| error("budget", "Output bytes overflow."))?,
+                        work_units: if builtin {
+                            100_000_000_000
+                        } else {
+                            500_000_000
+                        },
+                        timeout: Duration::from_secs(if builtin { 600 } else { 120 }),
                     },
-                    output_bytes: output_pcm
-                        .checked_mul(3)
-                        .and_then(|n| n.checked_add(16 * 4096))
-                        .ok_or_else(|| error("budget", "Output bytes overflow."))?,
-                    work_units: if builtin {
-                        100_000_000_000
-                    } else {
-                        500_000_000
-                    },
-                    timeout: Duration::from_secs(if builtin { 600 } else { 120 }),
                 },
-            })
+                self.controller().preview_retained_bytes(),
+            )
             .map_err(native_error)?;
         lock(&service.owned).bindings.insert(id, binding);
         Ok(job_wire(manager.snapshot(id).map_err(native_error)?))
@@ -960,6 +1065,9 @@ impl Session {
         let lease = manager
             .claim(ticket, &binding.stamp, &model)
             .map_err(native_error)?;
+        manager
+            .check_retained_memory(self.controller().preview_retained_bytes())
+            .map_err(native_error)?;
         let audio = if role == "dry-input" && review.model.is_builtin_dereverb() {
             lease.preview_input(&mut work).map_err(native_error)?
         } else {
@@ -972,6 +1080,9 @@ impl Session {
             }
         }
         work.check().map_err(native_error)?;
+        manager
+            .check_retained_memory(self.controller().preview_retained_bytes())
+            .map_err(native_error)?;
         let latest = lock(&self.inner.preview);
         if *latest == preview_ticket {
             self.controller().preview(audio);
@@ -1028,8 +1139,19 @@ impl Session {
         let preparation = service.begin_preparation();
         let mut work = work(preparation.cancel.clone())?;
         let mut file = source_file(&binding.path)?;
-        let current_file = native::ContentFingerprint::reader(&mut file, PCM_LIMIT, &mut work)
+        manager
+            .check_retained_memory(self.controller().preview_retained_bytes())
             .map_err(native_error)?;
+        let current_file = native::ContentFingerprint::reader(
+            &mut file,
+            if binding.stamp.source_fingerprint.bytes > PCM_LIMIT {
+                file_capture::SOURCE_FILE_LIMIT
+            } else {
+                PCM_LIMIT
+            },
+            &mut work,
+        )
+        .map_err(native_error)?;
         if current_file != binding.stamp.source_fingerprint
             || crate::library::file_identity(&binding.path).map_err(|e| error("io", e))?
                 != binding.file_identity
@@ -1158,7 +1280,11 @@ impl Session {
             let strict = windfall_codec::decode_file_strict_with(
                 path,
                 &windfall_codec::DecodeOptions {
-                    max_decoded_bytes: OUTPUT_PCM_LIMIT,
+                    max_decoded_bytes: if review.model.is_builtin_dereverb() {
+                        file_capture::STREAM_PCM_LIMIT
+                    } else {
+                        OUTPUT_PCM_LIMIT
+                    },
                 },
             )
             .map_err(|e| error("io", e))?;
@@ -1171,13 +1297,15 @@ impl Session {
             if fingerprint.bytes != artifact.bytes || fingerprint.sha256 != artifact.sha256 {
                 return Err(error("invalid", "Published output checksum changed."));
             }
+            let strict_fingerprint =
+                native::ContentFingerprint::audio(&strict, &mut work).map_err(native_error)?;
+            drop(strict);
             let decoded = self.inner.cache.decode(path)?;
             if native::ContentFingerprint::audio(&decoded, &mut work).map_err(native_error)?
-                != native::ContentFingerprint::audio(&strict, &mut work).map_err(native_error)?
+                != strict_fingerprint
             {
                 return Err(error("stale", "The cached output version changed."));
             }
-            drop(strict);
             let (track, mixer_track, output) = if request.separate_tracks {
                 let mixer = windfall_project::TrackId(next_id);
                 let playlist = windfall_project::PlaylistTrackId(

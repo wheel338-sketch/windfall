@@ -1,7 +1,9 @@
 use crate::{AnalysisError, CHUNK_BYTES, CHUNK_SAMPLES, Result, Work, add};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
-use std::io::Read;
+use std::fs::File;
+use std::io::{Read, Seek, SeekFrom, Write};
+use std::path::Path;
 use windfall_core::{AudioBuffer, AudioIdentity};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -152,7 +154,8 @@ impl Default for InputLimits {
 /// audio locks. The original source AudioIdentity remains part of the stamp.
 #[derive(Debug)]
 pub struct CapturedInput {
-    audio: AudioBuffer,
+    audio: Option<AudioBuffer>,
+    file: Option<std::sync::Mutex<File>>,
     stamp: CaptureStamp,
     retained_bytes: u64,
 }
@@ -204,7 +207,12 @@ impl CapturedInput {
         }
         work.check()?;
         Ok(Self {
-            audio: AudioBuffer::from_interleaved(shape.sample_rate, shape.channels, samples),
+            audio: Some(AudioBuffer::from_interleaved(
+                shape.sample_rate,
+                shape.channels,
+                samples,
+            )),
+            file: None,
             stamp,
             retained_bytes,
         })
@@ -213,14 +221,150 @@ impl CapturedInput {
         &self.stamp
     }
     pub fn audio(&self) -> &AudioBuffer {
-        &self.audio
+        self.audio
+            .as_ref()
+            .expect("memory input required by this adapter")
     }
     pub fn selected_samples(&self) -> &[f32] {
-        let channels = usize::from(self.audio.channels());
-        &self.audio.samples()[self.stamp.selection.start as usize * channels
+        let audio = self.audio();
+        let channels = usize::from(audio.channels());
+        &audio.samples()[self.stamp.selection.start as usize * channels
             ..self.stamp.selection.end as usize * channels]
     }
     pub fn retained_bytes(&self) -> u64 {
         self.retained_bytes
+    }
+    pub fn is_file_backed(&self) -> bool {
+        self.file.is_some()
+    }
+    pub fn disk_bytes(&self) -> Result<u64> {
+        if self.is_file_backed() {
+            self.stamp
+                .selection
+                .frames()?
+                .checked_mul(u64::from(self.stamp.input_shape.channels) * 4)
+                .ok_or(AnalysisError::Exhausted)
+        } else {
+            Ok(0)
+        }
+    }
+    /// Capture the selected immutable Float32 view into an anonymous temporary
+    /// file. It has no mutable pathname and closes/deletes on every error,
+    /// cancellation and retirement. The producer never emits more than 4096
+    /// samples. The complete producer view is checked, but only selection bytes
+    /// occupy disk. Shape/disk admission precedes all writes. Native dereverb only.
+    pub fn capture_stream(
+        root: &Path,
+        stamp: CaptureStamp,
+        limits: InputLimits,
+        work: &mut Work,
+        produce: impl FnOnce(&mut Work, &mut dyn FnMut(&[f32], &mut Work) -> Result<()>) -> Result<()>,
+    ) -> Result<Self> {
+        let shape = stamp.input_shape;
+        stamp.selection.validate(shape.frames)?;
+        if !stamp.source_identity.is_live()
+            || stamp.source_fingerprint.bytes == 0
+            || limits.min_sample_rate == 0
+            || !matches!(shape.channels, 1 | 2)
+            || !(1..=limits.max_channels).contains(&shape.channels)
+            || !(limits.min_sample_rate..=limits.max_sample_rate).contains(&shape.sample_rate)
+            || shape.frames > limits.max_frames
+        {
+            return Err(AnalysisError::Invalid("stream capture shape/identity"));
+        }
+        let bytes = shape.pcm_bytes()?;
+        let selected_first = stamp
+            .selection
+            .start
+            .checked_mul(u64::from(shape.channels) * 4)
+            .ok_or(AnalysisError::Exhausted)?;
+        let selected_last = stamp
+            .selection
+            .end
+            .checked_mul(u64::from(shape.channels) * 4)
+            .ok_or(AnalysisError::Exhausted)?;
+        if selected_last - selected_first > limits.max_bytes {
+            return Err(AnalysisError::Budget("stream capture disk bytes"));
+        }
+        work.check()?;
+        let mut file = tempfile::tempfile_in(root)?;
+        let mut written = 0_u64;
+        produce(work, &mut |samples, work| {
+            work.checkpoint(samples.len() as u64)?;
+            if samples.len() > CHUNK_SAMPLES
+                || !samples.len().is_multiple_of(usize::from(shape.channels))
+                || samples.iter().any(|s| !s.is_finite())
+            {
+                return Err(AnalysisError::Invalid("stream capture block"));
+            }
+            let first_byte = written;
+            written = add(written, samples.len() as u64 * 4)?;
+            if written > bytes {
+                return Err(AnalysisError::Budget("stream capture shape bytes"));
+            }
+            let mut encoded = [0_u8; CHUNK_BYTES];
+            for (target, sample) in encoded.chunks_exact_mut(4).zip(samples) {
+                target.copy_from_slice(&sample.to_le_bytes());
+            }
+            let from = first_byte.max(selected_first);
+            let to = written.min(selected_last);
+            if from < to {
+                file.write_all(&encoded[(from - first_byte) as usize..(to - first_byte) as usize])?;
+            }
+            Ok(())
+        })?;
+        work.check()?;
+        if written != bytes {
+            return Err(AnalysisError::Invalid("incomplete stream capture"));
+        }
+        file.flush()?;
+        file.seek(SeekFrom::Start(0))?;
+        Ok(Self {
+            audio: None,
+            file: Some(std::sync::Mutex::new(file)),
+            stamp,
+            retained_bytes: 64 * 1024,
+        })
+    }
+    /// Selected PCM in bounded whole-frame blocks, from either storage kind.
+    pub fn for_each_selected(
+        &self,
+        work: &mut Work,
+        mut emit: impl FnMut(&[f32], &mut Work) -> Result<()>,
+    ) -> Result<()> {
+        if let Some(audio) = &self.audio {
+            let channels = usize::from(audio.channels());
+            let selected = &audio.samples()[self.stamp.selection.start as usize * channels
+                ..self.stamp.selection.end as usize * channels];
+            for block in selected.chunks(CHUNK_SAMPLES) {
+                work.check()?;
+                emit(block, work)?;
+            }
+            return work.check();
+        }
+        // A cloned OS handle shares its seek position. Serialize control-side
+        // readers so independent auditions cannot change one another's origin.
+        let file = self
+            .file
+            .as_ref()
+            .ok_or(AnalysisError::Invalid("missing captured input"))?;
+        let mut file = crate::lock(file);
+        let channels = u64::from(self.stamp.input_shape.channels);
+        file.seek(SeekFrom::Start(0))?;
+        let mut remaining = self.stamp.selection.frames()? * channels;
+        let mut encoded = [0_u8; CHUNK_BYTES];
+        let mut samples = [0_f32; CHUNK_SAMPLES];
+        while remaining > 0 {
+            work.check()?;
+            let count = remaining.min(CHUNK_SAMPLES as u64) as usize;
+            file.read_exact(&mut encoded[..count * 4])?;
+            for (sample, bytes) in samples[..count].iter_mut().zip(encoded.chunks_exact(4)) {
+                *sample = f32::from_le_bytes(bytes.try_into().expect("four bytes"));
+            }
+            work.checkpoint(count as u64)?;
+            emit(&samples[..count], work)?;
+            remaining -= count as u64;
+        }
+        work.check()
     }
 }

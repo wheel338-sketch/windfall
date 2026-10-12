@@ -25,6 +25,9 @@ pub struct Work {
     deadline: Instant,
     maximum: u64,
     completed: u64,
+    memory_limit: u64,
+    retained_memory: u64,
+    peak_memory: u64,
     pub(crate) progress: Option<Arc<dyn Fn(u64) -> Result<()> + Send + Sync>>,
 }
 
@@ -41,6 +44,9 @@ impl Work {
             deadline,
             maximum,
             completed: 0,
+            memory_limit: crate::classical_memory::CLASSICAL_MEMORY_BYTES,
+            retained_memory: 0,
+            peak_memory: 0,
             progress: None,
         })
     }
@@ -50,6 +56,9 @@ impl Work {
             deadline,
             maximum,
             completed: 0,
+            memory_limit: crate::classical_memory::CLASSICAL_MEMORY_BYTES,
+            retained_memory: 0,
+            peak_memory: 0,
             progress: None,
         }
     }
@@ -76,6 +85,29 @@ impl Work {
     }
     pub fn completed(&self) -> u64 {
         self.completed
+    }
+    /// Configure the aggregate quota before classical work. `retained` covers
+    /// caller-owned previews/results/source allocations throughout the call.
+    pub fn with_memory_limit(mut self, limit: u64, retained: u64) -> Result<Self> {
+        if retained > limit || limit == 0 {
+            return Err(AnalysisError::Budget("classical retained memory"));
+        }
+        self.memory_limit = limit;
+        self.retained_memory = retained;
+        self.peak_memory = retained;
+        Ok(self)
+    }
+    pub fn require_memory(&mut self, additional_peak: u64) -> Result<()> {
+        self.check()?;
+        let peak = add(self.retained_memory, additional_peak)?;
+        if peak > self.memory_limit {
+            return Err(AnalysisError::Budget("classical aggregate memory"));
+        }
+        self.peak_memory = self.peak_memory.max(peak);
+        Ok(())
+    }
+    pub fn peak_memory_bytes(&self) -> u64 {
+        self.peak_memory
     }
     pub(crate) fn set_completed(&mut self, completed: u64) {
         self.completed = completed;

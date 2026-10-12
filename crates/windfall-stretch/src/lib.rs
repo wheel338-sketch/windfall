@@ -96,7 +96,8 @@ mod stretcher;
 mod tempo;
 
 pub use offline::{
-    stretch, stretch_with_formants, stretch_with_formants_cancellable, stretched_frames,
+    stretch, stretch_blocks_cancellable, stretch_with_formants, stretch_with_formants_cancellable,
+    stretched_frames,
 };
 pub use stretcher::{
     Latency, MAX_PITCH_SEMITONES, MAX_TIME_RATIO, MIN_TIME_RATIO, Quality, Stretcher,

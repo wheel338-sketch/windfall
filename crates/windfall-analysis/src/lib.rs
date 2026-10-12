@@ -5,6 +5,7 @@ mod inference;
 mod input;
 pub use inference::{InferenceTask, NoteInferenceAdapter};
 pub mod classical;
+pub mod classical_memory;
 pub mod dereverb;
 mod dereverb_adapter;
 mod jobs;

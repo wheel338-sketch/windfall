@@ -6,7 +6,8 @@
 - Branch 1 `gpt/r4-evidence` merged at `783269a9`; no conflicts or compile fixes. `cargo check --workspace --all-targets`: exit 0, zero errors/warnings, 30.39 s (`target/round4-branch01-check.log`). Media fixture capture/promotion remains required; no test result credited yet.
 - Branch 2 `gpt/r4-codecs` merged at `8daceb43`; no conflicts or compile fixes. `cargo check --workspace --all-targets`: exit 0, zero errors/warnings, 34.71 s (`target/round4-branch02-check.log`). Windows 0.62.2 reused with Media Foundation/COM features (MIT OR Apache-2.0); no new package version.
 - Branch 3 `gpt/r4-interchange` merged at `20438c80`; no conflicts or compile fixes. `cargo check --workspace --all-targets`: exit 0, zero errors/warnings, 23.88 s (`target/round4-branch03-check.log`). Its explicitly partial delivery leaves FLP translation, complete legacy preset synthesis/readers and editor WAV annotation propagation unfinished; these remain software items rather than acceptance claims.
-- Read files hand-off. Branch 4 conflict in `session/files.rs` preserves owned-preset carrying followed by extraction reference journaling before file publication. No dependency additions. Workspace check pending.
+- Branch 4 `gpt/r4-files` merged at `86dd4909`. Conflict in `session/files.rs` preserves owned-preset carrying followed by extraction reference journaling before file publication. `cargo check --workspace --all-targets`: exit 0, zero errors/warnings, 21.61 s (`target/round4-branch04-check.log`). No dependency additions. Remaining pan-law families/native capability settings are explicitly partial in its hand-off.
+- Read analysis hand-off; branch 5 staged without conflicts, preserving builder detection fixes. Aggregate memory accounting and file-backed long-source analysis require focused execution. Workspace check pending.
 
 ## Final gates
 

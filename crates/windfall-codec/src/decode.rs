@@ -124,6 +124,97 @@ pub fn decode_file_strict_with(
     })
 }
 
+/// Streams strict finite PCM without retaining the complete source. The
+/// callback also receives an empty block before each packet, allowing a caller
+/// to cancel before IO/decoding. No retry/replay occurs after callback effects.
+/// Decoder packets are capped at 65536 samples; emitted blocks at 4096 samples.
+/// Unlike ordinary damaged-file recovery, decoder errors fail closed.
+pub fn decode_file_blocks<E: From<CodecError>>(
+    path: impl AsRef<Path>,
+    options: &DecodeOptions,
+    emit: impl FnMut(u32, u16, &[f32]) -> Result<(), E>,
+) -> Result<(u32, u16, u64), E> {
+    // Preserve ordinary decoder panic containment, with no fallback that
+    // could replay the caller's file-writing or verification side effects.
+    panic::catch_unwind(AssertUnwindSafe(|| {
+        decode_file_blocks_inner(path.as_ref(), options, emit)
+    }))
+    .unwrap_or_else(|_| {
+        Err(CodecError::Corrupt("the decoder could not make sense of it".into()).into())
+    })
+}
+
+fn decode_file_blocks_inner<E: From<CodecError>>(
+    path: &Path,
+    options: &DecodeOptions,
+    mut emit: impl FnMut(u32, u16, &[f32]) -> Result<(), E>,
+) -> Result<(u32, u16, u64), E> {
+    let (file, _) = open_file(path)?;
+    let mut format = open_format(as_source(file, true), extension_of(path))?;
+    let (track, params) = audio_track(format.as_ref())?;
+    check_stated_layout(params)?;
+    let id = track.id;
+    let rate = params
+        .sample_rate
+        .ok_or_else(|| CodecError::Corrupt("missing stream rate".into()))?;
+    let channels = channel_count(
+        params
+            .channels
+            .as_ref()
+            .map_or(0, |channels| channels.count()),
+    )?;
+    if rate == 0 || channels == 0 || channels > 2 {
+        return Err(CodecError::UnsupportedFormat("streaming requires mono/stereo".into()).into());
+    }
+    let mut decoder = symphonia::default::get_codecs()
+        .make_audio_decoder(params, &AudioDecoderOptions::default())
+        .map_err(from_symphonia)?;
+    let mut block = vec![0.0_f32; 65536];
+    let mut total = 0_u64;
+    loop {
+        emit(rate, channels, &[])?;
+        let Some(packet) = format.next_packet().map_err(from_symphonia)? else {
+            break;
+        };
+        if packet.track_id != id {
+            continue;
+        }
+        let decoded = decoder.decode(&packet).map_err(from_symphonia)?;
+        if decoded.frames() == 0 {
+            continue;
+        }
+        if decoded.spec().rate() != rate
+            || decoded.spec().channels().count() != usize::from(channels)
+        {
+            return Err(CodecError::Corrupt("stream layout changed".into()).into());
+        }
+        let count = decoded.samples_interleaved();
+        if count > block.len() {
+            return Err(CodecError::TooLarge {
+                limit_bytes: 65536 * 4,
+            }
+            .into());
+        }
+        total = total
+            .checked_add(count as u64)
+            .filter(|samples| *samples <= options.max_decoded_bytes / 4)
+            .ok_or(CodecError::TooLarge {
+                limit_bytes: options.max_decoded_bytes,
+            })?;
+        decoded.copy_to_slice_interleaved(&mut block[..count]);
+        if block[..count].iter().any(|sample| !sample.is_finite()) {
+            return Err(CodecError::Corrupt("nonfinite streamed sample".into()).into());
+        }
+        for samples in block[..count].chunks(4096 / usize::from(channels) * usize::from(channels)) {
+            emit(rate, channels, samples)?;
+        }
+    }
+    if total == 0 {
+        return Err(CodecError::NoAudio.into());
+    }
+    Ok((rate, channels, total / u64::from(channels)))
+}
+
 /// Memory counterpart of [`decode_file_strict_with`].
 pub fn decode_bytes_strict_with(
     bytes: &[u8],

@@ -55,6 +55,7 @@ fn strongest(audio: &AudioBuffer, work: &mut Work) -> Result<usize> {
 /// RMS novelty with a silence gate and 40 ms refractory period. No phase
 /// cancellation: the strongest channel is selected for the whole analysis.
 pub fn transients(audio: &AudioBuffer, work: &mut Work) -> Result<Vec<u32>> {
+    work.require_memory(crate::add(audio.retained_bytes(), 2 * 1024 * 1024)?)?;
     checked(audio, work)?;
     let hop = (audio.sample_rate() as usize / 200).max(1);
     let channel = strongest(audio, work)?;
@@ -90,6 +91,10 @@ pub fn transients(audio: &AudioBuffer, work: &mut Work) -> Result<Vec<u32>> {
 }
 
 pub fn detect(audio: &AudioBuffer, polyphonic: bool, work: &mut Work) -> Result<AudioAnalysisData> {
+    work.require_memory(crate::add(
+        audio.retained_bytes(),
+        crate::classical_memory::detection(audio)?,
+    )?)?;
     checked(audio, work)?;
     let onsets = transients(audio, work)?;
     let notes = if polyphonic {
@@ -331,8 +336,13 @@ pub fn denoise(
         ));
     }
     if settings.wet == 0.0 || settings.reduction_db == 0.0 {
+        work.require_memory(audio.retained_bytes())?;
         return Ok(audio.clone());
     }
+    work.require_memory(crate::add(
+        audio.retained_bytes(),
+        crate::classical_memory::denoising(audio)?,
+    )?)?;
     let channels = audio.channels() as usize;
     let hop = n / 4;
     let mut planner = FftPlanner::<f64>::new();
@@ -453,6 +463,10 @@ pub fn render(
 ) -> Result<AudioBuffer> {
     checked(audio, work)?;
     recipe.check().map_err(AnalysisError::Adapter)?;
+    work.require_memory(crate::add(
+        audio.retained_bytes(),
+        crate::classical_memory::rendering(audio, recipe)?,
+    )?)?;
     if audio.frames() != recipe.analysis.frames as usize
         || audio.sample_rate() != recipe.analysis.sample_rate
     {

@@ -384,6 +384,36 @@ fn ready(manager: &JobManager, audio: &AudioBuffer) -> Review {
 }
 
 #[test]
+fn retained_auditions_are_reserved_refused_and_released_with_job_retirement() {
+    let mut fixture = Fixture::new();
+    fixture.config.memory_bytes = 8 * 1024 * 1024;
+    let manager = fixture.manager(Arc::new(CopyAdapter::default()));
+    let audio = source();
+    assert!(matches!(
+        manager.submit_with_retained_memory(request(&audio), 8 * 1024 * 1024),
+        Err(AnalysisError::Budget("retained job memory"))
+    ));
+    assert_eq!(manager.usage().memory_bytes, 0);
+    let id = manager
+        .submit_with_retained_memory(request(&audio), 4 * 1024 * 1024)
+        .unwrap();
+    let settled = manager.wait(id).unwrap();
+    assert_eq!(settled.status, JobStatus::Ready);
+    assert!(manager.usage().memory_bytes > 6 * 1024 * 1024);
+    assert!(manager.usage().memory_bytes <= 8 * 1024 * 1024);
+    assert!(matches!(
+        manager.check_retained_memory(2 * 1024 * 1024),
+        Err(AnalysisError::Budget(
+            "retained previews and analysis memory"
+        ))
+    ));
+    manager.cancel(id).unwrap();
+    manager.wait(id).unwrap();
+    manager.forget(id).unwrap();
+    assert_eq!(manager.usage().memory_bytes, 0);
+}
+
+#[test]
 fn actual_worker_review_commit_retirement_and_history_source_lifetime() {
     assert_eq!(
         format!("{:x}", Sha256::digest(MODEL)),

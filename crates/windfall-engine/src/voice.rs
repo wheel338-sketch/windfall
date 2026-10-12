@@ -293,7 +293,7 @@ fn interpolate(position: f64, frame: impl Fn(isize) -> (f32, f32)) -> (f32, f32)
 /// Catmull-Rom spline through four evenly spaced points, evaluated
 /// `fraction` of the way from `y1` to `y2`.
 #[inline]
-fn hermite(y0: f32, y1: f32, y2: f32, y3: f32, fraction: f32) -> f32 {
+pub(crate) fn hermite(y0: f32, y1: f32, y2: f32, y3: f32, fraction: f32) -> f32 {
     let c1 = 0.5 * (y2 - y0);
     let c2 = y0 - 2.5 * y1 + 2.0 * y2 - 0.5 * y3;
     let c3 = 0.5 * (y3 - y0) + 1.5 * (y1 - y2);

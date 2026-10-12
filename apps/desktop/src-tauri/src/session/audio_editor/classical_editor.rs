@@ -15,11 +15,64 @@ impl Drop for Preparation<'_> {
         *lock(&self.0.inner.audio_analysis_cancel) = None;
     }
 }
-fn begin(session: &Session) -> Result<(Preparation<'_>, Work), String> {
+fn retained_memory(
+    session: &Session,
+    prepared: &super::Prepared,
+    incoming: Option<&AudioEditRecipe>,
+) -> Result<u64, String> {
+    // Include queued/playing auditions until actual control-side retirement,
+    // and deduplicate shared editor allocations (unused capacity counts too).
+    let mut retained = session.controller().preview_retained_bytes();
+    let mut audio = vec![&prepared.source, &prepared.view, &prepared.analysis_view];
+    if let Some((_, source)) = &prepared.analysis_source {
+        audio.push(source);
+    }
+    if let Some((_, rendered)) = &prepared.rendered {
+        audio.push(rendered);
+    }
+    for (index, buffer) in audio.iter().enumerate() {
+        if audio[..index]
+            .iter()
+            .all(|other| other.identity() != buffer.identity())
+        {
+            retained = retained
+                .checked_add(buffer.retained_bytes())
+                .ok_or("Analysis memory overflow.")?;
+        }
+    }
+    for recipe in prepared
+        .recipe
+        .iter()
+        .chain(prepared.rendered.iter().map(|(recipe, _)| recipe))
+        .chain(incoming)
+    {
+        retained = retained
+            .checked_add(
+                windfall_analysis::classical_memory::recipe_bytes(recipe)
+                    .map_err(|e| e.to_string())?,
+            )
+            .ok_or("Analysis memory overflow.")?;
+    }
+    Ok(retained)
+}
+fn begin<'a>(
+    session: &'a Session,
+    prepared: &super::Prepared,
+    incoming: Option<&AudioEditRecipe>,
+) -> Result<(Preparation<'a>, Work), String> {
+    let retained = retained_memory(session, prepared, incoming)?;
     let cancel = CancelToken::default();
-    *lock(&session.inner.audio_analysis_cancel) = Some(cancel.clone());
-    let work =
-        Work::new(cancel, 100_000_000_000, Duration::from_secs(120)).map_err(|e| e.to_string())?;
+    let mut work = Work::new(cancel.clone(), 100_000_000_000, Duration::from_secs(120))
+        .and_then(|work| {
+            work.with_memory_limit(
+                windfall_analysis::classical_memory::CLASSICAL_MEMORY_BYTES,
+                retained,
+            )
+        })
+        .map_err(|e| e.to_string())?;
+    work.require_memory(2 * 1024 * 1024)
+        .map_err(|e| e.to_string())?;
+    *lock(&session.inner.audio_analysis_cancel) = Some(cancel);
     Ok((Preparation(session), work))
 }
 fn checked_recipe<'a>(
@@ -70,7 +123,7 @@ impl Session {
                 return Err(STALE.into());
             }
         }
-        let (_preparation, mut work) = begin(self)?;
+        let (_preparation, mut work) = begin(self, prepared, None)?;
         // Reopen a saved monophonic proposal exactly; switching conversion mode
         // creates a fresh detection and resets overrides explicitly.
         if prepared
@@ -135,7 +188,7 @@ impl Session {
                 return Err(STALE.into());
             }
         }
-        let (_preparation, mut work) = begin(self)?;
+        let (_preparation, mut work) = begin(self, prepared, Some(&edit.recipe))?;
         let output = if dry {
             prepared.analysis_view.clone()
         } else {
@@ -153,6 +206,18 @@ impl Session {
             }
         }
         if !dry {
+            let retained = retained_memory(self, prepared, Some(&edit.recipe))?;
+            if retained
+                .checked_add(output.retained_bytes())
+                .and_then(|bytes| bytes.checked_add(2 * 1024 * 1024))
+                .is_none_or(|bytes| {
+                    bytes > windfall_analysis::classical_memory::CLASSICAL_MEMORY_BYTES
+                })
+            {
+                return Err(
+                    "Analysis resource budget exhausted: retained previews and results.".into(),
+                );
+            }
             editor.prepared.as_mut().expect("locked editor").rendered =
                 Some((edit.recipe, output.clone()));
         }
@@ -171,7 +236,7 @@ impl Session {
                 return Err(STALE.into());
             }
         }
-        let (_preparation, mut work) = begin(self)?;
+        let (_preparation, mut work) = begin(self, prepared, Some(&edit.recipe))?;
         let audio = match &prepared.rendered {
             Some((recipe, audio)) if recipe == &edit.recipe => audio.clone(),
             _ => classical::render(&prepared.analysis_view, &edit.recipe, &mut work)
@@ -204,6 +269,9 @@ impl Session {
         if selected.is_empty() || selected.len() > windfall_project::MAX_AUDIO_NOTES {
             return Err("Select at least one detected note.".into());
         }
+        let (_preparation, mut work) = begin(self, prepared, Some(&edit.recipe))?;
+        work.require_memory(2 * 1024 * 1024 + selected.capacity() as u64 * 4)
+            .map_err(|e| e.to_string())?;
         let notes = classical::reviewed_notes(&edit.recipe).map_err(|e| e.to_string())?;
         let (project, base) = {
             let _recording = self.recording_idle()?;
