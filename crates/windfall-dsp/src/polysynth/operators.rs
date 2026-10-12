@@ -64,7 +64,9 @@ pub(super) struct MatrixCache {
     scales: [f32; 6],
     gains: [f32; 6],
     fm_masks: [u32; 6],
+    fm_aliases: [u8; 6],
     ring_masks: [u32; 6],
+    ring_aliases: [u8; 6],
     sine_only: bool,
     ring_free: bool,
 }
@@ -76,7 +78,9 @@ impl Default for MatrixCache {
             scales: [0.0; 6],
             gains: [0.0; 6],
             fm_masks: [0; 6],
+            fm_aliases: [0, 1, 2, 3, 4, 5],
             ring_masks: [0; 6],
+            ring_aliases: [0, 1, 2, 3, 4, 5],
             sine_only: false,
             ring_free: false,
         }
@@ -134,22 +138,47 @@ pub(super) fn matrix(
                 .iter()
                 .enumerate()
                 .fold(0, |bits, (i, depth)| bits | (u32::from(*depth != 0.0) << i));
+            cache.fm_aliases[to] = (0..to).find(|&source| fm[source] == fm[to]).unwrap_or(to) as u8;
             cache.ring_masks[to] = ring[to]
                 .iter()
                 .enumerate()
                 .fold(0, |bits, (i, depth)| bits | (u32::from(*depth != 0.0) << i));
+            cache.ring_aliases[to] = (0..to)
+                .find(|&source| ring[source] == ring[to])
+                .unwrap_or(to) as u8;
         }
     }
     let cache = &t.matrix_cache[u];
-    if cache.sine_only && cache.ring_free {
+    // Equal route rows have the exact same ordered dot product of the same
+    // previous substep. Share that result without changing any edge's depth,
+    // its feedback contribution, or accumulation order. Reconfiguration
+    // invalidates aliases along with all other graph coefficients.
+    let mut routed = [0.0; 6];
+    for to in 0..6 {
+        let source = usize::from(cache.fm_aliases[to]);
+        routed[to] = if source < to {
+            routed[source]
+        } else {
+            route_sum(&fm[to], &previous, cache.fm_masks[to])
+        };
+    }
+    let mut ring_factors = [[1.0; 6]; 6];
+    if !cache.ring_free {
+        for to in 0..6 {
+            if usize::from(cache.ring_aliases[to]) == to {
+                for (source, &depth) in ring[to].iter().enumerate() {
+                    ring_factors[to][source] = 1.0 - depth + depth * previous[source];
+                }
+            }
+        }
+    }
+    if cache.sine_only {
         // Phase modulation depends only on the previous substep. Stage those
         // independent phases, then evaluate the six carriers as a SIMD-friendly
         // polynomial block. Two padded lanes are scratch, never extra voices.
         let mut phases = [0.0; 8];
         for to in 0..6 {
-            let modulation = (route_sum(&fm[to], previous, cache.fm_masks[to])
-                + ops[to].feedback * previous[to]
-                + lfo_index * c.lfo)
+            let modulation = (routed[to] + ops[to].feedback * previous[to] + lfo_index * c.lfo)
                 * cache.scales[to];
             let phase = t.oscillators[u][to].phase() + modulation / std::f32::consts::TAU;
             phases[to] = phase - phase.floor();
@@ -159,7 +188,16 @@ pub(super) fn matrix(
             *phase = crate::blocks::oscillator::sine_fast(*phase);
         }
         for to in 0..6 {
-            now[to] = core::guard(phases[to] * ops[to].level * t.levels[to] * cache.gains[to]);
+            let sample = if cache.ring_free {
+                phases[to]
+            } else {
+                ring_product(
+                    phases[to],
+                    &ring_factors[usize::from(cache.ring_aliases[to])],
+                    cache.ring_masks[to],
+                )
+            };
+            now[to] = core::guard(sample * ops[to].level * t.levels[to] * cache.gains[to]);
         }
         t.previous[u] = now;
         return now;
@@ -167,9 +205,8 @@ pub(super) fn matrix(
     for (to, op) in ops.iter().enumerate() {
         let inc = cache.increments[to];
         let phase = t.oscillators[u][to].phase();
-        let routed = route_sum(&fm[to], previous, cache.fm_masks[to]);
         let modulation =
-            (routed + op.feedback * previous[to] + lfo_index * c.lfo) * cache.scales[to];
+            (routed[to] + op.feedback * previous[to] + lfo_index * c.lfo) * cache.scales[to];
         // Keep phase modulation finite while preserving all small-signal routes.
         let moved = phase + modulation / std::f32::consts::TAU;
         let moved = moved - moved.floor();
@@ -179,29 +216,36 @@ pub(super) fn matrix(
             crate::blocks::oscillator::tonal_sample(op.waveform.waveform(), moved, inc, 0.5)
         };
         t.oscillators[u][to].advance(inc);
-        let mut sample = raw;
-        let mut mask = cache.ring_masks[to];
-        if mask == 0x3f {
-            for (from, &depth) in ring[to].iter().enumerate() {
-                // Depth 1 is a true ring product, depth 0 leaves the carrier intact.
-                sample *= 1.0 - depth + depth * previous[from];
-            }
-        } else {
-            while mask != 0 {
-                let source = mask.trailing_zeros() as usize;
-                let depth = ring[to][source];
-                sample *= 1.0 - depth + depth * previous[source];
-                mask &= mask - 1;
-            }
-        }
+        let sample = ring_product(
+            raw,
+            &ring_factors[usize::from(cache.ring_aliases[to])],
+            cache.ring_masks[to],
+        );
         now[to] = core::guard(sample * op.level * t.levels[to] * cache.gains[to]);
     }
     t.previous[u] = now;
     now
 }
 
-#[inline]
-fn route_sum(depths: &[f32; 6], previous: [f32; 6], mut mask: u32) -> f32 {
+#[inline(always)]
+fn ring_product(mut sample: f32, factors: &[f32; 6], mut mask: u32) -> f32 {
+    if mask == 0x3f {
+        for &factor in factors {
+            // Depth 1 is a true ring product, depth 0 leaves the carrier intact.
+            sample *= factor;
+        }
+    } else {
+        while mask != 0 {
+            let source = mask.trailing_zeros() as usize;
+            sample *= factors[source];
+            mask &= mask - 1;
+        }
+    }
+    sample
+}
+
+#[inline(always)]
+fn route_sum(depths: &[f32; 6], previous: &[f32; 6], mut mask: u32) -> f32 {
     if mask == 0x3f {
         depths
             .iter()

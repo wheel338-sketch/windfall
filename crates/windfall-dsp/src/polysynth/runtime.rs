@@ -55,6 +55,7 @@ pub(super) struct Tone {
     increment_cache: [[(f32, f32, f32); 7]; UNISON],
     pan_cache: [Option<(f32, (f32, f32))>; UNISON],
     filter_cache: Option<([f32; 3], (f32, f32))>,
+    cutoff_cache: Option<([f32; 3], f32)>,
     drive_cache: Option<(f32, f32, f32)>,
     pub matrix_cache: [super::operators::MatrixCache; UNISON],
     pub oscillators: [[Oscillator; 6]; UNISON],
@@ -83,6 +84,7 @@ impl Default for Tone {
             increment_cache: [[(f32::NAN, f32::NAN, 0.0); 7]; UNISON],
             pan_cache: [None; UNISON],
             filter_cache: None,
+            cutoff_cache: None,
             drive_cache: None,
             oscillators: [[Oscillator::default(); 6]; UNISON],
             previous: [[0.0; 6]; UNISON],
@@ -106,6 +108,18 @@ impl Default for Tone {
     }
 }
 impl Tone {
+    #[inline]
+    fn cutoff(&mut self, cutoff: f32, octaves: f32, rate: f32) -> f32 {
+        let key = [cutoff, octaves, rate];
+        match self.cutoff_cache {
+            Some((before, value)) if before == key => value,
+            _ => {
+                let value = core::swept(cutoff, octaves, rate);
+                self.cutoff_cache = Some((key, value));
+                value
+            }
+        }
+    }
     #[inline]
     pub fn drive(&mut self, input: f32, amount: f32) -> f32 {
         let amount = amount.clamp(0.0, 1.0);
@@ -355,7 +369,7 @@ impl<P: Patch> Instrument for Runtime<P> {
                     *level = op.tick();
                 }
                 let pitch = note.glide();
-                let cutoff = core::swept(
+                let cutoff = tone.cutoff(
                     f.cutoff,
                     f.env_amount * filter
                         + f.key_track * (pitch - 60.0) / 12.0

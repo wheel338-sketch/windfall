@@ -268,3 +268,20 @@ Final serial gates in progress. No TypeScript or public UI/simulator schema chan
   repeated six-source copies from route helpers, inline the tiny kernels,
   and cache exact swept cutoff by cutoff/octave/rate (dynamic values still
   recompute). No frequency, graph, coefficient or sample approximation changes.
+- Dev Matrix subsequent unchanged deadline probes: **0.8853x**, **0.8680x**
+  (both **0/1/0**, `target/round4-builder-matrix-dev-followup2.log` and
+  `target/round4-builder-matrix-dev-followup3.log`). Equal route rows compute
+  exactly the same ordered dot product of the same previous substep; share that
+  result. Equal ring rows likewise share their six factors, then multiply each
+  carrier in its original order. Reconfiguration invalidates these aliases;
+  unique routes remain independent, all 72 coefficients remain active.
+  This closes the dev deadline: **1/0/0**, **0.6013x**, tail **224.0271 ms** for
+  **41.464 s** audio, unchanged peak **0.52327913**;
+  `target/round4-builder-matrix-dev-followup4.log`, 3.86 s. Full DSP unit
+  accuracy/allocator validation now running before committing this follow-up.
+- Follow-up complete DSP units: **671/0/0**, 73.58 s,
+  `cargo test -p windfall-dsp --lib -- --test-threads=1`,
+  `target/round4-builder-dsp-followup-units.log`. All independent signal,
+  automation, partition and standalone allocator checks pass. Follow-up DSP
+  sources formatted and committed; current helper rebuild, then final serial
+  gates will be repeated against the complete corrected tree.

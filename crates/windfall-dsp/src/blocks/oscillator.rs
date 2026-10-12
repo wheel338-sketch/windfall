@@ -118,7 +118,7 @@ pub fn sine(phase: f32) -> f32 {
 /// The additive bank's bounded minimax sine, for dense operator kernels.
 /// Fold to a quarter-cycle before the degree-seven odd polynomial; the
 /// independent standard-library curve remains `sine` above.
-#[inline]
+#[inline(always)]
 pub(crate) fn sine_fast(phase: f32) -> f32 {
     let (sign, quarter) = if phase < 0.5 {
         (1.0, phase)
