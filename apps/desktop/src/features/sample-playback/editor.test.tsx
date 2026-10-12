@@ -4,11 +4,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import type { InstrumentKind } from "@/bindings"
 import { ValueContextMenus } from "@/components/value-context-menu"
 import { isInstrumentChannel } from "@/lib/channel-source"
-import { dispatch, undo, useProjectStore } from "@/lib/store/project"
+import { dispatch, redo, undo, useProjectStore } from "@/lib/store/project"
 import { useTransportStore } from "@/lib/store/transport"
 import { settle, startTestApp } from "@/test/harness"
 import { instrumentDescriptor } from "@/features/params"
 import { InstrumentSection } from "@/features/channel-rack/inspector/instrument-section"
+import { KeyboardSection } from "@/features/channel-rack/inspector/keyboard-section"
+import { ExportDialog } from "@/features/export/export-dialog"
+import { useUiStore } from "@/lib/store/ui"
 import { announceProjectReplaced } from "@/lib/store/replaced"
 import type { MockBackend } from "@/lib/ipc/mock"
 import { defaultAsset } from "./settings"
@@ -18,9 +21,12 @@ let backend: MockBackend
 beforeEach(async () => { ({ stop, backend } = await startTestApp()) })
 afterEach(() => { stop(); vi.restoreAllMocks() })
 const flush = () => act(() => settle())
-function Panel({ id }: { id: number }) {
+function Panel({ id, keyboard = false }: { id: number; keyboard?: boolean }) {
   const channel = useProjectStore((state) => state.project.channels.find((c) => c.id === id))
-  return channel && isInstrumentChannel(channel) ? <InstrumentSection channel={channel} /> : null
+  return channel && isInstrumentChannel(channel) ? <>
+    <InstrumentSection channel={channel} />
+    {keyboard && <KeyboardSection channel={channel} />}
+  </> : null
 }
 async function open(kind: InstrumentKind) {
   const created = await dispatch({ type: "addChannel", instrument: kind })
@@ -35,6 +41,89 @@ async function open(kind: InstrumentKind) {
 const asset = (id: number) => useProjectStore.getState().project.channels.find((c) => c.id === id)!.samplePlayback!
 
 describe("purpose-built sample instrument editors", () => {
+  it.each(["sliceMap", "sliceDeck", "grainCloud", "waveRide"] as const)(
+    "%s joins imported-source selection, editing, keyboard, history, reopen and export controls",
+    async (kind) => {
+      // This mounted case uses the shared Rust/WASM document and the browser
+      // backend. The companion native Session case measures the actual PCM;
+      // neither case claims an actual native-window run.
+      const path = await backend.pickAudioFile()
+      if (path === null) throw new Error("No import fixture")
+      await act(() => backend.addChannelFromFile(path))
+      const imported = useProjectStore.getState().project.channels.find((c) =>
+        c.source.type === "sampler" && c.name === "Kick 02")
+      if (!imported || imported.source.type !== "sampler" || imported.source.sample === null)
+        throw new Error("Imported source missing")
+      const sampleId = imported.source.sample
+      const sample = useProjectStore.getState().project.samples.find((s) => s.id === sampleId)!
+      const created = await dispatch({ type: "addChannel", instrument: kind })
+      if (!created) throw new Error("No instrument")
+      const id = created.created[0]
+      const user = userEvent.setup()
+      const on = vi.spyOn(backend, "auditionNoteOn")
+      const off = vi.spyOn(backend, "auditionNoteOff")
+      const detect = vi.spyOn(backend, "samplePlaybackDetect")
+      render(<ValueContextMenus><Panel id={id} keyboard /><ExportDialog /></ValueContextMenus>)
+      await user.click(screen.getByRole("combobox", { name: "Source A" }))
+      await user.click(await screen.findByRole("option", { name: sample.name }))
+      await flush()
+      expect(asset(id).sample).toBe(sample.id)
+      if (kind === "sliceMap" || kind === "sliceDeck") {
+        await user.click(screen.getByRole("button", { name: "Detect beat grid" }))
+        await flush()
+        expect(detect).toHaveBeenCalledWith(id, { mode: "grid", gridTicks: 960 }, expect.any(Number), expect.any(Number))
+        await user.click(screen.getByRole("button", { name: "Generate slice pattern" }))
+        await flush()
+        const lane = useProjectStore.getState().project.patterns[0].lanes.find((l) => l.channel === id)!
+        expect(lane.notes.map((n) => n.key)).toEqual(asset(id).slices.map((_, i) => 60 + i))
+      } else {
+        await act(() => dispatch({ type: "addNotes", pattern: useProjectStore.getState().project.patterns[0].id,
+          channel: id, notes: [{ start: 0, length: 1920, key: 60, velocity: 0.8 }] }))
+        await flush()
+      }
+      const before = useProjectStore.getState().project.channels.find((c) => c.id === id)!
+      const cursor = useProjectStore.getState().history.cursor
+      if (kind === "grainCloud") {
+        const control = within(screen.getByRole("group", { name: "Grain controls" }))
+          .getByRole("slider", { name: instrumentDescriptor(kind).params[2].name })
+        fireEvent.keyDown(control, { key: "End" }); fireEvent.keyUp(control, { key: "End" })
+      } else if (kind === "waveRide") {
+        const value = screen.getByRole("spinbutton", { name: "Point 2 value" })
+        fireEvent.change(value, { target: { value: "0.2" } }); fireEvent.blur(value)
+      } else {
+        await user.click(screen.getByRole("button", { name: "Split slice" }))
+      }
+      await flush()
+      const edited = useProjectStore.getState().project.channels.find((c) => c.id === id)!
+      expect(edited).not.toEqual(before)
+      expect(useProjectStore.getState().history.cursor).toBe(cursor + 1)
+      await act(() => undo()); await flush()
+      expect(useProjectStore.getState().project.channels.find((c) => c.id === id)).toEqual(before)
+      await act(() => redo()); await flush()
+      expect(useProjectStore.getState().project.channels.find((c) => c.id === id)).toEqual(edited)
+
+      const key = within(screen.getByRole("group", { name: "Piano keyboard" })).getByRole("button", { name: "C5" })
+      fireEvent.keyDown(key, { key: "Enter" })
+      fireEvent.keyUp(key, { key: "Enter" })
+      await flush()
+      expect(on).toHaveBeenCalledWith(id, 60, 0.8)
+      expect(off).toHaveBeenCalledWith(id, 60)
+
+      const saved = `/sample-workflow-${kind}.windfall`
+      await act(() => backend.projectSave(saved)); await flush()
+      await act(() => backend.projectNew()); await flush()
+      await act(() => backend.projectOpen(saved)); await flush()
+      expect(useProjectStore.getState().project.channels.find((c) => c.id === id)).toEqual(edited)
+      expect(screen.getByRole("combobox", { name: "Source A" })).toHaveTextContent(sample.name)
+      const exported = vi.spyOn(backend, "exportAudio")
+      act(() => useUiStore.getState().openDialog("export"))
+      await user.click(screen.getByRole("button", { name: "Choose…" }))
+      await user.click(screen.getByRole("button", { name: "Export" }))
+      await flush()
+      expect(exported).toHaveBeenCalledOnce()
+      expect(exported).toHaveBeenCalledWith(expect.objectContaining({ mode: "pattern", format: "wav" }))
+    }
+  )
   it("retains migrated source A when assigning the second deck", async () => {
     const id = await open("sliceDeck")
     const source = { sampleRate: 8000, data: [0.2, 0.4, 0.6, 0.8] }
