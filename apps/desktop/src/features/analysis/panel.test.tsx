@@ -13,6 +13,8 @@ import userEvent from "@testing-library/user-event"
 import { AnalysisButton, AnalysisPanel } from "./index"
 import type { AnalysisJob, AnalysisModel, AnalysisReview } from "./types"
 import { useRemixLoader } from "./remix"
+import type { Command } from "@/bindings"
+import { receivePatch } from "@/lib/store/project"
 
 const model: AnalysisModel = {
   id: "test-only-copy",
@@ -426,6 +428,7 @@ describe("analysis app controls", () => {
       "analysis.recoveryForget",
       "analysis.recoveryNext",
       "analysis.remix",
+      "analysis.separate",
     ])
   })
   it("shows honest browser unavailability and preserves document/history", async () => {
@@ -619,5 +622,53 @@ describe("analysis app controls", () => {
     expect(add).not.toHaveBeenCalled()
     expect(screen.queryByRole("dialog")).toBeNull()
     expect(useRemixLoader.getState().busy).toBe(false)
+  })
+  it("runs the mounted four-stem remix review into four aligned simulator tracks with one undo entry", async () => {
+    const stems: AnalysisModel = { ...model, id: "test-only-copy", outputs: ["drums", "bass", "vocals", "other"].map((role) => ({ role, channels: 2 })) }
+    vi.spyOn(backend, "analysisCapability").mockResolvedValue({ native: true, available: true, stemSeparation: true, reason: null, models: [stems] })
+    vi.spyOn(backend, "pickAudioFile").mockResolvedValue("/factory/Loops/Drum loop 128.wav")
+    const tempo = vi.spyOn(backend, "detectClipTempo").mockResolvedValue([{ bpm: 128, confidence: 0.91 }])
+    vi.spyOn(backend, "analysisSubmit").mockResolvedValue(job)
+    vi.spyOn(backend, "analysisStatus").mockResolvedValue({ ...job, status: "consumed" })
+    vi.spyOn(backend, "analysisReview").mockImplementation(async () => ({ ...review, clip: useAnalysisDialog.getState().target!.id,
+      task: "stemSeparation", model: stems, artifacts: stems.outputs.map((o) => ({ ...review.artifacts[0], role: o.role, name: `${o.role}.wav` })) }))
+    // Authored lifecycle review only: fixture PCM is reused. Real numerical
+    // separation is asserted by the native reference and opt-in ORT suites.
+    vi.spyOn(backend, "analysisApply").mockImplementation(async (request) => {
+      expect(request).toMatchObject({ separateTracks: true, muteOriginal: true, selectedRoles: ["drums", "bass", "vocals", "other"] })
+      const project = useProjectStore.getState().project
+      const original = project.playlist.clips.find((c) => c.id === useAnalysisDialog.getState().target!.id)!
+      let next = project.nextId
+      const commands: Command[] = [{ type: "updateClips", updates: [{ id: original.id, patch: { muted: true } }] }]
+      for (const role of ["drums", "bass", "vocals", "other"]) {
+        const mixer = next++; const track = next++; next++
+        if (original.content.type !== "audio") throw new Error("Expected audio source")
+        commands.push({ type: "addMixerTrack", name: role }, { type: "addPlaylistTrack", name: role },
+          { type: "addClips", clips: [{ track, start: original.start, length: original.length, offset: 0,
+            content: { ...original.content, mixerTrack: mixer } }] })
+      }
+      return backend.dispatch({ type: "batch", label: "Remix: import aligned stems", commands })
+    })
+    render(<AnalysisButton />)
+    await act(() => runAction("analysis.remix"))
+    expect(tempo).toHaveBeenCalledTimes(1)
+    expect(await screen.findByText(/128.0 BPM \(91%\)/)).toBeVisible()
+    await waitFor(() => expect(screen.getByRole("button", { name: "Submit analysis" })).toBeEnabled())
+    const before = useProjectStore.getState()
+    fireEvent.click(screen.getByRole("button", { name: "Submit analysis" }))
+    await screen.findByText(/Job 9007199254740993: ready/)
+    fireEvent.click(screen.getByRole("button", { name: "Review outputs" }))
+    await screen.findByRole("button", { name: "Audition other" })
+    fireEvent.click(screen.getByRole("button", { name: "Apply reviewed outputs" }))
+    await waitFor(() => expect(useProjectStore.getState().history.cursor).toBe(before.history.cursor + 1))
+    const after = useProjectStore.getState().project
+    const inserted = after.playlist.clips.filter((c) => !before.project.playlist.clips.some((old) => old.id === c.id))
+    expect(inserted).toHaveLength(4)
+    expect(new Set(inserted.map((c) => c.track)).size).toBe(4)
+    expect(inserted.every((c) => c.start === 0 && c.offset === 0)).toBe(true)
+    expect(after.mixer.tracks.length).toBe(before.project.mixer.tracks.length + 4)
+    const patch = await backend.undo(); if (patch) receivePatch(patch)
+    expect(useProjectStore.getState().project.playlist.clips).toEqual(before.project.playlist.clips)
+    expect(useProjectStore.getState().project.playlist.tracks).toEqual(before.project.playlist.tracks)
   })
 })

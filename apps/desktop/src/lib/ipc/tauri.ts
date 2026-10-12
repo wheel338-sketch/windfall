@@ -172,6 +172,13 @@ export function createTauriBackend(): Backend {
       )
     },
     analysisCapability: () => call("analysis_capability"),
+    analysisRuntimeSettings: () => call("analysis_runtime_settings"),
+    analysisRuntimeConfigure: (settings) => call("analysis_runtime_configure", { settings }),
+    pickAnalysisRuntime: async () => {
+      const picked = await open({ title: "Choose installed ONNX Runtime library", multiple: false,
+        filters: [{ name: "Shared library", extensions: ["dll", "so", "dylib"] }] })
+      return typeof picked === "string" ? picked : null
+    },
     analysisModelImport: (path, model) =>
       call("analysis_model_import", { path, model }),
     pickAnalysisModel: async () => {

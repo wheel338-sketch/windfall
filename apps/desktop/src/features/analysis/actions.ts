@@ -162,7 +162,9 @@ function reason(command: AnalysisCommand): string | undefined {
     if (!Number.isFinite(amount) || amount < 0 || amount > 1) return "Wet/dry amount must be 0 to 1"
     const mismatch = !builtin && model ? taskProblem(context.task ?? "audio", model) : undefined
     if (mismatch) return mismatch
-    if (!builtin && model && context.capability.classicalDereverb && model.provenance.adapterId !== BUILTIN_DEREVERB_ID)
+    if (context.task === "stemSeparation" && context.capability.stemSeparation === false)
+      return context.capability.reason ?? "Choose an installed ONNX Runtime library in Settings"
+    if (!builtin && model && context.capability.classicalDereverb && !context.capability.stemSeparation && model.provenance.adapterId !== BUILTIN_DEREVERB_ID)
       return "Pack registered; the ONNX Runtime separation adapter is not installed"
     if (!validRange(context.start, context.end))
       return "Enter a valid frame range"
@@ -299,7 +301,25 @@ export const ANALYSIS_ACTIONS: Action[] = [
       useAnalysisDialog.setState({ target: { ...target, task: "stemSeparation" } })
     },
   },
+  {
+    id: "analysis.separate",
+    title: "Separate into four stems",
+    section: "Analysis",
+    keywords: "drums bass vocals other separate clip",
+    enabled: () => selectedClip() !== null && !recording() && useAnalysisDialog.getState().target === null,
+    whyDisabled: () => recording() ? "Finish recording first" : "Select one audio clip and close Analysis",
+    run: () => { const target = selectedClip(); if (target && !recording()) openStemClip(target.id) },
+  },
 ]
+
+export function openStemClip(id: number) {
+  if (recording() || useAnalysisDialog.getState().target !== null) return
+  const target = captureAnalysisClip(id)
+  if (!target) return
+  useUiStore.getState().showCenterTab("playlist")
+  usePlaylistStore.setState({ inspectorOpen: true })
+  useAnalysisDialog.setState({ target: { ...target, task: "stemSeparation" } })
+}
 
 /** Startup registration and state invalidation share the app registry lifecycle. */
 export function registerAnalysisActions(): () => void {
@@ -320,6 +340,7 @@ export function registerAnalysisActions(): () => void {
     useProjectStore.subscribe(() => registry.invalidate()),
     onProjectReplaced(() => {
       panel = null
+      useRemixLoader.setState({ clip: null, tempoCandidates: [], tempoProblem: null })
       closeAnalysis()
       registry.invalidate()
     }),

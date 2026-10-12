@@ -24,4 +24,19 @@ describe("imported ONNX pack contract", () => {
     expect(() => parseManifest(JSON.stringify({ ...manifest, onnx: { ...manifest.onnx, overlapFrames: 88200 } }))).toThrow(/segment/)
     expect(() => parseManifest(JSON.stringify({ ...manifest, onnx: { ...manifest.onnx, outputs: Array.from({ length: 17 }, () => ({ name: "output", shape: [1] })) } }))).toThrow(/tensors/)
   })
+  it("validates production waveform layout, required context and hostile stem metadata", () => {
+    const pack = { ...manifest, provenance: { ...manifest.provenance, adapterId: "windfall-onnx-separation" },
+      onnx: { ...manifest.onnx, contextFrames: 2048, layout: "channelsFirst" } }
+    expect(parseManifest(JSON.stringify(pack)).onnx).toMatchObject({ contextFrames: 2048, layout: "channelsFirst" })
+    for (const onnx of [
+      { ...pack.onnx, contextFrames: 2147483647 }, { ...pack.onnx, overlapFrames: 88199 },
+      { ...pack.onnx, layout: "mask" }, { ...pack.onnx, stemRoles: ["drums", "bass", "vocals", "bass"] },
+      { ...pack.onnx, outputs: [{ name: "stems", shape: [1, 8, 2, "frames"] }] },
+      { ...pack.onnx, inputs: [{ name: "audio", shape: ["batch", 2, "frames"] }] },
+    ]) expect(() => parseManifest(JSON.stringify({ ...pack, onnx }))).toThrow()
+    expect(() => parseManifest(JSON.stringify({ ...pack, onnx: undefined }))).toThrow(/Separation/)
+    const last = { ...pack, onnx: { ...pack.onnx, layout: "channelsLast",
+      inputs: [{ name: "audio", shape: [1, "frames", 2] }], outputs: [{ name: "stems", shape: [1, 4, "frames", 2] }] } }
+    expect(parseManifest(JSON.stringify(last)).onnx?.layout).toBe("channelsLast")
+  })
 })

@@ -13,6 +13,14 @@ export type AnalysisTensorSpec = { name: string; shape: (number | string)[] }
 export type AnalysisOnnxContract = {
   opset: number; inputs: AnalysisTensorSpec[]; outputs: AnalysisTensorSpec[]
   sampleRate: number; segmentFrames: number; overlapFrames: number; stemRoles: string[]
+  layout?: "channelsFirst" | "channelsLast"
+  contextFrames?: number
+}
+export type AnalysisRuntimeSettings = {
+  libraryPath: string | null
+  modelId: string | null
+  modelVersion: string | null
+  packDirectory?: string | null
 }
 export type AnalysisModel = {
   onnx?: AnalysisOnnxContract | null
@@ -29,6 +37,7 @@ export type AnalysisModel = {
   outputs: { role: string; channels: number }[]
 }
 export type AnalysisCapability = {
+  stemSeparation?: boolean
   classicalDereverb?: boolean
   native: boolean
   available: boolean
@@ -118,6 +127,9 @@ export function taskProblem(task: AnalysisTask, model: AnalysisModel): string | 
   return undefined
 }
 export interface AnalysisBackend {
+  analysisRuntimeSettings(): Promise<AnalysisRuntimeSettings>
+  analysisRuntimeConfigure(settings: AnalysisRuntimeSettings): Promise<AnalysisRuntimeSettings>
+  pickAnalysisRuntime(): Promise<string | null>
   analysisCapability(): Promise<AnalysisCapability>
   analysisModelImport(
     path: string,
