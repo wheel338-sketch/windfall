@@ -19,6 +19,7 @@ impl BankBudget {
     pub fn new(limit: usize) -> Self {
         Self { limit: limit.min(SAMPLE_BANK_TOTAL_BYTES), used: AtomicUsize::new(0) }
     }
+    pub fn remaining(&self) -> usize { self.limit.saturating_sub(self.used()) }
     pub fn used(&self) -> usize { self.used.load(Ordering::Acquire) }
     pub fn reserve(self: &Arc<Self>, bytes: usize) -> Result<BankReservation, String> {
         let mut used = self.used();
@@ -36,6 +37,16 @@ impl BankBudget {
 
 #[derive(Debug)]
 pub struct BankReservation { budget: Arc<BankBudget>, bytes: usize }
+impl BankReservation {
+    /// Release decoder workspace after its PCM has reached its final capacity.
+    /// Control side only; may never increase an already admitted reservation.
+    pub fn shrink(&mut self, bytes: usize) -> Result<(), String> {
+        if bytes > self.bytes { return Err("Sample-bank memory refused: decoder capacity exceeds its admitted workspace".into()); }
+        self.budget.used.fetch_sub(self.bytes - bytes, Ordering::AcqRel);
+        self.bytes = bytes;
+        Ok(())
+    }
+}
 impl Drop for BankReservation {
     fn drop(&mut self) { self.budget.used.fetch_sub(self.bytes, Ordering::AcqRel); }
 }

@@ -26,19 +26,19 @@ impl Drop for SpeechLease {
     }
 }
 
-pub(super) fn read_soundfont(path: &Path) -> Result<Vec<u8>, String> {
-    // Read through a hard bound too: a racing file growth cannot bypass metadata.
+pub(super) fn read_soundfont(path: &Path, budget: &Arc<windfall_dsp::sample_bank::BankBudget>) -> Result<(Vec<u8>, windfall_dsp::sample_bank::BankReservation), String> {
     const LIMIT: u64 = 160 * 1024 * 1024;
-    let mut bytes = Vec::new();
-    std::fs::File::open(path)
-        .map_err(|e| format!("Could not open SoundFont: {e}"))?
-        .take(LIMIT + 1)
-        .read_to_end(&mut bytes)
-        .map_err(|e| format!("Could not read SoundFont: {e}"))?;
-    if bytes.len() as u64 > LIMIT {
-        return Err("SoundFont file exceeds 160 MiB".into());
-    }
-    Ok(bytes)
+    let mut file=std::fs::File::open(path).map_err(|e|format!("Could not open SoundFont: {e}"))?;
+    let metadata=file.metadata().map_err(|e|e.to_string())?;
+    if metadata.len()>LIMIT{return Err("SoundFont file exceeds 160 MiB".into());}
+    let size=usize::try_from(metadata.len()).map_err(|_|"SoundFont file size overflow")?;
+    let reservation=budget.reserve(size)?;
+    // Exact allocation avoids read_to_end growth temporarily doubling the PCM
+    // bytes in the encoded bank. A growth/truncation never expands this buffer.
+    let mut bytes=vec![0;size];file.read_exact(&mut bytes).map_err(|e|format!("Could not read SoundFont: {e}"))?;
+    let mut extra=[0;1];
+    if file.read(&mut extra).map_err(|e|e.to_string())?!=0 || std::fs::metadata(path).map_err(|e|e.to_string())?.modified().ok()!=metadata.modified().ok(){return Err("SoundFont file changed while reading; retry".into());}
+    Ok((bytes,reservation))
 }
 
 struct RenderedFile(PathBuf);
@@ -141,7 +141,9 @@ impl Session {
     }
     pub fn soundfont_presets(&self, path: &str) -> Result<Vec<soundfont::SoundFontPreset>, String> {
         let file = crate::paths::absolute(path)?;
-        soundfont::presets(&read_soundfont(&file)?).map_err(|e| e.to_string())
+        let budget=self.state().pool.sample_bank_budget_handle();
+        let (bytes,_workspace)=read_soundfont(&file,&budget)?;
+        soundfont::presets(&bytes).map_err(|e| e.to_string())
     }
     /// General MIDI equivalent: keep the rack channel/notes/mixer assignment,
     /// replace the external destination with the user's own SF2 bank, and use
@@ -149,7 +151,7 @@ impl Session {
     pub fn sample_instrument_general_midi(
         &self, channel: ChannelId, expected: ChannelSource, path: String, bank: u16, program: u16,
     ) -> Result<DispatchResult, String> {
-        let (generation, edits, replacements, preset) = {
+        let (generation, edits, replacements, preset, budget) = {
             let _recording=self.recording_idle()?;let state=self.state();let project=state.document.project();
             let current=project.channel(channel).ok_or("channel no longer exists")?;
             if current.source!=expected || !matches!(current.source,ChannelSource::Instrument{params,..} if params.kind()==InstrumentKind::MidiOut) {
@@ -157,9 +159,9 @@ impl Session {
             }
             let target=windfall_project::PluginTarget::Instrument{channel};
             if project.plugin(target).is_some(){return Err("Choose an unhosted MIDI output instrument".into());}
-            (state.generation,state.edits,state.replacements,windfall_project::PluginPreset::capture(project,target).map_err(|e|e.to_string())?.state)
+            (state.generation,state.edits,state.replacements,windfall_project::PluginPreset::capture(project,target).map_err(|e|e.to_string())?.state,state.pool.sample_bank_budget_handle())
         };
-        let file=crate::paths::absolute(&path)?;let bytes=read_soundfont(&file)?;
+        let file=crate::paths::absolute(&path)?;let (bytes,_workspace)=read_soundfont(&file,&budget)?;
         let asset=SampleInstrumentAsset::SoundFont{path:SamplePath::External(crate::paths::display(&file)),bank,program};
         let command=Command::Batch{label:Some("Use SoundFont General MIDI destination".into()),commands:vec![
             Command::ApplyPluginPreset{target:windfall_project::PluginTarget::Instrument{channel},expected:preset,preset:windfall_project::PluginPreset{state:windfall_project::PluginPresetState::Instrument{asset:None,params:InstrumentKind::SoundFont.default_params()}}},
@@ -288,7 +290,10 @@ impl Session {
         let mut file = RenderedFile(path);
         windfall_codec::write_wav(&file.0, &audio, windfall_codec::WavSampleFormat::Float32)
             .map_err(|e| e.to_string())?;
-        let decoded = self.inner.cache.decode(&file.0)?;
+        // The rendered source is no longer needed after writing; dropping it
+        // here releases its allocation before a separately admitted decode.
+        drop(audio);
+        let (decoded,_decode_workspace) = self.inner.cache.decode_sample_bank(&file.0,&budget)?;
         #[cfg(test)]
         self.pause("sample-speech:rendered");
         if !keep_going() { return Err("Speech rendering cancelled".into()); }

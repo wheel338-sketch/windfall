@@ -476,7 +476,11 @@ macro_rules! instrument {
             fn set_tempo(&mut self, bpm: f32) {
                 if let Some(effects) = &mut self.engine.effects { effects.set_tempo(bpm); }
             }
-            fn tail_samples(&self) -> usize { self.engine.effects.as_ref().map_or(0, |effects| effects.tail_samples()) }
+            fn tail_samples(&self) -> usize {
+                let choke = self.engine.choked.iter().filter(|voice|voice.active).map(|voice|
+                    if voice.release>0.0 {(voice.envelope/voice.release).ceil() as usize}else{1}).max().unwrap_or(0);
+                choke.saturating_add(self.engine.effects.as_ref().map_or(0, |effects| effects.tail_samples()))
+            }
             fn note_on(&mut self, key: u8, velocity: f32) {
                 self.note_on_expression(key, velocity, 0.0, NoteExpression::default());
             }

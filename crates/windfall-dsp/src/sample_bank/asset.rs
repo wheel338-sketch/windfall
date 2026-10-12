@@ -186,7 +186,7 @@ impl SampleBank {
             }
             // Conservative bound charges shared sources per zone; never undercounts.
             bytes = bytes
-                .checked_add(zone.audio.samples().len() * 4)
+                .checked_add(zone.audio.retained_pcm_bytes())
                 .ok_or("sample bank byte overflow")?;
             if bytes > MAX_BANK_BYTES {
                 return Err("sample bank exceeds 256 MiB");

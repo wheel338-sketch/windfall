@@ -81,11 +81,11 @@ impl SamplePool {
                 let bytes = match &asset {
                     SampleInstrumentAsset::Zones { zones } => zones.iter().try_fold(0usize, |sum, zone| {
                         let audio = self.get(SampleId(zone.sample)).ok_or_else(|| format!("Missing zone sample {}", zone.sample))?;
-                        sum.checked_add(audio.samples().len() * 4).ok_or_else(|| "sample bank byte overflow".to_owned())
+                        sum.checked_add(audio.retained_pcm_bytes()).ok_or_else(|| "sample bank byte overflow".to_owned())
                     })?,
                     SampleInstrumentAsset::Piano { .. } => 30 * 24000 * 3 * 4,
                     SampleInstrumentAsset::Speech { duration, source, .. } => if let Some(id) = source {
-                        self.get(*id).ok_or("saved speech source is unavailable")?.samples().len() * 4
+                        self.get(*id).ok_or("saved speech source is unavailable")?.retained_pcm_bytes()
                     } else { (duration * 24000.0).round() as usize * 4 },
                     _ => 0,
                 };

@@ -311,9 +311,11 @@ impl Session {
                         let info = windfall_codec::probe_file(&path).map_err(|e| e.to_string())?;
                         info.frames.and_then(|frames| frames.checked_mul(u64::from(info.channels))).and_then(|samples| samples.checked_mul(4))
                     };
-                    let maximum = expected.unwrap_or(64 * 1024 * 1024).min(options.max_decoded_bytes);
-                    let reservation = decoded.pool.sample_bank_budget_handle().reserve(usize::try_from(maximum).map_err(|_| "bank byte overflow")?)?;
+                    let budget=decoded.pool.sample_bank_budget_handle();
+                    let maximum = expected.unwrap_or((budget.remaining()/4) as u64).min(options.max_decoded_bytes);
+                    let mut reservation = budget.reserve(usize::try_from(maximum).map_err(|_| "bank byte overflow")?.checked_mul(4).ok_or("bank workspace overflow")?)?;
                     let buffer = windfall_codec::decode_file_with(path, &windfall_codec::DecodeOptions { max_decoded_bytes: maximum }).map_err(|e| e.to_string())?;
+                    reservation.shrink(buffer.retained_pcm_bytes())?;
                     decoded.bank_workspaces.push(reservation);
                     Ok(buffer)
                 } else { windfall_codec::decode_file_with(path, &options).map_err(|e| e.to_string()) }

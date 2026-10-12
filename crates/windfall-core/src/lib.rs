@@ -73,6 +73,12 @@ impl AudioBuffer {
         self.sample_rate
     }
 
+    /// PCM allocation capacity, including unused Vec capacity. Bank admission
+    /// charges retained storage rather than only the populated sample length.
+    pub fn retained_pcm_bytes(&self) -> usize {
+        self.data.capacity().saturating_mul(std::mem::size_of::<f32>())
+    }
+
     pub fn channels(&self) -> u16 {
         self.channels
     }

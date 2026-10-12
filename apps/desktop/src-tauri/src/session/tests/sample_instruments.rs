@@ -410,3 +410,16 @@ fn malformed_and_stale_general_midi_banks_leave_the_original_destination_unchang
     let path=rig.file("gm.sf2");std::fs::write(&path,general_midi_fixture()).unwrap();let hold=rig.session.hold("general-midi:prepared");let job=rig.session.background(move|session|session.sample_instrument_general_midi(channel,expected,path,0,0));
     hold.wait();rig.session.project_new().unwrap();let before=rig.session.document_snapshot();hold.release();assert!(job.join().unwrap().is_err());assert_eq!(rig.session.document_snapshot(),before);
 }
+
+#[test]
+fn encoded_soundfont_read_is_admitted_before_allocation_and_releases_its_lease() {
+    let directory=tempfile::tempdir().unwrap();let path=directory.path().join("workspace.sf2");
+    std::fs::write(&path,[7u8;32]).unwrap();
+    let budget=std::sync::Arc::new(windfall_dsp::sample_bank::BankBudget::new(32));
+    let occupied=budget.reserve(1).unwrap();
+    assert!(super::super::sample_instruments::read_soundfont(&path,&budget).unwrap_err().contains("memory refused"));
+    assert_eq!(budget.used(),1);drop(occupied);
+    let (bytes,lease)=super::super::sample_instruments::read_soundfont(&path,&budget).unwrap();
+    assert_eq!(bytes,vec![7;32]);assert_eq!(budget.used(),32);assert!(budget.reserve(1).is_err());
+    drop(bytes);drop(lease);assert_eq!(budget.used(),0);
+}

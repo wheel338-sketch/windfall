@@ -131,7 +131,7 @@ impl Inner {
         let bytes = |entries: &[(FileKey, AudioBuffer)]| -> usize {
             entries
                 .iter()
-                .map(|(_, buffer)| size_of_val(buffer.samples()))
+                .map(|(_, buffer)| buffer.retained_pcm_bytes())
                 .sum()
         };
         while self.decoded.len() > 1
@@ -183,13 +183,13 @@ impl SampleCache {
     }
 
     /// Bank workers reserve before decoding, including concurrent imports. Known
-    /// frame counts are strict ceilings; unknown-length containers get 64 MiB.
+    /// frame counts are strict ceilings; unknown lengths use the remaining budget.
     pub fn decode_sample_bank(
         &self, path: &Path, budget: &std::sync::Arc<windfall_dsp::sample_bank::BankBudget>,
     ) -> Result<(AudioBuffer, windfall_dsp::sample_bank::BankReservation), String> {
         let key = FileKey::of(path)?;
         if let Some(buffer) = lock(&self.inner).touch(&key) {
-            let reservation = budget.reserve(buffer.samples().len() * 4)?;
+            let reservation = budget.reserve(buffer.retained_pcm_bytes())?;
             return Ok((buffer, reservation));
         }
         // The .ds probe renders; do not let it allocate before our reservation.
@@ -199,13 +199,19 @@ impl SampleCache {
             let info = windfall_codec::probe_file(path).map_err(|e| unreadable(path, &e))?;
             info.frames.and_then(|frames| frames.checked_mul(u64::from(info.channels))).and_then(|samples| samples.checked_mul(4))
         };
-        let bytes = frames.unwrap_or(64 * 1024 * 1024);
+        // Four PCM ceilings cover the sink (including growth), decoder packet
+        // and float conversion scratch. Unknown-length sources reserve the
+        // remaining ledger and use one quarter of it as their decode ceiling.
+        let available = budget.remaining();
+        let bytes = frames.unwrap_or((available / 4) as u64);
         let bytes = usize::try_from(bytes).map_err(|_| "bank source byte overflow")?;
         if bytes > windfall_dsp::sample_bank::MAX_BANK_BYTES { return Err("bank source exceeds 256 MiB".into()); }
-        let reservation = budget.reserve(bytes)?;
+        if bytes == 0 { return Err("Sample-bank memory refused: no decoder workspace remaining".into()); }
+        let mut reservation = budget.reserve(bytes.checked_mul(4).ok_or("bank decoder workspace overflow")?)?;
         let buffer = windfall_codec::decode_file_with(path, &windfall_codec::DecodeOptions { max_decoded_bytes: bytes as u64 })
             .map_err(|e| unreadable(path, &e))?;
         if FileKey::of(path)? != key { return Err("The bank source changed while decoding; retry".into()); }
+        reservation.shrink(buffer.retained_pcm_bytes())?;
         lock(&self.inner).insert(key, buffer.clone());
         Ok((buffer, reservation))
     }
@@ -527,7 +533,7 @@ mod bank_budget_tests {
         let directory = tempfile::tempdir().unwrap(); let path = directory.path().join("bank.wav");
         let audio = AudioBuffer::from_interleaved(48000, 1, vec![0.2; 16]);
         windfall_codec::write_wav(&path, &audio, windfall_codec::WavSampleFormat::Float32).unwrap();
-        let budget = windfall_dsp::sample_bank::BankBudget::new(64);
+        let budget = windfall_dsp::sample_bank::BankBudget::new(256);
         let budget = std::sync::Arc::new(budget); let cache = SampleCache::new();
         let pending = budget.reserve(1).unwrap();
         assert!(cache.decode_sample_bank(&path, &budget).unwrap_err().contains("memory refused"));

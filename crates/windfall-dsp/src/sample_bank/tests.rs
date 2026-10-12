@@ -655,3 +655,30 @@ fn multisampler_internal_effects_have_measured_echoes_chorus_and_reverb_tails() 
     let chorus=play(2,7);assert_eq!(chorus,play(2,127));assert!(chorus[480..2000].iter().any(|x| x.abs()>0.01));
     let reverb=play(3,7);assert_eq!(reverb,play(3,127));assert!(reverb[3000..12000].iter().any(|x| x.abs()>0.0001));
 }
+
+#[test]
+fn bank_bytes_charge_unused_pcm_capacity_and_workspace_shrink_is_checked() {
+    let mut pcm=Vec::with_capacity(32);pcm.resize(8,0.1);
+    let audio=AudioBuffer::from_interleaved(48000,1,pcm);
+    assert_eq!(audio.retained_pcm_bytes(),128);
+    assert_eq!(audio.clone().retained_pcm_bytes(),128);
+    let bank=SampleBank::new(vec![LoadedZone { mapping:SampleZone::default(),audio }]).unwrap();
+    assert_eq!(bank.bytes(),128);
+    let budget=Arc::new(BankBudget::new(256));let mut workspace=budget.reserve(256).unwrap();
+    assert!(workspace.shrink(257).unwrap_err().contains("memory refused"));assert_eq!(budget.used(),256);
+    workspace.shrink(bank.bytes()).unwrap();assert_eq!(budget.used(),128);
+    let second=budget.reserve(128).unwrap();assert!(budget.reserve(1).is_err());
+    drop(workspace);assert_eq!(budget.used(),128);drop(second);assert_eq!(budget.used(),0);
+}
+
+#[test]
+fn choke_tail_is_reported_after_the_new_strike_has_finished() {
+    let long=zone(0.4,SampleZone {key_low:60,key_high:60,choke_group:1,..Default::default()});
+    let short=LoadedZone {mapping:SampleZone {key_low:61,key_high:61,choke_group:1,..Default::default()},
+        audio:AudioBuffer::from_interleaved(48000,1,vec![0.4])};
+    let mut unit=sampler(vec![long,short]);unit.note_on(60,1.0);render(&mut unit,256,64);
+    unit.note_on(61,1.0);render(&mut unit,2,1);
+    assert_eq!(unit.active_voices(),0);let remaining=unit.tail_samples();assert!(remaining>0 && remaining<=48);
+    let pcm=render(&mut unit,remaining+2,7);assert!(pcm.iter().any(|x|x.abs()>0.01));
+    assert_eq!(unit.tail_samples(),0);assert!(pcm[pcm.len()-2..].iter().all(|x|*x==0.0));
+}
