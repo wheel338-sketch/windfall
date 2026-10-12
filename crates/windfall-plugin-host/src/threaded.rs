@@ -440,4 +440,19 @@ mod tests {
         unit.return_to_owner(); assert_eq!(resets.load(Ordering::Relaxed), 1);
         drop(unit.into_any().downcast::<Probe>().ok().unwrap());
     }
+    #[test]
+    fn threaded_event_capacity_exhaustion_is_reported_without_control_acknowledgement() {
+        let mut unit = wrap(probe(Arc::new(AtomicBool::new(false)), Arc::new(AtomicBool::new(false)), Arc::new(AtomicUsize::new(0))), 8, 48_000.0);
+        let mut events = vec![HostEvent::Param { time: 0, id: 7, value: 0.25 }; BLOCK_EVENT_CAPACITY];
+        events.push(HostEvent::Param { time: 0, id: 7, value: 0.75 });
+        assert!(run(&mut *unit, &mut [1.0], &events, false).is_err());
+        assert_eq!(unit.failure_dropped_events(), 1);
+        assert!(!unit.controls_processed());
+        unit.return_to_owner();
+        let mut pending = Vec::new(); unit.retire_params(&mut pending);
+        assert_eq!(pending.len(), BLOCK_EVENT_CAPACITY);
+        let native = unit.into_any().downcast::<Probe>().ok().unwrap();
+        assert_eq!(native.gain, 1.0, "an incomplete packet cannot claim native processing");
+        drop(native);
+    }
 }
