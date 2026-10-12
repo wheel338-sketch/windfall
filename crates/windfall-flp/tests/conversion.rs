@@ -799,3 +799,22 @@ fn synthetic_arrangement_marker_events_restore_each_imported_timeline_after_swit
     let reopened = windfall_project::file::from_json(&windfall_project::file::to_json(doc.project()).unwrap()).unwrap();
     assert_eq!(*doc.project(), reopened);
 }
+#[test]
+fn repeated_and_partial_event_223_records_observe_the_global_reader_budget() {
+    use common::{Events, file};
+    let mut events = Events::new(true);
+    events.word(65, 1);
+    let record = [0_u32.to_le_bytes(), 0_u32.to_le_bytes(), 12800_u32.to_le_bytes()].concat();
+    let budget = windfall_flp::parse::MAX_RECORDED_CONTROL_EVENTS;
+    events.data(223, &record.repeat(budget));
+    events.word(65, 2);
+    events.data(223, &record);
+    events.data(223, b"partial");
+    let bytes = file(Header { format: FileFormat::Project, channel_count: 1, ppq: 96 }, &events.bytes);
+    let parsed = parse(&bytes).unwrap();
+    assert_eq!(parsed.patterns[0].control_events.len(), budget);
+    assert!(parsed.patterns[1].control_events.is_empty());
+    assert!(parsed.diagnostics.iter().any(|d| d.message.contains("recorded control events")));
+    assert!(parsed.diagnostics.iter().any(|d| d.message.contains("incomplete 12-byte")));
+    convert(&parsed, &ConvertOptions::default()).project.check().unwrap();
+}

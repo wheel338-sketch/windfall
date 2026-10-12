@@ -54,3 +54,25 @@ pub(super) fn write(asset: &SamplePlayback, audio: &AudioBuffer) -> Result<WavMe
     metadata.validate(Some(u64::from(frames))).map_err(|e| e.to_string())?;
     Ok(metadata)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn hostile_missing_overflow_and_subframe_regions_are_refused_before_export() {
+        let audio = AudioBuffer::from_interleaved(48000, 1, vec![0.0; 8]);
+        for (frame, length) in [(0, 0), (7, 2), (u32::MAX, 1)] {
+            let metadata = WavMetadata {
+                cues: vec![WavCue { id: 1, frame, label: "Original".into() }],
+                slices: vec![WavSlice { cue_id: 1, length }], ..Default::default()
+            };
+            assert!(read(&metadata, &audio).is_err());
+        }
+        let missing = WavMetadata { slices: vec![WavSlice { cue_id: 2, length: 1 }], ..Default::default() };
+        assert!(read(&missing, &audio).is_err());
+        let tiny = SamplePlayback { slices: vec![SliceRegion { start: 0.0, end: 0.01, ..Default::default() }], ..Default::default() };
+        assert!(write(&tiny, &audio).is_err());
+        let second_deck = SamplePlayback { slices: vec![SliceRegion { deck: 1, ..Default::default() }], ..Default::default() };
+        assert!(write(&second_deck, &audio).is_err());
+    }
+}

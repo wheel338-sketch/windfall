@@ -18,7 +18,12 @@ impl Builder<'_> {
         // Bound work before building lanes. Last source record at a rounded tick
         // wins; held points reproduce discrete recorded control changes.
         let mut groups: BTreeMap<u32, Vec<&crate::model::ControlEvent>> = BTreeMap::new();
-        for event in events {
+        let budget = crate::parse::MAX_RECORDED_CONTROL_EVENTS;
+        if events.len() > budget {
+            self.report.count(section, Outcome::Dropped, (events.len() - budget).min(u32::MAX as usize) as u32);
+            self.report.say(section, Outcome::Dropped, "Recorded controls exceed the import event budget.");
+        }
+        for event in events.iter().take(budget) {
             groups.entry(event.location).or_default().push(event);
         }
         for (location, events) in groups {

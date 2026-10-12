@@ -926,6 +926,7 @@ const EVERY_COMMAND: { [Type in Command["type"]]: (ids: Ids) => Command } = {
       { type: "moveChannel", id: ids.channel, index: 1 },
     ],
   }),
+  captureArrangementTimeline: (ids) => ({ type: "captureArrangementTimeline", id: ids.project.playlist.arrangementBook!.active! }),
 }
 
 /** A project as the document reports it, apart from the id counter. */

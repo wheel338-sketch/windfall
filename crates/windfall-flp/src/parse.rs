@@ -59,6 +59,8 @@ pub const MAX_REMOTE_CONTROLLERS: usize = 65_536;
 pub const MAX_CHANNEL_GROUPS: usize = 4_096;
 /// Most layer children read for one channel.
 pub const MAX_LAYER_CHILDREN: usize = 4_096;
+/// Global event-223 record budget, across every pattern and repeated event.
+pub const MAX_RECORDED_CONTROL_EVENTS: usize = 262_144;
 const MAX_DIAGNOSTICS: usize = 200;
 
 /// Bytes of one note in event 224.
@@ -149,6 +151,7 @@ struct Parser {
     mixer_controls: Vec<ControlValue>,
     marker_owner: MarkerOwner,
     marker_count: usize,
+    recorded_control_count: usize,
     legacy_tempo: (Option<u16>, Option<u16>),
     /// Diagnostics that were not kept because there were too many.
     dropped_diagnostics: usize,
@@ -172,6 +175,7 @@ impl Parser {
             mixer_controls: Vec::new(),
             marker_owner: MarkerOwner::Nobody,
             marker_count: 0,
+            recorded_control_count: 0,
             legacy_tempo: (None, None),
             dropped_diagnostics: 0,
             over_cap: BTreeMap::new(),
@@ -535,18 +539,28 @@ impl Parser {
                 });
             }
             223 => {
+                if self.pattern.is_none() { return false; }
+                let records = data.as_chunks::<CONTROL_BYTES>().0;
+                let allowed = records.len().min(MAX_RECORDED_CONTROL_EVENTS - self.recorded_control_count);
+                self.recorded_control_count += allowed;
                 let Some(pattern) = self.current_pattern() else {
                     return false;
                 };
                 pattern
                     .control_events
-                    .extend(data.as_chunks::<CONTROL_BYTES>().0.iter().map(|record| {
+                    .extend(records.iter().take(allowed).map(|record| {
                         ControlEvent {
                             position: u32_at(record, 0),
                             location: u32_at(record, 4),
                             value: u32_at(record, 8) as i32,
                         }
                     }));
+                if records.len() > allowed {
+                    *self.over_cap.entry("recorded control events").or_default() += records.len() - allowed;
+                }
+                if !data.len().is_multiple_of(CONTROL_BYTES) {
+                    self.note(offset, "A recorded-control event has an incomplete 12-byte record; trailing bytes were not decoded.");
+                }
             }
             224 => self.notes(event, data),
             225 => self.mixer_controls.extend(control_values(data)),
