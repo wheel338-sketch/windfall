@@ -9,6 +9,7 @@ import type {
 } from "@/bindings"
 import descriptors from "@/bindings/descriptors.json"
 import { DEFAULT_TRACK_PROCESSING, TRACK_PROCESSING_INFO } from "@/lib/track-processing"
+import { rackParameter } from "@/features/modular/parameters"
 
 import {
   GAIN_RANGE,
@@ -182,6 +183,11 @@ export function targetState(
     case "instrumentParam": {
       const rack = project.settings.modularRacks?.find((rack) => rack.channel === target.channel)
       if (rack) {
+        if (target.param >= 32) {
+          const found = rackParameter(rack.graph, target.param)
+          const stored = found ? readSetting(found.module, found.info) : null
+          return found && stored !== null ? { range: paramRange(found.info), stored, info: found.info } : null
+        }
         const node = rack.graph.nodes.find((node) => node.processor.type === "controlInput" && node.processor.index === target.param)
         if (!node || node.processor.type !== "controlInput") return null
         return { range: MIX_RANGE, stored: node.processor.value, info: {
