@@ -835,6 +835,13 @@ impl Session {
             }
             let pool = plan.pool().clone();
             let lease = plan.publication(self, &state)?;
+            // Cancellation/commit boundary after admission, before mutation.
+            if request.operation == AudioEditOperation::Script
+                && editor.script_preview.as_ref().is_some_and(|p|
+                    self.inner.script_ticket.load(Ordering::Acquire) != p.request)
+            {
+                return Err("Audio script cancelled before publication.".into());
+            }
             let applied = state
                 .document
                 .dispatch(command, None)
