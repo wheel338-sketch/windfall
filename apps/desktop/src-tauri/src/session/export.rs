@@ -157,6 +157,7 @@ struct Job {
     playlist_stems: Option<PlaylistStemOptions>,
     project: Project,
     pool: SamplePool,
+    audio_threads: usize,
     pattern: PatternId,
     options: ExportOptions,
 }
@@ -393,7 +394,9 @@ impl Session {
             return Err("An export is already running.".to_owned());
         }
         self.inner.export_cancelled.store(false, Ordering::SeqCst);
+        let audio_threads = self.controller().audio_threads();
         let job = Job {
+            audio_threads,
             path,
             targets,
             folder,
@@ -677,6 +680,7 @@ fn write_files(
         .map_err(|error| error.to_string())?;
     let options = &job.options;
     let render = RenderOptions {
+        audio_threads: job.audio_threads,
         region: options.region,
         sample_rate: options.sample_rate,
         mode: options.mode,

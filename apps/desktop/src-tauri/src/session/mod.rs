@@ -415,6 +415,11 @@ impl Session {
             factory_dir,
             settings,
         } = config;
+        if let Some(count) = settings.settings().audio.processing_threads
+            && let Err(error) = controller.set_audio_threads(Some(usize::from(count)))
+        {
+            log::warn!("Could not restore audio processing threads: {error}");
+        }
         let factory_dir = crate::paths::clean(&factory_dir);
         let cache = SampleCache::new();
         let roots = std::iter::once(crate::browser::factory_root(&factory_dir))

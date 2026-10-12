@@ -223,6 +223,47 @@ describe("audio settings in the dialog", () => {
     expect(configure).toHaveBeenLastCalledWith({ bufferFrames: 512 })
   })
 
+  it("changes and restores a persisted live processing-thread count", async () => {
+    const user = userEvent.setup()
+    await open({ engineSettings: () => Promise.resolve({ processingThreads: 4 }) })
+    const configure = vi.spyOn(backend, "engineConfigure")
+    expect(box("Audio processing threads")).toHaveTextContent("4")
+    await user.click(box("Audio processing threads"))
+    await user.click(await screen.findByRole("option", { name: "1 (serial)" }))
+    await settle()
+    expect(configure).toHaveBeenLastCalledWith({ processingThreads: 1 })
+    await user.click(box("Buffer size"))
+    await user.click(await screen.findByRole("option", { name: /^512 samples/ }))
+    await settle()
+    expect(configure).toHaveBeenLastCalledWith({
+      processingThreads: 1,
+      bufferFrames: 512,
+    })
+    await user.click(box("Audio processing threads"))
+    await user.click(await screen.findByRole("option", { name: "Automatic" }))
+    await settle()
+    expect(configure).toHaveBeenLastCalledWith({ bufferFrames: 512 })
+  })
+
+  it("keeps the saved count and shows worker-preparation refusals", async () => {
+    const user = userEvent.setup()
+    await open({
+      engineSettings: () => Promise.resolve({ processingThreads: 4 }),
+      engineConfigure: async () => ({
+        ...(await backend.engineStatus()),
+        error: "Could not create audio processing workers",
+      }),
+    })
+    await user.click(box("Audio processing threads"))
+    await user.click(await screen.findByRole("option", { name: "8" }))
+    await waitFor(() => {
+      expect(box("Audio processing threads")).toHaveTextContent("4")
+      expect(screen.getByRole("status", { name: "Audio engine status" })).toHaveTextContent(
+        "Could not create audio processing workers"
+      )
+    })
+  })
+
   it("lists only real drivers and devices when the shell stored nulls", async () => {
     const user = userEvent.setup()
     await open({

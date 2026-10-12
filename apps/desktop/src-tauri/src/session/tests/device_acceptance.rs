@@ -128,6 +128,7 @@ struct DeviceRig {
 impl DeviceRig {
     fn open(options: &Options) -> Self {
         let requested = AudioSettings {
+            processing_threads: None,
             host: options.host.clone(),
             device: options.output.clone(),
             sample_rate: options.rate,
