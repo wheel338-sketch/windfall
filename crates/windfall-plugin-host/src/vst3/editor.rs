@@ -111,6 +111,8 @@ pub(super) struct Editor {
     size: Rc<Size>,
     #[cfg(windows)]
     resizable: bool,
+    #[cfg(windows)]
+    application: f64,
 }
 impl Editor {
     pub fn set_scale(&mut self, application: f64) -> Result<EditorInfo, EditorError> {
@@ -118,7 +120,7 @@ impl Editor {
         {
             let factor = crate::gui::scaling::content_scale(
                 application,
-                crate::gui::win32::window_scale(self.window.handle()),
+                self.window.monitor_scale(),
             )?;
             let support = self
                 .view
@@ -149,6 +151,7 @@ impl Editor {
             unsafe {
                 self.view.onSize(&mut rect);
             }
+            self.application = application;
             Ok(self.info())
         }
         #[cfg(not(windows))]
@@ -242,13 +245,18 @@ impl Editor {
                 }
             }
             window.show(options.take_focus);
-            Ok(Self {
+            let mut editor = Self {
                 view,
                 frame,
                 window,
                 size,
                 resizable,
-            })
+                application: options.scale,
+            };
+            if editor.view.cast::<IPlugViewContentScaleSupport>().is_some() || options.scale != 1.0 {
+                editor.set_scale(options.scale)?;
+            }
+            Ok(editor)
         }
     }
     pub fn info(&self) -> EditorInfo {
@@ -269,6 +277,19 @@ impl Editor {
     pub fn idle(&mut self, notify: &mut dyn FnMut(PluginNotification)) -> bool {
         #[cfg(windows)]
         {
+            if let Some(monitor) = self.window.take_monitor_scale() {
+                let before = self.info();
+                match self.set_scale(self.application) {
+                    Ok(info) => notify(PluginNotification::EditorResized { width: info.width, height: info.height }),
+                    Err(_) => {
+                        self.size.width.set(before.width);
+                        self.size.height.set(before.height);
+                        self.size.requested.set(false);
+                        self.window.set_client_size(before.width, before.height);
+                        notify(PluginNotification::EditorScaleRefused { application: self.application, monitor });
+                    }
+                }
+            }
             if self.size.requested.replace(false) {
                 let width = self.size.width.get();
                 let height = self.size.height.get();

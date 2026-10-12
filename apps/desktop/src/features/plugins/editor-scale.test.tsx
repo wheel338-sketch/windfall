@@ -18,6 +18,27 @@ function MountedSettings({ sync }: { sync: (application: number) => Promise<void
 }
 
 describe("native content scaling boundary", () => {
+  it("refreshes main or detached webview density on native DPI notification and releases its listener", async () => {
+    const app = await startTestApp()
+    let notify: (() => void) | undefined
+    const released = vi.fn()
+    app.backend.onWindowScale = (handler) => { notify = handler; return released }
+    const changed = vi.fn()
+    window.addEventListener("windfall:ui-scale", changed)
+    const before = useProjectStore.getState()
+    const sync = vi.fn<(application: number) => Promise<void>>().mockResolvedValue(undefined)
+    try {
+      const mounted = render(<MountedSettings sync={sync} />)
+      expect(notify).toBeTypeOf("function")
+      const events = changed.mock.calls.length
+      act(() => notify?.())
+      expect(changed.mock.calls.length).toBe(events + 1)
+      expect(useProjectStore.getState()).toBe(before)
+      expect(document.documentElement.style.getPropertyValue("--wf-viewport-width")).toBe(`${window.innerWidth / (useUiStore.getState().uiScale / 100)}px`)
+      mounted.unmount()
+      expect(released).toHaveBeenCalledOnce()
+    } finally { window.removeEventListener("windfall:ui-scale", changed); app.stop() }
+  })
   it("the real Settings selection sends application scale without changing project or audio settings", async () => {
     const app = await startTestApp()
     const sync = vi.fn<(application: number) => Promise<void>>().mockResolvedValue(undefined)

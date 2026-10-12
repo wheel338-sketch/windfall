@@ -697,6 +697,11 @@ impl Runtime {
                                 }
                             }
                             PluginNotification::StateChanged => state_changed = true,
+                            PluginNotification::EditorScaleRefused { application, monitor } if current => {
+                                let mut errors = owner_errors.lock().unwrap_or_else(|error| error.into_inner());
+                                errors.retain(|(before, _)| *before != *target);
+                                errors.push((*target, format!("The plugin refused content scaling at application scale {application} and monitor scale {monitor}.")));
+                            }
                             PluginNotification::LatencyChanged { .. }
                             | PluginNotification::RestartRequested
                             | PluginNotification::ParamsRescanned => {

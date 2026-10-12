@@ -489,6 +489,13 @@ impl InstanceBackend for ClapInstance {
             return;
         }
         let mut resized = None;
+        #[cfg(windows)]
+        if let Some((application, monitor, scaled)) = editor.poll_monitor_scale(&mut self.instance) {
+            match scaled {
+                Ok(info) => resized = Some((info.width, info.height)),
+                Err(_) => notify(PluginNotification::EditorScaleRefused { application, monitor }),
+            }
+        }
         if flags & flag::GUI_RESIZE != 0 {
             let (width, height) = self
                 .instance

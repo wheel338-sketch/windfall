@@ -43,3 +43,14 @@ export function sanitizeNotebookHtml(source: string): string {
 export function notebookHtmlDocument(source: string): string {
   return `<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="${NOTEBOOK_CSP}"></head><body>${sanitizeNotebookHtml(source)}</body></html>`
 }
+
+/** A data document has an opaque origin on WebView2, WKWebView and WebKitGTK.
+ * It never inherits the packaged tauri/asset origin or a parent base URL.
+ * Keep the permissionless iframe sandbox and deny-all CSP as independent gates.
+ */
+export function notebookHtmlUrl(source: string): string {
+  // A draft or the source bound can contain a lone UTF-16 surrogate. URI
+  // encoding must remain safe even before project byte validation succeeds.
+  const html = notebookHtmlDocument(source).replace(/[\uD800-\uDBFF][\uDC00-\uDFFF]|[\uD800-\uDFFF]/g, (value) => value.length === 2 ? value : "\uFFFD")
+  return `data:text/html;charset=utf-8,${encodeURIComponent(html)}`
+}
