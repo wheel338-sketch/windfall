@@ -145,7 +145,7 @@ impl Session {
                 self.plugin_revision(),
             )
         };
-        let project = self.capture_plugins_idle(project, plugin_revision)?;
+        let project = self.capture_plugins(project, plugin_revision)?;
         range.check().map_err(|e| e.to_string())?;
         // Worst-case slowest supported tempo bounds allocation before rendering.
         let max_ticks = windfall_core::PPQ as f64 * windfall_project::MIN_TEMPO_BPM / 2.0;
