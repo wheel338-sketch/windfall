@@ -183,14 +183,14 @@ fn actual_fixture_bundle_path_catalog_and_instance_lifetime_are_preserved() {
     let host = PluginHost::windfall();
     let module = host.load(&bundle).unwrap();
     let descriptors = module.descriptors();
-    assert_eq!(descriptors.len(), 24);
+    assert_eq!(descriptors.len(), 25);
     let scan = windfall_plugin_host::scan::scan_file(
         &common::scanner(std::time::Duration::from_secs(20)),
         &bundle,
     )
     .unwrap();
     assert!(scan.failure.is_none());
-    assert_eq!(scan.plugins.len(), 24);
+    assert_eq!(scan.plugins.len(), 25);
     assert_eq!(
         scan.plugins[1].failure.as_ref().unwrap().kind,
         windfall_plugin_host::scan::FailureKind::Rejected
@@ -212,7 +212,7 @@ fn actual_fixture_bundle_path_catalog_and_instance_lifetime_are_preserved() {
     let a = host.load(&bundle).unwrap();
     let b = host.load(&link).unwrap();
     drop(a);
-    assert_eq!(b.descriptors().len(), 24);
+    assert_eq!(b.descriptors().len(), 25);
     drop(b);
 }
 

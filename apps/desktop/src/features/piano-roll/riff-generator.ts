@@ -1,6 +1,6 @@
 import { create } from "zustand"
 
-import type { Command, Note } from "@/bindings"
+import type { Command, Note, Pattern } from "@/bindings"
 import {
   dispatch,
   onHistoryNavigation,
@@ -10,7 +10,6 @@ import { getProjectGeneration, onProjectReplaced } from "@/lib/store/replaced"
 import { ticksPerBar, ticksToSeconds } from "@/lib/time"
 
 import { auditionOff, auditionOn } from "./audition"
-import { withExtension } from "./edit-math"
 import type { EditorContext } from "./editor"
 import { patternMeterAt } from "./pattern-timeline"
 import {
@@ -29,7 +28,6 @@ import { createRiffPlayer } from "./riff/player"
 import { currentSession, type PianoRollSession } from "./session"
 import { usePianoRollStore } from "./store"
 
-const HISTORY_LABEL = "Generate riff"
 
 /** Everything the generator reads from the piano roll, captured at open. */
 export type RiffRequest = {
@@ -41,6 +39,7 @@ export type RiffRequest = {
   velocity: number
   /** The selected notes, for "replace the selection". */
   selection: readonly Note[]
+  pattern: Pattern
 }
 export const useRiffGenerator = create<{
   request: RiffRequest | null
@@ -123,6 +122,7 @@ export function openRiffGenerator(): void {
       generation: getProjectGeneration(),
       velocity: usePianoRollStore.getState().lastVelocity,
       selection: session.editor.selectedNotes().map((note) => ({ ...note })),
+      pattern: structuredClone(useProjectStore.getState().project.patterns.find((pattern) => pattern.id === context.pattern.id)!),
     },
     pending: false,
     auditioning: false,
@@ -151,6 +151,8 @@ export function riffRequestIsCurrent(request: RiffRequest): boolean {
     !session.editor.busy &&
     session.editor.context?.pattern.id === request.context.pattern.id &&
     session.editor.context.channel === request.context.channel &&
+    session.editor.selection.size === request.selection.length &&
+    request.selection.every((note) => session.editor.selection.has(note.id)) &&
     useProjectStore.getState().revision === request.revision &&
     getProjectGeneration() === request.generation
   )
@@ -178,36 +180,23 @@ export function auditionRiff(
 }
 
 /**
- * One command, so one undo step: `addNotes` alone, or a batch that also
- * removes the replaced selection and grows the pattern to hold the riff.
+ * One checked command: refuses a changed source before removing notes,
+ * inserting the phrase and extending the pattern in one undo step.
  */
 export function riffCommand(
   request: RiffRequest,
   settings: RiffSettings
 ): Command {
   const { notes } = generateRiff(request, settings)
-  const { pattern, channel } = request.context
-  const add: Command = {
-    type: "addNotes",
-    pattern: pattern.id,
+  const { channel } = request.context
+  return {
+    type: "insertReviewedNotes",
+    expected: request.pattern,
     channel,
     notes: riffNoteInits(notes),
+    remove: settings.placement === "selection" ? request.selection.map((note) => note.id) : [],
+    extend: settings.extendPattern,
   }
-  const end = Math.max(...notes.map((note) => note.start + note.length))
-  const extended = settings.extendPattern
-    ? withExtension(add, HISTORY_LABEL, pattern, end)
-    : add
-  const commands = extended.type === "batch" ? extended.commands : [extended]
-  if (settings.placement === "selection")
-    commands.unshift({
-      type: "removeNotes",
-      pattern: pattern.id,
-      channel,
-      notes: request.selection.map((note) => note.id),
-    })
-  return commands.length === 1
-    ? commands[0]
-    : { type: "batch", label: HISTORY_LABEL, commands }
 }
 
 export async function applyRiff(

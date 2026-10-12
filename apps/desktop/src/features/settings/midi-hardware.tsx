@@ -26,6 +26,7 @@ import {
 } from "@/components/ui/select"
 import { backend, errorMessage } from "@/lib/ipc"
 import { useProjectGeneration, useProjectStore } from "@/lib/store"
+import { releaseHardwareKeys } from "@/features/piano-roll/chords/held-keys"
 
 type Option = { value: string; label: string }
 const OFF = "off"
@@ -115,6 +116,10 @@ export function MidiHardwareSettingsSection() {
   const operation = useRef(0)
 
   useEffect(() => {
+    if (state && state.connectedInputs.length === 0) releaseHardwareKeys()
+  }, [state])
+
+  useEffect(() => {
     const ticket = ++epoch.current
     let loading = false
     const load = async () => {
@@ -158,7 +163,11 @@ export function MidiHardwareSettingsSection() {
     setError(null)
     try {
       const result = await work()
-      if (ticket === epoch.current) setState(result)
+      if (ticket === epoch.current) {
+        if (result.target !== state?.target || result.generation !== state?.generation ||
+          state?.connectedInputs.some((input) => !result.connectedInputs.includes(input))) releaseHardwareKeys()
+        setState(result)
+      }
     } catch (failure) {
       if (ticket === epoch.current) setError(errorMessage(failure))
     } finally {
@@ -169,9 +178,11 @@ export function MidiHardwareSettingsSection() {
 
   function configure(change: Partial<MidiHardwareSettings>) {
     if (state)
-      void run(() =>
-        backend.midiHardwareConfigure({ ...state.settings, ...change })
-      )
+      void run(async () => {
+        const result = await backend.midiHardwareConfigure({ ...state.settings, ...change })
+        releaseHardwareKeys()
+        return result
+      })
   }
   async function configureControllers(change: Partial<ControllerState["settings"]>) {
     if (!controllers || working.current) return
@@ -351,6 +362,7 @@ export function MidiHardwareSettingsSection() {
           onClick={() => {
             void backend
               .midiHardwarePanic()
+              .then(releaseHardwareKeys)
               .catch((failure: unknown) => setError(errorMessage(failure)))
           }}
         >

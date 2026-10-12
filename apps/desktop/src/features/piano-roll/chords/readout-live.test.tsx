@@ -12,7 +12,7 @@ import { currentSession } from "../session"
 import { useStepEntryStore } from "../step-entry"
 import { channel, currentPattern, notesOf, startRoll, undoSteps } from "../test-utils"
 import { useTypingKeyboardStore } from "../typing-keyboard"
-import { heldKeys, releaseHeldKeys } from "./held-keys"
+import { heldKeys, holdKey, releaseHeldKeys } from "./held-keys"
 import { useChordDisplayStore } from "./readout-panel"
 
 /*
@@ -70,6 +70,36 @@ function display() {
 }
 
 describe("chord readout over the mounted piano roll", () => {
+  it("clears native hardware notes on Stop while retaining a separate audition owner", async () => {
+    act(() => {
+      roll.backend.playMidiHardwareNote({ channel: kick(), key: 60, velocity: 100 })
+      roll.backend.playMidiHardwareNote({ channel: kick(), key: 64, velocity: 100 })
+      holdKey(kick(), 72)
+    })
+    await act(async () => { await roll.backend.transportStop(); await settle() })
+    expect(heldKeys(kick())).toEqual([72])
+  })
+  it("names accepted native MIDI notes, filters destinations and clears on project replacement", async () => {
+    const before = undoSteps()
+    const send = (key: number, velocity: number, channelId = kick()) => {
+      act(() => roll.backend.playMidiHardwareNote({ channel: channelId, key, velocity }))
+    }
+    send(60, 100)
+    send(64, 100)
+    send(67, 100)
+    send(60, 110)
+    expect(readout()).toHaveTextContent("C major")
+    send(72, 100, channel("Clap").id)
+    expect(readout()).toHaveTextContent("C major")
+    // Accepted ups arrive after the native sustain latch releases them.
+    send(60, 0)
+    send(64, 0)
+    expect(heldKeys(kick())).toEqual([67])
+    act(() => announceProjectReplaced())
+    expect(heldKeys(kick())).toEqual([])
+    expect(heldKeys(channel("Clap").id)).toEqual([])
+    expect(undoSteps()).toBe(before)
+  })
   it("names typing-keyboard keys as they go down and up, in the toolbar and the display", async () => {
     await act(async () => {
       await dispatch({

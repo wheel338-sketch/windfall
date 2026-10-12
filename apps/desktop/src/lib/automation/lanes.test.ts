@@ -100,6 +100,16 @@ describe("targetKey", () => {
 })
 
 describe("a lane", () => {
+  it("joins repeated pattern events to playlist priority, offsets and end holds", () => {
+    const project = { ...song([ramp], [clip(10, 1, 0, BAR * 2, 0, { content: { type: "pattern" as const, pattern: 7 }, offset: BAR / 4 }), clip(11, 0, BAR / 2, BAR / 2, 1)]),
+      patterns: [{ id: 7, name: "Events", color: 0, lengthSteps: 16, lanes: [], events: [{ id: 2, target: FADER, points: [point(0, 0), point(BAR, 1)] }] }] }
+    const [lane] = compileLanes(project)
+    expect(laneValueAt(lane, 0)).toEqual({ automation: 2, value: .25 })
+    expect(laneValueAt(lane, BAR / 2)).toEqual({ automation: 1, value: 0 })
+    expect(laneValueAt(lane, BAR)).toEqual({ automation: 2, value: .25 })
+    expect(laneValueAt(lane, BAR * 2 + 100)).toEqual({ automation: 2, value: .25 })
+    expect(holdSegments([lane], BAR * 3).at(-1)?.automation).toBe(2)
+  })
   it("has nothing to say before the target's first clip", () => {
     const [lane] = compileLanes(song([ramp], [clip(1, 0, BAR, BAR, 1)]))
     expect(laneValueAt(lane, 0)).toBeNull()
@@ -233,6 +243,13 @@ describe("holdSegments", () => {
 })
 
 describe("laneCorners", () => {
+  it("includes curve corners and discontinuities on every offset pattern pass", () => {
+    const lane = { key: "trackVolume:5", target: FADER, spans: [{ start: 0, automation: 2, clip: 3, track: 100,
+      points: [point(0, 0, { curve: .5 }), point(120, 1), point(240, .5)], shift: 60, repeat: 480, held: 0 }] }
+    expect(laneCorners(lane, 1000, 60)).toEqual([0, 60, 180, 420, 480, 540, 660, 900, 960, 1000])
+    expect(laneValueAt(lane, 420)?.value).toBe(0)
+    expect(laneValueBefore(lane, 420)?.value).toBe(.5)
+  })
   it("has a corner at every span start and point, and cuts bends up", () => {
     const bent = automation(1, [
       point(0, 0, { curve: 0.5 }),

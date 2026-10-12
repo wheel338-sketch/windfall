@@ -37,6 +37,8 @@ mod plugin_recording;
 mod plugin_update;
 #[cfg(windows)]
 mod plugins;
+mod piano_waveform;
+mod pattern_movement;
 mod project_preparation;
 mod recording;
 #[path = "../recording_completion_qa.rs"]

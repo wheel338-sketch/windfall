@@ -1,4 +1,5 @@
 import type { Pattern } from "@/bindings"
+import { curveValue } from "@/lib/automation/curve"
 
 import { patternTicks, wrapTicks } from "./edit"
 
@@ -56,6 +57,16 @@ export function buildPreview(
       })
     }
     units += high - low + 1
+  }
+  // A bounded curve silhouette in its own band makes event-only patterns
+  // visible too. Pattern offsets/repeats use the same previewSpans mapping.
+  for (const lane of (pattern.events ?? []).slice(0, 8)) {
+    if (!lane.points.length) continue
+    for (let column = 0; column < 32; column++) {
+      const start = column * length / 32
+      placed.push({ start, length: length / 32, unit: units + (1 - curveValue(lane.points, start)) * 7 })
+    }
+    units += 8
   }
   if (placed.length === 0) {
     return { length, segments: new Float32Array(0), count: 0 }

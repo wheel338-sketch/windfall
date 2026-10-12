@@ -16,6 +16,17 @@ import {
 const BAR = 3840
 const STEP = 240
 
+it("shows event-only patterns as bounded silhouettes at their real source ticks", () => {
+  const source = pattern([])
+  source.events = [{ id: 9, target: { type: "trackPan", track: 0 }, points: [{ tick: 0, value: 0, curve: 0, hold: false }, { tick: BAR, value: 1, curve: 0, hold: false }] }]
+  const preview = buildPreview(source)
+  const segments = rows(preview)
+  expect(preview.count).toBe(32)
+  expect(segments[0][0]).toBe(0)
+  expect(segments.at(-1)![0] + segments.at(-1)![1]).toBe(BAR)
+  expect(segments[0][2]).toBeGreaterThan(segments.at(-1)![2])
+})
+
 let nextNote = 1
 function note(start: number, key = 60, length = STEP): Note {
   return { id: nextNote++, start, length, key, velocity: 0.8, pan: 0 }

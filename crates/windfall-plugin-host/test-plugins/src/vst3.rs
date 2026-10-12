@@ -23,7 +23,7 @@ fn cid(index: i32) -> TUID {
 }
 /// How many classes the factory offers. New ones are appended, so the
 /// positions and ids of the earlier ones do not move.
-const CLASSES: i32 = 24;
+const CLASSES: i32 = 25;
 /// The auxiliary input buses of the multi-detector class, after its main
 /// stereo bus: their names and speaker arrangements (left; left and right;
 /// left, right and both surrounds).
@@ -88,6 +88,7 @@ impl IPluginFactoryTrait for Factory {
                         "VST3 Auxiliary Detector",
                         "VST3 Multi Auxiliary Detector",
                         "VST3 Note Expression Probe",
+                        "VST3 MIDI Mapping Instrument",
                     ][index as usize],
                 ),
             });
@@ -113,8 +114,10 @@ impl IPluginFactoryTrait for Factory {
             }
             let component = ComWrapper::new(Component {
                 absurd: class == cid(1),
-                instrument: class == cid(2) || class == cid(12) || class == cid(23),
+                instrument: class == cid(2) || class == cid(12) || class == cid(23) || class == cid(24),
                 expression_probe: class == cid(23),
+                midi_mapping: class == cid(24),
+                midi_bend: std::array::from_fn(|_| std::sync::atomic::AtomicU64::new(0.5_f64.to_bits())),
                 sidechain: class == cid(21),
                 multi_sidechain: class == cid(22),
                 bridge_note_probe: class == cid(12),
@@ -206,10 +209,11 @@ impl IPluginFactory2Trait for Factory {
                         "VST3 Auxiliary Detector",
                         "VST3 Multi Auxiliary Detector",
                         "VST3 Note Expression Probe",
+                        "VST3 MIDI Mapping Instrument",
                     ][index as usize],
                 ),
                 classFlags: 0,
-                subCategories: chars(if index == 2 || index == 12 || index == 23 {
+                subCategories: chars(if index == 2 || index == 12 || index == 23 || index == 24 {
                     "Instrument|Synth"
                 } else {
                     "Fx|Tools"
@@ -230,6 +234,8 @@ struct Component {
     absurd: bool,
     instrument: bool,
     expression_probe: bool,
+    midi_mapping: bool,
+    midi_bend: [std::sync::atomic::AtomicU64; 16],
     bridge_note_probe: bool,
     mono: bool,
     refuse: bool,
@@ -258,7 +264,7 @@ struct Component {
     audio: std::cell::UnsafeCell<Audio>,
 }
 impl Class for Component {
-    type Interfaces = (IComponent, IAudioProcessor, IEditController, INoteExpressionController);
+    type Interfaces = (IComponent, IAudioProcessor, IEditController, INoteExpressionController, IMidiMapping);
 }
 impl IPluginBaseTrait for Component {
     unsafe fn initialize(&self, context: *mut FUnknown) -> tresult {
@@ -426,6 +432,7 @@ impl IComponentTrait for Component {
 struct Audio {
     rate: f64,
     phase: f64,
+    midi_phases: [f64; 16],
     velocity: f32,
     configured: bool,
     held: [[bool; 128]; 16],
@@ -439,6 +446,7 @@ impl Default for Audio {
         Self {
             rate: 0.0,
             phase: 0.0,
+            midi_phases: [0.0; 16],
             velocity: 0.0,
             configured: false,
             held: [[false; 128]; 16],
@@ -721,7 +729,7 @@ impl IAudioProcessorTrait for Component {
                         continue;
                     };
                     let id = unsafe { queue.getParameterId() };
-                    if id != 7 && !(self.multi_params && (8..=9).contains(&id)) {
+                    if id != 7 && !(self.multi_params && (8..=9).contains(&id)) && !(self.midi_mapping && (100..116).contains(&id)) {
                         continue;
                     }
                     for point in 0..unsafe { queue.getPointCount() } {
@@ -733,6 +741,8 @@ impl IAudioProcessorTrait for Component {
                                 gain = value;
                                 self.gain
                                     .store(gain.to_bits(), std::sync::atomic::Ordering::Relaxed);
+                            } else if self.midi_mapping && (100..116).contains(&id) {
+                                self.midi_bend[(id - 100) as usize].store(value.to_bits(), std::sync::atomic::Ordering::Relaxed);
                             } else {
                                 audio.extra[(id - 8) as usize] = value;
                                 self.extra[(id - 8) as usize]
@@ -784,6 +794,20 @@ impl IAudioProcessorTrait for Component {
                 0.0
             };
             audio.phase = (audio.phase + 440.0 / audio.rate).fract();
+            let mut midi_synth = [0.0; 2];
+            if self.midi_mapping {
+                for midi_channel in 0..16 {
+                    let Some(key) = audio.held[midi_channel].iter().position(|held| *held) else { continue; };
+                    let bend = f64::from_bits(self.midi_bend[midi_channel].load(std::sync::atomic::Ordering::Relaxed));
+                    let frequency = 440.0 * 2.0_f64.powf((key as f64 + (bend - 0.5) * 4.0 - 69.0) / 12.0);
+                    let value = (audio.midi_phases[midi_channel] * std::f64::consts::TAU).sin() as f32;
+                    // Independent color/channel probes in the two output sides.
+                    if midi_channel == 2 { midi_synth[0] += value; }
+                    else if midi_channel == 5 { midi_synth[1] += value; }
+                    else { midi_synth[0] += value; midi_synth[1] += value; }
+                    audio.midi_phases[midi_channel] = (audio.midi_phases[midi_channel] + frequency / audio.rate).fract();
+                }
+            }
             if self.bridge_delayed {
                 let input = unsafe { &*data.inputs };
                 let pair = unsafe {
@@ -804,6 +828,7 @@ impl IAudioProcessorTrait for Component {
             }
             let expression_pcm = if self.expression_probe { audio.expressions.pcm() } else { [0.0; 2] };
             for channel in 0..output.numChannels {
+                let synth = if self.midi_mapping { midi_synth[channel as usize] } else { synth };
                 let out = unsafe { *output.__field0.channelBuffers32.add(channel as usize) };
                 let input = if self.instrument {
                     0.0
@@ -880,11 +905,17 @@ impl IEditControllerTrait for Component {
         unsafe { self.write_state(state) }
     }
     unsafe fn getParameterCount(&self) -> i32 {
-        if self.multi_params { 6 } else { 4 }
+        if self.midi_mapping { 20 } else if self.multi_params { 6 } else { 4 }
     }
     unsafe fn getParameterInfo(&self, index: i32, info: *mut ParameterInfo) -> tresult {
         if !(0..unsafe { self.getParameterCount() }).contains(&index) || info.is_null() {
             return kInvalidArgument;
+        }
+        if self.midi_mapping && index >= 4 {
+            let mut title = [0; 128];
+            for (slot, unit) in title.iter_mut().zip(format!("Bend channel {}", index - 3).encode_utf16()) { *slot = unit; }
+            unsafe { info.write(ParameterInfo { id: 100 + (index - 4) as u32, title, shortTitle: title, units: [0; 128], stepCount: 0, defaultNormalizedValue: 0.5, unitId: 0, flags: 1 }); }
+            return kResultOk;
         }
         let mut title = [0; 128];
         for (s, c) in title.iter_mut().zip(
@@ -966,6 +997,7 @@ impl IEditControllerTrait for Component {
         value * 0.5
     }
     unsafe fn getParamNormalized(&self, id: u32) -> f64 {
+        if self.midi_mapping && (100..116).contains(&id) { return f64::from_bits(self.midi_bend[(id - 100) as usize].load(std::sync::atomic::Ordering::Relaxed)); }
         if self.multi_params && (8..=9).contains(&id) {
             return f64::from_bits(
                 self.extra[(id - 8) as usize].load(std::sync::atomic::Ordering::Relaxed),
@@ -979,6 +1011,10 @@ impl IEditControllerTrait for Component {
         f64::from_bits(self.gain.load(std::sync::atomic::Ordering::Relaxed))
     }
     unsafe fn setParamNormalized(&self, id: u32, mut value: f64) -> tresult {
+        if self.midi_mapping && (100..116).contains(&id) && value.is_finite() && (0.0..=1.0).contains(&value) {
+            self.midi_bend[(id - 100) as usize].store(value.to_bits(), std::sync::atomic::Ordering::Relaxed);
+            return kResultOk;
+        }
         if self.multi_params
             && (8..=9).contains(&id)
             && value.is_finite()
@@ -1018,6 +1054,13 @@ impl IEditControllerTrait for Component {
     }
 }
 /// SDK factory export, independently implemented from the host.
+impl IMidiMappingTrait for Component {
+    unsafe fn getMidiControllerAssignment(&self, bus: i32, channel: i16, number: CtrlNumber, id: *mut ParamID) -> tresult {
+        if !self.midi_mapping || bus != 0 || !(0..16).contains(&channel) || number != 129 || id.is_null() { return kResultFalse; }
+        unsafe { id.write(100 + channel as u32); }
+        kResultOk
+    }
+}
 #[unsafe(no_mangle)]
 pub extern "system" fn GetPluginFactory() -> *mut IPluginFactory {
     let factory: ComPtr<IPluginFactory> = ComWrapper::new(Factory).to_com_ptr().unwrap();

@@ -50,9 +50,8 @@ impl Slot {
     }
 }
 
-/// MIDI events that "all notes off" becomes: two controllers on each of
-/// the sixteen channels.
-const ALL_NOTES_OFF_MESSAGES: usize = 32;
+/// Panic also neutralizes bend and controllers on each MIDI channel.
+const ALL_NOTES_OFF_MESSAGES: usize = 16 * 9;
 
 /// The CLAP events of one block, in a list that never grows.
 pub(crate) struct EventList {
@@ -76,7 +75,7 @@ impl EventList {
                     + 16 * 128
             }
             // Every ordinary event could be a panic. The adapter reserve
-            // adds at most 2048 channel/key note-offs and one further 32-message panic.
+            // adds at most 2048 channel/key note-offs and one further panic.
             // Translation must not silently drop an admitted release.
             Dialect::Midi => {
                 EVENT_CAPACITY * ALL_NOTES_OFF_MESSAGES + IMMEDIATE_RELEASE_CAPACITY - 1
@@ -180,10 +179,28 @@ impl EventList {
                         time, target, expression, value,
                     )));
                 }
+                (HostEvent::NoteExpression { time, channel, kind, value, .. }, Dialect::Midi) => {
+                    use crate::events::NoteExpressionKind as Kind;
+                    let channel = channel & 0x0f;
+                    let unit = |value: f64| (value.clamp(0.0, 1.0) * 127.0).round() as u8;
+                    // Adapter scales relative semitones by the declared channel
+                    // bend range. MIDI shares one expression state per channel.
+                    let data = match kind {
+                        Kind::Tuning => {
+                            let bend = (8192.0 + value.clamp(-1.0, 1.0) * 8192.0).round().clamp(0.0, 16383.0) as u16;
+                            [0xe0 | channel, (bend & 127) as u8, (bend >> 7) as u8]
+                        }
+                        Kind::Pressure => [0xd0 | channel, unit(value), 0],
+                        Kind::Volume => [0xb0 | channel, 7, unit(value)],
+                        Kind::Pan => [0xb0 | channel, 10, unit(value)],
+                        Kind::Vibrato => [0xb0 | channel, 1, unit(value)],
+                        Kind::Expression => [0xb0 | channel, 11, unit(value)],
+                        Kind::Brightness => [0xb0 | channel, 74, unit(value)],
+                    };
+                    self.push(Slot::Midi(MidiEvent::new(time, 0, data)));
+                }
                 (
-                    HostEvent::NoteOnInstance { .. }
-                    | HostEvent::NoteOffInstance { .. }
-                    | HostEvent::NoteExpression { .. },
+                    HostEvent::NoteOnInstance { .. } | HostEvent::NoteOffInstance { .. },
                     Dialect::Midi,
                 ) => {
                     self.dropped = self.dropped.saturating_add(1);
@@ -250,6 +267,11 @@ impl EventList {
                             let data = [0xb0 | channel, controller, 0];
                             self.push(Slot::Midi(MidiEvent::new(time, 0, data)));
                         }
+                        self.push(Slot::Midi(MidiEvent::new(time, 0, [0xe0 | channel, 0, 64])));
+                        for (controller, value) in [(7, 127), (10, 64), (1, 0), (11, 127), (74, 64)] {
+                            self.push(Slot::Midi(MidiEvent::new(time, 0, [0xb0 | channel, controller, value])));
+                        }
+                        self.push(Slot::Midi(MidiEvent::new(time, 0, [0xd0 | channel, 0, 0])));
                     }
                 }
             }

@@ -57,6 +57,8 @@ export type LaneSpan = {
   /** The clip's curve, read `shift` ticks ahead of the song. Null on a hold. */
   readonly points: readonly AutomationPoint[] | null
   readonly shift: number
+  /** Pattern event curves repeat in source ticks. */
+  readonly repeat?: number
   /** On a hold: the value the clip ended on. */
   readonly held: number
 }
@@ -78,6 +80,7 @@ type Piece = {
   track: PlaylistTrackId
   automation: AutomationId
   points: readonly AutomationPoint[]
+  repeat?: number
 }
 
 /**
@@ -114,6 +117,7 @@ function flatten(pieces: readonly Piece[]): LaneSpan[] {
         track: winner.track,
         points: winner.points,
         shift: winner.offset - winner.start,
+        repeat: winner.repeat,
         held: 0,
       })
       continue
@@ -135,7 +139,7 @@ function flatten(pieces: readonly Piece[]): LaneSpan[] {
       track: last.track,
       points: null,
       shift: 0,
-      held: curveValue(last.points, last.offset + (last.end - last.start)),
+      held: curveValue(last.points, last.repeat ? ((last.offset + last.end - last.start) % last.repeat || last.repeat) : last.offset + (last.end - last.start)),
     })
   }
   return spans
@@ -147,7 +151,7 @@ function flatten(pieces: readonly Piece[]): LaneSpan[] {
  * count for nothing.
  */
 export function compileLanes(
-  project: Pick<Project, "playlist" | "automations">
+  project: Pick<Project, "playlist" | "automations"> & Partial<Pick<Project, "patterns">>
 ): Lane[] {
   const { playlist, automations } = project
   const rows = new Map(playlist.tracks.map((track, row) => [track.id, row]))
@@ -179,6 +183,19 @@ export function compileLanes(
     pieces.set(key, list)
   }
 
+  const eventTargets: { key: string; target: AutomationTarget }[] = []
+  for (const pattern of project.patterns ?? []) for (const lane of pattern.events ?? []) {
+    const key = targetKey(lane.target)
+    eventTargets.push({ key, target: lane.target })
+    const list = pieces.get(key) ?? []
+    for (const clip of playlist.clips) {
+      const row = rows.get(clip.track)
+      if (clip.content.type !== "pattern" || clip.content.pattern !== pattern.id || row === undefined || clip.muted || muted.has(clip.track) || clip.length <= 0 || !lane.points.length) continue
+      list.push({ start: clip.start, end: clip.start + clip.length, offset: clip.offset, row, id: clip.id, track: clip.track, automation: lane.id, points: lane.points, repeat: pattern.lengthSteps * 240 })
+    }
+    pieces.set(key, list)
+  }
+
   const lanes: Lane[] = []
   const seen = new Set<string>()
   for (const automation of automations) {
@@ -189,6 +206,12 @@ export function compileLanes(
     if (list) {
       lanes.push({ key, target: automation.target, spans: flatten(list) })
     }
+  }
+  for (const { key, target } of eventTargets) {
+    if (seen.has(key)) continue
+    seen.add(key)
+    const list = pieces.get(key)
+    if (list?.length) lanes.push({ key, target, spans: flatten(list) })
   }
   return lanes
 }
@@ -216,8 +239,9 @@ export function laneValueAt(
 ): { value: number; automation: AutomationId } | null {
   const span = spanAt(lane, tick)
   if (!span) return null
+  const source = span.repeat ? ((tick + span.shift) % span.repeat + span.repeat) % span.repeat : tick + span.shift
   const value = span.points
-    ? curveValue(span.points, tick + span.shift)
+    ? curveValue(span.points, source)
     : span.held
   return { value, automation: span.automation }
 }
@@ -235,7 +259,7 @@ export function laneValueBefore(lane: Lane, tick: number): number | null {
   if (index < 0) return null
   const span = spans[index]
   return span.points
-    ? curveValueBefore(span.points, tick + span.shift)
+    ? curveValueBefore(span.points, span.repeat ? ((tick + span.shift) % span.repeat || span.repeat) : tick + span.shift)
     : span.held
 }
 
@@ -278,20 +302,22 @@ export function laneCorners(lane: Lane, end: number, grain: number): number[] {
     corners.push(span.start)
     const points = span.points
     if (!points) return
-    points.forEach((point, at) => {
-      const tick = point.tick - span.shift
-      if (tick > span.start && tick < until) corners.push(tick)
-      const next = points[at + 1]
-      if (!next || point.hold || point.curve === 0) return
-      const stop = Math.min(next.tick - span.shift, until)
-      for (
-        let inside = Math.max(tick, span.start) + grain;
-        inside < stop;
-        inside += grain
-      ) {
-        corners.push(inside)
-      }
-    })
+    const pass = (origin: number, passEnd: number) => {
+      if (origin > span.start && origin < until) corners.push(origin)
+      points.forEach((point, at) => {
+        const tick = origin + point.tick
+        if (tick >= passEnd) return
+        if (tick > span.start && tick < until) corners.push(tick)
+        const next = points[at + 1]
+        if (!next || point.hold || point.curve === 0) return
+        const stop = Math.min(origin + next.tick, passEnd, until)
+        for (let inside = Math.max(tick, span.start) + Math.max(1, grain); inside < stop; inside += Math.max(1, grain)) corners.push(inside)
+      })
+    }
+    if (span.repeat) {
+      const first = Math.floor((span.start + span.shift) / span.repeat) * span.repeat - span.shift
+      for (let origin = first; origin < until; origin += span.repeat) pass(origin, origin + span.repeat)
+    } else pass(-span.shift, Infinity)
   })
   corners.push(end)
   return [...new Set(corners)].sort((a, b) => a - b)

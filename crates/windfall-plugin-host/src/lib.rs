@@ -108,7 +108,7 @@ mod processor;
 mod state;
 mod vst3;
 
-pub use adapter::{PluginEffect, PluginInstrument, PluginNoteControls};
+pub use adapter::{PluginEffect, PluginInstrument, PluginNoteControls, PluginNoteExpression};
 pub use check::{CheckReport, CheckStep, StepOutcome, check_in_process, check_plugin};
 pub use containment::PluginHealth;
 pub use descriptor::{

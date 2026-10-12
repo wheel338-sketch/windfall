@@ -550,6 +550,14 @@ impl Worker {
     }
 
     fn panic(&mut self) {
+        // Accepted sounding ups keep the UI/log in sync when an input goes
+        // away or sends panic. Deliver before advancing the audition epoch.
+        let at = Instant::now();
+        for key in 0..128 {
+            if self.sounding.iter().any(|keys| keys[key]) {
+                self.audition.note_at(self.epoch, key as u8, 0, at);
+            }
+        }
         self.controller.panic_hardware();
         self.reset();
     }

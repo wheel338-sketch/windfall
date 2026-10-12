@@ -1396,12 +1396,15 @@ impl Transaction<'_> {
                 "Set channel voice settings"
             }
             Command::UpdateChannel { id, patch } => self.update_channel(id, patch)?,
-            Command::SetChannelExpressionMap { id, map } => {
+            Command::SetChannelExpressionMap { id, map, expected } => {
                 let old = self
                     .project
                     .channel(id)
                     .ok_or_else(|| CommandError::not_found("channel", id))?
                     .clone();
+                if expected.is_some_and(|expected| expected != old.expression_map) {
+                    return Err(CommandError::invalid("the channel expression map changed"));
+                }
                 let new = crate::expression_map::applied(&old, map)?;
                 self.push(Edit::SetChannel(Box::new(Change { old, new })));
                 "Set channel expression mapping"
@@ -1470,6 +1473,29 @@ impl Transaction<'_> {
             Command::SetChannelGroup { channels, group } => {
                 self.set_channel_group(&channels, &group)?;
                 "Assign channel group"
+            }
+            Command::InsertReviewedNotes { expected, channel, notes, remove, extend } => {
+                if self.project.pattern(expected.id) != Some(&expected) {
+                    return Err(CommandError::invalid("the reviewed pattern changed"));
+                }
+                if notes.is_empty() || notes.len() > 16_384 {
+                    return Err(CommandError::invalid("generate from 1 to 16384 notes"));
+                }
+                let lane = expected.lane(channel);
+                if remove.iter().any(|id| !lane.is_some_and(|lane| lane.notes.iter().any(|note| note.id == *id))) {
+                    return Err(CommandError::invalid("a replaced note is outside the reviewed lane"));
+                }
+                let end = notes.iter().map(|note| u64::from(note.start) + u64::from(note.length)).max().unwrap_or(0);
+                if end > u64::from(MAX_PATTERN_TICKS) {
+                    return Err(CommandError::invalid("generated notes exceed the pattern limit"));
+                }
+                let mut commands = Vec::new();
+                if !remove.is_empty() { commands.push(Command::RemoveNotes { pattern: expected.id, channel, notes: remove }); }
+                commands.push(Command::AddNotes { pattern: expected.id, channel, notes });
+                if extend && end > u64::from(expected.length_steps * TICKS_PER_STEP) {
+                    commands.push(Command::UpdatePattern { id: expected.id, patch: PatternPatch { length_steps: Some((end as u32).div_ceil(TICKS_PER_STEP)), ..Default::default() } });
+                }
+                return self.run(Command::Batch { label: Some("Generate riff".into()), commands });
             }
             Command::RenameChannelGroup { name, new_name } => {
                 let name = checked_group_name(&name)?;

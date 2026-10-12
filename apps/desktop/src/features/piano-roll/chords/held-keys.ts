@@ -10,6 +10,9 @@ import { onProjectReplaced } from "@/lib/store/replaced"
  */
 const NONE: readonly number[] = Object.freeze([])
 const held = new Map<ChannelId, Set<number>>()
+// Hardware events describe sounding keys (including sustained keys). Keep
+// their ownership separate from typing/gutter auditions on the same pitch.
+const hardware = new Map<ChannelId, Set<number>>()
 // Sorted keys per channel, kept until that channel changes, so a snapshot
 // read twice is the same array.
 const sorted = new Map<ChannelId, readonly number[]>()
@@ -22,11 +25,26 @@ function changed(channel?: ChannelId) {
 }
 
 export function holdKey(channel: ChannelId, key: number): void {
-  if (!Number.isInteger(key)) return
+  if (!Number.isInteger(key) || key < 0 || key > 127) return
   let keys = held.get(channel)
   if (!keys) held.set(channel, (keys = new Set()))
   if (keys.has(key)) return
   keys.add(key)
+  changed(channel)
+}
+
+/** Native accepted down/up feed; repeated down is idempotent. */
+export function hardwareHeldKey(channel: ChannelId, key: number, velocity: number): void {
+  if (!Number.isInteger(key) || key < 0 || key > 127 || !Number.isFinite(velocity)) return
+  let keys = hardware.get(channel)
+  if (velocity > 0) {
+    if (!keys) hardware.set(channel, (keys = new Set()))
+    if (keys.has(key)) return
+    keys.add(key)
+  } else {
+    if (!keys?.delete(key)) return
+    if (!keys.size) hardware.delete(channel)
+  }
   changed(channel)
 }
 
@@ -37,6 +55,13 @@ export function releaseKey(channel: ChannelId, key: number): void {
   changed(channel)
 }
 
+/** Hardware panic/input teardown must preserve independent UI auditions. */
+export function releaseHardwareKeys(): void {
+  if (!hardware.size) return
+  hardware.clear()
+  changed()
+}
+
 /**
  * Lets go of every key of one channel, or of all channels. For anything
  * that silences auditioned notes without a release for each: a panic, a
@@ -44,22 +69,26 @@ export function releaseKey(channel: ChannelId, key: number): void {
  */
 export function releaseHeldKeys(channel?: ChannelId): void {
   if (channel === undefined) {
-    if (held.size === 0) return
+    if (held.size === 0 && hardware.size === 0) return
     held.clear()
+    hardware.clear()
     changed()
     return
   }
-  if (held.delete(channel)) changed(channel)
+  const auditionChanged = held.delete(channel)
+  const hardwareChanged = hardware.delete(channel)
+  if (auditionChanged || hardwareChanged) changed(channel)
 }
 
 /** The held keys of a channel, ascending. The same array until they change. */
 export function heldKeys(channel: ChannelId | null | undefined): readonly number[] {
   if (channel === null || channel === undefined) return NONE
   const keys = held.get(channel)
-  if (!keys) return NONE
+  const native = hardware.get(channel)
+  if (!keys && !native) return NONE
   let list = sorted.get(channel)
   if (!list) {
-    list = [...keys].sort((a, b) => a - b)
+    list = [...new Set([...(keys ?? []), ...(native ?? [])])].sort((a, b) => a - b)
     sorted.set(channel, list)
   }
   return list

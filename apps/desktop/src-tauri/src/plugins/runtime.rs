@@ -1569,13 +1569,9 @@ impl ExpressionOwner {
         started: false,
         dirty: false,
     };
-    fn controls(self) -> windfall_plugin_host::PluginNoteControls {
-        windfall_plugin_host::PluginNoteControls {
-            pan: self.pan,
-            pitch: self.pitch,
-            modulation_x: self.expression.modulation_x,
-            modulation_y: self.expression.modulation_y,
-        }
+    fn controls(self, map: windfall_dsp::ExpressionMap) -> windfall_plugin_host::PluginNoteExpression {
+        let controls = map.plugin_controls(self.pan, f64::from(self.pitch) - f64::from(self.key), self.expression);
+        windfall_plugin_host::PluginNoteExpression { values: controls.values, mask: controls.mask }
     }
 }
 
@@ -1595,6 +1591,7 @@ struct Audio {
     replayed: [f32; 16 * 128],
     midi_controls: Box<[(Option<[u8; 3]>, bool)]>,
     expression_owners: Box<[ExpressionOwner]>,
+    expression_map: windfall_dsp::ExpressionMap,
     next_note_id: u32,
     note_instances: bool,
     note_pitch: bool,
@@ -1614,6 +1611,7 @@ impl Audio {
             replayed,
             midi_controls,
             expression_owners,
+            expression_map,
             reconcile_notes,
             reset_notes,
             transport,
@@ -1646,6 +1644,7 @@ impl Audio {
         if let Adapter::Instrument(instrument) = adapter
             && *reconcile_notes
         {
+            instrument.set_bend_range_semitones(expression_map.bend_range_semitones);
             if *reset_notes {
                 if !instrument.all_notes_off() {
                     return;
@@ -1660,15 +1659,15 @@ impl Audio {
             let mut complete = true;
             for note in expression_owners.iter_mut().filter(|note| note.native != 0) {
                 let accepted = if !note.started {
-                    instrument.note_on_instance(
+                    instrument.note_on_expression_instance(
                         note.native,
                         note.key,
                         note.channel,
                         note.velocity,
-                        note.controls(),
+                        note.controls(*expression_map),
                     )
                 } else if note.dirty {
-                    instrument.set_note_controls(note.native, note.controls())
+                    instrument.set_note_expression(note.native, note.controls(*expression_map))
                 } else {
                     true
                 };
@@ -1942,6 +1941,16 @@ impl HostedInstrument for Audio {
         true // retained until ownership returns, just like pending parameters
     }
 
+    fn set_expression_map(&mut self, map: windfall_dsp::ExpressionMap) {
+        if self.expression_map == map { return; }
+        self.expression_map = map;
+        for slot in 0..self.expression_owners.len() {
+            if self.expression_owners[slot].native != 0 {
+                self.expression_owners[slot].dirty = true;
+                self.publish_expression_owner(slot);
+            }
+        }
+    }
     fn supports_note_instances(&self) -> bool {
         self.note_instances
     }
@@ -2126,16 +2135,19 @@ impl Audio {
             return;
         }
         let note = self.expression_owners[slot];
+        let controls = note.controls(self.expression_map);
+        let bend_range = self.expression_map.bend_range_semitones;
         let accepted = if let Some(Adapter::Instrument(adapter)) = self.adapter_mut() {
+            adapter.set_bend_range_semitones(bend_range);
             if note.started {
-                adapter.set_note_controls(note.native, note.controls())
+                adapter.set_note_expression(note.native, controls)
             } else {
-                adapter.note_on_instance(
+                adapter.note_on_expression_instance(
                     note.native,
                     note.key,
                     note.channel,
                     note.velocity,
-                    note.controls(),
+                    controls,
                 )
             }
         } else {
@@ -2345,6 +2357,7 @@ impl PluginFactory for Runtime {
                     replayed: [0.0; 16 * 128],
                     midi_controls: vec![(None, false); 16 * 131].into_boxed_slice(),
                     expression_owners: Box::new([]),
+                    expression_map: windfall_dsp::ExpressionMap::default(),
                     next_note_id: windfall_plugin_host::FIRST_NOTE_INSTANCE_ID,
                     note_instances: false,
                     note_pitch: false,
@@ -2371,6 +2384,7 @@ impl PluginFactory for Runtime {
                 replayed: [0.0; 16 * 128],
                 midi_controls: vec![(None, false); 16 * 131].into_boxed_slice(),
                 expression_owners: Box::new([]),
+                expression_map: windfall_dsp::ExpressionMap::default(),
                 next_note_id: windfall_plugin_host::FIRST_NOTE_INSTANCE_ID,
                 note_instances: false,
                 note_pitch: false,
@@ -2497,6 +2511,7 @@ impl PluginFactory for Runtime {
                     ]
                     .into_boxed_slice(),
                     next_note_id: windfall_plugin_host::FIRST_NOTE_INSTANCE_ID,
+                    expression_map: windfall_dsp::ExpressionMap::default(),
                     note_instances,
                     note_pitch,
                     reconcile_notes: false,
@@ -2527,6 +2542,7 @@ impl PluginFactory for Runtime {
                 ]
                 .into_boxed_slice(),
                 next_note_id: windfall_plugin_host::FIRST_NOTE_INSTANCE_ID,
+                expression_map: windfall_dsp::ExpressionMap::default(),
                 note_instances: false,
                 note_pitch: false,
                 reconcile_notes: false,

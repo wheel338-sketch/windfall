@@ -125,6 +125,7 @@ pub(super) struct Hub {
     automation_armed: bool,
     automation: AutomationTake,
     recording_gesture: Option<u64>,
+    automation_destination: Option<super::pattern_movement::Destination>,
     log: ScoreLog,
     log_file: PathBuf,
     log_identity: String,
@@ -170,6 +171,7 @@ impl Hub {
             automation_armed: false,
             automation: AutomationTake::default(),
             recording_gesture: None,
+            automation_destination: None,
             log: ScoreLog::default(),
             log_file: profiles_dir
                 .parent()
@@ -196,6 +198,22 @@ impl Hub {
         let mut profiles = builtin_profiles();
         profiles.extend(self.user_profiles.iter().cloned());
         profiles
+    }
+
+    fn record_movement(&mut self, project: &Project, place: super::controller_capture::Position,
+        target: AutomationTarget, before: f32, value: f32) {
+        if place.mode == PlayMode::Pattern && target == AutomationTarget::Tempo {
+            self.error = Some("Record tempo movement in song mode.".into());
+            return;
+        }
+        if self.automation_destination.is_none() {
+            self.automation_destination = super::pattern_movement::Destination::capture(project, place);
+        }
+        if !self.automation_destination.as_ref().is_some_and(|destination| destination.matches(place)) {
+            self.error = Some("Recording destination changed. Stop and start a new automation pass.".into());
+            return;
+        }
+        self.automation.record_in((place.mode == PlayMode::Pattern).then_some(place.pattern), target, before, place.tick, value);
     }
 
     /// Reads which inputs are open and what profiles they have.
@@ -240,6 +258,7 @@ impl Hub {
             self.notes = NoteTake::default();
             self.automation = AutomationTake::default();
             self.recording_gesture = None;
+            self.automation_destination = None;
             self.log.clear();
             self.log_dirty = true;
             self.bank = 0;
@@ -1037,13 +1056,7 @@ impl Session {
                 link_state.wrote(stored);
             }
             if let Some(place) = place {
-                hub.automation.record_in(
-                    (place.mode == PlayMode::Pattern).then_some(place.pattern),
-                    write.target,
-                    write.before,
-                    place.tick,
-                    stored,
-                );
+                hub.record_movement(project, place, write.target, write.before, stored);
             }
         }
         drop(guard);
@@ -1249,13 +1262,7 @@ impl Session {
                     .zip(project.automation_stored_value(target))
                     .map(|(range, value)| range.normalized(value));
                 if let Some(stored) = stored.filter(|stored| stored != before) {
-                    hub.automation.record_in(
-                        (place.mode == PlayMode::Pattern).then_some(place.pattern),
-                        *target,
-                        *before,
-                        place.tick,
-                        stored,
-                    );
+                    hub.record_movement(project, place, *target, *before, stored);
                 }
             }
         }
@@ -1485,11 +1492,12 @@ impl Session {
 
     /// Writes the movements of the pass as automation, as one undo step.
     fn commit_automation_take(&self) {
-        let (lanes, gesture, generation) = {
+        let (lanes, gesture, destination, generation) = {
             let mut hub = lock(&self.inner.controllers);
             (
                 hub.automation.take(),
                 hub.recording_gesture.take(),
+                hub.automation_destination.take(),
                 hub.generation,
             )
         };
@@ -1501,20 +1509,26 @@ impl Session {
             if state.generation != generation {
                 return;
             }
-            recorded_automation_command(state.document.project(), &lanes)
+            destination.as_ref().map_or_else(
+                || Ok(recorded_automation_command(state.document.project(), &lanes)),
+                |destination| destination.command(state.document.project(), &lanes),
+            )
         };
         for lane in &lanes {
             self.controller()
                 .automation_touch(lane.target.clone(), None);
         }
-        if let Some(command) = command
-            && let Err(error) = self.dispatch_controller_capture(command, gesture, generation)
-        {
+        let result = command.and_then(|command| match command {
+            Some(command) => self.dispatch_controller_capture(command, gesture, generation).map(|_| ()),
+            None => Ok(()),
+        });
+        if let Err(error) = result {
             let current = self.state().generation;
             let mut hub = lock(&self.inner.controllers);
             if current == generation && hub.generation == generation {
                 hub.automation.restore(lanes);
                 hub.recording_gesture = gesture;
+                hub.automation_destination = destination;
             }
             hub.error = Some(error);
         }

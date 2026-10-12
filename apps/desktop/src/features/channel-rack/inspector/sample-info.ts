@@ -18,6 +18,7 @@ export type SampleInfoState =
  */
 const cache = new Map<string, SampleInfoState>()
 const listeners = new Set<() => void>()
+let cacheEpoch = 0
 
 function keyOf(sample: SampleAsset): string {
   return `${sample.id}|${sample.path.kind}|${sample.path.path}`
@@ -35,10 +36,11 @@ function load(sample: SampleAsset) {
   if (cache.has(key)) return
   store(key, { status: "loading" })
   const askedAt = generation()
+  const askedEpoch = cacheEpoch
   // An answer that comes in after the files were read anew is about what
   // was there before, and the backend refuses a read that another project
   // overtook. Neither says the file is missing, so neither is kept.
-  const current = () => generation() === askedAt
+  const current = () => generation() === askedAt && cacheEpoch === askedEpoch
   backend.sampleInfoById(sample.id).then(
     (info) => {
       if (current()) store(key, { status: "ready", info })
@@ -60,12 +62,13 @@ function subscribe(listener: () => void) {
 
 /** Forgets every waveform. Tests call this between backends. */
 export function clearSampleInfo() {
+  cacheEpoch++
   cache.clear()
 }
 
 // What is on screen asks again once nothing is kept.
 function forgetAll() {
-  cache.clear()
+  clearSampleInfo()
   for (const listener of [...listeners]) listener()
 }
 

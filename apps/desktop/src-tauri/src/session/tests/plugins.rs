@@ -91,6 +91,46 @@ fn transport() -> PluginTransport {
 }
 
 #[test]
+fn piano_expression_native_helper_sequences_slide_portamento_and_midi_only_bends() {
+    use windfall_dsp::{NoteArticulation, NoteExpression};
+    use windfall_project::NoteInit;
+    for id in ["org.windfall.test.sine", "org.windfall.test.midi-sine"] {
+        for articulation in [NoteArticulation::Slide, NoteArticulation::Portamento] {
+            let mut rig = Rig::new();
+            let (manager, path) = manager(&rig); // production desktop scanner helper
+            let binding = manager.binding(&path, id, PluginTarget::Instrument {
+                channel: windfall_project::ChannelId(0),
+            }).unwrap();
+            let added = rig.session.dispatch(Command::AddPluginInstrument { plugin: binding }, None).unwrap();
+            let channel = windfall_project::ChannelId(added.created[0]);
+            rig.session.dispatch(Command::AddNotes { pattern: rig.pattern(), channel,
+                notes: vec![
+                    NoteInit { start: 0, length: 1920, key: 69, velocity: Some(1.0), pan: None,
+                        expression: Some(NoteExpression { color_group: Some(7), ..NoteExpression::NEUTRAL }) },
+                    NoteInit { start: 960, length: 1920, key: 71, velocity: Some(1.0), pan: None,
+                        expression: Some(NoteExpression { articulation, glide_ticks: 240, color_group: Some(7), ..NoteExpression::NEUTRAL }) },
+                ] }, None).unwrap();
+            rig.session.transport_set(windfall_ipc::TransportPatch { mode: Some(PlayMode::Pattern),
+                pattern: Some(rig.pattern()), ..Default::default() }).unwrap();
+            rig.session.transport_play().unwrap();
+            let pcm = rig.run(45_000);
+            let frequency = |start: usize, end: usize| {
+                let mono: Vec<_> = pcm[start * 2..end * 2].chunks_exact(2).map(|frame| frame[0]).collect();
+                let crossings: Vec<_> = mono.windows(2).enumerate().filter(|(_, pair)| pair[0] < 0.0 && pair[1] >= 0.0).map(|(index, _)| index).collect();
+                assert!(crossings.len() > 3, "native fixture produced no tone: {id:?} {articulation:?}");
+                f64::from(SAMPLE_RATE) * (crossings.len() - 1) as f64 / (crossings[crossings.len() - 1] - crossings[0]) as f64
+            };
+            assert!((frequency(8000, 18000) - 440.0).abs() < 1.0);
+            assert!((frequency(33000, 43000) - 493.883).abs() < 1.0);
+            let saved = windfall_project::file::to_json(&rig.project()).unwrap();
+            assert_eq!(windfall_project::file::from_json(&saved).unwrap(), rig.project());
+            rig.session.transport_stop();
+            assert!(rms(&rig.run(4096)) < 0.01);
+        }
+    }
+}
+
+#[test]
 fn r4_deduplicated_clap_instrument_document_adoption() {
     r4_document_adoption(false, true);
 }

@@ -1,4 +1,4 @@
-import type { Automation, AutomationTarget } from "@/bindings"
+import type { Automation, AutomationTarget, PatternId } from "@/bindings"
 import { rangeValue } from "@/lib/automation/curve"
 import { targetKey } from "@/lib/automation/lanes"
 import { targetState } from "@/lib/automation/targets"
@@ -39,12 +39,18 @@ function automationsByTarget(): ReadonlyMap<string, Automation[]> {
  */
 export function drivingAutomation(
   target: AutomationTarget
-): { automation: Automation; normalized: number } | null {
+): { automation: Automation; normalized: number; pattern?: PatternId } | null {
   const entries = automationsByTarget().get(targetKey(target))
-  if (!entries) return null
-  for (const automation of entries) {
+  for (const automation of entries ?? []) {
     const normalized = automatedValue(automation.id)
     if (normalized !== undefined) return { automation, normalized }
+  }
+  for (const pattern of useProjectStore.getState().project.patterns) {
+    const lane = (pattern.events ?? []).find((lane) => targetKey(lane.target) === targetKey(target))
+    if (!lane) continue
+    const normalized = automatedValue(lane.id)
+    if (normalized !== undefined) return { pattern: pattern.id, normalized,
+      automation: { ...lane, name: pattern.name, color: pattern.color } }
   }
   return null
 }

@@ -76,6 +76,7 @@ mod capture_expression;
 mod clip_processing;
 mod consolidate;
 mod controller_capture;
+mod pattern_movement;
 mod controllers;
 mod edit;
 mod export;

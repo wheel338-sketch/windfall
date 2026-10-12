@@ -42,7 +42,7 @@ export function automationEntries(target: AutomationTarget): ContextItem[] {
           {
             title: "Edit the automation instead",
             afterClose: true,
-            run: () => showAutomation(driving.automation.id),
+            run: () => driving.pattern !== undefined ? openEventEditor(target, driving.pattern) : showAutomation(driving.automation.id),
           },
         ]
       : []),
