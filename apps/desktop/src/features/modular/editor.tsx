@@ -17,6 +17,9 @@ import { CONTROL_IN, defaultModule, graphAt, initialGraph, nestedGraph, node, po
 import { ChoiceField, NoteModuleEditor, NumberField } from "./note-editor"
 
 import { RackOverflow } from "./overflow"
+import { noteDescriptor, rackParameterIndex } from "./parameters"
+import { automationItems } from "@/features/automation/menu"
+import { RackLibrary } from "./library"
 
 const MODULES = ["colorRouter", "envelope", "propertyScaler", "keySplitter", "keyMapper", "sequencer"] as const
 const TYPES = ["instrument", "effect", ...MODULES, "rack", "audioInput", "audioOutput", "noteInput", "noteOutput", "controlInput"] as const
@@ -133,6 +136,7 @@ export function ModularEditor({ channel, root }: { channel: Channel; root: RackG
       {activePath.length > 0 && <Button variant="outline" onClick={() => { setPath(activePath.slice(0, -1)); setSelected(null); setFrom(null) }}>Parent rack</Button>}
     </div>
     <RackOverflow />
+    <RackLibrary channel={channel} root={root} />
     {error && <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}
     <div className="max-h-64 overflow-auto rounded-md border">
       <svg viewBox={`0 0 800 ${height}`} className="min-w-[700px] text-primary" style={{ height }} role="img" aria-label="Rack signal wires">
@@ -168,7 +172,31 @@ export function ModularEditor({ channel, root }: { channel: Channel; root: RackG
         <NumberField label="Node X" value={current.position[0]} min={0} max={2000} onChange={(value) => void updateNode({ ...current, position: [value, current.position[1]] })} />
         <NumberField label="Node Y" value={current.position[1]} min={0} max={2000} onChange={(value) => void updateNode({ ...current, position: [current.position[0], value] })} />
         {(["muted", "solo"] as const).map((key) => <Field key={key} orientation="horizontal"><Checkbox id={`rack-${key}`} checked={current[key]} onCheckedChange={(value) => void updateNode({ ...current, [key]: value === true })} /><FieldLabel htmlFor={`rack-${key}`}>{key === "muted" ? "Mute node" : "Solo node"}</FieldLabel></Field>)}
-        {current.processor.type === "note" && <NoteModuleEditor key={current.id} module={current.processor.module} onChange={(module) => void updateNode({ ...current, processor: { type: "note", module } })} />}
+        {current.processor.type === "note" && <>
+          <NoteModuleEditor key={current.id} module={current.processor.module} onChange={(module) => void updateNode({ ...current, processor: { type: "note", module } })} />
+          <details><summary>Automation and controller links</summary>
+            <GenericParamEditor descriptor={noteDescriptor(current.processor.module)} params={current.processor.module}
+              contextItems={(_info, parameter) => {
+                if (current.processor.type !== "note") return []
+                const index = rackParameterIndex(root, [...activePath, current.id], current.processor.module.type, parameter)
+                return index === null ? [] : automationItems({ type: "instrumentParam", channel: channel.id, param: index })
+              }}
+              setParam={(parameter, value, gesture) => {
+                if (current.processor.type !== "note") return null
+                const index = rackParameterIndex(root, [...activePath, current.id], current.processor.module.type, parameter)
+                if (index === null) return null
+                const epoch = parameterQueue.current.epoch
+                const result = parameterQueue.current.tail.then(async () => {
+                  if (generation !== getProjectGeneration() || epoch !== parameterQueue.current.epoch) return null
+                  const applied = await dispatch({ type: "setInstrumentParam", channel: channel.id, param: index, value }, gesture)
+                  setError(applied ? null : "Rack module parameter edit was refused; the saved graph was kept.")
+                  return applied
+                })
+                parameterQueue.current.tail = result
+                return result
+              }} />
+          </details>
+        </>}
         {current.processor.type === "rack" && <Button onClick={() => { setPath([...activePath, current.id]); setSelected(null); setFrom(null) }}>Open nested rack</Button>}
         {current.processor.type === "controlInput" && <NumberField label={`Macro ${current.processor.index + 1}`} value={current.processor.value} min={0} max={1} step={0.01} onChange={(value) => {
           const processor = current.processor; if (processor.type === "controlInput") void updateNode({ ...current, processor: { ...processor, value } })

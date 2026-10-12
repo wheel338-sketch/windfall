@@ -46,21 +46,92 @@ ControlInput is an external normalized macro inlet, not a controller source.
 Root indices 0..31 reuse InstrumentParam automation; deleting an inlet removes
 its lanes/controller links. Stable descriptor IDs address built-in destinations.
 Latency-changing control edges are refused; saved edits trigger preparation.
-Note-module parameter automation and controller-source attachment are still
-integration gates; they are not represented as working audio effects.
+The round-four note-module parameter mechanism is documented below. Internal
+controller sources use the existing project link mechanism; they are not
+represented as working audio effects.
 
 ## Remaining gates
 
 Hosted graph nodes are not modeled: native-bound and sampler channels reject
 rack attachment. Implement real provider/binding/capture/editor ownership before
-relaxing that check. Channel preset file/library functions exist natively but
-are not exposed through the current frontend Backend interface; the rack editor
-currently saves/loads checked preset text. Graph replacement retriggers held
-parents and resets DSP tails/delays. A path retains only its last envelope
-shape. Multiple output ports/assets of built-ins are not represented.
+relaxing that check. The round-three editor only saved/loaded checked preset
+text; round four also connects the integrated native Backend file/library
+facade. Graph replacement retriggers held parents and resets DSP tails/delays.
+The original round-three pass retained only the last envelope shape. Round four composes shapes and adds
+auxiliary outputs; asset-bearing node preparation is still missing.
 
 RealtimeFrame.rejectedRackEvents is optional and omitted at zero. A cumulative
 engine counter exposes bounded owner/generator/event refusal. The editor uses a
 ref-backed realtime output, with generation clearing in the realtime store.
 No callback heap allocation/free, locks or I/O are introduced intentionally;
 the written allocator suite must establish this after integration.
+
+## Round-four addressing and admission (written, not executed)
+
+`RackGraph.parameters` is a serde-defaulted root registry of
+`RackParameterAddress { path, kind, parameter }`. `path` contains every nested
+node ID including the owner. `kind` is the note-module tag; `parameter` is the
+module's append-only descriptor index. `InstrumentParam { channel, param }`
+retains macros at 0..31 and uses 32+registry-index for module controls.
+`SetChannelRack` preserves the previous registry prefix, appends newly found
+controls, retains nested nextId high-water marks and prunes removed owners'
+clips, pattern events and links atomically. Missing owners leave tombstones.
+Undo restores graph, owners and lanes together. Old instrument indices cannot
+be reassigned to a newly attached rack. Legacy graphs omit the empty registry.
+
+All six modules expose every saved scalar, table, chord and grid control.
+DSP descriptor order and choice lists are new append-only contracts. The
+descriptor generator adds `noteModules`, with paths relative to the entire
+module JSON, so the UI reads the same tables as the DSP. The editor's
+"Automation and controller links" controls use ordinary parameter gestures,
+automation-clip menus, event lanes and internal/hardware link menus.
+
+Preparation resolves each address to a flattened node/parameter pair. The
+existing 64-frame automation grid applies Copy-only updates without rebuilding
+the graph. Color/key/velocity/envelope controls are sampled on note admission;
+already accepted mapped keys retain their release ownership. Live property
+expression replay reads the current scaler controls. Active sequencers update
+their controls without resetting phase, current gate ends or held owners.
+Live and offline use the same processor. No script-node variant exists in this
+base; the scripting worker's engine/runtime is not implemented here.
+
+Notes carry up to eight independent envelope shapes in fixed storage. Their
+gain contributions multiply; pan/pitch/X/Y contributions add and clamp after
+composition. Each release begins from its own current level and lasts its own
+duration. The logical voice retires after the longest release. A ninth shape
+on any flattened path is refused before publication with a checked reason.
+
+Aggregate admission counts flattened transit events, including nested boundary
+Cartesian products and all root NoteInput starts. Chords are charged four
+voices even if fewer are stored, so automation cannot invalidate admission.
+Bounds remain 256 transit events, 64 generator seats per trigger and 1024
+flattened wires. Concurrent live-note exhaustion still uses the existing
+visible bounded refusal counters. Conservative admission also charges mutually
+exclusive route outputs together.
+
+Effect auxiliary ports begin at 32 in `EffectKind::aux_outputs()` order. The
+editor exposes their names; saved port checks reject unadvertised outputs.
+Playback uses `EffectSlot::process_routed`, pre-sized frame scratch and existing
+edge compensation rings. Muting clears main and auxiliary outputs.
+
+The rack library reuses Backend's existing native `.wfpreset` capture/read/write
+and library APIs. These calls now exist in the integrated base, superseding the
+round-three statement that the facade is absent. Save captures the containing
+channel and complete root graph. Rack-library load extracts only the rack and
+applies a checked graph command. File/library/example loads allocate fresh root
+node identities so an existing parameter lane cannot attach accidentally.
+Generation/revision guards refuse stale asynchronous reads. Browser storage uses
+the existing real-Rust preset harness with memory storage; desktop calls use
+native files. Capability errors are displayed.
+
+Three original parametric example racks live in
+`apps/desktop/src/features/modular/examples.ts`: Soft double envelope, Two octave
+chord and Quarter beat pulse. Their graph definitions are CC0-1.0 and contain
+no bundled third-party presets, audio or artwork. They instantiate the user's
+chosen Windfall instrument and can be saved as ordinary preset files.
+
+Hosted rack nodes (provider/state/editor/retirement ownership), asset-bearing
+node preparation and internal-source Tempo modulation remain software work.
+Do not mark either rack umbrella or internal-controller umbrella complete from
+this source delivery. See `docs/qa/2026-10-12-r4-rack.md` for exact tests and
+integration gates.
