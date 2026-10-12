@@ -3,6 +3,9 @@
 mod native_thread;
 #[path = "vst3_expression.rs"]
 mod expression;
+#[cfg(windows)]
+#[path = "vst3_editor.rs"]
+mod editor;
 use native_thread::CreatorThread;
 use std::ffi::c_void;
 use std::ptr;
@@ -113,6 +116,7 @@ impl IPluginFactoryTrait for Factory {
                 return kNoInterface;
             }
             let component = ComWrapper::new(Component {
+                editor: class == cid(0),
                 absurd: class == cid(1),
                 instrument: class == cid(2) || class == cid(12) || class == cid(23) || class == cid(24),
                 expression_probe: class == cid(23),
@@ -227,6 +231,7 @@ impl IPluginFactory2Trait for Factory {
     }
 }
 struct Component {
+    editor: bool,
     sidechain: bool,
     /// Three auxiliary inputs of one, two and four channels. The output
     /// carries each of their channels with the marks of the CLAP fixture.
@@ -1049,7 +1054,13 @@ impl IEditControllerTrait for Component {
         }
         kResultOk
     }
-    unsafe fn createView(&self, _name: FIDString) -> *mut IPlugView {
+    unsafe fn createView(&self, name: FIDString) -> *mut IPlugView {
+        #[cfg(windows)]
+        if self.editor && !name.is_null() && unsafe { std::ffi::CStr::from_ptr(name) } == c"editor" {
+            return editor::create();
+        }
+        #[cfg(not(windows))]
+        let _ = (self.editor, name);
         ptr::null_mut()
     }
 }

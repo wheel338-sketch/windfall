@@ -191,3 +191,20 @@ TypeScript changed.
   `--nocapture` budget runs will determine final reported admission numbers.
   DSP fixes now validated for numerical accuracy and allocation behavior and
   committed as a checkpoint. A7 next, then final serial gates.
+
+## A7 and final gates
+
+- **A7 fixed:** healthy VST3 gain class returned null from `createView`.
+  Add a fixed-size real Win32 child editor with supported-platform/size checks,
+  attach/detach and owned-window cleanup. All changes confined to the fixture;
+  class IDs, catalog size, parameters and host assertions unchanged. Fixture
+  built offline (`target/round4-builder-a7-fixture-build.log`).
+  `cargo test -p windfall-plugin-host --test bridge
+  native_clap_vst3_healthy_audio_and_state_use_independent_helpers --
+  --test-threads=1 --nocapture`: **1/0/0**;
+  `target/round4-builder-a7-fixed.log`; baseline **0/1/0** in
+  `target/round4-builder-a7-baseline.log`. New file formatted with edition 2024;
+  initial standalone rustfmt used its default old edition and rejected C-string
+  literals, corrected without source semantic changes.
+
+Final serial gates pending. No TypeScript or public UI/simulator schema changed.
