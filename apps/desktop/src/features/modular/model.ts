@@ -1,4 +1,5 @@
 import type { InstrumentParams, RackEndpoint, RackGraph, RackNode, RackNoteModule, RackProcessor } from "@/bindings"
+import descriptors from "@/bindings/descriptors.json"
 
 export const AUDIO_IN = 0
 export const AUDIO_OUT = 1
@@ -7,6 +8,7 @@ export const NOTE_OUT = 3
 export const CONTROL_IN = 4
 export const CONTROL_OUT = 5
 export const NOTE_CHANNEL_BASE = 16
+export const AUX_AUDIO_BASE = 32
 
 export function node(id: number, name: string, processor: RackProcessor, position: [number, number]): RackNode {
   return { id, name, processor, position, muted: false, solo: false }
@@ -52,6 +54,10 @@ export function ports(processor: RackProcessor, output: boolean): Port[] {
   const type = processor.type
   if (output) {
     if (["audioInput", "instrument", "effect", "rack"].includes(type)) result.push({ id: AUDIO_OUT, name: "Audio", signal: "audio" })
+    if (processor.type === "effect") {
+      const outputs = (descriptors.effectOutputs as Record<string, { label: string }[]>)[processor.params.type] ?? []
+      outputs.forEach((port, index) => result.push({ id: AUX_AUDIO_BASE + index, name: port.label, signal: "audio" }))
+    }
     if (["noteInput", "note", "rack"].includes(type)) result.push({ id: NOTE_OUT, name: "All notes", signal: "note" })
     if (type === "note" && ["colorRouter", "keySplitter"].includes(processor.module.type)) {
       for (let channel = 0; channel < 16; channel++) result.push({ id: NOTE_CHANNEL_BASE + channel, name: `Route ${channel + 1}`, signal: "note" })

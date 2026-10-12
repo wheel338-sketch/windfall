@@ -26,6 +26,7 @@ fn edge(from: u32, port: u16, to: u32, input: u16) -> RackEdge {
 }
 fn graph() -> RackGraph {
     RackGraph {
+        parameters: Vec::new(),
         next_id: 5,
         nodes: vec![
             node(1, RackProcessor::NoteInput),
@@ -86,11 +87,155 @@ fn set(
 }
 
 #[test]
+fn note_parameter_registry_is_append_only_nested_checked_and_restored_with_lanes_and_links() {
+    let (mut doc, channel) = document();
+    let mut inner = RackGraph { next_id: 3, ..Default::default() };
+    inner.nodes.push(node(1, RackProcessor::Note { module: RackNoteModule::KeyMapper { params: Default::default(), chord: [0; 4], voices: 1 } }));
+    inner.nodes.push(node(2, RackProcessor::Note { module: RackNoteModule::Envelope { params: Default::default() } }));
+    let mut rack = graph();
+    rack.nodes[2].processor = RackProcessor::Rack { graph: Box::new(inner) };
+    // This nested graph is note-only: disconnect its old audio wires.
+    rack.edges.retain(|edge| edge.to.node != 3 && edge.from.node != 3);
+    set(&mut doc, channel, Some(rack)).unwrap();
+    let rack = doc.project().settings.modular_racks[0].graph.clone();
+    let address = rack.parameters.iter().position(|a| a.path == [3, 1] && a.parameter == 60).unwrap();
+    let param = 32 + address as u32;
+    let target = AutomationTarget::InstrumentParam { channel, param };
+    assert_eq!(doc.project().automation_range(&target).unwrap().max, 127.0);
+    assert_eq!(doc.project().automation_stored_value(&target), Some(60.0));
+    doc.dispatch(Command::SetInstrumentParam { channel, param, value: 72.0 }, None).unwrap();
+    assert_eq!(doc.project().automation_stored_value(&target), Some(72.0));
+    doc.dispatch(Command::AddAutomation { target, name: None, points: None }, None).unwrap();
+    doc.dispatch(Command::SetControllerLinks { links: vec![ControllerLink {
+        source: ControlSource::Midi { device: None, channel: None, control: MidiControl::Cc { number: 1 } },
+        target: LinkTarget::Param { target }, map: Default::default(),
+    }] }, None).unwrap();
+    let before = doc.project().clone();
+    let text = file::to_json(&before).unwrap();
+    assert_eq!(file::from_json(&text).unwrap(), before);
+    let mut removed = before.settings.modular_racks[0].graph.clone();
+    let RackProcessor::Rack { graph: nested } = &mut removed.nodes[2].processor else { panic!("nested rack"); };
+    nested.nodes.remove(0);
+    set(&mut doc, channel, Some(removed)).unwrap();
+    assert!(doc.project().automations.is_empty());
+    assert!(doc.project().settings.controller_links.is_empty());
+    assert_eq!(doc.project().settings.modular_racks[0].graph.parameters, rack.parameters);
+    assert!(doc.project().automation_range(&target).is_none());
+    let mut added = doc.project().settings.modular_racks[0].graph.clone();
+    let RackProcessor::Rack { graph: nested } = &mut added.nodes[2].processor else { panic!("nested rack"); };
+    nested.nodes.push(node(3, RackProcessor::Note { module: RackNoteModule::ColorRouter { params: Default::default() } }));
+    nested.next_id = 4;
+    set(&mut doc, channel, Some(added)).unwrap();
+    let next = &doc.project().settings.modular_racks[0].graph;
+    assert_eq!(&next.parameters[..rack.parameters.len()], rack.parameters);
+    assert_eq!(next.parameters[rack.parameters.len()].path, [3, 3]);
+    doc.undo().unwrap();
+    doc.undo().unwrap();
+    assert_eq!(doc.project(), &before);
+    doc.redo().unwrap();
+    assert!(doc.project().automation_range(&target).is_none());
+    let unchanged = doc.project().clone();
+    assert!(doc.dispatch(Command::SetInstrumentParam { channel, param, value: 24.0 }, None).is_err());
+    assert_eq!(doc.project(), &unchanged);
+}
+
+#[test]
+fn every_note_module_parameter_round_trips_checked_commands_history_and_legacy_registry_default() {
+    let modules = [
+        RackNoteModule::ColorRouter { params: Default::default() },
+        RackNoteModule::Envelope { params: Default::default() },
+        RackNoteModule::PropertyScaler { params: Default::default() },
+        RackNoteModule::KeySplitter { params: Default::default(), preserve_key: true },
+        RackNoteModule::KeyMapper { params: Default::default(), chord: [0; 4], voices: 1 },
+        RackNoteModule::Sequencer { params: Default::default() },
+    ];
+    for module in modules {
+        let (mut doc, channel) = document();
+        let mut rack = graph();
+        rack.nodes.push(node(5, RackProcessor::Note { module })); rack.next_id = 6;
+        set(&mut doc, channel, Some(rack)).unwrap();
+        let before = doc.project().clone();
+        let parameter = &before.settings.modular_racks[0].graph.parameters[0];
+        assert_eq!(parameter.path, [5]);
+        let info = module.parameter_info(0).unwrap();
+        doc.dispatch(Command::SetInstrumentParam { channel, param: 32, value: info.max }, None).unwrap();
+        let target = AutomationTarget::InstrumentParam { channel, param: 32 };
+        assert_eq!(doc.project().automation_stored_value(&target), Some(info.max));
+        let after = doc.project().clone();
+        assert_eq!(file::from_json(&file::to_json(&after).unwrap()).unwrap(), after);
+        doc.undo().unwrap(); assert_eq!(doc.project(), &before);
+        doc.redo().unwrap(); assert_eq!(doc.project(), &after);
+    }
+    let old: RackGraph = serde_json::from_str(r#"{"nextId":1,"nodes":[],"edges":[]}"#).unwrap();
+    assert!(old.parameters.is_empty());
+}
+
+#[test]
+fn aggregate_admission_counts_transit_nested_cartesian_fanout_and_automatable_chord_maximum() {
+    // Four voices through each of four stages dispatch 1+4+16+64+256
+    // transit events, although the old terminal-only check accepted 256.
+    let mapper = RackNoteModule::KeyMapper { params: Default::default(), chord: [0; 4], voices: 1 };
+    let mut rack = RackGraph { next_id: 6, ..Default::default() };
+    rack.nodes = (1..=4).map(|id| node(id, RackProcessor::Note { module: mapper })).collect();
+    rack.nodes.push(node(5, RackProcessor::NoteOutput));
+    rack.edges = (1..5).map(|id| edge(id, NOTE_OUT, id + 1, NOTE_IN)).collect();
+    assert!(rack.check().unwrap_err().contains("aggregate fan-out"));
+    let inner = RackGraph { next_id: 3, nodes: vec![node(1, RackProcessor::NoteInput), node(2, RackProcessor::NoteOutput)],
+        edges: vec![edge(1, NOTE_OUT, 2, NOTE_IN)], ..Default::default() };
+    rack.nodes[2].processor = RackProcessor::Rack { graph: Box::new(inner) };
+    rack.check().unwrap(); // three chord stages have 1+4+16+64 plus buses
+    let inner = RackGraph { next_id: 5, nodes: vec![node(1, RackProcessor::NoteInput), node(2, RackProcessor::NoteInput), node(3, RackProcessor::NoteOutput), node(4, RackProcessor::NoteOutput)],
+        edges: vec![edge(1, NOTE_OUT, 3, NOTE_IN), edge(1, NOTE_OUT, 4, NOTE_IN), edge(2, NOTE_OUT, 3, NOTE_IN), edge(2, NOTE_OUT, 4, NOTE_IN)], ..Default::default() };
+    rack.nodes[2].processor = RackProcessor::Rack { graph: Box::new(inner) };
+    assert!(rack.check().unwrap_err().contains("aggregate fan-out"));
+}
+
+#[test]
+fn ninth_serial_envelope_is_refused_before_publication_without_changing_history() {
+    let (mut doc, channel) = document();
+    let before = doc.project().clone(); let history = doc.history();
+    let rack = RackGraph { next_id: 10,
+        nodes: (1..=9).map(|id| node(id, RackProcessor::Note { module: RackNoteModule::Envelope { params: Default::default() } })).collect(),
+        edges: (1..9).map(|id| edge(id, NOTE_OUT, id + 1, NOTE_IN)).collect(), ..Default::default() };
+    assert!(set(&mut doc, channel, Some(rack)).unwrap_err().to_string().contains("eight composed"));
+    assert_eq!(doc.project(), &before); assert_eq!(doc.history(), history);
+}
+
+#[test]
+fn auxiliary_ports_are_typed_checked_persistent_and_refuse_unadvertised_outputs() {
+    let mut rack = graph(); rack.nodes[2].processor = RackProcessor::Effect { params: EffectKind::BandSplit.default_params(), mix: 1.0 };
+    for port in 0..3 {
+        rack.edges[2].from.port = AUX_AUDIO_BASE + port;
+        rack.check().unwrap();
+        let preset = RackPreset::new("Split".into(), rack.clone()).unwrap();
+        assert_eq!(RackPreset::from_json(&serde_json::to_string(&preset).unwrap()).unwrap(), preset);
+    }
+    rack.edges[2].from.port = AUX_AUDIO_BASE + 3;
+    assert_eq!(rack.check().unwrap_err(), "Unknown rack output port");
+}
+
+#[test]
+fn creating_a_rack_does_not_reassign_old_instrument_parameter_lanes_to_note_addresses() {
+    let (mut doc, channel) = document();
+    let target = AutomationTarget::InstrumentParam { channel, param: 32 };
+    assert!(doc.project().automation_range(&target).is_some());
+    doc.dispatch(Command::AddAutomation { target, name: None, points: None }, None).unwrap();
+    let before = doc.project().clone();
+    let mut rack = graph(); rack.next_id = 6;
+    rack.nodes.push(node(5, RackProcessor::Note { module: RackNoteModule::ColorRouter { params: Default::default() } }));
+    set(&mut doc, channel, Some(rack)).unwrap();
+    assert!(doc.project().automation_range(&target).is_some());
+    assert!(doc.project().automations.is_empty());
+    doc.undo().unwrap(); assert_eq!(doc.project(), &before);
+}
+
+#[test]
 fn nested_rack_preset_and_project_round_trip_preserve_ids_wires_and_history() {
     let (mut doc, channel) = document();
     let mut nested = graph();
     nested.nodes[2].processor = RackProcessor::Rack {
         graph: Box::new(RackGraph {
+            parameters: Vec::new(),
             next_id: 3,
             nodes: vec![
                 node(1, RackProcessor::AudioInput),
@@ -210,6 +355,7 @@ fn macro_automation_follows_its_owner_and_removed_owner_is_undoable() {
 #[test]
 fn bounded_graphs_refuse_excess_nodes_depth_duplicate_ids_and_note_explosion() {
     let full = RackGraph {
+        parameters: Vec::new(),
         next_id: 65,
         nodes: (1..=64)
             .map(|id| node(id, RackProcessor::NoteInput))
@@ -225,11 +371,13 @@ fn bounded_graphs_refuse_excess_nodes_depth_duplicate_ids_and_note_explosion() {
     duplicate.nodes[1].id = 1;
     assert!(duplicate.check().is_err());
     let mut deep = RackGraph {
+        parameters: Vec::new(),
         next_id: 1,
         ..Default::default()
     };
     for _ in 0..5 {
         deep = RackGraph {
+            parameters: Vec::new(),
             next_id: 2,
             nodes: vec![node(
                 1,
@@ -247,6 +395,7 @@ fn bounded_graphs_refuse_excess_nodes_depth_duplicate_ids_and_note_explosion() {
         voices: 4,
     };
     let exploding = RackGraph {
+        parameters: Vec::new(),
         next_id: 7,
         nodes: (1..=6)
             .map(|id| node(id, RackProcessor::Note { module: mapper }))

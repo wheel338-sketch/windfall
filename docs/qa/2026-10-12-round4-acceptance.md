@@ -13,6 +13,8 @@
 - Read samples hand-off; branch 7 conflict preserves pan-law ramps plus incoming choke fade/modulation gain and pitch. Registries/commands/descriptors append incoming additions. Full SF2 2.04 support and GM-bank compatibility remain explicitly partial. Workspace check pending.
 - Branch 7 merged at `e5de0c17`; final `cargo check --offline --workspace --all-targets` exits 0, zero errors/warnings, 8.37 s (`target/round4-branch07-check-repair2.log`). Initial failures: MIDI worker closure index inference; GM preset literal needed `tables: None`, preserving existing side tables because absent preset tables do not replace them. Failed logs retained as branch07-check and repair1.
 - Read scripting hand-off; branch 8 conflicts concatenate all codec/script Backend APIs, capability refusals and native tests. Preserve incoming scripted note lifetime fields. VFX live hardware input scripting and parameter automation remain explicitly unfinished. Workspace check pending.
+- Branch 8 merged at `83009e65`; final workspace offline all-target check exits 0, zero errors/warnings, 10.90 s (`target/round4-branch08-check-repair1.log`). Updated the preceding preset fixture with legacy-default ControllerScript.map; its assertions unchanged. Initial failed check retained.
+- Read rack hand-off; branch 9 staged without textual conflicts. Hosted/asset-bearing rack nodes and internal-controller Tempo remain explicit software omissions. Workspace check pending.
 
 ## Final gates
 
@@ -20,7 +22,7 @@ Pending. Inherited builder results are context only, not acceptance evidence for
 
 ## Benchmark integrity
 
-Pending audit of all maximum-load instrument/effect workloads against unchanged admission limits.
+Initial source audit: `instrument_deadlines::dense_params` assigns identical FM rows (all max), identical ring rows (all 0.5), identical operator levels (1.0); it repeatedly writes unchanged parameters every 32 blocks. Held voices differ only in keys with equal velocity. `p2_effect_budgets` right input is exact polarity inversion of left, permitting the builder's equal/inverted correlation sharing; most effect parameters do not move. These are identified workload degeneracies, not accepted maximum-load performance evidence. Complete workload correction, all-instrument/effect audit and before/after measurements are still pending; limits must remain unchanged.
 
 ## macOS cross-check
 

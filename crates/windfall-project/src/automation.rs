@@ -292,7 +292,7 @@ impl Project {
                     .iter()
                     .find(|rack| rack.channel == channel)
                 {
-                    return Some((AutomationRange::MIX, rack.graph.control(param as usize)?));
+                    return rack.graph.parameter_state(param as usize);
                 }
                 if let Some(plugin) = self.plugin(crate::PluginTarget::Instrument { channel }) {
                     return plugin_automation(plugin, param);

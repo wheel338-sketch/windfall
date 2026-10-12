@@ -745,7 +745,7 @@ impl InstrumentUnit {
                         expression: controls.expression,
                         channel: note.expression.color_group.unwrap_or(0),
                         gain: controls.gain,
-                        envelope: None,
+                        envelopes: [None; windfall_dsp::rack_note::MAX_NOTE_ENVELOPES],
                     },
                 );
             }
@@ -1042,7 +1042,7 @@ impl InstrumentUnit {
                     expression: controls.expression,
                     channel: note.expression.color_group.unwrap_or(0),
                     gain: controls.gain,
-                    envelope: None,
+                    envelopes: [None; windfall_dsp::rack_note::MAX_NOTE_ENVELOPES],
                 },
             );
         }

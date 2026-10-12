@@ -1546,6 +1546,7 @@ impl Transaction<'_> {
                 let old = self.project.settings.clone();
                 let mut new = old.clone();
                 let previous = new.modular_racks.iter().find(|rack| rack.channel == id);
+                let retained_parameters = previous.map(|rack| rack.graph.parameters.clone()).unwrap_or_default();
                 let retained_macros: Vec<(u8, u32)> = previous
                     .into_iter()
                     .flat_map(|rack| &rack.graph.nodes)
@@ -1555,11 +1556,11 @@ impl Transaction<'_> {
                     })
                     .collect();
                 let graph = graph.map(|mut graph| {
-                    if let Some(previous) = previous {
-                        graph.next_id = graph.next_id.max(previous.graph.next_id);
-                    }
-                    graph
-                });
+                    graph.check().map_err(CommandError::invalid)?;
+                    graph.retain_parameter_addresses(previous.map(|rack| &rack.graph))
+                        .map_err(CommandError::invalid)?;
+                    Ok::<_, CommandError>(graph)
+                }).transpose()?;
                 new.modular_racks.retain(|rack| rack.channel != id);
                 if let Some(graph) = graph {
                     new.modular_racks
@@ -1573,6 +1574,12 @@ impl Transaction<'_> {
                 let current = new.modular_racks.iter().find(|rack| rack.channel == id);
                 self.remove_automations_of(|target| match *target {
                     AutomationTarget::InstrumentParam { channel, param } if channel == id => {
+                        if param >= 32 {
+                            let index = (param - 32) as usize;
+                            return !current.is_some_and(|rack| retained_parameters.get(index).is_some()
+                                && retained_parameters.get(index) == rack.graph.parameters.get(index)
+                                && rack.graph.parameter_state(param as usize).is_some());
+                        }
                         !retained_macros.iter().any(|&(index, node)| u32::from(index) == param
                             && current.is_some_and(|rack| rack.graph.nodes.iter().any(|candidate| candidate.id == node
                                 && matches!(candidate.processor, crate::RackProcessor::ControlInput { index: next, .. } if next == index))))
@@ -2739,6 +2746,13 @@ impl Transaction<'_> {
                 return Err(CommandError::invalid("Rack macro must be finite"));
             }
             let mut graph = rack.graph.clone();
+            if param >= 32 {
+                if !graph.set_parameter(param as usize, value) {
+                    return Err(CommandError::invalid("Rack module parameter is missing or invalid"));
+                }
+                self.run(Command::SetChannelRack { id: channel, graph: Some(graph), expected: None })?;
+                return Ok("Change rack module parameter".into());
+            }
             let inlet = graph.nodes.iter_mut().find(|node| matches!(node.processor, crate::RackProcessor::ControlInput { index, .. } if u32::from(index) == param))
                 .ok_or_else(|| CommandError::invalid("Rack macro was removed"))?;
             if let crate::RackProcessor::ControlInput { value: stored, .. } = &mut inlet.processor {
@@ -4624,6 +4638,10 @@ impl Transaction<'_> {
                 self.effect_index(track, effect)?;
             }
             AutomationTarget::InstrumentParam { channel, param } => {
+                if self.project.settings.modular_racks.iter().any(|rack| rack.channel == channel) {
+                    return self.project.automation_range(target).zip(self.project.automation_stored_value(target))
+                        .ok_or_else(|| CommandError::invalid("Rack parameter owner was removed"));
+                }
                 let kind = self.instrument(self.channel_index(channel)?)?.kind();
                 if kind.descriptors().get(param as usize).is_none() {
                     return Err(no_setting(kind.name(), param));
@@ -4741,6 +4759,12 @@ impl Transaction<'_> {
                 format!("{} mix", effect(track, id))
             }
             AutomationTarget::InstrumentParam { channel: id, param } => {
+                if let Some(rack) = project.settings.modular_racks.iter().find(|rack| rack.channel == id)
+                    && let Some(address) = param.checked_sub(32).and_then(|i| rack.graph.parameters.get(i as usize))
+                    && let Some(node) = rack.graph.node_at(&address.path)
+                    && let crate::RackProcessor::Note { module } = &node.processor
+                    && let Some(info) = module.parameter_info(address.parameter as usize)
+                { return unused_name(format!("{} {} {}", channel(id), node.name, info.name), project.automations.iter().map(|a| a.name.as_str())); }
                 if let Some(plugin) =
                     project.plugin(crate::PluginTarget::Instrument { channel: id })
                 {

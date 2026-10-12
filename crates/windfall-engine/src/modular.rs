@@ -15,6 +15,7 @@ const MAX_GENERATORS: usize = 64;
 const MAX_FLAT_EDGES: usize = 1024;
 
 struct FlatNode {
+    path: Vec<u32>,
     processor: RackProcessor,
     muted: bool,
     solo: bool,
@@ -48,15 +49,18 @@ impl Flat {
         root: bool,
         muted: bool,
         solo: bool,
+        path: &mut Vec<u32>,
     ) -> Result<Boundary, String> {
         let mut places: Vec<Boundary> = Vec::new();
         let mut boundary = Boundary::default();
         for node in &graph.nodes {
+            path.push(node.id);
             let own = if let RackProcessor::Rack { graph } = &node.processor {
-                self.add(graph, false, muted || node.muted, solo || node.solo)?
+                self.add(graph, false, muted || node.muted, solo || node.solo, path)?
             } else {
                 let index = self.nodes.len();
                 self.nodes.push(FlatNode {
+                    path: path.clone(),
                     processor: node.processor.clone(),
                     muted: muted || node.muted,
                     solo: solo || node.solo,
@@ -96,6 +100,7 @@ impl Flat {
                 own
             };
             places.push(own);
+            path.pop();
         }
         for edge in &graph.edges {
             let from = graph
@@ -228,7 +233,7 @@ struct Owner {
     note: RackNote,
     age: u64,
     release_age: Option<u64>,
-    release_level: f32,
+    release_levels: [f32; windfall_dsp::rack_note::MAX_NOTE_ENVELOPES],
     end: f64,
     transforms: u64,
     pitch_offset: f32,
@@ -246,11 +251,11 @@ impl Owner {
             pan: 0.0,
             expression: NoteExpression::NEUTRAL,
             channel: 0,
-            envelope: None,
+            envelopes: [None; windfall_dsp::rack_note::MAX_NOTE_ENVELOPES],
         },
         age: 0,
         release_age: None,
-        release_level: 0.0,
+        release_levels: [0.0; windfall_dsp::rack_note::MAX_NOTE_ENVELOPES],
         end: f64::INFINITY,
         transforms: 0,
         pitch_offset: 0.0,
@@ -315,6 +320,7 @@ impl Event {
 /// A prepared rack owns all callback storage. Overflow increments `rejected`
 /// and refuses the new event; it never steals an unrelated held occurrence.
 pub struct ModularRack {
+    parameters: Vec<Option<(usize, usize)>>,
     nodes: Vec<Node>,
     edges: Vec<Edge>,
     order: Vec<usize>,
@@ -346,7 +352,13 @@ impl ModularRack {
             nodes: Vec::new(),
             edges: Vec::new(),
         };
-        let boundary = flat.add(graph, true, false, false)?;
+        let boundary = flat.add(graph, true, false, false, &mut Vec::new())?;
+        let parameters = graph.parameters.iter().map(|address| {
+            let index = flat.nodes.iter().position(|node| node.path == address.path)?;
+            let RackProcessor::Note { module } = &flat.nodes[index].processor else { return None; };
+            (module.kind_id() == address.kind && module.parameter_info(address.parameter as usize).is_some())
+                .then_some((index, address.parameter as usize))
+        }).collect();
         let order = flat.order()?;
         let any_solo = flat.nodes.iter().any(|node| node.solo);
         let mut audible: Vec<bool> = flat
@@ -481,6 +493,7 @@ impl ModularRack {
             .map(|index| (index, Ring::new(latency - arrival[index])))
             .collect();
         Ok(Self {
+            parameters,
             nodes,
             edges,
             order,
@@ -542,6 +555,20 @@ impl ModularRack {
     }
     pub fn set_control(&mut self, index: usize, value: f32) {
         if !value.is_finite() {
+            return;
+        }
+        if index >= 32 {
+            if let Some(Some((node, parameter))) = self.parameters.get(index - 32)
+                && let Unit::Note(module) = &mut self.nodes[*node].unit
+                && module.set_parameter(*parameter, value)
+                && let RackNoteModule::Sequencer { params } = module
+            {
+                // Held generators keep their phase and ownership, but future
+                // steps use the new controls on the same 64-frame grid.
+                for generator in &mut self.generators {
+                    if generator.active && generator.node == *node { generator.params = *params; }
+                }
+            }
             return;
         }
         for node in &mut self.nodes {
@@ -683,7 +710,7 @@ impl ModularRack {
             note: event.note,
             age: 0,
             release_age: None,
-            release_level: 0.0,
+            release_levels: [0.0; windfall_dsp::rack_note::MAX_NOTE_ENVELOPES],
             end: event.duration,
             transforms: event.transforms,
             pitch_offset: 0.0,
@@ -698,8 +725,8 @@ impl ModularRack {
             );
             if event
                 .note
-                .envelope
-                .is_some_and(|envelope| envelope.destination == EnvelopeDestination::Gain)
+                .envelopes.iter().flatten()
+                .any(|envelope| envelope.destination == EnvelopeDestination::Gain)
             {
                 dsp.set_note_gain(child, 0.0);
             } else {
@@ -724,13 +751,13 @@ impl ModularRack {
         if owner.release_age.is_some() {
             return;
         }
-        if let Some(envelope) = owner
-            .note
-            .envelope
-            .filter(|envelope| envelope.release_ms > 0.0)
-        {
+        if owner.note.envelopes.iter().flatten().any(|envelope| envelope.release_ms > 0.0) {
             self.owners[index].release_age = Some(0);
-            self.owners[index].release_level = envelope.level(owner.age as f64 / self.sample_rate);
+            for (shape, envelope) in owner.note.envelopes.iter().enumerate() {
+                if let Some(envelope) = envelope {
+                    self.owners[index].release_levels[shape] = envelope.level(owner.age as f64 / self.sample_rate);
+                }
+            }
         } else {
             self.finish(index);
         }
@@ -816,8 +843,8 @@ impl ModularRack {
                 owner.note.gain = gain;
                 if owner
                     .note
-                    .envelope
-                    .is_none_or(|envelope| envelope.destination != EnvelopeDestination::Gain)
+                    .envelopes.iter().flatten()
+                    .all(|envelope| envelope.destination != EnvelopeDestination::Gain)
                     && let Unit::Instrument { dsp, .. } = &mut self.nodes[owner.node].unit
                 {
                     dsp.set_note_gain(owner.child, gain);
@@ -965,51 +992,35 @@ impl ModularRack {
             if !owner.active {
                 continue;
             }
-            if let Some(envelope) = owner.note.envelope {
+            let release_frames = owner.note.envelopes.iter().flatten()
+                .map(|e| f64::from(e.release_ms) * self.sample_rate / 1000.0).fold(0.0f64, f64::max);
+            if let Some(age) = owner.release_age {
+                if age as f64 >= release_frames { self.finish(index); continue; }
+                self.owners[index].release_age = Some(age.saturating_add(1));
+            }
+            let mut expression = owner.note.expression;
+            let mut gain = owner.note.gain;
+            let mut pan = owner.note.pan;
+            let mut pitch = f32::from(owner.note.key) + expression.fine_pitch_cents / 100.0 + owner.pitch_offset;
+            for (shape, envelope) in owner.note.envelopes.iter().enumerate() {
+                let Some(envelope) = envelope else { continue; };
                 let level = if let Some(age) = owner.release_age {
                     let length = f64::from(envelope.release_ms) * self.sample_rate / 1000.0;
-                    if age as f64 >= length {
-                        self.finish(index);
-                        continue;
-                    }
-                    self.owners[index].release_age = Some(age + 1);
-                    owner.release_level * (1.0 - age as f64 / length) as f32
-                } else {
-                    envelope.level(owner.age as f64 / self.sample_rate)
-                };
-                if let Unit::Instrument { dsp, .. } = &mut self.nodes[owner.node].unit {
-                    let mut expression = owner.note.expression;
-                    match envelope.destination {
-                        EnvelopeDestination::Gain => dsp.set_note_gain(
-                            owner.child,
-                            owner.note.gain
-                                * (1.0 - envelope.amount.abs() + level * envelope.amount.abs())
-                                    .max(0.0),
-                        ),
-                        EnvelopeDestination::Pan => dsp.set_note_expression(
-                            owner.child,
-                            (owner.note.pan + level * envelope.amount).clamp(-1.0, 1.0),
-                            expression,
-                        ),
-                        EnvelopeDestination::Pitch => dsp.set_note_pitch(
-                            owner.child,
-                            f32::from(owner.note.key)
-                                + expression.fine_pitch_cents / 100.0
-                                + owner.pitch_offset
-                                + level * envelope.amount * 12.0,
-                        ),
-                        EnvelopeDestination::ModulationX => {
-                            expression.modulation_x =
-                                (expression.modulation_x + level * envelope.amount).clamp(0.0, 1.0);
-                            dsp.set_note_expression(owner.child, owner.note.pan, expression);
-                        }
-                        EnvelopeDestination::ModulationY => {
-                            expression.modulation_y =
-                                (expression.modulation_y + level * envelope.amount).clamp(0.0, 1.0);
-                            dsp.set_note_expression(owner.child, owner.note.pan, expression);
-                        }
-                    }
+                    if length <= 0.0 { 0.0 } else { owner.release_levels[shape] * (1.0 - age as f64 / length).max(0.0) as f32 }
+                } else { envelope.level(owner.age as f64 / self.sample_rate) };
+                match envelope.destination {
+                    EnvelopeDestination::Gain => gain *= (1.0 - envelope.amount.abs() + level * envelope.amount.abs()).max(0.0),
+                    EnvelopeDestination::Pan => pan += level * envelope.amount,
+                    EnvelopeDestination::Pitch => pitch += level * envelope.amount * 12.0,
+                    EnvelopeDestination::ModulationX => expression.modulation_x += level * envelope.amount,
+                    EnvelopeDestination::ModulationY => expression.modulation_y += level * envelope.amount,
                 }
+            }
+            if owner.note.envelopes.iter().any(Option::is_some)
+                && let Unit::Instrument { dsp, .. } = &mut self.nodes[owner.node].unit {
+                dsp.set_note_gain(owner.child, gain);
+                dsp.set_note_expression(owner.child, pan.clamp(-1.0, 1.0), expression.clamped());
+                dsp.set_note_pitch(owner.child, pitch);
             }
             self.owners[index].age = owner.age.saturating_add(1);
             self.owners[index].end = owner.end - self.tempo / (60.0 * self.sample_rate);
@@ -1022,6 +1033,7 @@ impl ModularRack {
             self.envelopes();
             let input = [left[frame], right[frame]];
             let mut audio = [[0.0f32; 2]; MAX_RACK_NODES];
+            let mut auxiliary = [[[0.0f32; 2]; windfall_dsp::MAX_AUX_OUTPUTS]; MAX_RACK_NODES];
             for &index in &self.order {
                 let mut sample = if self.nodes[index].root_audio {
                     input
@@ -1033,7 +1045,10 @@ impl ModularRack {
                         continue;
                     }
                     if edge.signal == RackSignal::Audio {
-                        let source = edge.delay.frame(audio[edge.from]);
+                        let source = if edge.port >= AUX_AUDIO_BASE {
+                            auxiliary[edge.from][usize::from(edge.port - AUX_AUDIO_BASE)]
+                        } else { audio[edge.from] };
+                        let source = edge.delay.frame(source);
                         sample[0] += source[0] * edge.gain;
                         sample[1] += source[1] * edge.gain;
                     } else if edge.signal == RackSignal::Control {
@@ -1078,12 +1093,19 @@ impl ModularRack {
                         r[0] = 0.0;
                         dsp.process(&mut l, &mut r);
                     }
-                    Unit::Effect { dsp, .. } => dsp.process(&mut l, &mut r),
+                    Unit::Effect { dsp, .. } => {
+                        let [first, second, third] = &mut auxiliary[index];
+                        let mut block = windfall_dsp::AuxBlock { routed: 7, outputs: [
+                            std::slice::from_mut(first), std::slice::from_mut(second), std::slice::from_mut(third),
+                        ] };
+                        dsp.process_routed(&mut l, &mut r, None, &mut block);
+                    }
                     _ => {}
                 }
                 if self.nodes[index].muted {
                     l[0] = 0.0;
                     r[0] = 0.0;
+                    auxiliary[index].fill([0.0; 2]);
                 }
                 audio[index] = [l[0], r[0]];
             }

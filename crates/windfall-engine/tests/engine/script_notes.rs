@@ -90,7 +90,7 @@ fn scripted_short_long_and_duplicated_durations_match_manual_score_live_and_offl
             let node = |id, processor| RackNode { id, name: format!("Node {id}"), position: [0.0; 2], muted: false, solo: false, processor };
             let wire = |from, port, to, input| RackEdge { from: RackEndpoint { node: from, port },
                 to: RackEndpoint { node: to, port: input }, gain: 1.0, parameter: None };
-            rig.project.settings.modular_racks.push(ChannelRack { channel, graph: RackGraph { next_id: 4,
+            rig.project.settings.modular_racks.push(ChannelRack { channel, graph: RackGraph { parameters: vec![], next_id: 4,
                 nodes: vec![node(1, RackProcessor::NoteInput), node(2, RackProcessor::Instrument {
                     params: windfall_dsp::InstrumentParams::SubtractiveSynth(params) }), node(3, RackProcessor::AudioOutput)],
                 edges: vec![wire(1, NOTE_OUT, 2, NOTE_IN), wire(2, AUDIO_OUT, 3, AUDIO_IN)] } });
