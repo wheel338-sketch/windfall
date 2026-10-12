@@ -1,0 +1,56 @@
+{
+  "formatVersion": 1,
+  "nextId": 10,
+  "settings": {
+    "name": "Gentle three band control",
+    "author": "Windfall original examples",
+    "comments": "Original patch and phrase, CC0-1.0. Toggle the master effect to compare. No external assets.",
+    "tempoBpm": 120.0,
+    "timeSignature": {"numerator": 4, "denominator": 4},
+    "swing": 0.0
+  },
+  "samples": [],
+  "channels": [{
+    "id": 2, "name": "Original bass and harmonics", "color": 4175325,
+    "volume": 0.8, "pan": 0.0, "muted": false, "solo": false,
+    "mixerTrack": 0,
+    "source": {
+      "type": "instrument",
+      "params": {
+        "type": "subtractiveSynth", "gain": 0.55,
+        "oscillators": [
+          {"waveform": "sine", "level": 0.75, "coarse": 0, "pan": -0.2},
+          {"waveform": "saw", "level": 0.25, "coarse": 12, "pan": 0.3},
+          {"waveform": "saw", "level": 0.15, "coarse": 36, "pan": 0.1}
+        ],
+        "filter": {"cutoffHz": 10000.0, "envelopeOctaves": 0.0},
+        "ampEnvelope": {"attackMs": 2.0, "decayMs": 160.0, "sustain": 0.65, "releaseMs": 90.0}
+      }
+    }
+  }],
+  "patterns": [{
+    "id": 1, "name": "Original four note phrase", "color": 4175325,
+    "lengthSteps": 16,
+    "lanes": [{"channel": 2, "notes": [
+      {"id": 4, "start": 0, "length": 720, "key": 36, "velocity": 0.9, "pan": 0.0},
+      {"id": 5, "start": 960, "length": 720, "key": 43, "velocity": 0.65, "pan": 0.0},
+      {"id": 6, "start": 1920, "length": 720, "key": 48, "velocity": 0.8, "pan": 0.0},
+      {"id": 7, "start": 2880, "length": 720, "key": 36, "velocity": 0.7, "pan": 0.0}
+    ]}]
+  }],
+  "mixer": {"tracks": [{
+    "id": 0, "name": "Master", "color": 9145752,
+    "volume": 0.8, "pan": 0.0, "muted": false, "solo": false,
+    "output": null, "sends": [],
+    "effects": [{"id": 3, "enabled": true, "mix": 1.0,
+      "params": {"type": "multibandCompressor", "lowCrossoverHz": 160.0, "highCrossoverHz": 3000.0, "low": {"thresholdDb": -24.0, "ratio": 2.0, "attackMs": 30.0, "releaseMs": 200.0, "makeupDb": 1.0}, "mid": {"thresholdDb": -22.0, "ratio": 2.5, "attackMs": 15.0, "releaseMs": 150.0, "makeupDb": 0.5}, "high": {"thresholdDb": -26.0, "ratio": 2.0, "attackMs": 5.0, "releaseMs": 100.0, "makeupDb": -1.0}, "sidechain": false}
+    }]
+  }]},
+  "playlist": {
+    "tracks": [{"id": 8, "name": "Example phrase", "muted": false}],
+    "clips": [{"id": 9, "track": 8, "start": 0, "length": 3840, "offset": 0, "muted": false,
+      "content": {"type": "pattern", "pattern": 1}
+    }]
+  },
+  "session": {"mode": "song", "loopSong": true, "pattern": 1}
+}

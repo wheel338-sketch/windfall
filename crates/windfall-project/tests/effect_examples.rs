@@ -95,3 +95,33 @@ fn every_original_effect_example_is_one_undo_step_and_survives_disk_save_reopen(
         assert_eq!(doc.history().entries.len(), history);
     }
 }
+
+#[test]
+fn every_original_effect_example_project_matches_its_preset_and_reopens_from_disk() {
+    let directory = tempfile::tempdir().unwrap();
+    for example in EFFECT_EXAMPLES {
+        let project = file::from_json(example.project_json).unwrap();
+        assert_eq!(project.settings.name, example.name);
+        assert!(project.settings.comments.contains(EFFECT_EXAMPLE_LICENSE));
+        assert!(project.samples.is_empty());
+        assert!(project.plugins.is_empty());
+        assert!(project.retained_plugins.is_empty());
+        assert_eq!(project.channels.len(), 1);
+        assert!(matches!(&project.channels[0].source, ChannelSource::Instrument { .. }));
+        assert_eq!(project.patterns[0].lanes[0].notes.len(), 4);
+        assert_eq!(project.playlist.clips.len(), 1);
+        let session = file::session_from_json(example.project_json).unwrap();
+        assert_eq!(session.mode, PlayMode::Song);
+        assert!(session.loop_song);
+        let (preset, _) = example.load().unwrap();
+        let slot = &project.mixer.tracks[0].effects[0];
+        assert_eq!(slot.kind(), example.kind);
+        assert_eq!(slot.params, slot.params.sanitized());
+        assert_eq!(PluginPreset::capture(&project, PluginTarget::Effect { effect: slot.id }).unwrap(),
+            preset.plugin.unwrap(), "{}", example.name);
+        let path = directory.path().join(example.file_name).with_extension("windfall");
+        file::save_with(&project, Some(&session), &path).unwrap();
+        assert_eq!(file::load(&path).unwrap(), project);
+        assert_eq!(file::load_with_session(&path).unwrap().1, Some(session));
+    }
+}

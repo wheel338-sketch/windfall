@@ -31,7 +31,8 @@
     "active": true,
     "targets": "all",
     "resources": {
-      "../../../content/factory/": "factory/"
+      "../../../content/factory/": "factory/",
+      "../../../docs/examples/dynamics-eq/": "examples/effects/"
     },
     "icon": [
       "icons/32x32.png",

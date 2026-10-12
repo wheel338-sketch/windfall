@@ -72,3 +72,33 @@ fn every_original_effect_preset_reopens_and_renders_finite_nondefault_audio() {
     }
     std::fs::remove_dir(directory).unwrap();
 }
+
+#[test]
+fn every_shipped_effect_example_project_renders_audible_finite_nondefault_audio() {
+    let options = RenderOptions {
+        sample_rate: 48_000,
+        mode: windfall_ipc::PlayMode::Song,
+        tail_secs: 0.25,
+        block_frames: 137,
+        ..Default::default()
+    };
+    let pool = windfall_engine::SamplePool::new();
+    for example in EFFECT_EXAMPLES {
+        let project = file::from_json(example.project_json).unwrap();
+        let patch_audio = render(&project, &pool, &options, &mut |_| true);
+        assert!(patch_audio.samples().iter().all(|value| value.is_finite()));
+        assert!(patch_audio.samples().iter().any(|value| value.abs() > 0.001),
+            "silent project {}", example.name);
+        let reopened = file::from_json(&file::to_json(&project).unwrap()).unwrap();
+        let reopened_audio = render(&reopened, &pool, &options, &mut |_| true);
+        assert_eq!(patch_audio.samples(), reopened_audio.samples(), "{}", example.name);
+        let mut default_project = project;
+        default_project.mixer.tracks[0].effects[0].params = example.kind.default_params();
+        let default_audio = render(&default_project, &pool, &options, &mut |_| true);
+        assert_eq!(patch_audio.frames(), default_audio.frames());
+        let difference = patch_audio.samples().iter().zip(default_audio.samples())
+            .map(|(a, b)| f64::from(a - b).powi(2)).sum::<f64>()
+            / patch_audio.samples().len() as f64;
+        assert!(difference > 1e-8, "default-sounding project {}: {difference}", example.name);
+    }
+}
