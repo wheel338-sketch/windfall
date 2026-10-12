@@ -37,6 +37,8 @@ const reductions = new Map<EffectId, number>()
 const automated = new Map<AutomationId, number>()
 
 function receive(frame: RealtimeFrame) {
+  latest.activeNotePoses = frame.activeNotePoses
+  latest.mediaClock = frame.mediaClock
   latest.playing = frame.playing
   latest.tick = frame.tick
   latest.cpu = frame.cpu
@@ -78,6 +80,8 @@ function receive(frame: RealtimeFrame) {
 onProjectReplaced(() => {
   latest.playing = false
   latest.tick = 0
+  latest.activeNotePoses = []
+  latest.mediaClock = undefined
   latest.meters = []
   latest.rejectedRackEvents = undefined
   latest.rejectedEchoes = undefined

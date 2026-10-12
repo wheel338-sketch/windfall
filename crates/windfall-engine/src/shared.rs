@@ -25,6 +25,12 @@ pub(crate) const MIDI_OUT_CAPACITY: usize = 2048;
 const MIDI_OUT_FRAME_BITS: u32 = 38;
 
 pub(crate) struct Shared {
+    pub note_poses: [AtomicU64; 128],
+    pub presentation_epoch: AtomicU64,
+    pub presentation_frame: AtomicU64,
+    pub performance_tick: AtomicU64,
+    pub performance_dropped: AtomicU64,
+    pub performance_slots: [AtomicU64; crate::performance::TRACKS],
     pub waveform_epoch: AtomicU64,
     pub waveforms: Box<[crate::waveform_meter::WaveSlot]>,
     /// Current utility source. MAX means disabled, as for offline processors.
@@ -87,6 +93,12 @@ pub(crate) struct Shared {
 impl Shared {
     pub fn new() -> Self {
         Self {
+            note_poses: std::array::from_fn(|_| AtomicU64::new(0)),
+            presentation_epoch: AtomicU64::new(1),
+            presentation_frame: AtomicU64::new(0),
+            performance_tick: AtomicU64::new(0),
+            performance_dropped: AtomicU64::new(0),
+            performance_slots: std::array::from_fn(|_| AtomicU64::new(0)),
             waveform_epoch: AtomicU64::new(1),
             waveforms: (0..MAX_MIXER_TRACKS)
                 .map(|_| crate::waveform_meter::WaveSlot::new())

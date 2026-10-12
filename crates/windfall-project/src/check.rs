@@ -52,6 +52,7 @@ impl Project {
             return Err(problem);
         }
         crate::rack::check_project(self)?;
+        self.settings.stage_media.check(self)?;
         self.notebook.check().map_err(|error| error.to_string())?;
         self.settings.scripts.check()?;
         self.settings.scripts.check_notes(self)?;

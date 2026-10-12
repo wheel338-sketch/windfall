@@ -57,6 +57,7 @@ mod classical_analysis;
 #[cfg(windows)]
 mod mixer_preset_native;
 mod rack_second_pass;
+mod performance_media;
 
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};

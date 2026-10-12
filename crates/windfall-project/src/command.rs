@@ -41,12 +41,6 @@ use crate::model::{
 // allocation to parameter edits and changes Rust callers' construction contract.
 #[allow(clippy::large_enum_variant)]
 pub enum Command {
-    /// Creates an arrangement ID from the document allocator.
-    AddArrangement {
-        name: String,
-        clips: Vec<ClipId>,
-        tracks: Vec<PlaylistTrackId>,
-    },
     RenameArrangement {
         id: crate::arrangement::ArrangementId,
         name: String,
@@ -907,6 +901,14 @@ pub enum Command {
 
     /// Immutable asset metadata, guarded against concurrent region edits.
     SetSampleRegions { sample: SampleId, expected: Vec<crate::AudioRegion>, regions: Vec<crate::AudioRegion> },
+    SetStageMedia { media: crate::StageMedia },
+    /// Creates an arrangement ID from the document allocator.
+    AddArrangement {
+        name: String,
+        clips: Vec<ClipId>,
+        tracks: Vec<PlaylistTrackId>,
+    },
+
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, TS)]

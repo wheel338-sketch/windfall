@@ -1,5 +1,6 @@
 import { useEffect, useMemo } from "react"
 
+import { VideoTimelineLane } from "@/features/video/timeline-lane"
 import { ContextActions } from "@/components/context-actions"
 import { ProjectInfoControls } from "@/features/project-info"
 import { NotebookControls } from "@/features/notebook"
@@ -87,6 +88,7 @@ function Playlist() {
         <ArrangementControls />
         <ClipInspector />
         <AudioCompDialog />
+        <VideoTimelineLane metrics={metrics} />
         <div className="flex min-h-0 flex-1">
           {pickerOpen && <PatternPicker />}
           <div className="grid min-h-0 min-w-0 flex-1" style={GRID_TEMPLATE}>

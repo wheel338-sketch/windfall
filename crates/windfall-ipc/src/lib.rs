@@ -7,6 +7,8 @@
 
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
+mod performance_media;
+pub use performance_media::*;
 mod analysis;
 pub use analysis::*;
 mod analyzer;
@@ -113,6 +115,13 @@ pub struct RealtimeFrame {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(optional)]
     pub rejected_echoes: Option<u32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub media_clock: Option<MediaClock>,
+    /// One currently held note per channel, first 128 sounding channels.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[ts(as = "Option<Vec<ActiveNotePose>>", optional)]
+    pub active_note_poses: Vec<ActiveNotePose>,
     /// Existing analyzer's uncentered, normalized zero-lag stereo correlation,
     /// finite and in -1..=1. Absent when no valid correlation is available.
     #[serde(default, skip_serializing_if = "Option::is_none")]

@@ -155,6 +155,13 @@ pub(crate) fn execute(project: &mut Project, command: Command) -> Result<Outcome
             if old != new {
                 transaction.push(Edit::Settings(Change { old, new }));
             }
+            let followed = transaction.project.settings.stage_media.followed(transaction.project);
+            if followed != transaction.project.settings.stage_media {
+                let old = transaction.project.settings.clone();
+                let mut new = old.clone();
+                new.stage_media = followed;
+                transaction.push(Edit::Settings(Change { old, new }));
+            }
             if let Some(links) = crate::controller_links::following(transaction.project) {
                 let old = transaction.project.settings.clone();
                 let mut new = old.clone();
@@ -1338,6 +1345,14 @@ impl Transaction<'_> {
                 expected,
                 preset,
             } => self.apply_plugin_preset(target, expected, preset)?,
+            Command::SetStageMedia { media } => {
+                media.check(self.project).map_err(CommandError::invalid)?;
+                let old = self.project.settings.clone();
+                let mut new = old.clone();
+                new.stage_media = media;
+                self.push(Edit::Settings(Change { old, new }));
+                "Change performance and video settings"
+            }
             Command::SetControllerLinks { links } => {
                 if let Some(problem) =
                     crate::controller_links::links_problem(&links, Some(self.project))

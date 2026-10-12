@@ -138,6 +138,7 @@ mod note_glide;
 mod plan;
 pub mod plugins;
 mod pool;
+pub mod performance;
 mod processor;
 mod rack;
 mod ramp;

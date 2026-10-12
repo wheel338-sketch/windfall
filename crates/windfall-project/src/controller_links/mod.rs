@@ -155,6 +155,10 @@ pub enum ControlAction {
     /// Moves every [`SlotTarget`] position up by [`SLOT_BANK_SIZE`].
     BankNext,
     PanicMidi,
+    /// Launch the assigned pad using the project quantization.
+    PerformancePad { track: u8, scene: u8 },
+    PerformanceStop { track: u8 },
+    PerformanceStopAll,
 }
 
 /// A target named by where it is rather than by what it is. `index` counts
@@ -333,6 +337,14 @@ impl ControllerLink {
             && slot.index() > MAX_SLOT_INDEX
         {
             return Some("a controller link's position is too high".into());
+        }
+        if let LinkTarget::Action { action } = self.target {
+            let invalid = match action {
+                ControlAction::PerformancePad { track, scene } => usize::from(track) >= crate::stage_media::PERFORMANCE_TRACKS || usize::from(scene) >= crate::stage_media::PERFORMANCE_SCENES,
+                ControlAction::PerformanceStop { track } => usize::from(track) >= crate::stage_media::PERFORMANCE_TRACKS,
+                _ => false,
+            };
+            if invalid { return Some("Performance controller action position is out of range".into()); }
         }
         self.map.compile().err()
     }

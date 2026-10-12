@@ -19,6 +19,9 @@ import { SpectrumPanel } from "@/features/spectrum/panel"
 import { ProjectOverviewPanel } from "@/features/project-overview/panel"
 import { PhaseMeterPanel } from "@/features/phase-meter/panel"
 import { SpectrogramPanel } from "@/features/spectrogram/panel"
+import { PerformancePanel } from "@/features/performance/grid"
+import { VisualizerPanel } from "@/features/visualizer/panel"
+import { VideoPanel } from "@/features/video/panel"
 import { ScopePanel } from "@/features/analyzers/scope-panel"
 import { AnalyzerSmokeHost } from "@/features/analyzers/smoke-host"
 import { TransportBar } from "@/features/transport/transport-bar"
@@ -77,6 +80,9 @@ export function Overlays() {
       <PhaseMeterPanel />
       <SpectrogramPanel />
       <ScopePanel />
+      <PerformancePanel />
+      <VisualizerPanel />
+      <VideoPanel />
       <TouchControllersWindow />
       <AssistantPanel />
       <ScriptEditor />

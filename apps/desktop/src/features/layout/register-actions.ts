@@ -1,6 +1,7 @@
 import { registerPluginPickerActions } from "@/features/plugins/picker"
 import { registerProjectFilesActions } from "@/features/project-files/actions"
 import { registerAnalysisActions } from "@/features/analysis/actions"
+import { registerPerformanceMediaActions } from "@/features/performance-media/actions"
 import { registerAnalyzerActions } from "@/features/analyzers/actions"
 import { registerBrowserActions } from "@/features/browser/actions"
 import { registerChannelRackActions } from "@/features/channel-rack/actions"
@@ -47,6 +48,7 @@ export function registerAllActions(): () => void {
     registerAssistantActions(),
     registerPluginPickerActions(),
     registerProjectFilesActions(),
+    registerPerformanceMediaActions(),
   ]
   return () => {
     for (const stop of stops) stop()

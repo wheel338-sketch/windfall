@@ -112,6 +112,16 @@ export function createTauriBackend(): Backend {
       const path = saveName === undefined ? await open({ multiple: false, filters }) : await save({ defaultPath: `${saveName.replace(/[<>:"/\\|?*]/g, "_")}.wfscore`, filters })
       return typeof path === "string" ? path : null
     },
+    async pickVideoFile() {
+      const picked = await open({ title: "Choose a local video", multiple: false, filters: [{ name: "Video", extensions: ["mp4", "webm", "ogv", "mov"] }] })
+      return typeof picked === "string" ? picked : null
+    },
+    mediaVideoRead: (path, generation) => call("media_video_read", { path, generation }),
+    performanceScene: (scene, generation, revision) => call("performance_scene", { scene, generation, revision }),
+    mediaRenderAudio: (range, generation, revision) => call("media_render_audio", { range, generation, revision }),
+    performanceState: () => call("performance_state"),
+    performancePad: (track, scene, generation, revision) => call("performance_pad", { track, scene, generation, revision }),
+    performanceStopAll: () => call("performance_stop_all"),
     analyzerCapability: () => call("analyzer_capability"),
     analyzerSubscribe: (slot, handler) => {
       // One channel per slot. Events that arrive after the slot stopped

@@ -254,6 +254,7 @@ impl Project {
                 internal_controllers: Vec::new(),
                 modular_racks: Vec::new(),
                 scripts: crate::scripting::ScriptLibrary::default(),
+                stage_media: crate::StageMedia::default(),
             },
             samples: Vec::new(),
             notebook: crate::Notebook::default(),
@@ -382,6 +383,9 @@ pub struct ProjectSettings {
     )]
     #[ts(as = "Option<crate::scripting::ScriptLibrary>", optional)]
     pub scripts: crate::scripting::ScriptLibrary,
+    #[serde(default, skip_serializing_if = "crate::StageMedia::is_default")]
+    #[ts(as = "Option<crate::StageMedia>", optional)]
+    pub stage_media: crate::StageMedia,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]

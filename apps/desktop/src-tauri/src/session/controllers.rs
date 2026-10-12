@@ -1170,7 +1170,11 @@ impl Session {
                 };
                 Ok(())
             }
+            ControlAction::PerformancePad { track, scene } => self.performance_controller_pad(track, Some(scene)),
+            ControlAction::PerformanceStop { track } => self.performance_controller_pad(track, None),
+            ControlAction::PerformanceStopAll => { self.performance_stop_all(); Ok(()) },
             ControlAction::PanicMidi => {
+                self.performance_stop_all();
                 self.midi_hardware_panic();
                 Ok(())
             }

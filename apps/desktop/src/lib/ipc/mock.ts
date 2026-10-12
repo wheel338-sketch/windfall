@@ -673,6 +673,13 @@ export function createMockBackend(options: MockOptions = {}): MockBackend {
     }),
     pickScorePath: async (name) => name === undefined ? ([...scoreFiles.keys()][0] ?? null) : dialogs.exportPath(`/scores/${name}.wfscore`),
     ...unavailableAnalyzer(),
+    pickVideoFile: () => Promise.resolve(null),
+    mediaVideoRead: () => Promise.reject(new Error("Local video decoding needs the desktop app")),
+    performanceScene: () => Promise.reject(new Error("Performance launching needs the desktop audio engine")),
+    mediaRenderAudio: () => Promise.reject(new Error("Audiovisual export needs the desktop audio engine")),
+    performanceState: () => Promise.resolve({ available: false, tick: 0, droppedNotes: "0", tracks: [] }),
+    performancePad: () => Promise.reject(new Error("Performance launching needs the desktop audio engine")),
+    performanceStopAll: () => Promise.resolve(),
     mixerWaveformTracks: (tracks, generation, revision) => ipc(() => {
       const state = timelineState()
       if (state.generation !== generation || state.revision !== revision) throw new Error("The project changed before waveform selection could update")

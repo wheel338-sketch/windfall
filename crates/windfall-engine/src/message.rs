@@ -26,6 +26,8 @@ pub(crate) const GARBAGE_CAPACITY: usize = 4 * MESSAGE_CAPACITY;
 /// Free garbage slots the audio thread wants before it takes a message.
 pub(crate) const GARBAGE_HEADROOM: usize = 4;
 
+// Scene requests remain inline so adopting a scene cannot allocate or free.
+#[allow(clippy::large_enum_variant)]
 pub(crate) enum Message {
     SetPlan {
         plan: Arc<Plan>,
@@ -73,6 +75,9 @@ pub(crate) enum Message {
     },
     Preview(AudioBuffer),
     StopPreview,
+    Performance(crate::performance::LaunchRequest),
+    PerformanceStopAll,
+    PerformanceScene([Option<crate::performance::LaunchRequest>; crate::performance::TRACKS]),
     SetOutputGain(f32),
     SetInputMonitors(Box<[Box<crate::recording_monitor::MonitorReader>]>),
     SetDiskTaps(Box<[crate::recording_disk::DiskWriter]>),
