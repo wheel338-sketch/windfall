@@ -43,6 +43,7 @@ impl Ports for Native {
                 id: super::feedback::CONTROLLER_FEEDBACK_OUTPUT.into(),
                 name: "Game controller feedback (XInput)".into(),
             });
+            outputs.push(MidiPort { id: super::feedback::PROJECT_FEEDBACK_OUTPUT.into(), name: "Project game controller feedback (XInput)".into() });
             outputs
         };
         Ok((inputs, outputs))
@@ -72,6 +73,12 @@ impl Ports for Native {
             return Ok(Box::new(super::feedback::FeedbackOutput::new(
                 crate::peripherals::windows::XInputAdapter,
             )));
+        }
+        if id == super::feedback::PROJECT_FEEDBACK_OUTPUT {
+            #[cfg(all(target_os = "windows", feature = "xinput"))]
+            { return Ok(Box::new(super::feedback::ProjectFeedbackOutput::new(crate::peripherals::windows::XInputAdapter))); }
+            #[cfg(not(all(target_os = "windows", feature = "xinput")))]
+            { return Err("Project controller feedback requires a Windows build with the xinput feature".into()); }
         }
         let output = MidiOutput::new("Windfall MIDI output").map_err(|e| e.to_string())?;
         let port = if id == super::general_midi::SYSTEM_GM_OUTPUT {

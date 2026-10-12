@@ -481,6 +481,7 @@ impl Session {
         {
             decoded.pool.set_plugin_factory(factory);
         }
+        decoded.pool.share_sampler_budget(&baseline_pool);
         let project = document.project();
         let first_pattern = project.patterns.first().map(|pattern| pattern.id);
         let transport = match played {

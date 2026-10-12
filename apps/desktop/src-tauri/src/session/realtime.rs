@@ -100,6 +100,7 @@ impl Session {
     ) -> RealtimeFrame {
         self.retire_project(retirement);
         let frame = self.controller().frame();
+        self.music_lighting_tick(&frame);
         lock(&self.inner.subscribers).retain_mut(|subscriber| (subscriber.send)(&frame));
         self.analyzer_tick(now);
         // Playback that ended by itself: the end of a song, or a device

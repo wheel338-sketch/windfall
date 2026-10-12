@@ -205,3 +205,68 @@ fn incompatible_instrument_changes_clear_bank_references_and_undo_restores_them(
     doc.undo().unwrap();
     assert_eq!(doc.project(), &before);
 }
+
+#[test]
+fn source_relink_is_checked_undoable_and_preserves_player_bank_identity() {
+    let mut doc = Document::new(Project::new("Relink"));
+    let source = sample(&mut doc); let player = channel(&mut doc, InstrumentKind::SamplePlayer);
+    let bank = SampleInstrumentAsset::Zones { zones: vec![SampleZone { sample: source.0, ..Default::default() }] };
+    doc.dispatch(Command::SetSampleInstrumentAsset { channel: player, expected: None, asset: Some(bank.clone()) }, None).unwrap();
+    let before = doc.project().clone(); let path = before.sample(source).unwrap().path.clone();
+    assert!(doc.dispatch(Command::RelinkSamplePath { sample: source, expected: SamplePath::External("C:/stale.wav".into()), path: SamplePath::External("C:/new.wav".into()) }, None).is_err());
+    assert!(doc.dispatch(Command::RelinkSamplePath { sample: source, expected: path.clone(), path: SamplePath::Project("../escape.wav".into()) }, None).is_err());
+    assert_eq!(doc.project(), &before);
+    doc.dispatch(Command::RelinkSamplePath { sample: source, expected: path, path: SamplePath::External("C:/new.wav".into()) }, None).unwrap();
+    let linked = doc.project().clone();
+    assert_eq!(linked.channel(player).unwrap().sample_instrument, Some(bank));
+    assert_eq!(linked.samples.len(), before.samples.len());
+    let saved: Project = serde_json::from_str(&serde_json::to_string(&linked).unwrap()).unwrap();
+    assert_eq!(saved, linked); saved.check().unwrap();
+    doc.undo().unwrap(); assert_eq!(doc.project(), &before);
+    doc.redo().unwrap(); assert_eq!(doc.project(), &linked);
+}
+
+#[test]
+fn multisampler_modulation_and_effects_persist_and_legacy_fields_default_to_dry() {
+    let mut doc = Document::new(Project::new("Modulation")); let source=sample(&mut doc); let id=channel(&mut doc,InstrumentKind::MultiSampler);
+    let modulation=windfall_dsp::sample_bank::ZoneModulation { envelope_pitch_cents:1200.0,..Default::default() };
+    doc.dispatch(Command::EditSampleZones { channel:id,expected:vec![],zones:vec![SampleZone { sample:source.0,modulation_group:2,modulation,..Default::default() }] },None).unwrap();
+    let before=doc.project().clone();
+    doc.dispatch(Command::SetInstrumentParam { channel:id,param:9,value:0.3 },None).unwrap();
+    let saved=serde_json::to_value(doc.project()).unwrap(); let loaded:Project=serde_json::from_value(saved.clone()).unwrap();
+    assert_eq!(loaded,doc.project().clone()); loaded.check().unwrap();
+    doc.undo().unwrap();assert_eq!(doc.project(),&before);doc.redo().unwrap();assert_eq!(doc.project(),&loaded);
+    let mut legacy=saved;
+    let channel=legacy["channels"].as_array_mut().unwrap().iter_mut().find(|c| c["id"]==id.0).unwrap();
+    let params=channel["source"]["params"].as_object_mut().unwrap(); for name in ["chorus","delay","reverb"] { params.remove(name); }
+    let zone=channel["sampleInstrument"]["zones"][0].as_object_mut().unwrap(); for name in ["modulationGroup","modulation","delayMs"] { zone.remove(name); }
+    let legacy:Project=serde_json::from_value(legacy).unwrap(); legacy.check().unwrap();
+    let ChannelSource::Instrument { params:InstrumentParams::MultiSampler(params),.. }=legacy.channel(id).unwrap().source else { panic!() };
+    assert_eq!(params.delay.mix,0.0);assert_eq!(params.chorus.mix,0.0);assert_eq!(params.reverb.mix,0.0);
+    let Some(SampleInstrumentAsset::Zones { zones })=&legacy.channel(id).unwrap().sample_instrument else { panic!() };
+    assert_eq!(zones[0].modulation,Default::default());assert_eq!(zones[0].modulation_group,0);
+}
+
+#[test]
+fn project_feedback_routing_is_checked_saved_and_restored_by_undo() {
+    let mut doc=Document::new(Project::new("Feedback"));let id=channel(&mut doc,InstrumentKind::MidiOut);let before=doc.project().clone();
+    let mut params=InstrumentKind::MidiOut.default_params();if let InstrumentParams::MidiOut(params)=&mut params {params.feedback_enabled=true;params.feedback_controller=3;params.feedback_motor=2;params.feedback_strength=0.4;params.feedback_curve=2.0;}
+    doc.dispatch(Command::SetInstrumentParams {channel:id,params},None).unwrap();let edited=doc.project().clone();edited.check().unwrap();
+    let loaded:Project=serde_json::from_str(&serde_json::to_string(&edited).unwrap()).unwrap();assert_eq!(loaded,edited);
+    doc.undo().unwrap();assert_eq!(doc.project(),&before);doc.redo().unwrap();assert_eq!(doc.project(),&edited);
+    let mut invalid=edited.clone();if let ChannelSource::Instrument {params:InstrumentParams::MidiOut(params),..}=&mut invalid.channels.iter_mut().find(|c|c.id==id).unwrap().source {params.feedback_controller=4;}
+    assert!(invalid.check().is_err());
+    let mut legacy=serde_json::to_value(&edited).unwrap();let params=legacy["channels"].as_array_mut().unwrap().iter_mut().find(|c|c["id"]==id.0).unwrap()["source"]["params"].as_object_mut().unwrap();
+    for field in ["feedbackEnabled","feedbackController","feedbackMotor","feedbackStrength","feedbackCurve"] {params.remove(field);}
+    let old:Project=serde_json::from_value(legacy).unwrap();let ChannelSource::Instrument {params:InstrumentParams::MidiOut(params),..}=old.channel(id).unwrap().source else {panic!()};
+    assert!(!params.feedback_enabled);assert_eq!(params.feedback_strength,1.0);assert_eq!(params.feedback_curve,1.0);
+}
+
+#[test]
+fn music_lighting_is_a_saved_mixer_effect_with_checked_history() {
+    let mut doc=Document::new(Project::new("Lighting effect"));let effect=EffectId(doc.dispatch(Command::AddEffect{track:TrackId::MASTER,kind:EffectKind::MusicLighting,index:None},None).unwrap().created[0]);let before=doc.project().clone();
+    doc.dispatch(Command::SetEffectParam{track:TrackId::MASTER,effect,param:1,value:4.0},None).unwrap();let saved=doc.project().clone();saved.check().unwrap();
+    let loaded:Project=serde_json::from_str(&serde_json::to_string(&saved).unwrap()).unwrap();assert_eq!(loaded,saved);
+    doc.undo().unwrap();assert_eq!(doc.project(),&before);doc.redo().unwrap();assert_eq!(doc.project(),&saved);
+    assert_eq!(EffectKind::ALL[67],EffectKind::MusicLighting);
+}

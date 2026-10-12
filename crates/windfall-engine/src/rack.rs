@@ -633,6 +633,17 @@ pub(crate) struct InstrumentUnit {
 }
 
 impl InstrumentUnit {
+    pub fn inherit_sample_bank_notes(&mut self, previous: &mut Self) {
+        if self.instrument.inherit_sample_bank_state(&mut previous.instrument) {
+            self.notes.copy_from_slice(&previous.notes);
+            self.next_instance = previous.next_instance;
+            self.held = previous.held;
+            self.last_sound = previous.last_sound;
+        }
+    }
+    pub fn take_unused_sample_bank(&mut self) -> Option<std::sync::Arc<windfall_dsp::sample_bank::SampleBank>> {
+        self.instrument.take_unused_sample_bank()
+    }
     pub fn inherit_playback_notes(&mut self, previous: &Self) {
         if self.instrument.inherit_playback_state(&previous.instrument) {
             self.notes.copy_from_slice(&previous.notes);

@@ -41,6 +41,7 @@ import { StereoEnhancerEditor } from "./stereo/stereo-enhancer-editor"
 import { EchoBankEditor } from "./echo-bank/echo-bank-editor"
 import { FrequencyDelayEditor } from "./frequency-delay/frequency-delay-editor"
 import { EnvelopeSourceEditor, KeyboardSourceEditor, FormulaSourceEditor, PeakSourceEditor, XySourceEditor, XyzSourceEditor, SurfaceSourceEditor, VoltageSourceEditor } from "@/features/internal-controllers/editors"
+import { MusicLightingEditor } from "./music-lighting-editor"
 import { TunerEditor } from "./tuner/tuner-editor"
 import { RoomEditor } from "./circuits/room-editor"
 import { LushSpaceEditor } from "./circuits/lush-space-editor"
@@ -83,6 +84,7 @@ const EDITORS: Editors = {
   panLfo: PanMotionEditor,
   morphEq: MorphEqEditor,
   tuner: TunerEditor,
+  musicLighting: MusicLightingEditor,
   bandSplit: BandSplitEditor,
   selectableFilter: FilterEditor,
   filterBank: FilterBankEditor,

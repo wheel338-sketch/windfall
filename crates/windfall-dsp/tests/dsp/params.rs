@@ -455,6 +455,7 @@ fn names_are_plain_descriptions() {
             "Formula",
             "Keyboard Source",
             "DC Control",
+            "Music lighting",
             "Subtractive synth",
             "Four Operator",
             "Matrix FM",
@@ -573,4 +574,12 @@ fn slice_grain_curve_parameter_prefixes_are_stable_and_sources_are_assets() {
         };
         assert_eq!(kind.descriptors().len(), count);
     }
+}
+
+#[test]
+fn multisampler_internal_effect_descriptors_append_after_the_saved_four_controls() {
+    check::<windfall_dsp::sample_bank::MultiSamplerParams>();
+    let ids: Vec<_> = InstrumentKind::MultiSampler.descriptors().iter().map(|info| info.id).collect();
+    assert_eq!(&ids[..4], &["level", "tune", "releaseMs", "brightness"]);
+    assert_eq!(&ids[4..], &["chorus.mix", "chorus.depthMs", "chorus.rate1Hz", "chorus.rate2Hz", "chorus.rate3Hz", "delay.mix", "delay.sync", "delay.timeMs", "delay.feedback", "reverb.mix", "reverb.decayS", "reverb.damping", "reverb.preDelayMs"]);
 }

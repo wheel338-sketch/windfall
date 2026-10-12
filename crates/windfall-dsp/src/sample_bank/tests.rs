@@ -624,3 +624,170 @@ fn sf2_selects_only_the_requested_preset_and_resolves_global_instrument_zones() 
         Err(soundfont::SoundFontError::PresetNotFound { .. })
     ));
 }
+
+#[test]
+fn choke_crossfade_bounds_discontinuity_and_refuses_when_tail_reserve_is_full() {
+    let map = SampleZone { choke_group: 1, ..Default::default() };
+    let mut unit = sampler(vec![zone(0.8, map)]);
+    unit.note_on(60, 1.0);
+    let before = render(&mut unit, 256, 64)[255];
+    unit.note_on(60, 0.5);
+    let pcm = render(&mut unit, 128, 7);
+    assert!((pcm[0] - before).abs() < 0.02, "choke boundary is a fade, not a cut");
+    assert!(pcm.windows(2).all(|x| (x[1] - x[0]).abs() < 0.02));
+    assert!((pcm[127] - 0.2).abs() < 1e-5);
+    assert!(unit.engine.choked.iter().all(|v| !v.active));
+    for _ in 0..BANK_VOICES { unit.note_on(60, 1.0); }
+    let missed = unit.missed_notes();
+    unit.note_on(60, 1.0);
+    assert_eq!(unit.missed_notes(), missed + 1);
+    assert_eq!(unit.active_voices(), 1, "refusal preserves the previous strike");
+}
+
+#[test]
+fn bank_generations_preserve_held_and_releasing_pcm_and_retire_only_after_finish() {
+    let map = SampleZone { loop_mode: BankLoop::Continuous, loop_start: 0, loop_end: 4096, ..Default::default() };
+    let mut old = sampler(vec![zone(0.4, map)]);
+    let mut reference = sampler(vec![zone(0.4, map)]);
+    old.note_on_instance(NoteInstanceId(7), 60, 1.0, 0.0, NoteExpression::default());
+    reference.note_on_instance(NoteInstanceId(7), 60, 1.0, 0.0, NoteExpression::default());
+    assert_eq!(render(&mut old, 257, 7), render(&mut reference, 257, 64));
+    let weak = Arc::downgrade(old.engine.banks[old.engine.current_bank].as_ref().unwrap());
+    let mut incoming = sampler(vec![zone(-0.6, map)]);
+    incoming.inherit_bank_state(&mut old);
+    drop(old);
+    assert_eq!(render(&mut incoming, 1000, 11), render(&mut reference, 1000, 127));
+    incoming.note_off_instance(NoteInstanceId(7), 60);
+    reference.note_off_instance(NoteInstanceId(7), 60);
+    let mut third = sampler(vec![]);
+    third.inherit_bank_state(&mut incoming);
+    drop(incoming);
+    assert!(weak.upgrade().is_some());
+    assert_eq!(render(&mut third, 6000, 3), render(&mut reference, 6000, 64));
+    let mut retired = Vec::new();
+    for _ in 0..BANK_VOICES * 2 + 1 { if let Some(bank) = third.take_unused_bank() { retired.push(bank); } }
+    assert!(weak.upgrade().is_some(), "retirement queue owns old PCM");
+    drop(retired);
+    assert!(weak.upgrade().is_none(), "control-side queue drain releases finished bank");
+}
+
+#[test]
+fn bank_budget_counts_pending_and_shared_retained_owners_until_the_last_drop() {
+    let budget = Arc::new(BankBudget::new(64));
+    let pending = budget.reserve(32).unwrap();
+    let mut bank = SampleBank::new(vec![LoadedZone { mapping: SampleZone::default(),
+        audio: AudioBuffer::from_interleaved(48000, 1, vec![0.0; 8]) }]).unwrap();
+    bank.retain_reservation(pending);
+    let held = Arc::new(bank);
+    let old_plan = held.clone();
+    let next_job = budget.reserve(32).unwrap();
+    let refusal = budget.reserve(1).unwrap_err();
+    assert!(refusal.contains("64 budget"));
+    assert!(refusal.contains("64 retained or preparing"));
+    drop(held);
+    assert_eq!(budget.used(), 64);
+    drop(next_job);
+    assert_eq!(budget.used(), 32);
+    drop(old_plan);
+    assert_eq!(budget.used(), 0);
+}
+
+#[test]
+fn concurrent_bank_jobs_cannot_overbook_the_shared_budget() {
+    let budget = Arc::new(BankBudget::new(64));
+    let barrier = Arc::new(std::sync::Barrier::new(3));
+    let release = Arc::new(std::sync::Barrier::new(3));
+    let jobs: Vec<_> = (0..2).map(|_| {
+        let budget = budget.clone(); let barrier = barrier.clone(); let release = release.clone();
+        std::thread::spawn(move || {
+            let lease = budget.reserve(32).unwrap(); barrier.wait(); release.wait(); drop(lease);
+        })
+    }).collect();
+    barrier.wait(); assert_eq!(budget.used(), 64); assert!(budget.reserve(1).is_err()); release.wait();
+    for job in jobs { job.join().unwrap(); } assert_eq!(budget.used(), 0);
+}
+
+#[test]
+fn zone_modulation_envelope_measures_pitch_filter_and_amplitude_routes() {
+    let audio = AudioBuffer::from_interleaved(48000, 1, (0..48000).map(|i| (std::f32::consts::TAU * 440.0 * i as f32 / RATE).sin() * 0.4).collect());
+    let map = SampleZone { loop_mode: BankLoop::Continuous, loop_start: 0, loop_end: 48000,
+        modulation: ZoneModulation { decay_ms: 0.0, sustain: 1.0, envelope_pitch_cents: 1200.0, ..Default::default() }, ..Default::default() };
+    let mut pitched = sampler(vec![LoadedZone { mapping: map, audio }]); pitched.note_on(60, 1.0);
+    let pcm = render(&mut pitched, 48000, 17);
+    let crossings = pcm.windows(2).filter(|x| x[0] <= 0.0 && x[1] > 0.0).count();
+    assert!((crossings as i32 - 880).abs() <= 1, "octave envelope: {crossings} crossings/sec");
+    let mut amplitude = sampler(vec![zone(0.4, SampleZone { modulation: ZoneModulation {
+        envelope_amplitude: -1.0, decay_ms: 50.0, ..Default::default() }, ..Default::default() })]);
+    amplitude.note_on(60, 1.0); let pcm = render(&mut amplitude, 3000, 7);
+    assert_eq!(pcm[0], 0.0); assert!((pcm[2999] - 0.2).abs() < 1e-5);
+    let play = |cutoff| {
+        let audio = AudioBuffer::from_interleaved(48000, 1, (0..48000).map(|i| (std::f32::consts::TAU * 4000.0 * i as f32 / RATE).sin() * 0.4).collect());
+        let mut unit = sampler(vec![LoadedZone { audio, mapping: SampleZone { modulation: ZoneModulation {
+            decay_ms: 0.0, sustain: 1.0, envelope_filter_cents: cutoff, ..Default::default() }, ..Default::default() } }]);
+        unit.note_on(60, 1.0); render(&mut unit, 12000, 127)
+    };
+    let power = |pcm: &[f32]| pcm[2000..].iter().map(|x| x*x).sum::<f32>() / (pcm.len()-2000) as f32;
+    assert!(power(&play(-9600.0)) < power(&play(0.0)) * 0.001, "filter envelope attenuates a measured 4 kHz tone");
+}
+
+#[test]
+fn grouped_lfos_share_routes_and_delay_while_partitioning_remains_exact() {
+    let modulation = ZoneModulation { lfos: [ZoneLfo { rate_hz: 5.0, delay_ms: 10.0, amplitude: 0.8, ..Default::default() }, ZoneLfo { rate_hz: 3.0, pitch_cents: 50.0, filter_cents: 1200.0, ..Default::default() }], ..Default::default() };
+    let map = SampleZone { modulation_group: 4, modulation, loop_mode: BankLoop::Continuous, loop_start: 0, loop_end: 4096, ..Default::default() };
+    let bank = Arc::new(SampleBank::new(vec![zone(0.2, map),zone(0.2,SampleZone { modulation: ZoneModulation::default(), ..map })]).unwrap());
+    assert_eq!(bank.zones()[1].mapping.modulation, modulation);
+    let play = |block| { let mut unit = MultiSampler::default(); unit.prepare(RATE, 128); unit.install_bank(bank.clone()); unit.note_on(60, 1.0); render(&mut unit, 12000, block) };
+    let pcm = play(1); assert_eq!(pcm, play(127));
+    let first = pcm[400]; let high = pcm[2400]; let low = pcm[7200];
+    assert!((first - 0.2).abs() < 1e-4, "amplitude LFO waits for its delay");
+    assert!(high > low * 2.0, "LFO modulates measured amplitude");
+}
+
+#[test]
+fn multisampler_internal_effects_have_measured_echoes_chorus_and_reverb_tails() {
+    let impulse = || LoadedZone { mapping: SampleZone { release_ms: 1.0, ..Default::default() }, audio: AudioBuffer::from_interleaved(48000, 1, {
+        let mut pcm=vec![0.0;480];pcm[0]=0.5;pcm }) };
+    let play = |kind: u8, block| {
+        let mut unit = sampler(vec![impulse()]); let mut params = MultiSamplerParams::default();
+        match kind {
+            1 => { params.delay.sync=false; params.delay.time_ms=20.0; params.delay.feedback=0.5;params.delay.mix=1.0; }
+            2 => params.chorus.mix=1.0,
+            3 => params.reverb.mix=1.0,
+            _ => {}
+        }
+        unit.set_params(&params); unit.reset(); unit.note_on(60,1.0); render(&mut unit,24000,block)
+    };
+    let dry=play(0,64);assert!(dry[1000..].iter().all(|x| *x==0.0));
+    let delay=play(1,7);assert_eq!(delay,play(1,127));
+    assert!(delay[900..1100].iter().any(|x| x.abs()>0.01),"20 ms echo");
+    assert!(delay[1800..2100].iter().any(|x| x.abs()>0.001),"feedback second repeat");
+    let chorus=play(2,7);assert_eq!(chorus,play(2,127));assert!(chorus[480..2000].iter().any(|x| x.abs()>0.01));
+    let reverb=play(3,7);assert_eq!(reverb,play(3,127));assert!(reverb[3000..12000].iter().any(|x| x.abs()>0.0001));
+}
+
+#[test]
+fn bank_bytes_charge_unused_pcm_capacity_and_workspace_shrink_is_checked() {
+    let mut pcm=Vec::with_capacity(32);pcm.resize(8,0.1);
+    let audio=AudioBuffer::from_interleaved(48000,1,pcm);
+    assert_eq!(audio.retained_pcm_bytes(),128);
+    assert_eq!(audio.clone().retained_pcm_bytes(),128);
+    let bank=SampleBank::new(vec![LoadedZone { mapping:SampleZone::default(),audio }]).unwrap();
+    assert_eq!(bank.bytes(),128);
+    let budget=Arc::new(BankBudget::new(256));let mut workspace=budget.reserve(256).unwrap();
+    assert!(workspace.shrink(257).unwrap_err().contains("memory refused"));assert_eq!(budget.used(),256);
+    workspace.shrink(bank.bytes()).unwrap();assert_eq!(budget.used(),128);
+    let second=budget.reserve(128).unwrap();assert!(budget.reserve(1).is_err());
+    drop(workspace);assert_eq!(budget.used(),128);drop(second);assert_eq!(budget.used(),0);
+}
+
+#[test]
+fn choke_tail_is_reported_after_the_new_strike_has_finished() {
+    let long=zone(0.4,SampleZone {key_low:60,key_high:60,choke_group:1,..Default::default()});
+    let short=LoadedZone {mapping:SampleZone {key_low:61,key_high:61,choke_group:1,..Default::default()},
+        audio:AudioBuffer::from_interleaved(48000,1,vec![0.4])};
+    let mut unit=sampler(vec![long,short]);unit.note_on(60,1.0);render(&mut unit,256,64);
+    unit.note_on(61,1.0);render(&mut unit,2,1);
+    assert_eq!(unit.active_voices(),0);let remaining=unit.tail_samples();assert!(remaining>0 && remaining<=48);
+    let pcm=render(&mut unit,remaining+2,7);assert!(pcm.iter().any(|x|x.abs()>0.01));
+    assert_eq!(unit.tail_samples(),0);assert!(pcm[pcm.len()-2..].iter().all(|x|*x==0.0));
+}

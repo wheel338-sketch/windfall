@@ -386,6 +386,7 @@ struct Worker {
     inputs: Vec<Input>,
     output: Option<Box<dyn Output>>,
     extra_outputs: Vec<Option<Box<dyn Output>>>,
+    project_feedback: Option<Box<dyn Output>>,
     dropped: Arc<AtomicU32>,
     epoch: u64,
     /// One bit per input channel/key, and a separate sustain bit. Fixed storage.
@@ -397,9 +398,9 @@ struct Worker {
     /// MIDI output channel messages in the order they were made.
     pending: VecDeque<Timed>,
     /// The latest time given to a pending message, so none overtakes another.
-    last_due: [u64; 8],
+    last_due: [u64; 9],
     /// One bit per MIDI channel a MIDI output channel has sent on.
-    used_channels: [u16; 8],
+    used_channels: [u16; 9],
     feedback_dropped: u32,
 }
 
@@ -414,6 +415,7 @@ impl Worker {
             inputs: Vec::new(),
             output: None,
             extra_outputs: Vec::new(),
+            project_feedback: None,
             dropped: Arc::new(AtomicU32::new(0)),
             epoch,
             down: [[false; 128]; 16],
@@ -422,8 +424,8 @@ impl Worker {
             output_keys: [false; 128],
             clock: ClockOut::new(Instant::now()),
             pending: VecDeque::with_capacity(OUTPUT_PENDING),
-            last_due: [0; 8],
-            used_channels: [0; 8],
+            last_due: [0; 9],
+            used_channels: [0; 9],
             feedback_dropped: 0,
         }
     }
@@ -537,6 +539,9 @@ impl Worker {
                     }
                     self.state.error = Some("MIDI device disconnected. Refresh and apply the device settings to reconnect.".into());
                 }
+                if !outputs.iter().any(|port| port.id == feedback::PROJECT_FEEDBACK_OUTPUT) {
+                    self.project_feedback.take(); self.pending.retain(|message| message.port != 8);
+                }
                 self.state.inputs = inputs;
                 self.state.outputs = outputs;
             }
@@ -545,6 +550,7 @@ impl Worker {
                 self.inputs.clear();
                 self.output.take();
                 self.extra_outputs.clear();
+                self.project_feedback.take();
                 self.pending.clear();
                 self.state.error = Some(error);
             }
@@ -602,7 +608,7 @@ impl Worker {
                 }
             }
         }
-        self.last_due = [0; 8];
+        self.last_due = [0; 9];
         self.down = [[false; 128]; 16];
         self.sounding = [[false; 128]; 16];
         self.sustain = [false; 16];
@@ -623,7 +629,7 @@ impl Worker {
     }
 
     fn send_to(&mut self, port: u8, bytes: &[u8]) {
-        let output = if port == 0 {
+        let output = if port == 8 { self.project_feedback.as_mut() } else if port == 0 {
             self.output.as_mut()
         } else {
             self.extra_outputs
@@ -634,7 +640,7 @@ impl Worker {
             && let Err(error) = output.send(bytes)
         {
             self.state.error = Some(error);
-            if port == 0 {
+            if port == 8 { self.project_feedback.take(); } else if port == 0 {
                 self.output.take();
             } else if let Some(output) = self.extra_outputs.get_mut(usize::from(port) - 1) {
                 output.take();
@@ -730,7 +736,14 @@ impl Worker {
             .output
             .as_ref()
             .map_or(0, |output| output.latency_nanos());
-        let mut connections = [(false, 0); 8];
+        if self.project_feedback.is_none() && self.state.outputs.iter().any(|port| port.id == feedback::PROJECT_FEEDBACK_OUTPUT) {
+            match self.ports.output(feedback::PROJECT_FEEDBACK_OUTPUT) {
+                Ok(output) => self.project_feedback = Some(output),
+                Err(error) => self.state.error = Some(format!("Project controller feedback unavailable: {error}")),
+            }
+        }
+        let mut connections = [(false, 0); 9];
+        connections[8] = (self.project_feedback.is_some(), 0);
         connections[0] = (self.output.is_some(), latency);
         for (index, output) in self.extra_outputs.iter().enumerate().take(7) {
             connections[index + 1] = (
@@ -740,9 +753,11 @@ impl Worker {
         }
         let pending = &mut self.pending;
         let last_due = &mut self.last_due;
+        let mut project_refused = false;
         self.controller.drain_midi_out_from(|frame, bytes, port| {
-            let index = usize::from(port.min(7));
+            let index = usize::from(port.min(8));
             let (connected, latency) = connections[index];
+            if !connected && port == 8 { project_refused = true; }
             if !connected || pending.len() >= OUTPUT_PENDING || bytes.is_empty() {
                 return;
             }
@@ -767,6 +782,7 @@ impl Worker {
                 },
             );
         });
+        if project_refused && !self.state.error.as_ref().is_some_and(|error| error.starts_with("Project controller feedback unavailable:")) { self.state.error = Some("Project controller feedback unavailable: Windows xinput support or its output adapter is not available".into()); }
         while let Some(front) = self.pending.front().copied() {
             if front.due > now_nanos {
                 break;
@@ -777,7 +793,7 @@ impl Worker {
             }
             self.send_to(front.port, &front.bytes[..usize::from(front.len)]);
         }
-        for port in 0..8 {
+        for port in 0..9 {
             if !self
                 .pending
                 .iter()

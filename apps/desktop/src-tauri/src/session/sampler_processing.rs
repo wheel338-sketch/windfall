@@ -34,6 +34,12 @@ pub(super) struct PreparedSampleEdit {
 }
 
 impl SampleEditTicket {
+    /// Off-lock native bank admission. Preparation subsequently reuses this exact
+    /// parsed owner instead of rereading a changed file during publication.
+    pub(super) fn with_soundfont(mut self, asset: windfall_project::SampleInstrumentAsset, bytes: &[u8]) -> Result<Self, String> {
+        self.candidate_pool.insert_soundfont(asset, bytes)?;
+        Ok(self)
+    }
     /// Ordinary dispatch still advances its patch revision for a no-op. The
     /// explicit sampler recovery API instead preserves its document/gesture.
     pub(super) fn ordinary(mut self) -> Self {
@@ -235,9 +241,15 @@ impl Session {
             .dispatch(command.clone(), gesture)
             .map_err(|error| error.to_string())?;
         let mut candidate_pool = state.pool.clone();
+        for asset in &document.project().samples {
+            if state.document.project().sample(asset.id).is_some_and(|old| old.path != asset.path) {
+                candidate_pool.remove(asset.id);
+            }
+        }
         let mut recovered = HashSet::new();
         fn assigns(command: &Command, document: &Document, sample: SampleId) -> bool {
             match command {
+                Command::RelinkSamplePath { sample: assigned, path, .. } => *assigned == sample && document.project().sample(sample).is_some_and(|asset| asset.path == *path),
                 Command::SetChannelSample {
                     id,
                     sample: Some(assigned),
@@ -378,8 +390,15 @@ impl Session {
         &self,
         ticket: SampleEditTicket,
     ) -> Result<DispatchResult, String> {
+        self.finish_sample_edit_cancellable(ticket, &|| true)
+    }
+
+    pub(super) fn finish_sample_edit_cancellable(
+        &self, ticket: SampleEditTicket, keep_going: &dyn Fn() -> bool,
+    ) -> Result<DispatchResult, String> {
         let mut ticket = ticket;
         for attempt in 0..8 {
+            if !keep_going() { return Err("Speech rendering cancelled".into()); }
             let mut prepared = ticket.prepare()?;
             let mut retirement = None;
             #[cfg(test)]
@@ -387,6 +406,7 @@ impl Session {
             let (result, next) = {
                 let _recording = self.recording_idle()?;
                 let mut state = self.state();
+                if !keep_going() { return Err("Speech rendering cancelled".into()); }
                 let result = prepared.commit(&mut state, &mut retirement);
                 let next = if result.is_err() && attempt < 7 {
                     prepared.settled_load_retry(&state)?

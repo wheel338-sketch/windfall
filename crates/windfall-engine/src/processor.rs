@@ -216,6 +216,7 @@ impl Processor {
             captures.boundary();
         }
         self.plugin_control_boundary();
+        self.state.sweep_sample_banks(&mut self.garbage);
         self.voices.sweep(&self.plan, &mut self.garbage);
         self.clips.sweep(&self.plan, &mut self.garbage);
         self.handle_messages();

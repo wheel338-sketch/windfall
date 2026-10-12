@@ -1018,6 +1018,9 @@ pub enum Command {
     CaptureArrangementTimeline {
         id: crate::arrangement::ArrangementId,
     },
+
+    /// Relink a source without changing its sample ID or bank mapping.
+    RelinkSamplePath { sample: SampleId, expected: SamplePath, path: SamplePath },
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, TS)]

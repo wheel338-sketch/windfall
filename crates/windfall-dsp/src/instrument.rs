@@ -947,6 +947,30 @@ impl AnyInstrument {
         }
         true
     }
+    /// Moves held bank voices and owners without callback allocation or free.
+    pub fn inherit_sample_bank_state(&mut self, previous: &mut Self) -> bool {
+        match (self, previous) {
+            (Self::MultiSampler(a), Self::MultiSampler(b)) => a.inherit_bank_state(b),
+            (Self::SamplePlayer(a), Self::SamplePlayer(b)) => a.inherit_bank_state(b),
+            (Self::SoundFont(a), Self::SoundFont(b)) => a.inherit_bank_state(b),
+            (Self::PadBank(a), Self::PadBank(b)) => a.inherit_bank_state(b),
+            (Self::PianoKeys(a), Self::PianoKeys(b)) => a.inherit_bank_state(b),
+            (Self::TextVoice(a), Self::TextVoice(b)) => a.inherit_bank_state(b),
+            _ => return false,
+        }
+        true
+    }
+    pub fn take_unused_sample_bank(&mut self) -> Option<std::sync::Arc<crate::sample_bank::SampleBank>> {
+        match self {
+            Self::MultiSampler(a) => a.take_unused_bank(),
+            Self::SamplePlayer(a) => a.take_unused_bank(),
+            Self::SoundFont(a) => a.take_unused_bank(),
+            Self::PadBank(a) => a.take_unused_bank(),
+            Self::PianoKeys(a) => a.take_unused_bank(),
+            Self::TextVoice(a) => a.take_unused_bank(),
+            _ => None,
+        }
+    }
     /// Fixed-storage voice transfer when a prebuilt sample asset unit replaces
     /// its predecessor. New sources/curves are retained by the incoming unit.
     pub fn inherit_playback_state(&mut self, previous: &Self) -> bool {

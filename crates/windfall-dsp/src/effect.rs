@@ -56,6 +56,7 @@ use crate::spectral::{
 use crate::stereo_matrix::{StereoMatrix, StereoMatrixParams};
 use crate::surface::{ControlSurface, ControlSurfaceParams};
 use crate::tuner::{Tuner, TunerParams};
+use crate::music_lighting::{MusicLighting, MusicLightingParams};
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
@@ -292,10 +293,11 @@ pub enum EffectKind {
     FormulaSource,
     KeyboardSource,
     VoltageSource,
+    MusicLighting,
 }
 
 impl EffectKind {
-    pub const ALL: [EffectKind; 67] = [
+    pub const ALL: [EffectKind; 68] = [
         EffectKind::Eq,
         EffectKind::Compressor,
         EffectKind::Limiter,
@@ -363,6 +365,7 @@ impl EffectKind {
         EffectKind::FormulaSource,
         EffectKind::KeyboardSource,
         EffectKind::VoltageSource,
+        EffectKind::MusicLighting,
     ];
 
     /// The effect's name as shown to the user.
@@ -433,6 +436,7 @@ impl EffectKind {
             EffectKind::FormulaSource => FormulaSourceParams::NAME,
             EffectKind::KeyboardSource => KeyboardSourceParams::NAME,
             EffectKind::VoltageSource => VoltageSourceParams::NAME,
+            EffectKind::MusicLighting => MusicLightingParams::NAME,
             EffectKind::SendTap => SendTapParams::NAME,
             EffectKind::MasterLimiter => MasterLimiterParams::NAME,
         }
@@ -506,6 +510,7 @@ impl EffectKind {
             EffectKind::FormulaSource => FormulaSourceParams::descriptors(),
             EffectKind::KeyboardSource => KeyboardSourceParams::descriptors(),
             EffectKind::VoltageSource => VoltageSourceParams::descriptors(),
+            EffectKind::MusicLighting => MusicLightingParams::descriptors(),
             EffectKind::SendTap => SendTapParams::descriptors(),
             EffectKind::MasterLimiter => MasterLimiterParams::descriptors(),
         }
@@ -587,6 +592,7 @@ impl EffectKind {
             EffectKind::FormulaSource => 0,
             EffectKind::KeyboardSource => 0,
             EffectKind::VoltageSource => 0,
+            EffectKind::MusicLighting => 0,
             EffectKind::SendTap => 0,
             EffectKind::MasterLimiter => master_limiter_latency(sample_rate),
         }
@@ -698,6 +704,9 @@ impl EffectKind {
             EffectKind::VoltageSource => {
                 EffectParams::VoltageSource(VoltageSourceParams::default())
             }
+            EffectKind::MusicLighting => {
+                EffectParams::MusicLighting(MusicLightingParams::default())
+            }
             EffectKind::SendTap => EffectParams::SendTap(SendTapParams::default()),
             EffectKind::MasterLimiter => {
                 EffectParams::MasterLimiter(MasterLimiterParams::default())
@@ -782,6 +791,7 @@ pub enum EffectParams {
     FormulaSource(FormulaSourceParams),
     KeyboardSource(KeyboardSourceParams),
     VoltageSource(VoltageSourceParams),
+    MusicLighting(MusicLightingParams),
 }
 
 /// Runs `$body` with `$params` bound to the settings inside an
@@ -854,6 +864,7 @@ macro_rules! each_params {
             EffectParams::FormulaSource($params) => $body,
             EffectParams::KeyboardSource($params) => $body,
             EffectParams::VoltageSource($params) => $body,
+            EffectParams::MusicLighting($params) => $body,
             EffectParams::SendTap($params) => $body,
             EffectParams::MasterLimiter($params) => $body,
         }
@@ -928,6 +939,7 @@ impl EffectParams {
             EffectParams::FormulaSource(_) => EffectKind::FormulaSource,
             EffectParams::KeyboardSource(_) => EffectKind::KeyboardSource,
             EffectParams::VoltageSource(_) => EffectKind::VoltageSource,
+            EffectParams::MusicLighting(_) => EffectKind::MusicLighting,
             EffectParams::SendTap(_) => EffectKind::SendTap,
             EffectParams::MasterLimiter(_) => EffectKind::MasterLimiter,
         }
@@ -1027,6 +1039,7 @@ impl EffectParams {
                 EffectParams::KeyboardSource(params.sanitized())
             }
             EffectParams::VoltageSource(params) => EffectParams::VoltageSource(params.sanitized()),
+            EffectParams::MusicLighting(params) => EffectParams::MusicLighting(params.sanitized()),
             EffectParams::SendTap(params) => EffectParams::SendTap(params.sanitized()),
             EffectParams::MasterLimiter(params) => EffectParams::MasterLimiter(params.sanitized()),
         }
@@ -1133,6 +1146,9 @@ impl EffectParams {
             EffectParams::VoltageSource(_) => {
                 EffectKind::VoltageSource.max_latency_samples(sample_rate)
             }
+            EffectParams::MusicLighting(_) => {
+                EffectKind::MusicLighting.max_latency_samples(sample_rate)
+            }
             EffectParams::SendTap(_) => EffectKind::SendTap.max_latency_samples(sample_rate),
             EffectParams::MasterLimiter(_) => master_limiter_latency(sample_rate),
         }
@@ -1227,6 +1243,7 @@ pub enum AnyEffect {
     FormulaSource(Box<FormulaSource>),
     KeyboardSource(Box<KeyboardSource>),
     VoltageSource(Box<VoltageSource>),
+    MusicLighting(Box<MusicLighting>),
 }
 
 /// Runs `$body` with `$effect` bound to the effect inside an [`AnyEffect`].
@@ -1298,6 +1315,7 @@ macro_rules! each_effect {
             AnyEffect::FormulaSource($effect) => $body,
             AnyEffect::KeyboardSource($effect) => $body,
             AnyEffect::VoltageSource($effect) => $body,
+            AnyEffect::MusicLighting($effect) => $body,
             AnyEffect::SendTap($effect) => $body,
             AnyEffect::MasterLimiter($effect) => $body,
         }
@@ -1374,6 +1392,7 @@ impl AnyEffect {
             EffectKind::FormulaSource => AnyEffect::FormulaSource(Box::default()),
             EffectKind::KeyboardSource => AnyEffect::KeyboardSource(Box::default()),
             EffectKind::VoltageSource => AnyEffect::VoltageSource(Box::default()),
+            EffectKind::MusicLighting => AnyEffect::MusicLighting(Box::default()),
             EffectKind::SendTap => AnyEffect::SendTap(Box::default()),
             EffectKind::MasterLimiter => AnyEffect::MasterLimiter(Box::default()),
         };
@@ -1448,6 +1467,7 @@ impl AnyEffect {
             AnyEffect::FormulaSource(_) => EffectKind::FormulaSource,
             AnyEffect::KeyboardSource(_) => EffectKind::KeyboardSource,
             AnyEffect::VoltageSource(_) => EffectKind::VoltageSource,
+            AnyEffect::MusicLighting(_) => EffectKind::MusicLighting,
             AnyEffect::SendTap(_) => EffectKind::SendTap,
             AnyEffect::MasterLimiter(_) => EffectKind::MasterLimiter,
         }
@@ -1639,6 +1659,9 @@ impl AnyEffect {
                 effect.set_params(params)
             }
             (AnyEffect::VoltageSource(effect), EffectParams::VoltageSource(params)) => {
+                effect.set_params(params)
+            }
+            (AnyEffect::MusicLighting(effect), EffectParams::MusicLighting(params)) => {
                 effect.set_params(params)
             }
             (AnyEffect::SendTap(effect), EffectParams::SendTap(params)) => {

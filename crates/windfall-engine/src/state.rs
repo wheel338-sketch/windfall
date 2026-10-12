@@ -938,6 +938,14 @@ pub(crate) struct PlanState {
 }
 
 impl PlanState {
+    pub fn sweep_sample_banks(&mut self, garbage: &mut rtrb::Producer<crate::message::Garbage>) {
+        for seat in self.instruments.iter_mut().flatten() {
+            if garbage.slots() == 0 { break; }
+            if let Some(bank) = seat.unit.as_mut().and_then(InstrumentUnit::take_unused_sample_bank) {
+                crate::message::retire(garbage, crate::message::Garbage::SampleBank(bank));
+            }
+        }
+    }
     pub fn tempo(&self) -> f64 {
         self.tempo_told
     }
@@ -1786,6 +1794,11 @@ impl PlanState {
                     })
                 {
                     unit.inherit_plugin_notes(before);
+                }
+            }
+            if !channel.leaving {
+                if let (Some(unit), Some(previous)) = (&mut seat.unit, before.as_mut().and_then(|seat| seat.unit.as_mut())) {
+                    unit.inherit_sample_bank_notes(previous);
                 }
             }
             if seat.unit.is_none() {

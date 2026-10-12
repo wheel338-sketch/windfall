@@ -80,7 +80,7 @@ fn signal(seed: usize, n: usize) -> Vec<f32> {
 
 #[test]
 fn kinds_are_appended_and_have_distinct_tags_names_defaults_and_controls() {
-    assert_eq!(EffectKind::ALL.len(), 67);
+    assert_eq!(EffectKind::ALL.len(), 68);
     // Later effect families append without displacing this family's slots.
     let mut tags = std::collections::BTreeSet::new();
     for (index, kind) in EffectKind::ALL.iter().enumerate() {

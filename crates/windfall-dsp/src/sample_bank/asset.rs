@@ -46,6 +46,15 @@ pub struct SampleZone {
     pub sustain: f32,
     pub release_ms: f32,
     pub scale_tuning: f32,
+    #[serde(default)]
+    #[ts(as = "Option<u8>", optional)]
+    pub modulation_group: u8,
+    #[serde(default)]
+    #[ts(as = "Option<super::ZoneModulation>", optional)]
+    pub modulation: super::ZoneModulation,
+    #[serde(default)]
+    #[ts(as = "Option<f32>", optional)]
+    pub delay_ms: f32,
 }
 impl Default for SampleZone {
     fn default() -> Self {
@@ -72,11 +81,13 @@ impl Default for SampleZone {
             sustain: 1.0,
             release_ms: 100.0,
             scale_tuning: 100.0,
+            modulation_group: 0, modulation: super::ZoneModulation::default(), delay_ms: 0.0,
         }
     }
 }
 impl SampleZone {
     pub fn validate(&self) -> Result<(), &'static str> {
+        self.modulation.validate()?;
         if self.key_low > self.key_high
             || self.key_high > 127
             || self.root_key > 127
@@ -98,7 +109,7 @@ impl SampleZone {
         {
             return Err("zone gain, pan, tuning or sustain is invalid");
         }
-        if [self.attack_ms, self.hold_ms, self.decay_ms, self.release_ms]
+        if [self.delay_ms, self.attack_ms, self.hold_ms, self.decay_ms, self.release_ms]
             .iter()
             .any(|x| !x.is_finite() || !(0.0..=100000.0).contains(x))
         {
@@ -146,10 +157,13 @@ pub struct LoadedZone {
 pub struct SampleBank {
     zones: Box<[LoadedZone]>,
     bytes: usize,
+    // Leases are owned by the immutable bank, including unpublished work.
+    reservations: Vec<super::BankReservation>,
+    unavailable: Option<String>,
 }
 impl SampleBank {
     /// Worker/control side only. Missing sources are errors, never dropped zones.
-    pub fn new(zones: Vec<LoadedZone>) -> Result<Self, &'static str> {
+    pub fn new(mut zones: Vec<LoadedZone>) -> Result<Self, &'static str> {
         if zones.len() > MAX_BANK_ZONES {
             return Err("sample bank exceeds 256 zones");
         }
@@ -172,16 +186,35 @@ impl SampleBank {
             }
             // Conservative bound charges shared sources per zone; never undercounts.
             bytes = bytes
-                .checked_add(zone.audio.samples().len() * 4)
+                .checked_add(zone.audio.retained_pcm_bytes())
                 .ok_or("sample bank byte overflow")?;
             if bytes > MAX_BANK_BYTES {
                 return Err("sample bank exceeds 256 MiB");
             }
         }
+        let mut groups = [None; 256];
+        for zone in &mut zones {
+            let group = usize::from(zone.mapping.modulation_group);
+            if group != 0 {
+                zone.mapping.modulation = *groups[group].get_or_insert(zone.mapping.modulation);
+            }
+        }
         Ok(Self {
             zones: zones.into_boxed_slice(),
             bytes,
+            reservations: Vec::new(),
+            unavailable: None,
         })
+    }
+    /// Preserve the document's mapping when sources are absent. The bank is
+    /// silent as a whole until the worker can prepare every referenced source.
+    pub fn unavailable(reason: String) -> Self {
+        Self { zones: Box::new([]), bytes: 0, reservations: Vec::new(), unavailable: Some(reason) }
+    }
+    pub fn unavailable_reason(&self) -> Option<&str> { self.unavailable.as_deref() }
+    /// Off audio only. The reservation must be taken before preparing PCM.
+    pub fn retain_reservation(&mut self, reservation: super::BankReservation) {
+        self.reservations.push(reservation);
     }
     pub fn zones(&self) -> &[LoadedZone] {
         &self.zones

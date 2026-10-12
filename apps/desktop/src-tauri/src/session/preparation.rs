@@ -77,7 +77,11 @@ impl ProjectPreparation {
                 &self.factory_dir,
             )
             .ok_or("SoundFont reference cannot be resolved")?;
-            let bytes = super::sample_instruments::read_soundfont(&file)?;
+            if !file.exists() {
+                pool.insert_unavailable_soundfont(asset.clone(), format!("Missing SoundFont: {}; choose its replacement in the editor", file.display()));
+                continue;
+            }
+            let (bytes,_workspace) = super::sample_instruments::read_soundfont(&file, &pool.sample_bank_budget_handle())?;
             pool.insert_soundfont(asset.clone(), &bytes)?;
         }
         Ok(pool)

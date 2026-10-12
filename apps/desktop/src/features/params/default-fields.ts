@@ -14,5 +14,8 @@ export function defaultFields<Params extends object>(params: Params): Params {
   if ("type" in params && params.type === "filterBank" && !("patterns" in params)) {
     return { ...params, patterns: FILTER_PATTERNS }
   }
+  if ("type" in params && params.type === "midiOut") {
+    return { feedbackEnabled: false, feedbackController: 0, feedbackMotor: 0, feedbackStrength: 1, feedbackCurve: 1, ...params }
+  }
   return params
 }

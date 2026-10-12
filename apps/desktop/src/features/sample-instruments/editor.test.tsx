@@ -115,4 +115,77 @@ describe("sample instrument purpose-built editors",()=>{
     expect(screen.getByRole("button",{name:"Render and save source"})).toBeDisabled()
     expect(screen.getByRole("alert")).toHaveTextContent("desktop app")
   })
+  it("cancels a pending native render and leaves the recipe unchanged",async()=>{
+    let rejectRender!: (reason: Error) => void
+    backend.sampleInstrumentSpeechBegin=vi.fn().mockResolvedValue(17)
+    backend.sampleInstrumentSpeech=vi.fn().mockImplementation(()=>new Promise((_,reject)=>{rejectRender=reject}))
+    backend.sampleInstrumentSpeechCancel=vi.fn().mockImplementation(async()=>{rejectRender(new Error("Speech rendering cancelled"))})
+    const id=await open("textVoice")
+    const before=useProjectStore.getState().project.channels.find(item=>item.id===id)?.sampleInstrument
+    fireEvent.change(screen.getByRole("textbox",{name:"Text"}),{target:{value:"Hello"}})
+    fireEvent.click(screen.getByRole("button",{name:"Render and save source"}));await act(()=>settle())
+    expect(backend.sampleInstrumentSpeech).toHaveBeenCalledWith(id,null,"Hello",48,2,17)
+    fireEvent.click(screen.getByRole("button",{name:"Cancel speech rendering"}));await act(()=>settle())
+    expect(backend.sampleInstrumentSpeechCancel).toHaveBeenCalledWith(id,17)
+    expect(screen.getByRole("alert")).toHaveTextContent("cancelled")
+    expect(useProjectStore.getState().project.channels.find(item=>item.id===id)?.sampleInstrument).toEqual(before)
+    expect(screen.getByRole("button",{name:"Render and save source"})).toBeEnabled()
+  })
+
+  it("relinks a player source without replacing its bank identity",async()=>{
+    backend.sampleInstrumentMissingSources=vi.fn().mockResolvedValue([useProjectStore.getState().project.samples[0].id])
+    backend.sampleInstrumentRelinkSource=vi.fn().mockImplementation(async(_channel,_bank,sample,expected,path)=>backend.dispatch({type:"relinkSamplePath",sample,expected,path:{kind:"external",path}},null))
+    const id=await open("samplePlayer")
+    const source=useProjectStore.getState().project.samples[0]
+    const {newZone}=await import("./editor")
+    await dispatch({type:"setSampleInstrumentAsset",channel:id,expected:null,asset:{type:"zones",zones:[newZone(source.id)]}});await act(()=>settle())
+    const bank=useProjectStore.getState().project.channels.find(channel=>channel.id===id)?.sampleInstrument
+    vi.spyOn(backend,"pickAudioFile").mockResolvedValue("C:/Relink/new.wav")
+    await act(()=>settle())
+    expect(screen.getByRole("alert")).toHaveTextContent("Missing sample-bank sources")
+    fireEvent.click(screen.getByRole("button",{name:`Relink source ${source.name}`}));await act(()=>settle())
+    expect(backend.sampleInstrumentRelinkSource).toHaveBeenCalledWith(id,bank,source.id,source.path,"C:/Relink/new.wav")
+    expect(useProjectStore.getState().project.channels.find(channel=>channel.id===id)?.sampleInstrument).toEqual(bank)
+    expect(useProjectStore.getState().project.samples.find(sample=>sample.id===source.id)?.path).toEqual({kind:"external",path:"C:/Relink/new.wav"})
+    await undo();await act(()=>settle())
+    expect(useProjectStore.getState().project.samples.find(sample=>sample.id===source.id)?.path).toEqual(source.path)
+  })
+
+  it("edits grouped modulation and restores the routes with undo",async()=>{
+    const id=await open("multiSampler")
+    fireEvent.click(screen.getByRole("button",{name:"Add zone"}));await act(()=>settle())
+    const pitch=screen.getByRole("spinbutton",{name:"Zone 1 Envelope to pitch cents"})
+    fireEvent.change(pitch,{target:{value:"1200"}});fireEvent.blur(pitch);await act(()=>settle())
+    expect(useProjectStore.getState().project.channels.find(channel=>channel.id===id)?.sampleInstrument).toMatchObject({type:"zones",zones:[{modulation:{envelopePitchCents:1200}}]})
+    await undo();await act(()=>settle())
+    expect(screen.getByRole("spinbutton",{name:"Zone 1 Envelope to pitch cents"})).toHaveValue(0)
+    expect(screen.getByRole("spinbutton",{name:"Zone 1 LFO 2 to amplitude"})).toBeInTheDocument()
+  })
+
+  it("saves a project feedback route with undo without changing app MIDI preferences",async()=>{
+    const hardware=await backend.midiHardwareState()
+    vi.spyOn(backend,"midiHardwareState").mockResolvedValue({...hardware,outputs:[{id:"windfall:project-xinput-feedback",name:"Project feedback"}]})
+    const configure=vi.spyOn(backend,"midiHardwareConfigure")
+    const id=await open("midiOut")
+    fireEvent.click(screen.getByRole("button",{name:"Use project controller feedback"}));await act(()=>settle())
+    expect(useProjectStore.getState().project.channels.find(channel=>channel.id===id)?.source).toMatchObject({type:"instrument",params:{type:"midiOut",feedbackEnabled:true,feedbackController:0,feedbackMotor:0,feedbackStrength:1,feedbackCurve:1}})
+    expect(screen.getByRole("combobox",{name:"Project feedback motor"})).toBeInTheDocument()
+    expect(configure).not.toHaveBeenCalled()
+    await undo();await act(()=>settle())
+    expect(screen.getByRole("button",{name:"Use project controller feedback"})).toBeEnabled()
+  })
+
+  it("offers the GM bank equivalent and shows a native refusal without changing its destination",async()=>{
+    backend.soundfontPresets=vi.fn().mockResolvedValue([{name:"Own GM",bank:0,program:0}])
+    backend.sampleInstrumentGeneralMidi=vi.fn().mockRejectedValue(new Error("Unsupported SoundFont content"))
+    const id=await open("midiOut")
+    const before=useProjectStore.getState().project.channels.find(channel=>channel.id===id)?.source
+    fireEvent.change(screen.getByRole("textbox",{name:"General MIDI SoundFont bank"}),{target:{value:"C:/own-gm.sf2"}})
+    fireEvent.click(screen.getByRole("button",{name:"Browse GM bank presets"}));await act(()=>settle())
+    fireEvent.click(screen.getByRole("button",{name:"Use GM preset 0:0 · Own GM"}));await act(()=>settle())
+    expect(backend.sampleInstrumentGeneralMidi).toHaveBeenCalledWith(id,before,"C:/own-gm.sf2",0,0)
+    expect(screen.getByRole("alert")).toHaveTextContent("Unsupported SoundFont content")
+    expect(useProjectStore.getState().project.channels.find(channel=>channel.id===id)?.source).toEqual(before)
+  })
+
 })
