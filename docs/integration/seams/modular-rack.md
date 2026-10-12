@@ -20,8 +20,8 @@ Limits: 16 racks per project, 64 total saved nodes, 256 total saved wires,
 4 nested levels, 1024 flattened wires, 256 transit events per dispatch,
 1024 instrument-child owners and 64 generator seats per rack. Preparation
 refuses more than one second of latency or more than 16 seconds / 1,048,576
-stereo frames of compensation storage. Nested fanout needs stronger aggregate
-validation; runtime refuses excess transit events and reports the count.
+stereo frames of compensation storage. Round four adds aggregate nested fanout
+admission; concurrent live-note exhaustion is still bounded and reported.
 
 ModularRack::prepare_with_input_latency flattens and orders the immutable
 built-in topology, constructs actual DSP and fixed rings outside the callback.

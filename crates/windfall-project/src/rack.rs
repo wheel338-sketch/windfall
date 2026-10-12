@@ -42,7 +42,7 @@ pub struct RackGraph {
     pub parameters: Vec<RackParameterAddress>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
 #[ts(export)]
 pub struct RackParameterAddress {
@@ -207,16 +207,16 @@ impl RackGraph {
             retain(self, previous);
             self.parameters = previous.parameters.clone();
         }
-        fn collect(graph: &RackGraph, path: &mut Vec<u32>, out: &mut Vec<RackParameterAddress>) {
+        fn collect(graph: &RackGraph, path: &mut Vec<u32>, out: &mut Vec<RackParameterAddress>, seen: &mut std::collections::HashSet<RackParameterAddress>) {
             for node in &graph.nodes {
                 path.push(node.id);
                 match &node.processor {
-                    RackProcessor::Rack { graph } => collect(graph, path, out),
+                    RackProcessor::Rack { graph } => collect(graph, path, out, seen),
                     RackProcessor::Note { module } => {
                         let mut parameter = 0;
                         while module.parameter_info(parameter).is_some() {
                             let address = RackParameterAddress { path: path.clone(), kind: module.kind_id().into(), parameter: parameter as u32 };
-                            if !out.contains(&address) { out.push(address); }
+                            if seen.insert(address.clone()) { out.push(address); }
                             parameter += 1;
                         }
                     }
@@ -226,7 +226,8 @@ impl RackGraph {
             }
         }
         let mut addresses = self.parameters.clone();
-        collect(self, &mut Vec::new(), &mut addresses);
+        let mut seen = addresses.iter().cloned().collect();
+        collect(self, &mut Vec::new(), &mut addresses, &mut seen);
         if addresses.len() > MAX_RACK_PARAMETERS { return Err("Rack parameter address history exceeds 16384 entries; create a new rack".into()); }
         self.parameters = addresses;
         Ok(())
