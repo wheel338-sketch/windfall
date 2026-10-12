@@ -146,8 +146,10 @@ pub fn source(project: &Project, id: u32) -> Option<(crate::TrackId, SourceOwner
         }
     }
     let channel = project.channel(ChannelId(id))?;
-    if let crate::ChannelSource::Instrument(windfall_dsp::InstrumentParams::Dashboard(params)) =
-        &channel.source
+    if let crate::ChannelSource::Instrument {
+        params: windfall_dsp::InstrumentParams::Dashboard(params),
+        ..
+    } = &channel.source
     {
         Some((channel.mixer_track, SourceOwner::Dashboard(params)))
     } else {
@@ -330,7 +332,10 @@ pub fn links_problem(project: &Project, links: &[ControllerLink]) -> Option<Stri
             .filter(|c| {
                 matches!(
                     c.source,
-                    crate::ChannelSource::Instrument(windfall_dsp::InstrumentParams::Dashboard(_))
+                    crate::ChannelSource::Instrument {
+                        params: windfall_dsp::InstrumentParams::Dashboard(_),
+                        ..
+                    }
                 )
             })
             .count();

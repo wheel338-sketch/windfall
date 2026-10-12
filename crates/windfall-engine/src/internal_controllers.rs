@@ -18,7 +18,7 @@ use windfall_project::{
     Project,
 };
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub(crate) struct Source {
     pub id: EffectId,
     pub track: usize,
@@ -28,6 +28,7 @@ pub(crate) struct Source {
     pub params: EffectParams,
 }
 
+#[derive(Clone)]
 pub(crate) struct Link {
     source: usize,
     output: usize,
