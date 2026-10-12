@@ -211,10 +211,15 @@ impl Mixer {
         for wave in plan.waves.ranges() {
             let parallel = wave.len() > 1
                 && state.workers.count() > 1
-                && logger.is_none()
                 && plan.control_sources.is_empty()
                 && plan.order[wave.clone()].iter().all(|&index| {
                     !plan.tracks[index].current
+                        && logger.as_ref().is_none_or(|logger| {
+                            !plan.tracks[index]
+                                .effects
+                                .iter()
+                                .any(|effect| logger.logs_effect(effect.id))
+                        })
                         && !plan.tracks[index].tapped
                         && state.chains[index]
                             .iter()

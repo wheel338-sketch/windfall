@@ -2254,6 +2254,61 @@ mod tests {
     }
 
     #[test]
+    fn master_and_track_background_logging_preserve_parallel_effect_execution() {
+        let (mut processor, controller) = Processor::new(48_000);
+        let project = parallel_project();
+        controller.set_audio_threads(Some(4)).unwrap();
+        controller.set_project(&project, &crate::pool::SamplePool::new());
+        processor.process(&mut []);
+        let track = project.mixer.tracks[1].id;
+        let logger = controller
+            .start_audio_logger(&crate::audio_logger::LoggerSpec {
+                seconds: 30,
+                master: true,
+                tracks: vec![track],
+                effects: Vec::new(),
+                worker: false,
+            })
+            .unwrap();
+        processor.process(&mut []);
+        processor
+            .state
+            .workers
+            .begin(std::time::Instant::now(), 64, 48_000);
+        processor.mixer.clear(processor.plan.tracks.len(), 64);
+        processor.mixer.track_mut(1)[..64].fill([0.5, 0.25]);
+        let mut output = [[0.0; 2]; 64];
+        let before = processor.state.workers.executed_jobs();
+        assert_eq!(
+            crate::test_alloc::allocator_calls(|| {
+                processor.mixer.mix(
+                    &processor.plan,
+                    &mut processor.state,
+                    &processor.shared,
+                    0,
+                    &mut output,
+                    crate::mixer::CaptureSinks {
+                        disk: &mut [],
+                        logger: &mut processor.audio_logger,
+                    },
+                );
+            }),
+            0
+        );
+        assert!(
+            processor.state.workers.executed_jobs() > before,
+            "default logging must not serialize independent mixer effects"
+        );
+        logger.pump();
+        let captured = logger
+            .tail(windfall_ipc::AudioLoggerSource::Track { track }, None)
+            .unwrap();
+        assert_eq!(captured.samples.len(), 128);
+        assert!(captured.samples.iter().any(|sample| sample.abs() > 0.001));
+        assert!(output.iter().any(|frame| frame[0].abs() > 0.001));
+    }
+
+    #[test]
     fn stale_hardware_notes_preserve_stopped_automation_hold() {
         let (mut processor, controller) = Processor::new(48_000);
         processor.hold = Some(Place::Song(960.0));
