@@ -4,9 +4,81 @@ mod common;
 use std::time::{Duration, Instant};
 use windfall_plugin_host::{EditorError, EditorOptions, PluginNotification, gui};
 use windows_sys::Win32::UI::WindowsAndMessaging::{
-    GetParent, IsWindow, IsWindowVisible, PostMessageW, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOZORDER,
-    SetWindowPos, WM_CLOSE,
+    GetParent, GetWindowRect, IsWindow, IsWindowVisible, PostMessageW, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOZORDER,
+    SendMessageW, SetWindowPos, WM_CLOSE, WM_DPICHANGED,
 };
+
+fn monitor_transition(instance: &mut windfall_plugin_host::PluginInstance, dpi: u32) -> Vec<PluginNotification> {
+    let hwnd = instance.editor().unwrap().window.unwrap() as *mut std::ffi::c_void;
+    let mut rect = windows_sys::Win32::Foundation::RECT { left: 0, top: 0, right: 0, bottom: 0 };
+    // SAFETY: the editor and synchronous RECT belong to this test's GUI thread.
+    unsafe {
+        assert_ne!(GetWindowRect(hwnd, &mut rect), 0);
+        SendMessageW(hwnd, WM_DPICHANGED, (dpi | (dpi << 16)) as usize, (&rect as *const _) as isize);
+    }
+    common::idle(instance)
+}
+
+#[test]
+fn live_monitor_dpi_scales_clap_content_once_and_reports_refusal_without_closing() {
+    let (_module, mut instance) = common::create(common::GAIN);
+    instance.open_editor(&EditorOptions { take_focus: false, ..Default::default() }).unwrap();
+    // Drain the fixture's one autonomous resize before the monitor matrix.
+    let deadline = Instant::now() + Duration::from_millis(90);
+    while Instant::now() < deadline { gui::pump_events(Some(Duration::from_millis(8))); common::idle(&mut instance); }
+    instance.set_editor_scale(1.25).unwrap();
+    let window = instance.editor().unwrap().window;
+    for dpi in [96, 144, 192, 120, 96] {
+        let notifications = monitor_transition(&mut instance, dpi);
+        // Fixture's authored 320 x 200 editor snaps to its 20-pixel grid.
+        let factor = 1.25 * f64::from(dpi) / 96.0;
+        let width = ((320.0 * factor).round() as u32 / 20 * 20).max(160);
+        let height = ((200.0 * factor).round() as u32 / 20 * 20).max(100);
+        let editor = instance.editor().unwrap();
+        assert_eq!((editor.width, editor.height), (width, height));
+        assert_eq!(editor.window, window);
+        assert!(notifications.contains(&PluginNotification::EditorResized { width, height }));
+        assert!(!notifications.iter().any(|event| matches!(event, PluginNotification::EditorScaleRefused { .. })));
+    }
+    let before = instance.editor();
+    assert!(instance.set_param(common::gain::MODE, 1.0));
+    let notifications = monitor_transition(&mut instance, 192);
+    assert_eq!(instance.editor(), before);
+    assert!(notifications.contains(&PluginNotification::EditorScaleRefused { application: 1.25, monitor: 2.0 }));
+    assert!(instance.set_param(common::gain::MODE, 0.0));
+    monitor_transition(&mut instance, 144);
+    assert_eq!(instance.editor().unwrap().width, 600);
+    instance.close_editor();
+}
+
+#[test]
+fn joined_vst3_fixture_monitor_scaling_preserves_the_real_view_and_native_owner() {
+    let (_owner_module, mut owner) = common::create(common::GAIN);
+    let owner_window = owner.open_editor(&EditorOptions { take_focus: false, ..Default::default() }).unwrap().window.unwrap();
+    let path = common::plugin_file("r4-editor-vst3", "fixture.vst3");
+    let module = windfall_plugin_host::PluginHost::windfall().load(&path).unwrap();
+    let mut instance = module.create(&module.descriptors()[0].id).unwrap();
+    // Class 0's real IPlugView is supplied by the round-four hosting worker.
+    instance.open_editor(&EditorOptions { take_focus: false, detached: false, owner_window: Some(owner_window), ..Default::default() }).unwrap();
+    let window = instance.editor().unwrap().window.unwrap();
+    monitor_transition(&mut instance, 96);
+    let baseline = instance.set_editor_scale(1.0).unwrap();
+    instance.set_editor_scale(1.25).unwrap();
+    for dpi in [144, 192, 120, 96] {
+        let events = monitor_transition(&mut instance, dpi);
+        let info = instance.editor().unwrap();
+        let factor = 1.25 * f64::from(dpi) / 96.0;
+        assert_eq!(info.window, Some(window));
+        assert_eq!(info.width, (f64::from(baseline.width) * factor).round() as u32);
+        assert_eq!(info.height, (f64::from(baseline.height) * factor).round() as u32);
+        assert!(events.contains(&PluginNotification::EditorResized { width: info.width, height: info.height }));
+        // SAFETY: live native host HWND, on its GUI owner thread.
+        assert_eq!(unsafe { GetParent(window as *mut std::ffi::c_void) } as usize, owner_window);
+    }
+    instance.close_editor();
+    assert_eq!(unsafe { IsWindow(window as *mut std::ffi::c_void) }, 0);
+    owner.close_editor();
+}
 
 #[test]
 fn native_content_scale_resizes_restores_reopens_and_keeps_refused_editor_alive() {

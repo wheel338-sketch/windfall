@@ -1,6 +1,23 @@
 import type { MessageKey } from "./types"
 
 export const actionMessages: Record<string, MessageKey> = {
+  "edit.selectAll": "Select all",
+  "edit.delete": "Delete",
+  "edit.duplicate": "Duplicate",
+  "edit.paste": "Paste",
+  "edit.copy": "Copy",
+  "edit.cut": "Cut",
+  "options.settings": "Settings…",
+  "view.commandPalette": "Command palette…",
+  "pattern.rename": "Rename pattern…",
+  "file.export": "Export audio…",
+  "file.archive": "Export portable project archive…",
+  "file.saveAs": "Save as…",
+  "file.importFlp": "Import FL Studio project…",
+  "file.open": "Open project…",
+  "audioLogger.open": "Audio logger…",
+  "file.exportMidi": "Export MIDI…",
+  "file.importMidi": "Import MIDI…",
   "recording.open": "Record audio input",
   "recording.start": "Start recording",
   "recording.stop": "Stop recording and keep take",

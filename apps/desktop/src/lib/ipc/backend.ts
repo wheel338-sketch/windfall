@@ -42,6 +42,8 @@ import type { MixerPresetLibraryBackend } from "./mixer-presets"
 import type { RemoteContentBackend } from "./remote-content"
 
 export type Unsubscribe = () => void
+/** Runtime correlation envelope, never saved in a project or export preset. */
+export type ExportRequestProgress = ExportProgress & { request?: string }
 
 /**
  * `AudioSettings` as the shell sends it back. Rust writes an unset field as
@@ -213,6 +215,7 @@ export interface Backend extends AnalysisBackend, MixerPresetLibraryBackend, Ana
   pluginsAdd(path: string, id: string, track?: TrackId): Promise<DispatchResult>
   pluginEditor(target: PluginTarget, open: boolean): Promise<void>
   pluginEditorScale(application: number): Promise<void>
+  onWindowScale?(handler: () => void): Unsubscribe
 
   documentSnapshot(): Promise<DocumentSnapshot>
   proposalStamp(): Promise<import("@/bindings").ProposalStamp>
@@ -407,7 +410,7 @@ export interface Backend extends AnalysisBackend, MixerPresetLibraryBackend, Ana
   samplesReload(): Promise<number>
 
   /** Returns at once. Progress arrives through `onExportProgress`. */
-  exportAudio(options: ExportOptions): Promise<void>
+  exportAudio(options: ExportOptions, request?: string): Promise<void>
   /**
    * Like `exportAudio`, with one file for each playlist track: the song
    * with only that track's pattern and audio clips placed, heard at the
@@ -415,7 +418,8 @@ export interface Backend extends AnalysisBackend, MixerPresetLibraryBackend, Ana
    */
   exportPlaylistTracks(
     options: ExportOptions,
-    stems: import("@/bindings").ExportPlaylistStems
+    stems: import("@/bindings").ExportPlaylistStems,
+    request?: string
   ): Promise<void>
   /** Stops the active export; its last progress event acknowledges cancellation. */
   exportCancel(): Promise<void>
@@ -424,7 +428,7 @@ export interface Backend extends AnalysisBackend, MixerPresetLibraryBackend, Ana
   onProjectLoaded(handler: (snapshot: DocumentSnapshot) => void): Unsubscribe
   onTransportState(handler: (state: TransportState) => void): Unsubscribe
   onEngineStatus(handler: (status: EngineStatus) => void): Unsubscribe
-  onExportProgress(handler: (progress: ExportProgress) => void): Unsubscribe
+  onExportProgress(handler: (progress: ExportRequestProgress) => void): Unsubscribe
   /** Notes a MIDI input played into the audition destination. */
   onMidiHardwareNote(
     handler: (note: import("@/bindings").MidiHardwareNote) => void

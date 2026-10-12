@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type FormEvent } from "react"
+import { useCallback, useEffect, useRef, useState, type FormEvent } from "react"
 import { toast } from "sonner"
 
 import type { ExportOptions, ExportPlaylistStems, MasteringReview, PlayMode } from "@/bindings"
@@ -48,6 +48,7 @@ import {
   type MasteringDraft,
 } from "./mastering"
 import { useMixerRender } from "./mixer-render"
+import { beginExportRequest, failExportRequest, receiveExportRequest, setExportIntent, useExportRequestStore } from "./requests"
 
 import {
   cleanExportPath,
@@ -123,6 +124,8 @@ function ExportForm({ onDone }: { onDone(): void }) {
   // The path the running export was started with, which is the name its
   // progress arrives under.
   const sent = useRef<ExportOptions | null>(null)
+  const sentRequest = useRef<string | null>(null)
+  const requestOwner = useRef<string | null>(null)
 
   const set = <K extends keyof Draft>(key: K, value: Draft[K]) =>
     setDraft((current) => ({ ...current, [key]: value }))
@@ -163,7 +166,8 @@ function ExportForm({ onDone }: { onDone(): void }) {
     () =>
       backend.onExportProgress((progress) => {
         const options = sent.current
-        if (progress.path !== options?.path) return
+        if (progress.path !== options?.path || progress.request !== sentRequest.current) return
+        receiveExportRequest(progress)
         if (progress.error !== null) {
           setRun({ fraction: progress.fraction, error: progress.error })
         } else if (progress.done) {
@@ -251,6 +255,10 @@ function ExportForm({ onDone }: { onDone(): void }) {
     // The field shows the name the file gets.
     set("path", path)
     sent.current = options
+    const intent = useExportRequestStore.getState().intent
+    if (intent !== null) requestOwner.current = intent
+    const request = beginExportRequest(path, requestOwner.current)
+    sentRequest.current = request
     sentPlaylist.current = playlistStems !== undefined
     setCancelling(false)
     setReview(null)
@@ -272,9 +280,10 @@ function ExportForm({ onDone }: { onDone(): void }) {
         options.regionRevision = source.revision
       }
       if (playlistStems)
-        await backend.exportPlaylistTracks(options, { ...playlistStems })
-      else await backend.exportAudio(options)
+        await backend.exportPlaylistTracks(options, { ...playlistStems }, request)
+      else await backend.exportAudio(options, request)
     } catch (error) {
+      failExportRequest(request, errorMessage(error))
       setRun({ fraction: 0, error: errorMessage(error) })
     }
   }
@@ -492,12 +501,13 @@ function ExportForm({ onDone }: { onDone(): void }) {
 export function ExportDialog() {
   const open = useUiStore((state) => state.dialog === "export")
   const closeDialog = useUiStore((state) => state.closeDialog)
+  const close = useCallback(() => { setExportIntent(null); closeDialog() }, [closeDialog])
 
   return (
     <Dialog
       open={open}
       onOpenChange={(next) => {
-        if (!next) closeDialog()
+        if (!next) close()
       }}
     >
       <DialogContent className="max-h-[calc(100dvh-4rem)] overflow-y-auto sm:max-w-lg">
@@ -508,7 +518,7 @@ export function ExportDialog() {
             tracks, or as one file for each playlist track.
           </DialogDescription>
         </DialogHeader>
-        <ExportForm onDone={closeDialog} />
+        <ExportForm onDone={close} />
       </DialogContent>
     </Dialog>
   )

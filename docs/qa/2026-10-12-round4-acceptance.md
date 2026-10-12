@@ -17,6 +17,8 @@
 - Read rack hand-off; branch 9 staged without textual conflicts. Hosted/asset-bearing rack nodes and internal-controller Tempo remain explicit software omissions. Workspace check pending.
 - Branch 9 merged at `20f2d365`; final workspace offline all-target check exits 0, zero errors/warnings, 1.91 s (`target/round4-branch09-check-repair1.log`). Added legacy-empty rack parameter registry to the scripted PCM fixture; existing assertions retained. Initial failed check retained.
 - Read performance/video hand-off; branch 10 codec registration conflict retains both WavPack and video audio. Source diff preserves builder launch/partition ordering. Workspace check pending.
+- Branch 10 merged at `f8847faf`; final workspace offline all-target check exits 0, zero errors/warnings, 11.71 s (`target/round4-branch10-check-repair2.log`). Added original source_length for clip-backed pad plans and empty video maps to SamplePool default. First repair mistakenly used clone receivers in Default; corrected, failed logs retained. No assertions changed.
+- Read shell hand-off; branch 11 retains speech request and video revision guards with window caller envelope, all script/editor endpoints, translated video picker including AVI. Added first-statement caller leases to preceding branches' new custom IPC, preserving typed Result refusals. Shutdown/signature/download bounding, full translation and non-Windows GUI remain explicitly partial. Workspace check pending.
 
 ## Final gates
 

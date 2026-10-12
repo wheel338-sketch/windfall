@@ -23,7 +23,7 @@ export const TUTORIALS: Record<TutorialKind, { title: string; steps: TutorialSte
   ] },
   record: { title: "Record audio", steps: [
     { title: "Record audio input", instruction: "Open recording and choose a real input device. Browser mode reports its native limitation.", action: "recording.open", complete: (e) => e.recordingOpen && e.inputs > 0 },
-    { title: "Start recording", instruction: "Select the input channels, timing and destination, then start recording.", action: "recording.start", complete: (e) => e.recording },
+    { title: "Start recording", instruction: "Select the input channels, timing and destination, then start recording.", action: "recording.start", complete: (e) => e.recording || audioAdded(e) },
     { title: "Stop recording and keep take", instruction: "Stop and keep the take. Completion requires a new audio clip in the playlist.", action: "recording.stop", complete: audioAdded },
   ] },
   import: { title: "Import audio", steps: [

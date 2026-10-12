@@ -50,7 +50,11 @@ pub async fn preset_capture_channel(
     id: ChannelId,
     generation: u64,
     revision: u64,
+    window: tauri::WebviewWindow,
+    caller: crate::window_calls::WindowCaller,
 ) -> Result<PresetCapture, String> {
+    let _window_call = caller.enter(&window, "preset_capture_channel")?;
+
     let session = session.inner().clone();
     blocking(move || session.preset_capture_channel(id, generation, revision)).await
 }
@@ -61,7 +65,11 @@ pub async fn preset_capture_plugin(
     target: PluginTarget,
     generation: u64,
     revision: u64,
+    window: tauri::WebviewWindow,
+    caller: crate::window_calls::WindowCaller,
 ) -> Result<PresetCapture, String> {
+    let _window_call = caller.enter(&window, "preset_capture_plugin")?;
+
     let session = session.inner().clone();
     blocking(move || session.preset_capture_plugin(target, generation, revision)).await
 }
@@ -71,7 +79,11 @@ pub async fn preset_write(
     session: State<'_, Session>,
     path: String,
     capture: PresetCapture,
+    window: tauri::WebviewWindow,
+    caller: crate::window_calls::WindowCaller,
 ) -> Result<String, String> {
+    let _window_call = caller.enter(&window, "preset_write")?;
+
     let session = session.inner().clone();
     blocking(move || session.preset_write(&path, capture)).await
 }
@@ -80,7 +92,11 @@ pub async fn preset_write(
 pub async fn preset_read(
     session: State<'_, Session>,
     path: String,
+    window: tauri::WebviewWindow,
+    caller: crate::window_calls::WindowCaller,
 ) -> Result<PresetReview, String> {
+    let _window_call = caller.enter(&window, "preset_read")?;
+
     let session = session.inner().clone();
     blocking(move || session.preset_read(&path)).await
 }
@@ -99,7 +115,10 @@ pub async fn preset_apply_channel(
     without_audio: bool,
     generation: u64,
     revision: u64,
+    window: tauri::WebviewWindow,
+    caller: crate::window_calls::WindowCaller,
 ) -> Result<DispatchResult, String> {
+    let _window_call = caller.enter(&window, "preset_apply_channel")?;
     let session = session.inner().clone();
     blocking(move || {
         session.preset_apply_channel_guarded(
@@ -115,7 +134,12 @@ pub async fn preset_apply_channel(
 }
 
 #[tauri::command]
-pub async fn preset_library(session: State<'_, Session>) -> Result<Vec<PresetEntry>, String> {
+pub async fn preset_library(session: State<'_, Session>,
+    window: tauri::WebviewWindow,
+    caller: crate::window_calls::WindowCaller,
+) -> Result<Vec<PresetEntry>, String> {
+    let _window_call = caller.enter(&window, "preset_library")?;
+
     let session = session.inner().clone();
     blocking(move || session.preset_library()).await
 }
@@ -125,7 +149,11 @@ pub async fn preset_library_save(
     session: State<'_, Session>,
     name: String,
     capture: PresetCapture,
+    window: tauri::WebviewWindow,
+    caller: crate::window_calls::WindowCaller,
 ) -> Result<PresetEntry, String> {
+    let _window_call = caller.enter(&window, "preset_library_save")?;
+
     let session = session.inner().clone();
     blocking(move || session.preset_library_save(&name, capture)).await
 }
@@ -134,7 +162,11 @@ pub async fn preset_library_save(
 pub async fn preset_library_delete(
     session: State<'_, Session>,
     path: String,
+    window: tauri::WebviewWindow,
+    caller: crate::window_calls::WindowCaller,
 ) -> Result<(), String> {
+    let _window_call = caller.enter(&window, "preset_library_delete")?;
+
     let session = session.inner().clone();
     blocking(move || session.preset_library_delete(&path)).await
 }
@@ -144,19 +176,33 @@ pub async fn score_write(
     session: State<'_, Session>,
     path: String,
     score: Score,
+    window: tauri::WebviewWindow,
+    caller: crate::window_calls::WindowCaller,
 ) -> Result<ScoreWritten, String> {
+    let _window_call = caller.enter(&window, "score_write")?;
+
     let session = session.inner().clone();
     blocking(move || session.score_write(&path, score)).await
 }
 
 #[tauri::command]
-pub async fn score_read(session: State<'_, Session>, path: String) -> Result<ScoreReview, String> {
+pub async fn score_read(session: State<'_, Session>, path: String,
+    window: tauri::WebviewWindow,
+    caller: crate::window_calls::WindowCaller,
+) -> Result<ScoreReview, String> {
+    let _window_call = caller.enter(&window, "score_read")?;
+
     let session = session.inner().clone();
     blocking(move || session.score_read(&path)).await
 }
 
 #[tauri::command]
-pub async fn templates(session: State<'_, Session>) -> Result<Vec<TemplateInfo>, String> {
+pub async fn templates(session: State<'_, Session>,
+    window: tauri::WebviewWindow,
+    caller: crate::window_calls::WindowCaller,
+) -> Result<Vec<TemplateInfo>, String> {
+    let _window_call = caller.enter(&window, "templates")?;
+
     let session = session.inner().clone();
     blocking(move || session.templates()).await
 }
@@ -165,7 +211,11 @@ pub async fn templates(session: State<'_, Session>) -> Result<Vec<TemplateInfo>,
 pub async fn template_save(
     session: State<'_, Session>,
     name: String,
+    window: tauri::WebviewWindow,
+    caller: crate::window_calls::WindowCaller,
 ) -> Result<TemplateInfo, String> {
+    let _window_call = caller.enter(&window, "template_save")?;
+
     let session = session.inner().clone();
     blocking(move || session.template_save(&name)).await
 }
@@ -174,13 +224,22 @@ pub async fn template_save(
 pub async fn template_new(
     session: State<'_, Session>,
     id: String,
+    window: tauri::WebviewWindow,
+    caller: crate::window_calls::WindowCaller,
 ) -> Result<DocumentSnapshot, String> {
+    let _window_call = caller.enter(&window, "template_new")?;
+
     let session = session.inner().clone();
     blocking(move || session.template_new(&id)).await
 }
 
 #[tauri::command]
-pub async fn template_delete(session: State<'_, Session>, id: String) -> Result<(), String> {
+pub async fn template_delete(session: State<'_, Session>, id: String,
+    window: tauri::WebviewWindow,
+    caller: crate::window_calls::WindowCaller,
+) -> Result<(), String> {
+    let _window_call = caller.enter(&window, "template_delete")?;
+
     let session = session.inner().clone();
     blocking(move || session.template_delete(&id)).await
 }
@@ -189,7 +248,11 @@ pub async fn template_delete(session: State<'_, Session>, id: String) -> Result<
 pub async fn plugin_database(
     app: AppHandle,
     database: State<'_, Arc<PluginDatabaseStore>>,
+    window: tauri::WebviewWindow,
+    caller: crate::window_calls::WindowCaller,
 ) -> Result<PluginDatabaseView, String> {
+    let _window_call = caller.enter(&window, "plugin_database")?;
+
     let database = database.inner().clone();
     blocking(move || Ok(database.view(&scan_state(&app)))).await
 }
@@ -201,7 +264,11 @@ pub async fn plugin_database_annotate(
     format: String,
     id: String,
     annotation: PluginAnnotation,
+    window: tauri::WebviewWindow,
+    caller: crate::window_calls::WindowCaller,
 ) -> Result<PluginDatabaseView, String> {
+    let _window_call = caller.enter(&window, "plugin_database_annotate")?;
+
     let database = database.inner().clone();
     blocking(move || database.annotate(&format, &id, annotation, &scan_state(&app))).await
 }
@@ -210,7 +277,11 @@ pub async fn plugin_database_annotate(
 pub async fn plugin_database_forget_missing(
     app: AppHandle,
     database: State<'_, Arc<PluginDatabaseStore>>,
+    window: tauri::WebviewWindow,
+    caller: crate::window_calls::WindowCaller,
 ) -> Result<PluginDatabaseView, String> {
+    let _window_call = caller.enter(&window, "plugin_database_forget_missing")?;
+
     let database = database.inner().clone();
     blocking(move || database.forget_missing(&scan_state(&app))).await
 }
@@ -222,7 +293,11 @@ pub async fn plugins_remove_folder(
     app: AppHandle,
     session: State<'_, Session>,
     folder: String,
+    window: tauri::WebviewWindow,
+    caller: crate::window_calls::WindowCaller,
 ) -> Result<(), String> {
+    let _window_call = caller.enter(&window, "plugins_remove_folder")?;
+
     let manager = manager(&app)?;
     let session = session.inner().clone();
     blocking(move || {
@@ -241,7 +316,11 @@ pub async fn plugins_rescan(
     app: AppHandle,
     session: State<'_, Session>,
     everything: bool,
+    window: tauri::WebviewWindow,
+    caller: crate::window_calls::WindowCaller,
 ) -> Result<(), String> {
+    let _window_call = caller.enter(&window, "plugins_rescan")?;
+
     let manager = manager(&app)?;
     let session = session.inner().clone();
     let from = if everything {
@@ -252,6 +331,8 @@ pub async fn plugins_rescan(
     blocking(move || session.while_recording_idle(|| manager.rescan(from))).await
 }
 
+// Tauri wire arguments include native caller identity; domain methods stay unchanged.
+#[allow(clippy::too_many_arguments)]
 #[tauri::command]
 pub async fn score_capture(
     session: State<'_, Session>,
@@ -260,10 +341,16 @@ pub async fn score_capture(
     only: Option<Vec<windfall_project::NoteId>>,
     generation: u64,
     revision: u64,
+    window: tauri::WebviewWindow,
+    caller: crate::window_calls::WindowCaller,
 ) -> Result<Score, String> {
+    let _window_call = caller.enter(&window, "score_capture")?;
+
     let session = session.inner().clone();
     blocking(move || session.score_capture(pattern, channel, only, generation, revision)).await
 }
+// Tauri wire arguments include native caller identity; domain methods stay unchanged.
+#[allow(clippy::too_many_arguments)]
 #[tauri::command]
 pub async fn score_apply(
     session: State<'_, Session>,
@@ -273,7 +360,11 @@ pub async fn score_apply(
     mode: windfall_project::ScoreLoadMode,
     generation: u64,
     revision: u64,
+    window: tauri::WebviewWindow,
+    caller: crate::window_calls::WindowCaller,
 ) -> Result<DispatchResult, String> {
+    let _window_call = caller.enter(&window, "score_apply")?;
+
     let session = session.inner().clone();
     blocking(move || session.score_apply(score, pattern, channel, mode, generation, revision)).await
 }
@@ -285,7 +376,11 @@ pub async fn preset_apply_plugin(
     target: PluginTarget,
     generation: u64,
     revision: u64,
+    window: tauri::WebviewWindow,
+    caller: crate::window_calls::WindowCaller,
 ) -> Result<DispatchResult, String> {
+    let _window_call = caller.enter(&window, "preset_apply_plugin")?;
+
     let session = session.inner().clone();
     blocking(move || session.preset_apply_plugin(&path, target, generation, revision)).await
 }
@@ -303,7 +398,10 @@ pub async fn plugins_insert(
     track: Option<windfall_project::TrackId>,
     generation: u64,
     revision: u64,
+    window: tauri::WebviewWindow,
+    caller: crate::window_calls::WindowCaller,
 ) -> Result<DispatchResult, String> {
+    let _window_call = caller.enter(&window, "plugins_insert")?;
     let manager = manager(&app)?;
     let session = session.inner().clone();
     blocking(move || {

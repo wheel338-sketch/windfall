@@ -2,6 +2,7 @@ import { useEffect, useLayoutEffect } from "react"
 
 import { useUiStore } from "@/lib/store/ui"
 import { applyUiScale } from "@/lib/ui-scale"
+import { backend } from "@/lib/ipc"
 
 /** One scale for the app, detached panel views, showcases and all portals. */
 export function useApplicationScale() {
@@ -18,7 +19,8 @@ export function useApplicationScale() {
   useLayoutEffect(() => {
     const apply = () => applyUiScale(scale)
     apply()
+    const stopMonitor = backend.onWindowScale?.(apply)
     window.addEventListener("resize", apply)
-    return () => window.removeEventListener("resize", apply)
+    return () => { stopMonitor?.(); window.removeEventListener("resize", apply) }
   }, [scale])
 }

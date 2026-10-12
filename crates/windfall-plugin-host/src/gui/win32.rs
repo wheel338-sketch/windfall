@@ -17,14 +17,14 @@ use std::time::Duration;
 use windows_sys::Win32::Foundation::{HWND, LPARAM, LRESULT, RECT, WPARAM};
 use windows_sys::Win32::Graphics::Gdi::{BLACK_BRUSH, GetStockObject, HBRUSH};
 use windows_sys::Win32::System::LibraryLoader::GetModuleHandleW;
-use windows_sys::Win32::UI::HiDpi::{GetDpiForSystem, GetDpiForWindow};
+use windows_sys::Win32::UI::HiDpi::{AdjustWindowRectExForDpi, GetDpiForSystem, GetDpiForWindow};
 use windows_sys::Win32::UI::WindowsAndMessaging::{
-    AdjustWindowRectEx, CREATESTRUCTW, CW_USEDEFAULT, CreateWindowExW, DefWindowProcW,
+    CREATESTRUCTW, CW_USEDEFAULT, CreateWindowExW, DefWindowProcW,
     DestroyWindow, DispatchMessageW, GWLP_HWNDPARENT, GWLP_USERDATA, GetWindowLongPtrW, IDC_ARROW,
     IsWindow, LoadCursorW, MSG, MsgWaitForMultipleObjects, PM_REMOVE, PeekMessageW, QS_ALLINPUT,
     RegisterClassExW, SIZE_MINIMIZED, SW_SHOW, SW_SHOWNOACTIVATE, SWP_NOACTIVATE, SWP_NOMOVE,
     SWP_NOZORDER, SetWindowLongPtrW, SetWindowPos, ShowWindow, TranslateMessage, WM_CLOSE,
-    WM_NCCREATE, WM_SIZE, WM_SIZING, WMSZ_BOTTOMLEFT, WMSZ_LEFT, WMSZ_TOP, WMSZ_TOPLEFT,
+    WM_DPICHANGED, WM_NCCREATE, WM_SIZE, WM_SIZING, WMSZ_BOTTOMLEFT, WMSZ_LEFT, WMSZ_TOP, WMSZ_TOPLEFT,
     WMSZ_TOPRIGHT, WNDCLASSEXW, WS_CAPTION, WS_CLIPCHILDREN, WS_MAXIMIZEBOX, WS_MINIMIZEBOX,
     WS_OVERLAPPED, WS_SYSMENU, WS_THICKFRAME,
 };
@@ -48,6 +48,8 @@ struct WindowState {
     /// told about a size it asked for.
     quiet: Cell<bool>,
     style: u32,
+    monitor_scale: Cell<f64>,
+    pending_scale: Cell<Option<f64>>,
 }
 
 /// A top-level window for one plugin editor. It is destroyed when dropped,
@@ -87,7 +89,7 @@ fn register_class() -> bool {
 }
 
 /// The size of the whole window whose content area is `width` by `height`.
-fn outer_size(style: u32, width: u32, height: u32) -> (i32, i32) {
+fn outer_size(style: u32, width: u32, height: u32, monitor: f64) -> (i32, i32) {
     let mut rect = RECT {
         left: 0,
         top: 0,
@@ -95,7 +97,7 @@ fn outer_size(style: u32, width: u32, height: u32) -> (i32, i32) {
         bottom: height as i32,
     };
     // SAFETY: `rect` is a live RECT the call reads and writes.
-    unsafe { AdjustWindowRectEx(&mut rect, style, 0, 0) };
+    unsafe { AdjustWindowRectExForDpi(&mut rect, style, 0, 0, (monitor * 96.0).round() as u32) };
     (rect.right - rect.left, rect.bottom - rect.top)
 }
 
@@ -122,9 +124,11 @@ impl HostWindow {
             close_requested: Cell::new(false),
             quiet: Cell::new(false),
             style,
+            monitor_scale: Cell::new(system_scale()),
+            pending_scale: Cell::new(None),
         }));
         let title: Vec<u16> = title.encode_utf16().chain(Some(0)).collect();
-        let (outer_width, outer_height) = outer_size(style, width, height);
+        let (outer_width, outer_height) = outer_size(style, width, height, system_scale());
         let (x, y) = position.unwrap_or((CW_USEDEFAULT, CW_USEDEFAULT));
         // SAFETY: the class is registered, the title is a terminated UTF-16
         // string, and `state` stays alive until after the window is
@@ -151,6 +155,8 @@ impl HostWindow {
             drop(unsafe { Box::from_raw(state) });
             return Err("Windows refused to create the window".to_owned());
         }
+        // CreateWindowEx may choose a monitor different from the system default.
+        unsafe { &*state }.monitor_scale.set(window_scale(hwnd));
         Ok(Self { hwnd, state })
     }
 
@@ -193,7 +199,7 @@ impl HostWindow {
     /// without telling the editor.
     pub fn set_client_size(&self, width: u32, height: u32) {
         let state = self.state();
-        let (outer_width, outer_height) = outer_size(state.style, width, height);
+        let (outer_width, outer_height) = outer_size(state.style, width, height, state.monitor_scale.get());
         state.quiet.set(true);
         // SAFETY: the window is alive.
         unsafe {
@@ -214,6 +220,12 @@ impl HostWindow {
     pub fn take_close_request(&self) -> bool {
         self.state().close_requested.replace(false)
     }
+
+    pub fn monitor_scale(&self) -> f64 { self.state().monitor_scale.get() }
+
+    /// Consumed on the plugin owner thread during idle, never by the audio
+    /// callback or reentrantly from the native window procedure.
+    pub fn take_monitor_scale(&self) -> Option<f64> { self.state().pending_scale.take() }
 }
 
 impl Drop for HostWindow {
@@ -262,7 +274,7 @@ pub(crate) fn pump_events(wait: Option<Duration>) {
 
 /// Fits the rectangle of a frame being dragged to a size the editor takes.
 fn snap_drag(state: &WindowState, edge: u32, rect: &mut RECT) {
-    let (frame_width, frame_height) = outer_size(state.style, 0, 0);
+    let (frame_width, frame_height) = outer_size(state.style, 0, 0, state.monitor_scale.get());
     let width = (rect.right - rect.left - frame_width).max(1) as u32;
     let height = (rect.bottom - rect.top - frame_height).max(1) as u32;
     let (width, height) = state.client.adjust_size(width, height);
@@ -303,6 +315,23 @@ unsafe extern "system" fn window_proc(
     let handled = catch_unwind(AssertUnwindSafe(|| {
         let state = state?;
         match message {
+            WM_DPICHANGED => {
+                let dpi = (wparam & 0xffff) as u32;
+                if dpi == 0 || lparam == 0 { return Some(0); }
+                let scale = f64::from(dpi) / 96.0;
+                state.monitor_scale.set(scale);
+                state.pending_scale.set(Some(scale));
+                // Windows owns the suggested placement. Suppress intermediate
+                // WM_SIZE callbacks; the plugin receives its negotiated size
+                // after content scaling on idle.
+                let rect = unsafe { &*(lparam as *const RECT) };
+                state.quiet.set(true);
+                unsafe { SetWindowPos(hwnd, ptr::null_mut(), rect.left, rect.top,
+                    (rect.right - rect.left).max(1), (rect.bottom - rect.top).max(1),
+                    SWP_NOZORDER | SWP_NOACTIVATE); }
+                state.quiet.set(false);
+                Some(0)
+            }
             WM_CLOSE => {
                 state.close_requested.set(true);
                 Some(0)

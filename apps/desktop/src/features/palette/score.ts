@@ -18,7 +18,8 @@ const BAND = 0.09
 const words = (text: string) => text.split(/\s+/).filter((word) => word !== "")
 
 /** A title as it is compared: lower case, without the "…" of a dialog. */
-const plain = (title: string) => title.toLowerCase().replace(/…$/, "").trim()
+const folded = (text: string) => text.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase()
+const plain = (title: string) => folded(title).replace(/…$/, "").trim()
 
 /**
  * Whether each word of the query starts a word of the title, the words in
@@ -60,7 +61,7 @@ export function scoreAction(
   keywords: string,
   search: string
 ): number {
-  const query = search.trim().toLowerCase().replace(/\s+/g, " ")
+  const query = folded(search).trim().replace(/\s+/g, " ")
   if (query === "") return 1
 
   const name = plain(title)
@@ -80,7 +81,7 @@ export function scoreAction(
   if (startsWords) return within(WORD_STARTS)
   if (name.includes(query)) return within(INSIDE_TITLE)
 
-  const extraWords = words(keywords.toLowerCase())
+  const extraWords = words(folded(keywords))
   const startsAny = (word: string, among: readonly string[]) =>
     among.some((candidate) => candidate.startsWith(word))
   if (

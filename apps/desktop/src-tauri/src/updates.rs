@@ -64,6 +64,26 @@ impl Updates {
         Ok(Busy(&self.busy))
     }
 }
+const MAX_UPDATE_REDIRECTS: usize = 3;
+
+fn validate_redirect(url: &url::Url, previous: usize) -> Result<(), &'static str> {
+    if previous > MAX_UPDATE_REDIRECTS {
+        return Err("The update server exceeded the redirect limit.");
+    }
+    if url.scheme() != "https" || !url.username().is_empty() || url.password().is_some() {
+        return Err("Update redirects must use HTTPS without credentials.");
+    }
+    Ok(())
+}
+
+fn update_redirect_policy() -> reqwest::redirect::Policy {
+    reqwest::redirect::Policy::custom(|attempt| {
+        match validate_redirect(attempt.url(), attempt.previous().len()) {
+            Ok(()) => attempt.follow(),
+            Err(reason) => attempt.error(reason),
+        }
+    })
+}
 fn main_only(window: &WebviewWindow) -> Result<(), String> {
     if window.label() != "main" {
         return Err("Updates are available in the main window only.".into());
@@ -135,7 +155,10 @@ pub async fn update_check(
     window: WebviewWindow,
     state: State<'_, Updates>,
     channel: UpdateChannel,
+    caller: crate::window_calls::WindowCaller,
 ) -> Result<CheckResult, String> {
+    let _window_call = caller.enter(&window, "update_check")?;
+
     main_only(&window)?;
     let _busy = state.begin()?;
     *lock(&state.pending) = None;
@@ -155,6 +178,7 @@ pub async fn update_check(
         .endpoints(vec![endpoint])
         .map_err(|error| error.to_string())?
         .timeout(Duration::from_secs(30))
+        .configure_client(|client| client.redirect(update_redirect_policy()).connect_timeout(Duration::from_secs(10)))
         .build()
         .map_err(|error| error.to_string())?;
     let Some(update) = updater
@@ -201,7 +225,10 @@ pub async fn update_download(
     state: State<'_, Updates>,
     token: u64,
     progress: Channel<Progress>,
+    caller: crate::window_calls::WindowCaller,
 ) -> Result<(), String> {
+    let _window_call = caller.enter(&window, "update_download")?;
+
     main_only(&window)?;
     let _busy = state.begin()?;
     let update = {
@@ -255,7 +282,10 @@ pub async fn update_install(
     state: State<'_, Updates>,
     session: State<'_, Session>,
     token: u64,
+    caller: crate::window_calls::WindowCaller,
 ) -> Result<(), String> {
+    let _window_call = caller.enter(&window, "update_install")?;
+
     main_only(&window)?;
     let _busy = state.begin()?;
     if session.document_snapshot().dirty
@@ -289,6 +319,15 @@ pub async fn update_install(
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn update_redirects_are_bounded_and_refuse_downgrade_and_credentials() {
+        let safe = url::Url::parse("https://updates.example.invalid/package").unwrap();
+        for count in 0..=MAX_UPDATE_REDIRECTS { assert!(validate_redirect(&safe, count).is_ok()); }
+        for count in MAX_UPDATE_REDIRECTS + 1..=100 { assert!(validate_redirect(&safe, count).is_err()); }
+        for unsafe_url in ["http://updates.example.invalid/package", "https://user:secret@updates.example.invalid/package", "file:///installer.exe", "data:text/plain,installer"] {
+            assert!(validate_redirect(&url::Url::parse(unsafe_url).unwrap(), 1).is_err());
+        }
+    }
     fn metadata(channel: &str, format: u32) -> serde_json::Value {
         serde_json::json!({"windfall": {"channel": channel, "projectFormatVersion": format}})
     }

@@ -17,6 +17,8 @@ pub enum Event {
     ExportProgress(ExportProgress),
     /// A note from a MIDI input that the audition destination took.
     MidiHardwareNote(windfall_ipc::MidiHardwareNote),
+    /// Transient caller correlation, outside generated musical/project types.
+    ExportRequestProgress { request: String, progress: ExportProgress },
 }
 
 impl Event {
@@ -29,6 +31,7 @@ impl Event {
             Event::TransportState(_) => "transport:state",
             Event::EngineStatus(_) => "engine:status",
             Event::ExportProgress(_) => "export:progress",
+            Event::ExportRequestProgress { .. } => "export:progress",
             Event::MidiHardwareNote(_) => "midi:note",
         }
     }
@@ -42,6 +45,15 @@ impl Event {
             Event::TransportState(state) => serde_json::to_string(state),
             Event::EngineStatus(status) => serde_json::to_string(status),
             Event::ExportProgress(progress) => serde_json::to_string(progress),
+            Event::ExportRequestProgress { request, progress } => {
+                #[derive(serde::Serialize)]
+                struct Payload<'a> {
+                    request: &'a str,
+                    #[serde(flatten)]
+                    progress: &'a ExportProgress,
+                }
+                serde_json::to_string(&Payload { request, progress })
+            }
             Event::MidiHardwareNote(note) => serde_json::to_string(note),
         }
     }

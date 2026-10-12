@@ -9,8 +9,9 @@ import { useProjectStore } from "@/lib/store/project"
 import { useTransportStore } from "@/lib/store/transport"
 import { useUiStore } from "@/lib/store/ui"
 import { settle, startTestApp } from "@/test/harness"
+import { setLanguage } from "@/lib/i18n"
 
-import { CommandPalette } from "./command-palette"
+import { CommandPalette, searchActions } from "./command-palette"
 
 vi.mock("sonner", () => ({
   toast: Object.assign(vi.fn(), { error: vi.fn(), success: vi.fn() }),
@@ -24,6 +25,7 @@ beforeEach(async () => {
   uninstall = installKeymap()
 })
 afterEach(() => {
+  setLanguage("en")
   uninstall()
   stop()
 })
@@ -36,6 +38,21 @@ async function openPalette(user: ReturnType<typeof userEvent.setup>) {
 const options = () => screen.getAllByRole("option")
 
 describe("CommandPalette", () => {
+  it("displays translated commands and ranks Spanish and English names equally without duplicates", async () => {
+    setLanguage("es")
+    const user = userEvent.setup()
+    render(<CommandPalette />)
+    const input = await openPalette(user)
+    expect(screen.getByRole("dialog", { name: "Paleta de comandos" })).toBeVisible()
+    await user.type(input, "guardar como")
+    expect(options()[0]).toHaveTextContent("Guardar como")
+    await user.clear(input)
+    await user.type(input, "save as")
+    expect(options()[0]).toHaveTextContent("Guardar como")
+    expect(new Set(options().map((row) => row.getAttribute("data-value"))).size).toBe(options().length)
+    expect(searchActions(registry.list(), "Export audio", "es")[0].id).toBe("file.export")
+    expect(searchActions(registry.list(), "Exportar audio", "es")[0].id).toBe("file.export")
+  })
   it("is closed until its shortcut is pressed, and closes on it again", async () => {
     const user = userEvent.setup()
     render(<CommandPalette />)

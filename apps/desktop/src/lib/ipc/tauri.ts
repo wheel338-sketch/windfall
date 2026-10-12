@@ -1,4 +1,6 @@
 import { Channel, invoke } from "@tauri-apps/api/core"
+import { message, translatedText } from "@/lib/i18n"
+import { reportError } from "@/lib/errors"
 import { nativeRemoteContent } from "./remote-content"
 import { listen } from "@tauri-apps/api/event"
 import { getCurrentWindow } from "@tauri-apps/api/window"
@@ -19,7 +21,7 @@ import {
 } from "./backend"
 
 /** Rejections from Rust are plain strings; the UI wants `Error`s. */
-async function call<T>(
+async function invokeCall<T>(
   command: string,
   args?: Record<string, unknown>
 ): Promise<T> {
@@ -43,13 +45,34 @@ function on<T>(event: string, handler: (payload: T) => void): Unsubscribe {
   }
 }
 
-const PROJECT_FILTER = [{ name: "Windfall project", extensions: ["windfall"] }]
-const MIDI_FILTER = [{ name: "MIDI file", extensions: ["mid", "midi"] }]
+const PROJECT_FILTER = () => [{ name: translatedText("Windfall project"), extensions: ["windfall"] }]
+const MIDI_FILTER = () => [{ name: translatedText("MIDI file"), extensions: ["mid", "midi"] }]
 
 export function createTauriBackend(): Backend {
   let documentGeneration: number | null = null
   let documentEpoch = 0
-  type WindowSnapshot = { generation: number; snapshot: DocumentSnapshot }
+  let callerToken: string | null = null
+  type WindowSnapshot = { generation: number; caller?: { generation: number; token: string }; snapshot: DocumentSnapshot }
+  let loading: Promise<WindowSnapshot> | null = null
+  function loadIdentity() {
+    if (loading) return loading
+    const epoch = documentEpoch
+    loading = invokeCall<WindowSnapshot>("window_document_snapshot").then((owned) => {
+      if (!owned.caller?.token) throw new Error("The native window did not supply its caller identity")
+      callerToken = owned.caller.token
+      if (epoch === documentEpoch) documentGeneration = owned.generation
+      return owned
+    }).finally(() => { loading = null })
+    return loading
+  }
+  async function call<T>(command: string, args?: Record<string, unknown>): Promise<T> {
+    const epoch = documentEpoch
+    if (callerToken === null) await loadIdentity()
+    if (epoch !== documentEpoch) throw new Error("The project was replaced before this window action could start")
+    // Capture once before invoking; never retry a refused mutation with a new identity.
+    const caller = { generation: generation(), token: callerToken }
+    return invokeCall<T>(command, { ...args, caller })
+  }
   function generation() {
     if (documentGeneration === null) throw new Error("The window is still loading its project")
     return documentGeneration
@@ -118,17 +141,17 @@ export function createTauriBackend(): Backend {
     pluginsRemoveFolder: (folder) => call("plugins_remove_folder", { folder }),
     pluginsRescan: (everything) => call("plugins_rescan", { everything }),
     pickPresetPath: async (saveName) => {
-      const filters = [{ name: "Windfall preset", extensions: ["wfpreset", "wfmixer"] }]
+      const filters = [{ name: translatedText("Windfall preset"), extensions: ["wfpreset", "wfmixer"] }]
       const path = saveName === undefined ? await open({ multiple: false, filters }) : await save({ defaultPath: `${saveName.replace(/[<>:"/\\|?*]/g, "_")}.wfpreset`, filters })
       return typeof path === "string" ? path : null
     },
     pickScorePath: async (saveName) => {
-      const filters = [{ name: "Windfall score", extensions: ["wfscore"] }, { name: "MIDI score", extensions: ["mid", "midi"] }]
+      const filters = [{ name: translatedText("Windfall score"), extensions: ["wfscore"] }, { name: translatedText("MIDI score"), extensions: ["mid", "midi"] }]
       const path = saveName === undefined ? await open({ multiple: false, filters }) : await save({ defaultPath: `${saveName.replace(/[<>:"/\\|?*]/g, "_")}.wfscore`, filters })
       return typeof path === "string" ? path : null
     },
     async pickVideoFile() {
-      const picked = await open({ title: "Choose a local video", multiple: false, filters: [{ name: "Video", extensions: ["mp4", "webm", "ogv", "mov", "avi"] }] })
+      const picked = await open({ title: translatedText("Choose a local video"), multiple: false, filters: [{ name: translatedText("Video"), extensions: ["mp4", "webm", "ogv", "mov", "avi"] }] })
       return typeof picked === "string" ? picked : null
     },
     mediaVideoRead: (path, generation, revision) => call("media_video_read", { path, generation, revision }),
@@ -190,10 +213,10 @@ export function createTauriBackend(): Backend {
       call("analysis_model_import", { path, model }),
     pickAnalysisModel: async () => {
       const picked = await open({
-        title: "Import analysis model",
+        title: translatedText("Import analysis model"),
         multiple: false,
         directory: false,
-        filters: [{ name: "Analysis model", extensions: ["onnx"] }],
+        filters: [{ name: translatedText("Analysis model"), extensions: ["onnx"] }],
       })
       return typeof picked === "string" ? picked : null
     },
@@ -213,11 +236,11 @@ export function createTauriBackend(): Backend {
     mixerWaveformTracks: (tracks, generation, revision) => call("mixer_waveform_tracks", { tracks, generation, revision }),
     mixerPresetCapture: (id, generation, revision) => call("mixer_preset_capture", { id, generation, revision }),
     mixerPresetSave: async (preset) => {
-      const path = await save({ defaultPath: `${preset.name.replace(/[<>:"/\\|?*]/g, "_") || "Mixer track"}.wfmixer`, filters: [{ name: "Windfall mixer preset", extensions: ["wfmixer"] }] })
+      const path = await save({ defaultPath: `${preset.name.replace(/[<>:"/\\|?*]/g, "_") || "Mixer track"}.wfmixer`, filters: [{ name: translatedText("Windfall mixer preset"), extensions: ["wfmixer"] }] })
       return path ? call("mixer_preset_write", { path, preset }) : null
     },
     mixerPresetLoad: async () => {
-      const path = await open({ multiple: false, filters: [{ name: "Windfall mixer preset", extensions: ["wfmixer"] }] })
+      const path = await open({ multiple: false, filters: [{ name: translatedText("Windfall mixer preset"), extensions: ["wfmixer"] }] })
       return typeof path === "string" ? call("mixer_preset_read", { path }) : null
     },
     mixerPresetLibrary: () => call("mixer_preset_library"),
@@ -269,7 +292,7 @@ export function createTauriBackend(): Backend {
     audioAnalysisSendMidi: (edit, selected) => call("audio_analysis_send_midi", { edit, selected }),
     audioAnalysisCancel: () => call("audio_analysis_cancel"),
     samplePlaybackExport: async (channel, generation, revision) => {
-      const path = await save({ title: "Export source WAV with slices", filters: [{ name: "WAV audio", extensions: ["wav"] }] })
+      const path = await save({ title: translatedText("Export source WAV with slices"), filters: [{ name: translatedText("WAV audio"), extensions: ["wav"] }] })
       if (path) await call("sample_playback_export", { channel, path, generation, revision })
     },
     sliceAnalyze: (clip, options) => call("slice_analyze", { clip, options }),
@@ -281,10 +304,11 @@ export function createTauriBackend(): Backend {
     pluginsAdd: (path, id, track) => call("plugins_add", { path, id, track }),
     pluginEditor: (target, open) => call("plugin_editor", { target, open }),
     pluginEditorScale: (application) => call("plugin_editor_scale", { application }),
+    onWindowScale: (handler) => on("window:dpi", handler),
 
     documentSnapshot: async () => {
       const epoch = documentEpoch
-      const owned = await call<WindowSnapshot>("window_document_snapshot")
+      const owned = await loadIdentity()
       if (epoch !== documentEpoch) throw new Error("The project was replaced while its snapshot loaded")
       documentGeneration = owned.generation
       return owned.snapshot
@@ -299,10 +323,10 @@ export function createTauriBackend(): Backend {
     flpCancel: (token) => call("flp_cancel", { token }),
     async pickFlpFile() {
       const picked = await open({
-        title: "Import FL Studio project",
+        title: translatedText("Import FL Studio project"),
         multiple: false,
         directory: false,
-        filters: [{ name: "FL Studio project", extensions: ["flp"] }],
+        filters: [{ name: translatedText("FL Studio project"), extensions: ["flp"] }],
       })
       return typeof picked === "string" ? picked : null
     },
@@ -315,9 +339,9 @@ export function createTauriBackend(): Backend {
     projectArchiveCancel: () => call("project_archive_cancel"),
     pickProjectArchivePath: (suggestedName) =>
       save({
-        title: "Export portable project archive (choose a new filename)",
+        title: translatedText("Export portable project archive (choose a new filename)"),
         defaultPath: `${suggestedName}.zip`,
-        filters: [{ name: "Windfall project archive", extensions: ["zip"] }],
+        filters: [{ name: translatedText("Windfall project archive"), extensions: ["zip"] }],
       }),
     recentProjects: () => call("recent_projects"),
     midiPreview: (path, options) => call("midi_preview", { path, options }),
@@ -326,28 +350,28 @@ export function createTauriBackend(): Backend {
     exportMidi: (path, options) => call("export_midi", { path, options }),
     sheetMusicSave: async (suggestedName, xml, format = "musicxml") => {
       const path = await save({
-        title: "Export sheet music",
+        title: translatedText("Export sheet music"),
         defaultPath: `${suggestedName.replace(/[<>:"/\\|?*]/g, "_") || "Score"}.${format === "pdf" ? "pdf" : "musicxml"}`,
         filters:
           format === "pdf"
-            ? [{ name: "PDF score", extensions: ["pdf"] }]
-            : [{ name: "MusicXML score", extensions: ["musicxml", "xml"] }],
+            ? [{ name: translatedText("PDF score"), extensions: ["pdf"] }]
+            : [{ name: translatedText("MusicXML score"), extensions: ["musicxml", "xml"] }],
       })
       return path ? call("write_sheet_music", { path, xml }) : null
     },
     async pickMidiFile() {
       const result = await open({
-        title: "Import MIDI",
+        title: translatedText("Import MIDI"),
         multiple: false,
-        filters: MIDI_FILTER,
+        filters: MIDI_FILTER(),
       })
       return typeof result === "string" ? result : null
     },
     pickMidiExportPath: (suggestedName) =>
       save({
-        title: "Export MIDI",
+        title: translatedText("Export MIDI"),
         defaultPath: `${suggestedName}.mid`,
-        filters: MIDI_FILTER,
+        filters: MIDI_FILTER(),
       }),
 
     transportPlay: (guard) => call("transport_play", { guard }),
@@ -433,9 +457,9 @@ export function createTauriBackend(): Backend {
     sampleInstrumentSpeechBegin: (channel) => call("sample_instrument_speech_begin", { channel }),
     sampleInstrumentSpeechCancel: (channel, request) => call("sample_instrument_speech_cancel", { channel, request }),
 
-    exportAudio: (options) => call("export_audio", { options }),
-    exportPlaylistTracks: (options, stems) =>
-      call("export_playlist_tracks", { options, stems }),
+    exportAudio: (options, request) => call("export_audio", { options, request }),
+    exportPlaylistTracks: (options, stems, request) =>
+      call("export_playlist_tracks", { options, stems, request }),
     exportCancel: () => call("export_cancel"),
 
     onProjectPatch: (handler) => on(EVENTS.projectPatch, handler),
@@ -467,12 +491,12 @@ export function createTauriBackend(): Backend {
 
     async pickProjectToOpen() {
       const picked = await open({
-        title: "Open project",
+        title: translatedText("Open project"),
         multiple: false,
         directory: false,
         filters: [
           {
-            name: "Windfall project or archive",
+            name: translatedText("Windfall project or archive"),
             extensions: ["windfall", "zip"],
           },
         ],
@@ -481,21 +505,21 @@ export function createTauriBackend(): Backend {
     },
     pickProjectSavePath: (suggestedName) =>
       save({
-        title: "Save project as",
+        title: translatedText("Save project as"),
         defaultPath: `${suggestedName}.windfall`,
-        filters: PROJECT_FILTER,
+        filters: PROJECT_FILTER(),
       }),
     pickExportPath: (suggestedName, format = "wav") =>
       save({
-        title: "Export audio",
+        title: translatedText("Export audio"),
         defaultPath: `${suggestedName}.${format}`,
         filters: [
-          { name: `${format.toUpperCase()} audio`, extensions: [format] },
+          { name: message("{format} audio", { format: format.toUpperCase() }), extensions: [format] },
         ],
       }),
     async pickFolder() {
       const picked = await open({
-        title: "Choose a folder",
+        title: translatedText("Choose a folder"),
         multiple: false,
         directory: true,
       })
@@ -504,10 +528,10 @@ export function createTauriBackend(): Backend {
 
     async pickAudioFile() {
       const picked = await open({
-        title: "Choose an audio file",
+        title: translatedText("Choose an audio file"),
         multiple: false,
         directory: false,
-        filters: [{ name: "Audio", extensions: AUDIO_EXTENSIONS }],
+        filters: [{ name: translatedText("Audio"), extensions: AUDIO_EXTENSIONS }],
       })
       return typeof picked === "string" ? picked : null
     },
@@ -523,12 +547,14 @@ export function createTauriBackend(): Backend {
           // The default close has to be stopped synchronously; the window is
           // destroyed by hand once the guard agrees.
           event.preventDefault()
+          const epoch = documentEpoch
           if (!(await guard())) return
           try {
-            await window.destroy()
+            if (epoch !== documentEpoch) throw new Error("The project was replaced while confirming window close")
+            await call("window_close")
           } catch (error) {
-            // Needs core:window:allow-destroy in the shell's capabilities.
-            console.error("The window could not close:", errorMessage(error))
+            // Native caller/operation ownership can refuse a stale close.
+            reportError(error, translatedText("The window could not close"))
           }
         })
         .then((fn) => {

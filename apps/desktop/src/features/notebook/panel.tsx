@@ -27,7 +27,7 @@ import { message, useTranslation } from "@/lib/i18n"
 
 import { duplicatePage } from "./duplicate-page"
 import { pageAtTick } from "./playback"
-import { notebookHtmlDocument } from "./safe-html"
+import { notebookHtmlUrl } from "./safe-html"
 
 const MAX_PAGES = 8
 const TITLE_BYTES = 128
@@ -253,7 +253,7 @@ export function NotebookPanel({
         </Field>
         {page.html && <iframe title={t("Notebook HTML preview")} sandbox=""
           referrerPolicy="no-referrer" className="h-64 w-full rounded-md border bg-background"
-          srcDoc={notebookHtmlDocument(page.body)} />}
+          src={notebookHtmlUrl(page.body)} />}
         {invalidPage !== -1 && invalidPage !== selected && (
           <FieldError role="alert">
             {message("Page {page} exceeds a text limit.", { page: invalidPage + 1 })}

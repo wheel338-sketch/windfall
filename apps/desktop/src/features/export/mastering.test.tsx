@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event"
 import { toast } from "sonner"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
-import type { ExportProgress, MasteringReview } from "@/bindings"
+import type { MasteringReview } from "@/bindings"
 import type { Backend } from "@/lib/ipc"
 import { useUiStore } from "@/lib/store/ui"
 import { settle, startTestApp } from "@/test/harness"
@@ -170,7 +170,7 @@ describe("mastering request and review figures", () => {
 describe("mastering in the export dialog", () => {
   let backend: Backend
   let stop: () => void
-  let progress: ((event: ExportProgress) => void)[]
+  let progress: ((event: import("@/lib/ipc/backend").ExportRequestProgress) => void)[]
 
   beforeEach(async () => {
     vi.clearAllMocks()
@@ -218,6 +218,7 @@ describe("mastering in the export dialog", () => {
     act(() => {
       for (const handler of progress) {
         handler({
+          request: exported.mock.calls.at(-1)?.[1],
           path: first.path,
           fraction: 1,
           done: true,
@@ -319,6 +320,7 @@ describe("mastering in the export dialog", () => {
     act(() => {
       for (const handler of progress) {
         handler({
+          request: exported.mock.calls.at(-1)?.[1],
           path: sent.path,
           fraction: 0.5,
           done: false,
@@ -331,6 +333,7 @@ describe("mastering in the export dialog", () => {
     act(() => {
       for (const handler of progress) {
         handler({
+          request: exported.mock.calls.at(-1)?.[1],
           path: sent.path,
           fraction: 1,
           done: true,

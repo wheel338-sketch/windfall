@@ -11,7 +11,6 @@ import type {
   DispatchResult,
   DocumentSnapshot,
   EngineStatus,
-  ExportProgress,
   Project,
   ProjectPatch,
   RealtimeFrame,
@@ -32,6 +31,7 @@ import {
 
 import type {
   AudioClipPlace,
+  ExportRequestProgress,
   Backend,
   StoredAudioSettings,
   Unsubscribe,
@@ -352,7 +352,7 @@ export function createMockBackend(options: MockOptions = {}): MockBackend {
   const loaded = new Emitter<DocumentSnapshot>()
   const transportStates = new Emitter<TransportState>()
   const engineStatuses = new Emitter<EngineStatus>()
-  const exportProgress = new Emitter<ExportProgress>()
+  const exportProgress = new Emitter<ExportRequestProgress>()
   const warnings = new Emitter<string[]>()
   const frames = new Emitter<RealtimeFrame>()
 
@@ -362,6 +362,7 @@ export function createMockBackend(options: MockOptions = {}): MockBackend {
     timer: ReturnType<typeof setInterval>
     path: string
     fraction: number
+    request?: string
   } | null = null
 
   function readJson<T>(key: string, fallback: T): T {
@@ -767,7 +768,7 @@ export function createMockBackend(options: MockOptions = {}): MockBackend {
       sampleCommands,
       audioClipCommands,
       sampleInfo: (file) => sampleInfoFor(roots, file),
-      exportAudio: (exportOptions) => made.exportAudio(exportOptions),
+      exportAudio: (exportOptions, request) => made.exportAudio(exportOptions, request),
     }),
     ...createSlicerMock(
       options,
@@ -1439,7 +1440,7 @@ export function createMockBackend(options: MockOptions = {}): MockBackend {
       }),
 
     samplePlaybackExport: async () => { throw new Error("WAV source export requires the desktop app.") },
-    exportAudio: (exportOptions) =>
+    exportAudio: (exportOptions, request) =>
       ipc(() => {
         if (exportOptions.format === "m4a" || exportOptions.format === "wv")
           throw new Error("WavPack and M4A audio export require the desktop app.")
@@ -1493,6 +1494,7 @@ export function createMockBackend(options: MockOptions = {}): MockBackend {
             exporting = null
           }
           exportProgress.emit({
+            request,
             path: exportOptions.path,
             fraction,
             done,
@@ -1500,7 +1502,7 @@ export function createMockBackend(options: MockOptions = {}): MockBackend {
             droppedClips: 0,
           })
         }, 60)
-        exporting = { timer, path: exportOptions.path, fraction: 0 }
+        exporting = { timer, path: exportOptions.path, fraction: 0, request }
       }),
 
     exportCancel: () =>
@@ -1510,6 +1512,7 @@ export function createMockBackend(options: MockOptions = {}): MockBackend {
         clearInterval(current.timer)
         exporting = null
         exportProgress.emit({
+          request: current.request,
           path: current.path,
           fraction: current.fraction,
           done: true,

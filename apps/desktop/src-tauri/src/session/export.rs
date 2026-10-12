@@ -143,6 +143,7 @@ struct Target {
 /// Everything an export needs, copied out of the session so the project can
 /// be edited while the export runs.
 struct Job {
+    request: Option<String>,
     /// The path the export was asked for, as a place on the disk. Stems
     /// are named after it.
     path: PathBuf,
@@ -177,6 +178,7 @@ enum Outcome {
 struct Progress<'a> {
     session: &'a Session,
     path: String,
+    request: Option<String>,
     sent_at: Option<Instant>,
     fraction: f32,
 }
@@ -205,7 +207,7 @@ impl Progress<'_> {
             Some(Outcome::Cancelled) => (None, 0, Some(true), None),
             None => (None, 0, None, None),
         };
-        self.session.emit(Event::ExportProgress(ExportProgress {
+        let progress = ExportProgress {
             path: self.path.clone(),
             fraction: self.fraction,
             done,
@@ -214,7 +216,11 @@ impl Progress<'_> {
             files,
             cancelled,
             mastering,
-        }));
+        };
+        self.session.emit(match &self.request {
+            Some(request) => Event::ExportRequestProgress { request: request.clone(), progress },
+            None => Event::ExportProgress(progress),
+        });
     }
 }
 
@@ -261,6 +267,18 @@ impl Session {
         options: ExportOptions,
         playlist: Option<windfall_ipc::ExportPlaylistStems>,
     ) -> Result<(), String> {
+        self.start_export_correlated(options, playlist, None)
+    }
+
+    pub(crate) fn start_export_correlated(
+        &self,
+        options: ExportOptions,
+        playlist: Option<windfall_ipc::ExportPlaylistStems>,
+        request: Option<String>,
+    ) -> Result<(), String> {
+        if request.as_ref().is_some_and(|id| id.is_empty() || id.len() > 128 || !id.bytes().all(|byte| byte.is_ascii_alphanumeric() || byte == b'-')) {
+            return Err("Invalid export request identity.".into());
+        }
         let _recording = self.recording_idle()?;
         super::playlist_export::check(&options, playlist.as_ref())?;
         if options.region_generation.is_some() != options.region_revision.is_some() {
@@ -395,6 +413,7 @@ impl Session {
         }
         self.inner.export_cancelled.store(false, Ordering::SeqCst);
         let job = Job {
+            request,
             path,
             targets,
             folder,
@@ -436,6 +455,7 @@ impl Session {
         let mut progress = Progress {
             session: self,
             path: job.options.path.clone(),
+            request: job.request.clone(),
             sent_at: None,
             fraction: 0.0,
         };

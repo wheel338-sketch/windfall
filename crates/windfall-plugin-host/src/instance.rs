@@ -54,6 +54,8 @@ pub enum PluginNotification {
     EditorClosed,
     /// The editor's window now has this size.
     EditorResized { width: u32, height: u32 },
+    /// A live monitor transition was refused; existing content remains usable.
+    EditorScaleRefused { application: f64, monitor: f64 },
 }
 
 impl From<PluginEvent> for PluginNotification {

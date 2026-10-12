@@ -1,7 +1,7 @@
 import { fireEvent, render, screen } from "@testing-library/react"
 import { describe, expect, it, vi } from "vitest"
 import { NotebookPanel } from "./panel"
-import { NOTEBOOK_CSP, notebookHtmlDocument, sanitizeNotebookHtml } from "./safe-html"
+import { NOTEBOOK_CSP, notebookHtmlDocument, notebookHtmlUrl, sanitizeNotebookHtml } from "./safe-html"
 
 describe("inert HTML notebook", () => {
   it("retains formatting but removes executable, privileged and network content", () => {
@@ -35,15 +35,42 @@ describe("inert HTML notebook", () => {
     const frame = screen.getByTitle("Notebook HTML preview")
     expect(frame).toHaveAttribute("sandbox", "")
     expect(frame).toHaveAttribute("referrerpolicy", "no-referrer")
-    expect(frame.getAttribute("srcdoc")).toContain(NOTEBOOK_CSP)
-    expect(frame.getAttribute("srcdoc")).toContain("<b>Lyrics</b>")
+    expect(frame).not.toHaveAttribute("srcdoc")
+    expect(frame.getAttribute("src")).toMatch(/^data:text\/html;charset=utf-8,/)
+    const source = () => decodeURIComponent(frame.getAttribute("src")!.split(",").slice(1).join(","))
+    expect(source()).toContain(NOTEBOOK_CSP)
+    expect(source()).toContain("<b>Lyrics</b>")
     fireEvent.change(screen.getByLabelText("Page body"), { target: { value: '<script>alert(1)</script><p>Edited</p>' } })
-    expect(frame.getAttribute("srcdoc")).toContain("<p>Edited</p>")
-    expect(frame.getAttribute("srcdoc")).not.toContain("<script>")
+    expect(source()).toContain("<p>Edited</p>")
+    expect(source()).not.toContain("<script>")
+  })
+  it("uses an opaque scheme and removes packaged IPC, filesystem and parent attacks before navigation", () => {
+    for (const hostile of [
+      `<script>parent.document.body.textContent='owned';window.__TAURI_INTERNALS__.invoke('project_new')</script><p>Keep</p>`,
+      `<img src="http://ipc.localhost/dispatch"><iframe src="tauri://localhost/index.html"></iframe><object data="file:///C:/secret"></object><p>Keep</p>`,
+      `<a href="asset://localhost/C:/secret" target="_top">Keep</a><meta http-equiv="refresh" content="0;url=https://evil.invalid"><style>@import 'https://evil.invalid';</style>`,
+      `<iframe srcdoc="&lt;script&gt;fetch('https://evil.invalid')&lt;/script&gt;"></iframe><svg><foreignObject><script>top.location='https://evil.invalid'</script></foreignObject></svg><p>Keep</p>`,
+    ]) {
+      const url = notebookHtmlUrl(hostile)
+      expect(new URL(url).origin).toBe("null")
+      const delivered = decodeURIComponent(url.slice(url.indexOf(",") + 1))
+      expect(delivered).toContain("Keep")
+      expect(delivered).toContain("connect-src 'none'")
+      expect(delivered).not.toMatch(/__TAURI|ipc\.localhost|tauri:\/\/|file:\/\/|asset:\/\/|<script|<iframe|<object|<svg|srcdoc=/)
+      expect(url.length).toBeLessThan(250_000)
+    }
   })
   it("bounds the sanitizer and puts CSP ahead of all project content", () => {
     const html = notebookHtmlDocument("<div>".repeat(10_000))
     expect(html.length).toBeLessThan(20_000)
     expect(html.indexOf("Content-Security-Policy")).toBeLessThan(html.indexOf("<body>"))
+  })
+  it("keeps malformed Unicode and a cut surrogate pair inert and encodable", () => {
+    for (const source of ["\uD800<p>Visible note</p>\uDC00", "a".repeat(16_383) + "\uD83D\uDE00"]) {
+      const url = notebookHtmlUrl(source)
+      expect(new URL(url).origin).toBe("null")
+      expect(decodeURIComponent(url.slice(url.indexOf(",") + 1))).toContain("\uFFFD")
+      expect(url.length).toBeLessThan(250_000)
+    }
   })
 })
