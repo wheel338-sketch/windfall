@@ -27,3 +27,4 @@ mod utility_repairs;
 static ALLOCATOR: realtime::CountingAllocator = realtime::CountingAllocator;
 
 mod sample_playback;
+mod e1_cpu;
