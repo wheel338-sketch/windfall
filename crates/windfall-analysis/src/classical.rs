@@ -60,7 +60,11 @@ pub fn transients(audio: &AudioBuffer, work: &mut Work) -> Result<Vec<u32>> {
     let channel = strongest(audio, work)?;
     let channels = audio.channels() as usize;
     let mut out = Vec::new();
-    let (mut previous, mut last) = (0.0_f64, 0_usize);
+    // Compare with the recent envelope peak, rather than the preceding 5 ms
+    // cell: beating between held chord tones can make adjacent cells differ
+    // sharply without any new note attack.
+    let mut recent = [0.0_f64; 8];
+    let mut last = 0_usize;
     for start in (0..audio.frames()).step_by(hop) {
         let end = (start + hop).min(audio.frames());
         let rms = ((start..end)
@@ -71,7 +75,7 @@ pub fn transients(audio: &AudioBuffer, work: &mut Work) -> Result<Vec<u32>> {
         work.checkpoint((end - start) as u64)?;
         if start > 0
             && rms > 0.008
-            && rms > previous.max(0.002) * 1.8
+            && rms > recent.iter().copied().fold(0.002_f64, f64::max) * 1.8
             && start.saturating_sub(last) >= hop * 8
         {
             if out.len() >= MAX_WARP_MARKERS - 2 {
@@ -80,7 +84,7 @@ pub fn transients(audio: &AudioBuffer, work: &mut Work) -> Result<Vec<u32>> {
             out.push(start as u32);
             last = start;
         }
-        previous = rms;
+        recent[(start / hop) % recent.len()] = rms;
     }
     Ok(out)
 }
