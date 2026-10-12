@@ -313,9 +313,9 @@ impl PluginInstance {
         options: &crate::wrapper::WrapperOptions,
     ) -> Result<PluginProcessor, PluginError> {
         options.validate(max_block)?;
-        if options.processing != crate::wrapper::ProcessingMode::InProcess {
+        if options.processing == crate::wrapper::ProcessingMode::Bridged {
             return Err(PluginError::Unsupported(
-                "threaded/bridged modes require a separate owner provider",
+                "bridged mode requires a separate owner provider",
             ));
         }
         if self.active.is_some() {
@@ -335,6 +335,11 @@ impl PluginInstance {
             sample_rate,
             shared.tail.load(std::sync::atomic::Ordering::Relaxed),
         );
+        let backend = if options.processing == crate::wrapper::ProcessingMode::Threaded {
+            crate::threaded::wrap(backend, max_block, sample_rate)
+        } else {
+            backend
+        };
         let (to_audio, from_main) = rtrb::RingBuffer::new(QUEUE_CAPACITY);
         let (to_main, from_audio) = rtrb::RingBuffer::new(QUEUE_CAPACITY);
         self.active = Some(Active {
@@ -349,7 +354,8 @@ impl PluginInstance {
             shape: AudioShape {
                 in_place: self.backend.shape().in_place
                     && !options.smart_disable
-                    && options.fixed_block.is_none(),
+                    && options.fixed_block.is_none()
+                    && options.processing != crate::wrapper::ProcessingMode::Threaded,
                 ..self.backend.shape()
             },
             sample_rate,
@@ -383,7 +389,9 @@ impl PluginInstance {
                 returned: processor,
             });
         }
+        processor.backend_mut().return_to_owner();
         if let Err(error) = self.backend.quiesce(processor.backend_mut()) {
+            processor.backend_mut().resume_after_refusal();
             return Err(crate::DeactivationError {
                 error,
                 returned: processor,

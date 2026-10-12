@@ -162,7 +162,7 @@ impl IPluginFactoryTrait for Factory {
                 initialized: std::sync::atomic::AtomicBool::new(false),
                 active: std::sync::atomic::AtomicBool::new(false),
                 processing: std::sync::atomic::AtomicBool::new(false),
-                gain: std::sync::atomic::AtomicU64::new(0.5_f64.to_bits()),
+                gain: std::sync::Arc::new(std::sync::atomic::AtomicU64::new(0.5_f64.to_bits())),
                 extra: std::array::from_fn(|_| {
                     std::sync::atomic::AtomicU64::new(0.5_f64.to_bits())
                 }),
@@ -263,7 +263,7 @@ struct Component {
     initialized: std::sync::atomic::AtomicBool,
     active: std::sync::atomic::AtomicBool,
     processing: std::sync::atomic::AtomicBool,
-    gain: std::sync::atomic::AtomicU64,
+    gain: std::sync::Arc<std::sync::atomic::AtomicU64>,
     extra: [std::sync::atomic::AtomicU64; 2],
     meters: [std::sync::atomic::AtomicU64; 3],
     audio: std::cell::UnsafeCell<Audio>,
@@ -1056,12 +1056,18 @@ impl IEditControllerTrait for Component {
     }
     unsafe fn createView(&self, name: FIDString) -> *mut IPlugView {
         #[cfg(windows)]
-        if self.editor && !name.is_null() && unsafe { std::ffi::CStr::from_ptr(name) } == c"editor" {
-            return editor::create();
+        {
+            if !self.editor || name.is_null() || unsafe { std::ffi::CStr::from_ptr(name) } != c"editor" {
+                return ptr::null_mut();
+            }
+            // The view keeps its own references, never a borrowed Component pointer.
+            editor::create(self.gain.clone(), unsafe { (&*self.handler.get()).clone() })
         }
         #[cfg(not(windows))]
-        let _ = (self.editor, name);
-        ptr::null_mut()
+        {
+            let _ = (name, self.editor);
+            ptr::null_mut()
+        }
     }
 }
 /// SDK factory export, independently implemented from the host.

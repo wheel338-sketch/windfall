@@ -9,15 +9,11 @@ pub(super) fn use_bridge(binding: &PluginBinding, default: bool) -> Result<bool,
     binding.wrapper.validate().map_err(str::to_owned)?;
     match binding.wrapper.processing {
         PluginProcessingMode::Automatic => Ok(default),
-        PluginProcessingMode::InProcess => Ok(false),
-        PluginProcessingMode::Bridged if cfg!(windows) => Ok(true),
+        PluginProcessingMode::InProcess | PluginProcessingMode::Threaded => Ok(false),
+        PluginProcessingMode::Bridged if cfg!(any(windows, target_os = "macos", target_os = "linux")) => Ok(true),
         PluginProcessingMode::Bridged => {
-            Err("Separate-process hosting is currently Windows-only".into())
+            Err("Separate-process hosting requires Windows, macOS or Linux".into())
         }
-        PluginProcessingMode::Threaded => Err(
-            "Threaded native processing requires an owner provider that is not implemented yet"
-                .into(),
-        ),
     }
 }
 pub(super) fn native(binding: &PluginBinding) -> Result<WrapperOptions, String> {
@@ -26,7 +22,11 @@ pub(super) fn native(binding: &PluginBinding) -> Result<WrapperOptions, String> 
         smart_disable: binding.wrapper.smart_disable,
         fixed_block: binding.wrapper.fixed_buffer.map(|frames| frames as usize),
         // The provider above already selected the owning process/thread.
-        processing: ProcessingMode::InProcess,
+        processing: if binding.wrapper.processing == PluginProcessingMode::Threaded {
+            ProcessingMode::Threaded
+        } else {
+            ProcessingMode::InProcess
+        },
         // Editor options are applied on open, with a current native parent.
         editor: EditorOptions::default(),
     })
@@ -68,12 +68,13 @@ mod tests {
         binding.wrapper.processing = PluginProcessingMode::InProcess;
         assert_eq!(use_bridge(&binding, true), Ok(false));
         binding.wrapper.processing = PluginProcessingMode::Threaded;
-        assert!(use_bridge(&binding, true).is_err());
+        assert_eq!(use_bridge(&binding, true), Ok(false));
         binding.wrapper.smart_disable = true;
         binding.wrapper.fixed_buffer = Some(512);
         binding.wrapper.editor_scale = 1.5;
         binding.wrapper.detached = false;
         let native = native(&binding).unwrap();
+        assert_eq!(native.processing, ProcessingMode::Threaded);
         assert!(native.smart_disable);
         assert_eq!(native.fixed_block, Some(512));
         assert_eq!(max_block(&binding, 256), 512);

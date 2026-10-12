@@ -173,6 +173,7 @@ function WrapperFields({ binding }: { binding: PluginBinding }) {
               if (
                 processing === "automatic" ||
                 processing === "inProcess" ||
+                processing === "threaded" ||
                 processing === "bridged"
               ) void change({ processing })
             }}
@@ -180,15 +181,14 @@ function WrapperFields({ binding }: { binding: PluginBinding }) {
             <ToggleGroupItem value="automatic">Automatic</ToggleGroupItem>
             <ToggleGroupItem value="inProcess">In process</ToggleGroupItem>
             <ToggleGroupItem value="bridged">Bridged</ToggleGroupItem>
-            <ToggleGroupItem value="threaded" disabled>Threaded (unavailable)</ToggleGroupItem>
+            <ToggleGroupItem value="threaded">Threaded</ToggleGroupItem>
           </ToggleGroup>
           <FieldDescription>
             Automatic uses the platform default. Bridged isolates failures in a
-            helper process on Windows. In process shares the desktop process.
+            helper process. Threaded uses a dedicated worker and adds two native
+            blocks of latency. A missed worker deadline reports a plugin failure.
+            In process shares the desktop process.
           </FieldDescription>
-          {options.processing === "threaded" && (
-            <FieldError>Select another mode to use this saved plugin.</FieldError>
-          )}
         </Field>
         <NumericChoice
           label="Native editor scale"

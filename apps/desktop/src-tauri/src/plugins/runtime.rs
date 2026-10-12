@@ -493,7 +493,7 @@ struct Owner {
     selection: Selection,
     host: PluginHost,
     instances: BTreeMap<u64, Instance>,
-    #[cfg(windows)]
+    #[cfg(any(windows, target_os = "macos", target_os = "linux"))]
     bridges: BTreeMap<u64, super::bridge::Record>,
     next: u64,
     approved: Approved,
@@ -515,9 +515,9 @@ pub struct Runtime {
     next_revision: Arc<std::sync::atomic::AtomicU64>,
     prepared_revision: Option<u64>,
     rendering: bool,
-    #[cfg(windows)]
+    #[cfg(any(windows, target_os = "macos", target_os = "linux"))]
     bridge_enabled: bool,
-    #[cfg(windows)]
+    #[cfg(any(windows, target_os = "macos", target_os = "linux"))]
     bridge_helper: Option<std::path::PathBuf>,
     render_error: Arc<Mutex<Option<String>>>,
     editor_scale_percent: Arc<std::sync::atomic::AtomicU32>,
@@ -529,8 +529,8 @@ impl std::fmt::Debug for Runtime {
 }
 impl Runtime {
     pub fn new() -> Result<Self, String> {
-        if !cfg!(windows) {
-            return Err("Native plugin integration currently requires Windows".into());
+        if !cfg!(any(windows, target_os = "macos", target_os = "linux")) {
+            return Err("Native plugin integration requires Windows, macOS or Linux".into());
         }
         let (jobs, receiver) = mpsc::channel::<Job>();
         let errors = Arc::new(Mutex::new(Vec::new()));
@@ -551,7 +551,7 @@ impl Runtime {
                     selection: owner_selection,
                     host: PluginHost::windfall(),
                     instances: BTreeMap::new(),
-                    #[cfg(windows)]
+                    #[cfg(any(windows, target_os = "macos", target_os = "linux"))]
                     bridges: BTreeMap::new(),
                     next: 0,
                     approved: owner_approved,
@@ -566,7 +566,7 @@ impl Runtime {
                         Err(mpsc::RecvTimeoutError::Timeout) => {}
                     }
                     // Bridge process IO/reaping is confined to this control owner.
-                    #[cfg(windows)]
+                    #[cfg(any(windows, target_os = "macos", target_os = "linux"))]
                     {
                         let retired = owner
                             .bridges
@@ -752,9 +752,9 @@ impl Runtime {
             // Existing native-owner/R4 fixtures use their historical provider.
             // New bridge tests explicitly inject a real helper; release builds
             // on Windows use this process route and the installed executable.
-            #[cfg(windows)]
+            #[cfg(any(windows, target_os = "macos", target_os = "linux"))]
             bridge_enabled: !cfg!(test),
-            #[cfg(windows)]
+            #[cfg(any(windows, target_os = "macos", target_os = "linux"))]
             bridge_helper: None,
             render_error: Arc::new(Mutex::new(None)),
             editor_scale_percent: Arc::new(std::sync::atomic::AtomicU32::new(100)),
@@ -1049,7 +1049,7 @@ impl Runtime {
         Ok(instance)
     }
     pub fn discover(&self, mut binding: PluginBinding) -> Result<PluginBinding, String> {
-        #[cfg(windows)]
+        #[cfg(any(windows, target_os = "macos", target_os = "linux"))]
         if self.bridge_enabled {
             let helper = super::bridge::helper_path(self.bridge_helper.as_deref())?;
             return self.call(move |owner| {
@@ -1147,7 +1147,7 @@ impl Runtime {
             }
             for binding in &mut project.plugins {
                 let selected_token = selected(&owner.selection, binding.target);
-                #[cfg(windows)]
+                #[cfg(any(windows, target_os = "macos", target_os = "linux"))]
                 if let Some(record) = selected_token.and_then(|token| owner.bridges.get(&token))
                     && record.playback
                     && record.revision == revision
@@ -1241,7 +1241,7 @@ impl Runtime {
                 {
                     return Ok(None);
                 }
-                #[cfg(windows)]
+                #[cfg(any(windows, target_os = "macos", target_os = "linux"))]
                 if let Some(record) = owner.bridges.get_mut(&request.token).filter(|record| {
                     record.playback
                         && record.revision == request.revision
@@ -1382,7 +1382,7 @@ impl Runtime {
         checkpoint: impl FnOnce(&mut Owner, &JobLifetime) + Send + 'static,
     ) -> Result<super::capture_ack::CaptureAckCompletion, String> {
         self.call_with_lifetime(timeout, move |owner, lifetime| {
-            #[cfg(windows)]
+            #[cfg(any(windows, target_os = "macos", target_os = "linux"))]
             if let Some(record) = owner.bridges.get_mut(&ticket.token) {
                 record.capture_sent = false;
                 record.acknowledged_serial = record.acknowledged_serial.max(ticket.serial);
@@ -1421,7 +1421,7 @@ impl Runtime {
         let revision = self.revision.load(std::sync::atomic::Ordering::Relaxed);
         let scale = self.editor_scale_percent.clone();
         self.call(move |owner| {
-            #[cfg(windows)]
+            #[cfg(any(windows, target_os = "macos", target_os = "linux"))]
             if let Some(record) =
                 selected(&owner.selection, target).and_then(|token| owner.bridges.get(&token))
                 && record.playback
@@ -1507,7 +1507,7 @@ impl Runtime {
         runtime.bridge_helper = Some(helper.to_owned());
         Arc::new(runtime)
     }
-    #[cfg(windows)]
+    #[cfg(any(windows, target_os = "macos", target_os = "linux"))]
     pub fn bridge_status(
         &self,
     ) -> Vec<(
@@ -1530,7 +1530,7 @@ impl Runtime {
         })
         .unwrap_or_default()
     }
-    #[cfg(windows)]
+    #[cfg(any(windows, target_os = "macos", target_os = "linux"))]
     fn bridge_audio(
         &self,
         binding: &PluginBinding,
@@ -1612,6 +1612,12 @@ enum Adapter {
     Instrument(PluginInstrument),
 }
 impl Adapter {
+    fn controls_processed(&self) -> bool {
+        match self {
+            Self::Effect(adapter) => adapter.controls_processed(),
+            Self::Instrument(adapter) => adapter.controls_processed(),
+        }
+    }
     fn dropped_events(&self) -> u32 {
         match self {
             Self::Effect(adapter) => adapter.health().dropped_events,
@@ -2022,7 +2028,7 @@ impl Audio {
         if !left.is_empty()
             && !right.is_empty()
             && self.adapter().is_some_and(|adapter| {
-                !adapter.failed() && Some(adapter.dropped_events()) == dropped
+                !adapter.failed() && adapter.controls_processed() && Some(adapter.dropped_events()) == dropped
             })
         {
             for ((id, pending), control) in self.pending_params.iter().zip(self.controls.iter()) {
@@ -2422,15 +2428,15 @@ impl PluginFactory for Runtime {
         rate: u32,
         block: usize,
     ) -> Result<Box<dyn HostedEffect>, String> {
-        #[cfg(windows)]
+        #[cfg(any(windows, target_os = "macos", target_os = "linux"))]
         let default_bridge = self.bridge_enabled;
-        #[cfg(not(windows))]
+        #[cfg(not(any(windows, target_os = "macos", target_os = "linux")))]
         let default_bridge = false;
         let bridged = self.record(
             binding.target,
             super::wrapper::use_bridge(binding, default_bridge),
         )?;
-        #[cfg(windows)]
+        #[cfg(any(windows, target_os = "macos", target_os = "linux"))]
         if bridged {
             let result = self.bridge_audio(binding, rate);
             if self.rendering
@@ -2445,7 +2451,7 @@ impl PluginFactory for Runtime {
                 .record(binding.target, result)
                 .map(|audio| Box::new(audio) as Box<dyn HostedEffect>);
         }
-        #[cfg(not(windows))]
+        #[cfg(not(any(windows, target_os = "macos", target_os = "linux")))]
         let _ = bridged;
         let binding = binding.clone();
         let target = binding.target;
@@ -2582,15 +2588,15 @@ impl PluginFactory for Runtime {
         rate: u32,
         block: usize,
     ) -> Result<Box<dyn HostedInstrument>, String> {
-        #[cfg(windows)]
+        #[cfg(any(windows, target_os = "macos", target_os = "linux"))]
         let default_bridge = self.bridge_enabled;
-        #[cfg(not(windows))]
+        #[cfg(not(any(windows, target_os = "macos", target_os = "linux")))]
         let default_bridge = false;
         let bridged = self.record(
             binding.target,
             super::wrapper::use_bridge(binding, default_bridge),
         )?;
-        #[cfg(windows)]
+        #[cfg(any(windows, target_os = "macos", target_os = "linux"))]
         if bridged {
             let result = self.bridge_audio(binding, rate);
             if self.rendering
@@ -2605,7 +2611,7 @@ impl PluginFactory for Runtime {
                 .record(binding.target, result)
                 .map(|audio| Box::new(audio) as Box<dyn HostedInstrument>);
         }
-        #[cfg(not(windows))]
+        #[cfg(not(any(windows, target_os = "macos", target_os = "linux")))]
         let _ = bridged;
         let binding = binding.clone();
         let target = binding.target;

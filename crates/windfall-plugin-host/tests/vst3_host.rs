@@ -15,6 +15,13 @@ fn create(
 }
 
 #[test]
+fn independent_vst3_no_editor_class_keeps_explicit_refusal() {
+    let (_module, mut instance) = create(3);
+    assert!(!instance.has_editor());
+    assert_eq!(instance.open_editor(&EditorOptions::default()), Err(if cfg!(windows) { EditorError::NoEditor } else { EditorError::UnsupportedPlatform }));
+}
+
+#[test]
 fn native_numeric_expression_controls_distinct_overlapping_note_identities() {
     use windfall_plugin_host::{FIRST_NOTE_INSTANCE_ID, PluginNoteControls};
     let (_module, mut instance) = create(23);
@@ -161,6 +168,7 @@ fn lifecycle_gain_offsets_transport_state_and_restart() {
     if cfg!(windows) {
         let info = opened.unwrap();
         assert_eq!((info.width, info.height), (320, 200));
+        assert!(info.window.is_some());
         instance.close_editor();
     } else {
         assert_eq!(opened, Err(EditorError::UnsupportedPlatform));

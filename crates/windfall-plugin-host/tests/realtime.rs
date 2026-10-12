@@ -71,6 +71,23 @@ fn allocator_calls(work: impl FnOnce()) -> usize {
 const RATE: f64 = 48_000.0;
 
 #[test]
+fn threaded_submission_reset_stop_and_ownership_return_allocate_and_free_nothing_on_callback() {
+    use windfall_plugin_host::wrapper::{ProcessingMode, WrapperOptions};
+    let (_module, mut instance) = create(GAIN);
+    let mut processor = instance.activate_with_options(RATE, 64, &WrapperOptions { processing: ProcessingMode::Threaded, ..Default::default() }).unwrap();
+    assert_eq!(processor.latency_samples(), 128);
+    let mut left = [1.0; 64]; let mut right = left;
+    assert_eq!(allocator_calls(|| {
+        assert!(processor.set_param(7, 7, 0.25));
+        processor.process(&mut left, &mut right);
+        processor.reset();
+        processor.stop();
+    }), 0);
+    assert_eq!(left, [0.0; 64]);
+    instance.deactivate(processor).unwrap();
+}
+
+#[test]
 fn r4_inactive_and_timed_vst3_points_reach_native_at_their_frames() {
     let path = common::plugin_file("vst3-point-expansion", "fixture.vst3");
     let module = windfall_plugin_host::PluginHost::windfall()

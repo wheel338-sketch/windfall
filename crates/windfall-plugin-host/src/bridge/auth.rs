@@ -7,6 +7,7 @@ use std::{
     sync::atomic::{AtomicBool, Ordering},
     time::{Duration, Instant},
 };
+#[cfg(windows)]
 use windows_sys::Win32::Security::Cryptography::{
     BCRYPT_USE_SYSTEM_PREFERRED_RNG, BCryptGenRandom,
 };
@@ -65,6 +66,8 @@ pub struct Key([u8; 32]);
 impl Key {
     pub fn generate() -> io::Result<Self> {
         let mut bytes = [0; 32];
+        #[cfg(windows)]
+        {
         // SAFETY: sized writable buffer; system-preferred RNG needs no provider.
         let result = unsafe {
             BCryptGenRandom(
@@ -77,6 +80,9 @@ impl Key {
         if result != 0 {
             return Err(io::Error::other("bridge launch RNG failed"));
         }
+        }
+        #[cfg(any(target_os = "macos", target_os = "linux"))]
+        std::fs::File::open("/dev/urandom")?.read_exact(&mut bytes)?;
         Ok(Self(bytes))
     }
     pub fn write_to_child(
