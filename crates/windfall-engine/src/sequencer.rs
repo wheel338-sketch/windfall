@@ -779,6 +779,7 @@ impl Sequencer {
                 order: 0,
                 what: Fire::Note {
                     source: crate::note_curves::CurveSource {
+                        performance: false,
                         pattern: pattern.id,
                         note: event.source,
                         start: self.pass_start + event.tick,
@@ -849,6 +850,7 @@ impl Sequencer {
                         order: 0,
                         what: Fire::Note {
                             source: crate::note_curves::CurveSource {
+                                performance: false,
                                 pattern: pattern.id,
                                 note: event.source,
                                 start: self.pass_start + plan.warp(tick),

@@ -244,6 +244,10 @@ impl Piece {
 }
 
 impl Lane {
+    pub(crate) fn performance_value(&self, plan: &Plan, state: &mut PlanState, tick: Option<f64>, now: u64, frames: u64) {
+        let value = tick.and_then(|tick| self.real_in(Place::Song(tick))).or_else(|| stored(plan, self.target));
+        if let Some(value) = value { set(plan, state, self.target, value, now, frames); }
+    }
     /// The value, 0 to 1, that automation gives the target at `tick` of
     /// the song and the automation it comes from, or `None` before the
     /// target's first clip.

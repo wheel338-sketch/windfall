@@ -37,6 +37,16 @@ pub struct PerformanceState {
     pub dropped_notes: String,
     pub tracks: Vec<PerformanceTrackState>,
 }
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct PerformanceRecordingState {
+    pub active: bool,
+    pub finished: bool,
+    pub frames: u32,
+    pub sample_rate: u32,
+    pub error: Option<String>,
+}
 /// PDC-aligned audio presentation cursor. Device latency is explicitly
 /// unknown here: do not fabricate driver timestamps from wall time.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]

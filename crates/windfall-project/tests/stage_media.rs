@@ -10,6 +10,7 @@ fn stage_settings_legacy_omission_history_and_roundtrip() {
         track: 0,
         scene: 0,
         pattern: doc.project().patterns[0].id,
+        clip: None,
     });
     media.videos.push(VideoPlacement {
         path: "C:/own-video.webm".into(),
@@ -48,6 +49,7 @@ fn invalid_media_is_atomic_and_deletion_restores_references_on_undo() {
         track: 1,
         scene: 2,
         pattern,
+        clip: None,
     });
     doc.dispatch(
         Command::SetStageMedia {
@@ -119,5 +121,27 @@ fn legacy_video_route_defaults_to_master_and_invalid_route_is_atomic() {
     let before = doc.project().clone();
     media.videos[0].mixer_track = TrackId(u32::MAX);
     assert!(doc.dispatch(Command::SetStageMedia { media }, None).is_err());
+    assert_eq!(doc.project(), &before);
+}
+
+#[test]
+fn recorded_performance_log_defaults_roundtrips_and_rejects_unsorted_events_atomically() {
+    let legacy: StageMedia = serde_json::from_str(r#"{"pads":[],"videos":[]}"#).unwrap();
+    assert!(legacy.takes.is_empty());
+    let mut doc = Document::new(Project::new("saved take"));
+    let sample = SampleId(doc.dispatch(Command::AddSample { name: "take".into(), path: SamplePath::External("own.wav".into()) }, None).unwrap().created[0]);
+    let mut media = StageMedia::default();
+    media.takes.push(PerformanceTake { sample, sample_rate: 48000, frames: 4800, initial_tick: 240.0, events: vec![PerformanceLogEvent { frame: 0, track: 0, pattern: Some(doc.project().patterns[0].id), quantization: LaunchQuantization::Beat }] });
+    doc.dispatch(Command::SetStageMedia { media: media.clone() }, None).unwrap();
+    let reopened: Project = serde_json::from_str(&serde_json::to_string(doc.project()).unwrap()).unwrap();
+    assert_eq!(reopened.settings.stage_media, media);
+    reopened.check().unwrap();
+    let before = doc.project().clone();
+    media.takes[0].events.insert(0, PerformanceLogEvent { frame: 10, track: 0, pattern: None, quantization: LaunchQuantization::Immediate });
+    assert!(doc.dispatch(Command::SetStageMedia { media }, None).is_err());
+    assert_eq!(doc.project(), &before);
+    doc.undo().unwrap();
+    assert!(doc.project().settings.stage_media.takes.is_empty());
+    doc.redo().unwrap();
     assert_eq!(doc.project(), &before);
 }

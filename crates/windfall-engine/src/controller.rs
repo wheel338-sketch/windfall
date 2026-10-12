@@ -145,6 +145,29 @@ pub struct StreamStats {
 }
 
 impl Controller {
+    pub fn performance_stream_stamp(&self) -> Option<(u64, u32)> {
+        let state = self.lock();
+        state.link.as_ref()?;
+        Some((state.stream_generation, state.hosted.as_ref()?.sample_rate))
+    }
+    pub fn performance_record_begin(&self, capture: Arc<crate::performance_recording::PerformanceRecording>) -> Result<(), String> {
+        let mut state = self.lock();
+        state.maintain();
+        if !state.backlog.is_empty() { return Err("Performance recording queue is full".into()); }
+        state.link.as_mut().ok_or("Performance recording needs an active audio stream")?.messages
+            .push(Message::PerformanceRecordBegin(capture)).map_err(|_| "Performance recording queue is full".into())
+    }
+    pub fn performance_record_end(&self) { self.lock().send(Message::PerformanceRecordEnd); }
+    pub fn performance_replay(&self, audio: Option<AudioBuffer>) -> Result<(), String> {
+        if audio.as_ref().is_some_and(|audio| audio.channels() != 2 || audio.frames() == 0 || audio.samples().iter().any(|sample| !sample.is_finite())) {
+            return Err("Performance replay needs finite stereo PCM".into());
+        }
+        let mut state = self.lock();
+        state.maintain();
+        if !state.backlog.is_empty() { return Err("Performance replay queue is full".into()); }
+        state.link.as_mut().ok_or("Performance replay needs an active audio stream")?.messages
+            .push(Message::PerformanceReplay(audio)).map_err(|_| "Performance replay queue is full".into())
+    }
     /// Admits a bounded performance request without changing song transport.
     pub fn performance_launch(
         &self,

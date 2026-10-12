@@ -107,6 +107,7 @@ pub use sample_instrument::SampleInstrumentAsset;
 pub use score::ScoreEventLane;
 pub mod stage_media;
 pub use stage_media::{
+    PerformanceLogEvent, PerformanceTake,
     LaunchQuantization, PerformancePad, StageMedia, VideoPlacement, VisualScene, VisualSettings,
 };
 

@@ -76,6 +76,9 @@ pub(crate) enum Message {
     Preview(AudioBuffer),
     StopPreview,
     Performance(crate::performance::LaunchRequest),
+    PerformanceRecordBegin(Arc<crate::performance_recording::PerformanceRecording>),
+    PerformanceRecordEnd,
+    PerformanceReplay(Option<AudioBuffer>),
     PerformanceStopAll,
     PerformanceScene([Option<crate::performance::LaunchRequest>; crate::performance::TRACKS]),
     SetOutputGain(f32),
@@ -97,6 +100,7 @@ pub(crate) enum Message {
     reason = "the values are never read, only carried to the thread that may free them"
 )]
 pub(crate) enum Garbage {
+    PerformanceRecording(Arc<crate::performance_recording::PerformanceRecording>),
     Plan(Arc<Plan>),
     State(Box<PlanState>),
     Sample(AudioBuffer),
