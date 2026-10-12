@@ -177,13 +177,21 @@ fn piano_expression_native_helper_sequences_slide_portamento_and_midi_only_bends
                     / (crossings[crossings.len() - 1] - crossings[0]) as f64
             };
             assert!((frequency(8000, 18000) - 440.0).abs() < 1.0);
-            assert!((frequency(33000, 43000) - 493.883).abs() < 1.0);
+            assert!(
+                (frequency(33000, 43000) - 493.883).abs() < 1.0,
+                "{id} {articulation:?}: {} Hz",
+                frequency(33000, 43000)
+            );
             let saved = windfall_project::file::to_json(&rig.project()).unwrap();
             assert_eq!(
                 windfall_project::file::from_json(&saved).unwrap(),
                 rig.project()
             );
             rig.session.transport_stop();
+            // The fixture advertises 32 frames of native delay: key-up cannot
+            // remove PCM already in that delay. Drain it before measuring
+            // sustained silence, preserving the unchanged RMS assertion.
+            rig.run(32);
             assert!(rms(&rig.run(4096)) < 0.01);
         }
     }

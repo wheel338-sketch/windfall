@@ -17,6 +17,14 @@ fn transformed_portamento_phrase_glides_audibly_and_is_partition_independent() {
             .map(|frame| frame as f32 / 1_000_000.0)
             .collect(),
     ));
+    // This phrase measures note gates as well as pitch. An envelope-free
+    // sampler intentionally plays its entire one-shot after key-up.
+    rig.sampler_mut(channel).envelope = Some(windfall_project::Envelope {
+        attack_ms: 0.0,
+        decay_ms: 0.0,
+        sustain: 1.0,
+        release_ms: 0.0,
+    });
     rig.note(channel, 0, 480).key = 60;
     rig.note(channel, 960, 960).key = 72;
     let pattern = rig.first_pattern();
@@ -49,7 +57,11 @@ fn transformed_portamento_phrase_glides_audibly_and_is_partition_independent() {
     // of the engine's glide helper. Middle C is unity; its octave is double.
     let slope = |at: usize| (audio[(at + 1) * 2] - audio[at * 2]) * 1_000_000.0;
     assert!((slope(20_000) - 1.0).abs() < 0.01);
-    assert!((1.0..1.03).contains(&slope(24_001)));
+    assert!(
+        (1.0..1.03).contains(&slope(24_001)),
+        "start slope {}",
+        slope(24_001)
+    );
     assert!((1.3..1.8).contains(&slope(27_000)));
     assert!((slope(30_010) - 2.0).abs() < 0.02);
     for block in [1, 64, 1024] {

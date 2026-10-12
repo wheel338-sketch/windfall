@@ -1119,14 +1119,14 @@ impl Processor {
         };
         if note.expression.articulation == windfall_dsp::NoteArticulation::Slide {
             if let Some(unit) = self.state.instrument(note.channel) {
-                unit.slide_notes(note.key, note.expression, at, note.end, note.origin);
+                unit.slide_notes(note.key, note.expression, at, glide_end, note.origin);
             } else {
                 self.voices.slide_notes(
                     self.plan.channels[note.channel].id,
                     note.key,
                     note.expression,
                     at,
-                    note.end,
+                    glide_end,
                     note.origin,
                 );
             }
@@ -1178,7 +1178,23 @@ impl Processor {
                 settings,
             )
         };
-        let mono = if !decision.retrigger {
+        let mono = if note.expression.articulation == windfall_dsp::NoteArticulation::Portamento
+            && generated.is_none()
+        {
+            self.state.channel_voice[channel]
+                .owners
+                .iter()
+                .flatten()
+                .filter(|owner| {
+                    owner.generated.is_none()
+                        && owner.note.origin == note.origin
+                        && owner.note.expression.color_group.unwrap_or(0)
+                            == note.expression.color_group.unwrap_or(0)
+                        && owner.note.source.is_none_or(|source| source.start < at)
+                })
+                .max_by_key(|owner| owner.instance.0)
+                .copied()
+        } else if !decision.retrigger {
             self.state.channel_voice[channel]
                 .owners
                 .iter()
@@ -1188,6 +1204,21 @@ impl Processor {
         } else {
             None
         };
+        if let Some(owner) = mono {
+            // Portamento continues one existing occurrence, including sample
+            // position and envelopes. Transfer its logical key ownership so
+            // the old score note's end cannot release the new phrase.
+            for slot in &mut self.state.channel_voice[channel].owners {
+                if slot.is_some_and(|existing| existing.instance == owner.instance) {
+                    *slot = None;
+                }
+            }
+            if owner.note.key != note.key {
+                self.state.channel_voice[channel]
+                    .held
+                    .note_off(owner.note.key);
+            }
+        }
         for &key in decision.released_keys() {
             for slot in 0..self.state.channel_voice[channel].owners.len() {
                 if let Some(owner) = self.state.channel_voice[channel].owners[slot]

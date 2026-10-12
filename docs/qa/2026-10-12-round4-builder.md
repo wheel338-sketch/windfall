@@ -24,6 +24,30 @@ temporary native `TS_RS_EXPORT_DIR`. No worktree changes or hardware tests.
   `target/round4-builder-a2-block-probe.log`. Baseline **0/2/0**:
   `target/round4-builder-a2-baseline.log`.
 
+- **A3 fixed:** portamento allocated a second overlapping voice; continue the
+  most recent compatible held occurrence and transfer logical ownership instead.
+  Slide used its note length as the ramp length; use `glide_ticks` in the
+  musical clock. `cargo test -p windfall-engine --test piano_phrase_pcm --
+  --test-threads=1 --nocapture`: **1/0/0**;
+  `target/round4-builder-a3-engine-fixed.log`. Native joined expression gate:
+  `cargo test -p windfall-desktop --lib
+  session::tests::plugins::piano_expression_native_helper_sequences_slide_portamento_and_midi_only_bends
+  -- --test-threads=1 --nocapture`: **1/0/0**, all four CLAP/MIDI-only and
+  Slide/Portamento cases; `target/round4-builder-a3-native-current-fixed.log`.
+  Two fixture expectation corrections, with unchanged numerical assertions:
+  the ramp fixture now enables a zero-time gate envelope, because the explicit
+  existing `without_an_envelope_the_whole_sample_plays_whatever_the_note_length`
+  contract makes the old gap expectation false; the native stop fixture drains
+  its advertised 32-frame delay before checking sustained silence. A causal
+  key-up at frame 0 leaves the previous 32 samples in that delay, so including
+  them in a 4096-frame RMS can exceed 0.01 without any stuck note.
+  Initial native probes accidentally selected the old 2026-10-10 DLL; rebuilt
+  current fixture offline in `target/plugin-session-fixtures` and corrected
+  runner. `target/round4-builder-fixture-current.log`. Earlier native failures
+  remain logged as diagnostic evidence, not current-fixture product verdicts.
+  Neighboring `cargo test -p windfall-engine --test engine expression --
+  --test-threads=1`: **2/0/0**, `target/round4-builder-a3-expression-regression.log`.
+
 ## Resume / final gates
 
-A3 is next. A3–A7, release budgets and final gates not yet run.
+A4 is next. A4–A7, release budgets and final gates not yet run.
