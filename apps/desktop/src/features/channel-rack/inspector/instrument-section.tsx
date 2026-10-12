@@ -77,7 +77,7 @@ export function InstrumentSection({ channel }: { channel: InstrumentChannel }) {
       ) : params.type === "drumRack" ? (
         <DrumRackEditor channel={channel.id} params={params} />
       ) : params.type === "midiOut" ? (
-        <div className="flex flex-col gap-3"><MidiOutputEditor channel={channel} /><SpecialOutputEditor key={`${generation}:${channel.id}`} /></div>
+        <div className="flex flex-col gap-3"><MidiOutputEditor channel={channel} /><SpecialOutputEditor key={`${generation}:${channel.id}`} channel={channel} /></div>
       ) : params.type === "membrane" ? (
         <MembraneEditor channel={channel.id} params={params} />
       ) : ["sliceMap", "sliceDeck", "grainCloud", "waveRide"].includes(params.type) ? (

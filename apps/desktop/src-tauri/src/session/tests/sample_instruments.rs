@@ -360,3 +360,16 @@ fn stale_source_relink_cannot_change_a_replaced_project() {
     hold.wait(); rig.session.project_new().unwrap(); let before = rig.session.document_snapshot(); hold.release();
     assert!(job.join().unwrap().is_err()); assert_eq!(rig.session.document_snapshot(), before);
 }
+
+#[test]
+fn project_controller_destination_reopens_without_changing_application_midi_settings() {
+    let rig=Rig::new();let id=ChannelId(rig.session.dispatch(Command::AddChannel {name:None,sample:None,instrument:Some(InstrumentKind::MidiOut),index:None,mixer_track:None},None).unwrap().created[0]);
+    let application=rig.session.midi_hardware_state().settings;
+    let before=rig.project();let mut params=InstrumentKind::MidiOut.default_params();if let windfall_dsp::InstrumentParams::MidiOut(params)=&mut params {params.feedback_enabled=true;params.feedback_controller=1;params.feedback_motor=2;params.feedback_strength=0.7;params.feedback_curve=0.5;}
+    rig.session.dispatch(Command::SetInstrumentParams {channel:id,params},None).unwrap();let saved=rig.project();
+    rig.session.undo().unwrap();assert_eq!(rig.project(),before);rig.session.redo().unwrap();assert_eq!(rig.project(),saved);
+    let path=rig.file("project-feedback.windfall");rig.session.project_save(Some(&path)).unwrap();let reopened=rig.restart();reopened.session.project_open(&path).unwrap();
+    assert_eq!(reopened.project().channel(id).unwrap().source,saved.channel(id).unwrap().source);
+    assert_eq!(rig.session.midi_hardware_state().settings,application);
+    assert_eq!(reopened.session.midi_hardware_state().settings,application);
+}

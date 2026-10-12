@@ -162,4 +162,17 @@ describe("sample instrument purpose-built editors",()=>{
     expect(screen.getByRole("spinbutton",{name:"Zone 1 LFO 2 to amplitude"})).toBeInTheDocument()
   })
 
+  it("saves a project feedback route with undo without changing app MIDI preferences",async()=>{
+    const hardware=await backend.midiHardwareState()
+    vi.spyOn(backend,"midiHardwareState").mockResolvedValue({...hardware,outputs:[{id:"windfall:project-xinput-feedback",name:"Project feedback"}]})
+    const configure=vi.spyOn(backend,"midiHardwareConfigure")
+    const id=await open("midiOut")
+    fireEvent.click(screen.getByRole("button",{name:"Use project controller feedback"}));await act(()=>settle())
+    expect(useProjectStore.getState().project.channels.find(channel=>channel.id===id)?.source).toMatchObject({type:"instrument",params:{type:"midiOut",feedbackEnabled:true,feedbackController:0,feedbackMotor:0,feedbackStrength:1,feedbackCurve:1}})
+    expect(screen.getByRole("combobox",{name:"Project feedback motor"})).toBeInTheDocument()
+    expect(configure).not.toHaveBeenCalled()
+    await undo();await act(()=>settle())
+    expect(screen.getByRole("button",{name:"Use project controller feedback"})).toBeEnabled()
+  })
+
 })

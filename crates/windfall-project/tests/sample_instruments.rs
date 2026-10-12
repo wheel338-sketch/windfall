@@ -245,3 +245,18 @@ fn multisampler_modulation_and_effects_persist_and_legacy_fields_default_to_dry(
     let Some(SampleInstrumentAsset::Zones { zones })=&legacy.channel(id).unwrap().sample_instrument else { panic!() };
     assert_eq!(zones[0].modulation,Default::default());assert_eq!(zones[0].modulation_group,0);
 }
+
+#[test]
+fn project_feedback_routing_is_checked_saved_and_restored_by_undo() {
+    let mut doc=Document::new(Project::new("Feedback"));let id=channel(&mut doc,InstrumentKind::MidiOut);let before=doc.project().clone();
+    let mut params=InstrumentKind::MidiOut.default_params();if let InstrumentParams::MidiOut(params)=&mut params {params.feedback_enabled=true;params.feedback_controller=3;params.feedback_motor=2;params.feedback_strength=0.4;params.feedback_curve=2.0;}
+    doc.dispatch(Command::SetInstrumentParams {channel:id,params},None).unwrap();let edited=doc.project().clone();edited.check().unwrap();
+    let loaded:Project=serde_json::from_str(&serde_json::to_string(&edited).unwrap()).unwrap();assert_eq!(loaded,edited);
+    doc.undo().unwrap();assert_eq!(doc.project(),&before);doc.redo().unwrap();assert_eq!(doc.project(),&edited);
+    let mut invalid=edited.clone();if let ChannelSource::Instrument {params:InstrumentParams::MidiOut(params),..}=&mut invalid.channels.iter_mut().find(|c|c.id==id).unwrap().source {params.feedback_controller=4;}
+    assert!(invalid.check().is_err());
+    let mut legacy=serde_json::to_value(&edited).unwrap();let params=legacy["channels"].as_array_mut().unwrap().iter_mut().find(|c|c["id"]==id.0).unwrap()["source"]["params"].as_object_mut().unwrap();
+    for field in ["feedbackEnabled","feedbackController","feedbackMotor","feedbackStrength","feedbackCurve"] {params.remove(field);}
+    let old:Project=serde_json::from_value(legacy).unwrap();let ChannelSource::Instrument {params:InstrumentParams::MidiOut(params),..}=old.channel(id).unwrap().source else {panic!()};
+    assert!(!params.feedback_enabled);assert_eq!(params.feedback_strength,1.0);assert_eq!(params.feedback_curve,1.0);
+}
