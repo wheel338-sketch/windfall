@@ -21,6 +21,9 @@ import { TimeGridCanvas } from "@/lib/canvas/react"
 import { activeSampleDrag, hasSampleDrag, readSampleDrag } from "@/lib/dnd"
 import { activeSelectionDrag, hasSelectionDrag, readSelectionDrag, transferSelection } from "@/features/audio-editor/transfer"
 import { wholeClipTicks } from "./audio/geometry"
+import { activeLoopDrag, hasLoopDrag, readLoopDrag } from "@/features/loops/drag"
+import { insertFactoryLoop } from "@/features/loops/insert"
+import { PPQ } from "@/lib/units"
 import { MODIFIER_HINTS } from "@/lib/edit-modifiers"
 import { errorMessage } from "@/lib/ipc"
 import { useHint } from "@/lib/store/hint"
@@ -293,11 +296,15 @@ export function PlaylistGrid({ metrics }: { metrics: GridMetrics }) {
     const session = sessionRef.current
     // Anything that is not a sound is left to the browser, which shows it
     // cannot be dropped here.
-    if (!view || !session || (!hasSampleDrag(event) && !hasSelectionDrag(event))) return null
+    if (!view || !session || (!hasSampleDrag(event) && !hasSelectionDrag(event) && !hasLoopDrag(event))) return null
     event.preventDefault()
     event.dataTransfer.dropEffect = "copy"
     const sample = activeSampleDrag()
     const at = { ...view.localPoint(event), alt: event.altKey }
+    if (hasLoopDrag(event)) {
+      const loop = activeLoopDrag()
+      return session.previewDrop(at, loop?.name ?? "Factory loop", loop ? loop.bars * 4 * PPQ : null)
+    }
     const tempo = project().settings.tempoBpm
     const selection=activeSelectionDrag()
     if (hasSelectionDrag(event)) return session.previewDrop(at,"Editor selection",selection ? wholeClipTicks(selection.durationSecs,tempo) : null)
@@ -319,6 +326,14 @@ export function PlaylistGrid({ metrics }: { metrics: GridMetrics }) {
       const row=documentRowFor(place.row)
       if (row===undefined) return
       void transferSelection(selection,{type:"playlist",track:playlist().tracks[row]?.id ?? null,start:place.start})
+      return
+    }
+    const loop = readLoopDrag(event)
+    if (place && loop) {
+      const row = documentRowFor(place.row)
+      if (row === undefined) return
+      containerRef.current?.focus({ preventScroll: true })
+      void insertFactoryLoop(loop, place.start, project().playlist.tracks[row]?.id ?? null, row)
       return
     }
     const sample = readSampleDrag(event)

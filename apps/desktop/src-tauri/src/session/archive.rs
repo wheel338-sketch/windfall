@@ -28,8 +28,10 @@ impl Default for AudioLimits {
 pub(crate) struct ArchiveJob {
     session: Session,
     cancelled: Arc<AtomicBool>,
+    generation: Option<u64>,
 }
 impl ArchiveJob {
+    pub(crate) fn for_generation(mut self, generation: u64) -> Self { self.generation = Some(generation); self }
     fn check(&self) -> Result<(), Error> {
         if self.cancelled.load(Ordering::Acquire) {
             Err(Error::Cancelled)
@@ -47,15 +49,18 @@ impl Session {
     /// Reserve cancellation ownership before a shell command queues blocking
     /// work, so Cancel can also stop a job waiting to enter its worker.
     pub(crate) fn archive_job(&self) -> Result<ArchiveJob, String> {
+        self.archive_job_with_cancel(Arc::new(AtomicBool::new(false)))
+    }
+    pub(crate) fn archive_job_with_cancel(&self, cancelled: Arc<AtomicBool>) -> Result<ArchiveJob, String> {
         let mut active = lock(&self.inner.archive_job);
         if active.is_some() {
             return Err("Another project archive operation is running.".into());
         }
-        let cancelled = Arc::new(AtomicBool::new(false));
         *active = Some(cancelled.clone());
         Ok(ArchiveJob {
             session: self.clone(),
             cancelled,
+            generation: None,
         })
     }
     pub fn project_archive_cancel(&self) {
@@ -100,6 +105,7 @@ impl Session {
         drop(self.recording_idle()?);
         let (project, played, directory, revision, _extraction) = {
             let state = self.state();
+            if job.generation.is_some_and(|generation| state.generation != generation) { return Err("The project changed before backup capture.".into()); }
             (
                 state.document.project().clone(),
                 self.played(),

@@ -39,6 +39,7 @@ import type { PanelId } from "@/lib/store/ui"
 
 import type { ProjectFilesBackend } from "./files"
 import type { MixerPresetLibraryBackend } from "./mixer-presets"
+import type { RemoteContentBackend } from "./remote-content"
 
 export type Unsubscribe = () => void
 
@@ -70,7 +71,7 @@ export type AudioClipPlace = {
  * the shell needs. A failed call rejects with an `Error` whose message is
  * plain text that can be shown to the user.
  */
-export interface Backend extends AnalysisBackend, MixerPresetLibraryBackend, AnalyzerBackend, ProjectFilesBackend {
+export interface Backend extends AnalysisBackend, MixerPresetLibraryBackend, AnalyzerBackend, ProjectFilesBackend, RemoteContentBackend {
   sampleInstrumentLoadBank?(channel: ChannelId, expected: import("@/bindings").SampleInstrumentAsset | null,
     path: string): Promise<DispatchResult>
   sampleInstrumentSaveBank?(channel: ChannelId, expected: import("@/bindings").SampleInstrumentAsset | null,

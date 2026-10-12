@@ -164,11 +164,7 @@ impl Session {
         browser: Option<&windfall_ipc::LibraryFileToken>,
     ) -> Result<(), String> {
         let file = paths::absolute(path)?;
-        let ticket = {
-            let mut latest = lock(&self.inner.preview);
-            *latest += 1;
-            *latest
-        };
+        let ticket = self.preview_request();
         // Pinning a network-drive file can be slow too. It belongs to this
         // request's original ticket, so a later preview/stop still wins.
         let pinned = browser
@@ -180,6 +176,18 @@ impl Session {
             self.inner.library.check_file(token, path)?;
         }
         let _library = browser.map(|t| self.inner.library.guard(t)).transpose()?;
+        self.preview_submit(ticket, buffer);
+        Ok(())
+    }
+
+    /// Reserve before any slow decoding or generated-content preparation.
+    pub(super) fn preview_request(&self) -> u64 {
+        let mut latest = lock(&self.inner.preview);
+        *latest += 1;
+        *latest
+    }
+
+    pub(super) fn preview_submit(&self, ticket: u64, buffer: windfall_core::AudioBuffer) {
         // Held from the check until the engine has the preview. A stop or
         // a newer preview either came before, and this one is dropped, or
         // comes after it and wins. Neither can land in between.
@@ -189,7 +197,6 @@ impl Session {
             self.pause("preview:send");
             self.controller().preview(buffer);
         }
-        Ok(())
     }
 
     pub fn preview_stop(&self) {

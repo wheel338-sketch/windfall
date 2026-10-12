@@ -1,4 +1,5 @@
 import { useRecordingStore } from "@/features/transport/recording-store"
+import { backupAfterSave, prepareBackupAfterSave } from "@/features/backup/store"
 import { toast } from "sonner"
 import { create } from "zustand"
 
@@ -29,10 +30,12 @@ export function projectName(): string {
 
 async function saveTo(path?: string): Promise<boolean> {
   try {
+    const backup = await prepareBackupAfterSave()
     const saved = await backend.projectSave(path)
     setProjectPath(saved)
     toast.success("Saved", { description: fileName(saved) })
     void refreshRecentProjects()
+    void backupAfterSave(backup, saved)
     return true
   } catch (error) {
     reportError(error, "Could not save the project")

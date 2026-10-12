@@ -107,6 +107,9 @@ mod tests;
 mod timeline;
 mod transport;
 mod versions;
+mod cloud_backup;
+mod loop_content;
+mod phone_remote;
 
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
@@ -190,6 +193,8 @@ struct Inner {
     timeline_play_request: std::sync::atomic::AtomicU64,
     archive_job: Mutex<Option<Arc<AtomicBool>>>,
     extractions: Mutex<extractions::Extractions>,
+    backup_job: Mutex<Option<Arc<AtomicBool>>>,
+    phone_remote: Mutex<Option<phone_remote::Server>>,
     analysis: analysis_jobs::Service,
     /// Live analyzer slots and captures. Locked after `state`, before the
     /// engine's controller; the realtime thread takes it without `state`.
@@ -436,6 +441,8 @@ impl Session {
                 timeline_request: std::sync::atomic::AtomicU64::new(0),
                 timeline_play_request: std::sync::atomic::AtomicU64::new(0),
                 archive_job: Mutex::new(None),
+                backup_job: Mutex::new(None),
+                phone_remote: Mutex::new(None),
                 analysis,
                 analyzers: analyzers::Service::new(),
                 midi_hardware: Mutex::new(None),

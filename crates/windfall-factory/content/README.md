@@ -1,6 +1,6 @@
 # Windfall factory sounds
 
-These are the sounds Windfall ships with. `Drums` holds a drum kit and `Bass` holds three bass notes for the sampler. Every file is a 48 kHz, 24-bit WAV one-shot. Most are mono. The wide clap and the cymbals are stereo.
+These are the sounds Windfall ships with. `Drums` holds a drum kit and `Bass` holds three bass notes for the sampler. `Loops` holds eight original two-bar stereo arrangements across several genres, source tempos and minor keys. Every WAV is 48 kHz, 24-bit PCM. The one-shots are mostly mono; the wide clap, cymbals and loops are stereo.
 
 All of it is public domain under CC0 1.0. See `LICENSE.md`.
 
@@ -9,6 +9,8 @@ All of it is public domain under CC0 1.0. See `LICENSE.md`.
 The `windfall-factory` crate generates this whole folder, including this file. A test in that crate fails if the folder differs from what the generator writes by a single byte, or if it holds a file the generator does not know about.
 
 To change a sound or add one, edit `crates/windfall-factory/src/sounds`, add new sounds to the table in `crates/windfall-factory/src/lib.rs`, then regenerate from the repository root.
+
+To change a loop, edit `crates/windfall-factory/src/loops.rs`. `Loops/manifest.json` records each asset's ID, path, genre, tempo, key (C=0), minor mode, bars and generator provenance. Every loop uses only Windfall's own oscillator and drum synthesis; no external audio enters the generator. The desktop Loops browser auditions at source tempo and can resynthesize at project tempo and a selected minor key when inserting a clip. Fitting does not change pitch with tempo, and the resulting normal audio clip is one undo step. Later project-tempo changes do not rerender it automatically.
 
 ```
 cargo run -p windfall-factory --release -- generate content/factory

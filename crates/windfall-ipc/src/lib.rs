@@ -28,6 +28,8 @@ pub use plugins::*;
 mod sampler_preprocess;
 pub use sampler_preprocess::*;
 mod files;
+mod remote_content;
+pub use remote_content::*;
 pub use files::*;
 mod assistant;
 pub use assistant::*;

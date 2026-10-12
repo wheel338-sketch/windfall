@@ -1,6 +1,9 @@
 import { PluginCatalog } from "@/features/plugins/catalog"
 import { ProjectFilesPanel } from "@/features/project-files/panel"
 import { useEffect } from "react"
+import { FolderBackupPanel } from "@/features/backup/panel"
+import { LoopBrowser } from "@/features/loops/browser"
+import { useProjectGeneration } from "@/lib/store/replaced"
 
 import { ContextActions } from "@/components/context-actions"
 import { Button } from "@/components/ui/button"
@@ -24,6 +27,7 @@ import { TreeView } from "./tree-view"
  * Its state lives in a store of its own, so hiding the panel loses nothing.
  */
 export default function BrowserPanel() {
+  const generation = useProjectGeneration()
   useEffect(() => {
     ensureRootsLoaded()
     // The scroll position is saved a moment after scrolling stops; make sure
@@ -39,12 +43,14 @@ export default function BrowserPanel() {
 
   return (
     <Tabs defaultValue="library" className="h-full min-h-0 gap-0">
-      <TabsList aria-label="Browser view" className="m-1 shrink-0">
+      <TabsList aria-label="Browser view" className="m-1 h-auto shrink-0 flex-wrap">
         <TabsTrigger value="library">Library</TabsTrigger>
         <TabsTrigger value="project">Project</TabsTrigger>
         <TabsTrigger value="plugins">Plugins</TabsTrigger>
         <TabsTrigger value="files">Files</TabsTrigger>
         <TabsTrigger value="backups">Backups</TabsTrigger>
+        <TabsTrigger value="loops">Loops</TabsTrigger>
+        <TabsTrigger value="cloudBackup">Cloud backup</TabsTrigger>
       </TabsList>
       <TabsContent value="library" className="min-h-0">
         <ContextActions items={BROWSER_MENU}>
@@ -83,6 +89,8 @@ export default function BrowserPanel() {
       <TabsContent value="backups" className="min-h-0 overflow-auto">
         <BackupsTab />
       </TabsContent>
+      <TabsContent value="loops" className="min-h-0 overflow-auto"><LoopBrowser key={generation} /></TabsContent>
+      <TabsContent value="cloudBackup" className="min-h-0 overflow-auto"><FolderBackupPanel key={generation} /></TabsContent>
     </Tabs>
   )
 }
