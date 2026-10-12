@@ -73,7 +73,10 @@ pub struct TrackProcessor {
 }
 impl TrackProcessor {
     /// Clear filter history while retaining all prepared buffers.
-    pub fn reset(&mut self) { self.eq.reset(); self.apply(true); }
+    pub fn reset(&mut self) {
+        self.eq.reset();
+        self.apply(true);
+    }
     pub fn new(rate: u32, block: usize, params: TrackParams) -> Self {
         let mut unit = Self {
             params: params.sanitized(),

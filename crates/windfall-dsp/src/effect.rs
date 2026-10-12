@@ -45,6 +45,7 @@ use crate::frequency_delay::{FrequencyDelay, FrequencyDelayParams};
 use crate::lush::{LushSpace, LushSpaceParams};
 use crate::mastering::{MasterLimiter, MasterLimiterParams, master_limiter_latency};
 use crate::mastering::{StageStack, StageStackParams};
+use crate::music_lighting::{MusicLighting, MusicLightingParams};
 use crate::polarity::{Polarity, PolarityParams};
 use crate::sendtap::{SendTap, SendTapParams};
 use crate::soft_clipper::{SoftClipper, SoftClipperParams};
@@ -56,7 +57,6 @@ use crate::spectral::{
 use crate::stereo_matrix::{StereoMatrix, StereoMatrixParams};
 use crate::surface::{ControlSurface, ControlSurfaceParams};
 use crate::tuner::{Tuner, TunerParams};
-use crate::music_lighting::{MusicLighting, MusicLightingParams};
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 

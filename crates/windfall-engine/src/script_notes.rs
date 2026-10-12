@@ -53,10 +53,28 @@ mod tests {
 
     #[test]
     fn fixed_note_copy_success_and_bounds_failure_allocate_and_free_nothing() {
-        let transform = Program::compile("copies 16 1 60\nemit").unwrap().note_transform(&[]).unwrap();
+        let transform = Program::compile("copies 16 1 60\nemit")
+            .unwrap()
+            .note_transform(&[])
+            .unwrap();
         let calls = crate::test_alloc::allocator_calls(|| {
-            assert_eq!(transform.evaluate_notes(ScriptNote::default()).unwrap().as_slice().len(), 16);
-            assert_eq!(transform.evaluate_notes(ScriptNote { key: 127, ..Default::default() }).unwrap_err(), TransformError::NoteBounds);
+            assert_eq!(
+                transform
+                    .evaluate_notes(ScriptNote::default())
+                    .unwrap()
+                    .as_slice()
+                    .len(),
+                16
+            );
+            assert_eq!(
+                transform
+                    .evaluate_notes(ScriptNote {
+                        key: 127,
+                        ..Default::default()
+                    })
+                    .unwrap_err(),
+                TransformError::NoteBounds
+            );
         });
         assert_eq!(calls, 0);
     }

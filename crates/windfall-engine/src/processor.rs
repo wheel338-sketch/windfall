@@ -157,7 +157,8 @@ impl Processor {
             performance_recording: None,
             performance_replay: None,
             performance_automation: [None; crate::performance::TRACKS],
-            performance_audio: [crate::performance_clips::AudioPad::default(); crate::performance::TRACKS],
+            performance_audio: [crate::performance_clips::AudioPad::default();
+                crate::performance::TRACKS],
             mixer: Mixer::new(),
             triggers: Triggers::new(),
             metronome: crate::metronome::Metronome::new(),
@@ -430,10 +431,18 @@ impl Processor {
         let pad_automation = self.performance_automation.iter().any(Option::is_some)
             || (0..crate::performance::TRACKS).any(|track| {
                 let (active, pending, _) = self.performance.slot(track);
-                active.into_iter().chain(pending).any(|id| self.plan.performance_clip_ids.get(id.0).is_some_and(|index| self.plan.performance_clips[index].has_automation()))
+                active.into_iter().chain(pending).any(|id| {
+                    self.plan
+                        .performance_clip_ids
+                        .get(id.0)
+                        .is_some_and(|index| self.plan.performance_clips[index].has_automation())
+                })
             });
         if pad_automation {
-            if self.frame.is_multiple_of(GRID) { self.automate(); crate::internal_controllers::step(&self.plan, &mut self.state, self.frame); }
+            if self.frame.is_multiple_of(GRID) {
+                self.automate();
+                crate::internal_controllers::step(&self.plan, &mut self.state, self.frame);
+            }
             return most.min(1);
         }
         let at_work = self.state.engaged > 0 || self.state.returning > 0;
@@ -698,8 +707,20 @@ impl Processor {
             Message::PerformanceRecordBegin(capture) => {
                 capture.begin(now, self.performance.tick(), self.sample_rate);
                 for track in 0..crate::performance::TRACKS {
-                    let active = self.performance_replay.as_ref().map_or_else(|| self.performance.slot(track).0, |replay| replay.slots[track]);
-                    if let Some(pattern) = active { capture.launch(now, crate::performance::LaunchRequest { track: track as u8, pattern: Some(pattern), quantization: windfall_project::LaunchQuantization::Immediate }); }
+                    let active = self.performance_replay.as_ref().map_or_else(
+                        || self.performance.slot(track).0,
+                        |replay| replay.slots[track],
+                    );
+                    if let Some(pattern) = active {
+                        capture.launch(
+                            now,
+                            crate::performance::LaunchRequest {
+                                track: track as u8,
+                                pattern: Some(pattern),
+                                quantization: windfall_project::LaunchQuantization::Immediate,
+                            },
+                        );
+                    }
                 }
                 if let Some(old) = self.performance_recording.replace(capture) {
                     old.finish();
@@ -709,7 +730,9 @@ impl Processor {
             Message::PerformanceRecordEnd => {
                 if let Some(capture) = self.performance_recording.take() {
                     capture.finish();
-                    self.shared.performance_recording_owned.store(false, Ordering::Release);
+                    self.shared
+                        .performance_recording_owned
+                        .store(false, Ordering::Release);
                     retire(&mut self.garbage, Garbage::PerformanceRecording(capture));
                 }
             }
@@ -1076,11 +1099,24 @@ impl Processor {
         if note.expression.articulation == windfall_dsp::NoteArticulation::Slide {
             // A slide bends sounding notes and has no echo of its own.
         } else if !note.end.is_finite() {
-            if matches!(note.origin, Origin::Performance(_)) && let Some(source) = note.source {
-                let bpm = self.performance.tempo_override(&self.plan).unwrap_or(self.state.tempo());
-                let duration = ((source.end - source.start) * 60.0 * f64::from(self.sample_rate) / (bpm * f64::from(windfall_core::PPQ))).ceil().max(1.0) as usize;
+            if matches!(note.origin, Origin::Performance(_))
+                && let Some(source) = note.source
+            {
+                let bpm = self
+                    .performance
+                    .tempo_override(&self.plan)
+                    .unwrap_or(self.state.tempo());
+                let duration = ((source.end - source.start) * 60.0 * f64::from(self.sample_rate)
+                    / (bpm * f64::from(windfall_core::PPQ)))
+                .ceil()
+                .max(1.0) as usize;
                 let rejected = self.state.channel_voice[channel].rejected_echoes;
-                self.state.channel_voice[channel].schedule_echo(note, duration, f64::from(self.sample_rate), bpm);
+                self.state.channel_voice[channel].schedule_echo(
+                    note,
+                    duration,
+                    f64::from(self.sample_rate),
+                    bpm,
+                );
                 self.report_rejected_echoes(channel, rejected);
             }
             // A note held by hand has no length yet: its echoes start now
@@ -1662,7 +1698,14 @@ impl Processor {
                 monitor.render(&mut self.mixer.track_mut(track)[..frames]);
             }
         }
-        crate::video_audio::render(&self.plan, &self.sequencer, &mut self.mixer, base, 0, frames);
+        crate::video_audio::render(
+            &self.plan,
+            &self.sequencer,
+            &mut self.mixer,
+            base,
+            0,
+            frames,
+        );
         self.metronome.clear_block();
 
         // Voices and instruments are rendered up to each note's frame
@@ -1754,17 +1797,32 @@ impl Processor {
             taps.collect(&mut self.mixer, frames);
         }
         let replaying = self.performance_replay.is_some();
-        if !replaying { self.mixer.publish_waveforms(&self.plan, &self.shared, base, self.sample_rate, out); }
+        if !replaying {
+            self.mixer
+                .publish_waveforms(&self.plan, &self.shared, base, self.sample_rate, out);
+        }
         self.metronome.mix(out);
         if let Some(replay) = &mut self.performance_replay
-            && replay.render(self.sample_rate, out, base, self.performance_recording.as_deref())
+            && replay.render(
+                self.sample_rate,
+                out,
+                base,
+                self.performance_recording.as_deref(),
+            )
             && let Some(replay) = self.performance_replay.take()
-        { retire(&mut self.garbage, Garbage::PerformanceReplay(replay)); }
-        if replaying { self.mixer.publish_waveforms(&self.plan, &self.shared, base, self.sample_rate, out); }
+        {
+            retire(&mut self.garbage, Garbage::PerformanceReplay(replay));
+        }
+        if replaying {
+            self.mixer
+                .publish_waveforms(&self.plan, &self.shared, base, self.sample_rate, out);
+        }
         // A capture of the mix output sees it after the gain and before the
         // scrub; the device gets the same samples either way.
         match &mut self.captures {
-            Some(captures) if replaying && captures.wants_mix() => captures.finish_output(&Ramp::at_rest(1.0), base, self.sample_rate, 0, out),
+            Some(captures) if replaying && captures.wants_mix() => {
+                captures.finish_output(&Ramp::at_rest(1.0), base, self.sample_rate, 0, out)
+            }
             Some(captures) if captures.wants_mix() => captures.finish_output(
                 &self.output_gain,
                 base,
@@ -1773,9 +1831,11 @@ impl Processor {
                 out,
             ),
             _ if !replaying => self.finish_output(base, out),
-            _ => {},
+            _ => {}
         }
-        if let Some(capture) = &self.performance_recording { capture.copy(base, self.sample_rate, out); }
+        if let Some(capture) = &self.performance_recording {
+            capture.copy(base, self.sample_rate, out);
+        }
         if let Some(logger) = &mut self.audio_logger {
             logger.master(out);
         }
@@ -1886,29 +1946,61 @@ impl Processor {
     }
     fn log_performance_stop(&self, now: u64) {
         if let Some(capture) = &self.performance_recording {
-            for track in 0..crate::performance::TRACKS { capture.launch(now, crate::performance::LaunchRequest { track: track as u8, pattern: None, quantization: windfall_project::LaunchQuantization::Immediate }); }
+            for track in 0..crate::performance::TRACKS {
+                capture.launch(
+                    now,
+                    crate::performance::LaunchRequest {
+                        track: track as u8,
+                        pattern: None,
+                        quantization: windfall_project::LaunchQuantization::Immediate,
+                    },
+                );
+            }
         }
     }
     fn stop_performance_replay(&mut self) {
-        if let Some(replay) = self.performance_replay.take() { retire(&mut self.garbage, Garbage::PerformanceReplay(replay)); }
+        if let Some(replay) = self.performance_replay.take() {
+            retire(&mut self.garbage, Garbage::PerformanceReplay(replay));
+        }
     }
 
     fn performance_events(&mut self, now: u64) {
         for index in 0..self.performance.events_len() {
             match self.performance.event(index) {
-                crate::performance::Event::On { token, note, pattern, start } => self.start(
+                crate::performance::Event::On {
+                    token,
+                    note,
+                    pattern,
+                    start,
+                } => self.start(
                     Note {
                         source: Some(crate::note_curves::CurveSource {
-                            performance: true, pattern, note: note.source, start, end: start + note.length,
-                            song_origin: None, base_pan: note.pan, base_expression: note.expression,
-                            active: self.plan.pattern_ids.get(pattern.0).is_some_and(|index| !self.plan.patterns[index].curves_for(note.source).is_empty()),
+                            performance: true,
+                            pattern,
+                            note: note.source,
+                            start,
+                            end: start + note.length,
+                            song_origin: None,
+                            base_pan: note.pan,
+                            base_expression: note.expression,
+                            active: self.plan.pattern_ids.get(pattern.0).is_some_and(|index| {
+                                !self.plan.patterns[index].curves_for(note.source).is_empty()
+                            }),
                         }),
                         channel: note.channel,
                         key: note.key,
                         velocity: note.velocity,
                         pan: note.pan,
                         expression: note.expression,
-                        end: if note.expression.articulation == windfall_dsp::NoteArticulation::Slide { self.sequencer.clock().tick_at(now) + self.plan.warp(start + note.length) - self.plan.warp(start) } else { f64::INFINITY },
+                        end: if note.expression.articulation
+                            == windfall_dsp::NoteArticulation::Slide
+                        {
+                            self.sequencer.clock().tick_at(now)
+                                + self.plan.warp(start + note.length)
+                                - self.plan.warp(start)
+                        } else {
+                            f64::INFINITY
+                        },
                         origin: Origin::Performance(token),
                     },
                     now,
@@ -1916,15 +2008,25 @@ impl Processor {
                 crate::performance::Event::Off { token, stopped } => {
                     let origin = Origin::Performance(token);
                     self.state.controls.release_origin(origin);
-                    if stopped { self.cut_echoes_of(origin); }
+                    if stopped {
+                        self.cut_echoes_of(origin);
+                    }
                     for channel in 0..self.state.channel_voice.len() {
                         self.state.channel_voice[channel].release_performance_chord(origin);
                         for slot in 0..self.state.channel_voice[channel].owners.len() {
                             if let Some(owner) = self.state.channel_voice[channel].owners[slot]
                                 && owner.note.origin == origin
-                                && (stopped || !matches!(owner.generated, Some((Generator::Echo, _))))
+                                && (stopped
+                                    || !matches!(owner.generated, Some((Generator::Echo, _))))
                             {
-                                if !stopped && self.plan.channels[channel].instrument.is_none() { self.voices.key_up_instance(self.plan.channels[channel].id, owner.instance); } else { self.release_instance(channel, owner.instance); }
+                                if !stopped && self.plan.channels[channel].instrument.is_none() {
+                                    self.voices.key_up_instance(
+                                        self.plan.channels[channel].id,
+                                        owner.instance,
+                                    );
+                                } else {
+                                    self.release_instance(channel, owner.instance);
+                                }
                                 if owner.admitted {
                                     self.state.channel_voice[channel]
                                         .held
@@ -1934,7 +2036,9 @@ impl Processor {
                             }
                         }
                     }
-                    if stopped { self.voices.fade_origin(origin); }
+                    if stopped {
+                        self.voices.fade_origin(origin);
+                    }
                 }
             }
         }
@@ -1949,7 +2053,10 @@ impl Processor {
             .store(self.performance.dropped, Ordering::Release);
         for track in 0..crate::performance::TRACKS {
             if let Some(replay) = &self.performance_replay {
-                self.shared.performance_slots[track].store(u64::from(replay.slots[track].map_or(0, |id| id.0)), Ordering::Release);
+                self.shared.performance_slots[track].store(
+                    u64::from(replay.slots[track].map_or(0, |id| id.0)),
+                    Ordering::Release,
+                );
                 continue;
             }
             let (active, pending, stop) = self.performance.slot(track);
@@ -1962,7 +2069,10 @@ impl Processor {
     fn render_voices(&mut self, base: u64, from: usize, to: usize) {
         let routed = self.plan.channels.iter().any(|channel| channel.instrument.is_some_and(|params| matches!(params, windfall_dsp::InstrumentParams::MidiOut(params) if params.plugin_destination != 0)));
         if !self.performance.active()
-            && self.performance_audio.iter().all(crate::performance_clips::AudioPad::idle)
+            && self
+                .performance_audio
+                .iter()
+                .all(crate::performance_clips::AudioPad::idle)
             && !routed
             && self.state.channel_voice.iter().all(|runtime| {
                 runtime.settings.arpeggiator.mode == ArpeggiatorMode::Off
@@ -1970,10 +2080,23 @@ impl Processor {
             })
         {
             let restoring = self.performance_automation.iter().any(Option::is_some);
-            for id in self.performance_automation.iter_mut().filter_map(Option::take) {
-                if let Some(clip) = self.plan.performance_clip_ids.get(id.0).map(|index| &self.plan.performance_clips[index]) { clip.automate(&self.plan, &mut self.state, None, base + from as u64, 0); }
+            for id in self
+                .performance_automation
+                .iter_mut()
+                .filter_map(Option::take)
+            {
+                if let Some(clip) = self
+                    .plan
+                    .performance_clip_ids
+                    .get(id.0)
+                    .map(|index| &self.plan.performance_clips[index])
+                {
+                    clip.automate(&self.plan, &mut self.state, None, base + from as u64, 0);
+                }
             }
-            if restoring && !self.sequencer.playing() { self.state.tell_tempo(self.plan.tempo_bpm); }
+            if restoring && !self.sequencer.playing() {
+                self.state.tell_tempo(self.plan.tempo_bpm);
+            }
             self.performance
                 .advance(&self.plan, to - from, self.sample_rate);
             self.render_voice_audio(base, from, to);
@@ -1983,31 +2106,62 @@ impl Processor {
         // Both processor scratch batches were reserved by PlanState::try_build.
         for frame in from..to {
             let now = base + frame as u64;
-            self.plan.performance_tick.store(self.performance.tick().to_bits(), Ordering::Relaxed);
+            self.plan
+                .performance_tick
+                .store(self.performance.tick().to_bits(), Ordering::Relaxed);
             self.performance.step(&self.plan, self.sample_rate);
             if let Some(capture) = &self.performance_recording {
-                for index in 0..self.performance.accepted_len() { capture.launch(now, self.performance.accepted(index)); }
+                for index in 0..self.performance.accepted_len() {
+                    capture.launch(now, self.performance.accepted(index));
+                }
             }
             self.performance_events(now);
             let tick = f64::from_bits(self.plan.performance_tick.load(Ordering::Relaxed));
             let restoring = self.performance_automation.iter().any(Option::is_some);
             for track in 0..crate::performance::TRACKS {
                 let current = self.performance.clip_phase(&self.plan, track, tick);
-                self.performance_audio[track].frame(&self.plan, &mut self.mixer, current, frame, self.sample_rate);
+                self.performance_audio[track].frame(
+                    &self.plan,
+                    &mut self.mixer,
+                    current,
+                    frame,
+                    self.sample_rate,
+                );
                 let active = current.map(|(id, _, _)| id);
                 if self.performance_automation[track] != active {
-                    if let Some(old) = self.performance_automation[track].and_then(|id| self.plan.performance_clip_ids.get(id.0).map(|index| &self.plan.performance_clips[index])) { old.automate(&self.plan, &mut self.state, None, now, 0); }
+                    if let Some(old) = self.performance_automation[track].and_then(|id| {
+                        self.plan
+                            .performance_clip_ids
+                            .get(id.0)
+                            .map(|index| &self.plan.performance_clips[index])
+                    }) {
+                        old.automate(&self.plan, &mut self.state, None, now, 0);
+                    }
                     self.performance_automation[track] = None;
                 }
                 if let Some((id, phase, _)) = current
-                    && let Some(clip) = self.plan.performance_clip_ids.get(id.0).map(|index| &self.plan.performance_clips[index])
+                    && let Some(clip) = self
+                        .plan
+                        .performance_clip_ids
+                        .get(id.0)
+                        .map(|index| &self.plan.performance_clips[index])
                 {
                     clip.automate(&self.plan, &mut self.state, Some(phase), now, 0);
-                    if clip.has_automation() { self.performance_automation[track] = Some(id); }
+                    if clip.has_automation() {
+                        self.performance_automation[track] = Some(id);
+                    }
                 }
             }
             if !self.sequencer.playing() && (self.performance.active() || restoring) {
-                let bpm = self.performance.tempo_override(&self.plan).unwrap_or_else(|| self.plan.tempo_map.as_ref().map_or(self.plan.tempo_bpm, |map| map.tempo_at(tick)));
+                let bpm = self
+                    .performance
+                    .tempo_override(&self.plan)
+                    .unwrap_or_else(|| {
+                        self.plan
+                            .tempo_map
+                            .as_ref()
+                            .map_or(self.plan.tempo_bpm, |map| map.tempo_at(tick))
+                    });
                 self.state.tell_tempo(bpm);
             }
             let clock = self.sequencer.clock();

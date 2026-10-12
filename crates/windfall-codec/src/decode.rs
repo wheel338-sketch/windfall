@@ -89,7 +89,9 @@ pub fn decode_file_with(
     options: &DecodeOptions,
 ) -> Result<AudioBuffer, CodecError> {
     let path = path.as_ref();
-    if is_wavpack_file(path)? { return crate::wavpack::decode(&mut File::open(path)?, options); }
+    if is_wavpack_file(path)? {
+        return crate::wavpack::decode(&mut File::open(path)?, options);
+    }
     if is_drumsynth(extension_of(path)) {
         return Ok(crate::render_drumsynth_file(path, options)?.audio);
     }
@@ -108,7 +110,9 @@ pub fn decode_file_strict_with(
     options: &DecodeOptions,
 ) -> Result<AudioBuffer, CodecError> {
     let path = path.as_ref();
-    if is_wavpack_file(path)? { return crate::wavpack::decode(&mut File::open(path)?, options); }
+    if is_wavpack_file(path)? {
+        return crate::wavpack::decode(&mut File::open(path)?, options);
+    }
     if is_drumsynth(extension_of(path)) {
         return Ok(crate::render_drumsynth_file(path, options)?.audio);
     }
@@ -221,7 +225,9 @@ pub fn decode_bytes_strict_with(
     hint_ext: Option<&str>,
     options: &DecodeOptions,
 ) -> Result<AudioBuffer, CodecError> {
-    if is_wavpack_bytes(bytes, hint_ext) { return crate::wavpack::decode(&mut Cursor::new(bytes), options); }
+    if is_wavpack_bytes(bytes, hint_ext) {
+        return crate::wavpack::decode(&mut Cursor::new(bytes), options);
+    }
     if is_drumsynth(hint_ext) {
         return Ok(crate::render_drumsynth_source(bytes, options)?.audio);
     }
@@ -253,7 +259,9 @@ pub fn decode_bytes_with(
     hint_ext: Option<&str>,
     options: &DecodeOptions,
 ) -> Result<AudioBuffer, CodecError> {
-    if is_wavpack_bytes(bytes, hint_ext) { return crate::wavpack::decode(&mut Cursor::new(bytes), options); }
+    if is_wavpack_bytes(bytes, hint_ext) {
+        return crate::wavpack::decode(&mut Cursor::new(bytes), options);
+    }
     if is_drumsynth(hint_ext) {
         return Ok(crate::render_drumsynth_source(bytes, options)?.audio);
     }
@@ -271,7 +279,9 @@ pub fn decode_bytes_with(
 /// refuses for its channel count or sample rate is refused here as well.
 pub fn probe_file(path: impl AsRef<Path>) -> Result<AudioInfo, CodecError> {
     let path = path.as_ref();
-    if is_wavpack_file(path)? { return crate::wavpack::probe(&mut File::open(path)?); }
+    if is_wavpack_file(path)? {
+        return crate::wavpack::probe(&mut File::open(path)?);
+    }
     if is_drumsynth(extension_of(path)) {
         return Ok(drumsynth_info(
             &crate::render_drumsynth_file(path, &DecodeOptions::default())?.audio,
@@ -285,7 +295,9 @@ pub fn probe_file(path: impl AsRef<Path>) -> Result<AudioInfo, CodecError> {
 
 /// Reads the same information as [`probe_file`] from audio held in memory.
 pub fn probe_bytes(bytes: &[u8], hint_ext: Option<&str>) -> Result<AudioInfo, CodecError> {
-    if is_wavpack_bytes(bytes, hint_ext) { return crate::wavpack::probe(&mut Cursor::new(bytes)); }
+    if is_wavpack_bytes(bytes, hint_ext) {
+        return crate::wavpack::probe(&mut Cursor::new(bytes));
+    }
     if is_drumsynth(hint_ext) {
         return Ok(drumsynth_info(
             &crate::render_drumsynth_source(bytes, &DecodeOptions::default())?.audio,
@@ -315,7 +327,8 @@ fn is_drumsynth(ext: Option<&str>) -> bool {
     ext.is_some_and(|ext| ext.eq_ignore_ascii_case("ds"))
 }
 fn is_wavpack_bytes(bytes: &[u8], ext: Option<&str>) -> bool {
-    bytes.starts_with(b"wvpk") || (bytes.len() < 4 && ext.is_some_and(|e| e.eq_ignore_ascii_case("wv")))
+    bytes.starts_with(b"wvpk")
+        || (bytes.len() < 4 && ext.is_some_and(|e| e.eq_ignore_ascii_case("wv")))
 }
 fn is_wavpack_file(path: &Path) -> Result<bool, CodecError> {
     let mut file = File::open(path)?;
@@ -642,8 +655,11 @@ fn decode<'s>(
 /// Strict sequential decode with bounded packet storage. No whole-file PCM
 /// allocation, retry after emitted data, sanitation or success after corruption.
 /// A callback error stops decoding immediately (including cancellation).
-pub fn decode_file_stream_strict(path: impl AsRef<Path>, options: &DecodeOptions,
-    emit: &mut dyn FnMut(u32, u16, &[f32]) -> Result<(), CodecError>) -> Result<AudioInfo, CodecError> {
+pub fn decode_file_stream_strict(
+    path: impl AsRef<Path>,
+    options: &DecodeOptions,
+    emit: &mut dyn FnMut(u32, u16, &[f32]) -> Result<(), CodecError>,
+) -> Result<AudioInfo, CodecError> {
     guarded(|| {
         let path = path.as_ref();
         let (file, _) = open_file(path)?;
@@ -651,34 +667,69 @@ pub fn decode_file_stream_strict(path: impl AsRef<Path>, options: &DecodeOptions
         let (track, params) = audio_track(format.as_ref())?;
         check_stated_layout(params)?;
         let track_id = track.id;
-        let mut decoder = symphonia::default::get_codecs().make_audio_decoder(params, &AudioDecoderOptions::default()).map_err(from_symphonia)?;
+        let mut decoder = symphonia::default::get_codecs()
+            .make_audio_decoder(params, &AudioDecoderOptions::default())
+            .map_err(from_symphonia)?;
         let mut layout = None;
         let mut samples = 0u64;
         let mut block: Vec<f32> = Vec::new();
         while let Some(packet) = format.next_packet().map_err(from_symphonia)? {
-            if packet.track_id != track_id { continue; }
+            if packet.track_id != track_id {
+                continue;
+            }
             let decoded = decoder.decode(&packet).map_err(from_symphonia)?;
-            if decoded.frames() == 0 { continue; }
-            let found = (decoded.spec().rate(), channel_count(decoded.spec().channels().count())?);
-            if layout.is_some_and(|old| old != found) { return Err(CodecError::Corrupt("stream layout changed".into())); }
+            if decoded.frames() == 0 {
+                continue;
+            }
+            let found = (
+                decoded.spec().rate(),
+                channel_count(decoded.spec().channels().count())?,
+            );
+            if layout.is_some_and(|old| old != found) {
+                return Err(CodecError::Corrupt("stream layout changed".into()));
+            }
             layout = Some(found);
             let count = decoded.samples_interleaved();
             // Guard before copying a packet. Ordinary supported audio packets
             // are much smaller; hostile oversized packets fail explicitly.
-            if count > 262144 { return Err(CodecError::TooLarge { limit_bytes: 1024*1024 }); }
-            samples = samples.checked_add(count as u64).ok_or(CodecError::TooLarge { limit_bytes: options.max_decoded_bytes })?;
-            if samples.checked_mul(4).is_none_or(|n| n > options.max_decoded_bytes) {
-                return Err(CodecError::TooLarge { limit_bytes: options.max_decoded_bytes });
+            if count > 262144 {
+                return Err(CodecError::TooLarge {
+                    limit_bytes: 1024 * 1024,
+                });
+            }
+            samples = samples
+                .checked_add(count as u64)
+                .ok_or(CodecError::TooLarge {
+                    limit_bytes: options.max_decoded_bytes,
+                })?;
+            if samples
+                .checked_mul(4)
+                .is_none_or(|n| n > options.max_decoded_bytes)
+            {
+                return Err(CodecError::TooLarge {
+                    limit_bytes: options.max_decoded_bytes,
+                });
             }
             block.resize(count, 0.0);
             decoded.copy_to_slice_interleaved(&mut block);
-            if block.iter().any(|x| !x.is_finite()) { return Err(CodecError::Corrupt("nonfinite decoded audio sample".into())); }
-            for chunk in block.chunks(4096/usize::from(found.1)*usize::from(found.1)) { emit(found.0, found.1, chunk)?; }
+            if block.iter().any(|x| !x.is_finite()) {
+                return Err(CodecError::Corrupt("nonfinite decoded audio sample".into()));
+            }
+            for chunk in block.chunks(4096 / usize::from(found.1) * usize::from(found.1)) {
+                emit(found.0, found.1, chunk)?;
+            }
         }
         let (sample_rate, channels) = layout.ok_or(CodecError::NoAudio)?;
-        let frames = samples/u64::from(channels);
-        Ok(AudioInfo { sample_rate, channels, frames: Some(frames), duration_secs: Some(frames as f64/f64::from(sample_rate)),
-            format: format.format_info().short_name.into(), codec: "strict-stream".into(), bits_per_sample: None })
+        let frames = samples / u64::from(channels);
+        Ok(AudioInfo {
+            sample_rate,
+            channels,
+            frames: Some(frames),
+            duration_secs: Some(frames as f64 / f64::from(sample_rate)),
+            format: format.format_info().short_name.into(),
+            codec: "strict-stream".into(),
+            bits_per_sample: None,
+        })
     })
 }
 

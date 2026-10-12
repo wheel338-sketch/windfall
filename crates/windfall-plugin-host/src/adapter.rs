@@ -81,7 +81,9 @@ pub struct PluginEffect {
 }
 
 impl PluginEffect {
-    pub fn controls_processed(&self) -> bool { self.processor.controls_processed() }
+    pub fn controls_processed(&self) -> bool {
+        self.processor.controls_processed()
+    }
     /// Clears the plugin's memory of past audio.
     pub fn reset(&mut self) {
         self.processor.reset();
@@ -260,7 +262,9 @@ pub struct PluginInstrument {
 }
 
 impl PluginInstrument {
-    pub fn controls_processed(&self) -> bool { self.processor.controls_processed() }
+    pub fn controls_processed(&self) -> bool {
+        self.processor.controls_processed()
+    }
     pub fn midi_message(&mut self, bytes: &[u8]) -> bool {
         if bytes.is_empty() || bytes.len() > 3 || bytes[1..].iter().any(|byte| *byte > 127) {
             return false;

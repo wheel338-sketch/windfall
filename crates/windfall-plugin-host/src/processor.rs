@@ -106,7 +106,9 @@ pub(crate) trait ProcessorBackend: Send + 'static {
     /// from process/reset/stop; worker providers return their native processor.
     fn return_to_owner(&mut self) {}
     fn resume_after_refusal(&mut self) {}
-    fn controls_processed(&self) -> bool { true }
+    fn controls_processed(&self) -> bool {
+        true
+    }
     fn additional_latency(&self) -> u32 {
         0
     }
@@ -223,7 +225,10 @@ impl PluginProcessor {
     }
     /// Prepared-provider acknowledgement, distinct from queue admission.
     pub fn controls_processed(&self) -> bool {
-        !self.pending.iter().any(|event| matches!(event, HostEvent::Param { .. }))
+        !self
+            .pending
+            .iter()
+            .any(|event| matches!(event, HostEvent::Param { .. }))
             && self.backend.controls_processed()
     }
     pub fn midi_expression_mask(&self, channel: u8) -> u32 {
@@ -303,7 +308,9 @@ impl PluginProcessor {
         // Provider-collected controls belong to earlier native blocks. Their
         // offsets cannot sort them after newer points waiting for the next
         // block; preserve that chronology with equal, stable retirement times.
-        for event in &mut retired { event.set_time(0); }
+        for event in &mut retired {
+            event.set_time(0);
+        }
         retired.append(&mut self.pending);
         self.pending = retired;
         self.pending.sort_by_key(HostEvent::time);

@@ -221,12 +221,19 @@ impl CapturedInput {
         &self.stamp
     }
     /// Adapt a bounded random-access renderer to selected-only anonymous storage.
-    pub fn capture_frames(root: &Path, stamp: CaptureStamp, limits: InputLimits,
-        work: &mut Work, render: &mut dyn FnMut(u64, &mut [f32], &mut Work) -> Result<()>) -> Result<Self> {
+    pub fn capture_frames(
+        root: &Path,
+        stamp: CaptureStamp,
+        limits: InputLimits,
+        work: &mut Work,
+        render: &mut dyn FnMut(u64, &mut [f32], &mut Work) -> Result<()>,
+    ) -> Result<Self> {
         let shape = stamp.input_shape;
         Self::capture_stream(root, stamp, limits, work, |work, emit| {
             let channels = usize::from(shape.channels);
-            if channels == 0 || channels > 2 { return Err(AnalysisError::Invalid("capture channels")); }
+            if channels == 0 || channels > 2 {
+                return Err(AnalysisError::Invalid("capture channels"));
+            }
             let mut samples = [0.0; CHUNK_SAMPLES];
             let mut start = 0;
             while start < shape.frames {
@@ -247,10 +254,20 @@ impl CapturedInput {
             let guard = crate::lock(file);
             // Cloned handles share offsets; hold the original reader lock until
             // this source is retired so every selected reader has its own clock.
-            let source = crate::separation::PcmSource { file: guard.try_clone()?, shape, origin: 0 };
-            Ok(Box::new(CapturedFileSource { source, _guard: guard }))
+            let source = crate::separation::PcmSource {
+                file: guard.try_clone()?,
+                shape,
+                origin: 0,
+            };
+            Ok(Box::new(CapturedFileSource {
+                source,
+                _guard: guard,
+            }))
         } else {
-            Ok(Box::new(crate::separation::SliceSource { samples: self.selected_samples(), shape }))
+            Ok(Box::new(crate::separation::SliceSource {
+                samples: self.selected_samples(),
+                shape,
+            }))
         }
     }
     pub fn audio(&self) -> &AudioBuffer {
@@ -407,7 +424,9 @@ struct CapturedFileSource<'a> {
     _guard: std::sync::MutexGuard<'a, File>,
 }
 impl crate::separation::FrameSource for CapturedFileSource<'_> {
-    fn shape(&self) -> AudioShape { self.source.shape }
+    fn shape(&self) -> AudioShape {
+        self.source.shape
+    }
     fn read_frames(&mut self, start: u64, output: &mut [f32], work: &mut Work) -> Result<()> {
         crate::separation::FrameSource::read_frames(&mut self.source, start, output, work)
     }

@@ -39,7 +39,13 @@ impl SamplePool {
             return Err("not a SoundFont reference".into());
         };
         let bank = Arc::new(
-            soundfont::parse_soundfont_preset_budgeted(bytes, *bank, *program, &self.sample_bank_budget).map_err(|e| e.to_string())?,
+            soundfont::parse_soundfont_preset_budgeted(
+                bytes,
+                *bank,
+                *program,
+                &self.sample_bank_budget,
+            )
+            .map_err(|e| e.to_string())?,
         );
         Arc::make_mut(&mut self.sample_banks).retain(|held| held.asset != asset);
         Arc::make_mut(&mut self.sample_banks).push(PreparedSampleBank {
@@ -70,26 +76,45 @@ impl SamplePool {
                 .samples()
                 .map(|id| self.get(id).map(AudioBuffer::identity))
                 .collect();
-            let cached = ready.iter().chain(self.sample_banks.iter())
+            let cached = ready
+                .iter()
+                .chain(self.sample_banks.iter())
                 .find(|held| held.asset == asset && held.identities == identities);
             let bank = if let Some(cached) = cached {
                 cached.bank.clone()
             } else if identities.iter().any(Option::is_none) {
-                Arc::new(SampleBank::unavailable("Missing sample-bank sources; relink them in the instrument editor".into()))
+                Arc::new(SampleBank::unavailable(
+                    "Missing sample-bank sources; relink them in the instrument editor".into(),
+                ))
             } else {
                 // Reserve before source generation/cloning, including concurrent snapshots.
                 let bytes = match &asset {
-                    SampleInstrumentAsset::Zones { zones } => zones.iter().try_fold(0usize, |sum, zone| {
-                        let audio = self.get(SampleId(zone.sample)).ok_or_else(|| format!("Missing zone sample {}", zone.sample))?;
-                        sum.checked_add(audio.retained_pcm_bytes()).ok_or_else(|| "sample bank byte overflow".to_owned())
-                    })?,
+                    SampleInstrumentAsset::Zones { zones } => {
+                        zones.iter().try_fold(0usize, |sum, zone| {
+                            let audio = self
+                                .get(SampleId(zone.sample))
+                                .ok_or_else(|| format!("Missing zone sample {}", zone.sample))?;
+                            sum.checked_add(audio.retained_pcm_bytes())
+                                .ok_or_else(|| "sample bank byte overflow".to_owned())
+                        })?
+                    }
                     SampleInstrumentAsset::Piano { .. } => 30 * 24000 * 3 * 4,
-                    SampleInstrumentAsset::Speech { duration, source, .. } => if let Some(id) = source {
-                        self.get(*id).ok_or("saved speech source is unavailable")?.retained_pcm_bytes()
-                    } else { (duration * 24000.0).round() as usize * 4 },
+                    SampleInstrumentAsset::Speech {
+                        duration, source, ..
+                    } => {
+                        if let Some(id) = source {
+                            self.get(*id)
+                                .ok_or("saved speech source is unavailable")?
+                                .retained_pcm_bytes()
+                        } else {
+                            (duration * 24000.0).round() as usize * 4
+                        }
+                    }
                     _ => 0,
                 };
-                if bytes > windfall_dsp::sample_bank::MAX_BANK_BYTES { return Err("sample bank exceeds 256 MiB".into()); }
+                if bytes > windfall_dsp::sample_bank::MAX_BANK_BYTES {
+                    return Err("sample bank exceeds 256 MiB".into());
+                }
                 let reservation = self.sample_bank_budget.reserve(bytes)?;
                 let mut bank = match &asset {
                     SampleInstrumentAsset::Zones { zones } => {
@@ -166,10 +191,16 @@ impl SamplePool {
     }
     pub fn insert_unavailable_soundfont(&mut self, asset: SampleInstrumentAsset, reason: String) {
         Arc::make_mut(&mut self.sample_banks).retain(|held| held.asset != asset);
-        Arc::make_mut(&mut self.sample_banks).push(PreparedSampleBank { channel: ChannelId(0), asset,
-            identities: Vec::new(), bank: Arc::new(SampleBank::unavailable(reason)) });
+        Arc::make_mut(&mut self.sample_banks).push(PreparedSampleBank {
+            channel: ChannelId(0),
+            asset,
+            identities: Vec::new(),
+            bank: Arc::new(SampleBank::unavailable(reason)),
+        });
     }
     pub fn has_sample_instrument_asset(&self, asset: &SampleInstrumentAsset) -> bool {
-        self.sample_banks.iter().any(|held| &held.asset == asset && held.bank.unavailable_reason().is_none())
+        self.sample_banks
+            .iter()
+            .any(|held| &held.asset == asset && held.bank.unavailable_reason().is_none())
     }
 }

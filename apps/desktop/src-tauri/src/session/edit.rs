@@ -165,7 +165,9 @@ impl Session {
         let ticket = {
             let _recording = self.recording_idle()?;
             let state = self.state();
-            if state.generation != generation || revision.is_some_and(|r| r != state.document.revision()) {
+            if state.generation != generation
+                || revision.is_some_and(|r| r != state.document.revision())
+            {
                 return Err("Project changed. Try again.".into());
             }
             self.sample_edit_ticket(&state, command, gesture, Vec::new())?
@@ -484,7 +486,12 @@ impl Session {
             let original_project = document.project().clone();
             action.apply(&mut document)?;
             for asset in &document.project().samples {
-                if original_project.sample(asset.id).is_some_and(|old| old.path != asset.path) { pool.remove(asset.id); }
+                if original_project
+                    .sample(asset.id)
+                    .is_some_and(|old| old.path != asset.path)
+                {
+                    pool.remove(asset.id);
+                }
             }
             for asset in &document.project().samples {
                 if !pool.contains(asset.id)

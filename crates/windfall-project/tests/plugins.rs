@@ -28,13 +28,19 @@ fn binding() -> PluginBinding {
 
 #[test]
 fn audio_unit_registry_bindings_survive_history_and_portable_project_reopen() {
-    let mut plugin = binding(); plugin.format = "au".into();
-    plugin.id = "61756D75:646C7320:6170706C".into(); plugin.path = format!("au://{}", plugin.id);
+    let mut plugin = binding();
+    plugin.format = "au".into();
+    plugin.id = "61756D75:646C7320:6170706C".into();
+    plugin.path = format!("au://{}", plugin.id);
     let mut document = Document::new(Project::new("Audio Units"));
-    document.dispatch(Command::AddPluginInstrument { plugin }, None).unwrap();
+    document
+        .dispatch(Command::AddPluginInstrument { plugin }, None)
+        .unwrap();
     let expected = document.project().plugins[0].clone();
-    document.undo().unwrap(); assert!(document.project().plugins.is_empty());
-    document.redo().unwrap(); assert_eq!(document.project().plugins[0], expected);
+    document.undo().unwrap();
+    assert!(document.project().plugins.is_empty());
+    document.redo().unwrap();
+    assert_eq!(document.project().plugins[0], expected);
     let reopened = file::from_json(&file::to_json(document.project()).unwrap()).unwrap();
     assert_eq!(reopened.plugins[0], expected);
     reopened.check().unwrap();

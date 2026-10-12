@@ -47,9 +47,22 @@ fn mux_tables_offsets_duration_trim_and_tags_match_independent_box_walker() {
     let b = std::fs::read(&path).unwrap();
     let inspected = inspect_m4a(&b).unwrap();
     assert_eq!(inspected.config, config);
-    assert_eq!(inspected.trim, AacTrim { delay: 64, padding: 32 });
+    assert_eq!(
+        inspected.trim,
+        AacTrim {
+            delay: 64,
+            padding: 32
+        }
+    );
     assert_eq!(inspected.frames(), 1952);
-    assert_eq!(inspected.packet_ranges.iter().map(|r| &b[r.clone()]).collect::<Vec<_>>(), [&[0x21, 1, 2][..], &[0x21, 3, 4, 5, 6][..]]);
+    assert_eq!(
+        inspected
+            .packet_ranges
+            .iter()
+            .map(|r| &b[r.clone()])
+            .collect::<Vec<_>>(),
+        [&[0x21, 1, 2][..], &[0x21, 3, 4, 5, 6][..]]
+    );
     assert_eq!(&child(&b, b"ftyp")[..4], b"M4A ");
     assert_eq!(child(&b, b"mdat"), &[0x21, 1, 2, 0x21, 3, 4, 5, 6]);
     let moov = child(&b, b"moov");
@@ -93,14 +106,36 @@ fn mux_tables_offsets_duration_trim_and_tags_match_independent_box_walker() {
 #[test]
 fn mp4_parser_refuses_truncated_boxes_and_hostile_sample_tables() {
     let path = std::env::temp_dir().join(format!("windfall-m4a-parser-{}.m4a", std::process::id()));
-    let mut writer = M4aWriter::create(&path, AacConfig { sample_rate: 48000, channels: 2 }, &Default::default()).unwrap();
-    writer.write_packet(&[0x21, 1, 2]).unwrap(); writer.finalize(Default::default()).unwrap();
-    let bytes = std::fs::read(&path).unwrap(); std::fs::remove_file(path).unwrap();
-    for n in 0..bytes.len() { assert!(std::panic::catch_unwind(|| inspect_m4a(&bytes[..n])).unwrap().is_err(), "truncated at {n}"); }
+    let mut writer = M4aWriter::create(
+        &path,
+        AacConfig {
+            sample_rate: 48000,
+            channels: 2,
+        },
+        &Default::default(),
+    )
+    .unwrap();
+    writer.write_packet(&[0x21, 1, 2]).unwrap();
+    writer.finalize(Default::default()).unwrap();
+    let bytes = std::fs::read(&path).unwrap();
+    std::fs::remove_file(path).unwrap();
+    for n in 0..bytes.len() {
+        assert!(
+            std::panic::catch_unwind(|| inspect_m4a(&bytes[..n]))
+                .unwrap()
+                .is_err(),
+            "truncated at {n}"
+        );
+    }
     for tag in [b"stsz", b"stco", b"elst", b"stts"] {
         let at = bytes.windows(4).position(|b| b == tag).unwrap();
-        let mut attack = bytes.clone(); attack[at + 12..at + 16].copy_from_slice(&u32::MAX.to_be_bytes());
-        assert!(std::panic::catch_unwind(|| inspect_m4a(&attack)).unwrap().is_err());
+        let mut attack = bytes.clone();
+        attack[at + 12..at + 16].copy_from_slice(&u32::MAX.to_be_bytes());
+        assert!(
+            std::panic::catch_unwind(|| inspect_m4a(&attack))
+                .unwrap()
+                .is_err()
+        );
     }
 }
 #[test]

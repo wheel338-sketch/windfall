@@ -41,14 +41,20 @@ pub(super) fn decode_all(
         decoded.warnings.push(format!("{} imported plugin states are retained; unsupported instruments stay silent and effects bypassed. Use the source FL project with a compatible host to recover those sounds.", project.retained_plugins.len()));
     }
     for sample in &project.samples {
-        let bank_source = project.channels.iter().filter_map(|c| c.sample_instrument.as_ref())
+        let bank_source = project
+            .channels
+            .iter()
+            .filter_map(|c| c.sample_instrument.as_ref())
             .any(|asset| asset.samples().any(|id| id == sample.id));
         let buffer = locate(sample, project_dir, factory_dir).and_then(|file| {
             if bank_source {
-                let (audio, workspace) = cache.decode_sample_bank(&file, &decoded.pool.sample_bank_budget_handle())?;
+                let (audio, workspace) =
+                    cache.decode_sample_bank(&file, &decoded.pool.sample_bank_budget_handle())?;
                 decoded.bank_workspaces.push(workspace);
                 Ok(audio)
-            } else { decode(cache, &file) }
+            } else {
+                decode(cache, &file)
+            }
         });
         match buffer {
             Ok(buffer) => {
@@ -96,8 +102,17 @@ impl Session {
     /// A prepared publication must attach the exact handles it compiled, never
     /// fetch a newer cache entry between validation and plan installation.
     pub(super) fn sync_prepared_samples(&self, state: &mut State, prepared: &SamplePool) {
-        let removed: Vec<_> = state.pool.iter().filter(|(id, _)| !prepared.contains(*id) && !state.loading.contains(id)).map(|(id, _)| id).collect();
-        for id in removed { state.pool.remove(id); state.loaded.remove(&id); state.failed.remove(&id); }
+        let removed: Vec<_> = state
+            .pool
+            .iter()
+            .filter(|(id, _)| !prepared.contains(*id) && !state.loading.contains(id))
+            .map(|(id, _)| id)
+            .collect();
+        for id in removed {
+            state.pool.remove(id);
+            state.loaded.remove(&id);
+            state.failed.remove(&id);
+        }
         self.sync_sample_sources(state, Some(prepared));
     }
 
@@ -249,16 +264,34 @@ impl Session {
     ) -> u32 {
         let (bank_sources, budget) = {
             let state = self.state();
-            let ids: HashSet<_> = state.document.project().channels.iter().filter_map(|c| c.sample_instrument.as_ref()).flat_map(|asset| asset.samples()).collect();
+            let ids: HashSet<_> = state
+                .document
+                .project()
+                .channels
+                .iter()
+                .filter_map(|c| c.sample_instrument.as_ref())
+                .flat_map(|asset| asset.samples())
+                .collect();
             (ids, state.pool.sample_bank_budget_handle())
         };
         let mut workspaces = Vec::new();
-        let results: Vec<_> = pending.into_iter().map(|(id, file)| {
-            let audio = if bank_sources.contains(&id) {
-                self.inner.cache.decode_sample_bank(&file, &budget).map(|(audio, workspace)| { workspaces.push(workspace); audio })
-            } else { decode(&self.inner.cache, &file) };
-            (id, file, audio)
-        }).collect();
+        let results: Vec<_> = pending
+            .into_iter()
+            .map(|(id, file)| {
+                let audio = if bank_sources.contains(&id) {
+                    self.inner
+                        .cache
+                        .decode_sample_bank(&file, &budget)
+                        .map(|(audio, workspace)| {
+                            workspaces.push(workspace);
+                            audio
+                        })
+                } else {
+                    decode(&self.inner.cache, &file)
+                };
+                (id, file, audio)
+            })
+            .collect();
         #[cfg(test)]
         self.pause("samples:decoded");
 
@@ -278,8 +311,11 @@ impl Session {
             };
             let mut changed = false;
             for (id, file, result) in &results {
-                if project.sample(*id).is_some_and(|sample| locate(sample, directory.as_deref(), &self.inner.factory_dir).ok().is_some_and(|now| paths::same(&now, file)))
-                    && let Ok(buffer) = result
+                if project.sample(*id).is_some_and(|sample| {
+                    locate(sample, directory.as_deref(), &self.inner.factory_dir)
+                        .ok()
+                        .is_some_and(|now| paths::same(&now, file))
+                }) && let Ok(buffer) = result
                 {
                     pool.insert(*id, buffer.clone());
                     changed = true;
@@ -327,7 +363,11 @@ impl Session {
                     state.pool = pool;
                 }
                 for (id, file, result) in &results {
-                    if state.document.project().sample(*id).is_none_or(|sample| locate(sample, state.sample_dir.as_deref(), &self.inner.factory_dir).ok().is_none_or(|now| !paths::same(&now, file))) {
+                    if state.document.project().sample(*id).is_none_or(|sample| {
+                        locate(sample, state.sample_dir.as_deref(), &self.inner.factory_dir)
+                            .ok()
+                            .is_none_or(|now| !paths::same(&now, file))
+                    }) {
                         state.loading.remove(id);
                         continue;
                     }

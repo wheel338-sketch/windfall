@@ -1020,7 +1020,11 @@ pub enum Command {
     },
 
     /// Relink a source without changing its sample ID or bank mapping.
-    RelinkSamplePath { sample: SampleId, expected: SamplePath, path: SamplePath },
+    RelinkSamplePath {
+        sample: SampleId,
+        expected: SamplePath,
+        path: SamplePath,
+    },
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, TS)]

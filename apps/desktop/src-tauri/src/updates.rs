@@ -178,7 +178,11 @@ pub async fn update_check(
         .endpoints(vec![endpoint])
         .map_err(|error| error.to_string())?
         .timeout(Duration::from_secs(30))
-        .configure_client(|client| client.redirect(update_redirect_policy()).connect_timeout(Duration::from_secs(10)))
+        .configure_client(|client| {
+            client
+                .redirect(update_redirect_policy())
+                .connect_timeout(Duration::from_secs(10))
+        })
         .build()
         .map_err(|error| error.to_string())?;
     let Some(update) = updater
@@ -322,9 +326,18 @@ mod tests {
     #[test]
     fn update_redirects_are_bounded_and_refuse_downgrade_and_credentials() {
         let safe = url::Url::parse("https://updates.example.invalid/package").unwrap();
-        for count in 0..=MAX_UPDATE_REDIRECTS { assert!(validate_redirect(&safe, count).is_ok()); }
-        for count in MAX_UPDATE_REDIRECTS + 1..=100 { assert!(validate_redirect(&safe, count).is_err()); }
-        for unsafe_url in ["http://updates.example.invalid/package", "https://user:secret@updates.example.invalid/package", "file:///installer.exe", "data:text/plain,installer"] {
+        for count in 0..=MAX_UPDATE_REDIRECTS {
+            assert!(validate_redirect(&safe, count).is_ok());
+        }
+        for count in MAX_UPDATE_REDIRECTS + 1..=100 {
+            assert!(validate_redirect(&safe, count).is_err());
+        }
+        for unsafe_url in [
+            "http://updates.example.invalid/package",
+            "https://user:secret@updates.example.invalid/package",
+            "file:///installer.exe",
+            "data:text/plain,installer",
+        ] {
             assert!(validate_redirect(&url::Url::parse(unsafe_url).unwrap(), 1).is_err());
         }
     }

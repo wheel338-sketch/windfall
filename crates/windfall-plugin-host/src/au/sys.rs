@@ -64,13 +64,27 @@ pub struct BufferList {
 /// Owned backing storage with the same AudioBufferList prefix. Native callers
 /// may pass shorter lists; only count buffers are accessed through raw pointers.
 #[repr(C)]
-pub struct OwnedBufferList { pub count: u32, pub buffers: [Buffer; 64] }
+pub struct OwnedBufferList {
+    pub count: u32,
+    pub buffers: [Buffer; 64],
+}
 #[repr(C)]
 pub struct HostCallbacks {
     pub context: *mut c_void,
     pub beat_tempo: Option<unsafe extern "C" fn(*mut c_void, *mut f64, *mut f64) -> i32>,
-    pub musical_location: Option<unsafe extern "C" fn(*mut c_void, *mut u32, *mut f32, *mut u32, *mut f64) -> i32>,
-    pub transport: Option<unsafe extern "C" fn(*mut c_void, *mut u8, *mut u8, *mut f64, *mut u8, *mut f64, *mut f64) -> i32>,
+    pub musical_location:
+        Option<unsafe extern "C" fn(*mut c_void, *mut u32, *mut f32, *mut u32, *mut f64) -> i32>,
+    pub transport: Option<
+        unsafe extern "C" fn(
+            *mut c_void,
+            *mut u8,
+            *mut u8,
+            *mut f64,
+            *mut u8,
+            *mut f64,
+            *mut f64,
+        ) -> i32,
+    >,
 }
 pub type Render =
     unsafe extern "C" fn(*mut c_void, *mut u32, *const Timestamp, u32, u32, *mut BufferList) -> i32;

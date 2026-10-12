@@ -112,7 +112,8 @@ fn performance_midi_action_uses_checked_controller_contract() {
 
 #[test]
 fn legacy_video_route_defaults_to_master_and_invalid_route_is_atomic() {
-    let legacy = r#"{"path":"own.avi","startTick":0,"lengthTicks":960,"offsetSeconds":0.0,"muted":true}"#;
+    let legacy =
+        r#"{"path":"own.avi","startTick":0,"lengthTicks":960,"offsetSeconds":0.0,"muted":true}"#;
     let placement: VideoPlacement = serde_json::from_str(legacy).unwrap();
     assert_eq!(placement.mixer_track, TrackId::MASTER);
     let mut doc = Document::new(Project::new("video route"));
@@ -120,7 +121,10 @@ fn legacy_video_route_defaults_to_master_and_invalid_route_is_atomic() {
     media.videos.push(placement);
     let before = doc.project().clone();
     media.videos[0].mixer_track = TrackId(u32::MAX);
-    assert!(doc.dispatch(Command::SetStageMedia { media }, None).is_err());
+    assert!(
+        doc.dispatch(Command::SetStageMedia { media }, None)
+            .is_err()
+    );
     assert_eq!(doc.project(), &before);
 }
 
@@ -129,16 +133,55 @@ fn recorded_performance_log_defaults_roundtrips_and_rejects_unsorted_events_atom
     let legacy: StageMedia = serde_json::from_str(r#"{"pads":[],"videos":[]}"#).unwrap();
     assert!(legacy.takes.is_empty());
     let mut doc = Document::new(Project::new("saved take"));
-    let sample = SampleId(doc.dispatch(Command::AddSample { name: "take".into(), path: SamplePath::External("own.wav".into()) }, None).unwrap().created[0]);
+    let sample = SampleId(
+        doc.dispatch(
+            Command::AddSample {
+                name: "take".into(),
+                path: SamplePath::External("own.wav".into()),
+            },
+            None,
+        )
+        .unwrap()
+        .created[0],
+    );
     let mut media = StageMedia::default();
-    media.takes.push(PerformanceTake { sample, sample_rate: 48000, frames: 4800, initial_tick: 240.0, events: vec![PerformanceLogEvent { frame: 0, track: 0, pattern: Some(doc.project().patterns[0].id), quantization: LaunchQuantization::Beat }] });
-    doc.dispatch(Command::SetStageMedia { media: media.clone() }, None).unwrap();
-    let reopened: Project = serde_json::from_str(&serde_json::to_string(doc.project()).unwrap()).unwrap();
+    media.takes.push(PerformanceTake {
+        sample,
+        sample_rate: 48000,
+        frames: 4800,
+        initial_tick: 240.0,
+        events: vec![PerformanceLogEvent {
+            frame: 0,
+            track: 0,
+            pattern: Some(doc.project().patterns[0].id),
+            quantization: LaunchQuantization::Beat,
+        }],
+    });
+    doc.dispatch(
+        Command::SetStageMedia {
+            media: media.clone(),
+        },
+        None,
+    )
+    .unwrap();
+    let reopened: Project =
+        serde_json::from_str(&serde_json::to_string(doc.project()).unwrap()).unwrap();
     assert_eq!(reopened.settings.stage_media, media);
     reopened.check().unwrap();
     let before = doc.project().clone();
-    media.takes[0].events.insert(0, PerformanceLogEvent { frame: 10, track: 0, pattern: None, quantization: LaunchQuantization::Immediate });
-    assert!(doc.dispatch(Command::SetStageMedia { media }, None).is_err());
+    media.takes[0].events.insert(
+        0,
+        PerformanceLogEvent {
+            frame: 10,
+            track: 0,
+            pattern: None,
+            quantization: LaunchQuantization::Immediate,
+        },
+    );
+    assert!(
+        doc.dispatch(Command::SetStageMedia { media }, None)
+            .is_err()
+    );
     assert_eq!(doc.project(), &before);
     doc.undo().unwrap();
     assert!(doc.project().settings.stage_media.takes.is_empty());

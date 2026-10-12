@@ -73,7 +73,10 @@ pub fn run() {
                     WindowEvent::CloseRequested { api, .. } => {
                         // A native close cannot orphan preparation that still owns
                         // document admission. Retry close after that call finishes.
-                        if window.state::<window_calls::WindowCalls>().busy(window.label()) {
+                        if window
+                            .state::<window_calls::WindowCalls>()
+                            .busy(window.label())
+                        {
                             api.prevent_close();
                         } else {
                             panel_layout::capture(&view, true);
@@ -85,7 +88,9 @@ pub fn run() {
             if matches!(event, WindowEvent::Destroyed)
                 && let Some(session) = window.try_state::<Session>()
             {
-                window.state::<window_calls::WindowCalls>().closed(window.label());
+                window
+                    .state::<window_calls::WindowCalls>()
+                    .closed(window.label());
                 session.unsubscribe_realtime(window.label());
                 session.analyzer_window_closed(window.label());
             }

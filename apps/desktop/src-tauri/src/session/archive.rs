@@ -309,20 +309,47 @@ impl Session {
             )
             .ok_or_else(|| "The sample path cannot be resolved.".to_owned())
             .and_then(|path| {
-                let bank_source = project.channels.iter().filter_map(|c| c.sample_instrument.as_ref()).any(|asset| asset.samples().any(|id| id == sample.id));
+                let bank_source = project
+                    .channels
+                    .iter()
+                    .filter_map(|c| c.sample_instrument.as_ref())
+                    .any(|asset| asset.samples().any(|id| id == sample.id));
                 if bank_source {
-                    let expected = if path.extension().and_then(|ext| ext.to_str()).is_some_and(|ext| ext.eq_ignore_ascii_case("ds")) { None } else {
+                    let expected = if path
+                        .extension()
+                        .and_then(|ext| ext.to_str())
+                        .is_some_and(|ext| ext.eq_ignore_ascii_case("ds"))
+                    {
+                        None
+                    } else {
                         let info = windfall_codec::probe_file(&path).map_err(|e| e.to_string())?;
-                        info.frames.and_then(|frames| frames.checked_mul(u64::from(info.channels))).and_then(|samples| samples.checked_mul(4))
+                        info.frames
+                            .and_then(|frames| frames.checked_mul(u64::from(info.channels)))
+                            .and_then(|samples| samples.checked_mul(4))
                     };
-                    let budget=decoded.pool.sample_bank_budget_handle();
-                    let maximum = expected.unwrap_or((budget.remaining()/4) as u64).min(options.max_decoded_bytes);
-                    let mut reservation = budget.reserve(usize::try_from(maximum).map_err(|_| "bank byte overflow")?.checked_mul(4).ok_or("bank workspace overflow")?)?;
-                    let buffer = windfall_codec::decode_file_with(path, &windfall_codec::DecodeOptions { max_decoded_bytes: maximum }).map_err(|e| e.to_string())?;
+                    let budget = decoded.pool.sample_bank_budget_handle();
+                    let maximum = expected
+                        .unwrap_or((budget.remaining() / 4) as u64)
+                        .min(options.max_decoded_bytes);
+                    let mut reservation = budget.reserve(
+                        usize::try_from(maximum)
+                            .map_err(|_| "bank byte overflow")?
+                            .checked_mul(4)
+                            .ok_or("bank workspace overflow")?,
+                    )?;
+                    let buffer = windfall_codec::decode_file_with(
+                        path,
+                        &windfall_codec::DecodeOptions {
+                            max_decoded_bytes: maximum,
+                        },
+                    )
+                    .map_err(|e| e.to_string())?;
                     reservation.shrink(buffer.retained_pcm_bytes())?;
                     decoded.bank_workspaces.push(reservation);
                     Ok(buffer)
-                } else { windfall_codec::decode_file_with(path, &options).map_err(|e| e.to_string()) }
+                } else {
+                    windfall_codec::decode_file_with(path, &options).map_err(|e| e.to_string())
+                }
             });
             job.check().map_err(|e| e.to_string())?;
             match result {

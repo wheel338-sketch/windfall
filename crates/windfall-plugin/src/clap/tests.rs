@@ -138,32 +138,67 @@ fn program() -> Program {
 #[test]
 fn hard_reset_flushes_sampler_effect_and_compensation_audio_without_memory_calls() {
     let mut program = program();
-    program.project.mixer.tracks[0].effects.push(windfall_project::EffectSlot {
-        impulse: None, id: windfall_project::EffectId(21), enabled: true, mix: 1.0,
-        params: windfall_project::EffectParams::Delay(windfall_dsp::DelayParams {
-            sync: false, time_ms: 10.0, feedback: 0.8, mix: 0.5, ..Default::default()
-        }),
-    });
+    program.project.mixer.tracks[0]
+        .effects
+        .push(windfall_project::EffectSlot {
+            impulse: None,
+            id: windfall_project::EffectId(21),
+            enabled: true,
+            mix: 1.0,
+            params: windfall_project::EffectParams::Delay(windfall_dsp::DelayParams {
+                sync: false,
+                time_ms: 10.0,
+                feedback: 0.8,
+                mix: 0.5,
+                ..Default::default()
+            }),
+        });
     program.project.next_id = 22;
     let mut engine = GuestEngine::activate(&program, 48_000.0).unwrap();
     engine.midi(0, windfall_project::DEFAULT_KEY, 127);
     let mut energy = 0.0f64;
-    for _ in 0..8 { energy += engine.render(256).unwrap().iter().map(|v| f64::from(*v).powi(2)).sum::<f64>(); }
-    assert!(energy > 1.0, "real voice and delay must be excited before reset");
-    let (_, memory) = realtime(|| engine.reset()); assert_eq!(memory, 0);
-    for _ in 0..16 {
-        let (peak, memory) = realtime(|| engine.render(256).unwrap().iter().fold(0.0f32, |peak, v| peak.max(v.abs())));
-        assert_eq!(memory, 0); assert_eq!(peak, 0.0, "reset left a voice, filter or delay tail");
+    for _ in 0..8 {
+        energy += engine
+            .render(256)
+            .unwrap()
+            .iter()
+            .map(|v| f64::from(*v).powi(2))
+            .sum::<f64>();
     }
-    let (_, memory) = realtime(|| { engine.reset(); engine.reset(); }); assert_eq!(memory, 0);
+    assert!(
+        energy > 1.0,
+        "real voice and delay must be excited before reset"
+    );
+    let (_, memory) = realtime(|| engine.reset());
+    assert_eq!(memory, 0);
+    for _ in 0..16 {
+        let (peak, memory) = realtime(|| {
+            engine
+                .render(256)
+                .unwrap()
+                .iter()
+                .fold(0.0f32, |peak, v| peak.max(v.abs()))
+        });
+        assert_eq!(memory, 0);
+        assert_eq!(peak, 0.0, "reset left a voice, filter or delay tail");
+    }
+    let (_, memory) = realtime(|| {
+        engine.reset();
+        engine.reset();
+    });
+    assert_eq!(memory, 0);
 }
 #[test]
 fn host_meter_override_is_transient_checked_and_preserves_saved_document() {
-    let program = program(); let bytes = program.encode().unwrap();
+    let program = program();
+    let bytes = program.encode().unwrap();
     let mut engine = GuestEngine::activate(&program, 48_000.0).unwrap();
-    assert!(engine.sync_meter(7, 8)); assert_eq!(engine.meter(), (7, 8));
-    assert!(!engine.sync_meter(4, 3)); assert_eq!(engine.meter(), (7, 8));
-    assert!(engine.sync_meter(0, 0)); assert_eq!(engine.meter(), (7, 8));
+    assert!(engine.sync_meter(7, 8));
+    assert_eq!(engine.meter(), (7, 8));
+    assert!(!engine.sync_meter(4, 3));
+    assert_eq!(engine.meter(), (7, 8));
+    assert!(engine.sync_meter(0, 0));
+    assert_eq!(engine.meter(), (7, 8));
     assert_eq!(program.encode().unwrap(), bytes);
 }
 
@@ -329,9 +364,15 @@ fn clap_boundary_handles_partial_state_streams_sample_offsets_and_lifecycle() {
     assert!(!unsafe { save(plugin, &output) });
     assert!(unsafe { activate(plugin, 48_000.0, 1, 512) });
     source.offset = 0;
-    assert!(unsafe { load(plugin, &input) }, "active load prepares a complete replacement");
+    assert!(
+        unsafe { load(plugin, &input) },
+        "active load prepares a complete replacement"
+    );
     source.offset = 0;
-    assert!(!unsafe { load(plugin, &input) }, "one publication must settle before another");
+    assert!(
+        !unsafe { load(plugin, &input) },
+        "one publication must settle before another"
+    );
     assert!(unsafe { start(plugin) });
     let mut pcm = [[[0.0f32; 64]; 2]; OUTPUT_PORTS];
     let mut channels: [[*mut f32; 2]; OUTPUT_PORTS] =

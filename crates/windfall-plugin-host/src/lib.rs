@@ -88,13 +88,13 @@
 //! What stays hard is accounting for the pipeline latency and plugin
 //! editors that expect to share a thread with their host window.
 
+pub mod au_model;
 pub mod bridge;
 pub mod containment;
 pub mod gui;
 pub mod ownership;
 pub mod paths;
 pub mod scan;
-pub mod au_model;
 
 mod adapter;
 mod check;
@@ -132,5 +132,5 @@ pub use state::{InvalidState, MAX_STATE_BYTES, PluginState};
 #[cfg(target_os = "macos")]
 pub mod au;
 
-pub mod wrapper;
 mod threaded;
+pub mod wrapper;

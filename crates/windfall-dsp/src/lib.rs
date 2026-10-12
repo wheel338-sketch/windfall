@@ -162,8 +162,10 @@ pub mod speech;
 
 pub mod midi_out;
 pub mod music_lighting;
+pub use midi_out::{
+    MidiOut, MidiOutController, MidiOutEvent, MidiOutParams, PROJECT_FEEDBACK_PORT,
+};
 pub use music_lighting::{MusicLighting, MusicLightingParams};
-pub use midi_out::{PROJECT_FEEDBACK_PORT, MidiOut, MidiOutController, MidiOutEvent, MidiOutParams};
 
 pub mod tuner;
 

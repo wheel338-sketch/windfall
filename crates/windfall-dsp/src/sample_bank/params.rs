@@ -1,9 +1,11 @@
 use crate::param::param_set;
+use crate::{ChorusParams, DelayParams, ReverbParams};
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
-use crate::{ChorusParams, DelayParams, ReverbParams};
 pub(super) trait BankControls {
-    fn internal_effects(&self) -> Option<(ChorusParams, DelayParams, ReverbParams)> { None }
+    fn internal_effects(&self) -> Option<(ChorusParams, DelayParams, ReverbParams)> {
+        None
+    }
 }
 
 macro_rules! controls {
@@ -35,19 +37,40 @@ macro_rules! controls {
 #[serde(rename_all = "camelCase", default)]
 #[ts(export)]
 pub struct MultiSamplerParams {
-    pub level: f32, pub tune: f32, pub release_ms: f32, pub brightness: f32,
-    pub chorus: ChorusParams, pub delay: DelayParams, pub reverb: ReverbParams,
+    pub level: f32,
+    pub tune: f32,
+    pub release_ms: f32,
+    pub brightness: f32,
+    pub chorus: ChorusParams,
+    pub delay: DelayParams,
+    pub reverb: ReverbParams,
 }
 impl Default for MultiSamplerParams {
     fn default() -> Self {
-        Self { level: 0.5, tune: 0.0, release_ms: 100.0, brightness: 1.0,
-            chorus: ChorusParams { mix: 0.0, ..Default::default() },
-            delay: DelayParams { mix: 0.0, ..Default::default() },
-            reverb: ReverbParams { mix: 0.0, ..Default::default() } }
+        Self {
+            level: 0.5,
+            tune: 0.0,
+            release_ms: 100.0,
+            brightness: 1.0,
+            chorus: ChorusParams {
+                mix: 0.0,
+                ..Default::default()
+            },
+            delay: DelayParams {
+                mix: 0.0,
+                ..Default::default()
+            },
+            reverb: ReverbParams {
+                mix: 0.0,
+                ..Default::default()
+            },
+        }
     }
 }
 impl BankControls for MultiSamplerParams {
-    fn internal_effects(&self) -> Option<(ChorusParams, DelayParams, ReverbParams)> { Some((self.chorus, self.delay, self.reverb)) }
+    fn internal_effects(&self) -> Option<(ChorusParams, DelayParams, ReverbParams)> {
+        Some((self.chorus, self.delay, self.reverb))
+    }
 }
 param_set!(MultiSamplerParams, "Multisampler", {
     float [level] "level" "Level" { None, Linear, 0.0, 2.0, 0.5 }

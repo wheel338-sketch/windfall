@@ -68,7 +68,9 @@ pub(super) fn read(metadata: &WavMetadata, audio: &AudioBuffer) -> Result<Sample
             }
             has_beats = true;
             bpm = fields[0].parse().map_err(|_| "Invalid source tempo.")?;
-            beats = fields[1].parse().map_err(|_| "Invalid source beat count.")?;
+            beats = fields[1]
+                .parse()
+                .map_err(|_| "Invalid source beat count.")?;
         } else if note.text.starts_with("WindfallBeats/") {
             return Err("Unsupported Windfall beat note version.".into());
         }
@@ -102,7 +104,11 @@ fn write_regions(
     }
     let mut metadata = WavMetadata::default();
     for (index, slice) in asset.slices.iter().enumerate() {
-        let (offset, count) = if slice.deck == 0 { (0, a_frames) } else { (b_offset, b_frames) };
+        let (offset, count) = if slice.deck == 0 {
+            (0, a_frames)
+        } else {
+            (b_offset, b_frames)
+        };
         let start = offset as u32 + (f64::from(slice.start) * count as f64).round() as u32;
         let end = offset as u32 + (f64::from(slice.end) * count as f64).round() as u32;
         if start >= end {
@@ -112,7 +118,11 @@ fn write_regions(
         metadata.cues.push(WavCue {
             id,
             frame: start,
-            label: if slice.label.is_empty() { format!("Slice {}", index + 1) } else { slice.label.clone() },
+            label: if slice.label.is_empty() {
+                format!("Slice {}", index + 1)
+            } else {
+                slice.label.clone()
+            },
         });
         metadata.slices.push(WavSlice {
             cue_id: id,
@@ -120,23 +130,37 @@ fn write_regions(
         });
         metadata.notes.push(WavNote {
             cue_id: id,
-            text: format!("WindfallSlice/1 {} {} {} {} {} {}", slice.gain, slice.pitch,
-                slice.attack_ms, slice.release_ms, u8::from(slice.reverse), slice.deck),
+            text: format!(
+                "WindfallSlice/1 {} {} {} {} {} {}",
+                slice.gain,
+                slice.pitch,
+                slice.attack_ms,
+                slice.release_ms,
+                u8::from(slice.reverse),
+                slice.deck
+            ),
         });
     }
     metadata.notes.push(WavNote {
         cue_id: 1,
-        text: format!("WindfallBeats/1 {} {}", asset.source_bpm, asset.source_beats),
+        text: format!(
+            "WindfallBeats/1 {} {}",
+            asset.source_bpm, asset.source_beats
+        ),
     });
     // ACID carries tempo/meter for every file. Zero means its integer beat
     // count is unspecified; the versioned note carries the exact fraction.
     metadata.tempo = Some(WavTempo {
-            bpm: asset.source_bpm as f32,
-            beats: if asset.source_beats.fract() == 0.0 { asset.source_beats as u32 } else { 0 },
-            numerator: 4,
-            denominator: 4,
-            root_key: None,
-            one_shot: false,
+        bpm: asset.source_bpm as f32,
+        beats: if asset.source_beats.fract() == 0.0 {
+            asset.source_beats as u32
+        } else {
+            0
+        },
+        numerator: 4,
+        denominator: 4,
+        root_key: None,
+        one_shot: false,
     });
     metadata.root_key = Some(60);
     metadata
@@ -158,31 +182,46 @@ pub(super) fn sources(
     }
     let b = b.ok_or("Source B is not loaded. Reload samples first.")?;
     if a.samples().as_ptr() == b.samples().as_ptr()
-        && a.frames() == b.frames() && a.channels() == b.channels() && a.sample_rate() == b.sample_rate()
+        && a.frames() == b.frames()
+        && a.channels() == b.channels()
+        && a.sample_rate() == b.sample_rate()
     {
         return Ok((a.clone(), write(asset, a)?));
     }
-    let b_frames = (b.frames() as f64 * f64::from(a.sample_rate()) / f64::from(b.sample_rate())).round() as usize;
-    let total = a.frames().checked_add(b_frames).ok_or("Source frame count overflow.")?;
+    let b_frames = (b.frames() as f64 * f64::from(a.sample_rate()) / f64::from(b.sample_rate()))
+        .round() as usize;
+    let total = a
+        .frames()
+        .checked_add(b_frames)
+        .ok_or("Source frame count overflow.")?;
     if b_frames == 0 || total > windfall_dsp::granular::MAX_SOURCE_FRAMES {
         return Err("Combined sources exceed the 32 million frame budget or B is empty.".into());
     }
     let channels = a.channels().max(b.channels());
-    let count = total.checked_mul(usize::from(channels)).ok_or("Source sample count overflow.")?;
+    let count = total
+        .checked_mul(usize::from(channels))
+        .ok_or("Source sample count overflow.")?;
     if count as u64 * 4 > windfall_codec::DEFAULT_MAX_DECODED_BYTES {
         return Err("Combined sources exceed the decoded audio budget.".into());
     }
     let mut pcm = Vec::with_capacity(count);
     for (source, frames) in [(a, a.frames()), (b, b_frames)] {
-        if source.frames() == 0 { return Err("Cannot export an empty deck.".into()); }
+        if source.frames() == 0 {
+            return Err("Cannot export an empty deck.".into());
+        }
         let source_channels = usize::from(source.channels());
         for frame in 0..frames {
-            let position = frame as f64 * f64::from(source.sample_rate()) / f64::from(a.sample_rate());
+            let position =
+                frame as f64 * f64::from(source.sample_rate()) / f64::from(a.sample_rate());
             let first = (position.floor() as usize).min(source.frames() - 1);
             let next = (first + 1).min(source.frames() - 1);
             let fraction = (position - position.floor()) as f32;
             for channel in 0..usize::from(channels) {
-                let channel = if source_channels == 1 { 0 } else { channel.min(source_channels - 1) };
+                let channel = if source_channels == 1 {
+                    0
+                } else {
+                    channel.min(source_channels - 1)
+                };
                 let left = source.samples()[first * source_channels + channel];
                 let right = source.samples()[next * source_channels + channel];
                 pcm.push(left + (right - left) * fraction);
@@ -190,7 +229,10 @@ pub(super) fn sources(
         }
     }
     let metadata = write_regions(asset, a.frames(), a.frames(), b_frames, total)?;
-    Ok((AudioBuffer::from_interleaved(a.sample_rate(), channels, pcm), metadata))
+    Ok((
+        AudioBuffer::from_interleaved(a.sample_rate(), channels, pcm),
+        metadata,
+    ))
 }
 
 #[cfg(test)]
@@ -201,27 +243,73 @@ mod tests {
         let a = AudioBuffer::from_interleaved(48000, 1, vec![0.25; 8]);
         let b = AudioBuffer::from_interleaved(48000, 1, vec![-0.5; 4]);
         let asset = SamplePlayback {
-            source_beats: 3.125, source_bpm: 97.5,
+            source_beats: 3.125,
+            source_bpm: 97.5,
             slices: vec![
-                SliceRegion { start: 0.25, end: 0.75, gain: 0.5, pitch: -12.0,
-                    attack_ms: 3.0, release_ms: 25.0, reverse: true,
-                    label: "Authored A".into(), ..Default::default() },
-                SliceRegion { start: 0.0, end: 0.5, deck: 1, gain: 1.5, pitch: 7.0,
-                    label: "Authored B".into(), ..Default::default() },
-            ], ..Default::default()
+                SliceRegion {
+                    start: 0.25,
+                    end: 0.75,
+                    gain: 0.5,
+                    pitch: -12.0,
+                    attack_ms: 3.0,
+                    release_ms: 25.0,
+                    reverse: true,
+                    label: "Authored A".into(),
+                    ..Default::default()
+                },
+                SliceRegion {
+                    start: 0.0,
+                    end: 0.5,
+                    deck: 1,
+                    gain: 1.5,
+                    pitch: 7.0,
+                    label: "Authored B".into(),
+                    ..Default::default()
+                },
+            ],
+            ..Default::default()
         };
         let (audio, metadata) = sources(&asset, &a, Some(&b)).unwrap();
-        assert_eq!(audio.samples(), &[0.25, 0.25, 0.25, 0.25, 0.25, 0.25, 0.25, 0.25, -0.5, -0.5, -0.5, -0.5]);
-        assert_eq!(metadata.cues.iter().map(|c| c.frame).collect::<Vec<_>>(), [2, 8]);
-        assert_eq!(metadata.slices.iter().map(|s| s.length).collect::<Vec<_>>(), [4, 2]);
+        assert_eq!(
+            audio.samples(),
+            &[
+                0.25, 0.25, 0.25, 0.25, 0.25, 0.25, 0.25, 0.25, -0.5, -0.5, -0.5, -0.5
+            ]
+        );
+        assert_eq!(
+            metadata.cues.iter().map(|c| c.frame).collect::<Vec<_>>(),
+            [2, 8]
+        );
+        assert_eq!(
+            metadata.slices.iter().map(|s| s.length).collect::<Vec<_>>(),
+            [4, 2]
+        );
         assert_eq!(metadata.tempo.unwrap().beats, 0);
         assert_eq!(metadata.tempo.unwrap().bpm, 97.5);
         assert_eq!(metadata.root_key, Some(60));
         let restored = read(&metadata, &audio).unwrap();
         assert_eq!((restored.source_beats, restored.source_bpm), (3.125, 97.5));
         for (before, after) in asset.slices.iter().zip(&restored.slices) {
-            assert_eq!((before.gain, before.pitch, before.reverse, before.attack_ms, before.release_ms, before.deck, &before.label),
-                (after.gain, after.pitch, after.reverse, after.attack_ms, after.release_ms, after.deck, &after.label));
+            assert_eq!(
+                (
+                    before.gain,
+                    before.pitch,
+                    before.reverse,
+                    before.attack_ms,
+                    before.release_ms,
+                    before.deck,
+                    &before.label
+                ),
+                (
+                    after.gain,
+                    after.pitch,
+                    after.reverse,
+                    after.attack_ms,
+                    after.release_ms,
+                    after.deck,
+                    &after.label
+                )
+            );
         }
         let (again, again_metadata) = sources(&restored, &audio, Some(&audio)).unwrap();
         assert_eq!(again.samples(), audio.samples());
@@ -237,10 +325,24 @@ mod tests {
     fn different_source_rates_and_channels_have_measured_linear_resampling() {
         let a = AudioBuffer::from_interleaved(48000, 1, vec![0.25; 2]);
         let b = AudioBuffer::from_interleaved(24000, 2, vec![0.0, 1.0, 0.5, -1.0]);
-        let asset = SamplePlayback { slices: vec![SliceRegion { deck: 1, ..Default::default() }], ..Default::default() };
+        let asset = SamplePlayback {
+            slices: vec![SliceRegion {
+                deck: 1,
+                ..Default::default()
+            }],
+            ..Default::default()
+        };
         let (audio, metadata) = sources(&asset, &a, Some(&b)).unwrap();
-        assert_eq!((audio.sample_rate(), audio.channels(), audio.frames()), (48000, 2, 6));
-        assert_eq!(audio.samples(), &[0.25, 0.25, 0.25, 0.25, 0.0, 1.0, 0.25, 0.0, 0.5, -1.0, 0.5, -1.0]);
+        assert_eq!(
+            (audio.sample_rate(), audio.channels(), audio.frames()),
+            (48000, 2, 6)
+        );
+        assert_eq!(
+            audio.samples(),
+            &[
+                0.25, 0.25, 0.25, 0.25, 0.0, 1.0, 0.25, 0.0, 0.5, -1.0, 0.5, -1.0
+            ]
+        );
         assert_eq!((metadata.cues[0].frame, metadata.slices[0].length), (2, 4));
     }
     #[test]

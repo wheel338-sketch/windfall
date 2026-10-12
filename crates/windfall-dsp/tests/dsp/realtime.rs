@@ -261,7 +261,9 @@ fn random_effect_params(kind: EffectKind, rng: &mut Rng) -> EffectParams {
         EffectKind::VoltageSource => EffectParams::VoltageSource(random_params::<
             windfall_dsp::control::VoltageSourceParams,
         >(rng)),
-        EffectKind::MusicLighting => EffectParams::MusicLighting(random_params::<windfall_dsp::MusicLightingParams>(rng)),
+        EffectKind::MusicLighting => {
+            EffectParams::MusicLighting(random_params::<windfall_dsp::MusicLightingParams>(rng))
+        }
     }
 }
 

@@ -8,6 +8,7 @@ import type { Playlist } from "./Playlist";
 import type { PluginBinding } from "./PluginBinding";
 import type { ProjectSettings } from "./ProjectSettings";
 import type { RetainedPluginState } from "./RetainedPluginState";
+import type { RetainedSourceData } from "./RetainedSourceData";
 import type { SampleAsset } from "./SampleAsset";
 
 /**
@@ -43,4 +44,8 @@ plugins?: Array<PluginBinding>,
 /**
  * Opaque states from imported plugins, kept even before a compatible host exists.
  */
-retainedPlugins?: Array<RetainedPluginState>, };
+retainedPlugins?: Array<RetainedPluginState>, 
+/**
+ * Import provenance and uninterpreted controls; descriptive, never executed.
+ */
+retainedSourceData?: Array<RetainedSourceData>, };

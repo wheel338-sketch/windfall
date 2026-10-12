@@ -39,34 +39,107 @@ fn modular_rack_native_file_library_capture_and_apply_preserve_parameter_address
     use windfall_project::rack::{RackGraph, RackNode, RackNoteModule, RackProcessor};
     use windfall_project::{ChannelId, InstrumentKind};
     let rig = Rig::new();
-    let channel = ChannelId(rig.session.dispatch(Command::AddChannel {
-        name: Some("Native rack".into()), instrument: Some(InstrumentKind::SubtractiveSynth),
-        sample: None, index: None, mixer_track: Some(TrackId::MASTER),
-    }, None).unwrap().created[0]);
-    let graph = RackGraph { next_id: 2, nodes: vec![RackNode {
-        id: 1, name: "Envelope".into(), position: [0.0; 2], muted: false, solo: false,
-        processor: RackProcessor::Note { module: RackNoteModule::Envelope { params: Default::default() } },
-    }], ..Default::default() };
-    rig.session.dispatch(Command::SetChannelRack { id: channel, graph: Some(graph), expected: None }, None).unwrap();
+    let channel = ChannelId(
+        rig.session
+            .dispatch(
+                Command::AddChannel {
+                    name: Some("Native rack".into()),
+                    instrument: Some(InstrumentKind::SubtractiveSynth),
+                    sample: None,
+                    index: None,
+                    mixer_track: Some(TrackId::MASTER),
+                },
+                None,
+            )
+            .unwrap()
+            .created[0],
+    );
+    let graph = RackGraph {
+        next_id: 2,
+        nodes: vec![RackNode {
+            id: 1,
+            name: "Envelope".into(),
+            position: [0.0; 2],
+            muted: false,
+            solo: false,
+            processor: RackProcessor::Note {
+                module: RackNoteModule::Envelope {
+                    params: Default::default(),
+                },
+            },
+        }],
+        ..Default::default()
+    };
+    rig.session
+        .dispatch(
+            Command::SetChannelRack {
+                id: channel,
+                graph: Some(graph),
+                expected: None,
+            },
+            None,
+        )
+        .unwrap();
     let saved = rig.project().settings.modular_racks[0].graph.clone();
     assert_eq!(saved.parameters.len(), 6);
     let (generation, revision) = seen(&rig);
-    let capture = rig.session.preset_capture_channel(channel, generation, revision).unwrap();
-    assert_eq!(capture.preset.channel.as_ref().unwrap().rack, Some(saved.clone()));
-    let path = rig.session.preset_write(&rig.file("rack.wfpreset"), capture.clone()).unwrap();
+    let capture = rig
+        .session
+        .preset_capture_channel(channel, generation, revision)
+        .unwrap();
+    assert_eq!(
+        capture.preset.channel.as_ref().unwrap().rack,
+        Some(saved.clone())
+    );
+    let path = rig
+        .session
+        .preset_write(&rig.file("rack.wfpreset"), capture.clone())
+        .unwrap();
     let review = rig.session.preset_read(&path).unwrap();
-    assert!(review.notes.is_empty()); assert!(review.missing_audio.is_empty());
+    assert!(review.notes.is_empty());
+    assert!(review.missing_audio.is_empty());
     assert_eq!(review.preset.channel.unwrap().rack, Some(saved.clone()));
-    let entry = rig.session.preset_library_save("Original rack", capture).unwrap();
-    assert!(rig.session.preset_library().unwrap().iter().any(|item| item.path == entry.path));
-    assert_eq!(rig.session.preset_read(&entry.path).unwrap().preset.channel.unwrap().rack, Some(saved.clone()));
-    rig.session.dispatch(Command::SetChannelRack { id: channel, graph: None, expected: None }, None).unwrap();
+    let entry = rig
+        .session
+        .preset_library_save("Original rack", capture)
+        .unwrap();
+    assert!(
+        rig.session
+            .preset_library()
+            .unwrap()
+            .iter()
+            .any(|item| item.path == entry.path)
+    );
+    assert_eq!(
+        rig.session
+            .preset_read(&entry.path)
+            .unwrap()
+            .preset
+            .channel
+            .unwrap()
+            .rack,
+        Some(saved.clone())
+    );
+    rig.session
+        .dispatch(
+            Command::SetChannelRack {
+                id: channel,
+                graph: None,
+                expected: None,
+            },
+            None,
+        )
+        .unwrap();
     let before = rig.project();
     let expected = before.channel(channel).unwrap().clone();
-    rig.session.preset_apply_channel(&path, channel, expected, false, false).unwrap();
+    rig.session
+        .preset_apply_channel(&path, channel, expected, false, false)
+        .unwrap();
     assert_eq!(rig.project().settings.modular_racks[0].graph, saved);
-    rig.session.undo().unwrap(); assert_eq!(rig.project(), before);
-    rig.session.redo().unwrap(); assert_eq!(rig.project().settings.modular_racks[0].graph, saved);
+    rig.session.undo().unwrap();
+    assert_eq!(rig.project(), before);
+    rig.session.redo().unwrap();
+    assert_eq!(rig.project().settings.modular_racks[0].graph, saved);
 }
 
 #[test]

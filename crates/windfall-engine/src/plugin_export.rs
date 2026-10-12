@@ -77,11 +77,20 @@ impl Processor {
         true
     }
     pub fn set_plugin_meter(&mut self, numerator: u16, denominator: u16) -> bool {
-        if numerator == 0 && denominator == 0 { return true; } // host has no meter
-        if numerator == 0 || numerator > 32 || denominator == 0
-            || denominator > 32 || !denominator.is_power_of_two() { return false; }
+        if numerator == 0 && denominator == 0 {
+            return true;
+        } // host has no meter
+        if numerator == 0
+            || numerator > 32
+            || denominator == 0
+            || denominator > 32
+            || !denominator.is_power_of_two()
+        {
+            return false;
+        }
         self.plugin_meter = Some(windfall_project::TimeSignature {
-            numerator: numerator as u8, denominator: denominator as u8,
+            numerator: numerator as u8,
+            denominator: denominator as u8,
         });
         true
     }
@@ -129,20 +138,35 @@ impl Processor {
         self.handle(Message::Seek(0.0));
         self.voices.reset_plugin();
         self.clips.reset_plugin();
-        for channel in &mut self.state.channel_voice { channel.reset(); }
-        for unit in self.state.instrument_units() { unit.reset_plugin(); }
-        for unit in self.state.chains.iter_mut().flatten().flatten() { unit.reset_plugin(); }
-        for track in &mut self.state.track_processing { track.reset(); }
-        for delay in self.state.direct.iter_mut()
+        for channel in &mut self.state.channel_voice {
+            channel.reset();
+        }
+        for unit in self.state.instrument_units() {
+            unit.reset_plugin();
+        }
+        for unit in self.state.chains.iter_mut().flatten().flatten() {
+            unit.reset_plugin();
+        }
+        for track in &mut self.state.track_processing {
+            track.reset();
+        }
+        for delay in self
+            .state
+            .direct
+            .iter_mut()
             .chain(self.state.external.iter_mut())
             .chain(self.state.edge_delays.iter_mut())
             .chain(self.state.key_delays.iter_mut().flatten())
-            .chain([&mut self.state.printed, &mut self.state.master_output]) {
-            if let Some(line) = &mut delay.line { line.reset_plugin(); }
+            .chain([&mut self.state.printed, &mut self.state.master_output])
+        {
+            if let Some(line) = &mut delay.line {
+                line.reset_plugin();
+            }
         }
         self.metronome = crate::metronome::Metronome::new();
         self.count_in = None;
-        self.mixer.clear(self.plan.tracks.len(), crate::mixer::MAX_BLOCK);
+        self.mixer
+            .clear(self.plan.tracks.len(), crate::mixer::MAX_BLOCK);
     }
 
     pub fn plugin_position(&self) -> f64 {

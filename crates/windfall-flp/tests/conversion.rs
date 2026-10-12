@@ -133,8 +133,14 @@ fn recorded_pattern_controls_import_from_real_bytes_as_held_lanes() {
     assert_eq!(events[0].points[1].tick, 960);
     assert_eq!(events[0].points[1].value, 1.0);
     assert!(events[0].points.iter().all(|point| point.hold));
-    assert!(!output.report.category(ReportSection::Other).lines.iter()
-        .any(|line| line.text.contains("Recorded pattern events could not")));
+    assert!(
+        !output
+            .report
+            .category(ReportSection::Other)
+            .lines
+            .iter()
+            .any(|line| line.text.contains("Recorded pattern events could not"))
+    );
     let saved = windfall_project::file::to_json(&output.project);
     assert!(saved.is_ok());
 }
@@ -144,35 +150,61 @@ fn unsupported_control_controller_timing_and_navigation_bytes_are_durable_with_o
     let mut source = fixture(384);
     source.channels[0].time_shift = Some(12345);
     source.patterns[0].control_events = vec![ControlEvent {
-        position: 13, location: ControlTarget::ChannelPlugin { channel: 0, param: 32767 }.encode(),
+        position: 13,
+        location: ControlTarget::ChannelPlugin {
+            channel: 0,
+            param: 32767,
+        }
+        .encode(),
         value: i32::MIN,
     }];
     source.remote_controllers.push(RemoteController {
-        source: 0, location: 0xe000_1234, flags: 0x1234, smoothing: 0x5678,
+        source: 0,
+        location: 0xe000_1234,
+        flags: 0x1234,
+        smoothing: 0x5678,
     });
     source.arrangements[0].markers.push(TimeMarker {
-        position: 384, kind: 5, name: Some("Untranslated navigation".into()), ..Default::default()
+        position: 384,
+        kind: 5,
+        name: Some("Untranslated navigation".into()),
+        ..Default::default()
     });
-    source.uninterpreted.push(RawEvent { id: 250, value: RawValue::Data(vec![0x11, 0x22, 0, 0xff]) });
+    source.uninterpreted.push(RawEvent {
+        id: 250,
+        value: RawValue::Data(vec![0x11, 0x22, 0, 0xff]),
+    });
     let bytes = write(&source);
     let read = parse(&bytes).unwrap();
     let imported = converted(&source);
     assert_eq!(imported.project.retained_source_data.len(), 1);
     let archive = &imported.project.retained_source_data[0];
-    assert_eq!((archive.source.as_str(), archive.format.as_str()), ("flStudio", "flp-events-v1"));
+    assert_eq!(
+        (archive.source.as_str(), archive.format.as_str()),
+        ("flStudio", "flp-events-v1")
+    );
     assert_eq!(archive.data, bytes);
     let retained = parse(&archive.data).unwrap();
     assert_eq!(retained.channels[0].time_shift, Some(12345));
-    assert_eq!(retained.patterns[0].control_events, read.patterns[0].control_events);
+    assert_eq!(
+        retained.patterns[0].control_events,
+        read.patterns[0].control_events
+    );
     assert_eq!(retained.remote_controllers, read.remote_controllers);
-    assert_eq!(retained.arrangements[0].markers, read.arrangements[0].markers);
+    assert_eq!(
+        retained.arrangements[0].markers,
+        read.arrangements[0].markers
+    );
     assert_eq!(retained.uninterpreted, read.uninterpreted);
     let report = format!("{:?}", imported.report);
     assert!(report.contains("unsupported"));
     assert!(report.contains("retained opaquely"));
     let json = windfall_project::file::to_json(&imported.project).unwrap();
     let reopened = windfall_project::file::from_json(&json).unwrap();
-    assert_eq!(reopened.retained_source_data, imported.project.retained_source_data);
+    assert_eq!(
+        reopened.retained_source_data,
+        imported.project.retained_source_data
+    );
     reopened.check().unwrap();
 }
 
@@ -183,7 +215,11 @@ fn source_event_archive_excludes_licensee_and_stops_at_complete_events_with_a_bu
     events.data(199, b"20.8.4.2576\0");
     events.text(200, "Synthetic personal licensee text");
     events.data(250, &[0x41, 0x42]);
-    let header = Header { format: FileFormat::Project, ppq: 96, channel_count: 0 };
+    let header = Header {
+        format: FileFormat::Project,
+        ppq: 96,
+        channel_count: 0,
+    };
     let bytes = common::file(header, &events.bytes);
     let imported = import(&bytes, &ConvertOptions::default()).unwrap();
     let retained = parse(&imported.project.retained_source_data[0].data).unwrap();
@@ -191,12 +227,20 @@ fn source_event_archive_excludes_licensee_and_stops_at_complete_events_with_a_bu
     assert!(retained.uninterpreted.iter().any(|event| event.id == 250));
     let mut events = Events::new(true);
     events.data(199, b"20.8.4.2576\0");
-    events.data(250, &vec![0x41; windfall_flp::parse::MAX_SOURCE_EVENT_BYTES + 1]);
+    events.data(
+        250,
+        &vec![0x41; windfall_flp::parse::MAX_SOURCE_EVENT_BYTES + 1],
+    );
     events.dword(156, 120000);
     let parsed = parse(&common::file(header, &events.bytes)).unwrap();
     assert!(parsed.source_event_stream.len() < windfall_flp::parse::MAX_SOURCE_EVENT_BYTES);
     assert_eq!(parsed.settings.tempo_millibpm, Some(120000));
-    assert!(parsed.diagnostics.iter().any(|d| d.message.contains("archive exceeds 16 MiB")));
+    assert!(
+        parsed
+            .diagnostics
+            .iter()
+            .any(|d| d.message.contains("archive exceeds 16 MiB"))
+    );
     let imported = convert(&parsed, &ConvertOptions::default());
     let retained = parse(&imported.project.retained_source_data[0].data).unwrap();
     assert!(retained.uninterpreted.is_empty());

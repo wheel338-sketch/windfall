@@ -107,53 +107,107 @@ fn start(dsp: &mut AnyInstrument, id: u64, note: RackNote) {
 #[test]
 fn rack_automation_clip_and_internal_link_match_independent_notes_live_offline_and_reopen() {
     use super::support::{Rig, run};
+    use windfall_engine::{RenderOptions, render};
     use windfall_project::*;
-    use windfall_engine::{render, RenderOptions};
     for linked in [false, true] {
         let mut rig = Rig::new();
         let channel = rig.synth_on(plain_synth(), TrackId::MASTER);
         let pattern = rig.first_pattern();
         rig.note_in(pattern, channel, 20, 400).key = 60;
         rig.note_in(pattern, channel, 500, 400).key = 60;
-        let mut rack = graph(Some(RackNoteModule::KeyMapper { params: Default::default(), chord: [0; 4], voices: 1 }));
+        let mut rack = graph(Some(RackNoteModule::KeyMapper {
+            params: Default::default(),
+            chord: [0; 4],
+            voices: 1,
+        }));
         rack.retain_parameter_addresses(None).unwrap();
-        let parameter = 32 + rack.parameters.iter().position(|p| p.path == [4] && p.parameter == 60).unwrap() as u32;
-        rig.project.settings.modular_racks.push(ChannelRack { channel, graph: rack });
-        let target = AutomationTarget::InstrumentParam { channel, param: parameter };
+        let parameter = 32
+            + rack
+                .parameters
+                .iter()
+                .position(|p| p.path == [4] && p.parameter == 60)
+                .unwrap() as u32;
+        rig.project.settings.modular_racks.push(ChannelRack {
+            channel,
+            graph: rack,
+        });
+        let target = AutomationTarget::InstrumentParam {
+            channel,
+            param: parameter,
+        };
         let lane = rig.playlist_track();
         rig.clip(lane, pattern, 0, 960);
         if linked {
-            let source = rig.effect(TrackId::MASTER, EffectParams::ControlSurface(windfall_dsp::surface::ControlSurfaceParams { knob1: 72.0 / 127.0, ..Default::default() }));
+            let source = rig.effect(
+                TrackId::MASTER,
+                EffectParams::ControlSurface(windfall_dsp::surface::ControlSurfaceParams {
+                    knob1: 72.0 / 127.0,
+                    ..Default::default()
+                }),
+            );
             rig.project.settings.controller_links.push(ControllerLink {
-                source: ControlSource::Internal { controller: source.0, output: 0 },
+                source: ControlSource::Internal {
+                    controller: source.0,
+                    output: 0,
+                },
                 target: LinkTarget::Param { target },
-                map: ControlMap { pickup: PickupMode::Off, ..Default::default() },
+                map: ControlMap {
+                    pickup: PickupMode::Off,
+                    ..Default::default()
+                },
             });
         } else {
             let automation = rig.automation(target, &[(0, 72.0 / 127.0)]);
             rig.automation_clip(lane, automation, 0, 960);
         }
         rig.project.check().unwrap();
-        let options = RenderOptions { mode: windfall_ipc::PlayMode::Song, block_frames: 17, tail_secs: 0.1, ..Default::default() };
+        let options = RenderOptions {
+            mode: windfall_ipc::PlayMode::Song,
+            block_frames: 17,
+            tail_secs: 0.1,
+            ..Default::default()
+        };
         let expected_project = rig.project.clone();
         let actual = render(&rig.project, &rig.pool, &options, &mut |_| true);
         assert!(actual.samples().iter().any(|sample| sample.abs() > 0.01));
         let (mut processor, controller) = rig.song_processor(RATE);
         let latency = controller.latency_frames() as usize;
         controller.play();
-        close(&run(&mut processor, actual.frames() + latency, 127)[latency * 2..], actual.samples());
+        close(
+            &run(&mut processor, actual.frames() + latency, 127)[latency * 2..],
+            actual.samples(),
+        );
         rig.project = file::from_json(&file::to_json(&rig.project).unwrap()).unwrap();
-        close(render(&rig.project, &rig.pool, &options, &mut |_| true).samples(), actual.samples());
+        close(
+            render(&rig.project, &rig.pool, &options, &mut |_| true).samples(),
+            actual.samples(),
+        );
         rig.project.settings.modular_racks.clear();
-        rig.project.settings.controller_links.clear(); rig.project.automations.clear();
-        rig.project.playlist.clips.retain(|clip| !matches!(clip.content, ClipContent::Automation { .. }));
-        for note in &mut rig.pattern_mut(pattern).lanes[0].notes { note.key = 72; }
-        close(actual.samples(), render(&rig.project, &rig.pool, &options, &mut |_| true).samples());
+        rig.project.settings.controller_links.clear();
+        rig.project.automations.clear();
+        rig.project
+            .playlist
+            .clips
+            .retain(|clip| !matches!(clip.content, ClipContent::Automation { .. }));
+        for note in &mut rig.pattern_mut(pattern).lanes[0].notes {
+            note.key = 72;
+        }
+        close(
+            actual.samples(),
+            render(&rig.project, &rig.pool, &options, &mut |_| true).samples(),
+        );
         rig.project = expected_project;
         let (mut processor, controller) = rig.song_processor(RATE);
         controller.play();
         let mut out = [0.0; 254];
-        assert_eq!(allocator_calls(|| { for _ in 0..16 { processor.process(&mut out); } }), 0);
+        assert_eq!(
+            allocator_calls(|| {
+                for _ in 0..16 {
+                    processor.process(&mut out);
+                }
+            }),
+            0
+        );
     }
 }
 
@@ -161,32 +215,81 @@ fn rack_automation_clip_and_internal_link_match_independent_notes_live_offline_a
 fn composed_gain_pan_and_pitch_envelopes_match_per_sample_reference_through_independent_releases() {
     use windfall_dsp::rack_note::EnvelopeDestination;
     let shapes = [
-        NoteEnvelope { attack_ms: 10.0, decay_ms: 0.0, sustain: 1.0, release_ms: 20.0, ..Default::default() },
-        NoteEnvelope { attack_ms: 20.0, decay_ms: 0.0, sustain: 1.0, release_ms: 40.0, ..Default::default() },
-        NoteEnvelope { destination: EnvelopeDestination::Pan, amount: 0.2, attack_ms: 10.0, release_ms: 30.0, ..Default::default() },
-        NoteEnvelope { destination: EnvelopeDestination::Pitch, amount: 0.1, attack_ms: 10.0, release_ms: 10.0, ..Default::default() },
+        NoteEnvelope {
+            attack_ms: 10.0,
+            decay_ms: 0.0,
+            sustain: 1.0,
+            release_ms: 20.0,
+            ..Default::default()
+        },
+        NoteEnvelope {
+            attack_ms: 20.0,
+            decay_ms: 0.0,
+            sustain: 1.0,
+            release_ms: 40.0,
+            ..Default::default()
+        },
+        NoteEnvelope {
+            destination: EnvelopeDestination::Pan,
+            amount: 0.2,
+            attack_ms: 10.0,
+            release_ms: 30.0,
+            ..Default::default()
+        },
+        NoteEnvelope {
+            destination: EnvelopeDestination::Pitch,
+            amount: 0.1,
+            attack_ms: 10.0,
+            release_ms: 10.0,
+            ..Default::default()
+        },
     ];
-    let mut graph = graph(None); graph.next_id = 8;
+    let mut graph = graph(None);
+    graph.next_id = 8;
     graph.edges.retain(|edge| edge.from.node != 1);
     for (i, shape) in shapes.iter().enumerate() {
-        graph.nodes.push(node(4 + i as u32, RackProcessor::Note { module: RackNoteModule::Envelope { params: *shape } }));
-        graph.edges.push(wire(if i == 0 { 1 } else { 3 + i as u32 }, NOTE_OUT, 4 + i as u32, NOTE_IN));
+        graph.nodes.push(node(
+            4 + i as u32,
+            RackProcessor::Note {
+                module: RackNoteModule::Envelope { params: *shape },
+            },
+        ));
+        graph.edges.push(wire(
+            if i == 0 { 1 } else { 3 + i as u32 },
+            NOTE_OUT,
+            4 + i as u32,
+            NOTE_IN,
+        ));
     }
     graph.edges.push(wire(7, NOTE_OUT, 2, NOTE_IN));
     for size in [1, 17, 127] {
         let mut rack = ModularRack::prepare(&graph, RATE, 120.0).unwrap();
         rack.note_on(NoteInstanceId(9), RackNote::default());
-        let mut dsp = synth(); start(&mut dsp, 1, RackNote { gain: 0.0, ..Default::default() });
+        let mut dsp = synth();
+        start(
+            &mut dsp,
+            1,
+            RackNote {
+                gain: 0.0,
+                ..Default::default()
+            },
+        );
         let mut expected = Vec::new();
         for frame in 0..4000 {
             let seconds = frame as f64 / f64::from(RATE);
             let mut levels = [0.0; 4];
             for (i, shape) in shapes.iter().enumerate() {
-                levels[i] = if frame < 1024 { shape.level(seconds) } else {
-                    shape.level(1024.0 / f64::from(RATE)) * (1.0 - (frame - 1024) as f32 / (shape.release_ms * RATE as f32 / 1000.0)).max(0.0)
+                levels[i] = if frame < 1024 {
+                    shape.level(seconds)
+                } else {
+                    shape.level(1024.0 / f64::from(RATE))
+                        * (1.0 - (frame - 1024) as f32 / (shape.release_ms * RATE as f32 / 1000.0))
+                            .max(0.0)
                 };
             }
-            if frame == 1024 + 1920 { dsp.note_off_instance(NoteInstanceId(1), 60); }
+            if frame == 1024 + 1920 {
+                dsp.note_off_instance(NoteInstanceId(1), 60);
+            }
             if frame < 1024 + 1920 {
                 dsp.set_note_gain(NoteInstanceId(1), levels[0] * levels[1]);
                 dsp.set_note_expression(NoteInstanceId(1), levels[2] * 0.2, Default::default());
@@ -195,26 +298,47 @@ fn composed_gain_pan_and_pitch_envelopes_match_per_sample_reference_through_inde
             expected.extend(reference(&mut dsp, 1));
         }
         let mut actual = audio(&mut rack, 1024, size);
-        rack.note_off(NoteInstanceId(9)); actual.extend(audio(&mut rack, 4000 - 1024, size));
+        rack.note_off(NoteInstanceId(9));
+        actual.extend(audio(&mut rack, 4000 - 1024, size));
         close(&actual, &expected);
     }
 }
 
 #[test]
 fn realtime_sequencer_parameter_change_keeps_phase_and_matches_changed_pitch_schedule() {
-    let mut graph = graph(Some(RackNoteModule::Sequencer { params: Default::default() }));
+    let mut graph = graph(Some(RackNoteModule::Sequencer {
+        params: Default::default(),
+    }));
     graph.retain_parameter_addresses(None).unwrap();
     // The sequence header occupies 0..3, followed by stepsPerBeat and
     // gate/pitch/velocity triplets. Step 2 pitch is module parameter 9.
-    let index = 32 + graph.parameters.iter().position(|p| p.parameter == 9).unwrap();
+    let index = 32
+        + graph
+            .parameters
+            .iter()
+            .position(|p| p.parameter == 9)
+            .unwrap();
     let mut rack = ModularRack::prepare(&graph, RATE, 120.0).unwrap();
-    let mut dsp = synth(); rack.note_on(NoteInstanceId(9), RackNote::default()); start(&mut dsp, 1, RackNote::default());
+    let mut dsp = synth();
+    rack.note_on(NoteInstanceId(9), RackNote::default());
+    start(&mut dsp, 1, RackNote::default());
     close(&audio(&mut rack, 2048, 17), &reference(&mut dsp, 2048));
     assert_eq!(allocator_calls(|| rack.set_control(index, 7.0)), 0);
     let mut expected = Vec::new();
     for frame in 2048..9000 {
-        if frame == 3000 { dsp.note_off_instance(NoteInstanceId(1), 60); }
-        if frame == 6000 { start(&mut dsp, 2, RackNote { key: 67, ..Default::default() }); }
+        if frame == 3000 {
+            dsp.note_off_instance(NoteInstanceId(1), 60);
+        }
+        if frame == 6000 {
+            start(
+                &mut dsp,
+                2,
+                RackNote {
+                    key: 67,
+                    ..Default::default()
+                },
+            );
+        }
         expected.extend(reference(&mut dsp, 1));
     }
     close(&audio(&mut rack, 9000 - 2048, 127), &expected);
@@ -222,31 +346,66 @@ fn realtime_sequencer_parameter_change_keeps_phase_and_matches_changed_pitch_sch
 
 #[test]
 fn auxiliary_audio_ports_match_independent_split_outputs_and_muting_clears_every_port() {
-    for kind in [windfall_dsp::EffectKind::SendTap, windfall_dsp::EffectKind::BandSplit, windfall_dsp::EffectKind::TransientSplit] {
+    for kind in [
+        windfall_dsp::EffectKind::SendTap,
+        windfall_dsp::EffectKind::BandSplit,
+        windfall_dsp::EffectKind::TransientSplit,
+    ] {
         for port in 0..kind.aux_outputs().len() {
             let params = kind.default_params();
-            let graph = RackGraph { next_id: 4, nodes: vec![
-                node(1, RackProcessor::AudioInput), node(2, RackProcessor::Effect { params, mix: 1.0 }), node(3, RackProcessor::AudioOutput),
-            ], edges: vec![wire(1, AUDIO_OUT, 2, AUDIO_IN), wire(2, AUX_AUDIO_BASE + port as u16, 3, AUDIO_IN)], ..Default::default() };
+            let graph = RackGraph {
+                next_id: 4,
+                nodes: vec![
+                    node(1, RackProcessor::AudioInput),
+                    node(2, RackProcessor::Effect { params, mix: 1.0 }),
+                    node(3, RackProcessor::AudioOutput),
+                ],
+                edges: vec![
+                    wire(1, AUDIO_OUT, 2, AUDIO_IN),
+                    wire(2, AUX_AUDIO_BASE + port as u16, 3, AUDIO_IN),
+                ],
+                ..Default::default()
+            };
             let mut rack = ModularRack::prepare(&graph, RATE, 120.0).unwrap();
-            let mut dsp = AnyEffect::new(&params); dsp.prepare(RATE as f32, 1); dsp.set_params(&params);
-            let mut left = [0.0]; let mut right = [0.0];
+            let mut dsp = AnyEffect::new(&params);
+            dsp.prepare(RATE as f32, 1);
+            dsp.set_params(&params);
+            let mut left = [0.0];
+            let mut right = [0.0];
             let mut measured = 0.0f32;
             for frame in 0..4096 {
                 let value = (frame as f32 * 0.137).sin() * 0.2;
-                left[0] = value; right[0] = value * 0.5;
-                let mut expected_l = left; let mut expected_r = right;
-                let mut first = [[0.0; 2]]; let mut second = [[0.0; 2]]; let mut third = [[0.0; 2]];
-                dsp.process_aux(&mut expected_l, &mut expected_r, None, &mut windfall_dsp::AuxBlock { routed: 7, outputs: [&mut first, &mut second, &mut third] });
+                left[0] = value;
+                right[0] = value * 0.5;
+                let mut expected_l = left;
+                let mut expected_r = right;
+                let mut first = [[0.0; 2]];
+                let mut second = [[0.0; 2]];
+                let mut third = [[0.0; 2]];
+                dsp.process_aux(
+                    &mut expected_l,
+                    &mut expected_r,
+                    None,
+                    &mut windfall_dsp::AuxBlock {
+                        routed: 7,
+                        outputs: [&mut first, &mut second, &mut third],
+                    },
+                );
                 let expected = [first[0], second[0], third[0]][port];
                 assert_eq!(allocator_calls(|| rack.process(&mut left, &mut right)), 0);
                 close(&[left[0], right[0]], &expected);
                 measured = measured.max(left[0].abs());
             }
             assert!(measured > 0.0001);
-            let mut muted = graph; muted.nodes[1].muted = true;
+            let mut muted = graph;
+            muted.nodes[1].muted = true;
             let mut rack = ModularRack::prepare(&muted, RATE, 120.0).unwrap();
-            for _ in 0..128 { left[0] = 0.2; right[0] = 0.1; rack.process(&mut left, &mut right); assert_eq!([left[0], right[0]], [0.0; 2]); }
+            for _ in 0..128 {
+                left[0] = 0.2;
+                right[0] = 0.1;
+                rack.process(&mut left, &mut right);
+                assert_eq!([left[0], right[0]], [0.0; 2]);
+            }
         }
     }
 }

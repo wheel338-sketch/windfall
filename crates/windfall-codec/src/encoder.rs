@@ -60,19 +60,32 @@ impl AudioFormat {
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum EncoderSettings {
     /// Uncompressed. See [`WavWriter`].
-    Wav { format: WavSampleFormat },
+    Wav {
+        format: WavSampleFormat,
+    },
     /// Lossless. `level` is the compression level, 0 to
     /// [`MAX_FLAC_LEVEL`](crate::MAX_FLAC_LEVEL). See [`FlacWriter`].
-    Flac { depth: FlacBitDepth, level: u8 },
+    Flac {
+        depth: FlacBitDepth,
+        level: u8,
+    },
     /// Lossy. `quality` runs from
     /// [`MIN_VORBIS_QUALITY`](crate::MIN_VORBIS_QUALITY) to
     /// [`MAX_VORBIS_QUALITY`](crate::MAX_VORBIS_QUALITY). One or two
     /// channels. See [`VorbisWriter`].
-    Vorbis { quality: f32 },
+    Vorbis {
+        quality: f32,
+    },
     /// Lossy MP3 rate and channel coding. See [`Mp3Writer`].
-    Mp3 { settings: Mp3Settings },
-    WavPack { depth: crate::WavPackDepth },
-    M4a { bitrate: u16 },
+    Mp3 {
+        settings: Mp3Settings,
+    },
+    WavPack {
+        depth: crate::WavPackDepth,
+    },
+    M4a {
+        bitrate: u16,
+    },
 }
 
 impl EncoderSettings {
@@ -178,12 +191,27 @@ impl Encoder {
             ));
         }
         let inner = match *settings {
-            EncoderSettings::WavPack { depth } => Inner::WavPack(crate::WavPackWriter::create_with_tags(
-                path, sample_rate, channels, depth, crate::DEFAULT_WAVPACK_BLOCK_FRAMES, tags,
-            )?),
-            EncoderSettings::M4a { bitrate } => Inner::M4a(Box::new(crate::NativeAacWriter::create(
-                path, crate::AacConfig { sample_rate, channels }, bitrate, tags,
-            )?)),
+            EncoderSettings::WavPack { depth } => {
+                Inner::WavPack(crate::WavPackWriter::create_with_tags(
+                    path,
+                    sample_rate,
+                    channels,
+                    depth,
+                    crate::DEFAULT_WAVPACK_BLOCK_FRAMES,
+                    tags,
+                )?)
+            }
+            EncoderSettings::M4a { bitrate } => {
+                Inner::M4a(Box::new(crate::NativeAacWriter::create(
+                    path,
+                    crate::AacConfig {
+                        sample_rate,
+                        channels,
+                    },
+                    bitrate,
+                    tags,
+                )?))
+            }
             EncoderSettings::Mp3 { settings } => Inner::Mp3(Mp3Writer::create_with_tags(
                 path,
                 sample_rate,

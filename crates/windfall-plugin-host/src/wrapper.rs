@@ -170,14 +170,28 @@ impl Policy {
 }
 impl ProcessorBackend for Policy {
     fn controls_processed(&self) -> bool {
-        self.fixed.as_ref().is_none_or(|fixed| !fixed.events.iter().any(|event| matches!(event, HostEvent::Param { .. })))
-            && self.native.controls_processed()
+        self.fixed.as_ref().is_none_or(|fixed| {
+            !fixed
+                .events
+                .iter()
+                .any(|event| matches!(event, HostEvent::Param { .. }))
+        }) && self.native.controls_processed()
     }
-    fn set_realtime(&mut self, realtime: bool) { self.native.set_realtime(realtime); }
-    fn return_to_owner(&mut self) { self.native.return_to_owner(); }
-    fn resume_after_refusal(&mut self) { self.native.resume_after_refusal(); }
-    fn supports_midi_expression(&self) -> bool { self.native.supports_midi_expression() }
-    fn midi_expression_mask(&self, channel: u8) -> u32 { self.native.midi_expression_mask(channel) }
+    fn set_realtime(&mut self, realtime: bool) {
+        self.native.set_realtime(realtime);
+    }
+    fn return_to_owner(&mut self) {
+        self.native.return_to_owner();
+    }
+    fn resume_after_refusal(&mut self) {
+        self.native.resume_after_refusal();
+    }
+    fn supports_midi_expression(&self) -> bool {
+        self.native.supports_midi_expression()
+    }
+    fn midi_expression_mask(&self, channel: u8) -> u32 {
+        self.native.midi_expression_mask(channel)
+    }
     fn supports_note_instances(&self) -> bool {
         self.native.supports_note_instances()
     }

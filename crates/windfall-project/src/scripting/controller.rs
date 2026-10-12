@@ -61,7 +61,10 @@ pub fn controller_event(
             },
         })
         .collect();
-    if let Some(value) = output.mapped.filter(|_| !matches!(binding.target, Some(LinkTarget::Action { .. }))) {
+    if let Some(value) = output
+        .mapped
+        .filter(|_| !matches!(binding.target, Some(LinkTarget::Action { .. })))
+    {
         let target = match binding.target {
             Some(LinkTarget::Param { target }) => Some(target),
             Some(LinkTarget::Slot { slot }) => slot.resolve(project, bank),
@@ -88,5 +91,9 @@ pub fn controller_event(
     } else {
         Vec::new()
     };
-    Ok(ControllerScriptResult { commands, feedback, mapped: output.mapped })
+    Ok(ControllerScriptResult {
+        commands,
+        feedback,
+        mapped: output.mapped,
+    })
 }

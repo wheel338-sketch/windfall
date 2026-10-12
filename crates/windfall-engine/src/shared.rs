@@ -172,8 +172,10 @@ impl Shared {
             | u64::from(len.min(3)) << 24
             | frame << 26;
         self.midi_out[write as usize % MIDI_OUT_CAPACITY].store(packed, Ordering::Relaxed);
-        self.midi_out_ports[write as usize % MIDI_OUT_CAPACITY]
-            .store(u32::from(port.min(windfall_dsp::PROJECT_FEEDBACK_PORT)), Ordering::Relaxed);
+        self.midi_out_ports[write as usize % MIDI_OUT_CAPACITY].store(
+            u32::from(port.min(windfall_dsp::PROJECT_FEEDBACK_PORT)),
+            Ordering::Relaxed,
+        );
         self.midi_out_write
             .store(write.wrapping_add(1), Ordering::Release);
     }

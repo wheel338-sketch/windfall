@@ -5,10 +5,23 @@ use windfall_project::*;
 fn authored_slice_labels_are_checked_persisted_undoable_and_default_empty_in_old_projects() {
     let (mut document, channel, sample) = fixture(InstrumentKind::SliceDeck);
     let old = document.project().clone();
-    let asset = SamplePlayback { sample: Some(sample), slices: vec![SliceRegion {
-        label: "Original named slice".into(), ..Default::default()
-    }], ..Default::default() };
-    document.dispatch(Command::SetSamplePlayback { channel, asset: Some(asset) }, None).unwrap();
+    let asset = SamplePlayback {
+        sample: Some(sample),
+        slices: vec![SliceRegion {
+            label: "Original named slice".into(),
+            ..Default::default()
+        }],
+        ..Default::default()
+    };
+    document
+        .dispatch(
+            Command::SetSamplePlayback {
+                channel,
+                asset: Some(asset),
+            },
+            None,
+        )
+        .unwrap();
     let authored = document.project().clone();
     document.undo().unwrap();
     assert_eq!(document.project(), &old);
@@ -17,14 +30,47 @@ fn authored_slice_labels_are_checked_persisted_undoable_and_default_empty_in_old
     let json = windfall_project::file::to_json(&authored).unwrap();
     assert_eq!(windfall_project::file::from_json(&json).unwrap(), authored);
     let mut legacy: serde_json::Value = serde_json::from_str(&json).unwrap();
-    let saved_channel = legacy["channels"].as_array_mut().unwrap().iter_mut()
-        .find(|saved| saved["id"].as_u64() == Some(u64::from(channel.0))).unwrap();
-    saved_channel["samplePlayback"]["slices"][0].as_object_mut().unwrap().remove("label");
-    let reopened = windfall_project::file::from_json(&serde_json::to_string(&legacy).unwrap()).unwrap();
-    assert!(reopened.channel(channel).unwrap().sample_playback.as_ref().unwrap().slices[0].label.is_empty());
-    let mut invalid = authored.channel(channel).unwrap().sample_playback.clone().unwrap();
+    let saved_channel = legacy["channels"]
+        .as_array_mut()
+        .unwrap()
+        .iter_mut()
+        .find(|saved| saved["id"].as_u64() == Some(u64::from(channel.0)))
+        .unwrap();
+    saved_channel["samplePlayback"]["slices"][0]
+        .as_object_mut()
+        .unwrap()
+        .remove("label");
+    let reopened =
+        windfall_project::file::from_json(&serde_json::to_string(&legacy).unwrap()).unwrap();
+    assert!(
+        reopened
+            .channel(channel)
+            .unwrap()
+            .sample_playback
+            .as_ref()
+            .unwrap()
+            .slices[0]
+            .label
+            .is_empty()
+    );
+    let mut invalid = authored
+        .channel(channel)
+        .unwrap()
+        .sample_playback
+        .clone()
+        .unwrap();
     invalid.slices[0].label = "x".repeat(257);
-    assert!(document.dispatch(Command::SetSamplePlayback { channel, asset: Some(invalid) }, None).is_err());
+    assert!(
+        document
+            .dispatch(
+                Command::SetSamplePlayback {
+                    channel,
+                    asset: Some(invalid)
+                },
+                None
+            )
+            .is_err()
+    );
     assert_eq!(document.project(), &authored);
 }
 
@@ -33,10 +79,17 @@ fn opaque_import_archive_bounds_and_legacy_defaults_are_checked_on_reopen() {
     let legacy = Project::new("legacy archive fixture");
     let json = windfall_project::file::to_json(&legacy).unwrap();
     assert!(!json.contains("retainedSourceData"));
-    assert!(windfall_project::file::from_json(&json).unwrap().retained_source_data.is_empty());
+    assert!(
+        windfall_project::file::from_json(&json)
+            .unwrap()
+            .retained_source_data
+            .is_empty()
+    );
     let mut project = legacy;
     project.retained_source_data.push(RetainedSourceData {
-        source: "original-test".into(), format: "synthetic-v1".into(), data: vec![0, 1, 255],
+        source: "original-test".into(),
+        format: "synthetic-v1".into(),
+        data: vec![0, 1, 255],
     });
     let json = windfall_project::file::to_json(&project).unwrap();
     assert_eq!(windfall_project::file::from_json(&json).unwrap(), project);

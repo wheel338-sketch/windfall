@@ -37,41 +37,81 @@ fn request(token: u32, operation: Op) -> AudioEditRequest {
 }
 
 #[test]
-fn editor_wavpack_saves_rendered_selection_exactly_without_history_edits_and_rejects_stale_tokens() {
-    let rig = Rig::new(); let (clip, original, original_bytes) = add(&rig);
+fn editor_wavpack_saves_rendered_selection_exactly_without_history_edits_and_rejects_stale_tokens()
+{
+    let rig = Rig::new();
+    let (clip, original, original_bytes) = add(&rig);
     let preview = rig.session.audio_editor_open(clip).unwrap();
     let before = rig.session.document_snapshot();
-    for (depth, scale) in [(windfall_ipc::BitDepth::Int16, 32768.0_f32), (windfall_ipc::BitDepth::Int24, 8388608.0_f32)] {
+    for (depth, scale) in [
+        (windfall_ipc::BitDepth::Int16, 32768.0_f32),
+        (windfall_ipc::BitDepth::Int24, 8388608.0_f32),
+    ] {
         let path = rig.file("Selection.wv");
-        rig.session.audio_editor_save_wavpack(preview.token, 1, 3, path.clone(), depth).unwrap();
+        rig.session
+            .audio_editor_save_wavpack(preview.token, 1, 3, path.clone(), depth)
+            .unwrap();
         let audio = windfall_codec::decode_file(&path).unwrap();
-        assert_eq!(audio.frames(), 2); assert_eq!(audio.channels(), 2);
-        assert_eq!(audio.samples(), &[0.2, -0.2, 0.3, -0.3].map(|v: f32| (v * scale).round() / scale));
+        assert_eq!(audio.frames(), 2);
+        assert_eq!(audio.channels(), 2);
+        assert_eq!(
+            audio.samples(),
+            &[0.2, -0.2, 0.3, -0.3].map(|v: f32| (v * scale).round() / scale)
+        );
     }
     assert_eq!(rig.project(), before.project);
     assert_eq!(rig.session.document_snapshot().history, before.history);
     assert_eq!(std::fs::read(original).unwrap(), original_bytes);
     rig.session.project_new().unwrap();
-    let destination = rig.file("Selection.wv"); let kept = std::fs::read(&destination).unwrap();
-    assert!(rig.session.audio_editor_save_wavpack(preview.token, 0, 1, destination.clone(), windfall_ipc::BitDepth::Int24).is_err());
+    let destination = rig.file("Selection.wv");
+    let kept = std::fs::read(&destination).unwrap();
+    assert!(
+        rig.session
+            .audio_editor_save_wavpack(
+                preview.token,
+                0,
+                1,
+                destination.clone(),
+                windfall_ipc::BitDepth::Int24
+            )
+            .is_err()
+    );
     assert_eq!(std::fs::read(destination).unwrap(), kept);
 }
 
 #[test]
 fn editor_wavpack_publication_rechecks_edits_after_encoding_and_removes_staging() {
-    let rig = Rig::new(); let (clip, _, _) = add(&rig);
+    let rig = Rig::new();
+    let (clip, _, _) = add(&rig);
     let preview = rig.session.audio_editor_open(clip).unwrap();
-    let path = rig.file("Kept.wv"); std::fs::write(&path, b"previous").unwrap();
+    let path = rig.file("Kept.wv");
+    std::fs::write(&path, b"previous").unwrap();
     let hold = rig.session.hold("audio-editor:wavpack-staged");
-    let job = rig.session.background(move |s| s.audio_editor_save_wavpack(preview.token, 0, 4, path, windfall_ipc::BitDepth::Int24));
+    let job = rig.session.background(move |s| {
+        s.audio_editor_save_wavpack(preview.token, 0, 4, path, windfall_ipc::BitDepth::Int24)
+    });
     hold.wait();
-    rig.session.dispatch(Command::AddPlaylistTrack { name: None, index: None }, None).unwrap();
+    rig.session
+        .dispatch(
+            Command::AddPlaylistTrack {
+                name: None,
+                index: None,
+            },
+            None,
+        )
+        .unwrap();
     let after_edit = rig.session.document_snapshot();
     hold.release();
     assert!(job.join().unwrap().unwrap_err().contains("changed"));
     assert_eq!(std::fs::read(rig.file("Kept.wv")).unwrap(), b"previous");
     assert_eq!(rig.session.document_snapshot(), after_edit);
-    assert!(!std::fs::read_dir(rig.folder.path()).unwrap().any(|entry| entry.unwrap().file_name().to_string_lossy().starts_with(".Kept.wv")));
+    assert!(!std::fs::read_dir(rig.folder.path()).unwrap().any(|entry| {
+        entry
+            .unwrap()
+            .file_name()
+            .to_string_lossy()
+            .starts_with(".Kept.wv")
+    }));
 }
 
 #[test]
@@ -82,18 +122,35 @@ fn audio_script_preview_apply_is_one_exact_selection_edit_with_undo_and_fresh_re
     let preview = rig.session.audio_editor_open(clip).unwrap();
     let before = rig.session.document_snapshot();
     let ticket = rig.session.script_begin();
-    let result = rig.session.audio_script_preview(AudioScriptRequest {
-        request: ticket, token: preview.token,
-        range: AudioEditRange { start_frame: 1, end_frame: 3 },
-        source: "reverse\ngain 0.5".into(), parameters: vec![],
-    }).unwrap();
+    let result = rig
+        .session
+        .audio_script_preview(AudioScriptRequest {
+            request: ticket,
+            token: preview.token,
+            range: AudioEditRange {
+                start_frame: 1,
+                end_frame: 3,
+            },
+            source: "reverse\ngain 0.5".into(),
+            parameters: vec![],
+        })
+        .unwrap();
     assert_eq!(result.frames, 2);
     assert_eq!(rig.session.document_snapshot(), before);
     assert_eq!(derived_files(&rig), 0);
-    let applied = rig.session.audio_script_apply(preview.token, ticket).unwrap();
+    let applied = rig
+        .session
+        .audio_script_apply(preview.token, ticket)
+        .unwrap();
     let sample = SampleId(applied.created[0]);
-    assert_eq!(pooled(&rig, sample), [0.1, -0.1, 0.15, -0.15, 0.1, -0.1, 0.4, -0.4]);
-    assert_eq!(rig.session.document_snapshot().history.cursor, before.history.cursor + 1);
+    assert_eq!(
+        pooled(&rig, sample),
+        [0.1, -0.1, 0.15, -0.15, 0.1, -0.1, 0.4, -0.4]
+    );
+    assert_eq!(
+        rig.session.document_snapshot().history.cursor,
+        before.history.cursor + 1
+    );
     let edited = rig.project();
     rig.session.undo().unwrap();
     assert_eq!(rig.project().playlist, before.project.playlist);
@@ -103,7 +160,10 @@ fn audio_script_preview_apply_is_one_exact_selection_edit_with_undo_and_fresh_re
     rig.session.project_save(Some(&saved)).unwrap();
     let rig = rig.restart();
     rig.session.project_open(&saved).unwrap();
-    assert_eq!(pooled(&rig, sample), [0.1, -0.1, 0.15, -0.15, 0.1, -0.1, 0.4, -0.4]);
+    assert_eq!(
+        pooled(&rig, sample),
+        [0.1, -0.1, 0.15, -0.15, 0.1, -0.1, 0.4, -0.4]
+    );
     assert_eq!(std::fs::read(path).unwrap(), bytes);
 }
 
@@ -115,14 +175,33 @@ fn audio_script_cancel_during_publication_and_invalid_source_leave_no_history_or
     let preview = rig.session.audio_editor_open(clip).unwrap();
     let before = rig.session.document_snapshot();
     let ticket = rig.session.script_begin();
-    let input = AudioScriptRequest { request: ticket, token: preview.token,
-        range: AudioEditRange { start_frame: 1, end_frame: 3 },
-        source: "gain 100".into(), parameters: vec![] };
-    assert!(rig.session.audio_script_preview(input.clone()).unwrap_err().contains("full scale"));
+    let input = AudioScriptRequest {
+        request: ticket,
+        token: preview.token,
+        range: AudioEditRange {
+            start_frame: 1,
+            end_frame: 3,
+        },
+        source: "gain 100".into(),
+        parameters: vec![],
+    };
+    assert!(
+        rig.session
+            .audio_script_preview(input.clone())
+            .unwrap_err()
+            .contains("full scale")
+    );
     assert_eq!(rig.session.document_snapshot(), before);
-    rig.session.audio_script_preview(AudioScriptRequest { source: "reverse".into(), ..input }).unwrap();
+    rig.session
+        .audio_script_preview(AudioScriptRequest {
+            source: "reverse".into(),
+            ..input
+        })
+        .unwrap();
     let hold = rig.session.hold("audio-editor:prepared");
-    let job = rig.session.background(move |session| session.audio_script_apply(preview.token, ticket));
+    let job = rig
+        .session
+        .background(move |session| session.audio_script_apply(preview.token, ticket));
     hold.wait();
     rig.session.script_cancel(ticket);
     hold.release();

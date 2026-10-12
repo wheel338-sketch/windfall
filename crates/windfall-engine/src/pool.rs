@@ -71,12 +71,19 @@ impl SamplePool {
     }
 
     pub fn with_sample_bank_budget(limit: usize) -> Self {
-        Self { sample_bank_budget: Arc::new(windfall_dsp::sample_bank::BankBudget::new(limit)), ..Self::default() }
+        Self {
+            sample_bank_budget: Arc::new(windfall_dsp::sample_bank::BankBudget::new(limit)),
+            ..Self::default()
+        }
     }
 
-    pub fn sample_bank_budget_handle(&self) -> Arc<windfall_dsp::sample_bank::BankBudget> { self.sample_bank_budget.clone() }
+    pub fn sample_bank_budget_handle(&self) -> Arc<windfall_dsp::sample_bank::BankBudget> {
+        self.sample_bank_budget.clone()
+    }
 
-    pub fn sample_bank_retained_bytes(&self) -> usize { self.sample_bank_budget.used() }
+    pub fn sample_bank_retained_bytes(&self) -> usize {
+        self.sample_bank_budget.used()
+    }
 
     /// A smaller strict bound for callers/tests; existing reservations are untouched.
     pub fn with_sampler_budget(limit: usize) -> Self {
@@ -209,20 +216,54 @@ impl SamplePool {
         Arc::make_mut(&mut self.video_bytes).insert(path.clone(), bytes.into());
         self.insert_video_audio(path, audio);
     }
-    pub fn video_bytes(&self, path: &str) -> Option<Arc<[u8]>> { self.video_bytes.get(path).cloned() }
+    pub fn video_bytes(&self, path: &str) -> Option<Arc<[u8]>> {
+        self.video_bytes.get(path).cloned()
+    }
     pub fn video_prepared_bytes(&self) -> usize {
-        self.video_audio.values().map(|audio| audio.samples().len() * size_of::<f32>()).sum::<usize>() + self.video_bytes.values().map(|bytes| bytes.len()).sum::<usize>()
+        self.video_audio
+            .values()
+            .map(|audio| audio.samples().len() * size_of::<f32>())
+            .sum::<usize>()
+            + self
+                .video_bytes
+                .values()
+                .map(|bytes| bytes.len())
+                .sum::<usize>()
     }
     pub fn video_audio(&self, path: &str) -> Option<&AudioBuffer> {
         self.video_audio.get(path)
     }
     pub fn retain_video_audio(&mut self, project: &windfall_project::Project) {
-        Arc::make_mut(&mut self.video_audio).retain(|path, _| project.settings.stage_media.videos.iter().any(|video| &video.path == path));
-        Arc::make_mut(&mut self.video_bytes).retain(|path, _| project.settings.stage_media.videos.iter().any(|video| &video.path == path));
+        Arc::make_mut(&mut self.video_audio).retain(|path, _| {
+            project
+                .settings
+                .stage_media
+                .videos
+                .iter()
+                .any(|video| &video.path == path)
+        });
+        Arc::make_mut(&mut self.video_bytes).retain(|path, _| {
+            project
+                .settings
+                .stage_media
+                .videos
+                .iter()
+                .any(|video| &video.path == path)
+        });
     }
     pub fn video_audio_error(&self, project: &windfall_project::Project) -> Option<String> {
-        project.settings.stage_media.videos.iter().find(|video| !video.muted && self.video_audio(&video.path).is_none())
-            .map(|video| format!("Video audio is unavailable: {}. Reload the file or mute its audio.", video.path))
+        project
+            .settings
+            .stage_media
+            .videos
+            .iter()
+            .find(|video| !video.muted && self.video_audio(&video.path).is_none())
+            .map(|video| {
+                format!(
+                    "Video audio is unavailable: {}. Reload the file or mute its audio.",
+                    video.path
+                )
+            })
     }
 
     /// Adds or replaces a sample and returns the one it replaced.
@@ -242,7 +283,11 @@ impl SamplePool {
     /// Derived caches and plugin providers are deliberately outside this comparison.
     pub fn same_sources(&self, other: &Self) -> bool {
         self.video_audio.len() == other.video_audio.len()
-            && self.video_audio.iter().all(|(path, audio)| other.video_audio(path).is_some_and(|now| audio.identity() == now.identity()))
+            && self.video_audio.iter().all(|(path, audio)| {
+                other
+                    .video_audio(path)
+                    .is_some_and(|now| audio.identity() == now.identity())
+            })
             && self.len() == other.len()
             && self.iter().all(|(id, audio)| {
                 other

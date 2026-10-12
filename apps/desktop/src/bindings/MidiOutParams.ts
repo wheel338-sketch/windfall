@@ -24,4 +24,12 @@ bankLsb: number,
 /**
  * The pitch wheel, -1 to 1, with 0 the center.
  */
-pitchBend: number, controllers: [MidiOutController, MidiOutController, MidiOutController, MidiOutController, MidiOutController, MidiOutController, MidiOutController, MidiOutController], outputPort?: number, pluginDestination?: number, };
+pitchBend: number, controllers: [MidiOutController, MidiOutController, MidiOutController, MidiOutController, MidiOutController, MidiOutController, MidiOutController, MidiOutController], outputPort?: number, pluginDestination?: number, feedbackEnabled?: boolean, feedbackController?: number, 
+/**
+ * 0 low-frequency motor, 1 high-frequency motor, 2 both.
+ */
+feedbackMotor?: number, feedbackStrength?: number, 
+/**
+ * Strength = gain * velocity^curve, evaluated once on note-on.
+ */
+feedbackCurve?: number, };

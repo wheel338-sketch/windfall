@@ -353,12 +353,22 @@ impl ModularRack {
             edges: Vec::new(),
         };
         let boundary = flat.add(graph, true, false, false, &mut Vec::new())?;
-        let parameters = graph.parameters.iter().map(|address| {
-            let index = flat.nodes.iter().position(|node| node.path == address.path)?;
-            let RackProcessor::Note { module } = &flat.nodes[index].processor else { return None; };
-            (module.kind_id() == address.kind && module.parameter_info(address.parameter as usize).is_some())
+        let parameters = graph
+            .parameters
+            .iter()
+            .map(|address| {
+                let index = flat
+                    .nodes
+                    .iter()
+                    .position(|node| node.path == address.path)?;
+                let RackProcessor::Note { module } = &flat.nodes[index].processor else {
+                    return None;
+                };
+                (module.kind_id() == address.kind
+                    && module.parameter_info(address.parameter as usize).is_some())
                 .then_some((index, address.parameter as usize))
-        }).collect();
+            })
+            .collect();
         let order = flat.order()?;
         let any_solo = flat.nodes.iter().any(|node| node.solo);
         let mut audible: Vec<bool> = flat
@@ -566,7 +576,9 @@ impl ModularRack {
                 // Held generators keep their phase and ownership, but future
                 // steps use the new controls on the same 64-frame grid.
                 for generator in &mut self.generators {
-                    if generator.active && generator.node == *node { generator.params = *params; }
+                    if generator.active && generator.node == *node {
+                        generator.params = *params;
+                    }
                 }
             }
             return;
@@ -725,7 +737,9 @@ impl ModularRack {
             );
             if event
                 .note
-                .envelopes.iter().flatten()
+                .envelopes
+                .iter()
+                .flatten()
                 .any(|envelope| envelope.destination == EnvelopeDestination::Gain)
             {
                 dsp.set_note_gain(child, 0.0);
@@ -751,11 +765,18 @@ impl ModularRack {
         if owner.release_age.is_some() {
             return;
         }
-        if owner.note.envelopes.iter().flatten().any(|envelope| envelope.release_ms > 0.0) {
+        if owner
+            .note
+            .envelopes
+            .iter()
+            .flatten()
+            .any(|envelope| envelope.release_ms > 0.0)
+        {
             self.owners[index].release_age = Some(0);
             for (shape, envelope) in owner.note.envelopes.iter().enumerate() {
                 if let Some(envelope) = envelope {
-                    self.owners[index].release_levels[shape] = envelope.level(owner.age as f64 / self.sample_rate);
+                    self.owners[index].release_levels[shape] =
+                        envelope.level(owner.age as f64 / self.sample_rate);
                 }
             }
         } else {
@@ -843,7 +864,9 @@ impl ModularRack {
                 owner.note.gain = gain;
                 if owner
                     .note
-                    .envelopes.iter().flatten()
+                    .envelopes
+                    .iter()
+                    .flatten()
                     .all(|envelope| envelope.destination != EnvelopeDestination::Gain)
                     && let Unit::Instrument { dsp, .. } = &mut self.nodes[owner.node].unit
                 {
@@ -992,32 +1015,58 @@ impl ModularRack {
             if !owner.active {
                 continue;
             }
-            let release_frames = owner.note.envelopes.iter().flatten()
-                .map(|e| f64::from(e.release_ms) * self.sample_rate / 1000.0).fold(0.0f64, f64::max);
+            let release_frames = owner
+                .note
+                .envelopes
+                .iter()
+                .flatten()
+                .map(|e| f64::from(e.release_ms) * self.sample_rate / 1000.0)
+                .fold(0.0f64, f64::max);
             if let Some(age) = owner.release_age {
-                if age as f64 >= release_frames { self.finish(index); continue; }
+                if age as f64 >= release_frames {
+                    self.finish(index);
+                    continue;
+                }
                 self.owners[index].release_age = Some(age.saturating_add(1));
             }
             let mut expression = owner.note.expression;
             let mut gain = owner.note.gain;
             let mut pan = owner.note.pan;
-            let mut pitch = f32::from(owner.note.key) + expression.fine_pitch_cents / 100.0 + owner.pitch_offset;
+            let mut pitch = f32::from(owner.note.key)
+                + expression.fine_pitch_cents / 100.0
+                + owner.pitch_offset;
             for (shape, envelope) in owner.note.envelopes.iter().enumerate() {
-                let Some(envelope) = envelope else { continue; };
+                let Some(envelope) = envelope else {
+                    continue;
+                };
                 let level = if let Some(age) = owner.release_age {
                     let length = f64::from(envelope.release_ms) * self.sample_rate / 1000.0;
-                    if length <= 0.0 { 0.0 } else { owner.release_levels[shape] * (1.0 - age as f64 / length).max(0.0) as f32 }
-                } else { envelope.level(owner.age as f64 / self.sample_rate) };
+                    if length <= 0.0 {
+                        0.0
+                    } else {
+                        owner.release_levels[shape] * (1.0 - age as f64 / length).max(0.0) as f32
+                    }
+                } else {
+                    envelope.level(owner.age as f64 / self.sample_rate)
+                };
                 match envelope.destination {
-                    EnvelopeDestination::Gain => gain *= (1.0 - envelope.amount.abs() + level * envelope.amount.abs()).max(0.0),
+                    EnvelopeDestination::Gain => {
+                        gain *=
+                            (1.0 - envelope.amount.abs() + level * envelope.amount.abs()).max(0.0)
+                    }
                     EnvelopeDestination::Pan => pan += level * envelope.amount,
                     EnvelopeDestination::Pitch => pitch += level * envelope.amount * 12.0,
-                    EnvelopeDestination::ModulationX => expression.modulation_x += level * envelope.amount,
-                    EnvelopeDestination::ModulationY => expression.modulation_y += level * envelope.amount,
+                    EnvelopeDestination::ModulationX => {
+                        expression.modulation_x += level * envelope.amount
+                    }
+                    EnvelopeDestination::ModulationY => {
+                        expression.modulation_y += level * envelope.amount
+                    }
                 }
             }
             if owner.note.envelopes.iter().any(Option::is_some)
-                && let Unit::Instrument { dsp, .. } = &mut self.nodes[owner.node].unit {
+                && let Unit::Instrument { dsp, .. } = &mut self.nodes[owner.node].unit
+            {
                 dsp.set_note_gain(owner.child, gain);
                 dsp.set_note_expression(owner.child, pan.clamp(-1.0, 1.0), expression.clamped());
                 dsp.set_note_pitch(owner.child, pitch);
@@ -1047,7 +1096,9 @@ impl ModularRack {
                     if edge.signal == RackSignal::Audio {
                         let source = if edge.port >= AUX_AUDIO_BASE {
                             auxiliary[edge.from][usize::from(edge.port - AUX_AUDIO_BASE)]
-                        } else { audio[edge.from] };
+                        } else {
+                            audio[edge.from]
+                        };
                         let source = edge.delay.frame(source);
                         sample[0] += source[0] * edge.gain;
                         sample[1] += source[1] * edge.gain;
@@ -1095,9 +1146,14 @@ impl ModularRack {
                     }
                     Unit::Effect { dsp, .. } => {
                         let [first, second, third] = &mut auxiliary[index];
-                        let mut block = windfall_dsp::AuxBlock { routed: 7, outputs: [
-                            std::slice::from_mut(first), std::slice::from_mut(second), std::slice::from_mut(third),
-                        ] };
+                        let mut block = windfall_dsp::AuxBlock {
+                            routed: 7,
+                            outputs: [
+                                std::slice::from_mut(first),
+                                std::slice::from_mut(second),
+                                std::slice::from_mut(third),
+                            ],
+                        };
                         dsp.process_routed(&mut l, &mut r, None, &mut block);
                     }
                     _ => {}

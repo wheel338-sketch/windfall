@@ -4,7 +4,10 @@ use std::sync::atomic::{AtomicU32, AtomicU64, Ordering};
 use windfall_core::AudioBuffer;
 use windfall_project::{LaunchQuantization, PatternId, PerformanceLogEvent};
 const MAX_EVENTS: usize = 8192;
-struct LogSlot { frame: AtomicU32, request: AtomicU64 }
+struct LogSlot {
+    frame: AtomicU32,
+    request: AtomicU64,
+}
 pub struct PerformanceRecording {
     rate: u32,
     audio: Box<[AtomicU32]>,
@@ -28,13 +31,25 @@ impl PerformanceRecording {
         }
         let count = rate as usize * seconds as usize * 2;
         let mut audio = Vec::new();
-        audio.try_reserve_exact(count).map_err(|_| "Not enough memory to prepare the performance capture")?;
+        audio
+            .try_reserve_exact(count)
+            .map_err(|_| "Not enough memory to prepare the performance capture")?;
         audio.resize_with(count, || AtomicU32::new(0));
         Ok(std::sync::Arc::new(Self {
             rate,
             audio: audio.into_boxed_slice(),
-            events: (0..MAX_EVENTS).map(|_| LogSlot { frame: AtomicU32::new(0), request: AtomicU64::new(0) }).collect::<Vec<_>>().into_boxed_slice(),
-            start: AtomicU64::new(0), tick: AtomicU64::new(0), frames: AtomicU32::new(0), count: AtomicU32::new(0), phase: AtomicU32::new(0),
+            events: (0..MAX_EVENTS)
+                .map(|_| LogSlot {
+                    frame: AtomicU32::new(0),
+                    request: AtomicU64::new(0),
+                })
+                .collect::<Vec<_>>()
+                .into_boxed_slice(),
+            start: AtomicU64::new(0),
+            tick: AtomicU64::new(0),
+            frames: AtomicU32::new(0),
+            count: AtomicU32::new(0),
+            phase: AtomicU32::new(0),
         }))
     }
     pub fn state(&self) -> windfall_ipc::PerformanceRecordingState {
@@ -47,54 +62,106 @@ impl PerformanceRecording {
     }
     pub fn snapshot(&self) -> Result<RecordedPerformance, String> {
         let state = self.state();
-        if let Some(error) = state.error { return Err(error); }
-        if !state.finished { return Err("Wait for the audio callback to finish the performance capture".into()); }
-        let samples = self.audio[..state.frames as usize * 2].iter().map(|sample| f32::from_bits(sample.load(Ordering::Relaxed))).collect();
-        let events = self.events[..self.count.load(Ordering::Relaxed) as usize].iter().map(|slot| {
-            let word = slot.request.load(Ordering::Relaxed);
-            PerformanceLogEvent {
-                frame: slot.frame.load(Ordering::Relaxed), track: word as u8,
-                pattern: ((word >> 16) as u32 != 0).then_some(PatternId((word >> 16) as u32)),
-                quantization: match (word >> 8) & 255 { 0 => LaunchQuantization::Immediate, 1 => LaunchQuantization::Beat, _ => LaunchQuantization::Bar },
-            }
-        }).collect();
-        Ok(RecordedPerformance { audio: AudioBuffer::from_interleaved(self.rate, 2, samples), initial_tick: f64::from_bits(self.tick.load(Ordering::Relaxed)), events })
+        if let Some(error) = state.error {
+            return Err(error);
+        }
+        if !state.finished {
+            return Err("Wait for the audio callback to finish the performance capture".into());
+        }
+        let samples = self.audio[..state.frames as usize * 2]
+            .iter()
+            .map(|sample| f32::from_bits(sample.load(Ordering::Relaxed)))
+            .collect();
+        let events = self.events[..self.count.load(Ordering::Relaxed) as usize]
+            .iter()
+            .map(|slot| {
+                let word = slot.request.load(Ordering::Relaxed);
+                PerformanceLogEvent {
+                    frame: slot.frame.load(Ordering::Relaxed),
+                    track: word as u8,
+                    pattern: ((word >> 16) as u32 != 0).then_some(PatternId((word >> 16) as u32)),
+                    quantization: match (word >> 8) & 255 {
+                        0 => LaunchQuantization::Immediate,
+                        1 => LaunchQuantization::Beat,
+                        _ => LaunchQuantization::Bar,
+                    },
+                }
+            })
+            .collect();
+        Ok(RecordedPerformance {
+            audio: AudioBuffer::from_interleaved(self.rate, 2, samples),
+            initial_tick: f64::from_bits(self.tick.load(Ordering::Relaxed)),
+            events,
+        })
     }
     pub(crate) fn begin(&self, frame: u64, tick: f64, rate: u32) {
         self.start.store(frame, Ordering::Relaxed);
         self.tick.store(tick.to_bits(), Ordering::Relaxed);
-        let _ = self.phase.compare_exchange(0, if rate == self.rate { 1 } else { 3 }, Ordering::Release, Ordering::Relaxed);
+        let _ = self.phase.compare_exchange(
+            0,
+            if rate == self.rate { 1 } else { 3 },
+            Ordering::Release,
+            Ordering::Relaxed,
+        );
     }
     pub(crate) fn launch(&self, frame: u64, request: crate::performance::LaunchRequest) {
-        if self.phase.load(Ordering::Relaxed) != 1 { return; }
+        if self.phase.load(Ordering::Relaxed) != 1 {
+            return;
+        }
         let index = self.count.load(Ordering::Relaxed) as usize;
         let relative = frame.saturating_sub(self.start.load(Ordering::Relaxed));
         if index == MAX_EVENTS || relative >= self.audio.len() as u64 / 2 {
-            self.phase.store(3, Ordering::Release); return;
+            self.phase.store(3, Ordering::Release);
+            return;
         }
-        let q = match request.quantization { LaunchQuantization::Immediate => 0_u64, LaunchQuantization::Beat => 1, LaunchQuantization::Bar => 2 };
-        self.events[index].frame.store(relative as u32, Ordering::Relaxed);
-        self.events[index].request.store(u64::from(request.track) | (q << 8) | (u64::from(request.pattern.map_or(0, |id| id.0)) << 16), Ordering::Relaxed);
+        let q = match request.quantization {
+            LaunchQuantization::Immediate => 0_u64,
+            LaunchQuantization::Beat => 1,
+            LaunchQuantization::Bar => 2,
+        };
+        self.events[index]
+            .frame
+            .store(relative as u32, Ordering::Relaxed);
+        self.events[index].request.store(
+            u64::from(request.track)
+                | (q << 8)
+                | (u64::from(request.pattern.map_or(0, |id| id.0)) << 16),
+            Ordering::Relaxed,
+        );
         self.count.store(index as u32 + 1, Ordering::Release);
     }
     pub(crate) fn copy(&self, frame: u64, rate: u32, audio: &[[f32; 2]]) {
-        if self.phase.load(Ordering::Relaxed) != 1 { return; }
+        if self.phase.load(Ordering::Relaxed) != 1 {
+            return;
+        }
         let first = frame.saturating_sub(self.start.load(Ordering::Relaxed)) as usize;
-        if rate != self.rate || first != self.frames.load(Ordering::Relaxed) as usize || first.saturating_add(audio.len()) > self.audio.len() / 2 {
-            self.phase.store(3, Ordering::Release); return;
+        if rate != self.rate
+            || first != self.frames.load(Ordering::Relaxed) as usize
+            || first.saturating_add(audio.len()) > self.audio.len() / 2
+        {
+            self.phase.store(3, Ordering::Release);
+            return;
         }
         for (index, pair) in audio.iter().enumerate() {
             for (side, sample) in pair.iter().enumerate() {
-                if !sample.is_finite() { self.phase.store(3, Ordering::Release); return; }
+                if !sample.is_finite() {
+                    self.phase.store(3, Ordering::Release);
+                    return;
+                }
                 self.audio[(first + index) * 2 + side].store(sample.to_bits(), Ordering::Relaxed);
             }
         }
-        self.frames.store((first + audio.len()) as u32, Ordering::Release);
+        self.frames
+            .store((first + audio.len()) as u32, Ordering::Release);
     }
     pub(crate) fn finish(&self) {
-        let _ = self.phase.compare_exchange(1, 2, Ordering::Release, Ordering::Relaxed);
+        let _ = self
+            .phase
+            .compare_exchange(1, 2, Ordering::Release, Ordering::Relaxed);
     }
-    pub fn invalidate(&self) { self.phase.store(3, Ordering::Release); }
+    pub fn invalidate(&self) {
+        self.phase.store(3, Ordering::Release);
+    }
 }
 
 /// The captured final mix bypasses processing on replay to avoid applying
@@ -108,27 +175,82 @@ pub(crate) struct Replay {
     pub slots: [Option<PatternId>; crate::performance::TRACKS],
 }
 impl Replay {
-    pub fn prepare(audio: AudioBuffer, events: Vec<PerformanceLogEvent>) -> Result<Box<Self>, String> {
-        if audio.channels() != 2 || audio.frames() == 0 || audio.samples().iter().any(|sample| !sample.is_finite())
-            || events.len() > MAX_EVENTS || events.windows(2).any(|pair| pair[0].frame > pair[1].frame)
-            || events.iter().any(|event| usize::from(event.track) >= crate::performance::TRACKS || event.frame as usize > audio.frames())
-        { return Err("Performance replay needs finite stereo PCM and an ordered, bounded callback log".into()); }
-        Ok(Box::new(Self { audio, position: 0.0, output_frames: 0, events: events.into_boxed_slice(), next: 0, slots: [None; crate::performance::TRACKS] }))
+    pub fn prepare(
+        audio: AudioBuffer,
+        events: Vec<PerformanceLogEvent>,
+    ) -> Result<Box<Self>, String> {
+        if audio.channels() != 2
+            || audio.frames() == 0
+            || audio.samples().iter().any(|sample| !sample.is_finite())
+            || events.len() > MAX_EVENTS
+            || events.windows(2).any(|pair| pair[0].frame > pair[1].frame)
+            || events.iter().any(|event| {
+                usize::from(event.track) >= crate::performance::TRACKS
+                    || event.frame as usize > audio.frames()
+            })
+        {
+            return Err(
+                "Performance replay needs finite stereo PCM and an ordered, bounded callback log"
+                    .into(),
+            );
+        }
+        Ok(Box::new(Self {
+            audio,
+            position: 0.0,
+            output_frames: 0,
+            events: events.into_boxed_slice(),
+            next: 0,
+            slots: [None; crate::performance::TRACKS],
+        }))
     }
-    pub fn render(&mut self, rate: u32, out: &mut [[f32; 2]], base: u64, capture: Option<&PerformanceRecording>) -> bool {
+    pub fn render(
+        &mut self,
+        rate: u32,
+        out: &mut [[f32; 2]],
+        base: u64,
+        capture: Option<&PerformanceRecording>,
+    ) -> bool {
         let step = f64::from(self.audio.sample_rate()) / f64::from(rate);
         for (offset, frame) in out.iter_mut().enumerate() {
-            while let Some(event) = self.events.get(self.next).filter(|event| f64::from(event.frame) <= self.position + 1e-7) {
+            while let Some(event) = self
+                .events
+                .get(self.next)
+                .filter(|event| f64::from(event.frame) <= self.position + 1e-7)
+            {
                 self.slots[usize::from(event.track)] = event.pattern;
-                if let Some(capture) = capture { capture.launch(base + offset as u64, crate::performance::LaunchRequest { track: event.track, pattern: event.pattern, quantization: LaunchQuantization::Immediate }); }
+                if let Some(capture) = capture {
+                    capture.launch(
+                        base + offset as u64,
+                        crate::performance::LaunchRequest {
+                            track: event.track,
+                            pattern: event.pattern,
+                            quantization: LaunchQuantization::Immediate,
+                        },
+                    );
+                }
                 self.next += 1;
             }
             let first = self.position.floor() as usize;
             let fraction = (self.position - first as f64) as f32;
             for (side, value) in frame.iter_mut().enumerate() {
-                let a = self.audio.samples().get(first * 2 + side).copied().unwrap_or(0.0);
-                let b = self.audio.samples().get((first + 1) * 2 + side).copied().unwrap_or(a);
-                *value = if fraction == 0.0 { a } else { (f64::from(a) * (1.0 - f64::from(fraction)) + f64::from(b) * f64::from(fraction)) as f32 };
+                let a = self
+                    .audio
+                    .samples()
+                    .get(first * 2 + side)
+                    .copied()
+                    .unwrap_or(0.0);
+                let b = self
+                    .audio
+                    .samples()
+                    .get((first + 1) * 2 + side)
+                    .copied()
+                    .unwrap_or(a);
+                *value = if fraction == 0.0 {
+                    a
+                } else {
+                    (f64::from(a) * (1.0 - f64::from(fraction))
+                        + f64::from(b) * f64::from(fraction)) as f32
+                };
             }
             self.output_frames += 1;
             self.position = self.output_frames as f64 * step;
@@ -143,15 +265,28 @@ mod tests {
     #[test]
     fn callback_capture_preserves_exact_pcm_and_same_frame_launch_transcript_without_allocating() {
         let capture = PerformanceRecording::prepare(8000, 1).unwrap();
-        let request = crate::performance::LaunchRequest { track: 3, pattern: Some(PatternId(42)), quantization: LaunchQuantization::Beat };
+        let request = crate::performance::LaunchRequest {
+            track: 3,
+            pattern: Some(PatternId(42)),
+            quantization: LaunchQuantization::Beat,
+        };
         let audio = [[0.25, -0.75], [0.5, -0.5]];
-        assert_eq!(crate::test_alloc::allocator_calls(|| {
-            capture.begin(100, 240.0, 8000);
-            capture.launch(100, request);
-            capture.launch(100, crate::performance::LaunchRequest { pattern: None, ..request });
-            capture.copy(100, 8000, &audio);
-            capture.finish();
-        }), 0);
+        assert_eq!(
+            crate::test_alloc::allocator_calls(|| {
+                capture.begin(100, 240.0, 8000);
+                capture.launch(100, request);
+                capture.launch(
+                    100,
+                    crate::performance::LaunchRequest {
+                        pattern: None,
+                        ..request
+                    },
+                );
+                capture.copy(100, 8000, &audio);
+                capture.finish();
+            }),
+            0
+        );
         let saved = capture.snapshot().unwrap();
         assert_eq!(saved.initial_tick, 240.0);
         assert_eq!(saved.audio.samples(), &[0.25, -0.75, 0.5, -0.5]);
@@ -161,7 +296,12 @@ mod tests {
         assert_eq!(saved.events[1].pattern, None);
         let mut replay = Replay::prepare(saved.audio.clone(), saved.events.clone()).unwrap();
         let mut heard = [[0.0; 2]; 2];
-        assert_eq!(crate::test_alloc::allocator_calls(|| { assert!(replay.render(8000, &mut heard, 0, None)); }), 0);
+        assert_eq!(
+            crate::test_alloc::allocator_calls(|| {
+                assert!(replay.render(8000, &mut heard, 0, None));
+            }),
+            0
+        );
         assert_eq!(heard, audio);
     }
     #[test]
@@ -173,34 +313,88 @@ mod tests {
         assert!(capture.snapshot().is_err());
         let capture = PerformanceRecording::prepare(8000, 1).unwrap();
         capture.begin(0, 0.0, 8000);
-        for _ in 0..=MAX_EVENTS { capture.launch(0, crate::performance::LaunchRequest { track: 0, pattern: None, quantization: LaunchQuantization::Immediate }); }
+        for _ in 0..=MAX_EVENTS {
+            capture.launch(
+                0,
+                crate::performance::LaunchRequest {
+                    track: 0,
+                    pattern: None,
+                    quantization: LaunchQuantization::Immediate,
+                },
+            );
+        }
         capture.finish();
         assert!(capture.snapshot().is_err());
     }
     #[test]
     fn processor_performance_record_adoption_copy_completion_and_replay_have_no_allocator_calls() {
-        use windfall_project::{Command, Document, InstrumentKind, NoteInit, ChannelId};
+        use windfall_project::{ChannelId, Command, Document, InstrumentKind, NoteInit};
         let mut doc = Document::new(windfall_project::Project::new("callback take"));
-        let channel = ChannelId(doc.dispatch(Command::AddChannel { name: None, sample: None, instrument: Some(InstrumentKind::SubtractiveSynth), index: None, mixer_track: None }, None).unwrap().created[0]);
+        let channel = ChannelId(
+            doc.dispatch(
+                Command::AddChannel {
+                    name: None,
+                    sample: None,
+                    instrument: Some(InstrumentKind::SubtractiveSynth),
+                    index: None,
+                    mixer_track: None,
+                },
+                None,
+            )
+            .unwrap()
+            .created[0],
+        );
         let pattern = doc.project().patterns[0].id;
-        doc.dispatch(Command::AddNotes { pattern, channel, notes: vec![NoteInit { start: 0, length: 960, key: 60, velocity: Some(0.8), pan: None, expression: None }] }, None).unwrap();
+        doc.dispatch(
+            Command::AddNotes {
+                pattern,
+                channel,
+                notes: vec![NoteInit {
+                    start: 0,
+                    length: 960,
+                    key: 60,
+                    velocity: Some(0.8),
+                    pan: None,
+                    expression: None,
+                }],
+            },
+            None,
+        )
+        .unwrap();
         let controller = crate::Controller::new();
         controller.set_project(doc.project(), &crate::SamplePool::new());
         let mut processor = controller.attach(48000);
         let capture = PerformanceRecording::prepare(48000, 1).unwrap();
-        controller.performance_record_begin(capture.clone()).unwrap();
-        controller.performance_launch(crate::performance::LaunchRequest { track: 0, pattern: Some(pattern), quantization: LaunchQuantization::Immediate }).unwrap();
+        controller
+            .performance_record_begin(capture.clone())
+            .unwrap();
+        controller
+            .performance_launch(crate::performance::LaunchRequest {
+                track: 0,
+                pattern: Some(pattern),
+                quantization: LaunchQuantization::Immediate,
+            })
+            .unwrap();
         let mut actual = [0.0; 960];
-        assert_eq!(crate::test_alloc::allocator_calls(|| processor.process(&mut actual)), 0);
+        assert_eq!(
+            crate::test_alloc::allocator_calls(|| processor.process(&mut actual)),
+            0
+        );
         controller.performance_record_end();
         let mut ack = [0.0; 2];
-        assert_eq!(crate::test_alloc::allocator_calls(|| processor.process(&mut ack)), 0);
+        assert_eq!(
+            crate::test_alloc::allocator_calls(|| processor.process(&mut ack)),
+            0
+        );
         let saved = capture.snapshot().unwrap();
         assert_eq!(saved.audio.samples(), actual);
         assert_eq!(saved.events.len(), 1);
         controller.performance_replay(Some(saved.audio)).unwrap();
         let mut replay = [0.0; 960];
-        assert_eq!(crate::test_alloc::allocator_calls(|| processor.process(&mut replay)), 0);
+        assert_eq!(
+            crate::test_alloc::allocator_calls(|| processor.process(&mut replay)),
+            0
+        );
         assert_eq!(replay, actual);
     }
     #[test]
@@ -219,26 +413,52 @@ mod tests {
         assert_eq!(first.snapshot().unwrap().audio.frames(), 8);
         controller.performance_record_begin(second.clone()).unwrap();
         processor.process(&mut block);
-        controller.performance_record_end(); processor.process(&mut block);
+        controller.performance_record_end();
+        processor.process(&mut block);
         assert_eq!(second.snapshot().unwrap().audio.frames(), 8);
     }
     #[test]
     fn replay_consumes_sample_stamped_log_in_order_at_native_and_resampled_rates() {
         let events = vec![
-            PerformanceLogEvent { frame: 0, track: 2, pattern: Some(PatternId(9)), quantization: LaunchQuantization::Immediate },
-            PerformanceLogEvent { frame: 3, track: 2, pattern: None, quantization: LaunchQuantization::Immediate },
-            PerformanceLogEvent { frame: 3, track: 2, pattern: Some(PatternId(10)), quantization: LaunchQuantization::Immediate },
+            PerformanceLogEvent {
+                frame: 0,
+                track: 2,
+                pattern: Some(PatternId(9)),
+                quantization: LaunchQuantization::Immediate,
+            },
+            PerformanceLogEvent {
+                frame: 3,
+                track: 2,
+                pattern: None,
+                quantization: LaunchQuantization::Immediate,
+            },
+            PerformanceLogEvent {
+                frame: 3,
+                track: 2,
+                pattern: Some(PatternId(10)),
+                quantization: LaunchQuantization::Immediate,
+            },
         ];
         let audio = AudioBuffer::from_interleaved(8000, 2, vec![0.25; 16]);
         for (rate, first_frames) in [(8000, 3), (16000, 6)] {
             let mut replay = Replay::prepare(audio.clone(), events.clone()).unwrap();
             let mut first = vec![[0.0; 2]; first_frames];
-            assert_eq!(crate::test_alloc::allocator_calls(|| { assert!(!replay.render(rate, &mut first, 0, None)); }), 0);
+            assert_eq!(
+                crate::test_alloc::allocator_calls(|| {
+                    assert!(!replay.render(rate, &mut first, 0, None));
+                }),
+                0
+            );
             assert_eq!(replay.slots[2], Some(PatternId(9)));
             let mut boundary = [[0.0; 2]; 1];
             replay.render(rate, &mut boundary, first_frames as u64, None);
             assert_eq!(replay.slots[2], Some(PatternId(10)));
-            assert!(first.iter().chain(&boundary).all(|frame| *frame == [0.25; 2]));
+            assert!(
+                first
+                    .iter()
+                    .chain(&boundary)
+                    .all(|frame| *frame == [0.25; 2])
+            );
         }
     }
 }

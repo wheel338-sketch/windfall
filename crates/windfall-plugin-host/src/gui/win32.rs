@@ -19,12 +19,12 @@ use windows_sys::Win32::Graphics::Gdi::{BLACK_BRUSH, GetStockObject, HBRUSH};
 use windows_sys::Win32::System::LibraryLoader::GetModuleHandleW;
 use windows_sys::Win32::UI::HiDpi::{AdjustWindowRectExForDpi, GetDpiForSystem, GetDpiForWindow};
 use windows_sys::Win32::UI::WindowsAndMessaging::{
-    CREATESTRUCTW, CW_USEDEFAULT, CreateWindowExW, DefWindowProcW,
-    DestroyWindow, DispatchMessageW, GWLP_HWNDPARENT, GWLP_USERDATA, GetWindowLongPtrW, IDC_ARROW,
-    IsWindow, LoadCursorW, MSG, MsgWaitForMultipleObjects, PM_REMOVE, PeekMessageW, QS_ALLINPUT,
-    RegisterClassExW, SIZE_MINIMIZED, SW_SHOW, SW_SHOWNOACTIVATE, SWP_NOACTIVATE, SWP_NOMOVE,
-    SWP_NOZORDER, SetWindowLongPtrW, SetWindowPos, ShowWindow, TranslateMessage, WM_CLOSE,
-    WM_DPICHANGED, WM_NCCREATE, WM_SIZE, WM_SIZING, WMSZ_BOTTOMLEFT, WMSZ_LEFT, WMSZ_TOP, WMSZ_TOPLEFT,
+    CREATESTRUCTW, CW_USEDEFAULT, CreateWindowExW, DefWindowProcW, DestroyWindow, DispatchMessageW,
+    GWLP_HWNDPARENT, GWLP_USERDATA, GetWindowLongPtrW, IDC_ARROW, IsWindow, LoadCursorW, MSG,
+    MsgWaitForMultipleObjects, PM_REMOVE, PeekMessageW, QS_ALLINPUT, RegisterClassExW,
+    SIZE_MINIMIZED, SW_SHOW, SW_SHOWNOACTIVATE, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOZORDER,
+    SetWindowLongPtrW, SetWindowPos, ShowWindow, TranslateMessage, WM_CLOSE, WM_DPICHANGED,
+    WM_NCCREATE, WM_SIZE, WM_SIZING, WMSZ_BOTTOMLEFT, WMSZ_LEFT, WMSZ_TOP, WMSZ_TOPLEFT,
     WMSZ_TOPRIGHT, WNDCLASSEXW, WS_CAPTION, WS_CLIPCHILDREN, WS_MAXIMIZEBOX, WS_MINIMIZEBOX,
     WS_OVERLAPPED, WS_SYSMENU, WS_THICKFRAME,
 };
@@ -199,7 +199,8 @@ impl HostWindow {
     /// without telling the editor.
     pub fn set_client_size(&self, width: u32, height: u32) {
         let state = self.state();
-        let (outer_width, outer_height) = outer_size(state.style, width, height, state.monitor_scale.get());
+        let (outer_width, outer_height) =
+            outer_size(state.style, width, height, state.monitor_scale.get());
         state.quiet.set(true);
         // SAFETY: the window is alive.
         unsafe {
@@ -221,11 +222,15 @@ impl HostWindow {
         self.state().close_requested.replace(false)
     }
 
-    pub fn monitor_scale(&self) -> f64 { self.state().monitor_scale.get() }
+    pub fn monitor_scale(&self) -> f64 {
+        self.state().monitor_scale.get()
+    }
 
     /// Consumed on the plugin owner thread during idle, never by the audio
     /// callback or reentrantly from the native window procedure.
-    pub fn take_monitor_scale(&self) -> Option<f64> { self.state().pending_scale.take() }
+    pub fn take_monitor_scale(&self) -> Option<f64> {
+        self.state().pending_scale.take()
+    }
 }
 
 impl Drop for HostWindow {
@@ -317,7 +322,9 @@ unsafe extern "system" fn window_proc(
         match message {
             WM_DPICHANGED => {
                 let dpi = (wparam & 0xffff) as u32;
-                if dpi == 0 || lparam == 0 { return Some(0); }
+                if dpi == 0 || lparam == 0 {
+                    return Some(0);
+                }
                 let scale = f64::from(dpi) / 96.0;
                 state.monitor_scale.set(scale);
                 state.pending_scale.set(Some(scale));
@@ -326,9 +333,17 @@ unsafe extern "system" fn window_proc(
                 // after content scaling on idle.
                 let rect = unsafe { &*(lparam as *const RECT) };
                 state.quiet.set(true);
-                unsafe { SetWindowPos(hwnd, ptr::null_mut(), rect.left, rect.top,
-                    (rect.right - rect.left).max(1), (rect.bottom - rect.top).max(1),
-                    SWP_NOZORDER | SWP_NOACTIVATE); }
+                unsafe {
+                    SetWindowPos(
+                        hwnd,
+                        ptr::null_mut(),
+                        rect.left,
+                        rect.top,
+                        (rect.right - rect.left).max(1),
+                        (rect.bottom - rect.top).max(1),
+                        SWP_NOZORDER | SWP_NOACTIVATE,
+                    );
+                }
                 state.quiet.set(false);
                 Some(0)
             }

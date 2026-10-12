@@ -93,10 +93,23 @@ impl ArtifactWriter {
         origin: u64,
         maximum_disk: u64,
     ) -> Result<Self> {
-        Self::new_at_rate(root, manifest, frames, origin, maximum_disk, manifest.sample_rate)
+        Self::new_at_rate(
+            root,
+            manifest,
+            frames,
+            origin,
+            maximum_disk,
+            manifest.sample_rate,
+        )
     }
-    pub(crate) fn new_at_rate(root: &Path, manifest: &ModelManifest, frames: u64,
-        origin: u64, maximum_disk: u64, rate: u32) -> Result<Self> {
+    pub(crate) fn new_at_rate(
+        root: &Path,
+        manifest: &ModelManifest,
+        frames: u64,
+        origin: u64,
+        maximum_disk: u64,
+        rate: u32,
+    ) -> Result<Self> {
         let mut output_manifest = manifest.clone();
         output_manifest.sample_rate = rate;
         Ok(Self {

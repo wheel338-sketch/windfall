@@ -127,8 +127,12 @@ impl RackProcessor {
     pub fn port(&self, port: u16, output: bool) -> Option<RackSignal> {
         use RackProcessor::*;
         match (self, port, output) {
-            (Effect { params, .. }, port, true) if port >= AUX_AUDIO_BASE
-                && usize::from(port - AUX_AUDIO_BASE) < params.kind().aux_outputs().len() => Some(RackSignal::Audio),
+            (Effect { params, .. }, port, true)
+                if port >= AUX_AUDIO_BASE
+                    && usize::from(port - AUX_AUDIO_BASE) < params.kind().aux_outputs().len() =>
+            {
+                Some(RackSignal::Audio)
+            }
             (AudioInput | Instrument { .. } | Effect { .. } | Rack { .. }, AUDIO_OUT, true)
             | (AudioOutput | Effect { .. } | Rack { .. }, AUDIO_IN, false) => {
                 Some(RackSignal::Audio)
@@ -168,28 +172,55 @@ impl RackGraph {
     pub fn node_at(&self, path: &[u32]) -> Option<&RackNode> {
         let (id, rest) = path.split_first()?;
         let node = self.node(*id)?;
-        if rest.is_empty() { return Some(node); }
-        let RackProcessor::Rack { graph } = &node.processor else { return None; };
+        if rest.is_empty() {
+            return Some(node);
+        }
+        let RackProcessor::Rack { graph } = &node.processor else {
+            return None;
+        };
         graph.node_at(rest)
     }
     fn node_at_mut(&mut self, path: &[u32]) -> Option<&mut RackNode> {
         let (id, rest) = path.split_first()?;
         let node = self.nodes.iter_mut().find(|node| node.id == *id)?;
-        if rest.is_empty() { return Some(node); }
-        let RackProcessor::Rack { graph } = &mut node.processor else { return None; };
+        if rest.is_empty() {
+            return Some(node);
+        }
+        let RackProcessor::Rack { graph } = &mut node.processor else {
+            return None;
+        };
         graph.node_at_mut(rest)
     }
     pub fn parameter_state(&self, index: usize) -> Option<(crate::AutomationRange, f32)> {
-        if index < 32 { return Some((crate::AutomationRange::MIX, self.control(index)?)); }
+        if index < 32 {
+            return Some((crate::AutomationRange::MIX, self.control(index)?));
+        }
         let address = self.parameters.get(index - 32)?;
-        let RackProcessor::Note { module } = &self.node_at(&address.path)?.processor else { return None; };
-        if address.kind != module.kind_id() { return None; }
-        Some((crate::AutomationRange::of_param(&module.parameter_info(address.parameter as usize)?), module.parameter(address.parameter as usize)?))
+        let RackProcessor::Note { module } = &self.node_at(&address.path)?.processor else {
+            return None;
+        };
+        if address.kind != module.kind_id() {
+            return None;
+        }
+        Some((
+            crate::AutomationRange::of_param(&module.parameter_info(address.parameter as usize)?),
+            module.parameter(address.parameter as usize)?,
+        ))
     }
     pub fn set_parameter(&mut self, index: usize, value: f32) -> bool {
-        let Some(address) = index.checked_sub(32).and_then(|i| self.parameters.get(i)).cloned() else { return false; };
-        let Some(node) = self.node_at_mut(&address.path) else { return false; };
-        let RackProcessor::Note { module } = &mut node.processor else { return false; };
+        let Some(address) = index
+            .checked_sub(32)
+            .and_then(|i| self.parameters.get(i))
+            .cloned()
+        else {
+            return false;
+        };
+        let Some(node) = self.node_at_mut(&address.path) else {
+            return false;
+        };
+        let RackProcessor::Note { module } = &mut node.processor else {
+            return false;
+        };
         address.kind == module.kind_id() && module.set_parameter(address.parameter as usize, value)
     }
     /// Preserve every historical address before discovering new note controls.
@@ -199,15 +230,25 @@ impl RackGraph {
             next.next_id = next.next_id.max(old.next_id);
             for node in &mut next.nodes {
                 if let RackProcessor::Rack { graph } = &mut node.processor
-                    && let Some(RackNode { processor: RackProcessor::Rack { graph: before }, .. }) = old.node(node.id)
-                { retain(graph, before); }
+                    && let Some(RackNode {
+                        processor: RackProcessor::Rack { graph: before },
+                        ..
+                    }) = old.node(node.id)
+                {
+                    retain(graph, before);
+                }
             }
         }
         if let Some(previous) = previous {
             retain(self, previous);
             self.parameters = previous.parameters.clone();
         }
-        fn collect(graph: &RackGraph, path: &mut Vec<u32>, out: &mut Vec<RackParameterAddress>, seen: &mut std::collections::HashSet<RackParameterAddress>) {
+        fn collect(
+            graph: &RackGraph,
+            path: &mut Vec<u32>,
+            out: &mut Vec<RackParameterAddress>,
+            seen: &mut std::collections::HashSet<RackParameterAddress>,
+        ) {
             for node in &graph.nodes {
                 path.push(node.id);
                 match &node.processor {
@@ -215,8 +256,14 @@ impl RackGraph {
                     RackProcessor::Note { module } => {
                         let mut parameter = 0;
                         while module.parameter_info(parameter).is_some() {
-                            let address = RackParameterAddress { path: path.clone(), kind: module.kind_id().into(), parameter: parameter as u32 };
-                            if seen.insert(address.clone()) { out.push(address); }
+                            let address = RackParameterAddress {
+                                path: path.clone(),
+                                kind: module.kind_id().into(),
+                                parameter: parameter as u32,
+                            };
+                            if seen.insert(address.clone()) {
+                                out.push(address);
+                            }
                             parameter += 1;
                         }
                     }
@@ -228,7 +275,11 @@ impl RackGraph {
         let mut addresses = self.parameters.clone();
         let mut seen = addresses.iter().cloned().collect();
         collect(self, &mut Vec::new(), &mut addresses, &mut seen);
-        if addresses.len() > MAX_RACK_PARAMETERS { return Err("Rack parameter address history exceeds 16384 entries; create a new rack".into()); }
+        if addresses.len() > MAX_RACK_PARAMETERS {
+            return Err(
+                "Rack parameter address history exceeds 16384 entries; create a new rack".into(),
+            );
+        }
         self.parameters = addresses;
         Ok(())
     }
@@ -243,50 +294,97 @@ impl RackGraph {
     /// even when fewer are stored: automation must remain inside admission.
     fn check_aggregate_fanout(&self) -> Result<(), String> {
         #[derive(Default)]
-        struct Boundary { input: Vec<usize>, output: Vec<usize> }
+        struct Boundary {
+            input: Vec<usize>,
+            output: Vec<usize>,
+        }
         #[derive(Default)]
-        struct Admission { processors: Vec<RackProcessor>, edges: Vec<(usize, usize)>, roots: Vec<usize>, wires: usize }
+        struct Admission {
+            processors: Vec<RackProcessor>,
+            edges: Vec<(usize, usize)>,
+            roots: Vec<usize>,
+            wires: usize,
+        }
         fn add(graph: &RackGraph, root: bool, flat: &mut Admission) -> Result<Boundary, String> {
             let mut boundary = Boundary::default();
             let mut places = Vec::new();
             for node in &graph.nodes {
-                let place = if let RackProcessor::Rack { graph } = &node.processor { add(graph, false, flat)? }
-                else {
+                let place = if let RackProcessor::Rack { graph } = &node.processor {
+                    add(graph, false, flat)?
+                } else {
                     let i = flat.processors.len();
                     flat.processors.push(node.processor.clone());
                     if matches!(node.processor, RackProcessor::NoteInput) {
-                        boundary.input.push(i); if root { flat.roots.push(i); }
+                        boundary.input.push(i);
+                        if root {
+                            flat.roots.push(i);
+                        }
                     }
-                    if matches!(node.processor, RackProcessor::NoteOutput) { boundary.output.push(i); }
+                    if matches!(node.processor, RackProcessor::NoteOutput) {
+                        boundary.output.push(i);
+                    }
                     Boundary {
-                        input: node.processor.port(NOTE_IN, false).map(|_| vec![i]).unwrap_or_default(),
-                        output: node.processor.port(NOTE_OUT, true).map(|_| vec![i]).unwrap_or_default(),
+                        input: node
+                            .processor
+                            .port(NOTE_IN, false)
+                            .map(|_| vec![i])
+                            .unwrap_or_default(),
+                        output: node
+                            .processor
+                            .port(NOTE_OUT, true)
+                            .map(|_| vec![i])
+                            .unwrap_or_default(),
                     }
                 };
                 places.push(place);
             }
             for edge in &graph.edges {
-                let from = graph.nodes.iter().position(|n| n.id == edge.from.node).unwrap();
-                let to = graph.nodes.iter().position(|n| n.id == edge.to.node).unwrap();
-                if graph.nodes[from].processor.port(edge.from.port, true) == Some(RackSignal::Note) {
-                    for &a in &places[from].output { for &b in &places[to].input { flat.edges.push((a, b)); } }
+                let from = graph
+                    .nodes
+                    .iter()
+                    .position(|n| n.id == edge.from.node)
+                    .unwrap();
+                let to = graph
+                    .nodes
+                    .iter()
+                    .position(|n| n.id == edge.to.node)
+                    .unwrap();
+                if graph.nodes[from].processor.port(edge.from.port, true) == Some(RackSignal::Note)
+                {
+                    for &a in &places[from].output {
+                        for &b in &places[to].input {
+                            flat.edges.push((a, b));
+                        }
+                    }
                 }
                 // Each boundary can expose at most 64 nodes. Charge the
                 // flattened audio/control Cartesian products conservatively.
                 fn width(processor: &RackProcessor, signal: RackSignal, output: bool) -> usize {
                     if let RackProcessor::Rack { graph } = processor {
-                        graph.nodes.iter().filter(|node| match (signal, output, &node.processor) {
-                            (RackSignal::Audio, false, RackProcessor::AudioInput)
-                            | (RackSignal::Audio, true, RackProcessor::AudioOutput)
-                            | (RackSignal::Note, false, RackProcessor::NoteInput)
-                            | (RackSignal::Note, true, RackProcessor::NoteOutput) => true,
-                            _ => false,
-                        }).count()
-                    } else { 1 }
+                        graph
+                            .nodes
+                            .iter()
+                            .filter(|node| match (signal, output, &node.processor) {
+                                (RackSignal::Audio, false, RackProcessor::AudioInput)
+                                | (RackSignal::Audio, true, RackProcessor::AudioOutput)
+                                | (RackSignal::Note, false, RackProcessor::NoteInput)
+                                | (RackSignal::Note, true, RackProcessor::NoteOutput) => true,
+                                _ => false,
+                            })
+                            .count()
+                    } else {
+                        1
+                    }
                 }
-                let signal = graph.nodes[from].processor.port(edge.from.port, true).unwrap();
-                flat.wires += width(&graph.nodes[from].processor, signal, true) * width(&graph.nodes[to].processor, signal, false);
-                if flat.wires > 1024 { return Err("Rack aggregate fan-out exceeds 1024 flattened wires".into()); }
+                let signal = graph.nodes[from]
+                    .processor
+                    .port(edge.from.port, true)
+                    .unwrap();
+                flat.wires += width(&graph.nodes[from].processor, signal, true)
+                    * width(&graph.nodes[to].processor, signal, false);
+                if flat.wires > 1024 {
+                    return Err("Rack aggregate fan-out exceeds 1024 flattened wires".into());
+                }
             }
             Ok(boundary)
         }
@@ -297,19 +395,64 @@ impl RackGraph {
         let mut generators = cost.clone();
         let mut envelopes = cost.clone();
         for _ in 0..flat.processors.len() {
-            let Some(i) = (0..done.len()).find(|&i| !done[i] && flat.edges.iter().filter(|(a, _)| *a == i).all(|(_, b)| done[*b])) else {
+            let Some(i) = (0..done.len()).find(|&i| {
+                !done[i]
+                    && flat
+                        .edges
+                        .iter()
+                        .filter(|(a, _)| *a == i)
+                        .all(|(_, b)| done[*b])
+            }) else {
                 return Err("Rack flattened note cycle".into());
             };
-            let multiplier = if matches!(flat.processors[i], RackProcessor::Note { module: RackNoteModule::KeyMapper { .. } }) { 4usize } else { 1 };
-            let successors = flat.edges.iter().filter(|(a, _)| *a == i).map(|(_, b)| cost[*b]).fold(0usize, usize::saturating_add);
+            let multiplier = if matches!(
+                flat.processors[i],
+                RackProcessor::Note {
+                    module: RackNoteModule::KeyMapper { .. }
+                }
+            ) {
+                4usize
+            } else {
+                1
+            };
+            let successors = flat
+                .edges
+                .iter()
+                .filter(|(a, _)| *a == i)
+                .map(|(_, b)| cost[*b])
+                .fold(0usize, usize::saturating_add);
             cost[i] = 1usize.saturating_add(multiplier.saturating_mul(successors));
-            envelopes[i] = usize::from(matches!(flat.processors[i], RackProcessor::Note { module: RackNoteModule::Envelope { .. } }))
-                + flat.edges.iter().filter(|(a, _)| *a == i).map(|(_, b)| envelopes[*b]).max().unwrap_or(0);
+            envelopes[i] = usize::from(matches!(
+                flat.processors[i],
+                RackProcessor::Note {
+                    module: RackNoteModule::Envelope { .. }
+                }
+            )) + flat
+                .edges
+                .iter()
+                .filter(|(a, _)| *a == i)
+                .map(|(_, b)| envelopes[*b])
+                .max()
+                .unwrap_or(0);
             if envelopes[i] > windfall_dsp::rack_note::MAX_NOTE_ENVELOPES {
                 return Err("Rack note path exceeds eight composed envelope shapes".into());
             }
-            generators[i] = if matches!(flat.processors[i], RackProcessor::Note { module: RackNoteModule::Sequencer { .. } }) { 1 }
-                else { multiplier.saturating_mul(flat.edges.iter().filter(|(a, _)| *a == i).map(|(_, b)| generators[*b]).fold(0usize, usize::saturating_add)) };
+            generators[i] = if matches!(
+                flat.processors[i],
+                RackProcessor::Note {
+                    module: RackNoteModule::Sequencer { .. }
+                }
+            ) {
+                1
+            } else {
+                multiplier.saturating_mul(
+                    flat.edges
+                        .iter()
+                        .filter(|(a, _)| *a == i)
+                        .map(|(_, b)| generators[*b])
+                        .fold(0usize, usize::saturating_add),
+                )
+            };
             if cost[i] > MAX_RACK_EVENTS || generators[i] > 64 {
                 return Err("Rack aggregate fan-out exceeds 256 transit events or 64 generator seats per trigger".into());
             }
@@ -317,7 +460,9 @@ impl RackGraph {
         }
         if flat.roots.iter().map(|&i| cost[i]).sum::<usize>() > MAX_RACK_EVENTS
             || flat.roots.iter().map(|&i| generators[i]).sum::<usize>() > 64
-        { return Err("Rack root aggregate fan-out exceeds realtime event capacity".into()); }
+        {
+            return Err("Rack root aggregate fan-out exceeds realtime event capacity".into());
+        }
         Ok(())
     }
     fn check_nested(
@@ -329,10 +474,22 @@ impl RackGraph {
         *nodes += self.nodes.len();
         *edges += self.edges.len();
         if self.parameters.len() > MAX_RACK_PARAMETERS
-            || self.parameters.iter().any(|p| p.path.is_empty() || p.path.len() > MAX_RACK_DEPTH || p.path.contains(&0) || p.kind.len() > 64 || p.parameter > 1024)
-        { return Err("Invalid rack parameter address registry".into()); }
+            || self.parameters.iter().any(|p| {
+                p.path.is_empty()
+                    || p.path.len() > MAX_RACK_DEPTH
+                    || p.path.contains(&0)
+                    || p.kind.len() > 64
+                    || p.parameter > 1024
+            })
+        {
+            return Err("Invalid rack parameter address registry".into());
+        }
         let mut addresses = std::collections::HashSet::new();
-        if self.parameters.iter().any(|p| !addresses.insert((&p.path, &p.kind, p.parameter))) {
+        if self
+            .parameters
+            .iter()
+            .any(|p| !addresses.insert((&p.path, &p.kind, p.parameter)))
+        {
             return Err("Duplicate rack parameter address".into());
         }
         if depth > MAX_RACK_DEPTH || *nodes > MAX_RACK_NODES || *edges > MAX_RACK_EDGES {

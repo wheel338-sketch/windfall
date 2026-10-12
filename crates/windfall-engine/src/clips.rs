@@ -286,7 +286,9 @@ pub(crate) struct ClipPlayer {
 impl ClipPlayer {
     #[cfg(feature = "plugin-export")]
     pub fn reset_plugin(&mut self) {
-        for slot in &mut self.slots { slot.active = false; }
+        for slot in &mut self.slots {
+            slot.active = false;
+        }
         self.missing = 0;
     }
     pub fn new(sample_rate: u32) -> Self {

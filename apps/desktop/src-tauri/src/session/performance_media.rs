@@ -22,7 +22,11 @@ impl Session {
         }
         let media = &state.document.project().settings.stage_media;
         if let Some(scene) = scene {
-            let pad = media.pads.iter().find(|pad| pad.track == track && pad.scene == scene).ok_or("Assign a clip to this pad first")?;
+            let pad = media
+                .pads
+                .iter()
+                .find(|pad| pad.track == track && pad.scene == scene)
+                .ok_or("Assign a clip to this pad first")?;
             pad_audio_ready(&state, pad)?;
         }
         let pattern = match scene {
@@ -96,7 +100,12 @@ impl Session {
     pub fn media_video_read(&self, path: &str, generation: u64) -> Result<Vec<u8>, String> {
         self.media_video_read_checked(path, generation, None)
     }
-    pub fn media_video_read_checked(&self, path: &str, generation: u64, revision: Option<u64>) -> Result<Vec<u8>, String> {
+    pub fn media_video_read_checked(
+        &self,
+        path: &str,
+        generation: u64,
+        revision: Option<u64>,
+    ) -> Result<Vec<u8>, String> {
         let allowed = || {
             let state = self.state();
             state.generation == generation
@@ -116,7 +125,9 @@ impl Session {
         let prepared = { self.state().pool.video_bytes(path) };
         if let Some(bytes) = prepared {
             let bytes = bytes.to_vec();
-            if !allowed() { return Err("The project changed while reading video".into()); }
+            if !allowed() {
+                return Err("The project changed while reading video".into());
+            }
             return Ok(bytes);
         }
         let mut file =
@@ -210,10 +221,25 @@ impl Session {
     }
 }
 
-fn pad_audio_ready(state: &super::State, pad: &windfall_project::PerformancePad) -> Result<(), String> {
-    if let Some(clip) = pad.clip.and_then(|id| state.document.project().playlist.clips.iter().find(|clip| clip.id == id))
-        && let windfall_project::ClipContent::Audio { sample, .. } = clip.content
-        && state.pool.get(sample).is_none_or(|audio| audio.frames() == 0)
-    { return Err("This audio pad's sample is missing or has not finished decoding".into()); }
+fn pad_audio_ready(
+    state: &super::State,
+    pad: &windfall_project::PerformancePad,
+) -> Result<(), String> {
+    if let Some(clip) = pad.clip.and_then(|id| {
+        state
+            .document
+            .project()
+            .playlist
+            .clips
+            .iter()
+            .find(|clip| clip.id == id)
+    }) && let windfall_project::ClipContent::Audio { sample, .. } = clip.content
+        && state
+            .pool
+            .get(sample)
+            .is_none_or(|audio| audio.frames() == 0)
+    {
+        return Err("This audio pad's sample is missing or has not finished decoding".into());
+    }
     Ok(())
 }

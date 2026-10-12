@@ -329,11 +329,20 @@ impl PluginManager {
         match audio_units {
             Ok(catalog) => state.entries.extend(catalog.entries.iter().map(|entry| {
                 let descriptor = entry.descriptor();
-                PluginEntry { path: entry.component.path(), format: "au".into(), id: descriptor.id,
-                    name: descriptor.name, vendor: descriptor.vendor, instrument: descriptor.kind == PluginKind::Instrument,
-                    usable: true, error: None }
+                PluginEntry {
+                    path: entry.component.path(),
+                    format: "au".into(),
+                    id: descriptor.id,
+                    name: descriptor.name,
+                    vendor: descriptor.vendor,
+                    instrument: descriptor.kind == PluginKind::Instrument,
+                    usable: true,
+                    error: None,
+                }
             })),
-            Err(error) => state.error = Some(format!("Audio Unit registry discovery failed: {error}")),
+            Err(error) => {
+                state.error = Some(format!("Audio Unit registry discovery failed: {error}"))
+            }
         }
         let mut blocked = catalog.blocked();
         // Safe loader refusals still need a visible diagnostic. The catalog's

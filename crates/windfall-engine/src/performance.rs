@@ -39,8 +39,16 @@ struct Held {
 }
 #[derive(Clone, Copy)]
 pub(crate) enum Event {
-    On { token: u64, note: NoteEvent, pattern: PatternId, start: f64 },
-    Off { token: u64, stopped: bool },
+    On {
+        token: u64,
+        note: NoteEvent,
+        pattern: PatternId,
+        start: f64,
+    },
+    Off {
+        token: u64,
+        stopped: bool,
+    },
 }
 
 pub(crate) struct Launcher {
@@ -181,8 +189,12 @@ impl Launcher {
     pub fn events_len(&self) -> usize {
         self.events.len()
     }
-    pub fn accepted_len(&self) -> usize { self.accepted.len() }
-    pub fn accepted(&self, index: usize) -> LaunchRequest { self.accepted[index] }
+    pub fn accepted_len(&self) -> usize {
+        self.accepted.len()
+    }
+    pub fn accepted(&self, index: usize) -> LaunchRequest {
+        self.accepted[index]
+    }
     pub fn tick(&self) -> f64 {
         self.tick
     }
@@ -195,11 +207,15 @@ impl Launcher {
         self.tick = plan.unwarp(plan.warp(self.tick) + delta);
     }
     pub fn tempo_override(&self, plan: &Plan) -> Option<f64> {
-        if !plan.performance_tempo { return None; }
-        (0..TRACKS).filter_map(|track| {
-            let (id, phase, _) = self.clip_phase(plan, track, self.tick)?;
-            plan.performance_clips[plan.performance_clip_ids.get(id.0)?].tempo(phase)
-        }).next_back()
+        if !plan.performance_tempo {
+            return None;
+        }
+        (0..TRACKS)
+            .filter_map(|track| {
+                let (id, phase, _) = self.clip_phase(plan, track, self.tick)?;
+                plan.performance_clips[plan.performance_clip_ids.get(id.0)?].tempo(phase)
+            })
+            .next_back()
     }
     pub fn slot(&self, track: usize) -> (Option<PatternId>, Option<PatternId>, bool) {
         let slot = self.slots[track];
@@ -210,7 +226,12 @@ impl Launcher {
         )
     }
     /// Read-only clip phase; it does not consume, launch or reorder events.
-    pub fn clip_phase(&self, plan: &Plan, track: usize, tick: f64) -> Option<(PatternId, f64, f64)> {
+    pub fn clip_phase(
+        &self,
+        plan: &Plan,
+        track: usize,
+        tick: f64,
+    ) -> Option<(PatternId, f64, f64)> {
         let slot = self.slots[track];
         let id = slot.pattern?;
         let length = f64::from(plan.patterns[plan.pattern_ids.get(id.0)?].length);
@@ -221,7 +242,10 @@ impl Launcher {
     fn off_track(&mut self, track: u8) {
         for held in &mut self.held {
             if let Some(note) = held.filter(|note| note.track == track) {
-                self.events.push(Event::Off { token: note.token, stopped: true });
+                self.events.push(Event::Off {
+                    token: note.token,
+                    stopped: true,
+                });
                 *held = None;
             }
         }
@@ -250,12 +274,18 @@ impl Launcher {
                     ..Slot::default()
                 };
                 // A notification only: do not change pending/held/event order.
-                self.accepted.push(LaunchRequest { quantization: LaunchQuantization::Immediate, ..pending.request });
+                self.accepted.push(LaunchRequest {
+                    quantization: LaunchQuantization::Immediate,
+                    ..pending.request
+                });
             }
         }
         for held in &mut self.held {
             if let Some(note) = held.filter(|note| note.end <= self.tick + 1e-7) {
-                self.events.push(Event::Off { token: note.token, stopped: false });
+                self.events.push(Event::Off {
+                    token: note.token,
+                    stopped: false,
+                });
                 *held = None;
             }
         }
@@ -298,7 +328,12 @@ impl Launcher {
                     token,
                     end: at + note.length,
                 });
-                self.events.push(Event::On { token, note, pattern: pattern.id, start: at });
+                self.events.push(Event::On {
+                    token,
+                    note,
+                    pattern: pattern.id,
+                    start: at,
+                });
             }
         }
         self.advance(plan, 1, rate);
@@ -336,11 +371,16 @@ pub fn render_capture(
     project.check()?;
     let mut render_pool = pool.clone();
     if !project.plugins.is_empty() {
-        let factory = pool.plugin_factory().ok_or("Native performance render provider is unavailable")?;
-        let render = factory.render_factory().ok_or("Native performance capture needs an independent render-owner snapshot")?;
+        let factory = pool
+            .plugin_factory()
+            .ok_or("Native performance render provider is unavailable")?;
+        let render = factory
+            .render_factory()
+            .ok_or("Native performance capture needs an independent render-owner snapshot")?;
         render_pool.set_plugin_factory(render);
     }
-    let prepared = crate::Controller::prepare_project(project, &render_pool).map_err(|e| e.to_string())?;
+    let prepared =
+        crate::Controller::prepare_project(project, &render_pool).map_err(|e| e.to_string())?;
     let controller = crate::Controller::new();
     controller.set_prepared_project(project, prepared);
     let mut processor = controller.attach(rate);
@@ -372,7 +412,9 @@ pub fn render_capture(
     if controller.performance_state().dropped_notes != "0" {
         return Err("Capture exceeded the launcher's note capacity".into());
     }
-    if let Some(error) = render_pool.plugin_render_error() { return Err(error); }
+    if let Some(error) = render_pool.plugin_render_error() {
+        return Err(error);
+    }
     audio.drain(..latency * 2);
     Ok(windfall_core::AudioBuffer::from_interleaved(rate, 2, audio))
 }
@@ -386,16 +428,35 @@ mod tests {
     fn accepted_log_contains_only_the_winning_launch_at_its_quantized_boundary() {
         let plan = note_plan();
         let pattern = plan.patterns[0].id;
-        let mut launcher = Launcher::new(); launcher.tick = 100.0;
-        let request = LaunchRequest { track: 0, pattern: Some(pattern), quantization: LaunchQuantization::Beat };
+        let mut launcher = Launcher::new();
+        launcher.tick = 100.0;
+        let request = LaunchRequest {
+            track: 0,
+            pattern: Some(pattern),
+            quantization: LaunchQuantization::Beat,
+        };
         launcher.request(request, &plan);
-        launcher.request(LaunchRequest { pattern: None, ..request }, &plan);
+        launcher.request(
+            LaunchRequest {
+                pattern: None,
+                ..request
+            },
+            &plan,
+        );
         launcher.request(request, &plan);
-        launcher.tick = 959.9; launcher.step(&plan, 48000);
+        launcher.tick = 959.9;
+        launcher.step(&plan, 48000);
         assert_eq!(launcher.accepted_len(), 0);
-        launcher.tick = 960.0; launcher.step(&plan, 48000);
+        launcher.tick = 960.0;
+        launcher.step(&plan, 48000);
         assert_eq!(launcher.accepted_len(), 1);
-        assert_eq!(launcher.accepted(0), LaunchRequest { quantization: LaunchQuantization::Immediate, ..request });
+        assert_eq!(
+            launcher.accepted(0),
+            LaunchRequest {
+                quantization: LaunchQuantization::Immediate,
+                ..request
+            }
+        );
         launcher.step(&plan, 48000);
         assert_eq!(launcher.accepted_len(), 0);
     }

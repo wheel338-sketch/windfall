@@ -18,7 +18,10 @@ pub enum Event {
     /// A note from a MIDI input that the audition destination took.
     MidiHardwareNote(windfall_ipc::MidiHardwareNote),
     /// Transient caller correlation, outside generated musical/project types.
-    ExportRequestProgress { request: String, progress: ExportProgress },
+    ExportRequestProgress {
+        request: String,
+        progress: ExportProgress,
+    },
 }
 
 impl Event {

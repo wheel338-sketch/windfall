@@ -113,7 +113,10 @@ pub fn render_reporting(
     progress: &mut dyn FnMut(f32) -> bool,
 ) -> Rendered {
     let sample_rate = options.sample_rate.max(1);
-    if let Err(error) = options.check_region().and_then(|()| pool.video_audio_error(project).map_or(Ok(()), Err)) {
+    if let Err(error) = options
+        .check_region()
+        .and_then(|()| pool.video_audio_error(project).map_or(Ok(()), Err))
+    {
         return Rendered {
             audio: AudioBuffer::from_interleaved(sample_rate, 2, Vec::new()),
             dropped_clips: 0,

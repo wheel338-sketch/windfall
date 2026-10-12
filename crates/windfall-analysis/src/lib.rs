@@ -10,11 +10,11 @@ pub mod dereverb;
 mod dereverb_adapter;
 mod jobs;
 mod model;
+mod ort_adapter;
 pub mod pitch;
 pub mod separation;
-mod ort_adapter;
-pub use ort_adapter::OrtBackend;
 pub use dereverb_adapter::{BUILTIN_DEREVERB_ID, ClassicalDereverbAdapter, DEREVERB_SCRATCH_BYTES};
+pub use ort_adapter::OrtBackend;
 mod work;
 
 pub use artifacts::{ArtifactMetadata, ArtifactWriter, RelativeName};

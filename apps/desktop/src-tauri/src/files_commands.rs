@@ -134,7 +134,8 @@ pub async fn preset_apply_channel(
 }
 
 #[tauri::command]
-pub async fn preset_library(session: State<'_, Session>,
+pub async fn preset_library(
+    session: State<'_, Session>,
     window: tauri::WebviewWindow,
     caller: crate::window_calls::WindowCaller,
 ) -> Result<Vec<PresetEntry>, String> {
@@ -186,7 +187,9 @@ pub async fn score_write(
 }
 
 #[tauri::command]
-pub async fn score_read(session: State<'_, Session>, path: String,
+pub async fn score_read(
+    session: State<'_, Session>,
+    path: String,
     window: tauri::WebviewWindow,
     caller: crate::window_calls::WindowCaller,
 ) -> Result<ScoreReview, String> {
@@ -197,7 +200,8 @@ pub async fn score_read(session: State<'_, Session>, path: String,
 }
 
 #[tauri::command]
-pub async fn templates(session: State<'_, Session>,
+pub async fn templates(
+    session: State<'_, Session>,
     window: tauri::WebviewWindow,
     caller: crate::window_calls::WindowCaller,
 ) -> Result<Vec<TemplateInfo>, String> {
@@ -234,7 +238,9 @@ pub async fn template_new(
 }
 
 #[tauri::command]
-pub async fn template_delete(session: State<'_, Session>, id: String,
+pub async fn template_delete(
+    session: State<'_, Session>,
+    id: String,
     window: tauri::WebviewWindow,
     caller: crate::window_calls::WindowCaller,
 ) -> Result<(), String> {

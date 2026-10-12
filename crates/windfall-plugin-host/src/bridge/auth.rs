@@ -68,18 +68,18 @@ impl Key {
         let mut bytes = [0; 32];
         #[cfg(windows)]
         {
-        // SAFETY: sized writable buffer; system-preferred RNG needs no provider.
-        let result = unsafe {
-            BCryptGenRandom(
-                std::ptr::null_mut(),
-                bytes.as_mut_ptr(),
-                bytes.len() as u32,
-                BCRYPT_USE_SYSTEM_PREFERRED_RNG,
-            )
-        };
-        if result != 0 {
-            return Err(io::Error::other("bridge launch RNG failed"));
-        }
+            // SAFETY: sized writable buffer; system-preferred RNG needs no provider.
+            let result = unsafe {
+                BCryptGenRandom(
+                    std::ptr::null_mut(),
+                    bytes.as_mut_ptr(),
+                    bytes.len() as u32,
+                    BCRYPT_USE_SYSTEM_PREFERRED_RNG,
+                )
+            };
+            if result != 0 {
+                return Err(io::Error::other("bridge launch RNG failed"));
+            }
         }
         #[cfg(any(target_os = "macos", target_os = "linux"))]
         std::fs::File::open("/dev/urandom")?.read_exact(&mut bytes)?;

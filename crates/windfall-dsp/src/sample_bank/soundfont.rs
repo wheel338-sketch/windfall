@@ -61,7 +61,10 @@ pub fn parse_soundfont_preset(
 /// Reserve every decoded zone before allocating its PCM; partial failures release
 /// all reservations on the worker, and successful banks carry them until retired.
 pub fn parse_soundfont_preset_budgeted(
-    bytes: &[u8], bank: u16, preset: u16, budget: &std::sync::Arc<super::BankBudget>,
+    bytes: &[u8],
+    bank: u16,
+    preset: u16,
+    budget: &std::sync::Arc<super::BankBudget>,
 ) -> Result<SampleBank, SoundFontError> {
     let tables = Tables::read(bytes)?;
     for index in 0..tables.phdr.len() / 38 - 1 {
@@ -323,7 +326,11 @@ impl<'a> Tables<'a> {
         }
         Ok(())
     }
-    fn import(&self, preset: usize, budget: Option<&std::sync::Arc<super::BankBudget>>) -> Result<SampleBank, SoundFontError> {
+    fn import(
+        &self,
+        preset: usize,
+        budget: Option<&std::sync::Arc<super::BankBudget>>,
+    ) -> Result<SampleBank, SoundFontError> {
         let begin = u16_at(self.phdr, preset * 38 + 24) as usize;
         let end = u16_at(self.phdr, (preset + 1) * 38 + 24) as usize;
         let mut table = Vec::new();
@@ -345,7 +352,9 @@ impl<'a> Tables<'a> {
             Err(SoundFontError::NoZones)
         } else {
             let mut bank = SampleBank::new(table).map_err(|_| SoundFontError::TooManyZones)?;
-            for reservation in reservations { bank.retain_reservation(reservation); }
+            for reservation in reservations {
+                bank.retain_reservation(reservation);
+            }
             Ok(bank)
         }
     }
@@ -385,7 +394,12 @@ impl<'a> Tables<'a> {
                 return Err(SoundFontError::TooManyZones);
             }
             let used: usize = table.iter().map(|z| z.audio.samples().len() * 4).sum();
-            let mut zone = self.sample_zone(instrument, MAX_BANK_BYTES.saturating_sub(used), budget, reservations)?;
+            let mut zone = self.sample_zone(
+                instrument,
+                MAX_BANK_BYTES.saturating_sub(used),
+                budget,
+                reservations,
+            )?;
             zone.mapping.key_low = key.0;
             zone.mapping.key_high = key.1;
             zone.mapping.velocity_low = velocity.0;
@@ -482,7 +496,11 @@ impl<'a> Tables<'a> {
             return Err(SoundFontError::InvalidSample(index));
         }
         if let Some(budget) = budget {
-            reservations.push(budget.reserve(frames * 4).map_err(SoundFontError::MemoryBudget)?);
+            reservations.push(
+                budget
+                    .reserve(frames * 4)
+                    .map_err(SoundFontError::MemoryBudget)?,
+            );
         }
         let pcm = (start..end)
             .map(|frame| u16_at(self.smpl, frame * 2) as i16 as f32 / 32768.0)

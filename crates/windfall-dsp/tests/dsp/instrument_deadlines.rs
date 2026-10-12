@@ -12,7 +12,8 @@ use windfall_dsp::instrument_asset::{
 };
 use windfall_dsp::polysynth::{GrooveMode, HybridAlgorithm, PackPatch};
 use windfall_dsp::{
-    AnyInstrument, DrumKeyPatch, InstrumentAsset, InstrumentKind, InstrumentParams,
+    AnyInstrument, DrumKeyPatch, InstrumentAsset, InstrumentKind, InstrumentParams, NoteExpression,
+    NoteInstanceId,
 };
 
 use super::realtime::{allocated_bytes, allocator_calls};
@@ -105,7 +106,64 @@ fn dense_params(kind: InstrumentKind) -> InstrumentParams {
         p.sample_tune = -24.0;
         p.sample_start = 0.0;
     }
+    // Distinct operators and route rows prevent equal-work sharing from making
+    // the maximum graph artificially cheap. All six operators/72 routes stay on.
+    match &mut params {
+        InstrumentParams::MatrixSynth(p) => {
+            diversify_operators(&mut p.operators);
+            for row in 0..6 {
+                for column in 0..6 {
+                    p.fm[row][column] = 4.0 + (row * 6 + column) as f32 / 18.0;
+                    p.ring[row][column] = 0.15 + (row * 6 + column) as f32 / 70.0;
+                }
+            }
+            p.lfo_pitch = 7.3;
+            p.lfo_index = 4.7;
+            p.lfo_filter = 2.1;
+            p.lfo_rate_hz = 13.7;
+        }
+        InstrumentParams::HybridSeq(p) => diversify_operators(&mut p.operators),
+        _ => {}
+    }
+    for (index, info) in kind.descriptors().iter().enumerate() {
+        if info.id == "lfoFilter" {
+            assert!(params.set(index, info.max * 0.73));
+        }
+        if info.id == "lfoRateHz" {
+            assert!(params.set(index, info.max * 0.81));
+        }
+    }
     assert_eq!(params, params.sanitized());
+    params
+}
+
+fn diversify_operators(operators: &mut [windfall_dsp::polysynth::MatrixOperator; 6]) {
+    for (index, operator) in operators.iter_mut().enumerate() {
+        operator.ratio = 0.73 + index as f32 * 1.317;
+        operator.detune_cents = -47.0 + index as f32 * 17.3;
+        operator.level = 1.0 - index as f32 * 0.061;
+        operator.feedback = 6.0 - index as f32 * 0.271;
+        operator.key_scale = -1.7 + index as f32 * 0.61;
+    }
+}
+
+fn moving_params(base: InstrumentParams, block: usize) -> InstrumentParams {
+    let mut params = base;
+    let phase = block as f32 * 0.071;
+    for (index, info) in base.kind().descriptors().iter().enumerate() {
+        let value = match info.id {
+            "cutoffHz" | "toneHz" | "pitchHz" => {
+                Some(info.min + (info.max - info.min) * (0.71 + 0.27 * phase.sin()))
+            }
+            "morph" | "shape" | "position" => {
+                Some(info.min + (info.max - info.min) * (0.5 + 0.43 * phase.cos()))
+            }
+            _ => None,
+        };
+        if let Some(value) = value {
+            assert!(params.set(index, value));
+        }
+    }
     params
 }
 
@@ -211,7 +269,7 @@ fn maximum_asset(params: &InstrumentParams) -> Option<InstrumentAsset> {
                                 } else {
                                     (partial + 1) as f32
                                 },
-                                level: 0.75 + (frame % 5) as f32 * 0.05,
+                                level: 0.65 + ((partial * 17 + frame * 11) % 64) as f32 / 192.0,
                                 phase: ((partial * 7 + frame) % 64) as f32 / 64.0,
                                 pan: if partial % 2 == 0 { -0.5 } else { 0.5 },
                             })
@@ -229,7 +287,19 @@ fn maximum_asset(params: &InstrumentParams) -> Option<InstrumentAsset> {
 
 fn start_maximum(unit: &mut AnyInstrument, voices: usize) {
     for key in 36..36 + voices as u8 {
-        unit.note_on(key, 1.0);
+        let voice = f32::from(key - 36);
+        unit.note_on_instance(
+            NoteInstanceId(u64::from(key) + 1),
+            key,
+            1.0 - voice * 0.009,
+            (voice * 0.113).sin() * 0.8,
+            NoteExpression {
+                fine_pitch_cents: -23.0 + voice * 3.7,
+                modulation_x: 0.2 + voice * 0.031,
+                modulation_y: 0.8 - voice * 0.023,
+                ..Default::default()
+            },
+        );
     }
 }
 
@@ -300,14 +370,25 @@ fn profile(params: InstrumentParams, voices: usize) {
                 }
                 full_load &= unit.active_voices() == voices;
                 let at = Instant::now();
+                unit.set_params(&moving_params(params, block));
+                for key in 36..36 + voices as u8 {
+                    let phase = block as f32 * 0.071 + f32::from(key - 36) * 0.193;
+                    unit.set_note_expression(
+                        NoteInstanceId(u64::from(key) + 1),
+                        phase.sin() * 0.8,
+                        NoteExpression {
+                            fine_pitch_cents: phase.cos() * 47.0,
+                            modulation_x: 0.5 + phase.sin() * 0.43,
+                            modulation_y: 0.5 + phase.cos() * 0.37,
+                            ..Default::default()
+                        },
+                    );
+                }
                 unit.process(&mut left, &mut right);
                 slowest_block = slowest_block.max(at.elapsed());
                 full_load &= unit.active_voices() == voices;
                 stats.observe(&left, &right);
-                if block % 32 == 0 {
-                    unit.set_params(&params);
-                    unit.set_tempo(120.0);
-                }
+                unit.set_tempo(120.0);
             }
         });
         best = best.min(started.elapsed());
@@ -431,6 +512,36 @@ fn maximum(kind: InstrumentKind, voices: usize) {
     for params in variants(kind) {
         profile(params, voices);
     }
+}
+
+#[test]
+fn maximum_matrix_workload_has_unique_operators_routes_and_moving_controls() {
+    let params = dense_params(InstrumentKind::MatrixSynth);
+    let InstrumentParams::MatrixSynth(p) = params else {
+        unreachable!()
+    };
+    for row in 0..6 {
+        assert!(
+            p.fm[row]
+                .iter()
+                .chain(&p.ring[row])
+                .all(|value| *value > 0.0)
+        );
+        for other in row + 1..6 {
+            assert_ne!(p.fm[row], p.fm[other]);
+            assert_ne!(p.ring[row], p.ring[other]);
+            assert_ne!(p.operators[row].ratio, p.operators[other].ratio);
+            assert_ne!(
+                p.operators[row].detune_cents,
+                p.operators[other].detune_cents
+            );
+            assert_ne!(p.operators[row].level, p.operators[other].level);
+        }
+    }
+    assert!(p.lfo_pitch > 0.0 && p.lfo_index > 0.0 && p.lfo_filter > 0.0);
+    assert_ne!(moving_params(params, 17), moving_params(params, 18));
+    assert_eq!(p.polyphony, 16);
+    assert_eq!(p.unison, 7);
 }
 
 macro_rules! maximum_test {

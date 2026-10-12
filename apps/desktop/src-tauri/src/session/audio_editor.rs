@@ -349,27 +349,69 @@ impl Session {
     /// Saves the rendered editor selection without changing the document.
     /// Preparation/encoding is outside the state lock; publication rechecks the
     /// editor token and source before the single destination rename.
-    pub fn audio_editor_save_wavpack(&self, token: u32, start: u32, end: u32, path: String, depth: windfall_ipc::BitDepth) -> Result<(), String> {
+    pub fn audio_editor_save_wavpack(
+        &self,
+        token: u32,
+        start: u32,
+        end: u32,
+        path: String,
+        depth: windfall_ipc::BitDepth,
+    ) -> Result<(), String> {
         let editor = lock(&self.inner.audio_editor);
-        let prepared = editor.prepared.as_ref().filter(|p| p.token == token).ok_or("This audio editor has expired.")?;
-        if !prepared.valid(&self.state()) { return Err(STALE.into()); }
-        if start >= end || end as usize > prepared.view.frames() { return Err("Choose a nonempty range inside the editor view.".into()); }
+        let prepared = editor
+            .prepared
+            .as_ref()
+            .filter(|p| p.token == token)
+            .ok_or("This audio editor has expired.")?;
+        if !prepared.valid(&self.state()) {
+            return Err(STALE.into());
+        }
+        if start >= end || end as usize > prepared.view.frames() {
+            return Err("Choose a nonempty range inside the editor view.".into());
+        }
         let depth = match depth {
             windfall_ipc::BitDepth::Int16 => windfall_codec::WavPackDepth::Int16,
             windfall_ipc::BitDepth::Int24 => windfall_codec::WavPackDepth::Int24,
-            windfall_ipc::BitDepth::Float32 => return Err("WavPack saving requires 16-bit or 24-bit integer PCM.".into()),
+            windfall_ipc::BitDepth::Float32 => {
+                return Err("WavPack saving requires 16-bit or 24-bit integer PCM.".into());
+            }
         };
         let target = PathBuf::from(path);
-        if !target.extension().and_then(|ext| ext.to_str()).is_some_and(|ext| ext.eq_ignore_ascii_case("wv")) { return Err("A WavPack file must end in .wv.".into()); }
+        if !target
+            .extension()
+            .and_then(|ext| ext.to_str())
+            .is_some_and(|ext| ext.eq_ignore_ascii_case("wv"))
+        {
+            return Err("A WavPack file must end in .wv.".into());
+        }
         let name = target.file_name().ok_or("Choose a file name.")?;
-        let mut staged_name = std::ffi::OsString::from("."); staged_name.push(name);
-        staged_name.push(format!(".{}-{}.wv", std::process::id(), SERIAL.fetch_add(1, Ordering::Relaxed)));
+        let mut staged_name = std::ffi::OsString::from(".");
+        staged_name.push(name);
+        staged_name.push(format!(
+            ".{}-{}.wv",
+            std::process::id(),
+            SERIAL.fetch_add(1, Ordering::Relaxed)
+        ));
         let staged_path = target.with_file_name(staged_name);
-        drop(OpenOptions::new().write(true).create_new(true).open(&staged_path).map_err(|e| e.to_string())?);
+        drop(
+            OpenOptions::new()
+                .write(true)
+                .create_new(true)
+                .open(&staged_path)
+                .map_err(|e| e.to_string())?,
+        );
         let staged = Output(staged_path);
-        let mut writer = windfall_codec::WavPackWriter::create(&staged.0, prepared.view.sample_rate(), prepared.view.channels(), depth).map_err(|e| e.to_string())?;
+        let mut writer = windfall_codec::WavPackWriter::create(
+            &staged.0,
+            prepared.view.sample_rate(),
+            prepared.view.channels(),
+            depth,
+        )
+        .map_err(|e| e.to_string())?;
         let channels = usize::from(prepared.view.channels());
-        for block in prepared.view.samples()[start as usize * channels..end as usize * channels].chunks(4096 * channels) {
+        for block in prepared.view.samples()[start as usize * channels..end as usize * channels]
+            .chunks(4096 * channels)
+        {
             writer.write(block).map_err(|e| e.to_string())?;
         }
         writer.finalize().map_err(|e| e.to_string())?;
@@ -377,8 +419,11 @@ impl Session {
         self.pause("audio-editor:wavpack-staged");
         let _recording = self.recording_idle()?;
         let state = self.state();
-        if !prepared.valid(&state) { return Err(STALE.into()); }
-        fs::rename(&staged.0, &target).map_err(|e| format!("Could not publish WavPack file: {e}"))?;
+        if !prepared.valid(&state) {
+            return Err(STALE.into());
+        }
+        fs::rename(&staged.0, &target)
+            .map_err(|e| format!("Could not publish WavPack file: {e}"))?;
         Ok(())
     }
 
@@ -842,58 +887,61 @@ impl Session {
         let retirement;
         #[cfg(test)]
         self.pause("audio-editor:prepared");
-        let result = {
-            let _recording = self.recording_idle()?;
-            let mut state = self.state();
-            if let Some(cancel) = &*lock(&self.inner.audio_analysis_cancel)
-                && cancel.is_cancelled()
+        let result =
             {
-                return Err("Analysis cancelled.".into());
-            }
-            if request.operation == AudioEditOperation::Script
-                && editor.script_preview.as_ref().is_some_and(|p|
-                    self.inner.script_ticket.load(Ordering::Acquire) != p.request)
-            {
-                return Err("Audio script cancelled before publication.".into());
-            }
-            if state.generation != generation
-                || state.edits != edits
-                || !prepared.valid(&state)
-                || state
-                    .pool
-                    .iter()
-                    .any(|(id, now)| pool.get(id).is_none_or(|old| !same_audio(now, old)))
-                || pool.iter().any(|(id, old)| {
-                    id != sample && state.pool.get(id).is_none_or(|now| !same_audio(now, old))
-                })
-            {
-                return Err(STALE.into());
-            }
-            let pool = plan.pool().clone();
-            let lease = plan.publication(self, &state)?;
-            // Cancellation/commit boundary after admission, before mutation.
-            if request.operation == AudioEditOperation::Script
-                && editor.script_preview.as_ref().is_some_and(|p|
-                    self.inner.script_ticket.load(Ordering::Acquire) != p.request)
-            {
-                return Err("Audio script cancelled before publication.".into());
-            }
-            let applied = state
-                .document
-                .dispatch(command, None)
-                .map_err(|e| e.to_string())?;
-            self.commit_prepared_parameters(&state, &applied.touched);
-            retirement = lease.install();
-            state.pool.insert(sample, decoded);
-            state.loaded.insert(sample);
-            state.failed.remove(&sample);
-            self.own_derived(&owned.0);
-            owned.0 = PathBuf::new(); // Doc + exact ready install now own the persistent source
-            DispatchResult {
-                created: applied.created,
-                patch: self.publish_prepared(&mut state, &applied.touched, &pool),
-            }
-        };
+                let _recording = self.recording_idle()?;
+                let mut state = self.state();
+                if let Some(cancel) = &*lock(&self.inner.audio_analysis_cancel)
+                    && cancel.is_cancelled()
+                {
+                    return Err("Analysis cancelled.".into());
+                }
+                if request.operation == AudioEditOperation::Script
+                    && editor.script_preview.as_ref().is_some_and(|p| {
+                        self.inner.script_ticket.load(Ordering::Acquire) != p.request
+                    })
+                {
+                    return Err("Audio script cancelled before publication.".into());
+                }
+                if state.generation != generation
+                    || state.edits != edits
+                    || !prepared.valid(&state)
+                    || state
+                        .pool
+                        .iter()
+                        .any(|(id, now)| pool.get(id).is_none_or(|old| !same_audio(now, old)))
+                    || pool.iter().any(|(id, old)| {
+                        id != sample && state.pool.get(id).is_none_or(|now| !same_audio(now, old))
+                    })
+                {
+                    return Err(STALE.into());
+                }
+                let pool = plan.pool().clone();
+                let lease = plan.publication(self, &state)?;
+                // Cancellation/commit boundary after admission, before mutation.
+                if request.operation == AudioEditOperation::Script
+                    && editor.script_preview.as_ref().is_some_and(|p| {
+                        self.inner.script_ticket.load(Ordering::Acquire) != p.request
+                    })
+                {
+                    return Err("Audio script cancelled before publication.".into());
+                }
+                let applied = state
+                    .document
+                    .dispatch(command, None)
+                    .map_err(|e| e.to_string())?;
+                self.commit_prepared_parameters(&state, &applied.touched);
+                retirement = lease.install();
+                state.pool.insert(sample, decoded);
+                state.loaded.insert(sample);
+                state.failed.remove(&sample);
+                self.own_derived(&owned.0);
+                owned.0 = PathBuf::new(); // Doc + exact ready install now own the persistent source
+                DispatchResult {
+                    created: applied.created,
+                    patch: self.publish_prepared(&mut state, &applied.touched, &pool),
+                }
+            };
         let mut retirement = retirement;
         self.retire_project(&mut retirement);
         editor.prepared = None;

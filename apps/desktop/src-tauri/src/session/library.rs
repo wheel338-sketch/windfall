@@ -499,7 +499,10 @@ impl Session {
         }
         if let Some(owned) = &owned_preset {
             let current = self.inner.cache.decode(&owned.original)?;
-            if !self.inner.cache.same_file_version(&owned.original_audio, &current)
+            if !self
+                .inner
+                .cache
+                .same_file_version(&owned.original_audio, &current)
                 || super::preset_assets::read_original(&owned.original)? != owned.bytes
             {
                 return Err("The preset source changed during preparation. Try again.".into());
@@ -526,7 +529,9 @@ impl Session {
         if let Some(retirement) = &mut retirement {
             self.retire_project(retirement);
         }
-        if result.is_ok() && let Some(owned) = &mut owned_preset {
+        if result.is_ok()
+            && let Some(owned) = &mut owned_preset
+        {
             owned.installed = true;
             self.own_derived(&owned.path);
         }

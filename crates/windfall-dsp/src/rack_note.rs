@@ -3,7 +3,10 @@ use crate::notemap::{
     ColorMap, ColorMapParams, KeyMap, KeyMapParams, KeySplit, KeySplitParams, LevelScale,
     LevelScaleParams, MappedNote, NoteTransform, StepGridParams,
 };
-use crate::{NoteExpression, ParamInfo, param::{ParamSet, param_set}};
+use crate::{
+    NoteExpression, ParamInfo,
+    param::{ParamSet, param_set},
+};
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
@@ -162,14 +165,24 @@ param_set!(NoteSequence, "Note sequencer", {
 // Extra wrapper controls follow the existing foundation descriptors. These
 // indices are persisted; extend each list only at its end.
 #[derive(Debug, Clone, Copy, PartialEq, Default)]
-struct SplitControls { preserve_key: bool }
+struct SplitControls {
+    preserve_key: bool,
+}
 param_set!(SplitControls, "Split controls", {
     toggle [preserve_key] "preserveKey" "Preserve incoming key" { true }
 });
 #[derive(Debug, Clone, Copy, PartialEq)]
-struct ChordControls { voices: u8, chord: [i8; 4] }
+struct ChordControls {
+    voices: u8,
+    chord: [i8; 4],
+}
 impl Default for ChordControls {
-    fn default() -> Self { Self { voices: 1, chord: [0; 4] } }
+    fn default() -> Self {
+        Self {
+            voices: 1,
+            chord: [0; 4],
+        }
+    }
 }
 param_set!(ChordControls, "Chord controls", {
     int [voices] "voices" "Chord voices" { None, 1, 4, 1 }
@@ -215,9 +228,12 @@ pub enum RackNoteModule {
 impl RackNoteModule {
     pub fn kind_id(&self) -> &'static str {
         match self {
-            Self::ColorRouter { .. } => "colorRouter", Self::Envelope { .. } => "envelope",
-            Self::PropertyScaler { .. } => "propertyScaler", Self::KeySplitter { .. } => "keySplitter",
-            Self::KeyMapper { .. } => "keyMapper", Self::Sequencer { .. } => "sequencer",
+            Self::ColorRouter { .. } => "colorRouter",
+            Self::Envelope { .. } => "envelope",
+            Self::PropertyScaler { .. } => "propertyScaler",
+            Self::KeySplitter { .. } => "keySplitter",
+            Self::KeyMapper { .. } => "keyMapper",
+            Self::Sequencer { .. } => "sequencer",
         }
     }
     pub fn parameter_info(&self, index: usize) -> Option<ParamInfo> {
@@ -225,52 +241,115 @@ impl RackNoteModule {
             Self::ColorRouter { .. } => (ColorMapParams::descriptors(), &[][..]),
             Self::Envelope { .. } => (NoteEnvelope::descriptors(), &[][..]),
             Self::PropertyScaler { .. } => (PropertyScale::descriptors(), &[][..]),
-            Self::KeySplitter { .. } => (KeySplitParams::descriptors(), SplitControls::descriptors()),
+            Self::KeySplitter { .. } => {
+                (KeySplitParams::descriptors(), SplitControls::descriptors())
+            }
             Self::KeyMapper { .. } => (KeyMapParams::descriptors(), ChordControls::descriptors()),
             Self::Sequencer { .. } => (NoteSequence::descriptors(), StepGridParams::descriptors()),
         };
-        first.get(index).or_else(|| index.checked_sub(first.len()).and_then(|i| extra.get(i))).copied()
+        first
+            .get(index)
+            .or_else(|| index.checked_sub(first.len()).and_then(|i| extra.get(i)))
+            .copied()
     }
     pub fn parameter(&self, index: usize) -> Option<f32> {
         match self {
             Self::ColorRouter { params } => params.get(index),
             Self::Envelope { params } => params.get(index),
             Self::PropertyScaler { params } => params.get(index),
-            Self::KeySplitter { params, preserve_key } => params.get(index).or_else(||
-                index.checked_sub(KeySplitParams::descriptors().len()).and_then(|i| SplitControls { preserve_key: *preserve_key }.get(i))),
-            Self::KeyMapper { params, chord, voices } => params.get(index).or_else(||
-                index.checked_sub(KeyMapParams::descriptors().len()).and_then(|i| ChordControls { chord: *chord, voices: *voices }.get(i))),
-            Self::Sequencer { params } => params.get(index).or_else(||
-                index.checked_sub(NoteSequence::descriptors().len()).and_then(|i| params.grid.get(i))),
+            Self::KeySplitter {
+                params,
+                preserve_key,
+            } => params.get(index).or_else(|| {
+                index
+                    .checked_sub(KeySplitParams::descriptors().len())
+                    .and_then(|i| {
+                        SplitControls {
+                            preserve_key: *preserve_key,
+                        }
+                        .get(i)
+                    })
+            }),
+            Self::KeyMapper {
+                params,
+                chord,
+                voices,
+            } => params.get(index).or_else(|| {
+                index
+                    .checked_sub(KeyMapParams::descriptors().len())
+                    .and_then(|i| {
+                        ChordControls {
+                            chord: *chord,
+                            voices: *voices,
+                        }
+                        .get(i)
+                    })
+            }),
+            Self::Sequencer { params } => params.get(index).or_else(|| {
+                index
+                    .checked_sub(NoteSequence::descriptors().len())
+                    .and_then(|i| params.grid.get(i))
+            }),
         }
     }
     /// Copy-only atomic parameter changes, safe on the automation grid.
     pub fn set_parameter(&mut self, index: usize, value: f32) -> bool {
-        if !value.is_finite() { return false; }
+        if !value.is_finite() {
+            return false;
+        }
         let mut next = *self;
         let found = match &mut next {
             Self::ColorRouter { params } => params.set(index, value),
             Self::Envelope { params } => params.set(index, value),
             Self::PropertyScaler { params } => params.set(index, value),
-            Self::KeySplitter { params, preserve_key } => {
-                if index < KeySplitParams::descriptors().len() { params.set(index, value) }
-                else { let mut extra = SplitControls { preserve_key: *preserve_key };
+            Self::KeySplitter {
+                params,
+                preserve_key,
+            } => {
+                if index < KeySplitParams::descriptors().len() {
+                    params.set(index, value)
+                } else {
+                    let mut extra = SplitControls {
+                        preserve_key: *preserve_key,
+                    };
                     let found = extra.set(index - KeySplitParams::descriptors().len(), value);
-                    *preserve_key = extra.preserve_key; found }
+                    *preserve_key = extra.preserve_key;
+                    found
+                }
             }
-            Self::KeyMapper { params, chord, voices } => {
-                if index < KeyMapParams::descriptors().len() { params.set(index, value) }
-                else { let mut extra = ChordControls { chord: *chord, voices: *voices };
+            Self::KeyMapper {
+                params,
+                chord,
+                voices,
+            } => {
+                if index < KeyMapParams::descriptors().len() {
+                    params.set(index, value)
+                } else {
+                    let mut extra = ChordControls {
+                        chord: *chord,
+                        voices: *voices,
+                    };
                     let found = extra.set(index - KeyMapParams::descriptors().len(), value);
-                    *chord = extra.chord; *voices = extra.voices; found }
+                    *chord = extra.chord;
+                    *voices = extra.voices;
+                    found
+                }
             }
             Self::Sequencer { params } => {
-                if index < NoteSequence::descriptors().len() { params.set(index, value) }
-                else { params.grid.set(index - NoteSequence::descriptors().len(), value) }
+                if index < NoteSequence::descriptors().len() {
+                    params.set(index, value)
+                } else {
+                    params
+                        .grid
+                        .set(index - NoteSequence::descriptors().len(), value)
+                }
             }
         };
-        if !found || !next.valid() { return false; }
-        *self = next; true
+        if !found || !next.valid() {
+            return false;
+        }
+        *self = next;
+        true
     }
     pub fn valid(&self) -> bool {
         match self {
@@ -365,7 +444,9 @@ impl RackNoteModule {
                 return usize::from(*voices).min(4);
             }
             Self::Envelope { params } => {
-                let Some(slot) = note.envelopes.iter_mut().find(|slot| slot.is_none()) else { return 0; };
+                let Some(slot) = note.envelopes.iter_mut().find(|slot| slot.is_none()) else {
+                    return 0;
+                };
                 *slot = Some(*params);
             }
             Self::Sequencer { .. } => {}
@@ -418,19 +499,56 @@ mod tests {
     #[test]
     fn every_note_module_parameter_has_stable_measured_range_and_atomic_nonfinite_refusal() {
         let modules = [
-            (RackNoteModule::ColorRouter { params: Default::default() }, 16),
-            (RackNoteModule::Envelope { params: Default::default() }, 6),
-            (RackNoteModule::PropertyScaler { params: Default::default() }, 5),
-            (RackNoteModule::KeySplitter { params: Default::default(), preserve_key: true }, 8),
-            (RackNoteModule::KeyMapper { params: Default::default(), chord: [0; 4], voices: 1 }, 133),
-            (RackNoteModule::Sequencer { params: Default::default() }, 53),
+            (
+                RackNoteModule::ColorRouter {
+                    params: Default::default(),
+                },
+                16,
+            ),
+            (
+                RackNoteModule::Envelope {
+                    params: Default::default(),
+                },
+                6,
+            ),
+            (
+                RackNoteModule::PropertyScaler {
+                    params: Default::default(),
+                },
+                5,
+            ),
+            (
+                RackNoteModule::KeySplitter {
+                    params: Default::default(),
+                    preserve_key: true,
+                },
+                8,
+            ),
+            (
+                RackNoteModule::KeyMapper {
+                    params: Default::default(),
+                    chord: [0; 4],
+                    voices: 1,
+                },
+                133,
+            ),
+            (
+                RackNoteModule::Sequencer {
+                    params: Default::default(),
+                },
+                53,
+            ),
         ];
         for (module, count) in modules {
             for index in 0..count {
                 let info = module.parameter_info(index).unwrap();
                 for value in [info.min, info.max] {
                     let mut next = module;
-                    assert!(next.set_parameter(index, value), "{} {index}", module.kind_id());
+                    assert!(
+                        next.set_parameter(index, value),
+                        "{} {index}",
+                        module.kind_id()
+                    );
                     assert_eq!(next.parameter(index), Some(value));
                     assert!(next.valid());
                 }
@@ -447,37 +565,77 @@ mod tests {
 
     #[test]
     fn automated_controls_change_routes_keys_properties_and_envelope_shape() {
-        let mut color = RackNoteModule::ColorRouter { params: Default::default() };
+        let mut color = RackNoteModule::ColorRouter {
+            params: Default::default(),
+        };
         assert!(color.set_parameter(0, 9.0));
         assert_eq!(mapped(color, RackNote::default())[0].channel, 9);
-        let mut splitter = RackNoteModule::KeySplitter { params: Default::default(), preserve_key: true };
+        let mut splitter = RackNoteModule::KeySplitter {
+            params: Default::default(),
+            preserve_key: true,
+        };
         assert!(splitter.set_parameter(6, 8.0));
         assert!(splitter.set_parameter(7, 0.0));
-        assert_eq!((mapped(splitter, RackNote::default())[0].channel, mapped(splitter, RackNote::default())[0].key), (8, 72));
-        let mut mapper = RackNoteModule::KeyMapper { params: Default::default(), chord: [0; 4], voices: 1 };
+        assert_eq!(
+            (
+                mapped(splitter, RackNote::default())[0].channel,
+                mapped(splitter, RackNote::default())[0].key
+            ),
+            (8, 72)
+        );
+        let mut mapper = RackNoteModule::KeyMapper {
+            params: Default::default(),
+            chord: [0; 4],
+            voices: 1,
+        };
         assert!(mapper.set_parameter(60, 65.0));
         assert!(mapper.set_parameter(128, 2.0));
         assert!(mapper.set_parameter(130, 7.0));
-        assert_eq!(mapped(mapper, RackNote::default()).iter().map(|n| n.key).collect::<Vec<_>>(), [65, 72]);
-        let mut scaler = RackNoteModule::PropertyScaler { params: Default::default() };
+        assert_eq!(
+            mapped(mapper, RackNote::default())
+                .iter()
+                .map(|n| n.key)
+                .collect::<Vec<_>>(),
+            [65, 72]
+        );
+        let mut scaler = RackNoteModule::PropertyScaler {
+            params: Default::default(),
+        };
         assert!(scaler.set_parameter(2, 50.0));
         assert_eq!(mapped(scaler, RackNote::default())[0].velocity, 0.5);
-        let mut envelope = RackNoteModule::Envelope { params: Default::default() };
+        let mut envelope = RackNoteModule::Envelope {
+            params: Default::default(),
+        };
         assert!(envelope.set_parameter(1, 100.0));
-        assert_eq!(mapped(envelope, RackNote::default())[0].envelopes[0].unwrap().level(0.05), 0.5);
+        assert_eq!(
+            mapped(envelope, RackNote::default())[0].envelopes[0]
+                .unwrap()
+                .level(0.05),
+            0.5
+        );
     }
 
     #[test]
     fn serial_envelope_modules_preserve_independent_shapes_and_refuse_ninth() {
-        let a = NoteEnvelope { attack_ms: 100.0, ..Default::default() };
-        let b = NoteEnvelope { destination: EnvelopeDestination::Pitch, attack_ms: 200.0, ..Default::default() };
+        let a = NoteEnvelope {
+            attack_ms: 100.0,
+            ..Default::default()
+        };
+        let b = NoteEnvelope {
+            destination: EnvelopeDestination::Pitch,
+            attack_ms: 200.0,
+            ..Default::default()
+        };
         let first = mapped(RackNoteModule::Envelope { params: a }, RackNote::default())[0];
         let second = mapped(RackNoteModule::Envelope { params: b }, first)[0];
         assert_eq!(second.envelopes[0], Some(a));
         assert_eq!(second.envelopes[1], Some(b));
         assert_eq!(second.envelopes[0].unwrap().level(0.05), 0.5);
         assert_eq!(second.envelopes[1].unwrap().level(0.05), 0.25);
-        let full = RackNote { envelopes: [Some(a); MAX_NOTE_ENVELOPES], ..Default::default() };
+        let full = RackNote {
+            envelopes: [Some(a); MAX_NOTE_ENVELOPES],
+            ..Default::default()
+        };
         assert!(mapped(RackNoteModule::Envelope { params: b }, full).is_empty());
     }
 

@@ -10,10 +10,9 @@ use clap_sys::events::{
     CLAP_CORE_EVENT_SPACE_ID, CLAP_EVENT_MIDI, CLAP_EVENT_NOTE_CHOKE, CLAP_EVENT_NOTE_END,
     CLAP_EVENT_NOTE_EXPRESSION, CLAP_EVENT_NOTE_OFF, CLAP_EVENT_NOTE_ON,
     CLAP_EVENT_PARAM_GESTURE_BEGIN, CLAP_EVENT_PARAM_GESTURE_END, CLAP_EVENT_PARAM_VALUE,
-    CLAP_TRANSPORT_HAS_BEATS_TIMELINE,
-    CLAP_TRANSPORT_HAS_TEMPO, CLAP_TRANSPORT_IS_PLAYING, clap_event_header, clap_event_midi,
-    clap_event_note, clap_event_note_expression, clap_event_param_gesture, clap_event_param_value,
-    clap_input_events, clap_output_events,
+    CLAP_TRANSPORT_HAS_BEATS_TIMELINE, CLAP_TRANSPORT_HAS_TEMPO, CLAP_TRANSPORT_IS_PLAYING,
+    clap_event_header, clap_event_midi, clap_event_note, clap_event_note_expression,
+    clap_event_param_gesture, clap_event_param_value, clap_input_events, clap_output_events,
 };
 use clap_sys::fixedpoint::CLAP_BEATTIME_FACTOR;
 use clap_sys::host::clap_host;
@@ -851,9 +850,20 @@ fn start_voice(audio: &mut Audio, key: i16, channel: i16, note_id: i32, velocity
 ///
 /// # Safety
 /// `out` must be null or the host's valid output list.
-unsafe fn end_voices(audio: &mut Audio, key: i16, channel: i16, id: i32, time: u32, out: *const clap_output_events) {
+unsafe fn end_voices(
+    audio: &mut Audio,
+    key: i16,
+    channel: i16,
+    id: i32,
+    time: u32,
+    out: *const clap_output_events,
+) {
     for voice in &mut audio.voices {
-        if voice.active && (key < 0 || voice.key == key) && (channel < 0 || voice.channel == channel) && (id < 0 || voice.note_id == id) {
+        if voice.active
+            && (key < 0 || voice.key == key)
+            && (channel < 0 || voice.channel == channel)
+            && (id < 0 || voice.note_id == id)
+        {
             voice.active = false;
             let ended = clap_event_note {
                 header: header::<clap_event_note>(time, CLAP_EVENT_NOTE_END),
@@ -908,20 +918,36 @@ unsafe fn process_sine(
                     // SAFETY: the type says which struct the header begins.
                     let note = unsafe { &*(event as *const clap_event_note) };
                     // SAFETY: the output list is the host's.
-                    unsafe { end_voices(audio, note.key, note.channel, note.note_id, head.time, block.out_events) };
+                    unsafe {
+                        end_voices(
+                            audio,
+                            note.key,
+                            note.channel,
+                            note.note_id,
+                            head.time,
+                            block.out_events,
+                        )
+                    };
                 }
                 CLAP_EVENT_NOTE_EXPRESSION if !midi_only => {
                     // SAFETY: the event header selects the expression struct.
                     let note = unsafe { &*(event as *const clap_event_note_expression) };
-                    for voice in audio.voices.iter_mut().filter(|voice| voice.active &&
-                        (note.note_id < 0 || voice.note_id == note.note_id) &&
-                        (note.channel < 0 || voice.channel == note.channel) &&
-                        (note.key < 0 || voice.key == note.key)) {
+                    for voice in audio.voices.iter_mut().filter(|voice| {
+                        voice.active
+                            && (note.note_id < 0 || voice.note_id == note.note_id)
+                            && (note.channel < 0 || voice.channel == note.channel)
+                            && (note.key < 0 || voice.key == note.key)
+                    }) {
                         match note.expression_id {
                             0 | 6 => voice.gain = note.value, // linear volume / pressure fixture probe
                             1 => voice.pan = note.value,
-                            2 => voice.step = std::f64::consts::TAU * 440.0 *
-                                2.0_f64.powf((f64::from(voice.key) + note.value - 69.0) / 12.0) / audio.sample_rate,
+                            2 => {
+                                voice.step = std::f64::consts::TAU
+                                    * 440.0
+                                    * 2.0_f64
+                                        .powf((f64::from(voice.key) + note.value - 69.0) / 12.0)
+                                    / audio.sample_rate
+                            }
                             _ => {}
                         }
                     }
@@ -938,7 +964,14 @@ unsafe fn process_sine(
                         }
                         // SAFETY: the output list is the host's.
                         0x80 | 0x90 => unsafe {
-                            end_voices(audio, i16::from(key), channel, -1, head.time, block.out_events);
+                            end_voices(
+                                audio,
+                                i16::from(key),
+                                channel,
+                                -1,
+                                head.time,
+                                block.out_events,
+                            );
                         },
                         // All sound off and all notes off.
                         // SAFETY: the output list is the host's.
@@ -949,9 +982,16 @@ unsafe fn process_sine(
                             let bend = f64::from(u16::from(key) | (u16::from(velocity) << 7));
                             let semitones = (bend - 8192.0) / 8192.0 * 2.0;
                             audio.midi_bend[channel as usize] = semitones;
-                            for voice in audio.voices.iter_mut().filter(|voice| voice.active && voice.channel == channel) {
-                                voice.step = std::f64::consts::TAU * 440.0 *
-                                    2.0_f64.powf((f64::from(voice.key) + semitones - 69.0) / 12.0) / audio.sample_rate;
+                            for voice in audio
+                                .voices
+                                .iter_mut()
+                                .filter(|voice| voice.active && voice.channel == channel)
+                            {
+                                voice.step = std::f64::consts::TAU
+                                    * 440.0
+                                    * 2.0_f64
+                                        .powf((f64::from(voice.key) + semitones - 69.0) / 12.0)
+                                    / audio.sample_rate;
                             }
                         }
                         _ => {}

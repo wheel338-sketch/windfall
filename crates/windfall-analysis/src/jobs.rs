@@ -126,7 +126,8 @@ pub trait AnalysisAdapter: Send + Sync + 'static {
     fn id(&self) -> &str;
     fn version(&self) -> &str;
     fn accepts_model(&self, model: &ModelManifest) -> bool {
-        model.provenance.adapter_id == self.id() && model.provenance.adapter_version == self.version()
+        model.provenance.adapter_id == self.id()
+            && model.provenance.adapter_version == self.version()
     }
     fn required_scratch_bytes(&self, _task: crate::InferenceTask) -> u64 {
         0
@@ -1004,17 +1005,21 @@ fn execute(shared: &Arc<Shared>, id: JobId, task: Task, cancel: CancelToken) -> 
     };
     let mut writer = if request.model.provenance.adapter_id == crate::separation::ADAPTER_ID {
         ArtifactWriter::new_at_rate(
-        &shared.config.staging_root,
-        &request.model,
-        request.input.stamp().selection.frames()?,
-        request.input.stamp().selection.start,
-        request.budget.output_bytes,
-        request.input.stamp().input_shape.sample_rate,
+            &shared.config.staging_root,
+            &request.model,
+            request.input.stamp().selection.frames()?,
+            request.input.stamp().selection.start,
+            request.budget.output_bytes,
+            request.input.stamp().input_shape.sample_rate,
         )?
     } else {
-        ArtifactWriter::new(&shared.config.staging_root, &request.model,
-            request.input.stamp().selection.frames()?, request.input.stamp().selection.start,
-            request.budget.output_bytes)?
+        ArtifactWriter::new(
+            &shared.config.staging_root,
+            &request.model,
+            request.input.stamp().selection.frames()?,
+            request.input.stamp().selection.start,
+            request.budget.output_bytes,
+        )?
     };
     lock(&shared.state)
         .records

@@ -128,7 +128,11 @@ impl Default for MidiOutParams {
             controllers: [MidiOutController::default(); MIDI_OUT_CONTROLLERS],
             output_port: 0,
             plugin_destination: 0,
-            feedback_enabled: false, feedback_controller: 0, feedback_motor: 0, feedback_strength: 1.0, feedback_curve: 1.0,
+            feedback_enabled: false,
+            feedback_controller: 0,
+            feedback_motor: 0,
+            feedback_strength: 1.0,
+            feedback_curve: 1.0,
         }
     }
 }
@@ -248,14 +252,26 @@ impl MidiOut {
             frame: UNSTAMPED,
             bytes,
             len,
-            output_port: if self.params.feedback_enabled { PROJECT_FEEDBACK_PORT } else { self.params.output_port as u8 },
-            plugin_destination: if self.params.feedback_enabled { 0 } else { self.params.plugin_destination as u32 },
+            output_port: if self.params.feedback_enabled {
+                PROJECT_FEEDBACK_PORT
+            } else {
+                self.params.output_port as u8
+            },
+            plugin_destination: if self.params.feedback_enabled {
+                0
+            } else {
+                self.params.plugin_destination as u32
+            },
         };
         self.len += 1;
     }
 
     fn routed_channel(params: &MidiOutParams) -> i32 {
-        if params.feedback_enabled { params.feedback_controller * 3 + params.feedback_motor + 1 } else { params.channel.clamp(1,16) }
+        if params.feedback_enabled {
+            params.feedback_controller * 3 + params.feedback_motor + 1
+        } else {
+            params.channel.clamp(1, 16)
+        }
     }
     fn status(kind: u8, channel: i32) -> u8 {
         kind | (channel.clamp(1, 16) as u8 - 1)
@@ -385,8 +401,14 @@ impl Instrument for MidiOut {
         }
         self.release(key);
         let channel = Self::routed_channel(&self.params);
-        let velocity = if self.params.feedback_enabled { velocity.min(1.0).powf(self.params.feedback_curve) * self.params.feedback_strength } else { velocity.min(1.0) };
-        if velocity <= 0.0 { return; }
+        let velocity = if self.params.feedback_enabled {
+            velocity.min(1.0).powf(self.params.feedback_curve) * self.params.feedback_strength
+        } else {
+            velocity.min(1.0)
+        };
+        if velocity <= 0.0 {
+            return;
+        }
         let velocity = (velocity * 127.0).round().clamp(1.0, 127.0) as u8;
         self.held[usize::from(key)] = channel as u8;
         self.push([Self::status(0x90, channel), key, velocity], 3);
@@ -400,7 +422,14 @@ impl Instrument for MidiOut {
         let any = self.held.iter().any(|channel| *channel != 0);
         self.release_all();
         if any {
-            self.push([Self::status(0xb0, Self::routed_channel(&self.params)), 123, 0], 3);
+            self.push(
+                [
+                    Self::status(0xb0, Self::routed_channel(&self.params)),
+                    123,
+                    0,
+                ],
+                3,
+            );
         }
     }
 
@@ -693,15 +722,34 @@ mod tests {
     }
     #[test]
     fn project_feedback_encodes_controller_motor_and_curve_and_balances_route_changes() {
-        let mut out=ready(MidiOutParams { feedback_enabled:true,feedback_controller:2,feedback_motor:1,feedback_strength:0.5,feedback_curve:2.0,..Default::default() });
-        let _=taken(&mut out);out.note_on(60,0.5);
-        let mut events=Vec::new();out.drain(&mut |event|events.push(event));
-        assert_eq!(events[0].message(),&[0x97,60,16]);assert_eq!(events[0].output_port,PROJECT_FEEDBACK_PORT);assert_eq!(events[0].plugin_destination,0);
-        let mut params=out.params;params.feedback_controller=3;params.feedback_motor=2;out.set_params(&params);
-        events.clear();out.drain(&mut |event|events.push(event));
-        assert_eq!(events[0].message(),&[0x87,60,0]);assert_eq!(events[0].output_port,PROJECT_FEEDBACK_PORT);
-        out.note_on(61,1.0);events.clear();out.drain(&mut |event|events.push(event));assert_eq!(events[0].message(),&[0x9b,61,64]);
-        out.note_off(61);assert_eq!(taken(&mut out),vec![vec![0x8b,61,0]]);
+        let mut out = ready(MidiOutParams {
+            feedback_enabled: true,
+            feedback_controller: 2,
+            feedback_motor: 1,
+            feedback_strength: 0.5,
+            feedback_curve: 2.0,
+            ..Default::default()
+        });
+        let _ = taken(&mut out);
+        out.note_on(60, 0.5);
+        let mut events = Vec::new();
+        out.drain(&mut |event| events.push(event));
+        assert_eq!(events[0].message(), &[0x97, 60, 16]);
+        assert_eq!(events[0].output_port, PROJECT_FEEDBACK_PORT);
+        assert_eq!(events[0].plugin_destination, 0);
+        let mut params = out.params;
+        params.feedback_controller = 3;
+        params.feedback_motor = 2;
+        out.set_params(&params);
+        events.clear();
+        out.drain(&mut |event| events.push(event));
+        assert_eq!(events[0].message(), &[0x87, 60, 0]);
+        assert_eq!(events[0].output_port, PROJECT_FEEDBACK_PORT);
+        out.note_on(61, 1.0);
+        events.clear();
+        out.drain(&mut |event| events.push(event));
+        assert_eq!(events[0].message(), &[0x9b, 61, 64]);
+        out.note_off(61);
+        assert_eq!(taken(&mut out), vec![vec![0x8b, 61, 0]]);
     }
-
 }

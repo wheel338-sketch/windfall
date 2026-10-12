@@ -5,29 +5,70 @@ use windfall_project::{
     ChannelId, Command, InstrumentKind, SamplePlayback, SettingsPatch, slicer::SliceOptions,
 };
 #[test]
-fn native_two_deck_wav_interchange_restores_attributes_labels_beats_history_and_shared_owned_source() {
+fn native_two_deck_wav_interchange_restores_attributes_labels_beats_history_and_shared_owned_source()
+ {
     use windfall_dsp::granular::SliceRegion;
     use windfall_project::SampleId;
     let rig = Rig::new();
     let channel = source(&rig);
     let b_path = rig.file("deck-b.wav");
-    write_wav(&b_path, &AudioBuffer::from_interleaved(48000, 1, vec![-0.5; 48000]), WavSampleFormat::Float32).unwrap();
-    let b = SampleId(rig.session.add_channel_from_file(&b_path, None).unwrap().created[0]);
-    let mut asset = rig.project().channel(channel).unwrap().sample_playback.clone().unwrap();
+    write_wav(
+        &b_path,
+        &AudioBuffer::from_interleaved(48000, 1, vec![-0.5; 48000]),
+        WavSampleFormat::Float32,
+    )
+    .unwrap();
+    let b = SampleId(
+        rig.session
+            .add_channel_from_file(&b_path, None)
+            .unwrap()
+            .created[0],
+    );
+    let mut asset = rig
+        .project()
+        .channel(channel)
+        .unwrap()
+        .sample_playback
+        .clone()
+        .unwrap();
     asset.sample_b = Some(b);
     asset.source_beats = 3.125;
     asset.source_bpm = 97.5;
     asset.slices = vec![
-        SliceRegion { start: 0.25, end: 0.5, gain: 0.5, pitch: -12.0,
-            attack_ms: 3.0, release_ms: 25.0, reverse: true,
-            label: "A phrase".into(), ..Default::default() },
-        SliceRegion { start: 0.0, end: 0.5, deck: 1, label: "B phrase".into(), ..Default::default() },
+        SliceRegion {
+            start: 0.25,
+            end: 0.5,
+            gain: 0.5,
+            pitch: -12.0,
+            attack_ms: 3.0,
+            release_ms: 25.0,
+            reverse: true,
+            label: "A phrase".into(),
+            ..Default::default()
+        },
+        SliceRegion {
+            start: 0.0,
+            end: 0.5,
+            deck: 1,
+            label: "B phrase".into(),
+            ..Default::default()
+        },
     ];
-    rig.session.dispatch(Command::SetSamplePlayback { channel, asset: Some(asset.clone()) }, None).unwrap();
+    rig.session
+        .dispatch(
+            Command::SetSamplePlayback {
+                channel,
+                asset: Some(asset.clone()),
+            },
+            None,
+        )
+        .unwrap();
     let guard = rig.session.timeline_state();
     let path = rig.file("two-decks.wav");
     let before = rig.session.document_snapshot();
-    rig.session.sample_playback_export(channel, &path, guard.generation, guard.revision).unwrap();
+    rig.session
+        .sample_playback_export(channel, &path, guard.generation, guard.revision)
+        .unwrap();
     assert_eq!(rig.session.document_snapshot(), before);
     let pcm = windfall_codec::decode_file(&path).unwrap();
     assert_eq!(pcm.frames(), 144000);
@@ -45,8 +86,10 @@ fn native_two_deck_wav_interchange_restores_attributes_labels_beats_history_and_
             while sub < at + 8 + size {
                 let len = le(sub + 4) as usize;
                 match &bytes[sub..sub + 4] {
-                    b"note" => notes.push(std::str::from_utf8(&bytes[sub + 12..sub + 8 + len - 1]).unwrap()),
-                    b"labl" => labels.push(std::str::from_utf8(&bytes[sub + 12..sub + 8 + len - 1]).unwrap()),
+                    b"note" => notes
+                        .push(std::str::from_utf8(&bytes[sub + 12..sub + 8 + len - 1]).unwrap()),
+                    b"labl" => labels
+                        .push(std::str::from_utf8(&bytes[sub + 12..sub + 8 + len - 1]).unwrap()),
                     b"ltxt" => regions.push(le(sub + 12)),
                     _ => {}
                 }
@@ -57,21 +100,63 @@ fn native_two_deck_wav_interchange_restores_attributes_labels_beats_history_and_
     }
     assert_eq!(labels, ["A phrase", "B phrase"]);
     assert_eq!(regions, [24000, 24000]);
-    assert_eq!(notes, ["WindfallSlice/1 0.5 -12 3 25 1 0", "WindfallSlice/1 1 0 1 4 0 1", "WindfallBeats/1 97.5 3.125"]);
+    assert_eq!(
+        notes,
+        [
+            "WindfallSlice/1 0.5 -12 3 25 1 0",
+            "WindfallSlice/1 1 0 1 4 0 1",
+            "WindfallBeats/1 97.5 3.125"
+        ]
+    );
     let imported = rig.session.add_channel_from_file(&path, None).unwrap();
     let shared = SampleId(imported.created[0]);
-    rig.session.dispatch(Command::SetSamplePlayback { channel,
-        asset: Some(SamplePlayback { sample: Some(shared), ..Default::default() }) }, None).unwrap();
+    rig.session
+        .dispatch(
+            Command::SetSamplePlayback {
+                channel,
+                asset: Some(SamplePlayback {
+                    sample: Some(shared),
+                    ..Default::default()
+                }),
+            },
+            None,
+        )
+        .unwrap();
     let before = rig.project();
     let guard = rig.session.timeline_state();
-    rig.session.sample_playback_detect(channel, SliceOptions::WavMarkers, guard.generation, guard.revision).unwrap();
+    rig.session
+        .sample_playback_detect(
+            channel,
+            SliceOptions::WavMarkers,
+            guard.generation,
+            guard.revision,
+        )
+        .unwrap();
     let restored = rig.project();
-    let settings = restored.channel(channel).unwrap().sample_playback.as_ref().unwrap();
-    assert_eq!((settings.sample, settings.sample_b), (Some(shared), Some(shared)));
+    let settings = restored
+        .channel(channel)
+        .unwrap()
+        .sample_playback
+        .as_ref()
+        .unwrap();
+    assert_eq!(
+        (settings.sample, settings.sample_b),
+        (Some(shared), Some(shared))
+    );
     assert_eq!((settings.source_bpm, settings.source_beats), (97.5, 3.125));
     assert_eq!(settings.slices[0].label, "A phrase");
-    assert_eq!((settings.slices[0].gain, settings.slices[0].pitch, settings.slices[0].reverse), (0.5, -12.0, true));
-    assert_eq!((settings.slices[0].attack_ms, settings.slices[0].release_ms), (3.0, 25.0));
+    assert_eq!(
+        (
+            settings.slices[0].gain,
+            settings.slices[0].pitch,
+            settings.slices[0].reverse
+        ),
+        (0.5, -12.0, true)
+    );
+    assert_eq!(
+        (settings.slices[0].attack_ms, settings.slices[0].release_ms),
+        (3.0, 25.0)
+    );
     assert_eq!(settings.slices[1].deck, 1);
     rig.session.undo().unwrap();
     assert_eq!(rig.project(), before);
@@ -79,13 +164,18 @@ fn native_two_deck_wav_interchange_restores_attributes_labels_beats_history_and_
     assert_eq!(rig.project(), restored);
     let again = rig.file("two-decks-again.wav");
     let guard = rig.session.timeline_state();
-    rig.session.sample_playback_export(channel, &again, guard.generation, guard.revision).unwrap();
+    rig.session
+        .sample_playback_export(channel, &again, guard.generation, guard.revision)
+        .unwrap();
     assert_eq!(std::fs::read(&again).unwrap(), bytes);
     let save = rig.file("two-decks.windfall");
     rig.session.project_save(Some(&save)).unwrap();
     rig.session.project_new().unwrap();
     rig.session.project_open(&save).unwrap();
-    assert_eq!(rig.project().channel(channel).unwrap().sample_playback, restored.channel(channel).unwrap().sample_playback);
+    assert_eq!(
+        rig.project().channel(channel).unwrap().sample_playback,
+        restored.channel(channel).unwrap().sample_playback
+    );
 }
 fn source(rig: &Rig) -> ChannelId {
     let path = rig.folder.path().join("authored-loop.wav");

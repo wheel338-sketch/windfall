@@ -12245,6 +12245,86 @@
         }
       ]
     },
+    "musicLighting": {
+      "defaults": {
+        "blue": 0,
+        "device": 0,
+        "green": 64,
+        "level": 1.0,
+        "mode": 2,
+        "red": 255,
+        "type": "musicLighting"
+      },
+      "name": "Music lighting",
+      "params": [
+        {
+          "choices": [],
+          "default": 2.0,
+          "id": "mode",
+          "kind": "integer",
+          "max": 2.0,
+          "min": 0.0,
+          "name": "Source (tempo, audio, both)",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": 0.0,
+          "id": "device",
+          "kind": "integer",
+          "max": 6.0,
+          "min": 0.0,
+          "name": "Device (all, keyboard, mouse, pad, headset, keypad, link)",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": 1.0,
+          "id": "level",
+          "kind": "float",
+          "max": 1.0,
+          "min": 0.0,
+          "name": "Brightness",
+          "scale": "linear",
+          "unit": "fraction"
+        },
+        {
+          "choices": [],
+          "default": 255.0,
+          "id": "red",
+          "kind": "integer",
+          "max": 255.0,
+          "min": 0.0,
+          "name": "Red",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": 64.0,
+          "id": "green",
+          "kind": "integer",
+          "max": 255.0,
+          "min": 0.0,
+          "name": "Green",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": 0.0,
+          "id": "blue",
+          "kind": "integer",
+          "max": 255.0,
+          "min": 0.0,
+          "name": "Blue",
+          "scale": "linear",
+          "unit": "none"
+        }
+      ]
+    },
     "noteEnvelope": {
       "defaults": {
         "attackMs": 10.0,
@@ -18133,6 +18213,11 @@
             "value": 0
           }
         ],
+        "feedbackController": 0,
+        "feedbackCurve": 1.0,
+        "feedbackEnabled": false,
+        "feedbackMotor": 0,
+        "feedbackStrength": 1.0,
         "pitchBend": 0.0,
         "program": 0,
         "type": "dashboard"
@@ -18367,6 +18452,61 @@
           "max": 127.0,
           "min": 0.0,
           "name": "Controller 8",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": 0.0,
+          "id": "feedbackEnabled",
+          "kind": "toggle",
+          "max": 1.0,
+          "min": 0.0,
+          "name": "Project controller feedback",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": 0.0,
+          "id": "feedbackController",
+          "kind": "integer",
+          "max": 3.0,
+          "min": 0.0,
+          "name": "Controller index",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": 0.0,
+          "id": "feedbackMotor",
+          "kind": "integer",
+          "max": 2.0,
+          "min": 0.0,
+          "name": "Motor (low, high, both)",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": 1.0,
+          "id": "feedbackStrength",
+          "kind": "float",
+          "max": 1.0,
+          "min": 0.0,
+          "name": "Maximum motor strength",
+          "scale": "linear",
+          "unit": "fraction"
+        },
+        {
+          "choices": [],
+          "default": 1.0,
+          "id": "feedbackCurve",
+          "kind": "float",
+          "max": 4.0,
+          "min": 0.25,
+          "name": "Velocity strength curve",
           "scale": "linear",
           "unit": "none"
         }
@@ -28249,6 +28389,11 @@
             "value": 0
           }
         ],
+        "feedbackController": 0,
+        "feedbackCurve": 1.0,
+        "feedbackEnabled": false,
+        "feedbackMotor": 0,
+        "feedbackStrength": 1.0,
         "pitchBend": 0.0,
         "program": 0,
         "type": "midiOut"
@@ -28485,14 +28630,105 @@
           "name": "Controller 8",
           "scale": "linear",
           "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": 0.0,
+          "id": "feedbackEnabled",
+          "kind": "toggle",
+          "max": 1.0,
+          "min": 0.0,
+          "name": "Project controller feedback",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": 0.0,
+          "id": "feedbackController",
+          "kind": "integer",
+          "max": 3.0,
+          "min": 0.0,
+          "name": "Controller index",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": 0.0,
+          "id": "feedbackMotor",
+          "kind": "integer",
+          "max": 2.0,
+          "min": 0.0,
+          "name": "Motor (low, high, both)",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": 1.0,
+          "id": "feedbackStrength",
+          "kind": "float",
+          "max": 1.0,
+          "min": 0.0,
+          "name": "Maximum motor strength",
+          "scale": "linear",
+          "unit": "fraction"
+        },
+        {
+          "choices": [],
+          "default": 1.0,
+          "id": "feedbackCurve",
+          "kind": "float",
+          "max": 4.0,
+          "min": 0.25,
+          "name": "Velocity strength curve",
+          "scale": "linear",
+          "unit": "none"
         }
       ]
     },
     "multiSampler": {
       "defaults": {
         "brightness": 1.0,
+        "chorus": {
+          "delayMs": 12.0,
+          "depthMs": 4.0,
+          "mix": 0.0,
+          "rate1Hz": 0.6000000238418579,
+          "rate2Hz": 0.800000011920929,
+          "rate3Hz": 1.100000023841858,
+          "stereoPhase": 0.25
+        },
+        "delay": {
+          "division": "eighth",
+          "feedback": 0.3499999940395355,
+          "highCutHz": 12000.0,
+          "lowCutHz": 20.0,
+          "mix": 0.0,
+          "modDepthMs": 0.0,
+          "modRateHz": 0.0,
+          "mode": "stereo",
+          "saturation": 0.0,
+          "stereoOffsetMs": 0.0,
+          "sync": true,
+          "timeMs": 250.0
+        },
         "level": 0.5,
         "releaseMs": 100.0,
+        "reverb": {
+          "damping": 0.5,
+          "decayS": 1.7999999523162842,
+          "diffusion": 0.800000011920929,
+          "earlyLevel": 0.5,
+          "highCutHz": 10000.0,
+          "lowCutHz": 100.0,
+          "mix": 0.0,
+          "modulation": 0.25,
+          "preDelayMs": 10.0,
+          "size": 0.5,
+          "width": 1.0
+        },
         "tune": 0.0,
         "type": "multiSampler"
       },
@@ -28541,6 +28777,149 @@
           "name": "Brightness",
           "scale": "linear",
           "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": 0.0,
+          "id": "chorus.mix",
+          "kind": "float",
+          "max": 1.0,
+          "min": 0.0,
+          "name": "Chorus mix",
+          "scale": "linear",
+          "unit": "fraction"
+        },
+        {
+          "choices": [],
+          "default": 4.0,
+          "id": "chorus.depthMs",
+          "kind": "float",
+          "max": 10.0,
+          "min": 0.0,
+          "name": "Chorus depth",
+          "scale": "linear",
+          "unit": "milliseconds"
+        },
+        {
+          "choices": [],
+          "default": 0.6000000238418579,
+          "id": "chorus.rate1Hz",
+          "kind": "float",
+          "max": 5.0,
+          "min": 0.0,
+          "name": "Chorus voice 1 rate",
+          "scale": "linear",
+          "unit": "hertz"
+        },
+        {
+          "choices": [],
+          "default": 0.800000011920929,
+          "id": "chorus.rate2Hz",
+          "kind": "float",
+          "max": 5.0,
+          "min": 0.0,
+          "name": "Chorus voice 2 rate",
+          "scale": "linear",
+          "unit": "hertz"
+        },
+        {
+          "choices": [],
+          "default": 1.100000023841858,
+          "id": "chorus.rate3Hz",
+          "kind": "float",
+          "max": 5.0,
+          "min": 0.0,
+          "name": "Chorus voice 3 rate",
+          "scale": "linear",
+          "unit": "hertz"
+        },
+        {
+          "choices": [],
+          "default": 0.0,
+          "id": "delay.mix",
+          "kind": "float",
+          "max": 1.0,
+          "min": 0.0,
+          "name": "Delay mix",
+          "scale": "linear",
+          "unit": "fraction"
+        },
+        {
+          "choices": [],
+          "default": 1.0,
+          "id": "delay.sync",
+          "kind": "toggle",
+          "max": 1.0,
+          "min": 0.0,
+          "name": "Delay sync",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": 250.0,
+          "id": "delay.timeMs",
+          "kind": "float",
+          "max": 2000.0,
+          "min": 1.0,
+          "name": "Delay time",
+          "scale": "linear",
+          "unit": "milliseconds"
+        },
+        {
+          "choices": [],
+          "default": 0.3499999940395355,
+          "id": "delay.feedback",
+          "kind": "float",
+          "max": 0.949999988079071,
+          "min": 0.0,
+          "name": "Delay feedback",
+          "scale": "linear",
+          "unit": "fraction"
+        },
+        {
+          "choices": [],
+          "default": 0.0,
+          "id": "reverb.mix",
+          "kind": "float",
+          "max": 1.0,
+          "min": 0.0,
+          "name": "Reverb mix",
+          "scale": "linear",
+          "unit": "fraction"
+        },
+        {
+          "choices": [],
+          "default": 1.7999999523162842,
+          "id": "reverb.decayS",
+          "kind": "float",
+          "max": 20.0,
+          "min": 0.10000000149011612,
+          "name": "Reverb decay",
+          "scale": "logarithmic",
+          "unit": "seconds"
+        },
+        {
+          "choices": [],
+          "default": 0.5,
+          "id": "reverb.damping",
+          "kind": "float",
+          "max": 1.0,
+          "min": 0.0,
+          "name": "Reverb damping",
+          "scale": "linear",
+          "unit": "fraction"
+        },
+        {
+          "choices": [],
+          "default": 10.0,
+          "id": "reverb.preDelayMs",
+          "kind": "float",
+          "max": 250.0,
+          "min": 0.0,
+          "name": "Reverb pre-delay",
+          "scale": "linear",
+          "unit": "milliseconds"
         }
       ]
     },
@@ -37633,6 +38012,2827 @@
           "name": "Position 8",
           "scale": "linear",
           "unit": "fraction"
+        }
+      ]
+    }
+  },
+  "noteModules": {
+    "colorRouter": {
+      "defaults": {
+        "params": {
+          "table": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15
+          ]
+        },
+        "type": "colorRouter"
+      },
+      "name": "colorRouter",
+      "params": [
+        {
+          "choices": [],
+          "default": 0.0,
+          "id": "params.table.0",
+          "kind": "integer",
+          "max": 15.0,
+          "min": 0.0,
+          "name": "Color 0",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": 1.0,
+          "id": "params.table.1",
+          "kind": "integer",
+          "max": 15.0,
+          "min": 0.0,
+          "name": "Color 1",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": 2.0,
+          "id": "params.table.2",
+          "kind": "integer",
+          "max": 15.0,
+          "min": 0.0,
+          "name": "Color 2",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": 3.0,
+          "id": "params.table.3",
+          "kind": "integer",
+          "max": 15.0,
+          "min": 0.0,
+          "name": "Color 3",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": 4.0,
+          "id": "params.table.4",
+          "kind": "integer",
+          "max": 15.0,
+          "min": 0.0,
+          "name": "Color 4",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": 5.0,
+          "id": "params.table.5",
+          "kind": "integer",
+          "max": 15.0,
+          "min": 0.0,
+          "name": "Color 5",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": 6.0,
+          "id": "params.table.6",
+          "kind": "integer",
+          "max": 15.0,
+          "min": 0.0,
+          "name": "Color 6",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": 7.0,
+          "id": "params.table.7",
+          "kind": "integer",
+          "max": 15.0,
+          "min": 0.0,
+          "name": "Color 7",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": 8.0,
+          "id": "params.table.8",
+          "kind": "integer",
+          "max": 15.0,
+          "min": 0.0,
+          "name": "Color 8",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": 9.0,
+          "id": "params.table.9",
+          "kind": "integer",
+          "max": 15.0,
+          "min": 0.0,
+          "name": "Color 9",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": 10.0,
+          "id": "params.table.10",
+          "kind": "integer",
+          "max": 15.0,
+          "min": 0.0,
+          "name": "Color 10",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": 11.0,
+          "id": "params.table.11",
+          "kind": "integer",
+          "max": 15.0,
+          "min": 0.0,
+          "name": "Color 11",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": 12.0,
+          "id": "params.table.12",
+          "kind": "integer",
+          "max": 15.0,
+          "min": 0.0,
+          "name": "Color 12",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": 13.0,
+          "id": "params.table.13",
+          "kind": "integer",
+          "max": 15.0,
+          "min": 0.0,
+          "name": "Color 13",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": 14.0,
+          "id": "params.table.14",
+          "kind": "integer",
+          "max": 15.0,
+          "min": 0.0,
+          "name": "Color 14",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": 15.0,
+          "id": "params.table.15",
+          "kind": "integer",
+          "max": 15.0,
+          "min": 0.0,
+          "name": "Color 15",
+          "scale": "linear",
+          "unit": "none"
+        }
+      ]
+    },
+    "envelope": {
+      "defaults": {
+        "params": {
+          "amount": 1.0,
+          "attackMs": 10.0,
+          "decayMs": 100.0,
+          "destination": "gain",
+          "releaseMs": 100.0,
+          "sustain": 0.699999988079071
+        },
+        "type": "envelope"
+      },
+      "name": "envelope",
+      "params": [
+        {
+          "choices": [
+            {
+              "label": "Gain",
+              "value": "gain"
+            },
+            {
+              "label": "Pan",
+              "value": "pan"
+            },
+            {
+              "label": "Pitch",
+              "value": "pitch"
+            },
+            {
+              "label": "Modulation X",
+              "value": "modulationX"
+            },
+            {
+              "label": "Modulation Y",
+              "value": "modulationY"
+            }
+          ],
+          "default": 0.0,
+          "id": "params.destination",
+          "kind": "choice",
+          "max": 4.0,
+          "min": 0.0,
+          "name": "Destination",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": 10.0,
+          "id": "params.attackMs",
+          "kind": "float",
+          "max": 10000.0,
+          "min": 0.0,
+          "name": "Attack",
+          "scale": "linear",
+          "unit": "milliseconds"
+        },
+        {
+          "choices": [],
+          "default": 100.0,
+          "id": "params.decayMs",
+          "kind": "float",
+          "max": 10000.0,
+          "min": 0.0,
+          "name": "Decay",
+          "scale": "linear",
+          "unit": "milliseconds"
+        },
+        {
+          "choices": [],
+          "default": 0.699999988079071,
+          "id": "params.sustain",
+          "kind": "float",
+          "max": 1.0,
+          "min": 0.0,
+          "name": "Sustain",
+          "scale": "linear",
+          "unit": "fraction"
+        },
+        {
+          "choices": [],
+          "default": 100.0,
+          "id": "params.releaseMs",
+          "kind": "float",
+          "max": 10000.0,
+          "min": 0.0,
+          "name": "Release",
+          "scale": "linear",
+          "unit": "milliseconds"
+        },
+        {
+          "choices": [],
+          "default": 1.0,
+          "id": "params.amount",
+          "kind": "float",
+          "max": 1.0,
+          "min": -1.0,
+          "name": "Amount",
+          "scale": "linear",
+          "unit": "fraction"
+        }
+      ]
+    },
+    "keyMapper": {
+      "defaults": {
+        "chord": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "params": {
+          "table": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20,
+            21,
+            22,
+            23,
+            24,
+            25,
+            26,
+            27,
+            28,
+            29,
+            30,
+            31,
+            32,
+            33,
+            34,
+            35,
+            36,
+            37,
+            38,
+            39,
+            40,
+            41,
+            42,
+            43,
+            44,
+            45,
+            46,
+            47,
+            48,
+            49,
+            50,
+            51,
+            52,
+            53,
+            54,
+            55,
+            56,
+            57,
+            58,
+            59,
+            60,
+            61,
+            62,
+            63,
+            64,
+            65,
+            66,
+            67,
+            68,
+            69,
+            70,
+            71,
+            72,
+            73,
+            74,
+            75,
+            76,
+            77,
+            78,
+            79,
+            80,
+            81,
+            82,
+            83,
+            84,
+            85,
+            86,
+            87,
+            88,
+            89,
+            90,
+            91,
+            92,
+            93,
+            94,
+            95,
+            96,
+            97,
+            98,
+            99,
+            100,
+            101,
+            102,
+            103,
+            104,
+            105,
+            106,
+            107,
+            108,
+            109,
+            110,
+            111,
+            112,
+            113,
+            114,
+            115,
+            116,
+            117,
+            118,
+            119,
+            120,
+            121,
+            122,
+            123,
+            124,
+            125,
+            126,
+            127
+          ]
+        },
+        "type": "keyMapper",
+        "voices": 1
+      },
+      "name": "keyMapper",
+      "params": [
+        {
+          "choices": [],
+          "default": 0.0,
+          "id": "params.table.0",
+          "kind": "integer",
+          "max": 127.0,
+          "min": 0.0,
+          "name": "Key 0",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": 1.0,
+          "id": "params.table.1",
+          "kind": "integer",
+          "max": 127.0,
+          "min": 0.0,
+          "name": "Key 1",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": 2.0,
+          "id": "params.table.2",
+          "kind": "integer",
+          "max": 127.0,
+          "min": 0.0,
+          "name": "Key 2",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": 3.0,
+          "id": "params.table.3",
+          "kind": "integer",
+          "max": 127.0,
+          "min": 0.0,
+          "name": "Key 3",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": 4.0,
+          "id": "params.table.4",
+          "kind": "integer",
+          "max": 127.0,
+          "min": 0.0,
+          "name": "Key 4",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": 5.0,
+          "id": "params.table.5",
+          "kind": "integer",
+          "max": 127.0,
+          "min": 0.0,
+          "name": "Key 5",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": 6.0,
+          "id": "params.table.6",
+          "kind": "integer",
+          "max": 127.0,
+          "min": 0.0,
+          "name": "Key 6",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": 7.0,
+          "id": "params.table.7",
+          "kind": "integer",
+          "max": 127.0,
+          "min": 0.0,
+          "name": "Key 7",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": 8.0,
+          "id": "params.table.8",
+          "kind": "integer",
+          "max": 127.0,
+          "min": 0.0,
+          "name": "Key 8",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": 9.0,
+          "id": "params.table.9",
+          "kind": "integer",
+          "max": 127.0,
+          "min": 0.0,
+          "name": "Key 9",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": 10.0,
+          "id": "params.table.10",
+          "kind": "integer",
+          "max": 127.0,
+          "min": 0.0,
+          "name": "Key 10",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": 11.0,
+          "id": "params.table.11",
+          "kind": "integer",
+          "max": 127.0,
+          "min": 0.0,
+          "name": "Key 11",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": 12.0,
+          "id": "params.table.12",
+          "kind": "integer",
+          "max": 127.0,
+          "min": 0.0,
+          "name": "Key 12",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": 13.0,
+          "id": "params.table.13",
+          "kind": "integer",
+          "max": 127.0,
+          "min": 0.0,
+          "name": "Key 13",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": 14.0,
+          "id": "params.table.14",
+          "kind": "integer",
+          "max": 127.0,
+          "min": 0.0,
+          "name": "Key 14",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": 15.0,
+          "id": "params.table.15",
+          "kind": "integer",
+          "max": 127.0,
+          "min": 0.0,
+          "name": "Key 15",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": 16.0,
+          "id": "params.table.16",
+          "kind": "integer",
+          "max": 127.0,
+          "min": 0.0,
+          "name": "Key 16",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": 17.0,
+          "id": "params.table.17",
+          "kind": "integer",
+          "max": 127.0,
+          "min": 0.0,
+          "name": "Key 17",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": 18.0,
+          "id": "params.table.18",
+          "kind": "integer",
+          "max": 127.0,
+          "min": 0.0,
+          "name": "Key 18",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": 19.0,
+          "id": "params.table.19",
+          "kind": "integer",
+          "max": 127.0,
+          "min": 0.0,
+          "name": "Key 19",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": 20.0,
+          "id": "params.table.20",
+          "kind": "integer",
+          "max": 127.0,
+          "min": 0.0,
+          "name": "Key 20",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": 21.0,
+          "id": "params.table.21",
+          "kind": "integer",
+          "max": 127.0,
+          "min": 0.0,
+          "name": "Key 21",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": 22.0,
+          "id": "params.table.22",
+          "kind": "integer",
+          "max": 127.0,
+          "min": 0.0,
+          "name": "Key 22",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": 23.0,
+          "id": "params.table.23",
+          "kind": "integer",
+          "max": 127.0,
+          "min": 0.0,
+          "name": "Key 23",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": 24.0,
+          "id": "params.table.24",
+          "kind": "integer",
+          "max": 127.0,
+          "min": 0.0,
+          "name": "Key 24",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": 25.0,
+          "id": "params.table.25",
+          "kind": "integer",
+          "max": 127.0,
+          "min": 0.0,
+          "name": "Key 25",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": 26.0,
+          "id": "params.table.26",
+          "kind": "integer",
+          "max": 127.0,
+          "min": 0.0,
+          "name": "Key 26",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": 27.0,
+          "id": "params.table.27",
+          "kind": "integer",
+          "max": 127.0,
+          "min": 0.0,
+          "name": "Key 27",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": 28.0,
+          "id": "params.table.28",
+          "kind": "integer",
+          "max": 127.0,
+          "min": 0.0,
+          "name": "Key 28",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": 29.0,
+          "id": "params.table.29",
+          "kind": "integer",
+          "max": 127.0,
+          "min": 0.0,
+          "name": "Key 29",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": 30.0,
+          "id": "params.table.30",
+          "kind": "integer",
+          "max": 127.0,
+          "min": 0.0,
+          "name": "Key 30",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": 31.0,
+          "id": "params.table.31",
+          "kind": "integer",
+          "max": 127.0,
+          "min": 0.0,
+          "name": "Key 31",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": 32.0,
+          "id": "params.table.32",
+          "kind": "integer",
+          "max": 127.0,
+          "min": 0.0,
+          "name": "Key 32",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": 33.0,
+          "id": "params.table.33",
+          "kind": "integer",
+          "max": 127.0,
+          "min": 0.0,
+          "name": "Key 33",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": 34.0,
+          "id": "params.table.34",
+          "kind": "integer",
+          "max": 127.0,
+          "min": 0.0,
+          "name": "Key 34",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": 35.0,
+          "id": "params.table.35",
+          "kind": "integer",
+          "max": 127.0,
+          "min": 0.0,
+          "name": "Key 35",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": 36.0,
+          "id": "params.table.36",
+          "kind": "integer",
+          "max": 127.0,
+          "min": 0.0,
+          "name": "Key 36",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": 37.0,
+          "id": "params.table.37",
+          "kind": "integer",
+          "max": 127.0,
+          "min": 0.0,
+          "name": "Key 37",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": 38.0,
+          "id": "params.table.38",
+          "kind": "integer",
+          "max": 127.0,
+          "min": 0.0,
+          "name": "Key 38",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": 39.0,
+          "id": "params.table.39",
+          "kind": "integer",
+          "max": 127.0,
+          "min": 0.0,
+          "name": "Key 39",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": 40.0,
+          "id": "params.table.40",
+          "kind": "integer",
+          "max": 127.0,
+          "min": 0.0,
+          "name": "Key 40",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": 41.0,
+          "id": "params.table.41",
+          "kind": "integer",
+          "max": 127.0,
+          "min": 0.0,
+          "name": "Key 41",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": 42.0,
+          "id": "params.table.42",
+          "kind": "integer",
+          "max": 127.0,
+          "min": 0.0,
+          "name": "Key 42",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": 43.0,
+          "id": "params.table.43",
+          "kind": "integer",
+          "max": 127.0,
+          "min": 0.0,
+          "name": "Key 43",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": 44.0,
+          "id": "params.table.44",
+          "kind": "integer",
+          "max": 127.0,
+          "min": 0.0,
+          "name": "Key 44",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": 45.0,
+          "id": "params.table.45",
+          "kind": "integer",
+          "max": 127.0,
+          "min": 0.0,
+          "name": "Key 45",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": 46.0,
+          "id": "params.table.46",
+          "kind": "integer",
+          "max": 127.0,
+          "min": 0.0,
+          "name": "Key 46",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": 47.0,
+          "id": "params.table.47",
+          "kind": "integer",
+          "max": 127.0,
+          "min": 0.0,
+          "name": "Key 47",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": 48.0,
+          "id": "params.table.48",
+          "kind": "integer",
+          "max": 127.0,
+          "min": 0.0,
+          "name": "Key 48",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": 49.0,
+          "id": "params.table.49",
+          "kind": "integer",
+          "max": 127.0,
+          "min": 0.0,
+          "name": "Key 49",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": 50.0,
+          "id": "params.table.50",
+          "kind": "integer",
+          "max": 127.0,
+          "min": 0.0,
+          "name": "Key 50",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": 51.0,
+          "id": "params.table.51",
+          "kind": "integer",
+          "max": 127.0,
+          "min": 0.0,
+          "name": "Key 51",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": 52.0,
+          "id": "params.table.52",
+          "kind": "integer",
+          "max": 127.0,
+          "min": 0.0,
+          "name": "Key 52",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": 53.0,
+          "id": "params.table.53",
+          "kind": "integer",
+          "max": 127.0,
+          "min": 0.0,
+          "name": "Key 53",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": 54.0,
+          "id": "params.table.54",
+          "kind": "integer",
+          "max": 127.0,
+          "min": 0.0,
+          "name": "Key 54",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": 55.0,
+          "id": "params.table.55",
+          "kind": "integer",
+          "max": 127.0,
+          "min": 0.0,
+          "name": "Key 55",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": 56.0,
+          "id": "params.table.56",
+          "kind": "integer",
+          "max": 127.0,
+          "min": 0.0,
+          "name": "Key 56",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": 57.0,
+          "id": "params.table.57",
+          "kind": "integer",
+          "max": 127.0,
+          "min": 0.0,
+          "name": "Key 57",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": 58.0,
+          "id": "params.table.58",
+          "kind": "integer",
+          "max": 127.0,
+          "min": 0.0,
+          "name": "Key 58",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": 59.0,
+          "id": "params.table.59",
+          "kind": "integer",
+          "max": 127.0,
+          "min": 0.0,
+          "name": "Key 59",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": 60.0,
+          "id": "params.table.60",
+          "kind": "integer",
+          "max": 127.0,
+          "min": 0.0,
+          "name": "Key 60",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": 61.0,
+          "id": "params.table.61",
+          "kind": "integer",
+          "max": 127.0,
+          "min": 0.0,
+          "name": "Key 61",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": 62.0,
+          "id": "params.table.62",
+          "kind": "integer",
+          "max": 127.0,
+          "min": 0.0,
+          "name": "Key 62",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": 63.0,
+          "id": "params.table.63",
+          "kind": "integer",
+          "max": 127.0,
+          "min": 0.0,
+          "name": "Key 63",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": 64.0,
+          "id": "params.table.64",
+          "kind": "integer",
+          "max": 127.0,
+          "min": 0.0,
+          "name": "Key 64",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": 65.0,
+          "id": "params.table.65",
+          "kind": "integer",
+          "max": 127.0,
+          "min": 0.0,
+          "name": "Key 65",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": 66.0,
+          "id": "params.table.66",
+          "kind": "integer",
+          "max": 127.0,
+          "min": 0.0,
+          "name": "Key 66",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": 67.0,
+          "id": "params.table.67",
+          "kind": "integer",
+          "max": 127.0,
+          "min": 0.0,
+          "name": "Key 67",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": 68.0,
+          "id": "params.table.68",
+          "kind": "integer",
+          "max": 127.0,
+          "min": 0.0,
+          "name": "Key 68",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": 69.0,
+          "id": "params.table.69",
+          "kind": "integer",
+          "max": 127.0,
+          "min": 0.0,
+          "name": "Key 69",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": 70.0,
+          "id": "params.table.70",
+          "kind": "integer",
+          "max": 127.0,
+          "min": 0.0,
+          "name": "Key 70",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": 71.0,
+          "id": "params.table.71",
+          "kind": "integer",
+          "max": 127.0,
+          "min": 0.0,
+          "name": "Key 71",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": 72.0,
+          "id": "params.table.72",
+          "kind": "integer",
+          "max": 127.0,
+          "min": 0.0,
+          "name": "Key 72",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": 73.0,
+          "id": "params.table.73",
+          "kind": "integer",
+          "max": 127.0,
+          "min": 0.0,
+          "name": "Key 73",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": 74.0,
+          "id": "params.table.74",
+          "kind": "integer",
+          "max": 127.0,
+          "min": 0.0,
+          "name": "Key 74",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": 75.0,
+          "id": "params.table.75",
+          "kind": "integer",
+          "max": 127.0,
+          "min": 0.0,
+          "name": "Key 75",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": 76.0,
+          "id": "params.table.76",
+          "kind": "integer",
+          "max": 127.0,
+          "min": 0.0,
+          "name": "Key 76",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": 77.0,
+          "id": "params.table.77",
+          "kind": "integer",
+          "max": 127.0,
+          "min": 0.0,
+          "name": "Key 77",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": 78.0,
+          "id": "params.table.78",
+          "kind": "integer",
+          "max": 127.0,
+          "min": 0.0,
+          "name": "Key 78",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": 79.0,
+          "id": "params.table.79",
+          "kind": "integer",
+          "max": 127.0,
+          "min": 0.0,
+          "name": "Key 79",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": 80.0,
+          "id": "params.table.80",
+          "kind": "integer",
+          "max": 127.0,
+          "min": 0.0,
+          "name": "Key 80",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": 81.0,
+          "id": "params.table.81",
+          "kind": "integer",
+          "max": 127.0,
+          "min": 0.0,
+          "name": "Key 81",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": 82.0,
+          "id": "params.table.82",
+          "kind": "integer",
+          "max": 127.0,
+          "min": 0.0,
+          "name": "Key 82",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": 83.0,
+          "id": "params.table.83",
+          "kind": "integer",
+          "max": 127.0,
+          "min": 0.0,
+          "name": "Key 83",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": 84.0,
+          "id": "params.table.84",
+          "kind": "integer",
+          "max": 127.0,
+          "min": 0.0,
+          "name": "Key 84",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": 85.0,
+          "id": "params.table.85",
+          "kind": "integer",
+          "max": 127.0,
+          "min": 0.0,
+          "name": "Key 85",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": 86.0,
+          "id": "params.table.86",
+          "kind": "integer",
+          "max": 127.0,
+          "min": 0.0,
+          "name": "Key 86",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": 87.0,
+          "id": "params.table.87",
+          "kind": "integer",
+          "max": 127.0,
+          "min": 0.0,
+          "name": "Key 87",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": 88.0,
+          "id": "params.table.88",
+          "kind": "integer",
+          "max": 127.0,
+          "min": 0.0,
+          "name": "Key 88",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": 89.0,
+          "id": "params.table.89",
+          "kind": "integer",
+          "max": 127.0,
+          "min": 0.0,
+          "name": "Key 89",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": 90.0,
+          "id": "params.table.90",
+          "kind": "integer",
+          "max": 127.0,
+          "min": 0.0,
+          "name": "Key 90",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": 91.0,
+          "id": "params.table.91",
+          "kind": "integer",
+          "max": 127.0,
+          "min": 0.0,
+          "name": "Key 91",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": 92.0,
+          "id": "params.table.92",
+          "kind": "integer",
+          "max": 127.0,
+          "min": 0.0,
+          "name": "Key 92",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": 93.0,
+          "id": "params.table.93",
+          "kind": "integer",
+          "max": 127.0,
+          "min": 0.0,
+          "name": "Key 93",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": 94.0,
+          "id": "params.table.94",
+          "kind": "integer",
+          "max": 127.0,
+          "min": 0.0,
+          "name": "Key 94",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": 95.0,
+          "id": "params.table.95",
+          "kind": "integer",
+          "max": 127.0,
+          "min": 0.0,
+          "name": "Key 95",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": 96.0,
+          "id": "params.table.96",
+          "kind": "integer",
+          "max": 127.0,
+          "min": 0.0,
+          "name": "Key 96",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": 97.0,
+          "id": "params.table.97",
+          "kind": "integer",
+          "max": 127.0,
+          "min": 0.0,
+          "name": "Key 97",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": 98.0,
+          "id": "params.table.98",
+          "kind": "integer",
+          "max": 127.0,
+          "min": 0.0,
+          "name": "Key 98",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": 99.0,
+          "id": "params.table.99",
+          "kind": "integer",
+          "max": 127.0,
+          "min": 0.0,
+          "name": "Key 99",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": 100.0,
+          "id": "params.table.100",
+          "kind": "integer",
+          "max": 127.0,
+          "min": 0.0,
+          "name": "Key 100",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": 101.0,
+          "id": "params.table.101",
+          "kind": "integer",
+          "max": 127.0,
+          "min": 0.0,
+          "name": "Key 101",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": 102.0,
+          "id": "params.table.102",
+          "kind": "integer",
+          "max": 127.0,
+          "min": 0.0,
+          "name": "Key 102",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": 103.0,
+          "id": "params.table.103",
+          "kind": "integer",
+          "max": 127.0,
+          "min": 0.0,
+          "name": "Key 103",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": 104.0,
+          "id": "params.table.104",
+          "kind": "integer",
+          "max": 127.0,
+          "min": 0.0,
+          "name": "Key 104",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": 105.0,
+          "id": "params.table.105",
+          "kind": "integer",
+          "max": 127.0,
+          "min": 0.0,
+          "name": "Key 105",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": 106.0,
+          "id": "params.table.106",
+          "kind": "integer",
+          "max": 127.0,
+          "min": 0.0,
+          "name": "Key 106",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": 107.0,
+          "id": "params.table.107",
+          "kind": "integer",
+          "max": 127.0,
+          "min": 0.0,
+          "name": "Key 107",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": 108.0,
+          "id": "params.table.108",
+          "kind": "integer",
+          "max": 127.0,
+          "min": 0.0,
+          "name": "Key 108",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": 109.0,
+          "id": "params.table.109",
+          "kind": "integer",
+          "max": 127.0,
+          "min": 0.0,
+          "name": "Key 109",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": 110.0,
+          "id": "params.table.110",
+          "kind": "integer",
+          "max": 127.0,
+          "min": 0.0,
+          "name": "Key 110",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": 111.0,
+          "id": "params.table.111",
+          "kind": "integer",
+          "max": 127.0,
+          "min": 0.0,
+          "name": "Key 111",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": 112.0,
+          "id": "params.table.112",
+          "kind": "integer",
+          "max": 127.0,
+          "min": 0.0,
+          "name": "Key 112",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": 113.0,
+          "id": "params.table.113",
+          "kind": "integer",
+          "max": 127.0,
+          "min": 0.0,
+          "name": "Key 113",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": 114.0,
+          "id": "params.table.114",
+          "kind": "integer",
+          "max": 127.0,
+          "min": 0.0,
+          "name": "Key 114",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": 115.0,
+          "id": "params.table.115",
+          "kind": "integer",
+          "max": 127.0,
+          "min": 0.0,
+          "name": "Key 115",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": 116.0,
+          "id": "params.table.116",
+          "kind": "integer",
+          "max": 127.0,
+          "min": 0.0,
+          "name": "Key 116",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": 117.0,
+          "id": "params.table.117",
+          "kind": "integer",
+          "max": 127.0,
+          "min": 0.0,
+          "name": "Key 117",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": 118.0,
+          "id": "params.table.118",
+          "kind": "integer",
+          "max": 127.0,
+          "min": 0.0,
+          "name": "Key 118",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": 119.0,
+          "id": "params.table.119",
+          "kind": "integer",
+          "max": 127.0,
+          "min": 0.0,
+          "name": "Key 119",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": 120.0,
+          "id": "params.table.120",
+          "kind": "integer",
+          "max": 127.0,
+          "min": 0.0,
+          "name": "Key 120",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": 121.0,
+          "id": "params.table.121",
+          "kind": "integer",
+          "max": 127.0,
+          "min": 0.0,
+          "name": "Key 121",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": 122.0,
+          "id": "params.table.122",
+          "kind": "integer",
+          "max": 127.0,
+          "min": 0.0,
+          "name": "Key 122",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": 123.0,
+          "id": "params.table.123",
+          "kind": "integer",
+          "max": 127.0,
+          "min": 0.0,
+          "name": "Key 123",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": 124.0,
+          "id": "params.table.124",
+          "kind": "integer",
+          "max": 127.0,
+          "min": 0.0,
+          "name": "Key 124",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": 125.0,
+          "id": "params.table.125",
+          "kind": "integer",
+          "max": 127.0,
+          "min": 0.0,
+          "name": "Key 125",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": 126.0,
+          "id": "params.table.126",
+          "kind": "integer",
+          "max": 127.0,
+          "min": 0.0,
+          "name": "Key 126",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": 127.0,
+          "id": "params.table.127",
+          "kind": "integer",
+          "max": 127.0,
+          "min": 0.0,
+          "name": "Key 127",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": 1.0,
+          "id": "voices",
+          "kind": "integer",
+          "max": 4.0,
+          "min": 1.0,
+          "name": "Chord voices",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": 0.0,
+          "id": "chord.0",
+          "kind": "integer",
+          "max": 127.0,
+          "min": -127.0,
+          "name": "Chord 1",
+          "scale": "linear",
+          "unit": "semitones"
+        },
+        {
+          "choices": [],
+          "default": 0.0,
+          "id": "chord.1",
+          "kind": "integer",
+          "max": 127.0,
+          "min": -127.0,
+          "name": "Chord 2",
+          "scale": "linear",
+          "unit": "semitones"
+        },
+        {
+          "choices": [],
+          "default": 0.0,
+          "id": "chord.2",
+          "kind": "integer",
+          "max": 127.0,
+          "min": -127.0,
+          "name": "Chord 3",
+          "scale": "linear",
+          "unit": "semitones"
+        },
+        {
+          "choices": [],
+          "default": 0.0,
+          "id": "chord.3",
+          "kind": "integer",
+          "max": 127.0,
+          "min": -127.0,
+          "name": "Chord 4",
+          "scale": "linear",
+          "unit": "semitones"
+        }
+      ]
+    },
+    "keySplitter": {
+      "defaults": {
+        "params": {
+          "boundary": 60,
+          "highChannel": 1,
+          "highKey": 72,
+          "highMax": 127,
+          "lowChannel": 0,
+          "lowKey": 48,
+          "lowMin": 0
+        },
+        "preserveKey": true,
+        "type": "keySplitter"
+      },
+      "name": "keySplitter",
+      "params": [
+        {
+          "choices": [],
+          "default": 0.0,
+          "id": "params.lowMin",
+          "kind": "integer",
+          "max": 127.0,
+          "min": 0.0,
+          "name": "Low minimum",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": 60.0,
+          "id": "params.boundary",
+          "kind": "integer",
+          "max": 127.0,
+          "min": 0.0,
+          "name": "Boundary key",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": 127.0,
+          "id": "params.highMax",
+          "kind": "integer",
+          "max": 127.0,
+          "min": 0.0,
+          "name": "High maximum",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": 48.0,
+          "id": "params.lowKey",
+          "kind": "integer",
+          "max": 127.0,
+          "min": 0.0,
+          "name": "Low destination key",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": 72.0,
+          "id": "params.highKey",
+          "kind": "integer",
+          "max": 127.0,
+          "min": 0.0,
+          "name": "High destination key",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": 0.0,
+          "id": "params.lowChannel",
+          "kind": "integer",
+          "max": 15.0,
+          "min": 0.0,
+          "name": "Low destination channel",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": 1.0,
+          "id": "params.highChannel",
+          "kind": "integer",
+          "max": 15.0,
+          "min": 0.0,
+          "name": "High destination channel",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": 1.0,
+          "id": "preserveKey",
+          "kind": "toggle",
+          "max": 1.0,
+          "min": 0.0,
+          "name": "Preserve incoming key",
+          "scale": "linear",
+          "unit": "none"
+        }
+      ]
+    },
+    "propertyScaler": {
+      "defaults": {
+        "params": {
+          "curve": 1.0,
+          "levels": {
+            "ceiling": 1.0,
+            "floor": 0.0,
+            "percent": 100.0
+          },
+          "property": "velocity"
+        },
+        "type": "propertyScaler"
+      },
+      "name": "propertyScaler",
+      "params": [
+        {
+          "choices": [
+            {
+              "label": "Velocity",
+              "value": "velocity"
+            },
+            {
+              "label": "Pan",
+              "value": "pan"
+            },
+            {
+              "label": "Release",
+              "value": "release"
+            },
+            {
+              "label": "Pitch",
+              "value": "pitch"
+            },
+            {
+              "label": "Modulation X",
+              "value": "modulationX"
+            },
+            {
+              "label": "Modulation Y",
+              "value": "modulationY"
+            }
+          ],
+          "default": 0.0,
+          "id": "params.property",
+          "kind": "choice",
+          "max": 5.0,
+          "min": 0.0,
+          "name": "Property",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": 1.0,
+          "id": "params.curve",
+          "kind": "float",
+          "max": 8.0,
+          "min": 0.125,
+          "name": "Curve",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": 100.0,
+          "id": "params.levels.percent",
+          "kind": "float",
+          "max": 200.0,
+          "min": 0.0,
+          "name": "Level",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": 0.0,
+          "id": "params.levels.floor",
+          "kind": "float",
+          "max": 1.0,
+          "min": 0.0,
+          "name": "Floor",
+          "scale": "linear",
+          "unit": "fraction"
+        },
+        {
+          "choices": [],
+          "default": 1.0,
+          "id": "params.levels.ceiling",
+          "kind": "float",
+          "max": 1.0,
+          "min": 0.0,
+          "name": "Ceiling",
+          "scale": "linear",
+          "unit": "fraction"
+        }
+      ]
+    },
+    "sequencer": {
+      "defaults": {
+        "params": {
+          "gate": 0.5,
+          "grid": {
+            "steps": [
+              {
+                "gate": true,
+                "pitchOffset": 0,
+                "velocityScale": 1.0
+              },
+              {
+                "gate": true,
+                "pitchOffset": 0,
+                "velocityScale": 1.0
+              },
+              {
+                "gate": true,
+                "pitchOffset": 0,
+                "velocityScale": 1.0
+              },
+              {
+                "gate": true,
+                "pitchOffset": 0,
+                "velocityScale": 1.0
+              },
+              {
+                "gate": true,
+                "pitchOffset": 0,
+                "velocityScale": 1.0
+              },
+              {
+                "gate": true,
+                "pitchOffset": 0,
+                "velocityScale": 1.0
+              },
+              {
+                "gate": true,
+                "pitchOffset": 0,
+                "velocityScale": 1.0
+              },
+              {
+                "gate": true,
+                "pitchOffset": 0,
+                "velocityScale": 1.0
+              },
+              {
+                "gate": true,
+                "pitchOffset": 0,
+                "velocityScale": 1.0
+              },
+              {
+                "gate": true,
+                "pitchOffset": 0,
+                "velocityScale": 1.0
+              },
+              {
+                "gate": true,
+                "pitchOffset": 0,
+                "velocityScale": 1.0
+              },
+              {
+                "gate": true,
+                "pitchOffset": 0,
+                "velocityScale": 1.0
+              },
+              {
+                "gate": true,
+                "pitchOffset": 0,
+                "velocityScale": 1.0
+              },
+              {
+                "gate": true,
+                "pitchOffset": 0,
+                "velocityScale": 1.0
+              },
+              {
+                "gate": true,
+                "pitchOffset": 0,
+                "velocityScale": 1.0
+              },
+              {
+                "gate": true,
+                "pitchOffset": 0,
+                "velocityScale": 1.0
+              }
+            ],
+            "stepsPerBeat": 4
+          },
+          "length": 16,
+          "mode": "sequence",
+          "octaves": 1
+        },
+        "type": "sequencer"
+      },
+      "name": "sequencer",
+      "params": [
+        {
+          "choices": [
+            {
+              "label": "Sequence",
+              "value": "sequence"
+            },
+            {
+              "label": "Up",
+              "value": "up"
+            },
+            {
+              "label": "Down",
+              "value": "down"
+            },
+            {
+              "label": "As played",
+              "value": "asPlayed"
+            }
+          ],
+          "default": 0.0,
+          "id": "params.mode",
+          "kind": "choice",
+          "max": 3.0,
+          "min": 0.0,
+          "name": "Mode",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": 16.0,
+          "id": "params.length",
+          "kind": "integer",
+          "max": 16.0,
+          "min": 1.0,
+          "name": "Length",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": 0.5,
+          "id": "params.gate",
+          "kind": "float",
+          "max": 1.0,
+          "min": 0.009999999776482582,
+          "name": "Gate",
+          "scale": "linear",
+          "unit": "fraction"
+        },
+        {
+          "choices": [],
+          "default": 1.0,
+          "id": "params.octaves",
+          "kind": "integer",
+          "max": 4.0,
+          "min": 1.0,
+          "name": "Octaves",
+          "scale": "linear",
+          "unit": "octaves"
+        },
+        {
+          "choices": [],
+          "default": 4.0,
+          "id": "params.grid.stepsPerBeat",
+          "kind": "integer",
+          "max": 16.0,
+          "min": 1.0,
+          "name": "Steps per beat",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": 1.0,
+          "id": "params.grid.steps.0.gate",
+          "kind": "toggle",
+          "max": 1.0,
+          "min": 0.0,
+          "name": "Step 1 gate",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": 0.0,
+          "id": "params.grid.steps.0.pitchOffset",
+          "kind": "integer",
+          "max": 127.0,
+          "min": -127.0,
+          "name": "Step 1 pitch",
+          "scale": "linear",
+          "unit": "semitones"
+        },
+        {
+          "choices": [],
+          "default": 1.0,
+          "id": "params.grid.steps.0.velocityScale",
+          "kind": "float",
+          "max": 2.0,
+          "min": 0.0,
+          "name": "Step 1 velocity",
+          "scale": "linear",
+          "unit": "gain"
+        },
+        {
+          "choices": [],
+          "default": 1.0,
+          "id": "params.grid.steps.1.gate",
+          "kind": "toggle",
+          "max": 1.0,
+          "min": 0.0,
+          "name": "Step 2 gate",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": 0.0,
+          "id": "params.grid.steps.1.pitchOffset",
+          "kind": "integer",
+          "max": 127.0,
+          "min": -127.0,
+          "name": "Step 2 pitch",
+          "scale": "linear",
+          "unit": "semitones"
+        },
+        {
+          "choices": [],
+          "default": 1.0,
+          "id": "params.grid.steps.1.velocityScale",
+          "kind": "float",
+          "max": 2.0,
+          "min": 0.0,
+          "name": "Step 2 velocity",
+          "scale": "linear",
+          "unit": "gain"
+        },
+        {
+          "choices": [],
+          "default": 1.0,
+          "id": "params.grid.steps.2.gate",
+          "kind": "toggle",
+          "max": 1.0,
+          "min": 0.0,
+          "name": "Step 3 gate",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": 0.0,
+          "id": "params.grid.steps.2.pitchOffset",
+          "kind": "integer",
+          "max": 127.0,
+          "min": -127.0,
+          "name": "Step 3 pitch",
+          "scale": "linear",
+          "unit": "semitones"
+        },
+        {
+          "choices": [],
+          "default": 1.0,
+          "id": "params.grid.steps.2.velocityScale",
+          "kind": "float",
+          "max": 2.0,
+          "min": 0.0,
+          "name": "Step 3 velocity",
+          "scale": "linear",
+          "unit": "gain"
+        },
+        {
+          "choices": [],
+          "default": 1.0,
+          "id": "params.grid.steps.3.gate",
+          "kind": "toggle",
+          "max": 1.0,
+          "min": 0.0,
+          "name": "Step 4 gate",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": 0.0,
+          "id": "params.grid.steps.3.pitchOffset",
+          "kind": "integer",
+          "max": 127.0,
+          "min": -127.0,
+          "name": "Step 4 pitch",
+          "scale": "linear",
+          "unit": "semitones"
+        },
+        {
+          "choices": [],
+          "default": 1.0,
+          "id": "params.grid.steps.3.velocityScale",
+          "kind": "float",
+          "max": 2.0,
+          "min": 0.0,
+          "name": "Step 4 velocity",
+          "scale": "linear",
+          "unit": "gain"
+        },
+        {
+          "choices": [],
+          "default": 1.0,
+          "id": "params.grid.steps.4.gate",
+          "kind": "toggle",
+          "max": 1.0,
+          "min": 0.0,
+          "name": "Step 5 gate",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": 0.0,
+          "id": "params.grid.steps.4.pitchOffset",
+          "kind": "integer",
+          "max": 127.0,
+          "min": -127.0,
+          "name": "Step 5 pitch",
+          "scale": "linear",
+          "unit": "semitones"
+        },
+        {
+          "choices": [],
+          "default": 1.0,
+          "id": "params.grid.steps.4.velocityScale",
+          "kind": "float",
+          "max": 2.0,
+          "min": 0.0,
+          "name": "Step 5 velocity",
+          "scale": "linear",
+          "unit": "gain"
+        },
+        {
+          "choices": [],
+          "default": 1.0,
+          "id": "params.grid.steps.5.gate",
+          "kind": "toggle",
+          "max": 1.0,
+          "min": 0.0,
+          "name": "Step 6 gate",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": 0.0,
+          "id": "params.grid.steps.5.pitchOffset",
+          "kind": "integer",
+          "max": 127.0,
+          "min": -127.0,
+          "name": "Step 6 pitch",
+          "scale": "linear",
+          "unit": "semitones"
+        },
+        {
+          "choices": [],
+          "default": 1.0,
+          "id": "params.grid.steps.5.velocityScale",
+          "kind": "float",
+          "max": 2.0,
+          "min": 0.0,
+          "name": "Step 6 velocity",
+          "scale": "linear",
+          "unit": "gain"
+        },
+        {
+          "choices": [],
+          "default": 1.0,
+          "id": "params.grid.steps.6.gate",
+          "kind": "toggle",
+          "max": 1.0,
+          "min": 0.0,
+          "name": "Step 7 gate",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": 0.0,
+          "id": "params.grid.steps.6.pitchOffset",
+          "kind": "integer",
+          "max": 127.0,
+          "min": -127.0,
+          "name": "Step 7 pitch",
+          "scale": "linear",
+          "unit": "semitones"
+        },
+        {
+          "choices": [],
+          "default": 1.0,
+          "id": "params.grid.steps.6.velocityScale",
+          "kind": "float",
+          "max": 2.0,
+          "min": 0.0,
+          "name": "Step 7 velocity",
+          "scale": "linear",
+          "unit": "gain"
+        },
+        {
+          "choices": [],
+          "default": 1.0,
+          "id": "params.grid.steps.7.gate",
+          "kind": "toggle",
+          "max": 1.0,
+          "min": 0.0,
+          "name": "Step 8 gate",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": 0.0,
+          "id": "params.grid.steps.7.pitchOffset",
+          "kind": "integer",
+          "max": 127.0,
+          "min": -127.0,
+          "name": "Step 8 pitch",
+          "scale": "linear",
+          "unit": "semitones"
+        },
+        {
+          "choices": [],
+          "default": 1.0,
+          "id": "params.grid.steps.7.velocityScale",
+          "kind": "float",
+          "max": 2.0,
+          "min": 0.0,
+          "name": "Step 8 velocity",
+          "scale": "linear",
+          "unit": "gain"
+        },
+        {
+          "choices": [],
+          "default": 1.0,
+          "id": "params.grid.steps.8.gate",
+          "kind": "toggle",
+          "max": 1.0,
+          "min": 0.0,
+          "name": "Step 9 gate",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": 0.0,
+          "id": "params.grid.steps.8.pitchOffset",
+          "kind": "integer",
+          "max": 127.0,
+          "min": -127.0,
+          "name": "Step 9 pitch",
+          "scale": "linear",
+          "unit": "semitones"
+        },
+        {
+          "choices": [],
+          "default": 1.0,
+          "id": "params.grid.steps.8.velocityScale",
+          "kind": "float",
+          "max": 2.0,
+          "min": 0.0,
+          "name": "Step 9 velocity",
+          "scale": "linear",
+          "unit": "gain"
+        },
+        {
+          "choices": [],
+          "default": 1.0,
+          "id": "params.grid.steps.9.gate",
+          "kind": "toggle",
+          "max": 1.0,
+          "min": 0.0,
+          "name": "Step 10 gate",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": 0.0,
+          "id": "params.grid.steps.9.pitchOffset",
+          "kind": "integer",
+          "max": 127.0,
+          "min": -127.0,
+          "name": "Step 10 pitch",
+          "scale": "linear",
+          "unit": "semitones"
+        },
+        {
+          "choices": [],
+          "default": 1.0,
+          "id": "params.grid.steps.9.velocityScale",
+          "kind": "float",
+          "max": 2.0,
+          "min": 0.0,
+          "name": "Step 10 velocity",
+          "scale": "linear",
+          "unit": "gain"
+        },
+        {
+          "choices": [],
+          "default": 1.0,
+          "id": "params.grid.steps.10.gate",
+          "kind": "toggle",
+          "max": 1.0,
+          "min": 0.0,
+          "name": "Step 11 gate",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": 0.0,
+          "id": "params.grid.steps.10.pitchOffset",
+          "kind": "integer",
+          "max": 127.0,
+          "min": -127.0,
+          "name": "Step 11 pitch",
+          "scale": "linear",
+          "unit": "semitones"
+        },
+        {
+          "choices": [],
+          "default": 1.0,
+          "id": "params.grid.steps.10.velocityScale",
+          "kind": "float",
+          "max": 2.0,
+          "min": 0.0,
+          "name": "Step 11 velocity",
+          "scale": "linear",
+          "unit": "gain"
+        },
+        {
+          "choices": [],
+          "default": 1.0,
+          "id": "params.grid.steps.11.gate",
+          "kind": "toggle",
+          "max": 1.0,
+          "min": 0.0,
+          "name": "Step 12 gate",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": 0.0,
+          "id": "params.grid.steps.11.pitchOffset",
+          "kind": "integer",
+          "max": 127.0,
+          "min": -127.0,
+          "name": "Step 12 pitch",
+          "scale": "linear",
+          "unit": "semitones"
+        },
+        {
+          "choices": [],
+          "default": 1.0,
+          "id": "params.grid.steps.11.velocityScale",
+          "kind": "float",
+          "max": 2.0,
+          "min": 0.0,
+          "name": "Step 12 velocity",
+          "scale": "linear",
+          "unit": "gain"
+        },
+        {
+          "choices": [],
+          "default": 1.0,
+          "id": "params.grid.steps.12.gate",
+          "kind": "toggle",
+          "max": 1.0,
+          "min": 0.0,
+          "name": "Step 13 gate",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": 0.0,
+          "id": "params.grid.steps.12.pitchOffset",
+          "kind": "integer",
+          "max": 127.0,
+          "min": -127.0,
+          "name": "Step 13 pitch",
+          "scale": "linear",
+          "unit": "semitones"
+        },
+        {
+          "choices": [],
+          "default": 1.0,
+          "id": "params.grid.steps.12.velocityScale",
+          "kind": "float",
+          "max": 2.0,
+          "min": 0.0,
+          "name": "Step 13 velocity",
+          "scale": "linear",
+          "unit": "gain"
+        },
+        {
+          "choices": [],
+          "default": 1.0,
+          "id": "params.grid.steps.13.gate",
+          "kind": "toggle",
+          "max": 1.0,
+          "min": 0.0,
+          "name": "Step 14 gate",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": 0.0,
+          "id": "params.grid.steps.13.pitchOffset",
+          "kind": "integer",
+          "max": 127.0,
+          "min": -127.0,
+          "name": "Step 14 pitch",
+          "scale": "linear",
+          "unit": "semitones"
+        },
+        {
+          "choices": [],
+          "default": 1.0,
+          "id": "params.grid.steps.13.velocityScale",
+          "kind": "float",
+          "max": 2.0,
+          "min": 0.0,
+          "name": "Step 14 velocity",
+          "scale": "linear",
+          "unit": "gain"
+        },
+        {
+          "choices": [],
+          "default": 1.0,
+          "id": "params.grid.steps.14.gate",
+          "kind": "toggle",
+          "max": 1.0,
+          "min": 0.0,
+          "name": "Step 15 gate",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": 0.0,
+          "id": "params.grid.steps.14.pitchOffset",
+          "kind": "integer",
+          "max": 127.0,
+          "min": -127.0,
+          "name": "Step 15 pitch",
+          "scale": "linear",
+          "unit": "semitones"
+        },
+        {
+          "choices": [],
+          "default": 1.0,
+          "id": "params.grid.steps.14.velocityScale",
+          "kind": "float",
+          "max": 2.0,
+          "min": 0.0,
+          "name": "Step 15 velocity",
+          "scale": "linear",
+          "unit": "gain"
+        },
+        {
+          "choices": [],
+          "default": 1.0,
+          "id": "params.grid.steps.15.gate",
+          "kind": "toggle",
+          "max": 1.0,
+          "min": 0.0,
+          "name": "Step 16 gate",
+          "scale": "linear",
+          "unit": "none"
+        },
+        {
+          "choices": [],
+          "default": 0.0,
+          "id": "params.grid.steps.15.pitchOffset",
+          "kind": "integer",
+          "max": 127.0,
+          "min": -127.0,
+          "name": "Step 16 pitch",
+          "scale": "linear",
+          "unit": "semitones"
+        },
+        {
+          "choices": [],
+          "default": 1.0,
+          "id": "params.grid.steps.15.velocityScale",
+          "kind": "float",
+          "max": 2.0,
+          "min": 0.0,
+          "name": "Step 16 velocity",
+          "scale": "linear",
+          "unit": "gain"
         }
       ]
     }

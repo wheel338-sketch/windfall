@@ -29,6 +29,39 @@ fn material(n: usize) -> f32 {
         + 0.05 * (std::f64::consts::TAU * 233.1 * t).sin()) as f32
 }
 
+fn moving_params(base: EffectParams, block: usize) -> EffectParams {
+    let mut edited = base;
+    for (index, info) in base.kind().descriptors().iter().enumerate() {
+        let phase = block as f32 * 0.137 + index as f32 * 0.193;
+        let leaf = info.id.rsplit('.').next().unwrap();
+        if matches!(
+            leaf,
+            "toneHz"
+                | "preBandHz"
+                | "cutoffHz"
+                | "frequencyHz"
+                | "rateHz"
+                | "driveDb"
+                | "inputDb"
+                | "gainDb"
+                | "depth"
+                | "resonance"
+                | "x"
+                | "y"
+                | "semitones"
+                | "formantSemitones"
+                | "shiftSemitones"
+        ) {
+            let fraction = 0.81 + 0.17 * phase.sin();
+            assert!(edited.set(index, info.min + (info.max - info.min) * fraction));
+        }
+    }
+    if let EffectParams::TimeTransport(p) = &mut edited {
+        p.trigger = block % 2 == 0;
+    }
+    edited
+}
+
 fn measure(params: EffectParams, fraction: f64) {
     let kind = params.kind();
     for block in [1_usize, 64, 256, 2048] {
@@ -60,24 +93,24 @@ fn measure(params: EffectParams, fraction: f64) {
                 }
             })
             .collect();
-        for chunk in source[..warm_frames].chunks(block) {
+        // Independent stereo histories exercise both LPC/correlation paths.
+        // Exact equality/inversion is a useful optimization, but not a dense oracle.
+        let right_source: Vec<_> = (0..warm_frames + frames)
+            .map(|n| material(n + 179) * 0.77 + 0.031 * (n as f32 * 0.01073).cos())
+            .collect();
+        for (index, chunk) in source[..warm_frames].chunks(block).enumerate() {
             left[..chunk.len()].copy_from_slice(chunk);
-            for (r, l) in right[..chunk.len()].iter_mut().zip(chunk) {
-                *r = -*l;
-            }
+            right[..chunk.len()]
+                .copy_from_slice(&right_source[index * block..index * block + chunk.len()]);
             effect.process(&mut left[..chunk.len()], &mut right[..chunk.len()]);
         }
         let mut elapsed = 0.0_f64;
         let mut maximum = 0.0_f64;
         for (index, chunk) in source[warm_frames..].chunks(block).enumerate() {
             left[..chunk.len()].copy_from_slice(chunk);
-            for (r, l) in right[..chunk.len()].iter_mut().zip(chunk) {
-                *r = -*l;
-            }
-            let mut edited = params;
-            if let EffectParams::TimeTransport(p) = &mut edited {
-                p.trigger = index % 2 == 0;
-            }
+            let offset = warm_frames + index * block;
+            right[..chunk.len()].copy_from_slice(&right_source[offset..offset + chunk.len()]);
+            let edited = moving_params(params, index);
             let start = Instant::now();
             effect.set_params(&edited);
             effect.process(&mut left[..chunk.len()], &mut right[..chunk.len()]);
@@ -172,11 +205,11 @@ fn maximum_quality_drive_guitar_and_modular_graphs_have_declared_e4_cpu_budgets(
     for cabinet in Cabinet::ALL {
         measure(
             EffectParams::GuitarRack(GuitarRackParams {
-                pedals: [PedalParams {
+                pedals: std::array::from_fn(|index| PedalParams {
                     on: true,
-                    amount: 0.75,
-                    tone: 0.75,
-                }; 11],
+                    amount: 0.71 + index as f32 * 0.025,
+                    tone: 0.93 - index as f32 * 0.037,
+                }),
                 cabinet,
                 oversampling: Oversampling::X8,
                 ..Default::default()
@@ -195,12 +228,12 @@ fn maximum_quality_drive_guitar_and_modular_graphs_have_declared_e4_cpu_budgets(
     ] {
         measure(
             EffectParams::DriveChain(DriveChainParams {
-                stages: models.map(|model| DriveStageParams {
-                    model,
-                    gain_db: 36.0,
-                    depth: 1.0,
-                    resonance: 4.0,
-                    rate_hz: 10.0,
+                stages: std::array::from_fn(|index| DriveStageParams {
+                    model: models[index],
+                    gain_db: 36.0 - index as f32 * 0.137,
+                    depth: 1.0 - index as f32 * 0.017,
+                    resonance: 4.0 - index as f32 * 0.071,
+                    rate_hz: 10.0 - index as f32 * 0.137,
                     ..Default::default()
                 }),
                 oversampling: Oversampling::X8,

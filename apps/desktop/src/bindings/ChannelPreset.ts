@@ -2,17 +2,19 @@
 import type { ChannelSource } from "./ChannelSource";
 import type { ChannelTiming } from "./ChannelTiming";
 import type { ChannelVoiceSettings } from "./ChannelVoiceSettings";
+import type { ExpressionMap } from "./ExpressionMap";
 import type { PluginBinding } from "./PluginBinding";
+import type { PresetTables } from "./PresetTables";
 import type { RackGraph } from "./RackGraph";
 
 /**
  * What a rack channel sounds like.
  */
-export type ChannelPreset = { 
+export type ChannelPreset = { tables?: PresetTables, 
 /**
  * The channel's name and color, which loading restores only when asked.
  */
-name: string, color: number, volume: number, pan: number, voice?: ChannelVoiceSettings, timing?: ChannelTiming, 
+name: string, color: number, volume: number, pan: number, voice?: ChannelVoiceSettings, timing?: ChannelTiming, expressionMap?: ExpressionMap, 
 /**
  * The sound. A sampler's `sample` is always empty here: its audio is
  * the asset `sample_asset` names.

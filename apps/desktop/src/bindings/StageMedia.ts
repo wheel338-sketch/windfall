@@ -2,7 +2,8 @@
 import type { ChannelId } from "./ChannelId";
 import type { LaunchQuantization } from "./LaunchQuantization";
 import type { PerformancePad } from "./PerformancePad";
+import type { PerformanceTake } from "./PerformanceTake";
 import type { VideoPlacement } from "./VideoPlacement";
 import type { VisualSettings } from "./VisualSettings";
 
-export type StageMedia = { pads: Array<PerformancePad>, quantization: LaunchQuantization, videos: Array<VideoPlacement>, visual: VisualSettings, danceChannel: ChannelId | null, };
+export type StageMedia = { takes: Array<PerformanceTake>, pads: Array<PerformancePad>, quantization: LaunchQuantization, videos: Array<VideoPlacement>, visual: VisualSettings, danceChannel: ChannelId | null, };

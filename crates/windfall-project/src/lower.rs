@@ -1440,12 +1440,23 @@ impl Transaction<'_> {
                 self.push(Edit::Settings(Change { old, new }));
                 "Configure internal controllers"
             }
-            Command::RelinkSamplePath { sample, expected, path } => {
+            Command::RelinkSamplePath {
+                sample,
+                expected,
+                path,
+            } => {
                 let index = self.sample_index(sample)?;
                 let old = self.project.samples[index].clone();
-                if old.path != expected { return Err(CommandError::invalid("Sample path changed; retry relinking")); }
-                if let Some(problem) = path.problem() { return Err(CommandError::invalid(problem)); }
-                let mut new = old.clone(); new.path = path;
+                if old.path != expected {
+                    return Err(CommandError::invalid(
+                        "Sample path changed; retry relinking",
+                    ));
+                }
+                if let Some(problem) = path.problem() {
+                    return Err(CommandError::invalid(problem));
+                }
+                let mut new = old.clone();
+                new.path = path;
                 self.push(Edit::SetSample(Change { old, new }));
                 "Relink sample source"
             }
@@ -1546,7 +1557,9 @@ impl Transaction<'_> {
                 let old = self.project.settings.clone();
                 let mut new = old.clone();
                 let previous = new.modular_racks.iter().find(|rack| rack.channel == id);
-                let retained_parameters = previous.map(|rack| rack.graph.parameters.clone()).unwrap_or_default();
+                let retained_parameters = previous
+                    .map(|rack| rack.graph.parameters.clone())
+                    .unwrap_or_default();
                 let retained_macros: Vec<(u8, u32)> = previous
                     .into_iter()
                     .flat_map(|rack| &rack.graph.nodes)
@@ -1555,12 +1568,15 @@ impl Transaction<'_> {
                         _ => None,
                     })
                     .collect();
-                let graph = graph.map(|mut graph| {
-                    graph.check().map_err(CommandError::invalid)?;
-                    graph.retain_parameter_addresses(previous.map(|rack| &rack.graph))
-                        .map_err(CommandError::invalid)?;
-                    Ok::<_, CommandError>(graph)
-                }).transpose()?;
+                let graph = graph
+                    .map(|mut graph| {
+                        graph.check().map_err(CommandError::invalid)?;
+                        graph
+                            .retain_parameter_addresses(previous.map(|rack| &rack.graph))
+                            .map_err(CommandError::invalid)?;
+                        Ok::<_, CommandError>(graph)
+                    })
+                    .transpose()?;
                 new.modular_racks.retain(|rack| rack.channel != id);
                 if let Some(graph) = graph {
                     new.modular_racks
@@ -2748,9 +2764,15 @@ impl Transaction<'_> {
             let mut graph = rack.graph.clone();
             if param >= 32 {
                 if !graph.set_parameter(param as usize, value) {
-                    return Err(CommandError::invalid("Rack module parameter is missing or invalid"));
+                    return Err(CommandError::invalid(
+                        "Rack module parameter is missing or invalid",
+                    ));
                 }
-                self.run(Command::SetChannelRack { id: channel, graph: Some(graph), expected: None })?;
+                self.run(Command::SetChannelRack {
+                    id: channel,
+                    graph: Some(graph),
+                    expected: None,
+                })?;
                 return Ok("Change rack module parameter".into());
             }
             let inlet = graph.nodes.iter_mut().find(|node| matches!(node.processor, crate::RackProcessor::ControlInput { index, .. } if u32::from(index) == param))
@@ -4638,8 +4660,17 @@ impl Transaction<'_> {
                 self.effect_index(track, effect)?;
             }
             AutomationTarget::InstrumentParam { channel, param } => {
-                if self.project.settings.modular_racks.iter().any(|rack| rack.channel == channel) {
-                    return self.project.automation_range(target).zip(self.project.automation_stored_value(target))
+                if self
+                    .project
+                    .settings
+                    .modular_racks
+                    .iter()
+                    .any(|rack| rack.channel == channel)
+                {
+                    return self
+                        .project
+                        .automation_range(target)
+                        .zip(self.project.automation_stored_value(target))
                         .ok_or_else(|| CommandError::invalid("Rack parameter owner was removed"));
                 }
                 let kind = self.instrument(self.channel_index(channel)?)?.kind();
@@ -4759,12 +4790,23 @@ impl Transaction<'_> {
                 format!("{} mix", effect(track, id))
             }
             AutomationTarget::InstrumentParam { channel: id, param } => {
-                if let Some(rack) = project.settings.modular_racks.iter().find(|rack| rack.channel == id)
-                    && let Some(address) = param.checked_sub(32).and_then(|i| rack.graph.parameters.get(i as usize))
+                if let Some(rack) = project
+                    .settings
+                    .modular_racks
+                    .iter()
+                    .find(|rack| rack.channel == id)
+                    && let Some(address) = param
+                        .checked_sub(32)
+                        .and_then(|i| rack.graph.parameters.get(i as usize))
                     && let Some(node) = rack.graph.node_at(&address.path)
                     && let crate::RackProcessor::Note { module } = &node.processor
                     && let Some(info) = module.parameter_info(address.parameter as usize)
-                { return unused_name(format!("{} {} {}", channel(id), node.name, info.name), project.automations.iter().map(|a| a.name.as_str())); }
+                {
+                    return unused_name(
+                        format!("{} {} {}", channel(id), node.name, info.name),
+                        project.automations.iter().map(|a| a.name.as_str()),
+                    );
+                }
                 if let Some(plugin) =
                     project.plugin(crate::PluginTarget::Instrument { channel: id })
                 {

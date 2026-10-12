@@ -409,21 +409,34 @@ impl Sequencer {
     /// several very short passes. Address every wrap without advancing the
     /// transport or changing event/launch partition ordering.
     pub(crate) fn video_tick_at(&self, plan: &Plan, frame: u64) -> Option<f64> {
-        if !self.in_song() { return None; }
+        if !self.in_song() {
+            return None;
+        }
         let tick = self.clock.tick_at(frame) - self.pass_start;
         let (start, end) = match self.region {
-            Some(range) => (plan.warp(f64::from(range.start)), plan.warp(f64::from(range.end))),
+            Some(range) => (
+                plan.warp(f64::from(range.start)),
+                plan.warp(f64::from(range.end)),
+            ),
             None => (0.0, self.length(plan)),
         };
         let length = end - start;
-        if length <= 0.0 { return None; }
+        if length <= 0.0 {
+            return None;
+        }
         let tick = if tick >= end {
-            if !self.loops() { return None; }
+            if !self.loops() {
+                return None;
+            }
             if let Some(passes) = self.passes_left {
-                if tick - end >= f64::from(passes.saturating_sub(1)) * length { return None; }
+                if tick - end >= f64::from(passes.saturating_sub(1)) * length {
+                    return None;
+                }
             }
             start + (tick - end).rem_euclid(length)
-        } else { tick.max(start) };
+        } else {
+            tick.max(start)
+        };
         Some(plan.unwarp(tick))
     }
 
@@ -877,7 +890,11 @@ impl Sequencer {
                     let Some(frame) = self.due(plan.warp(tick), from, to) else {
                         continue;
                     };
-                    let end = if event.scripted { tick + event.length } else { (tick + event.length).min(clip_end) };
+                    let end = if event.scripted {
+                        tick + event.length
+                    } else {
+                        (tick + event.length).min(clip_end)
+                    };
                     triggers.push(Trigger {
                         frame,
                         order: 0,
@@ -887,8 +904,7 @@ impl Sequencer {
                                 pattern: pattern.id,
                                 note: event.source,
                                 start: self.pass_start + plan.warp(tick),
-                                end: self.pass_start
-                                    + plan.warp(end),
+                                end: self.pass_start + plan.warp(end),
                                 song_origin: Some(self.pass_start),
                                 base_pan: event.pan,
                                 base_expression: event.expression,

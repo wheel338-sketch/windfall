@@ -24,12 +24,12 @@ mod vorbis;
 mod wav;
 mod wav_metadata;
 mod wavpack;
-pub use wavpack::{WavPackDepth, WavPackWriter, DEFAULT_WAVPACK_BLOCK_FRAMES};
+pub use wavpack::{DEFAULT_WAVPACK_BLOCK_FRAMES, WavPackDepth, WavPackWriter};
 mod video_audio;
-pub use video_audio::{decode_video_audio, decode_video_audio_file, MAX_VIDEO_FILE_BYTES};
+pub use video_audio::{MAX_VIDEO_FILE_BYTES, decode_video_audio, decode_video_audio_file};
 pub use wav_metadata::{
-    MAX_WAV_MARKERS, MAX_WAV_METADATA_BYTES, WavCue, WavLoop, WavLoopKind, WavMetadata, WavSlice,
-    WavNote, WavTempo, read_wav_metadata, read_wav_metadata_file,
+    MAX_WAV_MARKERS, MAX_WAV_METADATA_BYTES, WavCue, WavLoop, WavLoopKind, WavMetadata, WavNote,
+    WavSlice, WavTempo, read_wav_metadata, read_wav_metadata_file,
 };
 
 pub use decode::{
@@ -94,15 +94,15 @@ mod tests {
     }
 }
 
-mod m4a;
 mod aac;
+mod m4a;
 mod mp4;
-pub use aac::{AAC_SAMPLE_RATES, AAC_BITRATES, NativeAacWriter, m4a_capability, decode_m4a_bytes};
-pub use mp4::{M4aInfo, inspect_m4a};
+pub use aac::{AAC_BITRATES, AAC_SAMPLE_RATES, NativeAacWriter, decode_m4a_bytes, m4a_capability};
 pub use m4a::{
     AacConfig, AacEncoderAdapter, AacPacket, AacTrim, M4aWriter, MAX_AAC_PACKET_BYTES,
     MAX_M4A_PACKETS,
 };
+pub use mp4::{M4aInfo, inspect_m4a};
 
 mod drumsynth;
 pub use drumsynth::{

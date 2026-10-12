@@ -1,11 +1,11 @@
 //! Independent VST3 factory and component fixtures for the scanner.
 #![allow(non_snake_case)]
-mod native_thread;
-#[path = "vst3_expression.rs"]
-mod expression;
 #[cfg(windows)]
 #[path = "vst3_editor.rs"]
 mod editor;
+#[path = "vst3_expression.rs"]
+mod expression;
+mod native_thread;
 use native_thread::CreatorThread;
 use std::ffi::c_void;
 use std::ptr;
@@ -118,10 +118,15 @@ impl IPluginFactoryTrait for Factory {
             let component = ComWrapper::new(Component {
                 editor: class == cid(0),
                 absurd: class == cid(1),
-                instrument: class == cid(2) || class == cid(12) || class == cid(23) || class == cid(24),
+                instrument: class == cid(2)
+                    || class == cid(12)
+                    || class == cid(23)
+                    || class == cid(24),
                 expression_probe: class == cid(23),
                 midi_mapping: class == cid(24),
-                midi_bend: std::array::from_fn(|_| std::sync::atomic::AtomicU64::new(0.5_f64.to_bits())),
+                midi_bend: std::array::from_fn(|_| {
+                    std::sync::atomic::AtomicU64::new(0.5_f64.to_bits())
+                }),
                 sidechain: class == cid(21),
                 multi_sidechain: class == cid(22),
                 bridge_note_probe: class == cid(12),
@@ -269,7 +274,13 @@ struct Component {
     audio: std::cell::UnsafeCell<Audio>,
 }
 impl Class for Component {
-    type Interfaces = (IComponent, IAudioProcessor, IEditController, INoteExpressionController, IMidiMapping);
+    type Interfaces = (
+        IComponent,
+        IAudioProcessor,
+        IEditController,
+        INoteExpressionController,
+        IMidiMapping,
+    );
 }
 impl IPluginBaseTrait for Component {
     unsafe fn initialize(&self, context: *mut FUnknown) -> tresult {
@@ -362,7 +373,11 @@ impl IComponentTrait for Component {
                     2
                 },
                 name,
-                busType: if index == 1 || multi_key.is_some() { 1 } else { 0 },
+                busType: if index == 1 || multi_key.is_some() {
+                    1
+                } else {
+                    0
+                },
                 flags: u32::from(index == 0),
             });
         }
@@ -734,7 +749,10 @@ impl IAudioProcessorTrait for Component {
                         continue;
                     };
                     let id = unsafe { queue.getParameterId() };
-                    if id != 7 && !(self.multi_params && (8..=9).contains(&id)) && !(self.midi_mapping && (100..116).contains(&id)) {
+                    if id != 7
+                        && !(self.multi_params && (8..=9).contains(&id))
+                        && !(self.midi_mapping && (100..116).contains(&id))
+                    {
                         continue;
                     }
                     for point in 0..unsafe { queue.getPointCount() } {
@@ -747,7 +765,8 @@ impl IAudioProcessorTrait for Component {
                                 self.gain
                                     .store(gain.to_bits(), std::sync::atomic::Ordering::Relaxed);
                             } else if self.midi_mapping && (100..116).contains(&id) {
-                                self.midi_bend[(id - 100) as usize].store(value.to_bits(), std::sync::atomic::Ordering::Relaxed);
+                                self.midi_bend[(id - 100) as usize]
+                                    .store(value.to_bits(), std::sync::atomic::Ordering::Relaxed);
                             } else {
                                 audio.extra[(id - 8) as usize] = value;
                                 self.extra[(id - 8) as usize]
@@ -802,15 +821,27 @@ impl IAudioProcessorTrait for Component {
             let mut midi_synth = [0.0; 2];
             if self.midi_mapping {
                 for midi_channel in 0..16 {
-                    let Some(key) = audio.held[midi_channel].iter().position(|held| *held) else { continue; };
-                    let bend = f64::from_bits(self.midi_bend[midi_channel].load(std::sync::atomic::Ordering::Relaxed));
-                    let frequency = 440.0 * 2.0_f64.powf((key as f64 + (bend - 0.5) * 4.0 - 69.0) / 12.0);
-                    let value = (audio.midi_phases[midi_channel] * std::f64::consts::TAU).sin() as f32;
+                    let Some(key) = audio.held[midi_channel].iter().position(|held| *held) else {
+                        continue;
+                    };
+                    let bend = f64::from_bits(
+                        self.midi_bend[midi_channel].load(std::sync::atomic::Ordering::Relaxed),
+                    );
+                    let frequency =
+                        440.0 * 2.0_f64.powf((key as f64 + (bend - 0.5) * 4.0 - 69.0) / 12.0);
+                    let value =
+                        (audio.midi_phases[midi_channel] * std::f64::consts::TAU).sin() as f32;
                     // Independent color/channel probes in the two output sides.
-                    if midi_channel == 2 { midi_synth[0] += value; }
-                    else if midi_channel == 5 { midi_synth[1] += value; }
-                    else { midi_synth[0] += value; midi_synth[1] += value; }
-                    audio.midi_phases[midi_channel] = (audio.midi_phases[midi_channel] + frequency / audio.rate).fract();
+                    if midi_channel == 2 {
+                        midi_synth[0] += value;
+                    } else if midi_channel == 5 {
+                        midi_synth[1] += value;
+                    } else {
+                        midi_synth[0] += value;
+                        midi_synth[1] += value;
+                    }
+                    audio.midi_phases[midi_channel] =
+                        (audio.midi_phases[midi_channel] + frequency / audio.rate).fract();
                 }
             }
             if self.bridge_delayed {
@@ -831,9 +862,17 @@ impl IAudioProcessorTrait for Component {
                 }
                 continue;
             }
-            let expression_pcm = if self.expression_probe { audio.expressions.pcm() } else { [0.0; 2] };
+            let expression_pcm = if self.expression_probe {
+                audio.expressions.pcm()
+            } else {
+                [0.0; 2]
+            };
             for channel in 0..output.numChannels {
-                let synth = if self.midi_mapping { midi_synth[channel as usize] } else { synth };
+                let synth = if self.midi_mapping {
+                    midi_synth[channel as usize]
+                } else {
+                    synth
+                };
                 let out = unsafe { *output.__field0.channelBuffers32.add(channel as usize) };
                 let input = if self.instrument {
                     0.0
@@ -910,7 +949,13 @@ impl IEditControllerTrait for Component {
         unsafe { self.write_state(state) }
     }
     unsafe fn getParameterCount(&self) -> i32 {
-        if self.midi_mapping { 20 } else if self.multi_params { 6 } else { 4 }
+        if self.midi_mapping {
+            20
+        } else if self.multi_params {
+            6
+        } else {
+            4
+        }
     }
     unsafe fn getParameterInfo(&self, index: i32, info: *mut ParameterInfo) -> tresult {
         if !(0..unsafe { self.getParameterCount() }).contains(&index) || info.is_null() {
@@ -918,8 +963,24 @@ impl IEditControllerTrait for Component {
         }
         if self.midi_mapping && index >= 4 {
             let mut title = [0; 128];
-            for (slot, unit) in title.iter_mut().zip(format!("Bend channel {}", index - 3).encode_utf16()) { *slot = unit; }
-            unsafe { info.write(ParameterInfo { id: 100 + (index - 4) as u32, title, shortTitle: title, units: [0; 128], stepCount: 0, defaultNormalizedValue: 0.5, unitId: 0, flags: 1 }); }
+            for (slot, unit) in title
+                .iter_mut()
+                .zip(format!("Bend channel {}", index - 3).encode_utf16())
+            {
+                *slot = unit;
+            }
+            unsafe {
+                info.write(ParameterInfo {
+                    id: 100 + (index - 4) as u32,
+                    title,
+                    shortTitle: title,
+                    units: [0; 128],
+                    stepCount: 0,
+                    defaultNormalizedValue: 0.5,
+                    unitId: 0,
+                    flags: 1,
+                });
+            }
             return kResultOk;
         }
         let mut title = [0; 128];
@@ -1002,7 +1063,11 @@ impl IEditControllerTrait for Component {
         value * 0.5
     }
     unsafe fn getParamNormalized(&self, id: u32) -> f64 {
-        if self.midi_mapping && (100..116).contains(&id) { return f64::from_bits(self.midi_bend[(id - 100) as usize].load(std::sync::atomic::Ordering::Relaxed)); }
+        if self.midi_mapping && (100..116).contains(&id) {
+            return f64::from_bits(
+                self.midi_bend[(id - 100) as usize].load(std::sync::atomic::Ordering::Relaxed),
+            );
+        }
         if self.multi_params && (8..=9).contains(&id) {
             return f64::from_bits(
                 self.extra[(id - 8) as usize].load(std::sync::atomic::Ordering::Relaxed),
@@ -1016,8 +1081,13 @@ impl IEditControllerTrait for Component {
         f64::from_bits(self.gain.load(std::sync::atomic::Ordering::Relaxed))
     }
     unsafe fn setParamNormalized(&self, id: u32, mut value: f64) -> tresult {
-        if self.midi_mapping && (100..116).contains(&id) && value.is_finite() && (0.0..=1.0).contains(&value) {
-            self.midi_bend[(id - 100) as usize].store(value.to_bits(), std::sync::atomic::Ordering::Relaxed);
+        if self.midi_mapping
+            && (100..116).contains(&id)
+            && value.is_finite()
+            && (0.0..=1.0).contains(&value)
+        {
+            self.midi_bend[(id - 100) as usize]
+                .store(value.to_bits(), std::sync::atomic::Ordering::Relaxed);
             return kResultOk;
         }
         if self.multi_params
@@ -1057,7 +1127,10 @@ impl IEditControllerTrait for Component {
     unsafe fn createView(&self, name: FIDString) -> *mut IPlugView {
         #[cfg(windows)]
         {
-            if !self.editor || name.is_null() || unsafe { std::ffi::CStr::from_ptr(name) } != c"editor" {
+            if !self.editor
+                || name.is_null()
+                || unsafe { std::ffi::CStr::from_ptr(name) } != c"editor"
+            {
                 return ptr::null_mut();
             }
             // The view keeps its own references, never a borrowed Component pointer.
@@ -1072,9 +1145,24 @@ impl IEditControllerTrait for Component {
 }
 /// SDK factory export, independently implemented from the host.
 impl IMidiMappingTrait for Component {
-    unsafe fn getMidiControllerAssignment(&self, bus: i32, channel: i16, number: CtrlNumber, id: *mut ParamID) -> tresult {
-        if !self.midi_mapping || bus != 0 || !(0..16).contains(&channel) || number != 129 || id.is_null() { return kResultFalse; }
-        unsafe { id.write(100 + channel as u32); }
+    unsafe fn getMidiControllerAssignment(
+        &self,
+        bus: i32,
+        channel: i16,
+        number: CtrlNumber,
+        id: *mut ParamID,
+    ) -> tresult {
+        if !self.midi_mapping
+            || bus != 0
+            || !(0..16).contains(&channel)
+            || number != 129
+            || id.is_null()
+        {
+            return kResultFalse;
+        }
+        unsafe {
+            id.write(100 + channel as u32);
+        }
         kResultOk
     }
 }

@@ -509,14 +509,41 @@ fn a_cancelled_export_leaves_no_file_and_keeps_the_ones_it_would_replace() {
 #[cfg(windows)]
 #[test]
 fn native_m4a_export_uses_song_render_tags_exact_duration_and_atomic_cancellation() {
-    let rig = Rig::new(); beat(&rig);
-    let track = rig.session.dispatch(Command::AddPlaylistTrack { name: None, index: None }, None).unwrap().created[0];
+    let rig = Rig::new();
+    beat(&rig);
+    let track = rig
+        .session
+        .dispatch(
+            Command::AddPlaylistTrack {
+                name: None,
+                index: None,
+            },
+            None,
+        )
+        .unwrap()
+        .created[0];
     let bar = rig.project().patterns[0].length_ticks();
-    rig.session.dispatch(Command::AddClips { clips: vec![windfall_project::ClipInit {
-        track: windfall_project::PlaylistTrackId(track), start: 0, length: Some(bar), offset: None, muted: None,
-        content: windfall_project::ClipContent::Pattern { pattern: rig.pattern() },
-    }] }, None).unwrap();
-    let request = ExportOptions { mode: PlayMode::Song, ..options(&rig, "Native.m4a", ExportFormat::M4a) };
+    rig.session
+        .dispatch(
+            Command::AddClips {
+                clips: vec![windfall_project::ClipInit {
+                    track: windfall_project::PlaylistTrackId(track),
+                    start: 0,
+                    length: Some(bar),
+                    offset: None,
+                    muted: None,
+                    content: windfall_project::ClipContent::Pattern {
+                        pattern: rig.pattern(),
+                    },
+                }],
+            },
+            None,
+        )
+        .unwrap();
+    let request = ExportOptions {
+        mode: PlayMode::Song,
+        ..options(&rig, "Native.m4a", ExportFormat::M4a)
+    };
     let done = export(&rig, &request);
     assert_eq!(done.error, None);
     let bytes = fs::read(&request.path).unwrap();
@@ -524,22 +551,44 @@ fn native_m4a_export_uses_song_render_tags_exact_duration_and_atomic_cancellatio
     assert_eq!(container.frames(), BAR as u64);
     assert_eq!(container.config.sample_rate, SAMPLE_RATE);
     let decoded = windfall_codec::decode_m4a_bytes(&bytes, &Default::default()).unwrap();
-    assert_eq!(decoded.frames(), BAR); assert!(rms(decoded.samples()) > 0.01);
+    assert_eq!(decoded.frames(), BAR);
+    assert!(rms(decoded.samples()) > 0.01);
     let old = bytes;
     let (reached, wait_reached) = mpsc::channel();
     let (release, wait_release) = mpsc::channel::<()>();
     let mut held = false;
     *lock(&rig.events.hook) = Some(Box::new(move |event| {
-        if matches!(event, Event::ExportProgress(_)) && !held { held = true; reached.send(()).unwrap(); wait_release.recv().unwrap(); }
+        if matches!(event, Event::ExportProgress(_)) && !held {
+            held = true;
+            reached.send(()).unwrap();
+            wait_release.recv().unwrap();
+        }
     }));
     rig.events.take();
-    rig.session.export_audio(ExportOptions { mode: PlayMode::Pattern, pattern_loops: 1000, ..request }).unwrap();
-    wait_reached.recv().unwrap(); rig.session.export_cancel(); release.send(()).unwrap();
-    let done = rig.events.wait_for_export(); assert_eq!(done.cancelled, Some(true)); assert_eq!(done.error, None);
+    rig.session
+        .export_audio(ExportOptions {
+            mode: PlayMode::Pattern,
+            pattern_loops: 1000,
+            ..request
+        })
+        .unwrap();
+    wait_reached.recv().unwrap();
+    rig.session.export_cancel();
+    release.send(()).unwrap();
+    let done = rig.events.wait_for_export();
+    assert_eq!(done.cancelled, Some(true));
+    assert_eq!(done.error, None);
     assert_eq!(fs::read(rig.file("Native.m4a")).unwrap(), old);
     assert_eq!(written(&rig), ["Native.m4a"]);
     let bad = options(&rig, "Bad.m4a", ExportFormat::M4a);
-    assert!(rig.session.export_audio(ExportOptions { aac_bitrate: Some(320), ..bad }).is_err());
+    assert!(
+        rig.session
+            .export_audio(ExportOptions {
+                aac_bitrate: Some(320),
+                ..bad
+            })
+            .is_err()
+    );
     assert!(!Path::new(&rig.file("Bad.m4a")).exists());
 }
 

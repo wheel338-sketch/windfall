@@ -1,6 +1,7 @@
 //! Native owner dispatch; only prepared audio adapters cross into the engine.
 #[cfg(target_os = "macos")]
-#[path = "au_owner.rs"] mod au_owner;
+#[path = "au_owner.rs"]
+mod au_owner;
 
 use std::{
     collections::BTreeMap,
@@ -504,7 +505,8 @@ struct Owner {
 /// Control-side handle; synchronous requests are never made by audio processing.
 #[derive(Clone)]
 pub struct Runtime {
-    #[cfg(target_os = "macos")] cocoa_owner: u64,
+    #[cfg(target_os = "macos")]
+    cocoa_owner: u64,
     selection: Selection,
     jobs: mpsc::Sender<Job>,
     #[cfg(all(test, windows))]
@@ -537,180 +539,181 @@ fn maintain_owner(
     gestures: &mut std::collections::HashMap<(u64, u32), u64>,
     gesture: &mut u64,
 ) {
-    
-                    // Bridge process IO/reaping is confined to this control owner.
-                    #[cfg(any(windows, target_os = "macos", target_os = "linux"))]
+    // Bridge process IO/reaping is confined to this control owner.
+    #[cfg(any(windows, target_os = "macos", target_os = "linux"))]
+    {
+        let retired = owner
+            .bridges
+            .iter()
+            .filter_map(|(token, record)| {
+                (!record.alive.load(std::sync::atomic::Ordering::Acquire)).then_some(*token)
+            })
+            .collect::<Vec<_>>();
+        for token in retired {
+            owner
+                .controls
+                .lock()
+                .unwrap_or_else(|error| error.into_inner())
+                .remove(&token);
+            owner.bridges.remove(&token);
+        }
+        for (token, record) in &mut owner.bridges {
+            if record.playback
+                && selected(&owner.selection, record.binding.target) == Some(*token)
+                && record.revision == owner_revision.load(std::sync::atomic::Ordering::Acquire)
+            {
+                record.dirty_serial = record.control.native_change_serial();
+                if record.dirty_serial > record.acknowledged_serial && !record.capture_sent {
+                    record.capture_sent = updates
+                        .try_send(PendingUpdate {
+                            binding: binding_identity(&record.binding),
+                            token: *token,
+                            revision: record.revision,
+                            update: Update::Capture {
+                                target: record.binding.target,
+                                serial: record.dirty_serial,
+                            },
+                        })
+                        .is_ok();
+                }
+                let status = record.status();
+                if status.failed {
+                    let mut errors = owner_errors
+                        .lock()
+                        .unwrap_or_else(|error| error.into_inner());
+                    errors.retain(|(target, _)| *target != record.binding.target);
+                    errors.push((
+                        record.binding.target,
+                        format!(
+                            "Process bridge failed; retry manually: {}",
+                            status
+                                .error
+                                .unwrap_or_else(|| { "native helper unavailable".into() })
+                        ),
+                    ));
+                }
+            }
+        }
+    }
+    windfall_plugin_host::gui::pump_events(Some(Duration::ZERO));
+    let selection = owner.selection.clone();
+    for (token, record) in &mut owner.instances {
+        // A cancellation can race the callback's return. Always
+        // service late returns, including unselected/stale units.
+        if let Some(adapter) = record
+            .returned
+            .take()
+            .or_else(|| record.ownership.take_returned())
+        {
+            // Cancelled captures resume the exact active adapter.
+            // Notification maintenance never quiesces native work.
+            record.resume_returned(adapter);
+        }
+        let target = &record.target;
+        let instance = &mut record.plugin;
+        let current = record.playback
+            && selected(&selection, *target) == Some(*token)
+            && record.revision == owner_revision.load(std::sync::atomic::Ordering::Relaxed);
+        let send = |update| {
+            if current {
+                let _ = updates.try_send(PendingUpdate {
+                    binding: record.identity,
+                    token: *token,
+                    revision: record.revision,
+                    update,
+                });
+            }
+        };
+        let mut state_changed = false;
+        let mut restart = false;
+        let mut notify = |notification, captured| match notification {
+            PluginNotification::ParamGestureBegin { id } => {
+                *gesture = gesture.wrapping_add(1);
+                gestures.insert((*token, id), *gesture);
+            }
+            PluginNotification::ParamGestureEnd { id } => {
+                gestures.remove(&(*token, id));
+            }
+            PluginNotification::ParamChanged { id, value } => {
+                if let Some(gesture) = gestures.get(&(*token, id)) {
+                    send(Update::Parameter {
+                        target: *target,
+                        id,
+                        value: value as f32,
+                        gesture: *gesture,
+                    });
+                } else if captured {
+                    if record
+                        .binding
+                        .parameters
+                        .iter()
+                        .any(|param| param.id == id && !param.read_only)
                     {
-                        let retired = owner
-                            .bridges
-                            .iter()
-                            .filter_map(|(token, record)| {
-                                (!record.alive.load(std::sync::atomic::Ordering::Acquire))
-                                    .then_some(*token)
-                            })
-                            .collect::<Vec<_>>();
-                        for token in retired {
-                            owner
-                                .controls
-                                .lock()
-                                .unwrap_or_else(|error| error.into_inner())
-                                .remove(&token);
-                            owner.bridges.remove(&token);
-                        }
-                        for (token, record) in &mut owner.bridges {
-                            if record.playback
-                                && selected(&owner.selection, record.binding.target) == Some(*token)
-                                && record.revision
-                                    == owner_revision.load(std::sync::atomic::Ordering::Acquire)
-                            {
-                                record.dirty_serial = record.control.native_change_serial();
-                                if record.dirty_serial > record.acknowledged_serial
-                                    && !record.capture_sent
-                                {
-                                    record.capture_sent = updates
-                                        .try_send(PendingUpdate {
-                                            binding: binding_identity(&record.binding),
-                                            token: *token,
-                                            revision: record.revision,
-                                            update: Update::Capture {
-                                                target: record.binding.target,
-                                                serial: record.dirty_serial,
-                                            },
-                                        })
-                                        .is_ok();
-                                }
-                                let status = record.status();
-                                if status.failed {
-                                    let mut errors = owner_errors
-                                        .lock()
-                                        .unwrap_or_else(|error| error.into_inner());
-                                    errors.retain(|(target, _)| *target != record.binding.target);
-                                    errors.push((
-                                        record.binding.target,
-                                        format!(
-                                            "Process bridge failed; retry manually: {}",
-                                            status.error.unwrap_or_else(|| {
-                                                "native helper unavailable".into()
-                                            })
-                                        ),
-                                    ));
-                                }
-                            }
-                        }
+                        send(Update::Parameter {
+                            target: *target,
+                            id,
+                            value: value as f32,
+                            gesture: 0,
+                        });
                     }
-                    windfall_plugin_host::gui::pump_events(Some(Duration::ZERO));
-                    let selection = owner.selection.clone();
-                    for (token, record) in &mut owner.instances {
-                        // A cancellation can race the callback's return. Always
-                        // service late returns, including unselected/stale units.
-                        if let Some(adapter) = record
-                            .returned
-                            .take()
-                            .or_else(|| record.ownership.take_returned())
-                        {
-                            // Cancelled captures resume the exact active adapter.
-                            // Notification maintenance never quiesces native work.
-                            record.resume_returned(adapter);
-                        }
-                        let target = &record.target;
-                        let instance = &mut record.plugin;
-                        let current = record.playback
-                            && selected(&selection, *target) == Some(*token)
-                            && record.revision
-                                == owner_revision.load(std::sync::atomic::Ordering::Relaxed);
-                        let send = |update| {
-                            if current {
-                                let _ = updates.try_send(PendingUpdate {
-                                    binding: record.identity,
-                                    token: *token,
-                                    revision: record.revision,
-                                    update,
-                                });
-                            }
-                        };
-                        let mut state_changed = false;
-                        let mut restart = false;
-                        let mut notify = |notification, captured| match notification {
-                            PluginNotification::ParamGestureBegin { id } => {
-                                *gesture = gesture.wrapping_add(1);
-                                gestures.insert((*token, id), *gesture);
-                            }
-                            PluginNotification::ParamGestureEnd { id } => {
-                                gestures.remove(&(*token, id));
-                            }
-                            PluginNotification::ParamChanged { id, value } => {
-                                if let Some(gesture) = gestures.get(&(*token, id)) {
-                                    send(Update::Parameter {
-                                        target: *target,
-                                        id,
-                                        value: value as f32,
-                                        gesture: *gesture,
-                                    });
-                                } else if captured {
-                                    if record
-                                        .binding
-                                        .parameters
-                                        .iter()
-                                        .any(|param| param.id == id && !param.read_only)
-                                    {
-                                        send(Update::Parameter {
-                                            target: *target,
-                                            id,
-                                            value: value as f32,
-                                            gesture: 0,
-                                        });
-                                    }
-                                } else if record
-                                    .binding
-                                    .parameters
-                                    .iter()
-                                    .any(|param| param.id == id && !param.read_only)
-                                {
-                                    state_changed = true;
-                                }
-                            }
-                            PluginNotification::StateChanged => state_changed = true,
-                            PluginNotification::EditorScaleRefused { application, monitor } if current => {
-                                let mut errors = owner_errors.lock().unwrap_or_else(|error| error.into_inner());
-                                errors.retain(|(before, _)| *before != *target);
-                                errors.push((*target, format!("The plugin refused content scaling at application scale {application} and monitor scale {monitor}.")));
-                            }
-                            PluginNotification::LatencyChanged { .. }
-                            | PluginNotification::RestartRequested
-                            | PluginNotification::ParamsRescanned => {
-                                state_changed = true;
-                                restart = true;
-                            }
-                            _ => {}
-                        };
-                        for notification in record.notifications.drain(..) {
-                            notify(notification, true);
-                        }
-                        instance.idle(&mut |notification| notify(notification, false));
-                        if state_changed {
-                            record.dirty = true;
-                            record.dirty_serial = record.dirty_serial.saturating_add(1);
-                            record.restart |= restart;
-                        }
-                        if current && record.dirty && !record.capture_sent {
-                            record.capture_sent = updates
-                                .try_send(PendingUpdate {
-                                    binding: record.identity,
-                                    token: *token,
-                                    revision: record.revision,
-                                    update: Update::Capture {
-                                        target: *target,
-                                        serial: record.dirty_serial,
-                                    },
-                                })
-                                .is_ok();
-                        }
-                    }
+                } else if record
+                    .binding
+                    .parameters
+                    .iter()
+                    .any(|param| param.id == id && !param.read_only)
+                {
+                    state_changed = true;
+                }
+            }
+            PluginNotification::StateChanged => state_changed = true,
+            PluginNotification::EditorScaleRefused {
+                application,
+                monitor,
+            } if current => {
+                let mut errors = owner_errors
+                    .lock()
+                    .unwrap_or_else(|error| error.into_inner());
+                errors.retain(|(before, _)| *before != *target);
+                errors.push((*target, format!("The plugin refused content scaling at application scale {application} and monitor scale {monitor}.")));
+            }
+            PluginNotification::LatencyChanged { .. }
+            | PluginNotification::RestartRequested
+            | PluginNotification::ParamsRescanned => {
+                state_changed = true;
+                restart = true;
+            }
+            _ => {}
+        };
+        for notification in record.notifications.drain(..) {
+            notify(notification, true);
+        }
+        instance.idle(&mut |notification| notify(notification, false));
+        if state_changed {
+            record.dirty = true;
+            record.dirty_serial = record.dirty_serial.saturating_add(1);
+            record.restart |= restart;
+        }
+        if current && record.dirty && !record.capture_sent {
+            record.capture_sent = updates
+                .try_send(PendingUpdate {
+                    binding: record.identity,
+                    token: *token,
+                    revision: record.revision,
+                    update: Update::Capture {
+                        target: *target,
+                        serial: record.dirty_serial,
+                    },
+                })
+                .is_ok();
+        }
+    }
 }
 
 impl Runtime {
     #[cfg(target_os = "macos")]
-    pub fn install_cocoa_dispatch(app: tauri::AppHandle) -> Result<(), String> { au_owner::install(app) }
+    pub fn install_cocoa_dispatch(app: tauri::AppHandle) -> Result<(), String> {
+        au_owner::install(app)
+    }
     #[cfg(target_os = "macos")]
     pub fn audio_unit_catalog(&self) -> Result<windfall_plugin_host::au_model::Catalog, String> {
         self.call(|_| Ok(windfall_plugin_host::au::installed_catalog()))
@@ -753,14 +756,30 @@ impl Runtime {
                         Err(mpsc::RecvTimeoutError::Disconnected) => break,
                         Err(mpsc::RecvTimeoutError::Timeout) => {}
                     }
-                    maintain_owner(&mut owner, &owner_revision, &owner_errors, &updates, &mut gestures, &mut gesture);
+                    maintain_owner(
+                        &mut owner,
+                        &owner_revision,
+                        &owner_errors,
+                        &updates,
+                        &mut gestures,
+                        &mut gesture,
+                    );
                 }
             })
             .map_err(|error| error.to_string())?;
         #[cfg(target_os = "macos")]
-        let cocoa_owner = au_owner::start(receiver, owner_selection, owner_approved, owner_controls, owner_revision, owner_errors, updates)?;
+        let cocoa_owner = au_owner::start(
+            receiver,
+            owner_selection,
+            owner_approved,
+            owner_controls,
+            owner_revision,
+            owner_errors,
+            updates,
+        )?;
         Ok(Self {
-            #[cfg(target_os = "macos")] cocoa_owner,
+            #[cfg(target_os = "macos")]
+            cocoa_owner,
             selection,
             jobs,
             #[cfg(all(test, windows))]
@@ -935,34 +954,38 @@ impl Runtime {
         let lifetime = Arc::new(JobLifetime::default());
         let owner_lifetime = lifetime.clone();
         let request: Job = Box::new(move |owner| {
-                if owner_lifetime
-                    .phase
-                    .compare_exchange(0, 1, Ordering::AcqRel, Ordering::Acquire)
-                    .is_err()
-                {
-                    return;
-                }
-                let result = job(owner, &owner_lifetime);
-                if owner_lifetime
-                    .phase
-                    .compare_exchange(1, 2, Ordering::AcqRel, Ordering::Acquire)
-                    .is_ok()
-                {
-                    let _ = sender.send(result);
-                } else {
-                    // Cancellation won the completion race. Native-bearing
-                    // results must be destroyed here, on their creating owner.
-                    drop(result);
-                    let _ = sender.send(Err(
-                        "The plugin owner request timed out and was cancelled".into(),
-                    ));
-                }
-            });
+            if owner_lifetime
+                .phase
+                .compare_exchange(0, 1, Ordering::AcqRel, Ordering::Acquire)
+                .is_err()
+            {
+                return;
+            }
+            let result = job(owner, &owner_lifetime);
+            if owner_lifetime
+                .phase
+                .compare_exchange(1, 2, Ordering::AcqRel, Ordering::Acquire)
+                .is_ok()
+            {
+                let _ = sender.send(result);
+            } else {
+                // Cancellation won the completion race. Native-bearing
+                // results must be destroyed here, on their creating owner.
+                drop(result);
+                let _ = sender.send(Err(
+                    "The plugin owner request timed out and was cancelled".into()
+                ));
+            }
+        });
         #[cfg(target_os = "macos")]
         let request = au_owner::run_if_main(self.cocoa_owner, request)?;
         #[cfg(not(target_os = "macos"))]
         let request = Some(request);
-        if let Some(request) = request { self.jobs.send(request).map_err(|_| "The plugin owner stopped".to_owned())?; }
+        if let Some(request) = request {
+            self.jobs
+                .send(request)
+                .map_err(|_| "The plugin owner stopped".to_owned())?;
+        }
         match receiver.recv_timeout(timeout) {
             Ok(result) => result,
             Err(mpsc::RecvTimeoutError::Disconnected) => Err("The plugin owner stopped".into()),
@@ -1039,12 +1062,30 @@ impl Runtime {
         if binding.format == "au" {
             binding.validate().map_err(str::to_owned)?;
             let catalog = windfall_plugin_host::au::installed_catalog();
-            if !catalog.contains(&binding.id, &binding.path) { return Err("AU component is no longer registered; rescan plugins".into()); }
-            let mut instance = owner.host.create_audio_unit(&binding.id).map_err(|e| e.to_string())?;
-            let kind = match binding.target { PluginTarget::Effect { .. } => windfall_plugin_host::PluginKind::Effect, PluginTarget::Instrument { .. } => windfall_plugin_host::PluginKind::Instrument };
-            if instance.descriptor().kind != kind { return Err("AU instrument/effect role mismatch".into()); }
-            if !binding.state.is_empty() { instance.load_state(&PluginState::from_bytes(binding.state.clone())).map_err(|e| e.to_string())?; }
-            for parameter in &binding.parameters { if !parameter.read_only { instance.set_param(parameter.id, f64::from(parameter.value)); } }
+            if !catalog.contains(&binding.id, &binding.path) {
+                return Err("AU component is no longer registered; rescan plugins".into());
+            }
+            let mut instance = owner
+                .host
+                .create_audio_unit(&binding.id)
+                .map_err(|e| e.to_string())?;
+            let kind = match binding.target {
+                PluginTarget::Effect { .. } => windfall_plugin_host::PluginKind::Effect,
+                PluginTarget::Instrument { .. } => windfall_plugin_host::PluginKind::Instrument,
+            };
+            if instance.descriptor().kind != kind {
+                return Err("AU instrument/effect role mismatch".into());
+            }
+            if !binding.state.is_empty() {
+                instance
+                    .load_state(&PluginState::from_bytes(binding.state.clone()))
+                    .map_err(|e| e.to_string())?;
+            }
+            for parameter in &binding.parameters {
+                if !parameter.read_only {
+                    instance.set_param(parameter.id, f64::from(parameter.value));
+                }
+            }
             return Ok(instance);
         }
         Self::approved_binding(owner, binding)?;
@@ -2067,7 +2108,9 @@ impl Audio {
         if !left.is_empty()
             && !right.is_empty()
             && self.adapter().is_some_and(|adapter| {
-                !adapter.failed() && adapter.controls_processed() && Some(adapter.dropped_events()) == dropped
+                !adapter.failed()
+                    && adapter.controls_processed()
+                    && Some(adapter.dropped_events()) == dropped
             })
         {
             for ((id, pending), control) in self.pending_params.iter().zip(self.controls.iter()) {

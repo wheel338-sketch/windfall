@@ -2,7 +2,6 @@
 //! a [`Processor`] the tests run by hand.
 
 mod analysis_jobs;
-mod stem_separation;
 mod analyzers;
 mod archive;
 mod audio_editor;
@@ -61,6 +60,7 @@ mod scripting;
 mod sidechain_buses;
 mod slicer;
 mod song;
+mod stem_separation;
 mod timeline;
 mod transport_acceptance;
 mod versions;

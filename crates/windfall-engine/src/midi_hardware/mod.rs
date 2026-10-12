@@ -539,8 +539,12 @@ impl Worker {
                     }
                     self.state.error = Some("MIDI device disconnected. Refresh and apply the device settings to reconnect.".into());
                 }
-                if !outputs.iter().any(|port| port.id == feedback::PROJECT_FEEDBACK_OUTPUT) {
-                    self.project_feedback.take(); self.pending.retain(|message| message.port != 8);
+                if !outputs
+                    .iter()
+                    .any(|port| port.id == feedback::PROJECT_FEEDBACK_OUTPUT)
+                {
+                    self.project_feedback.take();
+                    self.pending.retain(|message| message.port != 8);
                 }
                 self.state.inputs = inputs;
                 self.state.outputs = outputs;
@@ -629,7 +633,9 @@ impl Worker {
     }
 
     fn send_to(&mut self, port: u8, bytes: &[u8]) {
-        let output = if port == 8 { self.project_feedback.as_mut() } else if port == 0 {
+        let output = if port == 8 {
+            self.project_feedback.as_mut()
+        } else if port == 0 {
             self.output.as_mut()
         } else {
             self.extra_outputs
@@ -640,7 +646,9 @@ impl Worker {
             && let Err(error) = output.send(bytes)
         {
             self.state.error = Some(error);
-            if port == 8 { self.project_feedback.take(); } else if port == 0 {
+            if port == 8 {
+                self.project_feedback.take();
+            } else if port == 0 {
                 self.output.take();
             } else if let Some(output) = self.extra_outputs.get_mut(usize::from(port) - 1) {
                 output.take();
@@ -736,10 +744,19 @@ impl Worker {
             .output
             .as_ref()
             .map_or(0, |output| output.latency_nanos());
-        if self.project_feedback.is_none() && self.state.outputs.iter().any(|port| port.id == feedback::PROJECT_FEEDBACK_OUTPUT) {
+        if self.project_feedback.is_none()
+            && self
+                .state
+                .outputs
+                .iter()
+                .any(|port| port.id == feedback::PROJECT_FEEDBACK_OUTPUT)
+        {
             match self.ports.output(feedback::PROJECT_FEEDBACK_OUTPUT) {
                 Ok(output) => self.project_feedback = Some(output),
-                Err(error) => self.state.error = Some(format!("Project controller feedback unavailable: {error}")),
+                Err(error) => {
+                    self.state.error =
+                        Some(format!("Project controller feedback unavailable: {error}"))
+                }
             }
         }
         let mut connections = [(false, 0); 9];
@@ -757,7 +774,9 @@ impl Worker {
         self.controller.drain_midi_out_from(|frame, bytes, port| {
             let index = usize::from(port.min(8));
             let (connected, latency) = connections[index];
-            if !connected && port == 8 { project_refused = true; }
+            if !connected && port == 8 {
+                project_refused = true;
+            }
             if !connected || pending.len() >= OUTPUT_PENDING || bytes.is_empty() {
                 return;
             }
@@ -782,7 +801,15 @@ impl Worker {
                 },
             );
         });
-        if project_refused && !self.state.error.as_ref().is_some_and(|error| error.starts_with("Project controller feedback unavailable:")) { self.state.error = Some("Project controller feedback unavailable: Windows xinput support or its output adapter is not available".into()); }
+        if project_refused
+            && !self
+                .state
+                .error
+                .as_ref()
+                .is_some_and(|error| error.starts_with("Project controller feedback unavailable:"))
+        {
+            self.state.error = Some("Project controller feedback unavailable: Windows xinput support or its output adapter is not available".into());
+        }
         while let Some(front) = self.pending.front().copied() {
             if front.due > now_nanos {
                 break;

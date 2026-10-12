@@ -9,7 +9,7 @@ import type { PluginWrapperOptions } from "./PluginWrapperOptions";
  */
 export type PluginBinding = { wrapper?: PluginWrapperOptions, target: PluginTarget, 
 /**
- * "clap" or "vst3"; the model does not load either format.
+ * "clap", "vst3" or "au"; the model does not load native formats.
  */
 format: string, path: string, id: string, name: string, 
 /**

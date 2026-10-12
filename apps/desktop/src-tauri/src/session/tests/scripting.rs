@@ -195,7 +195,10 @@ fn controller_script_pump_maps_actions_and_refuses_partial_output() {
             source: "tempo value 100 * 60 +".into(),
         }],
         controllers: vec![ControllerScript {
-            map: windfall_project::ControlMap { pickup: windfall_project::PickupMode::Off, ..Default::default() },
+            map: windfall_project::ControlMap {
+                pickup: windfall_project::PickupMode::Off,
+                ..Default::default()
+            },
             source,
             script: reference,
             parameters: vec![],
@@ -211,24 +214,32 @@ fn controller_script_pump_maps_actions_and_refuses_partial_output() {
     rig.session
         .dispatch(
             Command::SetControllerLinks {
-                links: vec![windfall_project::ControllerLink {
-                    source: windfall_project::ControlSource::Midi {
-                        device: None,
-                        channel: Some(1),
-                        control: windfall_project::MidiControl::Cc { number: 8 },
-                    },
-                    target: windfall_project::LinkTarget::Param {
-                        target: windfall_project::AutomationTarget::ChannelVolume {
-                            channel: ordinary,
+                links: vec![
+                    windfall_project::ControllerLink {
+                        source: windfall_project::ControlSource::Midi {
+                            device: None,
+                            channel: Some(1),
+                            control: windfall_project::MidiControl::Cc { number: 8 },
                         },
+                        target: windfall_project::LinkTarget::Param {
+                            target: windfall_project::AutomationTarget::ChannelVolume {
+                                channel: ordinary,
+                            },
+                        },
+                        map: Default::default(),
                     },
-                    map: Default::default(),
-                }, windfall_project::ControllerLink {
-                    source: windfall_project::ControlSource::Midi { device: None, channel: Some(1),
-                        control: windfall_project::MidiControl::Cc { number: 9 } },
-                    target: windfall_project::LinkTarget::Action { action: windfall_project::ControlAction::ToggleMetronome },
-                    map: Default::default(),
-                }],
+                    windfall_project::ControllerLink {
+                        source: windfall_project::ControlSource::Midi {
+                            device: None,
+                            channel: Some(1),
+                            control: windfall_project::MidiControl::Cc { number: 9 },
+                        },
+                        target: windfall_project::LinkTarget::Action {
+                            action: windfall_project::ControlAction::ToggleMetronome,
+                        },
+                        map: Default::default(),
+                    },
+                ],
             },
             None,
         )
@@ -283,10 +294,21 @@ fn controller_script_pump_maps_actions_and_refuses_partial_output() {
         .unwrap();
     rig.session.controllers_pump(std::time::Instant::now());
     let before = rig.session.document_snapshot();
-    let metronome = rig.session.transport_state().metronome.unwrap_or_default().enabled;
+    let metronome = rig
+        .session
+        .transport_state()
+        .metronome
+        .unwrap_or_default()
+        .enabled;
     rig.session.controller_message(InputMessage {
-        device: 0, message: MidiMessage::Controller { channel: 0, number: 9, value: 127 },
-        at: std::time::Instant::now(), stamp_micros: 0,
+        device: 0,
+        message: MidiMessage::Controller {
+            channel: 0,
+            number: 9,
+            value: 127,
+        },
+        at: std::time::Instant::now(),
+        stamp_micros: 0,
     });
     rig.session.controller_message(InputMessage {
         device: 0,
@@ -311,36 +333,82 @@ fn controller_script_pump_maps_actions_and_refuses_partial_output() {
     rig.session.controllers_pump(std::time::Instant::now());
     assert_eq!(rig.session.document_snapshot(), before);
     assert!(rig.session.controller_state().error.is_some());
-    assert_eq!(rig.session.transport_state().metronome.unwrap_or_default().enabled, !metronome,
-        "unrelated profile/link actions retain their separate semantics after a script error");
+    assert_eq!(
+        rig.session
+            .transport_state()
+            .metronome
+            .unwrap_or_default()
+            .enabled,
+        !metronome,
+        "unrelated profile/link actions retain their separate semantics after a script error"
+    );
 }
 
-fn installed_script(rig: &Rig, control: windfall_project::MidiControl, target: windfall_project::LinkTarget,
-    map: windfall_project::ControlMap, source_text: &str) {
-    let script = ScriptReference { id: "recorded-controller".into(), revision: 1 };
-    let library = ScriptLibrary {
-        assets: vec![ScriptAsset { reference: script.clone(), language_version: 1, kind: ScriptKind::Controller,
-            name: "Recorded controller stream".into(), source: source_text.into() }],
-        controllers: vec![ControllerScript { source: windfall_project::ControlSource::Midi {
-            device: None, channel: Some(1), control }, script, parameters: vec![], target: Some(target),
-            feedback_channel: None, map }], ..Default::default()
+fn installed_script(
+    rig: &Rig,
+    control: windfall_project::MidiControl,
+    target: windfall_project::LinkTarget,
+    map: windfall_project::ControlMap,
+    source_text: &str,
+) {
+    let script = ScriptReference {
+        id: "recorded-controller".into(),
+        revision: 1,
     };
-    rig.session.dispatch(Command::SetScriptLibrary { library }, None).unwrap();
+    let library = ScriptLibrary {
+        assets: vec![ScriptAsset {
+            reference: script.clone(),
+            language_version: 1,
+            kind: ScriptKind::Controller,
+            name: "Recorded controller stream".into(),
+            source: source_text.into(),
+        }],
+        controllers: vec![ControllerScript {
+            source: windfall_project::ControlSource::Midi {
+                device: None,
+                channel: Some(1),
+                control,
+            },
+            script,
+            parameters: vec![],
+            target: Some(target),
+            feedback_channel: None,
+            map,
+        }],
+        ..Default::default()
+    };
+    rig.session
+        .dispatch(Command::SetScriptLibrary { library }, None)
+        .unwrap();
 }
 fn recorded_packet(rig: &Rig, bytes: &[u8], at: std::time::Instant) {
     use windfall_engine::midi_hardware::{InputMessage, MidiMessage};
-    assert!(rig.session.controller_message(InputMessage { device: 0, message: MidiMessage::parse(bytes).unwrap(), at, stamp_micros: 0 }));
+    assert!(rig.session.controller_message(InputMessage {
+        device: 0,
+        message: MidiMessage::parse(bytes).unwrap(),
+        at,
+        stamp_micros: 0
+    }));
 }
 
 #[test]
 fn recorded_script_stream_pickup_smoothing_gestures_and_reopen_match_link_runtime() {
-    use windfall_project::{AutomationTarget, ControlMap, LinkTarget, MidiControl, PickupMode};
     use std::time::{Duration, Instant};
+    use windfall_project::{AutomationTarget, ControlMap, LinkTarget, MidiControl, PickupMode};
     let rig = Rig::new();
     let channel = rig.channel(0);
     let target = AutomationTarget::ChannelPan { channel };
-    installed_script(&rig, MidiControl::Cc { number: 7 }, LinkTarget::Param { target },
-        ControlMap { pickup: PickupMode::On, smoothing_ms: 100.0, ..Default::default() }, "map value");
+    installed_script(
+        &rig,
+        MidiControl::Cc { number: 7 },
+        LinkTarget::Param { target },
+        ControlMap {
+            pickup: PickupMode::On,
+            smoothing_ms: 100.0,
+            ..Default::default()
+        },
+        "map value",
+    );
     let start = Instant::now();
     rig.session.controllers_pump(start);
     let before = rig.session.document_snapshot();
@@ -348,18 +416,25 @@ fn recorded_script_stream_pickup_smoothing_gestures_and_reopen_match_link_runtim
     rig.session.controllers_pump(start);
     assert_eq!(rig.project().channel(channel).unwrap().pan, 0.0);
     assert_eq!(rig.session.controller_state().waiting, vec![target]);
-    rig.session.controllers_pump(start + Duration::from_millis(10));
+    rig.session
+        .controllers_pump(start + Duration::from_millis(10));
     assert_eq!(rig.session.controller_state().waiting, vec![target]);
     recorded_packet(&rig, &[0xb0, 7, 64], start + Duration::from_millis(20));
-    rig.session.controllers_pump(start + Duration::from_millis(20));
+    rig.session
+        .controllers_pump(start + Duration::from_millis(20));
     recorded_packet(&rig, &[0xb0, 7, 127], start + Duration::from_millis(30));
-    rig.session.controllers_pump(start + Duration::from_millis(30));
+    rig.session
+        .controllers_pump(start + Duration::from_millis(30));
     let old = rig.project().channel(channel).unwrap().pan;
-    rig.session.controllers_pump(start + Duration::from_millis(130));
+    rig.session
+        .controllers_pump(start + Duration::from_millis(130));
     let expected = old + (1.0 - old) * (1.0 - (-1.0_f32).exp());
     assert!((rig.project().channel(channel).unwrap().pan - expected).abs() < 1e-6);
     assert!(rig.session.controller_state().waiting.is_empty());
-    assert_eq!(rig.session.document_snapshot().history.cursor, before.history.cursor + 1);
+    assert_eq!(
+        rig.session.document_snapshot().history.cursor,
+        before.history.cursor + 1
+    );
     let edited = rig.project();
     rig.session.undo().unwrap();
     assert_eq!(rig.project().channel(channel).unwrap().pan, 0.0);
@@ -373,16 +448,30 @@ fn recorded_script_stream_pickup_smoothing_gestures_and_reopen_match_link_runtim
 
 #[test]
 fn recorded_script_wheel_stream_records_pattern_automation_in_the_same_gesture() {
-    use windfall_project::{AutomationTarget, ControlMap, LinkTarget, MidiControl, PickupMode};
     use windfall_ipc::{PlayMode, TransportPatch};
+    use windfall_project::{AutomationTarget, ControlMap, LinkTarget, MidiControl, PickupMode};
     let mut rig = Rig::new();
     let channel = rig.channel(0);
     let pattern = rig.pattern();
     let target = AutomationTarget::ChannelPan { channel };
-    installed_script(&rig, MidiControl::PitchBend, LinkTarget::Param { target },
-        ControlMap { pickup: PickupMode::Off, ..Default::default() }, "map value");
+    installed_script(
+        &rig,
+        MidiControl::PitchBend,
+        LinkTarget::Param { target },
+        ControlMap {
+            pickup: PickupMode::Off,
+            ..Default::default()
+        },
+        "map value",
+    );
     rig.session.controllers_pump(std::time::Instant::now());
-    rig.session.transport_set(TransportPatch { mode: Some(PlayMode::Pattern), pattern: Some(pattern), ..Default::default() }).unwrap();
+    rig.session
+        .transport_set(TransportPatch {
+            mode: Some(PlayMode::Pattern),
+            pattern: Some(pattern),
+            ..Default::default()
+        })
+        .unwrap();
     rig.session.transport_play().unwrap();
     rig.run(480);
     let head = rig.session.controller().playhead();
@@ -390,68 +479,132 @@ fn recorded_script_wheel_stream_records_pattern_automation_in_the_same_gesture()
     rig.session.controller_idle(now, &head);
     rig.session.automation_record_arm(true);
     let before = rig.session.document_snapshot();
-    for (ms, bytes) in [(0, [0xe0, 0, 0]), (20, [0xe0, 0, 64]), (40, [0xe0, 127, 127])] {
+    for (ms, bytes) in [
+        (0, [0xe0, 0, 0]),
+        (20, [0xe0, 0, 64]),
+        (40, [0xe0, 127, 127]),
+    ] {
         let at = now + std::time::Duration::from_millis(ms);
         recorded_packet(&rig, &bytes, at);
         rig.session.controllers_pump(at);
     }
     rig.session.automation_record_arm(false);
     let project = rig.project();
-    let lane = project.pattern(pattern).unwrap().events.iter().find(|lane| lane.target == target).unwrap();
+    let lane = project
+        .pattern(pattern)
+        .unwrap()
+        .events
+        .iter()
+        .find(|lane| lane.target == target)
+        .unwrap();
     assert_eq!(lane.points.last().unwrap().value, 1.0);
     assert!(lane.points.iter().any(|point| point.value == 0.0));
-    assert_eq!(rig.session.document_snapshot().history.cursor, before.history.cursor + 1);
+    assert_eq!(
+        rig.session.document_snapshot().history.cursor,
+        before.history.cursor + 1
+    );
     rig.session.undo().unwrap();
-    assert_eq!(rig.project().pattern(pattern).unwrap().events, before.project.pattern(pattern).unwrap().events);
+    assert_eq!(
+        rig.project().pattern(pattern).unwrap().events,
+        before.project.pattern(pattern).unwrap().events
+    );
     rig.session.redo().unwrap();
     let file = rig.file("script-automation.windfall");
     rig.session.project_save(Some(&file)).unwrap();
     rig.session.project_open(&file).unwrap();
-    assert_eq!(rig.project().pattern(pattern).unwrap().events, project.pattern(pattern).unwrap().events);
+    assert_eq!(
+        rig.project().pattern(pattern).unwrap().events,
+        project.pattern(pattern).unwrap().events
+    );
 }
 
 #[test]
 fn scripted_pad_actions_use_rising_edges_and_over_budget_streams_refuse_the_whole_batch() {
-    use windfall_project::{ControlMap, ControlAction, LinkTarget, MidiControl};
+    use windfall_project::{ControlAction, ControlMap, LinkTarget, MidiControl};
     let rig = Rig::new();
-    installed_script(&rig, MidiControl::Note { key: 60 }, LinkTarget::Action { action: ControlAction::ToggleMetronome },
-        ControlMap::default(), "map value");
+    installed_script(
+        &rig,
+        MidiControl::Note { key: 60 },
+        LinkTarget::Action {
+            action: ControlAction::ToggleMetronome,
+        },
+        ControlMap::default(),
+        "map value",
+    );
     let now = std::time::Instant::now();
     rig.session.controllers_pump(now);
-    let before = rig.session.transport_state().metronome.unwrap_or_default().enabled;
+    let before = rig
+        .session
+        .transport_state()
+        .metronome
+        .unwrap_or_default()
+        .enabled;
     recorded_packet(&rig, &[0x90, 60, 100], now);
     recorded_packet(&rig, &[0x90, 60, 100], now);
     rig.session.controllers_pump(now);
-    assert_eq!(rig.session.transport_state().metronome.unwrap_or_default().enabled, !before);
+    assert_eq!(
+        rig.session
+            .transport_state()
+            .metronome
+            .unwrap_or_default()
+            .enabled,
+        !before
+    );
     recorded_packet(&rig, &[0x80, 60, 0], now);
     rig.session.controllers_pump(now);
     let before = rig.session.document_snapshot();
-    for _ in 0..33 { recorded_packet(&rig, &[0x90, 60, 100], now); }
+    for _ in 0..33 {
+        recorded_packet(&rig, &[0x90, 60, 100], now);
+    }
     rig.session.controllers_pump(now);
     assert_eq!(rig.session.document_snapshot(), before);
-    assert!(rig.session.controller_state().error.unwrap().contains("budget"));
+    assert!(
+        rig.session
+            .controller_state()
+            .error
+            .unwrap()
+            .contains("budget")
+    );
 }
 
 #[test]
 fn recording_refusal_clears_script_glides_without_a_deferred_document_edit() {
-    use windfall_project::{AutomationTarget, ControlMap, LinkTarget, MidiControl, PickupMode};
     use std::sync::atomic::Ordering;
+    use windfall_project::{AutomationTarget, ControlMap, LinkTarget, MidiControl, PickupMode};
     let rig = Rig::new();
     let channel = rig.channel(0);
-    installed_script(&rig, MidiControl::Cc { number: 7 }, LinkTarget::Param {
-        target: AutomationTarget::ChannelPan { channel } },
-        ControlMap { pickup: PickupMode::Off, smoothing_ms: 100.0, ..Default::default() }, "map value");
+    installed_script(
+        &rig,
+        MidiControl::Cc { number: 7 },
+        LinkTarget::Param {
+            target: AutomationTarget::ChannelPan { channel },
+        },
+        ControlMap {
+            pickup: PickupMode::Off,
+            smoothing_ms: 100.0,
+            ..Default::default()
+        },
+        "map value",
+    );
     let start = std::time::Instant::now();
     rig.session.controllers_pump(start);
     let before = rig.session.document_snapshot();
-    rig.session.inner.recording_finishing.store(true, Ordering::Release);
+    rig.session
+        .inner
+        .recording_finishing
+        .store(true, Ordering::Release);
     recorded_packet(&rig, &[0xb0, 7, 127], start);
     rig.session.controllers_pump(start);
-    rig.session.controllers_pump(start + std::time::Duration::from_millis(100));
+    rig.session
+        .controllers_pump(start + std::time::Duration::from_millis(100));
     assert!(rig.session.controller_state().error.is_some());
     assert_eq!(rig.session.document_snapshot(), before);
-    rig.session.inner.recording_finishing.store(false, Ordering::Release);
-    rig.session.controllers_pump(start + std::time::Duration::from_millis(200));
+    rig.session
+        .inner
+        .recording_finishing
+        .store(false, Ordering::Release);
+    rig.session
+        .controllers_pump(start + std::time::Duration::from_millis(200));
     assert_eq!(rig.session.document_snapshot(), before);
 }
 

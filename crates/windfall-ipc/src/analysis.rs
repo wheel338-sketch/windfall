@@ -59,7 +59,11 @@ pub struct AnalysisOnnxContract {
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
 #[ts(export)]
-pub enum AnalysisWaveformLayout { #[default] ChannelsFirst, ChannelsLast }
+pub enum AnalysisWaveformLayout {
+    #[default]
+    ChannelsFirst,
+    ChannelsLast,
+}
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]

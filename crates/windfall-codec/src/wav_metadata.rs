@@ -117,7 +117,9 @@ impl WavMetadata {
                 || note.text.len() > MAX_LABEL_BYTES
                 || note.text.contains('\0')
             {
-                return Err(bad("note refers to missing cue, exceeds text budget or contains NUL"));
+                return Err(bad(
+                    "note refers to missing cue, exceeds text budget or contains NUL",
+                ));
             }
         }
         let mut loops = BTreeSet::new();
@@ -466,7 +468,9 @@ fn read<R: Read + Seek>(reader: &mut R) -> Result<WavMetadata, CodecError> {
                                             cue_id: u32le(data, 0),
                                             text: label.to_owned(),
                                         });
-                                    } else if labels.insert(u32le(data, 0), label.to_owned()).is_some()
+                                    } else if labels
+                                        .insert(u32le(data, 0), label.to_owned())
+                                        .is_some()
                                         || labels.len() > MAX_WAV_MARKERS
                                     {
                                         return Err(corrupt("duplicate or excess labels"));

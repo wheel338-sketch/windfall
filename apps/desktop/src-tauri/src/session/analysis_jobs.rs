@@ -3,10 +3,10 @@
 //! model/worker waits and retirement always run outside recording/State guards.
 use super::{Session, State};
 mod file_capture;
-mod pack_registry;
-mod source_namespace;
-mod runtime_settings;
 mod file_stems;
+mod pack_registry;
+mod runtime_settings;
+mod source_namespace;
 use crate::sync::lock;
 use std::collections::BTreeMap;
 use std::io::Read;
@@ -194,8 +194,12 @@ fn onnx_native(o: windfall_ipc::AnalysisOnnxContract) -> native::OnnxContract {
     native::OnnxContract {
         context_frames: o.context_frames,
         layout: match o.layout {
-            windfall_ipc::AnalysisWaveformLayout::ChannelsFirst => native::WaveformLayout::ChannelsFirst,
-            windfall_ipc::AnalysisWaveformLayout::ChannelsLast => native::WaveformLayout::ChannelsLast,
+            windfall_ipc::AnalysisWaveformLayout::ChannelsFirst => {
+                native::WaveformLayout::ChannelsFirst
+            }
+            windfall_ipc::AnalysisWaveformLayout::ChannelsLast => {
+                native::WaveformLayout::ChannelsLast
+            }
         },
         opset: o.opset,
         inputs: tensors(o.inputs),
@@ -230,8 +234,12 @@ fn onnx_wire(o: &native::OnnxContract) -> windfall_ipc::AnalysisOnnxContract {
     windfall_ipc::AnalysisOnnxContract {
         context_frames: o.context_frames,
         layout: match o.layout {
-            native::WaveformLayout::ChannelsFirst => windfall_ipc::AnalysisWaveformLayout::ChannelsFirst,
-            native::WaveformLayout::ChannelsLast => windfall_ipc::AnalysisWaveformLayout::ChannelsLast,
+            native::WaveformLayout::ChannelsFirst => {
+                windfall_ipc::AnalysisWaveformLayout::ChannelsFirst
+            }
+            native::WaveformLayout::ChannelsLast => {
+                windfall_ipc::AnalysisWaveformLayout::ChannelsLast
+            }
         },
         opset: o.opset,
         inputs: tensors(&o.inputs),
@@ -321,9 +329,13 @@ impl Service {
     pub(super) fn new(root: PathBuf) -> Self {
         let settings = runtime_settings::load(&root).unwrap_or_default();
         let mut directories = vec![root.join("Runtime")];
-        if let Some(path) = &settings.pack_directory { directories.push(PathBuf::from(path)); }
+        if let Some(path) = &settings.pack_directory {
+            directories.push(PathBuf::from(path));
+        }
         let runtime = Arc::new(native::OrtBackend {
-            choice: Arc::new(std::sync::RwLock::new(settings.library_path.map(PathBuf::from))),
+            choice: Arc::new(std::sync::RwLock::new(
+                settings.library_path.map(PathBuf::from),
+            )),
             search_directories: Arc::new(std::sync::RwLock::new(directories)),
         });
         Self {
@@ -336,7 +348,9 @@ impl Service {
                 models: BTreeMap::new(),
                 bindings: BTreeMap::new(),
                 adapter: Some(Arc::new(native::separation::ProductionAdapter {
-                    separation: native::separation::SeparationAdapter { backend: runtime.clone() },
+                    separation: native::separation::SeparationAdapter {
+                        backend: runtime.clone(),
+                    },
                 })),
                 stage: None,
                 closed: false,
@@ -397,7 +411,11 @@ impl Service {
         config.disk_bytes = 24 * 1024 * 1024 * 1024;
         config.max_scratch_bytes = native::separation::SCRATCH_BYTES;
         config.max_work_units = 100_000_000_000;
-        config.input_limits = native::InputLimits { max_frames: 192_000 * 3600, max_bytes: SONG_PCM_LIMIT, ..input_limits() };
+        config.input_limits = native::InputLimits {
+            max_frames: 192_000 * 3600,
+            max_bytes: SONG_PCM_LIMIT,
+            ..input_limits()
+        };
         let manager =
             Arc::new(native::JobManager::new(config, cache, adapter).map_err(native_error)?);
         let mut owned = lock(&self.owned);
@@ -449,7 +467,10 @@ impl Service {
     }
     #[cfg(test)]
     pub(super) fn test_stage(&self) -> PathBuf {
-        lock(&self.owned).stage.clone().expect("test manager staging")
+        lock(&self.owned)
+            .stage
+            .clone()
+            .expect("test manager staging")
     }
     #[cfg(test)]
     pub(super) fn final_calls(&self) -> (usize, usize) {
@@ -553,19 +574,28 @@ impl Session {
         let owned = lock(&service.owned);
         let available = owned.adapter.is_some() && !owned.closed;
         AnalysisCapability {
-            stem_separation: owned.adapter.as_ref().is_some_and(|a| a.supports(native::InferenceTask::StemSeparation))
-                && service.runtime.runtime_path().is_ok() && !owned.closed,
-            native: true,
-            classical_dereverb: owned
+            stem_separation: owned
                 .adapter
                 .as_ref()
-                .is_some_and(|a| (a.id() == native::BUILTIN_DEREVERB_ID || a.id() == native::separation::ADAPTER_ID)
-                    && a.supports(native::InferenceTask::DereverbGeneral))
+                .is_some_and(|a| a.supports(native::InferenceTask::StemSeparation))
+                && service.runtime.runtime_path().is_ok()
                 && !owned.closed,
+            native: true,
+            classical_dereverb: owned.adapter.as_ref().is_some_and(|a| {
+                (a.id() == native::BUILTIN_DEREVERB_ID || a.id() == native::separation::ADAPTER_ID)
+                    && a.supports(native::InferenceTask::DereverbGeneral)
+            }) && !owned.closed,
             available,
-            reason: registry_error.or_else(|| (!available).then(|| UNAVAILABLE.into()))
-                .or_else(|| owned.adapter.as_ref().filter(|a| a.id() == native::separation::ADAPTER_ID)
-                    .and_then(|_| service.runtime.runtime_path().err()).map(|e| format!("analysis:unavailable: {e}"))),
+            reason: registry_error
+                .or_else(|| (!available).then(|| UNAVAILABLE.into()))
+                .or_else(|| {
+                    owned
+                        .adapter
+                        .as_ref()
+                        .filter(|a| a.id() == native::separation::ADAPTER_ID)
+                        .and_then(|_| service.runtime.runtime_path().err())
+                        .map(|e| format!("analysis:unavailable: {e}"))
+                }),
             models: owned.models.values().map(model_wire).collect(),
         }
     }
@@ -621,7 +651,9 @@ impl Session {
         service.persist_packs(&models)?;
         lock(&service.owned).models = models;
         if response.provenance.adapter_id == native::separation::ADAPTER_ID {
-            let directory = Path::new(path).parent().ok_or_else(|| error("invalid", "Model directory missing."))?;
+            let directory = Path::new(path)
+                .parent()
+                .ok_or_else(|| error("invalid", "Model directory missing."))?;
             service.remember_pack_directory(directory)?;
         }
         Ok(response)
@@ -656,10 +688,11 @@ impl Session {
         };
         if let Some(model) = &imported {
             let owned = lock(&service.owned);
-            if !owned.adapter.as_ref().is_some_and(|a| {
-                a.accepts_model(model)
-                    && a.supports(task_native(request.task))
-            }) {
+            if !owned
+                .adapter
+                .as_ref()
+                .is_some_and(|a| a.accepts_model(model) && a.supports(task_native(request.task)))
+            {
                 return Err(error("unavailable", UNAVAILABLE));
             }
         }
@@ -670,10 +703,24 @@ impl Session {
         let preparation = service.begin_preparation();
         let mut work = work(preparation.cancel.clone())?;
         if request.task == windfall_ipc::AnalysisTask::StemSeparation
-            && imported.as_ref().is_some_and(|m| m.provenance.adapter_id == native::separation::ADAPTER_ID) {
-            work = native::Work::new(preparation.cancel.clone(), 100_000_000_000, Duration::from_secs(600)).map_err(native_error)?;
+            && imported
+                .as_ref()
+                .is_some_and(|m| m.provenance.adapter_id == native::separation::ADAPTER_ID)
+        {
+            work = native::Work::new(
+                preparation.cancel.clone(),
+                100_000_000_000,
+                Duration::from_secs(600),
+            )
+            .map_err(native_error)?;
             // Keep the same gate/preparation token while the disk capture runs.
-            return self.submit_file_stems(request, imported.unwrap(), selection, manager, &mut work);
+            return self.submit_file_stems(
+                request,
+                imported.unwrap(),
+                selection,
+                manager,
+                &mut work,
+            );
         }
         let (
             clip,
@@ -1187,9 +1234,15 @@ impl Session {
         let mut work = work(preparation.cancel.clone())?;
         let mut file = source_file(&binding.path)?;
         if review.task == native::InferenceTask::StemSeparation {
-            work = native::Work::new(preparation.cancel.clone(), 100_000_000_000, Duration::from_secs(600)).map_err(native_error)?;
+            work = native::Work::new(
+                preparation.cancel.clone(),
+                100_000_000_000,
+                Duration::from_secs(600),
+            )
+            .map_err(native_error)?;
         }
-        manager.check_retained_memory(self.controller().preview_retained_bytes())
+        manager
+            .check_retained_memory(self.controller().preview_retained_bytes())
             .map_err(native_error)?;
         let current_file = native::ContentFingerprint::reader(
             &mut file,
@@ -1339,11 +1392,23 @@ impl Session {
                     max_decoded_bytes: artifact.shape.pcm_bytes().map_err(native_error)?,
                 },
                 &mut |rate, channels, samples| {
-                    work.checkpoint(samples.len() as u64).map_err(|e| windfall_codec::CodecError::Corrupt(e.to_string()))?;
-                    let end = offset.checked_add(samples.len()).ok_or_else(|| windfall_codec::CodecError::Corrupt("sample overflow".into()))?;
-                    if rate != artifact.shape.sample_rate || channels != artifact.shape.channels || decoded.samples().get(offset..end)
-                        .is_none_or(|loaded| loaded.iter().zip(samples).any(|(a,b)| a.to_bits() != b.to_bits())) {
-                        return Err(windfall_codec::CodecError::Corrupt("Cached output differs from published audio.".into()));
+                    work.checkpoint(samples.len() as u64)
+                        .map_err(|e| windfall_codec::CodecError::Corrupt(e.to_string()))?;
+                    let end = offset.checked_add(samples.len()).ok_or_else(|| {
+                        windfall_codec::CodecError::Corrupt("sample overflow".into())
+                    })?;
+                    if rate != artifact.shape.sample_rate
+                        || channels != artifact.shape.channels
+                        || decoded.samples().get(offset..end).is_none_or(|loaded| {
+                            loaded
+                                .iter()
+                                .zip(samples)
+                                .any(|(a, b)| a.to_bits() != b.to_bits())
+                        })
+                    {
+                        return Err(windfall_codec::CodecError::Corrupt(
+                            "Cached output differs from published audio.".into(),
+                        ));
                     }
                     offset = end;
                     Ok(())

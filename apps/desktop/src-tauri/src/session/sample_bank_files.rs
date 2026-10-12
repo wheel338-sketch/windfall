@@ -118,7 +118,8 @@ impl Session {
         let mut workspaces = Vec::new();
         for source in &bank.sources {
             let source_file = folder.join(&source.path);
-            let (decoded, workspace) = self.inner.cache.decode_sample_bank(&source_file, &budget)?;
+            let (decoded, workspace) =
+                self.inner.cache.decode_sample_bank(&source_file, &budget)?;
             workspaces.push(workspace);
             total = total
                 .checked_add(decoded.samples().len().saturating_mul(4))

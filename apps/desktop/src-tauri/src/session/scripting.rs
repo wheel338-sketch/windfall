@@ -31,29 +31,56 @@ impl Session {
         let mut feedback = Vec::new();
         let mut motions = Vec::new();
         for (source, input, number) in std::mem::take(&mut plan.script_events) {
-            for binding in project.settings.scripts.controllers.iter()
-                .filter(|binding| super::controllers::source_matches(&binding.source, &source)) {
+            for binding in project
+                .settings
+                .scripts
+                .controllers
+                .iter()
+                .filter(|binding| super::controllers::source_matches(&binding.source, &source))
+            {
                 let mut result = windfall_project::scripting::controller_event(
-                    &project, binding, f64::from(input.value), number, plan.script_bank,
+                    &project,
+                    binding,
+                    f64::from(input.value),
+                    number,
+                    plan.script_bank,
                     || start.elapsed() > Duration::from_millis(100),
                 )?;
                 if let Some(value) = result.mapped {
-                    let target = binding.target.ok_or("controller script mapping target is unavailable")?;
+                    let target = binding
+                        .target
+                        .ok_or("controller script mapping target is unavailable")?;
                     // The pure adapter includes this command for non-session clients;
                     // session delivery must pass through the link runtime instead.
-                    if !matches!(target, windfall_project::LinkTarget::Action { .. }) { let _ = result.commands.pop(); }
-                    motions.push((binding.source.clone(), target, binding.map.clone(),
-                        windfall_project::controller_links::SourceInput { value, raw: input.raw }));
+                    if !matches!(target, windfall_project::LinkTarget::Action { .. }) {
+                        let _ = result.commands.pop();
+                    }
+                    motions.push((
+                        binding.source.clone(),
+                        target,
+                        binding.map.clone(),
+                        windfall_project::controller_links::SourceInput {
+                            value,
+                            raw: input.raw,
+                        },
+                    ));
                 }
                 for command in result.commands {
                     if let windfall_project::Command::UpdateSettings { patch } = command {
                         if let Some(tempo) = patch.tempo_bpm {
                             let target = windfall_project::AutomationTarget::Tempo;
-                            let range = project.automation_range(&target).ok_or("tempo target is unavailable")?;
-                            motions.push((binding.source.clone(), windfall_project::LinkTarget::Param { target },
-                                binding.map.clone(), windfall_project::controller_links::SourceInput {
-                                    value: range.normalized(tempo as f32), raw: input.raw,
-                                }));
+                            let range = project
+                                .automation_range(&target)
+                                .ok_or("tempo target is unavailable")?;
+                            motions.push((
+                                binding.source.clone(),
+                                windfall_project::LinkTarget::Param { target },
+                                binding.map.clone(),
+                                windfall_project::controller_links::SourceInput {
+                                    value: range.normalized(tempo as f32),
+                                    raw: input.raw,
+                                },
+                            ));
                         }
                     }
                 }
@@ -68,23 +95,37 @@ impl Session {
         }
         // Preflight feedback before allowing any document movement.
         if !feedback.is_empty() {
-            let runtime = crate::sync::lock(&self.inner.midi_hardware).clone()
+            let runtime = crate::sync::lock(&self.inner.midi_hardware)
+                .clone()
                 .ok_or("native MIDI output is unavailable for feedback")?;
             if !runtime.state().output_connected {
-                return Err("controller feedback output is disconnected; no project batch applied".into());
+                return Err(
+                    "controller feedback output is disconnected; no project batch applied".into(),
+                );
             }
         }
         self.controllers_script_motion(plan, motions, now)?;
         Ok(feedback)
     }
 
-    pub(super) fn controller_script_feedback(&self, feedback: Vec<[u8; 3]>, generation: u64, revision: u64) -> Result<(), String> {
-        if feedback.is_empty() { return Ok(()); }
+    pub(super) fn controller_script_feedback(
+        &self,
+        feedback: Vec<[u8; 3]>,
+        generation: u64,
+        revision: u64,
+    ) -> Result<(), String> {
+        if feedback.is_empty() {
+            return Ok(());
+        }
         let _recording = self.recording_idle()?;
         let state = self.state();
-        if state.generation != generation || state.document.revision() != revision { return Err("controller feedback became stale".into()); }
-        crate::sync::lock(&self.inner.midi_hardware).clone()
-            .ok_or("native MIDI output is unavailable for feedback")?.feedback(feedback)
+        if state.generation != generation || state.document.revision() != revision {
+            return Err("controller feedback became stale".into());
+        }
+        crate::sync::lock(&self.inner.midi_hardware)
+            .clone()
+            .ok_or("native MIDI output is unavailable for feedback")?
+            .feedback(feedback)
     }
     pub fn proposal_stamp(&self) -> ProposalStamp {
         let state = self.state();

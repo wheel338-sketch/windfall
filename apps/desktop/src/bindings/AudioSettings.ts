@@ -3,4 +3,8 @@
 /**
  * The audio output the user asked for. `None` means the system default.
  */
-export type AudioSettings = { host?: string, device?: string, sampleRate?: number, bufferFrames?: number, outputChannels?: number, };
+export type AudioSettings = { 
+/**
+ * None selects available CPU cores, bounded to eight. One is serial.
+ */
+processingThreads?: number, host?: string, device?: string, sampleRate?: number, bufferFrames?: number, outputChannels?: number, };

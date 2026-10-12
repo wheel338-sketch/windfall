@@ -240,7 +240,13 @@ fn sources(project: &Project, through: bool) -> Vec<bool> {
             } if output.is_mixer() => Some(mixer_track),
             _ => None,
         });
-    let videos = project.settings.stage_media.videos.iter().filter(|video| !video.muted).map(|video| video.mixer_track);
+    let videos = project
+        .settings
+        .stage_media
+        .videos
+        .iter()
+        .filter(|video| !video.muted)
+        .map(|video| video.mixer_track);
     for index in channels.chain(clips).chain(videos).filter_map(place) {
         gives[index] = true;
     }
@@ -380,7 +386,9 @@ pub fn render_stems(
     progress: &mut dyn FnMut(f32) -> bool,
 ) -> Result<Streamed, StemError> {
     options.check_region().map_err(StemError::Timeline)?;
-    if let Some(error) = pool.video_audio_error(project) { return Err(StemError::Timeline(error)); }
+    if let Some(error) = pool.video_audio_error(project) {
+        return Err(StemError::Timeline(error));
+    }
     let prepared_pool = pool
         .prepare_plugin_render()
         .prepare_samplers(project, &mut || true, &mut |_, _, _| {})

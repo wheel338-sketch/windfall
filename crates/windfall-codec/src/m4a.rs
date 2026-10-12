@@ -130,14 +130,20 @@ impl M4aWriter {
         config: AacConfig,
         metadata: &AudioTags<'_>,
     ) -> Result<Self, CodecError> {
-        let index = RATES.iter().position(|r| *r == config.sample_rate).ok_or_else(|| invalid("unsupported AAC rate"))? as u16;
+        let index = RATES
+            .iter()
+            .position(|r| *r == config.sample_rate)
+            .ok_or_else(|| invalid("unsupported AAC rate"))? as u16;
         let asc = ((2_u16 << 11) | (index << 7) | (config.channels << 3)).to_be_bytes();
         Self::create_with_asc(path, config, metadata, &asc)
     }
     /// Uses the encoder-supplied AudioSpecificConfig; refuses a configuration
     /// this AAC-LC / fixed-frame muxer cannot represent.
     pub fn create_with_asc(
-        path: impl AsRef<Path>, config: AacConfig, metadata: &AudioTags<'_>, asc: &[u8],
+        path: impl AsRef<Path>,
+        config: AacConfig,
+        metadata: &AudioTags<'_>,
+        asc: &[u8],
     ) -> Result<Self, CodecError> {
         // The version-zero sample entry has a 16.16 sample rate.
         if !RATES.contains(&config.sample_rate)
@@ -148,9 +154,16 @@ impl M4aWriter {
                 "AAC-LC muxing requires a standard rate at most 64 kHz and one or two channels",
             ));
         }
-        let index = RATES.iter().position(|r| *r == config.sample_rate).ok_or_else(|| invalid("unsupported AAC rate"))? as u16;
+        let index = RATES
+            .iter()
+            .position(|r| *r == config.sample_rate)
+            .ok_or_else(|| invalid("unsupported AAC rate"))? as u16;
         let expected = ((2_u16 << 11) | (index << 7) | (config.channels << 3)).to_be_bytes();
-        if asc != expected { return Err(invalid("encoder supplied an unsupported AudioSpecificConfig")); }
+        if asc != expected {
+            return Err(invalid(
+                "encoder supplied an unsupported AudioSpecificConfig",
+            ));
+        }
         let tags = tags(metadata)?;
         let mut file = AtomicFile::create(path.as_ref())?;
         let ftyp = atom(b"ftyp", b"M4A \0\0\0\0M4A isommp42");

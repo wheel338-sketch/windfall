@@ -10,7 +10,11 @@ pub(super) fn use_bridge(binding: &PluginBinding, default: bool) -> Result<bool,
     match binding.wrapper.processing {
         PluginProcessingMode::Automatic => Ok(default),
         PluginProcessingMode::InProcess | PluginProcessingMode::Threaded => Ok(false),
-        PluginProcessingMode::Bridged if cfg!(any(windows, target_os = "macos", target_os = "linux")) => Ok(true),
+        PluginProcessingMode::Bridged
+            if cfg!(any(windows, target_os = "macos", target_os = "linux")) =>
+        {
+            Ok(true)
+        }
         PluginProcessingMode::Bridged => {
             Err("Separate-process hosting requires Windows, macOS or Linux".into())
         }

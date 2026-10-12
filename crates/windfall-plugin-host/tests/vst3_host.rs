@@ -18,7 +18,14 @@ fn create(
 fn independent_vst3_no_editor_class_keeps_explicit_refusal() {
     let (_module, mut instance) = create(3);
     assert!(!instance.has_editor());
-    assert_eq!(instance.open_editor(&EditorOptions::default()), Err(if cfg!(windows) { EditorError::NoEditor } else { EditorError::UnsupportedPlatform }));
+    assert_eq!(
+        instance.open_editor(&EditorOptions::default()),
+        Err(if cfg!(windows) {
+            EditorError::NoEditor
+        } else {
+            EditorError::UnsupportedPlatform
+        })
+    );
 }
 
 #[test]

@@ -17,26 +17,51 @@ const FIXTURE_SAMPLE_RATE: f32 = 48_000.0;
 fn main() {
     use windfall_dsp::rack_note::RackNoteModule;
     let note_modules: serde_json::Map<String, Value> = [
-        RackNoteModule::ColorRouter { params: Default::default() },
-        RackNoteModule::Envelope { params: Default::default() },
-        RackNoteModule::PropertyScaler { params: Default::default() },
-        RackNoteModule::KeySplitter { params: Default::default(), preserve_key: true },
-        RackNoteModule::KeyMapper { params: Default::default(), chord: [0; 4], voices: 1 },
-        RackNoteModule::Sequencer { params: Default::default() },
-    ].into_iter().map(|module| {
-        let params: Vec<Value> = (0..).map_while(|i| module.parameter_info(i).map(|info| {
-            let mut value = json!(info);
-            let prefix = match module {
-                RackNoteModule::KeySplitter { .. } if i >= 7 => "",
-                RackNoteModule::KeyMapper { .. } if i >= 128 => "",
-                RackNoteModule::Sequencer { .. } if i >= 4 => "params.grid.",
-                _ => "params.",
-            };
-            value["id"] = json!(format!("{prefix}{}", info.id));
-            value
-        })).collect();
-        (module.kind_id().into(), json!({ "name": module.kind_id(), "params": params, "defaults": module }))
-    }).collect();
+        RackNoteModule::ColorRouter {
+            params: Default::default(),
+        },
+        RackNoteModule::Envelope {
+            params: Default::default(),
+        },
+        RackNoteModule::PropertyScaler {
+            params: Default::default(),
+        },
+        RackNoteModule::KeySplitter {
+            params: Default::default(),
+            preserve_key: true,
+        },
+        RackNoteModule::KeyMapper {
+            params: Default::default(),
+            chord: [0; 4],
+            voices: 1,
+        },
+        RackNoteModule::Sequencer {
+            params: Default::default(),
+        },
+    ]
+    .into_iter()
+    .map(|module| {
+        let params: Vec<Value> = (0..)
+            .map_while(|i| {
+                module.parameter_info(i).map(|info| {
+                    let mut value = json!(info);
+                    let prefix = match module {
+                        RackNoteModule::KeySplitter { .. } if i >= 7 => "",
+                        RackNoteModule::KeyMapper { .. } if i >= 128 => "",
+                        RackNoteModule::Sequencer { .. } if i >= 4 => "params.grid.",
+                        _ => "params.",
+                    };
+                    value["id"] = json!(format!("{prefix}{}", info.id));
+                    value
+                })
+            })
+            .collect();
+        (
+            module.kind_id().into(),
+            json!({ "name": module.kind_id(), "params": params, "defaults": module }),
+        )
+    })
+    .collect();
     let effects: serde_json::Map<String, Value> = EffectKind::ALL
         .iter()
         .map(|kind| {

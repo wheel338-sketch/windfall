@@ -30,29 +30,54 @@ fn export_request_identity_survives_success_error_cancel_and_repeated_destinatio
     let rig = Rig::new();
     kick_on_the_beat(&rig);
     let before = rig.session.document_snapshot();
-    let finish = |request: &str| rig.events.wait_for(|events| events.iter().find_map(|event| {
-        match event {
-            Event::ExportRequestProgress { request: actual, progress } if actual == request && progress.done => Some(progress.clone()),
-            _ => None,
-        }
-    }));
+    let finish = |request: &str| {
+        rig.events.wait_for(|events| {
+            events.iter().find_map(|event| match event {
+                Event::ExportRequestProgress {
+                    request: actual,
+                    progress,
+                } if actual == request && progress.done => Some(progress.clone()),
+                _ => None,
+            })
+        })
+    };
     let same_path = options(&rig, "correlated.wav");
     for request in ["tutorial-export-1", "tutorial-export-2"] {
         rig.events.take();
-        rig.session.start_export_correlated(same_path.clone(), None, Some(request.into())).unwrap();
+        rig.session
+            .start_export_correlated(same_path.clone(), None, Some(request.into()))
+            .unwrap();
         let done = finish(request);
         assert_eq!(done.error, None);
         assert_eq!(done.path, same_path.path);
         let events = rig.events.take();
         assert!(events.iter().all(|event| matches!(event, Event::ExportRequestProgress { request: actual, .. } if actual == request)));
-        assert!(windfall_codec::decode_file(&same_path.path).unwrap().frames() > 0);
+        assert!(
+            windfall_codec::decode_file(&same_path.path)
+                .unwrap()
+                .frames()
+                > 0
+        );
     }
-    rig.session.start_export_correlated(options(&rig, "absent/failed.wav"), None, Some("failed-request".into())).unwrap();
-    assert!(finish("failed-request").error.unwrap().contains("failed.wav"));
+    rig.session
+        .start_export_correlated(
+            options(&rig, "absent/failed.wav"),
+            None,
+            Some("failed-request".into()),
+        )
+        .unwrap();
+    assert!(
+        finish("failed-request")
+            .error
+            .unwrap()
+            .contains("failed.wav")
+    );
     rig.events.take();
     let held = rig.session.hold("sampler:export-snapshot");
     let cancelled = options(&rig, "cancelled.wav");
-    rig.session.start_export_correlated(cancelled.clone(), None, Some("cancelled-request".into())).unwrap();
+    rig.session
+        .start_export_correlated(cancelled.clone(), None, Some("cancelled-request".into()))
+        .unwrap();
     held.wait();
     rig.session.export_cancel();
     held.release();
@@ -60,7 +85,11 @@ fn export_request_identity_survives_success_error_cancel_and_repeated_destinatio
     assert!(!Path::new(&cancelled.path).exists());
     assert_eq!(rig.session.document_snapshot(), before);
     rig.events.take();
-    assert!(rig.session.start_export_correlated(same_path, None, Some("bad request".into())).is_err());
+    assert!(
+        rig.session
+            .start_export_correlated(same_path, None, Some("bad request".into()))
+            .is_err()
+    );
     assert!(rig.events.take().is_empty());
 }
 
@@ -562,7 +591,8 @@ fn pattern_wav_note_cues_follow_swing_shift_repeats_and_saved_notes() {
     assert_eq!(rig.session.document_snapshot(), before);
 }
 #[test]
-fn song_wav_navigation_notes_preserve_actions_and_linear_pcm_positions_in_full_and_region_exports() {
+fn song_wav_navigation_notes_preserve_actions_and_linear_pcm_positions_in_full_and_region_exports()
+{
     use windfall_project::{MarkerKind, TickRange};
     let rig = Rig::new();
     let input = rig.file("navigation-source.wav");
@@ -603,10 +633,18 @@ fn song_wav_navigation_notes_preserve_actions_and_linear_pcm_positions_in_full_a
     assert!(rms(&audio.samples()[72000..80000]) > 0.1);
     let metadata = windfall_codec::read_wav_metadata_file(&export.path).unwrap();
     assert_eq!(metadata.cues[0].frame, 24000);
-    assert!(metadata.notes.iter().any(|n| n.text == "WindfallNavigation/1 skip 36000"));
+    assert!(
+        metadata
+            .notes
+            .iter()
+            .any(|n| n.text == "WindfallNavigation/1 skip 36000")
+    );
     let bytes = std::fs::read(&export.path).unwrap();
-    assert!(bytes.windows(b"WindfallNavigation/1 skip 36000\0".len())
-        .any(|n| n == b"WindfallNavigation/1 skip 36000\0"));
+    assert!(
+        bytes
+            .windows(b"WindfallNavigation/1 skip 36000\0".len())
+            .any(|n| n == b"WindfallNavigation/1 skip 36000\0")
+    );
     assert_eq!(rig.session.document_snapshot(), before);
     let guard = rig.session.timeline_state();
     export.path = rig.file("before-navigation.wav");
@@ -623,7 +661,17 @@ fn song_wav_navigation_notes_preserve_actions_and_linear_pcm_positions_in_full_a
     let metadata = windfall_codec::read_wav_metadata_file(&export.path).unwrap();
     assert_eq!(metadata.cues[0].frame, 0);
     assert_eq!(metadata.tempo.unwrap().beats, 0);
-    assert!(metadata.notes.iter().any(|n| n.text == "WindfallBeats/1 120 0.5"));
-    assert!(!metadata.notes.iter().any(|n| n.text.starts_with("WindfallNavigation/")));
+    assert!(
+        metadata
+            .notes
+            .iter()
+            .any(|n| n.text == "WindfallBeats/1 120 0.5")
+    );
+    assert!(
+        !metadata
+            .notes
+            .iter()
+            .any(|n| n.text.starts_with("WindfallNavigation/"))
+    );
     assert_eq!(rig.session.document_snapshot(), before);
 }

@@ -1012,18 +1012,87 @@ fn midi_output_plugin_destination_receives_notes_program_cc_and_exact_release_pc
 
 #[test]
 fn project_feedback_uses_its_worker_destination_without_app_midi_preferences_or_fallback() {
-    let (mut processor,controller)=Processor::new(48000);let (mut doc,source,_)=midi_out_project(1);
-    let mut params=InstrumentKind::MidiOut.default_params();
-    if let InstrumentParams::MidiOut(out)=&mut params {out.feedback_enabled=true;out.feedback_controller=2;out.feedback_motor=1;out.feedback_strength=0.5;out.feedback_curve=2.0;}
-    doc.dispatch(Command::SetInstrumentParams {channel:source,params},None).unwrap();controller.set_project(doc.project(),&SamplePool::new());
-    let ports=fake(&["main",feedback::PROJECT_FEEDBACK_OUTPUT]);let (mut active,_)=worker(&controller,&ports,MidiHardwareSettings {output:Some("main".into()),..Default::default()});
-    controller.note_on(source,60,0.5);let mut audio=[0.0;128];let calls=crate::test_alloc::allocator_calls(||processor.process(&mut audio));assert_eq!(calls,0);
-    active.outputs_at(Instant::now(),&controller.playhead(),10000000,None);
-    assert!(ports.lock().unwrap().routed.contains(&(feedback::PROJECT_FEEDBACK_OUTPUT.into(),vec![0x97,60,16])));
-    assert!(!ports.lock().unwrap().routed.iter().any(|(id,bytes)| id=="main" && bytes[0]&0xf0==0x90));
-    active.reset();assert!(ports.lock().unwrap().routed.contains(&(feedback::PROJECT_FEEDBACK_OUTPUT.into(),vec![0xb7,123,0])));
-    let absent=fake(&["main"]);let (mut missing,_)=worker(&controller,&absent,MidiHardwareSettings {output:Some("main".into()),..Default::default()});
-    controller.note_on(source,61,1.0);processor.process(&mut audio);missing.outputs_at(Instant::now(),&controller.playhead(),20000000,None);
-    assert!(missing.state().error.unwrap().contains("Project controller feedback unavailable"));
-    assert!(!absent.lock().unwrap().routed.iter().any(|(_,bytes)|bytes[0]&0xf0==0x90));
+    let (mut processor, controller) = Processor::new(48000);
+    let (mut doc, source, _) = midi_out_project(1);
+    let mut params = InstrumentKind::MidiOut.default_params();
+    if let InstrumentParams::MidiOut(out) = &mut params {
+        out.feedback_enabled = true;
+        out.feedback_controller = 2;
+        out.feedback_motor = 1;
+        out.feedback_strength = 0.5;
+        out.feedback_curve = 2.0;
+    }
+    doc.dispatch(
+        Command::SetInstrumentParams {
+            channel: source,
+            params,
+        },
+        None,
+    )
+    .unwrap();
+    controller.set_project(doc.project(), &SamplePool::new());
+    let ports = fake(&["main", feedback::PROJECT_FEEDBACK_OUTPUT]);
+    let (mut active, _) = worker(
+        &controller,
+        &ports,
+        MidiHardwareSettings {
+            output: Some("main".into()),
+            ..Default::default()
+        },
+    );
+    controller.note_on(source, 60, 0.5);
+    let mut audio = [0.0; 128];
+    let calls = crate::test_alloc::allocator_calls(|| processor.process(&mut audio));
+    assert_eq!(calls, 0);
+    active.outputs_at(Instant::now(), &controller.playhead(), 10000000, None);
+    assert!(
+        ports
+            .lock()
+            .unwrap()
+            .routed
+            .contains(&(feedback::PROJECT_FEEDBACK_OUTPUT.into(), vec![0x97, 60, 16]))
+    );
+    assert!(
+        !ports
+            .lock()
+            .unwrap()
+            .routed
+            .iter()
+            .any(|(id, bytes)| id == "main" && bytes[0] & 0xf0 == 0x90)
+    );
+    active.reset();
+    assert!(
+        ports
+            .lock()
+            .unwrap()
+            .routed
+            .contains(&(feedback::PROJECT_FEEDBACK_OUTPUT.into(), vec![0xb7, 123, 0]))
+    );
+    let absent = fake(&["main"]);
+    let (mut missing, _) = worker(
+        &controller,
+        &absent,
+        MidiHardwareSettings {
+            output: Some("main".into()),
+            ..Default::default()
+        },
+    );
+    controller.note_on(source, 61, 1.0);
+    processor.process(&mut audio);
+    missing.outputs_at(Instant::now(), &controller.playhead(), 20000000, None);
+    assert!(
+        missing
+            .state()
+            .error
+            .unwrap()
+            .contains("Project controller feedback unavailable")
+    );
+    assert!(
+        !absent
+            .lock()
+            .unwrap()
+            .routed
+            .iter()
+            .any(|(_, bytes)| bytes[0] & 0xf0 == 0x90)
+    );
 }

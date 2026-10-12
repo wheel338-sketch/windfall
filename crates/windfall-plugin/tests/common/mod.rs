@@ -85,4 +85,3 @@ pub fn program() -> Program {
     program.validate().unwrap();
     program
 }
-

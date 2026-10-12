@@ -29,14 +29,15 @@ use windfall_ipc::{MidiExportOptions, MidiImportOptions, MidiImportPreview};
 // Native analysis controls. Slow preparation, cleanup and joining stay on
 // blocking tasks; cancellation itself never waits for the preparation gate.
 #[tauri::command]
-fn music_lighting_status(session: State<'_, Session>,
+fn music_lighting_status(
+    session: State<'_, Session>,
     window: tauri::WebviewWindow,
     caller: crate::window_calls::WindowCaller,
 ) -> Result<serde_json::Value, String> {
     let _window_call = caller.enter(&window, "music_lighting_status")?;
     Ok((|| {
-    serde_json::to_value(session.music_lighting_status()).expect("plain lighting status serializes")
-
+        serde_json::to_value(session.music_lighting_status())
+            .expect("plain lighting status serializes")
     })())
 }
 #[tauri::command]
@@ -53,7 +54,9 @@ async fn sample_instrument_load_bank(
     blocking(move || session.sample_instrument_load_bank(channel, expected, path)).await
 }
 #[tauri::command]
-fn sample_instrument_missing_sources(session: State<'_, Session>, channel: ChannelId,
+fn sample_instrument_missing_sources(
+    session: State<'_, Session>,
+    channel: ChannelId,
     window: tauri::WebviewWindow,
     caller: crate::window_calls::WindowCaller,
 ) -> Result<Vec<SampleId>, String> {
@@ -63,25 +66,39 @@ fn sample_instrument_missing_sources(session: State<'_, Session>, channel: Chann
 }
 #[tauri::command]
 async fn sample_instrument_relink_source(
-    session: State<'_, Session>, channel: ChannelId, expected: Option<windfall_project::SampleInstrumentAsset>,
-    sample: SampleId, expected_path: windfall_project::SamplePath, path: String,
+    session: State<'_, Session>,
+    channel: ChannelId,
+    expected: Option<windfall_project::SampleInstrumentAsset>,
+    sample: SampleId,
+    expected_path: windfall_project::SamplePath,
+    path: String,
     window: tauri::WebviewWindow,
     caller: crate::window_calls::WindowCaller,
 ) -> Result<DispatchResult, String> {
     let _window_call = caller.enter(&window, "sample_instrument_relink_source")?;
 
     let session = session.inner().clone();
-    blocking(move || session.sample_instrument_relink_source(channel, expected, sample, expected_path, path)).await
+    blocking(move || {
+        session.sample_instrument_relink_source(channel, expected, sample, expected_path, path)
+    })
+    .await
 }
 #[tauri::command]
 async fn sample_instrument_general_midi(
-    session: State<'_,Session>,channel:ChannelId,expected:windfall_project::ChannelSource,path:String,bank:u16,program:u16,
+    session: State<'_, Session>,
+    channel: ChannelId,
+    expected: windfall_project::ChannelSource,
+    path: String,
+    bank: u16,
+    program: u16,
     window: tauri::WebviewWindow,
     caller: crate::window_calls::WindowCaller,
-) -> Result<DispatchResult,String>{
+) -> Result<DispatchResult, String> {
     let _window_call = caller.enter(&window, "sample_instrument_general_midi")?;
 
-    let session=session.inner().clone();blocking(move||session.sample_instrument_general_midi(channel,expected,path,bank,program)).await
+    let session = session.inner().clone();
+    blocking(move || session.sample_instrument_general_midi(channel, expected, path, bank, program))
+        .await
 }
 #[tauri::command]
 async fn sample_instrument_save_bank(
@@ -124,7 +141,9 @@ async fn soundfont_presets(
 // Tauri wire arguments include native caller identity; domain methods stay unchanged.
 #[allow(clippy::too_many_arguments)]
 #[tauri::command]
-fn sample_instrument_speech_begin(session: State<'_, Session>, channel: ChannelId,
+fn sample_instrument_speech_begin(
+    session: State<'_, Session>,
+    channel: ChannelId,
     window: tauri::WebviewWindow,
     caller: crate::window_calls::WindowCaller,
 ) -> Result<u64, String> {
@@ -133,14 +152,16 @@ fn sample_instrument_speech_begin(session: State<'_, Session>, channel: ChannelI
     session.sample_instrument_speech_begin(channel)
 }
 #[tauri::command]
-fn sample_instrument_speech_cancel(session: State<'_, Session>, channel: ChannelId, request: u64,
+fn sample_instrument_speech_cancel(
+    session: State<'_, Session>,
+    channel: ChannelId,
+    request: u64,
     window: tauri::WebviewWindow,
     caller: crate::window_calls::WindowCaller,
 ) -> Result<(), String> {
     let _window_call = caller.enter(&window, "sample_instrument_speech_cancel")?;
     Ok((|| {
-    session.sample_instrument_speech_cancel(channel, request);
-
+        session.sample_instrument_speech_cancel(channel, request);
     })())
 }
 #[tauri::command]
@@ -158,10 +179,11 @@ async fn sample_instrument_speech(
     let _window_call = caller.enter(&window, "sample_instrument_speech")?;
     let session = session.inner().clone();
     blocking(move || match request {
-        Some(request) => session.sample_instrument_speech_request(channel, expected, text, pitch, duration, request),
+        Some(request) => session
+            .sample_instrument_speech_request(channel, expected, text, pitch, duration, request),
         None => session.sample_instrument_speech(channel, expected, text, pitch, duration),
     })
-        .await
+    .await
 }
 
 #[tauri::command]
@@ -246,7 +268,8 @@ fn loop_catalog(
 }
 #[tauri::command]
 async fn loop_preview(
-    session: State<'_, Session>, id: String,
+    session: State<'_, Session>,
+    id: String,
     window: tauri::WebviewWindow,
     caller: crate::window_calls::WindowCaller,
 ) -> Result<(), String> {
@@ -308,7 +331,8 @@ async fn analysis_model_import(
     blocking(move || session.analysis_model_import(&path, model)).await
 }
 #[tauri::command]
-async fn analysis_runtime_settings(session: State<'_, Session>,
+async fn analysis_runtime_settings(
+    session: State<'_, Session>,
     window: tauri::WebviewWindow,
     caller: crate::window_calls::WindowCaller,
 ) -> Result<windfall_ipc::AnalysisRuntimeSettings, String> {
@@ -318,7 +342,9 @@ async fn analysis_runtime_settings(session: State<'_, Session>,
     blocking(move || session.analysis_runtime_settings()).await
 }
 #[tauri::command]
-async fn analysis_runtime_configure(session: State<'_, Session>, settings: windfall_ipc::AnalysisRuntimeSettings,
+async fn analysis_runtime_configure(
+    session: State<'_, Session>,
+    settings: windfall_ipc::AnalysisRuntimeSettings,
     window: tauri::WebviewWindow,
     caller: crate::window_calls::WindowCaller,
 ) -> Result<windfall_ipc::AnalysisRuntimeSettings, String> {
@@ -371,7 +397,8 @@ fn analysis_cancel_preparation(
 }
 #[tauri::command]
 async fn analysis_forget(
-    session: State<'_, Session>, job: String,
+    session: State<'_, Session>,
+    job: String,
     window: tauri::WebviewWindow,
     caller: crate::window_calls::WindowCaller,
 ) -> Result<(), String> {
@@ -381,7 +408,8 @@ async fn analysis_forget(
 }
 #[tauri::command]
 async fn analysis_retry_cleanup(
-    session: State<'_, Session>, job: String,
+    session: State<'_, Session>,
+    job: String,
     window: tauri::WebviewWindow,
     caller: crate::window_calls::WindowCaller,
 ) -> Result<(), String> {
@@ -572,7 +600,8 @@ async fn slice_apply(
 }
 #[tauri::command]
 fn slice_discard(
-    session: State<'_, Session>, token: u32,
+    session: State<'_, Session>,
+    token: u32,
     window: tauri::WebviewWindow,
     caller: crate::window_calls::WindowCaller,
 ) -> Result<(), String> {
@@ -598,10 +627,19 @@ fn document_snapshot(session: State<'_, Session>) -> DocumentSnapshot {
 }
 
 #[tauri::command]
-fn window_document_snapshot(session: State<'_, Session>, window: WebviewWindow) -> Result<crate::window_calls::WindowBootstrap, String> {
+fn window_document_snapshot(
+    session: State<'_, Session>,
+    window: WebviewWindow,
+) -> Result<crate::window_calls::WindowBootstrap, String> {
     let snapshot = session.window_document_snapshot();
-    let caller = window.state::<crate::window_calls::WindowCalls>().caller(window.label(), snapshot.generation)?;
-    Ok(crate::window_calls::WindowBootstrap { generation: snapshot.generation, caller, snapshot: snapshot.snapshot })
+    let caller = window
+        .state::<crate::window_calls::WindowCalls>()
+        .caller(window.label(), snapshot.generation)?;
+    Ok(crate::window_calls::WindowBootstrap {
+        generation: snapshot.generation,
+        caller,
+        snapshot: snapshot.snapshot,
+    })
 }
 
 #[tauri::command]
@@ -653,7 +691,8 @@ fn sampler_preparation_begin(
 }
 #[tauri::command]
 fn sampler_preparation_cancel(
-    session: State<'_, Session>, request: u64,
+    session: State<'_, Session>,
+    request: u64,
     window: tauri::WebviewWindow,
     caller: crate::window_calls::WindowCaller,
 ) -> Result<(), String> {
@@ -717,7 +756,9 @@ async fn audio_editor_apply(
     blocking(move || session.audio_editor_apply(request)).await
 }
 #[tauri::command]
-async fn audio_script_preview(session: State<'_, Session>, input: windfall_ipc::AudioScriptRequest,
+async fn audio_script_preview(
+    session: State<'_, Session>,
+    input: windfall_ipc::AudioScriptRequest,
     window: tauri::WebviewWindow,
     caller: crate::window_calls::WindowCaller,
 ) -> Result<windfall_ipc::AudioScriptPreview, String> {
@@ -727,7 +768,10 @@ async fn audio_script_preview(session: State<'_, Session>, input: windfall_ipc::
     blocking(move || session.audio_script_preview(input)).await
 }
 #[tauri::command]
-async fn audio_script_apply(session: State<'_, Session>, token: u32, request: u64,
+async fn audio_script_apply(
+    session: State<'_, Session>,
+    token: u32,
+    request: u64,
     window: tauri::WebviewWindow,
     caller: crate::window_calls::WindowCaller,
 ) -> Result<DispatchResult, String> {
@@ -737,7 +781,10 @@ async fn audio_script_apply(session: State<'_, Session>, token: u32, request: u6
     blocking(move || session.audio_script_apply(token, request)).await
 }
 #[tauri::command]
-async fn audio_script_audition(session: State<'_, Session>, token: u32, request: u64,
+async fn audio_script_audition(
+    session: State<'_, Session>,
+    token: u32,
+    request: u64,
     window: tauri::WebviewWindow,
     caller: crate::window_calls::WindowCaller,
 ) -> Result<(), String> {
@@ -748,7 +795,8 @@ async fn audio_script_audition(session: State<'_, Session>, token: u32, request:
 }
 #[tauri::command]
 async fn audio_editor_discard(
-    session: State<'_, Session>, token: u32,
+    session: State<'_, Session>,
+    token: u32,
     window: tauri::WebviewWindow,
     caller: crate::window_calls::WindowCaller,
 ) -> Result<(), String> {
@@ -762,7 +810,13 @@ async fn audio_editor_discard(
 }
 
 #[tauri::command]
-async fn audio_editor_save_wavpack(session: State<'_, Session>, token: u32, start: u32, end: u32, path: String, depth: windfall_ipc::BitDepth,
+async fn audio_editor_save_wavpack(
+    session: State<'_, Session>,
+    token: u32,
+    start: u32,
+    end: u32,
+    path: String,
+    depth: windfall_ipc::BitDepth,
     window: tauri::WebviewWindow,
     caller: crate::window_calls::WindowCaller,
 ) -> Result<(), String> {
@@ -779,7 +833,12 @@ async fn m4a_capability(
 ) -> Result<Option<String>, String> {
     let _window_call = caller.enter(&window, "m4a_capability")?;
 
-    blocking(|| Ok(windfall_codec::m4a_capability().err().map(|e| e.to_string()))).await
+    blocking(|| {
+        Ok(windfall_codec::m4a_capability()
+            .err()
+            .map(|e| e.to_string()))
+    })
+    .await
 }
 
 #[tauri::command]
@@ -956,7 +1015,8 @@ async fn flp_preview(
 
 #[tauri::command]
 fn flp_open(
-    session: State<'_, Session>, token: u64,
+    session: State<'_, Session>,
+    token: u64,
     window: tauri::WebviewWindow,
     caller: crate::window_calls::WindowCaller,
 ) -> Result<DocumentSnapshot, String> {
@@ -966,7 +1026,8 @@ fn flp_open(
 
 #[tauri::command]
 fn flp_cancel(
-    session: State<'_, Session>, token: u64,
+    session: State<'_, Session>,
+    token: u64,
     window: tauri::WebviewWindow,
     caller: crate::window_calls::WindowCaller,
 ) -> Result<(), String> {
@@ -976,7 +1037,8 @@ fn flp_cancel(
 }
 #[tauri::command]
 async fn project_save(
-    session: State<'_, Session>, path: Option<String>,
+    session: State<'_, Session>,
+    path: Option<String>,
     window: tauri::WebviewWindow,
     caller: crate::window_calls::WindowCaller,
 ) -> Result<String, String> {
@@ -999,7 +1061,8 @@ async fn project_save_new_version(
 
 #[tauri::command]
 async fn project_archive_save(
-    session: State<'_, Session>, path: String,
+    session: State<'_, Session>,
+    path: String,
     window: tauri::WebviewWindow,
     caller: crate::window_calls::WindowCaller,
 ) -> Result<String, String> {
@@ -1153,7 +1216,10 @@ fn realtime_subscribe(
 }
 
 #[tauri::command]
-fn realtime_unsubscribe(session: State<'_, Session>, window: WebviewWindow, token: String,
+fn realtime_unsubscribe(
+    session: State<'_, Session>,
+    window: WebviewWindow,
+    token: String,
     caller: crate::window_calls::WindowCaller,
 ) -> Result<(), String> {
     let _window_call = caller.enter(&window, "realtime_unsubscribe")?;
@@ -1217,7 +1283,10 @@ async fn engine_configure(
 
 #[tauri::command]
 fn audition_note_on(
-    session: State<'_, Session>, channel: ChannelId, key: u8, velocity: f32,
+    session: State<'_, Session>,
+    channel: ChannelId,
+    key: u8,
+    velocity: f32,
     window: tauri::WebviewWindow,
     caller: crate::window_calls::WindowCaller,
 ) -> Result<(), String> {
@@ -1228,7 +1297,9 @@ fn audition_note_on(
 
 #[tauri::command]
 fn audition_note_off(
-    session: State<'_, Session>, channel: ChannelId, key: u8,
+    session: State<'_, Session>,
+    channel: ChannelId,
+    key: u8,
     window: tauri::WebviewWindow,
     caller: crate::window_calls::WindowCaller,
 ) -> Result<(), String> {
@@ -1301,7 +1372,8 @@ fn library_refresh(
 
 #[tauri::command]
 fn library_cancel(
-    session: State<'_, Session>, generation: u32,
+    session: State<'_, Session>,
+    generation: u32,
     window: tauri::WebviewWindow,
     caller: crate::window_calls::WindowCaller,
 ) -> Result<(), String> {
@@ -1506,7 +1578,9 @@ fn add_audio_clip_from_sample(
 }
 
 #[tauri::command]
-async fn export_audio(session: State<'_, Session>, options: ExportOptions,
+async fn export_audio(
+    session: State<'_, Session>,
+    options: ExportOptions,
     request: Option<String>,
     window: tauri::WebviewWindow,
     caller: crate::window_calls::WindowCaller,
@@ -1516,8 +1590,13 @@ async fn export_audio(session: State<'_, Session>, options: ExportOptions,
     blocking(move || session.start_export_correlated(options, None, request)).await
 }
 #[tauri::command]
-async fn export_plugin_bundle(session: State<'_, Session>, destination: String, runtime: String,
-    window: tauri::WebviewWindow, caller: crate::window_calls::WindowCaller) -> Result<(), String> {
+async fn export_plugin_bundle(
+    session: State<'_, Session>,
+    destination: String,
+    runtime: String,
+    window: tauri::WebviewWindow,
+    caller: crate::window_calls::WindowCaller,
+) -> Result<(), String> {
     let _window_call = caller.enter(&window, "export_plugin_bundle")?;
     let session = session.inner().clone();
     blocking(move || session.export_plugin_bundle(&destination, &runtime)).await
@@ -1622,7 +1701,8 @@ async fn midi_preview(
 
 #[tauri::command]
 async fn import_midi(
-    session: State<'_, Session>, token: u32,
+    session: State<'_, Session>,
+    token: u32,
     window: tauri::WebviewWindow,
     caller: crate::window_calls::WindowCaller,
 ) -> Result<DispatchResult, String> {
@@ -1633,7 +1713,8 @@ async fn import_midi(
 
 #[tauri::command]
 fn midi_discard(
-    session: State<'_, Session>, token: u32,
+    session: State<'_, Session>,
+    token: u32,
     window: tauri::WebviewWindow,
     caller: crate::window_calls::WindowCaller,
 ) -> Result<(), String> {
@@ -1658,7 +1739,8 @@ async fn export_midi(
 /// Writes a piano-roll score without touching the project or audio engine.
 #[tauri::command]
 async fn write_sheet_music(
-    path: String, xml: String,
+    path: String,
+    xml: String,
     window: tauri::WebviewWindow,
     caller: crate::window_calls::WindowCaller,
 ) -> Result<String, String> {
@@ -1754,7 +1836,10 @@ async fn plugin_editor(
         .and_then(|window| window.hwnd().ok())
         .map(|handle| handle.0 as usize);
     #[cfg(target_os = "macos")]
-    let parent = app.get_webview_window("main").and_then(|window| window.ns_window().ok()).map(|window| window as usize);
+    let parent = app
+        .get_webview_window("main")
+        .and_then(|window| window.ns_window().ok())
+        .map(|window| window as usize);
     #[cfg(not(any(windows, target_os = "macos")))]
     let parent = {
         let _ = app;
@@ -1802,14 +1887,18 @@ async fn plugin_editor_scale(
 // Creating a WebView2 window in a synchronous command can deadlock on Windows.
 #[tauri::command]
 async fn detach_panel(
-    app: AppHandle, id: String,
+    app: AppHandle,
+    id: String,
     window: tauri::WebviewWindow,
     caller: crate::window_calls::WindowCaller,
 ) -> Result<(), String> {
     let _window_call = caller.enter(&window, "detach_panel")?;
     let title = panel_title(&id)?;
     let label = format!("panel-{id}");
-    if app.state::<crate::window_calls::WindowCalls>().closing(&label) {
+    if app
+        .state::<crate::window_calls::WindowCalls>()
+        .closing(&label)
+    {
         return Err("This window is closing.".into());
     }
     if let Some(window) = app.get_webview_window(&label) {
@@ -1838,7 +1927,8 @@ async fn detach_panel(
 
 #[tauri::command]
 async fn dock_panel(
-    app: AppHandle, id: String,
+    app: AppHandle,
+    id: String,
     window: tauri::WebviewWindow,
     caller: crate::window_calls::WindowCaller,
 ) -> Result<(), String> {
@@ -1861,10 +1951,18 @@ async fn dock_panel(
 
 /// Close only the authenticated window after its UI has resolved unsaved work.
 #[tauri::command]
-fn window_close(window: WebviewWindow, caller: crate::window_calls::WindowCaller) -> Result<(), String> {
+fn window_close(
+    window: WebviewWindow,
+    caller: crate::window_calls::WindowCaller,
+) -> Result<(), String> {
     let _window_call = caller.enter(&window, "window_close")?;
     let result = window.destroy().map_err(|error| error.to_string());
-    if result.is_err() && window.app_handle().get_webview_window(window.label()).is_some() {
+    if result.is_err()
+        && window
+            .app_handle()
+            .get_webview_window(window.label())
+            .is_some()
+    {
         caller.failed_close(&window);
     }
     result
@@ -2400,17 +2498,17 @@ fn analyzer_subscribe(
 ) -> Result<windfall_ipc::AnalyzerStatus, String> {
     let _window_call = caller.enter(&window, "analyzer_subscribe")?;
     Ok({
-    // The session hands over each event as JSON text it has already
-    // measured against the size limit, so it goes out as it is.
-    session.analyzer_subscribe(
-        window.label(),
-        &slot,
-        Box::new(move |event| {
-            channel
-                .send(tauri::ipc::InvokeResponseBody::Json(event.to_owned()))
-                .is_ok()
-        }),
-    )
+        // The session hands over each event as JSON text it has already
+        // measured against the size limit, so it goes out as it is.
+        session.analyzer_subscribe(
+            window.label(),
+            &slot,
+            Box::new(move |event| {
+                channel
+                    .send(tauri::ipc::InvokeResponseBody::Json(event.to_owned()))
+                    .is_ok()
+            }),
+        )
     })
 }
 #[tauri::command]
@@ -2435,7 +2533,10 @@ fn analyzer_ack(
     Ok(())
 }
 #[tauri::command]
-fn analyzer_unsubscribe(session: State<'_, Session>, window: WebviewWindow, slot: String,
+fn analyzer_unsubscribe(
+    session: State<'_, Session>,
+    window: WebviewWindow,
+    slot: String,
     caller: crate::window_calls::WindowCaller,
 ) -> Result<(), String> {
     let _window_call = caller.enter(&window, "analyzer_unsubscribe")?;
@@ -2496,7 +2597,8 @@ fn script_begin(
 }
 #[tauri::command]
 fn script_cancel(
-    session: State<'_, Session>, request: u64,
+    session: State<'_, Session>,
+    request: u64,
     window: tauri::WebviewWindow,
     caller: crate::window_calls::WindowCaller,
 ) -> Result<(), String> {
@@ -2560,7 +2662,8 @@ fn assistant_request_begin(
 }
 #[tauri::command]
 fn assistant_request_cancel(
-    session: State<'_, Session>, request: u64,
+    session: State<'_, Session>,
+    request: u64,
     window: tauri::WebviewWindow,
     caller: crate::window_calls::WindowCaller,
 ) -> Result<(), String> {
@@ -2636,16 +2739,19 @@ fn performance_state(
     Ok(session.performance_state())
 }
 #[tauri::command]
-fn performance_record_state(session: State<'_, Session>,
+fn performance_record_state(
+    session: State<'_, Session>,
     window: tauri::WebviewWindow,
     caller: crate::window_calls::WindowCaller,
 ) -> Result<windfall_ipc::PerformanceRecordingState, String> {
     let _window_call = caller.enter(&window, "performance_record_state")?;
-    Ok((|| { session.performance_record_state() 
-    })())
+    Ok((|| session.performance_record_state())())
 }
 #[tauri::command]
-async fn performance_record_start(session: State<'_, Session>, generation: u64, revision: u64,
+async fn performance_record_start(
+    session: State<'_, Session>,
+    generation: u64,
+    revision: u64,
     window: tauri::WebviewWindow,
     caller: crate::window_calls::WindowCaller,
 ) -> Result<(), String> {
@@ -2655,25 +2761,30 @@ async fn performance_record_start(session: State<'_, Session>, generation: u64, 
     blocking(move || session.performance_record_start(generation, revision)).await
 }
 #[tauri::command]
-fn performance_record_stop(session: State<'_, Session>,
+fn performance_record_stop(
+    session: State<'_, Session>,
     window: tauri::WebviewWindow,
     caller: crate::window_calls::WindowCaller,
 ) -> Result<(), String> {
     let _window_call = caller.enter(&window, "performance_record_stop")?;
-    Ok((|| { session.performance_record_stop(); 
+    Ok((|| {
+        session.performance_record_stop();
     })())
 }
 #[tauri::command]
-fn performance_record_cancel(session: State<'_, Session>,
+fn performance_record_cancel(
+    session: State<'_, Session>,
     window: tauri::WebviewWindow,
     caller: crate::window_calls::WindowCaller,
 ) -> Result<(), String> {
     let _window_call = caller.enter(&window, "performance_record_cancel")?;
-    Ok((|| { session.performance_record_cancel(); 
+    Ok((|| {
+        session.performance_record_cancel();
     })())
 }
 #[tauri::command]
-async fn performance_record_save(session: State<'_, Session>,
+async fn performance_record_save(
+    session: State<'_, Session>,
     window: tauri::WebviewWindow,
     caller: crate::window_calls::WindowCaller,
 ) -> Result<(), String> {
@@ -2683,14 +2794,24 @@ async fn performance_record_save(session: State<'_, Session>,
     blocking(move || session.performance_record_save()).await
 }
 #[tauri::command]
-fn performance_take_replay(session: State<'_, Session>, index: Option<usize>, generation: u64, revision: u64,
+fn performance_take_replay(
+    session: State<'_, Session>,
+    index: Option<usize>,
+    generation: u64,
+    revision: u64,
     window: tauri::WebviewWindow,
     caller: crate::window_calls::WindowCaller,
 ) -> Result<(), String> {
     let _window_call = caller.enter(&window, "performance_take_replay")?;
- session.performance_take_replay(index, generation, revision) }
+    session.performance_take_replay(index, generation, revision)
+}
 #[tauri::command]
-async fn performance_take_export(session: State<'_, Session>, index: usize, path: String, generation: u64, revision: u64,
+async fn performance_take_export(
+    session: State<'_, Session>,
+    index: usize,
+    path: String,
+    generation: u64,
+    revision: u64,
     window: tauri::WebviewWindow,
     caller: crate::window_calls::WindowCaller,
 ) -> Result<(), String> {

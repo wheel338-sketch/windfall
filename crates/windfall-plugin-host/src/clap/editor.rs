@@ -63,7 +63,9 @@ impl Editor {
                 info,
                 application: options.scale,
             };
-            if let Err(error) = editor.set_scale(instance, options.scale) && options.scale != 1.0 {
+            if let Err(error) = editor.set_scale(instance, options.scale)
+                && options.scale != 1.0
+            {
                 editor.close(instance);
                 return Err(error);
             }
@@ -122,10 +124,8 @@ impl Editor {
         #[cfg(windows)]
         {
             let window = self.window.as_ref().ok_or(EditorError::UnsupportedScale)?;
-            let factor = crate::gui::scaling::content_scale(
-                application,
-                window.window.monitor_scale(),
-            )?;
+            let factor =
+                crate::gui::scaling::content_scale(application, window.window.monitor_scale())?;
             let plugin = instance.plugin_handle();
             self.gui
                 .set_scale(&plugin, factor)
@@ -151,11 +151,16 @@ impl Editor {
     }
 
     #[cfg(windows)]
-    pub fn poll_monitor_scale(&mut self, instance: &mut PluginInstance<WindfallHost>) -> Option<(f64, f64, Result<EditorInfo, EditorError>)> {
+    pub fn poll_monitor_scale(
+        &mut self,
+        instance: &mut PluginInstance<WindfallHost>,
+    ) -> Option<(f64, f64, Result<EditorInfo, EditorError>)> {
         let monitor = self.window.as_ref()?.window.take_monitor_scale()?;
         let before = self.info;
         let result = self.set_scale(instance, self.application);
-        if result.is_err() { self.apply_requested_size(before.width, before.height); }
+        if result.is_err() {
+            self.apply_requested_size(before.width, before.height);
+        }
         Some((self.application, monitor, result))
     }
 

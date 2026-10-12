@@ -1022,11 +1022,21 @@ pub(crate) fn compile(project: &Project, pool: &SamplePool) -> Plan {
     // Entity IDs are globally unique. Clip-backed pads use their clip ID in
     // the existing launcher protocol, without changing launch ordering.
     for pad in &project.settings.stage_media.pads {
-        if let Some(clip) = pad.clip.and_then(|id| project.playlist.clips.iter().find(|clip| clip.id == id))
+        if let Some(clip) = pad
+            .clip
+            .and_then(|id| project.playlist.clips.iter().find(|clip| clip.id == id))
             && !patterns.iter().any(|pattern| pattern.id.0 == clip.id.0)
         {
-            patterns.push(PlanPattern { id: PatternId(clip.id.0), source_length: clip.length.max(1), length: clip.length.max(1), signature: project.settings.time_signature,
-                meters: windfall_project::MeterMap::checked(project.settings.time_signature, &[]).map(|map| map.segments().to_vec()), events: Vec::new(), note_curves: Vec::new() });
+            patterns.push(PlanPattern {
+                id: PatternId(clip.id.0),
+                source_length: clip.length.max(1),
+                length: clip.length.max(1),
+                signature: project.settings.time_signature,
+                meters: windfall_project::MeterMap::checked(project.settings.time_signature, &[])
+                    .map(|map| map.segments().to_vec()),
+                events: Vec::new(),
+                note_curves: Vec::new(),
+            });
         }
     }
     let pattern_ids = IdIndex::new(patterns.iter().map(|pattern| pattern.id.0));
@@ -1075,7 +1085,14 @@ pub(crate) fn compile(project: &Project, pool: &SamplePool) -> Plan {
         clips,
         audio_clips,
         audio_clip_ids,
-        song_end: project.settings.stage_media.videos.iter().fold(song_end, |end, video| end.max(video.start_tick.saturating_add(video.length_ticks))),
+        song_end: project
+            .settings
+            .stage_media
+            .videos
+            .iter()
+            .fold(song_end, |end, video| {
+                end.max(video.start_tick.saturating_add(video.length_ticks))
+            }),
         lanes: Arc::from([]),
         control_sources: Vec::new(),
         control_links: Vec::new(),
@@ -1092,7 +1109,8 @@ pub(crate) fn compile(project: &Project, pool: &SamplePool) -> Plan {
     plan.compile_waves();
     plan.pattern_lanes = plan.lanes.iter().any(|lane| lane.in_patterns());
     let tempo_lane = plan.lanes.iter().find(|lane| lane.is_tempo());
-    plan.tempo_map = tempo_lane.map(|lane| TempoMap::new(lane, tempo_bpm, f64::from(plan.song_end)));
+    plan.tempo_map =
+        tempo_lane.map(|lane| TempoMap::new(lane, tempo_bpm, f64::from(plan.song_end)));
     plan.performance_clips = crate::performance_clips::compile(project, pool, &plan);
     plan.performance_clip_ids = IdIndex::new(plan.performance_clips.iter().map(|clip| clip.id.0));
     plan.performance_tempo = plan.performance_clips.iter().any(|clip| clip.has_tempo());
@@ -1263,7 +1281,9 @@ fn compile_pattern(
     // Extend the immutable score before placing notes; a relocated onset must
     // not be dropped just because it is outside the authored loop extent.
     for lane in &pattern.lanes {
-        let Some(channel) = channel_ids.get(lane.channel.0) else { continue; };
+        let Some(channel) = channel_ids.get(lane.channel.0) else {
+            continue;
+        };
         let program = script_notes.get(channel).and_then(Option::as_ref);
         if program.is_some() {
             for note in lane.notes.iter().filter(|note| note.start < source_length) {
@@ -1282,27 +1302,24 @@ fn compile_pattern(
         let timing = source_channels[channel].timing;
         for note in lane.notes.iter().filter(|note| note.start < source_length) {
             let program = script_notes.get(channel).and_then(Option::as_ref);
-            let transformed_notes = crate::script_notes::transform(
-                program,
-                note,
-            );
+            let transformed_notes = crate::script_notes::transform(program, note);
             for transformed in transformed_notes.as_slice() {
-            let Some((tick, duration)) =
-                timing.place(transformed.start, transformed.length, length, swing)
-            else {
-                continue;
-            };
-            events.push(NoteEvent {
-                source: note.id,
-                tick,
-                length: duration,
-                channel,
-                key: transformed.key.min(MAX_KEY),
-                velocity: unit(transformed.velocity),
-                pan: pan(transformed.pan),
-                expression: note.expression.clamped(),
-                scripted: program.is_some(),
-            });
+                let Some((tick, duration)) =
+                    timing.place(transformed.start, transformed.length, length, swing)
+                else {
+                    continue;
+                };
+                events.push(NoteEvent {
+                    source: note.id,
+                    tick,
+                    length: duration,
+                    channel,
+                    key: transformed.key.min(MAX_KEY),
+                    velocity: unit(transformed.velocity),
+                    pan: pan(transformed.pan),
+                    expression: note.expression.clamped(),
+                    scripted: program.is_some(),
+                });
             }
         }
     }
@@ -1397,9 +1414,14 @@ fn compile_playlist(
         };
         let extension = pattern.map_or(0, |index| {
             let score = &patterns[index];
-            clip.length.div_ceil(score.source_length).saturating_mul(score.length.saturating_sub(score.source_length))
+            clip.length
+                .div_ceil(score.source_length)
+                .saturating_mul(score.length.saturating_sub(score.source_length))
         });
-        let end = clip.start.saturating_add(clip.length).saturating_add(extension)
+        let end = clip
+            .start
+            .saturating_add(clip.length)
+            .saturating_add(extension)
             .min(windfall_project::MAX_SONG_TICKS);
         // A silent clip still takes up room on the timeline, so mute and
         // solo do not shorten the song.
@@ -1428,12 +1450,14 @@ fn compile_playlist(
         let score = &patterns[pattern];
         let offset = clip.offset % score.length;
         let origin = f64::from(clip.start) - f64::from(offset);
-        let last_repeat = (u64::from(end - clip.start - 1) + u64::from(offset)) / u64::from(score.length);
+        let last_repeat =
+            (u64::from(end - clip.start - 1) + u64::from(offset)) / u64::from(score.length);
         for repeat in [last_repeat.saturating_sub(1), last_repeat] {
             let shift = origin + repeat as f64 * f64::from(score.length);
             for event in score.events.iter().filter(|event| event.scripted) {
                 let tick = shift + event.tick;
-                if tick >= f64::from(clip.start) && tick < f64::from(end)
+                if tick >= f64::from(clip.start)
+                    && tick < f64::from(end)
                     && only.is_none_or(|only| only == event.channel)
                 {
                     song_end = song_end.max((tick + event.length).ceil() as u32);

@@ -58,6 +58,10 @@ oggQuality?: number,
  */
 mp3?: Mp3Settings, 
 /**
+ * Windows AAC bitrate in kbps: 96, 128, 160 or 192. Absent means 192.
+ */
+aacBitrate?: number, 
+/**
  * Exports stems instead of one file. Absent means one file, the mix.
  */
 stems?: ExportStems, 

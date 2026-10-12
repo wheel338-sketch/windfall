@@ -117,7 +117,6 @@
 //! the master. Channel solo and track solo do not affect each other.
 
 pub mod analyzers;
-mod video_audio;
 mod automation;
 pub mod channel_voice;
 mod channel_voice_runtime;
@@ -126,6 +125,7 @@ mod clips;
 mod controller;
 mod internal_controllers;
 mod preview_memory;
+mod video_audio;
 pub(crate) use controller::preparation as project_preparation;
 mod capture;
 mod device;
@@ -139,8 +139,8 @@ mod note_curves;
 mod note_glide;
 mod parallel;
 pub mod performance;
-pub mod performance_recording;
 mod performance_clips;
+pub mod performance_recording;
 mod plan;
 pub mod plugins;
 mod pool;

@@ -958,8 +958,14 @@ unsafe fn render_instrument(context: *mut ()) {
 impl PlanState {
     pub fn sweep_sample_banks(&mut self, garbage: &mut rtrb::Producer<crate::message::Garbage>) {
         for seat in self.instruments.iter_mut().flatten() {
-            if garbage.slots() == 0 { break; }
-            if let Some(bank) = seat.unit.as_mut().and_then(InstrumentUnit::take_unused_sample_bank) {
+            if garbage.slots() == 0 {
+                break;
+            }
+            if let Some(bank) = seat
+                .unit
+                .as_mut()
+                .and_then(InstrumentUnit::take_unused_sample_bank)
+            {
                 crate::message::retire(garbage, crate::message::Garbage::SampleBank(bank));
             }
         }
@@ -1824,7 +1830,10 @@ impl PlanState {
                 }
             }
             if !channel.leaving {
-                if let (Some(unit), Some(previous)) = (&mut seat.unit, before.as_mut().and_then(|seat| seat.unit.as_mut())) {
+                if let (Some(unit), Some(previous)) = (
+                    &mut seat.unit,
+                    before.as_mut().and_then(|seat| seat.unit.as_mut()),
+                ) {
                     unit.inherit_sample_bank_notes(previous);
                 }
             }

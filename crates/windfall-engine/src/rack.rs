@@ -106,7 +106,9 @@ pub(crate) struct EffectUnit {
 
 impl EffectUnit {
     #[cfg(feature = "plugin-export")]
-    pub fn reset_plugin(&mut self) { self.slot.reset(); }
+    pub fn reset_plugin(&mut self) {
+        self.slot.reset();
+    }
     /// Native instances and engine control producers retain the callback lane.
     pub fn parallel_safe(&self) -> bool {
         self.external.is_none() && !self.control_enabled()
@@ -641,23 +643,32 @@ pub(crate) struct InstrumentUnit {
 
 impl InstrumentUnit {
     pub fn inherit_sample_bank_notes(&mut self, previous: &mut Self) {
-        if self.instrument.inherit_sample_bank_state(&mut previous.instrument) {
+        if self
+            .instrument
+            .inherit_sample_bank_state(&mut previous.instrument)
+        {
             self.notes.copy_from_slice(&previous.notes);
             self.next_instance = previous.next_instance;
             self.held = previous.held;
             self.last_sound = previous.last_sound;
         }
     }
-    pub fn take_unused_sample_bank(&mut self) -> Option<std::sync::Arc<windfall_dsp::sample_bank::SampleBank>> {
+    pub fn take_unused_sample_bank(
+        &mut self,
+    ) -> Option<std::sync::Arc<windfall_dsp::sample_bank::SampleBank>> {
         self.instrument.take_unused_sample_bank()
     }
     #[cfg(feature = "plugin-export")]
     pub fn reset_plugin(&mut self) {
         self.instrument.reset();
-        if let Some(rack) = &mut self.modular { rack.reset(); }
+        if let Some(rack) = &mut self.modular {
+            rack.reset();
+        }
         self.notes.fill(HeldInstrumentNote::EMPTY);
         self.held = 0;
-        self.left.fill(0.0); self.right.fill(0.0); self.last_sound = 0;
+        self.left.fill(0.0);
+        self.right.fill(0.0);
+        self.last_sound = 0;
     }
     pub fn parallel_safe(&self) -> bool {
         self.external.is_none()
@@ -1824,10 +1835,14 @@ pub(crate) struct Compensation {
 impl Compensation {
     #[cfg(feature = "plugin-export")]
     pub fn reset_plugin(&mut self) {
-        self.line.ring.fill([0.0; 2]); self.line.write = 0; self.line.valid = 0;
+        self.line.ring.fill([0.0; 2]);
+        self.line.write = 0;
+        self.line.valid = 0;
         self.line.snap(self.line.delay);
         for stage in &mut self.stages {
-            stage.line.ring.fill([0.0; 2]); stage.line.write = 0; stage.line.valid = 0;
+            stage.line.ring.fill([0.0; 2]);
+            stage.line.write = 0;
+            stage.line.valid = 0;
             stage.line.snap(stage.line.delay);
         }
     }

@@ -34,7 +34,15 @@ pub(super) fn song_metadata(
             MarkerKind::Skip { end } | MarkerKind::Loop { end } if end <= last => {
                 metadata.notes.push(WavNote {
                     cue_id: marker.id.0,
-                    text: format!("WindfallNavigation/1 {} {}", if matches!(marker.kind, MarkerKind::Skip { .. }) { "skip" } else { "loop" }, frame(end)?),
+                    text: format!(
+                        "WindfallNavigation/1 {} {}",
+                        if matches!(marker.kind, MarkerKind::Skip { .. }) {
+                            "skip"
+                        } else {
+                            "loop"
+                        },
+                        frame(end)?
+                    ),
                 });
             }
             MarkerKind::Pause => metadata.notes.push(WavNote {
@@ -61,20 +69,30 @@ pub(super) fn song_metadata(
     }
     // ACID has one tempo/meter, so it cannot describe an automated tempo or
     // changing meter honestly. Cue positions still follow the render clock.
-    if !map.has_tempo_map()
-        && project.playlist.timeline.meters.is_empty()
-    {
+    if !map.has_tempo_map() && project.playlist.timeline.meters.is_empty() {
         if metadata.cues.is_empty() {
-            metadata.cues.push(WavCue { id: 0, frame: 0, label: project.settings.name.clone() });
+            metadata.cues.push(WavCue {
+                id: 0,
+                frame: 0,
+                label: project.settings.name.clone(),
+            });
         }
         metadata.notes.push(WavNote {
             cue_id: metadata.cues[0].id,
-            text: format!("WindfallBeats/1 {} {}", project.settings.tempo_bpm, f64::from(last - first) / f64::from(windfall_project::PPQ)),
+            text: format!(
+                "WindfallBeats/1 {} {}",
+                project.settings.tempo_bpm,
+                f64::from(last - first) / f64::from(windfall_project::PPQ)
+            ),
         });
         let signature = project.settings.time_signature;
         metadata.tempo = Some(WavTempo {
             bpm: project.settings.tempo_bpm as f32,
-            beats: if (last - first).is_multiple_of(windfall_project::PPQ) { (last - first) / windfall_project::PPQ } else { 0 },
+            beats: if (last - first).is_multiple_of(windfall_project::PPQ) {
+                (last - first) / windfall_project::PPQ
+            } else {
+                0
+            },
             numerator: u16::from(signature.numerator),
             denominator: u16::from(signature.denominator),
             root_key: None,
@@ -153,17 +171,29 @@ pub(super) fn pattern_metadata(
     let signature = pattern.effective_signature(project.settings.time_signature);
     if pattern.timeline.meters.is_empty() {
         if metadata.cues.is_empty() {
-            metadata.cues.push(WavCue { id: 1, frame: 0, label: pattern.name.clone() });
+            metadata.cues.push(WavCue {
+                id: 1,
+                frame: 0,
+                label: pattern.name.clone(),
+            });
         }
         metadata.notes.push(WavNote {
             cue_id: metadata.cues[0].id,
-            text: format!("WindfallBeats/1 {} {}", project.settings.tempo_bpm, f64::from(length) * f64::from(passes) / f64::from(windfall_project::PPQ)),
+            text: format!(
+                "WindfallBeats/1 {} {}",
+                project.settings.tempo_bpm,
+                f64::from(length) * f64::from(passes) / f64::from(windfall_project::PPQ)
+            ),
         });
         metadata.tempo = Some(WavTempo {
             bpm: project.settings.tempo_bpm as f32,
-            beats: if length.is_multiple_of(windfall_project::PPQ) { (length / windfall_project::PPQ)
-                .checked_mul(passes)
-                .ok_or("The pattern beat count exceeds the WAV metadata range.")? } else { 0 },
+            beats: if length.is_multiple_of(windfall_project::PPQ) {
+                (length / windfall_project::PPQ)
+                    .checked_mul(passes)
+                    .ok_or("The pattern beat count exceeds the WAV metadata range.")?
+            } else {
+                0
+            },
             numerator: u16::from(signature.numerator),
             denominator: u16::from(signature.denominator),
             root_key: None,
@@ -195,22 +225,37 @@ mod tests {
             )
             .unwrap();
         let metadata = song_metadata(
-                document.project(),
-                &SamplePool::new(),
-                48000,
-                Some(TickRange {
-                    start: 0,
-                    end: 3840
-                })
-            )
-            .unwrap();
+            document.project(),
+            &SamplePool::new(),
+            48000,
+            Some(TickRange {
+                start: 0,
+                end: 3840,
+            }),
+        )
+        .unwrap();
         assert_eq!(metadata.cues[0].frame, 24000);
         assert_eq!(metadata.notes[0].text, "WindfallNavigation/1 skip 48000");
-        document.dispatch(Command::AddTimelineMarker {
-            tick: 2400, name: "Pause".into(), kind: MarkerKind::Pause,
-        }, None).unwrap();
-        let metadata = song_metadata(document.project(), &SamplePool::new(), 48000,
-            Some(TickRange { start: 0, end: 3840 })).unwrap();
+        document
+            .dispatch(
+                Command::AddTimelineMarker {
+                    tick: 2400,
+                    name: "Pause".into(),
+                    kind: MarkerKind::Pause,
+                },
+                None,
+            )
+            .unwrap();
+        let metadata = song_metadata(
+            document.project(),
+            &SamplePool::new(),
+            48000,
+            Some(TickRange {
+                start: 0,
+                end: 3840,
+            }),
+        )
+        .unwrap();
         assert_eq!(metadata.cues[1].frame, 60000);
         assert_eq!(metadata.notes[1].text, "WindfallNavigation/1 pause");
     }

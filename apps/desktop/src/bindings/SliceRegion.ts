@@ -8,4 +8,8 @@ start: number, end: number, gain: number, pitch: number, reverse: boolean, attac
 /**
  * Zero selects A; one selects B. Keys follow vector order.
  */
-deck: number, };
+deck: number, 
+/**
+ * Authored name; prepared runtime voice controls contain only numeric fields.
+ */
+label?: string, };

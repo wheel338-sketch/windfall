@@ -81,7 +81,9 @@ impl Default for SampleZone {
             sustain: 1.0,
             release_ms: 100.0,
             scale_tuning: 100.0,
-            modulation_group: 0, modulation: super::ZoneModulation::default(), delay_ms: 0.0,
+            modulation_group: 0,
+            modulation: super::ZoneModulation::default(),
+            delay_ms: 0.0,
         }
     }
 }
@@ -109,9 +111,15 @@ impl SampleZone {
         {
             return Err("zone gain, pan, tuning or sustain is invalid");
         }
-        if [self.delay_ms, self.attack_ms, self.hold_ms, self.decay_ms, self.release_ms]
-            .iter()
-            .any(|x| !x.is_finite() || !(0.0..=100000.0).contains(x))
+        if [
+            self.delay_ms,
+            self.attack_ms,
+            self.hold_ms,
+            self.decay_ms,
+            self.release_ms,
+        ]
+        .iter()
+        .any(|x| !x.is_finite() || !(0.0..=100000.0).contains(x))
         {
             return Err("zone envelope times must be finite within 0..100000 ms");
         }
@@ -209,9 +217,16 @@ impl SampleBank {
     /// Preserve the document's mapping when sources are absent. The bank is
     /// silent as a whole until the worker can prepare every referenced source.
     pub fn unavailable(reason: String) -> Self {
-        Self { zones: Box::new([]), bytes: 0, reservations: Vec::new(), unavailable: Some(reason) }
+        Self {
+            zones: Box::new([]),
+            bytes: 0,
+            reservations: Vec::new(),
+            unavailable: Some(reason),
+        }
     }
-    pub fn unavailable_reason(&self) -> Option<&str> { self.unavailable.as_deref() }
+    pub fn unavailable_reason(&self) -> Option<&str> {
+        self.unavailable.as_deref()
+    }
     /// Off audio only. The reservation must be taken before preparing PCM.
     pub fn retain_reservation(&mut self, reservation: super::BankReservation) {
         self.reservations.push(reservation);

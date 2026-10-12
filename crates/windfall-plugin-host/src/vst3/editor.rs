@@ -118,10 +118,8 @@ impl Editor {
     pub fn set_scale(&mut self, application: f64) -> Result<EditorInfo, EditorError> {
         #[cfg(windows)]
         {
-            let factor = crate::gui::scaling::content_scale(
-                application,
-                self.window.monitor_scale(),
-            )?;
+            let factor =
+                crate::gui::scaling::content_scale(application, self.window.monitor_scale())?;
             let support = self
                 .view
                 .cast::<IPlugViewContentScaleSupport>()
@@ -255,7 +253,8 @@ impl Editor {
             };
             // Preserve editors that draw at their own default DPI even when
             // they expose a scale interface but refuse negotiation.
-            if (editor.view.cast::<IPlugViewContentScaleSupport>().is_some() || options.scale != 1.0)
+            if (editor.view.cast::<IPlugViewContentScaleSupport>().is_some()
+                || options.scale != 1.0)
                 && let Err(error) = editor.set_scale(options.scale)
                 && options.scale != 1.0
             {
@@ -285,13 +284,19 @@ impl Editor {
             if let Some(monitor) = self.window.take_monitor_scale() {
                 let before = self.info();
                 match self.set_scale(self.application) {
-                    Ok(info) => notify(PluginNotification::EditorResized { width: info.width, height: info.height }),
+                    Ok(info) => notify(PluginNotification::EditorResized {
+                        width: info.width,
+                        height: info.height,
+                    }),
                     Err(_) => {
                         self.size.width.set(before.width);
                         self.size.height.set(before.height);
                         self.size.requested.set(false);
                         self.window.set_client_size(before.width, before.height);
-                        notify(PluginNotification::EditorScaleRefused { application: self.application, monitor });
+                        notify(PluginNotification::EditorScaleRefused {
+                            application: self.application,
+                            monitor,
+                        });
                     }
                 }
             }

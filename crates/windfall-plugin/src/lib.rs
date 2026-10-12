@@ -3,11 +3,11 @@
 //! IO, device opening, controller locks or project compilation occurs in process.
 
 mod clap;
-mod state;
-mod publication;
-mod vst3;
-mod panel;
 pub mod package;
+mod panel;
+mod publication;
+mod state;
+mod vst3;
 
 pub use clap::clap_entry;
 pub use state::{EmbeddedSample, MAX_STATE_BYTES, Program};
@@ -41,15 +41,13 @@ impl GuestEngine {
         // Host clock wins. Retain the original document in state, but remove
         // internal clock/navigation drivers from the detached playback plan.
         let mut playback = program.project.clone();
-        playback.automations.retain(|lane| lane.target != windfall_project::AutomationTarget::Tempo);
+        playback
+            .automations
+            .retain(|lane| lane.target != windfall_project::AutomationTarget::Tempo);
         playback.playlist.timeline.markers.clear();
-        let (processor, controller) = Processor::prepare_plugin(
-            &playback,
-            &samples,
-            sample_rate as u32,
-            OUTPUT_CHANNELS,
-        )
-        .map_err(|error| error.to_string())?;
+        let (processor, controller) =
+            Processor::prepare_plugin(&playback, &samples, sample_rate as u32, OUTPUT_CHANNELS)
+                .map_err(|error| error.to_string())?;
         let latency = controller.latency_frames();
         Ok(Self {
             processor,
@@ -74,7 +72,9 @@ impl GuestEngine {
     pub fn sync_meter(&mut self, numerator: u16, denominator: u16) -> bool {
         self.processor.set_plugin_meter(numerator, denominator)
     }
-    pub fn meter(&self) -> (u16, u16) { self.processor.plugin_meter() }
+    pub fn meter(&self) -> (u16, u16) {
+        self.processor.plugin_meter()
+    }
     pub fn midi(&mut self, channel: u8, key: u8, velocity: u8) {
         self.processor.plugin_midi(channel, key, velocity);
     }

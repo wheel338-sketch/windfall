@@ -105,7 +105,9 @@ impl ChannelVoiceRuntime {
     }
     pub fn release_performance_chord(&mut self, origin: Origin) {
         for note in &mut self.chord {
-            if note.is_some_and(|note| note.origin == origin) { *note = None; }
+            if note.is_some_and(|note| note.origin == origin) {
+                *note = None;
+            }
         }
         self.refresh_chord();
     }

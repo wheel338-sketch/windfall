@@ -960,7 +960,9 @@ impl AnyInstrument {
         }
         true
     }
-    pub fn take_unused_sample_bank(&mut self) -> Option<std::sync::Arc<crate::sample_bank::SampleBank>> {
+    pub fn take_unused_sample_bank(
+        &mut self,
+    ) -> Option<std::sync::Arc<crate::sample_bank::SampleBank>> {
         match self {
             Self::MultiSampler(a) => a.take_unused_bank(),
             Self::SamplePlayer(a) => a.take_unused_bank(),

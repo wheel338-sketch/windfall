@@ -237,10 +237,13 @@ impl Parser {
                 let low = (size & 127) as u8;
                 size >>= 7;
                 header.push(low | if size == 0 { 0 } else { 128 });
-                if size == 0 { break; }
+                if size == 0 {
+                    break;
+                }
             }
         }
-        if payload + header.len() > MAX_SOURCE_EVENT_BYTES - self.project.source_event_stream.len() {
+        if payload + header.len() > MAX_SOURCE_EVENT_BYTES - self.project.source_event_stream.len()
+        {
             self.source_archive_full = true;
             self.note(None, "Original source event archive exceeds 16 MiB; only the complete event prefix was retained.");
             return;

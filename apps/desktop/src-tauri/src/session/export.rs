@@ -219,7 +219,10 @@ impl Progress<'_> {
             mastering,
         };
         self.session.emit(match &self.request {
-            Some(request) => Event::ExportRequestProgress { request: request.clone(), progress },
+            Some(request) => Event::ExportRequestProgress {
+                request: request.clone(),
+                progress,
+            },
             None => Event::ExportProgress(progress),
         });
     }
@@ -277,7 +280,13 @@ impl Session {
         playlist: Option<windfall_ipc::ExportPlaylistStems>,
         request: Option<String>,
     ) -> Result<(), String> {
-        if request.as_ref().is_some_and(|id| id.is_empty() || id.len() > 128 || !id.bytes().all(|byte| byte.is_ascii_alphanumeric() || byte == b'-')) {
+        if request.as_ref().is_some_and(|id| {
+            id.is_empty()
+                || id.len() > 128
+                || !id
+                    .bytes()
+                    .all(|byte| byte.is_ascii_alphanumeric() || byte == b'-')
+        }) {
             return Err("Invalid export request identity.".into());
         }
         let _recording = self.recording_idle()?;
@@ -613,10 +622,15 @@ fn longest_frames(settings: &EncoderSettings, sample_rate: u32) -> f64 {
         | EncoderSettings::Vorbis { .. }
         | EncoderSettings::Mp3 { .. } => day,
         EncoderSettings::WavPack { depth } => {
-            let bytes = match depth { windfall_codec::WavPackDepth::Int16 => 2.0, windfall_codec::WavPackDepth::Int24 => 3.0 };
+            let bytes = match depth {
+                windfall_codec::WavPackDepth::Int16 => 2.0,
+                windfall_codec::WavPackDepth::Int24 => 3.0,
+            };
             day.min((MAX_WAV_BYTES / (bytes * f64::from(CHANNELS))).floor())
         }
-        EncoderSettings::M4a { .. } => day.min((windfall_codec::MAX_M4A_PACKETS as f64 * 1024.0) - 8192.0),
+        EncoderSettings::M4a { .. } => {
+            day.min((windfall_codec::MAX_M4A_PACKETS as f64 * 1024.0) - 8192.0)
+        }
     }
 }
 
@@ -957,7 +971,14 @@ fn expected_frames(project: &Project, pattern: PatternId, options: &ExportOption
             .clips
             .iter()
             .map(|clip| f64::from(clip.start) + f64::from(clip.length))
-            .chain(project.settings.stage_media.videos.iter().map(|video| f64::from(video.start_tick) + f64::from(video.length_ticks)))
+            .chain(
+                project
+                    .settings
+                    .stage_media
+                    .videos
+                    .iter()
+                    .map(|video| f64::from(video.start_tick) + f64::from(video.length_ticks)),
+            )
             .fold(0.0, f64::max),
     };
     let tempo = match options.mode {

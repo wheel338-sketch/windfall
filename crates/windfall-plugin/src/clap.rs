@@ -2,10 +2,10 @@
 //! cells. All allocation and state decoding happens on the main thread.
 
 use std::ffi::{CStr, c_char, c_void};
-use std::{cell::UnsafeCell, rc::Rc};
 use std::ptr;
 use std::sync::OnceLock;
 use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
+use std::{cell::UnsafeCell, rc::Rc};
 
 use clap_sys::entry::clap_plugin_entry;
 use clap_sys::events::{
@@ -33,10 +33,9 @@ use clap_sys::process::{
 use clap_sys::stream::{clap_istream, clap_ostream};
 use clap_sys::version::CLAP_VERSION;
 
-use crate::{
-    MAX_HOST_FRAMES, MAX_STATE_BYTES, OUTPUT_CHANNELS, OUTPUT_PORTS, Program,
-};
-#[cfg(test)] use crate::GuestEngine;
+#[cfg(test)]
+use crate::GuestEngine;
+use crate::{MAX_HOST_FRAMES, MAX_STATE_BYTES, OUTPUT_CHANNELS, OUTPUT_PORTS, Program};
 
 const ID: &CStr = c"org.windfall.program";
 const MAX_EVENTS: u32 = 4096;
@@ -118,7 +117,9 @@ unsafe extern "C" fn create(
     {
         return ptr::null();
     }
-    let Ok(program) = crate::package::initial_program() else { return ptr::null(); };
+    let Ok(program) = crate::package::initial_program() else {
+        return ptr::null();
+    };
     let plugin = Box::new(Instance {
         clap: clap_plugin {
             desc: descriptor(),
@@ -244,8 +245,16 @@ unsafe extern "C" fn on_main_thread(plugin: *const clap_plugin) {
         let latency = instance.state.latency();
         if instance.latency.swap(latency, Ordering::AcqRel) != latency {
             if let Some(extension) = unsafe { (*instance.host).get_extension } {
-                let host_latency = unsafe { extension(instance.host, CLAP_EXT_LATENCY.as_ptr()).cast::<clap_sys::ext::latency::clap_host_latency>().as_ref() };
-                if let Some(changed) = host_latency.and_then(|latency| latency.changed) { unsafe { changed(instance.host); } }
+                let host_latency = unsafe {
+                    extension(instance.host, CLAP_EXT_LATENCY.as_ptr())
+                        .cast::<clap_sys::ext::latency::clap_host_latency>()
+                        .as_ref()
+                };
+                if let Some(changed) = host_latency.and_then(|latency| latency.changed) {
+                    unsafe {
+                        changed(instance.host);
+                    }
+                }
             }
         }
     }
@@ -275,8 +284,16 @@ fn clock(transport: &clap_event_transport) -> Option<Clock> {
         beats: transport.song_pos_beats as f64 / CLAP_BEATTIME_FACTOR as f64,
         tempo: transport.tempo,
         playing: transport.flags & CLAP_TRANSPORT_IS_PLAYING != 0,
-        numerator: if transport.flags & clap_sys::events::CLAP_TRANSPORT_HAS_TIME_SIGNATURE != 0 { transport.tsig_num } else { 0 },
-        denominator: if transport.flags & clap_sys::events::CLAP_TRANSPORT_HAS_TIME_SIGNATURE != 0 { transport.tsig_denom } else { 0 },
+        numerator: if transport.flags & clap_sys::events::CLAP_TRANSPORT_HAS_TIME_SIGNATURE != 0 {
+            transport.tsig_num
+        } else {
+            0
+        },
+        denominator: if transport.flags & clap_sys::events::CLAP_TRANSPORT_HAS_TIME_SIGNATURE != 0 {
+            transport.tsig_denom
+        } else {
+            0
+        },
         tempo_inc: transport.tempo_inc,
     })
 }
@@ -325,7 +342,11 @@ unsafe extern "C" fn process(
         return CLAP_PROCESS_ERROR;
     };
     if instance.state.needs_collection() {
-        if let Some(request) = unsafe { (*instance.host).request_callback } { unsafe { request(instance.host); } }
+        if let Some(request) = unsafe { (*instance.host).request_callback } {
+            unsafe {
+                request(instance.host);
+            }
+        }
     }
     let mut transport = if block.transport.is_null() {
         None
@@ -423,7 +444,9 @@ unsafe extern "C" fn process(
             event_index += 1;
         }
         let mut frames = (next - frame).min(windfall_engine::Processor::plugin_block_frames());
-        if transport.is_some_and(|clock| clock.tempo_inc != 0.0) { frames = frames.min(1); }
+        if transport.is_some_and(|clock| clock.tempo_inc != 0.0) {
+            frames = frames.min(1);
+        }
         if let Some(clock) = transport.filter(|clock| clock.playing && clock.beats < 0.0) {
             let preroll =
                 (-clock.beats * 60.0 * f64::from(engine.sample_rate()) / clock.tempo).ceil();
@@ -452,7 +475,9 @@ unsafe extern "C" fn process(
         if let Some(clock) = &mut transport
             && clock.playing
         {
-            clock.beats += (frames as f64 * clock.tempo + clock.tempo_inc * frames as f64 * (frames as f64 - 1.0) * 0.5) / (60.0 * f64::from(rate));
+            clock.beats += (frames as f64 * clock.tempo
+                + clock.tempo_inc * frames as f64 * (frames as f64 - 1.0) * 0.5)
+                / (60.0 * f64::from(rate));
             clock.tempo += frames as f64 * clock.tempo_inc;
         }
         frame += frames;
@@ -600,6 +625,6 @@ unsafe extern "C" fn extension(_: *const clap_plugin, id: *const c_char) -> *con
     }
 }
 
+mod gui;
 #[cfg(test)]
 mod tests;
-mod gui;

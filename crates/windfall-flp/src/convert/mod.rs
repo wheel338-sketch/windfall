@@ -572,11 +572,13 @@ impl<'a> Builder<'a> {
             data.extend_from_slice(b"FLdt");
             data.extend((flp.source_event_stream.len() as u32).to_le_bytes());
             data.extend_from_slice(&flp.source_event_stream);
-            project.retained_source_data.push(windfall_project::RetainedSourceData {
-                source: "flStudio".into(),
-                format: "flp-events-v1".into(),
-                data,
-            });
+            project
+                .retained_source_data
+                .push(windfall_project::RetainedSourceData {
+                    source: "flStudio".into(),
+                    format: "flp-events-v1".into(),
+                    data,
+                });
             report.say(ReportSection::Other, Outcome::Placeholder,
                 "Original processor, controller, timing and navigation events are retained opaquely in the saved project. Unsupported controls are not executed; see the conversion warnings. Personal licensee metadata is excluded.");
         }
