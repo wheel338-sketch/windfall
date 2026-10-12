@@ -741,7 +741,7 @@ mod tests {
         assert_eq!((TRANSPORT, EPOCH, REPLY_IDENTITY), (16, 30, 32));
         assert_eq!(
             (HEADER_WORDS * 4, SLOT_WORDS * 4, REGION_BYTES),
-            (256, 266_560, 1_066_496)
+            (256, 270_656, 1_082_880)
         );
         let before: Vec<_> = region
             .storage

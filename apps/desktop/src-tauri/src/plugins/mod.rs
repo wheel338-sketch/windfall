@@ -321,8 +321,21 @@ impl PluginManager {
                     .map(|failure| failure.message.clone()),
             })
             .collect();
-        state.blocked = catalog
-            .blocked()
+        let mut blocked = catalog.blocked();
+        // Safe loader refusals still need a visible diagnostic. The catalog's
+        // crash/hang blocklist remains separate from these rejected files.
+        blocked.extend(catalog.files().filter_map(|(path, scan)| {
+            let failure = scan
+                .failure
+                .as_ref()
+                .filter(|failure| !failure.is_dangerous())?;
+            Some(windfall_plugin_host::scan::BlockedPlugin {
+                path: path.to_path_buf(),
+                plugin: None,
+                failure: failure.clone(),
+            })
+        }));
+        state.blocked = blocked
             .into_iter()
             .take(4096)
             .map(|blocked| PluginEntry {

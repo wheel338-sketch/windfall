@@ -61,6 +61,7 @@ describe("the menu bar", () => {
       "edit.selectAll",
     ])
     expect(ids("Add")).toEqual([
+      "plugins.picker",
       "channel.add",
       "channel.addInstrument.subtractiveSynth",
       "channel.addFromFile",

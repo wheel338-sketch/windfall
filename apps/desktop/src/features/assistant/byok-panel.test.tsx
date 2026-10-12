@@ -7,7 +7,7 @@ import { AssistantPanel } from "./panel"
 import { closeAssistant, openAssistant } from "./store"
 
 let app: Awaited<ReturnType<typeof startTestApp>>
-beforeEach(async () => { app = await startTestApp(); vi.replaceProperty(app.backend, "kind", "tauri") })
+beforeEach(async () => { app = await startTestApp(); Object.defineProperty(app.backend, "kind", { value: "tauri", configurable: true }) })
 afterEach(() => { cleanup(); closeAssistant(); app.stop(); vi.restoreAllMocks() })
 function open() { render(<TooltipProvider><AssistantPanel /></TooltipProvider>); act(() => openAssistant()) }
 const connected = { baseUrl: "https://example.invalid/v1", model: "chosen", enabled: true, hasKey: true }
@@ -25,7 +25,7 @@ describe("BYOK panel explicit-action cases (HTTP responses are fixtures)", () =>
     fireEvent.change(screen.getByLabelText("Chat completions base URL"), { target: { value: connected.baseUrl } })
     fireEvent.change(screen.getByLabelText("Model name"), { target: { value: connected.model } })
     fireEvent.change(screen.getByLabelText("API key"), { target: { value: "fixture-private-key" } })
-    fireEvent.click(screen.getByLabelText("Enable BYOK requests"))
+    fireEvent.click(screen.getByRole("checkbox", { name: "Enable BYOK requests" }))
     const before = await app.backend.documentSnapshot()
     fireEvent.click(screen.getByRole("button", { name: "Save BYOK connection" }))
     await waitFor(() => expect(screen.getByRole("button", { name: "Ask BYOK assistant" })).toBeEnabled())
@@ -62,7 +62,7 @@ describe("BYOK panel explicit-action cases (HTTP responses are fixtures)", () =>
     for (const message of ["assistant returned malformed reply JSON", "assistant endpoint timed out"]) {
       remote.mockRejectedValueOnce(new Error(message))
       fireEvent.click(screen.getByRole("button", { name: "Ask BYOK assistant" }))
-      expect(await screen.findByText(message)).toBeVisible()
+      expect(await screen.findByText(message.charAt(0).toUpperCase() + message.slice(1))).toBeVisible()
     }
     fireEvent.click(screen.getByText("Bring your own key connection"))
     const configure = vi.spyOn(app.backend, "assistantConfigure").mockResolvedValue({ ...connected, enabled: false, hasKey: false })

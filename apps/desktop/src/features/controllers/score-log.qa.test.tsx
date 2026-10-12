@@ -24,7 +24,7 @@ it("logs browser audition, mounts retained dump/history/save-reopen and refuses 
   render(<MidiRecordingControls />)
   await user.click(screen.getByRole("button", { name: "Dump note log" }))
   await waitFor(() => expect(useProjectStore.getState().history.cursor).toBe(1))
-  const recorded = structuredClone(useProjectStore.getState().project)
+  const recorded = (await app.backend.documentSnapshot()).project
   expect(recorded.patterns[0]!.lanes.flatMap((lane) => lane.notes).some((note) => note.key === 110)).toBe(true)
   const document = SimDocument.create(recorded)
   const reopened = SimDocument.open(document.fileText())

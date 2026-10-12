@@ -1302,7 +1302,10 @@ fn hardware_ingress_expression_recording_joins_native_capture_quantization_and_s
         .find(|note| note.key == 110)
         .unwrap();
     assert_eq!(note.start, 0);
-    assert!(note.length >= 250 && note.length <= 270);
+    assert_eq!(
+        note.length, 240,
+        "the configured 240-tick quantizer applies to the note end"
+    );
     let curves: Vec<_> = held
         .note_curves
         .iter()

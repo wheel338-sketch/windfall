@@ -1458,6 +1458,7 @@ fn the_factory_content_is_the_first_root_and_lists_as_folders_of_sounds() {
         [
             ("Bass", BrowserEntryKind::Folder),
             ("Drums", BrowserEntryKind::Folder),
+            ("Loops", BrowserEntryKind::Folder),
             ("LICENSE.md", BrowserEntryKind::Other),
             ("README.md", BrowserEntryKind::Other),
         ]

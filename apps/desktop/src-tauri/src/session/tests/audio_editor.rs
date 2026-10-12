@@ -217,7 +217,8 @@ fn editor_advanced_tools_and_sandbox_entry_share_one_step_history_and_saved_sour
         let before = rig.session.document_snapshot();
         let view = windfall_engine::audio_edit::render_view(
             &rig.session.state().pool,
-            rig.project()
+            before
+                .project
                 .playlist
                 .clips
                 .iter()

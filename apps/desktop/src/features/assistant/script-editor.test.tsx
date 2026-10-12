@@ -20,7 +20,7 @@ describe("script editor mounted cases (worker responses are explicit fixtures)",
     expect(await screen.findByLabelText("transpose (-24..24)")).toHaveValue(12)
     fireEvent.change(screen.getByLabelText("Windfall Script v1 source"), { target: { value: "set key +" } })
     fireEvent.click(screen.getByRole("button", { name: "Read parameters" }))
-    expect(await screen.findByText(/line 1: expression stack underflow/)).toBeVisible()
+    expect(await screen.findByText(/Line 1: expression stack underflow/)).toBeVisible()
   })
   it("reviews saved revisions, applies through Rust, reopens in the editor and undoes", async () => {
     open()
@@ -55,7 +55,7 @@ describe("script editor mounted cases (worker responses are explicit fixtures)",
     await waitFor(() => expect(useProjectStore.getState().project.settings.scripts?.channels).toEqual([binding]))
   })
   it("captures selected IDs for a native preview, then applies the reviewed fixture atomically", async () => {
-    vi.replaceProperty(roll.backend, "kind", "tauri")
+    Object.defineProperty(roll.backend, "kind", { value: "tauri", configurable: true })
     const added = await dispatch({ type: "addNotes", pattern: currentPattern().id, channel: channel("Kick").id, notes: [{ start: 1920, length: 240, key: 60 }] })
     roll.editor.setSelection(added!.created)
     vi.spyOn(roll.backend, "scriptBegin").mockResolvedValue(9)
@@ -77,11 +77,11 @@ describe("script editor mounted cases (worker responses are explicit fixtures)",
     expect(useProjectStore.getState().history.cursor).toBe(cursor + 1)
   })
   it("requires reviewed controller installation and stores feedback opt-in with its exact source", async () => {
-    vi.replaceProperty(roll.backend, "kind", "tauri")
+    Object.defineProperty(roll.backend, "kind", { value: "tauri", configurable: true })
     const preview = vi.spyOn(roll.backend, "scriptPreview")
     open()
     fireEvent.click(screen.getByRole("button", { name: "Controller" }))
-    fireEvent.click(screen.getByLabelText("Enable MIDI feedback"))
+    fireEvent.click(screen.getByRole("checkbox", { name: "Enable MIDI feedback" }))
     fireEvent.change(screen.getByLabelText("Input CC on MIDI channel 1"), { target: { value: "11" } })
     fireEvent.click(screen.getByRole("button", { name: "Review save and assign" }))
     await screen.findByText("setScriptLibrary")

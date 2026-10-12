@@ -38,11 +38,12 @@ fn pattern_mode_movements_write_events_once_and_preserve_history_file_and_outsid
     let target = AutomationTarget::ChannelVolume {
         channel: rig.channel(0),
     };
+    let before = rig.session.document_snapshot().history.cursor;
+    let initial_volume = rig.project().channel(rig.channel(0)).unwrap().volume;
     begin(&mut rig);
     move_volume(&mut rig, 0.25);
     move_volume(&mut rig, 0.75);
     assert_eq!(rig.session.controller_state().automation_record.targets, 1);
-    let before = rig.session.document_snapshot().history.cursor;
     rig.session.automation_record_arm(false);
     let snapshot = rig.session.document_snapshot();
     assert_eq!(snapshot.history.cursor, before + 1);
@@ -57,8 +58,16 @@ fn pattern_mode_movements_write_events_once_and_preserve_history_file_and_outsid
     assert!(
         lane.points
             .windows(2)
-            .all(|pair| pair[0].tick < pair[1].tick)
+            .all(|pair| pair[0].tick < pair[1].tick
+                || (pair[0].tick == pair[1].tick && pair[0].value != pair[1].value))
     );
+    let seam = lane
+        .points
+        .windows(2)
+        .find(|pair| pair[0].tick == pair[1].tick)
+        .unwrap();
+    assert_eq!(seam[0].value, initial_volume);
+    assert_eq!(seam[1].value, 0.25);
     assert!(
         lane.points
             .iter()

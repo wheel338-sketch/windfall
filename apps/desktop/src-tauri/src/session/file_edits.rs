@@ -28,6 +28,12 @@ impl Session {
         generation: u64,
         revision: u64,
     ) -> Result<DispatchResult, String> {
+        {
+            let state = self.state();
+            if state.generation != generation || state.document.revision() != revision {
+                return Err("The project changed while the preset was chosen; try again".into());
+            }
+        }
         let review = self.preset_read(path)?;
         let preset = review
             .preset

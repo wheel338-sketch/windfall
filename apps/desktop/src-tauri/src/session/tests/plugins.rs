@@ -1425,7 +1425,7 @@ fn n4_role(vst3: bool, instrument: bool) {
                 true
             )
             .unwrap_err()
-            .contains("unsupported")
+            .contains("no editor")
     );
     rig.session.transport_play().unwrap();
     let mut heard = Vec::new();

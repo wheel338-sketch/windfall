@@ -836,7 +836,9 @@ fn actual_native_scanner_rescans_blocked_and_all_then_removes_a_folder() {
         state
             .blocked
             .iter()
-            .any(|entry| entry.path == broken.to_string_lossy() && entry.error.is_some())
+            .any(|entry| entry.path == crate::paths::display(&broken) && entry.error.is_some()),
+        "blocked entries: {:?}",
+        state.blocked
     );
     fs::copy(&path, &broken).unwrap();
     manager.rescan(Rescan::Blocked).unwrap();
@@ -846,7 +848,7 @@ fn actual_native_scanner_rescans_blocked_and_all_then_removes_a_folder() {
             .state()
             .entries
             .iter()
-            .any(|entry| entry.path == broken.to_string_lossy()
+            .any(|entry| entry.path == crate::paths::display(&broken)
                 && entry.id == "org.windfall.test.sine"
                 && entry.error.is_none())
     );

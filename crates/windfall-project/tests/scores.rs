@@ -450,11 +450,12 @@ fn score_events_remap_the_channel_and_replace_in_one_history_step() {
         Score::from_json(captured.to_json().unwrap().as_bytes()).unwrap(),
         captured
     );
-    let before = doc.project().clone();
+    let mut before = doc.project().clone();
     let command = captured
         .load_command(doc.project(), pattern, bass, ScoreLoadMode::Replace)
         .unwrap();
     doc.dispatch(command, None).unwrap();
+    before.next_id = doc.project().next_id; // Allocated identities are never reused by Undo.
     assert_eq!(
         doc.project()
             .pattern(pattern)
@@ -493,11 +494,12 @@ fn score_merge_preserves_other_event_times_and_undo_restores_overwritten_points(
         .unwrap();
     }
     let score = Score::capture(doc.project(), pattern, lead, None).unwrap();
-    let before = doc.project().clone();
+    let mut before = doc.project().clone();
     let command = score
         .load_command(doc.project(), pattern, bass, ScoreLoadMode::Merge)
         .unwrap();
     doc.dispatch(command, None).unwrap();
+    before.next_id = doc.project().next_id; // Allocated identities are never reused by Undo.
     let target = AutomationTarget::ChannelPan { channel: bass };
     assert_eq!(
         doc.project()

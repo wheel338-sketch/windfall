@@ -43,7 +43,7 @@ it("mounts independent extra inputs, each profile, offset and both clock control
   }
   for (const label of ["Send MIDI clock", "Follow MIDI clock"]) {
     await user.click(screen.getByRole("combobox", { name: label }))
-    await user.click(await screen.findByRole("option", { name: "On", exact: true }))
+    await user.click(await screen.findByRole("option", { name: "On" }))
   }
   expect(state.settings.sendClock && state.settings.followClock).toBe(true)
   const offset = screen.getByLabelText("Recording offset (ms)")
@@ -67,7 +67,7 @@ it("mounts independent MIDI output slots and keeps the later slot fixed when an 
   await user.click(add); await waitFor(() => expect(state.settings.extraOutputs).toEqual(["aux1"]))
   await user.click(add); await waitFor(() => expect(state.settings.extraOutputs).toEqual(["aux1", "aux2"]))
   await user.click(screen.getByRole("combobox", { name: "MIDI output slot 1" }))
-  await user.click(await screen.findByRole("option", { name: "Off", exact: true }))
+  await user.click(await screen.findByRole("option", { name: "Disabled" }))
   expect(state.settings.extraOutputs).toEqual(["", "aux2"])
   expect(state.settings.output).toBe("main")
   await user.click(add)

@@ -20,7 +20,6 @@ export function characterPose(note: Pick<ActiveNotePose, "key" | "velocity"> | n
  * newly authored for Windfall; the artwork in this file is dedicated CC0. */
 export function NoteCharacter({ channel }: { channel: ChannelId | null }) {
   const root = useRef<SVGGElement>(null)
-  const label = useRef<SVGTitleElement>(null)
   useRealtime((frame) => {
     const note = frame.activeNotePoses?.find((note) => note.channel === channel) ?? null
     const number = frame.mediaClock ? Number((BigInt(frame.mediaClock.outputFrame) * 24n / BigInt(frame.mediaClock.sampleRate)) % 48n) : 0
@@ -32,11 +31,12 @@ export function NoteCharacter({ channel }: { channel: ChannelId | null }) {
     for (const [name, angle] of [["left-arm", pose.leftArm], ["right-arm", pose.rightArm], ["left-leg", pose.leftLeg], ["right-leg", pose.rightLeg]] as const) {
       element.querySelector(`[data-limb="${name}"]`)?.setAttribute("transform", `rotate(${angle})`)
     }
-    if (label.current) label.current.textContent = `Moss: ${pose.name}${note ? `, note ${note.key}` : ""}`
+    const title = element.ownerSVGElement?.querySelector("title")
+    if (title) title.textContent = `Moss: ${pose.name}${note ? `, note ${note.key}` : ""}`
   })
   return (
     <svg viewBox="0 0 200 200" role="img" aria-label="Moss note character" className="h-52 w-full text-primary">
-      <title ref={label}>Moss: rest</title>
+      <title>Moss: rest</title>
       <ellipse cx="100" cy="181" rx="42" ry="7" fill="currentColor" opacity="0.12" />
       <g ref={root} transform="translate(100 105)" data-pose="rest">
         <g transform="translate(-20 -5)"><path data-limb="left-arm" d="M0 0 Q-24 8 -31 35" fill="none" stroke="currentColor" strokeWidth="9" strokeLinecap="round" /></g>

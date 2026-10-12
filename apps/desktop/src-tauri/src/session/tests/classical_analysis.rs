@@ -157,18 +157,21 @@ fn audio_score_under_tempo_ramp_uses_absolute_onsets_and_offsets() {
         .unwrap()
         .track;
     rig.session
-        .prepare_clip_command(Command::AddClips {
-            clips: vec![ClipInit {
-                track,
-                start: 0,
-                length: Some(1920),
-                offset: Some(0),
-                muted: Some(false),
-                content: ClipContent::Automation {
-                    automation: AutomationId(result.created[0]),
-                },
-            }],
-        })
+        .dispatch(
+            Command::AddClips {
+                clips: vec![ClipInit {
+                    track,
+                    start: 0,
+                    length: Some(1920),
+                    offset: Some(0),
+                    muted: Some(false),
+                    content: ClipContent::Automation {
+                        automation: AutomationId(result.created[0]),
+                    },
+                }],
+            },
+            None,
+        )
         .unwrap();
     let edit = reviewed(&rig, clip);
     let n = &edit.recipe.analysis.notes[0];

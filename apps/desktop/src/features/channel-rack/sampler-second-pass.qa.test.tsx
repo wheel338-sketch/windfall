@@ -35,7 +35,7 @@ it("mounts the refused-echo counter from the real realtime feed and clears it on
   await act(async()=>{receive({...realtimeFrame(),rejectedEchoes:7});draw(0)})
   expect(screen.getByLabelText("Refused note echoes")).toHaveTextContent("7 notes had repeats refused")
   expect(history().cursor).toBe(before)
-  await act(async()=>{await app.backend.projectNew();useUiStore.getState().selectChannel(channel("Kick").id)})
+  await act(async()=>{await app.backend.projectNew();const added=await app.backend.dispatch({type:"addChannel",name:"Kick",instrument:"subtractiveSynth"});useUiStore.getState().selectChannel(added.created[0])})
   await act(async()=>{draw(16)})
   expect(screen.getByLabelText("Refused note echoes")).toHaveTextContent("0 notes had repeats refused")
   mounted.unmount()

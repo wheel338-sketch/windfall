@@ -19,12 +19,15 @@ export function MidiOutputEditor({ channel }: { channel: InstrumentChannel }) {
   }, [])
   const params = channel.source.params
   if (params.type !== "midiOut") return null
+  const midiParams = params
   const destination = params.pluginDestination ?? 0
   const plugins = (project.plugins ?? []).flatMap((plugin) => plugin.target.type === "instrument" && plugin.target.channel !== channel.id ? [{ value: String(plugin.target.channel), label: plugin.name }] : [])
   const port = params.outputPort ?? 0
   const ids = [hardware?.settings.output, ...(hardware?.settings.extraOutputs ?? [])]
-  function route(change: Partial<typeof params>) {
-    void dispatch({ type: "setInstrumentParams", channel: channel.id, params: { ...params, ...change } })
+  function route(change: Partial<typeof midiParams>) {
+    const current = useProjectStore.getState().project.channels.find((item) => item.id === channel.id)
+    if (current?.source.type !== "instrument" || current.source.params.type !== "midiOut") return
+    void dispatch({ type: "setInstrumentParams", channel: channel.id, params: { ...current.source.params, ...change } })
   }
   return <div className="flex flex-col gap-3" role="group" aria-label="MIDI output routing">
     <ControllerChoice<string> label="MIDI destination" value={String(destination)} choices={[{ value: "-1", label: "Disconnected" }, { value: "0", label: "Hardware output" }, ...plugins]} change={(value) => route({ pluginDestination: Number(value) })} />

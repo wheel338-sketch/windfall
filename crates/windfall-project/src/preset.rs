@@ -1033,6 +1033,9 @@ fn migrate_params(
         .filter(|key| {
             !default.contains_key(*key)
                 && !(tag == "pitchCorrect" && key.as_str() == "harmonyChannel")
+                // Default gate patterns are intentionally omitted from JSON;
+                // omission from a default is not removal from the schema.
+                && !(tag == "filterBank" && key.as_str() == "patterns")
         })
         .cloned()
         .collect();

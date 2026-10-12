@@ -1,3 +1,4 @@
+import userEvent from "@testing-library/user-event"
 import { openEffect } from "@/features/mixer/effect-ops"
 import { toast } from "sonner"
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react"
@@ -92,7 +93,7 @@ it("mounted score controls capture/read/apply the real WASM lane in one history 
   fireEvent.click(screen.getByRole("button", { name: "Replace lane from score" }))
   await waitFor(() => expect(state().project.patterns[0].lanes.find((l) => l.channel === channel)?.notes.length).toBe(original.length))
   expect(state().history.cursor).toBe(before + 1)
-  expect(state().project.patterns[0].lanes.find((l) => l.channel === channel)?.notes.map(({ id: _id, ...note }) => note)).toEqual(original.map(({ id: _id, ...note }) => note))
+  expect(state().project.patterns[0].lanes.find((l) => l.channel === channel)?.notes.map((note) => ({ ...note, id: 0 }))).toEqual(original.map((note) => ({ ...note, id: 0 })))
   await act(async () => { await undo() })
   expect(state().project.patterns[0].lanes.find((l) => l.channel === channel)?.notes ?? []).toHaveLength(0)
   await app.backend.projectSave("/score-history.windfall")
@@ -114,11 +115,11 @@ it("mounted score panel refuses a delayed picker after a project replacement", a
 it("mounted playback settings dispatch the panning law and timebase with history and persistence", async () => {
   const before = state().history.cursor
   render(<ProjectPlaybackSettings />)
-  fireEvent.click(screen.getByLabelText("Panning law"))
-  fireEvent.click(await screen.findByRole("option", { name: "Linear (+6 dB)" }))
+  await userEvent.click(screen.getByRole("combobox", { name: "Panning law" }))
+  await userEvent.click(await screen.findByRole("option", { name: "Linear (+6 dB)" }))
   await waitFor(() => expect(state().project.settings.panLaw).toBe("linear"))
-  fireEvent.click(screen.getByLabelText("Project timebase"))
-  fireEvent.click(await screen.findByRole("option", { name: "96 PPQ" }))
+  await userEvent.click(screen.getByRole("combobox", { name: "Project timebase" }))
+  await userEvent.click(await screen.findByRole("option", { name: "96 PPQ" }))
   await waitFor(() => expect(state().project.settings.timebasePpq).toBe(96))
   expect(state().history.cursor).toBe(before + 2)
   await app.backend.projectSave("/settings.windfall"); await app.backend.projectOpen("/settings.windfall")
@@ -164,6 +165,7 @@ it("mounted picker searches favorites and persists a supplied image over generat
 
 it("mounted file browser applies a real Rust channel preset from the memory file library with history and reopen", async () => {
   const added = await dispatch({ type:"addChannel", instrument:"subtractiveSynth" })
+  if (!added) throw new Error("Channel creation was refused")
   const channel = added.created[0]
   useUiStore.getState().selectChannel(channel)
   const ticket = await app.backend.timelineState()
@@ -188,6 +190,7 @@ it("mounted file browser applies a real Rust channel preset from the memory file
 })
 it("mounted preset file picker refuses a stale project without invoking apply",async()=>{
   const added=await dispatch({type:"addChannel",instrument:"subtractiveSynth"})
+  if (!added) throw new Error("Channel creation was refused")
   useUiStore.getState().selectChannel(added.created[0])
   let resolve!:(value:string|null)=>void
   vi.spyOn(app.backend,"pickPresetPath").mockImplementation(()=>new Promise((done)=>{resolve=done}))
@@ -221,6 +224,7 @@ it("mounted picker drops an effect onto a mixer slot with undo and persistence",
 })
 it("mounted disk browser applies a real built-in instrument plugin preset and reopens it", async () => {
   const added = await dispatch({ type: "addChannel", instrument: "subtractiveSynth" })
+  if (!added) throw new Error("Channel creation was refused")
   const channel = added.created[0]
   useUiStore.getState().selectChannel(channel)
   const ticket = await app.backend.timelineState()
@@ -231,6 +235,7 @@ it("mounted disk browser applies a real built-in instrument plugin preset and re
   await dispatch({ type: "applyChannelPreset", id: channel, expected: destination, nameColor: false, preset: { name: destination.name, color: destination.color, volume: destination.volume, pan: destination.pan, source: { type: "instrument", params: instrumentDescriptor("fourOp").defaults } } })
   // A selected mixer effect must not steal an instrument preset destination.
   const effect = await dispatch({ type: "addEffect", track: state().project.mixer.tracks[0].id, kind: "delay" })
+  if (!effect) throw new Error("Effect creation was refused")
   openEffect(effect.created[0])
   const before = state().history.cursor
   render(<ProjectFilesPanel />)
@@ -250,12 +255,13 @@ it.each([...PROJECT_TIMEBASES, 1, 123, 32767])("mounted MIDI export emits the re
   useUiStore.getState().openDialog("midiExport")
   render(<MidiDialogs />)
   if (PROJECT_TIMEBASES.includes(ppq)) {
-    fireEvent.click(screen.getByRole("combobox", { name: "Resolution" }))
-    fireEvent.click(await screen.findByRole("option", { name: `${ppq} PPQ` }))
+    await userEvent.click(screen.getByRole("combobox", { name: "Resolution" }))
+    await userEvent.click(await screen.findByRole("option", { name: `${ppq} PPQ` }))
   } else {
-    fireEvent.change(screen.getByRole("spinbutton", { name: "Custom MIDI resolution (1–32767)" }), { target: { value: String(ppq) } })
+    await userEvent.clear(screen.getByRole("spinbutton", { name: "Custom MIDI resolution (1–32767)" }))
+    await userEvent.type(screen.getByRole("spinbutton", { name: "Custom MIDI resolution (1–32767)" }), String(ppq))
   }
-  fireEvent.click(screen.getByRole("button", { name: "Choose file and export…" }))
+  await userEvent.click(screen.getByRole("button", { name: "Choose file and export…" }))
   await waitFor(() => expect(midiFiles).toHaveLength(1))
   const bytes = midiFiles[0]
   expect([...bytes.slice(0, 4)]).toEqual([77, 84, 104, 100])

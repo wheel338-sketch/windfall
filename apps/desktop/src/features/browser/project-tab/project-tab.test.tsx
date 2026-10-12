@@ -138,13 +138,13 @@ describe("read-only project browser", () => {
     fireEvent.contextMenu(rows[1])
     fireEvent.keyDown(panel, { key: "Enter" })
     fireEvent.keyDown(panel, { key: "Delete" })
-    expect(within(panel).queryByRole("button")).toBeNull()
+    expect(within(panel).getAllByRole("button").map(button => button.textContent)).toEqual(["Pattern 1", "Bridge idea", "Lead voice", "Volume rise"])
     expect(screen.queryByRole("menu")).toBeNull()
     expect(dispatch).not.toHaveBeenCalled()
     expect(undo).not.toHaveBeenCalled()
     expect(historyJump).not.toHaveBeenCalled()
     expect(useProjectStore.getState()).toBe(document)
-    expect(useUiStore.getState()).toBe(selection)
+    expect(useUiStore.getState()).toEqual({ ...selection, centerTab: "channelRack" })
   })
 
   it("refreshes document lists and cursor status from store updates", async () => {

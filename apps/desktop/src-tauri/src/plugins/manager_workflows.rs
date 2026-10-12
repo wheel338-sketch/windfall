@@ -86,6 +86,14 @@ impl PluginManager {
             match from {
                 Rescan::Blocked => {
                     catalog.retry_blocked();
+                    let rejected: Vec<PathBuf> = catalog
+                        .files()
+                        .filter(|(_, scan)| scan.failure.is_some())
+                        .map(|(path, _)| path.to_path_buf())
+                        .collect();
+                    for path in rejected {
+                        catalog.retry(&path);
+                    }
                 }
                 Rescan::Everything => *catalog = PluginCatalog::new(),
             }

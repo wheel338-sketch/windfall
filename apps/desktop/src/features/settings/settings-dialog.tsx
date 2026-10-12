@@ -203,6 +203,7 @@ function AudioSection() {
       )}
       <p
         role="status"
+        aria-label="Audio engine status"
         className={cn(
           "rounded-md bg-muted px-2.5 py-1.5 text-muted-foreground",
           status && !status.running && "bg-destructive/10 text-destructive"

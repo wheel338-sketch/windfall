@@ -28,7 +28,7 @@ it("mounts transport Record/start/keep through take attachment with one WASM und
   const before = structuredClone(useProjectStore.getState().project)
   const cursor = useProjectStore.getState().history.cursor
   render(<TransportBar />)
-  await userEvent.click(screen.getByRole("button", { name: "Record audio input" }))
+  await userEvent.click(screen.getByRole("button", { name: "Record" }))
   useRecordingStore.setState({ start: 960 })
   await userEvent.click(await screen.findByRole("button", { name: "Start recording" }))
   expect(start).toHaveBeenCalledOnce()
@@ -39,9 +39,11 @@ it("mounts transport Record/start/keep through take attachment with one WASM und
   const after = structuredClone(useProjectStore.getState().project)
   expect(after.playlist.clips).toHaveLength(before.playlist.clips.length + 1)
   expect(after.playlist.clips.find((clip) => !before.playlist.clips.some((old) => old.id === clip.id))?.start).toBe(960)
-  const doc = SimDocument.create(after)
+  const snapshot = (await app.backend.documentSnapshot()).project
+  expect(snapshot).toEqual({ ...after, nextId: snapshot.nextId })
+  const doc = SimDocument.create(snapshot)
   const loaded = SimDocument.open(doc.fileText())
-  expect(loaded.project()).toEqual(after)
+  expect(loaded.project()).toEqual(snapshot)
   loaded.dispose(); doc.dispose()
   await act(async () => { await undo() })
   expect(useProjectStore.getState().project.playlist).toEqual(before.playlist)
@@ -60,7 +62,7 @@ it("refuses a late Stop and keep reply after WASM project replacement",async()=>
   let resolve!: (value:typeof result)=>void
   const keep=vi.spyOn(app.backend,"recordingStop").mockImplementation(()=>new Promise(done=>{active=false;resolve=done}))
   render(<TransportBar/>)
-  await userEvent.click(screen.getByRole("button",{name:"Record audio input"}))
+  await userEvent.click(screen.getByRole("button",{name:"Record"}))
   await userEvent.click(await screen.findByRole("button",{name:"Start recording"}))
   await userEvent.click(screen.getByRole("button",{name:"Stop and keep"}))
   await waitFor(()=>expect(keep).toHaveBeenCalledOnce())

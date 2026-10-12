@@ -1,3 +1,4 @@
+/// <reference types="node" />
 import { readFileSync } from "node:fs"
 import { resolve } from "node:path"
 import { act, render, waitFor } from "@testing-library/react"
@@ -51,7 +52,7 @@ function JoinedViews({ select, tracks }: { select: AnalyzerSelect; tracks: numbe
 }
 
 let stop: (() => void) | undefined
-afterEach(() => { resetAnalyzerFeed(); stop?.(); vi.restoreAllMocks() })
+afterEach(() => { resetAnalyzerFeed(); stop?.(); vi.restoreAllMocks(); vi.unstubAllGlobals() })
 
 const element = (selector: string) => {
   const found = document.querySelector<HTMLElement>(selector)
@@ -94,6 +95,15 @@ it("replays real native session channel bytes through the mounted displays and e
   // The canvas is a recording renderer: real painters run against a sized
   // surface. This catches missing/gapped geometry as well as DOM readouts.
   const contexts = new Map<HTMLCanvasElement, Record<string, unknown>>()
+  let frameId = 0
+  const paints = new Map<number, FrameRequestCallback>()
+  vi.stubGlobal("requestAnimationFrame", (paint: FrameRequestCallback) => { paints.set(++frameId, paint); return frameId })
+  vi.stubGlobal("cancelAnimationFrame", (id: number) => paints.delete(id))
+  const paintFrame = () => {
+    const pending = [...paints.values()]
+    paints.clear()
+    for (const paint of pending) paint(performance.now())
+  }
   vi.spyOn(HTMLCanvasElement.prototype, "getBoundingClientRect").mockReturnValue({ x:0, y:0, top:0, left:0, right:320, bottom:120, width:320, height:120, toJSON:() => ({}) })
   vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockImplementation(function (this: HTMLCanvasElement) {
     let context = contexts.get(this)
@@ -108,7 +118,7 @@ it("replays real native session channel bytes through the mounted displays and e
   if (!first.select || !first.answer) throw new Error("No initial native selection")
   answer = first.answer
   const view = render(<JoinedViews select={first.select} tracks={fixture.tracks} />)
-  await act(() => settle())
+  await act(async () => { await settle(); paintFrame(); await settle() })
   const visibleTicks: number[] = []
   const phases = new Set<string>()
   let limiterPeak = 0
@@ -118,6 +128,7 @@ it("replays real native session channel bytes through the mounted displays and e
   let sawRate = false
   let sawPdc = false
   let sawInvalid = false
+  let sawReplacementTone = false
   let pdcBefore = 0
   let delayedDeletedSource: string | undefined
   for (const step of fixture.steps) {
@@ -128,6 +139,8 @@ it("replays real native session channel bytes through the mounted displays and e
         // boundary connectStores uses, before any old analyzer callback.
         loadSnapshot(JSON.parse(step.projectLoaded!) as DocumentSnapshot)
         announceProjectReplaced()
+        await settle()
+        paintFrame()
         await settle()
       })
       await waitFor(() => expect(document.querySelector("[data-slot=analyzer-canvas]")).toHaveAttribute("data-live", "false"))
@@ -140,7 +153,7 @@ it("replays real native session channel bytes through the mounted displays and e
     }
     for (const text of step.analyzer) {
       const event = JSON.parse(text) as AnalyzerEvent
-      await act(async () => { analyzer?.(event); await settle() })
+      await act(async () => { analyzer?.(event); await settle(); paintFrame(); await settle() })
       phases.add(element("[data-slot=analyzer-status]").dataset.phase ?? "")
       if (event.type !== "frame") {
         if (event.phase !== "live") await waitFor(() => expect(datasets("scope-meter").live).toBeUndefined())
@@ -148,11 +161,11 @@ it("replays real native session channel bytes through the mounted displays and e
       }
       const frame: AnalyzerFrame = event
       if (step.name === "before-delete") delayedDeletedSource = text
-      await waitFor(() => {
+      {
         expect(document.querySelector("[data-slot=analyzer-canvas]")).toHaveAttribute("data-live", "true")
         expect(document.querySelector("[data-slot=analyzer-canvas]")).toHaveAttribute("data-epoch", frame.clock.epoch)
         expect(element("[data-slot=scope-meter] [data-side=left]").dataset.peakDb).toBe(frame.levels[0].valid && !frame.levels[0].silent && frame.levels[0].peakDb !== null ? frame.levels[0].peakDb.toFixed(2) : "")
-      })
+      }
       expect(BigInt(frame.clock.alignedFirstFrame)).toBe(BigInt(frame.clock.firstFrame) - BigInt(frame.clock.pdcFrames))
       for (let side = 0; side < 2; side += 1) {
         const row = element(`[data-slot=scope-meter] [data-side=${side === 0 ? "left" : "right"}]`)
@@ -176,7 +189,10 @@ it("replays real native session channel bytes through the mounted displays and e
         const context = vectorCanvas ? contexts.get(vectorCanvas) : undefined
         expect(vi.mocked(context?.fillRect as ReturnType<typeof vi.fn>).mock.calls.some(([x, y]) => Number(x) > 160 && Number(y) < 60)).toBe(true)
       }
-      if (step.name === "replacement") expect(Number(document.querySelector<HTMLElement>("[data-slot=analyzer-canvas]")?.dataset.peakHz)).toBeCloseTo(861.328125, 0)
+      if (step.name === "replacement" && frame.spectrum) {
+        expect(Number(document.querySelector<HTMLElement>("[data-slot=analyzer-canvas]")?.dataset.peakHz)).toBeCloseTo(861.328125, 0)
+        sawReplacementTone = true
+      }
       if (frame.spectrum && step.name === "right") expect(Number(datasets("eq-live-spectrum").peakHz)).toBeGreaterThan(1700)
       for (const observation of frame.observations) {
         if (observation.type === "dynamics") {
@@ -206,14 +222,16 @@ it("replays real native session channel bytes through the mounted displays and e
       if (step.name === "rate" && frame.clock.sampleRate === 44100) sawRate = true
       if (step.name === "pdc") pdcBefore = frame.clock.pdcFrames
       if (step.name === "pdc-change" && frame.clock.pdcFrames === pdcBefore + 480) sawPdc = true
-      if (step.name === "invalid" && frame.levels.some((level) => !level.valid && level.invalid > 0)) sawInvalid = true
+      // Sample playback sanitizes non-finite PCM before the mixer tap. The
+      // actual downstream meter must show valid silence, never NaN values.
+      if (step.name === "invalid" && frame.levels.every((level) => level.valid && level.silent && level.peak === 0)) sawInvalid = true
     }
     for (const text of step.realtime) {
       const frame = JSON.parse(text) as RealtimeFrame
-      await act(async () => { realtime?.(frame); await settle() })
-      await waitFor(() => expect(element("[data-slot=large-clock] [data-part=position]").textContent).toBe(formatMusicalPosition(frame.tick, fixture.project.settings.timeSignature, [])))
-      await waitFor(() => expect(element("[data-slot=large-clock] [data-part=time]").textContent).toBe(formatClock(ticksToSeconds(frame.tick, fixture.project.settings.tempoBpm))))
-      await waitFor(() => expect(element("[data-slot=large-master-meter] [data-side=left]").textContent).toBe((frame.meters[0] ?? 0) === 0 ? "−∞ dBFS" : `${(20 * Math.log10(Math.abs(frame.meters[0]))).toFixed(1)} dBFS`))
+      await act(async () => { realtime?.(frame); await settle(); paintFrame(); await settle() })
+      expect(element("[data-slot=large-clock] [data-part=position]").textContent).toBe(formatMusicalPosition(frame.tick, fixture.project.settings.timeSignature, []))
+      expect(element("[data-slot=large-clock] [data-part=time]").textContent).toBe(formatClock(ticksToSeconds(frame.tick, fixture.project.settings.tempoBpm)))
+      expect(element("[data-slot=large-master-meter] [data-side=left]").textContent).toBe((frame.meters[0] ?? 0) === 0 ? "−∞ dBFS" : `${(20 * Math.log10(Math.abs(frame.meters[0]))).toFixed(1)} dBFS`)
       if (step.name === "loop") visibleTicks.push(frame.tick)
       for (const waveform of frame.waveforms ?? []) {
         const canvas = element(`[data-slot=mixer-waveform][data-track="${waveform.track}"]`)
@@ -240,7 +258,7 @@ it("replays real native session channel bytes through the mounted displays and e
   }
   expect(visibleTicks.some((tick, index) => index > 0 && tick < visibleTicks[index - 1])).toBe(true)
   expect(limiterPeak).toBeGreaterThan(3)
-  expect(sawDecay && sawTuner && sawNewTuner && sawRate && sawPdc && sawInvalid).toBe(true)
+  expect({ sawDecay, sawTuner, sawNewTuner, sawRate, sawPdc, sawInvalid, sawReplacementTone }).toEqual({ sawDecay: true, sawTuner: true, sawNewTuner: true, sawRate: true, sawPdc: true, sawInvalid: true, sawReplacementTone: true })
   expect(phases.has("stalled")).toBe(true)
   expect(backend.analyzerAck).toHaveBeenCalled()
   expect([...contexts.values()].some((context) => vi.mocked(context.lineTo as ReturnType<typeof vi.fn>).mock.calls.length > 0)).toBe(true)

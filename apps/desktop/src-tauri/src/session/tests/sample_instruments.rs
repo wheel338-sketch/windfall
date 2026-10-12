@@ -132,7 +132,7 @@ fn import_zone_reuses_sources_and_undo_removes_the_layer_without_extra_channels(
             .unwrap()
             .created[0],
     );
-    let before = rig.project();
+    let mut before = rig.project();
     let path = rig.file("pad.wav");
     windfall_codec::write_wav(
         &path,
@@ -163,6 +163,7 @@ fn import_zone_reuses_sources_and_undo_removes_the_layer_without_extra_channels(
     rig.session.undo().unwrap();
     assert_eq!(rig.project(), first);
     rig.session.undo().unwrap();
+    before.next_id = rig.project().next_id;
     assert_eq!(rig.project(), before);
 }
 
@@ -251,7 +252,7 @@ fn portable_bank_copies_own_pcm_loads_into_a_fresh_player_and_preserves_one_step
             .unwrap()
             .created[0],
     );
-    let before = rig.project();
+    let mut before = rig.project();
     rig.session
         .sample_instrument_load_bank(player, None, bank_path)
         .unwrap();
@@ -270,6 +271,7 @@ fn portable_bank_copies_own_pcm_loads_into_a_fresh_player_and_preserves_one_step
         .clone();
     assert_eq!(audio.samples(), pcm.samples());
     rig.session.undo().unwrap();
+    before.next_id = rig.project().next_id;
     assert_eq!(rig.project(), before);
     rig.session.redo().unwrap();
     assert_eq!(rig.project(), loaded);

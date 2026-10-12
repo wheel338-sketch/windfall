@@ -376,7 +376,7 @@ function ProcessingForm({ channel }: { channel: SamplerChannel }) {
         )}
       </FieldGroup>
       {pending && (
-        <p role="status" className="flex items-center gap-2">
+        <p role="status" aria-label="Sampler preparation" className="flex items-center gap-2">
           <Spinner role="presentation" aria-hidden />
           {progress}
         </p>

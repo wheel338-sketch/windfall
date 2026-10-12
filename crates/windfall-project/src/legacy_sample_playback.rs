@@ -40,6 +40,8 @@ struct ChannelWire {
     /// voices. Absent in older files, which is the fixed mapping they had.
     #[serde(default, skip_serializing_if = "crate::ExpressionMap::is_default")]
     pub expression_map: crate::ExpressionMap,
+    #[serde(default)]
+    pub sample_instrument: Option<crate::SampleInstrumentAsset>,
 }
 impl<'de> Deserialize<'de> for Channel {
     fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
@@ -138,7 +140,7 @@ impl<'de> Deserialize<'de> for Channel {
         }
         let source = serde_json::from_value(wire.source).map_err(D::Error::custom)?;
         Ok(Channel {
-            sample_instrument: None,
+            sample_instrument: wire.sample_instrument,
             sample_playback: asset,
             voice: wire.voice,
             id: wire.id,

@@ -59,6 +59,7 @@ fn fake_response(
                 Err(e) => panic!("fake accept: {e}"),
             }
         };
+        socket.set_nonblocking(false).unwrap();
         socket
             .set_read_timeout(Some(Duration::from_secs(2)))
             .unwrap();

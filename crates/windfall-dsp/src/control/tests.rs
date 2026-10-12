@@ -30,7 +30,7 @@ fn formula_rejects_unbounded_and_malformed_input_atomically() {
     let mut source = FormulaSource::default();
     source.set_expression("0.25").unwrap();
     for expression in [
-        "", "loop(a)", "a / b", "min(a)", "sin(a,b)", "1e999", "a b", "é",
+        "", "loop(a)", "a /", "min(a)", "sin(a,b)", "1e999", "a b", "é",
     ] {
         assert!(source.set_expression(expression).is_err(), "{expression}");
         let mut output = [0.0];
@@ -415,6 +415,7 @@ fn dashboard_registry_sends_real_assignable_midi_cc_without_audio() {
     let mut unit = crate::AnyInstrument::new(&crate::InstrumentParams::Dashboard(params));
     unit.prepare(48_000.0, 64);
     unit.stamp_midi(128);
+    assert!(unit.set_params(&crate::InstrumentParams::Dashboard(params)));
     let mut left = [1.0; 64];
     let mut right = [1.0; 64];
     unit.process(&mut left, &mut right);
@@ -427,8 +428,8 @@ fn dashboard_registry_sends_real_assignable_midi_cc_without_audio() {
             .any(|event| event.message() == [0xb1, 74, 64] && event.frame == 128)
     );
     params.controllers[0].value = 127;
-    assert!(unit.set_params(&crate::InstrumentParams::Dashboard(params)));
     unit.stamp_midi(192);
+    assert!(unit.set_params(&crate::InstrumentParams::Dashboard(params)));
     unit.process(&mut left, &mut right);
     events.clear();
     unit.drain_midi(&mut |event| events.push(event));

@@ -11,6 +11,7 @@ import type {
 import descriptors from "@/bindings/descriptors.json"
 import { createDefaultChannelVoiceSettings } from "@/features/channel-rack/voice/settings"
 import { defaultAsset } from "@/features/sample-playback/settings"
+import { initialGraph } from "@/features/modular/model"
 import { DEFAULT_TRACK_PROCESSING } from "@/lib/track-processing"
 
 import { SimDocument } from "./document"
@@ -27,6 +28,7 @@ function fullProject() {
     slicer: 0,
     sampleInstrument: 0,
     effect: 0,
+    controller: 0,
     tap: 0,
     convolver: 0,
     sparePattern: 0,
@@ -72,6 +74,7 @@ function fullProject() {
       kind: "compressor",
     })
     run({ type: "addEffect", track: ids.track, kind: "delay" })
+    ;[ids.controller] = run({ type: "addEffect", track: ids.track, kind: "formulaSource" })
     ;[ids.convolver] = run({ type: "addEffect", track: ids.track, kind: "convolver" })
     ;[ids.tap] = run({ type: "addEffect", track: ids.track, kind: "sendTap" })
     ;[ids.playlistTrack] = run({ type: "addPlaylistTrack" })
@@ -257,7 +260,7 @@ const EVERY_COMMAND: { [Type in Command["type"]]: (ids: Ids) => Command } = {
   setSampleRegions: (ids) => ({type:"setSampleRegions",sample:ids.sample,expected:[],regions:[{name:"Region",startFrame:0,endFrame:100}]}),
   setSamplePlayback: (ids) => ({ type: "setSamplePlayback", channel: ids.slicer, asset: { ...defaultAsset(), sample: ids.sample, sourceBpm: 90 } }),
   generateSlicePattern: (ids) => ({ type: "generateSlicePattern", channel: ids.slicer, pattern: ids.pattern }),
-  setStageMedia: () => ({ type: "setStageMedia", media: { pads: [], quantization: "bar", videos: [], visual: { scene: "orbit", intensity: 1, hue: 180 }, danceChannel: null } }),
+  setStageMedia: () => ({ type: "setStageMedia", media: { pads: [], quantization: "bar", videos: [], visual: { scene: "bars", intensity: 2, hue: 45 }, danceChannel: null } }),
   addArrangement: (ids) => ({
     type: "addArrangement",
     name: "New",
@@ -902,9 +905,9 @@ const EVERY_COMMAND: { [Type in Command["type"]]: (ids: Ids) => Command } = {
     output: 0,
     target: 0,
   }),
-  setInternalControllerSettings: () => ({
+  setInternalControllerSettings: (ids) => ({
     type: "setInternalControllerSettings",
-    settings: [],
+    settings: [{ controller: ids.controller, durationMs: 1000, rms: false, expression: "a" }],
   }),
   setControllerLinks: (ids) => ({
     type: "setControllerLinks",
@@ -959,7 +962,7 @@ const EVERY_COMMAND: { [Type in Command["type"]]: (ids: Ids) => Command } = {
       { type: "moveChannel", id: ids.channel, index: 1 },
     ],
   }),
-  setChannelRack: (ids) => ({ type: "setChannelRack", id: ids.synth, graph: null }),
+  setChannelRack: (ids) => ({ type: "setChannelRack", id: ids.synth, graph: initialGraph(descriptors.instruments.subtractiveSynth.defaults as InstrumentParams) }),
   setScriptLibrary: () => ({
     type: "setScriptLibrary",
     library: { assets: [{ reference: { id: "piano-fixture", revision: 1 }, languageVersion: 1, kind: "piano", name: "Fixture", source: "emit" }], channels: [], controllers: [] },

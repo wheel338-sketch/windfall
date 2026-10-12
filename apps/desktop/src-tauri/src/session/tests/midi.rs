@@ -352,7 +352,7 @@ fn refused_and_failed_exports_preserve_existing_files_and_project() {
     let path = rig.file("existing.mid");
     std::fs::write(&path, b"keep this").expect("writes original");
     let mut options = export_options(&rig, PlayMode::Pattern);
-    options.ppq = 123;
+    options.ppq = 32768;
     assert!(rig.session.export_midi(&path, options).is_err());
     assert_eq!(std::fs::read(path).expect("still there"), b"keep this");
     assert!(

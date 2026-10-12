@@ -1,6 +1,7 @@
 import { useId, type ReactNode } from "react"
 
 import { Button } from "@/components/ui/button"
+import { controlActionLabel } from "@/features/controllers/links-panel"
 import { describeTarget } from "@/lib/automation/targets"
 import { dispatch } from "@/lib/store/project"
 import { selectChannel } from "@/features/channel-rack/channel-ops"
@@ -111,7 +112,7 @@ export function ProjectTab() {
       {(project.settings.controllerLinks?.length ?? 0) > 0 && <ProjectGroup title="Controller links">
         <ul className="flex flex-col gap-2">{project.settings.controllerLinks?.map((link, index) => <li key={index} className="flex flex-wrap items-center gap-2">
           <span>{link.source.type === "midi" ? `${link.source.device ?? "Any MIDI input"} · ${link.source.control.type}` : `Internal ${link.source.controller}:${link.source.output}`}</span>
-          {link.target.type === "param" ? <Button variant="ghost" size="sm" onClick={() => { if (link.target.type === "param") navigateTarget(link.target.target) }}>{describeTarget(project, link.target.target)}</Button> : <span>{link.target.type === "action" ? link.target.action : link.target.slot.type}</span>}
+          {link.target.type === "param" ? <Button variant="ghost" size="sm" onClick={() => { if (link.target.type === "param") navigateTarget(link.target.target) }}>{describeTarget(project, link.target.target)}</Button> : <span>{link.target.type === "action" ? controlActionLabel(link.target.action) : link.target.slot.type}</span>}
           <Button variant="outline" size="sm" aria-label={`Remove controller link ${index + 1}`} onClick={() => { if (useProjectStore.getState().project !== project) return; void dispatch({ type: "setControllerLinks", links: project.settings.controllerLinks?.filter((_, at) => at !== index) ?? [] }) }}>Remove</Button>
         </li>)}</ul>
       </ProjectGroup>}

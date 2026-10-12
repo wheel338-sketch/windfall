@@ -186,14 +186,12 @@ impl MidiExportOptions {
             },
             480 => windfall_midi::Resolution::Ppq480,
             960 => windfall_midi::Resolution::Ppq960,
-            ppq if windfall_project::timebase::is_timebase(ppq) => {
-                windfall_midi::Resolution::Ppq(ppq)
-            }
+            ppq if (1..=0x7fff).contains(&ppq) => windfall_midi::Resolution::Ppq(ppq),
             _ => {
-                return Err(format!(
-                    "MIDI resolution must be the project timebase or one of {:?} PPQ.",
-                    windfall_project::timebase::TIMEBASES
-                ));
+                return Err(
+                    "MIDI resolution must be 1 to 32767 PPQ, or 0 for the project timebase."
+                        .to_owned(),
+                );
             }
         };
         let options = windfall_midi::ExportOptions {
@@ -364,7 +362,12 @@ mod timebase_tests {
         // Exporting changed nothing.
         assert_eq!(*doc.project(), project);
 
-        for ppq in [1_u16, 72, 123, 961, u16::MAX] {
+        for ppq in [1_u16, 72, 123, 961, 32767] {
+            let custom = options(&project, ppq).bytes(&project).unwrap();
+            assert_eq!(&custom[12..14], &ppq.to_be_bytes());
+            assert_eq!(notes(&custom).len(), on_grid.len());
+        }
+        for ppq in [32768_u16, u16::MAX] {
             let error = options(&project, ppq).bytes(&project).unwrap_err();
             assert!(error.contains("resolution"), "{ppq}: {error}");
         }

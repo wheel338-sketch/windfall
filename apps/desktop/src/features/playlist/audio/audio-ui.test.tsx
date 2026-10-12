@@ -169,7 +169,7 @@ describe("the audio clip settings", () => {
         ui().select([first, second])
       })
       const toggle = within(inspector()!).getByRole("button", {
-        name: "Normalize",
+        name: "Normalize clip playback",
       })
       expect(toggle).toHaveAttribute("aria-pressed", String(normalize === true))
       const send = vi.spyOn(backend, "dispatch")

@@ -248,7 +248,7 @@ describe("laneCorners", () => {
       points: [point(0, 0, { curve: .5 }), point(120, 1), point(240, .5)], shift: 60, repeat: 480, held: 0 }] }
     expect(laneCorners(lane, 1000, 60)).toEqual([0, 60, 180, 420, 480, 540, 660, 900, 960, 1000])
     expect(laneValueAt(lane, 420)?.value).toBe(0)
-    expect(laneValueBefore(lane, 420)?.value).toBe(.5)
+    expect(laneValueBefore(lane, 420)).toBe(.5)
   })
   it("has a corner at every span start and point, and cuts bends up", () => {
     const bent = automation(1, [

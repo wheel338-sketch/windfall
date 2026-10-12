@@ -9,7 +9,7 @@ const original = useProjectStore.getState()
 afterEach(() => { useProjectStore.setState(original); useTransportStore.setState({ playing: false }); localStorage.removeItem("windfall.update-channel") })
 function fixture(): UpdateApi {
   return {
-    check: vi.fn(async () => ({ configured: true, reason: null, update: { token: 1, version: "0.2.0", notes: "Release notes", channel: "stable", projectFormat: 1 } })),
+    check: vi.fn(async () => ({ configured: true, reason: null, update: { token: 1, version: "0.2.0", notes: "Release notes", channel: "stable" as const, projectFormat: 1 } })),
     download: vi.fn(async (_token: number, progress: (next: UpdateProgress) => void) => { progress({ downloaded: 3, total: 3, verified: true }) }),
     install: vi.fn(async () => {}),
   }

@@ -44,7 +44,7 @@ describe("deterministic Windfall scene frames", () => {
     const signal = offlineSignal(sine(), 1024)
     const hashes = ["orbit", "bars", "ribbon"].map((scene) => {
       if (scene !== "orbit" && scene !== "bars" && scene !== "ribbon") throw new Error("fixture scene")
-      const settings = { scene, hue: 180, intensity: 2 }
+      const settings = { scene, hue: 180, intensity: 2 } satisfies import("@/bindings").VisualSettings
       const pixels = renderVisual(80, 45, settings, signal, 6)
       expect(frameHash(pixels)).toBe(referenceHash(pixels))
       expect(renderVisual(80, 45, settings, offlineSignal(sine(), 1024), 6)).toEqual(pixels)

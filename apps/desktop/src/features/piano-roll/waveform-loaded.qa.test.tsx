@@ -17,6 +17,7 @@ let underlay: IndexedBatch | null
 const frames = new Map<number, FrameRequestCallback>()
 beforeEach(async () => {
   clearSampleInfo()
+  useWaveformHelper.setState(useWaveformHelper.getInitialState(), true)
   view = null; underlay = null
   let frame = 0
   vi.stubGlobal("ResizeObserver", class { observe() {} unobserve() {} disconnect() {} })
@@ -39,6 +40,8 @@ beforeEach(async () => {
     return created
   })
   roll = await startRoll()
+  await dispatch({ type: "removeNotes", pattern: currentPattern().id, channel: channel("Kick").id,
+    notes: notesOf("Kick").map((note) => note.id) })
   await dispatch({ type: "addNotes", pattern: currentPattern().id, channel: channel("Kick").id,
     notes: [{ start: 960, length: 480, key: 60 }] })
 })
@@ -46,7 +49,8 @@ afterEach(() => { cleanup(); roll.stop(); clearSampleInfo(); frames.clear(); vi.
 async function choose(label: string, value: string) {
   const user = userEvent.setup()
   await user.click(screen.getByRole("combobox", { name: label }))
-  await user.click(screen.getByRole("option", { name: value, exact: true }))
+  await act(async () => { const pending = [...frames.values()]; frames.clear(); pending.forEach((frame) => frame(performance.now())); await settle() })
+  await user.click(await screen.findByRole("option", { name: value }))
 }
 const waveform = () => {
   const batch = underlay?.batch
@@ -63,7 +67,7 @@ it("loads actual source peaks into the mounted note grid and aligns seconds/fit/
   const before = undoSteps()
   render(<Workspace patternId={currentPattern().id} channelId={channel("Kick").id} />)
   await waitFor(() => expect(view?.items?.batch.count).toBeGreaterThan(0))
-  await userEvent.setup().click(screen.getByRole("button", { name: "Waveform", exact: true }))
+  await userEvent.setup().click(screen.getByRole("button", { name: "Waveform" }))
   await choose("Waveform helper audio", sample.name)
   await waitFor(() => expect(waveform().length).toBeGreaterThan(0))
   const originalTicks = Math.max(1, Math.round(info.durationSecs * project.settings.tempoBpm * 960 / 60))
@@ -119,5 +123,5 @@ it("refuses an old pending source result after replacement even when the new pro
   const latest = waveform()
   await act(async () => { resolveOld(info); await pending; await settle() })
   expect(waveform()).toEqual(latest)
-  expect(waveform().at(-1)![0] + waveform().at(-1)![1]).toBe(3840)
+  expect(waveform().at(-1)![0] + waveform().at(-1)![1]).toBe(Math.round(2 * useProjectStore.getState().project.settings.tempoBpm * 960 / 60))
 })

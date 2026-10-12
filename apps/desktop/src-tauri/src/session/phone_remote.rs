@@ -122,9 +122,9 @@ fn constant_eq(a: &[u8], b: &[u8]) -> bool {
 #[derive(Debug, Deserialize)]
 #[serde(tag = "name", rename_all = "camelCase", deny_unknown_fields)]
 pub(super) enum Action {
-    Feed,
-    Play,
-    Stop,
+    Feed {},
+    Play {},
+    Stop {},
     Fader {
         track: TrackId,
         value: f32,
@@ -217,6 +217,11 @@ impl Session {
                 while !stopped.load(Ordering::Acquire) && weak.upgrade().is_some() {
                     match listener.accept() {
                         Ok((stream, peer)) => {
+                            // Accepted sockets inherit the listener's nonblocking
+                            // mode on Windows. Each client has a bounded worker.
+                            if stream.set_nonblocking(false).is_err() {
+                                continue;
+                            }
                             if !local_peer(peer.ip())
                                 || active.load(Ordering::Acquire) >= 4
                                 || !lock(&authority).connection()
@@ -267,9 +272,9 @@ impl Session {
     }
     pub(super) fn remote_action(&self, generation: u64, action: &Action) -> Result<(), String> {
         match action {
-            Action::Feed => Ok(()),
-            Action::Play => self.transport_play_checked(Some(generation)).map(|_| ()),
-            Action::Stop => self.transport_stop_checked(Some(generation)).map(|_| ()),
+            Action::Feed {} => Ok(()),
+            Action::Play {} => self.transport_play_checked(Some(generation)).map(|_| ()),
+            Action::Stop {} => self.transport_stop_checked(Some(generation)).map(|_| ()),
             Action::Fader { track, value } => {
                 if !value.is_finite() || !(0.0..=2.0).contains(value) {
                     return Err("Remote fader is outside 0..2.".into());
@@ -283,10 +288,12 @@ impl Session {
                     // The identical checked Command used by mixer UI faders.
                     self.sample_edit_ticket(
                         &state,
-                        Command::SetTrackParam {
+                        Command::UpdateMixerTrack {
                             id: *track,
-                            param: 0,
-                            value: *value,
+                            patch: windfall_project::MixerTrackPatch {
+                                volume: Some(*value),
+                                ..Default::default()
+                            },
                         },
                         None,
                         Vec::new(),

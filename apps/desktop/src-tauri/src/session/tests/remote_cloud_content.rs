@@ -120,12 +120,12 @@ fn remote_named_command_undo_stale_and_recording_guards() {
     start_recording(&rig);
     assert!(
         rig.session
-            .remote_action(generation, &Action::Play)
+            .remote_action(generation, &Action::Play {})
             .is_err()
     );
     assert!(
         rig.session
-            .remote_action(generation, &Action::Stop)
+            .remote_action(generation, &Action::Stop {})
             .is_err()
     );
     assert!(
@@ -155,7 +155,7 @@ fn remote_named_command_undo_stale_and_recording_guards() {
     rig.session.project_new().unwrap();
     assert!(
         rig.session
-            .remote_action(generation, &Action::Stop)
+            .remote_action(generation, &Action::Stop {})
             .is_err()
     );
 }

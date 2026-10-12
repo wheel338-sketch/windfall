@@ -9,6 +9,7 @@ export default defineConfig({
       "@": resolve(import.meta.dirname, "./src"),
     },
   },
+  server: { fs: { allow: [resolve(import.meta.dirname, "../..")] } },
   test: {
     environment: "jsdom",
     globals: false,

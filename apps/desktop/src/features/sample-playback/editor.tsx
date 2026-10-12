@@ -94,7 +94,7 @@ export function SamplePlaybackEditor({ channel }: { channel: InstrumentChannel }
     <FieldGroup>
       {[0, ...(params.type === "sliceDeck" ? [1] : [])].map((deck) => <Field key={deck}>
         <FieldLabel>Source {deck === 0 ? "A" : "B"}</FieldLabel>
-        <Select<string> value={String((deck ? asset.sampleB : asset.sample) ?? "none")} onValueChange={(value) => {
+        <Select<string> items={[{ value: "none", label: "No source" }, ...samples.map(sample => ({ value: String(sample.id), label: sample.name }))]} value={String((deck ? asset.sampleB : asset.sample) ?? "none")} onValueChange={(value) => {
           if (value === null) return
           const source = value === "none" ? null : Number(value)
           save({ ...asset, ...(deck ? { sampleB: source } : { sample: source, inlineSource: undefined }) })

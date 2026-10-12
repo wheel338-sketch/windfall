@@ -21,10 +21,12 @@ beforeEach(async () => {
 })
 afterEach(() => { useAutomationRecordStore.setState({ recordArmed: false }); vi.restoreAllMocks(); app.stop() })
 const project = () => useProjectStore.getState().project
-function saveReopen() {
-  const saved = SimDocument.create(structuredClone(project()))
+async function saveReopen() {
+  const snapshot = (await app.backend.documentSnapshot()).project
+  expect(snapshot).toEqual({ ...project(), nextId: snapshot.nextId })
+  const saved = SimDocument.create(snapshot)
   const opened = SimDocument.open(saved.fileText())
-  expect(opened.project()).toEqual(project()); saved.dispose(); opened.dispose()
+  expect(opened.project()).toEqual(snapshot); saved.dispose(); opened.dispose()
 }
 
 // Session-capability replies are fixtures. Commands, subscriptions, mounted
@@ -59,9 +61,9 @@ it("mounts MIDI arm, configured count-in, play, quantized stop commit, undo/reop
   await waitFor(() => expect(useProjectStore.getState().history.cursor).toBe(cursor + 1))
   expect(project().patterns[0]!.lanes.flatMap((lane) => lane.notes).find((note) => note.key === 110)).toMatchObject({ start: 240, length: 245 })
   expect(useTransportStore.getState().playing).toBe(false)
-  saveReopen()
+  await saveReopen()
   await act(async () => { await undo(); await settle() }); expect(project()).toEqual(before)
-  await act(async () => { await redo(); await settle() }); saveReopen()
+  await act(async () => { await redo(); await settle() }); await saveReopen()
   await app.backend.projectNew()
   await act(async () => { announceProjectReplaced(); await settle() })
   await expect(app.backend.scoreLogDump(pattern, null, state.generation)).rejects.toThrow(/changed/)
@@ -88,9 +90,9 @@ it("mounts automation arm and control movements with a pattern-lane commit group
   const control = screen.getByRole("slider", { name: `${project().channels[0]!.name} channel volume` })
   for (const key of ["ArrowRight", "ArrowLeft", "Home"]) { fireEvent.keyDown(control, { key }); fireEvent.keyUp(control, { key }); await act(settle) }
   await user.click(screen.getByRole("button", { name: "Stop" }))
-  await waitFor(() => expect(project().patterns[0]!.events[0]!.points.some((point) => point.tick === 120)).toBe(true))
+  await waitFor(() => expect(project().patterns[0]!.events![0]!.points.some((point) => point.tick === 120)).toBe(true))
   expect(useProjectStore.getState().history.cursor).toBe(cursor + 1)
   expect(project().channels[0]!.volume).toBe(0)
-  saveReopen()
+  await saveReopen()
   await act(async () => { await undo(); await settle() }); expect(project()).toEqual(before)
 })

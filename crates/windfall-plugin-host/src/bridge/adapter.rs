@@ -1008,7 +1008,9 @@ mod tests {
         let mut input = InputBlock::new();
         region.take_input(&mut input).unwrap().unwrap();
         assert_eq!(input.notes[2 * 128 + 60], 0.0);
-        assert_eq!(input.notes[4 * 128 + 60], 90.0 / 127.0);
+        // The snapshot precedes this packet's timed events. Its note-on
+        // becomes held state for the next packet, not a duplicate first note.
+        assert_eq!(input.notes[4 * 128 + 60], 0.0);
         let events = &input.events[..input.event_count];
         assert!(events.contains(&HostEvent::NoteOn {
             time: 0,
@@ -1031,6 +1033,10 @@ mod tests {
             bytes: [0xe4, 127, 127],
             len: 3
         }));
+        audio.process(&mut [0.0; 64], &mut [0.0; 64]);
+        region.take_input(&mut input).unwrap().unwrap();
+        assert_eq!(input.notes[2 * 128 + 60], 0.0);
+        assert_eq!(input.notes[4 * 128 + 60], 90.0 / 127.0);
     }
 
     #[test]

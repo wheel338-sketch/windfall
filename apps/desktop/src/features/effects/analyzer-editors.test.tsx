@@ -391,7 +391,8 @@ describe("the equaliser's live spectrum", () => {
     await deliver(
       select,
       frame(select, 1, {
-        spectrum: { binHz: 48_000 / 1024, enbwBins: 1.5, left, right: [], bands: [] },
+        levels: [{ valid: true, silent: false, peak: 0.5, rms: Math.SQRT1_2 * 0.5, peakDb: 20 * Math.log10(0.5), rmsDb: 20 * Math.log10(Math.SQRT1_2 * 0.5), clipped: 0, invalid: 0 }, { valid: true, silent: false, peak: 0.5, rms: Math.SQRT1_2 * 0.5, peakDb: 20 * Math.log10(0.5), rmsDb: 20 * Math.log10(Math.SQRT1_2 * 0.5), clipped: 0, invalid: 0 }],
+        spectrum: { binHz: 48_000 / 1024, enbwBins: 1.5, left, right: [...left], bands: [] },
       })
     )
     const hz = Number(spectrum.dataset.peakHz)

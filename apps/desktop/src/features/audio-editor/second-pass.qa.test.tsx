@@ -16,7 +16,7 @@ let app: Awaited<ReturnType<typeof startTestApp>>
 beforeEach(async()=>{app=await startTestApp()})
 afterEach(()=>{app.stop();vi.restoreAllMocks()})
 const project=()=>useProjectStore.getState().project
-function reopened() {const doc=SimDocument.create(project());const opened=SimDocument.open(doc.fileText());const saved=opened.project();doc.dispose();opened.dispose();return saved}
+async function reopened() {const snapshot=(await app.backend.documentSnapshot()).project;expect(snapshot).toEqual({...project(),nextId:snapshot.nextId});const doc=SimDocument.create(snapshot);const opened=SimDocument.open(doc.fileText());const saved=opened.project();doc.dispose();opened.dispose();return saved}
 async function addClip() {
   const result=await app.backend.addAudioClipFromFile("/factory/Loops/Drum loop 128.wav",{start:0})
   receivePatch(result.patch)
@@ -56,7 +56,7 @@ it("mounts persistent region/marker edits against WASM with one undo, reopen and
   await screen.findByRole("button",{name:"Region · 100–500"})
   expect(useProjectStore.getState().history.cursor).toBe(cursor+1)
   const saved=project().samples.find(s=>(s.regions?.length ?? 0)>0)!
-  expect(reopened().samples.find(s=>s.id===saved.id)?.regions).toEqual(saved.regions)
+  expect((await reopened()).samples.find(s=>s.id===saved.id)?.regions).toEqual(saved.regions)
   await act(async()=>{await undo()})
   expect(project().samples.find(s=>s.id===saved.id)?.regions ?? []).toEqual([])
   await act(async()=>{await redo()})
@@ -117,7 +117,7 @@ it("mounts the real slot recorder through capture, take attachment, history and 
   expect(dump).toHaveBeenCalledWith({source:{type:"effect",effect:slot.id},seconds:null,start:0,track:null})
   expect(useProjectStore.getState().history.cursor).toBe(cursor+1)
   const clips=structuredClone(project().playlist.clips)
-  expect(reopened().playlist.clips).toEqual(clips)
+  expect((await reopened()).playlist.clips).toEqual(clips)
   await act(async()=>{await undo()});expect(project().playlist.clips).toHaveLength(clips.length-1)
   await act(async()=>{await redo()});expect(project().playlist.clips).toEqual(clips)
 })
@@ -144,7 +144,7 @@ it("exports the actual drag selection to a sampler in one guarded WASM edit",asy
   expect(move).toHaveBeenCalledWith(expect.objectContaining({startFrame:0,endFrame:1000,destination:{type:"sampler",channel:channel.id}}))
   expect(useProjectStore.getState().history.cursor).toBe(cursor+1)
   const saved=project().channels[0].source
-  expect(reopened().channels[0].source).toEqual(saved)
+  expect((await reopened()).channels[0].source).toEqual(saved)
   await act(async()=>{await undo()});expect(project().channels[0].source).toEqual(channel.source)
   await act(async()=>{await redo()});expect(project().channels[0].source).toEqual(saved)
 })

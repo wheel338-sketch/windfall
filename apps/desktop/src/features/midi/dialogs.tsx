@@ -273,10 +273,13 @@ function ExportForm({ done, busy }: FormProps) {
       selectedPatternId(project, transport.pattern) ?? 0
     )
   })
+  const [resolutionText, setResolutionText] = useState(() => String(options.ppq))
+  const resolution = Number(resolutionText)
+  const resolutionValid = resolutionText.trim() !== "" && Number.isInteger(resolution) && resolution >= 1 && resolution <= 32767
   const [working, setWorking] = useState(false)
   const [error, setError] = useState<string | null>(null)
   async function save() {
-    if (!expressionValid) return
+    if (!expressionValid || !resolutionValid) return
     setWorking(true)
     busy(true)
     setError(null)
@@ -333,12 +336,13 @@ function ExportForm({ done, busy }: FormProps) {
           value={options.ppq}
           disabled={working}
           options={PROJECT_TIMEBASES.map((value) => ({ value, label: `${value} PPQ` }))}
-          onChange={(ppq) => setOptions({ ...options, ppq })}
+          onChange={(ppq) => { setOptions({ ...options, ppq }); setResolutionText(String(ppq)) }}
         />
       </Field>
       <Field>
         <FieldLabel htmlFor="midi-custom-ppq">Custom MIDI resolution (1–32767)</FieldLabel>
-        <Input id="midi-custom-ppq" type="number" min={1} max={32767} value={options.ppq} disabled={working} onChange={(event) => { const ppq = Number(event.target.value); if (Number.isInteger(ppq) && ppq >= 1 && ppq <= 32767) setOptions({ ...options, ppq }) }} />
+        <Input id="midi-custom-ppq" type="number" min={1} max={32767} value={resolutionText} aria-invalid={!resolutionValid} disabled={working} onChange={(event) => { const text = event.target.value; setResolutionText(text); const ppq = Number(text); if (text.trim() && Number.isInteger(ppq) && ppq >= 1 && ppq <= 32767) setOptions({ ...options, ppq }) }} />
+        {!resolutionValid && <FieldError>Use a whole resolution from 1 to 32767 PPQ.</FieldError>}
       </Field>
       <FieldSet>
         <FieldLegend>Playback</FieldLegend>
@@ -382,7 +386,7 @@ function ExportForm({ done, busy }: FormProps) {
         <Button variant="outline" disabled={working} onClick={done}>
           Cancel
         </Button>
-        <Button disabled={working || !expressionValid} onClick={() => void save()}>
+        <Button disabled={working || !expressionValid || !resolutionValid} onClick={() => void save()}>
           {working ? "Exporting…" : "Choose file and export…"}
         </Button>
       </DialogFooter>

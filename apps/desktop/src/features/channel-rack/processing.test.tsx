@@ -139,7 +139,7 @@ it.each(["cancel", "channel", "project"])(
     await independent()
     const cursor = history().cursor
     await userEvent.click(screen.getByRole("button", { name: "Apply stretch" }))
-    expect(screen.getByRole("status")).toHaveTextContent(
+    expect(screen.getByRole("status", { name: "Sampler preparation" })).toHaveTextContent(
       "Preparing key variants"
     )
     if (change === "cancel")
@@ -161,7 +161,7 @@ it.each(["cancel", "channel", "project"])(
       await settle()
     })
     expect(screen.queryByText("obsolete preparation")).toBeNull()
-    expect(screen.queryByRole("status")).toBeNull()
+    expect(screen.queryByRole("status", { name: "Sampler preparation" })).toBeNull()
     expect(history().cursor).toBe(cursor)
   }
 )

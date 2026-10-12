@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import type { Channel, DispatchResult, EffectKind, EffectParams, InstrumentKind, InstrumentParams, RackEndpoint, RackGraph, RackNode, RackProcessor } from "@/bindings"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
@@ -35,10 +35,11 @@ export function ModularEditor({ channel, root }: { channel: Channel; root: RackG
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const generation = useProjectGeneration()
-  const [parameterQueue] = useState(() => ({ tail: Promise.resolve<DispatchResult | null>(null), epoch: 0 }))
+  const parameterQueue = useRef({ tail: Promise.resolve<DispatchResult | null>(null), epoch: 0 })
   useEffect(() => {
-    const stop = onHistoryNavigation(() => { parameterQueue.epoch += 1 })
-    return () => { stop(); parameterQueue.epoch += 1 }
+    const queue = parameterQueue.current
+    const stop = onHistoryNavigation(() => { queue.epoch += 1 })
+    return () => { stop(); queue.epoch += 1 }
   }, [parameterQueue])
   const graph = graphAt(root, path)
   const activePath = graph === root ? [] : path
@@ -88,9 +89,9 @@ export function ModularEditor({ channel, root }: { channel: Channel; root: RackG
     if (await save({ ...graph, edges: [...graph.edges, { from, to, gain: 1, ...(id ? { parameter: id } : {}) }] })) setFrom(null)
   }
   function queueParameter(id: number, type: "instrument" | "effect", kind: InstrumentKind | EffectKind, index: number, value: number, gesture?: number) {
-    const epoch = parameterQueue.epoch
-    const result = parameterQueue.tail.then(async () => {
-      if (generation !== getProjectGeneration() || epoch !== parameterQueue.epoch) return null
+    const epoch = parameterQueue.current.epoch
+    const result = parameterQueue.current.tail.then(async () => {
+      if (generation !== getProjectGeneration() || epoch !== parameterQueue.current.epoch) return null
       const latest = useProjectStore.getState().project.settings.modularRacks?.find((rack) => rack.channel === channel.id)?.graph
       if (!latest) return null
       const nested = graphAt(latest, activePath)
@@ -107,7 +108,7 @@ export function ModularEditor({ channel, root }: { channel: Channel; root: RackG
       setError(applied ? null : "Rack parameter edit was refused; the saved graph was kept.")
       return applied
     })
-    parameterQueue.tail = result
+    parameterQueue.current.tail = result
     return result
   }
   async function loadPreset() {

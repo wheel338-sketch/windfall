@@ -1,3 +1,4 @@
+/// <reference types="node" />
 import { mkdirSync, writeFileSync } from "node:fs"
 import { resolve } from "node:path"
 import { expect, it } from "vitest"
@@ -28,7 +29,11 @@ it("shows dotted rhythm, beat rests, barline ties and eighth triplets", () => {
   expect(triplet.measures[0].staves[0].voices[0].tuplets).toMatchObject([{ start: 0, end: 960, unit: 8 }])
   expect(events(triplet).filter((event) => !event.rest).map((event) => event.tuplet)).toEqual([0, 0, 0])
   const page = layoutScore(triplet).pages[0]
-  expect(page.ops.some((op) => op.type === "text" && op.text === "3")).toBe(true)
+  // Music numerals are vector glyphs rather than text objects. The 3 has
+  // two curved bowls, with four cubic segments and the triplet's small scale.
+  const numeral = page.ops.filter((op) => op.type === "path" && !op.fill && op.stroke === 0.34 * (STAFF_SPACE * 0.7))
+  expect(numeral).toHaveLength(1)
+  expect(numeral[0].type === "path" && numeral[0].commands.map((command) => command[0])).toEqual(["M", "C", "C", "C", "C"])
 })
 
 it("cancels a key accidental, repeats it once per bar and restores a sharp", () => {
@@ -55,7 +60,12 @@ it("keeps overlapping durations in opposite-stem voices and aligns their staff",
   expect(voices).toHaveLength(2)
   expect(voices.map((voice) => voice.stems).sort()).toEqual(["down", "up"])
   expect(score.stats.simplified).toBe(0)
-  expect(voices.flatMap((voice) => voice.events.flatMap((event) => event.heads.map((head) => head.id))).sort()).toEqual([1, 2, 3])
+  // The off-beat quarter notes split at beat boundaries and retain tied heads.
+  expect(voices.flatMap((voice) => voice.events.flatMap((event) => event.heads.map((head) => head.id))).sort()).toEqual([1, 2, 2, 3, 3])
+  for (const id of [2, 3]) {
+    const heads = events(score).flatMap(event => event.heads).filter(head => head.id === id)
+    expect(heads.map(head => [head.tieStart, head.tieStop])).toEqual([[true, false], [false, true]])
+  }
   const layout = layoutScore(score)
   expect(layout.systems).toHaveLength(1)
   expect(layout.pages).toHaveLength(1)
@@ -76,7 +86,7 @@ it("renders a known phrase to inspectable SVG/PDF bytes with matching pages, sta
     Math.abs(Number(head.getAttribute("rx")) - 0.6 * STAFF_SPACE) < 1e-6 &&
     Math.abs(Number(head.getAttribute("ry")) - 0.39 * STAFF_SPACE) < 1e-6)).toHaveLength(8)
   const staffLines = layout.pages[0].ops.filter((op) => op.type === "line" && op.width === 0.5 && op.y1 === op.y2 &&
-    layout.systems.some((system) => op.x1 === system.left && op.x2 === system.right))
+    layout.systems.some((system) => op.x1 === system.left + 2 * STAFF_SPACE && op.x2 === system.right))
   expect(staffLines).toHaveLength(layout.systems.length * 10)
   const file = scorePdf(layout.pages, { title })
   const bytes = new TextEncoder().encode(file)

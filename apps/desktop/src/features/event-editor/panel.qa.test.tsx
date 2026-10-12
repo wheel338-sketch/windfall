@@ -22,7 +22,7 @@ it("mounted native event edits snap, survive one-step undo/redo/save and report 
   const user = userEvent.setup()
   const before = undoSteps()
   await user.click(screen.getByRole("combobox", { name: "Event snap" }))
-  await user.click(screen.getByRole("option", { name: "Step", exact: true }))
+  await user.click(screen.getByRole("option", { name: "Step" }))
   await act(async () => { fireEvent.doubleClick(screen.getByRole("application", { name: "Event curve" }), { clientX: 100, clientY: 60 }); await settle() })
   const events = structuredClone(currentPattern().events!)
   expect(events[0].points[0].tick).toBe(480)

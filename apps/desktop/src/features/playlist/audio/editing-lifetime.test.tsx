@@ -193,7 +193,9 @@ describe("editing lifetime in the clip inspector", () => {
     const before = useProjectStore.getState()
     await act(async () => resolve(result))
     expect([...ui().selection]).toEqual(result.created)
-    expect(screen.queryByRole("dialog")).toBeNull()
+    // Destructive audio edits keep the editor open on the new owned source.
+    expect(screen.getByRole("dialog")).toBeVisible()
+    expect(backend.audioEditorOpen).toHaveBeenLastCalledWith(result.created.at(-1))
     expect(useProjectStore.getState()).toBe(before)
     expect(discard).toHaveBeenCalledWith(7)
   })

@@ -60,7 +60,7 @@ describe("raw AVI audiovisual export", () => {
     let sample = 0
     for (const chunk of audioChunks) for (let at = chunk.at + 8; at < chunk.at + 8 + chunk.size; at += 2) {
       const original = pcm[sample++]
-      expect(view.getInt16(at, true)).toBe(Math.round(original * (original < 0 ? 32768 : 32767)))
+      expect(view.getInt16(at, true)).toBe(Math.round(original * (original < 0 ? 32768 : 32767)) || 0)
     }
     const index = root.children.find((entry) => entry.id === "idx1")!
     expect(index.size).toBe(movie.children.length * 16)

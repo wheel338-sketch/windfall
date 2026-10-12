@@ -27,11 +27,11 @@ beforeEach(async () => {
 })
 afterEach(() => { cleanup(); closeNoteTools(); closeLfoDialog(); closeRiffGenerator(); closeSheetExport(); closeNoteCurves(); roll.stop(); vi.useRealTimers(); vi.restoreAllMocks() })
 const field = (label: string, value: string) => fireEvent.change(screen.getByLabelText(label), { target: { value } })
-async function click(label: string) { await act(async () => { fireEvent.click(screen.getByRole("button", { name: label, exact: true })); await settle() }) }
+async function click(label: string) { await act(async () => { fireEvent.click(screen.getByRole("button", { name: label })); await settle() }) }
 async function choose(label: string, value: string) {
   const user = userEvent.setup()
   await user.click(screen.getByRole("combobox", { name: label }))
-  await user.click(screen.getByRole("option", { name: value, exact: true }))
+  await user.click(await screen.findByRole("option", { name: value }))
 }
 
 it.each([
@@ -135,7 +135,7 @@ it("mounts all eight riff stages, auditions/releases and atomically applies with
     }
   }
   field("Seed", "17")
-  await userEvent.setup().click(screen.getByRole("button", { name: "Replace the selection", exact: true }))
+  await userEvent.setup().click(screen.getByRole("button", { name: "Replace the selection" }))
   vi.useFakeTimers()
   const on = vi.spyOn(roll.backend, "auditionNoteOn")
   const off = vi.spyOn(roll.backend, "auditionNoteOff")
@@ -209,7 +209,7 @@ it("mounted score export saves the preview's real PDF, prints SVG and leaves the
   const print = vi.spyOn(window, "print").mockImplementation(() => {})
   act(exportSheetMusic)
   const page = screen.getByRole("img", { name: "Page 1 of 1" })
-  expect(page.querySelectorAll("svg ellipse")).toHaveLength(3)
+  expect([...page.querySelectorAll("svg ellipse")].filter(head => Number(head.getAttribute("rx")) === 3 && Number(head.getAttribute("ry")) === 1.95)).toHaveLength(2)
   await choose("Staves", "Treble staff")
   await click("Save PDF…")
   expect(saved).toHaveBeenCalledWith(expect.any(String), expect.stringContaining("%PDF-1.4"), "pdf")

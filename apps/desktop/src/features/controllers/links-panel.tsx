@@ -15,16 +15,23 @@ import { useControllerStatus } from "./status"
 export function ControllerChoice<T extends string>({ label, value, choices, change, disabled = false }: {
   label: string; value: T; choices: { value: T; label: string }[]; change(value: T): void; disabled?: boolean
 }) {
-  return <Field><FieldLabel>{label}</FieldLabel><Select items={choices} value={value} disabled={disabled} onValueChange={(value) => { if (value !== null) change(value) }}>
+  // A queued hidden-input change can outlive the item that was removed.
+  // Keep explicit item/key navigation; these routing choices do not autofill.
+  return <Field><FieldLabel>{label}</FieldLabel><Select items={choices} value={value} disabled={disabled} autoComplete="off" onValueChange={(value, details) => { if (value !== null && !(details.reason === "none" && details.event.type === "change")) change(value) }}>
     <SelectTrigger aria-label={label}><SelectValue /></SelectTrigger>
     <SelectContent alignItemWithTrigger={false}><SelectGroup>{choices.map((choice) => <SelectItem key={choice.value} value={choice.value}>{choice.label}</SelectItem>)}</SelectGroup></SelectContent>
   </Select></Field>
 }
 
-const actionLabels: Record<ControlAction, string> = {
+const actionLabels: Record<Extract<ControlAction, string>, string> = {
   play: "Play", stop: "Stop", togglePlay: "Play / stop", toggleLoop: "Toggle song loop", toggleMetronome: "Toggle metronome",
   toggleNoteRecord: "Toggle MIDI recording", toggleAutomationRecord: "Toggle automation recording", undo: "Undo", redo: "Redo",
-  patternPrevious: "Previous pattern", patternNext: "Next pattern", bankPrevious: "Previous controller bank", bankNext: "Next controller bank", panicMidi: "Release MIDI notes",
+  patternPrevious: "Previous pattern", patternNext: "Next pattern", bankPrevious: "Previous controller bank", bankNext: "Next controller bank", panicMidi: "Release MIDI notes", performanceStopAll: "Stop all performance tracks",
+}
+export function controlActionLabel(action: ControlAction): string {
+  if (typeof action === "string") return actionLabels[action]
+  if ("performancePad" in action) return `Launch track ${action.performancePad.track}, scene ${action.performancePad.scene + 1}`
+  return `Stop performance track ${action.performanceStop.track}`
 }
 const globalChoices: { value: string; label: string; target: LinkTarget }[] = [
   { value: "master", label: "Master volume", target: { type: "slot", slot: { type: "masterVolume" } } },
@@ -58,7 +65,7 @@ export function ControllerLinksPanel() {
   const globals = state?.settings.links ?? []
   const stale = draft !== null && (draft.generation !== getProjectGeneration() || draft.revision !== revision)
   const targetName = (target: LinkTarget) => target.type === "param" ? describeTarget(project, target.target) :
-    target.type === "action" ? actionLabels[target.action] : slotName(target.slot)
+    target.type === "action" ? controlActionLabel(target.action) : slotName(target.slot)
 
   function capture(index: number, global: boolean) {
     const list = global ? globals : links

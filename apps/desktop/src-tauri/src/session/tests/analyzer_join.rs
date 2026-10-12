@@ -256,10 +256,12 @@ fn capture() -> Value {
     // frame. Once stalled, neither frames nor statuses may accumulate.
     let standing = std::mem::take(&mut *lock(&joined.wire.texts));
     for text in standing {
-        assert!(matches!(serde_json::from_str::<AnalyzerEvent>(&text).unwrap(),
+        assert!(
+            matches!(serde_json::from_str::<AnalyzerEvent>(&text).unwrap(),
             AnalyzerEvent::Status(status) if status.reason.is_none()
                 && matches!(status.phase, AnalyzerPhase::AwaitingAudio | AnalyzerPhase::Live)
-                && status.ticket.as_ref() == Some(&held.ticket)));
+                && status.ticket.as_ref() == Some(&held.ticket))
+        );
     }
     for _ in 0..10 {
         bench.tick(true);
@@ -285,6 +287,9 @@ fn capture() -> Value {
     bench.rig.processor = Processor::new(SAMPLE_RATE).0;
     bench.tick(false);
     bench.rig.processor = Processor::reopen(session.controller(), 44_100);
+    // Reopening retires the old stream and stops transport. Resume the new
+    // stream so subsequent source-lifecycle observations contain real audio.
+    session.transport_play().unwrap();
     joined.step(&mut bench, "rate", 7, 20);
     joined.select(&mut bench, "invalid-source", 8, track(b), None);
     let bad_sample = snapshot

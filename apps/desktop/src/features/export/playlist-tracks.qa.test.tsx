@@ -57,7 +57,7 @@ it("submits playlist stems with the selected region and fresh native document gu
   const apart = vi.spyOn(app.backend, "exportPlaylistTracks").mockResolvedValue(undefined)
   act(() => useTimelineStore.setState({ selection: { start: 960, end: 2880 } }))
   await user.click(lanes())
-  await user.click(screen.getByRole("checkbox", { name: "Export selected song region" }))
+  await user.click(screen.getByRole("checkbox", { name: "Export selected song region (ticks 960–2880)" }))
   const source = await app.backend.timelineState()
   await submit(user)
   await waitFor(() => expect(apart).toHaveBeenCalledOnce())

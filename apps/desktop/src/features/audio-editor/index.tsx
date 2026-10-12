@@ -12,7 +12,7 @@ import {
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { backend, errorMessage } from "@/lib/ipc"
-import { receivePatch } from "@/lib/store/project"
+import { receivePatch, useProjectStore } from "@/lib/store/project"
 import {
   getProjectGeneration,
   onProjectReplaced,
@@ -94,12 +94,14 @@ export function AudioEditorButton({
     busy: boolean
   } | null>(() => defaultOpen && clip !== null ? {clip,selection:usePlaylistStore.getState().selection,generation:getProjectGeneration(),ticket:1,busy:false} : null)
   const nextTicket = useRef(defaultOpen ? 1 : 0)
+  const selectingResult = useRef(false)
   const busy = session?.busy ?? false
   useEffect(() => {
     const offSelection = usePlaylistStore.subscribe((state, previous) => {
-      if (state.selection !== previous.selection)
+      if (state.selection !== previous.selection && !selectingResult.current)
         setSession((current) =>
-          current?.busy ? current : current?.generation === getProjectGeneration() ? null : current
+          current?.busy && !useProjectStore.getState().project.playlist.clips.some(clip => clip.id === current.clip)
+            ? current : current?.generation === getProjectGeneration() ? null : current
         )
     })
     const offProject = onProjectReplaced(() =>
@@ -160,6 +162,11 @@ export function AudioEditorButton({
             key={session.ticket}
             clip={session.clip}
             selectionAtOpen={session.selection}
+            onSelect={(id) => {
+              selectingResult.current = true
+              try { usePlaylistStore.getState().select([id]) }
+              finally { selectingResult.current = false }
+            }}
             onBusy={(busy) =>
               setSession((current) =>
                 current?.ticket === session.ticket
@@ -181,12 +188,14 @@ export function AudioEditorButton({
 function Editor({
   clip,
   selectionAtOpen,
+  onSelect,
   onBusy,
   onDone,
   onClose,
 }: {
   clip: number
   selectionAtOpen: ReadonlySet<number>
+  onSelect(id: number): void
   onBusy(value: boolean): void
   onDone(clip: number): void
   onClose(): void
@@ -204,8 +213,6 @@ function Editor({
     let cancelled = false
     alive.current = true
     const atGeneration = getProjectGeneration()
-    setPreview(null)
-    setError(null)
     const offProject = onProjectReplaced(() => {
       if (token.current !== null) {
         void backend.audioEditorDiscard(token.current).catch(() => {})
@@ -288,7 +295,7 @@ function Editor({
         return
       receivePatch(result.patch)
       const id = selectsCreated ? result.created.at(-1) : preview.clip
-      if (id !== undefined) usePlaylistStore.getState().select([id])
+      if (id !== undefined) onSelect(id)
       if (id !== undefined) onDone(id)
     } catch (error) {
       if (
@@ -426,8 +433,8 @@ function Editor({
                 selectionAtOpen !== usePlaylistStore.getState().selection) return
               receivePatch(result.patch)
               const id = result.created.at(-1)
-              if (id !== undefined) usePlaylistStore.getState().select([id])
-              onDone()
+              if (id !== undefined) onSelect(id)
+              onDone(id ?? clip)
             }}
           />
           <Regions preview={preview} selection={selection} disabled={!valid || busy} onSelect={setSelection} onWrite={regions=>void commit(()=>backend.audioEditorRegions(preview.token,regions),false)} />

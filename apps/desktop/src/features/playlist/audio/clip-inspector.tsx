@@ -368,7 +368,7 @@ function Settings({ clips }: { clips: AudioClip[] }) {
       <ToggleLed
         size="sm"
         pressed={clips.every((clip) => clip.content.normalize === true)}
-        aria-label="Normalize"
+        aria-label="Normalize clip playback"
         onPressedChange={(normalize) => void patchSelectedAudioClips({ normalize })}
         className="w-auto px-1.5"
       >

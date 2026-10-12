@@ -184,7 +184,7 @@ describe("audio settings in the dialog", () => {
     ]) {
       expect(box(name)).toHaveTextContent("Default")
     }
-    expect(screen.getByRole("status")).toHaveTextContent(
+    expect(screen.getByRole("status", { name: "Audio engine status" })).toHaveTextContent(
       "Running on Speakers (simulated) at 48 kHz with 2 output channels and a buffer of 256 samples: 5.3 ms of output latency."
     )
   })

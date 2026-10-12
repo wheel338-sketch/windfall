@@ -43,7 +43,7 @@ function native() {
   return { learn, settings, arm }
 }
 const link = (): ControllerLink => ({
-  source: { type: "midi", device: null, channel: 1, control: { type: "cc", number: 7 } },
+  source: { type: "midi",  channel: 1, control: { type: "cc", number: 7 } },
   target: { type: "param", target: { type: "channelVolume", channel: project().channels[0]!.id } },
   map: { min: 0, max: 1, smoothingMs: 0, pickup: "inherit", mode: "absolute" },
 })
@@ -70,7 +70,7 @@ it("mounts full link mapping against the WASM document with one history step and
   await user.click(screen.getByRole("combobox", { name: "Controller mode" }))
   await user.click(await screen.findByRole("option", { name: "Relative: sign bit" }))
   await user.click(screen.getByRole("combobox", { name: "Link pickup" }))
-  await user.click(await screen.findByRole("option", { name: "Off", exact: true }))
+  await user.click(await screen.findByRole("option", { name: "Off" }))
   await user.click(screen.getByRole("button", { name: "Apply controller link" }))
   await waitFor(() => expect(project().settings.controllerLinks?.[0]?.map.mode).toBe("relativeSignedBit"))
   expect(project().settings.controllerLinks?.[0]?.map).toEqual({
@@ -93,7 +93,7 @@ it("refuses stale and invalid mapping drafts without changing document/history",
   await user.click(screen.getByRole("button", { name: "Edit project link 1" }))
   await act(async () => { await dispatch({ type: "updateChannel", id: project().channels[0]!.id, patch: { pan: 0.2 } }) })
   expect(screen.getByRole("button", { name: "Apply controller link" })).toBeDisabled()
-  await user.click(screen.getByRole("button", { name: "Cancel", exact: true }))
+  await user.click(screen.getByRole("button", { name: "Cancel" }))
   await user.click(screen.getByRole("button", { name: "Edit project link 1" }))
   const before = structuredClone(project())
   const cursor = useProjectStore.getState().history.cursor
