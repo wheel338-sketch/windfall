@@ -38,7 +38,7 @@ const MAX_SAMPLES_UP_FRONT: usize = 1024 * 1024 / size_of::<f32>();
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DecodeOptions {
     /// Largest decoded size to accept, in bytes of 32-bit float samples
-    /// (frames Ã— channels Ã— 4). Longer audio is rejected with
+    /// (frames × channels × 4). Longer audio is rejected with
     /// [`CodecError::TooLarge`] instead of being cut short.
     pub max_decoded_bytes: u64,
 }

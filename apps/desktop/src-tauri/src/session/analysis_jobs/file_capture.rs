@@ -103,7 +103,7 @@ pub(super) fn capture(
     if !matches!(source.channels(), 1 | 2) || !(8000..=192000).contains(&source.sample_rate()) {
         return Err(error(
             "invalid",
-            "Dereverb requires mono/stereo at 8â€“192 kHz.",
+            "Dereverb requires mono/stereo at 8-192 kHz.",
         ));
     }
     if let ClipContent::Audio {
