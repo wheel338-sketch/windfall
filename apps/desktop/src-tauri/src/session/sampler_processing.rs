@@ -34,6 +34,12 @@ pub(super) struct PreparedSampleEdit {
 }
 
 impl SampleEditTicket {
+    /// Off-lock native bank admission. Preparation subsequently reuses this exact
+    /// parsed owner instead of rereading a changed file during publication.
+    pub(super) fn with_soundfont(mut self, asset: windfall_project::SampleInstrumentAsset, bytes: &[u8]) -> Result<Self, String> {
+        self.candidate_pool.insert_soundfont(asset, bytes)?;
+        Ok(self)
+    }
     /// Ordinary dispatch still advances its patch revision for a no-op. The
     /// explicit sampler recovery API instead preserves its document/gesture.
     pub(super) fn ordinary(mut self) -> Self {

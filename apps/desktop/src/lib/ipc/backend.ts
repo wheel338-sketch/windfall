@@ -75,6 +75,7 @@ export interface Backend extends AnalysisBackend, MixerPresetLibraryBackend, Ana
   musicLightingStatus?(): Promise<{connected: boolean; message: string}>
   sampleInstrumentLoadBank?(channel: ChannelId, expected: import("@/bindings").SampleInstrumentAsset | null,
     path: string): Promise<DispatchResult>
+  sampleInstrumentGeneralMidi?(channel: ChannelId, expected: import("@/bindings").ChannelSource, path: string, bank: number, program: number): Promise<DispatchResult>
   sampleInstrumentMissingSources?(channel: ChannelId): Promise<SampleId[]>
   sampleInstrumentRelinkSource?(channel: ChannelId, expected: import("@/bindings").SampleInstrumentAsset | null,
     sample: SampleId, expectedPath: import("@/bindings").SamplePath, path: string): Promise<DispatchResult>

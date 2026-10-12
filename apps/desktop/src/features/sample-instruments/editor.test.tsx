@@ -175,4 +175,17 @@ describe("sample instrument purpose-built editors",()=>{
     expect(screen.getByRole("button",{name:"Use project controller feedback"})).toBeEnabled()
   })
 
+  it("offers the GM bank equivalent and shows a native refusal without changing its destination",async()=>{
+    backend.soundfontPresets=vi.fn().mockResolvedValue([{name:"Own GM",bank:0,program:0}])
+    backend.sampleInstrumentGeneralMidi=vi.fn().mockRejectedValue(new Error("Unsupported SoundFont content"))
+    const id=await open("midiOut")
+    const before=useProjectStore.getState().project.channels.find(channel=>channel.id===id)?.source
+    fireEvent.change(screen.getByRole("textbox",{name:"General MIDI SoundFont bank"}),{target:{value:"C:/own-gm.sf2"}})
+    fireEvent.click(screen.getByRole("button",{name:"Browse GM bank presets"}));await act(()=>settle())
+    fireEvent.click(screen.getByRole("button",{name:"Use GM preset 0:0 · Own GM"}));await act(()=>settle())
+    expect(backend.sampleInstrumentGeneralMidi).toHaveBeenCalledWith(id,before,"C:/own-gm.sf2",0,0)
+    expect(screen.getByRole("alert")).toHaveTextContent("Unsupported SoundFont content")
+    expect(useProjectStore.getState().project.channels.find(channel=>channel.id===id)?.source).toEqual(before)
+  })
+
 })

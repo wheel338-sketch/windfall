@@ -55,6 +55,12 @@ async fn sample_instrument_relink_source(
     blocking(move || session.sample_instrument_relink_source(channel, expected, sample, expected_path, path)).await
 }
 #[tauri::command]
+async fn sample_instrument_general_midi(
+    session: State<'_,Session>,channel:ChannelId,expected:windfall_project::ChannelSource,path:String,bank:u16,program:u16,
+)->Result<DispatchResult,String>{
+    let session=session.inner().clone();blocking(move||session.sample_instrument_general_midi(channel,expected,path,bank,program)).await
+}
+#[tauri::command]
 async fn sample_instrument_save_bank(
     session: State<'_, Session>,
     channel: ChannelId,
@@ -1395,6 +1401,7 @@ pub fn handler() -> impl Fn(Invoke) -> bool + Send + Sync + 'static {
         sample_instrument_relink_source,
         sample_instrument_missing_sources,
         sample_instrument_save_bank,
+        sample_instrument_general_midi,
         add_channel_from_file,
         set_channel_sample_from_file,
         add_audio_clip_from_file,

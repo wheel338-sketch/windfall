@@ -143,6 +143,35 @@ impl Session {
         let file = crate::paths::absolute(path)?;
         soundfont::presets(&read_soundfont(&file)?).map_err(|e| e.to_string())
     }
+    /// General MIDI equivalent: keep the rack channel/notes/mixer assignment,
+    /// replace the external destination with the user's own SF2 bank, and use
+    /// the same Windfall renderer for both live output and offline export.
+    pub fn sample_instrument_general_midi(
+        &self, channel: ChannelId, expected: ChannelSource, path: String, bank: u16, program: u16,
+    ) -> Result<DispatchResult, String> {
+        let (generation, edits, replacements, preset) = {
+            let _recording=self.recording_idle()?;let state=self.state();let project=state.document.project();
+            let current=project.channel(channel).ok_or("channel no longer exists")?;
+            if current.source!=expected || !matches!(current.source,ChannelSource::Instrument{params,..} if params.kind()==InstrumentKind::MidiOut) {
+                return Err("MIDI output instrument changed; retry choosing the GM bank".into());
+            }
+            let target=windfall_project::PluginTarget::Instrument{channel};
+            if project.plugin(target).is_some(){return Err("Choose an unhosted MIDI output instrument".into());}
+            (state.generation,state.edits,state.replacements,windfall_project::PluginPreset::capture(project,target).map_err(|e|e.to_string())?.state)
+        };
+        let file=crate::paths::absolute(&path)?;let bytes=read_soundfont(&file)?;
+        let asset=SampleInstrumentAsset::SoundFont{path:SamplePath::External(crate::paths::display(&file)),bank,program};
+        let command=Command::Batch{label:Some("Use SoundFont General MIDI destination".into()),commands:vec![
+            Command::ApplyPluginPreset{target:windfall_project::PluginTarget::Instrument{channel},expected:preset,preset:windfall_project::PluginPreset{state:windfall_project::PluginPresetState::Instrument{asset:None,params:InstrumentKind::SoundFont.default_params()}}},
+            Command::SetSampleInstrumentAsset{channel,expected:None,asset:Some(asset.clone())},
+        ]};
+        let ticket={let _recording=self.recording_idle()?;let state=self.state();
+            if (state.generation,state.edits,state.replacements)!=(generation,edits,replacements){return Err("Project changed while the GM bank was read".into());}
+            self.sample_edit_ticket(&state,command,None,Vec::new())?
+        }.with_soundfont(asset,&bytes)?;
+        #[cfg(test)] self.pause("general-midi:prepared");
+        self.finish_sample_edit(ticket)
+    }
     pub fn sample_instrument_missing_sources(&self, channel: ChannelId) -> Result<Vec<SampleId>, String> {
         let state = self.state();
         let current = state.document.project().channel(channel).ok_or("channel no longer exists")?;

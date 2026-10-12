@@ -404,6 +404,7 @@ export function createTauriBackend(): Backend {
     samplesReload: () => call("samples_reload"),
     musicLightingStatus: () => call("music_lighting_status"),
     sampleInstrumentLoadBank: (channel, expected, path) => call("sample_instrument_load_bank", { channel, expected, path }),
+    sampleInstrumentGeneralMidi: (channel, expected, path, bank, program) => call("sample_instrument_general_midi", { channel, expected, path, bank, program }),
     sampleInstrumentMissingSources: (channel) => call("sample_instrument_missing_sources", { channel }),
     sampleInstrumentRelinkSource: (channel, expected, sample, expectedPath, path) => call("sample_instrument_relink_source", { channel, expected, sample, expectedPath, path }),
     sampleInstrumentSaveBank: (channel, expected, path) => call("sample_instrument_save_bank", { channel, expected, path }),

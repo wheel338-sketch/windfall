@@ -372,3 +372,41 @@ fn project_controller_destination_reopens_without_changing_application_midi_sett
     assert_eq!(reopened.project().channel(id).unwrap().source,saved.channel(id).unwrap().source);
     assert_eq!(reopened.session.midi_hardware_state().settings,application);
 }
+
+fn general_midi_fixture() -> Vec<u8> {
+    fn chunk(id:&[u8;4],data:&[u8])->Vec<u8>{let mut out=id.to_vec();out.extend((data.len() as u32).to_le_bytes());out.extend(data);if data.len()%2!=0{out.push(0);}out}
+    fn list(id:&[u8;4],leaves:Vec<([u8;4],Vec<u8>)>)->Vec<u8>{let mut data=id.to_vec();for (tag,bytes) in leaves{data.extend(chunk(&tag,&bytes));}chunk(b"LIST",&data)}
+    fn put16(bytes:&mut[u8],at:usize,value:u16){bytes[at..at+2].copy_from_slice(&value.to_le_bytes());}
+    fn put32(bytes:&mut[u8],at:usize,value:u32){bytes[at..at+4].copy_from_slice(&value.to_le_bytes());}
+    let mut phdr=vec![0;76];phdr[..6].copy_from_slice(b"Own GM");phdr[38..41].copy_from_slice(b"EOP");put16(&mut phdr,38+24,1);
+    let mut inst=vec![0;44];inst[..4].copy_from_slice(b"Tone");inst[22..25].copy_from_slice(b"EOI");put16(&mut inst,22+20,1);
+    let mut shdr=vec![0;92];shdr[..4].copy_from_slice(b"Wave");shdr[46..49].copy_from_slice(b"EOS");put32(&mut shdr,24,8192);put32(&mut shdr,28,128);put32(&mut shdr,32,4096);put32(&mut shdr,36,48000);shdr[40]=60;put16(&mut shdr,44,1);
+    let records=|values:&[(u16,u16)]|values.iter().flat_map(|(a,b)|a.to_le_bytes().into_iter().chain(b.to_le_bytes())).collect::<Vec<_>>();
+    let mut data=b"sfbk".to_vec();data.extend(list(b"INFO",vec![(*b"ifil",vec![2,0,4,0])]));data.extend(list(b"sdta",vec![(*b"smpl",(0..8192+46).flat_map(|frame|if frame<8192 {6000i16.to_le_bytes()}else{0i16.to_le_bytes()}).collect())]));
+    data.extend(list(b"pdta",vec![(*b"phdr",phdr),(*b"pbag",records(&[(0,0),(1,0)])),(*b"pmod",vec![0;10]),(*b"pgen",records(&[(41,0),(0,0)])),(*b"inst",inst),(*b"ibag",records(&[(0,0),(2,0)])),(*b"imod",vec![0;10]),(*b"igen",records(&[(54,1),(53,0),(0,0)])),(*b"shdr",shdr)]));chunk(b"RIFF",&data)
+}
+
+#[test]
+fn general_midi_soundfont_destination_preserves_rack_notes_history_disk_and_live_export_pcm() {
+    use windfall_project::{ChannelPatch,NoteInit,SampleInstrumentAsset};
+    let mut rig=Rig::new();for channel in rig.project().channels {rig.session.dispatch(Command::UpdateChannel{id:channel.id,patch:ChannelPatch{muted:Some(true),..Default::default()}},None).unwrap();}
+    let channel=ChannelId(rig.session.dispatch(Command::AddChannel{name:None,sample:None,instrument:Some(InstrumentKind::MidiOut),index:None,mixer_track:None},None).unwrap().created[0]);
+    rig.session.dispatch(Command::AddNotes{pattern:rig.project().patterns[0].id,channel,notes:vec![NoteInit{start:0,length:960,key:60,velocity:Some(1.0),pan:None,expression:None}]},None).unwrap();
+    let before=rig.project();let settings=rig.session.midi_hardware_state().settings;let path=rig.file("own-gm.sf2");std::fs::write(&path,general_midi_fixture()).unwrap();
+    rig.session.sample_instrument_general_midi(channel,before.channel(channel).unwrap().source.clone(),path.clone(),0,0).unwrap();let saved=rig.project();
+    assert_eq!(saved.channel(channel).unwrap().mixer_track,before.channel(channel).unwrap().mixer_track);assert_eq!(saved.patterns,before.patterns);
+    assert!(matches!(saved.channel(channel).unwrap().sample_instrument,Some(SampleInstrumentAsset::SoundFont{bank:0,program:0,..})));
+    let pool=rig.session.state().pool.clone();let render=|block|windfall_engine::render(&saved,&pool,&windfall_engine::RenderOptions{block_frames:block,..Default::default()},&mut |_|true);
+    let offline=render(64);assert!(offline.samples().iter().any(|x|x.abs()>0.01));assert_eq!(offline.samples(),render(7).samples());
+    rig.session.controller().play();let latency=rig.session.controller().latency_frames() as usize;let live=rig.run(36000+latency);assert_eq!(&live[latency*2..(latency+36000)*2],&offline.samples()[..72000]);
+    rig.session.undo().unwrap();assert_eq!(rig.project(),before);rig.session.redo().unwrap();assert_eq!(rig.project(),saved);assert_eq!(rig.session.midi_hardware_state().settings,settings);
+    let file=rig.file("gm.windfall");rig.session.project_save(Some(&file)).unwrap();let reopened=rig.restart();reopened.session.project_open(&file).unwrap();assert_eq!(reopened.project().channel(channel).unwrap().sample_instrument,saved.channel(channel).unwrap().sample_instrument);
+}
+
+#[test]
+fn malformed_and_stale_general_midi_banks_leave_the_original_destination_unchanged() {
+    let rig=Rig::new();let channel=ChannelId(rig.session.dispatch(Command::AddChannel{name:None,sample:None,instrument:Some(InstrumentKind::MidiOut),index:None,mixer_track:None},None).unwrap().created[0]);let expected=rig.project().channel(channel).unwrap().source.clone();let before=rig.session.document_snapshot();
+    let path=rig.file("bad.sf2");std::fs::write(&path,b"not sf2").unwrap();assert!(rig.session.sample_instrument_general_midi(channel,expected.clone(),path,0,0).is_err());assert_eq!(rig.session.document_snapshot(),before);
+    let path=rig.file("gm.sf2");std::fs::write(&path,general_midi_fixture()).unwrap();let hold=rig.session.hold("general-midi:prepared");let job=rig.session.background(move|session|session.sample_instrument_general_midi(channel,expected,path,0,0));
+    hold.wait();rig.session.project_new().unwrap();let before=rig.session.document_snapshot();hold.release();assert!(job.join().unwrap().is_err());assert_eq!(rig.session.document_snapshot(),before);
+}
