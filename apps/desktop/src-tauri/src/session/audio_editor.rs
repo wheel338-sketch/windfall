@@ -2,6 +2,7 @@
 //! lock only serializes these workers; it is never read by the audio callback.
 use super::{Session, State};
 mod classical_editor;
+mod script_editor;
 use crate::sync::lock;
 use std::fs::{self, OpenOptions};
 use std::path::PathBuf;
@@ -21,6 +22,7 @@ static SERIAL: AtomicU64 = AtomicU64::new(0);
 pub(super) struct Editor {
     serial: u32,
     prepared: Option<Prepared>,
+    script_preview: Option<script_editor::Preview>,
 }
 struct Prepared {
     token: u32,
@@ -330,12 +332,16 @@ impl Session {
             return Err(STALE.into());
         }
         editor.prepared = Some(prepared);
+        editor.script_preview = None;
         Ok(preview)
     }
 
     pub fn audio_editor_discard(&self, token: u32) {
         let mut editor = lock(&self.inner.audio_editor);
         if editor.prepared.as_ref().is_some_and(|p| p.token == token) {
+            if let Some(preview) = editor.script_preview.take() {
+                self.script_cancel(preview.request);
+            }
             editor.prepared = None;
         }
     }
@@ -808,6 +814,12 @@ impl Session {
             {
                 return Err("Analysis cancelled.".into());
             }
+            if request.operation == AudioEditOperation::Script
+                && editor.script_preview.as_ref().is_some_and(|p|
+                    self.inner.script_ticket.load(Ordering::Acquire) != p.request)
+            {
+                return Err("Audio script cancelled before publication.".into());
+            }
             if state.generation != generation
                 || state.edits != edits
                 || !prepared.valid(&state)
@@ -842,6 +854,7 @@ impl Session {
         let mut retirement = retirement;
         self.retire_project(&mut retirement);
         editor.prepared = None;
+        editor.script_preview = None;
         Ok(result)
     }
 }

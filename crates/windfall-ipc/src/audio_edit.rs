@@ -49,6 +49,30 @@ pub struct AudioEditRange {
     pub end_frame: u32,
 }
 
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+#[ts(export)]
+pub struct AudioScriptRequest {
+    pub request: u64,
+    pub token: u32,
+    pub range: AudioEditRange,
+    pub source: String,
+    #[serde(default)]
+    pub parameters: Vec<f64>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct AudioScriptPreview {
+    pub request: u64,
+    pub token: u32,
+    pub range: AudioEditRange,
+    pub frames: u32,
+    pub sample_rate: u32,
+    pub peaks: Vec<f32>,
+}
+
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
 #[ts(export)]

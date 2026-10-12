@@ -22,6 +22,7 @@ import { usePlaylistStore } from "@/features/playlist/store"
 import { validSelection, type Selection } from "./selection"
 import { EditTools } from "./tools-panel"
 import { AnalysisTools } from "./analysis-tools"
+import { ScriptTools } from "./script-tools"
 import type { AudioEditOperation, AudioEditPreview } from "./types"
 import { Waveform } from "./waveform"
 import { Regions } from "./regions"
@@ -437,6 +438,16 @@ function Editor({
               onDone(id ?? clip)
             }}
           />
+          <ScriptTools preview={preview} selection={selection} disabled={!valid || busy}
+            onBusy={value => { setBusy(value); onBusy(value) }}
+            onCommit={result => {
+              if (!alive.current || previewGeneration !== getProjectGeneration() ||
+                selectionAtOpen !== usePlaylistStore.getState().selection) return
+              receivePatch(result.patch)
+              const id = result.created.at(-1)
+              if (id !== undefined) onSelect(id)
+              onDone(id ?? clip)
+            }} />
           <Regions preview={preview} selection={selection} disabled={!valid || busy} onSelect={setSelection} onWrite={regions=>void commit(()=>backend.audioEditorRegions(preview.token,regions),false)} />
           <Button size="sm" variant="outline" disabled={!valid || busy} draggable={!!valid && !busy}
             onDragStart={event=>{if (!valid || busy) {event.preventDefault();return}; startSelectionDrag(event,{token:preview.token,startFrame:selection.start,endFrame:selection.end,durationSecs:(selection.end-selection.start)/preview.sampleRate})}}
@@ -451,7 +462,7 @@ function Editor({
           </p>
         </>
       )}
-      {busy && <p role="status">Rendering and saving the edited audio…</p>}
+      {busy && <p role="status">Processing audio…</p>}
       <div className="flex justify-end">
         <Button variant="outline" disabled={busy} onClick={onClose}>
           Close editor
