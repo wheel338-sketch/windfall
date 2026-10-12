@@ -11,26 +11,29 @@
 //!   allocates and takes a lock that only other publishers contend for.
 //! - **Reading** is for any thread, the audio thread included. A lookup
 //!   reads atomics and walks a bounded number of slots. It never locks,
-//!   allocates, frees or waits, and what it returns lives for the rest of
-//!   the process, so a processor keeps a plain `&'static` reference.
+//!   allocates, frees or waits. It returns a lease whose final owner remains
+//!   in the store until control-side collection. Processors cache leases.
 //! - **Persistence.** A curve is saved by content: its reference serializes
 //!   as the list of points and deserializes by publishing them. Its id is a
 //!   hash of the content, so equal curves are one asset and a saved project
 //!   needs no id table. A source is saved as the project's sample id; the
 //!   engine publishes the decoded audio under that id before it builds the
 //!   effect.
-//! - **Bounds.** The store only grows. It refuses to grow past
+//! - **Bounds.** The store refuses to grow past
 //!   [`MAX_CURVES`] curves, [`CURVE_BYTE_BUDGET`] bytes of curve data,
 //!   [`MAX_SOURCES`] source entries or [`SOURCE_BYTE_BUDGET`] bytes of
 //!   source audio. A refused curve is an error the command reports; a
 //!   refused source leaves the effect without audio. [`stats`] counts both.
 //!
-//! Nothing is reclaimed while the process runs. That keeps reading free of
-//! reference counts and retirement, and undo history can hold any id it
-//! ever saw. Reclaiming at project replacement is future work.
+//! Documents pin the current project and both sides of retained edits; plans
+//! pin their parameters independently. Releasing history or replacing a
+//! project releases those roots. The Session retirement pump withdraws and
+//! frees unused managed entries after readers finish acquiring their leases.
+//! Fresh standalone publications must be adopted with AssetPins before they
+//! participate in collection. Copy references alone are not ownership.
 
-use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::{Mutex, OnceLock};
+use std::sync::atomic::{AtomicBool, AtomicPtr, AtomicU64, AtomicUsize, Ordering};
+use std::sync::{Arc, Mutex, OnceLock};
 
 use serde::de::Error as _;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
@@ -91,7 +94,7 @@ impl std::fmt::Display for AssetError {
             Self::TooManyPoints => {
                 write!(f, "a curve holds at most {MAX_CURVE_POINTS} points")
             }
-            Self::Full => f.write_str("the effect asset memory is full; restart to free it"),
+            Self::Full => f.write_str("the effect asset memory is full; release unused project history or sources"),
             Self::Collision => f.write_str("the curve could not be stored; move a point slightly"),
         }
     }
@@ -114,6 +117,7 @@ pub struct CurveAsset {
     kind: CurveKind,
     points: Box<[CurvePoint]>,
     table: Option<Box<[f32]>>,
+    managed: AtomicBool,
 }
 
 fn bend(t: f32, tension: f32) -> f32 {
@@ -231,28 +235,65 @@ fn hash(kind: CurveKind, points: &[CurvePoint]) -> u64 {
     hash.max(1)
 }
 
-struct Usage {
-    curves: usize,
+#[derive(Default)]
+struct Store {
+    curves: Vec<(usize, Arc<CurveAsset>)>,
+    sources: Vec<(usize, Arc<SourceEntry>)>,
+    retired_curves: Vec<Arc<CurveAsset>>,
+    retired_sources: Vec<Arc<SourceEntry>>,
     curve_bytes: usize,
-    sources: usize,
     source_bytes: usize,
 }
 
-/// Serializes publishers. Readers never take it.
-static WRITER: Mutex<Usage> = Mutex::new(Usage {
-    curves: 0,
-    curve_bytes: 0,
-    sources: 0,
-    source_bytes: 0,
+/// Serializes publishers/collectors. Readers never take it.
+static WRITER: Mutex<Store> = Mutex::new(Store {
+    curves: Vec::new(), sources: Vec::new(),
+    retired_curves: Vec::new(), retired_sources: Vec::new(),
+    curve_bytes: 0, source_bytes: 0,
 });
 static REFUSED: AtomicU64 = AtomicU64::new(0);
 static SOURCE_EPOCH: AtomicU64 = AtomicU64::new(0);
+// Protects the gap between loading a published pointer and acquiring its Arc.
+// Sequential consistency pairs pointer withdrawal with the collector's check.
+static READERS: AtomicUsize = AtomicUsize::new(0);
 
-type CurveSlots = Box<[OnceLock<Box<CurveAsset>>]>;
+struct Slot<T> {
+    id: AtomicU64,
+    pointer: AtomicPtr<T>,
+}
+impl<T> Slot<T> {
+    fn new() -> Self {
+        Self { id: AtomicU64::new(0), pointer: AtomicPtr::new(std::ptr::null_mut()) }
+    }
+    fn read(&self) -> Option<Arc<T>> {
+        READERS.fetch_add(1, Ordering::SeqCst);
+        let pointer = self.pointer.load(Ordering::SeqCst);
+        let value = if pointer.is_null() {
+            None
+        } else {
+            // SAFETY: WRITER owns an Arc for every published pointer. Removal
+            // retains that Arc in the retirement list until READERS == 0.
+            // The acquired Arc is likewise backed by a store owner until its
+            // last lease is released, so dropping it on audio never frees.
+            unsafe {
+                Arc::increment_strong_count(pointer);
+                Some(Arc::from_raw(pointer))
+            }
+        };
+        READERS.fetch_sub(1, Ordering::SeqCst);
+        value
+    }
+    fn publish(&self, id: u64, value: &Arc<T>) {
+        self.id.store(id, Ordering::Release);
+        self.pointer.store(Arc::as_ptr(value).cast_mut(), Ordering::SeqCst);
+    }
+}
+
+type CurveSlots = Box<[Slot<CurveAsset>]>;
 static CURVES: OnceLock<CurveSlots> = OnceLock::new();
 
 fn curve_slots() -> &'static CurveSlots {
-    CURVES.get_or_init(|| (0..CURVE_SLOTS).map(|_| OnceLock::new()).collect())
+    CURVES.get_or_init(|| (0..CURVE_SLOTS).map(|_| Slot::new()).collect())
 }
 
 fn publish_curve(kind: CurveKind, points: &[CurvePoint]) -> Result<u64, AssetError> {
@@ -262,55 +303,49 @@ fn publish_curve(kind: CurveKind, points: &[CurvePoint]) -> Result<u64, AssetErr
     }
     let id = hash(kind, &points);
     let slots = curve_slots();
-    let mut usage = WRITER
+    let mut store = WRITER
         .lock()
         .unwrap_or_else(|poisoned| poisoned.into_inner());
+    if let Some((_, found)) = store.curves.iter().find(|(_, asset)| asset.id == id) {
+        return if found.kind == kind && *found.points == *points {
+            Ok(id)
+        } else {
+            Err(AssetError::Collision)
+        };
+    }
+    let bytes = CurveAsset::bytes(points.len(), kind);
+    if store.curves.len() + store.retired_curves.len() >= MAX_CURVES
+        || store.curve_bytes + bytes > CURVE_BYTE_BUDGET {
+        REFUSED.fetch_add(1, Ordering::Relaxed);
+        return Err(AssetError::Full);
+    }
     let mask = slots.len() - 1;
     let mut index = (id as usize) & mask;
     for _ in 0..slots.len() {
-        match slots[index].get() {
-            Some(found) if found.id == id => {
-                return if found.kind == kind && *found.points == *points {
-                    Ok(id)
-                } else {
-                    Err(AssetError::Collision)
-                };
-            }
-            Some(_) => index = (index + 1) & mask,
-            None => {
-                let bytes = CurveAsset::bytes(points.len(), kind);
-                if usage.curves >= MAX_CURVES || usage.curve_bytes + bytes > CURVE_BYTE_BUDGET {
-                    REFUSED.fetch_add(1, Ordering::Relaxed);
-                    return Err(AssetError::Full);
-                }
-                let table = match kind {
-                    CurveKind::Curve => None,
-                    CurveKind::Shape => Some(
-                        (0..SHAPE_TABLE_POINTS)
-                            .map(|n| value_of(&points, n as f32 / (SHAPE_TABLE_POINTS - 1) as f32))
-                            .collect(),
-                    ),
-                };
-                let asset = Box::new(CurveAsset {
-                    id,
-                    kind,
-                    points: points.into_boxed_slice(),
-                    table,
-                });
-                // Only the holder of the writer lock fills a slot.
-                let _ = slots[index].set(asset);
-                usage.curves += 1;
-                usage.curve_bytes += bytes;
-                return Ok(id);
-            }
+        if slots[index].pointer.load(Ordering::SeqCst).is_null() {
+            let table = match kind {
+                CurveKind::Curve => None,
+                CurveKind::Shape => Some((0..SHAPE_TABLE_POINTS)
+                    .map(|n| value_of(&points, n as f32 / (SHAPE_TABLE_POINTS - 1) as f32))
+                    .collect()),
+            };
+            let asset = Arc::new(CurveAsset {
+                id, kind, points: points.into_boxed_slice(), table,
+                managed: AtomicBool::new(false),
+            });
+            slots[index].publish(id, &asset);
+            store.curves.push((index, asset));
+            store.curve_bytes += bytes;
+            return Ok(id);
         }
+        index = (index + 1) & mask;
     }
     REFUSED.fetch_add(1, Ordering::Relaxed);
     Err(AssetError::Full)
 }
 
 /// Finds a published curve. Safe on the audio thread.
-fn find_curve(id: u64) -> Option<&'static CurveAsset> {
+fn find_curve(id: u64) -> Option<Arc<CurveAsset>> {
     if id == 0 {
         return None;
     }
@@ -318,10 +353,13 @@ fn find_curve(id: u64) -> Option<&'static CurveAsset> {
     let mask = slots.len() - 1;
     let mut index = (id as usize) & mask;
     for _ in 0..slots.len() {
-        // An empty slot ends the run an id can be in.
-        let found: &'static CurveAsset = slots[index].get()?;
-        if found.id == id {
-            return Some(found);
+        // Reclaimed slots are tombstones. Never stop at a withdrawn pointer.
+        let stored = slots[index].id.load(Ordering::Acquire);
+        if stored == 0 { return None; }
+        if stored == id {
+            if let Some(found) = slots[index].read() {
+                if found.id == id { return Some(found); }
+            }
         }
         index = (index + 1) & mask;
     }
@@ -351,22 +389,25 @@ macro_rules! curve_reference {
 
             /// The published curve. Safe on the audio thread.
             #[inline]
-            pub fn asset(self) -> Option<&'static CurveAsset> {
+            pub fn asset(self) -> Option<Arc<CurveAsset>> {
                 find_curve(self.0)
             }
 
-            /// The points, or nothing for [`Self::NONE`].
-            pub fn points(self) -> &'static [CurvePoint] {
-                match self.asset() {
-                    Some(asset) => asset.points(),
-                    None => &[],
-                }
+            /// Copies the points for control-side inspection. Allocates;
+            /// callbacks should cache `asset()` and borrow its points instead.
+            pub fn points(self) -> Vec<CurvePoint> {
+                self.asset().map_or_else(Vec::new, |asset| asset.points().to_vec())
             }
         }
 
         impl Serialize for $name {
             fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-                self.points().serialize(serializer)
+                match self.asset() {
+                    Some(asset) => asset.points().serialize(serializer),
+                    None if self.is_none() => <[CurvePoint]>::serialize(&[], serializer),
+                    None => Err(<S::Error as serde::ser::Error>::custom(
+                        "the effect curve is no longer available; take a new snapshot before saving")),
+                }
             }
         }
 
@@ -424,22 +465,41 @@ curve_reference!(
 );
 
 struct SourceEntry {
+    id: u64,
     key: u32,
     audio: AudioBuffer,
+    managed: AtomicBool,
+}
+
+/// A source lease. Its final owner stays in the control-side store.
+#[derive(Clone)]
+pub struct AudioLease(Arc<SourceEntry>);
+impl std::fmt::Debug for AudioLease {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_tuple("AudioLease").field(&self.0.id).finish()
+    }
+}
+impl std::ops::Deref for AudioLease {
+    type Target = AudioBuffer;
+    fn deref(&self) -> &Self::Target { &self.0.audio }
 }
 
 /// A runtime source allocation, independent of project-local sample numbers.
 /// Plans publish it off-thread; callbacks only retain this small index.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
-pub struct SourceRef(usize);
+pub struct SourceRef(u64);
 impl SourceRef {
     pub const NONE: Self = Self(0);
-    pub fn audio(self) -> Option<&'static AudioBuffer> {
-        SOURCES
-            .get()?
-            .get(self.0.checked_sub(1)?)?
-            .get()
-            .map(|entry| &entry.audio)
+    pub fn audio(self) -> Option<AudioLease> {
+        if self.0 == 0 { return None; }
+        for slot in SOURCES.get()?.iter() {
+            if slot.id.load(Ordering::Acquire) == self.0 {
+                if let Some(entry) = slot.read() {
+                    if entry.id == self.0 { return Some(AudioLease(entry)); }
+                }
+            }
+        }
+        None
     }
     pub fn is_none(self) -> bool {
         self.0 == 0
@@ -449,38 +509,14 @@ impl SourceRef {
 /// Publish by allocation identity, so two projects with SampleId(1) cannot
 /// change each other's prepared scratch sources. No PCM copy is made.
 pub fn publish_audio(audio: &AudioBuffer) -> Result<SourceRef, AssetError> {
-    let slots = source_slots();
-    let mut usage = WRITER.lock().unwrap_or_else(|e| e.into_inner());
-    for (index, slot) in slots.iter().enumerate() {
-        if let Some(entry) = slot.get() {
-            if entry.audio.identity() == audio.identity() {
-                return Ok(SourceRef(index + 1));
-            }
-        } else {
-            let bytes = std::mem::size_of_val(audio.samples());
-            if bytes > SOURCE_BYTE_BUDGET.saturating_sub(usage.source_bytes) {
-                REFUSED.fetch_add(1, Ordering::Relaxed);
-                return Err(AssetError::Full);
-            }
-            let _ = slot.set(SourceEntry {
-                key: 0,
-                audio: audio.clone(),
-            });
-            usage.sources += 1;
-            usage.source_bytes += bytes;
-            SOURCE_EPOCH.fetch_add(1, Ordering::Release);
-            return Ok(SourceRef(index + 1));
-        }
-    }
-    REFUSED.fetch_add(1, Ordering::Relaxed);
-    Err(AssetError::Full)
+    publish_keyed_audio(0, audio)
 }
 
-type SourceSlots = Box<[OnceLock<SourceEntry>]>;
+type SourceSlots = Box<[Slot<SourceEntry>]>;
 static SOURCES: OnceLock<SourceSlots> = OnceLock::new();
 
 fn source_slots() -> &'static SourceSlots {
-    SOURCES.get_or_init(|| (0..MAX_SOURCES).map(|_| OnceLock::new()).collect())
+    SOURCES.get_or_init(|| (0..MAX_SOURCES).map(|_| Slot::new()).collect())
 }
 
 /// Makes `audio` the source for `key`, which is a project's sample id.
@@ -488,52 +524,50 @@ fn source_slots() -> &'static SourceSlots {
 /// audio under a known key replaces it for every later lookup. Allocates
 /// and locks: not for the audio thread.
 pub fn publish_source(key: u32, audio: &AudioBuffer) -> Result<(), AssetError> {
+    publish_keyed_audio(key, audio).map(|_| ())
+}
+
+fn publish_keyed_audio(key: u32, audio: &AudioBuffer) -> Result<SourceRef, AssetError> {
     let slots = source_slots();
-    let mut usage = WRITER
+    let mut store = WRITER
         .lock()
         .unwrap_or_else(|poisoned| poisoned.into_inner());
-    let mut latest: Option<&SourceEntry> = None;
-    let mut free = None;
-    for (index, slot) in slots.iter().enumerate() {
-        match slot.get() {
-            Some(entry) if entry.key == key => latest = Some(entry),
-            Some(_) => {}
-            None => {
-                free = Some(index);
-                break;
-            }
-        }
-    }
-    if latest.is_some_and(|entry| entry.audio.identity() == audio.identity()) {
-        return Ok(());
+    if let Some((_, entry)) = store.sources.iter().filter(|(_, entry)|
+        entry.key == key && (key != 0 || entry.audio.identity() == audio.identity()))
+        .max_by_key(|(_, entry)| entry.id) {
+        if entry.audio.identity() == audio.identity() { return Ok(SourceRef(entry.id)); }
     }
     let bytes = std::mem::size_of_val(audio.samples());
-    let Some(free) = free.filter(|_| usage.source_bytes + bytes <= SOURCE_BYTE_BUDGET) else {
+    let free = slots.iter().position(|slot| slot.pointer.load(Ordering::SeqCst).is_null());
+    let Some(free) = free.filter(|_| store.source_bytes + bytes <= SOURCE_BYTE_BUDGET
+        && store.sources.len() + store.retired_sources.len() < MAX_SOURCES) else {
         REFUSED.fetch_add(1, Ordering::Relaxed);
         return Err(AssetError::Full);
     };
-    let _ = slots[free].set(SourceEntry {
-        key,
-        audio: audio.clone(),
+    // The source-store mutex serializes publishers; callbacks only read slots.
+    let id = SOURCE_EPOCH.load(Ordering::Acquire).checked_add(1).ok_or(AssetError::Full)?;
+    SOURCE_EPOCH.store(id, Ordering::Release);
+    let entry = Arc::new(SourceEntry {
+        id, key, audio: audio.clone(), managed: AtomicBool::new(false),
     });
-    usage.sources += 1;
-    usage.source_bytes += bytes;
-    SOURCE_EPOCH.fetch_add(1, Ordering::Release);
-    Ok(())
+    slots[free].publish(id, &entry);
+    store.sources.push((free, entry));
+    store.source_bytes += bytes;
+    Ok(SourceRef(id))
 }
 
 /// The audio last published for `key`. Safe on the audio thread: it walks
 /// at most [`MAX_SOURCES`] slots.
-pub fn source(key: u32) -> Option<&'static AudioBuffer> {
+pub fn source(key: u32) -> Option<AudioLease> {
     let slots: &'static SourceSlots = SOURCES.get()?;
     let mut latest = None;
     for slot in slots.iter() {
-        let entry: &'static SourceEntry = match slot.get() {
+        let entry = match slot.read() {
             Some(entry) => entry,
-            None => break,
+            None => continue,
         };
-        if entry.key == key {
-            latest = Some(&entry.audio);
+        if entry.key == key && latest.as_ref().is_none_or(|known: &AudioLease| known.0.id < entry.id) {
+            latest = Some(AudioLease(entry));
         }
     }
     latest
@@ -544,6 +578,97 @@ pub fn source(key: u32) -> Option<&'static AudioBuffer> {
 #[inline]
 pub fn source_epoch() -> u64 {
     SOURCE_EPOCH.load(Ordering::Acquire)
+}
+
+/// Control-side ownership for Copy effect parameters. Keep this with the
+/// document/history/immutable plan that can restore those parameters. A plain
+/// freshly published reference remains unmanaged until an owner adopts it.
+#[derive(Debug, Clone, Default)]
+pub struct AssetPins {
+    curves: Vec<Arc<CurveAsset>>,
+    sources: Vec<AudioLease>,
+}
+impl AssetPins {
+    pub fn for_effects<'a>(effects: impl IntoIterator<Item = &'a crate::EffectParams>) -> Self {
+        let mut pins = Self::default();
+        for effect in effects {
+            let (curves, source) = match effect {
+                crate::EffectParams::Waveshaper(p) => ([p.shape.asset(), None], None),
+                crate::EffectParams::VolumeGate(p) =>
+                    ([p.time_curve.asset(), p.volume_curve.asset()], None),
+                crate::EffectParams::Scratch(p) =>
+                    ([p.position_curve.asset(), None], p.runtime_source.audio()),
+                _ => ([None, None], None),
+            };
+            for curve in curves.into_iter().flatten() {
+                curve.managed.store(true, Ordering::Release);
+                if !pins.curves.iter().any(|known| Arc::ptr_eq(known, &curve)) {
+                    pins.curves.push(curve);
+                }
+            }
+            if let Some(source) = source {
+                source.0.managed.store(true, Ordering::Release);
+                if !pins.sources.iter().any(|known| Arc::ptr_eq(&known.0, &source.0)) {
+                    pins.sources.push(source);
+                }
+            }
+        }
+        pins
+    }
+    pub fn extend(&mut self, other: Self) {
+        for curve in other.curves {
+            if !self.curves.iter().any(|known| Arc::ptr_eq(known, &curve)) {
+                self.curves.push(curve);
+            }
+        }
+        for source in other.sources {
+            if !self.sources.iter().any(|known| Arc::ptr_eq(&known.0, &source.0)) {
+                self.sources.push(source);
+            }
+        }
+    }
+}
+
+/// Withdraw unused managed assets and free retired allocations on the caller's
+/// control thread. Never call from audio. Live readers and crossfade leases
+/// retain a store owner, including after withdrawal; they cannot free it.
+pub fn collect_retired() {
+    let mut store = WRITER.lock().unwrap_or_else(|e| e.into_inner());
+    let mut index = 0;
+    while index < store.curves.len() {
+        let (slot, value) = &store.curves[index];
+        if value.managed.load(Ordering::Acquire) && Arc::strong_count(value) == 1 {
+            curve_slots()[*slot].pointer.store(std::ptr::null_mut(), Ordering::SeqCst);
+            let (_, value) = store.curves.swap_remove(index);
+            store.retired_curves.push(value);
+        } else { index += 1; }
+    }
+    let mut index = 0;
+    while index < store.sources.len() {
+        let (slot, value) = &store.sources[index];
+        if value.managed.load(Ordering::Acquire) && Arc::strong_count(value) == 1 {
+            source_slots()[*slot].pointer.store(std::ptr::null_mut(), Ordering::SeqCst);
+            let (_, value) = store.sources.swap_remove(index);
+            store.retired_sources.push(value);
+        } else { index += 1; }
+    }
+    if READERS.load(Ordering::SeqCst) != 0 { return; }
+    let mut index = 0;
+    while index < store.retired_curves.len() {
+        if Arc::strong_count(&store.retired_curves[index]) == 1 {
+            let asset = store.retired_curves.swap_remove(index);
+            store.curve_bytes -= CurveAsset::bytes(asset.points.len(), asset.kind);
+            drop(asset);
+        } else { index += 1; }
+    }
+    let mut index = 0;
+    while index < store.retired_sources.len() {
+        if Arc::strong_count(&store.retired_sources[index]) == 1 {
+            let entry = store.retired_sources.swap_remove(index);
+            store.source_bytes -= std::mem::size_of_val(entry.audio.samples());
+            drop(entry);
+        } else { index += 1; }
+    }
 }
 
 /// How full the store is.
@@ -559,14 +684,14 @@ pub struct AssetStats {
 
 /// Locks, so not for the audio thread.
 pub fn stats() -> AssetStats {
-    let usage = WRITER
+    let store = WRITER
         .lock()
         .unwrap_or_else(|poisoned| poisoned.into_inner());
     AssetStats {
-        curves: usage.curves,
-        curve_bytes: usage.curve_bytes,
-        sources: usage.sources,
-        source_bytes: usage.source_bytes,
+        curves: store.curves.len() + store.retired_curves.len(),
+        curve_bytes: store.curve_bytes,
+        sources: store.sources.len() + store.retired_sources.len(),
+        source_bytes: store.source_bytes,
         refused: REFUSED.load(Ordering::Relaxed),
     }
 }
@@ -577,6 +702,52 @@ mod tests {
 
     fn point(x: f32, y: f32) -> CurvePoint {
         CurvePoint::new(x, y)
+    }
+
+    #[test]
+    fn managed_sources_reuse_capacity_without_redirecting_reclaimed_handles() {
+        use crate::performance::ScratchParams;
+        let mut first = SourceRef::NONE;
+        for n in 0..MAX_SOURCES + 8 {
+            let audio = AudioBuffer::from_interleaved(48_000, 1, vec![n as f32; 8]);
+            let source = publish_audio(&audio).unwrap();
+            if n == 0 { first = source; }
+            let params = crate::EffectParams::Scratch(ScratchParams {
+                runtime_source: source, ..Default::default()
+            });
+            let pins = AssetPins::for_effects([&params]);
+            let lease = source.audio().unwrap();
+            collect_retired();
+            assert_eq!(lease.samples()[0], n as f32);
+            drop(pins);
+            collect_retired();
+            assert!(source.audio().is_some(), "a reader is still an owner");
+            drop(lease);
+            collect_retired();
+            assert!(source.audio().is_none());
+            assert!(first.audio().is_none(), "reused slots must not reuse source identities");
+        }
+    }
+
+    #[test]
+    fn curve_leases_remain_valid_during_control_side_collection() {
+        let curve = CurveRef::new(&[point(0.0, 0.014719), point(1.0, 0.985219)]).unwrap();
+        let params = crate::EffectParams::VolumeGate(crate::performance::VolumeGateParams {
+            time_curve: curve, ..Default::default()
+        });
+        let pins = AssetPins::for_effects([&params]);
+        let weak = Arc::downgrade(&curve.asset().unwrap());
+        let lease = curve.asset().unwrap();
+        drop(pins);
+        let worker = std::thread::spawn(|| { for _ in 0..200 { collect_retired(); } });
+        for _ in 0..20_000 { assert_eq!(lease.value(0.0), 0.014719); }
+        worker.join().unwrap();
+        assert!(weak.upgrade().is_some());
+        drop(lease);
+        collect_retired();
+        assert!(weak.upgrade().is_none());
+        assert!(curve.asset().is_none());
+        assert!(serde_json::to_string(&curve).unwrap_err().to_string().contains("no longer available"));
     }
 
     #[test]
@@ -605,7 +776,7 @@ mod tests {
         let c = CurveRef::new(&[point(0.0, 0.125), point(1.0, 0.75)]).unwrap();
         assert_eq!(a, b);
         assert_ne!(a, c);
-        assert!(std::ptr::eq(a.asset().unwrap(), b.asset().unwrap()));
+        assert!(Arc::ptr_eq(&a.asset().unwrap(), &b.asset().unwrap()));
         assert!(!a.is_none());
         assert_eq!(CurveRef::new(&[]).unwrap(), CurveRef::NONE);
         assert!(CurveRef::NONE.asset().is_none());

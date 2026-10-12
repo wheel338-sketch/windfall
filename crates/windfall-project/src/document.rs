@@ -43,6 +43,7 @@ pub struct Applied {
 /// though `next_id` is higher than in the file.
 #[derive(Debug, Clone)]
 pub struct Document {
+    _asset_pins: windfall_dsp::asset::AssetPins,
     project: Project,
     revision: u64,
     entries: Vec<Entry>,
@@ -58,8 +59,20 @@ pub struct Document {
 
 #[derive(Debug, Clone)]
 struct Entry {
+    _asset_pins: windfall_dsp::asset::AssetPins,
     label: String,
     edits: Vec<Edit>,
+}
+
+fn project_asset_pins(project: &Project) -> windfall_dsp::asset::AssetPins {
+    windfall_dsp::asset::AssetPins::for_effects(project.mixer.tracks.iter()
+        .flat_map(|track| track.effects.iter().map(|effect| &effect.params)))
+}
+
+fn history_asset_pins(edits: &[Edit]) -> windfall_dsp::asset::AssetPins {
+    let mut pins = windfall_dsp::asset::AssetPins::default();
+    for edit in edits { pins.extend(edit.effect_asset_pins()); }
+    pins
 }
 
 impl Document {
@@ -68,6 +81,7 @@ impl Document {
     /// outside.
     pub fn new(project: Project) -> Self {
         Self {
+            _asset_pins: project_asset_pins(&project),
             project,
             revision: 0,
             entries: Vec::new(),
@@ -86,6 +100,12 @@ impl Document {
 
     pub fn project(&self) -> &Project {
         &self.project
+    }
+
+    /// Retain effect assets beside a cloned project during slow control-side
+    /// work. Acquire while borrowing this document, before releasing its lock.
+    pub fn effect_asset_pins(&self) -> windfall_dsp::asset::AssetPins {
+        self._asset_pins.clone()
     }
 
     /// Source identities in the current project and every retained undo or
@@ -131,6 +151,8 @@ impl Document {
         gesture: Option<u64>,
     ) -> Result<Applied, CommandError> {
         let outcome = lower::execute(&mut self.project, command)?;
+        // Acquire new roots before releasing the old project or merged edits.
+        let next_pins = project_asset_pins(&self.project);
         let mut touched = Touched::default();
         for edit in &outcome.edits {
             edit.mark(Direction::Forward, &mut touched);
@@ -145,6 +167,7 @@ impl Document {
             for edit in outcome.edits {
                 edit::push(&mut entry.edits, edit);
             }
+            entry._asset_pins = history_asset_pins(&entry.edits);
             if entry.edits.is_empty() {
                 self.entries.pop();
                 self.cursor -= 1;
@@ -157,12 +180,15 @@ impl Document {
             }
             self.entries.truncate(self.cursor);
             self.entries.push(Entry {
+                _asset_pins: history_asset_pins(&outcome.edits),
                 label: outcome.label.clone(),
                 edits: outcome.edits,
             });
             self.cursor += 1;
             self.open_gesture = gesture;
         }
+
+        self._asset_pins = next_pins;
 
         Ok(Applied {
             created: outcome.created,
@@ -179,6 +205,7 @@ impl Document {
             return None;
         }
         self.drop_removed_patterns(&mut touched);
+        self._asset_pins = project_asset_pins(&self.project);
         Some(touched)
     }
 
@@ -190,6 +217,7 @@ impl Document {
             return None;
         }
         self.drop_removed_patterns(&mut touched);
+        self._asset_pins = project_asset_pins(&self.project);
         Some(touched)
     }
 
@@ -202,6 +230,7 @@ impl Document {
         while self.cursor > target && self.step_back(&mut touched) {}
         while self.cursor < target && self.step_forward(&mut touched) {}
         self.drop_removed_patterns(&mut touched);
+        self._asset_pins = project_asset_pins(&self.project);
         touched
     }
 

@@ -21,7 +21,7 @@ const LIMITER_LATENCY: u32 = 240;
 /// Adds a channel that plays the synth, on a mixer track of its own, with
 /// three notes in the first pattern. The last of them ends on tick 2160,
 /// a little over half way through the bar.
-fn add_synth(rig: &Rig) -> (ChannelId, TrackId) {
+pub(super) fn add_synth(rig: &Rig) -> (ChannelId, TrackId) {
     let added = rig
         .session
         .dispatch(

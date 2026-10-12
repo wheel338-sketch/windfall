@@ -12,6 +12,7 @@ use crate::blocks::math::{db_to_gain, ms_to_samples};
 use crate::blocks::smooth::LinearRamp;
 use crate::effect::Effect;
 use crate::param::{ParamSet, param_set};
+use std::sync::Arc;
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
@@ -163,9 +164,9 @@ fn lookup(input: f32, curve: &[f32; CURVE_POINTS]) -> f32 {
 }
 
 /// Which curve is in force: a drawn shape and how it is read, or the knots.
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 struct Curve {
-    shape: Option<&'static CurveAsset>,
+    shape: Option<Arc<CurveAsset>>,
     bipolar: bool,
 }
 
@@ -183,8 +184,8 @@ impl Curve {
     }
 
     fn same(&self, other: &Self) -> bool {
-        match (self.shape, other.shape) {
-            (Some(a), Some(b)) => std::ptr::eq(a, b) && self.bipolar == other.bipolar,
+        match (&self.shape, &other.shape) {
+            (Some(a), Some(b)) => Arc::ptr_eq(a, b) && self.bipolar == other.bipolar,
             // The knots are read one way whatever the switch says.
             (None, None) => true,
             _ => false,
@@ -194,7 +195,7 @@ impl Curve {
     #[inline]
     fn value(&self, input: f32, knots: &[f32; CURVE_POINTS]) -> f32 {
         let input = input.clamp(-1.0, 1.0);
-        match self.shape {
+        match &self.shape {
             None => lookup(input, knots),
             Some(shape) if self.bipolar => shape.shaped(0.5 * (input + 1.0)) * 2.0 - 1.0,
             Some(shape) => shape.shaped(input.abs()).copysign(input),
@@ -274,7 +275,7 @@ impl Effect for Waveshaper {
             channel.shaper.reset();
             channel.dry.reset();
         }
-        self.previous = self.curve;
+        self.previous = self.curve.clone();
         self.arrival.snap(1.0);
         self.fresh = true;
     }
@@ -288,10 +289,10 @@ impl Effect for Waveshaper {
         let curve = Curve::of(&p);
         if !curve.same(&self.curve) {
             if self.fresh {
-                self.previous = curve;
+                self.previous = curve.clone();
                 self.arrival.snap(1.0);
             } else {
-                self.previous = self.curve;
+                self.previous = self.curve.clone();
                 self.arrival.snap(0.0);
                 self.arrival.set_target(1.0, self.fade_samples);
             }
@@ -304,7 +305,7 @@ impl Effect for Waveshaper {
             let values = self.controls.tick();
             let knots: [f32; CURVE_POINTS] = std::array::from_fn(|i| values[i + 2]);
             let arrived = self.arrival.tick();
-            let (curve, previous) = (self.curve, self.previous);
+            let (curve, previous) = (&self.curve, &self.previous);
             let (kernels, mix) = (self.kernels, values[35]);
             for (channel, sample) in self.channels.iter_mut().zip([l, r]) {
                 let input = audio(*sample);

@@ -64,6 +64,7 @@ impl IdIndex {
 pub(crate) struct Plan {
     /// Control-side memory admission shared across this controller's plans.
     pub echo_history: Arc<crate::effect_host::HistoryPool>,
+    _asset_pins: windfall_dsp::asset::AssetPins,
     pub navigation: Vec<crate::timeline::NavigationPoint>,
     pub signature: windfall_project::TimeSignature,
     pub meters: Result<
@@ -802,6 +803,8 @@ impl Plan {
 
     /// Works out the lists that follow from the channels and the chains.
     fn link(&mut self) {
+        self._asset_pins = windfall_dsp::asset::AssetPins::for_effects(self.tracks.iter()
+            .flat_map(|track| track.effects.iter().map(|effect| &effect.params)));
         for track in &mut self.tracks {
             track.instruments.clear();
         }
@@ -976,6 +979,7 @@ pub(crate) fn compile(project: &Project, pool: &SamplePool) -> Plan {
 
     let mut plan = Plan {
         echo_history: Arc::new(crate::effect_host::HistoryPool::default()),
+        _asset_pins: windfall_dsp::asset::AssetPins::default(),
         navigation: crate::timeline::compile(&project.playlist.timeline),
         signature: project.settings.time_signature,
         meters: windfall_project::timeline::MeterMap::checked(

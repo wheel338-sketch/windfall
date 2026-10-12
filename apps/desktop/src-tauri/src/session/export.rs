@@ -298,7 +298,7 @@ impl Session {
 
         // All three under one lock, so the pattern is one of this project's
         // and not of a project opened a moment later.
-        let (project, pool, pattern, plugin_revision) = {
+        let (project, asset_pins, pool, pattern, plugin_revision) = {
             let state = self.state();
             if let (Some(generation), Some(revision)) =
                 (options.region_generation, options.region_revision)
@@ -318,6 +318,7 @@ impl Session {
             pool.share_sampler_budget(&state.pool);
             (
                 state.document.project().clone(),
+                state.document.effect_asset_pins(),
                 pool,
                 self.controller().transport().pattern,
                 self.plugin_revision(),
@@ -407,7 +408,10 @@ impl Session {
         let session = self.clone();
         let spawned = std::thread::Builder::new()
             .name("windfall-export".to_owned())
-            .spawn(move || session.run_export(&job));
+            .spawn(move || {
+                let _asset_pins = asset_pins;
+                session.run_export(&job);
+            });
         spawned.map(drop).map_err(|error| {
             self.inner.exporting.store(false, Ordering::SeqCst);
             format!("Could not start the export: {error}")

@@ -3,12 +3,13 @@ import { act, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import type { EffectId, EffectKind, TrackId } from "@/bindings"
 import { ValueContextMenus } from "@/components/value-context-menu"
-import { dispatch, undo, useProjectStore } from "@/lib/store/project"
+import { dispatch, redo, undo, useProjectStore } from "@/lib/store/project"
 import { startTestApp, settle } from "@/test/harness"
 import { EffectEditor } from "../effect-editor"
 import { wav } from "./wav-fixture"
 let stop: () => void, track: TrackId
-beforeEach(async () => { ({ stop } = await startTestApp()); track = useProjectStore.getState().project.mixer.tracks[1].id })
+let backend: Awaited<ReturnType<typeof startTestApp>>["backend"]
+beforeEach(async () => { ({ stop, backend } = await startTestApp()); track = useProjectStore.getState().project.mixer.tracks[1].id })
 afterEach(() => { stop(); vi.restoreAllMocks() })
 function Editor({ effect }: { effect: EffectId }) {
   const slot = useProjectStore((s) => s.project.mixer.tracks.find((t) => t.id === track)?.effects.find((e) => e.id === effect))
@@ -20,6 +21,42 @@ async function open(kind: EffectKind) {
 }
 function slot(effect: EffectId) { return useProjectStore.getState().project.mixer.tracks.find((t) => t.id === track)?.effects.find((e) => e.id === effect) }
 describe("spectral mounted editors", () => {
+  it("keeps the sounding IR and history when native publication refuses an imported WAV", async () => {
+    const effect = await open("convolver")
+    await act(() => dispatch({ type: "setConvolverImpulse", track, effect, impulse: {
+      name: "Admitted IR", sampleRate: 48000, frames: [[1, 1], [0.5, 0.5]],
+    } }))
+    const before = await backend.documentSnapshot()
+    const publication = vi.spyOn(backend, "dispatch").mockRejectedValueOnce(new Error("IR exceeds the host-rate preparation bound"))
+    const file = new File([wav([0.25])], "Refused IR.wav", { type: "audio/wav" })
+    Object.defineProperty(file, "arrayBuffer", { value: () => Promise.resolve(wav([0.25])) })
+    fireEvent.change(screen.getByLabelText("Impulse response WAV"), { target: { files: [file] } })
+    await waitFor(() => expect(screen.getByText("Impulse change was refused; the previous IR is retained")).toBeTruthy())
+    expect(publication).toHaveBeenCalledWith({ type: "setConvolverImpulse", track, effect, impulse: {
+      name: "Refused IR.wav", sampleRate: 48000, frames: [[0.25, 0.25]],
+    } }, undefined)
+    expect(await backend.documentSnapshot()).toEqual(before)
+    expect(slot(effect)?.impulse?.name).toBe("Admitted IR")
+  })
+  it("repeated WAV imports retain exact undo redo and saved reopen payloads for native Session publication", async () => {
+    const effect = await open("convolver")
+    for (const gain of [0.25, 0.5, 0.75]) {
+      const before = structuredClone(slot(effect)?.impulse)
+      const file = new File([wav([gain, gain * 0.5])], "Own IR.wav", { type: "audio/wav" })
+      Object.defineProperty(file, "arrayBuffer", { value: () => Promise.resolve(wav([gain, gain * 0.5])) })
+      fireEvent.change(screen.getByLabelText("Impulse response WAV"), { target: { files: [file] } })
+      await waitFor(() => expect(slot(effect)?.impulse?.frames).toEqual([[gain, gain], [gain * 0.5, gain * 0.5]]))
+      expect(slot(effect)?.impulse).toMatchObject({ name: "Own IR.wav", sampleRate: 48000 })
+      const after = structuredClone(slot(effect)?.impulse)
+      await act(() => undo()); expect(slot(effect)?.impulse).toEqual(before)
+      await act(() => redo()); expect(slot(effect)?.impulse).toEqual(after)
+    }
+    const saved = (await backend.documentSnapshot()).project
+    const path = await backend.projectSave("/projects/p2-convolver.windfall")
+    await act(async () => { await backend.projectOpen(path); await settle() })
+    expect(useProjectStore.getState().project).toEqual(saved)
+    expect(screen.getByText(/Own IR.wav: 2 stereo frames at 48000 Hz/)).toBeTruthy()
+  })
   it("loads and clears an IR through undoable document edits", async () => {
     const effect = await open("convolver")
     const file = new File([wav([1, .5])], "My IR.wav", { type: "audio/wav" })

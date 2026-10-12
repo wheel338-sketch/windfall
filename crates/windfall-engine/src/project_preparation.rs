@@ -248,7 +248,7 @@ impl PreparationSnapshot {
         }
         if prepared.scratch_asset_refused() {
             return Err(ProjectPreparationError::Unsupported(
-                "The scratch source exceeds the effect asset memory budget; restart to release retained sources.",
+                "The scratch source exceeds the effect asset memory budget; release unused project history or sources before retrying.",
             ));
         }
         let mut plan = prepared.plan;

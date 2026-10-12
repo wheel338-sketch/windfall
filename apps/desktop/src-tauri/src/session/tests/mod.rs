@@ -60,6 +60,7 @@ mod rack_second_pass;
 mod performance_media;
 mod remote_cloud_content;
 mod detached_windows;
+mod p2_convolver;
 
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};

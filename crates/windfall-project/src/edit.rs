@@ -167,6 +167,16 @@ pub(crate) enum Edit {
 }
 
 impl Edit {
+    pub(crate) fn effect_asset_pins(&self) -> windfall_dsp::asset::AssetPins {
+        let tracks = match self {
+            Self::MixerTrack(edit) => [Some(edit.item()), None],
+            Self::SetMixerTrack(change) => [Some(&change.old), Some(&change.new)],
+            _ => [None, None],
+        };
+        windfall_dsp::asset::AssetPins::for_effects(tracks.into_iter().flatten()
+            .flat_map(|track| track.effects.iter().map(|effect| &effect.params)))
+    }
+
     pub(crate) fn apply(&self, project: &mut Project, direction: Direction) {
         match self {
             Edit::ArrangementBook(change) => {

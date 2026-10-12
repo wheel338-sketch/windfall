@@ -5,6 +5,32 @@ use windfall_dsp::performance::{
 use windfall_dsp::{AnyEffect, EffectParams, EffectSlot};
 
 #[test]
+fn releasing_asset_roots_and_callback_leases_never_frees_on_audio() {
+    use windfall_dsp::asset::{AssetPins, collect_retired};
+    let shape = ShapeRef::new(&[CurvePoint::new(0.0, 0.012781), CurvePoint::new(1.0, 0.987191)]).unwrap();
+    let params = EffectParams::Waveshaper(windfall_dsp::drive::WaveshaperParams { shape, ..Default::default() });
+    let pins = AssetPins::for_effects([&params]);
+    let weak = std::sync::Arc::downgrade(&shape.asset().unwrap());
+    let mut effect = AnyEffect::new(&params);
+    effect.prepare(48_000.0, 64);
+    effect.set_params(&params);
+    drop(pins);
+    collect_retired();
+    assert!(weak.upgrade().is_some(), "the processor owns both sides of its fade");
+    let mut left = [0.25; 64];
+    let mut right = [-0.25; 64];
+    let neutral = params.kind().default_params();
+    assert_eq!(super::realtime::allocator_calls(|| {
+        effect.process(&mut left, &mut right);
+        effect.set_params(&neutral);
+        effect.reset();
+        effect.process(&mut left, &mut right);
+    }), 0);
+    collect_retired();
+    assert!(weak.upgrade().is_none(), "only control-side collection releases the allocation");
+}
+
+#[test]
 fn immutable_curve_source_swaps_and_transient_reloops_have_zero_callback_heap_activity() {
     let a = [CurvePoint::new(0.0, 0.0), CurvePoint::new(1.0, 1.0)];
     let b = [CurvePoint::new(0.0, 1.0), CurvePoint::new(1.0, 0.0)];

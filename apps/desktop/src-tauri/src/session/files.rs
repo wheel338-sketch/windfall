@@ -249,7 +249,7 @@ impl Session {
         // never land on top of a newer one.
         let saving = lock(&self.inner.save);
         drop(self.recording_idle()?);
-        let (mut project, played, target, previous_dir, edits, generation, plugin_revision) = {
+        let (mut project, _asset_pins, played, target, previous_dir, edits, generation, plugin_revision) = {
             let state = self.state();
             let target = match chosen {
                 Some(target) => target,
@@ -257,6 +257,7 @@ impl Session {
             };
             (
                 state.document.project().clone(),
+                state.document.effect_asset_pins(),
                 self.played(),
                 target,
                 state.sample_dir.clone(),
@@ -366,11 +367,12 @@ impl Session {
     /// with the newer project in the file.
     pub fn write_backup(&self, timestamp: &str) -> Result<Option<PathBuf>, String> {
         let _saving = lock(&self.inner.save);
-        let (project, played, path, plugin_revision) = {
+        let (project, _asset_pins, played, path, plugin_revision) = {
             let state = self.state();
             match &state.path {
                 Some(path) if state.document.is_dirty() => (
                     state.document.project().clone(),
+                    state.document.effect_asset_pins(),
                     self.played(),
                     path.clone(),
                     self.plugin_revision(),

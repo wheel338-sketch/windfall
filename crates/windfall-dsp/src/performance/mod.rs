@@ -61,6 +61,8 @@ impl History {
 /// Sixteen-step volume curve and deterministic probabilistic history retrigger.
 #[derive(Default)]
 pub struct VolumeGate {
+    time_curve: Option<std::sync::Arc<crate::asset::CurveAsset>>,
+    volume_curve: Option<std::sync::Arc<crate::asset::CurveAsset>>,
     history: History,
     controls: Controls<VolumeGateParams>,
     phase: usize,
@@ -121,6 +123,8 @@ impl Effect for VolumeGate {
             self.history.fade.jump();
             self.curve_ready = false;
         }
+        self.time_curve = params.time_curve.asset();
+        self.volume_curve = params.volume_curve.asset();
         self.controls.set(params);
         self.sync();
     }
@@ -193,7 +197,7 @@ impl Effect for VolumeGate {
                 self.delay = next;
                 self.last_step = Some(step);
             }
-            let curve = self.controls.target.time_curve.asset();
+            let curve = self.time_curve.as_deref();
             let replay = if curve.is_some() || p.trigger {
                 if !self.curve_ready || (self.phase == 0 && !p.trigger) {
                     self.curve_length = self.history.length.min(self.history.ring.filled);
@@ -233,11 +237,7 @@ impl Effect for VolumeGate {
                 dry
             };
             // Apply the curve AFTER the head transition: a zero step is exactly silent.
-            let gain = self
-                .controls
-                .target
-                .volume_curve
-                .asset()
+            let gain = self.volume_curve.as_deref()
                 .map_or(p.steps[step], |curve| {
                     curve.value(self.phase as f32 / self.history.length as f32)
                 });
@@ -488,7 +488,8 @@ pub struct Scratch {
     frozen: bool,
     start: usize,
     captured: usize,
-    source: Option<&'static windfall_core::AudioBuffer>,
+    source: Option<crate::asset::AudioLease>,
+    position_curve: Option<std::sync::Arc<crate::asset::CurveAsset>>,
     phase: usize,
     last_position: Option<f64>,
 }
@@ -538,6 +539,7 @@ impl Effect for Scratch {
             self.last_position = None;
         }
         self.source = params.runtime_source.audio();
+        self.position_curve = params.position_curve.asset();
         self.controls.set(params);
         if self.history.sync(self.controls.target.loop_beats, false) {
             self.history.fade.jump();
@@ -571,10 +573,7 @@ impl Effect for Scratch {
             if self.controls.target.source_id != 0 {
                 let progress = self.phase as f32 / self.history.length as f32;
                 let position = if p.curve_enabled {
-                    self.controls
-                        .target
-                        .position_curve
-                        .asset()
+                    self.position_curve.as_deref()
                         .map_or(progress, |curve| curve.value(progress))
                 } else {
                     p.position
@@ -587,7 +586,7 @@ impl Effect for Scratch {
                 }
                 self.last_position = Some(position);
                 let wet = self
-                    .source
+                    .source.as_deref()
                     .map_or([0.0; 2], |audio| Self::read_source(audio, position));
                 let wet = self.history.fade.tick(wet);
                 let out = blend(dry, wet, p.mix);

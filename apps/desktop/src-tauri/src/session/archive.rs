@@ -103,11 +103,12 @@ impl Session {
         // and serialized with Save as, which may carry/relink these sources.
         let saving = lock(&self.inner.save);
         drop(self.recording_idle()?);
-        let (project, played, directory, revision, _extraction) = {
+        let (project, _asset_pins, played, directory, revision, _extraction) = {
             let state = self.state();
             if job.generation.is_some_and(|generation| state.generation != generation) { return Err("The project changed before backup capture.".into()); }
             (
                 state.document.project().clone(),
+                state.document.effect_asset_pins(),
                 self.played(),
                 state.sample_dir.clone(),
                 self.plugin_revision(),
