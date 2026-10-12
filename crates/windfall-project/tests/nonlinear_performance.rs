@@ -15,6 +15,48 @@ const KINDS: [EffectKind; 8] = [
 ];
 
 #[test]
+fn released_redo_and_replaced_documents_reclaim_curves_but_clones_and_undo_keep_them() {
+    use windfall_dsp::asset::{CurvePoint, ShapeRef, collect_retired};
+    use std::sync::Arc;
+    let mut doc = Document::new(Project::new("Asset lifetime"));
+    let id = add(&mut doc, EffectKind::Waveshaper);
+    let shape = ShapeRef::new(&[
+        CurvePoint::new(0.0, 0.031417), CurvePoint::new(1.0, 0.964183),
+    ]).unwrap();
+    let weak = Arc::downgrade(&shape.asset().unwrap());
+    let drawn = EffectParams::Waveshaper(windfall_dsp::drive::WaveshaperParams {
+        shape, ..Default::default()
+    });
+    doc.dispatch(Command::SetEffectParams { track: TrackId::MASTER, effect: id, params: drawn }, None).unwrap();
+    let clone = doc.clone();
+    doc.undo().unwrap();
+    collect_retired();
+    assert!(weak.upgrade().is_some(), "redo and cloned documents own the curve");
+    doc.redo().unwrap();
+    assert_eq!(params(&doc, id), drawn);
+    assert_eq!(file::from_json(&file::to_json(doc.project()).unwrap()).unwrap(), *doc.project());
+    doc.undo().unwrap();
+    doc.dispatch(Command::SetEffectParam { track: TrackId::MASTER, effect: id, param: 0, value: 3.0 }, None).unwrap();
+    collect_retired();
+    assert!(weak.upgrade().is_some(), "the independent document still owns its shape");
+    drop(clone);
+    collect_retired();
+    assert!(weak.upgrade().is_none(), "discarded redo no longer roots the curve");
+
+    let shape = ShapeRef::new(&[
+        CurvePoint::new(0.0, 0.041417), CurvePoint::new(1.0, 0.954183),
+    ]).unwrap();
+    let weak = Arc::downgrade(&shape.asset().unwrap());
+    doc.dispatch(Command::SetEffectParams { track: TrackId::MASTER, effect: id,
+        params: EffectParams::Waveshaper(windfall_dsp::drive::WaveshaperParams {
+            shape, ..Default::default()
+        }) }, None).unwrap();
+    drop(doc);
+    collect_retired();
+    assert!(weak.upgrade().is_none(), "project replacement releases current and history roots");
+}
+
+#[test]
 fn old_v1_parameters_and_drawn_shapes_roundtrip_with_exact_history() {
     for kind in KINDS {
         let mut doc = Document::new(Project::new("Legacy"));

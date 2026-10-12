@@ -40,6 +40,7 @@ impl Session {
     pub(super) fn retire_project(&self, retirement: &mut ProjectRetirement) {
         self.controller().take_retired(retirement);
         retirement.clear();
+        windfall_dsp::asset::collect_retired();
     }
 }
 
