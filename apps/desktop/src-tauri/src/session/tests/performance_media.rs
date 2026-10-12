@@ -255,6 +255,10 @@ fn missing_video_decoder_refuses_unmute_atomically() {
     let before = rig.project();
     let mut media = StageMedia::default();
     media.videos.push(VideoPlacement { path, start_tick: 0, length_ticks: 960, offset_seconds: 0.0, muted: false, mixer_track: TrackId::MASTER });
+    let error = rig.session.dispatch(Command::SetStageMedia { media: media.clone() }, None).unwrap_err();
+    assert!(error.to_string().contains("Cannot decode video audio"));
+    assert_eq!(rig.project(), before);
+    media.videos[0].path = rig.file("absent-video.avi");
     let error = rig.session.dispatch(Command::SetStageMedia { media }, None).unwrap_err();
     assert!(error.to_string().contains("Cannot decode video audio"));
     assert_eq!(rig.project(), before);
