@@ -93,4 +93,47 @@ temporary native `TS_RS_EXPORT_DIR`. No worktree changes or hardware tests.
 
 ## Resume / final gates
 
-B is next, then A7. Release budgets and final gates not yet run.
+B in progress; A7 and final gates still pending. No UI-visible types or
+TypeScript changed.
+
+## B profiling and intermediate measurements
+
+- Windows CPU sampling unavailable: `wpr -start CPU -filemode` returned
+  **0xc5585011**, "Failed to enable the policy to profile system performance";
+  `target/round4-builder-profile-start.log`. No elevation or downloads.
+  Temporary release kernel timing harness (`--lib round4_profile`, 2/0/0)
+  measures actual six-operator and 8x FIR kernels, with constituent-operation
+  timing: matrix 200,000 lane substeps **51.3812 ms**, frequency-only work
+  **29.7587 ms**; 10M unit phases remainder **48.1899 ms**, floor **14.3461 ms**;
+  8x oversampler 200,000 host frames **82.7891 ms**, shaping-only **4.3153 ms**.
+  `target/round4-builder-hot-kernel-profile.log`. Remove this temporary harness
+  before final checks; these two tests are profiling, not accuracy acceptance.
+- Unchanged release instrument baseline **11/9/0**, 194.88 s;
+  `target/round4-builder-instruments-baseline.log`. Matrix **4.7294x**, Hybrid
+  **5.4889x**; scheduling variability also failed Vintage Saw this run.
+- Matrix coefficient caches invalidate on parameter configuration and actual
+  lane pitch/rate/key change; unit-cycle phase normalization uses floor.
+  Partial physics, stereo pan and filter coefficients are cached until their
+  exact inputs change. First optimization: **12/8/0**, 134.56 s,
+  `target/round4-builder-instruments-optimized1.log`: Matrix **1.4475x**,
+  Hybrid **2.2043x**. Second: **15/5/0**, 119.95 s,
+  `target/round4-builder-instruments-optimized2.log`: Color Scan **0.4531x**,
+  Harmonic Filter **0.6487x**, Spectral Resynth passes; Snapshot Morph
+  **0.7563x**, Metal Voice **1.1108x**, Matrix **1.5084x**, Hybrid **1.2778x**;
+  GMS Analog/Phase/Ring pass **0.5526/0.7205/0.4804x**, Table fails **1.9767x**.
+  No polyphony, partial counts, operator routes or workloads changed.
+- Drive optimization uses mirrored FIR rings with unchanged coefficients and
+  per-tap accumulation order, cached SVF coefficients and four independent
+  cabinet dot-product accumulators (all taps retained; smaller roundoff bound).
+  **All drive budget workloads pass** in
+  `target/round4-builder-effects-optimized2.log`; grouped run **2/1/0**.
+  The A4 high-rate Voice LPC expansion introduces a spectral CPU failure:
+  Voice mode **1.630809x** vs **0.5**, Mix **0.480075x** at block 64. Mirrored
+  LPC history removes per-lag modular addressing while retaining order/window.
+  Accuracy/allocator regression checks and further spectral optimization pending.
+- Current third instrument experiment: keep all 16 GMS Table harmonics using
+  the sine recurrence in double precision; share one precise shimmer rotation
+  per voice; dense FM uses the existing additive minimax polynomial with a new
+  independent 1M-phase accuracy check. Standard-library reference remains
+  unchanged. `target/round4-builder-instruments-optimized3.log` still running;
+  not yet accepted or committed as a product fix.
