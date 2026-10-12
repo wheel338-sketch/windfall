@@ -465,6 +465,17 @@ async fn audio_editor_discard(session: State<'_, Session>, token: u32) -> Result
 }
 
 #[tauri::command]
+async fn audio_editor_save_wavpack(session: State<'_, Session>, token: u32, start: u32, end: u32, path: String, depth: windfall_ipc::BitDepth) -> Result<(), String> {
+    let session = session.inner().clone();
+    blocking(move || session.audio_editor_save_wavpack(token, start, end, path, depth)).await
+}
+
+#[tauri::command]
+async fn m4a_capability() -> Result<Option<String>, String> {
+    blocking(|| Ok(windfall_codec::m4a_capability().err().map(|e| e.to_string()))).await
+}
+
+#[tauri::command]
 async fn audio_editor_regions(
     session: State<'_, Session>,
     token: u32,
@@ -1345,6 +1356,8 @@ pub fn handler() -> impl Fn(Invoke) -> bool + Send + Sync + 'static {
         audio_editor_open,
         audio_editor_apply,
         audio_editor_discard,
+        audio_editor_save_wavpack,
+        m4a_capability,
         audio_analysis_detect,
         audio_analysis_audition,
         audio_analysis_apply,

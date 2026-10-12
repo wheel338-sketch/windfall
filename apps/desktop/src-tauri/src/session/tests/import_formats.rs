@@ -11,7 +11,7 @@ use crate::session::ClipPlace;
 
 const FRAMES: usize = SAMPLE_RATE as usize / 2;
 
-fn formats() -> [EncoderSettings; 3] {
+fn formats() -> [EncoderSettings; 4] {
     [
         EncoderSettings::Flac {
             depth: FlacBitDepth::Int24,
@@ -24,6 +24,7 @@ fn formats() -> [EncoderSettings; 3] {
                 ..Mp3Settings::default()
             },
         },
+        EncoderSettings::WavPack { depth: windfall_codec::WavPackDepth::Int24 },
     ]
 }
 

@@ -31,6 +31,29 @@ async function open() {
 }
 
 describe("selected clip audio editor", () => {
+  it("sends the editor selection to WavPack saving and displays a capability failure", async () => {
+    vi.spyOn(backend, "audioEditorOpen").mockResolvedValue(preview)
+    vi.spyOn(backend, "pickExportPath").mockResolvedValue("/exports/Take.wv")
+    const saved = vi.spyOn(backend, "audioEditorSaveWavpack")
+    await open()
+    fireEvent.change(screen.getByLabelText("Start frame (included)"), {target: {value: "100"}})
+    fireEvent.change(screen.getByLabelText("End frame (excluded)"), {target: {value: "900"}})
+    fireEvent.click(screen.getByRole("button", {name: "Save selection as WavPack"}))
+    await waitFor(() => expect(saved).toHaveBeenCalledWith(7, 100, 900, "/exports/Take.wv", "int24"))
+    await screen.findByText("WavPack saving requires the desktop app.")
+    expect(backend.pickExportPath).toHaveBeenCalledWith("Take", "wv")
+  })
+  it("cancelled WavPack save dialog does not publish or edit the project", async () => {
+    vi.spyOn(backend, "audioEditorOpen").mockResolvedValue(preview)
+    vi.spyOn(backend, "pickExportPath").mockResolvedValue(null)
+    const saved = vi.spyOn(backend, "audioEditorSaveWavpack")
+    const before = useProjectStore.getState().project
+    await open()
+    fireEvent.click(screen.getByRole("button", {name: "Save selection as WavPack"}))
+    await waitFor(() => expect(screen.getByRole("button", {name: "Save selection as WavPack"})).toBeEnabled())
+    expect(saved).not.toHaveBeenCalled()
+    expect(useProjectStore.getState().project).toEqual(before)
+  })
   it.each(["project replacement", "unmount"])(
     "ignores an Apply reply after %s, even with reused revisions",
     async (change) => {

@@ -475,6 +475,8 @@ fn audio_format(format: ExportFormat) -> AudioFormat {
         ExportFormat::Flac => AudioFormat::Flac,
         ExportFormat::Ogg => AudioFormat::Ogg,
         ExportFormat::Mp3 => AudioFormat::Mp3,
+        ExportFormat::Wv => AudioFormat::WavPack,
+        ExportFormat::M4a => AudioFormat::M4a,
     }
 }
 
@@ -483,6 +485,12 @@ fn audio_format(format: ExportFormat) -> AudioFormat {
 /// not looked at.
 fn encoder_settings(options: &ExportOptions) -> Result<EncoderSettings, String> {
     let settings = match options.format {
+        ExportFormat::M4a => EncoderSettings::M4a { bitrate: options.aac_bitrate.unwrap_or(192) },
+        ExportFormat::Wv => EncoderSettings::WavPack { depth: match options.bit_depth {
+            BitDepth::Int16 => windfall_codec::WavPackDepth::Int16,
+            BitDepth::Int24 => windfall_codec::WavPackDepth::Int24,
+            BitDepth::Float32 => return Err("WavPack export supports 16/24-bit integer PCM. Choose an integer depth or WAV for float audio.".into()),
+        } },
         ExportFormat::Ogg => EncoderSettings::Vorbis {
             quality: options.ogg_quality.unwrap_or(DEFAULT_VORBIS_QUALITY),
         },
@@ -580,6 +588,11 @@ fn longest_frames(settings: &EncoderSettings, sample_rate: u32) -> f64 {
         EncoderSettings::Flac { .. }
         | EncoderSettings::Vorbis { .. }
         | EncoderSettings::Mp3 { .. } => day,
+        EncoderSettings::WavPack { depth } => {
+            let bytes = match depth { windfall_codec::WavPackDepth::Int16 => 2.0, windfall_codec::WavPackDepth::Int24 => 3.0 };
+            day.min((MAX_WAV_BYTES / (bytes * f64::from(CHANNELS))).floor())
+        }
+        EncoderSettings::M4a { .. } => day.min((windfall_codec::MAX_M4A_PACKETS as f64 * 1024.0) - 8192.0),
     }
 }
 

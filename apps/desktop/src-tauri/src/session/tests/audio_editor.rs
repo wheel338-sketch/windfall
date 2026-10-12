@@ -37,6 +37,44 @@ fn request(token: u32, operation: Op) -> AudioEditRequest {
 }
 
 #[test]
+fn editor_wavpack_saves_rendered_selection_exactly_without_history_edits_and_rejects_stale_tokens() {
+    let rig = Rig::new(); let (clip, original, original_bytes) = add(&rig);
+    let preview = rig.session.audio_editor_open(clip).unwrap();
+    let before = rig.session.document_snapshot();
+    for (depth, scale) in [(windfall_ipc::BitDepth::Int16, 32768.0_f32), (windfall_ipc::BitDepth::Int24, 8388608.0_f32)] {
+        let path = rig.file("Selection.wv");
+        rig.session.audio_editor_save_wavpack(preview.token, 1, 3, path.clone(), depth).unwrap();
+        let audio = windfall_codec::decode_file(&path).unwrap();
+        assert_eq!(audio.frames(), 2); assert_eq!(audio.channels(), 2);
+        assert_eq!(audio.samples(), &[0.2, -0.2, 0.3, -0.3].map(|v: f32| (v * scale).round() / scale));
+    }
+    assert_eq!(rig.project(), before.project);
+    assert_eq!(rig.session.document_snapshot().history, before.history);
+    assert_eq!(std::fs::read(original).unwrap(), original_bytes);
+    rig.session.project_new().unwrap();
+    let destination = rig.file("Selection.wv"); let kept = std::fs::read(&destination).unwrap();
+    assert!(rig.session.audio_editor_save_wavpack(preview.token, 0, 1, destination.clone(), windfall_ipc::BitDepth::Int24).is_err());
+    assert_eq!(std::fs::read(destination).unwrap(), kept);
+}
+
+#[test]
+fn editor_wavpack_publication_rechecks_edits_after_encoding_and_removes_staging() {
+    let rig = Rig::new(); let (clip, _, _) = add(&rig);
+    let preview = rig.session.audio_editor_open(clip).unwrap();
+    let path = rig.file("Kept.wv"); std::fs::write(&path, b"previous").unwrap();
+    let hold = rig.session.hold("audio-editor:wavpack-staged");
+    let job = rig.session.background(move |s| s.audio_editor_save_wavpack(preview.token, 0, 4, path, windfall_ipc::BitDepth::Int24));
+    hold.wait();
+    rig.session.dispatch(Command::AddPlaylistTrack { name: None, index: None }, None).unwrap();
+    let after_edit = rig.session.document_snapshot();
+    hold.release();
+    assert!(job.join().unwrap().unwrap_err().contains("changed"));
+    assert_eq!(std::fs::read(rig.file("Kept.wv")).unwrap(), b"previous");
+    assert_eq!(rig.session.document_snapshot(), after_edit);
+    assert!(!std::fs::read_dir(rig.folder.path()).unwrap().any(|entry| entry.unwrap().file_name().to_string_lossy().starts_with(".Kept.wv")));
+}
+
+#[test]
 fn regions_markers_follow_views_transfers_history_and_fresh_reopen() {
     use windfall_ipc::{AudioEditDestination, AudioEditRange, AudioEditTransferRequest};
     use windfall_project::{AudioRegion, ChannelSource};

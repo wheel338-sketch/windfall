@@ -381,6 +381,10 @@ pub enum ExportFormat {
     Ogg,
     /// Lossy MPEG Layer III; bit depth is ignored.
     Mp3,
+    /// Lossless integer WavPack.
+    Wv,
+    /// AAC-LC using the operating system encoder.
+    M4a,
 }
 
 /// MP3 rate policy. VBR quality runs from 0 (best) to 9 (smallest).
@@ -473,6 +477,10 @@ pub struct ExportOptions {
     #[serde(default)]
     #[ts(optional)]
     pub mp3: Option<Mp3Settings>,
+    /// Windows AAC bitrate in kbps: 96, 128, 160 or 192. Absent means 192.
+    #[serde(default)]
+    #[ts(optional)]
+    pub aac_bitrate: Option<u16>,
     /// Exports stems instead of one file. Absent means one file, the mix.
     #[serde(default)]
     #[ts(optional)]
@@ -503,6 +511,7 @@ impl Default for ExportOptions {
             flac_level: None,
             ogg_quality: None,
             mp3: None,
+            aac_bitrate: None,
             stems: None,
             mastering: None,
         }
