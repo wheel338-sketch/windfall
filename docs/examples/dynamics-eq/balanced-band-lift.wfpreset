@@ -1,0 +1,12 @@
+{
+  "schema": "windfall.preset",
+  "version": 1,
+  "kind": "plugin",
+  "name": "Balanced band lift",
+  "plugin": {
+    "state": {
+      "type": "effect",
+      "params": {"type": "multibandMaximizer", "inputGainDb": 4.0, "ceilingDb": -1.5, "low": {"thresholdDb": -22.0, "ratio": 2.5, "attackMs": 25.0, "releaseMs": 180.0, "makeupDb": 1.0}, "mid": {"thresholdDb": -20.0, "ratio": 2.0, "attackMs": 12.0, "releaseMs": 140.0, "makeupDb": 0.5}, "high": {"thresholdDb": -24.0, "ratio": 2.0, "attackMs": 5.0, "releaseMs": 100.0, "makeupDb": -1.0}}
+    }
+  }
+}

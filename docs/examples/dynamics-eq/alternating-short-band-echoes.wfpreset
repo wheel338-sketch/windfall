@@ -1,0 +1,21 @@
+{
+  "schema": "windfall.preset",
+  "version": 1,
+  "kind": "plugin",
+  "name": "Alternating short band echoes",
+  "plugin": {
+    "state": {
+      "type": "effect",
+      "params": {"type": "frequencyDelay", "dry": 0.7, "wet": 0.35, "feedback": 0.2, "scale": 1.0, "bands": [
+        {"delayMs": 25.0, "level": 0.8, "pan": -0.3}, {"delayMs": 40.0, "level": 0.8, "pan": 0.3},
+        {"delayMs": 55.0, "level": 0.8, "pan": -0.3}, {"delayMs": 70.0, "level": 0.8, "pan": 0.3},
+        {"delayMs": 85.0, "level": 0.8, "pan": -0.3}, {"delayMs": 100.0, "level": 0.8, "pan": 0.3},
+        {"delayMs": 115.0, "level": 0.8, "pan": -0.3}, {"delayMs": 130.0, "level": 0.8, "pan": 0.3},
+        {"delayMs": 145.0, "level": 0.8, "pan": -0.3}, {"delayMs": 160.0, "level": 0.8, "pan": 0.3},
+        {"delayMs": 175.0, "level": 0.8, "pan": -0.3}, {"delayMs": 190.0, "level": 0.8, "pan": 0.3},
+        {"delayMs": 205.0, "level": 0.8, "pan": -0.3}, {"delayMs": 220.0, "level": 0.8, "pan": 0.3},
+        {"delayMs": 235.0, "level": 0.8, "pan": -0.3}, {"delayMs": 250.0, "level": 0.8, "pan": 0.3}
+      ]}
+    }
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "schema": "windfall.preset",
+  "version": 1,
+  "kind": "plugin",
+  "name": "Soft resonant lowpass",
+  "plugin": {
+    "state": {
+      "type": "effect",
+      "params": {"type": "selectableFilter", "mode": "lowpass", "frequencyHz": 1600.0, "q": 1.4, "gainDb": 0.0}
+    }
+  }
+}

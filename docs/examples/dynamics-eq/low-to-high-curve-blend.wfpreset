@@ -1,0 +1,16 @@
+{
+  "schema": "windfall.preset",
+  "version": 1,
+  "kind": "plugin",
+  "name": "Low to high curve blend",
+  "plugin": {
+    "state": {
+      "type": "effect",
+      "params": {"type": "morphEq", "morph": 0.35, "curveCount": 2, "curves": [
+        {"gainsDb": [3.0, 3.0, 2.0, 1.0, 0.0, -1.0, -2.0, -2.0, -1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]},
+        {"gainsDb": [-2.0, -2.0, -1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 2.0, 3.0, 3.0, 2.0, 1.0]},
+        {}, {}
+      ]}
+    }
+  }
+}

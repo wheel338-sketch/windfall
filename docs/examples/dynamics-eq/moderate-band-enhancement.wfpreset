@@ -1,0 +1,12 @@
+{
+  "schema": "windfall.preset",
+  "version": 1,
+  "kind": "plugin",
+  "name": "Moderate band enhancement",
+  "plugin": {
+    "state": {
+      "type": "effect",
+      "params": {"type": "oneKnob", "amount": 0.45}
+    }
+  }
+}

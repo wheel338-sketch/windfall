@@ -1,0 +1,12 @@
+{
+  "schema": "windfall.preset",
+  "version": 1,
+  "kind": "plugin",
+  "name": "Gentle three band control",
+  "plugin": {
+    "state": {
+      "type": "effect",
+      "params": {"type": "multibandCompressor", "lowCrossoverHz": 160.0, "highCrossoverHz": 3000.0, "low": {"thresholdDb": -24.0, "ratio": 2.0, "attackMs": 30.0, "releaseMs": 200.0, "makeupDb": 1.0}, "mid": {"thresholdDb": -22.0, "ratio": 2.5, "attackMs": 15.0, "releaseMs": 150.0, "makeupDb": 0.5}, "high": {"thresholdDb": -26.0, "ratio": 2.0, "attackMs": 5.0, "releaseMs": 100.0, "makeupDb": -1.0}, "sidechain": false}
+    }
+  }
+}

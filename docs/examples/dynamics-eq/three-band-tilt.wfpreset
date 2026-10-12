@@ -1,0 +1,12 @@
+{
+  "schema": "windfall.preset",
+  "version": 1,
+  "kind": "plugin",
+  "name": "Three band tilt",
+  "plugin": {
+    "state": {
+      "type": "effect",
+      "params": {"type": "bandSplit", "bands": "three", "lowCrossoverHz": 160.0, "highCrossoverHz": 3200.0, "lowGainDb": 2.0, "midGainDb": -2.0, "highGainDb": 1.0}
+    }
+  }
+}

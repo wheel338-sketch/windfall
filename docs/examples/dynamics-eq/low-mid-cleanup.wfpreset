@@ -1,0 +1,12 @@
+{
+  "schema": "windfall.preset",
+  "version": 1,
+  "kind": "plugin",
+  "name": "Low mid cleanup",
+  "plugin": {
+    "state": {
+      "type": "effect",
+      "params": {"type": "sevenBand", "gainsDb": [1.0, -1.0, -3.0, -1.0, 1.0, 2.0, 0.5]}
+    }
+  }
+}

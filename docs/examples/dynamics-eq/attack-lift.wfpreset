@@ -1,0 +1,12 @@
+{
+  "schema": "windfall.preset",
+  "version": 1,
+  "kind": "plugin",
+  "name": "Attack lift",
+  "plugin": {
+    "state": {
+      "type": "effect",
+      "params": {"type": "transientShaper", "attack": 0.35, "sustain": -0.2, "sensitivity": 1.25, "listen": "both"}
+    }
+  }
+}

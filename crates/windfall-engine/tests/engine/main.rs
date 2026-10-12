@@ -35,3 +35,4 @@ static ALLOCATOR: realtime::CountingAllocator = realtime::CountingAllocator;
 
 mod sample_playback;
 mod spectral;
+mod effect_examples;

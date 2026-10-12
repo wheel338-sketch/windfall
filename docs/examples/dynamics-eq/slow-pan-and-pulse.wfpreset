@@ -1,0 +1,12 @@
+{
+  "schema": "windfall.preset",
+  "version": 1,
+  "kind": "plugin",
+  "name": "Slow pan and pulse",
+  "plugin": {
+    "state": {
+      "type": "effect",
+      "params": {"type": "panLfo", "rateHz": 0.5, "depth": 0.45, "pan": 0.0, "volumeDepth": 0.25, "gain": 0.9, "shape": "triangle", "sync": true, "beats": 4.0}
+    }
+  }
+}
