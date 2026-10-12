@@ -1440,6 +1440,43 @@ fn builtin_long_file_capture_ready_cancel_and_atomic_saved_apply() {
         )
         .unwrap();
     let clip = ClipId(*imported.created.last().unwrap());
+    // A short selection must not bypass the rate-specific duration bound.
+    let long_ticks = windfall_engine::SongClock::new(&rig.project())
+        .unwrap()
+        .tick_after(0, 3601.0)
+        .unwrap();
+    rig.session
+        .prepare_clip_command(windfall_project::Command::UpdateClips {
+            updates: vec![windfall_project::ClipUpdate {
+                id: clip,
+                patch: windfall_project::ClipPatch {
+                    length: Some(long_ticks),
+                    ..Default::default()
+                },
+            }],
+        })
+        .unwrap();
+    let oversized = rig.session.document_snapshot();
+    let mut too_long = request(clip);
+    too_long.task = windfall_ipc::AnalysisTask::DereverbGeneral;
+    too_long.model_id = native::BUILTIN_DEREVERB_ID.into();
+    too_long.end_frame = "100".into();
+    let error = rig.session.analysis_submit(too_long).unwrap_err();
+    assert!(
+        error.contains("analysis:budget") && error.contains("one hour"),
+        "{error}"
+    );
+    assert_eq!(rig.session.document_snapshot(), oversized);
+    assert_eq!(
+        rig.session
+            .inner
+            .analysis
+            .test_manager()
+            .usage()
+            .retained_jobs,
+        0
+    );
+    rig.session.undo().unwrap();
     let before = rig.session.document_snapshot();
     let frames = {
         let state = rig.session.state();

@@ -789,7 +789,7 @@ impl Session {
         if builtin
             && (!rendered_frames.is_finite()
                 || rendered_frames < 1.0
-                || rendered_frames > file_capture::limits().max_frames as f64
+                || rendered_frames > f64::from(source.sample_rate()) * 3600.0
                 || selection
                     .frames()
                     .map_err(native_error)?
