@@ -37,6 +37,9 @@ const HIGH_KEY: u8 = 96;
 /// take turns among themselves.
 static TURN: Mutex<()> = Mutex::new(());
 
+#[path = "analyzer_join.rs"]
+mod joined;
+
 fn turn() -> MutexGuard<'static, ()> {
     TURN.lock().unwrap_or_else(|poisoned| poisoned.into_inner())
 }

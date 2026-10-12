@@ -27,6 +27,23 @@ function redraw(state: Drawing, element: HTMLCanvasElement | null) {
     state.painted += 1
     element.dataset.painted = String(state.painted)
     element.dataset.live = frame ? "true" : "false"
+    const spectrum = frame?.spectrum
+    let strongest = 0
+    const power = (bin: number) => (spectrum?.left[bin] ?? 0) + (spectrum?.right[bin] ?? 0)
+    if (spectrum && (spectrum.left.length || spectrum.right.length)) {
+      for (let bin = 1; bin < Math.max(spectrum.left.length, spectrum.right.length); bin += 1) {
+        if (power(bin) > power(strongest)) strongest = bin
+      }
+      if (power(strongest) > 0) element.dataset.peakHz = String(strongest * spectrum.binHz)
+      else delete element.dataset.peakHz
+    } else delete element.dataset.peakHz
+    element.dataset.sampleRate = frame ? String(frame.clock.sampleRate) : ""
+    element.dataset.pdcFrames = frame ? String(frame.clock.pdcFrames) : ""
+    element.dataset.epoch = frame?.clock.epoch ?? ""
+    element.dataset.invalid = frame ? String(frame.levels[0].invalid + frame.levels[1].invalid) : ""
+    element.dataset.subscription = frame?.ticket.subscription ?? ""
+    element.dataset.sequence = frame?.sequence ?? ""
+    element.dataset.skippedEvents = frame?.counters.skippedEvents ?? ""
   }
   if (!context || !size || !colors) return
   context.setTransform(size.dpr, 0, 0, size.dpr, 0, 0)

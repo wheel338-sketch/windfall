@@ -1,4 +1,4 @@
-import { useRef } from "react"
+import { useRef, type ReactNode } from "react"
 
 import { useEffectAnalyzer } from "@/features/analyzers/effect-slot"
 import { useAnalyzerFrames } from "@/features/analyzers/feed"
@@ -65,12 +65,7 @@ export function describeReading(reading: TunerReading | null): {
  * tuner's own, taken from the audio that passes through it on this track;
  * it leaves that audio untouched. It reads one note at a time.
  */
-export function TunerEditor({
-  effect,
-  track,
-  bind,
-}: EditorProps<EffectParamsOf<"tuner">>) {
-  const slot = useEffectAnalyzer(track, effect, { bound: true })
+export function TunerReadout({ slot, reference }: { slot: string; reference?: ReactNode }) {
   const root = useRef<HTMLDivElement>(null)
   const meter = useRef<HTMLDivElement>(null)
   const needle = useRef<HTMLSpanElement>(null)
@@ -81,6 +76,7 @@ export function TunerEditor({
 
   useAnalyzerFrames(slot, {
     onFrame(frame) {
+      newest.current = null
       for (const observation of frame.observations) {
         if (observation.type === "tuner") newest.current = observation
       }
@@ -109,6 +105,9 @@ export function TunerEditor({
         }
       }
       if (root.current) {
+        root.current.dataset.note = shown.note
+        root.current.dataset.cents = newest.current?.cents?.toFixed(2) ?? ""
+        root.current.dataset.frequencyHz = newest.current?.frequencyHz?.toFixed(2) ?? ""
         root.current.toggleAttribute("data-in-tune", shown.inTune)
         root.current.toggleAttribute("data-pitched", shown.needle !== null)
       }
@@ -167,12 +166,16 @@ export function TunerEditor({
         <AnalyzerStatusLine slot={slot} location="this track, one note at a time" />
       </div>
       <div className="flex shrink-0 flex-col justify-center rounded-md border border-border/80 bg-chassis/50 px-2 py-2">
-        <ParamControl
-          {...bind("referenceHz")}
-          label="A4"
-          description="The pitch of the A above middle C that notes are measured against"
-        />
+        {reference}
       </div>
     </div>
   )
+}
+
+export function TunerEditor({ effect, track, bind }: EditorProps<EffectParamsOf<"tuner">>) {
+  const slot = useEffectAnalyzer(track, effect, { bound: true })
+  return <TunerReadout slot={slot} reference={
+    <ParamControl {...bind("referenceHz")} label="A4"
+      description="The pitch of the A above middle C that notes are measured against" />
+  } />
 }

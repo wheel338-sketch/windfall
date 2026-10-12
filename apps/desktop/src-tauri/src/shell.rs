@@ -45,6 +45,11 @@ impl EventSink for WindowEvents {
 /// the default project, and starts the threads that serve it.
 pub fn start(app: &AppHandle) -> Result<Session, Box<dyn Error>> {
     let config_dir = app.path().app_config_dir()?;
+    #[cfg(debug_assertions)]
+    let config_dir = match std::env::var("WINDFALL_CONFIG_DIR") {
+        Ok(path) => crate::paths::absolute(&path).map_err(std::io::Error::other)?,
+        Err(_) => config_dir,
+    };
     let settings = SettingsStore::load(config_dir.join(SETTINGS_FILE));
 
     // Returns once the device is open or has refused. That is quick for a
@@ -61,6 +66,19 @@ pub fn start(app: &AppHandle) -> Result<Session, Box<dyn Error>> {
     if std::env::var(SILENT_ENV).is_ok_and(|value| value == "1") {
         controller.set_output_gain(0.0);
         log::info!("{SILENT_ENV} is set: the audio output is turned all the way down");
+    }
+    #[cfg(debug_assertions)]
+    if !std::env::var(SILENT_ENV).is_ok_and(|value| value == "1")
+        && let Ok(value) = std::env::var("WINDFALL_OUTPUT_GAIN")
+    {
+        let gain: f32 = value.parse().map_err(std::io::Error::other)?;
+        if !gain.is_finite() || !(0.0..=1.0).contains(&gain) {
+            return Err(std::io::Error::other(
+                "WINDFALL_OUTPUT_GAIN must be finite and between 0 and 1",
+            )
+            .into());
+        }
+        controller.set_output_gain(gain);
     }
     let status = engine.status();
     match &status.error {

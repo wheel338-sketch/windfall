@@ -20,6 +20,7 @@ import { ProjectOverviewPanel } from "@/features/project-overview/panel"
 import { PhaseMeterPanel } from "@/features/phase-meter/panel"
 import { SpectrogramPanel } from "@/features/spectrogram/panel"
 import { ScopePanel } from "@/features/analyzers/scope-panel"
+import { AnalyzerSmokeHost } from "@/features/analyzers/smoke-host"
 import { TransportBar } from "@/features/transport/transport-bar"
 import { resolveTheme, useUiStore } from "@/lib/store/ui"
 
@@ -116,6 +117,7 @@ export function AppShell() {
         <FlpImportDialog />
         <RetainedSoundsDialog />
         <Overlays />
+        <AnalyzerSmokeHost />
       </ValueContextMenus>
     </TooltipProvider>
   )

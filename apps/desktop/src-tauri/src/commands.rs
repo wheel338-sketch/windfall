@@ -1123,6 +1123,8 @@ pub fn handler() -> impl Fn(Invoke) -> bool + Send + Sync + 'static {
         assistant_request_begin,
         assistant_request_cancel,
         assistant_remote,
+        analyzer_smoke_enabled,
+        analyzer_smoke_control,
         engine_status,
         process_memory,
         engine_devices,
@@ -1522,4 +1524,15 @@ async fn assistant_remote(
 ) -> Result<windfall_project::assistant::AssistantReply, String> {
     let session = session.inner().clone();
     blocking(move || session.assistant_remote(request, &prompt)).await
+}
+
+#[tauri::command]
+fn analyzer_smoke_enabled() -> bool {
+    crate::analyzer_smoke::enabled()
+}
+
+#[tauri::command]
+async fn analyzer_smoke_control(session: State<'_, Session>, operation: String, value: Option<f64>) -> Result<serde_json::Value, String> {
+    let session = session.inner().clone();
+    blocking(move || crate::analyzer_smoke::control(&session, &operation, value)).await
 }
