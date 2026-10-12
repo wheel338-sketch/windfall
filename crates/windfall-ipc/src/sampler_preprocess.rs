@@ -41,7 +41,7 @@ pub struct SamplerPreprocessRequest {
     #[serde(default)]
     #[ts(optional)]
     pub loop_crossfade: Option<f32>,
-    /// Raise the peak to full scale with one gain for every channel.
+    /// Set the peak to −1 dBFS with one gain for every channel.
     #[serde(default)]
     #[ts(optional)]
     pub normalize: Option<bool>,

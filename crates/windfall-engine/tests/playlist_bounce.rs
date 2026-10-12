@@ -34,6 +34,7 @@ fn soloed_playlist_span_renders_note_and_audio_into_a_buffer_and_excludes_other_
         let channel = ChannelId(10);
         project.samples.push(SampleAsset {
             processing: None,
+            regions: Vec::new(),
             id: sample,
             name: "Tone".into(),
             path: SamplePath::Project("tone.wav".into()),

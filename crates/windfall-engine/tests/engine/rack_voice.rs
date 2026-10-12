@@ -14,6 +14,61 @@ use windfall_project::{
 use crate::realtime::allocator_calls;
 use crate::support::{Rig, frequency, left, level, peak, right, rms, run, sine};
 
+#[test]
+fn instrument_channel_echo_is_transposed_partition_invariant_and_bounded_cost() {
+    let mut rig = Rig::new();
+    let channel = rig.synth_on(
+        crate::support::plain_synth(),
+        windfall_project::TrackId::MASTER,
+    );
+    rig.channel_mut(channel).voice.echo = echo(100.0, 0.5, 1, 12);
+    let started = std::time::Instant::now();
+    let reference = hold_and_release(&rig, channel, 2400, 12000, 512);
+    let block_time = started.elapsed();
+    assert!((frequency(&reference[600..2000], RATE) - 261.6256).abs() < 1.0);
+    assert!((frequency(&reference[5600..6800], RATE) - 523.2511).abs() < 2.0);
+    let started = std::time::Instant::now();
+    let single = hold_and_release(&rig, channel, 2400, 12000, 1);
+    let single_time = started.elapsed();
+    assert_eq!(single, reference);
+    eprintln!("instrument echo 12000 frames: block512={block_time:?}, block1={single_time:?}");
+    // This is a deterministic bounded-work smoke ceiling, not a driver deadline.
+    assert!(single_time < std::time::Duration::from_secs(10));
+    let (mut processor, controller) = rig.processor(RATE);
+    controller.note_on(channel, 60, 1.0);
+    let mut buffer = [0.0; 2];
+    for _ in 0..12000 {
+        assert_eq!(allocator_calls(|| processor.process(&mut buffer)), 0);
+    }
+}
+
+#[test]
+fn seek_keeps_live_held_echoes_and_loop_discards_only_sequenced_echoes() {
+    let (mut rig, channel) = echo_rig(level(RATE, 0.5, 2.0), echo(600.0, 0.5, 1, 0));
+    // Loop is 500 ms; a 600 ms delayed sequenced note must never leak
+    // across that loop. Compare the complete signal with echo disabled.
+    rig.project.patterns[0].length_steps = 4;
+    rig.note(channel, 0, 100);
+    let echoed = rig.play(RATE, 72000, 64);
+    rig.channel_mut(channel).voice.echo.enabled = false;
+    let dry = rig.play(RATE, 72000, 64);
+    assert_eq!(echoed, dry);
+    rig.channel_mut(channel).voice.echo = echo(10.0, 0.5, 1, 0);
+    let (mut processor, controller) = rig.processor(RATE);
+    controller.play();
+    controller.note_on(channel, 72, 1.0);
+    run(&mut processor, 400, 64);
+    controller.seek(700.0);
+    let after_seek = left(&run(&mut processor, 700, 64));
+    assert!(
+        peak(&after_seek[200..]) > 0.0,
+        "a seek retains the player's held note and echo"
+    );
+    controller.stop();
+    run(&mut processor, 512, 64);
+    assert_eq!(peak(&run(&mut processor, 1000, 64)), 0.0);
+}
+
 const RATE: u32 = 48_000;
 /// Frames a cut or stopped voice takes to fade out: 4 ms.
 const FADE_FRAMES: usize = 192;

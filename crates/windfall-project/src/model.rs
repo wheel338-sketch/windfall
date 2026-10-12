@@ -417,6 +417,25 @@ pub struct SampleAsset {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(optional)]
     pub processing: Option<crate::AudioEditRecipe>,
+    /// Named regions (or markers when start=end), in source frames.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[ts(as = "Option<Vec<AudioRegion>>", optional)]
+    pub regions: Vec<AudioRegion>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct AudioRegion {
+    pub name: String,
+    pub start_frame: u32,
+    pub end_frame: u32,
+}
+pub fn check_audio_regions(regions: &[AudioRegion]) -> Result<(), String> {
+    if regions.len() > 256 || regions.iter().any(|r| r.name.trim().is_empty() || r.name.len() > 256 || r.start_frame > r.end_frame) {
+        return Err("Use at most 256 named audio regions with ordered frame endpoints.".into());
+    }
+    Ok(())
 }
 
 /// Where a sample's audio file lives.

@@ -139,6 +139,8 @@ export interface Backend extends AnalysisBackend, MixerPresetLibraryBackend, Ana
     request: import("@/features/audio-editor/types").AudioEditRequest
   ): Promise<DispatchResult>
   audioEditorDiscard(token: number): Promise<void>
+  audioEditorRegions(token: number, regions: import("@/features/audio-editor/types").AudioRegion[]): Promise<DispatchResult>
+  audioEditorTransfer(request: import("@/features/audio-editor/transfer").AudioEditTransferRequest): Promise<DispatchResult>
   samplePlaybackDetect(channel: ChannelId, options: import("@/features/slicer/types").SliceOptions, generation: number, revision: number): Promise<DispatchResult>
   audioAnalysisDetect(token: number, polyphonic: boolean): Promise<import("@/features/audio-editor/analysis-types").AudioAnalysisPreview>
   audioAnalysisAudition(edit: import("@/features/audio-editor/analysis-types").AudioAnalysisEdit, dry: boolean): Promise<void>
@@ -216,6 +218,8 @@ export interface Backend extends AnalysisBackend, MixerPresetLibraryBackend, Ana
   samplerPreprocess(
     request: import("@/bindings").SamplerPreprocessRequest
   ): Promise<DispatchResult>
+  samplerPreprocessPreview(request: import("@/bindings").SamplerPreprocessRequest): Promise<import("@/bindings").SampleInfo>
+  collectDerivedAssets(): Promise<number>
   detectClipTempo(
     sample: SampleId
   ): Promise<{ bpm: number; confidence: number }[]>

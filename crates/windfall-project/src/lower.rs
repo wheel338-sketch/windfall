@@ -39,6 +39,7 @@ mod playlist_layouts;
 /// Preset commands, lowered beside the rest so they share its transaction.
 mod preset_apply;
 mod sample_playback;
+mod audio_regions;
 
 /// What a command did to the project.
 pub(crate) struct Outcome {
@@ -1383,6 +1384,7 @@ impl Transaction<'_> {
                 self.push(Edit::SetSample(Change { old, new }));
                 "Audio analysis recipe"
             },
+            Command::SetSampleRegions { sample, expected, regions } => self.set_sample_regions(sample, expected, regions)?,
             Command::RemoveSample { id } => self.remove_sample(id)?,
             Command::AddChannel {
                 name,
@@ -2031,7 +2033,7 @@ impl Transaction<'_> {
         let id = SampleId(self.allocate()?);
         self.push(Edit::Sample(ListEdit::Insert {
             index: self.project.samples.len(),
-            item: SampleAsset { id, name, path, processing: None },
+            item: SampleAsset { id, name, path, processing: None, regions: Vec::new() },
         }));
         self.created.push(id.0);
         Ok(label)

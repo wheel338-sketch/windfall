@@ -11,7 +11,10 @@ export type AudioEditPreview = {
   sampleRate: number
   /** Stereo min/max envelope. */
   peaks: number[]
+  spectral?: number[]
+  regions?: AudioRegion[]
 }
+export type AudioRegion = { name: string; startFrame: number; endFrame: number }
 
 /** A frame range of the clip view: [startFrame, endFrame). */
 export type AudioEditRange = {
@@ -53,6 +56,13 @@ export type AudioEditOperation =
       }
     }
   | { insertSilence: { frames: number } }
+  | { equalize: { lowDb: number; midDb: number; highDb: number } }
+  | { blur: { amount: number } }
+  | { convolve: { impulse: AudioEditRange; wet: number } }
+  | { repairClipping: { threshold: number } }
+  | { loopTune: { crossfadeFrames: number } }
+  | { stripSilence: { thresholdDb: number; minSilenceFrames: number } }
+  | "script"
 
 export type AudioEditRequest = {
   token: number

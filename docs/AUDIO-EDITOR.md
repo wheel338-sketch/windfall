@@ -1,12 +1,12 @@
-# Basic audio editor
+# Audio editor
 
 Select one playlist audio clip and choose **Audio editor** in the clip settings
 strip. The native editor shows a waveform of that clip's current window. Drag
 either direction to select a range, or type exact frame endpoints. Start is
 inclusive; end is exclusive. **Select all** restores the whole window.
 
-Each operation commits immediately as one undo step, closes the editor and
-selects the resulting clip. Reopen the editor to make another edit. On errors,
+Each operation commits immediately as one undo step, selects the resulting
+clip and renews the native preview while keeping the editor open. On errors,
 the selection remains available. A stale project/source error requires closing
 and reopening; no old result is attached to a new document.
 
@@ -84,7 +84,8 @@ sample after the latest edit, not after the whole chain.
 
 Request compatibility: the eight original operations keep their wire names.
 Operations with parameters travel as an object with one key, and every
-parameter has a default, so `{"declick": {}}` parses.
+original processing parameter has a default, so `{"declick": {}}` parses.
+The advanced operations added in the second pass require their explicit fields.
 
 Status of this section: written, not executed. The Rust and TypeScript were
 finished under an instruction not to build or test, so none of the tests
@@ -113,16 +114,68 @@ by the DSP tests are in the test sources.
   disabled tool for an out-of-range parameter or an invalid selection, a
   native refusal.
 
-Not implemented: the editor still closes after each edit and must be reopened
-on the new clip (the session supports edits in a row; the dialog does not yet
-stay open); recording into the editor from an effect slot (the
-[audio logger](AUDIO-LOGGER.md) can keep a mixer track after its effects and
-add it to the playlist, from where the editor opens it, but there is no
-recorder inside the editor and no tap between two effects); a spectral view;
-regions and markers; scripting; convolution, blur and equalisation; drag to a
-sampler channel; clipping repair; strip-silence splitting; loop crossfade
-tuning; stretch quality and formant controls in the dialog (the request
-carries them; the dialog sends standard quality without formant correction).
+## Second-pass editor tools
+
+Added 2026-10-12; **written, not executed**. The first-wave execution evidence
+below predates these additions.
+
+- **Audio editor recorder** in the mixer Add effect menu inserts a transparent
+  Send tap slot. Its effect editor has Record, Stop and edit, and Discard.
+  The native logger captures immediately after that slot and before the next
+  effect/fader. Stop attaches one WAV/clip as one undo step and opens it for
+  editing. Insert the slot between the effects whose intermediate signal you
+  want. Duration/memory limits follow the audio logger. Changing logger sources
+  starts a new history; another slot recorder must finish before this one starts.
+  New/Open disarms slot sources because effect ids are document-local.
+- **Show spectrum** displays a Hann-windowed 128-column, 64-bin spectrogram,
+  linear frequency from DC to Nyquist, brightness from −96 to 0 dBFS. It uses
+  the louder channel's magnitude so opposite-phase stereo remains visible.
+  The waveform and spectrum share the same exact frame-selection controls.
+- **Regions/markers** add named source-frame metadata to the sample asset.
+  Equal endpoints are markers. Select or remove entries in the editor;
+  region writes are one guarded undo step and survive save/reopen. Display
+  anchors follow clip offset, reverse and tape/spectral timing. Derived edits
+  carry clipped/transformed anchors into their own sample. A region that spans
+  a partial reverse remains a contiguous bounding interval.
+- **Equalize selection** applies smooth three-band FFT EQ with transitions at
+  250 Hz/4 kHz and ±24 dB controls. A boost that clips is refused.
+- **Blur selection** smooths spectral magnitudes over neighbouring bins while
+  retaining phase, with a 1–100 % amount.
+- **Convolve selection** uses a captured range from this view as an impulse,
+  up to 32768 frames, with a wet mix. It performs linear convolution per channel
+  and crops the tail at the selection boundary. No proprietary IR is supplied.
+- **Repair clipping** reconstructs short plateaus using Hermite interpolation.
+  It requires two clean frames on each side and refuses plateaus over 256 frames;
+  it cannot recover lost original information exactly.
+- **Tune loop seam** crossfades the selected tail toward its reversed head so
+  the last sample meets the first. The chosen crossfade uses at most half the
+  selection and keeps its duration.
+- **Split and strip silence** finds linked-stereo quiet runs, replaces the clip
+  with the retained sections at their original song positions, and leaves audio
+  outside the selection in place. The derived WAV retains source frame offsets;
+  playlist placements/offsets use whole ticks and refuse overlapping splits.
+- **Stretch and pitch** now exposes Fast/Standard/High quality and formant
+  preservation for the selection.
+- **Drag selection to sampler or playlist** creates one Float32 WAV and attaches
+  it in one native transaction. Sampler assignment resets trim/reverse/loop/
+  stretch/tune to avoid applying them twice; other channel controls remain.
+  Playlist drops use the destination lane and snapped start. The original clip
+  stays in place. Expired tokens and late replies after project replacement refuse.
+
+### Script worker hookup
+
+`Session::audio_editor_run_script_selection(token, AudioEditRange, run)` is the
+production entry point for the separately developed sandbox interpreter. `run`
+receives only the immutable selected `AudioBuffer` and returns its replacement
+or an error. The entry point shares built-in source/token/document guards,
+bounded finite/rate/channel validation, derived-file publication and one-step
+history. It must be called on a blocking worker. The sandbox worker owns script
+parsing, instruction/memory quotas and execution; no second interpreter is here.
+Its IPC/UI adapter should accept a script plus the active token/range, invoke
+this entry point with its sandbox runner, and deliver the returned DispatchResult
+through the editor's ordinary commit/token-renewal flow. Sending `"script"` to
+the built-in apply command explicitly refuses. The interpreter and user-facing
+Run script action remain dependent on `gpt/w3-scripting-assistant` integration.
 
 ## What is rendered
 
@@ -153,14 +206,18 @@ a uniquely reserved Float32 WAV in the app settings folder's
 `recordings/Audio edits` directory. It becomes a normal project sample with an
 external absolute path. A single batch adds that sample and adds the resulting
 clip; replacement operations remove the old clip in that same batch. The
-original sample asset remains in the project. This avoids a file-format or
-generated-command change.
+original sample asset remains in the project. Optional source-frame regions
+are omitted when empty; `SetSampleRegions` is the metadata history command.
 
 Undo restores the old clip and removes the derived sample/clip from the
 document; redo restores them. Successful derived files remain on disk for
 history and saved documents. Save/reopen and a fresh session load them through
 the ordinary sample loader. Refused work removes its reserved output file.
-There is no automatic garbage collection of successful derived files yet.
+The sampler inspector's **Clean unused derived audio** action collects outputs
+created in this session only when current/undo/redo roots do not reference them.
+Saved/backup/imported sources are pinned. Unknown files and older-session files
+are retained because the app cannot establish that other saved projects no
+longer need them. Refused outputs are removed immediately.
 
 These are persistent app-owned assets, **not a portable project bundle**.
 Moving a project to another machine requires copying its external audio assets
@@ -169,7 +226,8 @@ change the project's general sample packaging behavior.
 
 ## Threading and limits
 
-IPC `audio_editor_open`, `audio_editor_apply` and `audio_editor_discard` run on
+IPC `audio_editor_open`, `audio_editor_apply`, `audio_editor_regions`,
+`audio_editor_transfer` and `audio_editor_discard` run on
 blocking workers. A dedicated editor mutex serializes jobs and retains at most
 one immutable view/token. It is never used by the audio callback. Source/view/
 spectral-output buffers are each limited to two minutes and 64 MiB; oversized,
@@ -228,9 +286,10 @@ audio input; no physical hardware or macOS/Linux verification is claimed.
 
 ## Parent integration
 
-Shared changes are limited to module exports, the session editor field, three
-IPC registrations, Backend/Tauri/mock methods, and the audio clip inspector's
-new button. Preserve parallel slicer/inspector additions when integrating.
+Second-pass shared seams also include the optional regions model/command,
+logger effect-source contract and chain taps, Send tap recorder editor/menu,
+sampler/playlist drag handlers and the dialog's optional backdrop. Preserve
+parallel slicer/inspector and command-list additions when integrating.
 The feature-local TypeScript IPC contract matches `windfall-ipc/audio_edit.rs`;
 the parent owns the final combined ts-rs bindings and browser WASM regeneration.
 No generated bindings/WASM, parity files or publication are part of this branch.

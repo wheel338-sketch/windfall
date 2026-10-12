@@ -7,11 +7,13 @@ export function Waveform({
   selection,
   onSelection,
   disabled,
+  spectral = false,
 }: {
   preview: AudioEditPreview
   selection: Selection
   onSelection(selection: Selection): void
   disabled: boolean
+  spectral?: boolean
 }) {
   const anchor = useRef<number | null>(null)
   const buckets = preview.peaks.length / 2
@@ -35,7 +37,7 @@ export function Waveform({
   return (
     <svg
       role="img"
-      aria-label={`Clip waveform, selected frames ${selection.start} to ${selection.end}`}
+      aria-label={`Clip ${spectral ? "spectrogram" : "waveform"}, selected frames ${selection.start} to ${selection.end}`}
       viewBox="0 0 1000 160"
       preserveAspectRatio="none"
       className="h-40 w-full touch-none rounded-md border bg-background"
@@ -68,8 +70,10 @@ export function Waveform({
         anchor.current = null
       }}
     >
-      <line x1="0" x2="1000" y1="80" y2="80" className="stroke-border" />
-      <path d={path} className="stroke-muted-foreground" strokeWidth="1" />
+      {spectral ? preview.spectral?.map((value, i) => <rect key={i} x={Math.floor(i/64)*1000/128} y={(63-i%64)*160/64} width={1000/128+0.1} height={160/64+0.1} fill={`hsl(${260-value*210} 85% ${5+value*65}%)`} />) : <>
+        <line x1="0" x2="1000" y1="80" y2="80" className="stroke-border" />
+        <path d={path} className="stroke-muted-foreground" strokeWidth="1" />
+      </>}
       <rect
         x={first}
         y="0"

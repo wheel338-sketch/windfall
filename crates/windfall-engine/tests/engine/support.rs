@@ -44,6 +44,7 @@ impl Rig {
         self.pool.insert(id, audio);
         self.project.samples.push(SampleAsset {
             processing: None,
+            regions: Vec::new(),
             id,
             name: format!("sample {}", id.0),
             path: SamplePath::Project(format!("{}.wav", id.0)),

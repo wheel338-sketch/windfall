@@ -37,7 +37,7 @@ use windfall_ipc::{
     AUDIO_LOGGER_MAX_SECONDS, AUDIO_LOGGER_MAX_TRACKS, AUDIO_LOGGER_MIN_SECONDS, AudioLoggerSource,
     RecordingSource,
 };
-use windfall_project::TrackId;
+use windfall_project::{EffectId, TrackId};
 
 use crate::controller::Controller;
 
@@ -220,9 +220,35 @@ impl Lane {
 pub(crate) struct LoggerTap {
     master: Option<Lane>,
     tracks: Box<[(TrackId, Lane)]>,
+    effects: Box<[(EffectId, Lane)]>,
 }
 
 impl LoggerTap {
+    #[inline]
+    pub(crate) fn effect(&mut self, id: EffectId, left: &[f32], right: &[f32]) {
+        for (logged, lane) in &mut self.effects {
+            if *logged != id {
+                continue;
+            }
+            let frames = left.len().min(right.len());
+            let room = lane.queue.slots().min(frames);
+            if room > 0
+                && let Ok(chunk) = lane.queue.write_chunk_uninit(room)
+            {
+                chunk.fill_from_iter(
+                    left[..room]
+                        .iter()
+                        .zip(&right[..room])
+                        .map(|(a, b)| [*a, *b]),
+                );
+            }
+            if room < frames {
+                lane.counters
+                    .dropped
+                    .fetch_add((frames - room) as u64, Ordering::Relaxed);
+            }
+        }
+    }
     /// The final mix of one block, as it leaves the engine.
     #[inline]
     pub(crate) fn master(&mut self, out: &[Frame]) {
@@ -304,6 +330,7 @@ pub struct LoggerSpec {
     /// Mixer tracks to log after their effects, at most
     /// [`AUDIO_LOGGER_MAX_TRACKS`], each once.
     pub tracks: Vec<TrackId>,
+    pub effects: Vec<EffectId>,
     /// Start the worker that drains the queues. Without it nothing reaches a
     /// history until [`AudioLogger::pump`] is called, which is how tests
     /// make the queues overflow on purpose.
@@ -416,6 +443,15 @@ fn queue_frames(sample_rate: u32) -> usize {
 }
 
 fn check(spec: &LoggerSpec) -> Result<(), String> {
+    if spec.effects.len() > AUDIO_LOGGER_MAX_TRACKS
+        || spec
+            .effects
+            .iter()
+            .enumerate()
+            .any(|(i, effect)| spec.effects[..i].contains(effect))
+    {
+        return Err("Choose at most four different effect slots to record.".into());
+    }
     if !(AUDIO_LOGGER_MIN_SECONDS..=AUDIO_LOGGER_MAX_SECONDS).contains(&spec.seconds) {
         return Err(format!(
             "The audio logger keeps {AUDIO_LOGGER_MIN_SECONDS} to {AUDIO_LOGGER_MAX_SECONDS} seconds."
@@ -434,7 +470,7 @@ fn check(spec: &LoggerSpec) -> Result<(), String> {
     if repeated {
         return Err("A mixer track can be logged only once.".into());
     }
-    if !spec.master && spec.tracks.is_empty() {
+    if !spec.master && spec.tracks.is_empty() && spec.effects.is_empty() {
         return Err("Choose the master output or a mixer track to log.".into());
     }
     Ok(())
@@ -472,10 +508,16 @@ impl Controller {
                 spec.tracks
                     .iter()
                     .map(|&track| AudioLoggerSource::Track { track }),
+            )
+            .chain(
+                spec.effects
+                    .iter()
+                    .map(|&effect| AudioLoggerSource::Effect { effect }),
             );
         let mut sources = Vec::new();
         let mut master = None;
         let mut tracks = Vec::new();
+        let mut effects = Vec::new();
         for source in named {
             let frames = queue_frames(sample_rate);
             let (producer, consumer) = RingBuffer::new(frames);
@@ -486,6 +528,7 @@ impl Controller {
             };
             match source {
                 AudioLoggerSource::Track { track } => tracks.push((track, lane)),
+                AudioLoggerSource::Effect { effect } => effects.push((effect, lane)),
                 _ => master = Some(lane),
             }
             sources.push(Source {
@@ -499,6 +542,7 @@ impl Controller {
         let tap = Box::new(LoggerTap {
             master,
             tracks: tracks.into_boxed_slice(),
+            effects: effects.into_boxed_slice(),
         });
         self.set_audio_logger_tap(Some(stream), Some(tap))?;
         let core = Arc::new(Core {
@@ -540,6 +584,7 @@ impl Controller {
         }
         let mut master = None;
         let mut tracks = Vec::new();
+        let mut effects = Vec::new();
         let mut queues = Vec::new();
         {
             let sources = logger.core.sources();
@@ -551,6 +596,7 @@ impl Controller {
                 };
                 match source.source {
                     AudioLoggerSource::Track { track } => tracks.push((track, lane)),
+                    AudioLoggerSource::Effect { effect } => effects.push((effect, lane)),
                     _ => master = Some(lane),
                 }
                 queues.push(consumer);
@@ -559,6 +605,7 @@ impl Controller {
         let tap = Box::new(LoggerTap {
             master,
             tracks: tracks.into_boxed_slice(),
+            effects: effects.into_boxed_slice(),
         });
         // The old queues are emptied into the histories before they go, and
         // the new ones are in place before the audio thread can fill them.
@@ -730,6 +777,7 @@ mod tests {
             seconds,
             master,
             tracks: tracks.iter().map(|&id| TrackId(id)).collect(),
+            effects: Vec::new(),
             worker: false,
         };
         for bad in [
@@ -757,6 +805,7 @@ mod tests {
             seconds: 30,
             master: true,
             tracks: vec![TrackId::MASTER, TrackId(77)],
+            effects: Vec::new(),
             worker: false,
         };
         let logger = controller.start_audio_logger(&spec).unwrap();
@@ -791,6 +840,7 @@ mod tests {
             seconds: 30,
             master: true,
             tracks: Vec::new(),
+            effects: Vec::new(),
             worker: false,
         }
     }
@@ -880,6 +930,7 @@ mod tests {
                 counters: Arc::new(Counters::default()),
             }),
             tracks: Vec::new().into_boxed_slice(),
+            effects: Vec::new().into_boxed_slice(),
         });
         assert!(
             controller

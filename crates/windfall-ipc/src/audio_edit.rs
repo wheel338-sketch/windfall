@@ -14,6 +14,11 @@ pub struct AudioEditPreview {
     pub sample_rate: u32,
     /// Stereo min/max envelope, retaining opposite-phase channels.
     pub peaks: Vec<f32>,
+    /// 128 time columns × 64 linear-frequency bins, normalized -96..0 dBFS.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[ts(as = "Option<Vec<f32>>", optional)]
+    pub spectral: Vec<f32>,
+    pub regions: Vec<windfall_project::AudioRegion>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
@@ -163,6 +168,33 @@ pub enum AudioEditOperation {
         #[serde(default)]
         frames: u32,
     },
+    Equalize {
+        low_db: f32,
+        mid_db: f32,
+        high_db: f32,
+    },
+    /// Spectral magnitude blur, 0..1, with original phases retained.
+    Blur {
+        amount: f32,
+    },
+    /// Captured impulse range of this immutable clip view (maximum 32768 frames).
+    Convolve {
+        impulse: AudioEditRange,
+        wet: f32,
+    },
+    RepairClipping {
+        threshold: f32,
+    },
+    LoopTune {
+        crossfade_frames: u32,
+    },
+    /// Split at silent runs, retaining their timeline positions.
+    StripSilence {
+        threshold_db: f32,
+        min_silence_frames: u32,
+    },
+    /// Only the sandbox worker's selection entry point may render this operation.
+    Script,
 }
 
 fn default_strength() -> f32 {
@@ -208,6 +240,13 @@ impl AudioEditOperation {
             Self::InvertPhase { .. } => "Invert phase",
             Self::Stretch { .. } => "Stretch",
             Self::InsertSilence { .. } => "Insert silence",
+            Self::Equalize { .. } => "Equalize",
+            Self::Blur { .. } => "Spectral blur",
+            Self::Convolve { .. } => "Convolve",
+            Self::RepairClipping { .. } => "Repair clipping",
+            Self::LoopTune { .. } => "Tune loop",
+            Self::StripSilence { .. } => "Strip silence",
+            Self::Script => "Script selection",
         }
     }
 }
@@ -221,6 +260,28 @@ pub struct AudioEditRequest {
     /// Inclusive first frame and exclusive end frame of the clip view.
     pub start_frame: u32,
     pub end_frame: u32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, TS)]
+#[serde(tag = "type", rename_all = "camelCase")]
+#[ts(export)]
+pub enum AudioEditDestination {
+    Sampler {
+        channel: windfall_project::ChannelId,
+    },
+    Playlist {
+        track: Option<windfall_project::PlaylistTrackId>,
+        start: u32,
+    },
+}
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct AudioEditTransferRequest {
+    pub token: u32,
+    pub start_frame: u32,
+    pub end_frame: u32,
+    pub destination: AudioEditDestination,
 }
 
 #[cfg(test)]

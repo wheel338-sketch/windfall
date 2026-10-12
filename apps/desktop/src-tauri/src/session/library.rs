@@ -393,6 +393,7 @@ impl Session {
 
     fn decode_for_generation(&self, path: &str, generation: u64) -> Result<Import, String> {
         let file = paths::absolute(path)?;
+        self.pin_derived(&file);
         let buffer = self.inner.cache.decode(&file)?;
         #[cfg(test)]
         self.pause("import:decoded");

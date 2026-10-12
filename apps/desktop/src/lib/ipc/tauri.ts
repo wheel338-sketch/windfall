@@ -182,6 +182,8 @@ export function createTauriBackend(): Backend {
     audioEditorOpen: (clip) => call("audio_editor_open", { clip }),
     audioEditorApply: (request) => call("audio_editor_apply", { request }),
     audioEditorDiscard: (token) => call("audio_editor_discard", { token }),
+    audioEditorRegions: (token, regions) => call("audio_editor_regions", { token, regions }),
+    audioEditorTransfer: (request) => call("audio_editor_transfer", { request }),
     samplePlaybackDetect: (channel, options, generation, revision) => call("sample_playback_detect", { channel, options, generation, revision }),
     audioAnalysisDetect: (token, polyphonic) => call("audio_analysis_detect", { token, polyphonic }),
     audioAnalysisAudition: (edit, dry) => call("audio_analysis_audition", { edit, dry }),
@@ -313,6 +315,8 @@ export function createTauriBackend(): Backend {
     prepareSamplerCommand: (command, request) =>
       call("prepare_sampler_command", { command, request }),
     samplerPreprocess: (request) => call("sampler_preprocess", { request }),
+    samplerPreprocessPreview: (request) => call("sampler_preprocess_preview", { request }),
+    collectDerivedAssets: () => call("collect_derived_assets"),
     detectClipTempo: (sample) => call("detect_clip_tempo", { sample }),
     sampleInfoById: (sample) => call("sample_info_by_id", { sample }),
     addChannelFromFile: (path, index, browser) =>

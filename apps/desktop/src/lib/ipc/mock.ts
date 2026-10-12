@@ -1178,6 +1178,10 @@ export function createMockBackend(options: MockOptions = {}): MockBackend {
     audioAnalysisApply: () => Promise.reject(new Error("Audio analysis requires the desktop app. No audio or project changes were made.")),
     audioAnalysisSendMidi: () => Promise.reject(new Error("Audio to MIDI requires the desktop app. No notes were inserted.")),
     audioAnalysisCancel: () => Promise.resolve(),
+    audioEditorRegions: () => Promise.reject(new Error("Audio region editing requires the desktop app.")),
+    audioEditorTransfer: () => Promise.reject(new Error("Selection audio transfer requires the desktop app.")),
+    samplerPreprocessPreview: () => Promise.reject(new Error("Prepared sample preview requires the desktop audio engine.")),
+    collectDerivedAssets: () => Promise.reject(new Error("Derived file cleanup requires the desktop app.")),
     detectClipTempo: () =>
       Promise.reject(
         new Error(

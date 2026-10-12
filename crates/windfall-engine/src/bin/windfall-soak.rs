@@ -309,6 +309,7 @@ fn drum_project() -> (Project, SamplePool) {
         pool.insert(sample, sound);
         project.samples.push(SampleAsset {
             processing: None,
+            regions: Vec::new(),
             id: sample,
             name: name.to_owned(),
             path: SamplePath::Factory(format!("soak/{}.wav", name.to_lowercase())),
@@ -561,6 +562,7 @@ fn add_song(project: &mut Project, pool: &mut SamplePool, bass: ChannelId, bass_
     pool.insert(sample, riser());
     project.samples.push(SampleAsset {
             processing: None,
+        regions: Vec::new(),
         id: sample,
         name: "Riser".to_owned(),
         path: SamplePath::Factory("soak/riser.wav".to_owned()),

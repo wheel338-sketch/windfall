@@ -70,6 +70,7 @@ mod archive;
 mod assistant_connection;
 mod audio;
 mod audio_editor;
+mod derived_assets;
 mod audio_logger;
 mod autosave;
 mod capture_expression;
@@ -205,6 +206,7 @@ struct Inner {
     script_ticket: std::sync::atomic::AtomicU64,
     assistant: crate::assistant::Service,
     audio_analysis_cancel: Mutex<Option<windfall_analysis::CancelToken>>,
+    derived_assets: Mutex<derived_assets::Assets>,
     library: crate::library::Library,
     plugins: Mutex<Option<Arc<crate::plugins::PluginManager>>>,
     /// Held by a save or a backup from before it copies the project until
@@ -440,6 +442,7 @@ impl Session {
                 controllers_wake: std::sync::Condvar::new(),
                 audio_editor: Mutex::new(audio_editor::Editor::default()),
                 audio_analysis_cancel: Mutex::new(None),
+                derived_assets: Mutex::new(derived_assets::Assets::default()),
                 library,
                 plugins: Mutex::new(None),
                 save: Mutex::new(()),

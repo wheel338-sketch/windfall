@@ -11,6 +11,7 @@ import {
 } from "@/features/params"
 import { useParamAutomation } from "@/features/automation/live"
 import { dispatch } from "@/lib/store"
+import { SlotRecorder } from "@/features/audio-editor/slot-recorder"
 
 import { BandSplitEditor } from "./band-split/band-split-editor"
 import { CompressorEditor } from "./compressor/compressor-editor"
@@ -208,7 +209,8 @@ export function EffectEditor({
   const kind = slot.params.type
   const descriptor = describe(kind)
   const Editor = customEditor(kind)
-  return Editor ? (
+  return <>
+    {Editor ? (
     <BoundEditor
       trackId={trackId}
       slot={slot}
@@ -217,5 +219,7 @@ export function EffectEditor({
     />
   ) : (
     <FallbackEditor trackId={trackId} slot={slot} descriptor={descriptor} />
-  )
+  )}
+    {kind === "sendTap" && <SlotRecorder key={slot.id} effect={slot.id} />}
+  </>
 }

@@ -152,6 +152,202 @@ fn off_the_sum(whole: &AudioBuffer, parts: &[AudioBuffer]) -> f32 {
 }
 
 #[test]
+fn sidechain_stems_measure_lane_isolation_and_region_decoded_alignment() {
+    use windfall_dsp::{CompressorParams, EffectKind, EffectParams};
+    use windfall_project::{EffectId, MixerTrackPatch, TickRange};
+    let rig = Rig::new();
+    let carrier = TrackId(
+        rig.session
+            .dispatch(
+                Command::AddMixerTrack {
+                    name: Some("Carrier".into()),
+                },
+                None,
+            )
+            .unwrap()
+            .created[0],
+    );
+    let key = TrackId(
+        rig.session
+            .dispatch(
+                Command::AddMixerTrack {
+                    name: Some("Detector".into()),
+                },
+                None,
+            )
+            .unwrap()
+            .created[0],
+    );
+    for id in [TrackId::MASTER, carrier, key] {
+        rig.session
+            .dispatch(
+                Command::UpdateMixerTrack {
+                    id,
+                    patch: MixerTrackPatch {
+                        volume: Some(1.0),
+                        pan: Some(0.0),
+                        ..Default::default()
+                    },
+                },
+                None,
+            )
+            .unwrap();
+    }
+    let make = |name: &str, level: f32, mixer_track| {
+        let path = rig.file(name);
+        windfall_codec::write_wav(
+            Path::new(&path),
+            &AudioBuffer::from_interleaved(
+                SAMPLE_RATE,
+                2,
+                vec![level; 4 * SAMPLE_RATE as usize * 2],
+            ),
+            windfall_codec::WavSampleFormat::Float32,
+        )
+        .unwrap();
+        let result = rig
+            .session
+            .add_audio_clip_from_file(
+                &path,
+                crate::session::ClipPlace {
+                    track: None,
+                    start: 0,
+                    mixer_track: Some(mixer_track),
+                },
+            )
+            .unwrap();
+        let clip = windfall_project::ClipId(*result.created.last().unwrap());
+        rig.project()
+            .playlist
+            .clips
+            .iter()
+            .find(|item| item.id == clip)
+            .unwrap()
+            .track
+    };
+    let carrier_lane = make("carrier.wav", 0.1, carrier);
+    let key_lane = make("key.wav", 0.8, key);
+    rig.session
+        .dispatch(
+            Command::SetTrackOutput {
+                id: key,
+                output: None,
+            },
+            None,
+        )
+        .unwrap();
+    let effect = EffectId(
+        rig.session
+            .dispatch(
+                Command::AddEffect {
+                    track: carrier,
+                    kind: EffectKind::Compressor,
+                    index: None,
+                },
+                None,
+            )
+            .unwrap()
+            .created[0],
+    );
+    rig.session
+        .dispatch(
+            Command::SetEffectParams {
+                track: carrier,
+                effect,
+                params: EffectParams::Compressor(CompressorParams {
+                    sidechain: true,
+                    knee_db: 0.0,
+                    ..Default::default()
+                }),
+            },
+            None,
+        )
+        .unwrap();
+    rig.session
+        .dispatch(
+            Command::SetSidechain {
+                from: key,
+                to: carrier,
+                gain: Some(1.0),
+            },
+            None,
+        )
+        .unwrap();
+    let source = rig.session.timeline_state();
+    let mut request = options(&rig, "region.wav");
+    request.region = Some(TickRange {
+        start: 960,
+        end: 2880,
+    });
+    request.region_generation = Some(source.generation);
+    request.region_revision = Some(source.revision);
+    request.tail_secs = 0.0;
+    let done = export(
+        &rig,
+        &request,
+        &ExportPlaylistStems {
+            tracks: Some(vec![carrier_lane, key_lane]),
+            ..every_lane()
+        },
+    );
+    assert_eq!(done.error, None);
+    let files = done.files.unwrap();
+    let mix = decode(
+        &files
+            .iter()
+            .find(|file| file.playlist_track.is_none())
+            .unwrap()
+            .path,
+    );
+    let stem = decode(
+        &files
+            .iter()
+            .find(|file| file.playlist_track == Some(carrier_lane))
+            .unwrap()
+            .path,
+    );
+    let detector = decode(
+        &files
+            .iter()
+            .find(|file| file.playlist_track == Some(key_lane))
+            .unwrap()
+            .path,
+    );
+    assert_eq!(mix.frames(), SAMPLE_RATE as usize);
+    assert_eq!(stem.frames(), mix.frames());
+    assert_eq!(rms(detector.samples()), 0.0, "key bus stays inaudible");
+    let steady = |buffer: &AudioBuffer| rms(&buffer.samples()[24000..72000]);
+    let expected_ratio = 10.0_f32.powf((-18.0 - 20.0 * 0.8_f32.log10()) * (1.0 - 1.0 / 4.0) / 20.0);
+    assert!((steady(&mix) / steady(&stem) - expected_ratio).abs() < 0.02);
+    // Independently render the same selected region with the key lane muted.
+    rig.session
+        .dispatch(
+            Command::UpdatePlaylistTrack {
+                id: key_lane,
+                patch: PlaylistTrackPatch {
+                    muted: Some(true),
+                    ..Default::default()
+                },
+            },
+            None,
+        )
+        .unwrap();
+    let now = rig.session.timeline_state();
+    request.path = rig.file("dry-reference.wav");
+    request.region_generation = Some(now.generation);
+    request.region_revision = Some(now.revision);
+    rig.events.take();
+    rig.session.export_audio(request).unwrap();
+    assert_eq!(rig.events.wait_for_export().error, None);
+    let dry = decode(&rig.file("dry-reference.wav"));
+    assert_eq!(
+        dry.samples(),
+        stem.samples(),
+        "same region start, end and tail; lane-only detector semantics"
+    );
+}
+
+#[test]
 fn every_playlist_track_lands_in_its_own_file_and_they_add_up_to_the_mix() {
     let rig = Rig::new();
     let lanes = song(&rig);

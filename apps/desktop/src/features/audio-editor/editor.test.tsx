@@ -61,23 +61,29 @@ describe("selected clip audio editor", () => {
       expect(usePlaylistStore.getState().selection).toEqual(selection)
     }
   )
-  it("applies a native result patch, closes the editor and selects the derived clip", async () => {
-    vi.spyOn(backend, "audioEditorOpen").mockResolvedValue(preview)
+  it("applies a native result patch, stays open on the derived clip and renews its native token", async () => {
+    const opened = vi.spyOn(backend, "audioEditorOpen").mockResolvedValueOnce(preview)
     // The result fixture exercises patch/selection delivery; the real WAV and
     // atomic native history path are covered by Rust session fixtures.
     const result = await backend.addAudioClipFromFile(
       "/factory/Loops/Drum loop 128.wav",
       { start: 0 }
     )
+    opened.mockResolvedValue({ ...preview, token: 8, clip: result.created.at(-1)! })
     vi.spyOn(backend, "audioEditorApply").mockResolvedValue(result)
     await open()
     fireEvent.click(screen.getByRole("button", { name: "Normalize" }))
-    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull())
+    await waitFor(() => expect(backend.audioEditorOpen).toHaveBeenCalledWith(result.created.at(-1)))
+    expect(screen.getByRole("dialog")).toBeVisible()
     expect(usePlaylistStore.getState().selection).toEqual(
       new Set([result.created.at(-1)])
     )
     expect(useProjectStore.getState().revision).toBe(result.patch.revision)
     expect(useProjectStore.getState().history.cursor).toBe(1)
+    await waitFor(() => expect(screen.getByRole("button", { name: "Normalize" })).toBeEnabled())
+    const refused = vi.spyOn(backend, "audioEditorApply").mockRejectedValue(new Error("second operation refused"))
+    fireEvent.click(screen.getByRole("button", { name: "Reverse selection" }))
+    await waitFor(() => expect(refused).toHaveBeenLastCalledWith(expect.objectContaining({ token: 8 })))
   })
   it("explicitly refuses browser file operations and preserves document/history", async () => {
     const before = useProjectStore.getState()

@@ -171,6 +171,11 @@ fn the_transport_plays_stops_records_and_switches_between_pattern_and_song() {
     assert_eq!(rig.project(), restored);
     session.redo().unwrap();
     assert_eq!(rig.project(), recorded);
+    let path = rig.file("transport-take.windfall");
+    session.project_save(Some(&path)).unwrap();
+    session.project_new().unwrap();
+    session.project_open(&path).unwrap();
+    assert_eq!(rig.project().playlist, recorded.playlist);
 }
 
 #[test]

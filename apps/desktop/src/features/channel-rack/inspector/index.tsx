@@ -9,6 +9,7 @@ import { useProjectStore } from "@/lib/store/project"
 import { useGesture } from "@/lib/store/gesture"
 import { useChannel, useChannelCount } from "@/lib/store/selectors"
 import { ChannelVoicePanel } from "../voice"
+import { EchoStatus } from "../voice/echo-status"
 import { useUiStore } from "@/lib/store/ui"
 import { colorToCss } from "@/lib/units"
 
@@ -120,6 +121,7 @@ export function ChannelInspector() {
               }
             />
             <KeyboardSection channel={channel} />
+            <EchoStatus />
             <TimingSection channel={channel} />
             <RoutingSection channel={channel} />
           </div>

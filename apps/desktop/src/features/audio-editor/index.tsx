@@ -24,6 +24,8 @@ import { EditTools } from "./tools-panel"
 import { AnalysisTools } from "./analysis-tools"
 import type { AudioEditOperation, AudioEditPreview } from "./types"
 import { Waveform } from "./waveform"
+import { Regions } from "./regions"
+import { startSelectionDrag, endSelectionDrag, registerSelectionReceiver } from "./transfer"
 
 const OPERATIONS: {
   /** The edits without parameters, which travel as their name. */
@@ -76,9 +78,11 @@ const OPERATIONS: {
 export function AudioEditorButton({
   clip,
   disabled,
+  defaultOpen = false,
 }: {
   clip: number | null
   disabled?: boolean
+  defaultOpen?: boolean
 }) {
   // Capture the source at Open. The inspector may stop resolving that source
   // after Apply publishes its replacement, before the IPC reply arrives.
@@ -88,14 +92,14 @@ export function AudioEditorButton({
     generation: number
     ticket: number
     busy: boolean
-  } | null>(null)
-  const nextTicket = useRef(0)
+  } | null>(() => defaultOpen && clip !== null ? {clip,selection:usePlaylistStore.getState().selection,generation:getProjectGeneration(),ticket:1,busy:false} : null)
+  const nextTicket = useRef(defaultOpen ? 1 : 0)
   const busy = session?.busy ?? false
   useEffect(() => {
     const offSelection = usePlaylistStore.subscribe((state, previous) => {
       if (state.selection !== previous.selection)
         setSession((current) =>
-          current?.generation === getProjectGeneration() ? null : current
+          current?.busy ? current : current?.generation === getProjectGeneration() ? null : current
         )
     })
     const offProject = onProjectReplaced(() =>
@@ -113,6 +117,7 @@ export function AudioEditorButton({
   }
   return (
     <Dialog
+      modal={false}
       open={session !== null}
       onOpenChange={(value) => {
         if (busy) return
@@ -141,6 +146,7 @@ export function AudioEditorButton({
       <DialogContent
         className="max-h-[90vh] overflow-y-auto sm:max-w-3xl"
         showCloseButton={!busy}
+        showBackdrop={false}
       >
         <DialogHeader>
           <DialogTitle>Audio editor</DialogTitle>
@@ -161,7 +167,10 @@ export function AudioEditorButton({
                   : current
               )
             }
-            onDone={close}
+            onDone={(clip) => setSession((current) => current?.ticket === session.ticket
+              ? { ...current, clip, selection: usePlaylistStore.getState().selection, ticket: ++nextTicket.current, busy: false }
+              : current)}
+            onClose={close}
           />
         )}
       </DialogContent>
@@ -174,17 +183,20 @@ function Editor({
   selectionAtOpen,
   onBusy,
   onDone,
+  onClose,
 }: {
   clip: number
   selectionAtOpen: ReadonlySet<number>
   onBusy(value: boolean): void
-  onDone(): void
+  onDone(clip: number): void
+  onClose(): void
 }) {
   const [preview, setPreview] = useState<AudioEditPreview | null>(null)
   const [previewGeneration, setPreviewGeneration] = useState(-1)
   const [selection, setSelection] = useState<Selection>({ start: 0, end: 0 })
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [spectral, setSpectral] = useState(false)
   const token = useRef<number | null>(null)
   const alive = useRef(false)
   const generation = useProjectGeneration()
@@ -192,6 +204,8 @@ function Editor({
     let cancelled = false
     alive.current = true
     const atGeneration = getProjectGeneration()
+    setPreview(null)
+    setError(null)
     const offProject = onProjectReplaced(() => {
       if (token.current !== null) {
         void backend.audioEditorDiscard(token.current).catch(() => {})
@@ -238,7 +252,19 @@ function Editor({
   }, [clip, selectionAtOpen])
 
   const stale = preview !== null && previewGeneration !== generation
+  useEffect(() => {
+    if (!preview) return
+    return registerSelectionReceiver(preview.token, {
+      begin: () => {setBusy(true);onBusy(true);setError(null)},
+      done: (target) => {if (alive.current) onDone(target ?? clip)},
+      error: (reason) => {if (alive.current) {setBusy(false);onBusy(false);setError(errorMessage(reason))}},
+    })
+  }, [preview,clip,onBusy,onDone])
   async function apply(operation: AudioEditOperation) {
+    if (!preview) return
+    await commit(() => backend.audioEditorApply({ token:preview.token,operation,startFrame:selection.start,endFrame:selection.end }),true)
+  }
+  async function commit(work: () => ReturnType<typeof backend.audioEditorApply>, selectsCreated: boolean) {
     if (
       !preview ||
       stale ||
@@ -253,12 +279,7 @@ function Editor({
     onBusy(true)
     setError(null)
     try {
-      const result = await backend.audioEditorApply({
-        token: preview.token,
-        operation,
-        startFrame: selection.start,
-        endFrame: selection.end,
-      })
+      const result = await work()
       if (
         !alive.current ||
         atGeneration !== getProjectGeneration() ||
@@ -266,9 +287,9 @@ function Editor({
       )
         return
       receivePatch(result.patch)
-      const id = result.created.at(-1)
+      const id = selectsCreated ? result.created.at(-1) : preview.clip
       if (id !== undefined) usePlaylistStore.getState().select([id])
-      onDone()
+      if (id !== undefined) onDone(id)
     } catch (error) {
       if (
         alive.current &&
@@ -307,7 +328,10 @@ function Editor({
             selection={selection}
             onSelection={setSelection}
             disabled={busy}
+            spectral={spectral}
           />
+          <Button size="sm" variant="outline" disabled={!preview.spectral?.length || busy} onClick={() => setSpectral(value => !value)}>{spectral ? "Show waveform" : "Show spectrum"}</Button>
+          {spectral && <p className="text-xs text-muted-foreground">Time left to right · frequency 0–{preview.sampleRate/2} Hz bottom to top · brightness −96–0 dBFS.</p>}
           <FieldGroup className="flex-row flex-wrap">
             <Field className="w-40" data-invalid={!valid}>
               <FieldLabel htmlFor="audio-edit-start">
@@ -386,6 +410,7 @@ function Editor({
             ))}
           </div>
           <EditTools
+            key={preview.token}
             preview={preview}
             selection={selection}
             disabled={!valid || busy}
@@ -405,6 +430,10 @@ function Editor({
               onDone()
             }}
           />
+          <Regions preview={preview} selection={selection} disabled={!valid || busy} onSelect={setSelection} onWrite={regions=>void commit(()=>backend.audioEditorRegions(preview.token,regions),false)} />
+          <Button size="sm" variant="outline" disabled={!valid || busy} draggable={!!valid && !busy}
+            onDragStart={event=>{if (!valid || busy) {event.preventDefault();return}; startSelectionDrag(event,{token:preview.token,startFrame:selection.start,endFrame:selection.end,durationSecs:(selection.end-selection.start)/preview.sampleRate})}}
+            onDragEnd={endSelectionDrag}>Drag selection to sampler or playlist</Button>
           <p className="text-muted-foreground">
             Edits include the clip’s offset, reverse, pitch/stretch, gain, pan
             and fades. Mixer effects are excluded. Trim preserves the selected
@@ -417,7 +446,7 @@ function Editor({
       )}
       {busy && <p role="status">Rendering and saving the edited audio…</p>}
       <div className="flex justify-end">
-        <Button variant="outline" disabled={busy} onClick={onDone}>
+        <Button variant="outline" disabled={busy} onClick={onClose}>
           Close editor
         </Button>
       </div>

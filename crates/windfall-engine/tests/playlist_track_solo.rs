@@ -24,6 +24,7 @@ fn fixture(kind: Kind) -> (Project, SamplePool) {
     let channel = ChannelId(10);
     project.samples.push(SampleAsset {
             processing: None,
+        regions: Vec::new(),
         id: sample,
         name: "Tone".into(),
         path: SamplePath::Project("tone.wav".into()),

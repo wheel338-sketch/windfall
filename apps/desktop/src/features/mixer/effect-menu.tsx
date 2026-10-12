@@ -227,6 +227,7 @@ export function AddEffectMenu({
         <DropdownMenuItem onClick={() => openPluginManager(track)}>
           Browse plugins…
         </DropdownMenuItem>
+        <DropdownMenuItem onClick={() => void addEffect(track, "sendTap", index)}>Audio editor recorder</DropdownMenuItem>
         {EFFECT_KINDS.map((kind) => (
           <DropdownMenuItem
             key={kind}

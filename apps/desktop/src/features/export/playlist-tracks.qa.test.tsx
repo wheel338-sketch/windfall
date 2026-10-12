@@ -4,6 +4,7 @@ import { afterEach, beforeEach, expect, it, vi } from "vitest"
 
 import type { Project } from "@/bindings"
 import { usePlaylistStore } from "@/features/playlist/store"
+import { useTimelineStore } from "@/features/playlist/timeline-store"
 import { demoProject } from "@/lib/ipc/sim/project"
 import { playlistStemTracks } from "@/lib/ipc/sim/playlist"
 import { dispatch, useProjectStore } from "@/lib/store/project"
@@ -46,8 +47,21 @@ beforeEach(async () => {
 })
 
 afterEach(() => {
+  useTimelineStore.setState(useTimelineStore.getInitialState(), true)
   app.stop()
   vi.restoreAllMocks()
+})
+
+it("submits playlist stems with the selected region and fresh native document guards", async () => {
+  const user = userEvent.setup()
+  const apart = vi.spyOn(app.backend, "exportPlaylistTracks").mockResolvedValue(undefined)
+  act(() => useTimelineStore.setState({ selection: { start: 960, end: 2880 } }))
+  await user.click(lanes())
+  await user.click(screen.getByRole("checkbox", { name: "Export selected song region" }))
+  const source = await app.backend.timelineState()
+  await submit(user)
+  await waitFor(() => expect(apart).toHaveBeenCalledOnce())
+  expect(apart.mock.calls[0][0]).toMatchObject({ mode: "song", region: { start: 960, end: 2880 }, regionGeneration: source.generation, regionRevision: source.revision })
 })
 
 const lanes = () =>

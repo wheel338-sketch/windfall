@@ -905,6 +905,8 @@ pub enum Command {
         processing: Option<crate::AudioEditRecipe>,
     },
 
+    /// Immutable asset metadata, guarded against concurrent region edits.
+    SetSampleRegions { sample: SampleId, expected: Vec<crate::AudioRegion>, regions: Vec<crate::AudioRegion> },
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, TS)]

@@ -5,6 +5,7 @@ import type {
   AudioFadeDirection,
   AudioFadeShape,
   AudioNormalizeMode,
+  AudioStretchQuality,
 } from "./types"
 
 /**
@@ -85,7 +86,9 @@ export function invertPhase(channels: AudioEditChannels): AudioEditOperation {
  */
 export function stretch(
   percent: number,
-  semitones: number
+  semitones: number,
+  quality: AudioStretchQuality = "standard",
+  formants = false
 ): AudioEditOperation | null {
   if (
     !within(percent, LIMITS.stretchPercent) ||
@@ -97,8 +100,8 @@ export function stretch(
     stretch: {
       ratio: percent / 100,
       semitones,
-      quality: "standard",
-      formants: false,
+      quality,
+      formants,
     },
   }
 }

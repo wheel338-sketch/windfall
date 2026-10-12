@@ -43,6 +43,7 @@ function receive(frame: RealtimeFrame) {
   latest.xruns = frame.xruns
   latest.voices = frame.voices
   latest.rejectedRackEvents = frame.rejectedRackEvents
+  latest.rejectedEchoes = frame.rejectedEchoes
   latest.correlation = frame.correlation
   latest.waveforms = frame.waveforms ?? []
   latest.spectrum = frame.spectrum ?? []
@@ -77,6 +78,7 @@ function receive(frame: RealtimeFrame) {
 onProjectReplaced(() => {
   latest.meters = []
   latest.rejectedRackEvents = undefined
+  latest.rejectedEchoes = undefined
   latest.correlation = undefined
   latest.waveforms = []
   latest.spectrum = []

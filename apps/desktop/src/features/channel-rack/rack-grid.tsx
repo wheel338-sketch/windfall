@@ -14,6 +14,7 @@ import { ActionButton } from "@/components/action-button"
 import { ContextActions } from "@/components/context-actions"
 import { StepGridGroup, type StepGridGroupHandle } from "@/components/audio"
 import { hasSampleDrag, readSampleDrag } from "@/lib/dnd"
+import { hasSelectionDrag, readSelectionDrag, transferSelection } from "@/features/audio-editor/transfer"
 import { useProjectStore } from "@/lib/store/project"
 import { usePlayhead } from "@/lib/store/realtime"
 import { useChannelIds, useSelectedPatternId } from "@/lib/store/selectors"
@@ -151,7 +152,7 @@ export function RackGrid() {
 
   /** Where the thing being dragged would land, or null when nowhere. */
   function dropAt(event: DragEvent): Drop | null {
-    if (hasSampleDrag(event)) {
+    if (hasSampleDrag(event) || hasSelectionDrag(event)) {
       const button =
         event.target instanceof Element
           ? event.target.closest<HTMLElement>("[data-channel-button]")
@@ -161,7 +162,7 @@ export function RackGrid() {
         const instrument = findChannel(channel)?.source.type === "instrument"
         return { kind: instrument ? "refuse" : "replace", channel }
       }
-      return { kind: "insert", index: gapAt(event) }
+      return hasSelectionDrag(event) ? null : { kind: "insert", index: gapAt(event) }
     }
     if (event.dataTransfer.types.includes(CHANNEL_DRAG_TYPE)) {
       const from = ids.indexOf(dragged.current ?? -1)
@@ -176,6 +177,7 @@ export function RackGrid() {
   function accepts(event: DragEvent): boolean {
     return (
       hasSampleDrag(event) ||
+      hasSelectionDrag(event) ||
       event.dataTransfer.types.includes(CHANNEL_DRAG_TYPE)
     )
   }
@@ -200,7 +202,7 @@ export function RackGrid() {
     const next = dropAt(event)
     // "none" gives the pointer the not-allowed cursor over an instrument.
     event.dataTransfer.dropEffect =
-      next?.kind === "refuse" ? "none" : hasSampleDrag(event) ? "copy" : "move"
+      next === null || next.kind === "refuse" ? "none" : hasSampleDrag(event) || hasSelectionDrag(event) ? "copy" : "move"
     setDrop((current) => (sameDrop(current, next) ? current : next))
   }
 
@@ -216,6 +218,8 @@ export function RackGrid() {
     const target = dropAt(event)
     setDrop(null)
     if (target === null || target.kind === "refuse") return
+    const selection=readSelectionDrag(event)
+    if (selection && target.kind === "replace") {void transferSelection(selection,{type:"sampler",channel:target.channel});return}
 
     const sample = readSampleDrag(event)
     if (sample) {

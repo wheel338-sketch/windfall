@@ -6,6 +6,7 @@
 
 use std::collections::{HashMap, HashSet};
 use std::fmt;
+use windfall_project::arrangement::TrackKind;
 
 use windfall_project::{
     AutomationPoint, AutomationRange, AutomationTarget, Channel, ChannelId, ClipContent, ClipId,
@@ -252,6 +253,13 @@ pub fn export_song_reported(
         if played.is_empty() {
             continue;
         }
+        // Match song playback: an instrument lane places only its linked
+        // channel, even when the pattern contains other channels or slides.
+        let only = playlist.arrangement_book.linked_tracks.get(&clip.track)
+            .and_then(|kind| match *kind {
+                TrackKind::Instrument { channel } => Some(channel),
+                _ => None,
+            });
         // The tick the clip's first pass of the pattern would begin on,
         // had the clip not cut its beginning off.
         let period = u64::from(*pattern_length);
@@ -261,6 +269,9 @@ pub fn export_song_reported(
         let (clip_start, clip_end) = (u64::from(clip.start) + period, u64::from(clip_end) + period);
         while pass < clip_end {
             for &note in played.iter() {
+                if only.is_some_and(|channel| note.channel != channel) {
+                    continue;
+                }
                 let start = pass + u64::from(note.start);
                 if start >= clip_end {
                     break;

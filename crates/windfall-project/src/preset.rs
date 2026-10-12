@@ -685,6 +685,7 @@ impl ChannelPreset {
         if let Some(id) = sample {
             project.samples.push(SampleAsset {
             processing: None,
+                regions: Vec::new(),
                 id,
                 name: "Preset audio".to_owned(),
                 path: SamplePath::External("preset-audio".to_owned()),

@@ -342,6 +342,18 @@ async fn audio_editor_discard(session: State<'_, Session>, token: u32) -> Result
     })
     .await
 }
+
+#[tauri::command]
+async fn audio_editor_regions(session: State<'_, Session>, token: u32, regions: Vec<windfall_project::AudioRegion>) -> Result<DispatchResult, String> {
+    let session = session.inner().clone();
+    blocking(move || session.audio_editor_regions(token, regions)).await
+}
+
+#[tauri::command]
+async fn audio_editor_transfer(session: State<'_, Session>, request: windfall_ipc::AudioEditTransferRequest) -> Result<DispatchResult, String> {
+    let session = session.inner().clone();
+    blocking(move || session.audio_editor_transfer(request)).await
+}
 #[tauri::command]
 async fn audio_analysis_detect(session: State<'_, Session>, token: u32, polyphonic: bool) -> Result<windfall_ipc::AudioAnalysisPreview, String> {
     let session = session.inner().clone();
@@ -830,6 +842,18 @@ async fn sampler_preprocess(
 }
 
 #[tauri::command]
+async fn sampler_preprocess_preview(session: State<'_, Session>, request: windfall_ipc::SamplerPreprocessRequest) -> Result<windfall_ipc::SampleInfo, String> {
+    let session = session.inner().clone();
+    blocking(move || session.sampler_preprocess_preview(request)).await
+}
+
+#[tauri::command]
+async fn collect_derived_assets(session: State<'_, Session>) -> Result<u32, String> {
+    let session = session.inner().clone();
+    blocking(move || session.collect_derived_assets()).await
+}
+
+#[tauri::command]
 fn export_cancel(session: State<'_, Session>) {
     session.export_cancel();
 }
@@ -1134,6 +1158,8 @@ pub fn handler() -> impl Fn(Invoke) -> bool + Send + Sync + 'static {
         audio_analysis_apply,
         audio_analysis_send_midi,
         audio_analysis_cancel,
+        audio_editor_regions,
+        audio_editor_transfer,
         slice_analyze,
         sample_playback_detect,
         slice_apply,
@@ -1152,6 +1178,8 @@ pub fn handler() -> impl Fn(Invoke) -> bool + Send + Sync + 'static {
         consolidate_playlist_tracks,
         export_playlist_tracks,
         sampler_preprocess,
+        sampler_preprocess_preview,
+        collect_derived_assets,
         export_audio,
         export_cancel,
         midi_preview,

@@ -17,7 +17,7 @@ pub const MAX_PREPROCESS_BYTES: usize = crate::audio_edit::MAX_EDIT_BYTES;
 /// The longest fade, in milliseconds.
 pub const MAX_FADE_MS: f32 = 60_000.0;
 /// What normalizing raises the loudest sample to.
-pub const NORMALIZE_PEAK: f32 = 1.0;
+pub const NORMALIZE_PEAK: f32 = 0.891_250_9; // −1 dBFS, shared with the audio editor.
 
 /// The loop of a sampler, as fractions of the region that plays, in source
 /// order: the sampler's own `loop_start` and `loop_end`.
@@ -495,14 +495,14 @@ mod tests {
         .unwrap();
         let samples = out.audio.samples();
         // Left was 0.4 +/- 0.1 and right 0 +/- 0.1: both become +/- 0.1,
-        // and one gain of ten brings the peak to full scale.
+        // One linked gain brings the peak to −1 dBFS.
         for (index, expected) in [1.0, 1.0, -1.0, -1.0, 1.0, 1.0, -1.0, -1.0]
             .iter()
             .enumerate()
         {
-            assert!((samples[index] - expected).abs() < 1e-5, "{samples:?}");
+            assert!((samples[index] - expected * NORMALIZE_PEAK).abs() < 1e-5, "{samples:?}");
         }
-        assert!((out.normalize_gain - 10.0).abs() < 1e-3);
+        assert!((out.normalize_gain - 10.0 * NORMALIZE_PEAK).abs() < 1e-3);
         let silent = preprocess(
             &mono(vec![0.0; 16]),
             &SamplePreprocess {

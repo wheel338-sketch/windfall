@@ -54,6 +54,9 @@ mod timeline;
 mod transport_acceptance;
 mod versions;
 mod classical_analysis;
+#[cfg(windows)]
+mod mixer_preset_native;
+mod rack_second_pass;
 
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};

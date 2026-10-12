@@ -147,6 +147,7 @@ fn slicing_is_one_undo_step_and_round_trips_with_all_linked_settings() {
     let c = clip();
     project.samples.push(SampleAsset {
             processing: None,
+        regions: Vec::new(),
         id: SampleId(2),
         name: "original".into(),
         path: SamplePath::External("original.wav".into()),
