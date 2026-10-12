@@ -97,7 +97,8 @@ describe("pressing Export", () => {
     ).not.toBeChecked()
     await exportTo(user)
     expect(exported).toHaveBeenCalledWith(
-      expect.objectContaining({ mode: "song", region: undefined })
+      expect.objectContaining({ mode: "song", region: undefined }),
+      expect.stringMatching(/^[0-9a-f-]{36}$/)
     )
     expect(exported.mock.calls[0][0].regionGeneration).toBeUndefined()
     expect(exported.mock.calls[0][0].regionRevision).toBeUndefined()
@@ -177,7 +178,8 @@ describe("pressing Export", () => {
     await user.click(exportButton())
     await settle()
     expect(exported).toHaveBeenCalledWith(
-      expect.objectContaining({ tailSecs: 30 })
+      expect.objectContaining({ tailSecs: 30 }),
+      expect.stringMatching(/^[0-9a-f-]{36}$/)
     )
   })
 
@@ -189,7 +191,8 @@ describe("pressing Export", () => {
     await user.type(seconds, "2.3")
     await exportTo(user)
     expect(exported).toHaveBeenCalledWith(
-      expect.objectContaining({ tailSecs: 2.3 })
+      expect.objectContaining({ tailSecs: 2.3 }),
+      expect.stringMatching(/^[0-9a-f-]{36}$/)
     )
   })
 
@@ -213,7 +216,8 @@ describe("pressing Export", () => {
     await user.click(exportButton())
     await settle()
     expect(exported).toHaveBeenCalledWith(
-      expect.objectContaining({ mode: "song" })
+      expect.objectContaining({ mode: "song" }),
+      expect.stringMatching(/^[0-9a-f-]{36}$/)
     )
   })
 
@@ -239,7 +243,8 @@ describe("pressing Export", () => {
     await user.click(exportButton())
     await settle()
     expect(exported).toHaveBeenCalledWith(
-      expect.objectContaining({ path: "/exports/take 1" })
+      expect.objectContaining({ path: "/exports/take 1" }),
+      expect.stringMatching(/^[0-9a-f-]{36}$/)
     )
     // Progress comes back under the path that was sent, and is followed.
     await waitFor(
@@ -297,7 +302,8 @@ describe("the tail of an export", () => {
 
     await exportTo(user)
     expect(exported).toHaveBeenCalledWith(
-      expect.objectContaining({ autoTail: true, tailSecs: 10 })
+      expect.objectContaining({ autoTail: true, tailSecs: 10 }),
+      expect.stringMatching(/^[0-9a-f-]{36}$/)
     )
   })
 
@@ -314,7 +320,8 @@ describe("the tail of an export", () => {
 
     await exportTo(user)
     expect(exported).toHaveBeenCalledWith(
-      expect.objectContaining({ autoTail: false, tailSecs: 2.5 })
+      expect.objectContaining({ autoTail: false, tailSecs: 2.5 }),
+      expect.stringMatching(/^[0-9a-f-]{36}$/)
     )
   })
 })

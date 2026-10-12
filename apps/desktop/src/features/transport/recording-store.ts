@@ -4,6 +4,7 @@ import type { RecordingInput, RecordingState } from "@/bindings"
 import { backend, errorMessage } from "@/lib/ipc"
 import { receivePatch } from "@/lib/store/project"
 import { getProjectGeneration } from "@/lib/store/replaced"
+import { translatedText } from "@/lib/i18n"
 
 export const useRecordingStore = create(() => ({
   open: false,
@@ -42,7 +43,7 @@ async function work(action: () => Promise<void>) {
   try {
     await action()
   } catch (error) {
-    useRecordingStore.setState({ error: errorMessage(error) })
+    useRecordingStore.setState({ error: translatedText(errorMessage(error)) })
   } finally {
     useRecordingStore.setState({ busy: false })
     await refreshRecording()
@@ -52,7 +53,7 @@ export async function refreshRecording() {
   try {
     useRecordingStore.setState({ state: await backend.recordingState() })
   } catch (error) {
-    useRecordingStore.setState({ error: errorMessage(error) })
+    useRecordingStore.setState({ error: translatedText(errorMessage(error)) })
   }
 }
 export async function openRecording() {
@@ -98,12 +99,12 @@ export function stopRecording() {
     if (generation !== getProjectGeneration())
       throw new Error("The project changed while the take was being attached. Reopen recording.")
     receivePatch(result.patch)
-    toast.success("Recording added to playlist")
+    toast.success(translatedText("Recording added to playlist"))
   })
 }
 export function cancelRecording() {
   return work(async () => {
     await backend.recordingCancel()
-    toast("Recording discarded")
+    toast(translatedText("Recording discarded"))
   })
 }

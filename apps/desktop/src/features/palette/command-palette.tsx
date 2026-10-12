@@ -20,8 +20,9 @@ import {
   type Action,
 } from "@/lib/actions"
 import { useUiStore } from "@/lib/store/ui"
+import { actionTitle, translatedText, useLanguageStore, useTranslation, type Language } from "@/lib/i18n"
 
-import { rank } from "./score"
+import { scoreAction } from "./score"
 
 function bySection(actions: Action[]): [string, Action[]][] {
   const sections = new Map<string, Action[]>()
@@ -35,11 +36,12 @@ function bySection(actions: Action[]): [string, Action[]][] {
 }
 
 /** The actions a search finds, best first: what the palette lists for it. */
-export function searchActions(actions: readonly Action[], search: string) {
-  return rank(actions, search, (action) => ({
-    title: action.title,
-    keywords: `${action.section} ${action.keywords ?? ""}`,
-  }))
+export function searchActions(actions: readonly Action[], search: string, language: Language = useLanguageStore.getState().language) {
+  return actions.map((action, index) => {
+    const keywords = `${action.section} ${translatedText(action.section, language)} ${action.keywords ?? ""}`
+    const score = Math.max(scoreAction(action.title, keywords, search), scoreAction(actionTitle(action.id, action.title, language), keywords, search))
+    return { action, index, score }
+  }).filter((entry) => entry.score > 0).sort((a, b) => b.score - a.score || a.index - b.index).map((entry) => entry.action)
 }
 
 type ListProps = {
@@ -49,6 +51,8 @@ type ListProps = {
 
 // Mounted only while the palette is open, so it can follow the app state.
 function PaletteList({ search, onRun }: ListProps) {
+  const t = useTranslation()
+  const language = useLanguageStore((state) => state.language)
   const actions = useActions()
   const state = useAppState()
   const searching = search.trim() !== ""
@@ -63,13 +67,13 @@ function PaletteList({ search, onRun }: ListProps) {
         disabled={!isEnabled(action, state)}
         onSelect={() => onRun(action.id)}
       >
-        {action.title.replace(/…$/, "")}
+        {actionTitle(action.id, action.title, language).replace(/…$/, "")}
         {where && (
-          <span className="text-[0.625rem] text-muted-foreground">{where}</span>
+          <span className="text-[0.625rem] text-muted-foreground">{t(where)}</span>
         )}
         {reason ? (
           <CommandShortcut className="tracking-normal">
-            {reason}
+            {t(reason)}
           </CommandShortcut>
         ) : (
           shortcut && <CommandShortcut>{shortcut}</CommandShortcut>
@@ -80,7 +84,7 @@ function PaletteList({ search, onRun }: ListProps) {
 
   return (
     <CommandList className="max-h-[min(24rem,60vh)]">
-      <CommandEmpty>No action matches that.</CommandEmpty>
+      <CommandEmpty>{t("No action matches that.")}</CommandEmpty>
       {searching ? (
         // One list, best match first. Under their headings the best match
         // could sit below a whole section of worse ones.
@@ -91,7 +95,7 @@ function PaletteList({ search, onRun }: ListProps) {
         </CommandGroup>
       ) : (
         bySection(actions).map(([section, items]) => (
-          <CommandGroup key={section} heading={section}>
+          <CommandGroup key={section} heading={t(section)}>
             {items.map((action) => row(action))}
           </CommandGroup>
         ))
@@ -105,6 +109,7 @@ function PaletteList({ search, onRun }: ListProps) {
  * shortcut. Choosing one runs it.
  */
 export function CommandPalette() {
+  const t = useTranslation()
   const open = useUiStore((state) => state.dialog === "palette")
   const closeDialog = useUiStore((state) => state.closeDialog)
   const [search, setSearch] = useState("")
@@ -126,8 +131,8 @@ export function CommandPalette() {
       onOpenChange={(next) => {
         if (!next) closeDialog()
       }}
-      title="Command palette"
-      description="Search for an action to run."
+      title={t("Command palette")}
+      description={t("Search for an action to run.")}
       className="sm:max-w-lg"
     >
       {/* cmdk's vim keys would swallow Ctrl+K, which closes the palette.
@@ -135,7 +140,7 @@ export function CommandPalette() {
           sections as wholes, and loses track of some of them. */}
       <Command vimBindings={false} shouldFilter={false}>
         <CommandInput
-          placeholder="Search actions…"
+          placeholder={t("Search actions…")}
           value={search}
           onValueChange={setSearch}
         />
