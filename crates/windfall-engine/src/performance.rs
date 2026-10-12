@@ -39,14 +39,15 @@ struct Held {
 }
 #[derive(Clone, Copy)]
 pub(crate) enum Event {
-    On { token: u64, note: NoteEvent },
-    Off { token: u64 },
+    On { token: u64, note: NoteEvent, pattern: PatternId, start: f64 },
+    Off { token: u64, stopped: bool },
 }
 
 pub(crate) struct Launcher {
     slots: [Slot; TRACKS],
     held: [Option<Held>; HELD],
     events: Vec<Event>,
+    accepted: Vec<LaunchRequest>,
     tick: f64,
     token: u64,
     pub dropped: u64,
@@ -86,6 +87,7 @@ impl Launcher {
             slots: [Slot::default(); TRACKS],
             held: [None; HELD],
             events: Vec::with_capacity(EVENTS),
+            accepted: Vec::with_capacity(TRACKS),
             tick: 0.0,
             token: 0,
             dropped: 0,
@@ -179,12 +181,25 @@ impl Launcher {
     pub fn events_len(&self) -> usize {
         self.events.len()
     }
+    pub fn accepted_len(&self) -> usize { self.accepted.len() }
+    pub fn accepted(&self, index: usize) -> LaunchRequest { self.accepted[index] }
     pub fn tick(&self) -> f64 {
         self.tick
     }
     pub fn advance(&mut self, plan: &Plan, frames: usize, rate: u32) {
+        if let Some(bpm) = self.tempo_override(plan) {
+            self.tick += frames as f64 * bpm * f64::from(PPQ) / (60.0 * f64::from(rate));
+            return;
+        }
         let delta = frames as f64 * plan.tempo_bpm * f64::from(PPQ) / (60.0 * f64::from(rate));
         self.tick = plan.unwarp(plan.warp(self.tick) + delta);
+    }
+    pub fn tempo_override(&self, plan: &Plan) -> Option<f64> {
+        if !plan.performance_tempo { return None; }
+        (0..TRACKS).filter_map(|track| {
+            let (id, phase, _) = self.clip_phase(plan, track, self.tick)?;
+            plan.performance_clips[plan.performance_clip_ids.get(id.0)?].tempo(phase)
+        }).next_back()
     }
     pub fn slot(&self, track: usize) -> (Option<PatternId>, Option<PatternId>, bool) {
         let slot = self.slots[track];
@@ -194,10 +209,19 @@ impl Launcher {
             slot.pending.is_some_and(|p| p.request.pattern.is_none()),
         )
     }
+    /// Read-only clip phase; it does not consume, launch or reorder events.
+    pub fn clip_phase(&self, plan: &Plan, track: usize, tick: f64) -> Option<(PatternId, f64, f64)> {
+        let slot = self.slots[track];
+        let id = slot.pattern?;
+        let length = f64::from(plan.patterns[plan.pattern_ids.get(id.0)?].length);
+        let elapsed = (tick - slot.origin).max(0.0);
+        let cycle = (elapsed / length).floor();
+        Some((id, elapsed - cycle * length, slot.origin + cycle * length))
+    }
     fn off_track(&mut self, track: u8) {
         for held in &mut self.held {
             if let Some(note) = held.filter(|note| note.track == track) {
-                self.events.push(Event::Off { token: note.token });
+                self.events.push(Event::Off { token: note.token, stopped: true });
                 *held = None;
             }
         }
@@ -215,6 +239,7 @@ impl Launcher {
     }
     pub fn step(&mut self, plan: &Plan, rate: u32) {
         self.events.clear();
+        self.accepted.clear();
         for track in 0..TRACKS {
             let slot = self.slots[track];
             if let Some(pending) = slot.pending.filter(|p| p.at <= self.tick + 1e-7) {
@@ -224,11 +249,13 @@ impl Launcher {
                     origin: pending.at,
                     ..Slot::default()
                 };
+                // A notification only: do not change pending/held/event order.
+                self.accepted.push(LaunchRequest { quantization: LaunchQuantization::Immediate, ..pending.request });
             }
         }
         for held in &mut self.held {
             if let Some(note) = held.filter(|note| note.end <= self.tick + 1e-7) {
-                self.events.push(Event::Off { token: note.token });
+                self.events.push(Event::Off { token: note.token, stopped: false });
                 *held = None;
             }
         }
@@ -271,7 +298,7 @@ impl Launcher {
                     token,
                     end: at + note.length,
                 });
-                self.events.push(Event::On { token, note });
+                self.events.push(Event::On { token, note, pattern: pattern.id, start: at });
             }
         }
         self.advance(plan, 1, rate);
@@ -307,15 +334,13 @@ pub fn render_capture(
         return Err("Capture must be ordered, at most 8192 launches and at most 60 seconds".into());
     }
     project.check()?;
-    // Native plugins require a render-role factory rather than an active owner.
-    // This initial capture path refuses them instead of taking their state.
+    let mut render_pool = pool.clone();
     if !project.plugins.is_empty() {
-        return Err(
-            "Native plugin performance capture requires an independent render-owner snapshot"
-                .into(),
-        );
+        let factory = pool.plugin_factory().ok_or("Native performance render provider is unavailable")?;
+        let render = factory.render_factory().ok_or("Native performance capture needs an independent render-owner snapshot")?;
+        render_pool.set_plugin_factory(render);
     }
-    let prepared = crate::Controller::prepare_project(project, pool).map_err(|e| e.to_string())?;
+    let prepared = crate::Controller::prepare_project(project, &render_pool).map_err(|e| e.to_string())?;
     let controller = crate::Controller::new();
     controller.set_prepared_project(project, prepared);
     let mut processor = controller.attach(rate);
@@ -347,6 +372,7 @@ pub fn render_capture(
     if controller.performance_state().dropped_notes != "0" {
         return Err("Capture exceeded the launcher's note capacity".into());
     }
+    if let Some(error) = render_pool.plugin_render_error() { return Err(error); }
     audio.drain(..latency * 2);
     Ok(windfall_core::AudioBuffer::from_interleaved(rate, 2, audio))
 }
@@ -356,6 +382,23 @@ mod tests {
     use super::*;
     use crate::{SamplePool, plan::compile};
     use windfall_project::{Project, StageMedia};
+    #[test]
+    fn accepted_log_contains_only_the_winning_launch_at_its_quantized_boundary() {
+        let plan = note_plan();
+        let pattern = plan.patterns[0].id;
+        let mut launcher = Launcher::new(); launcher.tick = 100.0;
+        let request = LaunchRequest { track: 0, pattern: Some(pattern), quantization: LaunchQuantization::Beat };
+        launcher.request(request, &plan);
+        launcher.request(LaunchRequest { pattern: None, ..request }, &plan);
+        launcher.request(request, &plan);
+        launcher.tick = 959.9; launcher.step(&plan, 48000);
+        assert_eq!(launcher.accepted_len(), 0);
+        launcher.tick = 960.0; launcher.step(&plan, 48000);
+        assert_eq!(launcher.accepted_len(), 1);
+        assert_eq!(launcher.accepted(0), LaunchRequest { quantization: LaunchQuantization::Immediate, ..request });
+        launcher.step(&plan, 48000);
+        assert_eq!(launcher.accepted_len(), 0);
+    }
 
     #[test]
     fn beat_bar_meter_boundaries_are_inclusive() {
@@ -455,7 +498,7 @@ mod tests {
         assert_eq!(launch.held.iter().flatten().next().unwrap().token, token);
         launch.tick = 1680.0;
         launch.step(&faster, 48000);
-        assert!(matches!(launch.event(0), Event::Off { token: released } if released == token));
+        assert!(matches!(launch.event(0), Event::Off { token: released, .. } if released == token));
         assert!(launch.held.iter().all(Option::is_none));
     }
 
@@ -484,7 +527,7 @@ mod tests {
         );
         launch.request(request, &plan);
         launch.step(&plan, 48000);
-        assert!(matches!(launch.event(0), Event::Off { token } if token == first));
+        assert!(matches!(launch.event(0), Event::Off { token, .. } if token == first));
         let second = match launch.event(1) {
             Event::On { token, .. } => token,
             _ => panic!("replacement note"),
@@ -500,7 +543,7 @@ mod tests {
         );
         launch.step(&plan, 48000);
         assert_eq!(launch.events_len(), 1);
-        assert!(matches!(launch.event(0), Event::Off { token } if token == second));
+        assert!(matches!(launch.event(0), Event::Off { token, .. } if token == second));
         assert!(!launch.active());
     }
 
@@ -535,7 +578,7 @@ mod tests {
         );
         assert_eq!(launch.events_len(), HELD);
         for token in tokens {
-            assert_eq!(launch.events.iter().filter(|event| matches!(event, Event::Off { token: released } if *released == token)).count(), 1);
+            assert_eq!(launch.events.iter().filter(|event| matches!(event, Event::Off { token: released, .. } if *released == token)).count(), 1);
         }
         assert!(!launch.active());
         assert_eq!(launch.events.capacity(), EVENTS);

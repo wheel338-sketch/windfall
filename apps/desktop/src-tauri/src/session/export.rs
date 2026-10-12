@@ -329,6 +329,7 @@ impl Session {
         if options.mode == PlayMode::Song
             && options.region.is_none()
             && project.playlist.clips.is_empty()
+            && project.settings.stage_media.videos.is_empty()
         {
             return Err("The playlist is empty, so there is no song to export.".to_owned());
         }
@@ -932,6 +933,7 @@ fn expected_frames(project: &Project, pattern: PatternId, options: &ExportOption
             .clips
             .iter()
             .map(|clip| f64::from(clip.start) + f64::from(clip.length))
+            .chain(project.settings.stage_media.videos.iter().map(|video| f64::from(video.start_tick) + f64::from(video.length_ticks)))
             .fold(0.0, f64::max),
     };
     let tempo = match options.mode {

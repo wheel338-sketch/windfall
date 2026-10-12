@@ -128,15 +128,22 @@ export function createTauriBackend(): Backend {
       return typeof path === "string" ? path : null
     },
     async pickVideoFile() {
-      const picked = await open({ title: "Choose a local video", multiple: false, filters: [{ name: "Video", extensions: ["mp4", "webm", "ogv", "mov"] }] })
+      const picked = await open({ title: "Choose a local video", multiple: false, filters: [{ name: "Video", extensions: ["mp4", "webm", "ogv", "mov", "avi"] }] })
       return typeof picked === "string" ? picked : null
     },
-    mediaVideoRead: (path, generation) => call("media_video_read", { path, generation }),
+    mediaVideoRead: (path, generation, revision) => call("media_video_read", { path, generation, revision }),
     performanceScene: (scene, generation, revision) => call("performance_scene", { scene, generation, revision }),
     mediaRenderAudio: (range, generation, revision) => call("media_render_audio", { range, generation, revision }),
     performanceState: () => call("performance_state"),
     performancePad: (track, scene, generation, revision) => call("performance_pad", { track, scene, generation, revision }),
     performanceStopAll: () => call("performance_stop_all"),
+    performanceRecordState: () => call("performance_record_state"),
+    performanceRecordStart: (generation, revision) => call("performance_record_start", { generation, revision }),
+    performanceRecordStop: () => call("performance_record_stop"),
+    performanceRecordCancel: () => call("performance_record_cancel"),
+    performanceRecordSave: () => call("performance_record_save"),
+    performanceTakeReplay: (index, generation, revision) => call("performance_take_replay", { index, generation, revision }),
+    performanceTakeExport: (index, path, generation, revision) => call("performance_take_export", { index, path, generation, revision }),
     ...nativeRemoteContent(call),
     analyzerCapability: () => call("analyzer_capability"),
     analyzerSubscribe: (slot, handler) => {

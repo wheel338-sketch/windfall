@@ -240,7 +240,8 @@ fn sources(project: &Project, through: bool) -> Vec<bool> {
             } if output.is_mixer() => Some(mixer_track),
             _ => None,
         });
-    for index in channels.chain(clips).filter_map(place) {
+    let videos = project.settings.stage_media.videos.iter().filter(|video| !video.muted).map(|video| video.mixer_track);
+    for index in channels.chain(clips).chain(videos).filter_map(place) {
         gives[index] = true;
     }
     // Routing has no cycles, so this many rounds reach every track.
@@ -345,6 +346,7 @@ pub fn render_streaming_checked(
 ) -> Result<Streamed, crate::render::RenderError> {
     options
         .check_region()
+        .and_then(|()| pool.video_audio_error(project).map_or(Ok(()), Err))
         .map_err(crate::render::RenderError::Timeline)?;
     let pool = pool.prepare_samplers(project, &mut || true, &mut |_, _, _| {})?;
     let pass = Pass::new(compile(project, &pool), options, &[]);
@@ -377,6 +379,7 @@ pub fn render_stems(
     progress: &mut dyn FnMut(f32) -> bool,
 ) -> Result<Streamed, StemError> {
     options.check_region().map_err(StemError::Timeline)?;
+    if let Some(error) = pool.video_audio_error(project) { return Err(StemError::Timeline(error)); }
     let prepared_pool = pool
         .prepare_plugin_render()
         .prepare_samplers(project, &mut || true, &mut |_, _, _| {})
@@ -461,6 +464,7 @@ impl Plan {
     /// slots are taken exactly as they are when everything sounds.
     fn leave_only(&mut self, id: TrackId) {
         let track = self.track_ids.get(id.0);
+        self.videos.retain(|video| Some(video.track) == track);
         for channel in &mut self.channels {
             if Some(channel.track) != track {
                 channel.gain = 0.0;

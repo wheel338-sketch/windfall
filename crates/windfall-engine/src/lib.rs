@@ -117,6 +117,7 @@
 //! the master. Channel solo and track solo do not affect each other.
 
 pub mod analyzers;
+mod video_audio;
 mod automation;
 pub mod channel_voice;
 mod channel_voice_runtime;
@@ -137,6 +138,8 @@ pub mod modular;
 mod note_curves;
 mod note_glide;
 pub mod performance;
+pub mod performance_recording;
+mod performance_clips;
 mod plan;
 pub mod plugins;
 mod pool;

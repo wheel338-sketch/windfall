@@ -8,6 +8,28 @@ use crate::{ChannelId, MAX_SONG_TICKS, PatternId, Project};
 pub const PERFORMANCE_TRACKS: usize = 32;
 pub const PERFORMANCE_SCENES: usize = 16;
 
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct PerformanceLogEvent {
+    pub frame: u32,
+    pub track: u8,
+    pub pattern: Option<PatternId>,
+    pub quantization: LaunchQuantization,
+}
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct PerformanceTake {
+    /// Authoritative final-output PCM, including native plugins. The normal
+    /// sample asset pipeline owns portability, missing files and history.
+    pub sample: crate::SampleId,
+    pub sample_rate: u32,
+    pub frames: u32,
+    pub initial_tick: f64,
+    pub events: Vec<PerformanceLogEvent>,
+}
+
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
 #[ts(export)]
@@ -25,6 +47,16 @@ pub struct PerformancePad {
     pub track: u8,
     pub scene: u8,
     pub pattern: PatternId,
+    /// An audio/automation playlist clip overrides the legacy pattern source.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub clip: Option<crate::ClipId>,
+}
+impl PerformancePad {
+    pub fn launch_pattern(self) -> PatternId { self.clip.map_or(self.pattern, |clip| PatternId(clip.0)) }
+    fn exists(self, project: &Project) -> bool {
+        self.clip.map_or_else(|| project.pattern(self.pattern).is_some(), |id| project.playlist.clips.iter().any(|clip| clip.id == id && matches!(clip.content, crate::ClipContent::Audio { .. } | crate::ClipContent::Automation { .. })))
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
@@ -38,7 +70,11 @@ pub struct VideoPlacement {
     /// Source seconds at the clip's first timeline tick.
     pub offset_seconds: f64,
     pub muted: bool,
+    /// Legacy placements route to master. Audio is decoded by the native host.
+    #[serde(default = "master_track")]
+    pub mixer_track: crate::TrackId,
 }
+fn master_track() -> crate::TrackId { crate::TrackId::MASTER }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
@@ -74,6 +110,8 @@ impl Default for VisualSettings {
 #[ts(export)]
 pub struct StageMedia {
     #[serde(default)]
+    pub takes: Vec<PerformanceTake>,
+    #[serde(default)]
     pub pads: Vec<PerformancePad>,
     #[serde(default)]
     pub quantization: LaunchQuantization,
@@ -90,6 +128,17 @@ impl StageMedia {
     }
 
     pub fn check(&self, project: &Project) -> Result<(), String> {
+        if self.takes.len() > 16 { return Err("At most 16 saved performances are supported".into()); }
+        for take in &self.takes {
+            if project.samples.iter().all(|sample| sample.id != take.sample)
+                || !(8000..=192000).contains(&take.sample_rate)
+                || take.frames == 0 || take.frames > take.sample_rate * 60
+                || !take.initial_tick.is_finite() || take.initial_tick < 0.0
+                || take.events.len() > 8192
+                || take.events.windows(2).any(|pair| pair[0].frame > pair[1].frame)
+                || take.events.iter().any(|event| event.frame > take.frames || usize::from(event.track) >= PERFORMANCE_TRACKS)
+            { return Err("Invalid recorded performance sample, clock or launch log".into()); }
+        }
         if self.pads.len() > PERFORMANCE_TRACKS * PERFORMANCE_SCENES || self.videos.len() > 16 {
             return Err(
                 "At most 512 performance pads and 16 video placements are supported".into(),
@@ -100,7 +149,7 @@ impl StageMedia {
             if usize::from(pad.track) >= PERFORMANCE_TRACKS
                 || usize::from(pad.scene) >= PERFORMANCE_SCENES
                 || !seen.insert((pad.track, pad.scene))
-                || project.pattern(pad.pattern).is_none()
+                || !pad.exists(project)
             {
                 return Err(
                     "A performance pad needs a unique in-range position and an existing pattern"
@@ -113,6 +162,7 @@ impl StageMedia {
                 || video.path.len() > 4096
                 || video.path.contains('\0')
                 || video.length_ticks == 0
+                || !project.mixer.tracks.iter().any(|track| track.id == video.mixer_track)
                 || video
                     .start_tick
                     .checked_add(video.length_ticks)
@@ -142,8 +192,14 @@ impl StageMedia {
     /// Deletion follows the referenced entities in the same undo transaction.
     pub(crate) fn followed(&self, project: &Project) -> Self {
         let mut next = self.clone();
+        next.takes.retain(|take| project.samples.iter().any(|sample| sample.id == take.sample));
         next.pads
-            .retain(|pad| project.pattern(pad.pattern).is_some());
+            .retain(|pad| pad.exists(project));
+        for video in &mut next.videos {
+            if !project.mixer.tracks.iter().any(|track| track.id == video.mixer_track) {
+                video.mixer_track = crate::TrackId::MASTER;
+            }
+        }
         if next
             .dance_channel
             .is_some_and(|id| project.channel(id).is_none())

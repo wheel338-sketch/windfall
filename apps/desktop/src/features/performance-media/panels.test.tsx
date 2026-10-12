@@ -42,6 +42,28 @@ afterEach(() => {
 })
 
 describe("mounted performance and media editors", () => {
+  it("records stops and saves only after callback completion through current document tokens", async () => {
+    Object.defineProperty(backend, "kind", { value: "tauri", configurable: true })
+    let capture = { active: false, finished: false, frames: 0, sampleRate: 48000, error: null }
+    vi.spyOn(backend, "performanceRecordState").mockImplementation(() => Promise.resolve(capture))
+    const start = vi.spyOn(backend, "performanceRecordStart").mockImplementation(() => { capture = { ...capture, active: true }; return Promise.resolve() })
+    const stopCapture = vi.spyOn(backend, "performanceRecordStop").mockImplementation(() => { capture = { ...capture, active: false, finished: true, frames: 4800 }; return Promise.resolve() })
+    const save = vi.spyOn(backend, "performanceRecordSave").mockImplementation(() => { capture = { ...capture, finished: false }; return Promise.resolve() })
+    vi.spyOn(backend, "timelineState").mockResolvedValue({ generation: 55, revision: useProjectStore.getState().revision, request: 0, region: null, navigationOverflows: 0 })
+    render(<PerformancePanel />); act(() => useMediaWindows.setState({ performance: true }))
+    const user = userEvent.setup()
+    expect(await screen.findByRole("button", { name: "Save performance" })).toBeDisabled()
+    await user.click(screen.getByRole("button", { name: "Record performance" }))
+    await waitFor(() => expect(start).toHaveBeenCalledWith(55, useProjectStore.getState().revision))
+    await waitFor(() => expect(screen.getByRole("button", { name: "Stop capture" })).toBeEnabled())
+    await waitFor(() => expect(screen.getByRole("combobox", { name: "Launch boundary" })).toBeDisabled())
+    expect(screen.getByRole("button", { name: "Save performance" })).toBeDisabled()
+    await user.click(screen.getByRole("button", { name: "Stop capture" }))
+    await waitFor(() => expect(screen.getByRole("button", { name: "Save performance" })).toBeEnabled())
+    await user.click(screen.getByRole("button", { name: "Save performance" }))
+    await waitFor(() => expect(save).toHaveBeenCalledTimes(1))
+    expect(stopCapture).toHaveBeenCalledTimes(1)
+  })
   it("launches a saved pad and a scene through current document tokens, including keyboard activation", async () => {
     const pattern = useProjectStore.getState().project.patterns[0].id
     await act(async () => { await changeStageMedia((media) => ({ ...media, pads: [{ track: 0, scene: 0, pattern }] })) })
@@ -105,13 +127,14 @@ describe("mounted performance and media editors", () => {
   })
 
   it("edits mute and source offset and removes saved timeline video with undo", async () => {
-    await act(async () => { await changeStageMedia((media) => ({ ...media, videos: [{ path: "C:/clip.webm", startTick: 0, lengthTicks: 3840, offsetSeconds: 0, muted: true }] })) })
+    await act(async () => { await changeStageMedia((media) => ({ ...media, videos: [{ path: "C:/clip.webm", startTick: 0, lengthTicks: 3840, offsetSeconds: 0, muted: true, mixerTrack: 0 }] })) })
     vi.spyOn(backend, "mediaVideoRead").mockRejectedValue(new Error("Decoder unavailable in harness"))
     vi.spyOn(HTMLMediaElement.prototype, "pause").mockImplementation(() => {})
     render(<VideoPanel />); act(() => useMediaWindows.setState({ video: true }))
     const user = userEvent.setup()
     await user.click(await screen.findByRole("switch", { name: "Mute video 1" }))
     await waitFor(() => expect(useProjectStore.getState().project.settings.stageMedia?.videos[0].muted).toBe(false))
+    expect((screen.getByLabelText("Timeline video") as HTMLVideoElement).muted).toBe(true)
     const offset = screen.getByRole("spinbutton", { name: "Video 1 source offset seconds" })
     await user.clear(offset); await user.type(offset, "1.25"); await user.tab()
     await waitFor(() => expect(useProjectStore.getState().project.settings.stageMedia?.videos[0].offsetSeconds).toBe(1.25))
@@ -127,7 +150,7 @@ describe("mounted performance and media editors", () => {
     const create = vi.fn(() => "blob:fixture")
     vi.stubGlobal("URL", class extends URL { static createObjectURL = create; static revokeObjectURL = vi.fn() })
     vi.spyOn(HTMLMediaElement.prototype, "pause").mockImplementation(() => {})
-    const view = render(<VideoPlayer placement={{ path: "C:/clip.webm", startTick: 0, lengthTicks: 3840, offsetSeconds: 0, muted: true }} />)
+    const view = render(<VideoPlayer placement={{ path: "C:/clip.webm", startTick: 0, lengthTicks: 3840, offsetSeconds: 0, muted: true, mixerTrack: 0 }} />)
     await waitFor(() => expect(backend.mediaVideoRead).toHaveBeenCalled())
     view.unmount()
     await act(async () => resolve(new ArrayBuffer(8)))

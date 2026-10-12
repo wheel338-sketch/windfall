@@ -103,6 +103,12 @@ impl ChannelVoiceRuntime {
             self.refresh_chord();
         }
     }
+    pub fn release_performance_chord(&mut self, origin: Origin) {
+        for note in &mut self.chord {
+            if note.is_some_and(|note| note.origin == origin) { *note = None; }
+        }
+        self.refresh_chord();
+    }
 
     pub fn expire(&mut self, clock: Clock, now: u64) {
         let mut changed = false;

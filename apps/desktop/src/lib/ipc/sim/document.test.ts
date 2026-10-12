@@ -260,7 +260,7 @@ const EVERY_COMMAND: { [Type in Command["type"]]: (ids: Ids) => Command } = {
   setSampleRegions: (ids) => ({type:"setSampleRegions",sample:ids.sample,expected:[],regions:[{name:"Region",startFrame:0,endFrame:100}]}),
   setSamplePlayback: (ids) => ({ type: "setSamplePlayback", channel: ids.slicer, asset: { ...defaultAsset(), sample: ids.sample, sourceBpm: 90 } }),
   generateSlicePattern: (ids) => ({ type: "generateSlicePattern", channel: ids.slicer, pattern: ids.pattern }),
-  setStageMedia: () => ({ type: "setStageMedia", media: { pads: [], quantization: "bar", videos: [], visual: { scene: "bars", intensity: 2, hue: 45 }, danceChannel: null } }),
+  setStageMedia: () => ({ type: "setStageMedia", media: { pads: [], takes: [], quantization: "bar", videos: [], visual: { scene: "bars", intensity: 2, hue: 45 }, danceChannel: null } }),
   addArrangement: (ids) => ({
     type: "addArrangement",
     name: "New",

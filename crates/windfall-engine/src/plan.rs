@@ -62,6 +62,13 @@ impl IdIndex {
 
 #[derive(Debug, Clone)]
 pub(crate) struct Plan {
+    pub performance_clips: Vec<crate::performance_clips::PreparedClip>,
+    pub performance_clip_ids: IdIndex,
+    pub performance_tempo: bool,
+    /// Callback-only musical cursor for performance curve occurrences. Source
+    /// data remains immutable; this scalar has no lock or ownership exchange.
+    pub performance_tick: Arc<AtomicU64>,
+    pub videos: Vec<crate::video_audio::PreparedVideo>,
     /// Control-side memory admission shared across this controller's plans.
     pub echo_history: Arc<crate::effect_host::HistoryPool>,
     _asset_pins: windfall_dsp::asset::AssetPins,
@@ -976,6 +983,17 @@ pub(crate) fn compile(project: &Project, pool: &SamplePool) -> Plan {
             )
         })
         .collect();
+    let mut patterns: Vec<PlanPattern> = patterns;
+    // Entity IDs are globally unique. Clip-backed pads use their clip ID in
+    // the existing launcher protocol, without changing launch ordering.
+    for pad in &project.settings.stage_media.pads {
+        if let Some(clip) = pad.clip.and_then(|id| project.playlist.clips.iter().find(|clip| clip.id == id))
+            && !patterns.iter().any(|pattern| pattern.id.0 == clip.id.0)
+        {
+            patterns.push(PlanPattern { id: PatternId(clip.id.0), source_length: clip.length.max(1), length: clip.length.max(1), signature: project.settings.time_signature,
+                meters: windfall_project::MeterMap::checked(project.settings.time_signature, &[]).map(|map| map.segments().to_vec()), events: Vec::new(), note_curves: Vec::new() });
+        }
+    }
     let pattern_ids = IdIndex::new(patterns.iter().map(|pattern| pattern.id.0));
 
     let playlist = arrangement_playlist(&project.playlist);
@@ -984,6 +1002,11 @@ pub(crate) fn compile(project: &Project, pool: &SamplePool) -> Plan {
     let audio_clip_ids = IdIndex::new(audio_clips.iter().map(|clip| clip.id.0));
 
     let mut plan = Plan {
+        performance_clips: Vec::new(),
+        performance_clip_ids: IdIndex::default(),
+        performance_tempo: false,
+        performance_tick: Arc::new(AtomicU64::new(0)),
+        videos: crate::video_audio::compile(project, pool, &track_ids),
         echo_history: Arc::new(crate::effect_host::HistoryPool::default()),
         _asset_pins: windfall_dsp::asset::AssetPins::default(),
         navigation: crate::timeline::compile(&project.playlist.timeline),
@@ -1013,7 +1036,7 @@ pub(crate) fn compile(project: &Project, pool: &SamplePool) -> Plan {
         clips,
         audio_clips,
         audio_clip_ids,
-        song_end,
+        song_end: project.settings.stage_media.videos.iter().fold(song_end, |end, video| end.max(video.start_tick.saturating_add(video.length_ticks))),
         lanes: Arc::from([]),
         control_sources: Vec::new(),
         control_links: Vec::new(),
@@ -1029,7 +1052,10 @@ pub(crate) fn compile(project: &Project, pool: &SamplePool) -> Plan {
         crate::internal_controllers::compile(project, &plan);
     plan.pattern_lanes = plan.lanes.iter().any(|lane| lane.in_patterns());
     let tempo_lane = plan.lanes.iter().find(|lane| lane.is_tempo());
-    plan.tempo_map = tempo_lane.map(|lane| TempoMap::new(lane, tempo_bpm, f64::from(song_end)));
+    plan.tempo_map = tempo_lane.map(|lane| TempoMap::new(lane, tempo_bpm, f64::from(plan.song_end)));
+    plan.performance_clips = crate::performance_clips::compile(project, pool, &plan);
+    plan.performance_clip_ids = IdIndex::new(plan.performance_clips.iter().map(|clip| clip.id.0));
+    plan.performance_tempo = plan.performance_clips.iter().any(|clip| clip.has_tempo());
     plan
 }
 
@@ -1394,7 +1420,7 @@ fn compile_playlist(
 
 /// The audio clips that sound: allowed by clip mute and playlist mute/solo,
 /// with audio in the pool. A clip whose mixer track is gone plays into the master.
-fn compile_audio_clips(
+pub(crate) fn compile_audio_clips(
     playlist: &Playlist,
     pool: &SamplePool,
     track_ids: &IdIndex,

@@ -154,7 +154,7 @@ impl Session {
     }
     pub(super) fn recording_idle(&self) -> Result<MutexGuard<'_, Option<Take>>, String> {
         let take = lock(&self.inner.recording);
-        if take.is_some() || self.inner.recording_finishing.load(Ordering::Acquire) {
+        if take.is_some() || self.inner.recording_finishing.load(Ordering::Acquire) || self.inner.performance_capturing.load(Ordering::Acquire) {
             return Err("Stop or cancel recording first.".into());
         }
         Ok(take)

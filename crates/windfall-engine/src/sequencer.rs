@@ -405,6 +405,28 @@ impl Sequencer {
         Some(plan.unwarp(tick.max(0.0)))
     }
 
+    /// Prepared video is read ahead over a whole callback, which can span
+    /// several very short passes. Address every wrap without advancing the
+    /// transport or changing event/launch partition ordering.
+    pub(crate) fn video_tick_at(&self, plan: &Plan, frame: u64) -> Option<f64> {
+        if !self.in_song() { return None; }
+        let tick = self.clock.tick_at(frame) - self.pass_start;
+        let (start, end) = match self.region {
+            Some(range) => (plan.warp(f64::from(range.start)), plan.warp(f64::from(range.end))),
+            None => (0.0, self.length(plan)),
+        };
+        let length = end - start;
+        if length <= 0.0 { return None; }
+        let tick = if tick >= end {
+            if !self.loops() { return None; }
+            if let Some(passes) = self.passes_left {
+                if tick - end >= f64::from(passes.saturating_sub(1)) * length { return None; }
+            }
+            start + (tick - end).rem_euclid(length)
+        } else { tick.max(start) };
+        Some(plan.unwarp(tick))
+    }
+
     /// The place in the pattern that frame `frame`, now or a little ahead,
     /// plays while the pattern plays by itself: what its event lanes are
     /// read at, with the pattern's index in [`Plan::patterns`]. `None`
@@ -789,6 +811,7 @@ impl Sequencer {
                 order: 0,
                 what: Fire::Note {
                     source: crate::note_curves::CurveSource {
+                        performance: false,
                         pattern: pattern.id,
                         note: event.source,
                         start: self.pass_start + event.tick,
@@ -860,6 +883,7 @@ impl Sequencer {
                         order: 0,
                         what: Fire::Note {
                             source: crate::note_curves::CurveSource {
+                                performance: false,
                                 pattern: pattern.id,
                                 note: event.source,
                                 start: self.pass_start + plan.warp(tick),

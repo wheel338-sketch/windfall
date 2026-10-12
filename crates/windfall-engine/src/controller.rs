@@ -146,6 +146,37 @@ pub struct StreamStats {
 }
 
 impl Controller {
+    pub fn performance_stream_stamp(&self) -> Option<(u64, u32)> {
+        let state = self.lock();
+        state.link.as_ref()?;
+        Some((state.stream_generation, state.hosted.as_ref()?.sample_rate))
+    }
+    pub fn performance_record_begin(&self, capture: Arc<crate::performance_recording::PerformanceRecording>) -> Result<(), String> {
+        let mut state = self.lock();
+        state.maintain();
+        if !state.backlog.is_empty() { return Err("Performance recording queue is full".into()); }
+        if self.inner.shared.performance_recording_owned.load(Ordering::Acquire) { return Err("Wait for the previous performance capture's callback acknowledgement".into()); }
+        let link = state.link.as_mut().ok_or("Performance recording needs an active audio stream")?;
+        self.inner.shared.performance_recording_owned.store(true, Ordering::Release);
+        let result = link.messages.push(Message::PerformanceRecordBegin(capture)).map_err(|_| "Performance recording queue is full".into());
+        if result.is_err() { self.inner.shared.performance_recording_owned.store(false, Ordering::Release); }
+        result
+    }
+    pub fn performance_record_end(&self) { self.lock().send(Message::PerformanceRecordEnd); }
+    pub fn performance_replay(&self, audio: Option<AudioBuffer>) -> Result<(), String> {
+        let replay = audio.map(|audio| crate::performance_recording::Replay::prepare(audio, Vec::new())).transpose()?;
+        self.enqueue_performance_replay(replay)
+    }
+    pub fn performance_replay_log(&self, audio: AudioBuffer, events: Vec<windfall_project::PerformanceLogEvent>) -> Result<(), String> {
+        self.enqueue_performance_replay(Some(crate::performance_recording::Replay::prepare(audio, events)?))
+    }
+    fn enqueue_performance_replay(&self, replay: Option<Box<crate::performance_recording::Replay>>) -> Result<(), String> {
+        let mut state = self.lock();
+        state.maintain();
+        if !state.backlog.is_empty() { return Err("Performance replay queue is full".into()); }
+        state.link.as_mut().ok_or("Performance replay needs an active audio stream")?.messages
+            .push(Message::PerformanceReplay(replay)).map_err(|_| "Performance replay queue is full".into())
+    }
     /// Admits a bounded performance request without changing song transport.
     pub fn performance_launch(
         &self,
@@ -1161,6 +1192,7 @@ impl Controller {
             .count_in_remaining
             .store(0, Ordering::Release);
         state.link = None;
+        self.inner.shared.performance_recording_owned.store(false, Ordering::Release);
         state.hosted = None;
         state.backlog.clear();
         let shared = &self.inner.shared;

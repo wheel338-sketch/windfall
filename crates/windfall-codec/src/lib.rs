@@ -25,6 +25,8 @@ mod wav;
 mod wav_metadata;
 mod wavpack;
 pub use wavpack::{WavPackDepth, WavPackWriter, DEFAULT_WAVPACK_BLOCK_FRAMES};
+mod video_audio;
+pub use video_audio::{decode_video_audio, decode_video_audio_file, MAX_VIDEO_FILE_BYTES};
 pub use wav_metadata::{
     MAX_WAV_MARKERS, MAX_WAV_METADATA_BYTES, WavCue, WavLoop, WavLoopKind, WavMetadata, WavSlice,
     WavNote, WavTempo, read_wav_metadata, read_wav_metadata_file,

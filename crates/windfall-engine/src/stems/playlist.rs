@@ -220,6 +220,9 @@ pub fn playlist_stems(
 pub fn playlist_stem_project(project: &Project, track: PlaylistTrackId) -> Project {
     let silent = silent_playlist_tracks(&arrangement_playlist(&project.playlist));
     let mut stem = project.clone();
+    // Video placements have their own timeline lane, outside playlist track
+    // IDs. Keep their length, but include sound only in the mix/mixer stems.
+    for video in &mut stem.settings.stage_media.videos { video.muted = true; }
     for lane in &mut stem.playlist.tracks {
         lane.muted = lane.muted || silent.contains(&lane.id);
         lane.solo = false;
@@ -253,6 +256,7 @@ pub fn render_playlist_stems(
         return Err(PlaylistStemError::PatternMode);
     }
     options.check_region().map_err(StemError::Timeline)?;
+    if let Some(error) = pool.video_audio_error(project) { return Err(StemError::Timeline(error).into()); }
     let list = playlist_stems(project, stem_options)?;
     let prepared_pool = pool
         .prepare_plugin_render()

@@ -18,6 +18,8 @@ pub struct SamplePool {
     pub(crate) sample_banks: Arc<Vec<crate::sample_instruments::PreparedSampleBank>>,
     pub(crate) sample_bank_budget: Arc<windfall_dsp::sample_bank::BankBudget>,
     samples: Arc<HashMap<SampleId, AudioBuffer>>,
+    video_audio: Arc<HashMap<String, AudioBuffer>>,
+    video_bytes: Arc<HashMap<String, Arc<[u8]>>>,
     clip_audio: Arc<Mutex<ClipAudioCache>>,
     sampler_audio: Arc<Mutex<SamplerAudioCache>>,
     pub(crate) plugin_factory: Option<Arc<dyn crate::plugins::PluginFactory>>,
@@ -26,6 +28,8 @@ pub struct SamplePool {
 impl Default for SamplePool {
     fn default() -> Self {
         Self {
+            video_audio: Arc::new(HashMap::new()),
+            video_bytes: Arc::new(HashMap::new()),
             sample_banks: Arc::new(Vec::new()),
             sample_bank_budget: windfall_dsp::sample_bank::BankBudget::shared(),
             samples: Arc::new(HashMap::new()),
@@ -179,6 +183,8 @@ impl SamplePool {
 
     /// Installs worker results only after the session has checked its tickets.
     pub fn install_sampler_preparation(&mut self, prepared: &Self) {
+        self.video_audio = prepared.video_audio.clone();
+        self.video_bytes = prepared.video_bytes.clone();
         self.sampler_audio = prepared.sampler_audio.clone();
         self.sample_banks = prepared.sample_banks.clone();
     }
@@ -193,6 +199,30 @@ impl SamplePool {
     }
     pub fn new() -> Self {
         Self::default()
+    }
+
+    /// Host decoder results, installed off audio and retained by immutable plans.
+    pub fn insert_video_audio(&mut self, path: String, audio: AudioBuffer) {
+        Arc::make_mut(&mut self.video_audio).insert(path, audio);
+    }
+    pub fn insert_video_source(&mut self, path: String, audio: AudioBuffer, bytes: Vec<u8>) {
+        Arc::make_mut(&mut self.video_bytes).insert(path.clone(), bytes.into());
+        self.insert_video_audio(path, audio);
+    }
+    pub fn video_bytes(&self, path: &str) -> Option<Arc<[u8]>> { self.video_bytes.get(path).cloned() }
+    pub fn video_prepared_bytes(&self) -> usize {
+        self.video_audio.values().map(|audio| audio.samples().len() * size_of::<f32>()).sum::<usize>() + self.video_bytes.values().map(|bytes| bytes.len()).sum::<usize>()
+    }
+    pub fn video_audio(&self, path: &str) -> Option<&AudioBuffer> {
+        self.video_audio.get(path)
+    }
+    pub fn retain_video_audio(&mut self, project: &windfall_project::Project) {
+        Arc::make_mut(&mut self.video_audio).retain(|path, _| project.settings.stage_media.videos.iter().any(|video| &video.path == path));
+        Arc::make_mut(&mut self.video_bytes).retain(|path, _| project.settings.stage_media.videos.iter().any(|video| &video.path == path));
+    }
+    pub fn video_audio_error(&self, project: &windfall_project::Project) -> Option<String> {
+        project.settings.stage_media.videos.iter().find(|video| !video.muted && self.video_audio(&video.path).is_none())
+            .map(|video| format!("Video audio is unavailable: {}. Reload the file or mute its audio.", video.path))
     }
 
     /// Adds or replaces a sample and returns the one it replaced.
@@ -211,7 +241,9 @@ impl SamplePool {
     /// Exact source snapshot equality, including additions/removals and empty audio.
     /// Derived caches and plugin providers are deliberately outside this comparison.
     pub fn same_sources(&self, other: &Self) -> bool {
-        self.len() == other.len()
+        self.video_audio.len() == other.video_audio.len()
+            && self.video_audio.iter().all(|(path, audio)| other.video_audio(path).is_some_and(|now| audio.identity() == now.identity()))
+            && self.len() == other.len()
             && self.iter().all(|(id, audio)| {
                 other
                     .get(id)

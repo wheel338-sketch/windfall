@@ -11,6 +11,7 @@ import { changeStageMedia, DEFAULT_STAGE_MEDIA, mediaDocumentGuard, useMediaWind
 import { reportError } from "@/lib/errors"
 import { backend } from "@/lib/ipc"
 import { useProjectStore } from "@/lib/store/project"
+import { PerformanceRecordingControls } from "./recording-controls"
 
 export function PerformanceGrid() {
   const project = useProjectStore((state) => state.project)
@@ -18,6 +19,7 @@ export function PerformanceGrid() {
   const [trackBank, setTrackBank] = useState("0")
   const [sceneBank, setSceneBank] = useState("0")
   const [status, setStatus] = useState<PerformanceState | null>(null)
+  const [captureHeld, setCaptureHeld] = useState(false)
   const tick = useRef<HTMLSpanElement>(null)
   useEffect(() => {
     let cancelled = false
@@ -49,9 +51,10 @@ export function PerformanceGrid() {
   const tracks = Array.from({ length: 8 }, (_, i) => Number(trackBank) * 8 + i)
   const scenes = Array.from({ length: 4 }, (_, i) => Number(sceneBank) * 4 + i)
   return <div className="flex flex-col gap-3">
+    <PerformanceRecordingControls onHeldChange={setCaptureHeld} />
     {status?.available === false && <Alert><AlertDescription>Launching needs the desktop audio engine. Pad assignments can still be saved here.</AlertDescription></Alert>}
     <FieldGroup className="grid grid-cols-3 gap-3">
-      <MediaChoice<LaunchQuantization> label="Launch boundary" value={media.quantization} options={[{ value: "immediate", label: "Immediate" }, { value: "beat", label: "Beat" }, { value: "bar", label: "Bar" }]} onChange={(quantization) => { void changeStageMedia((current) => ({ ...current, quantization })) }} />
+      <MediaChoice<LaunchQuantization> label="Launch boundary" disabled={captureHeld} value={media.quantization} options={[{ value: "immediate", label: "Immediate" }, { value: "beat", label: "Beat" }, { value: "bar", label: "Bar" }]} onChange={(quantization) => { void changeStageMedia((current) => ({ ...current, quantization })) }} />
       <MediaChoice label="Track bank" value={trackBank} options={[0, 1, 2, 3].map((i) => ({ value: String(i), label: `${i * 8 + 1}–${i * 8 + 8}` }))} onChange={setTrackBank} />
       <MediaChoice label="Scene bank" value={sceneBank} options={[0, 1, 2, 3].map((i) => ({ value: String(i), label: `${i * 4 + 1}–${i * 4 + 4}` }))} onChange={setSceneBank} />
     </FieldGroup>
@@ -60,13 +63,15 @@ export function PerformanceGrid() {
     }}>Scene {scene + 1}</Button></th>{tracks.map((track) => {
       const pad = media.pads.find((pad) => pad.track === track && pad.scene === scene)
       const state = status?.tracks[track]
-      const name = project.patterns.find((pattern) => pattern.id === pad?.pattern)?.name ?? "Empty"
+      const launchId = pad?.clip ?? pad?.pattern
+      const clip = project.playlist.clips.find((clip) => clip.id === pad?.clip)
+      const name = clip ? `${clip.content.type === "audio" ? "Audio" : "Automation"} clip ${clip.id}` : project.patterns.find((pattern) => pattern.id === pad?.pattern)?.name ?? "Empty"
       return <td key={track} className="p-1"><div className="flex min-w-24 flex-col gap-1 rounded-md border p-1">
-        <Button aria-label={`Launch track ${track + 1} scene ${scene + 1}`} variant={pad && state?.active === pad.pattern ? "default" : "outline"} disabled={!pad || status?.available === false} onClick={() => { void send(track, scene) }}>{name}</Button>
-        {pad && state?.queued === pad.pattern && <Badge variant="secondary">Queued</Badge>}
+        <Button aria-label={`Launch track ${track + 1} scene ${scene + 1}`} variant={pad && state?.active === launchId ? "default" : "outline"} disabled={!pad || status?.available === false} onClick={() => { void send(track, scene) }}>{name}</Button>
+        {pad && state?.queued === launchId && <Badge variant="secondary">Queued</Badge>}
         {state?.queuedStop && <Badge variant="secondary">Stop queued</Badge>}
-        <MediaChoice label={`Assign track ${track + 1} scene ${scene + 1}`} value={pad ? String(pad.pattern) : "none"} options={[{ value: "none", label: "Empty" }, ...project.patterns.map((pattern) => ({ value: String(pattern.id), label: pattern.name }))]} onChange={(value) => { void changeStageMedia((current) => ({ ...current, pads: [...current.pads.filter((p) => p.track !== track || p.scene !== scene), ...(value === "none" ? [] : [{ track, scene, pattern: Number(value) }])] })) }} />
-        <Button variant="ghost" size="sm" disabled={backend.kind !== "tauri"} onClick={() => { void learnTargets([{ type: "action", action: { performancePad: { track, scene } } }], false) }}>MIDI learn</Button>
+        <MediaChoice label={`Assign track ${track + 1} scene ${scene + 1}`} disabled={captureHeld} value={pad ? pad.clip ? `clip:${pad.clip}` : String(pad.pattern) : "none"} options={[{ value: "none", label: "Empty" }, ...project.patterns.map((pattern) => ({ value: String(pattern.id), label: pattern.name })), ...project.playlist.clips.filter((clip) => clip.content.type === "audio" || clip.content.type === "automation").map((clip) => ({ value: `clip:${clip.id}`, label: `${clip.content.type === "audio" ? "Audio" : "Automation"} clip ${clip.id}` }))]} onChange={(value) => { void changeStageMedia((current) => ({ ...current, pads: [...current.pads.filter((p) => p.track !== track || p.scene !== scene), ...(value === "none" ? [] : [{ track, scene, pattern: value.startsWith("clip:") ? project.patterns[0].id : Number(value), ...(value.startsWith("clip:") ? { clip: Number(value.slice(5)) } : {}) }])] })) }} />
+        <Button variant="ghost" size="sm" disabled={captureHeld || backend.kind !== "tauri"} onClick={() => { void learnTargets([{ type: "action", action: { performancePad: { track, scene } } }], false) }}>MIDI learn</Button>
       </div></td>
     })}</tr>)}</tbody></table></div>
     <div className="flex items-center gap-3"><Button onClick={() => { void backend.performanceStopAll().catch(reportError) }}>Stop all pads</Button><span ref={tick} className="text-xs text-muted-foreground" /><span className="text-xs text-muted-foreground">Dropped notes: {status?.droppedNotes ?? "0"}</span></div>
@@ -75,5 +80,5 @@ export function PerformanceGrid() {
 
 export function PerformancePanel() {
   const open = useMediaWindows((state) => state.performance)
-  return <Dialog open={open} onOpenChange={(performance) => useMediaWindows.setState({ performance })}><DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-6xl"><DialogHeader><DialogTitle>Performance grid</DialogTitle><DialogDescription>Assign patterns to pads, then launch or stop them on a musical boundary. Each track plays one pad. Keyboard and touch activate the same controls.</DialogDescription></DialogHeader>{open && <PerformanceGrid />}</DialogContent></Dialog>
+  return <Dialog open={open} onOpenChange={(performance) => useMediaWindows.setState({ performance })}><DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-6xl"><DialogHeader><DialogTitle>Performance grid</DialogTitle><DialogDescription>Assign patterns, audio clips or automation clips to pads, then launch or stop them on a musical boundary. Each track plays one pad. Keyboard and touch activate the same controls.</DialogDescription></DialogHeader>{open && <PerformanceGrid />}</DialogContent></Dialog>
 }

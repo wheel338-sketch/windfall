@@ -23,6 +23,10 @@ pub const SILENT_PLAYLIST: &str = "Only automation clips would play, and they ma
 /// clip, every clip is muted or sits on a muted track, or the clips that
 /// are left are all automation, which moves controls and plays nothing.
 pub(super) fn nothing_to_play(project: &Project) -> Option<&'static str> {
+    if !project.settings.stage_media.videos.is_empty() {
+        // A silent picture still needs a running transport for synchronization.
+        return None;
+    }
     let playlist = &project.playlist;
     if playlist.clips.is_empty() {
         return Some(EMPTY_PLAYLIST);
@@ -116,6 +120,7 @@ impl Session {
         // Held across the check and the start, so the last clip cannot be
         // removed in between.
         let state = self.state();
+        if self.inner.performance_capturing.load(std::sync::atomic::Ordering::Acquire) { return Err("Finish or cancel performance recording before starting the song".into()); }
         if generation.is_some_and(|generation| state.generation != generation) {
             return Err("Remote project generation is stale.".into());
         }

@@ -15,6 +15,8 @@
 - Read scripting hand-off; branch 8 conflicts concatenate all codec/script Backend APIs, capability refusals and native tests. Preserve incoming scripted note lifetime fields. VFX live hardware input scripting and parameter automation remain explicitly unfinished. Workspace check pending.
 - Branch 8 merged at `83009e65`; final workspace offline all-target check exits 0, zero errors/warnings, 10.90 s (`target/round4-branch08-check-repair1.log`). Updated the preceding preset fixture with legacy-default ControllerScript.map; its assertions unchanged. Initial failed check retained.
 - Read rack hand-off; branch 9 staged without textual conflicts. Hosted/asset-bearing rack nodes and internal-controller Tempo remain explicit software omissions. Workspace check pending.
+- Branch 9 merged at `20f2d365`; final workspace offline all-target check exits 0, zero errors/warnings, 1.91 s (`target/round4-branch09-check-repair1.log`). Added legacy-empty rack parameter registry to the scripted PCM fixture; existing assertions retained. Initial failed check retained.
+- Read performance/video hand-off; branch 10 codec registration conflict retains both WavPack and video audio. Source diff preserves builder launch/partition ordering. Workspace check pending.
 
 ## Final gates
 
