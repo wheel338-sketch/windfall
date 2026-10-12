@@ -20,7 +20,7 @@
 
 use std::collections::{HashMap, VecDeque};
 use std::io;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::thread::{self, JoinHandle};
 use std::time::{Duration, Instant};
 
@@ -93,6 +93,8 @@ pub(super) struct Hub {
     user_profiles: Vec<ControllerProfile>,
     /// The links of the profiles assigned to the open inputs.
     profile_links: Vec<ControllerLink>,
+    feedback: Vec<windfall_project::controller_links::ProfileFeedback>,
+    last_feedback: Vec<Vec<u8>>,
     /// Port names of the inputs, by their place in the settings.
     device_names: Vec<String>,
     follow_clock: bool,
@@ -122,9 +124,17 @@ pub(super) struct Hub {
     notes: NoteTake,
     automation_armed: bool,
     automation: AutomationTake,
+    recording_gesture: Option<u64>,
     log: ScoreLog,
+    log_file: PathBuf,
+    log_identity: String,
+    log_dirty: bool,
+    saved_log: Option<(String, ScoreLog)>,
     clock_in: ClockIn,
     clock_events: VecDeque<ClockInEvent>,
+    expression: HashMap<(u8, u8), windfall_project::NoteExpression>,
+    note_sources: HashMap<u8, (u8, u8)>,
+    input_filter: Option<u8>,
     error: Option<String>,
 }
 
@@ -134,6 +144,8 @@ impl Hub {
             settings,
             user_profiles: load_profiles(profiles_dir),
             profile_links: Vec::new(),
+            feedback: Vec::new(),
+            last_feedback: Vec::new(),
             device_names: Vec::new(),
             follow_clock: false,
             sources: Vec::new(),
@@ -157,9 +169,25 @@ impl Hub {
             notes: NoteTake::default(),
             automation_armed: false,
             automation: AutomationTake::default(),
+            recording_gesture: None,
             log: ScoreLog::default(),
+            log_file: profiles_dir
+                .parent()
+                .unwrap_or(profiles_dir)
+                .join("score-log.json"),
+            log_identity: String::new(),
+            log_dirty: false,
+            saved_log: ScoreLog::load(
+                &profiles_dir
+                    .parent()
+                    .unwrap_or(profiles_dir)
+                    .join("score-log.json"),
+            ),
             clock_in: ClockIn::default(),
             clock_events: VecDeque::new(),
+            expression: HashMap::new(),
+            note_sources: HashMap::new(),
+            input_filter: None,
             error: None,
         }
     }
@@ -175,6 +203,8 @@ impl Hub {
         let profiles = self.profiles();
         self.device_names.clear();
         self.profile_links.clear();
+        self.feedback.clear();
+        self.last_feedback.clear();
         for (id, profile) in settings.inputs() {
             let name = ports
                 .iter()
@@ -184,9 +214,13 @@ impl Hub {
                 profile.and_then(|wanted| profiles.iter().find(|profile| profile.id == wanted))
             {
                 self.profile_links.extend(profile.links(Some(&name)));
+                self.feedback.extend(profile.feedback.iter().cloned());
             }
             self.device_names.push(name);
         }
+        self.expression.clear();
+        self.note_sources.clear();
+        self.input_filter = settings.input_channel;
         self.follow_clock = settings.follow_clock;
         self.stamp = None;
     }
@@ -201,13 +235,36 @@ impl Hub {
             self.states.clear();
             self.waiting.clear();
             self.last_tweaked = None;
+            self.expression.clear();
+            self.note_sources.clear();
             self.notes = NoteTake::default();
             self.automation = AutomationTake::default();
+            self.recording_gesture = None;
             self.log.clear();
+            self.log_dirty = true;
             self.bank = 0;
+            self.last_feedback.clear();
             self.stamp = None;
         }
         if self.stamp != Some((generation, revision)) {
+            let identity = serde_json::to_string(&(
+                project.settings.name.as_str(),
+                project
+                    .channels
+                    .iter()
+                    .map(|channel| (channel.id, channel.name.as_str()))
+                    .collect::<Vec<_>>(),
+            ))
+            .unwrap_or_default();
+            if self
+                .saved_log
+                .as_ref()
+                .is_some_and(|(saved, _)| *saved == identity)
+            {
+                self.log = self.saved_log.take().unwrap().1;
+                self.log_dirty = false;
+            }
+            self.log_identity = identity;
             self.stamp = Some((generation, revision));
             self.sources.clear();
             let links = project
@@ -397,6 +454,24 @@ impl Session {
     /// message away from note audition.
     pub(super) fn controller_message(&self, input: InputMessage) -> bool {
         let mut hub = lock(&self.inner.controllers);
+        if let Some((channel, parameter, value)) =
+            super::capture_expression::movement(input.message)
+            && hub.input_filter.is_none_or(|filter| filter == channel + 1)
+        {
+            let source = (input.device, channel);
+            super::capture_expression::set(
+                hub.expression.entry(source).or_default(),
+                parameter,
+                value,
+            );
+            let offset = f64::from(hub.settings.record_offset_ms) / 1000.0;
+            if let Some(place) = hub.clock.position_at(input.at, offset) {
+                hub.notes.expression(source, parameter, place.tick, value);
+            }
+        }
+        if let MidiMessage::NoteOn { channel, key, .. } = input.message {
+            hub.note_sources.insert(key, (input.device, channel));
+        }
         let (channel, control, value, learnable) = match input.message {
             MidiMessage::Clock | MidiMessage::Start | MidiMessage::Continue | MidiMessage::Stop => {
                 if let Some(event) = hub.clock_in.message(input.message, input.at)
@@ -480,7 +555,19 @@ impl Session {
         velocity: Option<f32>,
         at: Instant,
     ) {
+        self.controller_played_from(channel, key, velocity, at, None);
+    }
+
+    fn controller_played_from(
+        &self,
+        channel: ChannelId,
+        key: u8,
+        velocity: Option<f32>,
+        at: Instant,
+        source: Option<(u8, u8)>,
+    ) {
         let mut hub = lock(&self.inner.controllers);
+        hub.saved_log = None;
         let offset = f64::from(hub.settings.record_offset_ms) / 1000.0;
         let position = hub.clock.position_at(at, offset);
         match velocity {
@@ -488,11 +575,25 @@ impl Session {
                 hub.log
                     .note_on(channel, key, velocity, at, position.map(|place| place.tick));
                 if let Some(place) = position.filter(|_| hub.note_armed) {
-                    hub.notes.note_on(channel, key, velocity, place);
+                    let initial = source
+                        .and_then(|source| hub.expression.get(&source).copied())
+                        .unwrap_or_default();
+                    hub.notes.note_on_expressed(
+                        channel,
+                        key,
+                        velocity,
+                        place,
+                        super::capture_expression::ExpressionCapture {
+                            initial,
+                            source,
+                            samples: Vec::new(),
+                        },
+                    );
                 }
             }
             None => {
                 hub.log.note_off(channel, key, at);
+                hub.log_dirty = true;
                 if let Some(place) = position {
                     hub.notes.note_off(channel, key, place);
                 }
@@ -506,7 +607,11 @@ impl Session {
         let delivered = self.hardware_note(epoch, key, velocity);
         if delivered && let Some(channel) = channel {
             let velocity = (velocity > 0).then(|| f32::from(velocity) / 127.0);
-            self.controller_played(channel, key, velocity, at);
+            let source = lock(&self.inner.controllers)
+                .note_sources
+                .get(&key)
+                .copied();
+            self.controller_played_from(channel, key, velocity, at, source);
         }
         delivered
     }
@@ -518,7 +623,11 @@ impl Session {
         if let Some(place) = hub.clock.position_at(now, 0.0) {
             hub.last_tick = place.tick;
         }
-        if hub.clock.observe(playhead, now) {
+        let mut capture_head = *playhead;
+        if self.controller().count_in_remaining() > 0 {
+            capture_head.playing = false;
+        }
+        if hub.clock.observe(&capture_head, now) {
             let end = hub.last_tick;
             hub.notes.close_all(end);
             hub.stopped = true;
@@ -554,7 +663,7 @@ impl Session {
                     commands: std::mem::take(&mut plan.commands),
                 }
             };
-            match self.dispatch_quiet(command, Some(plan.gesture)) {
+            match self.dispatch_controller_capture(command, Some(plan.gesture), plan.generation) {
                 Ok(_) => self.controllers_wrote(&plan, now),
                 Err(error) => lock(&self.inner.controllers).error = Some(error),
             }
@@ -568,6 +677,114 @@ impl Session {
         if plan.stopped {
             self.commit_note_take();
             self.commit_automation_take();
+        }
+        self.surface_feedback();
+        self.flush_score_log();
+    }
+
+    fn flush_score_log(&self) {
+        let saved = {
+            let mut hub = lock(&self.inner.controllers);
+            if !hub.log_dirty || hub.saved_log.is_some() {
+                return;
+            }
+            hub.log_dirty = false;
+            (
+                hub.log_file.clone(),
+                hub.log.saved(hub.log_identity.clone(), Instant::now()),
+            )
+        };
+        let outcome = saved.1.and_then(|bytes| {
+            windfall_project::file::write_atomic(&saved.0, &bytes)
+                .map_err(|error| error.to_string())
+        });
+        if let Err(error) = outcome {
+            let mut hub = lock(&self.inner.controllers);
+            hub.error = Some(format!("The note log could not be saved: {error}"));
+            hub.log_dirty = true;
+        }
+    }
+
+    fn surface_feedback(&self) {
+        use windfall_project::controller_links::FeedbackSource;
+        let transport = self.transport_state();
+        let automated = self.controller().controller_automation_values();
+        let messages = {
+            let state = self.state();
+            let project = state.document.project();
+            let hub = lock(&self.inner.controllers);
+            let messages: Vec<_> = hub
+                .feedback
+                .iter()
+                .map(|feedback| {
+                    let (value, text) = match feedback.source {
+                        FeedbackSource::Slot { slot } => {
+                            let value =
+                                slot.resolve(project, hub.bank)
+                                    .and_then(|target| {
+                                        let audible = automated.iter().find_map(|(id, value)| {
+                                            let matches = project.automations.iter().any(|lane| {
+                                                lane.id.0 == *id && lane.target == target
+                                            }) || project
+                                                .patterns
+                                                .iter()
+                                                .flat_map(|pattern| &pattern.events)
+                                                .any(|lane| {
+                                                    lane.id.0 == *id && lane.target == target
+                                                });
+                                            matches.then_some(*value)
+                                        });
+                                        project
+                                            .automation_range(&target)
+                                            .zip(project.automation_stored_value(&target))
+                                            .map(|(range, stored)| {
+                                                audible.unwrap_or_else(|| range.normalized(stored))
+                                            })
+                                    })
+                                    .unwrap_or(0.0);
+                            (value, "")
+                        }
+                        FeedbackSource::Playing => (f32::from(u8::from(transport.playing)), ""),
+                        FeedbackSource::Stopped => (f32::from(u8::from(!transport.playing)), ""),
+                        FeedbackSource::NoteRecordArmed => {
+                            (f32::from(u8::from(hub.note_armed)), "")
+                        }
+                        FeedbackSource::AutomationRecordArmed => {
+                            (f32::from(u8::from(hub.automation_armed)), "")
+                        }
+                        FeedbackSource::MixerName { index } => (
+                            0.0,
+                            project
+                                .mixer
+                                .tracks
+                                .iter()
+                                .filter(|track| {
+                                    track.id != windfall_project::TrackId::MASTER && !track.current
+                                })
+                                .nth((index + hub.bank) as usize)
+                                .map_or("", |track| track.name.as_str()),
+                        ),
+                    };
+                    feedback.encode(value, text)
+                })
+                .filter(|bytes| !bytes.is_empty())
+                .collect();
+            if messages == hub.last_feedback {
+                return;
+            }
+            messages
+        };
+        if messages.is_empty() {
+            return;
+        }
+        if let Ok(runtime) = self.midi_runtime() {
+            let outcome = messages
+                .chunks(256)
+                .try_for_each(|chunk| runtime.feedback(chunk.to_vec()));
+            match outcome {
+                Ok(()) => lock(&self.inner.controllers).last_feedback = messages,
+                Err(error) => lock(&self.inner.controllers).error = Some(error),
+            }
         }
     }
 
@@ -725,8 +942,26 @@ impl Session {
                 plan.commands.push(command);
             }
         }
+        // Held pickup state persists across idle polls; only crossing/removal releases it.
+        hub.waiting = links
+            .iter()
+            .filter_map(|link| {
+                let key = (link.source.clone(), link.target);
+                hub.states
+                    .get(&key)
+                    .filter(|state| state.waiting())
+                    .and_then(|_| resolve(&link.target))
+            })
+            .collect();
         if !plan.commands.is_empty() {
-            plan.gesture = hub.gesture_at(now);
+            plan.gesture = if hub.automation_armed && hub.clock.playing() {
+                if hub.recording_gesture.is_none() {
+                    hub.recording_gesture = Some(hub.fresh_gesture());
+                }
+                hub.recording_gesture.unwrap()
+            } else {
+                hub.gesture_at(now)
+            };
         }
         plan
     }
@@ -744,7 +979,7 @@ impl Session {
         let place = hub
             .clock
             .position_at(now, 0.0)
-            .filter(|place| place.mode == PlayMode::Song && hub.automation_armed);
+            .filter(|_| hub.automation_armed);
         for write in &plan.writes {
             let Some(stored) = project
                 .automation_range(&write.target)
@@ -757,10 +992,18 @@ impl Session {
                 link_state.wrote(stored);
             }
             if let Some(place) = place {
-                hub.automation
-                    .record(write.target, write.before, place.tick, stored);
+                hub.automation.record_in(
+                    (place.mode == PlayMode::Pattern).then_some(place.pattern),
+                    write.target,
+                    write.before,
+                    place.tick,
+                    stored,
+                );
             }
         }
+        drop(guard);
+        drop(state);
+        self.recording_touch_refresh();
     }
 
     /// Adds one link made by a pass of linking: to the project as an edit,
@@ -953,7 +1196,7 @@ impl Session {
         let place = hub
             .clock
             .position_at(now, 0.0)
-            .filter(|place| place.mode == PlayMode::Song && hub.automation_armed);
+            .filter(|_| hub.automation_armed);
         if let Some(place) = place {
             for (target, before) in tweaks {
                 let stored = project
@@ -961,9 +1204,56 @@ impl Session {
                     .zip(project.automation_stored_value(target))
                     .map(|(range, value)| range.normalized(value));
                 if let Some(stored) = stored.filter(|stored| stored != before) {
-                    hub.automation.record(*target, *before, place.tick, stored);
+                    hub.automation.record_in(
+                        (place.mode == PlayMode::Pattern).then_some(place.pattern),
+                        *target,
+                        *before,
+                        place.tick,
+                        stored,
+                    );
                 }
             }
+        }
+        drop(guard);
+        drop(state);
+        self.recording_touch_refresh();
+    }
+
+    /// Recording movements, including their curve commit, share one pass history entry.
+    pub(super) fn recording_edit_gesture(&self, has_tweaks: bool) -> Option<u64> {
+        let mut hub = lock(&self.inner.controllers);
+        if !has_tweaks || !hub.automation_armed || !hub.clock.playing() {
+            return None;
+        }
+        if hub.recording_gesture.is_none() {
+            hub.recording_gesture = Some(hub.fresh_gesture());
+        }
+        hub.recording_gesture
+    }
+
+    fn recording_touch_refresh(&self) {
+        let targets = {
+            let hub = lock(&self.inner.controllers);
+            if !hub.automation_armed || !hub.clock.playing() {
+                return;
+            }
+            hub.automation.recorded_targets()
+        };
+        let values: Vec<_> = {
+            let state = self.state();
+            targets
+                .into_iter()
+                .filter_map(|target| {
+                    state
+                        .document
+                        .project()
+                        .automation_stored_value(&target)
+                        .map(|value| (target, value))
+                })
+                .collect()
+        };
+        for (target, value) in values {
+            self.controller().automation_touch(target, Some(value));
         }
     }
 
@@ -1057,9 +1347,12 @@ impl Session {
                 .iter()
                 .enumerate()
                 .map(|(index, target)| ControllerLink {
-                    source: ControlSource::Internal {
-                        controller: index as u32,
-                        output: 0,
+                    source: ControlSource::Midi {
+                        device: None,
+                        channel: None,
+                        control: MidiControl::Cc {
+                            number: index as u8,
+                        },
                     },
                     target: *target,
                     map: ControlMap::default(),
@@ -1114,40 +1407,70 @@ impl Session {
 
     /// Writes the notes of the pass into their patterns, as one undo step.
     fn commit_note_take(&self) {
-        let (notes, quantize) = {
+        let (notes, quantize, generation) = {
             let mut hub = lock(&self.inner.controllers);
-            (hub.notes.take(), hub.settings.record_quantize_ticks)
+            (
+                hub.notes.take(),
+                hub.settings.record_quantize_ticks,
+                hub.generation,
+            )
         };
         if notes.is_empty() {
             return;
         }
         let command = {
             let state = self.state();
+            if state.generation != generation {
+                return;
+            }
             recorded_notes_command(state.document.project(), &notes, quantize)
         };
         let Some(command) = command else {
             return;
         };
-        if let Err(error) = self.dispatch_quiet(command, None) {
-            lock(&self.inner.controllers).error = Some(error);
+        if let Err(error) = self.dispatch_controller_capture(command, None, generation) {
+            let current = self.state().generation;
+            let mut hub = lock(&self.inner.controllers);
+            if current == generation && hub.generation == generation {
+                hub.notes.restore(notes);
+            }
+            hub.error = Some(error);
         }
     }
 
     /// Writes the movements of the pass as automation, as one undo step.
     fn commit_automation_take(&self) {
-        let lanes = lock(&self.inner.controllers).automation.take();
+        let (lanes, gesture, generation) = {
+            let mut hub = lock(&self.inner.controllers);
+            (
+                hub.automation.take(),
+                hub.recording_gesture.take(),
+                hub.generation,
+            )
+        };
         if lanes.is_empty() {
             return;
         }
         let command = {
             let state = self.state();
+            if state.generation != generation {
+                return;
+            }
             recorded_automation_command(state.document.project(), &lanes)
         };
-        let Some(command) = command else {
-            return;
-        };
-        if let Err(error) = self.dispatch_quiet(command, None) {
-            lock(&self.inner.controllers).error = Some(error);
+        for lane in &lanes {
+            self.controller().automation_touch(lane.target.clone(), None);
+        }
+        if let Some(command) = command
+            && let Err(error) = self.dispatch_controller_capture(command, gesture, generation)
+        {
+            let current = self.state().generation;
+            let mut hub = lock(&self.inner.controllers);
+            if current == generation && hub.generation == generation {
+                hub.automation.restore(lanes);
+                hub.recording_gesture = gesture;
+            }
+            hub.error = Some(error);
         }
     }
 
@@ -1201,11 +1524,17 @@ impl Session {
                 commands,
             }
         };
-        self.dispatch_quiet(command, None)
+        self.dispatch_controller_capture(command, None, generation)
     }
 
     pub fn score_log_clear(&self) -> ControllerState {
-        lock(&self.inner.controllers).log.clear();
+        {
+            let mut hub = lock(&self.inner.controllers);
+            hub.log.clear();
+            hub.saved_log = None;
+            hub.log_dirty = true;
+        }
+        self.flush_score_log();
         self.controller_state()
     }
 }
@@ -1226,14 +1555,28 @@ pub(super) fn recorded_notes_command(
             .map(|pattern| pattern.length_steps.max(1).saturating_mul(TICKS_PER_STEP))
     };
     // Notes per pattern and channel, in the order they are first met.
-    let mut lanes: Vec<(PatternId, ChannelId, Vec<NoteInit>)> = Vec::new();
-    let mut add =
-        |pattern: PatternId, channel: ChannelId, note: NoteInit| match lanes.iter_mut().find(
-            |(lane_pattern, lane_channel, _)| *lane_pattern == pattern && *lane_channel == channel,
-        ) {
-            Some((_, _, lane)) => lane.push(note),
-            None => lanes.push((pattern, channel, vec![note])),
-        };
+    let mut lanes: Vec<(
+        PatternId,
+        ChannelId,
+        Vec<NoteInit>,
+        Vec<windfall_project::NoteCurveInsert>,
+    )> = Vec::new();
+    let mut add = |pattern: PatternId, channel: ChannelId, init: NoteInit, taken: &TakenNote| {
+        let index = lanes
+            .iter()
+            .position(|(p, c, _, _)| *p == pattern && *c == channel)
+            .unwrap_or_else(|| {
+                lanes.push((pattern, channel, Vec::new(), Vec::new()));
+                lanes.len() - 1
+            });
+        let (_, _, notes, curves) = &mut lanes[index];
+        curves.extend(
+            taken
+                .expression
+                .curves(taken.start, taken.length, notes.len() as u32),
+        );
+        notes.push(init);
+    };
     // Song-mode notes with no clip of their pattern under them, by pattern.
     let mut homeless: Vec<(PatternId, Vec<&TakenNote>)> = Vec::new();
     for note in notes {
@@ -1245,7 +1588,7 @@ pub(super) fn recorded_notes_command(
         }
         if note.mode == PlayMode::Pattern {
             if let Some(init) = note_init(note, 0.0, quantize, Some(length)) {
-                add(note.pattern, note.channel, init);
+                add(note.pattern, note.channel, init, note);
             }
             continue;
         }
@@ -1265,10 +1608,10 @@ pub(super) fn recorded_notes_command(
                     .rem_euclid(f64::from(length));
                 let placed = TakenNote {
                     start: local,
-                    ..*note
+                    ..note.clone()
                 };
                 if let Some(init) = note_init(&placed, 0.0, quantize, Some(length)) {
-                    add(note.pattern, note.channel, init);
+                    add(note.pattern, note.channel, init, note);
                 }
             }
             None => match homeless
@@ -1322,23 +1665,24 @@ pub(super) fn recorded_notes_command(
             let local = note.start - start;
             let placed = TakenNote {
                 start: looped.map_or(local, |length| local.rem_euclid(f64::from(length))),
-                ..**note
+                ..(*note).clone()
             };
             if let Some(init) = note_init(&placed, 0.0, quantize, looped) {
-                add(*pattern, note.channel, init);
+                add(*pattern, note.channel, init, note);
             }
         }
     }
-    for (pattern, channel, notes) in lanes {
-        commands.push(Command::AddNotes {
+    for (pattern, channel, notes, curves) in lanes {
+        commands.push(Command::AddNotesWithCurves {
             pattern,
             channel,
             notes,
+            curves,
         });
     }
     if !commands
         .iter()
-        .any(|command| matches!(command, Command::AddNotes { .. }))
+        .any(|command| matches!(command, Command::AddNotesWithCurves { .. }))
     {
         return None;
     }
@@ -1372,6 +1716,41 @@ pub(super) fn recorded_automation_command(
     let bar = project.settings.time_signature.ticks_per_bar().max(1);
     for lane in lanes {
         if project.automation_range(&lane.target).is_none() {
+            continue;
+        }
+        if let Some(pattern_id) = lane.pattern {
+            if lane.target == AutomationTarget::Tempo {
+                continue;
+            }
+            let Some(pattern) = project.pattern(pattern_id) else {
+                continue;
+            };
+            let expected = pattern
+                .events
+                .iter()
+                .find(|event| event.target == lane.target)
+                .map(|event| event.points.clone())
+                .unwrap_or_default();
+            let recorded = recorded_points(&lane.samples, windfall_project::MAX_AUTOMATION_POINTS);
+            let base = if expected.is_empty() {
+                vec![AutomationPoint {
+                    tick: 0,
+                    value: lane.before,
+                    curve: 0.0,
+                    hold: false,
+                }]
+            } else {
+                expected.clone()
+            };
+            let points = merge_points(&base, &recorded, !expected.is_empty());
+            if points != expected {
+                commands.push(Command::SetPatternEvents {
+                    pattern: pattern_id,
+                    target: lane.target,
+                    expected,
+                    points,
+                });
+            }
             continue;
         }
         let Some(&(first_tick, _)) = lane.samples.first() else {

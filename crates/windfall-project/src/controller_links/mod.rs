@@ -28,10 +28,12 @@
 //! removes what it points at, exactly as automations are, and comes back
 //! with it on undo.
 
+mod feedback;
 mod formula;
 mod profile;
 mod runtime;
 
+pub use feedback::{FeedbackMessage, FeedbackSource, ProfileFeedback};
 pub use formula::{Formula, MAX_FORMULA_BYTES, MAX_FORMULA_OPS};
 pub use profile::{
     ControllerProfile, MAX_PROFILE_CONTROLS, ProfileControl, builtin_profiles, profile_for_port,

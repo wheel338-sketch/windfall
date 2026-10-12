@@ -14,6 +14,7 @@ struct Fake {
     ingress: HashMap<String, Ingress>,
     /// Everything sent to the output, in order.
     sent: Vec<Vec<u8>>,
+    routed: Vec<(String, Vec<u8>)>,
     /// Port ids that exist.
     present: Vec<String>,
 }
@@ -25,10 +26,12 @@ impl Drop for FakeInput {
         self.0.lock().unwrap().ingress.remove(&self.1);
     }
 }
-struct FakeOutput(Handle);
+struct FakeOutput(Handle, String);
 impl Output for FakeOutput {
     fn send(&mut self, bytes: &[u8]) -> Result<(), String> {
-        self.0.lock().unwrap().sent.push(bytes.to_vec());
+        let mut fake = self.0.lock().unwrap();
+        fake.sent.push(bytes.to_vec());
+        fake.routed.push((self.1.clone(), bytes.to_vec()));
         Ok(())
     }
 }
@@ -59,7 +62,7 @@ impl Ports for FakePorts {
         if !self.0.lock().unwrap().present.iter().any(|port| port == id) {
             return Err(format!("{id} is unavailable"));
         }
-        Ok(Box::new(FakeOutput(self.0.clone())))
+        Ok(Box::new(FakeOutput(self.0.clone(), id.to_owned())))
     }
 }
 
@@ -560,4 +563,447 @@ fn real_ports_are_listed_and_the_first_output_takes_a_second_of_clock() {
         port.name
     );
     assert!(pulses.len() >= 40, "about 48 pulses in a second");
+}
+
+#[test]
+fn injected_audio_clock_and_port_measure_compensated_notes_and_clock_jitter() {
+    use crate::recording_clock::OutputClock;
+    use std::sync::atomic::AtomicU64;
+    struct Measured {
+        now: Arc<AtomicU64>,
+        sent: Arc<Mutex<Vec<(u64, Vec<u8>)>>>,
+    }
+    impl Output for Measured {
+        fn latency_nanos(&self) -> u64 {
+            3_000_000
+        }
+        fn send(&mut self, bytes: &[u8]) -> Result<(), String> {
+            self.sent
+                .lock()
+                .unwrap()
+                .push((self.now.load(Ordering::Relaxed), bytes.to_vec()));
+            Ok(())
+        }
+    }
+    let (_, controller) = Processor::new(48_000);
+    let fake = fake(&["out"]);
+    let (mut worker, _) = worker(
+        &controller,
+        &fake,
+        MidiHardwareSettings {
+            output: Some("out".into()),
+            send_clock: true,
+            ..Default::default()
+        },
+    );
+    let now = Arc::new(AtomicU64::new(0));
+    let sent = Arc::new(Mutex::new(Vec::new()));
+    worker.output = Some(Box::new(Measured {
+        now: now.clone(),
+        sent: sent.clone(),
+    }));
+    let base = Instant::now();
+    // Callback frame zero is heard at 10 ms. Its note must be submitted at
+    // 7 ms so the surface's reported 3 ms delay lands it with the DAC.
+    let clock = OutputClock {
+        generation: 1,
+        frame: 0,
+        nanos: 10_000_000,
+        sample_rate: 48_000,
+        nanos_per_frame: 1e9 / 48_000.0,
+        latency_nanos: 10_000_000,
+        measured: true,
+    };
+    controller.shared().push_midi_out(0, [0x90, 60, 100], 3);
+    controller.shared().push_midi_out(4800, [0x80, 60, 0], 3);
+    let mut head = controller.playhead();
+    head.playing = true;
+    head.tick = 0.0;
+    head.ticks_per_second = 1920.0;
+    // Inject bounded irregular wake-ups, without sleeping or real ports.
+    for step in 0..=550_u64 {
+        let ns = step * 1_000_000 + [0, 125_000, 80_000][step as usize % 3];
+        now.store(ns, Ordering::Relaxed);
+        worker.outputs_at(base + Duration::from_nanos(ns), &head, ns, Some(clock));
+    }
+    let sent = sent.lock().unwrap();
+    let on = sent
+        .iter()
+        .find(|(_, bytes)| bytes == &[0x90, 60, 100])
+        .unwrap()
+        .0;
+    let off = sent
+        .iter()
+        .find(|(_, bytes)| bytes == &[0x80, 60, 0])
+        .unwrap()
+        .0;
+    assert!((7_000_000..8_125_001).contains(&on));
+    assert!((107_000_000..108_125_001).contains(&off));
+    let pulses: Vec<_> = sent
+        .iter()
+        .filter(|(_, bytes)| bytes == &[0xf8])
+        .map(|(ns, _)| *ns)
+        .collect();
+    assert!(pulses.len() >= 24);
+    let errors: Vec<_> = pulses
+        .iter()
+        .enumerate()
+        .map(|(index, ns)| {
+            let reference = 7_000_000.0 + index as f64 * 1e9 / 48.0;
+            *ns as f64 - reference
+        })
+        .collect();
+    assert!(
+        errors
+            .iter()
+            .all(|error| *error >= -20_000.0 && *error <= 1_125_000.0),
+        "deadline errors: {errors:?}"
+    );
+    let mean = errors.iter().sum::<f64>() / errors.len() as f64;
+    let rms = (errors
+        .iter()
+        .map(|error| (error - mean).powi(2))
+        .sum::<f64>()
+        / errors.len() as f64)
+        .sqrt();
+    assert!(rms < 600_000.0, "synthetic clock jitter RMS {rms} ns");
+}
+
+#[test]
+fn declarative_surface_feedback_emits_led_motor_and_display_bytes_through_the_worker() {
+    use windfall_project::controller_links::{FeedbackMessage, FeedbackSource, ProfileFeedback};
+    let (_, controller) = Processor::new(48_000);
+    let fake = fake(&["surface"]);
+    let (mut worker, _) = worker(
+        &controller,
+        &fake,
+        MidiHardwareSettings {
+            output: Some("surface".into()),
+            ..Default::default()
+        },
+    );
+    let rules = [
+        ProfileFeedback {
+            source: FeedbackSource::Playing,
+            message: FeedbackMessage::NoteLed {
+                channel: 1,
+                key: 94,
+            },
+        },
+        ProfileFeedback {
+            source: FeedbackSource::Slot {
+                slot: windfall_project::SlotTarget::MasterVolume,
+            },
+            message: FeedbackMessage::PitchBend { channel: 9 },
+        },
+        ProfileFeedback {
+            source: FeedbackSource::MixerName { index: 0 },
+            message: FeedbackMessage::Display {
+                prefix: vec![0xf0, 0, 0, 0x66, 0x14, 0x12, 0],
+                suffix: vec![0xf7],
+                width: 7,
+            },
+        },
+    ];
+    let messages = vec![
+        rules[0].encode(1.0, ""),
+        rules[1].encode(0.5, ""),
+        rules[2].encode(0.0, "Bass"),
+    ];
+    assert!(rules.iter().all(|rule| rule.problem().is_none()));
+    fake.lock().unwrap().sent.clear();
+    worker.feedback(&messages);
+    assert_eq!(
+        fake.lock().unwrap().sent,
+        vec![
+            vec![0x90, 94, 127],
+            vec![0xe8, 0, 64],
+            vec![
+                0xf0, 0, 0, 0x66, 0x14, 0x12, 0, b'B', b'a', b's', b's', b' ', b' ', b' ', 0xf7
+            ],
+        ]
+    );
+    worker.feedback(&[rules[0].encode(0.0, "")]);
+    assert_eq!(fake.lock().unwrap().sent.last().unwrap(), &[0x90, 94, 0]);
+    let invalid = ProfileFeedback {
+        source: FeedbackSource::Playing,
+        message: FeedbackMessage::Display {
+            prefix: vec![0xf0, 0xff],
+            suffix: vec![0xf7],
+            width: 7,
+        },
+    };
+    assert!(invalid.problem().is_some());
+    assert!(invalid.encode(0.0, "invalid").is_empty());
+}
+
+#[test]
+fn independent_output_slots_route_and_removal_releases_without_global_stop() {
+    let (mut processor, controller) = Processor::new(48_000);
+    let (mut doc, source, pattern) = midi_out_project(4);
+    let mut params = InstrumentKind::MidiOut.default_params();
+    if let InstrumentParams::MidiOut(out) = &mut params {
+        out.channel = 4;
+        out.output_port = 2;
+    }
+    doc.dispatch(
+        Command::SetInstrumentParams {
+            channel: source,
+            params,
+        },
+        None,
+    )
+    .unwrap();
+    let fake = fake(&["main", "aux1", "aux2"]);
+    let (mut worker, _) = worker(
+        &controller,
+        &fake,
+        MidiHardwareSettings {
+            output: Some("main".into()),
+            extra_outputs: vec!["aux1".into(), "aux2".into()],
+            ..Default::default()
+        },
+    );
+    controller.set_project(doc.project(), &SamplePool::new());
+    let mut pcm = [0.0; 512];
+    processor.process(&mut pcm);
+    worker.service();
+    fake.lock().unwrap().routed.clear();
+    play_pattern(&controller, pattern);
+    processor.process(&mut pcm);
+    worker.service();
+    assert!(
+        fake.lock()
+            .unwrap()
+            .routed
+            .contains(&("aux2".into(), vec![0x93, 60, 127]))
+    );
+    assert!(
+        !fake
+            .lock()
+            .unwrap()
+            .routed
+            .iter()
+            .any(|(port, bytes)| port != "aux2" && bytes[0] & 0xf0 == 0x90)
+    );
+    doc.dispatch(Command::RemoveChannel { id: source }, None)
+        .unwrap();
+    controller.set_project(doc.project(), &SamplePool::new());
+    assert_eq!(
+        crate::test_alloc::allocator_calls(|| processor.process(&mut pcm)),
+        0
+    );
+    worker.service();
+    assert!(controller.playhead().playing, "no Stop/Panic required");
+    assert!(
+        fake.lock()
+            .unwrap()
+            .routed
+            .contains(&("aux2".into(), vec![0x83, 60, 0]))
+    );
+    fake.lock().unwrap().present.retain(|id| id != "aux2");
+    worker.refresh();
+    assert!(worker.extra_outputs[1].is_none());
+    assert!(worker.state().error.is_some());
+    assert!(worker.extra_outputs[0].is_some());
+    doc.undo().unwrap();
+    let saved = windfall_project::file::to_json(doc.project()).unwrap();
+    assert_eq!(
+        windfall_project::file::from_json(&saved).unwrap(),
+        *doc.project()
+    );
+}
+
+#[test]
+fn midi_output_plugin_destination_receives_notes_program_cc_and_exact_release_pcm() {
+    use crate::plugins::{HostedEffect, HostedInstrument, PluginFactory};
+    use std::sync::atomic::AtomicU64;
+    use windfall_project::{PluginBinding, PluginTarget};
+    #[derive(Debug)]
+    struct Probe {
+        count: AtomicU32,
+        messages: [AtomicU64; 64],
+    }
+    struct Unit {
+        probe: Arc<Probe>,
+        frame: u64,
+        held: bool,
+    }
+    impl HostedEffect for Unit {
+        fn process(&mut self, left: &mut [f32], right: &mut [f32]) {
+            left.fill(if self.held { 0.25 } else { 0.0 });
+            right.copy_from_slice(left);
+            self.frame += left.len() as u64;
+        }
+        fn set_param(&mut self, _: u32, _: f32) {}
+        fn set_tempo(&mut self, _: f32) {}
+        fn latency(&self) -> usize {
+            0
+        }
+        fn tail(&self) -> usize {
+            0
+        }
+    }
+    impl HostedInstrument for Unit {
+        fn midi_message(&mut self, bytes: &[u8]) -> bool {
+            let at = self.probe.count.fetch_add(1, Ordering::Relaxed) as usize;
+            if at < 64 {
+                self.probe.messages[at].store(
+                    self.frame << 24
+                        | u64::from(bytes[0])
+                        | u64::from(*bytes.get(1).unwrap_or(&0)) << 8
+                        | u64::from(*bytes.get(2).unwrap_or(&0)) << 16,
+                    Ordering::Relaxed,
+                );
+            }
+            if bytes[0] & 0xf0 == 0x90 {
+                self.held = bytes[2] != 0;
+            }
+            if bytes[0] & 0xf0 == 0x80 || bytes[0] & 0xf0 == 0xb0 && bytes[1] == 123 {
+                self.held = false;
+            }
+            true
+        }
+        fn note_on(&mut self, _: u8, _: f32) {}
+        fn note_off(&mut self, _: u8) {}
+        fn all_notes_off(&mut self) {
+            self.held = false;
+        }
+        fn voices(&self) -> usize {
+            usize::from(self.held)
+        }
+    }
+    #[derive(Debug)]
+    struct Factory(Arc<Probe>);
+    impl PluginFactory for Factory {
+        fn effect(
+            &self,
+            _: &PluginBinding,
+            _: u32,
+            _: usize,
+        ) -> Result<Box<dyn HostedEffect>, String> {
+            Err("instrument only".into())
+        }
+        fn instrument(
+            &self,
+            _: &PluginBinding,
+            _: u32,
+            _: usize,
+        ) -> Result<Box<dyn HostedInstrument>, String> {
+            Ok(Box::new(Unit {
+                probe: self.0.clone(),
+                frame: 0,
+                held: false,
+            }))
+        }
+    }
+    let (mut doc, source, pattern) = midi_out_project(3);
+    let target = ChannelId(
+        doc.dispatch(
+            Command::AddChannel {
+                name: Some("Hosted destination".into()),
+                sample: None,
+                instrument: Some(InstrumentKind::TripleOsc),
+                index: None,
+                mixer_track: None,
+            },
+            None,
+        )
+        .unwrap()
+        .created[0],
+    );
+    let mut project = doc.project().clone();
+    project.plugins.push(PluginBinding {
+        target: PluginTarget::Instrument { channel: target },
+        format: "clap".into(),
+        path: "synthetic-midi".into(),
+        id: "org.windfall.test.midi".into(),
+        name: "Synthetic MIDI".into(),
+        state: Vec::new(),
+        parameters: Vec::new(),
+        sidechain_input: None,
+        auxiliary_inputs: Vec::new(),
+    });
+    doc = Document::new(project);
+    let mut params = InstrumentKind::MidiOut.default_params();
+    if let InstrumentParams::MidiOut(out) = &mut params {
+        out.channel = 3;
+        out.program = 12;
+        out.controllers[0].number = 74;
+        out.controllers[0].value = 99;
+        out.pitch_bend = 1.0;
+        out.plugin_destination = target.0 as i32;
+    }
+    doc.dispatch(
+        Command::SetInstrumentParams {
+            channel: source,
+            params,
+        },
+        None,
+    )
+    .unwrap();
+    doc.project().check().unwrap();
+    let probe = Arc::new(Probe {
+        count: AtomicU32::new(0),
+        messages: std::array::from_fn(|_| AtomicU64::new(0)),
+    });
+    let mut pool = SamplePool::new();
+    pool.set_plugin_factory(Arc::new(Factory(probe.clone())));
+    let (mut processor, controller) = Processor::new(48_000);
+    controller.set_project(doc.project(), &pool);
+    let mut pcm = [0.0; 512];
+    processor.process(&mut pcm);
+    play_pattern(&controller, pattern);
+    for _ in 0..30 {
+        assert_eq!(
+            crate::test_alloc::allocator_calls(|| processor.process(&mut pcm)),
+            0
+        );
+    }
+    let events: Vec<_> = probe.messages[..probe.count.load(Ordering::Relaxed) as usize]
+        .iter()
+        .map(|event| event.load(Ordering::Relaxed))
+        .collect();
+    let status = |kind| events.iter().find(|event| **event as u8 == kind).unwrap();
+    assert_eq!(*status(0xc2) as u32 & 0xffff, 0x0bc2);
+    assert!(
+        events
+            .iter()
+            .any(|event| *event as u32 & 0xffffff == 0x634ab2)
+    );
+    assert!(
+        events
+            .iter()
+            .any(|event| *event as u32 & 0xffffff == 0x7f7fe2)
+    );
+    assert_eq!((*status(0x82) >> 24) - (*status(0x92) >> 24), 240 * 25);
+    assert_eq!(controller.midi_out_dropped(), 0);
+    let mut hardware = Vec::new();
+    controller.drain_midi_out(|_, bytes| hardware.push(bytes.to_vec()));
+    assert!(hardware.is_empty());
+    let rendered = crate::render(
+        doc.project(),
+        &pool,
+        &crate::RenderOptions::default(),
+        &mut |_| true,
+    );
+    // Independent PCM boundary reference: held 240 ticks then exact silence.
+    assert!(rendered.samples()[1000 * 2].abs() > 0.01);
+    assert_eq!(rendered.samples()[7000 * 2], 0.0);
+    doc.dispatch(Command::RemoveChannel { id: target }, None)
+        .unwrap();
+    doc.project().check().unwrap();
+    let windfall_project::ChannelSource::Instrument {
+        params: InstrumentParams::MidiOut(out),
+        ..
+    } = &doc.project().channel(source).unwrap().source
+    else {
+        panic!()
+    };
+    assert_eq!(
+        out.plugin_destination, -1,
+        "deleting destination never redirects to hardware"
+    );
+    doc.undo().unwrap();
+    assert_eq!(doc.project().plugins.len(), 1);
 }

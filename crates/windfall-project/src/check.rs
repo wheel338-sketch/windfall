@@ -545,6 +545,15 @@ fn check_channel(project: &Project, channel: &Channel) -> Result<(), String> {
                     "{owner} has an instrument setting outside its range"
                 ));
             }
+            if let windfall_dsp::InstrumentParams::MidiOut(params) = params {
+                if !(0..=7).contains(&params.output_port) || params.plugin_destination < -1 { return Err(format!("{owner} has an invalid MIDI destination")); }
+                if params.plugin_destination > 0 {
+                    let target = ChannelId(params.plugin_destination as u32);
+                    if target == channel.id || !project.plugins.iter().any(|binding| binding.target == crate::PluginTarget::Instrument { channel: target }) {
+                        return Err(format!("{owner} MIDI destination must be another hosted instrument"));
+                    }
+                }
+            }
             Ok(())
         }
     }

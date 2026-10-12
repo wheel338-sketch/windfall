@@ -64,7 +64,7 @@ pub struct Audio {
     input: InputBlock,
     output: OutputBlock,
     parameters: Box<[ParameterSpec]>,
-    held: [f32; 128],
+    held: [f32; 16 * 128],
     generation: u64,
     epoch: u64,
     sequence: u64,
@@ -118,7 +118,7 @@ impl Audio {
             input: InputBlock::new(),
             output: OutputBlock::silent(),
             parameters: parameters.to_vec().into_boxed_slice(),
-            held: [0.0; 128],
+            held: [0.0; 16 * 128],
             generation: 1,
             epoch: 1,
             sequence: 0,
@@ -213,14 +213,24 @@ impl Audio {
             for previous in self.input.events[..count].iter().rev() {
                 match (*previous, event) {
                     (HostEvent::AllNotesOff { .. }, _) => return true,
-                    (HostEvent::NoteOn { key: previous, .. }, HostEvent::NoteOff { key, .. })
-                        if previous == key =>
-                    {
+                    (
+                        HostEvent::NoteOn {
+                            key: previous,
+                            channel: previous_channel,
+                            ..
+                        },
+                        HostEvent::NoteOff { key, channel, .. },
+                    ) if previous == key && previous_channel == channel => {
                         break;
                     }
-                    (HostEvent::NoteOff { key: previous, .. }, HostEvent::NoteOff { key, .. })
-                        if previous == key =>
-                    {
+                    (
+                        HostEvent::NoteOff {
+                            key: previous,
+                            channel: previous_channel,
+                            ..
+                        },
+                        HostEvent::NoteOff { key, channel, .. },
+                    ) if previous == key && previous_channel == channel => {
                         return true;
                     }
                     (HostEvent::NoteOn { .. }, HostEvent::AllNotesOff { .. }) => break,
@@ -266,6 +276,51 @@ impl Audio {
         }
         self.admit(HostEvent::Param { time: 0, id, value }, false)
     }
+    /// Fixed event admission for a MIDI-output channel, including ownership-safe
+    /// channel/key notes and raw wheel/CC/program messages.
+    pub fn midi_message(&mut self, bytes: &[u8]) -> bool {
+        if bytes.is_empty() || bytes.len() > 3 || bytes[1..].iter().any(|byte| *byte >= 128) {
+            return false;
+        }
+        let channel = bytes[0] & 15;
+        let kind = bytes[0] & 0xf0;
+        let expected = if matches!(kind, 0xc0 | 0xd0) { 2 } else { 3 };
+        if bytes.len() != expected || !(0x80..=0xe0).contains(&kind) {
+            return false;
+        }
+        let key = bytes[1];
+        let release = kind == 0x80 || (kind == 0x90 && bytes[2] == 0);
+        if kind == 0xb0 && matches!(key, 120 | 123) {
+            self.held[usize::from(channel) * 128..(usize::from(channel) + 1) * 128].fill(0.0);
+        }
+        let event = if kind == 0x90 && !release {
+            self.held[usize::from(channel) * 128 + key as usize] = f32::from(bytes[2]) / 127.0;
+            HostEvent::NoteOn {
+                time: 0,
+                key,
+                channel,
+                velocity: f32::from(bytes[2]) / 127.0,
+            }
+        } else if release {
+            self.held[usize::from(channel) * 128 + key as usize] = 0.0;
+            HostEvent::NoteOff {
+                time: 0,
+                key,
+                channel,
+                velocity: 0.0,
+            }
+        } else {
+            let mut stored = [0; 3];
+            stored[..bytes.len()].copy_from_slice(bytes);
+            HostEvent::Midi {
+                time: 0,
+                bytes: stored,
+                len: bytes.len() as u8,
+            }
+        };
+        self.advance_generation() && self.admit(event, release)
+    }
+
     pub fn note_on(&mut self, key: u8, velocity: f32) -> bool {
         if key > 127 || !velocity.is_finite() || !(0.0..=1.0).contains(&velocity) {
             return false;
@@ -736,6 +791,46 @@ mod tests {
         offline_done_race(true);
     }
     #[test]
+    fn routed_midi_snapshots_preserve_wire_channels_and_control_bytes() {
+        let (mut audio, region) = make(Kind::Instrument, 0);
+        assert!(audio.midi_message(&[0x92, 60, 100]));
+        assert!(audio.midi_message(&[0x94, 60, 90]));
+        assert!(audio.midi_message(&[0xb4, 74, 99]));
+        assert!(audio.midi_message(&[0xc4, 11]));
+        assert!(audio.midi_message(&[0xe4, 127, 127]));
+        assert!(audio.midi_message(&[0x82, 60, 0]));
+        assert!(!audio.midi_message(&[0xb4, 128, 0]));
+        assert!(!audio.midi_message(&[0xc4, 0, 0]));
+        audio.process(&mut [0.0; 64], &mut [0.0; 64]);
+        let mut input = InputBlock::new();
+        region.take_input(&mut input).unwrap().unwrap();
+        assert_eq!(input.notes[2 * 128 + 60], 0.0);
+        assert_eq!(input.notes[4 * 128 + 60], 90.0 / 127.0);
+        let events = &input.events[..input.event_count];
+        assert!(events.contains(&HostEvent::NoteOn {
+            time: 0,
+            key: 60,
+            channel: 4,
+            velocity: 90.0 / 127.0
+        }));
+        assert!(events.contains(&HostEvent::Midi {
+            time: 0,
+            bytes: [0xb4, 74, 99],
+            len: 3
+        }));
+        assert!(events.contains(&HostEvent::Midi {
+            time: 0,
+            bytes: [0xc4, 11, 0],
+            len: 2
+        }));
+        assert!(events.contains(&HostEvent::Midi {
+            time: 0,
+            bytes: [0xe4, 127, 127],
+            len: 3
+        }));
+    }
+
+    #[test]
     fn offline_done_deadline_race_fails_and_clears_both_buffers() {
         offline_done_race(false);
     }
@@ -1040,7 +1135,7 @@ mod tests {
         complete(&region, &mut worker, &mut output);
         assert!(worker.controls_complete);
         assert_eq!(worker.parameters[0].value, 0.75);
-        assert_eq!(worker.notes, [0.0; 128]);
+        assert_eq!(worker.notes, [0.0; 16 * 128]);
     }
 
     #[test]

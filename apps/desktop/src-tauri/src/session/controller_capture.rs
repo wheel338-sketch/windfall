@@ -6,6 +6,7 @@
 use std::collections::VecDeque;
 use std::time::{Duration, Instant};
 
+use super::capture_expression::ExpressionCapture;
 use windfall_engine::Playhead;
 use windfall_ipc::{PlayMode, ScoreLogState};
 use windfall_project::{
@@ -127,7 +128,7 @@ impl TransportClock {
 }
 
 /// One finished note of a recording pass.
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub(super) struct TakenNote {
     pub channel: ChannelId,
     pub pattern: PatternId,
@@ -136,14 +137,16 @@ pub(super) struct TakenNote {
     pub length: f64,
     pub key: u8,
     pub velocity: f32,
+    pub expression: ExpressionCapture,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 struct OpenNote {
     channel: ChannelId,
     key: u8,
     velocity: f32,
     at: Position,
+    expression: ExpressionCapture,
 }
 
 /// The notes played during one pass of note recording.
@@ -151,6 +154,7 @@ struct OpenNote {
 pub(super) struct NoteTake {
     open: Vec<OpenNote>,
     done: Vec<TakenNote>,
+    expression_samples: usize,
     dropped: u32,
 }
 
@@ -169,7 +173,19 @@ impl NoteTake {
     }
 
     /// A key going down at `at`. A key already down is ended there first.
+    #[cfg(test)]
     pub fn note_on(&mut self, channel: ChannelId, key: u8, velocity: f32, at: Position) {
+        self.note_on_expressed(channel, key, velocity, at, ExpressionCapture::default());
+    }
+
+    pub fn note_on_expressed(
+        &mut self,
+        channel: ChannelId,
+        key: u8,
+        velocity: f32,
+        at: Position,
+        expression: ExpressionCapture,
+    ) {
         self.note_off(channel, key, at);
         if self.open.len() + self.done.len() >= MAX_TAKE_NOTES {
             self.dropped = self.dropped.saturating_add(1);
@@ -180,7 +196,45 @@ impl NoteTake {
             key,
             velocity: velocity.clamp(0.0, 1.0),
             at,
+            expression,
         });
+    }
+
+    pub fn expression(
+        &mut self,
+        source: (u8, u8),
+        parameter: windfall_project::NoteCurveParameter,
+        tick: f64,
+        value: f32,
+    ) {
+        for note in &mut self.open {
+            if note.expression.source != Some(source) {
+                continue;
+            }
+            // Three curves, at most 256 points each; refuse rather than grow without limit.
+            if self.expression_samples
+                >= windfall_project::note_curves::MAX_PATTERN_CURVE_POINTS - 3 * MAX_TAKE_NOTES
+                || note.expression.samples.len()
+                    >= 3 * (windfall_project::note_curves::MAX_NOTE_CURVE_POINTS - 1)
+            {
+                self.dropped = self.dropped.saturating_add(1);
+                continue;
+            }
+            let tick = if tick < note.at.tick && note.at.mode == PlayMode::Pattern {
+                f64::from(note.at.pattern_ticks.unwrap_or(0)).max(note.at.tick)
+            } else {
+                tick
+            };
+            let tick = note
+                .expression
+                .samples
+                .iter()
+                .rev()
+                .find(|(p, _, _)| *p == parameter)
+                .map_or(tick, |(_, before, _)| tick.max(*before));
+            note.expression.samples.push((parameter, tick, value));
+            self.expression_samples += 1;
+        }
     }
 
     /// A key coming up at `at`.
@@ -219,13 +273,40 @@ impl NoteTake {
             length: length.max(1.0),
             key: note.key,
             velocity: note.velocity,
+            expression: note.expression,
         });
+    }
+
+    /// A refused document publication retains the recovery take for a retry.
+    pub fn restore(&mut self, notes: Vec<TakenNote>) {
+        let newer = std::mem::take(&mut self.done);
+        self.expression_samples = self
+            .open
+            .iter()
+            .map(|note| note.expression.samples.len())
+            .sum();
+        for note in notes.into_iter().chain(newer) {
+            if self.open.len() + self.done.len() >= MAX_TAKE_NOTES
+                || self.expression_samples + note.expression.samples.len()
+                    > windfall_project::note_curves::MAX_PATTERN_CURVE_POINTS - 3 * MAX_TAKE_NOTES
+            {
+                self.dropped = self.dropped.saturating_add(1);
+                continue;
+            }
+            self.expression_samples += note.expression.samples.len();
+            self.done.push(note);
+        }
     }
 
     /// Hands over the finished notes in the order they began and starts an
     /// empty pass. Keys still down stay down.
     pub fn take(&mut self) -> Vec<TakenNote> {
         self.dropped = 0;
+        self.expression_samples = self
+            .open
+            .iter()
+            .map(|note| note.expression.samples.len())
+            .sum();
         let mut notes = std::mem::take(&mut self.done);
         notes.sort_by(|a, b| a.start.total_cmp(&b.start));
         notes
@@ -263,7 +344,7 @@ pub(super) fn note_init(
         key: note.key.min(127),
         velocity: Some(note.velocity.clamp(0.0, 1.0)),
         pan: None,
-        expression: None,
+        expression: Some(note.expression.initial),
     })
 }
 
@@ -413,6 +494,7 @@ impl ScoreLog {
                 length: note.off.duration_since(note.on).as_secs_f64() * rate,
                 key: note.key,
                 velocity: note.velocity,
+                expression: ExpressionCapture::default(),
             };
             let Some(init) = note_init(&taken, 0.0, quantize, None) else {
                 dump.skipped += 1;
@@ -434,6 +516,8 @@ impl ScoreLog {
 /// The movements of one control in a pass of automation recording.
 #[derive(Debug, Clone, PartialEq)]
 pub(super) struct AutomationLane {
+    /// None is song automation; Some writes events in this pattern.
+    pub pattern: Option<PatternId>,
     pub target: AutomationTarget,
     /// The control's value, 0 to 1, before its first movement of the pass.
     pub before: f32,
@@ -449,6 +533,10 @@ pub(super) struct AutomationTake {
 }
 
 impl AutomationTake {
+    pub fn recorded_targets(&self) -> Vec<AutomationTarget> {
+        self.lanes.iter().map(|lane| lane.target).collect()
+    }
+
     pub fn targets(&self) -> u32 {
         self.lanes.len() as u32
     }
@@ -472,12 +560,28 @@ impl AutomationTake {
 
     /// A control moved to `value` at song tick `tick`. `before` is what it
     /// held just before, which matters for its first movement only.
+    #[cfg(test)]
     pub fn record(&mut self, target: AutomationTarget, before: f32, tick: f64, value: f32) {
+        self.record_in(None, target, before, tick, value);
+    }
+
+    pub fn record_in(
+        &mut self,
+        pattern: Option<PatternId>,
+        target: AutomationTarget,
+        before: f32,
+        tick: f64,
+        value: f32,
+    ) {
         if !tick.is_finite() || !value.is_finite() {
             return;
         }
         let value = value.clamp(0.0, 1.0);
-        let index = match self.lanes.iter().position(|lane| lane.target == target) {
+        let index = match self
+            .lanes
+            .iter()
+            .position(|lane| lane.target == target && lane.pattern == pattern)
+        {
             Some(index) => index,
             None if self.lanes.len() >= MAX_AUTOMATION_LANES => {
                 self.dropped = self.dropped.saturating_add(1);
@@ -485,6 +589,7 @@ impl AutomationTake {
             }
             None => {
                 self.lanes.push(AutomationLane {
+                    pattern,
                     target,
                     before: if before.is_finite() {
                         before.clamp(0.0, 1.0)
@@ -502,6 +607,30 @@ impl AutomationTake {
             return;
         }
         samples.push((tick, value));
+    }
+
+    /// Retain a refused pass, bounded as normal capture, ahead of newer samples.
+    pub fn restore(&mut self, lanes: Vec<AutomationLane>) {
+        let newer = std::mem::take(&mut self.lanes);
+        for lane in lanes.into_iter().chain(newer) {
+            if let Some(held) = self
+                .lanes
+                .iter_mut()
+                .find(|held| held.target == lane.target && held.pattern == lane.pattern)
+            {
+                for sample in lane.samples {
+                    if held.samples.len() < MAX_LANE_SAMPLES {
+                        held.samples.push(sample);
+                    } else {
+                        self.dropped = self.dropped.saturating_add(1);
+                    }
+                }
+            } else if self.lanes.len() < MAX_AUTOMATION_LANES {
+                self.lanes.push(lane);
+            } else {
+                self.dropped = self.dropped.saturating_add(1);
+            }
+        }
     }
 
     pub fn take(&mut self) -> Vec<AutomationLane> {
@@ -622,6 +751,92 @@ pub(super) fn merge_points(
     merged
 }
 
+#[derive(serde::Serialize, serde::Deserialize)]
+struct SavedLog {
+    identity: String,
+    notes: Vec<SavedNote>,
+}
+#[derive(serde::Serialize, serde::Deserialize)]
+struct SavedNote {
+    channel: ChannelId,
+    key: u8,
+    velocity: f32,
+    on_ms: u64,
+    off_ms: u64,
+    tick: Option<f64>,
+}
+fn wall_ms() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_millis()
+        .min(u128::from(u64::MAX)) as u64
+}
+impl ScoreLog {
+    pub fn saved(&self, identity: String, now: Instant) -> Result<Vec<u8>, String> {
+        let wall = wall_ms();
+        let notes = self
+            .notes
+            .iter()
+            .map(|note| SavedNote {
+                channel: note.channel,
+                key: note.key,
+                velocity: note.velocity,
+                on_ms: wall
+                    .saturating_sub(now.saturating_duration_since(note.on).as_millis() as u64),
+                off_ms: wall
+                    .saturating_sub(now.saturating_duration_since(note.off).as_millis() as u64),
+                tick: note.tick,
+            })
+            .collect();
+        serde_json::to_vec(&SavedLog { identity, notes }).map_err(|error| error.to_string())
+    }
+    pub fn load(path: &std::path::Path) -> Option<(String, Self)> {
+        let metadata = std::fs::metadata(path).ok()?;
+        if metadata.len() > 4 * 1024 * 1024 {
+            return None;
+        }
+        let saved: SavedLog = serde_json::from_slice(&std::fs::read(path).ok()?).ok()?;
+        if saved.notes.len() > SCORE_LOG_NOTES {
+            return None;
+        }
+        let wall = wall_ms();
+        let now = Instant::now();
+        let mut log = Self::default();
+        for note in saved.notes {
+            if note.key > 127
+                || !note.velocity.is_finite()
+                || !(0.0..=1.0).contains(&note.velocity)
+                || note.on_ms > wall
+                || note.off_ms < note.on_ms
+                || note.tick.is_some_and(|tick| !tick.is_finite())
+            {
+                continue;
+            }
+            let age = Duration::from_millis(wall - note.on_ms);
+            if age > SCORE_LOG_SPAN {
+                continue;
+            }
+            let Some(on) = now.checked_sub(age) else {
+                continue;
+            };
+            let off = now
+                .checked_sub(Duration::from_millis(wall.saturating_sub(note.off_ms)))
+                .unwrap_or(on)
+                .max(on);
+            log.notes.push_back(LoggedNote {
+                channel: note.channel,
+                key: note.key,
+                velocity: note.velocity,
+                on,
+                off,
+                tick: note.tick,
+            });
+        }
+        Some((saved.identity, log))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -648,6 +863,31 @@ mod tests {
     }
 
     const KICK: ChannelId = ChannelId(7);
+
+    #[test]
+    fn refused_capture_publication_retains_notes_and_automation_before_newer_samples() {
+        let mut notes = NoteTake::default();
+        notes.note_on(KICK, 60, 0.75, at(10.0));
+        notes.note_off(KICK, 60, at(20.0));
+        let refused = notes.take();
+        notes.note_on(KICK, 62, 0.5, at(30.0));
+        notes.note_off(KICK, 62, at(40.0));
+        notes.restore(refused);
+        assert_eq!(
+            notes.take().iter().map(|note| note.key).collect::<Vec<_>>(),
+            [60, 62]
+        );
+        let target = AutomationTarget::ChannelVolume { channel: KICK };
+        let mut automation = AutomationTake::default();
+        automation.record_in(Some(PatternId(1)), target, 0.5, 10.0, 0.25);
+        let refused = automation.take();
+        automation.record_in(Some(PatternId(1)), target, 0.25, 20.0, 0.0);
+        automation.restore(refused);
+        let lanes = automation.take();
+        assert_eq!(lanes.len(), 1);
+        assert_eq!(lanes[0].before, 0.5);
+        assert_eq!(lanes[0].samples, [(10.0, 0.25), (20.0, 0.0)]);
+    }
 
     #[test]
     fn a_moment_gets_the_tick_the_playhead_had_then() {
@@ -779,6 +1019,7 @@ mod tests {
             length: 99.6,
             key: 60,
             velocity: 0.7,
+            expression: ExpressionCapture::default(),
         };
         let plain = note_init(&note, 0.0, 0, None).unwrap();
         assert_eq!((plain.start, plain.length, plain.key), (250, 100, 60));
@@ -792,18 +1033,18 @@ mod tests {
         // A late note snapped onto the end of the pattern is its first step.
         let late = TakenNote {
             start: 3_800.0,
-            ..note
+            ..note.clone()
         };
         assert_eq!(note_init(&late, 0.0, 240, Some(3_840)).unwrap().start, 0);
         assert_eq!(note_init(&late, 0.0, 240, None).unwrap().start, 3_840);
         let far = TakenNote {
             start: f64::from(MAX_PATTERN_TICKS),
-            ..note
+            ..note.clone()
         };
         assert_eq!(note_init(&far, 0.0, 0, None), None);
         let short = TakenNote {
             length: 0.2,
-            ..note
+            ..note.clone()
         };
         assert_eq!(note_init(&short, 0.0, 0, None).unwrap().length, 1);
     }

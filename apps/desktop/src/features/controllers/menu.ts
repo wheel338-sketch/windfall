@@ -5,6 +5,7 @@ import type { AutomationTarget, ControllerLink, LinkTarget } from "@/bindings"
 import type { ContextItem } from "@/components/context-actions"
 import { reportError } from "@/lib/errors"
 import { backend } from "@/lib/ipc"
+import { useUiStore } from "@/lib/store/ui"
 import { dispatch, useProjectStore } from "@/lib/store/project"
 
 /** Whether two plain values hold the same fields, in whatever order. */
@@ -95,6 +96,7 @@ export function controllerEntries(target: AutomationTarget): ContextItem[] {
         title: linked.length > 0 ? "Link to another controller…" : "Link to controller…",
         run: () => learnTargets([{ type: "param", target }], false),
       })
+      if (linked.length > 0) items.push({ title: "Edit controller links…", run: () => useUiStore.getState().openDialog("settings") })
       if (linked.length > 0) items.push({
         title: "Remove controller link",
         destructive: true,

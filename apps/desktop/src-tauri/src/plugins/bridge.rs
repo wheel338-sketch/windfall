@@ -433,6 +433,11 @@ impl HostedEffect for Audio {
     }
 }
 impl HostedInstrument for Audio {
+    fn midi_message(&mut self, bytes: &[u8]) -> bool {
+        let accepted = self.process.midi_message(bytes);
+        self.publish(false);
+        accepted
+    }
     fn note_on(&mut self, key: u8, velocity: f32) {
         self.process.note_on(key, velocity);
         self.publish(false);

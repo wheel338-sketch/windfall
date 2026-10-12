@@ -224,6 +224,16 @@ pub struct PluginInstrument {
 }
 
 impl PluginInstrument {
+    pub fn midi_message(&mut self, bytes: &[u8]) -> bool {
+        if bytes.is_empty() || bytes.len() > 3 || bytes[1..].iter().any(|byte| *byte > 127) { return false; }
+        let kind = bytes[0] & 0xf0;
+        let channel = bytes[0] & 15;
+        if bytes.len() == 3 && kind == 0x90 && bytes[2] != 0 { return self.note_on_channel(bytes[1], channel, f32::from(bytes[2]) / 127.0); }
+        if bytes.len() == 3 && (kind == 0x80 || kind == 0x90) { return self.note_off_channel(bytes[1], channel); }
+        let mut stored = [0; 3]; stored[..bytes.len()].copy_from_slice(bytes);
+        self.processor.push_event(HostEvent::Midi { time: 0, bytes: stored, len: bytes.len() as u8 })
+    }
+
     /// Silences every voice at once and clears the plugin's memory.
     pub fn reset(&mut self) {
         self.processor.reset();

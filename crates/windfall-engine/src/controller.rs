@@ -578,6 +578,14 @@ impl Controller {
         self.inner.shared.count_in_remaining.load(Ordering::Acquire)
     }
 
+    /// Temporarily gives a recorded gesture ownership over an existing curve.
+    /// It does not mutate the saved document and is never used by offline rendering.
+    pub fn automation_touch(&self, target: windfall_project::AutomationTarget, value: Option<f32>) {
+        if value.is_none_or(f32::is_finite) {
+            self.lock().send(Message::AutomationTouch { target, value });
+        }
+    }
+
     /// Plays the pattern or song `passes` times, then stops without cutting
     /// off what is still sounding. The offline renderer uses this.
     pub(crate) fn play_passes(&self, passes: u32) {
@@ -720,15 +728,30 @@ impl Controller {
         }
     }
 
+    /// Control-side surface feedback reads normalized audible automation only,
+    /// without requesting analysis snapshots or taking the engine control lock.
+    pub fn controller_automation_values(&self) -> Vec<(u32, f32)> {
+        let mut values = Vec::new();
+        self.inner.shared.automated(&mut values);
+        values
+    }
+
+    /// Frame corresponding to the published playhead in the DAC clock.
+    pub fn playhead_output_frame(&self) -> u64 {
+        self.inner.shared.position_frame.load(Ordering::Acquire)
+    }
+
     /// Takes the messages MIDI output channels have queued, oldest first,
     /// each with the engine frame it belongs to. One thread at a time may
     /// call this: it is the MIDI worker's. Never blocks the audio thread.
     pub fn drain_midi_out(&self, mut out: impl FnMut(u64, &[u8])) {
+        self.drain_midi_out_from(|frame, bytes, _| out(frame, bytes));
+    }
+
+    pub fn drain_midi_out_from(&self, mut out: impl FnMut(u64, &[u8], u8)) {
         for _ in 0..crate::shared::MIDI_OUT_CAPACITY {
-            let Some((frame, bytes, len)) = self.inner.shared.pop_midi_out() else {
-                break;
-            };
-            out(frame, &bytes[..usize::from(len.min(3))]);
+            let Some((frame, bytes, len, port)) = self.inner.shared.pop_midi_out_from() else { break; };
+            out(frame, &bytes[..usize::from(len.min(3))], port);
         }
     }
 

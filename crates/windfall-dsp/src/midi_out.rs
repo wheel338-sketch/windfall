@@ -30,7 +30,7 @@ use crate::param::{ParamSet, param_set};
 /// How many assignable controllers a MIDI output channel has.
 pub const MIDI_OUT_CONTROLLERS: usize = 8;
 /// How many messages wait inside the instrument between two blocks.
-pub const MIDI_OUT_PENDING: usize = 96;
+pub const MIDI_OUT_PENDING: usize = 512;
 /// The frame of a message the host has not stamped yet.
 const UNSTAMPED: u64 = u64::MAX;
 
@@ -42,6 +42,10 @@ pub struct MidiOutEvent {
     /// The message. Only the first `len` bytes count.
     pub bytes: [u8; 3],
     pub len: u8,
+    /// Hardware slot 0..7 (0 is the main port).
+    pub output_port: u8,
+    /// Hosted instrument channel ID; zero selects hardware.
+    pub plugin_destination: u32,
 }
 
 impl MidiOutEvent {
@@ -87,6 +91,16 @@ pub struct MidiOutParams {
     /// The pitch wheel, -1 to 1, with 0 the center.
     pub pitch_bend: f32,
     pub controllers: [MidiOutController; MIDI_OUT_CONTROLLERS],
+    #[serde(skip_serializing_if = "is_zero")]
+    #[ts(as = "Option<i32>", optional)]
+    pub output_port: i32,
+    #[serde(skip_serializing_if = "is_zero")]
+    #[ts(as = "Option<i32>", optional)]
+    pub plugin_destination: i32,
+}
+
+fn is_zero(value: &i32) -> bool {
+    *value == 0
 }
 
 impl Default for MidiOutParams {
@@ -98,6 +112,8 @@ impl Default for MidiOutParams {
             bank_lsb: 0,
             pitch_bend: 0.0,
             controllers: [MidiOutController::default(); MIDI_OUT_CONTROLLERS],
+            output_port: 0,
+            plugin_destination: 0,
         }
     }
 }
@@ -153,6 +169,8 @@ impl Default for MidiOut {
                 frame: UNSTAMPED,
                 bytes: [0; 3],
                 len: 0,
+                output_port: 0,
+                plugin_destination: 0,
             }; MIDI_OUT_PENDING],
             len: 0,
             dropped: 0,
@@ -162,6 +180,14 @@ impl Default for MidiOut {
 }
 
 impl MidiOut {
+    /// Transfer fixed MIDI state into a prepared replacement while retaining its
+    /// new settings. Destination changes balance old ownership in sync().
+    pub fn adopt(&mut self, previous: &Self) {
+        let params = self.params;
+        *self = previous.clone();
+        self.set_params(&params);
+    }
+
     /// Messages that did not fit the buffer since the instrument was made.
     pub fn dropped(&self) -> u32 {
         self.dropped
@@ -202,6 +228,8 @@ impl MidiOut {
             frame: UNSTAMPED,
             bytes,
             len,
+            output_port: self.params.output_port as u8,
+            plugin_destination: self.params.plugin_destination as u32,
         };
         self.len += 1;
     }
@@ -231,11 +259,20 @@ impl MidiOut {
         let before = self.sent;
         let channel = now.channel;
         let moved_channel = before.is_some_and(|before| before.channel != channel);
-        if moved_channel {
+        let moved_route = before.is_some_and(|before| {
+            before.output_port != now.output_port
+                || before.plugin_destination != now.plugin_destination
+        });
+        if moved_channel || moved_route {
             // Notes still sounding belong to the channel they started on.
+            // Release using the old destination before telling the new one anything.
+            if let Some(before) = before {
+                self.params = before;
+            }
             self.release_all();
+            self.params = now;
         }
-        let fresh = before.is_none() || moved_channel;
+        let fresh = before.is_none() || moved_channel || moved_route;
         let changed = |pick: fn(&MidiOutParams) -> i32| {
             fresh || before.is_some_and(|before| pick(&before) != pick(&now))
         };
@@ -252,7 +289,7 @@ impl MidiOut {
         };
         let bend = wheel(&now);
         let bend_before = before
-            .filter(|_| !moved_channel)
+            .filter(|_| !moved_channel && !moved_route)
             .map(|before| wheel(&before));
         if bend_before.map_or(bend != 8192, |before| before != bend) {
             self.push(
@@ -304,6 +341,8 @@ impl Instrument for MidiOut {
 
     fn set_params(&mut self, params: &MidiOutParams) {
         self.params = params.sanitized();
+        self.params.output_port = self.params.output_port.clamp(0, 7);
+        self.params.plugin_destination = self.params.plugin_destination.max(-1);
         self.sync();
     }
 
@@ -360,6 +399,40 @@ mod tests {
         instrument.prepare(48_000.0, 256);
         instrument.set_params(&params);
         instrument
+    }
+
+    #[test]
+    fn destination_change_and_prepared_adoption_balance_the_old_route() {
+        let mut previous = ready(MidiOutParams {
+            output_port: 2,
+            program: 12,
+            ..Default::default()
+        });
+        taken(&mut previous);
+        previous.note_on(60, 1.0);
+        taken(&mut previous);
+        let mut next = ready(MidiOutParams {
+            plugin_destination: 42,
+            program: 12,
+            ..Default::default()
+        });
+        next.adopt(&previous);
+        let mut events = Vec::new();
+        next.drain(&mut |event| events.push(event));
+        assert_eq!(
+            (
+                events[0].bytes,
+                events[0].output_port,
+                events[0].plugin_destination
+            ),
+            ([0x80, 60, 0], 2, 0)
+        );
+        assert!(
+            events[1..]
+                .iter()
+                .all(|event| event.plugin_destination == 42)
+        );
+        assert_eq!(next.active_voices(), 0);
     }
 
     #[test]
@@ -566,6 +639,7 @@ mod tests {
                 number: 900,
                 value: -3,
             }; MIDI_OUT_CONTROLLERS],
+            ..Default::default()
         };
         let clean = wild.sanitized();
         assert_eq!((clean.channel, clean.program), (16, 0));

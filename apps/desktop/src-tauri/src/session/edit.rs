@@ -120,6 +120,7 @@ impl Session {
         // What the command is about to set, for linking the control last
         // moved and for recording the movement as automation.
         let tweaks = self.controller_tweak_probe(&command);
+        let gesture = self.recording_edit_gesture(!tweaks.is_empty()).or(gesture);
         let result = self.dispatch_quiet(command, gesture);
         if result.is_ok() {
             self.controller_tweaked(&tweaks);
@@ -139,6 +140,20 @@ impl Session {
             let state = self.state();
             self.sample_edit_ticket(&state, command, gesture, Vec::new())?
                 .ordinary()
+        };
+        self.finish_sample_edit(ticket)
+    }
+
+    /// Controller captures and dumps must bind the ticket under the document
+    /// lock to the generation they observed, before off-thread preparation.
+    pub(super) fn dispatch_controller_capture(
+        &self, command: Command, gesture: Option<u64>, generation: u64,
+    ) -> Result<DispatchResult, String> {
+        let ticket = {
+            let _recording = self.recording_idle()?;
+            let state = self.state();
+            if state.generation != generation { return Err("Project changed. Try again.".into()); }
+            self.sample_edit_ticket(&state, command, gesture, Vec::new())?.ordinary()
         };
         self.finish_sample_edit(ticket)
     }

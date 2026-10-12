@@ -187,3 +187,13 @@ edit is.
 Profiles (`ControllerProfile`) are link sets with `Slot` and `Action`
 targets. Three are built in; a user profile is the same structure as a
 JSON file in the `controllers` folder beside `settings.json`.
+
+## Second-pass implementation, 2026-10-12 (written, not executed)
+
+Settings list project/global links and expose range reversal, formula, smoothing, source mode, pickup, checked edit/removal and global positional/action learn. Multi-link shows linked count/order/cancel; named pickup indicators persist across idle pumps. Project links use checked commands/history; global links remain application settings. Stale drafts and old generations are refused.
+
+Automation records pattern events or song clips by transport mode. Mouse/linked movements and final curve share a pass gesture. A fixed 64-slot engine touch override makes the held control audible above its previous lane. Stop/disarm releases touch and commits the contour, preserving outside points. Same-generation publication refusal retains a bounded recovery take.
+
+Profiles optionally declare feedback: ProfileFeedback[] beside controls. Sources are banked parameter slots, transport/arm states and mixer names. Messages encode CC/note LEDs, 14-bit motor positions or bounded ASCII SysEx displays with fixed prefix/suffix/width. Validation bounds channels, bytes, envelopes and rule/message lengths. Mackie-compatible and nanoKONTROL profiles include feedback. The control pump encodes changed values (including published audible automation) and sends through the MIDI worker to the explicitly configured main output, never from the audio callback.
+
+Internal-source runtime/source-removal validation belongs to `gpt/w3-control-sources` and is not duplicated here. Merge that branch before closing the linking row. The handoff `docs/qa/2026-10-12-p2-midi.md` names written tests and risks; none ran here. Named-device firmware/LED/motor/display behavior remains external.

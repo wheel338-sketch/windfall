@@ -107,6 +107,13 @@ impl EventList {
                         self.push(Slot::Param(event));
                     }
                 }
+                (HostEvent::Midi { time, bytes, .. }, dialect) => {
+                    if dialect == Dialect::None {
+                        self.dropped = self.dropped.saturating_add(1);
+                    } else {
+                        self.push(Slot::Midi(MidiEvent::new(time, 0, bytes)));
+                    }
+                }
                 (_, Dialect::None) => {}
                 (
                     HostEvent::NoteOnInstance {

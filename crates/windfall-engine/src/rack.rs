@@ -1262,6 +1262,12 @@ impl InstrumentUnit {
 
     /// Hands over what a MIDI output channel has made, oldest first. Fixed
     /// storage; nothing for any other instrument.
+    pub fn midi_message(&mut self, bytes: &[u8]) -> bool {
+        match &mut self.external { Some(Some(unit)) => unit.midi_message(bytes), _ => false }
+    }
+
+    pub fn stamp_midi(&mut self, frame: u64) { if self.external.is_none() { self.instrument.stamp_midi(frame); } }
+
     pub fn drain_midi(&mut self, out: &mut dyn FnMut(windfall_dsp::MidiOutEvent)) {
         if self.external.is_none() {
             self.instrument.drain_midi(out);

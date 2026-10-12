@@ -1564,6 +1564,7 @@ struct Audio {
     controls: ParameterControls,
     held: [f32; 16 * 128],
     replayed: [f32; 16 * 128],
+    midi_controls: Box<[(Option<[u8; 3]>, bool)]>,
     expression_owners: Box<[ExpressionOwner]>,
     next_note_id: u32,
     note_instances: bool,
@@ -1582,6 +1583,7 @@ impl Audio {
             controls,
             held,
             replayed,
+            midi_controls,
             expression_owners,
             reconcile_notes,
             reset_notes,
@@ -1594,6 +1596,15 @@ impl Audio {
         };
         if let Adapter::Effect(effect) = adapter {
             effect.processor().set_sidechain_input(*sidechain_input);
+        }
+        if let Adapter::Instrument(instrument) = adapter {
+            for (bytes, dirty) in midi_controls.iter_mut() {
+                if *reset_notes && bytes.is_some() { *dirty = true; }
+                if *dirty && let Some(bytes) = bytes {
+                    let len = if matches!(bytes[0] & 0xf0, 0xc0 | 0xd0) { 2 } else { 3 };
+                    if instrument.midi_message(&bytes[..len]) { *dirty = false; }
+                }
+            }
         }
         if let Adapter::Instrument(instrument) = adapter
             && *reconcile_notes
@@ -1859,6 +1870,23 @@ pub(crate) mod ownership_tests;
 #[path = "sidechain_bus_tests.rs"]
 mod sidechain_bus_tests;
 impl HostedInstrument for Audio {
+    fn midi_message(&mut self, bytes: &[u8]) -> bool {
+        if bytes.is_empty() || bytes.len() > 3 || bytes[1..].iter().any(|byte| *byte > 127) { return false; }
+        let kind = bytes[0] & 0xf0;
+        let channel = bytes[0] & 15;
+        if bytes.len() == 3 && kind == 0x90 && bytes[2] != 0 { self.start_on_channel(bytes[1], channel, f32::from(bytes[2]) / 127.0); return true; }
+        if bytes.len() == 3 && (kind == 0x80 || kind == 0x90) { self.end_on_channel(bytes[1], channel); return true; }
+        let index = match kind { 0xb0 if bytes.len() == 3 => usize::from(bytes[1]), 0xd0 if bytes.len() == 2 => 128, 0xe0 if bytes.len() == 3 => 129, 0xc0 if bytes.len() == 2 => 130, _ => return false };
+        let mut stored = [0; 3]; stored[..bytes.len()].copy_from_slice(bytes);
+        let slot = usize::from(channel) * 131 + index;
+        self.midi_controls[slot] = (Some(stored), true);
+        if let Some(Adapter::Instrument(adapter)) = self.adapter_mut() {
+            if adapter.midi_message(bytes) { self.midi_controls[slot].1 = false; return true; }
+            return false;
+        }
+        true // retained until ownership returns, just like pending parameters
+    }
+
     fn supports_note_instances(&self) -> bool {
         self.note_instances
     }
@@ -2253,6 +2281,7 @@ impl PluginFactory for Runtime {
                     controls,
                     held: [0.0; 16 * 128],
                     replayed: [0.0; 16 * 128],
+                    midi_controls: vec![(None, false); 16 * 131].into_boxed_slice(),
                     expression_owners: Box::new([]),
                     next_note_id: windfall_plugin_host::FIRST_NOTE_INSTANCE_ID,
                     note_instances: false,
@@ -2278,6 +2307,7 @@ impl PluginFactory for Runtime {
                 controls: Arc::new([]),
                 held: [0.0; 16 * 128],
                 replayed: [0.0; 16 * 128],
+                midi_controls: vec![(None, false); 16 * 131].into_boxed_slice(),
                 expression_owners: Box::new([]),
                 next_note_id: windfall_plugin_host::FIRST_NOTE_INSTANCE_ID,
                 note_instances: false,
@@ -2391,6 +2421,7 @@ impl PluginFactory for Runtime {
                     controls,
                     held: [0.0; 16 * 128],
                     replayed: [0.0; 16 * 128],
+                    midi_controls: vec![(None, false); 16 * 131].into_boxed_slice(),
                     expression_owners: vec![
                         ExpressionOwner::EMPTY;
                         windfall_plugin_host::MAX_NOTE_INSTANCES
@@ -2420,6 +2451,7 @@ impl PluginFactory for Runtime {
                 controls: Arc::new([]),
                 held: [0.0; 16 * 128],
                 replayed: [0.0; 16 * 128],
+                midi_controls: vec![(None, false); 16 * 131].into_boxed_slice(),
                 expression_owners: vec![
                     ExpressionOwner::EMPTY;
                     windfall_plugin_host::MAX_NOTE_INSTANCES

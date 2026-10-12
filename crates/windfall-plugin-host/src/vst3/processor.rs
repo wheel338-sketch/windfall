@@ -176,6 +176,7 @@ pub(super) struct VstProcessor {
     event_input: bool,
     instances: Box<[NativeHeld]>,
     expression_masks: [u32; 16],
+    midi_mapping: Box<[[u32; 131]; 16]>,
     native_drops: u32,
 }
 // SAFETY: all mutable COM buffers are exclusively owned by this processor,
@@ -342,8 +343,34 @@ impl VstProcessor {
                 }
             }
         }
+        // Query the controller while preparing, never from process(). VST3
+        // represents CC, pressure, bend and program input as parameter points.
+        let mut midi_mapping = Box::new([[u32::MAX; 131]; 16]);
+        if let Some(mapping) = objects
+            .controller
+            .as_ref()
+            .and_then(|controller| controller.cast::<IMidiMapping>())
+        {
+            for (channel, row) in midi_mapping.iter_mut().enumerate() {
+                for (controller, id) in row.iter_mut().enumerate() {
+                    let mut assigned = u32::MAX;
+                    if unsafe {
+                        mapping.getMidiControllerAssignment(
+                            0,
+                            channel as i16,
+                            controller as i16,
+                            &mut assigned,
+                        )
+                    } == kResultOk
+                    {
+                        *id = assigned;
+                    }
+                }
+            }
+        }
         Ok(Self {
             objects,
+            midi_mapping,
             unprocessed: vec![None; values.len()].into_boxed_slice(),
             values,
             inputs: Ports::new(&layout.audio_inputs, max_block as usize),
@@ -591,6 +618,26 @@ impl ProcessorBackend for VstProcessor {
         }
         for event in events {
             match *event {
+                HostEvent::Midi { time, bytes, .. } => {
+                    let channel = usize::from(bytes[0] & 15);
+                    let (controller, value) = match bytes[0] & 0xf0 {
+                        0xb0 => (usize::from(bytes[1]), f64::from(bytes[2]) / 127.0),
+                        0xd0 => (128, f64::from(bytes[1]) / 127.0),
+                        0xe0 => (
+                            129,
+                            f64::from(u16::from(bytes[1]) | u16::from(bytes[2]) << 7) / 16383.0,
+                        ),
+                        0xc0 => (130, f64::from(bytes[1]) / 127.0),
+                        _ => {
+                            self.native_drops = self.native_drops.saturating_add(1);
+                            continue;
+                        }
+                    };
+                    let id = self.midi_mapping[channel][controller];
+                    if id == u32::MAX || !self.parameters.push(id, time, value) {
+                        self.native_drops = self.native_drops.saturating_add(1);
+                    }
+                }
                 HostEvent::NoteOnInstance {
                     time,
                     id,

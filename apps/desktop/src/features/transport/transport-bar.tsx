@@ -1,3 +1,4 @@
+import { MidiRecordingControls } from "@/features/controllers/recording-controls"
 import { useRecordingStore } from "./recording-store"
 import { RecordingDialog } from "./recording-dialog"
 import { AudioLoggerDialog } from "@/features/audio-logger/logger-dialog"
@@ -108,6 +109,7 @@ export function TransportBar() {
           {recording ? "Recording..." : "Record"}
         </ActionButton>
         <RecordingDialog />
+        <MidiRecordingControls />
         <ActionButton action="audioLogger.open" variant="ghost" size="sm">
           Logger
         </ActionButton>

@@ -52,6 +52,8 @@ impl NoteExpressionKind {
 /// Something the host tells a plugin at a frame of the next block.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum HostEvent {
+    /// Channel-voice MIDI other than notes; notes retain the ownership API.
+    Midi { time: u32, bytes: [u8; 3], len: u8 },
     /// Start a note. `velocity` runs from 0 to 1.
     NoteOn {
         time: u32,
@@ -98,6 +100,18 @@ pub enum HostEvent {
 impl HostEvent {
     pub(crate) fn valid(&self) -> bool {
         match *self {
+            Self::Midi { bytes, len, .. } => {
+                let expected = match bytes[0] & 0xf0 {
+                    0xa0 | 0xb0 | 0xe0 => 3,
+                    0xc0 | 0xd0 => 2,
+                    _ => 0,
+                };
+                len == expected
+                    && expected != 0
+                    && bytes[1..usize::from(len.min(3))]
+                        .iter()
+                        .all(|byte| *byte < 128)
+            }
             Self::NoteOnInstance {
                 id,
                 key,
@@ -155,7 +169,8 @@ impl HostEvent {
     /// The frame of the block the event takes effect on.
     pub const fn time(&self) -> u32 {
         match *self {
-            Self::NoteOn { time, .. }
+            Self::Midi { time, .. }
+            | Self::NoteOn { time, .. }
             | Self::NoteOff { time, .. }
             | Self::AllNotesOff { time }
             | Self::Param { time, .. } => time,
@@ -167,7 +182,8 @@ impl HostEvent {
 
     pub(crate) const fn set_time(&mut self, new: u32) {
         match self {
-            Self::NoteOn { time, .. }
+            Self::Midi { time, .. }
+            | Self::NoteOn { time, .. }
             | Self::NoteOff { time, .. }
             | Self::AllNotesOff { time }
             | Self::Param { time, .. } => *time = new,

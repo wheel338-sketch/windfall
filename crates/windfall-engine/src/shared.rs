@@ -45,6 +45,7 @@ pub(crate) struct Shared {
     transport: AtomicU64,
     /// Playhead in ticks, as `f64` bits.
     tick: AtomicU64,
+    pub position_frame: AtomicU64,
     /// Where stopping returns the playhead to, in ticks, as `f64` bits.
     start: AtomicU64,
     voices: AtomicU32,
@@ -76,6 +77,7 @@ pub(crate) struct Shared {
     /// one writer, the audio thread, and one reader. Each slot holds the
     /// three bytes, their count and the frame: see [`Shared::push_midi_out`].
     midi_out: Box<[AtomicU64]>,
+    midi_out_ports: Box<[AtomicU32]>,
     midi_out_write: AtomicU32,
     midi_out_read: AtomicU32,
     midi_out_dropped: AtomicU32,
@@ -98,6 +100,7 @@ impl Shared {
             hardware_epoch: AtomicU64::new(0),
             transport: AtomicU64::new(0),
             tick: AtomicU64::new(0.0_f64.to_bits()),
+            position_frame: AtomicU64::new(0),
             start: AtomicU64::new(0.0_f64.to_bits()),
             voices: AtomicU32::new(0),
             audio_clips: AtomicU32::new(0),
@@ -115,6 +118,10 @@ impl Shared {
                 .map(|_| AtomicU64::new(0))
                 .collect::<Vec<_>>()
                 .into_boxed_slice(),
+            midi_out_ports: (0..MIDI_OUT_CAPACITY)
+                .map(|_| AtomicU32::new(0))
+                .collect::<Vec<_>>()
+                .into_boxed_slice(),
             midi_out_write: AtomicU32::new(0),
             midi_out_read: AtomicU32::new(0),
             midi_out_dropped: AtomicU32::new(0),
@@ -124,7 +131,12 @@ impl Shared {
     /// Queues one message of a MIDI output channel for the MIDI worker.
     /// Only the audio thread calls this. It stores to preallocated slots and
     /// never waits; a full queue drops the message and counts it.
+    #[cfg(test)]
     pub fn push_midi_out(&self, frame: u64, bytes: [u8; 3], len: u8) {
+        self.push_midi_out_to(frame, bytes, len, 0);
+    }
+
+    pub fn push_midi_out_to(&self, frame: u64, bytes: [u8; 3], len: u8, port: u8) {
         let write = self.midi_out_write.load(Ordering::Relaxed);
         let read = self.midi_out_read.load(Ordering::Acquire);
         if write.wrapping_sub(read) as usize >= MIDI_OUT_CAPACITY {
@@ -138,25 +150,34 @@ impl Shared {
             | u64::from(len.min(3)) << 24
             | frame << 26;
         self.midi_out[write as usize % MIDI_OUT_CAPACITY].store(packed, Ordering::Relaxed);
+        self.midi_out_ports[write as usize % MIDI_OUT_CAPACITY]
+            .store(u32::from(port.min(7)), Ordering::Relaxed);
         self.midi_out_write
             .store(write.wrapping_add(1), Ordering::Release);
     }
 
     /// Takes the oldest waiting MIDI output message: its frame, bytes and
     /// byte count. Only one thread at a time may call this.
-    pub fn pop_midi_out(&self) -> Option<(u64, [u8; 3], u8)> {
+    pub fn pop_midi_out_from(&self) -> Option<(u64, [u8; 3], u8, u8)> {
         let read = self.midi_out_read.load(Ordering::Relaxed);
         if read == self.midi_out_write.load(Ordering::Acquire) {
             return None;
         }
         let packed = self.midi_out[read as usize % MIDI_OUT_CAPACITY].load(Ordering::Relaxed);
+        let port =
+            self.midi_out_ports[read as usize % MIDI_OUT_CAPACITY].load(Ordering::Relaxed) as u8;
         self.midi_out_read
             .store(read.wrapping_add(1), Ordering::Release);
         Some((
             packed >> 26,
             [packed as u8, (packed >> 8) as u8, (packed >> 16) as u8],
             ((packed >> 24) & 3) as u8,
+            port,
         ))
+    }
+
+    pub fn refused_midi_out(&self) {
+        self.midi_out_dropped.fetch_add(1, Ordering::Relaxed);
     }
 
     /// MIDI output messages lost to a full queue since the engine started.

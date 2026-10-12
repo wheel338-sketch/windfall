@@ -13,6 +13,7 @@ mod message;
 mod native;
 #[cfg(test)]
 mod routing_tests;
+mod scheduling;
 #[cfg(test)]
 mod tests;
 
@@ -37,7 +38,6 @@ const POLL: Duration = Duration::from_millis(500);
 const SERVICE: Duration = Duration::from_millis(2);
 /// A MIDI output message due later than this is not believed: the audio
 /// clock it was timed against has gone away. It is sent at once.
-const MAX_AHEAD_NANOS: u64 = 2_000_000_000;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 enum Event {
@@ -182,6 +182,10 @@ pub trait Audition: Send + Sync + 'static {
 
 pub trait Output: Send {
     fn send(&mut self, bytes: &[u8]) -> Result<(), String>;
+    /// Reported driver/surface output delay. Unknown drivers report zero.
+    fn latency_nanos(&self) -> u64 {
+        0
+    }
 }
 
 /// Device API seam. Construction and all calls happen on the owning worker.
@@ -194,6 +198,7 @@ pub trait Ports: Send + 'static {
 enum Request {
     Configure(MidiHardwareSettings, mpsc::SyncSender<MidiHardwareState>),
     Refresh(mpsc::SyncSender<MidiHardwareState>),
+    Feedback(Vec<Vec<u8>>),
 }
 
 /// Thread-safe control handle; native handles never leave its worker.
@@ -245,6 +250,7 @@ impl Runtime {
                                 worker.refresh();
                                 let _ = reply.send(worker.state());
                             }
+                            Ok(Request::Feedback(messages)) => worker.feedback(&messages),
                             Err(mpsc::TryRecvError::Empty) => break,
                             Err(mpsc::TryRecvError::Disconnected) => break 'serve,
                         }
@@ -276,6 +282,22 @@ impl Runtime {
         settings.validate()?;
         let (tx, rx) = mpsc::sync_channel(1);
         self.request(Request::Configure(settings, tx), rx)
+    }
+
+    /// Bounded control-side surface updates; every output call stays on the worker.
+    pub fn feedback(&self, messages: Vec<Vec<u8>>) -> Result<(), String> {
+        if messages.len() > 256
+            || messages
+                .iter()
+                .any(|message| message.is_empty() || message.len() > 128)
+        {
+            return Err("Surface feedback exceeds the MIDI worker budget.".into());
+        }
+        self.tx
+            .as_ref()
+            .ok_or("MIDI worker stopped.")?
+            .try_send(Request::Feedback(messages))
+            .map_err(|_| "MIDI feedback queue is busy.".to_owned())
     }
 
     pub fn refresh(&self) -> Result<MidiHardwareState, String> {
@@ -323,6 +345,7 @@ struct Input {
 #[derive(Clone, Copy)]
 struct Timed {
     due: u64,
+    port: u8,
     bytes: [u8; 3],
     len: u8,
 }
@@ -334,6 +357,7 @@ struct Worker {
     state: MidiHardwareState,
     inputs: Vec<Input>,
     output: Option<Box<dyn Output>>,
+    extra_outputs: Vec<Option<Box<dyn Output>>>,
     dropped: Arc<AtomicU32>,
     epoch: u64,
     /// One bit per input channel/key, and a separate sustain bit. Fixed storage.
@@ -345,9 +369,9 @@ struct Worker {
     /// MIDI output channel messages in the order they were made.
     pending: VecDeque<Timed>,
     /// The latest time given to a pending message, so none overtakes another.
-    last_due: u64,
+    last_due: [u64; 8],
     /// One bit per MIDI channel a MIDI output channel has sent on.
-    used_channels: u16,
+    used_channels: [u16; 8],
 }
 
 impl Worker {
@@ -360,6 +384,7 @@ impl Worker {
             state: MidiHardwareState::default(),
             inputs: Vec::new(),
             output: None,
+            extra_outputs: Vec::new(),
             dropped: Arc::new(AtomicU32::new(0)),
             epoch,
             down: [[false; 128]; 16],
@@ -368,8 +393,8 @@ impl Worker {
             output_keys: [false; 128],
             clock: ClockOut::new(Instant::now()),
             pending: VecDeque::with_capacity(OUTPUT_PENDING),
-            last_due: 0,
-            used_channels: 0,
+            last_due: [0; 8],
+            used_channels: [0; 8],
         }
     }
 
@@ -394,6 +419,7 @@ impl Worker {
         self.stop_clock();
         self.inputs.clear();
         self.output.take();
+        self.extra_outputs.clear();
         self.pending.clear();
         self.state.settings = settings;
         self.state.error = None;
@@ -403,6 +429,20 @@ impl Worker {
                 Ok(output) => self.output = Some(output),
                 Err(error) => self.state.error = Some(error),
             }
+        }
+        for id in self.state.settings.extra_outputs.clone() {
+            if id.is_empty() {
+                self.extra_outputs.push(None);
+                continue;
+            }
+            let output = match self.ports.output(&id) {
+                Ok(output) => Some(output),
+                Err(error) => {
+                    self.state.error = Some(error);
+                    None
+                }
+            };
+            self.extra_outputs.push(output);
         }
         let wanted: Vec<String> = self
             .state
@@ -438,7 +478,13 @@ impl Worker {
                     && !outputs
                         .iter()
                         .any(|p| Some(&p.id) == self.state.settings.output.as_ref());
-                if lost_input || lost_output {
+                let lost_extra = self.extra_outputs.iter().enumerate().any(|(index, port)| {
+                    port.is_some()
+                        && !outputs
+                            .iter()
+                            .any(|p| self.state.settings.extra_outputs.get(index) == Some(&p.id))
+                });
+                if lost_input || lost_output || lost_extra {
                     self.panic();
                     if lost_input {
                         self.inputs.retain(|input| present(&input.id));
@@ -446,6 +492,15 @@ impl Worker {
                     if lost_output {
                         self.output.take();
                         self.pending.clear();
+                    }
+                    if lost_extra {
+                        for (index, port) in self.extra_outputs.iter_mut().enumerate() {
+                            if !outputs.iter().any(|p| {
+                                self.state.settings.extra_outputs.get(index) == Some(&p.id)
+                            }) {
+                                port.take();
+                            }
+                        }
                     }
                     self.state.error = Some("MIDI device disconnected. Refresh and apply the device settings to reconnect.".into());
                 }
@@ -456,6 +511,7 @@ impl Worker {
                 self.panic();
                 self.inputs.clear();
                 self.output.take();
+                self.extra_outputs.clear();
                 self.pending.clear();
                 self.state.error = Some(error);
             }
@@ -497,12 +553,15 @@ impl Worker {
         // is told to stop instead.
         let used = std::mem::take(&mut self.used_channels);
         self.pending.clear();
-        for other in 0..16_u8 {
-            if used & (1 << other) != 0 && other != channel {
-                self.send(&[0xb0 | other, 123, 0]);
-                self.send(&[0xb0 | other, 120, 0]);
+        for (port, used) in used.into_iter().enumerate() {
+            for other in 0..16_u8 {
+                if used & (1 << other) != 0 && (port != 0 || other != channel) {
+                    self.send_to(port as u8, &[0xb0 | other, 123, 0]);
+                    self.send_to(port as u8, &[0xb0 | other, 120, 0]);
+                }
             }
         }
+        self.last_due = [0; 8];
         self.down = [[false; 128]; 16];
         self.sounding = [[false; 128]; 16];
         self.sustain = [false; 16];
@@ -510,13 +569,36 @@ impl Worker {
         self.epoch = self.controller.hardware_epoch();
     }
 
+    fn feedback(&mut self, messages: &[Vec<u8>]) {
+        for bytes in messages.iter().take(256) {
+            if !bytes.is_empty() && bytes.len() <= 128 {
+                self.send(bytes);
+            }
+        }
+    }
+
     fn send(&mut self, bytes: &[u8]) {
-        if let Some(output) = &mut self.output
+        self.send_to(0, bytes);
+    }
+
+    fn send_to(&mut self, port: u8, bytes: &[u8]) {
+        let output = if port == 0 {
+            self.output.as_mut()
+        } else {
+            self.extra_outputs
+                .get_mut(usize::from(port) - 1)
+                .and_then(Option::as_mut)
+        };
+        if let Some(output) = output
             && let Err(error) = output.send(bytes)
         {
             self.state.error = Some(error);
-            self.output.take();
-            self.pending.clear();
+            if port == 0 {
+                self.output.take();
+            } else if let Some(output) = self.extra_outputs.get_mut(usize::from(port) - 1) {
+                output.take();
+            }
+            self.pending.retain(|message| message.port != port);
             self.controller.panic_hardware();
         }
     }
@@ -581,32 +663,57 @@ impl Worker {
     fn outputs(&mut self, now: Instant, playhead: &Playhead) {
         let recording_clock = self.controller.recording_clock();
         let now_nanos = recording_clock.now_nanos();
-        let output_clock = recording_clock.output();
-        let connected = self.output.is_some();
+        self.outputs_at(now, playhead, now_nanos, recording_clock.output());
+    }
+
+    /// Injected monotonic/audio clocks drive the same scheduler used by real ports.
+    fn outputs_at(
+        &mut self,
+        now: Instant,
+        playhead: &Playhead,
+        now_nanos: u64,
+        output_clock: Option<crate::recording_clock::OutputClock>,
+    ) {
+        let latency = self
+            .output
+            .as_ref()
+            .map_or(0, |output| output.latency_nanos());
+        let mut connections = [(false, 0); 8];
+        connections[0] = (self.output.is_some(), latency);
+        for (index, output) in self.extra_outputs.iter().enumerate().take(7) {
+            connections[index + 1] = (
+                output.is_some(),
+                output.as_ref().map_or(0, |p| p.latency_nanos()),
+            );
+        }
         let pending = &mut self.pending;
         let last_due = &mut self.last_due;
-        // Drained whether or not an output is open, so the queue never
-        // fills and nothing stale is sent to a port opened later.
-        self.controller.drain_midi_out(|frame, bytes| {
+        self.controller.drain_midi_out_from(|frame, bytes, port| {
+            let index = usize::from(port.min(7));
+            let (connected, latency) = connections[index];
             if !connected || pending.len() >= OUTPUT_PENDING || bytes.is_empty() {
                 return;
             }
-            let timed = output_clock.map_or(now_nanos, |clock| clock.nanos_at(frame));
-            let believed = if timed > now_nanos.saturating_add(MAX_AHEAD_NANOS) {
-                now_nanos
-            } else {
-                timed
-            };
-            // A message never goes before one made earlier.
-            let due = believed.max(*last_due);
-            *last_due = due;
+            let due =
+                scheduling::deadline(output_clock, frame, now_nanos, latency).max(last_due[index]);
+            last_due[index] = due;
             let mut stored = [0; 3];
             stored[..bytes.len()].copy_from_slice(bytes);
-            pending.push_back(Timed {
-                due,
-                bytes: stored,
-                len: bytes.len() as u8,
-            });
+            // Different port latencies may interleave. Sort the worker's bounded
+            // queue by deadline while retaining order on each individual port.
+            let at = pending
+                .iter()
+                .position(|message| message.due > due)
+                .unwrap_or(pending.len());
+            pending.insert(
+                at,
+                Timed {
+                    due,
+                    port,
+                    bytes: stored,
+                    len: bytes.len() as u8,
+                },
+            );
         });
         while let Some(front) = self.pending.front().copied() {
             if front.due > now_nanos {
@@ -614,12 +721,18 @@ impl Worker {
             }
             self.pending.pop_front();
             if front.bytes[0] < 0xf0 {
-                self.used_channels |= 1 << (front.bytes[0] & 15);
+                self.used_channels[usize::from(front.port)] |= 1 << (front.bytes[0] & 15);
             }
-            self.send(&front.bytes[..usize::from(front.len)]);
+            self.send_to(front.port, &front.bytes[..usize::from(front.len)]);
         }
-        if self.pending.is_empty() {
-            self.last_due = 0;
+        for port in 0..8 {
+            if !self
+                .pending
+                .iter()
+                .any(|message| usize::from(message.port) == port)
+            {
+                self.last_due[port] = 0;
+            }
         }
 
         if !(self.state.settings.send_clock && self.output.is_some()) {
@@ -631,7 +744,30 @@ impl Worker {
         // continue and a short run of pulses.
         let mut wanted = [([0_u8; 3], 0_usize); 8];
         let mut count = 0;
-        self.clock.poll(playhead, now, &mut |bytes| {
+        // When DAC playback is still ahead, wait for the compensated start rather
+        // than sending tick-zero pulses immediately at callback time.
+        if !self.clock.running()
+            && playhead.playing
+            && let Some(clock) = output_clock
+        {
+            let elapsed =
+                (playhead.tick.max(0.0) / playhead.ticks_per_second.max(1.0) * 1e9) as u64;
+            let start = clock
+                .nanos_at(self.controller.playhead_output_frame())
+                .saturating_sub(elapsed)
+                .saturating_sub(latency);
+            if now_nanos < start {
+                return;
+            }
+        }
+        let aligned = scheduling::aligned_head(
+            playhead,
+            self.controller.playhead_output_frame(),
+            output_clock,
+            now_nanos,
+            latency,
+        );
+        self.clock.poll(&aligned, now, &mut |bytes| {
             if count < wanted.len() && bytes.len() <= 3 {
                 wanted[count].0[..bytes.len()].copy_from_slice(bytes);
                 wanted[count].1 = bytes.len();
