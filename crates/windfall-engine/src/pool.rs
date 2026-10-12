@@ -13,13 +13,27 @@ use windfall_project::{ClipStretch, SampleId};
 /// The engine never reads files: whoever owns the project decodes each
 /// sample and puts it here. Cloning is cheap, because clones share the map
 /// until one of them is changed, and the audio itself is always shared.
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 pub struct SamplePool {
     pub(crate) sample_banks: Arc<Vec<crate::sample_instruments::PreparedSampleBank>>,
+    pub(crate) sample_bank_budget: Arc<windfall_dsp::sample_bank::BankBudget>,
     samples: Arc<HashMap<SampleId, AudioBuffer>>,
     clip_audio: Arc<Mutex<ClipAudioCache>>,
     sampler_audio: Arc<Mutex<SamplerAudioCache>>,
     pub(crate) plugin_factory: Option<Arc<dyn crate::plugins::PluginFactory>>,
+}
+
+impl Default for SamplePool {
+    fn default() -> Self {
+        Self {
+            sample_banks: Arc::new(Vec::new()),
+            sample_bank_budget: windfall_dsp::sample_bank::BankBudget::shared(),
+            samples: Arc::new(HashMap::new()),
+            clip_audio: Arc::new(Mutex::new(ClipAudioCache::default())),
+            sampler_audio: Arc::new(Mutex::new(SamplerAudioCache::default())),
+            plugin_factory: None,
+        }
+    }
 }
 
 impl SamplePool {
@@ -42,6 +56,7 @@ impl SamplePool {
     /// Creates an independent cache sharing the same retained-bank budget.
     /// Used by document replacement so old plans/voices remain charged.
     pub fn share_sampler_budget(&mut self, other: &Self) {
+        self.sample_bank_budget = other.sample_bank_budget.clone();
         self.sampler_audio = Arc::new(Mutex::new(
             other
                 .sampler_audio
@@ -50,6 +65,14 @@ impl SamplePool {
                 .clone(),
         ));
     }
+
+    pub fn with_sample_bank_budget(limit: usize) -> Self {
+        Self { sample_bank_budget: Arc::new(windfall_dsp::sample_bank::BankBudget::new(limit)), ..Self::default() }
+    }
+
+    pub fn sample_bank_budget_handle(&self) -> Arc<windfall_dsp::sample_bank::BankBudget> { self.sample_bank_budget.clone() }
+
+    pub fn sample_bank_retained_bytes(&self) -> usize { self.sample_bank_budget.used() }
 
     /// A smaller strict bound for callers/tests; existing reservations are untouched.
     pub fn with_sampler_budget(limit: usize) -> Self {

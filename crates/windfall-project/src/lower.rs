@@ -1422,6 +1422,15 @@ impl Transaction<'_> {
                 self.push(Edit::Settings(Change { old, new }));
                 "Configure internal controllers"
             }
+            Command::RelinkSamplePath { sample, expected, path } => {
+                let index = self.sample_index(sample)?;
+                let old = self.project.samples[index].clone();
+                if old.path != expected { return Err(CommandError::invalid("Sample path changed; retry relinking")); }
+                if let Some(problem) = path.problem() { return Err(CommandError::invalid(problem)); }
+                let mut new = old.clone(); new.path = path;
+                self.push(Edit::SetSample(Change { old, new }));
+                "Relink sample source"
+            }
             Command::AddSample { name, path } => self.add_sample(name, path)?,
             Command::SetSamplePlayback { channel, asset } => {
                 self.set_sample_playback(channel, asset)?

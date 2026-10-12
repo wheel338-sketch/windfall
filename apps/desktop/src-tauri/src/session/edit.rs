@@ -471,7 +471,11 @@ impl Session {
                 )
             };
             let original_pool = pool.clone();
+            let original_project = document.project().clone();
             action.apply(&mut document)?;
+            for asset in &document.project().samples {
+                if original_project.sample(asset.id).is_some_and(|old| old.path != asset.path) { pool.remove(asset.id); }
+            }
             for asset in &document.project().samples {
                 if !pool.contains(asset.id)
                     && !loading.contains(&asset.id)

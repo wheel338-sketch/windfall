@@ -190,3 +190,30 @@ fn own_piano_and_speech_recipes_are_public_instruments_with_deterministic_pcm() 
         assert!(a.iter().any(|x| x.abs() > 0.01));
     }
 }
+
+#[test]
+fn candidate_banks_share_one_budget_with_retained_and_concurrent_snapshots() {
+    let mut doc = Document::new(Project::new("budget"));
+    let sample = SampleId(doc.dispatch(Command::AddSample { name: "PCM".into(), path: SamplePath::External("C:/pcm.wav".into()) }, None).unwrap().created[0]);
+    let channel = ChannelId(doc.dispatch(Command::AddChannel { name: None, sample: None, instrument: Some(InstrumentKind::MultiSampler), index: None, mixer_track: None }, None).unwrap().created[0]);
+    doc.dispatch(Command::EditSampleZones { channel, expected: vec![], zones: vec![SampleZone { sample: sample.0, ..Default::default() }] }, None).unwrap();
+    let mut pool = SamplePool::with_sample_bank_budget(128);
+    pool.insert(sample, AudioBuffer::from_interleaved(48000, 1, vec![0.2; 16]));
+    let first = pool.prepare_sample_instruments(doc.project(), &mut || true).unwrap();
+    let mut edited = doc.project().clone();
+    let Some(SampleInstrumentAsset::Zones { zones }) = &mut edited.channels.iter_mut().find(|c| c.id == channel).unwrap().sample_instrument else { panic!() };
+    zones[0].gain = 0.5;
+    let second = first.prepare_sample_instruments(&edited, &mut || true).unwrap();
+    assert_eq!(pool.sample_bank_retained_bytes(), 128);
+    let error = pool.prepare_sample_instruments(&edited, &mut || true).unwrap_err();
+    assert!(error.contains("memory refused"));
+    assert_eq!(pool.sample_bank_retained_bytes(), 128, "failed candidate rolled back");
+    let same = second.prepare_sample_instruments(&edited, &mut || true).unwrap();
+    assert_eq!(pool.sample_bank_retained_bytes(), 128, "cached owners aren't charged twice");
+    drop(same); drop(second);
+    assert_eq!(pool.sample_bank_retained_bytes(), 64);
+    drop(first);
+    assert_eq!(pool.sample_bank_retained_bytes(), 0);
+    let mut other = SamplePool::new(); other.share_sampler_budget(&pool);
+    assert_eq!(other.sample_bank_retained_bytes(), 0);
+}

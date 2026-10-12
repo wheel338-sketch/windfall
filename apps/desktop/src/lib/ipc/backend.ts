@@ -74,13 +74,18 @@ export type AudioClipPlace = {
 export interface Backend extends AnalysisBackend, MixerPresetLibraryBackend, AnalyzerBackend, ProjectFilesBackend, RemoteContentBackend {
   sampleInstrumentLoadBank?(channel: ChannelId, expected: import("@/bindings").SampleInstrumentAsset | null,
     path: string): Promise<DispatchResult>
+  sampleInstrumentMissingSources?(channel: ChannelId): Promise<SampleId[]>
+  sampleInstrumentRelinkSource?(channel: ChannelId, expected: import("@/bindings").SampleInstrumentAsset | null,
+    sample: SampleId, expectedPath: import("@/bindings").SamplePath, path: string): Promise<DispatchResult>
   sampleInstrumentSaveBank?(channel: ChannelId, expected: import("@/bindings").SampleInstrumentAsset | null,
     path: string): Promise<void>
   sampleInstrumentImportZone?(channel: ChannelId, expected: import("@/bindings").SampleInstrumentAsset | null,
     path: string, pad: number | null): Promise<DispatchResult>
   soundfontPresets?(path: string): Promise<import("@/bindings").SoundFontPreset[]>
   sampleInstrumentSpeech?(channel: ChannelId, expected: import("@/bindings").SampleInstrumentAsset | null,
-    text: string, pitch: number, duration: number): Promise<DispatchResult>
+    text: string, pitch: number, duration: number, request?: number): Promise<DispatchResult>
+  sampleInstrumentSpeechBegin?(channel: ChannelId): Promise<number>
+  sampleInstrumentSpeechCancel?(channel: ChannelId, request: number): Promise<void>
 
   pickVideoFile(): Promise<string | null>
   mediaVideoRead(path: string, generation: number): Promise<ArrayBuffer>

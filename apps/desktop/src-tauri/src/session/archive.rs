@@ -286,6 +286,7 @@ impl Session {
             pool: windfall_engine::SamplePool::new(),
             loaded: HashSet::new(),
             failed: HashSet::new(),
+            bank_workspaces: Vec::new(),
             warnings: Vec::new(),
         };
         if !project.retained_plugins.is_empty() {
@@ -304,7 +305,18 @@ impl Session {
             )
             .ok_or_else(|| "The sample path cannot be resolved.".to_owned())
             .and_then(|path| {
-                windfall_codec::decode_file_with(path, &options).map_err(|e| e.to_string())
+                let bank_source = project.channels.iter().filter_map(|c| c.sample_instrument.as_ref()).any(|asset| asset.samples().any(|id| id == sample.id));
+                if bank_source {
+                    let expected = if path.extension().and_then(|ext| ext.to_str()).is_some_and(|ext| ext.eq_ignore_ascii_case("ds")) { None } else {
+                        let info = windfall_codec::probe_file(&path).map_err(|e| e.to_string())?;
+                        info.frames.and_then(|frames| frames.checked_mul(u64::from(info.channels))).and_then(|samples| samples.checked_mul(4))
+                    };
+                    let maximum = expected.unwrap_or(64 * 1024 * 1024).min(options.max_decoded_bytes);
+                    let reservation = decoded.pool.sample_bank_budget_handle().reserve(usize::try_from(maximum).map_err(|_| "bank byte overflow")?)?;
+                    let buffer = windfall_codec::decode_file_with(path, &windfall_codec::DecodeOptions { max_decoded_bytes: maximum }).map_err(|e| e.to_string())?;
+                    decoded.bank_workspaces.push(reservation);
+                    Ok(buffer)
+                } else { windfall_codec::decode_file_with(path, &options).map_err(|e| e.to_string()) }
             });
             job.check().map_err(|e| e.to_string())?;
             match result {

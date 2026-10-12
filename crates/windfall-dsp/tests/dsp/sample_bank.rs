@@ -55,3 +55,39 @@ fn asset_instrument_callbacks_never_allocate_or_free_and_sources_retire_off_audi
         );
     }
 }
+
+#[test]
+fn replacement_chokes_and_bank_retirement_transfer_never_allocate_or_free_on_audio() {
+    for kind in [InstrumentKind::MultiSampler, InstrumentKind::SamplePlayer,
+        InstrumentKind::SoundFont, InstrumentKind::PadBank, InstrumentKind::PianoKeys, InstrumentKind::TextVoice] {
+        let bank = || Arc::new(SampleBank::new(vec![LoadedZone {
+            mapping: SampleZone { choke_group: 1, ..Default::default() },
+            audio: AudioBuffer::from_interleaved(48000, 1, vec![0.25; 16384]),
+        }]).unwrap());
+        let params = kind.default_params();
+        let mut old = AnyInstrument::new(&params);
+        old.prepare(48000.0, 64);
+        old.install_sample_bank(bank());
+        let mut incoming = AnyInstrument::new(&params);
+        incoming.prepare(48000.0, 64);
+        incoming.install_sample_bank(bank());
+        let mut left = [0.0; 64]; let mut right = [0.0; 64];
+        old.note_on_instance(NoteInstanceId(1), 60, 1.0, 0.0, NoteExpression::default());
+        old.process(&mut left, &mut right);
+        let mut retired = None;
+        let calls = allocator_calls(|| {
+            assert!(incoming.inherit_sample_bank_state(&mut old));
+            incoming.process(&mut left, &mut right);
+            incoming.note_on_instance(NoteInstanceId(2), 60, 0.5, 0.0, NoteExpression::default());
+            incoming.process(&mut left, &mut right);
+            incoming.all_notes_off();
+            for _ in 0..10 { incoming.process(&mut left, &mut right); }
+            for _ in 0..257 {
+                if let Some(bank) = incoming.take_unused_sample_bank() { retired = Some(bank); }
+            }
+        });
+        assert_eq!(calls, 0, "{kind:?} replacement/tail/sweep callback allocator calls");
+        assert!(retired.is_some());
+        drop(retired);
+    }
+}

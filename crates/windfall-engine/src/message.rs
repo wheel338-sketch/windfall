@@ -101,6 +101,7 @@ pub(crate) enum Garbage {
     State(Box<PlanState>),
     Sample(AudioBuffer),
     SamplerBank(Arc<crate::sampler_processing::SamplerBank>),
+    SampleBank(Arc<windfall_dsp::sample_bank::SampleBank>),
     InputMonitors(Box<[Box<crate::recording_monitor::MonitorReader>]>),
     DiskTaps(Box<[crate::recording_disk::DiskWriter]>),
     AudioLogger(Box<crate::audio_logger::LoggerTap>),

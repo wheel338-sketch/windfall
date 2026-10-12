@@ -8,6 +8,24 @@ use windfall_project::{
     SampleInstrumentAsset, SamplePath,
 };
 
+use std::collections::HashMap;
+use std::sync::{Arc, atomic::{AtomicBool, Ordering}};
+
+#[derive(Default)]
+pub(super) struct SpeechJobs {
+    next: u64,
+    jobs: HashMap<ChannelId, (u64, Arc<AtomicBool>)>,
+}
+struct SpeechLease { session: Session, channel: ChannelId, request: u64, cancelled: Arc<AtomicBool> }
+impl Drop for SpeechLease {
+    fn drop(&mut self) {
+        let mut jobs = super::lock(&self.session.inner.speech_jobs);
+        if jobs.jobs.get(&self.channel).is_some_and(|(id, _)| *id == self.request) {
+            jobs.jobs.remove(&self.channel);
+        }
+    }
+}
+
 pub(super) fn read_soundfont(path: &Path) -> Result<Vec<u8>, String> {
     // Read through a hard bound too: a racing file growth cannot bypass metadata.
     const LIMIT: u64 = 160 * 1024 * 1024;
@@ -41,7 +59,7 @@ impl Session {
         path: String,
         pad: Option<u8>,
     ) -> Result<DispatchResult, String> {
-        let (generation, edits, replacements, mut zones) = {
+        let (generation, edits, replacements, mut zones, budget) = {
             let _recording = self.recording_idle()?;
             let state = self.state();
             let current = state
@@ -71,10 +89,10 @@ impl Session {
             if zones.len() >= windfall_dsp::sample_bank::MAX_BANK_ZONES {
                 return Err("a bank may have at most 256 zones".into());
             }
-            (state.generation, state.edits, state.replacements, zones)
+            (state.generation, state.edits, state.replacements, zones, state.pool.sample_bank_budget_handle())
         };
         let file = crate::paths::absolute(&path)?;
-        let audio = self.inner.cache.decode(&file)?;
+        let (audio, _workspace) = self.inner.cache.decode_sample_bank(&file, &budget)?;
         #[cfg(test)]
         self.pause("sample-zone:decoded");
         let ticket = {
@@ -125,17 +143,88 @@ impl Session {
         let file = crate::paths::absolute(path)?;
         soundfont::presets(&read_soundfont(&file)?).map_err(|e| e.to_string())
     }
+    pub fn sample_instrument_missing_sources(&self, channel: ChannelId) -> Result<Vec<SampleId>, String> {
+        let state = self.state();
+        let current = state.document.project().channel(channel).ok_or("channel no longer exists")?;
+        let mut missing: Vec<_> = current.sample_instrument.as_ref().into_iter().flat_map(SampleInstrumentAsset::samples)
+            .filter(|id| !state.pool.contains(*id)).collect();
+        missing.sort_by_key(|id| id.0); missing.dedup(); Ok(missing)
+    }
+    pub fn sample_instrument_relink_source(
+        &self, channel: ChannelId, expected: Option<SampleInstrumentAsset>, sample: SampleId, expected_path: SamplePath, path: String,
+    ) -> Result<DispatchResult, String> {
+        let (generation, edits, replacements, budget) = {
+            let _recording = self.recording_idle()?; let state = self.state();
+            let current = state.document.project().channel(channel).ok_or("channel no longer exists")?;
+            if current.sample_instrument != expected || !expected.as_ref().is_some_and(|asset| asset.samples().any(|id| id == sample)) {
+                return Err("sample-bank mapping changed; retry relinking".into());
+            }
+            if state.document.project().sample(sample).is_none_or(|asset| asset.path != expected_path) {
+                return Err("sample path changed; retry relinking".into());
+            }
+            (state.generation, state.edits, state.replacements, state.pool.sample_bank_budget_handle())
+        };
+        let file = crate::paths::absolute(&path)?;
+        let (audio, _workspace) = self.inner.cache.decode_sample_bank(&file, &budget)?;
+        #[cfg(test)] self.pause("sample-relink:decoded");
+        let ticket = {
+            let _recording = self.recording_idle()?; let state = self.state();
+            if (state.generation, state.edits, state.replacements) != (generation, edits, replacements) { return Err("project changed while relinking".into()); }
+            self.sample_edit_ticket(&state, Command::RelinkSamplePath { sample, expected: expected_path, path: SamplePath::External(crate::paths::display(&file)) }, None, vec![(sample, audio)])?
+        };
+        self.finish_sample_edit(ticket)
+    }
+    /// Allocate the request synchronously before dispatching a rendering worker,
+    /// so cancellation also works while that worker is waiting to be scheduled.
+    pub fn sample_instrument_speech_begin(&self, channel: ChannelId) -> Result<u64, String> {
+        let state = self.state();
+        if !state.document.project().channel(channel).is_some_and(|c|
+            matches!(c.source, ChannelSource::Instrument { params, .. } if params.kind() == InstrumentKind::TextVoice)) {
+            return Err("choose a text voice instrument".into());
+        }
+        let mut jobs = super::lock(&self.inner.speech_jobs);
+        if jobs.jobs.len() >= 64 && !jobs.jobs.contains_key(&channel) {
+            return Err("At most 64 speech requests can be pending".into());
+        }
+        jobs.next = jobs.next.checked_add(1).ok_or("speech request sequence exhausted")?;
+        let request = jobs.next;
+        if let Some((_, cancelled)) = jobs.jobs.insert(channel, (request, Arc::new(AtomicBool::new(false)))) {
+            cancelled.store(true, Ordering::Release);
+        }
+        Ok(request)
+    }
+    pub fn sample_instrument_speech_cancel(&self, channel: ChannelId, request: u64) {
+        let _state = self.state();
+        if let Some((id, cancelled)) = super::lock(&self.inner.speech_jobs).jobs.get(&channel)
+            && *id == request {
+            cancelled.store(true, Ordering::Release);
+        }
+    }
+    pub fn sample_instrument_speech(
+        &self, channel: ChannelId, expected: Option<SampleInstrumentAsset>,
+        text: String, pitch: f32, duration: f32,
+    ) -> Result<DispatchResult, String> {
+        let request = self.sample_instrument_speech_begin(channel)?;
+        self.sample_instrument_speech_request(channel, expected, text, pitch, duration, request)
+    }
     /// Render, save an owned Float32 source and attach it in one guarded undo
     /// step. Refused/stale renders remove their temporary source on the worker.
-    pub fn sample_instrument_speech(
+    pub fn sample_instrument_speech_request(
         &self,
         channel: ChannelId,
         expected: Option<SampleInstrumentAsset>,
         text: String,
         pitch: f32,
         duration: f32,
+        request: u64,
     ) -> Result<DispatchResult, String> {
-        let (generation, edits, replacements) = {
+        let cancelled = super::lock(&self.inner.speech_jobs).jobs.get(&channel)
+            .filter(|(id, _)| *id == request).map(|(_, flag)| flag.clone())
+            .ok_or("speech request is no longer active")?;
+        let lease = SpeechLease { session: self.clone(), channel, request, cancelled };
+        let keep_going = || !lease.cancelled.load(Ordering::Acquire);
+        if !keep_going() { return Err("Speech rendering cancelled".into()); }
+        let (generation, edits, replacements, budget) = {
             let _recording = self.recording_idle()?;
             let state = self.state();
             let current = state
@@ -149,10 +238,14 @@ impl Session {
             {
                 return Err("text voice changed; reopen its editor".into());
             }
-            (state.generation, state.edits, state.replacements)
+            (state.generation, state.edits, state.replacements, state.pool.sample_bank_budget_handle())
         };
-        let audio = sources::render_text(&text, pitch, duration, &mut || true)
+        // Bound both render/decode workspaces before allocating source PCM.
+        if !duration.is_finite() || !(0.1..=60.0).contains(&duration) { return Err("invalid speech duration".into()); }
+        let _workspace = budget.reserve((duration * 24000.0).round() as usize * 4 * 2)?;
+        let audio = sources::render_text(&text, pitch, duration, &mut || keep_going())
             .map_err(|e| e.to_string())?;
+        if !keep_going() { return Err("Speech rendering cancelled".into()); }
         let folder = self.store().recordings_dir().join("Text voice");
         std::fs::create_dir_all(&folder).map_err(|e| e.to_string())?;
         let path = tempfile::Builder::new()
@@ -169,6 +262,7 @@ impl Session {
         let decoded = self.inner.cache.decode(&file.0)?;
         #[cfg(test)]
         self.pause("sample-speech:rendered");
+        if !keep_going() { return Err("Speech rendering cancelled".into()); }
         let ticket = {
             let _recording = self.recording_idle()?;
             let state = self.state();
@@ -201,7 +295,7 @@ impl Session {
             };
             self.sample_edit_ticket(&state, command, None, vec![(source, decoded)])?
         };
-        let result = self.finish_sample_edit(ticket)?;
+        let result = self.finish_sample_edit_cancellable(ticket, &keep_going)?;
         file.0 = PathBuf::new();
         Ok(result)
     }

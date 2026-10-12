@@ -515,3 +515,85 @@ fn sf2_selects_only_the_requested_preset_and_resolves_global_instrument_zones() 
         Err(soundfont::SoundFontError::PresetNotFound { .. })
     ));
 }
+
+#[test]
+fn choke_crossfade_bounds_discontinuity_and_refuses_when_tail_reserve_is_full() {
+    let map = SampleZone { choke_group: 1, ..Default::default() };
+    let mut unit = sampler(vec![zone(0.8, map)]);
+    unit.note_on(60, 1.0);
+    let before = render(&mut unit, 256, 64)[255];
+    unit.note_on(60, 0.5);
+    let pcm = render(&mut unit, 128, 7);
+    assert!((pcm[0] - before).abs() < 0.02, "choke boundary is a fade, not a cut");
+    assert!(pcm.windows(2).all(|x| (x[1] - x[0]).abs() < 0.02));
+    assert!((pcm[127] - 0.2).abs() < 1e-5);
+    assert!(unit.engine.choked.iter().all(|v| !v.active));
+    for _ in 0..BANK_VOICES { unit.note_on(60, 1.0); }
+    let missed = unit.missed_notes();
+    unit.note_on(60, 1.0);
+    assert_eq!(unit.missed_notes(), missed + 1);
+    assert_eq!(unit.active_voices(), 1, "refusal preserves the previous strike");
+}
+
+#[test]
+fn bank_generations_preserve_held_and_releasing_pcm_and_retire_only_after_finish() {
+    let map = SampleZone { loop_mode: BankLoop::Continuous, loop_start: 0, loop_end: 4096, ..Default::default() };
+    let mut old = sampler(vec![zone(0.4, map)]);
+    let mut reference = sampler(vec![zone(0.4, map)]);
+    old.note_on_instance(NoteInstanceId(7), 60, 1.0, 0.0, NoteExpression::default());
+    reference.note_on_instance(NoteInstanceId(7), 60, 1.0, 0.0, NoteExpression::default());
+    assert_eq!(render(&mut old, 257, 7), render(&mut reference, 257, 64));
+    let weak = Arc::downgrade(old.engine.banks[old.engine.current_bank].as_ref().unwrap());
+    let mut incoming = sampler(vec![zone(-0.6, map)]);
+    incoming.inherit_bank_state(&mut old);
+    drop(old);
+    assert_eq!(render(&mut incoming, 1000, 11), render(&mut reference, 1000, 127));
+    incoming.note_off_instance(NoteInstanceId(7), 60);
+    reference.note_off_instance(NoteInstanceId(7), 60);
+    let mut third = sampler(vec![]);
+    third.inherit_bank_state(&mut incoming);
+    drop(incoming);
+    assert!(weak.upgrade().is_some());
+    assert_eq!(render(&mut third, 6000, 3), render(&mut reference, 6000, 64));
+    let mut retired = Vec::new();
+    for _ in 0..BANK_VOICES * 2 + 1 { if let Some(bank) = third.take_unused_bank() { retired.push(bank); } }
+    assert!(weak.upgrade().is_some(), "retirement queue owns old PCM");
+    drop(retired);
+    assert!(weak.upgrade().is_none(), "control-side queue drain releases finished bank");
+}
+
+#[test]
+fn bank_budget_counts_pending_and_shared_retained_owners_until_the_last_drop() {
+    let budget = Arc::new(BankBudget::new(64));
+    let pending = budget.reserve(32).unwrap();
+    let mut bank = SampleBank::new(vec![LoadedZone { mapping: SampleZone::default(),
+        audio: AudioBuffer::from_interleaved(48000, 1, vec![0.0; 8]) }]).unwrap();
+    bank.retain_reservation(pending);
+    let held = Arc::new(bank);
+    let old_plan = held.clone();
+    let next_job = budget.reserve(32).unwrap();
+    let refusal = budget.reserve(1).unwrap_err();
+    assert!(refusal.contains("64 budget"));
+    assert!(refusal.contains("64 retained or preparing"));
+    drop(held);
+    assert_eq!(budget.used(), 64);
+    drop(next_job);
+    assert_eq!(budget.used(), 32);
+    drop(old_plan);
+    assert_eq!(budget.used(), 0);
+}
+
+#[test]
+fn concurrent_bank_jobs_cannot_overbook_the_shared_budget() {
+    let budget = Arc::new(BankBudget::new(64));
+    let barrier = Arc::new(std::sync::Barrier::new(3));
+    let release = Arc::new(std::sync::Barrier::new(3));
+    let jobs: Vec<_> = (0..2).map(|_| {
+        let budget = budget.clone(); let barrier = barrier.clone(); let release = release.clone();
+        std::thread::spawn(move || {
+            let lease = budget.reserve(32).unwrap(); barrier.wait(); release.wait(); drop(lease);
+        })
+    }).collect();
+    barrier.wait(); assert_eq!(budget.used(), 64); assert!(budget.reserve(1).is_err()); release.wait();
+    for job in jobs { job.join().unwrap(); } assert_eq!(budget.used(), 0);
+}

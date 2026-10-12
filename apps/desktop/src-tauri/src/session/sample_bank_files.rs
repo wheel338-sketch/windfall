@@ -72,7 +72,7 @@ impl Session {
         expected: Option<SampleInstrumentAsset>,
         path: String,
     ) -> Result<DispatchResult, String> {
-        let (generation, edits, replacements, project) = {
+        let (generation, edits, replacements, project, budget) = {
             let _recording = self.recording_idle()?;
             let state = self.state();
             let current = state
@@ -93,6 +93,7 @@ impl Session {
                 state.edits,
                 state.replacements,
                 state.document.project().clone(),
+                state.pool.sample_bank_budget_handle(),
             )
         };
         let file = crate::paths::absolute(&path)?;
@@ -114,9 +115,11 @@ impl Session {
         let mut commands = Vec::new();
         let mut audio = Vec::new();
         let mut total = 0usize;
+        let mut workspaces = Vec::new();
         for source in &bank.sources {
             let source_file = folder.join(&source.path);
-            let decoded = self.inner.cache.decode(&source_file)?;
+            let (decoded, workspace) = self.inner.cache.decode_sample_bank(&source_file, &budget)?;
+            workspaces.push(workspace);
             total = total
                 .checked_add(decoded.samples().len().saturating_mul(4))
                 .ok_or("bank byte overflow")?;

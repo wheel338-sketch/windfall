@@ -204,3 +204,23 @@ fn incompatible_instrument_changes_clear_bank_references_and_undo_restores_them(
     doc.undo().unwrap();
     assert_eq!(doc.project(), &before);
 }
+
+#[test]
+fn source_relink_is_checked_undoable_and_preserves_player_bank_identity() {
+    let mut doc = Document::new(Project::new("Relink"));
+    let source = sample(&mut doc); let player = channel(&mut doc, InstrumentKind::SamplePlayer);
+    let bank = SampleInstrumentAsset::Zones { zones: vec![SampleZone { sample: source.0, ..Default::default() }] };
+    doc.dispatch(Command::SetSampleInstrumentAsset { channel: player, expected: None, asset: Some(bank.clone()) }, None).unwrap();
+    let before = doc.project().clone(); let path = before.sample(source).unwrap().path.clone();
+    assert!(doc.dispatch(Command::RelinkSamplePath { sample: source, expected: SamplePath::External("C:/stale.wav".into()), path: SamplePath::External("C:/new.wav".into()) }, None).is_err());
+    assert!(doc.dispatch(Command::RelinkSamplePath { sample: source, expected: path.clone(), path: SamplePath::Project("../escape.wav".into()) }, None).is_err());
+    assert_eq!(doc.project(), &before);
+    doc.dispatch(Command::RelinkSamplePath { sample: source, expected: path, path: SamplePath::External("C:/new.wav".into()) }, None).unwrap();
+    let linked = doc.project().clone();
+    assert_eq!(linked.channel(player).unwrap().sample_instrument, Some(bank));
+    assert_eq!(linked.samples.len(), before.samples.len());
+    let saved: Project = serde_json::from_str(&serde_json::to_string(&linked).unwrap()).unwrap();
+    assert_eq!(saved, linked); saved.check().unwrap();
+    doc.undo().unwrap(); assert_eq!(doc.project(), &before);
+    doc.redo().unwrap(); assert_eq!(doc.project(), &linked);
+}

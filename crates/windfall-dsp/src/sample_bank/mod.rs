@@ -1,10 +1,12 @@
 //! Asset-backed instruments. Banks are installed and destroyed off audio;
 //! voices retain indexes into a bank and never own/drop individual Arcs.
 mod asset;
+mod budget;
 mod params;
 pub mod soundfont;
 pub mod sources;
 pub use asset::*;
+pub use budget::*;
 pub use params::*;
 
 use crate::{Instrument, NoteExpression, NoteInstanceId, ParamSet};
@@ -16,6 +18,7 @@ struct Voice {
     id: NoteInstanceId,
     key: u8,
     zone: usize,
+    bank: usize,
     position: f64,
     pitch: f32,
     source_pitch: f32,
@@ -31,6 +34,7 @@ struct Voice {
     release: f32,
     releasing: bool,
     filtered: [f32; 2],
+    fade_in: f32,
 }
 impl Default for Voice {
     fn default() -> Self {
@@ -39,6 +43,7 @@ impl Default for Voice {
             id: NoteInstanceId(0),
             key: 0,
             zone: 0,
+            bank: 0,
             position: 0.0,
             pitch: 0.0,
             source_pitch: 0.0,
@@ -54,6 +59,7 @@ impl Default for Voice {
             release: 0.0,
             releasing: false,
             filtered: [0.0; 2],
+            fade_in: 1.0,
         }
     }
 }
@@ -75,8 +81,11 @@ impl Voice {
 }
 
 struct Engine {
-    bank: Option<Arc<SampleBank>>,
+    banks: Box<[Option<Arc<SampleBank>>]>,
+    current_bank: usize,
+    sweep_bank: usize,
     voices: Box<[Voice]>,
+    choked: Box<[Voice]>,
     rate: f32,
     level: f32,
     target_level: f32,
@@ -94,7 +103,10 @@ struct Engine {
 impl Default for Engine {
     fn default() -> Self {
         Self {
-            bank: None,
+            banks: (0..BANK_VOICES * 2 + 1).map(|_| None).collect(),
+            current_bank: 0,
+            sweep_bank: 0,
+            choked: vec![Voice::default(); BANK_VOICES].into_boxed_slice(),
             voices: vec![Voice::default(); BANK_VOICES].into_boxed_slice(),
             rate: 48000.0,
             level: 0.5,
@@ -114,17 +126,14 @@ impl Default for Engine {
 }
 impl Engine {
     fn release(&mut self, predicate: impl Fn(&Voice) -> bool, quick: bool) {
-        let Some(bank) = &self.bank else {
-            return;
-        };
-        for voice in &mut self.voices {
+        for voice in self.voices.iter_mut().chain(self.choked.iter_mut()) {
             if !voice.active || !predicate(voice) {
                 continue;
             }
             let ms = if quick {
                 5.0
             } else {
-                bank.zones()[voice.zone].mapping.release_ms * self.release_ms / 100.0
+                self.banks[voice.bank].as_ref().expect("active voice bank").zones()[voice.zone].mapping.release_ms * self.release_ms / 100.0
             };
             let step = voice.envelope / (ms * 0.001 * self.rate).max(1.0);
             voice.release = if voice.releasing {
@@ -150,7 +159,7 @@ impl Engine {
             self.release(|v| v.id == id, false);
             return;
         }
-        let Some(bank) = &self.bank else {
+        let Some(bank) = &self.banks[self.current_bank] else {
             self.missed += 1;
             return;
         };
@@ -184,11 +193,21 @@ impl Engine {
                 chokes[map.choke_group as usize] = true;
             }
         }
-        // Choke previous strikes once, before adding any layers of this strike.
+        // Reserve a fading tail for every affected layer before admitting the
+        // strike. If the fixed tail reserve is full the whole note is refused.
+        let affected = |voice: &Voice| voice.active && (voice.id == id ||
+            chokes[self.banks[voice.bank].as_ref().expect("active voice bank").zones()[voice.zone].mapping.choke_group as usize]);
+        let needed = self.voices.iter().filter(|v| affected(v)).count();
+        if needed > self.choked.iter().filter(|v| !v.active).count() {
+            self.missed += 1;
+            return;
+        }
         for voice in &mut self.voices {
-            if voice.active
-                && (voice.id == id || chokes[bank.zones()[voice.zone].mapping.choke_group as usize])
-            {
+            if affected(voice) {
+                let slot = self.choked.iter_mut().find(|v| !v.active).expect("reserved choke tail");
+                *slot = *voice;
+                slot.releasing = true;
+                slot.release = slot.envelope / (self.rate * 0.001).max(1.0);
                 voice.active = false;
             }
         }
@@ -217,6 +236,8 @@ impl Engine {
                 id,
                 key,
                 zone: index,
+                bank: self.current_bank,
+                fade_in: if needed > 0 { 0.0 } else { 1.0 },
                 pitch: f32::from(key) + expression.fine_pitch_cents / 100.0,
                 velocity: velocity * zone.mapping.weight(key, midi_velocity),
                 pan: if pan.is_finite() {
@@ -242,9 +263,6 @@ impl Engine {
     fn process(&mut self, left: &mut [f32], right: &mut [f32]) {
         left.fill(0.0);
         right.fill(0.0);
-        let Some(bank) = &self.bank else {
-            return;
-        };
         let glide = 1.0 - (-1.0 / (0.01 * self.rate)).exp();
         let cutoff = (40.0 + self.brightness.powi(2) * 19960.0).min(self.rate * 0.45);
         let coefficient = 1.0 - (-std::f32::consts::TAU * cutoff / self.rate).exp();
@@ -257,11 +275,11 @@ impl Engine {
             } else {
                 f64::from((self.tune / 12.0).exp2())
             };
-            for voice in &mut self.voices {
+            for voice in self.voices.iter_mut().chain(self.choked.iter_mut()) {
                 if !voice.active {
                     continue;
                 }
-                let zone = &bank.zones()[voice.zone];
+                let zone = &self.banks[voice.bank].as_ref().expect("active voice bank").zones()[voice.zone];
                 let map = zone.mapping;
                 let looped = map.loop_mode == BankLoop::Continuous
                     || (map.loop_mode == BankLoop::UntilRelease && !voice.releasing);
@@ -305,7 +323,8 @@ impl Engine {
                 let fraction = (voice.position - frame as f64) as f32;
                 voice.filtered[0] += (a + (c - a) * fraction - voice.filtered[0]) * coefficient;
                 voice.filtered[1] += (b + (d - b) * fraction - voice.filtered[1]) * coefficient;
-                let gain = voice.velocity * voice.gain * map.gain * voice.envelope * self.level;
+                voice.fade_in = (voice.fade_in + 1.0 / (self.rate * 0.001).max(1.0)).min(1.0);
+                let gain = voice.velocity * voice.gain * map.gain * voice.envelope * self.level * voice.fade_in;
                 *l += voice.filtered[0] * gain * voice.pan_gains[0];
                 *r += voice.filtered[1] * gain * voice.pan_gains[1];
                 let pitch = voice.source_pitch + self.tune;
@@ -332,7 +351,39 @@ macro_rules! instrument {
             /// Off audio only. The host retires the entire old processor off audio.
             pub fn install_bank(&mut self, bank: Arc<SampleBank>) {
                 self.reset();
-                self.engine.bank = Some(bank);
+                self.engine.banks.fill_with(|| None);
+                self.engine.current_bank = 0;
+                self.engine.banks[0] = Some(bank);
+            }
+            /// Callback-safe handover. Incoming bank stays selected for new notes;
+            /// held and releasing layers retain exact old PCM, position and filters.
+            /// Displaced unused owners stay in `previous` for control retirement.
+            pub fn inherit_bank_state(&mut self, previous: &mut Self) {
+                let incoming = self.engine.current_bank;
+                let slot = (0..previous.engine.banks.len()).find(|index|
+                    !previous.engine.voices.iter().chain(previous.engine.choked.iter())
+                        .any(|v| v.active && v.bank == *index)).expect("one spare bank owner");
+                std::mem::swap(&mut self.engine.banks, &mut previous.engine.banks);
+                std::mem::swap(&mut self.engine.banks[slot], &mut previous.engine.banks[incoming]);
+                self.engine.current_bank = slot;
+                self.engine.voices.copy_from_slice(&previous.engine.voices);
+                self.engine.choked.copy_from_slice(&previous.engine.choked);
+                self.engine.sequence = previous.engine.sequence;
+                self.engine.legacy = previous.engine.legacy;
+                self.engine.level = previous.engine.level;
+                self.engine.tune = previous.engine.tune;
+                self.engine.started = previous.engine.started;
+            }
+            /// Moves one unused bank to the host retirement ring. No Arc is
+            /// dropped here. A full ring simply defers this bounded sweep.
+            pub fn take_unused_bank(&mut self) -> Option<Arc<SampleBank>> {
+                let index = self.engine.sweep_bank;
+                self.engine.sweep_bank = (index + 1) % self.engine.banks.len();
+                if self.engine.banks[index].is_none() || index == self.engine.current_bank || self.engine.voices.iter()
+                    .chain(self.engine.choked.iter()).any(|v| v.active && v.bank == index) {
+                    return None;
+                }
+                self.engine.banks[index].take()
             }
             pub fn missed_notes(&self) -> u64 {
                 self.engine.missed
@@ -353,6 +404,7 @@ macro_rules! instrument {
             }
             fn reset(&mut self) {
                 self.engine.voices.fill(Voice::default());
+                self.engine.choked.fill(Voice::default());
                 self.engine.rr.fill(0);
                 self.engine.started = false;
                 self.engine.sequence = 0;
@@ -414,10 +466,10 @@ macro_rules! instrument {
             }
             fn set_note_pitch(&mut self, id: NoteInstanceId, pitch: f32) {
                 if pitch.is_finite() {
-                    for v in &mut self.engine.voices {
+                    for v in self.engine.voices.iter_mut().chain(self.engine.choked.iter_mut()) {
                         if v.active && v.id == id {
                             v.pitch = pitch.clamp(-48.0, 175.0);
-                            if let Some(bank) = &self.engine.bank {
+                            if let Some(bank) = &self.engine.banks[v.bank] {
                                 let zone = &bank.zones()[v.zone];
                                 v.configure_pitch(
                                     zone.mapping,
@@ -436,10 +488,10 @@ macro_rules! instrument {
                 _expression: NoteExpression,
             ) {
                 if pan.is_finite() {
-                    for v in &mut self.engine.voices {
+                    for v in self.engine.voices.iter_mut().chain(self.engine.choked.iter_mut()) {
                         if v.active && v.id == id {
                             v.pan = pan.clamp(-1.0, 1.0);
-                            if let Some(bank) = &self.engine.bank {
+                            if let Some(bank) = &self.engine.banks[v.bank] {
                                 v.configure_pan(bank.zones()[v.zone].mapping);
                             }
                         }
@@ -448,7 +500,7 @@ macro_rules! instrument {
             }
             fn set_note_gain(&mut self, id: NoteInstanceId, gain: f32) {
                 if gain.is_finite() {
-                    for v in &mut self.engine.voices {
+                    for v in self.engine.voices.iter_mut().chain(self.engine.choked.iter_mut()) {
                         if v.active && v.id == id {
                             v.gain = gain.clamp(0.0, 4.0);
                         }

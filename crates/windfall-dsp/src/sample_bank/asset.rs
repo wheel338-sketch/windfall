@@ -146,6 +146,9 @@ pub struct LoadedZone {
 pub struct SampleBank {
     zones: Box<[LoadedZone]>,
     bytes: usize,
+    // Leases are owned by the immutable bank, including unpublished work.
+    reservations: Vec<super::BankReservation>,
+    unavailable: Option<String>,
 }
 impl SampleBank {
     /// Worker/control side only. Missing sources are errors, never dropped zones.
@@ -181,7 +184,19 @@ impl SampleBank {
         Ok(Self {
             zones: zones.into_boxed_slice(),
             bytes,
+            reservations: Vec::new(),
+            unavailable: None,
         })
+    }
+    /// Preserve the document's mapping when sources are absent. The bank is
+    /// silent as a whole until the worker can prepare every referenced source.
+    pub fn unavailable(reason: String) -> Self {
+        Self { zones: Box::new([]), bytes: 0, reservations: Vec::new(), unavailable: Some(reason) }
+    }
+    pub fn unavailable_reason(&self) -> Option<&str> { self.unavailable.as_deref() }
+    /// Off audio only. The reservation must be taken before preparing PCM.
+    pub fn retain_reservation(&mut self, reservation: super::BankReservation) {
+        self.reservations.push(reservation);
     }
     pub fn zones(&self) -> &[LoadedZone] {
         &self.zones

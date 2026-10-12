@@ -1,4 +1,4 @@
-import { useId, useRef, useState } from "react"
+import { useEffect, useId, useRef, useState } from "react"
 
 import type { SampleInstrumentAsset, SampleZone, SoundFontPreset } from "@/bindings"
 import { Alert, AlertDescription } from "@/components/ui/alert"
@@ -148,6 +148,7 @@ function ZonesEditor({ channel, pads }: { channel: InstrumentChannel; pads: bool
         <TableCell><Button variant="outline" onClick={()=>replace(zones.filter((_,i)=>i!==index))}>Remove zone {index+1}</Button></TableCell>
       </TableRow>)}</TableBody>
     </Table>
+    <BankSourceRecovery channel={channel} />
     <PortableBank channel={channel} />
     {pads && <FieldDescription>Pad notes are keys 36–51. Add these keys in the piano roll to sequence all layers and chokes in a pattern.</FieldDescription>}
   </FieldGroup>
@@ -181,6 +182,41 @@ function PortableBank({ channel }: { channel: InstrumentChannel }) {
   </FieldGroup>
 }
 
+function BankSourceRecovery({ channel }: { channel: InstrumentChannel }) {
+  const samples = useProjectStore(state => state.project.samples)
+  const [missing,setMissing] = useState<number[]>([])
+  const [busy,setBusy] = useState(false)
+  const [error,setError] = useState<string|null>(null)
+  const ids = channel.sampleInstrument?.type === "zones" ? [...new Set(channel.sampleInstrument.zones.map(zone=>zone.sample))] : []
+  useEffect(()=>{
+    let current=true
+    void backend.sampleInstrumentMissingSources?.(channel.id).then(ids=>{if(current)setMissing(ids)})
+      .catch(error=>{if(current)setError(errorMessage(error))})
+    return ()=>{current=false}
+  },[channel.id,channel.sampleInstrument,samples])
+  return <FieldGroup>
+    {missing.length>0 && <Alert><AlertDescription>Missing sample-bank sources. Relink each source to recover this instrument; its mapping and source IDs are preserved.</AlertDescription></Alert>}
+    {ids.map(id=>{
+      const source = samples.find(sample=>sample.id===id)
+      return source && <div key={id} className="flex items-center gap-2">
+        <FieldDescription>{missing.includes(id) ? "Missing source: " : "Source: "}{source.name}</FieldDescription>
+        <Button variant="outline" disabled={busy || !backend.sampleInstrumentRelinkSource} onClick={async()=>{
+          const generation=getProjectGeneration();setBusy(true)
+          try {
+            const path=await backend.pickAudioFile()
+            if(path && generation===getProjectGeneration()) {
+              const result=await backend.sampleInstrumentRelinkSource!(channel.id,channel.sampleInstrument??null,id,source.path,path)
+              if(generation===getProjectGeneration()){receivePatch(result.patch);setMissing(ids=>ids.filter(item=>item!==id));setError(null)}
+            }
+          } catch(error){if(generation===getProjectGeneration())setError(errorMessage(error))}finally{setBusy(false)}
+        }}>Relink source {source.name}</Button>
+      </div>
+    })}
+    {!backend.sampleInstrumentRelinkSource && ids.length>0 && <FieldDescription>Source relinking requires the desktop app.</FieldDescription>}
+    {error && <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}
+  </FieldGroup>
+}
+
 function PlayerEditor({ channel }: { channel: InstrumentChannel }) {
   const id = useId()
   const [json,setJson] = useState("")
@@ -188,6 +224,7 @@ function PlayerEditor({ channel }: { channel: InstrumentChannel }) {
   const zones = channel.sampleInstrument?.type === "zones" ? channel.sampleInstrument.zones : []
   return <FieldGroup>
     <ZoneMap zones={zones} />
+    <BankSourceRecovery channel={channel} />
     <PortableBank channel={channel} />
     <Field><FieldLabel htmlFor={id}>Ready-made bank references</FieldLabel>
       <Textarea id={id} value={json} onChange={event=>setJson(event.target.value)} />
@@ -237,6 +274,21 @@ function SpeechEditor({ channel }: { channel: InstrumentChannel }) {
   const [pitch,setPitch]=useState(recipe?.pitch??48)
   const [duration,setDuration]=useState(recipe?.duration??2)
   const [busy,setBusy]=useState(false)
+  const job = useRef<{request: number | null; cancelled: boolean} | null>(null)
+  const cancel = () => {
+    const active = job.current
+    if (!active) return
+    active.cancelled = true
+    if (active.request !== null) void backend.sampleInstrumentSpeechCancel?.(channel.id, active.request)
+      .catch(error => setError(errorMessage(error)))
+  }
+  useEffect(() => () => {
+    const active = job.current
+    if (active) {
+      active.cancelled = true
+      if (active.request !== null) void backend.sampleInstrumentSpeechCancel?.(channel.id, active.request)
+    }
+  }, [channel.id])
   const [error,setError]=useState<string|null>(null)
   return <FieldGroup>
     <Field><FieldLabel>Text</FieldLabel><Textarea aria-label="Text" maxLength={512} value={text} onChange={event=>setText(event.target.value)} /></Field>
@@ -244,10 +296,20 @@ function SpeechEditor({ channel }: { channel: InstrumentChannel }) {
     <Field><FieldLabel>Duration (seconds)</FieldLabel><Input aria-label="Speech duration" type="number" min={0.1} max={60} step={0.1} value={duration} onChange={event=>setDuration(event.target.valueAsNumber)} /></Field>
     <Button disabled={busy || !backend.sampleInstrumentSpeech || !text.trim()} onClick={async()=>{
       const generation = getProjectGeneration()
+      const active = {request: null as number | null, cancelled: false}
+      job.current = active
       setBusy(true)
-      try { const result=await backend.sampleInstrumentSpeech!(channel.id,channel.sampleInstrument??null,text,pitch,duration);if(generation===getProjectGeneration()){receivePatch(result.patch);setError(null)} }
-      catch(error){setError(errorMessage(error))}finally{setBusy(false)}
+      try {
+        if (backend.sampleInstrumentSpeechBegin) {
+          active.request = await backend.sampleInstrumentSpeechBegin(channel.id)
+          if (active.cancelled) await backend.sampleInstrumentSpeechCancel?.(channel.id, active.request)
+        }
+        const result = await backend.sampleInstrumentSpeech!(channel.id,channel.sampleInstrument??null,text,pitch,duration,active.request ?? undefined)
+        if (generation===getProjectGeneration()) { receivePatch(result.patch); setError(null) }
+      } catch(error) { if(generation===getProjectGeneration())setError(errorMessage(error)) }
+      finally { if(job.current===active)job.current=null;setBusy(false) }
     }}>{busy ? "Rendering…" : "Render and save source"}</Button>
+    {busy && <Button variant="outline" disabled={!backend.sampleInstrumentSpeechCancel} onClick={cancel}>Cancel speech rendering</Button>}
     <FieldDescription>Own robotic English rule voice. Rendering saves audio for project reopen and undo. Notes transpose the saved phrase from key 60.</FieldDescription>
     {!backend.sampleInstrumentSpeech && <Alert><AlertDescription>Saved speech rendering requires the desktop app.</AlertDescription></Alert>}
     {error && <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}

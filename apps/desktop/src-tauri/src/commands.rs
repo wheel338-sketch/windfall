@@ -39,6 +39,18 @@ async fn sample_instrument_load_bank(
     blocking(move || session.sample_instrument_load_bank(channel, expected, path)).await
 }
 #[tauri::command]
+fn sample_instrument_missing_sources(session: State<'_, Session>, channel: ChannelId) -> Result<Vec<SampleId>, String> {
+    session.sample_instrument_missing_sources(channel)
+}
+#[tauri::command]
+async fn sample_instrument_relink_source(
+    session: State<'_, Session>, channel: ChannelId, expected: Option<windfall_project::SampleInstrumentAsset>,
+    sample: SampleId, expected_path: windfall_project::SamplePath, path: String,
+) -> Result<DispatchResult, String> {
+    let session = session.inner().clone();
+    blocking(move || session.sample_instrument_relink_source(channel, expected, sample, expected_path, path)).await
+}
+#[tauri::command]
 async fn sample_instrument_save_bank(
     session: State<'_, Session>,
     channel: ChannelId,
@@ -68,6 +80,14 @@ async fn soundfont_presets(
     blocking(move || session.soundfont_presets(&path)).await
 }
 #[tauri::command]
+fn sample_instrument_speech_begin(session: State<'_, Session>, channel: ChannelId) -> Result<u64, String> {
+    session.sample_instrument_speech_begin(channel)
+}
+#[tauri::command]
+fn sample_instrument_speech_cancel(session: State<'_, Session>, channel: ChannelId, request: u64) {
+    session.sample_instrument_speech_cancel(channel, request);
+}
+#[tauri::command]
 async fn sample_instrument_speech(
     session: State<'_, Session>,
     channel: ChannelId,
@@ -75,9 +95,13 @@ async fn sample_instrument_speech(
     text: String,
     pitch: f32,
     duration: f32,
+    request: Option<u64>,
 ) -> Result<DispatchResult, String> {
     let session = session.inner().clone();
-    blocking(move || session.sample_instrument_speech(channel, expected, text, pitch, duration))
+    blocking(move || match request {
+        Some(request) => session.sample_instrument_speech_request(channel, expected, text, pitch, duration, request),
+        None => session.sample_instrument_speech(channel, expected, text, pitch, duration),
+    })
         .await
 }
 
@@ -1359,8 +1383,12 @@ pub fn handler() -> impl Fn(Invoke) -> bool + Send + Sync + 'static {
         samples_reload,
         soundfont_presets,
         sample_instrument_speech,
+        sample_instrument_speech_begin,
+        sample_instrument_speech_cancel,
         sample_instrument_import_zone,
         sample_instrument_load_bank,
+        sample_instrument_relink_source,
+        sample_instrument_missing_sources,
         sample_instrument_save_bank,
         add_channel_from_file,
         set_channel_sample_from_file,

@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 use windfall_core::AudioBuffer;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SoundFontError {
     Truncated,
     InvalidRiff,
@@ -26,6 +26,7 @@ pub enum SoundFontError {
     TooManyZones,
     TooManyFrames { sample: usize, frames: usize },
     NoZones,
+    MemoryBudget(String),
 }
 impl std::fmt::Display for SoundFontError {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
@@ -37,7 +38,7 @@ impl std::error::Error for SoundFontError {}
 /// Imports the first preset in file order. Does not merge unrelated presets.
 pub fn parse_soundfont(bytes: &[u8]) -> Result<SampleBank, SoundFontError> {
     let tables = Tables::read(bytes)?;
-    tables.import(0)
+    tables.import(0, None)
 }
 
 /// Imports a specific SF2 bank/program pair into the bounded Copy zone table.
@@ -51,7 +52,22 @@ pub fn parse_soundfont_preset(
     for index in 0..tables.phdr.len() / 38 - 1 {
         let record = &tables.phdr[index * 38..(index + 1) * 38];
         if u16_at(record, 20) == preset && u16_at(record, 22) == bank {
-            return tables.import(index);
+            return tables.import(index, None);
+        }
+    }
+    Err(SoundFontError::PresetNotFound { bank, preset })
+}
+
+/// Reserve every decoded zone before allocating its PCM; partial failures release
+/// all reservations on the worker, and successful banks carry them until retired.
+pub fn parse_soundfont_preset_budgeted(
+    bytes: &[u8], bank: u16, preset: u16, budget: &std::sync::Arc<super::BankBudget>,
+) -> Result<SampleBank, SoundFontError> {
+    let tables = Tables::read(bytes)?;
+    for index in 0..tables.phdr.len() / 38 - 1 {
+        let record = &tables.phdr[index * 38..(index + 1) * 38];
+        if u16_at(record, 20) == preset && u16_at(record, 22) == bank {
+            return tables.import(index, Some(budget));
         }
     }
     Err(SoundFontError::PresetNotFound { bank, preset })
@@ -307,10 +323,11 @@ impl<'a> Tables<'a> {
         }
         Ok(())
     }
-    fn import(&self, preset: usize) -> Result<SampleBank, SoundFontError> {
+    fn import(&self, preset: usize, budget: Option<&std::sync::Arc<super::BankBudget>>) -> Result<SampleBank, SoundFontError> {
         let begin = u16_at(self.phdr, preset * 38 + 24) as usize;
         let end = u16_at(self.phdr, (preset + 1) * 38 + 24) as usize;
         let mut table = Vec::new();
+        let mut reservations = Vec::new();
         let mut global = Generators::default();
         for bag in begin..end {
             let local = generators(self.pbag, self.pgen, bag, true)?;
@@ -322,18 +339,22 @@ impl<'a> Tables<'a> {
                 continue;
             }
             let preset = global.overridden(local);
-            self.import_instrument(preset, &mut table)?;
+            self.import_instrument(preset, &mut table, budget, &mut reservations)?;
         }
         if table.is_empty() {
             Err(SoundFontError::NoZones)
         } else {
-            SampleBank::new(table).map_err(|_| SoundFontError::TooManyZones)
+            let mut bank = SampleBank::new(table).map_err(|_| SoundFontError::TooManyZones)?;
+            for reservation in reservations { bank.retain_reservation(reservation); }
+            Ok(bank)
         }
     }
     fn import_instrument(
         &self,
         preset: Generators,
         table: &mut Vec<LoadedZone>,
+        budget: Option<&std::sync::Arc<super::BankBudget>>,
+        reservations: &mut Vec<super::BankReservation>,
     ) -> Result<(), SoundFontError> {
         let instrument = preset.link.ok_or(SoundFontError::InvalidTable(*b"pgen"))?;
         let begin = u16_at(self.inst, instrument * 22 + 20) as usize;
@@ -364,7 +385,7 @@ impl<'a> Tables<'a> {
                 return Err(SoundFontError::TooManyZones);
             }
             let used: usize = table.iter().map(|z| z.audio.samples().len() * 4).sum();
-            let mut zone = self.sample_zone(instrument, MAX_BANK_BYTES.saturating_sub(used))?;
+            let mut zone = self.sample_zone(instrument, MAX_BANK_BYTES.saturating_sub(used), budget, reservations)?;
             zone.mapping.key_low = key.0;
             zone.mapping.key_high = key.1;
             zone.mapping.velocity_low = velocity.0;
@@ -420,6 +441,8 @@ impl<'a> Tables<'a> {
         &self,
         instrument: Generators,
         remaining: usize,
+        budget: Option<&std::sync::Arc<super::BankBudget>>,
+        reservations: &mut Vec<super::BankReservation>,
     ) -> Result<LoadedZone, SoundFontError> {
         let index = instrument
             .link
@@ -457,6 +480,9 @@ impl<'a> Tables<'a> {
         let root = instrument.root.unwrap_or(header[40] as i16);
         if !(0..=127).contains(&root) {
             return Err(SoundFontError::InvalidSample(index));
+        }
+        if let Some(budget) = budget {
+            reservations.push(budget.reserve(frames * 4).map_err(SoundFontError::MemoryBudget)?);
         }
         let pcm = (start..end)
             .map(|frame| u16_at(self.smpl, frame * 2) as i16 as f32 / 32768.0)

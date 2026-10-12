@@ -115,4 +115,40 @@ describe("sample instrument purpose-built editors",()=>{
     expect(screen.getByRole("button",{name:"Render and save source"})).toBeDisabled()
     expect(screen.getByRole("alert")).toHaveTextContent("desktop app")
   })
+  it("cancels a pending native render and leaves the recipe unchanged",async()=>{
+    let rejectRender!: (reason: Error) => void
+    backend.sampleInstrumentSpeechBegin=vi.fn().mockResolvedValue(17)
+    backend.sampleInstrumentSpeech=vi.fn().mockImplementation(()=>new Promise((_,reject)=>{rejectRender=reject}))
+    backend.sampleInstrumentSpeechCancel=vi.fn().mockImplementation(async()=>{rejectRender(new Error("Speech rendering cancelled"))})
+    const id=await open("textVoice")
+    const before=useProjectStore.getState().project.channels.find(item=>item.id===id)?.sampleInstrument
+    fireEvent.change(screen.getByRole("textbox",{name:"Text"}),{target:{value:"Hello"}})
+    fireEvent.click(screen.getByRole("button",{name:"Render and save source"}));await act(()=>settle())
+    expect(backend.sampleInstrumentSpeech).toHaveBeenCalledWith(id,null,"Hello",48,2,17)
+    fireEvent.click(screen.getByRole("button",{name:"Cancel speech rendering"}));await act(()=>settle())
+    expect(backend.sampleInstrumentSpeechCancel).toHaveBeenCalledWith(id,17)
+    expect(screen.getByRole("alert")).toHaveTextContent("cancelled")
+    expect(useProjectStore.getState().project.channels.find(item=>item.id===id)?.sampleInstrument).toEqual(before)
+    expect(screen.getByRole("button",{name:"Render and save source"})).toBeEnabled()
+  })
+
+  it("relinks a player source without replacing its bank identity",async()=>{
+    backend.sampleInstrumentMissingSources=vi.fn().mockResolvedValue([useProjectStore.getState().project.samples[0].id])
+    backend.sampleInstrumentRelinkSource=vi.fn().mockImplementation(async(_channel,_bank,sample,expected,path)=>backend.dispatch({type:"relinkSamplePath",sample,expected,path:{kind:"external",path}},null))
+    const id=await open("samplePlayer")
+    const source=useProjectStore.getState().project.samples[0]
+    const {newZone}=await import("./editor")
+    await dispatch({type:"setSampleInstrumentAsset",channel:id,expected:null,asset:{type:"zones",zones:[newZone(source.id)]}});await act(()=>settle())
+    const bank=useProjectStore.getState().project.channels.find(channel=>channel.id===id)?.sampleInstrument
+    vi.spyOn(backend,"pickAudioFile").mockResolvedValue("C:/Relink/new.wav")
+    await act(()=>settle())
+    expect(screen.getByRole("alert")).toHaveTextContent("Missing sample-bank sources")
+    fireEvent.click(screen.getByRole("button",{name:`Relink source ${source.name}`}));await act(()=>settle())
+    expect(backend.sampleInstrumentRelinkSource).toHaveBeenCalledWith(id,bank,source.id,source.path,"C:/Relink/new.wav")
+    expect(useProjectStore.getState().project.channels.find(channel=>channel.id===id)?.sampleInstrument).toEqual(bank)
+    expect(useProjectStore.getState().project.samples.find(sample=>sample.id===source.id)?.path).toEqual({kind:"external",path:"C:/Relink/new.wav"})
+    await undo();await act(()=>settle())
+    expect(useProjectStore.getState().project.samples.find(sample=>sample.id===source.id)?.path).toEqual(source.path)
+  })
+
 })
