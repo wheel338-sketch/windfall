@@ -180,7 +180,10 @@ pub(super) fn options(
         config: Config {
             identity,
             sample_rate: rate,
-            block: DEFAULT_BLOCK,
+            // Keep one complete helper scheduling interval across the desktop's
+            // 480-frame callback. A 256-frame interval can be submitted and
+            // expire within the same callback, before the helper gets CPU.
+            block: DEFAULT_BLOCK * 2,
             native_latency: 0,
             kind: if matches!(
                 binding.target,
