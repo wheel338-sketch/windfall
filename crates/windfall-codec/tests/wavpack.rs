@@ -80,6 +80,25 @@ fn independent_zero_run_and_held_unary_fixtures_decode_to_known_pcm() {
     let pair = independent_block(2, 0xffff_fff8, [0x8e, 0xff]);
     assert_eq!(decode_bytes(&pair, Some("WV")).unwrap().samples(), &[1.0 / 32768.0, -2.0 / 32768.0]);
 }
+
+#[test]
+fn version_five_checksum_detects_header_damage_and_metadata_only_trailers_preserve_audio() {
+    let mut b = independent_block(2, 0xffff_fff8, [0x8e, 0xff]);
+    b[4..8].copy_from_slice(&42_u32.to_le_bytes()); // six-byte checksum sub-block
+    let flags = le(&b, 24) | 0x1000_0000;
+    b[24..28].copy_from_slice(&flags.to_le_bytes());
+    let sum = b.chunks_exact(2).fold(u32::MAX, |sum, v| sum.wrapping_mul(3).wrapping_add(u32::from(u16::from_le_bytes([v[0], v[1]]))));
+    b.extend_from_slice(&[0x2f, 2]); b.extend_from_slice(&sum.to_le_bytes());
+    assert_eq!(decode_bytes(&b, None).unwrap().frames(), 2);
+    let mut damaged = b.clone(); damaged[27] ^= 8; // reserved flag has no effect on PCM CRC
+    assert!(decode_bytes(&damaged, None).unwrap_err().to_string().contains("checksum"));
+    // Reference tools may use zero layout flags for a wrapper-only block.
+    let mut trailer = b"wvpk".to_vec(); trailer.extend_from_slice(&28_u32.to_le_bytes()); trailer.extend_from_slice(&[0x10, 4, 0, 0]);
+    for n in [2_u32, 2, 0, 0, u32::MAX] { trailer.extend_from_slice(&n.to_le_bytes()); }
+    trailer.extend_from_slice(&[0x62, 1, 0, 0]); // odd one-byte RIFF trailer
+    b.extend_from_slice(&trailer);
+    assert_eq!(decode_bytes(&b, None).unwrap().samples(), &[1.0 / 32768.0, -2.0 / 32768.0]);
+}
 #[test]
 fn truncated_crc_sizes_metadata_and_budget_attacks_are_refused_without_panics() {
     let source = independent_block(2, 0xffff_fff8, [0x8e, 0xff]);
