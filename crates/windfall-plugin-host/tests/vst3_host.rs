@@ -15,6 +15,13 @@ fn create(
 }
 
 #[test]
+fn independent_vst3_no_editor_class_keeps_explicit_refusal() {
+    let (_module, mut instance) = create(3);
+    assert!(!instance.has_editor());
+    assert_eq!(instance.open_editor(&EditorOptions::default()), Err(if cfg!(windows) { EditorError::NoEditor } else { EditorError::UnsupportedPlatform }));
+}
+
+#[test]
 fn native_numeric_expression_controls_distinct_overlapping_note_identities() {
     use windfall_plugin_host::{FIRST_NOTE_INSTANCE_ID, PluginNoteControls};
     let (_module, mut instance) = create(23);
@@ -156,15 +163,16 @@ fn lifecycle_gain_offsets_transport_state_and_restart() {
     drop(module); // instance retains DLL
     assert_eq!(instance.param_text(7, 0.25).as_deref(), Some("0.50"));
     assert_eq!(instance.param_from_text(7, "0.50"), Some(0.25));
-    assert!(!instance.has_editor());
-    assert_eq!(
-        instance.open_editor(&EditorOptions::default()),
-        Err(if cfg!(windows) {
-            EditorError::NoEditor
-        } else {
-            EditorError::UnsupportedPlatform
-        })
-    );
+    assert_eq!(instance.has_editor(), cfg!(windows));
+    #[cfg(windows)]
+    {
+        let editor = instance.open_editor(&EditorOptions::default()).unwrap();
+        assert!(editor.width > 0 && editor.height > 0);
+        assert!(editor.window.is_some());
+        instance.close_editor();
+    }
+    #[cfg(not(windows))]
+    assert_eq!(instance.open_editor(&EditorOptions::default()), Err(EditorError::UnsupportedPlatform));
     instance.set_param(7, 0.25);
     let state = instance.save_state().unwrap();
     instance.set_param(7, 1.0);

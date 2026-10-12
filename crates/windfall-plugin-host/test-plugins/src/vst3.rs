@@ -1,6 +1,8 @@
 //! Independent VST3 factory and component fixtures for the scanner.
 #![allow(non_snake_case)]
 mod native_thread;
+#[cfg(windows)]
+mod editor;
 #[path = "vst3_expression.rs"]
 mod expression;
 use native_thread::CreatorThread;
@@ -113,6 +115,7 @@ impl IPluginFactoryTrait for Factory {
                 return kNoInterface;
             }
             let component = ComWrapper::new(Component {
+                editor_available: class == cid(0),
                 absurd: class == cid(1),
                 instrument: class == cid(2) || class == cid(12) || class == cid(23) || class == cid(24),
                 expression_probe: class == cid(23),
@@ -158,7 +161,7 @@ impl IPluginFactoryTrait for Factory {
                 initialized: std::sync::atomic::AtomicBool::new(false),
                 active: std::sync::atomic::AtomicBool::new(false),
                 processing: std::sync::atomic::AtomicBool::new(false),
-                gain: std::sync::atomic::AtomicU64::new(0.5_f64.to_bits()),
+                gain: std::sync::Arc::new(std::sync::atomic::AtomicU64::new(0.5_f64.to_bits())),
                 extra: std::array::from_fn(|_| {
                     std::sync::atomic::AtomicU64::new(0.5_f64.to_bits())
                 }),
@@ -227,6 +230,7 @@ impl IPluginFactory2Trait for Factory {
     }
 }
 struct Component {
+    editor_available: bool,
     sidechain: bool,
     /// Three auxiliary inputs of one, two and four channels. The output
     /// carries each of their channels with the marks of the CLAP fixture.
@@ -258,7 +262,7 @@ struct Component {
     initialized: std::sync::atomic::AtomicBool,
     active: std::sync::atomic::AtomicBool,
     processing: std::sync::atomic::AtomicBool,
-    gain: std::sync::atomic::AtomicU64,
+    gain: std::sync::Arc<std::sync::atomic::AtomicU64>,
     extra: [std::sync::atomic::AtomicU64; 2],
     meters: [std::sync::atomic::AtomicU64; 3],
     audio: std::cell::UnsafeCell<Audio>,
@@ -1049,8 +1053,20 @@ impl IEditControllerTrait for Component {
         }
         kResultOk
     }
-    unsafe fn createView(&self, _name: FIDString) -> *mut IPlugView {
-        ptr::null_mut()
+    unsafe fn createView(&self, name: FIDString) -> *mut IPlugView {
+        #[cfg(windows)]
+        {
+            if !self.editor_available || name.is_null() || unsafe { std::ffi::CStr::from_ptr(name) } != c"editor" {
+                return ptr::null_mut();
+            }
+            // The view keeps its own references, never a borrowed Component pointer.
+            editor::create(self.gain.clone(), unsafe { (&*self.handler.get()).clone() })
+        }
+        #[cfg(not(windows))]
+        {
+            let _ = (name, self.editor_available);
+            ptr::null_mut()
+        }
     }
 }
 /// SDK factory export, independently implemented from the host.

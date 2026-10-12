@@ -9,6 +9,54 @@ use windows_sys::Win32::UI::WindowsAndMessaging::{
 };
 
 #[test]
+fn independent_vst3_view_attaches_scales_gestures_state_and_tears_down_real_windows() {
+    use windows_sys::Win32::UI::WindowsAndMessaging::{GetWindow, GW_CHILD, GetDlgItem, SendMessageW, BM_CLICK};
+    let file = common::plugin_file("vst3-real-editor", "fixture.vst3");
+    let module = windfall_plugin_host::PluginHost::windfall().load(&file).unwrap();
+    let mut instance = module.create(&module.descriptors()[0].id).unwrap();
+    assert!(instance.has_editor());
+    let editor = instance.open_editor(&EditorOptions { take_focus: false, ..Default::default() }).unwrap();
+    let parent = editor.window.unwrap() as *mut std::ffi::c_void;
+    let child = unsafe { GetWindow(parent, GW_CHILD) };
+    assert!(!child.is_null());
+    let button = unsafe { GetDlgItem(child, 7) };
+    assert!(!button.is_null());
+    assert_eq!(unsafe { GetParent(child) }, parent);
+    assert_ne!(unsafe { IsWindowVisible(button) }, 0);
+    let original = instance.set_editor_scale(1.0).unwrap();
+    let double = instance.set_editor_scale(2.0).unwrap();
+    assert_eq!(double.window, original.window);
+    assert!((double.width as i64 - original.width as i64 * 2).abs() <= 1);
+    assert!((double.height as i64 - original.height as i64 * 2).abs() <= 1);
+    assert_eq!(instance.set_editor_scale(1.0).unwrap(), original);
+    unsafe { SendMessageW(button, BM_CLICK, 0, 0); }
+    let mut notices = Vec::new(); instance.idle(&mut |notice| notices.push(notice));
+    assert!(notices.contains(&PluginNotification::ParamGestureBegin { id: 7 }));
+    assert!(notices.contains(&PluginNotification::ParamChanged { id: 7, value: 0.25 }));
+    assert!(notices.contains(&PluginNotification::ParamGestureEnd { id: 7 }));
+    assert_eq!(instance.param_value(7), Some(0.25));
+    let state = instance.save_state().unwrap();
+    instance.close_editor();
+    assert_eq!(unsafe { IsWindow(parent) }, 0);
+    assert_eq!(unsafe { IsWindow(child) }, 0);
+    assert_eq!(unsafe { IsWindow(button) }, 0);
+    drop(instance); drop(module);
+    // Force the fixture to unload/reload. Its window class must never retain a
+    // callback into the old library mapping.
+    let module = windfall_plugin_host::PluginHost::windfall().load(&file).unwrap();
+    let mut reopened = module.create(&module.descriptors()[0].id).unwrap();
+    reopened.load_state(&state).unwrap(); assert_eq!(reopened.param_value(7), Some(0.25));
+    let editor = reopened.open_editor(&EditorOptions::default()).unwrap();
+    let parent = editor.window.unwrap() as *mut std::ffi::c_void;
+    let button = unsafe { GetDlgItem(GetWindow(parent, GW_CHILD), 7) };
+    unsafe { SendMessageW(button, BM_CLICK, 0, 0); }
+    reopened.idle(&mut |_| {});
+    assert_eq!(reopened.param_value(7), Some(0.75));
+    reopened.close_editor();
+    assert_eq!(unsafe { IsWindow(parent) }, 0);
+}
+
+#[test]
 fn native_content_scale_resizes_restores_reopens_and_keeps_refused_editor_alive() {
     let (_module, mut instance) = common::create(common::GAIN);
     assert_eq!(instance.set_editor_scale(1.25), Err(EditorError::NoEditor));
