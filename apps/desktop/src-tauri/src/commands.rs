@@ -29,6 +29,10 @@ use windfall_ipc::{MidiExportOptions, MidiImportOptions, MidiImportPreview};
 // Native analysis controls. Slow preparation, cleanup and joining stay on
 // blocking tasks; cancellation itself never waits for the preparation gate.
 #[tauri::command]
+fn music_lighting_status(session: State<'_, Session>) -> serde_json::Value {
+    serde_json::to_value(session.music_lighting_status()).expect("plain lighting status serializes")
+}
+#[tauri::command]
 async fn sample_instrument_load_bank(
     session: State<'_, Session>,
     channel: ChannelId,
@@ -1387,6 +1391,7 @@ pub fn handler() -> impl Fn(Invoke) -> bool + Send + Sync + 'static {
         sample_instrument_speech_cancel,
         sample_instrument_import_zone,
         sample_instrument_load_bank,
+        music_lighting_status,
         sample_instrument_relink_source,
         sample_instrument_missing_sources,
         sample_instrument_save_bank,

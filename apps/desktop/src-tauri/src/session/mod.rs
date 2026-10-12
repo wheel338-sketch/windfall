@@ -97,6 +97,7 @@ mod playlist_export;
 mod preparation;
 mod presets;
 mod realtime;
+mod music_lighting;
 mod recording;
 mod sampler_preprocess;
 mod sampler_processing;
@@ -134,6 +135,7 @@ pub use files::{EDITED_WHILE_MOVING, NO_FILE_YET};
 pub use library::{ClipPlace, PROJECT_REPLACED};
 pub use mixer_presets::{MixerPresetLibrary, MixerPresetLibraryEntry, MixerPresetPluginRef};
 pub use realtime::{FRAME_INTERVAL, FrameSender};
+pub use music_lighting::LightingStatus;
 pub use transport::{EMPTY_PLAYLIST, MUTED_PLAYLIST, SILENT_PLAYLIST};
 pub use window_document::WindowDocumentSnapshot;
 
@@ -218,6 +220,7 @@ struct Inner {
     assistant: crate::assistant::Service,
     audio_analysis_cancel: Mutex<Option<windfall_analysis::CancelToken>>,
     speech_jobs: Mutex<sample_instruments::SpeechJobs>,
+    music_lighting: music_lighting::Service,
     derived_assets: Mutex<derived_assets::Assets>,
     library: crate::library::Library,
     plugins: Mutex<Option<Arc<crate::plugins::PluginManager>>>,
@@ -458,6 +461,7 @@ impl Session {
                 audio_editor: Mutex::new(audio_editor::Editor::default()),
                 audio_analysis_cancel: Mutex::new(None),
                 speech_jobs: Mutex::new(sample_instruments::SpeechJobs::default()),
+                music_lighting: music_lighting::Service::default(),
                 derived_assets: Mutex::new(derived_assets::Assets::default()),
                 extractions: Mutex::new(extractions::Extractions::default()),
                 library,

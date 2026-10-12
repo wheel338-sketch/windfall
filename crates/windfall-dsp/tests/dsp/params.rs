@@ -455,6 +455,7 @@ fn names_are_plain_descriptions() {
             "Formula",
             "Keyboard Source",
             "DC Control",
+            "Music lighting",
             "Subtractive synth",
             "Four Operator",
             "Matrix FM",

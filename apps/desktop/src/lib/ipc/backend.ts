@@ -72,6 +72,7 @@ export type AudioClipPlace = {
  * plain text that can be shown to the user.
  */
 export interface Backend extends AnalysisBackend, MixerPresetLibraryBackend, AnalyzerBackend, ProjectFilesBackend, RemoteContentBackend {
+  musicLightingStatus?(): Promise<{connected: boolean; message: string}>
   sampleInstrumentLoadBank?(channel: ChannelId, expected: import("@/bindings").SampleInstrumentAsset | null,
     path: string): Promise<DispatchResult>
   sampleInstrumentMissingSources?(channel: ChannelId): Promise<SampleId[]>

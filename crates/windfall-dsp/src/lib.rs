@@ -161,6 +161,8 @@ pub mod lush;
 pub mod speech;
 
 pub mod midi_out;
+pub mod music_lighting;
+pub use music_lighting::{MusicLighting, MusicLightingParams};
 pub use midi_out::{PROJECT_FEEDBACK_PORT, MidiOut, MidiOutController, MidiOutEvent, MidiOutParams};
 
 pub mod tuner;

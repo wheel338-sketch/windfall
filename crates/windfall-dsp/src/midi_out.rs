@@ -99,7 +99,6 @@ pub struct MidiOutParams {
     #[serde(skip_serializing_if = "is_zero")]
     #[ts(as = "Option<i32>", optional)]
     pub plugin_destination: i32,
-    #[serde(skip_serializing_if = "is_false")]
     #[ts(as = "Option<bool>", optional)]
     pub feedback_enabled: bool,
     #[ts(as = "Option<i32>", optional)]
@@ -113,8 +112,6 @@ pub struct MidiOutParams {
     #[ts(as = "Option<f32>", optional)]
     pub feedback_curve: f32,
 }
-
-fn is_false(value: &bool) -> bool { !*value }
 
 fn is_zero(value: &i32) -> bool {
     *value == 0

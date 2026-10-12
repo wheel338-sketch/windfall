@@ -260,3 +260,12 @@ fn project_feedback_routing_is_checked_saved_and_restored_by_undo() {
     let old:Project=serde_json::from_value(legacy).unwrap();let ChannelSource::Instrument {params:InstrumentParams::MidiOut(params),..}=old.channel(id).unwrap().source else {panic!()};
     assert!(!params.feedback_enabled);assert_eq!(params.feedback_strength,1.0);assert_eq!(params.feedback_curve,1.0);
 }
+
+#[test]
+fn music_lighting_is_a_saved_mixer_effect_with_checked_history() {
+    let mut doc=Document::new(Project::new("Lighting effect"));let effect=EffectId(doc.dispatch(Command::AddEffect{track:TrackId::MASTER,kind:EffectKind::MusicLighting,index:None},None).unwrap().created[0]);let before=doc.project().clone();
+    doc.dispatch(Command::SetEffectParam{track:TrackId::MASTER,effect,param:1,value:4.0},None).unwrap();let saved=doc.project().clone();saved.check().unwrap();
+    let loaded:Project=serde_json::from_str(&serde_json::to_string(&saved).unwrap()).unwrap();assert_eq!(loaded,saved);
+    doc.undo().unwrap();assert_eq!(doc.project(),&before);doc.redo().unwrap();assert_eq!(doc.project(),&saved);
+    assert_eq!(EffectKind::ALL[67],EffectKind::MusicLighting);
+}

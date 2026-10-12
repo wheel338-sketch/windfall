@@ -402,6 +402,7 @@ export function createTauriBackend(): Backend {
       call("consolidate_playlist_tracks", { tracks }),
     automate: (target) => call("automate", { target }),
     samplesReload: () => call("samples_reload"),
+    musicLightingStatus: () => call("music_lighting_status"),
     sampleInstrumentLoadBank: (channel, expected, path) => call("sample_instrument_load_bank", { channel, expected, path }),
     sampleInstrumentMissingSources: (channel) => call("sample_instrument_missing_sources", { channel }),
     sampleInstrumentRelinkSource: (channel, expected, sample, expectedPath, path) => call("sample_instrument_relink_source", { channel, expected, sample, expectedPath, path }),

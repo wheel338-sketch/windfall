@@ -107,6 +107,7 @@ describe("descriptors", () => {
       keyboardSource: true,
       formulaSource: true,
       voltageSource: true,
+      musicLighting: true,
     }
     const instruments: Record<InstrumentKind, true> = {
       subtractiveSynth: true,

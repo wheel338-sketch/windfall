@@ -326,7 +326,7 @@ fn missing_player_reopens_relinks_same_ids_and_restores_source_readiness_through
     let file = rig.file("missing-player.windfall"); rig.session.project_save(Some(&file)).unwrap();
     let reopened = rig.restart(); reopened.session.project_open(&file).unwrap(); reopened.wait_until_loaded_or_failed(source);
     assert_eq!(reopened.session.sample_instrument_missing_sources(channel).unwrap(), vec![source]);
-    let replacement = rig.file("replacement.wav");
+    let replacement = reopened.file("replacement.wav");
     let pcm = windfall_core::AudioBuffer::from_interleaved(48000, 1, vec![0.3; 4800]);
     windfall_codec::write_wav(&replacement, &pcm, windfall_codec::WavSampleFormat::Float32).unwrap();
     let expected = reopened.project().sample(source).unwrap().path.clone();
@@ -368,8 +368,7 @@ fn project_controller_destination_reopens_without_changing_application_midi_sett
     let before=rig.project();let mut params=InstrumentKind::MidiOut.default_params();if let windfall_dsp::InstrumentParams::MidiOut(params)=&mut params {params.feedback_enabled=true;params.feedback_controller=1;params.feedback_motor=2;params.feedback_strength=0.7;params.feedback_curve=0.5;}
     rig.session.dispatch(Command::SetInstrumentParams {channel:id,params},None).unwrap();let saved=rig.project();
     rig.session.undo().unwrap();assert_eq!(rig.project(),before);rig.session.redo().unwrap();assert_eq!(rig.project(),saved);
-    let path=rig.file("project-feedback.windfall");rig.session.project_save(Some(&path)).unwrap();let reopened=rig.restart();reopened.session.project_open(&path).unwrap();
+    let path=rig.file("project-feedback.windfall");rig.session.project_save(Some(&path)).unwrap();assert_eq!(rig.session.midi_hardware_state().settings,application);let reopened=rig.restart();reopened.session.project_open(&path).unwrap();
     assert_eq!(reopened.project().channel(id).unwrap().source,saved.channel(id).unwrap().source);
-    assert_eq!(rig.session.midi_hardware_state().settings,application);
     assert_eq!(reopened.session.midi_hardware_state().settings,application);
 }
