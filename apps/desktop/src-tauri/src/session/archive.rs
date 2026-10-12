@@ -99,10 +99,11 @@ impl Session {
         // and serialized with Save as, which may carry/relink these sources.
         let saving = lock(&self.inner.save);
         drop(self.recording_idle()?);
-        let (project, played, directory, revision) = {
+        let (project, _asset_pins, played, directory, revision) = {
             let state = self.state();
             (
                 state.document.project().clone(),
+                state.document.effect_asset_pins(),
                 self.played(),
                 state.sample_dir.clone(),
                 self.plugin_revision(),

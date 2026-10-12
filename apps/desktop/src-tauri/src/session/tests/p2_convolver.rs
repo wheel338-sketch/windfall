@@ -30,6 +30,37 @@ fn offline(rig: &Rig) -> Vec<f32> {
 }
 
 #[test]
+fn save_snapshot_retains_drawn_assets_across_project_replacement_and_collection() {
+    use windfall_dsp::asset::{CurvePoint, ShapeRef};
+    let mut rig = Rig::new();
+    let effect = EffectId(rig.session.dispatch(Command::AddEffect {
+        track: TrackId::MASTER, kind: EffectKind::Waveshaper, index: None,
+    }, None).unwrap().created[0]);
+    let shape = ShapeRef::new(&[
+        CurvePoint::new(0.0, 0.091371), CurvePoint::new(1.0, 0.913719),
+    ]).unwrap();
+    rig.session.dispatch(Command::SetEffectParams {
+        track: TrackId::MASTER, effect,
+        params: windfall_dsp::EffectParams::Waveshaper(windfall_dsp::drive::WaveshaperParams {
+            shape, ..Default::default()
+        }),
+    }, None).unwrap();
+    rig.run(4096);
+    let captured = rig.project();
+    let path = rig.file("pinned-drawn-snapshot.windfall");
+    let hold = rig.session.hold("save:write");
+    let writer = rig.session.background(move |session| session.project_save(Some(&path)));
+    hold.wait();
+    rig.session.project_new().unwrap();
+    rig.run(4096); rig.session.realtime_tick();
+    assert!(shape.asset().is_some(), "the blocked save still owns its curve");
+    hold.release();
+    let path = writer.join().unwrap().unwrap();
+    let reopened = windfall_project::file::load(path).unwrap();
+    assert_eq!(reopened, captured, "a save must preserve the captured project even when the live project is replaced");
+}
+
+#[test]
 fn session_ir_replacement_undo_reopen_and_expanded_rate_refusal_preserve_document_and_audio() {
     let mut rig = Rig::new();
     let (channel, _) = super::effects::add_synth(&rig);

@@ -404,7 +404,9 @@ macro_rules! curve_reference {
             fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
                 match self.asset() {
                     Some(asset) => asset.points().serialize(serializer),
-                    None => <[CurvePoint]>::serialize(&[], serializer),
+                    None if self.is_none() => <[CurvePoint]>::serialize(&[], serializer),
+                    None => Err(<S::Error as serde::ser::Error>::custom(
+                        "the effect curve is no longer available; take a new snapshot before saving")),
                 }
             }
         }
@@ -744,6 +746,7 @@ mod tests {
         collect_retired();
         assert!(weak.upgrade().is_none());
         assert!(curve.asset().is_none());
+        assert!(serde_json::to_string(&curve).unwrap_err().to_string().contains("no longer available"));
     }
 
     #[test]

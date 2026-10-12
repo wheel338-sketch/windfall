@@ -102,6 +102,12 @@ impl Document {
         &self.project
     }
 
+    /// Retain effect assets beside a cloned project during slow control-side
+    /// work. Acquire while borrowing this document, before releasing its lock.
+    pub fn effect_asset_pins(&self) -> windfall_dsp::asset::AssetPins {
+        self._asset_pins.clone()
+    }
+
     /// Source identities in the current project and every retained undo or
     /// redo edit. An identity may occur more than once; different paths for
     /// the same id remain distinct. Use this when moving a document's sample

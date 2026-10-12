@@ -47,9 +47,9 @@ impl Session {
         &self,
         generation: u64,
         revision: u64,
-    ) -> Result<(Project, Option<PathBuf>), String> {
+    ) -> Result<(Project, Option<PathBuf>, windfall_dsp::asset::AssetPins), String> {
         let _recording = self.recording_idle()?;
-        let (project, plugin_revision, directory) = {
+        let (project, plugin_revision, directory, asset_pins) = {
             let state = self.state();
             if state.generation != generation || state.document.revision() != revision {
                 return Err("The project changed before the preset was taken; try again".into());
@@ -58,6 +58,7 @@ impl Session {
                 state.document.project().clone(),
                 self.plugin_revision(),
                 state.project_dir().map(Path::to_path_buf),
+                state.document.effect_asset_pins(),
             )
         };
         // Native state is captured with the document lock released.
@@ -66,7 +67,7 @@ impl Session {
         if state.generation != generation || state.document.revision() != revision {
             return Err("The project changed while the preset was taken; try again".into());
         }
-        Ok((project, directory))
+        Ok((project, directory, asset_pins))
     }
 
     /// What a channel sounds like, as a preset, and the audio file its
@@ -77,7 +78,7 @@ impl Session {
         generation: u64,
         revision: u64,
     ) -> Result<PresetCapture, String> {
-        let (project, directory) = self.preset_snapshot(generation, revision)?;
+        let (project, directory, _asset_pins) = self.preset_snapshot(generation, revision)?;
         let (body, sample) = ChannelPreset::capture(&project, id)?;
         let name = body.name.clone();
         let (asset, audio) = match sample {
@@ -106,7 +107,7 @@ impl Session {
         generation: u64,
         revision: u64,
     ) -> Result<PresetCapture, String> {
-        let (project, _) = self.preset_snapshot(generation, revision)?;
+        let (project, _, _asset_pins) = self.preset_snapshot(generation, revision)?;
         let body = PluginPreset::capture(&project, target)?;
         let name = match target {
             PluginTarget::Instrument { channel } => {
