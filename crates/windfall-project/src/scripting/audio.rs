@@ -19,7 +19,7 @@ impl Program {
         if input.frames() == 0 || !(1..=2).contains(&input.channels())
             || input.sample_rate() == 0
             || input.frames() > input.sample_rate() as usize * 120
-            || input.samples().len() > MAX_BYTES / size_of::<f32>()
+            || input.samples().len() > MAX_BYTES / std::mem::size_of::<f32>()
             || budget == 0 || budget > MAX_AUDIO_SCRIPT_STEPS
         {
             return Err(error(0, "audio input or memory/work budget exceeds limits"));
