@@ -5,7 +5,7 @@ use std::time::Instant;
 
 use windfall_dsp::{AnyEffect, EffectKind, EffectParams, ParamKind};
 
-const KINDS: [EffectKind; 8] = [
+const KINDS: [EffectKind; 9] = [
     EffectKind::SevenBand,
     EffectKind::Spreader,
     EffectKind::StereoEnhancer,
@@ -14,6 +14,7 @@ const KINDS: [EffectKind; 8] = [
     EffectKind::FilterBank,
     EffectKind::SelectableFilter,
     EffectKind::BandSplit,
+    EffectKind::Eq,
 ];
 
 /// Every filter/band is working. Extreme is a reproducible range-end workload,
@@ -67,6 +68,26 @@ fn workload(kind: EffectKind, extreme: bool) -> EffectParams {
         if let Some(value) = value {
             assert!(params.set(index, value));
         }
+    }
+    if let EffectParams::Eq(eq) = &mut params {
+        // Keep a real passband: blindly alternating frequency range ends puts
+        // both cuts at 20 Hz. All seven bands, including the four-stage cuts,
+        // remain active while frequency, gain and Q are automated below.
+        eq.low_cut.frequency_hz = if extreme { 20.0 } else { 40.0 };
+        eq.high_cut.frequency_hz = if extreme { 20_000.0 } else { 18_000.0 };
+        for (band, hz, gain, max_q) in [
+            (&mut eq.low_shelf, 100.0, 1.0, 2.0),
+            (&mut eq.peak1, 400.0, -1.0, 18.0),
+            (&mut eq.peak2, 1_000.0, 1.0, 18.0),
+            (&mut eq.peak3, 6_300.0, -1.0, 18.0),
+            (&mut eq.high_shelf, 16_000.0, 1.0, 2.0),
+        ] {
+            band.frequency_hz = if extreme { hz } else { hz * 0.8 };
+            band.gain_db = gain * if extreme { 24.0 } else { 3.0 };
+            band.q = if extreme { max_q } else { 1.0 };
+        }
+        // Measure the filters, without an unrelated +24 dB output multiplier.
+        eq.output_gain_db = 0.0;
     }
     params.sanitized()
 }
@@ -144,6 +165,32 @@ fn e1_cpu_workloads_are_active_finite_partition_invariant_and_allocate_nothing()
     }
 }
 
+#[test]
+fn e1_parametric_eq_workloads_keep_all_seven_bands_active_during_automation() {
+    let extreme = workload(EffectKind::Eq, true);
+    let active = workload(EffectKind::Eq, false);
+    for params in [&active, &extreme] {
+        let EffectParams::Eq(eq) = params else {
+            panic!("Eq must instantiate the seven-band parametric processor");
+        };
+        assert!(eq.low_cut.enabled && eq.high_cut.enabled);
+        assert_eq!(eq.low_cut.slope, windfall_dsp::eq::CutSlope::Db48);
+        assert_eq!(eq.high_cut.slope, windfall_dsp::eq::CutSlope::Db48);
+        assert!(eq.low_cut.frequency_hz < eq.high_cut.frequency_hz);
+        for band in [eq.low_shelf, eq.peak1, eq.peak2, eq.peak3, eq.high_shelf] {
+            assert!(band.enabled && band.gain_db != 0.0);
+        }
+    }
+    assert_ne!(active, extreme, "the timed edit must change real parameters");
+    let EffectParams::Eq(eq) = extreme else { unreachable!() };
+    assert_eq!((eq.low_cut.q, eq.high_cut.q), (8.0, 8.0));
+    assert_eq!((eq.low_shelf.q, eq.high_shelf.q), (2.0, 2.0));
+    assert_eq!((eq.peak1.q, eq.peak2.q, eq.peak3.q), (18.0, 18.0, 18.0));
+    for band in [eq.low_shelf, eq.peak1, eq.peak2, eq.peak3, eq.high_shelf] {
+        assert_eq!(band.gain_db.abs(), 24.0);
+    }
+}
+
 /// Median of five fixed-duration trials. Timed work includes copying source
 /// buffers, one real parameter edit per block, and the full processor call.
 /// Construction, preparation, input synthesis and printing are outside timing.
@@ -200,7 +247,8 @@ fn e1_active_and_extreme_cpu_measurements_meet_the_declared_target_budget() {
     );
     for kind in KINDS {
         // Fraction of one logical core's audio duration, including parameter writes.
-        // Seven fixed bands have the stricter low-CPU gate.
+        // Seven fixed bands have the stricter low-CPU gate. Eq has the same
+        // declared 35% release budget as the other movable/filter-bank EQs.
         let release_budget = if kind == EffectKind::SevenBand {
             0.10
         } else {
