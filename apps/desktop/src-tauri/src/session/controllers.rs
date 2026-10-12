@@ -349,6 +349,13 @@ impl Hub {
         GESTURE_BASE + self.gestures
     }
 
+    fn script_failed(&mut self, error: String) {
+        let bindings = &self.script_bindings;
+        self.states.retain(|(source, _), _| !bindings.iter().any(|binding| binding.source == *source));
+        self.waiting.clear();
+        self.error = Some(error);
+    }
+
     fn push(&mut self, incoming: Incoming) {
         if self.queue.len() >= QUEUE {
             self.queue.pop_front();
@@ -697,6 +704,7 @@ impl Session {
     /// call. Never call it from the MIDI worker or the audio thread.
     pub fn controllers_pump(&self, now: Instant) {
         let mut plan = self.controllers_plan(now);
+        let ordinary_actions = plan.actions.len();
         let learned = !plan.learned.is_empty();
         for (link, global, gesture) in std::mem::take(&mut plan.learned) {
             self.controller_link_add(link, global, gesture);
@@ -712,22 +720,16 @@ impl Session {
         }
         let feedback = if plan.script_overflow {
             plan.commands.clear();
-            plan.actions.clear();
-            let mut hub = lock(&self.inner.controllers);
-            hub.states.clear();
-            hub.waiting.clear();
-            hub.error = Some("controller script event budget exceeded; batch refused".into());
+            plan.actions.truncate(ordinary_actions);
+            lock(&self.inner.controllers).script_failed("controller script event budget exceeded; batch refused".into());
             Vec::new()
         } else if !plan.script_events.is_empty() {
             match self.controller_scripts(&mut plan, now) {
                 Ok(feedback) => feedback,
                 Err(error) => {
                     plan.commands.clear();
-                    plan.actions.clear();
-                    let mut hub = lock(&self.inner.controllers);
-                    hub.states.clear();
-                    hub.waiting.clear();
-                    hub.error = Some(error);
+                    plan.actions.truncate(ordinary_actions);
+                    lock(&self.inner.controllers).script_failed(error);
                     Vec::new()
                 }
             }
@@ -735,11 +737,7 @@ impl Session {
         let mut committed = plan.commands.is_empty();
         let mut applied_revision = plan.revision;
         if !plan.commands.is_empty() {
-            // Keep revision admission identical for scripts and ordinary controls.
-            if self.proposal_stamp().revision != plan.revision {
-                lock(&self.inner.controllers).error = Some("controller batch became stale".into());
-                return;
-            }
+            // The batch binds revision and generation under the document lock.
             let command = if plan.commands.len() == 1 {
                 plan.commands.remove(0)
             } else {
@@ -756,10 +754,9 @@ impl Session {
         if committed && let Err(error) = self.controller_script_feedback(feedback, plan.generation, applied_revision) {
             lock(&self.inner.controllers).error = Some(format!("Controller movement applied; MIDI feedback failed: {error}"));
         }
-        if committed {
-            for action in std::mem::take(&mut plan.actions) {
-                self.controller_action(action);
-            }
+        if !committed { plan.actions.truncate(ordinary_actions); }
+        for action in std::mem::take(&mut plan.actions) {
+            self.controller_action(action);
         }
         for event in std::mem::take(&mut plan.clock) {
             self.follow_clock(event);

@@ -175,7 +175,7 @@ default to immediate takeover with no smoothing. Pickup holds, interpreter
 diagnostics and message drops are visible in the script editor and controller
 settings. Each pump's script and ordinary link edits form a generation/revision
 guarded batch. Errors and event overflow refuse the batch and clear pending
-runtime glides. Audio recording exclusion still prevents document edits and
+script glides. Audio recording exclusion still prevents document edits and
 feedback; automation-record arming is supported.
 There is no output while source is merely being authored. Feedback preflight
 rejects a disconnected output before applying an internal batch. A disconnect,

@@ -223,6 +223,11 @@ fn controller_script_pump_maps_actions_and_refuses_partial_output() {
                         },
                     },
                     map: Default::default(),
+                }, windfall_project::ControllerLink {
+                    source: windfall_project::ControlSource::Midi { device: None, channel: Some(1),
+                        control: windfall_project::MidiControl::Cc { number: 9 } },
+                    target: windfall_project::LinkTarget::Action { action: windfall_project::ControlAction::ToggleMetronome },
+                    map: Default::default(),
                 }],
             },
             None,
@@ -278,6 +283,11 @@ fn controller_script_pump_maps_actions_and_refuses_partial_output() {
         .unwrap();
     rig.session.controllers_pump(std::time::Instant::now());
     let before = rig.session.document_snapshot();
+    let metronome = rig.session.transport_state().metronome.unwrap_or_default().enabled;
+    rig.session.controller_message(InputMessage {
+        device: 0, message: MidiMessage::Controller { channel: 0, number: 9, value: 127 },
+        at: std::time::Instant::now(), stamp_micros: 0,
+    });
     rig.session.controller_message(InputMessage {
         device: 0,
         message: MidiMessage::Controller {
@@ -301,6 +311,8 @@ fn controller_script_pump_maps_actions_and_refuses_partial_output() {
     rig.session.controllers_pump(std::time::Instant::now());
     assert_eq!(rig.session.document_snapshot(), before);
     assert!(rig.session.controller_state().error.is_some());
+    assert_eq!(rig.session.transport_state().metronome.unwrap_or_default().enabled, !metronome,
+        "unrelated profile/link actions retain their separate semantics after a script error");
 }
 
 fn installed_script(rig: &Rig, control: windfall_project::MidiControl, target: windfall_project::LinkTarget,
