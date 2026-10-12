@@ -1,5 +1,44 @@
 # Windfall CLAP export target
 
+## Round-four source checkpoint — 2026-10-12
+
+The round-four implementation adds a combined VST3 factory/component/audio
+processor/edit controller and plug view alongside CLAP. Its canonical FUID is
+`57494E4446414C4C50524F4752414D01` on every platform (COM byte ordering is
+applied on Windows). Both formats expose sixteen stereo outputs and rack MIDI.
+The Windows control panel loads exported `windfall-state.json` packets inside
+the host's editor parent. Other platforms explicitly refuse that panel.
+
+The desktop audio export dialog now also exposes **Export as a plugin**. The
+`export_plugin_bundle` command snapshots the checked project and decoded samples,
+then stages a new directory with VST3 and CLAP binaries, initial program state,
+VST3 `moduleinfo.json`, and macOS bundle plists/PkgInfo. Publication refuses an
+existing destination. Windows uses `Contents/x86_64-win/Windfall.vst3`; Linux
+uses `Contents/x86_64-linux/Windfall.so`; macOS uses `Contents/MacOS/Windfall`.
+The caller supplies a built Windfall plugin runtime; the desktop distributor
+still needs to ship that runtime automatically. No binary was built here.
+
+Active loads prepare a complete replacement off audio. One atomic mailbox moves
+the engine at a callback boundary and returns the replaced box for control-side
+destruction. Capture returns the last fully acknowledged document; a second
+load is refused while the first is pending. Deactivation settles loads that
+never received a callback. State IO never reads the audio processor's mutable
+DSP memory. Reset clears voices, clips, instrument/effect/filter histories and
+compensation delays without preparing or destroying resources on audio.
+
+Clock arbitration is explicit: the external host owns play/stop/seek, tempo and
+time signature. Internal tempo automation and navigation are retained in saved
+state and suspended in the detached playback plan. No-meter host data retains
+the last meter (initially the document's). CLAP tempo ramps use one-frame spans.
+Nested native bindings and hardware recording routes remain refused.
+
+All round-four tests are authored and **unexecuted**. The native integration
+test builds/loads the real export through Windfall's own CLAP/VST3 host and
+measures song onset at two host tempos, editor lifecycle on Windows, state
+round-trip and reset silence. Portable tests cover publication interleavings
+and all bundle layouts. See the round-four hand-off for remaining software and
+platform gates. The original checkpoint below is historical where superseded.
+
 `crates/windfall-plugin` is a separate `cdylib`/`rlib` target exporting
 `clap_entry` and plugin identity `org.windfall.program`. It embeds the real
 Windfall engine without opening an audio or MIDI device. It is source-only at

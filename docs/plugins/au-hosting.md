@@ -1,5 +1,43 @@
 # AUv2 hosting source candidate
 
+## Round-four source checkpoint — 2026-10-12
+
+`au_model` is available on all platforms and contains checked component IDs,
+installed catalog data, stable global/scoped parameter mapping, bus validation
+and stereo/mono copying, host clock conversion, identity-bound state containers,
+and the provider reset state machine. Its deterministic tests can run on Windows.
+Existing global parameter IDs retain their identity; scoped parameters append
+to the descriptor list and receive deterministic, non-aliasing IDs.
+
+The macOS adapter enumerates installed effect, instrument, music-effect and
+generator components. The desktop manager presents their `au://TYPE:SUBTYPE:VENDOR`
+registry paths in the ordinary plugin picker. The main-thread Cocoa dispatcher
+creates/activates/captures/edits/disposes instances; only prepared processors
+cross to audio. A command already on Cocoa main runs directly instead of waiting
+for its own queued dispatch. A bounded proxy pump services owner notifications.
+
+The adapter negotiates each input/output bus and allocates independent planar
+storage. Selected auxiliary inputs receive the engine sidechain; unused channels
+are silent, mono buses sum stereo, and every native output bus is rendered with
+the same timestamp. The existing stereo facade consumes the first output;
+additional buses are owned and rendered, not separately routed into mixer tracks.
+Host callbacks supply beat/tempo, meter/downbeat and timeline/play/seek changes.
+Reset publishes a request and returns silence until the owner receives audio,
+calls native Reset while initialized, uninitializes, removes callbacks and
+prepares again. Failed native reset remains an explicit recovery error.
+
+AU Cocoa factory views are embedded in an owned NSWindow, with retained view,
+factory and bundle lifetimes. Attached windows use the Tauri NSWindow owner;
+unsupported custom scaling is refused. Handwritten Objective-C declarations use
+typed selector signatures, arm64 structure returns and Intel `objc_msgSend_stret`
+for NSRect. No new external dependency is introduced: AudioToolbox,
+CoreFoundation, AppKit and the system Objective-C runtime provide the ABI.
+
+**None of the macOS code has been compiled, linked or executed.** It remains
+unverified platform software. The hand-off lists exact portable tests and native
+Mac checks, including SDK layout, callback ownership, Cocoa CF reference and
+view teardown checks. Earlier limitations below are historical where superseded.
+
 The `cfg(target_os = "macos")` adapter in `windfall-plugin-host/src/au` uses
 installed component identities, not a copied SDK or an inferred DLL ABI.
 `PluginHost::create_audio_unit` returns the same `PluginInstance` and
