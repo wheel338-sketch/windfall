@@ -1,5 +1,5 @@
 //! Cached, isolated discovery and a native owner thread for audio instances.
-#[cfg(windows)]
+#[cfg(any(windows, target_os = "macos", target_os = "linux"))]
 mod bridge;
 mod capture_ack;
 mod manager_workflows;
@@ -529,11 +529,11 @@ pub fn scanner_entry() -> bool {
 
 /// Audio/state helper must run before Tauri, using this installed executable.
 pub fn helper_entry() -> bool {
-    #[cfg(windows)]
+    #[cfg(any(windows, target_os = "macos", target_os = "linux"))]
     {
         windfall_plugin_host::bridge::helper::entry()
     }
-    #[cfg(not(windows))]
+    #[cfg(not(any(windows, target_os = "macos", target_os = "linux")))]
     {
         false
     }

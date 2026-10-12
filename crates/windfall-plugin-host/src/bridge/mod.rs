@@ -2,15 +2,15 @@
 //! has the user's permissions; this is not a security sandbox.
 
 pub mod adapter;
-#[cfg(windows)]
+#[cfg(any(windows, target_os = "macos", target_os = "linux"))]
 pub mod auth;
 pub mod control;
-#[cfg(windows)]
+#[cfg(any(windows, target_os = "macos", target_os = "linux"))]
 pub mod helper;
-#[cfg(windows)]
+#[cfg(any(windows, target_os = "macos", target_os = "linux"))]
 pub mod mapping;
 pub mod protocol;
 pub mod retry;
 pub mod slots;
-#[cfg(windows)]
+#[cfg(any(windows, target_os = "macos", target_os = "linux"))]
 pub mod supervisor;

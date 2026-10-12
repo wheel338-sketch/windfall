@@ -101,6 +101,12 @@ pub(crate) struct ProcessFailed;
 /// One plugin format's way of running a block. The processor calls these
 /// on the audio thread only, never two at once.
 pub(crate) trait ProcessorBackend: Send + 'static {
+    fn set_realtime(&mut self, _realtime: bool) {}
+    /// Control-side ownership barrier before native deactivation. Never called
+    /// from process/reset/stop; worker providers return their native processor.
+    fn return_to_owner(&mut self) {}
+    fn resume_after_refusal(&mut self) {}
+    fn controls_processed(&self) -> bool { true }
     fn additional_latency(&self) -> u32 {
         0
     }
@@ -215,6 +221,11 @@ impl PluginProcessor {
     pub fn supports_midi_expression(&self) -> bool {
         self.backend.supports_midi_expression()
     }
+    /// Prepared-provider acknowledgement, distinct from queue admission.
+    pub fn controls_processed(&self) -> bool {
+        !self.pending.iter().any(|event| matches!(event, HostEvent::Param { .. }))
+            && self.backend.controls_processed()
+    }
     pub fn midi_expression_mask(&self, channel: u8) -> u32 {
         self.backend.midi_expression_mask(channel.min(15))
     }
@@ -287,7 +298,14 @@ impl PluginProcessor {
             };
             self.pending.push(event);
         }
-        self.backend.retire_params(&mut self.pending);
+        let mut retired = Vec::new();
+        self.backend.retire_params(&mut retired);
+        // Provider-collected controls belong to earlier native blocks. Their
+        // offsets cannot sort them after newer points waiting for the next
+        // block; preserve that chronology with equal, stable retirement times.
+        for event in &mut retired { event.set_time(0); }
+        retired.append(&mut self.pending);
+        self.pending = retired;
         self.pending.sort_by_key(HostEvent::time);
         self.pending
             .retain(|event| matches!(event, HostEvent::Param { .. }));
@@ -490,6 +508,7 @@ impl PluginProcessor {
     /// a slow block an overrun. An offline render turns this off.
     pub fn set_realtime(&mut self, realtime: bool) {
         self.realtime = realtime;
+        self.backend.set_realtime(realtime);
     }
 
     /// Samples by which the plugin's output lags its input.

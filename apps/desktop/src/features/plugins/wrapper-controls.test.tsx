@@ -80,10 +80,25 @@ it("retains owner and editor choices in an actual saved and reopened document", 
     reopened.dispose()
     document.dispose()
   }
-  expect(screen.getByRole("button", { name: "Threaded (unavailable)" })).toBeDisabled()
+  const threaded = screen.getByRole("button", { name: "Threaded" })
+  expect(threaded).toBeEnabled()
+  await userEvent.click(threaded)
+  await waitFor(() => expect(saved().wrapper?.processing).toBe("threaded"))
+  await act(async () => { await undo() })
+  expect(saved().wrapper?.processing).toBe("inProcess")
+  await act(async () => { await redo() })
+  expect(saved().wrapper?.processing).toBe("threaded")
+  const threadedDocument = SimDocument.create((await app.backend.documentSnapshot()).project)
+  const threadedReopened = SimDocument.open(threadedDocument.fileText())
+  try {
+    expect(threadedReopened.project().plugins![0].wrapper?.processing).toBe("threaded")
+  } finally {
+    threadedReopened.dispose()
+    threadedDocument.dispose()
+  }
 })
 
-it("preserves saved uncommon values and lets a refused owner policy recover", async () => {
+it("preserves saved uncommon values while changing a threaded owner policy", async () => {
   await act(async () => {
     await dispatch({
       type: "setPluginWrapper",
@@ -97,7 +112,8 @@ it("preserves saved uncommon values and lets a refused owner policy recover", as
   render(<Controls />)
   expect(screen.getByRole("combobox", { name: "Native buffer" })).toHaveTextContent("96 frames (saved)")
   expect(screen.getByRole("combobox", { name: "Native editor scale" })).toHaveTextContent("110")
-  expect(screen.getByRole("alert")).toHaveTextContent("Select another mode")
+  expect(screen.getByRole("button", { name: "Threaded" })).toHaveAttribute("aria-pressed", "true")
+  expect(screen.queryByRole("alert")).not.toBeInTheDocument()
   await userEvent.click(screen.getByRole("button", { name: "Automatic" }))
   await waitFor(() => expect(saved().wrapper?.processing).toBe("automatic"))
   expect(saved().wrapper?.fixedBuffer).toBe(96)
