@@ -119,6 +119,32 @@ try {
   await live(null)
   const mix = await read("mix")
   check("mix includes both sources at nonzero quiet output gain", mix.meters.every((meter) => meter.peakDb !== ""), mix.meters)
+  await call("visualizer", true)
+  await until(async () => {
+    const pixels = (await call("read")).visualizer[0]
+    return pixels?.live === "true" && pixels.foreground > 0 && pixels.opaque === 320 * 180
+  }, "native analyzer PCM painted into the real visualizer canvas")
+  const visual = await read("visualizer-native-audio")
+  check("visualizer paints opaque audio-reactive pixels through the real 2D context",
+    visual.visualizer[0].width === 320 && visual.visualizer[0].height === 180 &&
+    visual.visualizer[0].foreground > 0 && visual.visualizer[0].opaque === 320 * 180,
+    visual.visualizer[0])
+  await call("control", "stop")
+  await until(async () => {
+    const pixels = (await call("read")).visualizer[0]
+    return pixels?.foreground === 0 && pixels.opaque === 320 * 180
+  }, "visualizer pixels clearing after actual native audio stops")
+  const quiet = await read("visualizer-stopped-audio")
+  check("visualizer native silence removes lit bars and changes canvas pixels",
+    quiet.visualizer[0].foreground === 0 && quiet.visualizer[0].hash !== visual.visualizer[0].hash,
+    quiet.visualizer[0])
+  await call("control", "play")
+  await until(async () => (await call("read")).visualizer[0]?.foreground > 0,
+    "real native audio repainting the visualizer after Play")
+  const resumedVisual = await read("visualizer-resumed-audio")
+  check("visualizer repaints on native playback resume", resumedVisual.visualizer[0].foreground > 0,
+    resumedVisual.visualizer[0])
+  await call("visualizer", false)
   await call("control", "seek", 960)
   await delay(80)
   const seek = await read("seek-960")

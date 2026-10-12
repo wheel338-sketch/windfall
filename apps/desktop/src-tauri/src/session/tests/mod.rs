@@ -36,6 +36,7 @@ mod nonlinear_performance;
 mod p2_convolver;
 mod pattern_movement;
 mod performance_media;
+mod performance_media_evidence;
 mod piano_waveform;
 mod playback;
 mod playlist_bounce;
