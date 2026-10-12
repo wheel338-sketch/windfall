@@ -304,6 +304,8 @@ pub fn create(
 /// An extraction remains request-owned until installation succeeds. Keeping
 /// this guard cleans rejected/stale/cancelled requests, never an unrelated path.
 pub struct Extracted {
+    // Drop the open Windows lock before TempDir tries to remove its directory.
+    owner: File,
     root: TempDir,
     pub project: Project,
     pub session: Option<ProjectSession>,
@@ -315,6 +317,24 @@ impl Extracted {
     pub fn retain(self) -> PathBuf {
         self.root.keep()
     }
+    /// Transfer the exclusive extraction lease with the directory. An owning
+    /// session keeps this OS lock until its last clone ends; a crash releases it.
+    pub fn retain_owned(self) -> (PathBuf, File) {
+        (self.root.keep(), self.owner)
+    }
+}
+
+/// Durable ownership begins before the first extraction byte. A collector
+/// must acquire OWNER_LOCK and validate this marker before touching a root.
+pub const OWNER_LOCK: &str = ".windfall-owner.lock";
+pub const OWNERSHIP: &str = ".windfall-extraction.json";
+#[derive(Debug, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct ExtractionRecord {
+    pub version: u32,
+    pub installed: bool,
+    pub capture: bool,
+    pub references: Vec<PathBuf>,
 }
 
 fn member_name(name: &str) -> Result<(), Error> {
@@ -786,6 +806,20 @@ pub fn extract(
     let root = tempfile::Builder::new()
         .prefix("project-")
         .tempdir_in(managed)?;
+    let owner = File::options()
+        .read(true)
+        .write(true)
+        .create_new(true)
+        .open(root.path().join(OWNER_LOCK))?;
+    owner.lock()?;
+    file::write_atomic(
+        &root.path().join(OWNERSHIP),
+        &serde_json::to_vec(&ExtractionRecord {
+            version: 1,
+            ..Default::default()
+        })?,
+    )
+    .map_err(|error| invalid(format!("Could not record extraction ownership: {error}")))?;
     fs::create_dir(root.path().join("audio"))?;
     fs::create_dir(root.path().join("samples"))?;
     for name in expected {
@@ -822,6 +856,7 @@ pub fn extract(
     }
     check(Stage::Ready)?;
     Ok(Extracted {
+        owner,
         root,
         project,
         session,

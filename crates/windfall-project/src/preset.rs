@@ -21,10 +21,12 @@
 //! A preset describes a sound, not a place in a project. A channel keeps
 //! its id, rack group, mute, solo and mixer track when a preset is loaded
 //! onto it, and an effect keeps its slot, its mix and whether it is
-//! bypassed. Nothing in a preset file is a project id: a hosted plugin's
-//! binding is stored against a placeholder and pointed at the destination
-//! when it loads, and a sampler's audio is named by its entry in the
-//! manifest, never by a sample id.
+//! bypassed. A hosted plugin's binding is stored against a placeholder and
+//! pointed at the destination when it loads, and a sampler's audio is named
+//! by its manifest entry. Optional side tables carry a source-local namespace
+//! and semantic object descriptors. Local owners receive destination IDs;
+//! external references require a unique identity match or refuse the edit
+//! visibly, retaining the complete configuration in the preset file.
 //!
 //! # Audio
 //!
@@ -150,6 +152,9 @@ pub struct Preset {
 #[serde(rename_all = "camelCase")]
 #[ts(export)]
 pub struct ChannelPreset {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub tables: Option<crate::preset_tables::PresetTables>,
     /// The channel's name and color, which loading restores only when asked.
     pub name: String,
     pub color: u32,
@@ -164,6 +169,9 @@ pub struct ChannelPreset {
     #[serde(default)]
     #[ts(as = "Option<ChannelTiming>", optional)]
     pub timing: ChannelTiming,
+    #[serde(default)]
+    #[ts(as = "Option<crate::ExpressionMap>", optional)]
+    pub expression_map: crate::ExpressionMap,
     /// The sound. A sampler's `sample` is always empty here: its audio is
     /// the asset `sample_asset` names.
     pub source: ChannelSource,
@@ -187,6 +195,9 @@ pub struct ChannelPreset {
 #[serde(rename_all = "camelCase")]
 #[ts(export)]
 pub struct PluginPreset {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub tables: Option<crate::preset_tables::PresetTables>,
     pub state: PluginPresetState,
 }
 
@@ -522,13 +533,31 @@ impl PluginPreset {
                 }
             }
         };
-        let preset = Self { state };
+        let owner = match target {
+            PluginTarget::Instrument { channel } => channel.0,
+            PluginTarget::Effect { effect } => effect.0,
+        };
+        let mut tables = crate::preset_tables::PresetTables::capture(project, vec![owner]);
+        if let PluginPresetState::Instrument { params, .. } = &state {
+            tables.include_midi(project, params);
+        }
+        let preset = Self {
+            state,
+            tables: tables.has_configuration().then_some(tables),
+        };
         preset.validate()?;
         Ok(preset)
     }
 
     /// Says what stops this preset being loaded, if anything does.
     pub fn validate(&self) -> Result<(), String> {
+        if let Some(tables) = &self.tables {
+            tables.check_single_owner(if self.state.is_instrument() {
+                "channel"
+            } else {
+                "effect"
+            })?;
+        }
         self.state.validate()
     }
 }
@@ -565,23 +594,33 @@ impl ChannelPreset {
                 binding.target = placeholder(true);
                 binding
             });
+        let mut tables = crate::preset_tables::PresetTables::capture(project, vec![id.0]);
+        if let ChannelSource::Instrument { params, .. } = &source {
+            tables.include_midi(project, params);
+        }
+        let rack = project
+            .settings
+            .modular_racks
+            .iter()
+            .find(|rack| rack.channel == id)
+            .map(|rack| rack.graph.clone());
+        if let Some(graph) = &rack {
+            tables.include_rack(project, graph);
+        }
         let preset = Self {
+            tables: tables.has_configuration().then_some(tables),
             name: clean_name(&channel.name),
             color: channel.color,
             volume: channel.volume,
             pan: channel.pan,
             voice: channel.voice,
             timing: channel.timing,
+            expression_map: channel.expression_map,
             source,
             // The asset list is the caller's: it knows where the audio goes.
             sample_asset: sample.as_ref().map(|_| 1),
             plugin,
-            rack: project
-                .settings
-                .modular_racks
-                .iter()
-                .find(|rack| rack.channel == id)
-                .map(|rack| rack.graph.clone()),
+            rack,
         };
         preset.validate(sample.as_ref().map(|_| 1))?;
         Ok((preset, sample))
@@ -615,6 +654,7 @@ impl ChannelPreset {
             pan: self.pan,
             voice: self.voice,
             timing: self.timing,
+            expression_map: self.expression_map,
             source,
             ..base.clone()
         }
@@ -627,6 +667,9 @@ impl ChannelPreset {
     /// project and checking that project, so a preset is held to exactly
     /// what a project file is.
     pub fn validate(&self, asset: Option<u32>) -> Result<(), String> {
+        if let Some(tables) = &self.tables {
+            tables.check_single_owner("channel")?;
+        }
         if let Some(problem) = name_problem(&self.name, "channel") {
             return Err(problem);
         }
@@ -711,7 +754,19 @@ impl ChannelPreset {
             expression_map: Default::default(),
             sample_instrument: None,
         };
-        project.channels.push(self.onto(&base, sample));
+        let mut loaded = self.onto(&base, sample);
+        // Target identities are checked against the destination during apply.
+        // A standalone probe has no hosted targets from the source project.
+        if let ChannelSource::Instrument {
+            params: InstrumentParams::MidiOut(p) | InstrumentParams::Dashboard(p),
+            ..
+        } = &mut loaded.source
+        {
+            if p.plugin_destination > 0 {
+                p.plugin_destination = -1;
+            }
+        }
+        project.channels.push(loaded);
         if let Some(graph) = &self.rack {
             project.settings.modular_racks.push(crate::ChannelRack {
                 channel: id,
@@ -1036,6 +1091,8 @@ fn migrate_params(
                 // Default gate patterns are intentionally omitted from JSON;
                 // omission from a default is not removal from the schema.
                 && !(tag == "filterBank" && key.as_str() == "patterns")
+                && !((tag == "midiOut" || tag == "dashboard")
+                    && matches!(key.as_str(), "outputPort" | "pluginDestination"))
         })
         .cloned()
         .collect();

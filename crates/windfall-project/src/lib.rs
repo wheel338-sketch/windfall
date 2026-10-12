@@ -76,6 +76,7 @@ pub use windfall_dsp::{
 };
 pub use windfall_dsp::{NoteArticulation, NoteExpression};
 pub mod preset;
+pub mod preset_tables;
 pub use preset::{
     ChannelPreset, PluginPreset, PluginPresetState, Preset, PresetAsset, PresetAudio, PresetKind,
     PresetPluginIdentity,

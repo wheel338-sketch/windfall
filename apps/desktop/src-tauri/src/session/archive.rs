@@ -256,6 +256,9 @@ impl Session {
         let mut project = extracted.project.clone();
         adjust(&mut project);
         project.check()?;
+        // Publish recovery data before installation. A crash at either side of
+        // install leaves a complete, readable project and its original audio.
+        self.prepare_extraction(&root, &project)?;
         #[cfg(test)]
         self.pause("archive:install");
         let snapshot = self
@@ -268,7 +271,8 @@ impl Session {
                 decoded,
             )
             .map_err(|refusal| refusal.message(&format!("{what} was not opened")))?;
-        self.retain_extraction(extracted.retain());
+        let (root, owner) = extracted.retain_owned();
+        self.retain_extraction(root, owner);
         Ok(snapshot)
     }
 

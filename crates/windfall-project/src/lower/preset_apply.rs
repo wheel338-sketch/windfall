@@ -14,7 +14,7 @@ impl Transaction<'_> {
         &mut self,
         id: ChannelId,
         expected: Channel,
-        preset: ChannelPreset,
+        mut preset: ChannelPreset,
         sample: Option<SampleId>,
         audio: Option<PresetAudio>,
         name_color: bool,
@@ -29,6 +29,25 @@ impl Transaction<'_> {
             return Err(CommandError::invalid(
                 "The destination channel changed; load the preset again",
             ));
+        }
+        let mut local = std::collections::HashMap::new();
+        if let Some(tables) = &preset.tables {
+            let owner = tables
+                .owners
+                .first()
+                .ok_or_else(|| CommandError::invalid("Preset has no channel owner"))?;
+            local.insert(*owner, id.0);
+        }
+        let tables = preset.tables.clone().unwrap_or_default();
+        if let ChannelSource::Instrument { params, .. } = &mut preset.source {
+            tables
+                .remap_midi(self.project, &local, params)
+                .map_err(CommandError::invalid)?;
+        }
+        if let Some(graph) = &mut preset.rack {
+            tables
+                .remap_rack(self.project, &local, graph)
+                .map_err(CommandError::invalid)?;
         }
         if sample.is_some() && audio.is_some() {
             return Err(CommandError::invalid(
@@ -94,6 +113,13 @@ impl Transaction<'_> {
                 },
             )?;
         }
+        if preset.tables.is_some() {
+            let old = self.project.settings.clone();
+            let new = tables
+                .apply(self.project, &local, &[id.0])
+                .map_err(CommandError::invalid)?;
+            self.push(Edit::Settings(Change { old, new }));
+        }
         self.project.check().map_err(CommandError::invalid)?;
         Ok("Load channel preset")
     }
@@ -102,7 +128,7 @@ impl Transaction<'_> {
         &mut self,
         target: PluginTarget,
         expected: PluginPresetState,
-        preset: PluginPreset,
+        mut preset: PluginPreset,
     ) -> Result<Label, CommandError> {
         preset.validate().map_err(CommandError::invalid)?;
         let current = PluginPreset::capture(self.project, target).map_err(CommandError::invalid)?;
@@ -110,6 +136,26 @@ impl Transaction<'_> {
             return Err(CommandError::invalid(
                 "The destination changed; load the preset again",
             ));
+        }
+        let mut local = std::collections::HashMap::new();
+        let destination = match target {
+            PluginTarget::Instrument { channel } => channel.0,
+            PluginTarget::Effect { effect } => effect.0,
+        };
+        if let Some(tables) = &preset.tables {
+            let owner = tables
+                .owners
+                .first()
+                .ok_or_else(|| CommandError::invalid("Preset has no processor owner"))?;
+            local.insert(*owner, destination);
+        }
+        if let PluginPresetState::Instrument { params, .. } = &mut preset.state {
+            preset
+                .tables
+                .clone()
+                .unwrap_or_default()
+                .remap_midi(self.project, &local, params)
+                .map_err(CommandError::invalid)?;
         }
         let old = Processor::of_state(&current.state);
         let new = Processor::of_state(&preset.state);
@@ -188,6 +234,13 @@ impl Transaction<'_> {
                     "an instrument preset cannot be loaded onto an effect",
                 ));
             }
+        }
+        if let Some(tables) = preset.tables {
+            let old = self.project.settings.clone();
+            let new = tables
+                .apply(self.project, &local, &[destination])
+                .map_err(CommandError::invalid)?;
+            self.push(Edit::Settings(Change { old, new }));
         }
         self.project.check().map_err(CommandError::invalid)?;
         Ok("Load plugin preset")

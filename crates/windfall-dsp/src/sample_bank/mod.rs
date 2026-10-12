@@ -90,6 +90,9 @@ struct Engine {
     started: bool,
     missed: u64,
     stolen: u64,
+    note_law: windfall_core::PanLawRamp,
+    selected_law: windfall_core::PanLaw,
+    pan_clock: u64,
 }
 impl Default for Engine {
     fn default() -> Self {
@@ -109,6 +112,9 @@ impl Default for Engine {
             started: false,
             missed: 0,
             stolen: 0,
+            note_law: windfall_core::PanLawRamp::at_rest(windfall_core::PanLaw::Balance),
+            selected_law: windfall_core::PanLaw::Balance,
+            pan_clock: 0,
         }
     }
 }
@@ -306,8 +312,16 @@ impl Engine {
                 voice.filtered[0] += (a + (c - a) * fraction - voice.filtered[0]) * coefficient;
                 voice.filtered[1] += (b + (d - b) * fraction - voice.filtered[1]) * coefficient;
                 let gain = voice.velocity * voice.gain * map.gain * voice.envelope * self.level;
-                *l += voice.filtered[0] * gain * voice.pan_gains[0];
-                *r += voice.filtered[1] * gain * voice.pan_gains[1];
+                let (pan_left, pan_right) = if self.selected_law == windfall_core::PanLaw::Balance
+                    && self.note_law.settled(self.pan_clock)
+                {
+                    (voice.pan_gains[0], voice.pan_gains[1])
+                } else {
+                    self.note_law
+                        .gains_at(self.pan_clock, (map.pan + voice.pan).clamp(-1.0, 1.0))
+                };
+                *l += voice.filtered[0] * gain * pan_left;
+                *r += voice.filtered[1] * gain * pan_right;
                 let pitch = voice.source_pitch + self.tune;
                 voice.position += if pitch >= 96.0 {
                     voice.source_rate_ratio * 256.0
@@ -317,6 +331,7 @@ impl Engine {
                     voice.step * transpose
                 };
             }
+            self.pan_clock = self.pan_clock.saturating_add(1);
         }
     }
 }
@@ -356,6 +371,8 @@ macro_rules! instrument {
                 self.engine.rr.fill(0);
                 self.engine.started = false;
                 self.engine.sequence = 0;
+                self.engine.pan_clock = 0;
+                self.engine.note_law = windfall_core::PanLawRamp::at_rest(self.engine.selected_law);
                 let params = self.params;
                 self.set_params(&params);
             }
@@ -453,6 +470,18 @@ macro_rules! instrument {
                             v.gain = gain.clamp(0.0, 4.0);
                         }
                     }
+                }
+            }
+            fn set_note_pan_law(&mut self, law: windfall_core::PanLaw) {
+                self.engine.selected_law = law;
+                if !self.engine.started {
+                    self.engine.note_law = windfall_core::PanLawRamp::at_rest(law);
+                } else {
+                    self.engine.note_law.retarget(
+                        law,
+                        self.engine.pan_clock,
+                        (0.005 * self.engine.rate).round().max(1.0) as u64,
+                    );
                 }
             }
             fn all_notes_off(&mut self) {

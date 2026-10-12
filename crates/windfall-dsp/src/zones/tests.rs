@@ -15,6 +15,128 @@ fn with_large_stack(test: impl FnOnce() + Send + 'static) {
 
 const RATE: f32 = 8000.0;
 const CENTER: f32 = std::f32::consts::FRAC_1_SQRT_2;
+
+fn reference_pan(law: windfall_core::PanLaw, pan: f32) -> (f32, f32) {
+    use windfall_core::PanLaw::*;
+    let angle = (pan + 1.0) * std::f32::consts::FRAC_PI_4;
+    let power = if pan == 0.0 {
+        (1.0, 1.0)
+    } else if pan == -1.0 {
+        (std::f32::consts::SQRT_2, 0.0)
+    } else if pan == 1.0 {
+        (0.0, std::f32::consts::SQRT_2)
+    } else {
+        (
+            angle.cos() * std::f32::consts::SQRT_2,
+            angle.sin() * std::f32::consts::SQRT_2,
+        )
+    };
+    match law {
+        Balance => (1.0 - pan.max(0.0), 1.0 + pan.min(0.0)),
+        ConstantPower => power,
+        Compromise => (
+            (power.0 * (1.0 - pan)).sqrt(),
+            (power.1 * (1.0 + pan)).sqrt(),
+        ),
+        Linear => (1.0 - pan, 1.0 + pan),
+    }
+}
+
+#[test]
+fn sample_bank_project_laws_match_independent_pcm_for_each_note_and_reset() {
+    with_large_stack(|| {
+        use windfall_core::PanLaw::*;
+        let z = Zone {
+            loop_mode: LoopMode::Continuous,
+            loop_start: 0,
+            loop_end: MAX_SAMPLE_FRAMES as u16,
+            ..zone(0.8)
+        };
+        let mut instrument = sampler(&[z]);
+        for law in [Balance, ConstantPower, Compromise, Linear] {
+            for pan in [-1.0, -0.4, 0.0, 0.65, 1.0] {
+                instrument.reset();
+                instrument.set_note_pan_law(law);
+                instrument.note_on_instance(
+                    NoteInstanceId(7),
+                    60,
+                    0.5,
+                    pan,
+                    NoteExpression::NEUTRAL,
+                );
+                let (mut left, mut right) = ([0.0; 100], [0.0; 100]);
+                instrument.process(&mut left, &mut right);
+                let (l, r) = reference_pan(law, pan);
+                for index in 0..100 {
+                    assert!(
+                        (left[index] - 0.4 * CENTER * l).abs() < 1e-6,
+                        "{law:?} {pan} left"
+                    );
+                    assert!(
+                        (right[index] - 0.4 * CENTER * r).abs() < 1e-6,
+                        "{law:?} {pan} right"
+                    );
+                }
+                instrument.set_note_expression(NoteInstanceId(7), -pan, NoteExpression::NEUTRAL);
+                instrument.note_on_instance(
+                    NoteInstanceId(8),
+                    60,
+                    0.25,
+                    pan,
+                    NoteExpression::NEUTRAL,
+                );
+                instrument.process(&mut left, &mut right);
+                let (a, b) = reference_pan(law, -pan);
+                assert!((left[0] - CENTER * (0.4 * a + 0.2 * l)).abs() < 1e-6);
+                assert!((right[0] - CENTER * (0.4 * b + 0.2 * r)).abs() < 1e-6);
+                instrument.reset();
+                instrument.process(&mut left, &mut right);
+                assert!(left.iter().chain(&right).all(|sample| *sample == 0.0));
+            }
+        }
+    });
+}
+
+#[test]
+fn sample_bank_live_law_ramp_is_five_ms_and_independent_of_callback_partition() {
+    with_large_stack(|| {
+        use windfall_core::PanLaw::*;
+        let z = Zone {
+            loop_mode: LoopMode::Continuous,
+            loop_start: 0,
+            loop_end: MAX_SAMPLE_FRAMES as u16,
+            ..zone(0.8)
+        };
+        let pan = 0.65;
+        let from = reference_pan(Balance, pan);
+        let to = reference_pan(Linear, pan);
+        let mut baseline = None;
+        for block in [1, 7, 17, 64, 127] {
+            let mut instrument = sampler(&[z]);
+            instrument.set_note_pan_law(Balance);
+            instrument.note_on_instance(NoteInstanceId(1), 60, 0.5, pan, NoteExpression::NEUTRAL);
+            render(&mut instrument, 53, block);
+            instrument.set_note_pan_law(Linear);
+            let (mut left, mut right) = (vec![0.0; 101], vec![0.0; 101]);
+            for (l, r) in left.chunks_mut(block).zip(right.chunks_mut(block)) {
+                instrument.process(l, r);
+            }
+            for index in 0..101 {
+                let part = (index as f32 / 40.0).min(1.0);
+                let l = from.0 + (to.0 - from.0) * part;
+                let r = from.1 + (to.1 - from.1) * part;
+                assert!((left[index] - 0.4 * CENTER * l).abs() < 1e-6);
+                assert!((right[index] - 0.4 * CENTER * r).abs() < 1e-6);
+            }
+            let stereo = (left, right);
+            if let Some(reference) = &baseline {
+                assert_eq!(&stereo, reference);
+            } else {
+                baseline = Some(stereo);
+            }
+        }
+    });
+}
 fn zone(value: f32) -> Zone {
     Zone {
         sample: Sample::from_slice(&[value; MAX_SAMPLE_FRAMES], RATE).unwrap(),

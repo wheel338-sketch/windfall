@@ -404,6 +404,7 @@ fn replacing_instrument_kind_clears_incompatible_assets_and_undo_restores_them()
             target,
             expected,
             preset: PluginPreset {
+                tables: None,
                 state: PluginPresetState::Instrument {
                     params: InstrumentKind::SubtractiveSynth.default_params(),
                     asset: None,

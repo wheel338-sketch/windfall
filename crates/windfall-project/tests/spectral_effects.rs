@@ -282,6 +282,7 @@ fn convolver_plugin_presets_carry_assets_and_refuse_stale_destinations() {
             target,
             expected,
             preset: PluginPreset {
+                tables: None,
                 state: PluginPresetState::Effect {
                     params: EffectKind::Delay.default_params(),
                     impulse: None,
@@ -300,6 +301,7 @@ fn legacy_ir_and_harmony_source_survive_preset_migration() {
     let preset = Preset::of_plugin(
         "Legacy IR",
         PluginPreset {
+            tables: None,
             state: PluginPresetState::Effect {
                 params: EffectKind::Convolver.default_params(),
                 impulse: None,
@@ -320,6 +322,7 @@ fn legacy_ir_and_harmony_source_survive_preset_migration() {
     let preset = Preset::of_plugin(
         "Harmony",
         PluginPreset {
+            tables: None,
             state: PluginPresetState::Effect {
                 params: windfall_project::EffectParams::PitchCorrect(
                     windfall_dsp::spectral::PitchCorrectParams {

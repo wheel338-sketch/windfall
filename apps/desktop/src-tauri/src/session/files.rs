@@ -300,6 +300,7 @@ impl Session {
                 renamed.extend(carry_owned_presets(project, to,
                     &self.store().recordings_dir().join("Imported presets"))?);
             }
+            self.record_extraction_references(project, target)?;
             Ok((target_dir, moved, renamed))
         };
         let (target, project, (target_dir, moved, renamed)) = if numbered {
@@ -397,6 +398,11 @@ impl Session {
         self.pause("backup:write");
         let project = self.capture_plugins(project, plugin_revision)?;
         self.pin_derived_project(&project);
+        let backup = path.with_file_name(file::BACKUP_FOLDER).join(format!(
+            "{} {timestamp}.{FILE_EXTENSION}",
+            paths::stem(&path)
+        ));
+        self.record_extraction_references(&project, &backup)?;
         file::write_backup_with(
             &project,
             Some(&played),
