@@ -53,6 +53,7 @@ pub struct AudioEditRange {
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 #[ts(export)]
 pub struct AudioScriptRequest {
+    #[ts(type = "number")]
     pub request: u64,
     pub token: u32,
     pub range: AudioEditRange,
@@ -65,6 +66,7 @@ pub struct AudioScriptRequest {
 #[serde(rename_all = "camelCase")]
 #[ts(export)]
 pub struct AudioScriptPreview {
+    #[ts(type = "number")]
     pub request: u64,
     pub token: u32,
     pub range: AudioEditRange,
