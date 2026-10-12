@@ -1349,6 +1349,10 @@ impl Session {
         }
     }
 
+    pub(super) fn controllers_note_armed(&self) -> bool {
+        lock(&self.inner.controllers).note_armed
+    }
+
     pub fn controller_state(&self) -> ControllerState {
         let generation = self.state().generation;
         let hub = lock(&self.inner.controllers);

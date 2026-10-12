@@ -252,6 +252,18 @@ fn capture() -> Value {
     for _ in 0..140 {
         bench.tick(true);
     }
+    // Before ACK_TIMEOUT, source standing may change without sending another
+    // frame. Once stalled, neither frames nor statuses may accumulate.
+    let standing = std::mem::take(&mut *lock(&joined.wire.texts));
+    for text in standing {
+        assert!(matches!(serde_json::from_str::<AnalyzerEvent>(&text).unwrap(),
+            AnalyzerEvent::Status(status) if status.reason.is_none()
+                && matches!(status.phase, AnalyzerPhase::AwaitingAudio | AnalyzerPhase::Live)
+                && status.ticket.as_ref() == Some(&held.ticket)));
+    }
+    for _ in 0..10 {
+        bench.tick(true);
+    }
     assert!(lock(&joined.wire.texts).is_empty());
     bench.ack(SLOT, &held);
     joined.step(&mut bench, "ui-recovery", 7, 12);

@@ -127,7 +127,9 @@ impl Session {
             return Err(reason.to_owned());
         }
         self.clear_timeline_play_owner(&state);
-        let armed = self.controller_state().note_record.armed;
+        // The document guard above is still held. controller_state also reads
+        // document generation, so calling it here would acquire State twice.
+        let armed = self.controllers_note_armed();
         let bars = transport.count_in_bars.unwrap_or(0);
         if armed && bars > 0 {
             self.controller().play_count_in(bars);
