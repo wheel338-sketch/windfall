@@ -222,7 +222,7 @@ impl SamplePool {
     pub fn video_prepared_bytes(&self) -> usize {
         self.video_audio
             .values()
-            .map(|audio| audio.samples().len() * size_of::<f32>())
+            .map(|audio| std::mem::size_of_val(audio.samples()))
             .sum::<usize>()
             + self
                 .video_bytes

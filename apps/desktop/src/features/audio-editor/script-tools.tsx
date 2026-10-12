@@ -39,6 +39,7 @@ export function ScriptTools({ preview, selection, disabled, onBusy, onCommit }: 
   const current = useRef<() => boolean>(() => false)
   useEffect(() => {
     alive.current = true
+    const invalidateOperation = () => { operation.current++ }
     const generation = getProjectGeneration()
     const revision = useProjectStore.getState().revision
     const selected = usePlaylistStore.getState().selection
@@ -53,7 +54,7 @@ export function ScriptTools({ preview, selection, disabled, onBusy, onCommit }: 
     const offEdit = useProjectStore.subscribe(invalidate)
     const offSelection = usePlaylistStore.subscribe(invalidate)
     return () => {
-      alive.current = false; operation.current++
+      alive.current = false; invalidateOperation()
       offProject(); offEdit(); offSelection()
       if (request.current !== null) void backend.scriptCancel(request.current).catch(() => {})
       void backend.previewStop().catch(() => {})

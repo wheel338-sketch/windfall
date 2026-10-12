@@ -87,7 +87,7 @@ impl ProjectPreparation {
                 if pool
                     .video_prepared_bytes()
                     .saturating_add(bytes.len())
-                    .saturating_add(audio.samples().len() * size_of::<f32>())
+                    .saturating_add(std::mem::size_of_val(audio.samples()))
                     > 128 * 1024 * 1024
                 {
                     return Err(

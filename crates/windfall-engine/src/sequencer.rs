@@ -428,10 +428,10 @@ impl Sequencer {
             if !self.loops() {
                 return None;
             }
-            if let Some(passes) = self.passes_left {
-                if tick - end >= f64::from(passes.saturating_sub(1)) * length {
-                    return None;
-                }
+            if let Some(passes) = self.passes_left
+                && tick - end >= f64::from(passes.saturating_sub(1)) * length
+            {
+                return None;
             }
             start + (tick - end).rem_euclid(length)
         } else {

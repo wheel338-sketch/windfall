@@ -1829,13 +1829,13 @@ impl PlanState {
                     unit.inherit_plugin_notes(before);
                 }
             }
-            if !channel.leaving {
-                if let (Some(unit), Some(previous)) = (
+            if !channel.leaving
+                && let (Some(unit), Some(previous)) = (
                     &mut seat.unit,
                     before.as_mut().and_then(|seat| seat.unit.as_mut()),
-                ) {
-                    unit.inherit_sample_bank_notes(previous);
-                }
+                )
+            {
+                unit.inherit_sample_bank_notes(previous);
             }
             if seat.unit.is_none() {
                 seat.unit = before

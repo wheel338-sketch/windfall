@@ -106,9 +106,14 @@ fn os_aac_multitone_decode_measures_layout_duration_alignment_spectral_peaks_and
                 let channels_usize = usize::from(channels);
                 let mut energy = 0.0;
                 let mut noise = 0.0;
-                for i in 2048 * channels_usize..(frames - 2048) * channels_usize {
-                    energy += f64::from(pcm[i]).powi(2);
-                    noise += f64::from(pcm[i] - decoded.samples()[i]).powi(2);
+                for (i, sample) in pcm
+                    .iter()
+                    .enumerate()
+                    .take((frames - 2048) * channels_usize)
+                    .skip(2048 * channels_usize)
+                {
+                    energy += f64::from(*sample).powi(2);
+                    noise += f64::from(*sample - decoded.samples()[i]).powi(2);
                 }
                 assert!(
                     10.0 * (energy / noise.max(1e-20)).log10() > 20.0,
@@ -147,7 +152,7 @@ fn aac_short_sources_and_partitioning_keep_exact_edit_list_length() {
             2,
         )
         .unwrap();
-        for frame in pcm.chunks_exact(2) {
+        for frame in pcm.as_chunks::<2>().0 {
             encoder.write(frame).unwrap();
         }
         encoder.finalize().unwrap();

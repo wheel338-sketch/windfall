@@ -57,7 +57,7 @@ fn moving_params(base: EffectParams, block: usize) -> EffectParams {
         }
     }
     if let EffectParams::TimeTransport(p) = &mut edited {
-        p.trigger = block % 2 == 0;
+        p.trigger = block.is_multiple_of(2);
     }
     edited
 }

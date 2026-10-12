@@ -761,10 +761,9 @@ impl ChannelPreset {
             params: InstrumentParams::MidiOut(p) | InstrumentParams::Dashboard(p),
             ..
         } = &mut loaded.source
+            && p.plugin_destination > 0
         {
-            if p.plugin_destination > 0 {
-                p.plugin_destination = -1;
-            }
+            p.plugin_destination = -1;
         }
         project.channels.push(loaded);
         if let Some(graph) = &self.rack {

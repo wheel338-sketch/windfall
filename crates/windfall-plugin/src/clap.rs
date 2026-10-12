@@ -243,17 +243,17 @@ unsafe extern "C" fn on_main_thread(plugin: *const clap_plugin) {
     if let Some(instance) = unsafe { Instance::get(plugin) } {
         instance.state.collect();
         let latency = instance.state.latency();
-        if instance.latency.swap(latency, Ordering::AcqRel) != latency {
-            if let Some(extension) = unsafe { (*instance.host).get_extension } {
-                let host_latency = unsafe {
-                    extension(instance.host, CLAP_EXT_LATENCY.as_ptr())
-                        .cast::<clap_sys::ext::latency::clap_host_latency>()
-                        .as_ref()
-                };
-                if let Some(changed) = host_latency.and_then(|latency| latency.changed) {
-                    unsafe {
-                        changed(instance.host);
-                    }
+        if instance.latency.swap(latency, Ordering::AcqRel) != latency
+            && let Some(extension) = unsafe { (*instance.host).get_extension }
+        {
+            let host_latency = unsafe {
+                extension(instance.host, CLAP_EXT_LATENCY.as_ptr())
+                    .cast::<clap_sys::ext::latency::clap_host_latency>()
+                    .as_ref()
+            };
+            if let Some(changed) = host_latency.and_then(|latency| latency.changed) {
+                unsafe {
+                    changed(instance.host);
                 }
             }
         }
@@ -341,11 +341,11 @@ unsafe extern "C" fn process(
     let Some(engine) = (unsafe { instance.state.audio() }) else {
         return CLAP_PROCESS_ERROR;
     };
-    if instance.state.needs_collection() {
-        if let Some(request) = unsafe { (*instance.host).request_callback } {
-            unsafe {
-                request(instance.host);
-            }
+    if instance.state.needs_collection()
+        && let Some(request) = unsafe { (*instance.host).request_callback }
+    {
+        unsafe {
+            request(instance.host);
         }
     }
     let mut transport = if block.transport.is_null() {

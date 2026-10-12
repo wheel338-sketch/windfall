@@ -396,10 +396,10 @@ impl IAudioProcessorTrait for Component {
         if !self.active.load(Ordering::Acquire) {
             return kResultFalse;
         }
-        if state == 0 {
-            if let Some(engine) = unsafe { self.state.audio() } {
-                engine.reset();
-            }
+        if state == 0
+            && let Some(engine) = unsafe { self.state.audio() }
+        {
+            engine.reset();
         }
         self.processing.store(state != 0, Ordering::Release);
         kResultOk

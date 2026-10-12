@@ -35,10 +35,8 @@ fn music_lighting_status(
     caller: crate::window_calls::WindowCaller,
 ) -> Result<serde_json::Value, String> {
     let _window_call = caller.enter(&window, "music_lighting_status")?;
-    Ok((|| {
-        serde_json::to_value(session.music_lighting_status())
-            .expect("plain lighting status serializes")
-    })())
+    Ok(serde_json::to_value(session.music_lighting_status())
+        .expect("plain lighting status serializes"))
 }
 #[tauri::command]
 async fn sample_instrument_load_bank(
@@ -65,6 +63,10 @@ fn sample_instrument_missing_sources(
     session.sample_instrument_missing_sources(channel)
 }
 #[tauri::command]
+#[expect(
+    clippy::too_many_arguments,
+    reason = "Named Tauri wire arguments plus authenticated window context"
+)]
 async fn sample_instrument_relink_source(
     session: State<'_, Session>,
     channel: ChannelId,
@@ -84,6 +86,10 @@ async fn sample_instrument_relink_source(
     .await
 }
 #[tauri::command]
+#[expect(
+    clippy::too_many_arguments,
+    reason = "Named Tauri wire arguments plus authenticated window context"
+)]
 async fn sample_instrument_general_midi(
     session: State<'_, Session>,
     channel: ChannelId,
@@ -160,11 +166,14 @@ fn sample_instrument_speech_cancel(
     caller: crate::window_calls::WindowCaller,
 ) -> Result<(), String> {
     let _window_call = caller.enter(&window, "sample_instrument_speech_cancel")?;
-    Ok((|| {
-        session.sample_instrument_speech_cancel(channel, request);
-    })())
+    session.sample_instrument_speech_cancel(channel, request);
+    Ok(())
 }
 #[tauri::command]
+#[expect(
+    clippy::too_many_arguments,
+    reason = "Named Tauri wire arguments plus authenticated window context"
+)]
 async fn sample_instrument_speech(
     session: State<'_, Session>,
     channel: ChannelId,
@@ -810,6 +819,10 @@ async fn audio_editor_discard(
 }
 
 #[tauri::command]
+#[expect(
+    clippy::too_many_arguments,
+    reason = "Named Tauri wire arguments plus authenticated window context"
+)]
 async fn audio_editor_save_wavpack(
     session: State<'_, Session>,
     token: u32,
@@ -2745,7 +2758,7 @@ fn performance_record_state(
     caller: crate::window_calls::WindowCaller,
 ) -> Result<windfall_ipc::PerformanceRecordingState, String> {
     let _window_call = caller.enter(&window, "performance_record_state")?;
-    Ok((|| session.performance_record_state())())
+    Ok(session.performance_record_state())
 }
 #[tauri::command]
 async fn performance_record_start(
@@ -2767,9 +2780,8 @@ fn performance_record_stop(
     caller: crate::window_calls::WindowCaller,
 ) -> Result<(), String> {
     let _window_call = caller.enter(&window, "performance_record_stop")?;
-    Ok((|| {
-        session.performance_record_stop();
-    })())
+    session.performance_record_stop();
+    Ok(())
 }
 #[tauri::command]
 fn performance_record_cancel(
@@ -2778,9 +2790,8 @@ fn performance_record_cancel(
     caller: crate::window_calls::WindowCaller,
 ) -> Result<(), String> {
     let _window_call = caller.enter(&window, "performance_record_cancel")?;
-    Ok((|| {
-        session.performance_record_cancel();
-    })())
+    session.performance_record_cancel();
+    Ok(())
 }
 #[tauri::command]
 async fn performance_record_save(

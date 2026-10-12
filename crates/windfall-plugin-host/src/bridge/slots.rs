@@ -119,7 +119,7 @@ impl Region {
     }
     /// Helper-only return of a claimed stale input, after its last payload read.
     /// No native call, DONE, liveness increment or DSP proof is implied.
-    #[cfg(any(windows, test))]
+    #[cfg(any(windows, target_os = "macos", target_os = "linux", test))]
     pub(super) fn retire_input(&self, slot: usize) -> Result<(), ProtocolError> {
         self.state(slot)
             .compare_exchange(
@@ -132,7 +132,7 @@ impl Region {
             .map_err(|_| ProtocolError::Sequence)
     }
     /// Native owner publication, off the callback. Exhaustion fails this helper.
-    #[cfg(windows)]
+    #[cfg(any(windows, target_os = "macos", target_os = "linux"))]
     pub(super) fn publish_native_change(&self) -> Result<(), ProtocolError> {
         let word = &self.storage.words()[NATIVE_CHANGES];
         let current = u32::from_le(word.load(Ordering::Relaxed));

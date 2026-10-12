@@ -55,7 +55,7 @@ fn synthetic(rate: u32, channels: u16, frames: usize) -> Vec<Vec<f32>> {
             .sum::<f64>()
             * 0.033
             * (t / 0.7).min(1.0)
-            * ((12.0 - t) / 0.7).min(1.0).max(0.0);
+            * ((12.0 - t) / 0.7).clamp(0.0, 1.0);
         for channel in 0..channels as usize {
             let gains = if channel == 0 {
                 [1.0, 1.0, 1.0, 0.8]

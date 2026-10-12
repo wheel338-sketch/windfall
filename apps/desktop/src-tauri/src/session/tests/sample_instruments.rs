@@ -601,7 +601,7 @@ fn general_midi_fixture() -> Vec<u8> {
         let mut out = id.to_vec();
         out.extend((data.len() as u32).to_le_bytes());
         out.extend(data);
-        if data.len() % 2 != 0 {
+        if !data.len().is_multiple_of(2) {
             out.push(0);
         }
         out

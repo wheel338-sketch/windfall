@@ -753,7 +753,6 @@ mod tests {
         drop(
             unit.into_any()
                 .downcast::<Probe>()
-                .ok()
                 .expect("original processor"),
         );
     }

@@ -55,10 +55,12 @@ pub fn decode_video_audio(
     let mut rate = 0_u32;
     let mut data = Vec::new();
     // Bounded depth rejects hostile nested LISTs without recursive stack growth.
+    type ChunkVisitor<'a, 'callback> =
+        dyn FnMut(&[u8], &'a [u8]) -> Result<(), CodecError> + 'callback;
     fn walk<'a>(
         bytes: &'a [u8],
         depth: u8,
-        visit: &mut dyn FnMut(&[u8], &'a [u8]) -> Result<(), CodecError>,
+        visit: &mut ChunkVisitor<'a, '_>,
     ) -> Result<(), CodecError> {
         if depth > 8 {
             return Err(CodecError::Corrupt(

@@ -164,7 +164,9 @@ fn performance_note_pan_curve_moves_sound_while_song_transport_is_stopped() {
     let sides = |start: usize, end: usize| -> [f64; 2] {
         std::array::from_fn(|side| {
             pcm.samples()[start * 2..end * 2]
-                .chunks_exact(2)
+                .as_chunks::<2>()
+                .0
+                .iter()
                 .map(|frame| f64::from(frame[side]).powi(2))
                 .sum()
         })

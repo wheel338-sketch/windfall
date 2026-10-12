@@ -325,14 +325,16 @@ impl Engine {
     }
     pub fn set_note_pan_law(&mut self, law: windfall_core::PanLaw) {
         self.selected_law = Some(law);
-        if self.fresh || self.note_law.is_none() {
-            self.note_law = Some(windfall_core::PanLawRamp::at_rest(law));
-        } else {
-            self.note_law.as_mut().unwrap().retarget(
+        if let Some(ramp) = self.note_law.as_mut()
+            && !self.fresh
+        {
+            ramp.retarget(
                 law,
                 self.pan_clock,
                 (0.005 * self.sample_rate).round().max(1.0) as u64,
             );
+        } else {
+            self.note_law = Some(windfall_core::PanLawRamp::at_rest(law));
         }
     }
     pub fn active_voices(&self) -> usize {

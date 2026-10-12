@@ -680,7 +680,7 @@ describe("analysis app controls", () => {
     render(<AnalysisPanel clip={clip} initialTask="stemSeparation" />)
     expect(await screen.findByRole("status")).toHaveTextContent("ONNX Runtime library is missing")
     await waitFor(() => expect(screen.getByRole("button", { name: "Submit analysis" })).toBeDisabled())
-    expect(disabledReason("analysis.submit")).toContain("ONNX Runtime library is missing")
+    expect(disabledReason(registry.get("analysis.submit")!, getAppState())).toContain("ONNX Runtime library is missing")
     expect(submit).not.toHaveBeenCalled()
     expect(useProjectStore.getState()).toBe(before)
   })

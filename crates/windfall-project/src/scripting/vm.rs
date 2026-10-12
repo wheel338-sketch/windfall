@@ -552,13 +552,13 @@ impl Program {
                         return Err(error(usize::from(instruction.line), "emit must be last"));
                     }
                 }
-                Op::Copies(count, key_step, tick_step) => {
-                    if copies.replace((count, key_step, tick_step)).is_some() {
-                        return Err(error(
-                            usize::from(instruction.line),
-                            "use copies once before the final emit",
-                        ));
-                    }
+                Op::Copies(count, key_step, tick_step)
+                    if copies.replace((count, key_step, tick_step)).is_some() =>
+                {
+                    return Err(error(
+                        usize::from(instruction.line),
+                        "use copies once before the final emit",
+                    ));
                 }
                 _ => (),
             }

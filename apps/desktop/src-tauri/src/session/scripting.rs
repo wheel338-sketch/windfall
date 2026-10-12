@@ -66,22 +66,22 @@ impl Session {
                     ));
                 }
                 for command in result.commands {
-                    if let windfall_project::Command::UpdateSettings { patch } = command {
-                        if let Some(tempo) = patch.tempo_bpm {
-                            let target = windfall_project::AutomationTarget::Tempo;
-                            let range = project
-                                .automation_range(&target)
-                                .ok_or("tempo target is unavailable")?;
-                            motions.push((
-                                binding.source.clone(),
-                                windfall_project::LinkTarget::Param { target },
-                                binding.map.clone(),
-                                windfall_project::controller_links::SourceInput {
-                                    value: range.normalized(tempo as f32),
-                                    raw: input.raw,
-                                },
-                            ));
-                        }
+                    if let windfall_project::Command::UpdateSettings { patch } = command
+                        && let Some(tempo) = patch.tempo_bpm
+                    {
+                        let target = windfall_project::AutomationTarget::Tempo;
+                        let range = project
+                            .automation_range(&target)
+                            .ok_or("tempo target is unavailable")?;
+                        motions.push((
+                            binding.source.clone(),
+                            windfall_project::LinkTarget::Param { target },
+                            binding.map.clone(),
+                            windfall_project::controller_links::SourceInput {
+                                value: range.normalized(tempo as f32),
+                                raw: input.raw,
+                            },
+                        ));
                     }
                 }
                 feedback.extend(result.feedback);

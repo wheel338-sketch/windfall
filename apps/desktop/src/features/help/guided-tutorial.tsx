@@ -23,10 +23,12 @@ export function GuidedTutorial({ kind }: { kind: TutorialKind }) {
   const [step, setStep] = useState(0)
   const owner = useId()
   const request = useExportRequestStore((state) => state.request)
-  const [exported, setExported] = useState(false)
+  const [exported, setExported] = useState(() => request?.owner === owner && request.generation === getProjectGeneration() && request.status === "succeeded")
   useEffect(() => {
-    if (request?.owner === owner && request.generation === getProjectGeneration() && request.status === "succeeded") setExported(true)
-  }, [request, owner])
+    return useExportRequestStore.subscribe(({ request }) => {
+      if (request?.owner === owner && request.generation === getProjectGeneration() && request.status === "succeeded") setExported(true)
+    })
+  }, [owner])
   const [error, setError] = useState("")
   const [busy, setBusy] = useState(false)
   const pending = useRef(false)

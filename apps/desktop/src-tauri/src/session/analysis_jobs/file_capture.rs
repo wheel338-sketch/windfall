@@ -158,7 +158,7 @@ pub(super) fn capture(
                     return false;
                 }
                 let mut encoded = [0_u8; 16384];
-                for (target, sample) in encoded.chunks_exact_mut(4).zip(samples) {
+                for (target, sample) in encoded.as_chunks_mut::<4>().0.iter_mut().zip(samples) {
                     if !sample.is_finite() {
                         failure = Some(error("invalid", "Nonfinite spectral preparation."));
                         return false;

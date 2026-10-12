@@ -189,7 +189,7 @@ impl Session {
                             .read(start + (i * 2048) as u64, block)
                             .map_err(native::AnalysisError::Adapter)?;
                     }
-                    for (out, pair) in output.iter_mut().zip(stereo.chunks_exact(2)) {
+                    for (out, pair) in output.iter_mut().zip(stereo.as_chunks::<2>().0.iter()) {
                         *out = (pair[0] + pair[1]) * 0.5;
                     }
                     Ok(())

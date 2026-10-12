@@ -156,7 +156,8 @@ fn fixed_native_buffers_delay_pcm_exactly_and_preserve_pending_state_on_return()
 fn wrapper_legacy_defaults_and_unsupported_owner_modes_are_explicit() {
     let defaults: WrapperOptions = serde_json::from_str("{}").unwrap();
     assert_eq!(defaults, WrapperOptions::default());
-    for processing in [ProcessingMode::Bridged] {
+    {
+        let processing = ProcessingMode::Bridged;
         let (_module, mut instance) = common::create(common::GAIN);
         assert!(
             instance

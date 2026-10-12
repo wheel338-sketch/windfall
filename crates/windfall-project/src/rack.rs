@@ -364,12 +364,14 @@ impl RackGraph {
                         graph
                             .nodes
                             .iter()
-                            .filter(|node| match (signal, output, &node.processor) {
-                                (RackSignal::Audio, false, RackProcessor::AudioInput)
-                                | (RackSignal::Audio, true, RackProcessor::AudioOutput)
-                                | (RackSignal::Note, false, RackProcessor::NoteInput)
-                                | (RackSignal::Note, true, RackProcessor::NoteOutput) => true,
-                                _ => false,
+                            .filter(|node| {
+                                matches!(
+                                    (signal, output, &node.processor),
+                                    (RackSignal::Audio, false, RackProcessor::AudioInput)
+                                        | (RackSignal::Audio, true, RackProcessor::AudioOutput)
+                                        | (RackSignal::Note, false, RackProcessor::NoteInput)
+                                        | (RackSignal::Note, true, RackProcessor::NoteOutput)
+                                )
                             })
                             .count()
                     } else {

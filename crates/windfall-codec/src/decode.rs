@@ -655,10 +655,11 @@ fn decode<'s>(
 /// Strict sequential decode with bounded packet storage. No whole-file PCM
 /// allocation, retry after emitted data, sanitation or success after corruption.
 /// A callback error stops decoding immediately (including cancellation).
+type StreamSink<'a> = dyn FnMut(u32, u16, &[f32]) -> Result<(), CodecError> + 'a;
 pub fn decode_file_stream_strict(
     path: impl AsRef<Path>,
     options: &DecodeOptions,
-    emit: &mut dyn FnMut(u32, u16, &[f32]) -> Result<(), CodecError>,
+    emit: &mut StreamSink<'_>,
 ) -> Result<AudioInfo, CodecError> {
     guarded(|| {
         let path = path.as_ref();

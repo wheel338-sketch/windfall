@@ -102,7 +102,7 @@ impl StreamedView {
         {
             return Err("Streamed clip read bounds.".into());
         }
-        for (i, output) in output.chunks_exact_mut(2).enumerate() {
+        for (i, output) in output.as_chunks_mut::<2>().0.iter_mut().enumerate() {
             let frame = start as f64 + i as f64;
             let mut gain = self.gain;
             if self.timing.fade_in_frames > 0.0 {

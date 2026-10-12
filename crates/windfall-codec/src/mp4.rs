@@ -25,7 +25,8 @@ fn be(b: &[u8], at: usize) -> Result<u32, CodecError> {
         .ok_or_else(bad)?;
     Ok(u32::from_be_bytes([v[0], v[1], v[2], v[3]]))
 }
-fn boxes(b: &[u8]) -> Result<Vec<([u8; 4], &[u8])>, CodecError> {
+type Mp4Box<'a> = ([u8; 4], &'a [u8]);
+fn boxes(b: &[u8]) -> Result<Vec<Mp4Box<'_>>, CodecError> {
     let mut out = Vec::new();
     let mut at = 0;
     while at < b.len() {

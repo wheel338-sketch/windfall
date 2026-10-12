@@ -128,7 +128,7 @@ function validateSeparation(model: AnalysisModel) {
   for (const [tensor, expected] of [[spec.inputs[0], last ? [1, frames, c] : [1, c, frames]],
     [spec.outputs[0], last ? [1, 4, frames, c] : [1, 4, c, frames]]] as const) {
     const timeAxis = expected.length - (last ? 2 : 1)
-    if (tensor.name.length > 128 || /[\x00-\x1f\x7f]/.test(tensor.name) || tensor.shape.length !== expected.length ||
+    if (tensor.name.length > 128 || Array.from(tensor.name).some(char => char.charCodeAt(0) <= 31 || char.charCodeAt(0) === 127) || tensor.shape.length !== expected.length ||
       tensor.shape.some((d, i) => typeof d === "number" ? d !== expected[i] : d !== "frames" || i !== timeAxis))
       throw new Error("Invalid waveform tensor shape convention.")
   }

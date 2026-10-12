@@ -129,7 +129,13 @@ fn video_audio_short_loops_wrap_multiple_times_per_callback_without_partition_dr
     };
     let small = render(7);
     let large = render(256);
-    for (frame, (a, b)) in small.chunks_exact(2).zip(large.chunks_exact(2)).enumerate() {
+    for (frame, (a, b)) in small
+        .as_chunks::<2>()
+        .0
+        .iter()
+        .zip(large.as_chunks::<2>().0.iter())
+        .enumerate()
+    {
         let expected = (frame % 25) as f32 / 2000.0;
         for side in 0..2 {
             assert!(

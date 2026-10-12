@@ -204,13 +204,12 @@ impl Drop for Extractions {
                     .any(|path| referenced(&root, path).unwrap_or(true))
                 && let Some(managed) = root.parent()
                 && managed_child(&root, managed)
+                && let Err(error) = fs::remove_dir_all(&root)
             {
-                if let Err(error) = fs::remove_dir_all(&root) {
-                    log::warn!(
-                        "Could not reclaim ended-session preset capture {}: {error}",
-                        paths::display(&root)
-                    );
-                }
+                log::warn!(
+                    "Could not reclaim ended-session preset capture {}: {error}",
+                    paths::display(&root)
+                );
             }
             drop(owner);
         }
@@ -218,7 +217,7 @@ impl Drop for Extractions {
 }
 impl Session {
     pub(super) fn prepare_extraction(&self, root: &Path, project: &Project) -> Result<(), String> {
-        file::save(project, &root.join("project.windfall")).map_err(|e| e.to_string())?;
+        file::save(project, root.join("project.windfall")).map_err(|e| e.to_string())?;
         let mut record = read_record(root)?;
         record.installed = true;
         write_record(root, &record)
@@ -410,6 +409,25 @@ impl Session {
     }
 }
 
+pub(super) struct ExtractionLease {
+    session: Session,
+    root: Option<PathBuf>,
+}
+impl Drop for ExtractionLease {
+    fn drop(&mut self) {
+        if let Some(root) = &self.root {
+            let mut roots = lock(&self.session.inner.extractions);
+            if let Some(count) = roots.leased.get_mut(root) {
+                *count -= 1;
+                if *count == 0 {
+                    roots.leased.remove(root);
+                }
+            }
+        }
+        self.session.prune_extractions();
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -510,7 +528,7 @@ mod tests {
                 }
                 "saved" => {
                     assert!(root.exists());
-                    assert_eq!(registry.roots, [root.clone()]);
+                    assert_eq!(registry.roots.as_slice(), std::slice::from_ref(&root));
                     assert!(referenced(&root, &folder.path().join("saved.windfall")).unwrap());
                     assert_eq!(
                         fs::read(root.join("samples/exact.bin")).unwrap(),
@@ -561,24 +579,5 @@ mod tests {
         assert!(!root.exists());
         assert!(unmarked.exists());
         assert!(damaged.exists());
-    }
-}
-
-pub(super) struct ExtractionLease {
-    session: Session,
-    root: Option<PathBuf>,
-}
-impl Drop for ExtractionLease {
-    fn drop(&mut self) {
-        if let Some(root) = &self.root {
-            let mut roots = lock(&self.session.inner.extractions);
-            if let Some(count) = roots.leased.get_mut(root) {
-                *count -= 1;
-                if *count == 0 {
-                    roots.leased.remove(root);
-                }
-            }
-        }
-        self.session.prune_extractions();
     }
 }

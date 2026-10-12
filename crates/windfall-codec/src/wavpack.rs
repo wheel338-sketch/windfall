@@ -141,7 +141,7 @@ impl PutBits {
         }
     }
     fn finish(mut self) -> Vec<u8> {
-        while self.at % 16 != 0 {
+        while !self.at.is_multiple_of(16) {
             self.put(1, 1);
         }
         self.bytes
@@ -391,7 +391,8 @@ impl Pass {
     }
 }
 
-fn metadata(block: &[u8]) -> Result<Vec<(u8, &[u8], usize)>, CodecError> {
+type MetadataEntry<'a> = (u8, &'a [u8], usize);
+fn metadata(block: &[u8]) -> Result<Vec<MetadataEntry<'_>>, CodecError> {
     let mut result = Vec::new();
     let mut at = 32;
     while at < block.len() {
@@ -574,7 +575,7 @@ fn decode_block(block: &[u8], coded: usize, flags: u32) -> Result<Vec<i32>, Code
                 if data.len() != coded * 6 {
                     return Err(bad("invalid entropy variables"));
                 }
-                for (ch, values) in data.chunks_exact(6).enumerate() {
+                for (ch, values) in data.as_chunks::<6>().0.iter().enumerate() {
                     for i in 0..3 {
                         let log = i16::from_le_bytes([values[i * 2], values[i * 2 + 1]]);
                         if log < 0 {
@@ -615,7 +616,7 @@ fn decode_block(block: &[u8], coded: usize, flags: u32) -> Result<Vec<i32>, Code
                     return Err(bad("invalid block checksum"));
                 }
                 let mut sum = u32::MAX;
-                for word in block[..at].chunks_exact(2) {
+                for word in block[..at].as_chunks::<2>().0 {
                     sum = sum
                         .wrapping_mul(3)
                         .wrapping_add(u32::from(u16::from_le_bytes([word[0], word[1]])));
@@ -753,13 +754,12 @@ pub(crate) fn decode(
             continue;
         }
         let (current, coded, flags) = header(&block)?;
-        if let Some(first) = &info {
-            if current.sample_rate != first.sample_rate
+        if let Some(first) = &info
+            && (current.sample_rate != first.sample_rate
                 || current.channels != first.channels
-                || current.bits_per_sample != first.bits_per_sample
-            {
-                return Err(bad("audio format changes between blocks"));
-            }
+                || current.bits_per_sample != first.bits_per_sample)
+        {
+            return Err(bad("audio format changes between blocks"));
         }
         let count = u64::from(u32le(&block, 20));
         if count > 0 && u64::from(u32le(&block, 16)) != frames {
@@ -798,7 +798,12 @@ pub(crate) fn decode(
 }
 fn subblock(out: &mut Vec<u8>, id: u8, bytes: &[u8]) {
     let words = bytes.len().div_ceil(2);
-    let id = id | if bytes.len() % 2 != 0 { 0x40 } else { 0 };
+    let id = id
+        | if !bytes.len().is_multiple_of(2) {
+            0x40
+        } else {
+            0
+        };
     out.push(id | if words > 255 { 0x80 } else { 0 });
     out.push(words as u8);
     if words > 255 {
@@ -806,7 +811,7 @@ fn subblock(out: &mut Vec<u8>, id: u8, bytes: &[u8]) {
         out.push((words >> 16) as u8);
     }
     out.extend_from_slice(bytes);
-    if bytes.len() % 2 != 0 {
+    if !bytes.len().is_multiple_of(2) {
         out.push(0);
     }
 }
@@ -876,7 +881,9 @@ impl WavPackWriter {
         if self.broken {
             return Err(CodecError::Encoding("WavPack writer failed earlier".into()));
         }
-        if pcm.len() % usize::from(self.channels) != 0 || pcm.iter().any(|s| !s.is_finite()) {
+        if !pcm.len().is_multiple_of(usize::from(self.channels))
+            || pcm.iter().any(|s| !s.is_finite())
+        {
             self.broken = true;
             return Err(CodecError::InvalidInput(
                 "WavPack requires finite, complete PCM frames".into(),

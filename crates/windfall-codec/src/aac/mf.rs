@@ -342,7 +342,7 @@ fn decode_packets(
     let decoder = Transform::decoder(config, asc)?;
     let mut pcm = Vec::new();
     let mut emit = |bytes: Vec<u8>| {
-        if bytes.len() % (usize::from(config.channels) * 2) != 0 {
+        if !bytes.len().is_multiple_of(usize::from(config.channels) * 2) {
             return Err(fail("decoder returned incomplete PCM"));
         }
         if pcm.len() + bytes.len() / 2 > max_frames * usize::from(config.channels) {
@@ -352,7 +352,9 @@ fn decode_packets(
             .map_err(|_| CodecError::OutOfMemory)?;
         pcm.extend(
             bytes
-                .chunks_exact(2)
+                .as_chunks::<2>()
+                .0
+                .iter()
                 .map(|b| f32::from(i16::from_le_bytes([b[0], b[1]])) / 32768.0),
         );
         Ok(())
@@ -506,7 +508,7 @@ impl AacEncoderAdapter for Encoder {
         }
         self.failed = true;
         let channels = usize::from(self.config.channels);
-        if pcm.len() % channels != 0 || pcm.iter().any(|s| !s.is_finite()) {
+        if !pcm.len().is_multiple_of(channels) || pcm.iter().any(|s| !s.is_finite()) {
             return Err(fail("finite complete PCM frames are required"));
         }
         self.input_frames = self

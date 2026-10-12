@@ -29,10 +29,20 @@
 - `bash scripts/gen-bindings.sh`: PASS, exit 0, 615 generated files (`target/round4-bindings-generate.log`). No individual binding-export test counts claimed: generator redirects that output. Simulator regeneration/fresh comparison remain pending.
 - Initial simulator generation PASS, exit 0, 6,957,179 bytes, 1m15s (`target/round4-sim-generate.log`). Initial registry audit against `3186193f` passes saved prefixes: Command 125→126, EffectKind 67→68, InstrumentKind 50→50; effect parameters 1089/choices 469, instrument parameters 1529/choices 453 (`target/round4-prefix-audit.log`). That audit invocation overlapped the simulator build; final audit must be rerun serially. Formatter applied to workspace and independent fixture (exit 0; `target/round4-fmt-apply.log`, `target/round4-fixture-fmt-apply.log`). Final artifact provenance/checks pending after formatting.
 - Corrected benchmark workload compile check PASS, exit 0, zero warnings/errors, 8.98s (`target/round4-benchmark-workload-check.log`); workload integrity assertion added subsequently and still needs execution.
+- Strict Clippy repaired to zero: `cargo clippy --offline --workspace --all-targets -- -D warnings`, PASS, exit 0, 14.66s (`target/round4-clippy-repair2.log`). Supported autofixes plus callback/parser type aliases, array chunks, equivalent pattern/ramp matching and four narrowly justified named Tauri wire-argument expectations; no broad suppression/assertion/tolerance removal. Initial strict failure and autofix logs retained. Clippy's autofix rejected its own streamed-test array-comparison conversion and left the original unchanged; corrected dereference manually. First manual repair needed typed byte-array dereferences; failed log retained. Ordinary product/test suites still unexecuted at this checkpoint.
 
 ## Final gates
 
-Pending. Inherited builder results are context only, not acceptance evidence for this integrated tree.
+Partial gate results below; unlisted gates remain unexecuted. Inherited builder results are context only, not acceptance evidence for this integrated tree.
+
+| Command | Result/counts | Exit | Log |
+| --- | --- | --- | --- |
+| `cargo fmt --all --check` | PASS | 0 | `target/round4-fmt-check.log` |
+| `cargo clippy --offline --workspace --all-targets -- -D warnings` | PASS; zero errors/warnings | 0 | `target/round4-clippy-repair2.log` |
+| `pnpm --dir apps/desktop typecheck` | PASS; zero diagnostics | 0 | `target/round4-desktop-typecheck-repair1.log` |
+| `pnpm --dir apps/desktop lint` | PASS; zero errors/warnings | 0 | `target/round4-desktop-lint-repair1.log` |
+| `bash scripts/gen-bindings.sh` | PASS; 615 files | 0 | `target/round4-bindings-generate.log` |
+| `bash scripts/build-sim.sh` | Initial generation PASS; 6,957,179 bytes, needs final provenance refresh after lint edits | 0 | `target/round4-sim-generate.log` |
 
 ## Benchmark integrity
 
@@ -42,11 +52,14 @@ Workload correction candidate: six distinct ratios/detunes/levels/key scales/fee
 
 ## macOS cross-check
 
-Pending.
+- `rustup target add aarch64-apple-darwin`: PASS, exit 0 (`target/round4-macos-target.log`); no SDK/tools installed.
+- `cargo check --offline --target aarch64-apple-darwin -p windfall-plugin-host -p windfall-plugin --all-targets`: initial failure on two Windows-only bridge slot method cfgs (`target/round4-macos-host-check.log`). Widened those existing implementations to supported Unix platforms, preserving their protocol/atomic ordering. Repair 1 PASS, exit 0, zero errors/warnings, 6.48s (`target/round4-macos-host-check-repair1.log`). Host AU adapter/Cocoa/sys, portable AU model, CLAP/VST3 providers, Unix mmap/auth/control/supervisor/helper and plugin export library/all-target sources type-check; engine dependency also type-checks for Apple target. No runtime execution claimed. Desktop cross-check pending separately.
+- `cargo check --offline --target aarch64-apple-darwin -p windfall-desktop --all-targets`: exits 101 at third-party `objc2-exception-helper` 0.1.1 build script compiling `src/try_catch.m`; `cc-rs: failed to find tool "cc": program not found` (`target/round4-macos-desktop-check.log`). No SDK/tool installed. This stopped before desktop crate Rust checking: `plugins/runtime.rs` macOS branch, `plugins/au_owner.rs`, native Cocoa dispatch/window-parent and Tauri macOS entry remain unverified. Prior host/export/engine Apple type-check is independently passing; desktop provider is not credited.
 
 ## Dependency and manifest changes
 
 - Codec reuses `windows` 0.62.2 (MIT OR Apache-2.0) with Foundation, COM and Media Foundation features.
+- Independent plugin fixture reuses `windows-sys` 0.61.2 (MIT OR Apache-2.0), adding GDI feature only; plugin export reuses already-locked VST3 0.3.0/windows-sys and workspace GPL engine/runtime edges. No existing package version/checksum upgrades.
 - `ort` =2.0.0-rc.10, `ort-sys` =2.0.0-rc.10, `smallvec` 2.0.0-alpha.10, `ndarray` 0.16.1, `matrixmultiply` 0.3.11 and `rawpointer` 0.2.1 added exclusively for authorized ORT tree. All six downloaded Cargo manifests declare MIT/Apache-2.0 alternatives; GPL-3.0 compatible. `default-features=false`, only `load-dynamic`; default download-binaries/copy-dylibs disabled. No runtime library or weights downloaded. `std` pulls ndarray in rc.10 despite ndarray feature omission; this accounts for its three transitive packages. Existing package identities/checksums unchanged; smallvec references qualified to disambiguate two versions.
 
 ## Row acceptance

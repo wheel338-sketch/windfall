@@ -135,10 +135,10 @@ fn scripted_short_long_and_duplicated_durations_match_manual_score_live_and_offl
             let track = rig.playlist_track();
             rig.clip(track, rig.first_pattern(), 0, window);
             let mut reference = rig.project.clone();
-            let original = reference.patterns[0].lanes[0].notes[0].clone();
+            let original = reference.patterns[0].lanes[0].notes[0];
             reference.patterns[0].lanes[0].notes.clear();
             for index in 0..copies {
-                let mut note = original.clone();
+                let mut note = original;
                 note.id = windfall_project::NoteId(reference.next_id);
                 reference.next_id += 1;
                 note.start += index * 240;

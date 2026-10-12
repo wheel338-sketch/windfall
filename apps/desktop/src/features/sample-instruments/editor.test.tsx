@@ -134,7 +134,7 @@ describe("sample instrument purpose-built editors",()=>{
 
   it("relinks a player source without replacing its bank identity",async()=>{
     backend.sampleInstrumentMissingSources=vi.fn().mockResolvedValue([useProjectStore.getState().project.samples[0].id])
-    backend.sampleInstrumentRelinkSource=vi.fn().mockImplementation(async(_channel,_bank,sample,expected,path)=>backend.dispatch({type:"relinkSamplePath",sample,expected,path:{kind:"external",path}},null))
+    backend.sampleInstrumentRelinkSource=vi.fn().mockImplementation(async(_channel,_bank,sample,expected,path)=>backend.dispatch({type:"relinkSamplePath",sample,expected,path:{kind:"external",path}}))
     const id=await open("samplePlayer")
     const source=useProjectStore.getState().project.samples[0]
     const {newZone}=await import("./editor")

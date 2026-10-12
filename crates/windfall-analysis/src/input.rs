@@ -159,6 +159,7 @@ pub struct CapturedInput {
     stamp: CaptureStamp,
     retained_bytes: u64,
 }
+type CaptureRenderer<'a> = dyn FnMut(u64, &mut [f32], &mut Work) -> Result<()> + 'a;
 impl CapturedInput {
     pub fn capture(
         audio: &AudioBuffer,
@@ -226,7 +227,7 @@ impl CapturedInput {
         stamp: CaptureStamp,
         limits: InputLimits,
         work: &mut Work,
-        render: &mut dyn FnMut(u64, &mut [f32], &mut Work) -> Result<()>,
+        render: &mut CaptureRenderer<'_>,
     ) -> Result<Self> {
         let shape = stamp.input_shape;
         Self::capture_stream(root, stamp, limits, work, |work, emit| {
@@ -353,7 +354,7 @@ impl CapturedInput {
                 return Err(AnalysisError::Budget("stream capture shape bytes"));
             }
             let mut encoded = [0_u8; CHUNK_BYTES];
-            for (target, sample) in encoded.chunks_exact_mut(4).zip(samples) {
+            for (target, sample) in encoded.as_chunks_mut::<4>().0.iter_mut().zip(samples) {
                 target.copy_from_slice(&sample.to_le_bytes());
             }
             let from = first_byte.max(selected_first);
@@ -408,8 +409,11 @@ impl CapturedInput {
             work.check()?;
             let count = remaining.min(CHUNK_SAMPLES as u64) as usize;
             file.read_exact(&mut encoded[..count * 4])?;
-            for (sample, bytes) in samples[..count].iter_mut().zip(encoded.chunks_exact(4)) {
-                *sample = f32::from_le_bytes(bytes.try_into().expect("four bytes"));
+            for (sample, bytes) in samples[..count]
+                .iter_mut()
+                .zip(encoded.as_chunks::<4>().0.iter())
+            {
+                *sample = f32::from_le_bytes(*bytes);
             }
             work.checkpoint(count as u64)?;
             emit(&samples[..count], work)?;

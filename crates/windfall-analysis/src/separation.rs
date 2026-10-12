@@ -150,8 +150,8 @@ impl FrameSource for PcmSource {
         for chunk in output.chunks_mut(4096) {
             work.checkpoint(chunk.len() as u64)?;
             self.file.read_exact(&mut bytes[..chunk.len() * 4])?;
-            for (x, b) in chunk.iter_mut().zip(bytes.chunks_exact(4)) {
-                *x = f32::from_le_bytes(b.try_into().unwrap());
+            for (x, b) in chunk.iter_mut().zip(bytes.as_chunks::<4>().0.iter()) {
+                *x = f32::from_le_bytes(*b);
                 if !x.is_finite() {
                     return Err(AnalysisError::Invalid("nonfinite PCM source"));
                 }
@@ -249,12 +249,13 @@ pub fn read_resampled_to_length(
 
 /// Emits finalized interleaved stem blocks; normalized positive windows cover
 /// both ends and odd final chunks. Live overlap never grows with song length.
+type StemEmitter<'a> = dyn FnMut(usize, &[f32], &mut Work) -> Result<()> + 'a;
 pub fn separate_stream(
     source: &mut dyn FrameSource,
     model: &ModelManifest,
     prepared: &mut dyn PreparedSeparation,
     work: &mut Work,
-    emit: &mut dyn FnMut(usize, &[f32], &mut Work) -> Result<()>,
+    emit: &mut StemEmitter<'_>,
 ) -> Result<()> {
     let spec = contract(model)?;
     model.validate_input(source.shape(), source.shape().frames)?;
@@ -308,16 +309,16 @@ pub fn separate_stream(
             }
         }
         let flush = hop.min((frames - start) as usize);
-        for stem in 0..4 {
+        for (stem, sum) in sums.iter_mut().enumerate() {
             for frame in 0..flush {
                 for channel in 0..c {
                     output[frame * c + channel] =
-                        (sums[stem][frame * c + channel] / weights[frame]) as f32;
+                        (sum[frame * c + channel] / weights[frame]) as f32;
                 }
             }
             emit(stem, &output[..flush * c], work)?;
-            sums[stem].copy_within(hop * c.., 0);
-            sums[stem][(n - hop) * c..].fill(0.0);
+            sum.copy_within(hop * c.., 0);
+            sum[(n - hop) * c..].fill(0.0);
         }
         weights.copy_within(hop.., 0);
         weights[n - hop..].fill(0.0);
@@ -389,7 +390,8 @@ impl AnalysisAdapter for SeparationAdapter {
                 for chunk in samples.chunks(4096) {
                     work.checkpoint(chunk.len() as u64)?;
                     let mut bytes = [0u8; 16384];
-                    for (sample, slot) in chunk.iter().zip(bytes.chunks_exact_mut(4)) {
+                    for (sample, slot) in chunk.iter().zip(bytes.as_chunks_mut::<4>().0.iter_mut())
+                    {
                         slot.copy_from_slice(&sample.to_le_bytes());
                     }
                     files[stem].write_all(&bytes[..chunk.len() * 4])?;

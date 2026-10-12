@@ -175,7 +175,7 @@ fn version_five_checksum_detects_header_damage_and_metadata_only_trailers_preser
     b[4..8].copy_from_slice(&42_u32.to_le_bytes()); // six-byte checksum sub-block
     let flags = le(&b, 24) | 0x1000_0000;
     b[24..28].copy_from_slice(&flags.to_le_bytes());
-    let sum = b.chunks_exact(2).fold(u32::MAX, |sum, v| {
+    let sum = b.as_chunks::<2>().0.iter().fold(u32::MAX, |sum, v| {
         sum.wrapping_mul(3)
             .wrapping_add(u32::from(u16::from_le_bytes([v[0], v[1]])))
     });

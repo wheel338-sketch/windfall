@@ -135,10 +135,8 @@ pub fn parameter_map(
         if a.scope > 2 || !seen.insert((a.scope, a.element, a.id)) {
             return Err("Duplicate or unsupported AU parameter address".into());
         }
-        if a.scope == 0 {
-            if !used.insert(a.id) {
-                return Err("Duplicate global AU parameter id".into());
-            }
+        if a.scope == 0 && !used.insert(a.id) {
+            return Err("Duplicate global AU parameter id".into());
         }
     }
     let mut next = u32::MAX;

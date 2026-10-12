@@ -28,7 +28,7 @@ fn long_strict_decode_emits_exact_bounded_pcm_and_refuses_quota_or_cancellation(
     let path = root.path().join("long.wav");
     let mut writer = WavWriter::create(&path, 16000, 2, WavSampleFormat::Float32).unwrap();
     let mut block = [0.0_f32; 4096];
-    for frame in block.chunks_exact_mut(2) {
+    for frame in block.as_chunks_mut::<2>().0 {
         frame.copy_from_slice(&[0.125, -0.25]);
     }
     let count = 16000 * 150 * 2;
@@ -49,7 +49,13 @@ fn long_strict_decode_emits_exact_bounded_pcm_and_refuses_quota_or_cancellation(
             |rate, channels, samples| {
                 assert_eq!((rate, channels), (16000, 2));
                 assert!(samples.len() <= 4096 && samples.len().is_multiple_of(2));
-                assert!(samples.chunks_exact(2).all(|frame| frame == [0.125, -0.25]));
+                assert!(
+                    samples
+                        .as_chunks::<2>()
+                        .0
+                        .iter()
+                        .all(|frame| *frame == [0.125, -0.25])
+                );
                 emitted += samples.len();
                 Ok(())
             },

@@ -96,15 +96,15 @@ impl Publication {
     pub unsafe fn audio(&self) -> Option<&mut GuestEngine> {
         let audio = unsafe { &mut *self.audio.get() };
         let pending = self.pending.swap(ptr::null_mut(), Ordering::Acquire);
-        if !pending.is_null() {
-            if let Some(engine) = audio {
-                unsafe {
-                    std::mem::swap(engine, &mut *pending);
-                }
-                self.latency.store(engine.latency(), Ordering::Release);
-                self.retired.store(pending, Ordering::Release);
-                self.applied.store(true, Ordering::Release);
+        if !pending.is_null()
+            && let Some(engine) = audio
+        {
+            unsafe {
+                core::ptr::swap(engine, pending);
             }
+            self.latency.store(engine.latency(), Ordering::Release);
+            self.retired.store(pending, Ordering::Release);
+            self.applied.store(true, Ordering::Release);
         }
         audio.as_mut()
     }

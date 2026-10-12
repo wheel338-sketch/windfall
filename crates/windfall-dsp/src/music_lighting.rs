@@ -93,7 +93,7 @@ mod tests {
         assert_eq!(params.color(0.0, 0.0, true), [255, 0, 0]);
         assert_eq!(params.color(0.5, 0.0, true), [38, 0, 0]);
         assert_eq!(params.color(0.0, 1.0, false), [0; 3]);
-        let mut effect = MusicLighting::default();
+        let mut effect = MusicLighting;
         effect.prepare(48000.0, 64);
         effect.set_params(&params);
         let mut left = [-0.5, 0.25, 0.75];
