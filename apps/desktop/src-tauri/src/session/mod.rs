@@ -413,7 +413,7 @@ impl Session {
             audio,
             events,
             factory_dir,
-            settings,
+            mut settings,
         } = config;
         let factory_dir = crate::paths::clean(&factory_dir);
         let cache = SampleCache::new();
@@ -440,7 +440,16 @@ impl Session {
         }
         controller.set_project(&project, &decoded.pool);
 
-        Self {
+        let managed = settings
+            .recordings_dir()
+            .parent()
+            .unwrap_or(Path::new("."))
+            .join("projects");
+        let (extractions, extraction_warnings) = extractions::Extractions::recover(&managed);
+        for path in &extractions.recovered {
+            settings.remember_project(path);
+        }
+        let session = Self {
             inner: Arc::new(Inner {
                 window_document_generation: std::sync::atomic::AtomicU64::new(0),
                 timeline_request: std::sync::atomic::AtomicU64::new(0),
@@ -457,7 +466,7 @@ impl Session {
                 audio_editor: Mutex::new(audio_editor::Editor::default()),
                 audio_analysis_cancel: Mutex::new(None),
                 derived_assets: Mutex::new(derived_assets::Assets::default()),
-                extractions: Mutex::new(extractions::Extractions::default()),
+                extractions: Mutex::new(extractions),
                 library,
                 plugins: Mutex::new(None),
                 save: Mutex::new(()),
@@ -509,7 +518,11 @@ impl Session {
                 #[cfg(test)]
                 pauses: tests::Pauses::default(),
             }),
+        };
+        if !extraction_warnings.is_empty() {
+            session.emit(crate::events::Event::ProjectWarnings(extraction_warnings));
         }
+        session
     }
 
     pub fn downgrade(&self) -> WeakSession {

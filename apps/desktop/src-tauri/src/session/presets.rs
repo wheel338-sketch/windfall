@@ -47,28 +47,38 @@ impl Session {
         &self,
         generation: u64,
         revision: u64,
-    ) -> Result<(Project, Option<PathBuf>, windfall_dsp::asset::AssetPins), String> {
+    ) -> Result<
+        (
+            Project,
+            Option<PathBuf>,
+            windfall_dsp::asset::AssetPins,
+            super::extractions::ExtractionLease,
+        ),
+        String,
+    > {
         let _recording = self.recording_idle()?;
-        let (project, plugin_revision, directory, asset_pins) = {
+        let (project, plugin_revision, directory, asset_pins, lease) = {
             let state = self.state();
             if state.generation != generation || state.document.revision() != revision {
                 return Err("The project changed before the preset was taken; try again".into());
             }
-            self.pin_extraction(state.project_dir());
             (
                 state.document.project().clone(),
                 self.plugin_revision(),
                 state.project_dir().map(Path::to_path_buf),
                 state.document.effect_asset_pins(),
+                self.extraction_lease(state.project_dir()),
             )
         };
         // Native state is captured with the document lock released.
         let project = self.capture_plugins_idle(project, plugin_revision)?;
-        let state = self.state();
-        if state.generation != generation || state.document.revision() != revision {
-            return Err("The project changed while the preset was taken; try again".into());
+        {
+            let state = self.state();
+            if state.generation != generation || state.document.revision() != revision {
+                return Err("The project changed while the preset was taken; try again".into());
+            }
         }
-        Ok((project, directory, asset_pins))
+        Ok((project, directory, asset_pins, lease))
     }
 
     /// What a channel sounds like, as a preset, and the audio file its
@@ -79,12 +89,14 @@ impl Session {
         generation: u64,
         revision: u64,
     ) -> Result<PresetCapture, String> {
-        let (project, directory, _asset_pins) = self.preset_snapshot(generation, revision)?;
+        let (project, directory, _asset_pins, _lease) =
+            self.preset_snapshot(generation, revision)?;
         let (body, sample) = ChannelPreset::capture(&project, id)?;
         let name = body.name.clone();
         let (asset, audio) = match sample {
             Some(sample) => {
                 let source = locate(&sample, directory.as_deref(), &self.inner.factory_dir)?;
+                let source = self.capture_audio(&source)?;
                 let asset = PresetAsset {
                     id: 1,
                     name: bounded_name(&sample.name),
@@ -108,7 +120,7 @@ impl Session {
         generation: u64,
         revision: u64,
     ) -> Result<PresetCapture, String> {
-        let (project, _, _asset_pins) = self.preset_snapshot(generation, revision)?;
+        let (project, _, _asset_pins, _lease) = self.preset_snapshot(generation, revision)?;
         let body = PluginPreset::capture(&project, target)?;
         let name = match target {
             PluginTarget::Instrument { channel } => {

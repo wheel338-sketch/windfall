@@ -767,7 +767,7 @@ fn a_template_install_refuses_edits_and_project_replacement_without_leaking_audi
 }
 
 #[test]
-fn extracted_template_audio_is_reclaimed_only_after_replacement_and_captures_pin_it() {
+fn extracted_template_audio_is_reclaimed_after_replacement_and_capture_copies_remain_reusable() {
     let rig = Rig::new();
     let template = rig.session.template_save("Cleanup").unwrap();
     rig.session.template_new(&template.id).unwrap();
@@ -782,10 +782,12 @@ fn extracted_template_audio_is_reclaimed_only_after_replacement_and_captures_pin
     let capture = capture_channel(&rig, 0);
     rig.session.project_new().unwrap();
     // A snapshot returned to the UI can still be saved after a replacement.
-    assert!(second.is_dir());
+    assert!(!second.exists());
+    let captured_audio = capture.audio.clone().unwrap();
+    let captured_bytes = fs::read(&captured_audio).unwrap();
     let preset = rig
         .session
-        .preset_write(&rig.file("late.wfpreset"), capture)
+        .preset_write(&rig.file("late.wfpreset"), capture.clone())
         .unwrap();
     assert!(
         rig.session
@@ -794,12 +796,80 @@ fn extracted_template_audio_is_reclaimed_only_after_replacement_and_captures_pin
             .missing_audio
             .is_empty()
     );
+    rig.session
+        .preset_write(&rig.file("late-again.wfpreset"), capture)
+        .unwrap();
+    assert_eq!(fs::read(&captured_audio).unwrap(), captured_bytes);
     // An unrelated directory is never swept.
     let untracked = rig.folder.path().join("projects/project-user-files");
     fs::create_dir_all(&untracked).unwrap();
     fs::write(untracked.join("keep"), b"keep").unwrap();
     rig.session.prune_extractions();
     assert!(untracked.join("keep").exists());
+    let restarted = rig.restart();
+    assert!(!Path::new(&captured_audio).exists());
+    assert!(untracked.join("keep").exists());
+    assert!(
+        restarted
+            .session
+            .preset_read(&preset)
+            .unwrap()
+            .missing_audio
+            .is_empty()
+    );
+}
+
+#[test]
+fn ended_template_owner_recovers_complete_unsaved_project_and_exact_audio_on_restart() {
+    let rig = Rig::new();
+    let template = rig.session.template_save("Recover").unwrap();
+    rig.session.template_new(&template.id).unwrap();
+    let root = rig.session.state().sample_dir.clone().unwrap();
+    rig.session
+        .dispatch(
+            Command::UpdateSettings {
+                patch: SettingsPatch {
+                    tempo_bpm: Some(91.0),
+                    ..Default::default()
+                },
+            },
+            None,
+        )
+        .unwrap();
+    let project = rig.project();
+    let files: Vec<_> = project
+        .samples
+        .iter()
+        .map(|sample| {
+            let path = windfall_project::file::resolve_sample_path(
+                &sample.path,
+                Some(&root),
+                rig.session.factory_dir(),
+            )
+            .unwrap();
+            (
+                path.strip_prefix(&root).unwrap().to_path_buf(),
+                fs::read(path).unwrap(),
+            )
+        })
+        .collect();
+    let restarted = rig.restart();
+    assert!(!root.exists());
+    let recovery = restarted
+        .session
+        .recent_projects()
+        .into_iter()
+        .find(|path| path.contains("recovered-projects"))
+        .unwrap();
+    let recovered = Path::new(&recovery).parent().unwrap();
+    for (relative, bytes) in files {
+        assert_eq!(fs::read(recovered.join(relative)).unwrap(), bytes);
+    }
+    restarted.session.project_open(&recovery).unwrap();
+    assert_eq!(restarted.project(), project);
+    for sample in &project.samples {
+        assert!(restarted.has_audio(sample.id));
+    }
 }
 
 #[test]
