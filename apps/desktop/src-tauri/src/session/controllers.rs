@@ -748,7 +748,7 @@ impl Session {
             };
             match self.dispatch_controller_batch(command, Some(plan.gesture), plan.generation, Some(plan.revision)) {
                 Ok(result) => { self.controllers_wrote(&plan, now); committed = true; applied_revision = result.patch.revision; },
-                Err(error) => lock(&self.inner.controllers).error = Some(error),
+                Err(error) => lock(&self.inner.controllers).script_failed(error),
             }
         }
         if committed && let Err(error) = self.controller_script_feedback(feedback, plan.generation, applied_revision) {

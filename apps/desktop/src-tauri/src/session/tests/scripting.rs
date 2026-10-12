@@ -433,6 +433,29 @@ fn scripted_pad_actions_use_rising_edges_and_over_budget_streams_refuse_the_whol
 }
 
 #[test]
+fn recording_refusal_clears_script_glides_without_a_deferred_document_edit() {
+    use windfall_project::{AutomationTarget, ControlMap, LinkTarget, MidiControl, PickupMode};
+    use std::sync::atomic::Ordering;
+    let rig = Rig::new();
+    let channel = rig.channel(0);
+    installed_script(&rig, MidiControl::Cc { number: 7 }, LinkTarget::Param {
+        target: AutomationTarget::ChannelPan { channel } },
+        ControlMap { pickup: PickupMode::Off, smoothing_ms: 100.0, ..Default::default() }, "map value");
+    let start = std::time::Instant::now();
+    rig.session.controllers_pump(start);
+    let before = rig.session.document_snapshot();
+    rig.session.inner.recording_finishing.store(true, Ordering::Release);
+    recorded_packet(&rig, &[0xb0, 7, 127], start);
+    rig.session.controllers_pump(start);
+    rig.session.controllers_pump(start + std::time::Duration::from_millis(100));
+    assert!(rig.session.controller_state().error.is_some());
+    assert_eq!(rig.session.document_snapshot(), before);
+    rig.session.inner.recording_finishing.store(false, Ordering::Release);
+    rig.session.controllers_pump(start + std::time::Duration::from_millis(200));
+    assert_eq!(rig.session.document_snapshot(), before);
+}
+
+#[test]
 fn recording_and_worker_busy_exclusions_are_explicit() {
     let rig = Rig::new();
     // Synthetic active admission flag exercises the same recording gate as
