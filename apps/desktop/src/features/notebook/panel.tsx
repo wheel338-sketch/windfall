@@ -1,7 +1,10 @@
-import { useId, useRef, useState } from "react"
+import { useEffect, useId, useRef, useState } from "react"
 
 import type { Notebook, NotebookPage } from "@/bindings"
 import { Button } from "@/components/ui/button"
+import { Checkbox } from "@/components/ui/checkbox"
+import { subscribeRealtime } from "@/lib/store/realtime"
+import { useTransportStore } from "@/lib/store/transport"
 import {
   Field,
   FieldDescription,
@@ -20,7 +23,11 @@ import {
 } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
 
+import { message, useTranslation } from "@/lib/i18n"
+
 import { duplicatePage } from "./duplicate-page"
+import { pageAtTick } from "./playback"
+import { notebookHtmlDocument } from "./safe-html"
 
 const MAX_PAGES = 8
 const TITLE_BYTES = 128
@@ -38,10 +45,12 @@ export function NotebookPanel({
   notebook?: Notebook
   onSave(notebook: Notebook): Promise<boolean>
 }) {
+  const t = useTranslation()
   const id = useId()
   const [pages, setPages] = useState(() => notebook?.pages ?? [])
   const [saved, setSaved] = useState(() => normalize(notebook?.pages ?? []))
   const [selected, setSelected] = useState(0)
+  const [follow, setFollow] = useState(false)
   const [saving, setSaving] = useState(false)
   const pending = useRef(false)
   const [error, setError] = useState<string | null>(null)
@@ -50,17 +59,35 @@ export function NotebookPanel({
   const page = visiblePages[selected] ?? visiblePages[0]
   const next = normalize(pages)
   const changed = JSON.stringify(next) !== JSON.stringify(saved)
+  const cueInvalid = pages.some((item) => item.startTick !== undefined &&
+    item.startTick !== null && (!Number.isInteger(item.startTick) ||
+    item.startTick < 0 || item.startTick > 960_000_000))
   const titleInvalid = byteLength(page.title.trim()) > TITLE_BYTES
   const bodyInvalid = byteLength(page.body) > BODY_BYTES
   const invalidPage = next.pages.findIndex(
     (item) =>
       byteLength(item.title) > TITLE_BYTES || byteLength(item.body) > BODY_BYTES
   )
-  const invalid = invalidPage !== -1 || pages.length > MAX_PAGES
+  const invalid = invalidPage !== -1 || pages.length > MAX_PAGES || cueInvalid
   const items = visiblePages.map((item, index) => ({
     value: index,
-    label: `${index + 1}. ${item.title.trim() || "Untitled page"}`,
+    label: `${index + 1}. ${item.title.trim() || t("Untitled page")}`,
   }))
+
+  // Only a page transition renders React, not each realtime frame. Keep drafts
+  // editable when stopped; playback-follow never dispatches a project edit.
+  useEffect(() => {
+    if (!follow || saving) return
+    let last: number | null = null
+    return subscribeRealtime((frame) => {
+      if (!frame.playing || useTransportStore.getState().mode !== "song") return
+      const index = pageAtTick(pages, frame.tick)
+      if (index !== null && index !== last) {
+        last = index
+        setSelected(index)
+      }
+    })
+  }, [follow, pages, saving])
 
   const edit = (patch: Partial<NotebookPage>) => {
     setPages((current) => {
@@ -81,10 +108,10 @@ export function NotebookPanel({
         setSaved(next)
         setPages(next.pages)
       } else {
-        setError("Could not save notebook.")
+        setError(t("Could not save notebook."))
       }
     } catch {
-      setError("Could not save notebook.")
+      setError(t("Could not save notebook."))
     } finally {
       pending.current = false
       setSaving(false)
@@ -93,7 +120,7 @@ export function NotebookPanel({
 
   return (
     <form
-      aria-label="Song notebook"
+      aria-label={t("Song notebook")}
       aria-busy={saving}
       onSubmit={(event) => {
         event.preventDefault()
@@ -102,8 +129,12 @@ export function NotebookPanel({
       onKeyDown={(event) => event.stopPropagation()}
     >
       <FieldGroup>
+        <Field orientation="horizontal">
+          <Checkbox id={`${id}-follow`} checked={follow} onCheckedChange={setFollow} />
+          <FieldLabel htmlFor={`${id}-follow`}>{t("Follow song playback")}</FieldLabel>
+        </Field>
         <Field data-disabled={saving}>
-          <FieldLabel htmlFor={`${id}-page`}>Page</FieldLabel>
+          <FieldLabel htmlFor={`${id}-page`}>{t("Page")}</FieldLabel>
           <Select
             items={items}
             value={selected}
@@ -127,8 +158,8 @@ export function NotebookPanel({
           </Select>
           <FieldDescription>
             {pages.length
-              ? `${pages.length} of ${MAX_PAGES} pages`
-              : "No saved pages. Start with this blank page."}
+              ? message("{count} of {max} pages", { count: pages.length, max: MAX_PAGES })
+              : t("No saved pages. Start with this blank page.")}
           </FieldDescription>
           <div className="flex gap-2">
             <Button
@@ -142,7 +173,7 @@ export function NotebookPanel({
                 setSelected(visiblePages.length)
               }}
             >
-              Add page
+              {t("Add page")}
             </Button>
             <Button
               type="button"
@@ -154,7 +185,7 @@ export function NotebookPanel({
                 setSelected(Math.max(0, selected - 1))
               }}
             >
-              Remove page
+              {t("Remove page")}
             </Button>
             <Button
               type="button"
@@ -168,12 +199,26 @@ export function NotebookPanel({
                 setSelected(selected + 1)
               }}
             >
-              Duplicate page
+              {t("Duplicate page")}
             </Button>
           </div>
         </Field>
+        <Field data-invalid={cueInvalid}>
+          <FieldLabel htmlFor={`${id}-cue`}>{t("Page starts at song tick")}</FieldLabel>
+          <Input id={`${id}-cue`} type="number" min={0} max={960_000_000}
+            step={1} value={page.startTick ?? ""} disabled={saving}
+            aria-invalid={cueInvalid}
+            onChange={(event) => edit({ startTick: event.target.value === "" ? undefined : Number(event.target.value) })} />
+          <FieldDescription>{t("Leave blank for a manual page. Playback, seeks and loops select the latest cue in song mode.")}</FieldDescription>
+          {cueInvalid && <FieldError>{t("Use a whole tick from 0 to 960,000,000.")}</FieldError>}
+        </Field>
+        <Field orientation="horizontal">
+          <Checkbox id={`${id}-html`} disabled={saving} checked={page.html ?? false}
+            onCheckedChange={(html) => edit({ html: html || undefined })} />
+          <FieldLabel htmlFor={`${id}-html`}>{t("Safe HTML preview")}</FieldLabel>
+        </Field>
         <Field data-disabled={saving} data-invalid={titleInvalid}>
-          <FieldLabel htmlFor={`${id}-title`}>Page title</FieldLabel>
+          <FieldLabel htmlFor={`${id}-title`}>{t("Page title")}</FieldLabel>
           <Input
             id={`${id}-title`}
             value={page.title}
@@ -184,12 +229,12 @@ export function NotebookPanel({
           />
           {titleInvalid && (
             <FieldError id={`${id}-title-error`}>
-              Page title must be at most 128 bytes.
+              {t("Page title must be at most 128 bytes.")}
             </FieldError>
           )}
         </Field>
         <Field data-disabled={saving} data-invalid={bodyInvalid}>
-          <FieldLabel htmlFor={`${id}-body`}>Page body</FieldLabel>
+          <FieldLabel htmlFor={`${id}-body`}>{t("Page body")}</FieldLabel>
           <Textarea
             id={`${id}-body`}
             className="min-h-48"
@@ -201,19 +246,22 @@ export function NotebookPanel({
           />
           {bodyInvalid && (
             <FieldError id={`${id}-body-error`}>
-              Page body must be at most 16,384 bytes.
+              {t("Page body must be at most 16,384 bytes.")}
             </FieldError>
           )}
-          <FieldDescription>Plain text saved with the song.</FieldDescription>
+          <FieldDescription>{t(page.html ? "Basic text formatting and tables. Links are shown as text; scripts, images and remote content are removed." : "Plain text saved with the song.")}</FieldDescription>
         </Field>
+        {page.html && <iframe title={t("Notebook HTML preview")} sandbox=""
+          referrerPolicy="no-referrer" className="h-64 w-full rounded-md border bg-background"
+          srcDoc={notebookHtmlDocument(page.body)} />}
         {invalidPage !== -1 && invalidPage !== selected && (
           <FieldError role="alert">
-            Page {invalidPage + 1} exceeds a text limit.
+            {message("Page {page} exceeds a text limit.", { page: invalidPage + 1 })}
           </FieldError>
         )}
         {pages.length > MAX_PAGES && (
           <FieldError role="alert">
-            A notebook can have at most 8 pages.
+            {t("A notebook can have at most 8 pages.")}
           </FieldError>
         )}
         {error && <FieldError role="alert">{error}</FieldError>}
@@ -222,7 +270,7 @@ export function NotebookPanel({
           size="sm"
           disabled={saving || !changed || invalid}
         >
-          {saving ? "Saving…" : "Save notebook"}
+          {t(saving ? "Saving…" : "Save notebook")}
         </Button>
       </FieldGroup>
     </form>

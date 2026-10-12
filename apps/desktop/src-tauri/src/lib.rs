@@ -17,6 +17,8 @@ pub mod paths;
 pub mod plugin_database;
 pub mod plugins;
 mod process_memory;
+mod panel_layout;
+mod updates;
 pub mod samples;
 pub mod session;
 pub mod settings;
@@ -39,17 +41,27 @@ use session::Session;
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(
             tauri_plugin_log::Builder::default()
                 .level(log::LevelFilter::Info)
                 .build(),
         )
         .setup(|app| {
+            app.manage(updates::Updates::default());
+            app.manage(panel_layout::PanelLayouts::load(app.path().app_config_dir()?.join("panel-layouts.json")));
             let session = shell::start(app.handle())?;
             app.manage(session);
             Ok(())
         })
         .on_window_event(|window, event| {
+            if let Some(view) = window.app_handle().get_webview_window(window.label()) {
+                match event {
+                    WindowEvent::Moved(_) | WindowEvent::Resized(_) => panel_layout::capture(&view, false),
+                    WindowEvent::CloseRequested { .. } => panel_layout::capture(&view, true),
+                    _ => {}
+                }
+            }
             if matches!(event, WindowEvent::Destroyed)
                 && let Some(session) = window.try_state::<Session>()
             {

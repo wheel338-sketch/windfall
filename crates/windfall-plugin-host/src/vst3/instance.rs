@@ -712,6 +712,10 @@ impl InstanceBackend for VstInstance {
     fn editor(&self) -> Option<EditorInfo> {
         self.editor.as_ref().map(super::editor::Editor::info)
     }
+
+    fn set_editor_scale(&mut self, application: f64) -> Result<EditorInfo, EditorError> {
+        self.editor.as_mut().ok_or(EditorError::NoEditor)?.set_scale(application)
+    }
 }
 impl Drop for VstInstance {
     fn drop(&mut self) {

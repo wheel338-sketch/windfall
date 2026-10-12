@@ -36,6 +36,9 @@ import { cn } from "@/lib/utils"
 import { MidiHardwareSettingsSection } from "./midi-hardware"
 import { PhoneRemoteSettings } from "./phone-remote"
 import { nextKeymapPreset } from "./keymap-preset-step"
+import { UpdatesSection } from "@/features/updates/section"
+import { LanguageSection } from "./language"
+import { useTranslation } from "@/lib/i18n"
 
 import {
   bufferOptions,
@@ -51,18 +54,20 @@ import {
 } from "./audio-options"
 
 function Row({ label, children }: { label: string; children: ReactNode }) {
+  const t = useTranslation()
   return (
     <div className="grid grid-cols-[7.5rem_1fr] items-center gap-3">
-      <span className="text-muted-foreground">{label}</span>
+      <span className="text-muted-foreground">{t(label)}</span>
       {children}
     </div>
   )
 }
 
 function Section({ title, children }: { title: string; children: ReactNode }) {
+  const t = useTranslation()
   return (
     <section className="flex flex-col gap-2">
-      <h3 className="text-xs font-medium">{title}</h3>
+      <h3 className="text-xs font-medium">{t(title)}</h3>
       {children}
     </section>
   )
@@ -81,23 +86,24 @@ function Choice<T extends string | number>({
   disabled?: boolean
   onChange(value: T): void
 }) {
+  const t = useTranslation()
   return (
     <Select
-      items={options}
+      items={options.map((option) => ({ ...option, label: t(option.label) }))}
       value={value}
       disabled={disabled}
       onValueChange={(next: T | null) => {
         if (next !== null) onChange(next)
       }}
     >
-      <SelectTrigger aria-label={label} className="w-full">
-        <SelectValue placeholder="Not available" />
+      <SelectTrigger aria-label={t(label)} className="w-full">
+        <SelectValue placeholder={t("Not available")} />
       </SelectTrigger>
       <SelectContent alignItemWithTrigger={false}>
         <SelectGroup>
           {options.map((option) => (
             <SelectItem key={option.value} value={option.value}>
-              {option.label}
+              {t(option.label)}
             </SelectItem>
           ))}
         </SelectGroup>
@@ -222,6 +228,7 @@ const THEMES: Option<Theme>[] = [
 ]
 
 function AppearanceSection() {
+  const t = useTranslation()
   const theme = useUiStore((state) => state.theme)
   const setTheme = useUiStore((state) => state.setTheme)
   const uiScale = useUiStore((state) => state.uiScale)
@@ -239,7 +246,7 @@ function AppearanceSection() {
       </Row>
       <FieldGroup>
         <Field>
-          <FieldLabel>Interface scale</FieldLabel>
+          <FieldLabel>{t("Interface scale")}</FieldLabel>
           <Choice
             label="Interface scale"
             value={scalable ? uiScale : 100}
@@ -249,11 +256,11 @@ function AppearanceSection() {
           />
           <FieldDescription>
             {scalable
-              ? "Scales panels, controls, menus and plugin parameter editors. Native plugin windows are not scaled yet."
+              ? t("Scales panels, controls, menus and supported native plugin content. Plugins that refuse scaling keep their current size.")
               : "This webview does not support interface scaling. The interface uses 100%."}
           </FieldDescription>
           <Button variant="outline" size="sm" onClick={() => setUiScale(100)}>
-            Restore 100%
+            {t("Restore 100%")}
           </Button>
         </Field>
       </FieldGroup>
@@ -316,6 +323,7 @@ function KeyboardSection() {
 
 /** Audio device, theme and keyboard shortcuts. */
 export function SettingsDialog() {
+  const t = useTranslation()
   const open = useUiStore((state) => state.dialog === "settings")
   const closeDialog = useUiStore((state) => state.closeDialog)
 
@@ -328,16 +336,18 @@ export function SettingsDialog() {
     >
       <DialogContent className="max-h-[85vh] gap-5 overflow-y-auto sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>Settings</DialogTitle>
+          <DialogTitle>{t("Settings")}</DialogTitle>
           <DialogDescription>
-            Changes take effect right away and are kept for next time.
+            {t("Changes take effect right away and are kept for next time.")}
           </DialogDescription>
         </DialogHeader>
         <AudioSection />
         <MidiHardwareSettingsSection />
         <PhoneRemoteSettings />
         <AppearanceSection />
+        <LanguageSection />
         <KeyboardSection />
+        <UpdatesSection />
       </DialogContent>
     </Dialog>
   )

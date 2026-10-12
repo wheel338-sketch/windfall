@@ -191,6 +191,7 @@ export interface Backend extends AnalysisBackend, MixerPresetLibraryBackend, Ana
   pluginsAddFolder(folder: string): Promise<void>
   pluginsAdd(path: string, id: string, track?: TrackId): Promise<DispatchResult>
   pluginEditor(target: PluginTarget, open: boolean): Promise<void>
+  pluginEditorScale(application: number): Promise<void>
 
   documentSnapshot(): Promise<DocumentSnapshot>
   proposalStamp(): Promise<import("@/bindings").ProposalStamp>

@@ -31,8 +31,14 @@ struct WindowEvents(AppHandle);
 impl EventSink for WindowEvents {
     fn emit(&self, event: Event) {
         let name = event.name();
-        let sent = event
-            .payload()
+        let payload = match &event {
+            Event::ProjectLoaded(snapshot) => {
+                let generation = self.0.state::<Session>().window_document_generation();
+                serde_json::to_string(&crate::session::WindowDocumentSnapshot { generation, snapshot: snapshot.clone() })
+            }
+            _ => event.payload(),
+        };
+        let sent = payload
             .map_err(tauri::Error::from)
             .and_then(|payload| self.0.emit_str(name, payload));
         if let Err(error) = sent {

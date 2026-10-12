@@ -30,6 +30,7 @@ mod stems;
 mod support;
 mod timeline;
 mod utility_effects;
+mod multithreading;
 
 /// Counts allocator calls for the realtime tests. It does nothing on a
 /// thread that is not being watched, so the other tests are unaffected.

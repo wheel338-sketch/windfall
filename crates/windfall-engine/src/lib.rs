@@ -203,6 +203,8 @@ pub mod audio_logger;
 pub mod recording;
 /// Capture endpoints and render-endpoint loopback inputs.
 pub mod recording_endpoint;
+/// Bounded background history of the output and of chosen mixer tracks.
+pub mod track_workers;
 
 #[cfg(test)]
 mod qa_mixer_pdc_ports;

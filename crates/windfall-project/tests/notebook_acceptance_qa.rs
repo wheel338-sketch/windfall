@@ -8,6 +8,7 @@ fn page(title: &str, body: &str) -> NotebookPage {
     NotebookPage {
         title: title.into(),
         body: body.into(),
+        ..Default::default()
     }
 }
 

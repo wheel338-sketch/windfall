@@ -1,6 +1,8 @@
 import { useEffect } from "react"
 
 import { watchAutomatedEdits } from "@/features/automation/notice"
+import { connectLanguage } from "@/lib/i18n"
+import { connectNativeEditorScale } from "@/features/plugins/editor-scale"
 import { installKeymap } from "@/lib/actions"
 import { syncRecentActions } from "@/lib/actions/builtin"
 import {
@@ -29,6 +31,8 @@ type BootOptions = {
 export function useAppBoot({ guardClose }: BootOptions) {
   useEffect(() => {
     const stop = [
+      connectLanguage(),
+      connectNativeEditorScale(),
       connectStores(),
       registerAllActions(),
       installKeymap(),

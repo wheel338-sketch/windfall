@@ -59,6 +59,7 @@ mod mixer_preset_native;
 mod rack_second_pass;
 mod performance_media;
 mod remote_cloud_content;
+mod detached_windows;
 
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};

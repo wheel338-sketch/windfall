@@ -34,16 +34,27 @@ pub(super) struct Subscriber {
     /// reload, replaces its old sender instead of being sent everything
     /// twice.
     key: String,
+    token: Option<String>,
     send: FrameSender,
 }
 
 impl Session {
     /// Starts sending realtime frames to a window.
     pub fn subscribe_realtime(&self, key: impl Into<String>, send: FrameSender) {
+        self.subscribe_realtime_owned(key, None, send);
+    }
+
+    pub fn subscribe_realtime_owned(&self, key: impl Into<String>, token: Option<String>, send: FrameSender) {
         let key = key.into();
         let mut subscribers = lock(&self.inner.subscribers);
         subscribers.retain(|subscriber| subscriber.key != key);
-        subscribers.push(Subscriber { key, send });
+        subscribers.push(Subscriber { key, token, send });
+    }
+
+    /// A delayed cleanup from a previous mount must not remove a new sender.
+    pub fn unsubscribe_realtime_owned(&self, key: &str, token: &str) {
+        lock(&self.inner.subscribers).retain(|subscriber|
+            subscriber.key != key || subscriber.token.as_deref() != Some(token));
     }
 
     /// Stops sending realtime frames to a window, as when it closes.

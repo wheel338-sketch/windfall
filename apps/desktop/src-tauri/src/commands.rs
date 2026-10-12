@@ -291,6 +291,11 @@ fn document_snapshot(session: State<'_, Session>) -> DocumentSnapshot {
 }
 
 #[tauri::command]
+fn window_document_snapshot(session: State<'_, Session>) -> crate::session::WindowDocumentSnapshot {
+    session.window_document_snapshot()
+}
+
+#[tauri::command]
 fn current_mixer_target(
     session: State<'_, Session>,
     track: Option<TrackId>,
@@ -305,9 +310,10 @@ async fn dispatch(
     session: State<'_, Session>,
     command: Command,
     gesture: Option<u64>,
+    generation: u64,
 ) -> Result<DispatchResult, String> {
     let session = session.inner().clone();
-    blocking(move || session.dispatch(command, gesture)).await
+    blocking(move || session.dispatch_from_window(generation, command, gesture)).await
 }
 
 #[tauri::command]
@@ -420,21 +426,21 @@ fn automate(
 }
 
 #[tauri::command]
-async fn undo(session: State<'_, Session>) -> Result<Option<ProjectPatch>, String> {
+async fn undo(session: State<'_, Session>, generation: u64) -> Result<Option<ProjectPatch>, String> {
     let session = session.inner().clone();
-    blocking(move || Ok(session.undo())).await
+    blocking(move || session.undo_from_window(generation)).await
 }
 
 #[tauri::command]
-async fn redo(session: State<'_, Session>) -> Result<Option<ProjectPatch>, String> {
+async fn redo(session: State<'_, Session>, generation: u64) -> Result<Option<ProjectPatch>, String> {
     let session = session.inner().clone();
-    blocking(move || Ok(session.redo())).await
+    blocking(move || session.redo_from_window(generation)).await
 }
 
 #[tauri::command]
-async fn history_jump(session: State<'_, Session>, cursor: u32) -> Result<ProjectPatch, String> {
+async fn history_jump(session: State<'_, Session>, cursor: u32, generation: u64) -> Result<ProjectPatch, String> {
     let session = session.inner().clone();
-    blocking(move || Ok(session.history_jump(cursor))).await
+    blocking(move || session.history_jump_from_window(generation, cursor)).await
 }
 
 #[tauri::command]
@@ -586,11 +592,18 @@ fn realtime_subscribe(
     session: State<'_, Session>,
     window: WebviewWindow,
     channel: Channel<RealtimeFrame>,
+    token: String,
 ) {
-    session.subscribe_realtime(
+    session.subscribe_realtime_owned(
         window.label(),
+        Some(token),
         Box::new(move |frame| channel.send(frame.clone()).is_ok()),
     );
+}
+
+#[tauri::command]
+fn realtime_unsubscribe(session: State<'_, Session>, window: WebviewWindow, token: String) {
+    session.unsubscribe_realtime_owned(window.label(), &token);
 }
 
 #[tauri::command]
@@ -1026,6 +1039,15 @@ fn panel_title(id: &str) -> Result<&'static str, String> {
     }
 }
 
+#[tauri::command]
+async fn plugin_editor_scale(
+    manager: State<'_, std::sync::Arc<crate::plugins::PluginManager>>,
+    application: f64,
+) -> Result<(), String> {
+    let runtime = manager.runtime.clone();
+    blocking(move || runtime.set_editor_scale(application)).await
+}
+
 // Creating a WebView2 window in a synchronous command can deadlock on Windows.
 #[tauri::command]
 async fn detach_panel(app: AppHandle, id: String) -> Result<(), String> {
@@ -1043,6 +1065,7 @@ async fn detach_panel(app: AppHandle, id: String) -> Result<(), String> {
     .inner_size(960.0, 640.0)
     .build()
     .map_err(|error| error.to_string())?;
+    crate::panel_layout::restore(&window);
     window.on_window_event(move |event| {
         if matches!(event, WindowEvent::Destroyed)
             && let Some(main) = app.get_webview_window("main")
@@ -1066,6 +1089,9 @@ async fn dock_panel(app: AppHandle, id: String) -> Result<(), String> {
 /// The handler for every command above.
 pub fn handler() -> impl Fn(Invoke) -> bool + Send + Sync + 'static {
     tauri::generate_handler![
+        crate::updates::update_check,
+        crate::updates::update_download,
+        crate::updates::update_install,
         analysis_capability,
         analysis_model_import,
         analysis_submit,
@@ -1114,6 +1140,7 @@ pub fn handler() -> impl Fn(Invoke) -> bool + Send + Sync + 'static {
         audio_logger_configure,
         audio_logger_dump,
         document_snapshot,
+        window_document_snapshot,
         dispatch,
         automate,
         undo,
@@ -1138,6 +1165,7 @@ pub fn handler() -> impl Fn(Invoke) -> bool + Send + Sync + 'static {
         timeline_state,
         timeline_region,
         realtime_subscribe,
+        realtime_unsubscribe,
         analyzer_capability,
         analyzer_subscribe,
         analyzer_select,
@@ -1233,6 +1261,7 @@ pub fn handler() -> impl Fn(Invoke) -> bool + Send + Sync + 'static {
         plugins_add_folder,
         plugins_add,
         plugin_editor,
+        plugin_editor_scale,
         crate::files_commands::preset_capture_channel,
         crate::files_commands::preset_capture_plugin,
         crate::files_commands::preset_write,

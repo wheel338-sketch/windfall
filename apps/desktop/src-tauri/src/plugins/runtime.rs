@@ -510,6 +510,7 @@ pub struct Runtime {
     #[cfg(windows)]
     bridge_helper: Option<std::path::PathBuf>,
     render_error: Arc<Mutex<Option<String>>>,
+    editor_scale_percent: Arc<std::sync::atomic::AtomicU32>,
 }
 impl std::fmt::Debug for Runtime {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -730,6 +731,7 @@ impl Runtime {
             #[cfg(windows)]
             bridge_helper: None,
             render_error: Arc::new(Mutex::new(None)),
+            editor_scale_percent: Arc::new(std::sync::atomic::AtomicU32::new(100)),
         })
     }
     pub fn approve_catalog(&self, catalog: &windfall_plugin_host::scan::PluginCatalog) {
@@ -1366,6 +1368,7 @@ impl Runtime {
         &self, target: PluginTarget, binding: Option<PluginBinding>, open: bool, parent: Option<usize>,
     ) -> Result<(), String> {
         let revision = self.revision.load(std::sync::atomic::Ordering::Relaxed);
+        let scale = self.editor_scale_percent.clone();
         self.call(move |owner| {
             #[cfg(windows)]
             if let Some(record) =
@@ -1400,10 +1403,37 @@ impl Runtime {
                 instance
                     .open_editor(&super::wrapper::editor(&record.binding, parent))
                     .map_err(|error| error.to_string())?;
+                let application = f64::from(scale.load(std::sync::atomic::Ordering::Relaxed)) / 100.0;
+                if let Err(error) = instance.set_editor_scale(application)
+                    && (application != 1.0 || error != windfall_plugin_host::gui::EditorError::UnsupportedScale)
+                {
+                    return Err(format!("The editor opened, but its content could not be scaled: {error}"));
+                }
             } else {
                 instance.close_editor();
             }
             Ok(())
+        })
+    }
+
+    /// All GUI calls run on the same owner thread as editor creation. Stores a
+    /// display preference for reopen; never changes plugin/project state.
+    pub fn set_editor_scale(&self, application: f64) -> Result<(), String> {
+        if ![0.75, 1.0, 1.25, 1.5, 1.75, 2.0].contains(&application) {
+            return Err("Invalid application editor scale".into());
+        }
+        let preference = self.editor_scale_percent.clone();
+        self.call(move |owner| {
+            preference.store((application * 100.0).round() as u32, std::sync::atomic::Ordering::Relaxed);
+            let mut errors = Vec::new();
+            for record in owner.instances.values_mut() {
+                if record.plugin.editor().is_some()
+                    && let Err(error) = record.plugin.set_editor_scale(application)
+                {
+                    errors.push(format!("{}: {error}", record.binding.name));
+                }
+            }
+            if errors.is_empty() { Ok(()) } else { Err(errors.join("; ")) }
         })
     }
     #[cfg(all(test, windows))]

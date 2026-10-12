@@ -35,6 +35,11 @@ log = "0.4"
 tauri = { version = "2.12.1", features = [] }
 tauri-plugin-log = "2"
 tauri-plugin-dialog = "2"
+# Apache-2.0 OR MIT. Native signature-verified updates; operator supplies host/key.
+tauri-plugin-updater = "2.13.3"
+# MIT OR Apache-2.0. Existing workspace transitive crates, explicit policy use.
+semver = "1"
+url = "2"
 # MIT OR Apache-2.0. Local time for backup file names.
 chrono = { version = "0.4", default-features = false, features = ["clock"] }
 # CC0-1.0 OR MIT-0 OR Apache-2.0. Turns Windows' `\?\` paths into plain ones.

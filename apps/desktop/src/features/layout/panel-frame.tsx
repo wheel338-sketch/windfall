@@ -15,6 +15,8 @@ import { backend, errorMessage } from "@/lib/ipc"
 import { reportError } from "@/lib/errors"
 import type { PanelId } from "@/lib/store/ui"
 import { cn } from "@/lib/utils"
+import { message, useTranslation } from "@/lib/i18n"
+import { openContextHelp } from "@/features/help/getting-started-store"
 
 import { panelMenu } from "./chrome-menus"
 import { detachPanel } from "./detach-panel"
@@ -58,8 +60,9 @@ export class PanelBoundary extends Component<BoundaryProps, BoundaryState> {
 }
 
 function HideButton({ title, action }: { title: string; action: string }) {
+  const t = useTranslation()
   const shortcut = useShortcutLabel(action)
-  const label = `Hide ${title.toLowerCase()}`
+  const label = message("Hide {panel}", { panel: t(title).toLowerCase() })
   return (
     <Tooltip>
       <TooltipTrigger
@@ -92,7 +95,8 @@ export function PanelWindowButton({
   title: string
   dock?: boolean
 }) {
-  const label = `${dock ? "Dock" : "Detach"} ${title.toLowerCase()}`
+  const t = useTranslation()
+  const label = message(dock ? "Dock {panel}" : "Detach {panel}", { panel: t(title).toLowerCase() })
   return (
     <Button
       variant="ghost"
@@ -103,7 +107,7 @@ export function PanelWindowButton({
         void request.catch((error: unknown) => reportError(error, label))
       }}
     >
-      {dock ? "Dock" : "Detach"}
+      {t(dock ? "Dock" : "Detach")}
     </Button>
   )
 }
@@ -130,16 +134,18 @@ export function PanelFrame({
   className,
   children,
 }: PanelFrameProps) {
+  const t = useTranslation()
   return (
     <section
-      aria-label={title}
+      aria-label={t(title)}
       className="flex h-full min-h-0 min-w-0 flex-col bg-background"
     >
       <ContextActions items={panelMenu(hideAction)}>
         <header className="flex h-7 shrink-0 items-center gap-1 border-b bg-chassis/60 pr-1 pl-2.5">
-          <h2 className="truncate text-xs font-medium">{title}</h2>
+          <h2 className="truncate text-xs font-medium">{t(title)}</h2>
           <div className="ml-auto flex items-center gap-0.5">
             {actions}
+            {panel && <Button variant="ghost" size="xs" onClick={() => openContextHelp(panel)}>{t("Help")}</Button>}
             {panel && (
               <PanelWindowButton panel={panel} title={title} dock={detached} />
             )}

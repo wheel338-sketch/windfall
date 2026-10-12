@@ -274,7 +274,7 @@ impl Session {
 
     /// Undoes the last edit. `None` when there is nothing to undo.
     pub fn undo(&self) -> Option<ProjectPatch> {
-        self.prepare_history(HistoryMove::Undo)
+        self.prepare_history(HistoryMove::Undo, None)
     }
 
     /// Review UI's Undo applies only to the exact latest applied batch. Never
@@ -283,18 +283,18 @@ impl Session {
         &self,
         stamp: windfall_project::proposal::ProposalStamp,
     ) -> Result<ProjectPatch, String> {
-        self.prepare_history_guarded(HistoryMove::Undo, Some(stamp))
+        self.prepare_history_guarded(HistoryMove::Undo, Some(stamp), None)
             .ok_or_else(|| "batch undo was refused: project changed, recording is active, or preparation failed".into())
     }
 
     /// Applies the last undone edit again. `None` when there is none.
     pub fn redo(&self) -> Option<ProjectPatch> {
-        self.prepare_history(HistoryMove::Redo)
+        self.prepare_history(HistoryMove::Redo, None)
     }
 
     /// Undoes or redoes until `cursor` history entries are applied.
     pub fn history_jump(&self, cursor: u32) -> ProjectPatch {
-        self.prepare_history(HistoryMove::Jump(cursor))
+        self.prepare_history(HistoryMove::Jump(cursor), None)
             .unwrap_or_else(|| self.state().document.unchanged_patch())
     }
 
@@ -393,17 +393,29 @@ impl HistoryMove {
     }
 }
 impl Session {
-    // History can refer to a variant evicted from the bounded cache. Compile
-    // its target snapshot before reacquiring the session lock as well.
-    fn prepare_history(&self, action: HistoryMove) -> Option<ProjectPatch> {
-        self.prepare_history_guarded(action, None)
+    pub fn undo_from_window(&self, generation: u64) -> Result<Option<ProjectPatch>, String> {
+        self.history_from_window(generation, HistoryMove::Undo)
+    }
+    pub fn redo_from_window(&self, generation: u64) -> Result<Option<ProjectPatch>, String> {
+        self.history_from_window(generation, HistoryMove::Redo)
+    }
+    pub fn history_jump_from_window(&self, generation: u64, cursor: u32) -> Result<ProjectPatch, String> {
+        self.history_from_window(generation, HistoryMove::Jump(cursor))?
+            .ok_or_else(|| "The history operation was superseded".into())
+    }
+    fn history_from_window(&self, generation: u64, action: HistoryMove) -> Result<Option<ProjectPatch>, String> {
+        if self.window_document_generation() != generation { return Err(super::PROJECT_REPLACED.into()); }
+        let result = self.prepare_history(action, Some(generation));
+        if self.window_document_generation() != generation { return Err(super::PROJECT_REPLACED.into()); }
+        Ok(result)
     }
 
-    fn prepare_history_guarded(
-        &self,
-        action: HistoryMove,
-        expected: Option<windfall_project::proposal::ProposalStamp>,
-    ) -> Option<ProjectPatch> {
+    // History can refer to a variant evicted from the bounded cache. Compile
+    // its target snapshot before reacquiring the session lock as well.
+    fn prepare_history(&self, action: HistoryMove, generation: Option<u64>) -> Option<ProjectPatch> {
+        self.prepare_history_guarded(action, None, generation)
+    }
+    fn prepare_history_guarded(&self, action: HistoryMove, expected: Option<windfall_project::proposal::ProposalStamp>, generation: Option<u64>) -> Option<ProjectPatch> {
         drop(self.recording_idle().ok()?);
         for _ in 0..8 {
             let (
@@ -423,6 +435,7 @@ impl Session {
                 }) {
                     return None;
                 }
+                if generation.is_some_and(|generation| state.generation != generation) { return None; }
                 (
                     state.document.clone(),
                     state.pool.clone(),
