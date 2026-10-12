@@ -822,7 +822,6 @@ pub enum Command {
         label: Option<String>,
         commands: Vec<Command>,
     },
-<<<<<<< HEAD
     /// Replace/clear a portable IR in one undo transaction. PCM is decoded
     /// before dispatch and FFT partitions are prepared before plan publication.
     SetConvolverImpulse {
@@ -848,11 +847,9 @@ pub enum Command {
         channel: ChannelId,
         pattern: PatternId,
     },
-=======
 
     /// Replaces variable-size internal source configuration in one undo step.
     SetInternalControllerSettings { settings: Vec<crate::InternalControllerSettings> },
->>>>>>> gpt/w3-control-sources
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, TS)]

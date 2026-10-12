@@ -288,21 +288,14 @@ pub enum EffectKind {
     StageStack,
     ControlSurface,
     SendTap,
-<<<<<<< HEAD
     MasterLimiter,
-}
-
-impl EffectKind {
-    pub const ALL: [EffectKind; 64] = [
-=======
     FormulaSource,
     KeyboardSource,
     VoltageSource,
 }
 
 impl EffectKind {
-    pub const ALL: [EffectKind; 66] = [
->>>>>>> gpt/w3-control-sources
+    pub const ALL: [EffectKind; 67] = [
         EffectKind::Eq,
         EffectKind::Compressor,
         EffectKind::Limiter,
@@ -366,13 +359,10 @@ impl EffectKind {
         EffectKind::StageStack,
         EffectKind::ControlSurface,
         EffectKind::SendTap,
-<<<<<<< HEAD
         EffectKind::MasterLimiter,
-=======
         EffectKind::FormulaSource,
         EffectKind::KeyboardSource,
         EffectKind::VoltageSource,
->>>>>>> gpt/w3-control-sources
     ];
 
     /// The effect's name as shown to the user.
@@ -782,13 +772,10 @@ pub enum EffectParams {
     StageStack(StageStackParams),
     ControlSurface(ControlSurfaceParams),
     SendTap(SendTapParams),
-<<<<<<< HEAD
     MasterLimiter(MasterLimiterParams),
-=======
     FormulaSource(FormulaSourceParams),
     KeyboardSource(KeyboardSourceParams),
     VoltageSource(VoltageSourceParams),
->>>>>>> gpt/w3-control-sources
 }
 
 /// Runs `$body` with `$params` bound to the settings inside an
@@ -1222,13 +1209,10 @@ pub enum AnyEffect {
     StageStack(Box<StageStack>),
     ControlSurface(Box<ControlSurface>),
     SendTap(Box<SendTap>),
-<<<<<<< HEAD
     MasterLimiter(Box<MasterLimiter>),
-=======
     FormulaSource(Box<FormulaSource>),
     KeyboardSource(Box<KeyboardSource>),
     VoltageSource(Box<VoltageSource>),
->>>>>>> gpt/w3-control-sources
 }
 
 /// Runs `$body` with `$effect` bound to the effect inside an [`AnyEffect`].

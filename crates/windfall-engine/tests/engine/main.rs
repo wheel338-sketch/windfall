@@ -27,11 +27,7 @@ mod stems;
 mod support;
 mod timeline;
 mod utility_effects;
-<<<<<<< HEAD
-=======
-mod audio_logger;
 mod internal_controllers;
->>>>>>> gpt/w3-control-sources
 
 /// Counts allocator calls for the realtime tests. It does nothing on a
 /// thread that is not being watched, so the other tests are unaffected.

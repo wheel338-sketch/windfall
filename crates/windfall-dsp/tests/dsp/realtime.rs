@@ -171,7 +171,6 @@ fn random_effect_params(kind: EffectKind, rng: &mut Rng) -> EffectParams {
             EffectParams::BandDelay(random_params::<windfall_dsp::BandDelayParams>(rng))
         }
         EffectKind::Room => EffectParams::Room(random_params::<windfall_dsp::RoomParams>(rng)),
-<<<<<<< HEAD
         EffectKind::Spreader => {
             EffectParams::Spreader(random_params::<windfall_dsp::SpreaderParams>(rng))
         }
@@ -253,38 +252,10 @@ fn random_effect_params(kind: EffectKind, rng: &mut Rng) -> EffectParams {
         EffectKind::MasterLimiter => EffectParams::MasterLimiter(random_params::<
             windfall_dsp::mastering::MasterLimiterParams,
         >(rng)),
-=======
-        EffectKind::Spreader => EffectParams::Spreader(random_params::<windfall_dsp::SpreaderParams>(rng)),
-        EffectKind::StereoEnhancer => EffectParams::StereoEnhancer(random_params::<windfall_dsp::StereoEnhancerParams>(rng)),
-        EffectKind::VolumeGate => EffectParams::VolumeGate(random_params::<windfall_dsp::performance::VolumeGateParams>(rng)),
-        EffectKind::TimeTransport => EffectParams::TimeTransport(random_params::<windfall_dsp::performance::TimeTransportParams>(rng)),
-        EffectKind::Scratch => EffectParams::Scratch(random_params::<windfall_dsp::performance::ScratchParams>(rng)),
-        EffectKind::PerformanceRack => EffectParams::PerformanceRack(random_params::<windfall_dsp::performance::PerformanceRackParams>(rng)),
-        EffectKind::Convolver => EffectParams::Convolver(random_params::<windfall_dsp::spectral::ConvolverParams>(rng)),
-        EffectKind::FrequencyShifter => EffectParams::FrequencyShifter(random_params::<windfall_dsp::spectral::FrequencyShifterParams>(rng)),
-        EffectKind::PitchShift => EffectParams::PitchShift(random_params::<windfall_dsp::spectral::PitchShiftParams>(rng)),
-        EffectKind::PitchCorrect => EffectParams::PitchCorrect(random_params::<windfall_dsp::spectral::PitchCorrectParams>(rng)),
-        EffectKind::Vocoder => EffectParams::Vocoder(random_params::<windfall_dsp::spectral::VocoderParams>(rng)),
-        EffectKind::EchoBank => EffectParams::EchoBank(random_params::<windfall_dsp::echo_bank::EchoBankParams>(rng)),
-        EffectKind::FrequencyDelay => EffectParams::FrequencyDelay(random_params::<windfall_dsp::frequency_delay::FrequencyDelayParams>(rng)),
-        EffectKind::SevenBand => EffectParams::SevenBand(random_params::<windfall_dsp::eqbank::SevenBandParams>(rng)),
-        EffectKind::MorphEq => EffectParams::MorphEq(random_params::<windfall_dsp::eqbank::MorphEqParams>(rng)),
-        EffectKind::FilterBank => EffectParams::FilterBank(random_params::<windfall_dsp::eqbank::FilterBankParams>(rng)),
-        EffectKind::XyPad => EffectParams::XyPad(random_params::<windfall_dsp::control::XyPadParams>(rng)),
-        EffectKind::XyzPad => EffectParams::XyzPad(random_params::<windfall_dsp::control::XyzPadParams>(rng)),
-        EffectKind::PanLfo => EffectParams::PanLfo(random_params::<windfall_dsp::control::PanLfoParams>(rng)),
-        EffectKind::EnvelopeFollower => EffectParams::EnvelopeFollower(random_params::<windfall_dsp::control::EnvelopeFollowerParams>(rng)),
-        EffectKind::NoteEnvelope => EffectParams::NoteEnvelope(random_params::<windfall_dsp::control::NoteEnvelopeParams>(rng)),
-        EffectKind::LushSpace => EffectParams::LushSpace(random_params::<windfall_dsp::lush::LushSpaceParams>(rng)),
-        EffectKind::Tuner => EffectParams::Tuner(random_params::<windfall_dsp::tuner::TunerParams>(rng)),
-        EffectKind::StageStack => EffectParams::StageStack(random_params::<windfall_dsp::mastering::StageStackParams>(rng)),
-        EffectKind::ControlSurface => EffectParams::ControlSurface(random_params::<windfall_dsp::surface::ControlSurfaceParams>(rng)),
-        EffectKind::SendTap => EffectParams::SendTap(random_params::<windfall_dsp::sendtap::SendTapParams>(rng)),
         EffectKind::FormulaSource => EffectParams::FormulaSource(random_params::<windfall_dsp::control::FormulaSourceParams>(rng)),
         EffectKind::KeyboardSource => EffectParams::KeyboardSource(random_params::<windfall_dsp::control::KeyboardSourceParams>(rng)),
         EffectKind::VoltageSource => EffectParams::VoltageSource(random_params::<windfall_dsp::control::VoltageSourceParams>(rng)),
 
->>>>>>> gpt/w3-control-sources
     }
 }
 

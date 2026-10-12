@@ -571,13 +571,10 @@ fn effect_at(kind: EffectKind, step: u32) -> EffectParams {
         | EffectKind::StageStack
         | EffectKind::ControlSurface
         | EffectKind::SendTap
-<<<<<<< HEAD
-        | EffectKind::MasterLimiter => {
-=======
+        | EffectKind::MasterLimiter
         | EffectKind::FormulaSource
         | EffectKind::KeyboardSource
         | EffectKind::VoltageSource => {
->>>>>>> gpt/w3-control-sources
             // Sweep each declared scalar across its range, including new
             // processors, while keeping this exhaustive for future variants.
             let mut params = kind.default_params();

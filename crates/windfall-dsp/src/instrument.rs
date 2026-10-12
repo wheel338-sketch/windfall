@@ -191,7 +191,6 @@ pub enum InstrumentKind {
     MacroVoice,
     SpeechVoice,
     MidiOut,
-<<<<<<< HEAD
     VintagePoly,
     DualPoly,
     CompactSynth,
@@ -208,17 +207,11 @@ pub enum InstrumentKind {
     NumberVoice,
     SpectralResynth,
     ColorScan,
-}
-
-impl InstrumentKind {
-    pub const ALL: [InstrumentKind; 43] = [
-=======
     Dashboard,
 }
 
 impl InstrumentKind {
-    pub const ALL: [InstrumentKind; 28] = [
->>>>>>> gpt/w3-control-sources
+    pub const ALL: [InstrumentKind; 44] = [
         InstrumentKind::SubtractiveSynth,
         InstrumentKind::FourOp,
         InstrumentKind::MatrixFm,
@@ -246,7 +239,6 @@ impl InstrumentKind {
         InstrumentKind::MacroVoice,
         InstrumentKind::SpeechVoice,
         InstrumentKind::MidiOut,
-<<<<<<< HEAD
         InstrumentKind::VintagePoly,
         InstrumentKind::DualPoly,
         InstrumentKind::CompactSynth,
@@ -263,9 +255,7 @@ impl InstrumentKind {
         InstrumentKind::NumberVoice,
         InstrumentKind::SpectralResynth,
         InstrumentKind::ColorScan,
-=======
         InstrumentKind::Dashboard,
->>>>>>> gpt/w3-control-sources
     ];
 
     /// The instrument's name as shown to the user.
@@ -298,7 +288,6 @@ impl InstrumentKind {
             InstrumentKind::MacroVoice => MacroVoiceParams::NAME,
             InstrumentKind::SpeechVoice => SpeechVoiceParams::NAME,
             InstrumentKind::MidiOut => MidiOutParams::NAME,
-<<<<<<< HEAD
             InstrumentKind::VintagePoly => VintagePolyParams::NAME,
             InstrumentKind::DualPoly => DualPolyParams::NAME,
             InstrumentKind::CompactSynth => CompactSynthParams::NAME,
@@ -315,9 +304,7 @@ impl InstrumentKind {
             InstrumentKind::NumberVoice => NumberVoiceParams::NAME,
             InstrumentKind::SpectralResynth => SpectralResynthParams::NAME,
             InstrumentKind::ColorScan => ColorScanParams::NAME,
-=======
             InstrumentKind::Dashboard => "Dashboard",
->>>>>>> gpt/w3-control-sources
         }
     }
 
@@ -351,7 +338,6 @@ impl InstrumentKind {
             InstrumentKind::MacroVoice => MacroVoiceParams::descriptors(),
             InstrumentKind::SpeechVoice => SpeechVoiceParams::descriptors(),
             InstrumentKind::MidiOut => MidiOutParams::descriptors(),
-<<<<<<< HEAD
             InstrumentKind::VintagePoly => VintagePolyParams::descriptors(),
             InstrumentKind::DualPoly => DualPolyParams::descriptors(),
             InstrumentKind::CompactSynth => CompactSynthParams::descriptors(),
@@ -368,9 +354,7 @@ impl InstrumentKind {
             InstrumentKind::NumberVoice => NumberVoiceParams::descriptors(),
             InstrumentKind::SpectralResynth => SpectralResynthParams::descriptors(),
             InstrumentKind::ColorScan => ColorScanParams::descriptors(),
-=======
             InstrumentKind::Dashboard => MidiOutParams::descriptors(),
->>>>>>> gpt/w3-control-sources
         }
     }
 
@@ -414,7 +398,6 @@ impl InstrumentKind {
                 InstrumentParams::SpeechVoice(SpeechVoiceParams::default())
             }
             InstrumentKind::MidiOut => InstrumentParams::MidiOut(MidiOutParams::default()),
-<<<<<<< HEAD
             InstrumentKind::VintagePoly => {
                 InstrumentParams::VintagePoly(VintagePolyParams::default())
             }
@@ -449,9 +432,7 @@ impl InstrumentKind {
                 InstrumentParams::SpectralResynth(SpectralResynthParams::default())
             }
             InstrumentKind::ColorScan => InstrumentParams::ColorScan(ColorScanParams::default()),
-=======
             InstrumentKind::Dashboard => InstrumentParams::Dashboard(MidiOutParams::default()),
->>>>>>> gpt/w3-control-sources
         }
     }
 }
@@ -489,7 +470,6 @@ pub enum InstrumentParams {
     MacroVoice(MacroVoiceParams),
     SpeechVoice(SpeechVoiceParams),
     MidiOut(MidiOutParams),
-<<<<<<< HEAD
     VintagePoly(VintagePolyParams),
     DualPoly(DualPolyParams),
     CompactSynth(CompactSynthParams),
@@ -506,9 +486,7 @@ pub enum InstrumentParams {
     NumberVoice(NumberVoiceParams),
     SpectralResynth(SpectralResynthParams),
     ColorScan(ColorScanParams),
-=======
     Dashboard(MidiOutParams),
->>>>>>> gpt/w3-control-sources
 }
 
 impl InstrumentParams {
@@ -541,7 +519,6 @@ impl InstrumentParams {
             InstrumentParams::MacroVoice(_) => InstrumentKind::MacroVoice,
             InstrumentParams::SpeechVoice(_) => InstrumentKind::SpeechVoice,
             InstrumentParams::MidiOut(_) => InstrumentKind::MidiOut,
-<<<<<<< HEAD
             InstrumentParams::VintagePoly(_) => InstrumentKind::VintagePoly,
             InstrumentParams::DualPoly(_) => InstrumentKind::DualPoly,
             InstrumentParams::CompactSynth(_) => InstrumentKind::CompactSynth,
@@ -558,9 +535,7 @@ impl InstrumentParams {
             InstrumentParams::NumberVoice(_) => InstrumentKind::NumberVoice,
             InstrumentParams::SpectralResynth(_) => InstrumentKind::SpectralResynth,
             InstrumentParams::ColorScan(_) => InstrumentKind::ColorScan,
-=======
             InstrumentParams::Dashboard(_) => InstrumentKind::Dashboard,
->>>>>>> gpt/w3-control-sources
         }
     }
 
@@ -614,7 +589,6 @@ impl InstrumentParams {
                 InstrumentParams::SpeechVoice(params.sanitized())
             }
             InstrumentParams::MidiOut(params) => InstrumentParams::MidiOut(params.sanitized()),
-<<<<<<< HEAD
             InstrumentParams::VintagePoly(params) => {
                 InstrumentParams::VintagePoly(params.sanitized())
             }
@@ -653,9 +627,7 @@ impl InstrumentParams {
                 InstrumentParams::SpectralResynth(params.sanitized())
             }
             InstrumentParams::ColorScan(params) => InstrumentParams::ColorScan(params.sanitized()),
-=======
             InstrumentParams::Dashboard(params) => InstrumentParams::Dashboard(params.sanitized()),
->>>>>>> gpt/w3-control-sources
         }
     }
 
@@ -693,7 +665,6 @@ impl InstrumentParams {
             InstrumentParams::MacroVoice(_) => 0,
             InstrumentParams::SpeechVoice(_) => 0,
             InstrumentParams::MidiOut(_) => 0,
-<<<<<<< HEAD
             InstrumentParams::VintagePoly(_) => 0,
             InstrumentParams::DualPoly(_) => 0,
             InstrumentParams::CompactSynth(_) => 0,
@@ -710,9 +681,7 @@ impl InstrumentParams {
             InstrumentParams::NumberVoice(_) => 0,
             InstrumentParams::SpectralResynth(_) => 0,
             InstrumentParams::ColorScan(_) => 0,
-=======
             InstrumentParams::Dashboard(_) => 0,
->>>>>>> gpt/w3-control-sources
         }
     }
 
@@ -747,7 +716,6 @@ impl InstrumentParams {
             InstrumentParams::MacroVoice(params) => params.get(index),
             InstrumentParams::SpeechVoice(params) => params.get(index),
             InstrumentParams::MidiOut(params) => params.get(index),
-<<<<<<< HEAD
             InstrumentParams::VintagePoly(params) => params.get(index),
             InstrumentParams::DualPoly(params) => params.get(index),
             InstrumentParams::CompactSynth(params) => params.get(index),
@@ -764,9 +732,7 @@ impl InstrumentParams {
             InstrumentParams::NumberVoice(params) => params.get(index),
             InstrumentParams::SpectralResynth(params) => params.get(index),
             InstrumentParams::ColorScan(params) => params.get(index),
-=======
             InstrumentParams::Dashboard(params) => params.get(index),
->>>>>>> gpt/w3-control-sources
         }
     }
 
@@ -801,7 +767,6 @@ impl InstrumentParams {
             InstrumentParams::MacroVoice(params) => params.set(index, value),
             InstrumentParams::SpeechVoice(params) => params.set(index, value),
             InstrumentParams::MidiOut(params) => params.set(index, value),
-<<<<<<< HEAD
             InstrumentParams::VintagePoly(params) => params.set(index, value),
             InstrumentParams::DualPoly(params) => params.set(index, value),
             InstrumentParams::CompactSynth(params) => params.set(index, value),
@@ -818,9 +783,7 @@ impl InstrumentParams {
             InstrumentParams::NumberVoice(params) => params.set(index, value),
             InstrumentParams::SpectralResynth(params) => params.set(index, value),
             InstrumentParams::ColorScan(params) => params.set(index, value),
-=======
             InstrumentParams::Dashboard(params) => params.set(index, value),
->>>>>>> gpt/w3-control-sources
         }
     }
 }
@@ -859,7 +822,6 @@ pub enum AnyInstrument {
     MacroVoice(Box<MacroVoice>),
     SpeechVoice(Box<SpeechVoice>),
     MidiOut(Box<MidiOut>),
-<<<<<<< HEAD
     VintagePoly(Box<VintagePoly>),
     DualPoly(Box<DualPoly>),
     CompactSynth(Box<CompactSynth>),
@@ -876,9 +838,7 @@ pub enum AnyInstrument {
     NumberVoice(Box<NumberVoice>),
     SpectralResynth(Box<SpectralResynth>),
     ColorScan(Box<ColorScan>),
-=======
     Dashboard(Box<MidiOut>),
->>>>>>> gpt/w3-control-sources
 }
 
 impl AnyInstrument {
@@ -1114,7 +1074,6 @@ impl AnyInstrument {
                 synth.set_params(params);
                 AnyInstrument::MidiOut(synth)
             }
-<<<<<<< HEAD
             InstrumentParams::VintagePoly(params) => {
                 let mut synth = Box::<VintagePoly>::default();
                 synth.set_params(params);
@@ -1194,12 +1153,11 @@ impl AnyInstrument {
                 let mut synth = Box::<ColorScan>::default();
                 synth.set_params(params);
                 AnyInstrument::ColorScan(synth)
-=======
+            }
             InstrumentParams::Dashboard(params) => {
                 let mut synth = Box::<MidiOut>::default();
                 synth.set_params(params);
                 AnyInstrument::Dashboard(synth)
->>>>>>> gpt/w3-control-sources
             }
         }
     }
@@ -1233,7 +1191,6 @@ impl AnyInstrument {
             AnyInstrument::MacroVoice(_) => InstrumentKind::MacroVoice,
             AnyInstrument::SpeechVoice(_) => InstrumentKind::SpeechVoice,
             AnyInstrument::MidiOut(_) => InstrumentKind::MidiOut,
-<<<<<<< HEAD
             AnyInstrument::VintagePoly(_) => InstrumentKind::VintagePoly,
             AnyInstrument::DualPoly(_) => InstrumentKind::DualPoly,
             AnyInstrument::CompactSynth(_) => InstrumentKind::CompactSynth,
@@ -1250,9 +1207,7 @@ impl AnyInstrument {
             AnyInstrument::NumberVoice(_) => InstrumentKind::NumberVoice,
             AnyInstrument::SpectralResynth(_) => InstrumentKind::SpectralResynth,
             AnyInstrument::ColorScan(_) => InstrumentKind::ColorScan,
-=======
             AnyInstrument::Dashboard(_) => InstrumentKind::Dashboard,
->>>>>>> gpt/w3-control-sources
         }
     }
 
@@ -1286,7 +1241,6 @@ impl AnyInstrument {
             AnyInstrument::MacroVoice(synth) => synth.prepare(sample_rate, max_block),
             AnyInstrument::SpeechVoice(synth) => synth.prepare(sample_rate, max_block),
             AnyInstrument::MidiOut(synth) => synth.prepare(sample_rate, max_block),
-<<<<<<< HEAD
             AnyInstrument::VintagePoly(synth) => synth.prepare(sample_rate, max_block),
             AnyInstrument::DualPoly(synth) => synth.prepare(sample_rate, max_block),
             AnyInstrument::CompactSynth(synth) => synth.prepare(sample_rate, max_block),
@@ -1303,9 +1257,7 @@ impl AnyInstrument {
             AnyInstrument::NumberVoice(synth) => synth.prepare(sample_rate, max_block),
             AnyInstrument::SpectralResynth(synth) => synth.prepare(sample_rate, max_block),
             AnyInstrument::ColorScan(synth) => synth.prepare(sample_rate, max_block),
-=======
             AnyInstrument::Dashboard(synth) => synth.prepare(sample_rate, max_block),
->>>>>>> gpt/w3-control-sources
         }
     }
 
@@ -1339,7 +1291,6 @@ impl AnyInstrument {
             AnyInstrument::MacroVoice(synth) => synth.reset(),
             AnyInstrument::SpeechVoice(synth) => synth.reset(),
             AnyInstrument::MidiOut(synth) => synth.reset(),
-<<<<<<< HEAD
             AnyInstrument::VintagePoly(synth) => synth.reset(),
             AnyInstrument::DualPoly(synth) => synth.reset(),
             AnyInstrument::CompactSynth(synth) => synth.reset(),
@@ -1356,9 +1307,7 @@ impl AnyInstrument {
             AnyInstrument::NumberVoice(synth) => synth.reset(),
             AnyInstrument::SpectralResynth(synth) => synth.reset(),
             AnyInstrument::ColorScan(synth) => synth.reset(),
-=======
             AnyInstrument::Dashboard(synth) => synth.reset(),
->>>>>>> gpt/w3-control-sources
         }
     }
 
@@ -1450,7 +1399,6 @@ impl AnyInstrument {
             (AnyInstrument::MidiOut(synth), InstrumentParams::MidiOut(params)) => {
                 synth.set_params(params);
             }
-<<<<<<< HEAD
             (AnyInstrument::VintagePoly(synth), InstrumentParams::VintagePoly(params)) => {
                 synth.set_params(params);
             }
@@ -1497,9 +1445,9 @@ impl AnyInstrument {
                 synth.set_params(params);
             }
             (AnyInstrument::ColorScan(synth), InstrumentParams::ColorScan(params)) => {
-=======
+                synth.set_params(params);
+            }
             (AnyInstrument::Dashboard(synth), InstrumentParams::Dashboard(params)) => {
->>>>>>> gpt/w3-control-sources
                 synth.set_params(params);
             }
             _ => return false,
@@ -1537,7 +1485,6 @@ impl AnyInstrument {
             AnyInstrument::MacroVoice(synth) => synth.set_tempo(bpm),
             AnyInstrument::SpeechVoice(synth) => synth.set_tempo(bpm),
             AnyInstrument::MidiOut(synth) => synth.set_tempo(bpm),
-<<<<<<< HEAD
             AnyInstrument::VintagePoly(synth) => synth.set_tempo(bpm),
             AnyInstrument::DualPoly(synth) => synth.set_tempo(bpm),
             AnyInstrument::CompactSynth(synth) => synth.set_tempo(bpm),
@@ -1554,9 +1501,7 @@ impl AnyInstrument {
             AnyInstrument::NumberVoice(synth) => synth.set_tempo(bpm),
             AnyInstrument::SpectralResynth(synth) => synth.set_tempo(bpm),
             AnyInstrument::ColorScan(synth) => synth.set_tempo(bpm),
-=======
             AnyInstrument::Dashboard(synth) => synth.set_tempo(bpm),
->>>>>>> gpt/w3-control-sources
         }
     }
 
@@ -1590,7 +1535,6 @@ impl AnyInstrument {
             AnyInstrument::MacroVoice(synth) => synth.note_on(key, velocity),
             AnyInstrument::SpeechVoice(synth) => synth.note_on(key, velocity),
             AnyInstrument::MidiOut(synth) => synth.note_on(key, velocity),
-<<<<<<< HEAD
             AnyInstrument::VintagePoly(synth) => synth.note_on(key, velocity),
             AnyInstrument::DualPoly(synth) => synth.note_on(key, velocity),
             AnyInstrument::CompactSynth(synth) => synth.note_on(key, velocity),
@@ -1607,9 +1551,7 @@ impl AnyInstrument {
             AnyInstrument::NumberVoice(synth) => synth.note_on(key, velocity),
             AnyInstrument::SpectralResynth(synth) => synth.note_on(key, velocity),
             AnyInstrument::ColorScan(synth) => synth.note_on(key, velocity),
-=======
             AnyInstrument::Dashboard(synth) => synth.note_on(key, velocity),
->>>>>>> gpt/w3-control-sources
         }
     }
 
@@ -1698,7 +1640,6 @@ impl AnyInstrument {
             AnyInstrument::MidiOut(synth) => {
                 synth.note_on_expression(key, velocity, pan, expression)
             }
-<<<<<<< HEAD
             AnyInstrument::VintagePoly(synth) => {
                 synth.note_on_expression(key, velocity, pan, expression)
             }
@@ -1745,9 +1686,9 @@ impl AnyInstrument {
                 synth.note_on_expression(key, velocity, pan, expression)
             }
             AnyInstrument::ColorScan(synth) => {
-=======
+                synth.note_on_expression(key, velocity, pan, expression)
+            }
             AnyInstrument::Dashboard(synth) => {
->>>>>>> gpt/w3-control-sources
                 synth.note_on_expression(key, velocity, pan, expression)
             }
         }
@@ -1783,7 +1724,6 @@ impl AnyInstrument {
             AnyInstrument::MacroVoice(synth) => synth.note_off(key),
             AnyInstrument::SpeechVoice(synth) => synth.note_off(key),
             AnyInstrument::MidiOut(synth) => synth.note_off(key),
-<<<<<<< HEAD
             AnyInstrument::VintagePoly(synth) => synth.note_off(key),
             AnyInstrument::DualPoly(synth) => synth.note_off(key),
             AnyInstrument::CompactSynth(synth) => synth.note_off(key),
@@ -1800,9 +1740,7 @@ impl AnyInstrument {
             AnyInstrument::NumberVoice(synth) => synth.note_off(key),
             AnyInstrument::SpectralResynth(synth) => synth.note_off(key),
             AnyInstrument::ColorScan(synth) => synth.note_off(key),
-=======
             AnyInstrument::Dashboard(synth) => synth.note_off(key),
->>>>>>> gpt/w3-control-sources
         }
     }
 
@@ -1835,7 +1773,6 @@ impl AnyInstrument {
             AnyInstrument::MacroVoice(synth) => synth.supports_note_instances(),
             AnyInstrument::SpeechVoice(synth) => synth.supports_note_instances(),
             AnyInstrument::MidiOut(synth) => synth.supports_note_instances(),
-<<<<<<< HEAD
             AnyInstrument::VintagePoly(synth) => synth.supports_note_instances(),
             AnyInstrument::DualPoly(synth) => synth.supports_note_instances(),
             AnyInstrument::CompactSynth(synth) => synth.supports_note_instances(),
@@ -1852,9 +1789,7 @@ impl AnyInstrument {
             AnyInstrument::NumberVoice(synth) => synth.supports_note_instances(),
             AnyInstrument::SpectralResynth(synth) => synth.supports_note_instances(),
             AnyInstrument::ColorScan(synth) => synth.supports_note_instances(),
-=======
             AnyInstrument::Dashboard(synth) => synth.supports_note_instances(),
->>>>>>> gpt/w3-control-sources
         }
     }
 
@@ -1948,7 +1883,6 @@ impl AnyInstrument {
             AnyInstrument::MidiOut(synth) => {
                 synth.note_on_instance(id, key, velocity, pan, expression)
             }
-<<<<<<< HEAD
             AnyInstrument::VintagePoly(synth) => {
                 synth.note_on_instance(id, key, velocity, pan, expression)
             }
@@ -1995,9 +1929,9 @@ impl AnyInstrument {
                 synth.note_on_instance(id, key, velocity, pan, expression)
             }
             AnyInstrument::ColorScan(synth) => {
-=======
+                synth.note_on_instance(id, key, velocity, pan, expression)
+            }
             AnyInstrument::Dashboard(synth) => {
->>>>>>> gpt/w3-control-sources
                 synth.note_on_instance(id, key, velocity, pan, expression)
             }
         }
@@ -2032,7 +1966,6 @@ impl AnyInstrument {
             AnyInstrument::MacroVoice(synth) => synth.note_off_instance(id, key),
             AnyInstrument::SpeechVoice(synth) => synth.note_off_instance(id, key),
             AnyInstrument::MidiOut(synth) => synth.note_off_instance(id, key),
-<<<<<<< HEAD
             AnyInstrument::VintagePoly(synth) => synth.note_off_instance(id, key),
             AnyInstrument::DualPoly(synth) => synth.note_off_instance(id, key),
             AnyInstrument::CompactSynth(synth) => synth.note_off_instance(id, key),
@@ -2049,9 +1982,7 @@ impl AnyInstrument {
             AnyInstrument::NumberVoice(synth) => synth.note_off_instance(id, key),
             AnyInstrument::SpectralResynth(synth) => synth.note_off_instance(id, key),
             AnyInstrument::ColorScan(synth) => synth.note_off_instance(id, key),
-=======
             AnyInstrument::Dashboard(synth) => synth.note_off_instance(id, key),
->>>>>>> gpt/w3-control-sources
         }
     }
 
@@ -2091,7 +2022,6 @@ impl AnyInstrument {
             AnyInstrument::MacroVoice(synth) => synth.set_note_expression(id, pan, expression),
             AnyInstrument::SpeechVoice(synth) => synth.set_note_expression(id, pan, expression),
             AnyInstrument::MidiOut(synth) => synth.set_note_expression(id, pan, expression),
-<<<<<<< HEAD
             AnyInstrument::VintagePoly(synth) => synth.set_note_expression(id, pan, expression),
             AnyInstrument::DualPoly(synth) => synth.set_note_expression(id, pan, expression),
             AnyInstrument::CompactSynth(synth) => synth.set_note_expression(id, pan, expression),
@@ -2108,9 +2038,7 @@ impl AnyInstrument {
             AnyInstrument::NumberVoice(synth) => synth.set_note_expression(id, pan, expression),
             AnyInstrument::SpectralResynth(synth) => synth.set_note_expression(id, pan, expression),
             AnyInstrument::ColorScan(synth) => synth.set_note_expression(id, pan, expression),
-=======
             AnyInstrument::Dashboard(synth) => synth.set_note_expression(id, pan, expression),
->>>>>>> gpt/w3-control-sources
         }
     }
 
@@ -2143,7 +2071,6 @@ impl AnyInstrument {
             AnyInstrument::MacroVoice(synth) => synth.set_note_pitch(id, pitch),
             AnyInstrument::SpeechVoice(synth) => synth.set_note_pitch(id, pitch),
             AnyInstrument::MidiOut(synth) => synth.set_note_pitch(id, pitch),
-<<<<<<< HEAD
             AnyInstrument::VintagePoly(synth) => synth.set_note_pitch(id, pitch),
             AnyInstrument::DualPoly(synth) => synth.set_note_pitch(id, pitch),
             AnyInstrument::CompactSynth(synth) => synth.set_note_pitch(id, pitch),
@@ -2160,9 +2087,7 @@ impl AnyInstrument {
             AnyInstrument::NumberVoice(synth) => synth.set_note_pitch(id, pitch),
             AnyInstrument::SpectralResynth(synth) => synth.set_note_pitch(id, pitch),
             AnyInstrument::ColorScan(synth) => synth.set_note_pitch(id, pitch),
-=======
             AnyInstrument::Dashboard(synth) => synth.set_note_pitch(id, pitch),
->>>>>>> gpt/w3-control-sources
         }
     }
 
@@ -2209,7 +2134,6 @@ impl AnyInstrument {
             AnyInstrument::MacroVoice(synth) => synth.all_notes_off(),
             AnyInstrument::SpeechVoice(synth) => synth.all_notes_off(),
             AnyInstrument::MidiOut(synth) => synth.all_notes_off(),
-<<<<<<< HEAD
             AnyInstrument::VintagePoly(synth) => synth.all_notes_off(),
             AnyInstrument::DualPoly(synth) => synth.all_notes_off(),
             AnyInstrument::CompactSynth(synth) => synth.all_notes_off(),
@@ -2226,9 +2150,7 @@ impl AnyInstrument {
             AnyInstrument::NumberVoice(synth) => synth.all_notes_off(),
             AnyInstrument::SpectralResynth(synth) => synth.all_notes_off(),
             AnyInstrument::ColorScan(synth) => synth.all_notes_off(),
-=======
             AnyInstrument::Dashboard(synth) => synth.all_notes_off(),
->>>>>>> gpt/w3-control-sources
         }
     }
 
@@ -2262,7 +2184,6 @@ impl AnyInstrument {
             AnyInstrument::MacroVoice(synth) => synth.process(left, right),
             AnyInstrument::SpeechVoice(synth) => synth.process(left, right),
             AnyInstrument::MidiOut(synth) => synth.process(left, right),
-<<<<<<< HEAD
             AnyInstrument::VintagePoly(synth) => synth.process(left, right),
             AnyInstrument::DualPoly(synth) => synth.process(left, right),
             AnyInstrument::CompactSynth(synth) => synth.process(left, right),
@@ -2279,9 +2200,7 @@ impl AnyInstrument {
             AnyInstrument::NumberVoice(synth) => synth.process(left, right),
             AnyInstrument::SpectralResynth(synth) => synth.process(left, right),
             AnyInstrument::ColorScan(synth) => synth.process(left, right),
-=======
             AnyInstrument::Dashboard(synth) => synth.process(left, right),
->>>>>>> gpt/w3-control-sources
         }
     }
 
@@ -2315,7 +2234,6 @@ impl AnyInstrument {
             AnyInstrument::MacroVoice(synth) => synth.active_voices(),
             AnyInstrument::SpeechVoice(synth) => synth.active_voices(),
             AnyInstrument::MidiOut(synth) => synth.active_voices(),
-<<<<<<< HEAD
             AnyInstrument::VintagePoly(synth) => synth.active_voices(),
             AnyInstrument::DualPoly(synth) => synth.active_voices(),
             AnyInstrument::CompactSynth(synth) => synth.active_voices(),
@@ -2332,9 +2250,7 @@ impl AnyInstrument {
             AnyInstrument::NumberVoice(synth) => synth.active_voices(),
             AnyInstrument::SpectralResynth(synth) => synth.active_voices(),
             AnyInstrument::ColorScan(synth) => synth.active_voices(),
-=======
             AnyInstrument::Dashboard(synth) => synth.active_voices(),
->>>>>>> gpt/w3-control-sources
         }
     }
 
@@ -2368,7 +2284,6 @@ impl AnyInstrument {
             AnyInstrument::MacroVoice(synth) => synth.latency_samples(),
             AnyInstrument::SpeechVoice(synth) => synth.latency_samples(),
             AnyInstrument::MidiOut(synth) => synth.latency_samples(),
-<<<<<<< HEAD
             AnyInstrument::VintagePoly(synth) => synth.latency_samples(),
             AnyInstrument::DualPoly(synth) => synth.latency_samples(),
             AnyInstrument::CompactSynth(synth) => synth.latency_samples(),
@@ -2385,9 +2300,7 @@ impl AnyInstrument {
             AnyInstrument::NumberVoice(synth) => synth.latency_samples(),
             AnyInstrument::SpectralResynth(synth) => synth.latency_samples(),
             AnyInstrument::ColorScan(synth) => synth.latency_samples(),
-=======
             AnyInstrument::Dashboard(synth) => synth.latency_samples(),
->>>>>>> gpt/w3-control-sources
         }
     }
 
@@ -2421,7 +2334,6 @@ impl AnyInstrument {
             AnyInstrument::MacroVoice(synth) => synth.tail_samples(),
             AnyInstrument::SpeechVoice(synth) => synth.tail_samples(),
             AnyInstrument::MidiOut(synth) => synth.tail_samples(),
-<<<<<<< HEAD
             AnyInstrument::VintagePoly(synth) => synth.tail_samples(),
             AnyInstrument::DualPoly(synth) => synth.tail_samples(),
             AnyInstrument::CompactSynth(synth) => synth.tail_samples(),
@@ -2438,9 +2350,7 @@ impl AnyInstrument {
             AnyInstrument::NumberVoice(synth) => synth.tail_samples(),
             AnyInstrument::SpectralResynth(synth) => synth.tail_samples(),
             AnyInstrument::ColorScan(synth) => synth.tail_samples(),
-=======
             AnyInstrument::Dashboard(synth) => synth.tail_samples(),
->>>>>>> gpt/w3-control-sources
         }
     }
 }

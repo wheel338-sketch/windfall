@@ -35,14 +35,11 @@ import { SevenBandEditor } from "./graphic/seven-band-editor"
 import { LimiterEditor } from "./limiter/limiter-editor"
 import { PanMotionEditor } from "./motion/pan-motion-editor"
 import { ReverbEditor } from "./reverb/reverb-editor"
-<<<<<<< HEAD
 import { SpreaderEditor } from "./stereo/spreader-editor"
 import { StereoEnhancerEditor } from "./stereo/stereo-enhancer-editor"
 import { EchoBankEditor } from "./echo-bank/echo-bank-editor"
 import { FrequencyDelayEditor } from "./frequency-delay/frequency-delay-editor"
-=======
 import { EnvelopeSourceEditor, KeyboardSourceEditor, FormulaSourceEditor, PeakSourceEditor, XySourceEditor, XyzSourceEditor, SurfaceSourceEditor, VoltageSourceEditor } from "@/features/internal-controllers/editors"
->>>>>>> gpt/w3-control-sources
 import { TunerEditor } from "./tuner/tuner-editor"
 import { RoomEditor } from "./circuits/room-editor"
 import { LushSpaceEditor } from "./circuits/lush-space-editor"
@@ -85,7 +82,6 @@ const EDITORS: Editors = {
   panLfo: PanMotionEditor,
   morphEq: MorphEqEditor,
   tuner: TunerEditor,
-<<<<<<< HEAD
   bandSplit: BandSplitEditor,
   selectableFilter: FilterEditor,
   filterBank: FilterBankEditor,
@@ -109,7 +105,6 @@ const EDITORS: Editors = {
   vocoder: VocoderEditor,
   pitchShift: PitchShiftEditor,
   pitchCorrect: PitchCorrectEditor,
-=======
   noteEnvelope: EnvelopeSourceEditor,
   keyboardSource: KeyboardSourceEditor,
   formulaSource: FormulaSourceEditor,
@@ -118,7 +113,6 @@ const EDITORS: Editors = {
   xyzPad: XyzSourceEditor,
   controlSurface: SurfaceSourceEditor,
   voltageSource: VoltageSourceEditor,
->>>>>>> gpt/w3-control-sources
 }
 
 type AnyEditor = ComponentType<EditorProps<EffectParams>>

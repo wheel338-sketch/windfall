@@ -169,20 +169,15 @@ impl Mixer {
                     let Some(unit) = &mut state.chains[index][place] else {
                         continue;
                     };
-<<<<<<< HEAD
+                    if let Some(effect) = track.effects.get(place) {
+                        if unit.control_enabled() { state.controls.process_slot(plan, effect.id, unit.control_params(), left, right, base, control_tempo); }
+                        else { state.controls.silence(plan, effect.id); }
+                    }
                     self.scratch[..frames]
                         .copy_from_slice(&self.keys[index * MAX_BLOCK..][..frames]);
                     if let Some(line) = &mut state.key_delays[index][place].line {
                         line.process(&mut self.scratch[..frames]);
                     }
-=======
-                    if let Some(effect) = track.effects.get(place) {
-                        if unit.control_enabled() { state.controls.process_slot(plan, effect.id, unit.control_params(), left, right, base, control_tempo); }
-                        else { state.controls.silence(plan, effect.id); }
-                    }
-                    self.scratch[..frames].copy_from_slice(&self.keys[index * MAX_BLOCK..][..frames]);
-                    if let Some(line) = &mut state.key_delays[index][place].line { line.process(&mut self.scratch[..frames]); }
->>>>>>> gpt/w3-control-sources
                     let routed = track.routed_outputs(place);
                     if routed == 0 {
                         unit.process_sidechain(

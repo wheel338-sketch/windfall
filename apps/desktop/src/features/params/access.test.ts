@@ -103,13 +103,10 @@ describe("descriptors", () => {
       stageStack: true,
       controlSurface: true,
       sendTap: true,
-<<<<<<< HEAD
       masterLimiter: true,
-=======
       keyboardSource: true,
       formulaSource: true,
       voltageSource: true,
->>>>>>> gpt/w3-control-sources
     }
     const instruments: Record<InstrumentKind, true> = {
       subtractiveSynth: true,
@@ -139,7 +136,6 @@ describe("descriptors", () => {
       macroVoice: true,
       speechVoice: true,
       midiOut: true,
-<<<<<<< HEAD
       vintagePoly: true,
       dualPoly: true,
       compactSynth: true,
@@ -156,9 +152,7 @@ describe("descriptors", () => {
       numberVoice: true,
       spectralResynth: true,
       colorScan: true,
-=======
       dashboard: true,
->>>>>>> gpt/w3-control-sources
     }
     expect([...EFFECT_KINDS].sort()).toEqual(Object.keys(effects).sort())
     expect([...INSTRUMENT_KINDS].sort()).toEqual(

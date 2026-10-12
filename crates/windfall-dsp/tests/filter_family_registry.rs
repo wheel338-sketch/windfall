@@ -80,11 +80,7 @@ fn signal(seed: usize, n: usize) -> Vec<f32> {
 
 #[test]
 fn kinds_are_appended_and_have_distinct_tags_names_defaults_and_controls() {
-<<<<<<< HEAD
-    assert_eq!(EffectKind::ALL.len(), 64);
-=======
-    assert_eq!(EffectKind::ALL.len(), 66);
->>>>>>> gpt/w3-control-sources
+    assert_eq!(EffectKind::ALL.len(), 67);
     // Later effect families append without displacing this family's slots.
     let mut tags = std::collections::BTreeSet::new();
     for (index, kind) in EffectKind::ALL.iter().enumerate() {

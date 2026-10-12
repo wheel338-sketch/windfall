@@ -53,7 +53,6 @@ export function InstrumentSection({ channel }: { channel: InstrumentChannel }) {
           params={params}
           color={colorToCss(channel.color)}
         />
-<<<<<<< HEAD
       ) : POLYSYNTH_PANELS[params.type] ? (
         <PolysynthEditor channel={channel.id} params={params} />
       ) : params.type === "colorScan" ? (
@@ -78,10 +77,8 @@ export function InstrumentSection({ channel }: { channel: InstrumentChannel }) {
         <MembraneEditor channel={channel.id} params={params} />
       ) : ["sliceMap", "sliceDeck", "grainCloud", "waveRide"].includes(params.type) ? (
         <SamplePlaybackEditor key={`${generation}:${channel.id}:${params.type}`} channel={channel} />
-=======
       ) : params.type === "dashboard" ? (
         <DashboardEditor key={channel.id} channel={channel.id} params={params} />
->>>>>>> gpt/w3-control-sources
       ) : (
         <GenericInstrumentEditor channel={channel.id} params={params} />
       )}

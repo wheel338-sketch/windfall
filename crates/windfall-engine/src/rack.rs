@@ -517,7 +517,6 @@ impl EffectUnit {
         key: Option<&[[f32; 2]]>,
         aux: Option<&mut windfall_dsp::AuxBlock<'_>>,
     ) {
-<<<<<<< HEAD
         if self.external.is_none() && matches!(self.params, EffectParams::PitchCorrect(_)) {
             for frame in 0..left.len().min(right.len()) {
                 self.slot.set_harmony_notes(self.harmony_frames[frame]);
@@ -529,11 +528,9 @@ impl EffectUnit {
             }
             return;
         }
-=======
         // The engine evaluates these as sources at the slot input. Preserve the
         // carrier audio; their standalone DSP audio applications remain available.
         if self.control_only() { return; }
->>>>>>> gpt/w3-control-sources
         if let Some(external) = &mut self.external {
             external.process_sidechain(left, right, key);
             if let Some(aux) = aux {
