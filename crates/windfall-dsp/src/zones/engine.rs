@@ -52,7 +52,7 @@ impl Voice {
         // Repeated note-offs never lengthen a release or emergency stop.
         self.release_step = self.release_step.max(self.envelope / frames);
     }
-    fn tick(&mut self) -> (f32, f32) {
+    fn tick(&mut self, law: Option<&windfall_core::PanLawRamp>, clock: u64) -> (f32, f32) {
         let len = self.zone.sample.len as usize;
         let looping = match self.zone.loop_mode {
             LoopMode::Off => false,
@@ -82,9 +82,19 @@ impl Voice {
             * self.velocity_gain
             * self.zone.gain
             * self.gain;
-        let pan = (self.zone.pan + self.pan).clamp(-1.0, 1.0);
-        let left = ((1.0 - pan) * 0.5).sqrt();
-        let right = ((1.0 + pan) * 0.5).sqrt();
+        // Zone spread is an instrument color; project law applies to the
+        // note's pan, preserving the legacy constant-power zone center level.
+        let (left, right) = if let Some(law) = law {
+            let zone_left = ((1.0 - self.zone.pan) * 0.5).sqrt();
+            let zone_right = ((1.0 + self.zone.pan) * 0.5).sqrt();
+            let (note_left, note_right) = law.gains_at(clock, self.pan);
+            (zone_left * note_left, zone_right * note_right)
+        } else {
+            // Direct DSP callers that select no project law retain their
+            // historical zone+note equal-power pan behavior.
+            let pan = (self.zone.pan + self.pan).clamp(-1.0, 1.0);
+            (((1.0 - pan) * 0.5).sqrt(), ((1.0 + pan) * 0.5).sqrt())
+        };
         self.position += self.step;
         if self.release_step > 0.0 {
             self.envelope = (self.envelope - self.release_step).max(0.0);
@@ -107,6 +117,9 @@ pub(super) struct Engine {
     target_release_ms: f32,
     smoothing: f32,
     fresh: bool,
+    note_law: Option<windfall_core::PanLawRamp>,
+    selected_law: Option<windfall_core::PanLaw>,
+    pan_clock: u64,
 }
 impl Default for Engine {
     fn default() -> Self {
@@ -121,6 +134,9 @@ impl Default for Engine {
             target_release_ms: 100.0,
             smoothing: 1.0,
             fresh: true,
+            note_law: None,
+            selected_law: None,
+            pan_clock: 0,
         }
     }
 }
@@ -137,6 +153,8 @@ impl Engine {
         self.serial = 0;
         self.legacy = u64::MAX;
         self.fresh = true;
+        self.pan_clock = 0;
+        self.note_law = self.selected_law.map(windfall_core::PanLawRamp::at_rest);
         self.set_controls(level, release_ms);
     }
     pub fn set_controls(&mut self, level: f32, release_ms: f32) {
@@ -297,12 +315,25 @@ impl Engine {
         let mut right = 0.0;
         for voice in &mut self.voices {
             if voice.active {
-                let (l, r) = voice.tick();
+                let (l, r) = voice.tick(self.note_law.as_ref(), self.pan_clock);
                 left += l;
                 right += r;
             }
         }
+        self.pan_clock = self.pan_clock.saturating_add(1);
         (left * self.level, right * self.level)
+    }
+    pub fn set_note_pan_law(&mut self, law: windfall_core::PanLaw) {
+        self.selected_law = Some(law);
+        if self.fresh || self.note_law.is_none() {
+            self.note_law = Some(windfall_core::PanLawRamp::at_rest(law));
+        } else {
+            self.note_law.as_mut().unwrap().retarget(
+                law,
+                self.pan_clock,
+                (0.005 * self.sample_rate).round().max(1.0) as u64,
+            );
+        }
     }
     pub fn active_voices(&self) -> usize {
         self.voices.iter().filter(|voice| voice.active).count()

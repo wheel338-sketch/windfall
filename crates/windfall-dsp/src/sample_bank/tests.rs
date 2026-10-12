@@ -2,6 +2,115 @@ use super::*;
 use windfall_core::AudioBuffer;
 
 const RATE: f32 = 48000.0;
+
+fn reference_pan(law: windfall_core::PanLaw, pan: f32) -> (f32, f32) {
+    use windfall_core::PanLaw::*;
+    let angle = (pan + 1.0) * std::f32::consts::FRAC_PI_4;
+    let power = if pan == 0.0 {
+        (1.0, 1.0)
+    } else if pan == -1.0 {
+        (std::f32::consts::SQRT_2, 0.0)
+    } else if pan == 1.0 {
+        (0.0, std::f32::consts::SQRT_2)
+    } else {
+        (
+            angle.cos() * std::f32::consts::SQRT_2,
+            angle.sin() * std::f32::consts::SQRT_2,
+        )
+    };
+    match law {
+        Balance => (1.0 - pan.max(0.0), 1.0 + pan.min(0.0)),
+        ConstantPower => power,
+        Compromise => (
+            (power.0 * (1.0 - pan)).sqrt(),
+            (power.1 * (1.0 + pan)).sqrt(),
+        ),
+        Linear => (1.0 - pan, 1.0 + pan),
+    }
+}
+
+fn law_pcm(unit: &mut impl Instrument, center: &mut impl Instrument) {
+    use windfall_core::PanLaw::*;
+    for law in [Balance, ConstantPower, Compromise, Linear] {
+        for pan in [-1.0, -0.35, 0.0, 0.65, 1.0] {
+            unit.reset();
+            center.reset();
+            unit.set_note_pan_law(law);
+            unit.note_on_instance(NoteInstanceId(1), 60, 0.5, pan, NoteExpression::NEUTRAL);
+            center.note_on_instance(NoteInstanceId(1), 60, 0.5, 0.0, NoteExpression::NEUTRAL);
+            let baseline = render(center, 512, 17);
+            let (mut left, mut right) = ([0.0; 512], [0.0; 512]);
+            unit.process(&mut left, &mut right);
+            let (l, r) = reference_pan(law, pan);
+            assert!(baseline.iter().any(|sample| sample.abs() > 0.01));
+            for frame in 0..512 {
+                assert!((left[frame] - baseline[frame] * l).abs() < 1e-6);
+                assert!((right[frame] - baseline[frame] * r).abs() < 1e-6);
+            }
+        }
+    }
+}
+
+#[test]
+fn all_six_project_sample_bank_instruments_apply_each_law_to_measured_pcm() {
+    macro_rules! check {
+        ($kind:ty) => {{
+            let bank = Arc::new(SampleBank::new(vec![zone(0.8, SampleZone::default())]).unwrap());
+            let mut unit = <$kind>::default();
+            let mut center = <$kind>::default();
+            unit.prepare(RATE, 512);
+            center.prepare(RATE, 512);
+            unit.install_bank(bank.clone());
+            center.install_bank(bank);
+            law_pcm(&mut unit, &mut center);
+        }};
+    }
+    check!(MultiSampler);
+    check!(SamplePlayer);
+    check!(SoundFont);
+    check!(PadBank);
+    check!(PianoKeys);
+    check!(TextVoice);
+}
+
+#[test]
+fn project_sample_bank_live_law_pcm_ramps_for_five_ms_at_every_callback_partition() {
+    use windfall_core::PanLaw::*;
+    let pan = 0.65;
+    let from = reference_pan(Balance, pan);
+    let to = reference_pan(Linear, pan);
+    let mut baseline_stereo = None;
+    for block in [1, 17, 64, 127, 512] {
+        let mut unit = sampler(vec![zone(0.8, SampleZone::default())]);
+        let mut center = sampler(vec![zone(0.8, SampleZone::default())]);
+        unit.set_note_pan_law(Balance);
+        unit.note_on_instance(NoteInstanceId(1), 60, 0.5, pan, NoteExpression::NEUTRAL);
+        center.note_on_instance(NoteInstanceId(1), 60, 0.5, 0.0, NoteExpression::NEUTRAL);
+        render(&mut unit, 97, block);
+        render(&mut center, 97, block);
+        unit.set_note_pan_law(Linear);
+        let reference = render(&mut center, 512, block);
+        let (mut left, mut right) = (vec![0.0; 512], vec![0.0; 512]);
+        for (l, r) in left.chunks_mut(block).zip(right.chunks_mut(block)) {
+            unit.process(l, r);
+        }
+        for frame in 0..512 {
+            let part = (frame as f32 / 240.0).min(1.0);
+            assert!(
+                (left[frame] - reference[frame] * (from.0 + (to.0 - from.0) * part)).abs() < 1e-6
+            );
+            assert!(
+                (right[frame] - reference[frame] * (from.1 + (to.1 - from.1) * part)).abs() < 1e-6
+            );
+        }
+        let stereo = (left, right);
+        if let Some(reference) = &baseline_stereo {
+            assert_eq!(&stereo, reference);
+        } else {
+            baseline_stereo = Some(stereo);
+        }
+    }
+}
 fn zone(value: f32, mapping: SampleZone) -> LoadedZone {
     LoadedZone {
         mapping,

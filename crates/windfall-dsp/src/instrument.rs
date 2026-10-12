@@ -2349,6 +2349,12 @@ impl AnyInstrument {
             Self::SliceDeck(unit) => unit.set_note_pan_law(law),
             Self::GrainCloud(unit) => unit.set_note_pan_law(law),
             Self::WaveRide(unit) => unit.set_note_pan_law(law),
+            Self::MultiSampler(unit) => unit.set_note_pan_law(law),
+            Self::SamplePlayer(unit) => unit.set_note_pan_law(law),
+            Self::SoundFont(unit) => unit.set_note_pan_law(law),
+            Self::PadBank(unit) => unit.set_note_pan_law(law),
+            Self::PianoKeys(unit) => unit.set_note_pan_law(law),
+            Self::TextVoice(unit) => unit.set_note_pan_law(law),
             _ => {}
         }
     }
