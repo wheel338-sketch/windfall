@@ -285,3 +285,19 @@ Final serial gates in progress. No TypeScript or public UI/simulator schema chan
   automation, partition and standalone allocator checks pass. Follow-up DSP
   sources formatted and committed; current helper rebuild, then final serial
   gates will be repeated against the complete corrected tree.
+
+## Final acceptance — corrected tree
+
+The entries below supersede intermediate failures/probes above. No TypeScript,
+UI-visible types, simulator schemas or registries changed; binding regeneration,
+simulator build/check and frontend gates are not triggered.
+
+- Current desktop helper build: **PASS**, exit 0, 1m 28s,
+  `target/round4-builder-helper-final-current.log`.
+- `cargo fmt --all --check`: **PASS**, exit 0,
+  `target/round4-builder-final-fmt-repeat.log`.
+- `cargo clippy --workspace --all-targets -- -D warnings`: **PASS**, zero
+  warnings/errors, exit 0, 19.43 s,
+  `target/round4-builder-final-clippy-repeat.log`.
+- Full workspace test running serially, followed by the two required release
+  budget commands. Source checkpoint: `2e554923`.
