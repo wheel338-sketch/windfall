@@ -163,6 +163,13 @@ try {
   check("UI stall recovers under a fresh lease and reports skipped events", Number(recovered.canvases[0].skippedEvents) > 0, recovered.canvases[0])
   await call("deleteSource")
   await until(async () => (await call("read")).statuses[0]?.reason === "sourceMissing", "deleted source refusal")
+  // The refusal updates React before the animation-frame painters clear.
+  // Wait for the existing display assertion, within the same deadline.
+  await until(async () => {
+    const view = await call("read")
+    return view.canvases.every((canvas) => canvas.live === "false") &&
+      view.meters.every((meter) => meter.peakDb === "")
+  }, "deleted source display clearing on its animation frame")
   const gone = await read("deleted")
   check("source deletion clears real canvases and meters", gone.canvases.every((canvas) => canvas.live === "false") && gone.meters.every((meter) => meter.peakDb === ""), gone)
   await call("control", "replace")
