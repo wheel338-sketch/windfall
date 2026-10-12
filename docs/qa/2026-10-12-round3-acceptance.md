@@ -130,3 +130,5 @@ These are checkpoint results, not final acceptance. **Committed hand-off rows: 3
 - Branch 14 shell/release merged at 68db046f; workspace check exit 0, zero warnings (target/round3-branch14-check-repair1.log). Kept proposal revision plus window generation history guards; both dialog backdrop flags, all browser/action panels, modules and registrations. Fixed optional bool TS view. All fourteen scheduled branches merged; late readiness snapshot: inst/slices/fx-dyn-eq/formats ready, fx-drive-spectral not yet ready.
 
 - Late p2-inst (ready tip 14575c8d) merged at 0b081341; workspace check exit 0, zero warnings (target/round3-late-inst-check.log). Registered twenty maximum-load deadline cases and cold-pack gate; production schema/registries/dependencies unchanged.
+
+- Late p2-slices (ready tip 1ce9dbff) merged at 09a308b4; workspace check exit 0, zero warnings (target/round3-late-slices-check-repair1.log). Retained both native test registrations. Initial check mistakenly launched before the registration conflict was resolved and failed on its markers (target/round3-late-slices-check.log); no marker committed. No production/dependency changes.
