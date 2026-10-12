@@ -470,3 +470,4 @@ fn a_session_starts_on_a_clean_default_project_the_engine_can_play() {
 }
 
 mod sample_playback;
+mod sample_playback_workflow;
