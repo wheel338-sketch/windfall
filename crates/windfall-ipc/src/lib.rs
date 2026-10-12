@@ -268,6 +268,10 @@ pub struct EngineStatus {
 #[serde(rename_all = "camelCase", default)]
 #[ts(export)]
 pub struct AudioSettings {
+    /// None selects available CPU cores, bounded to eight. One is serial.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub processing_threads: Option<u8>,
     #[ts(optional)]
     pub host: Option<String>,
     #[ts(optional)]

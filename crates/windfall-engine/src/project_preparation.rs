@@ -117,6 +117,7 @@ impl From<crate::plugins::NativePreparationError> for ProjectPreparationError {
 /// a processor, and no unique native owner is temporarily held under its guard.
 #[derive(Clone)]
 pub struct PreparationSnapshot {
+    audio_threads: usize,
     owner: Arc<Inner>,
     plan: Arc<Plan>,
     ledger: Option<Arc<Ledger>>,
@@ -252,6 +253,7 @@ impl PreparationSnapshot {
             ));
         }
         let mut plan = prepared.plan;
+        plan.audio_threads = self.audio_threads;
         // Also retain the budget while detached: an old processor/retirement
         // carrier can still own histories when its replacement attaches.
         plan.echo_history = self.plan.echo_history.clone();
@@ -307,6 +309,7 @@ impl Controller {
     pub fn preparation_snapshot(&self) -> PreparationSnapshot {
         let state = self.lock();
         PreparationSnapshot {
+            audio_threads: state.audio_threads,
             owner: self.inner.clone(),
             plan: state.plan.clone(),
             ledger: state.hosted.clone(),
@@ -597,7 +600,9 @@ impl Controller {
                 PublicationRefusal::StaleStream,
             ));
         }
-        let plan = Arc::new(snapshot.plan.for_attachment());
+        let mut plan = snapshot.plan.for_attachment();
+        plan.audio_threads = snapshot.audio_threads;
+        let plan = Arc::new(plan);
         if plan.meters.is_err() {
             return Err(ProjectPreparationError::Unsupported(
                 "Invalid song meter map; project preparation refused.",

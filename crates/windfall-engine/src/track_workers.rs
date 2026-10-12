@@ -1,6 +1,6 @@
 //! Owned post-slot track processing and an immutable, order-preserving graph
-//! schedule. The production mixer remains serial until its complete routing and
-//! retirement paths can transfer this ownership end to end.
+//! schedule. Production uses GraphWaves with the scoped, plan-owned dispatcher
+//! in parallel.rs; TrackJob/TrackWorkers retain the original ownership prototype.
 //!
 //! Construct/destroy on the control thread. Submission and harvest only move
 //! preallocated values through capacity-one SPSC queues: no borrowed mixer state,

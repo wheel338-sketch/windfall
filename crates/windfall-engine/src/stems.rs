@@ -347,7 +347,8 @@ pub fn render_streaming_checked(
         .check_region()
         .map_err(crate::render::RenderError::Timeline)?;
     let pool = pool.prepare_samplers(project, &mut || true, &mut |_, _, _| {})?;
-    let pass = Pass::new(compile(project, &pool), options, &[]);
+    let pass = Pass::new(compile(project, &pool), options, &[])
+        .map_err(|error| crate::render::RenderError::Plugin(error.to_string()))?;
     pass.run(None, &mut |_, block| sink(block), progress)
         .map_err(|error| match error {
             StemError::Timeline(error) => crate::render::RenderError::Timeline(error),
@@ -393,7 +394,7 @@ pub fn render_stems(
     match stem_options.mode {
         StemMode::TrackOutputs => {
             let ids: Vec<TrackId> = tracks.iter().map(|&(_, id)| id).collect();
-            let pass = Pass::new(compile(project, pool), options, &ids);
+            let pass = Pass::new(compile(project, pool), options, &ids)?;
             // The pass numbers its streams from the master's on.
             let mut hand_on = |outlet: usize, block: &[f32]| match outlet.checked_sub(1) {
                 Some(tap) => sink(tracks[tap].0, block),
@@ -413,7 +414,7 @@ pub fn render_stems(
             let mut dropped_clips = 0;
             if mix_pass {
                 let scale = share(0);
-                let pass = Pass::new(compile(project, pool), options, &[]);
+                let pass = Pass::new(compile(project, pool), options, &[])?;
                 let done = pass.run(
                     None,
                     &mut |_, block| mix.is_none_or(|stream| sink(stream, block)),
@@ -430,7 +431,7 @@ pub fn render_stems(
                 let scale = share(number + usize::from(mix_pass));
                 let mut plan = compile(project, pool);
                 plan.leave_only(id);
-                let pass = Pass::new(plan, options, &[]);
+                let pass = Pass::new(plan, options, &[])?;
                 // Without an automatic tail every pass is as long as the
                 // options make it, and needs no length to be told.
                 let done = pass.run(
@@ -607,7 +608,7 @@ struct Pass {
 impl Pass {
     /// Sets a processor up to play `plan` as `options` say, listening to
     /// `tracks` each on its own as well as to the master.
-    fn new(plan: Plan, options: &RenderOptions, tracks: &[TrackId]) -> Self {
+    fn new(plan: Plan, options: &RenderOptions, tracks: &[TrackId]) -> Result<Self, StemError> {
         let provider = plan.plugin_factory.clone();
         let sample_rate = options.sample_rate.max(1);
         let pattern = options
@@ -637,8 +638,17 @@ impl Pass {
         };
 
         let controller = Controller::new();
+        controller
+            .set_audio_threads(Some(options.audio_threads))
+            .map_err(|error| StemError::Plugin(error.into()))?;
         controller.set_plan(plan);
-        let mut processor = controller.attach(sample_rate);
+        let (mut processor, _, retirement) = controller
+            .try_attach(
+                sample_rate,
+                crate::project_preparation::AttachmentMode::Independent,
+            )
+            .map_err(|error| StemError::Plugin(error.to_string()))?;
+        drop(retirement);
         controller.set_transport(TransportPatch {
             mode: Some(options.mode),
             pattern,
@@ -665,7 +675,7 @@ impl Pass {
             processor.listen(Taps::new(places, block));
         }
 
-        Self {
+        Ok(Self {
             provider,
             processor,
             _controller: controller,
@@ -677,7 +687,7 @@ impl Pass {
             hold: (TAIL_HOLD_SECONDS * f64::from(sample_rate)).round() as usize,
             silence: db_to_gain(TAIL_SILENCE_DB),
             block,
-        }
+        })
     }
 
     /// Runs the pass. `sink` is handed each stream's audio as it becomes
@@ -1009,7 +1019,7 @@ mod tests {
         let plan = compile(&band(), &SamplePool::new());
         let options = RenderOptions::default();
         let listened = [TrackId(1), TrackId(3), TrackId(4)];
-        let mut pass = Pass::new(plan, &options, &listened);
+        let mut pass = Pass::new(plan, &options, &listened).unwrap();
         assert_eq!(pass.outlets.len(), 4);
         let mut block = vec![0.0; options.block_frames * 2];
         // The first call takes in the requests that start playback.

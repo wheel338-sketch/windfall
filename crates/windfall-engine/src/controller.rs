@@ -74,6 +74,7 @@ struct Inner {
 }
 
 struct State {
+    audio_threads: usize,
     region: Option<windfall_project::TickRange>,
     link: Option<Link>,
     /// The plan most recently compiled, kept to hand to a new processor.
@@ -128,6 +129,13 @@ pub struct Playhead {
     pub loop_song: bool,
 }
 
+/// Node that most recently exceeded the callback deadline.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ProcessingNode {
+    Track(windfall_project::TrackId),
+    Channel(windfall_project::ChannelId),
+}
+
 /// Measurements the device callback takes while a stream runs.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct StreamStats {
@@ -142,9 +150,58 @@ pub struct StreamStats {
     pub cpu: f32,
     /// The highest single-buffer share since the last call.
     pub cpu_peak: f32,
+    /// DSP node completions after the output-buffer deadline.
+    pub processing_overruns: u64,
+    /// Last late node in deterministic harvest order.
+    pub last_processing_overrun: Option<ProcessingNode>,
 }
 
 impl Controller {
+    /// Prepare replacement lanes off audio, then adopt them at a callback
+    /// boundary. DSP, delay histories, playhead and ramps are untouched.
+    /// None selects available cores (bounded to eight); one is serial.
+    pub fn set_audio_threads(&self, requested: Option<usize>) -> Result<(), &'static str> {
+        let count = requested.unwrap_or_else(|| {
+            std::thread::available_parallelism()
+                .map_or(1, usize::from)
+                .min(crate::parallel::LANES)
+        });
+        if !(1..=crate::parallel::LANES).contains(&count) {
+            return Err("Audio threads must be 1 through 8");
+        }
+        {
+            let mut state = self.lock();
+            if state.audio_threads == count {
+                return Ok(());
+            }
+            if state.link.is_none() {
+                state.plan_generation = state
+                    .plan_generation
+                    .checked_add(1)
+                    .ok_or("Audio plan generation exhausted")?;
+                state.audio_threads = count;
+                return Ok(());
+            }
+        }
+        let workers = Box::new(
+            crate::parallel::Workers::new(count)
+                .map_err(|_| "Could not create audio processing workers")?,
+        );
+        let mut state = self.lock();
+        // Fence off prepared publications carrying the previous preference.
+        state.plan_generation = state
+            .plan_generation
+            .checked_add(1)
+            .ok_or("Audio plan generation exhausted")?;
+        state.audio_threads = count;
+        state.send(Message::SetWorkers(workers));
+        Ok(())
+    }
+
+    pub fn audio_threads(&self) -> usize {
+        self.lock().audio_threads
+    }
+
     /// Admits a bounded performance request without changing song transport.
     pub fn performance_launch(
         &self,
@@ -271,6 +328,7 @@ impl Controller {
                 sampler_error: Mutex::new(None),
                 preparation_error: Mutex::new(None),
                 state: Mutex::new(State {
+                    audio_threads: 1,
                     region: None,
                     link: None,
                     plan: Arc::new(Plan::empty()),
@@ -1099,6 +1157,18 @@ impl Controller {
             xruns: shared.xruns(),
             cpu: shared.load(),
             cpu_peak: shared.take_load_peak(),
+            processing_overruns: shared.processing_overruns.load(Ordering::Relaxed),
+            last_processing_overrun: shared
+                .last_processing_overrun
+                .load(Ordering::Acquire)
+                .checked_sub(1)
+                .map(|node| {
+                    if node & (1 << 63) != 0 {
+                        ProcessingNode::Channel(windfall_project::ChannelId(node as u32))
+                    } else {
+                        ProcessingNode::Track(windfall_project::TrackId(node as u32))
+                    }
+                }),
         }
     }
 

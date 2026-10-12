@@ -1,7 +1,7 @@
 //! Values the audio thread publishes for the control side to read, all
 //! through atomics.
 
-use std::sync::atomic::{AtomicU32, AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU64, Ordering};
 use std::time::Duration;
 
 use windfall_project::MAX_MIXER_TRACKS;
@@ -25,6 +25,9 @@ pub(crate) const MIDI_OUT_CAPACITY: usize = 2048;
 const MIDI_OUT_FRAME_BITS: u32 = 38;
 
 pub(crate) struct Shared {
+    pub processing_xrun_recorded: AtomicBool,
+    pub processing_overruns: AtomicU64,
+    pub last_processing_overrun: AtomicU64,
     pub note_poses: [AtomicU64; 128],
     pub presentation_epoch: AtomicU64,
     pub presentation_frame: AtomicU64,
@@ -93,6 +96,9 @@ pub(crate) struct Shared {
 impl Shared {
     pub fn new() -> Self {
         Self {
+            processing_xrun_recorded: AtomicBool::new(false),
+            processing_overruns: AtomicU64::new(0),
+            last_processing_overrun: AtomicU64::new(0),
             note_poses: std::array::from_fn(|_| AtomicU64::new(0)),
             presentation_epoch: AtomicU64::new(1),
             presentation_frame: AtomicU64::new(0),
@@ -314,6 +320,10 @@ impl Shared {
         self.load.store(0, Ordering::Relaxed);
         self.load_peak.store(0, Ordering::Relaxed);
         self.xruns.store(0, Ordering::Relaxed);
+        self.processing_xrun_recorded
+            .store(false, Ordering::Relaxed);
+        self.processing_overruns.store(0, Ordering::Relaxed);
+        self.last_processing_overrun.store(0, Ordering::Relaxed);
         self.frames.store(0, Ordering::Relaxed);
         self.buffer_frames.store(0, Ordering::Relaxed);
     }
@@ -331,7 +341,8 @@ impl Shared {
         let average = average + (load - average) * LOAD_SMOOTHING;
         self.load.store(average.to_bits(), Ordering::Relaxed);
         self.load_peak.fetch_max(load.to_bits(), Ordering::Relaxed);
-        if load > 1.0 {
+        let processing_reported = self.processing_xrun_recorded.swap(false, Ordering::Relaxed);
+        if load > 1.0 && !processing_reported {
             self.record_xrun();
         }
         self.frames.fetch_add(frames as u64, Ordering::Relaxed);

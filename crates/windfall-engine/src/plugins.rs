@@ -378,11 +378,13 @@ mod tests {
 
     #[derive(Debug, Default)]
     struct FixtureFactory {
+        audio_thread: Option<std::thread::ThreadId>,
         made: AtomicUsize,
         boundaries: Arc<AtomicUsize>,
         latency: usize,
     }
     struct Fixture {
+        audio_thread: Option<std::thread::ThreadId>,
         boundaries: Arc<AtomicUsize>,
         level: f32,
         held: bool,
@@ -395,6 +397,13 @@ mod tests {
             self.boundaries.fetch_add(1, Ordering::Relaxed);
         }
         fn process(&mut self, left: &mut [f32], right: &mut [f32]) {
+            if let Some(owner) = self.audio_thread {
+                assert_eq!(
+                    std::thread::current().id(),
+                    owner,
+                    "hosted process left the audio callback lane"
+                );
+            }
             for (left, right) in left.iter_mut().zip(right) {
                 if self.instrument {
                     *left = if self.held { self.level } else { 0.0 };
@@ -447,6 +456,7 @@ mod tests {
         ) -> Result<Box<dyn HostedEffect>, String> {
             self.made.fetch_add(1, Ordering::Relaxed);
             Ok(Box::new(Fixture {
+                audio_thread: self.audio_thread,
                 boundaries: self.boundaries.clone(),
                 level: 1.0,
                 held: false,
@@ -463,6 +473,7 @@ mod tests {
         ) -> Result<Box<dyn HostedInstrument>, String> {
             self.made.fetch_add(1, Ordering::Relaxed);
             Ok(Box::new(Fixture {
+                audio_thread: self.audio_thread,
                 boundaries: self.boundaries.clone(),
                 level: 1.0,
                 held: false,
@@ -520,6 +531,43 @@ mod tests {
         project.check().unwrap();
         project
     }
+    #[test]
+    fn hosted_instruments_and_effects_stay_on_callback_lane_across_live_thread_changes() {
+        let mut doc = Document::new(project());
+        doc.dispatch(
+            Command::AddPluginEffect {
+                track: TrackId::MASTER,
+                plugin: binding(),
+            },
+            None,
+        )
+        .unwrap();
+        let project = doc.project().clone();
+        let factory = Arc::new(FixtureFactory {
+            audio_thread: Some(std::thread::current().id()),
+            ..Default::default()
+        });
+        let mut pool = crate::SamplePool::new();
+        pool.set_plugin_factory(factory.clone());
+        let (mut processor, control) = crate::Processor::new(48_000);
+        control.set_project(&project, &pool);
+        control.play();
+        let mut out = [0.0; 512];
+        for threads in [1, 2, 4, 8, 2, 1] {
+            control.set_audio_threads(Some(threads)).unwrap();
+            assert_eq!(
+                crate::test_alloc::allocator_calls(|| processor.process(&mut out)),
+                0
+            );
+            assert!(out.iter().any(|sample| *sample > 0.01));
+        }
+        assert_eq!(
+            factory.made.load(Ordering::Relaxed),
+            2,
+            "thread setting must never recreate hosted instances"
+        );
+    }
+
     #[test]
     fn hardware_hosted_fixture_notes_and_panic_do_not_allocate_or_replace_plugin_owners() {
         let project = project();

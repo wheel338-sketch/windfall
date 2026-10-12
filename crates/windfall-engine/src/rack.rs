@@ -105,6 +105,11 @@ pub(crate) struct EffectUnit {
 }
 
 impl EffectUnit {
+    /// Native instances and engine control producers retain the callback lane.
+    pub fn parallel_safe(&self) -> bool {
+        self.external.is_none() && !self.control_enabled()
+    }
+
     /// Builds and prepares an effect with its settings in force from its
     /// first frame. Allocates, so it is for the control side. Also returns
     /// the meter of a compressor or limiter.
@@ -633,6 +638,14 @@ pub(crate) struct InstrumentUnit {
 }
 
 impl InstrumentUnit {
+    pub fn parallel_safe(&self) -> bool {
+        self.external.is_none()
+            && !matches!(
+                self.params,
+                InstrumentParams::MidiOut(_) | InstrumentParams::Dashboard(_)
+            )
+    }
+
     pub fn inherit_playback_notes(&mut self, previous: &Self) {
         if self.instrument.inherit_playback_state(&previous.instrument) {
             self.notes.copy_from_slice(&previous.notes);

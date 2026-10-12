@@ -29,6 +29,7 @@ pub(crate) const GARBAGE_HEADROOM: usize = 4;
 // Scene requests remain inline so adopting a scene cannot allocate or free.
 #[allow(clippy::large_enum_variant)]
 pub(crate) enum Message {
+    SetWorkers(Box<crate::parallel::Workers>),
     SetPlan {
         plan: Arc<Plan>,
         state: Box<PlanState>,
@@ -97,6 +98,7 @@ pub(crate) enum Message {
     reason = "the values are never read, only carried to the thread that may free them"
 )]
 pub(crate) enum Garbage {
+    Workers(Box<crate::parallel::Workers>),
     Plan(Arc<Plan>),
     State(Box<PlanState>),
     Sample(AudioBuffer),
