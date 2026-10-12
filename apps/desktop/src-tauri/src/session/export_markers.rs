@@ -1,7 +1,7 @@
 //! Metadata is captured from the same immutable project as the render job.
 use windfall_codec::{WavCue, WavLoop, WavLoopKind, WavMetadata, WavTempo};
 use windfall_engine::{SamplePool, SongFrameMap};
-use windfall_project::{MarkerKind, Project, TickRange};
+use windfall_project::{MarkerKind, PatternId, Project, TickRange};
 
 pub(super) fn song_metadata(
     project: &Project,
@@ -72,6 +72,74 @@ pub(super) fn song_metadata(
     Ok(metadata)
 }
 
+/// Pattern rendering uses the stored tempo and channel timing, including swing,
+/// gate and shift. IDs here are export-local, so repeated notes get unique cues.
+pub(super) fn pattern_metadata(
+    project: &Project,
+    pattern: PatternId,
+    rate: u32,
+    passes: u32,
+) -> Result<WavMetadata, String> {
+    let pattern = project.pattern(pattern).ok_or("The export pattern no longer exists.")?;
+    let length = pattern.length_ticks();
+    let per_tick = windfall_core::samples_per_tick(project.settings.tempo_bpm, f64::from(rate));
+    let frame = |tick: f64| -> Result<u32, String> {
+        let value = (tick * per_tick).ceil();
+        if !value.is_finite() || value < 0.0 || value > f64::from(u32::MAX) {
+            return Err("A WAV note marker exceeds the 32-bit frame range.".into());
+        }
+        Ok(value as u32)
+    };
+    let mut metadata = WavMetadata::default();
+    let mut cue = |tick: f64, label: String| -> Result<(), String> {
+        if metadata.cues.len() >= windfall_codec::MAX_WAV_MARKERS {
+            return Err("The pattern has more than 4096 WAV markers. Export fewer loops.".into());
+        }
+        metadata.cues.push(WavCue {
+            id: metadata.cues.len() as u32 + 1,
+            frame: frame(tick)?,
+            label,
+        });
+        Ok(())
+    };
+    for pass in 0..passes {
+        let origin = f64::from(pass) * f64::from(length);
+        for marker in &pattern.timeline.markers {
+            if marker.tick < length {
+                cue(origin + f64::from(marker.tick), marker.name.clone())?;
+            }
+        }
+        for lane in &pattern.lanes {
+            let solo = project.channels.iter().any(|c| c.solo);
+            let Some(channel) = project.channel(lane.channel)
+                .filter(|c| !c.muted && (!solo || c.solo)) else {
+                continue;
+            };
+            for note in &lane.notes {
+                if let Some((tick, _)) = channel.timing.place(
+                    note.start, note.length, length, f64::from(project.settings.swing),
+                ) {
+                    cue(origin + tick, format!("{}: MIDI {}", channel.name, note.key))?;
+                }
+            }
+        }
+    }
+    let signature = pattern.effective_signature(project.settings.time_signature);
+    if pattern.timeline.meters.is_empty() && length.is_multiple_of(windfall_project::PPQ) {
+        metadata.tempo = Some(WavTempo {
+            bpm: project.settings.tempo_bpm as f32,
+            beats: (length / windfall_project::PPQ).checked_mul(passes)
+                .ok_or("The pattern beat count exceeds the WAV metadata range.")?,
+            numerator: u16::from(signature.numerator),
+            denominator: u16::from(signature.denominator),
+            root_key: None,
+            one_shot: true,
+        });
+    }
+    metadata.validate(Some(u64::from(frame(f64::from(length) * f64::from(passes))?)))
+        .map_err(|e| e.to_string())?;
+    Ok(metadata)
+}
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -429,3 +429,48 @@ fn song_wav_export_writes_named_cues_and_rebased_sampler_loops() {
         72000
     );
 }
+
+#[test]
+fn pattern_wav_note_cues_follow_swing_shift_repeats_and_saved_notes() {
+    use windfall_project::{ChannelPatch, ChannelTiming, NoteInit, SettingsPatch};
+    let rig = Rig::new();
+    let c = rig.channel(0);
+    rig.session.dispatch(Command::AddNotes {
+        pattern: rig.pattern(), channel: c,
+        notes: vec![NoteInit { start: 240, length: 240, key: 65, velocity: None, pan: None, expression: None }],
+    }, None).unwrap();
+    rig.session.dispatch(Command::UpdateSettings { patch: SettingsPatch {
+        swing: Some(0.75), ..Default::default()
+    } }, None).unwrap();
+    rig.session.dispatch(Command::UpdateChannel { id: c, patch: ChannelPatch {
+        timing: Some(ChannelTiming { swing_mix: 1.0, gate_ticks: 120, shift_ticks: 40 }),
+        ..Default::default()
+    } }, None).unwrap();
+    let save = rig.file("note-markers.windfall");
+    rig.session.project_save(Some(&save)).unwrap();
+    rig.session.project_open(&save).unwrap();
+    let before = rig.session.document_snapshot();
+    let mut export = options(&rig, "pattern-cues.wav");
+    export.pattern_loops = 2;
+    rig.session.export_audio(export.clone()).unwrap();
+    assert_eq!(rig.events.wait_for_export().error, None);
+    let metadata = windfall_codec::read_wav_metadata_file(&export.path).unwrap();
+    assert_eq!(metadata.cues.iter().map(|cue| cue.frame).collect::<Vec<_>>(), vec![8500, 104500]);
+    assert_ne!(metadata.cues[0].id, metadata.cues[1].id);
+    assert!(metadata.cues.iter().all(|cue| cue.label.ends_with("MIDI 65")));
+    let decoded = windfall_codec::decode_file(&export.path).unwrap();
+    assert_eq!(decoded.frames(), 192000);
+    // Inspect the first cue without using Windfall's metadata reader.
+    let bytes = std::fs::read(&export.path).unwrap();
+    let mut at = 12;
+    loop {
+        let size = u32::from_le_bytes(bytes[at + 4..at + 8].try_into().unwrap()) as usize;
+        if &bytes[at..at + 4] == b"cue " {
+            assert_eq!(u32::from_le_bytes(bytes[at + 32..at + 36].try_into().unwrap()), 8500);
+            break;
+        }
+        at += 8 + size + size % 2;
+        assert!(at < bytes.len(), "missing cue chunk");
+    }
+    assert_eq!(rig.session.document_snapshot(), before);
+}

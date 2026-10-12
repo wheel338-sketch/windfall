@@ -1347,6 +1347,7 @@ export function createMockBackend(options: MockOptions = {}): MockBackend {
         return missing.length
       }),
 
+    samplePlaybackExport: async () => { throw new Error("WAV source export requires the desktop app.") },
     exportAudio: (exportOptions) =>
       ipc(() => {
         if (exportOptions.region) {

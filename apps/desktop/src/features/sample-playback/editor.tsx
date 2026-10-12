@@ -78,6 +78,15 @@ export function SamplePlaybackEditor({ channel }: { channel: InstrumentChannel }
     finally { if (generation === getProjectGeneration()) setBusy(false) }
   }
   const peaks = info?.sample === asset.sample ? info.info.peaks : []
+  const exportSource = async () => {
+    const generation = getProjectGeneration()
+    setBusy(true); setError(null)
+    try {
+      const guard = await backend.timelineState()
+      if (generation === getProjectGeneration()) await backend.samplePlaybackExport(channel.id, guard.generation, guard.revision)
+    } catch (failure) { if (generation === getProjectGeneration()) setError(errorMessage(failure)) }
+    finally { if (generation === getProjectGeneration()) setBusy(false) }
+  }
   const waveform = peaks.reduce((path, _, i) => i % 2 ? path : `${path} M${i / peaks.length * 300},${35 - peaks[i] * 30} V${35 - peaks[i + 1] * 30}`, "")
   const curve = curveKey === null ? asset.curve : asset.keyCurves.find((c) => c.key === curveKey)?.curve ?? asset.curve
   return <div className="flex flex-col gap-3" aria-label="Sample playback editor">
@@ -117,6 +126,8 @@ export function SamplePlaybackEditor({ channel }: { channel: InstrumentChannel }
       <div className="flex flex-wrap gap-2">
         <Button size="sm" disabled={busy || asset.sample == null} onClick={() => { void detect({ mode: "transients", sensitivity }) }}>Detect transients</Button>
         <Button size="sm" variant="outline" disabled={busy || asset.sample == null} onClick={() => { void detect({ mode: "grid", gridTicks: 960 }) }}>Detect beat grid</Button>
+        <Button size="sm" variant="outline" disabled={busy || asset.sample == null} onClick={() => { void detect({ mode: "wavMarkers" }) }}>Import WAV slices</Button>
+        <Button size="sm" variant="outline" disabled={busy || asset.sample == null} onClick={() => { void exportSource() }}>Export source WAV with slices</Button>
         <Button size="sm" variant="outline" disabled={!channel.samplePlayback || asset.slices.length > availableKeys || patternIds.length === 0} onClick={() => { void dispatch({ type: "generateSlicePattern", channel: channel.id,
           pattern: patternIds.some((p) => p.id === selectedPattern) ? selectedPattern : patternIds[0].id }) }}>Generate slice pattern</Button>
       </div>

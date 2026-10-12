@@ -130,6 +130,7 @@ export interface Backend extends AnalysisBackend, MixerPresetLibraryBackend, Ana
   ): Promise<DispatchResult>
   audioEditorDiscard(token: number): Promise<void>
   samplePlaybackDetect(channel: ChannelId, options: import("@/features/slicer/types").SliceOptions, generation: number, revision: number): Promise<DispatchResult>
+  samplePlaybackExport(channel: ChannelId, generation: number, revision: number): Promise<void>
   sliceAnalyze(
     clip: number,
     options: import("@/features/slicer/types").SliceOptions

@@ -35,6 +35,18 @@ async function open(kind: InstrumentKind) {
 const asset = (id: number) => useProjectStore.getState().project.channels.find((c) => c.id === id)!.samplePlayback!
 
 describe("purpose-built sample instrument editors", () => {
+  it("reports native WAV import and export capabilities without changing slices", async () => {
+    const id = await open("sliceDeck")
+    const before = asset(id)
+    await userEvent.setup().click(screen.getByRole("button", { name: "Import WAV slices" }))
+    await flush()
+    expect(screen.getByText(/WAV slice markers require the desktop app/)).toBeVisible()
+    expect(asset(id)).toEqual(before)
+    await userEvent.setup().click(screen.getByRole("button", { name: "Export source WAV with slices" }))
+    await flush()
+    expect(screen.getByText(/WAV source export requires the desktop app/)).toBeVisible()
+    expect(asset(id)).toEqual(before)
+  })
   it("retains migrated source A when assigning the second deck", async () => {
     const id = await open("sliceDeck")
     const source = { sampleRate: 8000, data: [0.2, 0.4, 0.6, 0.8] }

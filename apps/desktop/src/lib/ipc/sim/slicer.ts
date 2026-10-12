@@ -61,6 +61,7 @@ export function createSlicerMock(
   }
   return {
     async samplePlaybackDetect(channel: number, options: SliceOptions, generation: number, revision: number): Promise<DispatchResult> {
+      if (options.mode === "wavMarkers") throw new Error("WAV slice markers require the desktop app and a source WAV file.")
       const original = document()
       const current = guard?.()
       if (original.snapshot(null).revision !== revision || (current && current.generation !== generation))

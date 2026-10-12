@@ -169,6 +169,10 @@ export function createTauriBackend(): Backend {
     audioEditorApply: (request) => call("audio_editor_apply", { request }),
     audioEditorDiscard: (token) => call("audio_editor_discard", { token }),
     samplePlaybackDetect: (channel, options, generation, revision) => call("sample_playback_detect", { channel, options, generation, revision }),
+    samplePlaybackExport: async (channel, generation, revision) => {
+      const path = await save({ title: "Export source WAV with slices", filters: [{ name: "WAV audio", extensions: ["wav"] }] })
+      if (path) await call("sample_playback_export", { channel, path, generation, revision })
+    },
     sliceAnalyze: (clip, options) => call("slice_analyze", { clip, options }),
     sliceApply: (token, markers) => call("slice_apply", { token, markers }),
     sliceDiscard: (token) => call("slice_discard", { token }),
