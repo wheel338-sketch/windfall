@@ -9,6 +9,8 @@ use crate::{SamplePool, clips::equal_power, voice::Region};
 
 pub mod clean;
 pub mod process;
+mod timeline;
+pub use timeline::{render_view_timed, view_timing};
 
 pub const MAX_EDIT_SECONDS: f64 = 120.0;
 pub const MAX_EDIT_BYTES: usize = 64 * 1024 * 1024;
@@ -25,14 +27,31 @@ fn bounded(frames: f64, rate: u32, channels: u16) -> Result<usize, String> {
 }
 
 /// Renders the clip's visible window at the source rate, with silence after
-/// the source ends. Tempo automation is rejected by the session before calling.
+/// the source ends, at a fixed tempo. Timeline editors use view_timing instead.
 pub fn render_view(pool: &SamplePool, clip: &Clip, tempo: f64) -> Result<AudioBuffer, String> {
+    let ClipContent::Audio { sample, fade_in, fade_out, .. } = clip.content else {
+        return Err("Select an audio clip.".into());
+    };
+    if !tempo.is_finite() || tempo <= 0.0 {
+        return Err("The project tempo is invalid.".into());
+    }
+    let source = pool.get(sample).ok_or("The source is unavailable.")?;
+    let per_tick = samples_per_tick(tempo, f64::from(source.sample_rate()));
+    render_view_timed(pool, clip, &windfall_project::AudioViewTiming {
+        duration_frames: f64::from(clip.length) * per_tick,
+        offset_frames: f64::from(clip.offset) * per_tick,
+        fade_in_frames: f64::from(fade_in.min(clip.length)) * per_tick,
+        fade_out_frames: f64::from(fade_out.min(clip.length)) * per_tick,
+    })
+}
+
+fn render_timed(pool: &SamplePool, clip: &Clip, timing: &windfall_project::AudioViewTiming) -> Result<AudioBuffer, String> {
+    timing.check()?;
     let ClipContent::Audio {
         sample,
         gain,
         pan,
-        fade_in,
-        fade_out,
+        normalize,
         reverse,
         pitch,
         stretch,
@@ -41,9 +60,6 @@ pub fn render_view(pool: &SamplePool, clip: &Clip, tempo: f64) -> Result<AudioBu
     else {
         return Err("Select an audio clip.".into());
     };
-    if !tempo.is_finite() || tempo <= 0.0 {
-        return Err("The project tempo is invalid.".into());
-    }
     let source = pool
         .get(sample)
         .ok_or("The clip's audio is not loaded. Reload samples first.")?;
@@ -65,9 +81,8 @@ pub fn render_view(pool: &SamplePool, clip: &Clip, tempo: f64) -> Result<AudioBu
             source.channels(),
         )?;
     }
-    let per_tick = samples_per_tick(tempo, f64::from(source.sample_rate()));
     let frames = bounded(
-        (f64::from(clip.length) * per_tick - 1e-6).ceil(),
+        (timing.duration_frames - 1e-6).ceil(),
         source.sample_rate(),
         2,
     )?;
@@ -79,23 +94,25 @@ pub fn render_view(pool: &SamplePool, clip: &Clip, tempo: f64) -> Result<AudioBu
     } else {
         1.0
     };
-    let skip = f64::from(clip.offset) * per_tick * speed;
+    let skip = timing.offset_frames * speed;
     let region = Region {
         first: 0,
         frames: audio.frames(),
         reverse,
     };
     let (left, right) = pan_gains(pan);
+    let gain = if normalize {
+        let peak = audio.samples().iter().fold(0.0_f32, |peak, s| peak.max(s.abs()));
+        if peak >= 1e-8 { (gain / peak).min(windfall_project::MAX_GAIN) } else { gain }
+    } else { gain };
     let mut data = Vec::with_capacity(frames * 2);
     for frame in 0..frames {
-        let tick = frame as f64 / per_tick;
         let mut level = gain;
-        if fade_in > 0 {
-            level *= equal_power(tick / f64::from(fade_in.min(clip.length)));
+        if timing.fade_in_frames > 0.0 {
+            level *= equal_power(frame as f64 / timing.fade_in_frames);
         }
-        if fade_out > 0 {
-            level *=
-                equal_power((f64::from(clip.length) - tick) / f64::from(fade_out.min(clip.length)));
+        if timing.fade_out_frames > 0.0 {
+            level *= equal_power((timing.duration_frames - frame as f64) / timing.fade_out_frames);
         }
         let position = skip + frame as f64 * speed;
         let (a, b) = if position < audio.frames() as f64 {

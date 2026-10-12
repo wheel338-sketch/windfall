@@ -154,6 +154,7 @@ mod spectrum;
 mod state;
 mod stems;
 mod tempo;
+pub use tempo::SongClock;
 mod timeline;
 mod waveform_meter;
 pub use timeline::MAX_NAVIGATION_TRANSITIONS;

@@ -5321,6 +5321,8 @@ dependencies = [
  "thiserror 2.0.21",
  "windfall-codec",
  "windfall-core",
+ "windfall-project",
+ "windfall-stretch",
 ]
 
 [[package]]

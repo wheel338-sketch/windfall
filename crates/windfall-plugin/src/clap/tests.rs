@@ -57,6 +57,7 @@ fn program() -> Program {
     let mut program = Program::default();
     program.project.next_id = 20;
     program.project.samples.push(SampleAsset {
+        processing: None,
         id: SampleId(2),
         name: "source".into(),
         path: SamplePath::Project("source.wav".into()),

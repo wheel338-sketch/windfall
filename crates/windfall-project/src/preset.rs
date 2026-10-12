@@ -684,6 +684,7 @@ impl ChannelPreset {
         let sample = self.sample_asset.map(|_| SampleId(take()));
         if let Some(id) = sample {
             project.samples.push(SampleAsset {
+            processing: None,
                 id,
                 name: "Preset audio".to_owned(),
                 path: SamplePath::External("preset-audio".to_owned()),

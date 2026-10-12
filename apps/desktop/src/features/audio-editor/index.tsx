@@ -21,6 +21,7 @@ import {
 import { usePlaylistStore } from "@/features/playlist/store"
 import { validSelection, type Selection } from "./selection"
 import { EditTools } from "./tools-panel"
+import { AnalysisTools } from "./analysis-tools"
 import type { AudioEditOperation, AudioEditPreview } from "./types"
 import { Waveform } from "./waveform"
 
@@ -389,6 +390,20 @@ function Editor({
             selection={selection}
             disabled={!valid || busy}
             onApply={(operation) => void apply(operation)}
+          />
+          <AnalysisTools
+            preview={preview}
+            selection={selection}
+            disabled={!valid || busy}
+            onBusy={(value) => { setBusy(value); onBusy(value) }}
+            onCommit={(result) => {
+              if (!alive.current || previewGeneration !== getProjectGeneration() ||
+                selectionAtOpen !== usePlaylistStore.getState().selection) return
+              receivePatch(result.patch)
+              const id = result.created.at(-1)
+              if (id !== undefined) usePlaylistStore.getState().select([id])
+              onDone()
+            }}
           />
           <p className="text-muted-foreground">
             Edits include the clip’s offset, reverse, pitch/stretch, gain, pan

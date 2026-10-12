@@ -66,6 +66,7 @@ impl Rig {
         self.pool
             .insert(sample, AudioBuffer::from_interleaved(RATE, 1, data));
         self.project.samples.push(SampleAsset {
+            processing: None,
             id: sample,
             name: String::new(),
             path: SamplePath::Project(format!("{}.wav", sample.0)),

@@ -9,7 +9,13 @@ export type AnalysisProvenance = {
   adapterVersion: string
   device: string
 }
+export type AnalysisTensorSpec = { name: string; shape: (number | string)[] }
+export type AnalysisOnnxContract = {
+  opset: number; inputs: AnalysisTensorSpec[]; outputs: AnalysisTensorSpec[]
+  sampleRate: number; segmentFrames: number; overlapFrames: number; stemRoles: string[]
+}
 export type AnalysisModel = {
+  onnx?: AnalysisOnnxContract | null
   id: string
   version: string
   revision: string
@@ -23,12 +29,15 @@ export type AnalysisModel = {
   outputs: { role: string; channels: number }[]
 }
 export type AnalysisCapability = {
+  classicalDereverb?: boolean
   native: boolean
   available: boolean
   reason: string | null
   models: AnalysisModel[]
 }
 export type AnalysisSubmit = {
+  amount?: number | null
+  task?: AnalysisTask
   clip: number
   modelId: string
   modelVersion: string
@@ -58,6 +67,8 @@ export type AnalysisJob = {
   failure: string | null
 }
 export type AnalysisReview = {
+  amount: number
+  task?: AnalysisTask
   job: AnalysisJob
   clip: number
   generation: string
@@ -83,6 +94,28 @@ export type AnalysisApply = {
   ticket: string
   request: string
   replaceOriginal: boolean
+  selectedRoles?: string[] | null
+  separateTracks?: boolean
+  muteOriginal?: boolean
+}
+export type AnalysisTask = "audio" | "stemSeparation" | "dereverbGeneral" | "dereverbVocal"
+export const BUILTIN_DEREVERB_ID = "windfall-classical-dereverb"
+export function isDereverb(task: AnalysisTask): boolean {
+  return task === "dereverbGeneral" || task === "dereverbVocal"
+}
+export function isBuiltinDereverb(model: AnalysisModel): boolean {
+  return model.id === BUILTIN_DEREVERB_ID && model.version === "1" && model.revision === "1" && model.bytes === "0"
+}
+export function taskProblem(task: AnalysisTask, model: AnalysisModel): string | undefined {
+  if (task === "audio") return undefined
+  const expected = task === "stemSeparation" ? ["drums", "bass", "vocals", "other"] :
+    [task === "dereverbGeneral" ? "dereverb-general" : "dereverb-vocal"]
+  const roles = model.outputs.map((o) => o.role)
+  if (roles.length !== expected.length || new Set(roles).size !== roles.length ||
+    expected.some((role) => !roles.includes(role)) ||
+    model.outputs.some((o) => o.channels !== model.inputChannels))
+    return "Select a pinned model with the exact roles and preserved channels for this operation."
+  return undefined
 }
 export interface AnalysisBackend {
   analysisCapability(): Promise<AnalysisCapability>
@@ -98,6 +131,7 @@ export interface AnalysisBackend {
   analysisForget(job: string): Promise<void>
   analysisRetryCleanup(job: string): Promise<void>
   analysisReview(ticket: string): Promise<AnalysisReview>
+  analysisPreview(ticket: string, role: string): Promise<void>
   analysisApply(
     request: AnalysisApply
   ): Promise<import("@/bindings").DispatchResult>

@@ -63,6 +63,8 @@ pub struct JobBudget {
 }
 
 pub struct JobRequest {
+    pub amount: f32,
+    pub task: crate::InferenceTask,
     pub input: CapturedInput,
     pub model: ModelManifest,
     pub budget: JobBudget,
@@ -119,10 +121,25 @@ pub struct Usage {
 /// model/runtime memory must be charged in scratch_bytes; it must use the
 /// provided bounded scratch and checkpoint between bounded CPU chunks. This
 /// cooperative contract does not sandbox arbitrary native allocations/code.
-/// No production inference adapter ships with this foundation.
+/// Built-in classical dereverb ships; imported ONNX inference remains unavailable.
 pub trait AnalysisAdapter: Send + Sync + 'static {
     fn id(&self) -> &str;
     fn version(&self) -> &str;
+    fn required_scratch_bytes(&self, _task: crate::InferenceTask) -> u64 { 0 }
+    /// Reservation includes adapter-owned allocations; do not allocate it twice.
+    fn scratch_buffer_bytes(&self, reserved: u64) -> u64 { reserved }
+    /// Only trusted native code can supply a weight-free algorithm descriptor.
+    fn builtin_model(&self, _manifest: &ModelManifest) -> Result<Option<VerifiedModel>> { Ok(None) }
+    fn supports(&self, task: crate::InferenceTask) -> bool {
+        task == crate::InferenceTask::Audio
+    }
+    fn run_task(
+        &self, task: crate::InferenceTask, input: &CapturedInput, model: &VerifiedModel,
+        context: &mut WorkerContext, artifacts: &mut ArtifactWriter,
+    ) -> Result<()> {
+        if !self.supports(task) { return Err(AnalysisError::Adapter("This runtime does not support the requested operation/mode.".into())); }
+        self.run(input, model, context, artifacts)
+    }
     fn run(
         &self,
         input: &CapturedInput,
@@ -132,10 +149,12 @@ pub trait AnalysisAdapter: Send + Sync + 'static {
     ) -> Result<()>;
 }
 pub struct WorkerContext {
+    amount: f32,
     work: Work,
     scratch: Vec<f32>,
 }
 impl WorkerContext {
+    pub fn amount(&self) -> f32 { self.amount }
     pub fn work(&mut self) -> &mut Work {
         &mut self.work
     }
@@ -149,6 +168,8 @@ impl WorkerContext {
 
 #[derive(Debug, Clone)]
 pub struct Review {
+    pub amount: f32,
+    pub task: crate::InferenceTask,
     pub job: JobId,
     pub ticket: TicketId,
     pub capture: CaptureStamp,
@@ -168,6 +189,8 @@ impl Review {
 }
 
 struct Proposal {
+    amount: f32,
+    task: crate::InferenceTask,
     input: CapturedInput,
     model: ModelManifest,
     _directory: TempDir,
@@ -186,6 +209,8 @@ impl Proposal {
     }
     fn review(&self, id: JobId, ticket: TicketId) -> Review {
         Review {
+            amount: self.amount,
+            task: self.task,
             job: id,
             ticket,
             capture: self.input.stamp().clone(),
@@ -374,17 +399,23 @@ impl JobManager {
         Ok(manager)
     }
     pub fn submit(&self, request: JobRequest) -> Result<JobId> {
+        if !request.amount.is_finite() || !(0.0..=1.0).contains(&request.amount) { return Err(AnalysisError::Invalid("analysis wet/dry amount")); }
         let config = &self.shared.config;
         let shape = request.input.stamp().input_shape;
         let frames = request.input.stamp().selection.frames()?;
         request.model.validate_input(shape, frames)?;
+        request.task.validate(&request.model)?;
+        if !self.shared.adapter.supports(request.task) {
+            return Err(AnalysisError::Adapter("The imported pack has no installed runtime for this operation/mode.".into()));
+        }
         if request.model.provenance.adapter_id != self.shared.adapter.id()
             || request.model.provenance.adapter_version != self.shared.adapter.version()
         {
             return Err(AnalysisError::Invalid("adapter/model revision mismatch"));
         }
         let b = request.budget;
-        if b.scratch_bytes > config.max_scratch_bytes
+        if b.scratch_bytes < self.shared.adapter.required_scratch_bytes(request.task)
+            || b.scratch_bytes > config.max_scratch_bytes
             || !b.scratch_bytes.is_multiple_of(4)
             || b.scratch_bytes > usize::MAX as u64
             || b.output_bytes == 0
@@ -872,21 +903,27 @@ fn execute(shared: &Arc<Shared>, id: JobId, task: Task, cancel: CancelToken) -> 
     let request = task.request;
     let work = make_work(shared, id, cancel, request.budget.work_units, task.deadline);
     let mut context = WorkerContext {
+        amount: request.amount,
         work,
         scratch: Vec::new(),
     };
     context.work.check()?;
+    let scratch_bytes = shared.adapter.scratch_buffer_bytes(request.budget.scratch_bytes);
+    if scratch_bytes > request.budget.scratch_bytes || !scratch_bytes.is_multiple_of(4) { return Err(AnalysisError::Invalid("adapter scratch reservation")); }
     context
         .scratch
-        .try_reserve_exact((request.budget.scratch_bytes / 4) as usize)
+        .try_reserve_exact((scratch_bytes / 4) as usize)
         .map_err(|_| AnalysisError::Budget("worker scratch allocation"))?;
     if context.scratch.capacity() as u64 * 4 > request.budget.scratch_bytes {
         return Err(AnalysisError::Budget("worker scratch capacity"));
     }
     context
         .scratch
-        .resize((request.budget.scratch_bytes / 4) as usize, 0.0);
-    let model = shared.cache.load(&request.model, &mut context.work)?;
+        .resize((scratch_bytes / 4) as usize, 0.0);
+    let model = match shared.adapter.builtin_model(&request.model)? {
+        Some(model) => model,
+        None => shared.cache.load(&request.model, &mut context.work)?,
+    };
     let mut writer = ArtifactWriter::new(
         &shared.config.staging_root,
         &request.model,
@@ -901,9 +938,11 @@ fn execute(shared: &Arc<Shared>, id: JobId, task: Task, cancel: CancelToken) -> 
         .cleanup_path = Some(writer.path().to_path_buf());
     shared
         .adapter
-        .run(&request.input, &model, &mut context, &mut writer)?;
+        .run_task(request.task, &request.input, &model, &mut context, &mut writer)?;
     let (directory, artifacts) = writer.complete(&mut context.work)?;
     Ok(Proposal {
+        amount: request.amount,
+        task: request.task,
         input: request.input,
         model: request.model,
         _directory: directory,
@@ -1051,6 +1090,35 @@ pub struct ApplyLease {
     work: Option<Work>,
 }
 impl ApplyLease {
+    /// Audition the exact captured selection under the same review lease. This
+    /// uses immutable prepared input, never the source pathname or a new view.
+    pub fn preview_input(&self, work: &mut Work) -> Result<windfall_core::AudioBuffer> {
+        let input = self.input();
+        let samples = input.selected_samples();
+        let mut copy = Vec::new();
+        copy.try_reserve_exact(samples.len()).map_err(|_| AnalysisError::Budget("dry preview allocation"))?;
+        for block in samples.chunks(crate::CHUNK_SAMPLES) { work.checkpoint(block.len() as u64)?; copy.extend_from_slice(block); }
+        work.check()?;
+        Ok(windfall_core::AudioBuffer::from_interleaved(input.stamp().input_shape.sample_rate, input.stamp().input_shape.channels, copy))
+    }
+    /// Claim ownership while auditioning; cancellation cannot remove the
+    /// staging asset being decoded. Dropping the lease restores Ready.
+    pub fn preview_audio(&self, role: &str, work: &mut Work) -> Result<windfall_core::AudioBuffer> {
+        let proposal = self.proposal.as_ref().expect("live lease");
+        let artifact = proposal.artifacts.iter().find(|a|a.metadata.role==role)
+            .ok_or(AnalysisError::Invalid("unknown preview role"))?;
+        let audio = windfall_codec::decode_file_strict_with(&artifact.staged,
+            &windfall_codec::DecodeOptions { max_decoded_bytes: artifact.metadata.shape.frames
+                * u64::from(artifact.metadata.shape.channels) * 4 })?;
+        if crate::AudioShape::of(&audio) != artifact.metadata.shape { return Err(AnalysisError::Checksum); }
+        let mut file = std::fs::File::open(&artifact.staged)?;
+        let fingerprint = crate::ContentFingerprint::reader(&mut file, artifact.metadata.bytes, work)?;
+        if fingerprint.sha256 != artifact.metadata.sha256 || fingerprint.bytes != artifact.metadata.bytes {
+            return Err(AnalysisError::Checksum);
+        }
+        work.check()?;
+        Ok(audio)
+    }
     pub fn request(&self) -> u64 {
         self.request
     }
@@ -1310,6 +1378,7 @@ mod tests {
         let root = tempfile::tempdir().unwrap();
         let bytes = b"authored unit fixture only";
         let model = ModelManifest {
+        onnx: None,
             id: "test-only-unit".into(),
             version: "1".into(),
             revision: 1,
@@ -1377,6 +1446,7 @@ mod tests {
             selection: FrameRange { start: 0, end: 2 },
         };
         let model = ModelManifest {
+        onnx: None,
             id: "test-only-unit".into(),
             version: "1".into(),
             revision: 1,
@@ -1402,6 +1472,8 @@ mod tests {
             }],
         };
         JobRequest {
+            amount: 1.0,
+            task: Default::default(),
             input: CapturedInput::capture(audio, capture, InputLimits::default(), &mut work)
                 .unwrap(),
             model,

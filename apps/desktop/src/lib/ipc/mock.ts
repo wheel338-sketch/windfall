@@ -1173,6 +1173,11 @@ export function createMockBackend(options: MockOptions = {}): MockBackend {
         )
       ),
     audioEditorDiscard: () => Promise.resolve(),
+    audioAnalysisDetect: () => Promise.reject(new Error("Audio analysis requires the desktop app. No audio or project changes were made.")),
+    audioAnalysisAudition: () => Promise.reject(new Error("Audio analysis audition requires the desktop app.")),
+    audioAnalysisApply: () => Promise.reject(new Error("Audio analysis requires the desktop app. No audio or project changes were made.")),
+    audioAnalysisSendMidi: () => Promise.reject(new Error("Audio to MIDI requires the desktop app. No notes were inserted.")),
+    audioAnalysisCancel: () => Promise.resolve(),
     detectClipTempo: () =>
       Promise.reject(
         new Error(

@@ -1368,6 +1368,21 @@ impl Transaction<'_> {
             Command::GenerateSlicePattern { channel, pattern } => {
                 self.generate_slice_pattern(channel, pattern)?
             }
+            Command::SetSampleProcessing { id, processing } => {
+                if let Some(recipe) = &processing {
+                    recipe.check().map_err(CommandError::invalid)?;
+                    let source = recipe.source_clip.content.sample().expect("checked audio");
+                    if source == id || self.project.sample(source).is_none_or(|s|s.processing.is_some()) {
+                        return Err(CommandError::invalid("Processing needs a retained original sample."));
+                    }
+                }
+                let index = self.sample_index(id)?;
+                let old = self.project.samples[index].clone();
+                let mut new = old.clone();
+                new.processing = processing;
+                self.push(Edit::SetSample(Change { old, new }));
+                "Audio analysis recipe"
+            },
             Command::RemoveSample { id } => self.remove_sample(id)?,
             Command::AddChannel {
                 name,
@@ -2016,7 +2031,7 @@ impl Transaction<'_> {
         let id = SampleId(self.allocate()?);
         self.push(Edit::Sample(ListEdit::Insert {
             index: self.project.samples.len(),
-            item: SampleAsset { id, name, path },
+            item: SampleAsset { id, name, path, processing: None },
         }));
         self.created.push(id.0);
         Ok(label)
@@ -2035,6 +2050,10 @@ impl Transaction<'_> {
             return Err(CommandError::invalid(
                 "the sample is still used by a Scratch effect",
             ));
+        }
+        if self.project.samples.iter().any(|s| s.processing.as_ref()
+            .is_some_and(|r| r.source_clip.content.sample() == Some(id))) {
+            return Err(CommandError::invalid("The sample is retained by an audio analysis recipe."));
         }
         let channels = &self.project.channels;
         let user = channels.iter().find(|c| {

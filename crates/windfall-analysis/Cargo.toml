@@ -11,6 +11,8 @@ authors.workspace = true
 [dependencies]
 windfall-core.workspace = true
 windfall-codec.workspace = true
+windfall-project.workspace = true
+windfall-stretch.workspace = true
 serde.workspace = true
 thiserror.workspace = true
 # Already locked; MIT OR Apache-2.0, default std only. See ANALYSIS-JOBS.md.

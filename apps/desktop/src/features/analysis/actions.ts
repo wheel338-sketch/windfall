@@ -5,6 +5,7 @@ import { getProjectGeneration, onProjectReplaced } from "@/lib/store/replaced"
 import { useUiStore } from "@/lib/store/ui"
 import { usePlaylistStore } from "@/features/playlist/store"
 import { useRecordingStore } from "@/features/transport/recording-store"
+import { loadRemixSong, useRemixLoader } from "./remix"
 import {
   hasRecoveryCapacity,
   recoverJob,
@@ -15,9 +16,14 @@ import {
 import {
   isTerminalStatus,
   validRange,
+  taskProblem,
+  isDereverb,
+  isBuiltinDereverb,
+  BUILTIN_DEREVERB_ID,
   type AnalysisCapability,
   type AnalysisJob,
   type AnalysisReview,
+  type AnalysisTask,
 } from "./types"
 
 /** UI identity only. Native capture/recheck remains the installation authority. */
@@ -55,7 +61,7 @@ type Capture = NonNullable<ReturnType<typeof captureAnalysisClip>>
 
 /** One dialog target and one mounted panel; no retained job map or audio. */
 export const useAnalysisDialog = create(() => ({
-  target: null as Capture | null,
+  target: null as (Capture & { task?: AnalysisTask }) | null,
 }))
 export function closeAnalysis() {
   useAnalysisDialog.setState({ target: null })
@@ -86,6 +92,9 @@ type PanelContext = {
   manifest: string
   localPath: string
   replace: boolean
+  task?: AnalysisTask
+  amount?: number
+  selectedRoles?: readonly string[]
   execute(command: AnalysisCommand): Promise<void>
 }
 let panel: PanelContext | null = null
@@ -142,11 +151,19 @@ function reason(command: AnalysisCommand): string | undefined {
   if (!context.capability.available)
     return context.capability.reason ?? "No inference algorithm is available"
   const model = context.capability.models[context.modelIndex]
+  const builtin = context.capability.classicalDereverb && isDereverb(context.task ?? "audio") &&
+    (context.modelIndex === -1 || context.capability.models.length === 0)
   if (command === "submit") {
     if (!hasRecoveryCapacity())
       return "Retire retained analysis jobs first (limit 8)"
     if (context.job) return "Retire the current job before submitting another"
-    if (!model) return "Import and select a pinned model"
+    if (!model && !builtin) return "Import and select a pinned model"
+    const amount = context.amount ?? 1
+    if (!Number.isFinite(amount) || amount < 0 || amount > 1) return "Wet/dry amount must be 0 to 1"
+    const mismatch = !builtin && model ? taskProblem(context.task ?? "audio", model) : undefined
+    if (mismatch) return mismatch
+    if (!builtin && model && context.capability.classicalDereverb && model.provenance.adapterId !== BUILTIN_DEREVERB_ID)
+      return "Pack registered; the ONNX Runtime separation adapter is not installed"
     if (!validRange(context.start, context.end))
       return "Enter a valid frame range"
   }
@@ -155,17 +172,16 @@ function reason(command: AnalysisCommand): string | undefined {
   if (command === "apply") {
     const { job, review, capability } = context
     if (!review || job?.status !== "ready") return "Review ready outputs first"
+    if (context.selectedRoles?.length === 0) return "Select at least one reviewed output"
+    const modelCurrent = (capability.classicalDereverb && isBuiltinDereverb(review.model)) ||
+      capability.models.some((model) => model.id === review.model.id &&
+        model.version === review.model.version && model.revision === review.model.revision)
     if (
       review.job.job !== job.job ||
       review.job.ticket !== job.ticket ||
       review.job.request !== job.request ||
       review.clip !== context.clip ||
-      !capability.models.some(
-        (model) =>
-          model.id === review.model.id &&
-          model.version === review.model.version &&
-          model.revision === review.model.revision
-      )
+      !modelCurrent
     )
       return "Review or model revision changed; review again"
     if (
@@ -263,6 +279,26 @@ export const ANALYSIS_ACTIONS: Action[] = [
     whyDisabled: () => "No retained analysis job",
     run: selectNextRecoveryJob,
   },
+  {
+    id: "analysis.remix",
+    title: "Remix a song",
+    section: "Analysis",
+    keywords: "load song stems drums bass vocals separate playlist mixer",
+    enabled: () => !recording() && !useRemixLoader.getState().busy &&
+      useAnalysisDialog.getState().target === null,
+    whyDisabled: () => recording() ? "Finish recording first" :
+      useRemixLoader.getState().busy ? "Song import in progress" : "Close Analysis first",
+    run: async () => {
+      const current = () => !recording() && useAnalysisDialog.getState().target === null
+      const id = await loadRemixSong(current)
+      if (id === null || !current()) return
+      const target = captureAnalysisClip(id)
+      if (!target) return
+      useUiStore.getState().showCenterTab("playlist")
+      usePlaylistStore.setState({ inspectorOpen: true })
+      useAnalysisDialog.setState({ target: { ...target, task: "stemSeparation" } })
+    },
+  },
 ]
 
 /** Startup registration and state invalidation share the app registry lifecycle. */
@@ -270,6 +306,7 @@ export function registerAnalysisActions(): () => void {
   const stops = [
     registry.register(ANALYSIS_ACTIONS),
     invalidateActionsOn(useAnalysisDialog, (state) => [state.target]),
+    invalidateActionsOn(useRemixLoader, (state) => [state.busy]),
     invalidateActionsOn(useAnalysisRecovery, (state) => [
       state.jobs,
       state.pending,

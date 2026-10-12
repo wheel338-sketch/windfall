@@ -372,6 +372,7 @@ pub enum Command {
     RemoveSample {
         id: SampleId,
     },
+    /// Stores the separately reviewed estimates/overrides on a derived asset.
 
     // Channel rack
     /// Adds a channel and, unless `mixer_track` is given, a new mixer track
@@ -897,6 +898,11 @@ pub enum Command {
         channel: ChannelId,
         expected: Vec<windfall_dsp::sample_bank::SampleZone>,
         zones: Vec<windfall_dsp::sample_bank::SampleZone>,
+    },
+
+    SetSampleProcessing {
+        id: SampleId,
+        processing: Option<crate::AudioEditRecipe>,
     },
 
 }

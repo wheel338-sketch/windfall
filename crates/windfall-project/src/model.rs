@@ -414,6 +414,9 @@ pub struct SampleAsset {
     pub id: SampleId,
     pub name: String,
     pub path: SamplePath,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub processing: Option<crate::AudioEditRecipe>,
 }
 
 /// Where a sample's audio file lives.

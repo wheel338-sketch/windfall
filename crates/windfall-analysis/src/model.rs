@@ -26,6 +26,129 @@ pub struct OutputRole {
     pub channels: u16,
 }
 
+/// Declarative ONNX contract, not an executable runtime installation. A symbolic
+/// dimension is explicit (e.g. `frames`); unknown/zero dimensions are refused.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum TensorDimension {
+    Fixed(u32),
+    Symbol(String),
+}
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct TensorSpec {
+    pub name: String,
+    pub shape: Vec<TensorDimension>,
+}
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct OnnxContract {
+    pub opset: u32,
+    pub inputs: Vec<TensorSpec>,
+    pub outputs: Vec<TensorSpec>,
+    pub sample_rate: u32,
+    pub segment_frames: u32,
+    pub overlap_frames: u32,
+    /// Order of the model's stem dimension, independently of tensor names.
+    pub stem_roles: Vec<String>,
+}
+impl OnnxContract {
+    pub fn validate(&self, model: &ModelManifest) -> Result<()> {
+        if !(1..=64).contains(&self.opset)
+            || self.sample_rate != model.sample_rate
+            || self.segment_frames == 0
+            || self.segment_frames as u64 > model.max_input_frames
+            || self.overlap_frames >= self.segment_frames
+            || self.stem_roles.len() != model.outputs.len()
+            || self.stem_roles.iter().enumerate().any(|(i, r)| {
+                !model.outputs.iter().any(|o| &o.role == r) || self.stem_roles[..i].contains(r)
+            })
+        {
+            return Err(AnalysisError::Invalid("ONNX segment/rate/stem contract"));
+        }
+        for tensors in [&self.inputs, &self.outputs] {
+            if tensors.is_empty() || tensors.len() > 16 {
+                return Err(AnalysisError::Invalid("ONNX tensor count"));
+            }
+            for (i, tensor) in tensors.iter().enumerate() {
+                if tensor.name.is_empty()
+                    || tensor.name.len() > 128
+                    || tensor.name.chars().any(char::is_control)
+                    || tensors[..i].iter().any(|t| t.name == tensor.name)
+                    || tensor.shape.is_empty()
+                    || tensor.shape.len() > 8
+                    || tensor.shape.iter().any(|d| match d {
+                        TensorDimension::Fixed(n) => *n == 0 || *n > 16_777_216,
+                        TensorDimension::Symbol(s) => {
+                            s.is_empty()
+                                || s.len() > 64
+                                || !s.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'_')
+                        }
+                    })
+                {
+                    return Err(AnalysisError::Invalid("ONNX tensor name/shape"));
+                }
+            }
+        }
+        Ok(())
+    }
+    fn storage_bytes(&self, capacity: bool) -> Result<u64> {
+        let mut bytes = 0;
+        for tensors in [&self.inputs, &self.outputs] {
+            bytes = add(
+                bytes,
+                (if capacity {
+                    tensors.capacity()
+                } else {
+                    tensors.len()
+                }) as u64
+                    * size_of::<TensorSpec>() as u64,
+            )?;
+            for t in tensors {
+                bytes = add(
+                    bytes,
+                    (if capacity {
+                        t.name.capacity()
+                    } else {
+                        t.name.len()
+                    }) as u64,
+                )?;
+                bytes = add(
+                    bytes,
+                    (if capacity {
+                        t.shape.capacity()
+                    } else {
+                        t.shape.len()
+                    }) as u64
+                        * size_of::<TensorDimension>() as u64,
+                )?;
+                for d in &t.shape {
+                    if let TensorDimension::Symbol(s) = d {
+                        bytes = add(
+                            bytes,
+                            (if capacity { s.capacity() } else { s.len() }) as u64,
+                        )?;
+                    }
+                }
+            }
+        }
+        bytes = add(
+            bytes,
+            (if capacity {
+                self.stem_roles.capacity()
+            } else {
+                self.stem_roles.len()
+            }) as u64
+                * size_of::<String>() as u64,
+        )?;
+        for s in &self.stem_roles {
+            bytes = add(
+                bytes,
+                (if capacity { s.capacity() } else { s.len() }) as u64,
+            )?;
+        }
+        Ok(bytes)
+    }
+}
+
 /// A fixed, fully specified local model. Shapes are exact; outputs preserve
 /// selected frame count, sample rate and original selection frame origin.
 /// Weight licensing is recorded independently of an adapter's code license.
@@ -42,8 +165,29 @@ pub struct ModelManifest {
     pub input_channels: u16,
     pub max_input_frames: u64,
     pub outputs: Vec<OutputRole>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub onnx: Option<OnnxContract>,
 }
 impl ModelManifest {
+    /// Explicit code descriptor. Imported manifests may never claim this ID.
+    pub fn is_builtin_dereverb(&self) -> bool {
+        self.id == crate::BUILTIN_DEREVERB_ID
+            && self.version == "1"
+            && self.revision == 1
+            && self.bytes == 0
+            && self.max_bytes == 0
+            && self.sha256 == [0; 32]
+            && self.onnx.is_none()
+            && self.provenance.adapter_id == crate::BUILTIN_DEREVERB_ID
+            && self.provenance.adapter_version == "1"
+            && self.provenance.origin == "builtin:windfall/classical-dereverb"
+            && self.outputs.len() == 1
+            && matches!(
+                self.outputs[0].role.as_str(),
+                "dereverb-general" | "dereverb-vocal"
+            )
+            && self.outputs[0].channels == self.input_channels
+    }
     /// Actual retained heap capacity, including unused String/Vec capacity.
     /// Admission also reserves two compact copies used during worker loading.
     pub fn retained_bytes(&self) -> Result<u64> {
@@ -92,6 +236,9 @@ impl ModelManifest {
                 }) as u64,
             )?;
         }
+        if let Some(onnx) = &self.onnx {
+            bytes = add(bytes, onnx.storage_bytes(capacity)?)?;
+        }
         Ok(bytes)
     }
     pub fn validate(&self) -> Result<()> {
@@ -111,7 +258,7 @@ impl ModelManifest {
                 return Err(AnalysisError::Invalid("model provenance fields"));
             }
         }
-        if self.bytes == 0
+        if (self.bytes == 0 && !self.is_builtin_dereverb())
             || self.bytes > self.max_bytes
             || self.max_bytes > usize::MAX as u64
             || self.sample_rate < 8_000
@@ -136,6 +283,9 @@ impl ModelManifest {
             {
                 return Err(AnalysisError::Invalid("model output roles"));
             }
+        }
+        if let Some(onnx) = &self.onnx {
+            onnx.validate(self)?;
         }
         Ok(())
     }
@@ -199,6 +349,12 @@ pub struct VerifiedModel {
     bytes: Box<[u8]>,
 }
 impl VerifiedModel {
+    pub(crate) fn builtin(manifest: ModelManifest) -> Self {
+        Self {
+            manifest,
+            bytes: Box::new([]),
+        }
+    }
     pub fn manifest(&self) -> &ModelManifest {
         &self.manifest
     }
@@ -251,6 +407,11 @@ impl ModelCache {
         mut reader: impl Read,
         work: &mut Work,
     ) -> Result<PathBuf> {
+        if manifest.id == crate::BUILTIN_DEREVERB_ID {
+            return Err(AnalysisError::Invalid(
+                "built-in algorithm cannot be imported as a weight pack",
+            ));
+        }
         self.validate(manifest)?;
         work.check()?;
         let target = self.0.root.join(manifest.cache_name());
@@ -331,6 +492,11 @@ impl ModelCache {
     /// Rehash and copy to bounded immutable memory. A worker never infers from
     /// a mutable pathname or trusts a prior import's checksum check.
     pub fn load(&self, manifest: &ModelManifest, work: &mut Work) -> Result<VerifiedModel> {
+        if manifest.id == crate::BUILTIN_DEREVERB_ID {
+            return Err(AnalysisError::Invalid(
+                "built-in algorithm is not an imported pack",
+            ));
+        }
         self.validate(manifest)?;
         let bytes = verify_file(
             &self.0.root.join(manifest.cache_name()),

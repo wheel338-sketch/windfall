@@ -4,6 +4,8 @@
 //! audio engine both follow. Every edit is a [`Command`] dispatched to it.
 
 pub mod arrangement;
+pub mod audio_analysis;
+pub use audio_analysis::*;
 pub use arrangement::ArrangementBook;
 mod audio_comp;
 pub mod automation;

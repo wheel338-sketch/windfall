@@ -53,6 +53,7 @@ mod song;
 mod timeline;
 mod transport_acceptance;
 mod versions;
+mod classical_analysis;
 
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
