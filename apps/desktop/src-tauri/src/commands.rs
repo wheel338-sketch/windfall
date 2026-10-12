@@ -181,6 +181,16 @@ async fn analysis_model_import(
     blocking(move || session.analysis_model_import(&path, model)).await
 }
 #[tauri::command]
+async fn analysis_runtime_settings(session: State<'_, Session>) -> Result<windfall_ipc::AnalysisRuntimeSettings, String> {
+    let session = session.inner().clone();
+    blocking(move || session.analysis_runtime_settings()).await
+}
+#[tauri::command]
+async fn analysis_runtime_configure(session: State<'_, Session>, settings: windfall_ipc::AnalysisRuntimeSettings) -> Result<windfall_ipc::AnalysisRuntimeSettings, String> {
+    let session = session.inner().clone();
+    blocking(move || session.analysis_runtime_configure(settings)).await
+}
+#[tauri::command]
 async fn analysis_submit(
     session: State<'_, Session>,
     request: windfall_ipc::AnalysisSubmit,
@@ -1228,6 +1238,8 @@ pub fn handler() -> impl Fn(Invoke) -> bool + Send + Sync + 'static {
         crate::updates::update_install,
         analysis_capability,
         analysis_model_import,
+        analysis_runtime_settings,
+        analysis_runtime_configure,
         analysis_submit,
         analysis_status,
         analysis_cancel,

@@ -19,6 +19,8 @@ import {
 import { onProjectReplaced } from "@/lib/store/replaced"
 import { usePlaylistStore } from "@/features/playlist/store"
 import { parseManifest } from "./manifest"
+import { useRemixLoader } from "./remix"
+import { songTempoMap } from "@/lib/automation/tempo-map"
 import {
   recoveryFailure,
   removeRecoveryJob,
@@ -54,6 +56,7 @@ export function AnalysisButton() {
       }}
     >
       <ActionButton action="analysis.open" size="sm" variant="outline" />
+      <ActionButton action="analysis.separate" size="sm" variant="outline" />
       <ActionButton action="analysis.remix" size="sm" variant="outline" />
       <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
         <DialogHeader>
@@ -102,6 +105,7 @@ export function AnalysisPanel({
   const [selectedRoles, setSelectedRoles] = useState<string[]>([])
   const [separateTracks, setSeparateTracks] = useState(false)
   const [muteOriginal, setMuteOriginal] = useState(true)
+  const remix = useRemixLoader()
   const active = useRef(false)
   const retained = useRef<string | null>(null)
   const sequence = useRef(0)
@@ -152,13 +156,34 @@ export function AnalysisPanel({
     void backend
       .analysisCapability()
       .then((value) => {
-        if (aliveContext.current()) setCapability(value)
+        if (aliveContext.current()) {
+          setCapability(value)
+          if (initialTask === "stemSeparation") {
+            void backend.analysisRuntimeSettings().then((settings) => {
+              if (!aliveContext.current()) return
+              const index = value.models.findIndex((m) => m.id === settings.modelId && m.version === settings.modelVersion)
+              if (index >= 0) setModelIndex(index)
+            }).catch((e: unknown) => { if (aliveContext.current()) setError(errorMessage(e)) })
+          }
+        }
       })
       .catch((e: unknown) => {
         if (aliveContext.current()) setError(errorMessage(e))
       })
+    if (initialTask === "stemSeparation") {
+      const project = useProjectStore.getState().project
+      const sourceClip = project.playlist.clips.find((c) => c.id === clip)
+      if (sourceClip?.content.type === "audio") {
+        void backend.sampleInfoById(sourceClip.content.sample).then((info) => {
+          if (!aliveContext.current()) return
+          const clock = songTempoMap(project)
+          const duration = clock.secondsAt(sourceClip.start + sourceClip.length) - clock.secondsAt(sourceClip.start)
+          setEnd(String(Math.ceil(duration * info.sampleRate - 1e-6)))
+        }).catch((e: unknown) => { if (aliveContext.current()) setError(errorMessage(e)) })
+      }
+    }
     return retireLifetime
-  }, [clip, capture])
+  }, [clip, capture, initialTask])
 
   useEffect(() => {
     if (
@@ -374,7 +399,11 @@ export function AnalysisPanel({
           3. Review and audition drums, bass, vocals and other. 4. Import chosen stems onto aligned
           playlist rows and mixer inserts.</p>
         <p>The original song remains available. Loading it and importing reviewed stems are separate
-          undo steps. Separation requires an installed compatible inference adapter; importing weights alone cannot run it.</p>
+          undo steps. Choose the runtime library and default model pack in Settings → Stem separation.</p>
+        {remix.clip === clip && <p>Source tempo: {remix.tempoCandidates.length
+          ? remix.tempoCandidates.map((c) => `${c.bpm.toFixed(1)} BPM (${Math.round(c.confidence * 100)}%)`).join(" · ")
+          : "No reliable tempo estimate"}. Detection can return half or double tempo; stem audio stays aligned to the original recording.</p>}
+        {remix.clip === clip && remix.tempoProblem && <p role="status">Tempo detection: {remix.tempoProblem}</p>}
       </section>}
       {!capability && <p>Checking native availability…</p>}
       {capability?.reason && (
@@ -397,7 +426,7 @@ export function AnalysisPanel({
           Import a pinned manifest and local file. No download or algorithm
           installation occurs. Check its author, provenance and license before
           importing. Registered ONNX contracts survive app restart; separation
-          still needs its ONNX Runtime adapter. Classical dereverb needs no pack.
+          uses the installed ONNX Runtime library selected in Settings. Classical dereverb needs no pack.
         </p>
         <Input
           aria-label="Local model path"

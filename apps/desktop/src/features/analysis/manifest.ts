@@ -40,7 +40,7 @@ export function parseManifest(json: string): AnalysisModel {
     m.outputs.length > 16
   )
     throw new Error("Declare one to sixteen output roles.")
-  return {
+  const result: AnalysisModel = {
     ...(m.onnx == null ? {} : { onnx: onnx(m.onnx) }),
     id: text(m.id),
     version: text(m.version),
@@ -66,6 +66,8 @@ export function parseManifest(json: string): AnalysisModel {
       return { role: text(o.role), channels: integer(o.channels) }
     }),
   }
+  if (result.provenance.adapterId === "windfall-onnx-separation") validateSeparation(result)
+  return result
 }
 
 function tensors(value: unknown): AnalysisTensorSpec[] {
@@ -91,6 +93,43 @@ function onnx(value: unknown): AnalysisOnnxContract {
   if (typeof o.segmentFrames !== "number" || !Number.isSafeInteger(o.segmentFrames) || o.segmentFrames <= o.overlapFrames || o.segmentFrames > 16777216)
     throw new Error("ONNX segment must exceed overlap.")
   return { opset: integer(o.opset), inputs: tensors(o.inputs), outputs: tensors(o.outputs),
+    ...(o.layout == null ? {} : { layout: layout(o.layout) }),
+    ...(o.contextFrames == null ? {} : { contextFrames: context(o.contextFrames) }),
     sampleRate: integer(o.sampleRate), segmentFrames: o.segmentFrames,
     overlapFrames: o.overlapFrames, stemRoles: o.stemRoles.map(text) }
+}
+function layout(value: unknown): "channelsFirst" | "channelsLast" {
+  if (value !== "channelsFirst" && value !== "channelsLast") throw new Error("Use a waveform channelsFirst or channelsLast layout.")
+  return value
+}
+function context(value: unknown): number {
+  if (typeof value !== "number" || !Number.isSafeInteger(value) || value < 0 || value > 1536000)
+    throw new Error("Invalid required context frames.")
+  return value
+}
+function validateSeparation(model: AnalysisModel) {
+  const spec = model.onnx
+  const roles = ["drums", "bass", "vocals", "other"]
+  if (!spec || spec.inputs.length !== 1 || spec.outputs.length !== 1 || spec.stemRoles.length !== 4 ||
+    new Set(spec.stemRoles).size !== 4 || roles.some((r) => !spec.stemRoles.includes(r)) ||
+    model.outputs.length !== 4 || new Set(model.outputs.map((o) => o.role)).size !== 4 ||
+    roles.some((r) => !model.outputs.some((o) => o.role === r)) ||
+    model.outputs.some((o) => o.channels !== model.inputChannels) ||
+    ![1, 2].includes(model.inputChannels) || model.sampleRate < 8000 || model.sampleRate > 192000 ||
+    spec.sampleRate !== model.sampleRate || spec.opset > 64)
+    throw new Error("Separation requires one waveform input/output and exactly four aligned stem roles.")
+  const context = spec.contextFrames ?? 0
+  const frames = spec.segmentFrames + context * 2
+  if (frames > 1536000 || context > spec.segmentFrames || spec.segmentFrames > BigInt(model.maxInputFrames) ||
+    spec.segmentFrames - spec.overlapFrames < Math.floor(spec.segmentFrames / 4))
+    throw new Error("Separation chunk/context/overlap exceeds the bounded contract.")
+  const last = spec.layout === "channelsLast"
+  const c = model.inputChannels
+  for (const [tensor, expected] of [[spec.inputs[0], last ? [1, frames, c] : [1, c, frames]],
+    [spec.outputs[0], last ? [1, 4, frames, c] : [1, 4, c, frames]]] as const) {
+    const timeAxis = expected.length - (last ? 2 : 1)
+    if (tensor.name.length > 128 || /[\x00-\x1f\x7f]/.test(tensor.name) || tensor.shape.length !== expected.length ||
+      tensor.shape.some((d, i) => typeof d === "number" ? d !== expected[i] : d !== "frames" || i !== timeAxis))
+      throw new Error("Invalid waveform tensor shape convention.")
+  }
 }

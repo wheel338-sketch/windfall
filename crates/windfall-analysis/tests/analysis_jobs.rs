@@ -112,6 +112,8 @@ fn onnx_contract_rejects_ambiguous_shapes_segment_policy_and_stem_mapping() {
     use windfall_analysis::{OnnxContract, TensorDimension, TensorSpec};
     let mut pack = manifest();
     pack.onnx = Some(OnnxContract {
+        layout: Default::default(),
+        context_frames: 0,
         opset: 17,
         inputs: vec![TensorSpec {
             name: "audio".into(),

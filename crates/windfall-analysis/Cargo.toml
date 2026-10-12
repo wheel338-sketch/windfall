@@ -21,6 +21,8 @@ sha2 = "=0.10.9"
 tempfile = "=3.27.0"
 # Exact cached source/licenses checked: MIT OR Apache-2.0; see PITCH-ANALYSIS.md.
 rustfft = "=6.4.1"
+# MIT OR Apache-2.0. User-installed runtime only; never download binaries.
+ort = { version = "=2.0.0-rc.10", default-features = false, features = ["load-dynamic"] }
 
 [lints]
 workspace = true

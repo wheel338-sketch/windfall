@@ -7,6 +7,9 @@ import type {
   LibraryFileToken,
 } from "@/bindings"
 import { addAudioFile } from "@/features/playlist/audio/ops"
+import { openStemClip, useAnalysisDialog } from "@/features/analysis/actions"
+import { useRecordingStore } from "@/features/transport/recording-store"
+import { usePlaylistStore } from "@/features/playlist/store"
 import { songTick } from "@/features/playlist/ops"
 import { revealClip } from "@/features/playlist/reveal"
 import { attempt, reportError } from "@/lib/errors"
@@ -164,6 +167,22 @@ export async function addToPlaylist(
     fileRequestCurrent(file)
   )
     revealClip(clip)
+}
+
+/** Explicit browser import followed by the same checked playlist stem review. */
+export async function separateToPlaylist(path: string, browser?: LibraryFileToken): Promise<void> {
+  const idle = () => !useRecordingStore.getState().state.active && !useRecordingStore.getState().busy && useAnalysisDialog.getState().target === null
+  if (!idle()) return
+  const generation = getProjectGeneration()
+  const file = captureFile(path, browser)
+  const token = await attempt(resolveFile(file), "Could not find the library file")
+  const valid = () => idle() && generation === getProjectGeneration() && fileRequestCurrent(file)
+  if (!token || !valid()) return
+  const clip = await addAudioFile(path, { start: songTick() }, token, valid)
+  if (clip === null || !valid()) return
+  revealClip(clip)
+  usePlaylistStore.getState().select([clip])
+  openStemClip(clip)
 }
 
 /** Makes the channel selected in the rack play the file instead. */

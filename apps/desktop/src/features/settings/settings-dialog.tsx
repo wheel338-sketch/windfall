@@ -38,6 +38,7 @@ import { PhoneRemoteSettings } from "./phone-remote"
 import { nextKeymapPreset } from "./keymap-preset-step"
 import { UpdatesSection } from "@/features/updates/section"
 import { LanguageSection } from "./language"
+import { StemSeparationSettings } from "./stem-separation"
 import { useTranslation } from "@/lib/i18n"
 
 import {
@@ -344,6 +345,7 @@ export function SettingsDialog() {
         </DialogHeader>
         <AudioSection />
         <MidiHardwareSettingsSection />
+        <StemSeparationSettings />
         <PhoneRemoteSettings />
         <AppearanceSection />
         <LanguageSection />

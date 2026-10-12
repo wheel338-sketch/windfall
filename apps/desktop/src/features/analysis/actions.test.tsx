@@ -32,7 +32,8 @@ it("registers Analysis at startup without an inspector and removes its actions a
     ).toContain("analysis.open")
     expect(
       registry.list().filter((action) => action.section === "Analysis")
-    ).toHaveLength(15)
+    ).toHaveLength(16)
+    expect(registry.get("analysis.separate")?.title).toBe("Separate into four stems")
     expect(registry.get("analysis.remix")?.title).toBe("Remix a song")
     expect(currentKeymap().byScope.get("global")?.get("Ctrl+Shift+A")).toBe(
       "analysis.open"

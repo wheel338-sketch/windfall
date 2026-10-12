@@ -6,6 +6,9 @@ const unavailable = () => Promise.reject(new Error(BROWSER_REASON))
 /** Honest mock: no weights, workers, fabricated review or successful apply. */
 export function unavailableAnalysis(): AnalysisBackend {
   return {
+    analysisRuntimeSettings: () => Promise.resolve({ libraryPath: null, modelId: null, modelVersion: null }),
+    analysisRuntimeConfigure: unavailable,
+    pickAnalysisRuntime: () => Promise.resolve(null),
     analysisCapability: () =>
       Promise.resolve({
         native: false,

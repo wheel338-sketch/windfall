@@ -13,6 +13,8 @@ pub mod process;
 mod streaming;
 mod timeline;
 pub use streaming::stream_prepared_view;
+mod streamed_view;
+pub use streamed_view::StreamedView;
 pub use timeline::{render_view_timed, view_timing};
 
 pub const MAX_EDIT_SECONDS: f64 = 120.0;

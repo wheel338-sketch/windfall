@@ -125,6 +125,9 @@ pub struct Usage {
 pub trait AnalysisAdapter: Send + Sync + 'static {
     fn id(&self) -> &str;
     fn version(&self) -> &str;
+    fn accepts_model(&self, model: &ModelManifest) -> bool {
+        model.provenance.adapter_id == self.id() && model.provenance.adapter_version == self.version()
+    }
     fn required_scratch_bytes(&self, _task: crate::InferenceTask) -> u64 {
         0
     }
@@ -464,9 +467,7 @@ impl JobManager {
                 "The imported pack has no installed runtime for this operation/mode.".into(),
             ));
         }
-        if request.model.provenance.adapter_id != self.shared.adapter.id()
-            || request.model.provenance.adapter_version != self.shared.adapter.version()
-        {
+        if !self.shared.adapter.accepts_model(&request.model) {
             return Err(AnalysisError::Invalid("adapter/model revision mismatch"));
         }
         let b = request.budget;
@@ -1001,13 +1002,20 @@ fn execute(shared: &Arc<Shared>, id: JobId, task: Task, cancel: CancelToken) -> 
         Some(model) => model,
         None => shared.cache.load(&request.model, &mut context.work)?,
     };
-    let mut writer = ArtifactWriter::new(
+    let mut writer = if request.model.provenance.adapter_id == crate::separation::ADAPTER_ID {
+        ArtifactWriter::new_at_rate(
         &shared.config.staging_root,
         &request.model,
         request.input.stamp().selection.frames()?,
         request.input.stamp().selection.start,
         request.budget.output_bytes,
-    )?;
+        request.input.stamp().input_shape.sample_rate,
+        )?
+    } else {
+        ArtifactWriter::new(&shared.config.staging_root, &request.model,
+            request.input.stamp().selection.frames()?, request.input.stamp().selection.start,
+            request.budget.output_bytes)?
+    };
     lock(&shared.state)
         .records
         .get_mut(&id)

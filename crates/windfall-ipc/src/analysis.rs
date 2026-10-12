@@ -49,6 +49,28 @@ pub struct AnalysisOnnxContract {
     pub segment_frames: u32,
     pub overlap_frames: u32,
     pub stem_roles: Vec<String>,
+    #[serde(default)]
+    #[ts(as = "Option<AnalysisWaveformLayout>", optional)]
+    pub layout: AnalysisWaveformLayout,
+    #[serde(default)]
+    #[ts(as = "Option<u32>", optional)]
+    pub context_frames: u32,
+}
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub enum AnalysisWaveformLayout { #[default] ChannelsFirst, ChannelsLast }
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct AnalysisRuntimeSettings {
+    pub library_path: Option<String>,
+    pub model_id: Option<String>,
+    pub model_version: Option<String>,
+    /// Directory the user last explicitly imported; no guessed model discovery.
+    #[serde(default)]
+    pub pack_directory: Option<String>,
 }
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
@@ -73,6 +95,9 @@ pub struct AnalysisModel {
 #[serde(rename_all = "camelCase")]
 #[ts(export)]
 pub struct AnalysisCapability {
+    #[serde(default)]
+    #[ts(as = "Option<bool>", optional)]
+    pub stem_separation: bool,
     #[serde(default)]
     #[ts(as = "Option<bool>", optional)]
     pub classical_dereverb: bool,

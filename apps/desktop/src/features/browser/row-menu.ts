@@ -7,6 +7,7 @@ import { openProjectPath } from "@/lib/flows/project"
 
 import {
   addToPlaylist,
+  separateToPlaylist,
   addToRack,
   copyPath,
   refresh,
@@ -60,6 +61,7 @@ export function rowMenu(
         title: "Add to playlist",
         run: () => addToPlaylist(row.path, row.library),
       },
+      { title: "Separate into four stems", run: () => separateToPlaylist(row.path, row.library) },
       {
         title: channel
           ? `Replace sample of ${channel.name}`
