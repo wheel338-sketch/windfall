@@ -2,11 +2,12 @@
 import type { PluginAuxInput } from "./PluginAuxInput";
 import type { PluginParameter } from "./PluginParameter";
 import type { PluginTarget } from "./PluginTarget";
+import type { PluginWrapperOptions } from "./PluginWrapperOptions";
 
 /**
  * Everything needed to reopen an instance. Missing files retain this data.
  */
-export type PluginBinding = { target: PluginTarget, 
+export type PluginBinding = { wrapper?: PluginWrapperOptions, target: PluginTarget, 
 /**
  * "clap" or "vst3"; the model does not load either format.
  */

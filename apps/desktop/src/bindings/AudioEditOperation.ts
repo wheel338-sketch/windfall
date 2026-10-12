@@ -30,4 +30,4 @@ ratio: number,
 /**
  * -24 to 24.
  */
-semitones: number, quality: ClipStretchQuality, formants: boolean, } } | { "insertSilence": { frames: number, } };
+semitones: number, quality: ClipStretchQuality, formants: boolean, } } | { "insertSilence": { frames: number, } } | { "equalize": { lowDb: number, midDb: number, highDb: number, } } | { "blur": { amount: number, } } | { "convolve": { impulse: AudioEditRange, wet: number, } } | { "repairClipping": { threshold: number, } } | { "loopTune": { crossfadeFrames: number, } } | { "stripSilence": { thresholdDb: number, minSilenceFrames: number, } } | "script";

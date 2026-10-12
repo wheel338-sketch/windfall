@@ -3,4 +3,4 @@
 /**
  * A command a button can run.
  */
-export type ControlAction = "play" | "stop" | "togglePlay" | "toggleLoop" | "toggleMetronome" | "toggleNoteRecord" | "toggleAutomationRecord" | "undo" | "redo" | "patternPrevious" | "patternNext" | "bankPrevious" | "bankNext" | "panicMidi";
+export type ControlAction = "play" | "stop" | "togglePlay" | "toggleLoop" | "toggleMetronome" | "toggleNoteRecord" | "toggleAutomationRecord" | "undo" | "redo" | "patternPrevious" | "patternNext" | "bankPrevious" | "bankNext" | "panicMidi" | { "performancePad": { track: number, scene: number, } } | { "performanceStop": { track: number, } } | "performanceStopAll";

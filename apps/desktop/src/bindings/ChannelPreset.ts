@@ -3,6 +3,7 @@ import type { ChannelSource } from "./ChannelSource";
 import type { ChannelTiming } from "./ChannelTiming";
 import type { ChannelVoiceSettings } from "./ChannelVoiceSettings";
 import type { PluginBinding } from "./PluginBinding";
+import type { RackGraph } from "./RackGraph";
 
 /**
  * What a rack channel sounds like.
@@ -25,4 +26,8 @@ sampleAsset?: number,
  * The hosted instrument that replaces the built-in one in `source`,
  * with its opaque state. Its target is a placeholder.
  */
-plugin?: PluginBinding, };
+plugin?: PluginBinding, 
+/**
+ * Built-in modular graph, including nested nodes and saved controls.
+ */
+rack?: RackGraph, };

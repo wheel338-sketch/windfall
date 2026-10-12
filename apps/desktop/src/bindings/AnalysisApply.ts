@@ -9,4 +9,4 @@ request: string,
  * Replacement requires the complete rendered clip selection. Otherwise
  * derived clips are added without deleting any original source or clip.
  */
-replaceOriginal: boolean, };
+replaceOriginal: boolean, selectedRoles?: Array<string>, separateTracks?: boolean, muteOriginal?: boolean, };

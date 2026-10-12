@@ -2,6 +2,7 @@
 import type { Arrangement } from "./Arrangement";
 import type { ClipGroup } from "./ClipGroup";
 import type { PlaylistTrackId } from "./PlaylistTrackId";
+import type { Timeline } from "./Timeline";
 import type { TrackGroup } from "./TrackGroup";
 import type { TrackKind } from "./TrackKind";
 
@@ -17,4 +18,9 @@ groupParents: { [key in number]: number },
 /**
  * Playlist track -> owning group. Ungrouped tracks have no entry.
  */
-trackParents: { [key in PlaylistTrackId]: number }, clipGroups: Array<ClipGroup>, linkedTracks: { [key in PlaylistTrackId]: TrackKind }, };
+trackParents: { [key in PlaylistTrackId]: number }, clipGroups: Array<ClipGroup>, linkedTracks: { [key in PlaylistTrackId]: TrackKind }, 
+/**
+ * Opt-in independent timelines. An empty map preserves legacy sharing.
+ * The active entry is a snapshot; playlist.timeline owns current edits.
+ */
+timelines?: { [key in number]: Timeline }, };

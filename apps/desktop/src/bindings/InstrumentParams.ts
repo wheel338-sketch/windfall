@@ -22,21 +22,27 @@ import type { MatrixSynthParams } from "./MatrixSynthParams";
 import type { MembraneParams } from "./MembraneParams";
 import type { MetalVoiceParams } from "./MetalVoiceParams";
 import type { MidiOutParams } from "./MidiOutParams";
+import type { MultiSamplerParams } from "./MultiSamplerParams";
 import type { NumberVoiceParams } from "./NumberVoiceParams";
 import type { PackSynthParams } from "./PackSynthParams";
+import type { PadBankParams } from "./PadBankParams";
 import type { PartialMorphParams } from "./PartialMorphParams";
+import type { PianoKeysParams } from "./PianoKeysParams";
 import type { PluckParams } from "./PluckParams";
 import type { PocketSynthParams } from "./PocketSynthParams";
 import type { ResynthParams } from "./ResynthParams";
 import type { RingHybridParams } from "./RingHybridParams";
+import type { SamplePlayerParams } from "./SamplePlayerParams";
 import type { ScanSynthParams } from "./ScanSynthParams";
 import type { SeedPatchParams } from "./SeedPatchParams";
 import type { SliceDeckParams } from "./SliceDeckParams";
 import type { SliceMapParams } from "./SliceMapParams";
 import type { SnapshotMorphParams } from "./SnapshotMorphParams";
+import type { SoundFontParams } from "./SoundFontParams";
 import type { SpectralResynthParams } from "./SpectralResynthParams";
 import type { SpeechVoiceParams } from "./SpeechVoiceParams";
 import type { SynthParams } from "./SynthParams";
+import type { TextVoiceParams } from "./TextVoiceParams";
 import type { TripleOscParams } from "./TripleOscParams";
 import type { VintagePolyParams } from "./VintagePolyParams";
 import type { VintageSawParams } from "./VintageSawParams";
@@ -47,4 +53,4 @@ import type { WaveRideParams } from "./WaveRideParams";
  * The settings of any one instrument. This is what a project stores for
  * an instrument channel.
  */
-export type InstrumentParams = { "type": "subtractiveSynth" } & SynthParams | { "type": "fourOp" } & FourOpParams | { "type": "matrixFm" } & MatrixFmParams | { "type": "ringHybrid" } & RingHybridParams | { "type": "harmonicStack" } & HarmonicStackParams | { "type": "partialMorph" } & PartialMorphParams | { "type": "inharmonic" } & InharmonicParams | { "type": "resynth" } & ResynthParams | { "type": "seedPatch" } & SeedPatchParams | { "type": "scanSynth" } & ScanSynthParams | { "type": "pluck" } & PluckParams | { "type": "fingerBass" } & FingerBassParams | { "type": "acousticString" } & AcousticStringParams | { "type": "membrane" } & MembraneParams | { "type": "drumRack" } & DrumRackParams | { "type": "kick" } & KickParams | { "type": "drumVoice" } & DrumVoiceParams | { "type": "sliceMap" } & SliceMapParams | { "type": "sliceDeck" } & SliceDeckParams | { "type": "grainCloud" } & GrainCloudParams | { "type": "waveRide" } & WaveRideParams | { "type": "acidLine" } & AcidLineParams | { "type": "tripleOsc" } & TripleOscParams | { "type": "waveLane" } & WaveLaneParams | { "type": "macroVoice" } & MacroVoiceParams | { "type": "speechVoice" } & SpeechVoiceParams | { "type": "midiOut" } & MidiOutParams | { "type": "vintagePoly" } & VintagePolyParams | { "type": "dualPoly" } & DualPolyParams | { "type": "compactSynth" } & CompactSynthParams | { "type": "vintageSaw" } & VintageSawParams | { "type": "pocketSynth" } & PocketSynthParams | { "type": "grooveSynth" } & GrooveSynthParams | { "type": "hybridSeq" } & HybridSeqParams | { "type": "matrixSynth" } & MatrixSynthParams | { "type": "packSynth" } & PackSynthParams | { "type": "layerKick" } & LayerKickParams | { "type": "snapshotMorph" } & SnapshotMorphParams | { "type": "harmonicFilter" } & HarmonicFilterParams | { "type": "metalVoice" } & MetalVoiceParams | { "type": "numberVoice" } & NumberVoiceParams | { "type": "spectralResynth" } & SpectralResynthParams | { "type": "colorScan" } & ColorScanParams;
+export type InstrumentParams = { "type": "subtractiveSynth" } & SynthParams | { "type": "fourOp" } & FourOpParams | { "type": "matrixFm" } & MatrixFmParams | { "type": "ringHybrid" } & RingHybridParams | { "type": "harmonicStack" } & HarmonicStackParams | { "type": "partialMorph" } & PartialMorphParams | { "type": "inharmonic" } & InharmonicParams | { "type": "resynth" } & ResynthParams | { "type": "seedPatch" } & SeedPatchParams | { "type": "scanSynth" } & ScanSynthParams | { "type": "pluck" } & PluckParams | { "type": "fingerBass" } & FingerBassParams | { "type": "acousticString" } & AcousticStringParams | { "type": "membrane" } & MembraneParams | { "type": "drumRack" } & DrumRackParams | { "type": "kick" } & KickParams | { "type": "drumVoice" } & DrumVoiceParams | { "type": "sliceMap" } & SliceMapParams | { "type": "sliceDeck" } & SliceDeckParams | { "type": "grainCloud" } & GrainCloudParams | { "type": "waveRide" } & WaveRideParams | { "type": "acidLine" } & AcidLineParams | { "type": "tripleOsc" } & TripleOscParams | { "type": "waveLane" } & WaveLaneParams | { "type": "macroVoice" } & MacroVoiceParams | { "type": "speechVoice" } & SpeechVoiceParams | { "type": "midiOut" } & MidiOutParams | { "type": "vintagePoly" } & VintagePolyParams | { "type": "dualPoly" } & DualPolyParams | { "type": "compactSynth" } & CompactSynthParams | { "type": "vintageSaw" } & VintageSawParams | { "type": "pocketSynth" } & PocketSynthParams | { "type": "grooveSynth" } & GrooveSynthParams | { "type": "hybridSeq" } & HybridSeqParams | { "type": "matrixSynth" } & MatrixSynthParams | { "type": "packSynth" } & PackSynthParams | { "type": "layerKick" } & LayerKickParams | { "type": "snapshotMorph" } & SnapshotMorphParams | { "type": "harmonicFilter" } & HarmonicFilterParams | { "type": "metalVoice" } & MetalVoiceParams | { "type": "numberVoice" } & NumberVoiceParams | { "type": "spectralResynth" } & SpectralResynthParams | { "type": "colorScan" } & ColorScanParams | { "type": "dashboard" } & MidiOutParams | { "type": "multiSampler" } & MultiSamplerParams | { "type": "samplePlayer" } & SamplePlayerParams | { "type": "soundFont" } & SoundFontParams | { "type": "padBank" } & PadBankParams | { "type": "pianoKeys" } & PianoKeysParams | { "type": "textVoice" } & TextVoiceParams;

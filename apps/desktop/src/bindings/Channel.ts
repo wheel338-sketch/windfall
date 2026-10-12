@@ -4,6 +4,7 @@ import type { ChannelSource } from "./ChannelSource";
 import type { ChannelTiming } from "./ChannelTiming";
 import type { ChannelVoiceSettings } from "./ChannelVoiceSettings";
 import type { ExpressionMap } from "./ExpressionMap";
+import type { SampleInstrumentAsset } from "./SampleInstrumentAsset";
 import type { SamplePlayback } from "./SamplePlayback";
 import type { TrackId } from "./TrackId";
 
@@ -47,4 +48,8 @@ mixerTrack: TrackId, source: ChannelSource,
  * What modulation X, modulation Y and release drive in this channel's
  * voices. Absent in older files, which is the fixed mapping they had.
  */
-expressionMap?: ExpressionMap, };
+expressionMap?: ExpressionMap, 
+/**
+ * Immutable bank's saved references/recipe. PCM is worker-owned runtime data.
+ */
+sampleInstrument?: SampleInstrumentAsset, };

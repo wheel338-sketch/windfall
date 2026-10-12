@@ -2,6 +2,7 @@
 import type { AnalysisArtifact } from "./AnalysisArtifact";
 import type { AnalysisJob } from "./AnalysisJob";
 import type { AnalysisModel } from "./AnalysisModel";
+import type { AnalysisTask } from "./AnalysisTask";
 import type { ClipId } from "./ClipId";
 
-export type AnalysisReview = { job: AnalysisJob, clip: ClipId, generation: string, editRevision: string, sourceSha256: string, bindingSha256: string, startFrame: string, endFrame: string, inputFrames: string, model: AnalysisModel, artifacts: Array<AnalysisArtifact>, };
+export type AnalysisReview = { amount: number, task: AnalysisTask, job: AnalysisJob, clip: ClipId, generation: string, editRevision: string, sourceSha256: string, bindingSha256: string, startFrame: string, endFrame: string, inputFrames: string, model: AnalysisModel, artifacts: Array<AnalysisArtifact>, };

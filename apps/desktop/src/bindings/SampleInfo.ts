@@ -8,4 +8,8 @@ export type SampleInfo = { path: string, name: string, sampleRate: number, chann
  * Waveform overview as minimum and maximum pairs, one pair per bucket
  * across the file, all channels mixed: min, max, min, max.
  */
-peaks: Array<number>, };
+peaks: Array<number>, 
+/**
+ * Source render limitations, including retained but uninterpreted fields.
+ */
+sourceWarnings?: Array<string>, };

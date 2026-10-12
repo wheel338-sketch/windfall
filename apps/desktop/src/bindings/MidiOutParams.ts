@@ -24,4 +24,4 @@ bankLsb: number,
 /**
  * The pitch wheel, -1 to 1, with 0 the center.
  */
-pitchBend: number, controllers: [MidiOutController, MidiOutController, MidiOutController, MidiOutController, MidiOutController, MidiOutController, MidiOutController, MidiOutController], };
+pitchBend: number, controllers: [MidiOutController, MidiOutController, MidiOutController, MidiOutController, MidiOutController, MidiOutController, MidiOutController, MidiOutController], outputPort?: number, pluginDestination?: number, };

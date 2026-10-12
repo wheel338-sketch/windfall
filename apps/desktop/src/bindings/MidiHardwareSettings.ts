@@ -24,6 +24,10 @@ inputProfile: string | null,
  */
 extraInputs: Array<MidiInputSettings>, 
 /**
+ * Slots 1..7 for MIDI-output channels. Slot zero is the main output.
+ */
+extraOutputs?: Array<string>, 
+/**
  * Sends MIDI clock, start, continue and stop to the output while the
  * transport plays.
  */

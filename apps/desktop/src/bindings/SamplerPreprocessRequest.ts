@@ -28,6 +28,6 @@ fadeInMs?: number, fadeOutMs?: number,
  */
 loopCrossfade?: number, 
 /**
- * Raise the peak to full scale with one gain for every channel.
+ * Set the peak to −1 dBFS with one gain for every channel.
  */
 normalize?: boolean, };
