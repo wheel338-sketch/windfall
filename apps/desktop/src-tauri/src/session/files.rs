@@ -289,13 +289,17 @@ impl Session {
                 (None, None) => false,
                 _ => true,
             };
-            let renamed = match (&previous_dir, &target_dir) {
+            let mut renamed = match (&previous_dir, &target_dir) {
                 (Some(from), Some(to)) if moved => carry_samples(project, from, to, || {
                     #[cfg(test)]
                     self.pause("save:sample-missing");
                 })?,
                 _ => Vec::new(),
             };
+            if let Some(to) = &target_dir {
+                renamed.extend(carry_owned_presets(project, to,
+                    &self.store().recordings_dir().join("Imported presets"))?);
+            }
             Ok((target_dir, moved, renamed))
         };
         let (target, project, (target_dir, moved, renamed)) = if numbered {
@@ -812,6 +816,31 @@ fn carry_samples(
         }
     }
     Ok(renamed)
+}
+
+/// The import worker owns these original texts before the first save. Adopt
+/// them into the portable project folder through the ordinary history relink.
+/// Arbitrary external files and unrelated app storage are never collected.
+fn carry_owned_presets(project: &mut Project, to: &Path, owned_folder: &Path) -> Result<Vec<SampleRelink>, String> {
+    let mut taken: HashSet<_> = project.samples.iter().filter_map(|s| match &s.path {
+        SamplePath::Project(path) => Some(path.to_lowercase()), _ => None,
+    }).collect();
+    let mut relinks = Vec::new();
+    for sample in &mut project.samples {
+        let SamplePath::External(source) = &sample.path else { continue; };
+        let source = Path::new(source);
+        if source.parent() != Some(owned_folder) || !source.extension().is_some_and(|e| e.eq_ignore_ascii_case("ds")) {
+            continue;
+        }
+        let name = source.file_name().and_then(|n| n.to_str()).ok_or("Invalid owned preset filename.")?;
+        let placed = place_sample(source, to, &format!("Presets/{name}"), &taken, &mut || {})
+            .map_err(|e| format!("Could not carry owned preset {}: {e}", source.display()))?;
+        taken.insert(placed.to_lowercase());
+        let original = sample.path.clone();
+        sample.path = SamplePath::Project(placed);
+        relinks.push((sample.id, original, sample.path.clone()));
+    }
+    Ok(relinks)
 }
 
 /// Makes sure `folder` holds a copy of the file `source` at `relative`, or

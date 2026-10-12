@@ -38,10 +38,10 @@ pub struct ClipPlace {
 }
 
 /// An audio file that is decoded and about to be put to use in the project.
-struct Import {
+pub(super) struct Import {
     browser: Option<LibraryFileToken>,
-    file: PathBuf,
-    buffer: AudioBuffer,
+    pub(super) file: PathBuf,
+    pub(super) buffer: AudioBuffer,
     /// The document that was open when decoding started.
     generation: u64,
 }
@@ -435,10 +435,12 @@ impl Session {
     /// No source, history or audible plan changes until preparation succeeds.
     fn dispatch_import(
         &self,
-        import: Import,
+        mut import: Import,
         installed: Option<std::sync::Arc<std::sync::atomic::AtomicBool>>,
         build: impl FnOnce(&State, SamplePath, SampleId, &AudioBuffer) -> Command,
     ) -> Result<DispatchResult, String> {
+        let original_file = import.file.clone();
+        let mut owned_preset = self.own_preset(&mut import)?;
         let (ticket, sample, directory) = {
             let _recording = self.import_recording_guard(installed.is_some())?;
             let _library = import
@@ -485,7 +487,7 @@ impl Session {
         if let Some(token) = &import.browser {
             self.inner
                 .library
-                .check_file(token, &paths::display(&import.file))?;
+                .check_file(token, &paths::display(&original_file))?;
         } else {
             let current = self.inner.cache.decode(&import.file)?;
             if !self.inner.cache.same_file_version(&import.buffer, &current) {
@@ -493,6 +495,14 @@ impl Session {
                     "The source file changed while audio was being prepared. Try the import again."
                         .into(),
                 );
+            }
+        }
+        if let Some(owned) = &owned_preset {
+            let current = self.inner.cache.decode(&owned.original)?;
+            if !self.inner.cache.same_file_version(&owned.original_audio, &current)
+                || super::preset_assets::read_original(&owned.original)? != owned.bytes
+            {
+                return Err("The preset source changed during preparation. Try again.".into());
             }
         }
         let result = {
@@ -515,6 +525,10 @@ impl Session {
         };
         if let Some(retirement) = &mut retirement {
             self.retire_project(retirement);
+        }
+        if result.is_ok() && let Some(owned) = &mut owned_preset {
+            owned.installed = true;
+            self.own_derived(&owned.path);
         }
         result
     }

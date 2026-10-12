@@ -193,15 +193,57 @@ fn drumsynth_native_sampler_import_reports_limits_and_reopens_original_preset_wi
         .session
         .project_save(Some(&rig.file("preset-source.windfall")))
         .unwrap();
+    let portable = rig.project();
+    let windfall_project::SamplePath::Project(relative) = &portable.sample(sample).unwrap().path else {
+        panic!("original preset must be owned by the saved project");
+    };
+    assert_eq!(fs::read(rig.folder.path().join(relative)).unwrap(), DRUMSYNTH);
     rig.session.project_new().unwrap();
     rig.session.project_open(&saved).unwrap();
-    assert_eq!(rig.project(), imported);
+    assert_eq!(rig.project(), portable);
     assert!(rig.has_audio(sample));
     assert_eq!(fs::read(&source).unwrap(), DRUMSYNTH);
     let pcm = windfall_codec::decode_file(&source).unwrap();
     for frame in [0, 1, 100, 2205, 4409] {
         let expected = 0.5
             * (1.0 - frame as f64 / 4410.0)
+            * (std::f64::consts::TAU * 440.0 * (frame + 1) as f64 / 44100.0).sin();
+        assert!((f64::from(pcm.samples()[frame]) - expected).abs() < 1e-6);
+    }
+}
+
+#[test]
+fn owned_preset_survives_original_deletion_first_save_move_history_and_fresh_reopen() {
+    let rig = Rig::new();
+    let source = rig.file("portable-original.ds");
+    fs::write(&source, DRUMSYNTH).unwrap();
+    let added = rig.session.add_channel_from_file(&source, None).unwrap();
+    let sample = SampleId(added.created[0]);
+    let imported = rig.project();
+    let windfall_project::SamplePath::External(owned) = &imported.sample(sample).unwrap().path else { panic!("unsaved owned source"); };
+    assert_ne!(owned, &source);
+    assert_eq!(fs::read(owned).unwrap(), DRUMSYNTH);
+    fs::remove_file(&source).unwrap();
+    let saved = rig.session.project_save(Some(&rig.file("portable/preset.windfall"))).unwrap();
+    let portable = rig.project();
+    let windfall_project::SamplePath::Project(relative) = &portable.sample(sample).unwrap().path else { panic!("portable source"); };
+    let carried = std::path::Path::new(&saved).parent().unwrap().join(relative);
+    assert_eq!(fs::read(&carried).unwrap(), DRUMSYNTH);
+    rig.session.undo().unwrap();
+    rig.session.redo().unwrap();
+    assert_eq!(rig.project(), portable);
+    let moved = rig.session.project_save(Some(&rig.file("moved/preset.windfall"))).unwrap();
+    fs::remove_file(&carried).unwrap();
+    fs::remove_file(owned).unwrap();
+    rig.session.project_new().unwrap();
+    rig.session.project_open(&moved).unwrap();
+    assert!(rig.has_audio(sample));
+    assert_eq!(rig.session.sample_info_by_id(sample).unwrap().frames, 4410);
+    let project = rig.project();
+    let windfall_project::SamplePath::Project(relative) = &project.sample(sample).unwrap().path else { panic!("moved owned source"); };
+    let pcm = windfall_codec::decode_file(std::path::Path::new(&moved).parent().unwrap().join(relative)).unwrap();
+    for frame in [0, 100, 2205, 4409] {
+        let expected = 0.5 * (1.0 - frame as f64 / 4410.0)
             * (std::f64::consts::TAU * 440.0 * (frame + 1) as f64 / 44100.0).sin();
         assert!((f64::from(pcm.samples()[frame]) - expected).abs() < 1e-6);
     }
