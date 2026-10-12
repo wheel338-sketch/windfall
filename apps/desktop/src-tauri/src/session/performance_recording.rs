@@ -6,6 +6,10 @@ use windfall_engine::performance_recording::PerformanceRecording;
 use windfall_project::{Command, PerformanceTake, SampleId, SamplePath};
 
 static SERIAL: AtomicU64 = AtomicU64::new(0);
+struct Preparing<'a>(&'a std::sync::atomic::AtomicBool);
+impl Drop for Preparing<'_> {
+    fn drop(&mut self) { self.0.store(false, Ordering::Release); }
+}
 pub(super) struct Capture {
     data: Arc<PerformanceRecording>,
     generation: u64,
@@ -32,6 +36,9 @@ impl Session {
         })
     }
     pub fn performance_record_start(&self, generation: u64, revision: u64) -> Result<(), String> {
+        self.inner.performance_starting.compare_exchange(false, true, Ordering::AcqRel, Ordering::Acquire).map_err(|_| "A performance capture is already being prepared")?;
+        let _preparing = Preparing(&self.inner.performance_starting);
+        if self.inner.performance_capturing.load(Ordering::Acquire) { return Err("Finish or cancel performance recording first".into()); }
         let stream = self.controller().performance_stream_stamp().ok_or("Performance recording needs an active audio stream")?;
         let rate = stream.1;
         let data = PerformanceRecording::prepare(rate, 60)?;

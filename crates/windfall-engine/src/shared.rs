@@ -1,7 +1,7 @@
 //! Values the audio thread publishes for the control side to read, all
 //! through atomics.
 
-use std::sync::atomic::{AtomicU32, AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU64, Ordering};
 use std::time::Duration;
 
 use windfall_project::MAX_MIXER_TRACKS;
@@ -25,6 +25,7 @@ pub(crate) const MIDI_OUT_CAPACITY: usize = 2048;
 const MIDI_OUT_FRAME_BITS: u32 = 38;
 
 pub(crate) struct Shared {
+    pub performance_recording_owned: AtomicBool,
     pub note_poses: [AtomicU64; 128],
     pub presentation_epoch: AtomicU64,
     pub presentation_frame: AtomicU64,
@@ -93,6 +94,7 @@ pub(crate) struct Shared {
 impl Shared {
     pub fn new() -> Self {
         Self {
+            performance_recording_owned: AtomicBool::new(false),
             note_poses: std::array::from_fn(|_| AtomicU64::new(0)),
             presentation_epoch: AtomicU64::new(1),
             presentation_frame: AtomicU64::new(0),

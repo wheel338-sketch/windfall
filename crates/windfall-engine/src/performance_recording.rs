@@ -183,4 +183,23 @@ mod tests {
         assert_eq!(crate::test_alloc::allocator_calls(|| processor.process(&mut replay)), 0);
         assert_eq!(replay, actual);
     }
+    #[test]
+    fn recording_admission_refuses_a_second_buffer_until_callback_completion() {
+        let controller = crate::Controller::new();
+        let mut processor = controller.attach(8000);
+        let first = PerformanceRecording::prepare(8000, 1).unwrap();
+        let second = PerformanceRecording::prepare(8000, 1).unwrap();
+        controller.performance_record_begin(first.clone()).unwrap();
+        assert!(controller.performance_record_begin(second.clone()).is_err());
+        let mut block = [0.0; 16];
+        processor.process(&mut block);
+        controller.performance_record_end();
+        assert!(controller.performance_record_begin(second.clone()).is_err());
+        processor.process(&mut block);
+        assert_eq!(first.snapshot().unwrap().audio.frames(), 8);
+        controller.performance_record_begin(second.clone()).unwrap();
+        processor.process(&mut block);
+        controller.performance_record_end(); processor.process(&mut block);
+        assert_eq!(second.snapshot().unwrap().audio.frames(), 8);
+    }
 }

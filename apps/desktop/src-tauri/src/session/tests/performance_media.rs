@@ -1,4 +1,5 @@
-//! Native session acceptance sources: no window, codec or hardware required.
+//! Headless acceptance: real codec preparation and a Windows native fixture;
+//! no physical audio/MIDI hardware or window required.
 use super::Rig;
 use std::time::Instant;
 use windfall_engine::midi_hardware::{InputMessage, MidiMessage};

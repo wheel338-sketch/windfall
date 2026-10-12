@@ -669,6 +669,7 @@ impl Processor {
             Message::PerformanceRecordEnd => {
                 if let Some(capture) = self.performance_recording.take() {
                     capture.finish();
+                    self.shared.performance_recording_owned.store(false, Ordering::Release);
                     retire(&mut self.garbage, Garbage::PerformanceRecording(capture));
                 }
             }
