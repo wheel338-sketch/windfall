@@ -15,12 +15,16 @@ impl Session {
         generation: u64,
         revision: u64,
     ) -> Result<(), String> {
-        let _recording = self.recording_idle()?;
+        let _recording = self.performance_input_guard()?;
         let state = self.state();
         if state.generation != generation || state.document.revision() != revision {
             return Err("The project changed before the performance launch".into());
         }
         let media = &state.document.project().settings.stage_media;
+        if let Some(scene) = scene {
+            let pad = media.pads.iter().find(|pad| pad.track == track && pad.scene == scene).ok_or("Assign a clip to this pad first")?;
+            pad_audio_ready(&state, pad)?;
+        }
         let pattern = match scene {
             Some(scene) => Some(
                 media
@@ -28,7 +32,7 @@ impl Session {
                     .iter()
                     .find(|pad| pad.track == track && pad.scene == scene)
                     .ok_or("Assign a pattern to this pad first")?
-                    .pattern,
+                    .launch_pattern(),
             ),
             None => None,
         };
@@ -63,7 +67,7 @@ impl Session {
         generation: u64,
         revision: u64,
     ) -> Result<(), String> {
-        let _recording = self.recording_idle()?;
+        let _recording = self.performance_input_guard()?;
         let state = self.state();
         if state.generation != generation || state.document.revision() != revision {
             return Err("The project changed before the scene launch".into());
@@ -71,9 +75,10 @@ impl Session {
         let media = &state.document.project().settings.stage_media;
         let mut requests = [None; windfall_engine::performance::TRACKS];
         for pad in media.pads.iter().filter(|pad| pad.scene == scene) {
+            pad_audio_ready(&state, pad)?;
             requests[usize::from(pad.track)] = Some(LaunchRequest {
                 track: pad.track,
-                pattern: Some(pad.pattern),
+                pattern: Some(pad.launch_pattern()),
                 quantization: media.quantization,
             });
         }
@@ -87,10 +92,15 @@ impl Session {
 
     /// Only paths already saved in this exact project can be decoded. Reading
     /// and stale recheck happen off the document lock; no asset-scheme wildcard.
+    #[cfg(test)]
     pub fn media_video_read(&self, path: &str, generation: u64) -> Result<Vec<u8>, String> {
+        self.media_video_read_checked(path, generation, None)
+    }
+    pub fn media_video_read_checked(&self, path: &str, generation: u64, revision: Option<u64>) -> Result<Vec<u8>, String> {
         let allowed = || {
             let state = self.state();
             state.generation == generation
+                && revision.is_none_or(|revision| state.document.revision() == revision)
                 && state
                     .document
                     .project()
@@ -102,6 +112,12 @@ impl Session {
         };
         if !allowed() {
             return Err("The video is not in this project".into());
+        }
+        let prepared = { self.state().pool.video_bytes(path) };
+        if let Some(bytes) = prepared {
+            let bytes = bytes.to_vec();
+            if !allowed() { return Err("The project changed while reading video".into()); }
+            return Ok(bytes);
         }
         let mut file =
             std::fs::File::open(path).map_err(|error| format!("Cannot open video: {error}"))?;
@@ -192,4 +208,12 @@ impl Session {
             })
             .map_err(str::to_owned)
     }
+}
+
+fn pad_audio_ready(state: &super::State, pad: &windfall_project::PerformancePad) -> Result<(), String> {
+    if let Some(clip) = pad.clip.and_then(|id| state.document.project().playlist.clips.iter().find(|clip| clip.id == id))
+        && let windfall_project::ClipContent::Audio { sample, .. } = clip.content
+        && state.pool.get(sample).is_none_or(|audio| audio.frames() == 0)
+    { return Err("This audio pad's sample is missing or has not finished decoding".into()); }
+    Ok(())
 }

@@ -682,6 +682,13 @@ export function createMockBackend(options: MockOptions = {}): MockBackend {
     performanceState: () => Promise.resolve({ available: false, tick: 0, droppedNotes: "0", tracks: [] }),
     performancePad: () => Promise.reject(new Error("Performance launching needs the desktop audio engine")),
     performanceStopAll: () => Promise.resolve(),
+    performanceRecordState: () => Promise.resolve({ active: false, finished: false, frames: 0, sampleRate: 0, error: null }),
+    performanceRecordStart: () => Promise.reject(new Error("Performance recording needs the desktop audio engine")),
+    performanceRecordStop: () => Promise.reject(new Error("Performance recording needs the desktop audio engine")),
+    performanceRecordCancel: () => Promise.resolve(),
+    performanceRecordSave: () => Promise.reject(new Error("Performance recording needs the desktop audio engine")),
+    performanceTakeReplay: () => Promise.reject(new Error("Performance replay needs the desktop audio engine")),
+    performanceTakeExport: () => Promise.reject(new Error("Performance export needs the desktop audio engine")),
     mixerWaveformTracks: (tracks, generation, revision) => ipc(() => {
       const state = timelineState()
       if (state.generation !== generation || state.revision !== revision) throw new Error("The project changed before waveform selection could update")

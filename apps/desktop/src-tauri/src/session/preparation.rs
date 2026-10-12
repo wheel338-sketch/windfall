@@ -65,9 +65,18 @@ impl ProjectPreparation {
         pool.retain_video_audio(project);
         for video in project.settings.stage_media.videos.iter().filter(|video| !video.muted) {
             if pool.video_audio(&video.path).is_none() {
-                let audio = windfall_codec::decode_video_audio_file(std::path::Path::new(&video.path))
+                // Join picture bytes and PCM from one immutable read.
+                use std::io::Read;
+                let file = std::fs::File::open(&video.path).map_err(|error| format!("Cannot open video '{}': {error}", video.path))?;
+                let mut bytes = Vec::new();
+                file.take(windfall_codec::MAX_VIDEO_FILE_BYTES + 1).read_to_end(&mut bytes).map_err(|error| error.to_string())?;
+                if bytes.len() as u64 > windfall_codec::MAX_VIDEO_FILE_BYTES { return Err("Video exceeds the 64 MiB file budget".into()); }
+                let audio = windfall_codec::decode_video_audio(&bytes, &windfall_codec::DecodeOptions { max_decoded_bytes: windfall_codec::MAX_VIDEO_FILE_BYTES })
                     .map_err(|error| format!("Cannot decode video audio '{}': {error}. Mute it or choose AVI PCM / Ogg Vorbis.", video.path))?;
-                pool.insert_video_audio(video.path.clone(), audio);
+                if pool.video_prepared_bytes().saturating_add(bytes.len()).saturating_add(audio.samples().len() * size_of::<f32>()) > 128 * 1024 * 1024 {
+                    return Err("Prepared video picture bytes and audio exceed the 128 MiB project budget".into());
+                }
+                pool.insert_video_source(video.path.clone(), audio, bytes);
             }
         }
         for channel in &project.channels {

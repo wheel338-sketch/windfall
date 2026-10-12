@@ -42,6 +42,28 @@ afterEach(() => {
 })
 
 describe("mounted performance and media editors", () => {
+  it("records stops and saves only after callback completion through current document tokens", async () => {
+    Object.defineProperty(backend, "kind", { value: "tauri", configurable: true })
+    let capture = { active: false, finished: false, frames: 0, sampleRate: 48000, error: null }
+    vi.spyOn(backend, "performanceRecordState").mockImplementation(() => Promise.resolve(capture))
+    const start = vi.spyOn(backend, "performanceRecordStart").mockImplementation(() => { capture = { ...capture, active: true }; return Promise.resolve() })
+    const stopCapture = vi.spyOn(backend, "performanceRecordStop").mockImplementation(() => { capture = { ...capture, active: false, finished: true, frames: 4800 }; return Promise.resolve() })
+    const save = vi.spyOn(backend, "performanceRecordSave").mockImplementation(() => { capture = { ...capture, finished: false }; return Promise.resolve() })
+    vi.spyOn(backend, "timelineState").mockResolvedValue({ generation: 55, revision: useProjectStore.getState().revision, request: 0, region: null, navigationOverflows: 0 })
+    render(<PerformancePanel />); act(() => useMediaWindows.setState({ performance: true }))
+    const user = userEvent.setup()
+    expect(await screen.findByRole("button", { name: "Save performance" })).toBeDisabled()
+    await user.click(screen.getByRole("button", { name: "Record performance" }))
+    await waitFor(() => expect(start).toHaveBeenCalledWith(55, useProjectStore.getState().revision))
+    await waitFor(() => expect(screen.getByRole("button", { name: "Stop capture" })).toBeEnabled())
+    await waitFor(() => expect(screen.getByRole("combobox", { name: "Launch boundary" })).toBeDisabled())
+    expect(screen.getByRole("button", { name: "Save performance" })).toBeDisabled()
+    await user.click(screen.getByRole("button", { name: "Stop capture" }))
+    await waitFor(() => expect(screen.getByRole("button", { name: "Save performance" })).toBeEnabled())
+    await user.click(screen.getByRole("button", { name: "Save performance" }))
+    await waitFor(() => expect(save).toHaveBeenCalledTimes(1))
+    expect(stopCapture).toHaveBeenCalledTimes(1)
+  })
   it("launches a saved pad and a scene through current document tokens, including keyboard activation", async () => {
     const pattern = useProjectStore.getState().project.patterns[0].id
     await act(async () => { await changeStageMedia((media) => ({ ...media, pads: [{ track: 0, scene: 0, pattern }] })) })

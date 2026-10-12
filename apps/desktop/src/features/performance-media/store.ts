@@ -5,7 +5,7 @@ import { getProjectGeneration, onProjectReplaced } from "@/lib/store/replaced"
 import { backend } from "@/lib/ipc"
 
 export const DEFAULT_STAGE_MEDIA: StageMedia = {
-  pads: [], quantization: "bar", videos: [], visual: { scene: "orbit", intensity: 1, hue: 180 }, danceChannel: null,
+  pads: [], takes: [], quantization: "bar", videos: [], visual: { scene: "orbit", intensity: 1, hue: 180 }, danceChannel: null,
 }
 export const useMediaWindows = create<{ performance: boolean; visualizer: boolean; video: boolean }>(() => ({ performance: false, visualizer: false, video: false }))
 onProjectReplaced(() => useMediaWindows.setState({ performance: false, visualizer: false, video: false }))

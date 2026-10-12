@@ -91,6 +91,7 @@ mod midi_hardware;
 mod mixer_presets;
 mod pattern_movement;
 mod performance_media;
+mod performance_recording;
 mod phone_remote;
 mod playlist_bounce;
 mod playlist_export;
@@ -241,6 +242,8 @@ struct Inner {
     cache: SampleCache,
     factory_dir: PathBuf,
     recording: Mutex<Option<recording::Take>>,
+    performance_capture: Mutex<Option<performance_recording::Capture>>,
+    performance_capturing: AtomicBool,
     recording_finishing: AtomicBool,
     recording_finish_cancelled: AtomicBool,
     input_monitors: Mutex<input_monitor::Monitors>,
@@ -490,6 +493,8 @@ impl Session {
                 cache,
                 factory_dir,
                 recording: Mutex::new(None),
+                performance_capture: Mutex::new(None),
+                performance_capturing: AtomicBool::new(false),
                 script_worker: Mutex::new(()),
                 assistant: crate::assistant::Service::default(),
                 script_ticket: std::sync::atomic::AtomicU64::new(0),

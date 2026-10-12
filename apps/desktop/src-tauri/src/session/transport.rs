@@ -116,6 +116,7 @@ impl Session {
         &self,
         generation: Option<u64>,
     ) -> Result<TransportState, String> {
+        if self.inner.performance_capturing.load(std::sync::atomic::Ordering::Acquire) { return Err("Finish or cancel performance recording before starting the song".into()); }
         let _recording = generation.map(|_| self.recording_idle()).transpose()?;
         // Held across the check and the start, so the last clip cannot be
         // removed in between.

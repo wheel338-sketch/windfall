@@ -1298,6 +1298,13 @@ pub fn handler() -> impl Fn(Invoke) -> bool + Send + Sync + 'static {
         media_render_audio,
         media_video_read,
         performance_scene,
+        performance_record_state,
+        performance_record_start,
+        performance_record_stop,
+        performance_record_cancel,
+        performance_record_save,
+        performance_take_replay,
+        performance_take_export,
         analyzer_ack,
         analyzer_unsubscribe,
         proposal_stamp,
@@ -1772,6 +1779,29 @@ fn performance_stop_all(session: State<'_, Session>) {
 fn performance_state(session: State<'_, Session>) -> windfall_ipc::PerformanceState {
     session.performance_state()
 }
+#[tauri::command]
+fn performance_record_state(session: State<'_, Session>) -> windfall_ipc::PerformanceRecordingState { session.performance_record_state() }
+#[tauri::command]
+async fn performance_record_start(session: State<'_, Session>, generation: u64, revision: u64) -> Result<(), String> {
+    let session = session.inner().clone();
+    blocking(move || session.performance_record_start(generation, revision)).await
+}
+#[tauri::command]
+fn performance_record_stop(session: State<'_, Session>) { session.performance_record_stop(); }
+#[tauri::command]
+fn performance_record_cancel(session: State<'_, Session>) { session.performance_record_cancel(); }
+#[tauri::command]
+async fn performance_record_save(session: State<'_, Session>) -> Result<(), String> {
+    let session = session.inner().clone();
+    blocking(move || session.performance_record_save()).await
+}
+#[tauri::command]
+fn performance_take_replay(session: State<'_, Session>, index: Option<usize>, generation: u64, revision: u64) -> Result<(), String> { session.performance_take_replay(index, generation, revision) }
+#[tauri::command]
+async fn performance_take_export(session: State<'_, Session>, index: usize, path: String, generation: u64, revision: u64) -> Result<(), String> {
+    let session = session.inner().clone();
+    blocking(move || session.performance_take_export(index, &path, generation, revision)).await
+}
 
 #[tauri::command]
 async fn media_render_audio(
@@ -1798,9 +1828,10 @@ async fn media_video_read(
     session: State<'_, Session>,
     path: String,
     generation: u64,
+    revision: Option<u64>,
 ) -> Result<tauri::ipc::Response, String> {
     let session = session.inner().clone();
-    blocking(move || session.media_video_read(&path, generation))
+    blocking(move || session.media_video_read_checked(&path, generation, revision))
         .await
         .map(tauri::ipc::Response::new)
 }

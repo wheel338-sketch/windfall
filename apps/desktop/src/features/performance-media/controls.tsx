@@ -11,6 +11,6 @@ export function MediaNumber({ label, value, min = 0, max, step = 1, onCommit }: 
   }} /></FieldLabel></Field>
 }
 
-export function MediaChoice<Value extends string>({ label, value, options, onChange }: { label: string; value: Value; options: readonly { value: Value; label: ReactNode }[]; onChange(value: Value): void }) {
-  return <Field><FieldLabel>{label}</FieldLabel><Select value={value} onValueChange={(next) => { if (next !== null) onChange(next as Value) }}><SelectTrigger aria-label={label}><SelectValue /></SelectTrigger><SelectContent><SelectGroup>{options.map((option) => <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>)}</SelectGroup></SelectContent></Select></Field>
+export function MediaChoice<Value extends string>({ label, value, options, onChange, disabled = false }: { label: string; value: Value; options: readonly { value: Value; label: ReactNode }[]; onChange(value: Value): void; disabled?: boolean }) {
+  return <Field><FieldLabel>{label}</FieldLabel><Select disabled={disabled} value={value} onValueChange={(next) => { if (next !== null) onChange(next as Value) }}><SelectTrigger aria-label={label}><SelectValue /></SelectTrigger><SelectContent><SelectGroup>{options.map((option) => <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>)}</SelectGroup></SelectContent></Select></Field>
 }
