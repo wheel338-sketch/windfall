@@ -1,4 +1,6 @@
 import type { BitDepth, ExportFormat, ExportOptions } from "@/bindings"
+import { useEffect, useState } from "react"
+import { backend, errorMessage } from "@/lib/ipc"
 import {
   Field,
   FieldDescription,
@@ -13,7 +15,7 @@ import { Choice, type Option } from "./choice"
 
 type Settings = Pick<
   ExportOptions,
-  "format" | "bitDepth" | "sampleRate" | "flacLevel" | "oggQuality" | "mp3"
+  "format" | "bitDepth" | "sampleRate" | "flacLevel" | "oggQuality" | "mp3" | "aacBitrate"
 >
 
 const FORMATS: Option<ExportFormat>[] = [
@@ -21,6 +23,8 @@ const FORMATS: Option<ExportFormat>[] = [
   { value: "flac", label: "FLAC" },
   { value: "ogg", label: "OGG" },
   { value: "mp3", label: "MP3" },
+  { value: "wv", label: "WavPack" },
+  { value: "m4a", label: "M4A (AAC)" },
 ]
 const DEPTHS: Option<BitDepth>[] = [
   { value: "int16", label: "16 bit" },
@@ -35,7 +39,7 @@ const MP3_DEFAULT: NonNullable<ExportOptions["mp3"]> = {
 
 /** The form offers rates every bitrate of its selected format supports. */
 export function exportSampleRates(format: ExportFormat): number[] {
-  return format === "mp3" ? [44_100, 48_000] : RATES
+  return format === "mp3" || format === "m4a" ? [44_100, 48_000] : RATES
 }
 
 /** Keep the choices valid when changing from a lossless to a lossy format. */
@@ -48,7 +52,7 @@ export function changeExportFormat<T extends Settings>(
     ...draft,
     format,
     bitDepth:
-      format === "flac" && draft.bitDepth === "float32"
+      (format === "flac" || format === "wv") && draft.bitDepth === "float32"
         ? "int24"
         : draft.bitDepth,
     sampleRate: exportSampleRates(format).includes(draft.sampleRate)
@@ -68,8 +72,15 @@ export function FormatControls({
   set<K extends keyof Settings>(key: K, value: Settings[K]): void
   onFormat(format: ExportFormat): void
 }) {
+  const [m4aReason, setM4aReason] = useState<string | null>("Checking the Windows AAC encoder…")
+  useEffect(() => {
+    let active = true
+    void backend.m4aCapability().then(reason => { if (active) setM4aReason(reason) })
+      .catch(error => { if (active) setM4aReason(errorMessage(error)) })
+    return () => { active = false }
+  }, [])
   const mp3 = settings.mp3 ?? MP3_DEFAULT
-  const lossless = settings.format === "wav" || settings.format === "flac"
+  const lossless = settings.format === "wav" || settings.format === "flac" || settings.format === "wv"
   return (
     <FieldGroup>
       <Field data-disabled={disabled || undefined}>
@@ -87,15 +98,16 @@ export function FormatControls({
           }}
         >
           {FORMATS.map(({ value, label }) => (
-            <ToggleGroupItem key={value} value={value}>
+            <ToggleGroupItem key={value} value={value} disabled={disabled || (value === "m4a" && m4aReason !== null)} title={value === "m4a" ? m4aReason ?? undefined : undefined}>
               {label}
             </ToggleGroupItem>
           ))}
         </ToggleGroup>
+        {m4aReason && <FieldDescription>M4A: {m4aReason}</FieldDescription>}
         <FieldDescription>
           {settings.format === "wav"
             ? "Uncompressed audio for editing and sharing with other music apps."
-            : settings.format === "flac"
+            : settings.format === "flac" || settings.format === "wv"
               ? "Lossless audio in a smaller file."
               : settings.format === "ogg"
                 ? "Compressed Vorbis audio, with a choice of quality."
@@ -110,7 +122,7 @@ export function FormatControls({
               id="export-depth"
               value={settings.bitDepth}
               options={
-                settings.format === "flac"
+                settings.format === "flac" || settings.format === "wv"
                   ? DEPTHS.filter((option) => option.value !== "float32")
                   : DEPTHS
               }
@@ -146,6 +158,14 @@ export function FormatControls({
               disabled={disabled}
               onChange={(value) => set("flacLevel", value)}
             />
+          </Field>
+        )}
+        {settings.format === "m4a" && (
+          <Field data-disabled={disabled || undefined}>
+            <FieldLabel htmlFor="export-aac-bitrate">AAC bitrate</FieldLabel>
+            <Choice id="export-aac-bitrate" value={settings.aacBitrate ?? 192}
+              options={[96, 128, 160, 192].map(value => ({value, label: `${value} kbps`}))}
+              disabled={disabled} onChange={value => set("aacBitrate", value)} />
           </Field>
         )}
         {settings.format === "ogg" && (

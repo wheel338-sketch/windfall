@@ -51,5 +51,5 @@ export function replaceExportExtension(
   path: string,
   format: ExportFormat
 ): string {
-  return path.replace(/\.(wav|flac|ogg|mp3)$/i, `.${format}`)
+  return path.replace(/\.(wav|flac|ogg|mp3|wv|m4a)$/i, `.${format}`)
 }

@@ -1212,6 +1212,8 @@ export function createMockBackend(options: MockOptions = {}): MockBackend {
         )
       ),
     audioEditorDiscard: () => Promise.resolve(),
+    audioEditorSaveWavpack: async () => { throw new Error("WavPack saving requires the desktop app.") },
+    m4aCapability: async () => "M4A export requires the Windows desktop app and its Media Foundation AAC encoder.",
     audioAnalysisDetect: () => Promise.reject(new Error("Audio analysis requires the desktop app. No audio or project changes were made.")),
     audioAnalysisAudition: () => Promise.reject(new Error("Audio analysis audition requires the desktop app.")),
     audioAnalysisApply: () => Promise.reject(new Error("Audio analysis requires the desktop app. No audio or project changes were made.")),
@@ -1429,6 +1431,8 @@ export function createMockBackend(options: MockOptions = {}): MockBackend {
     samplePlaybackExport: async () => { throw new Error("WAV source export requires the desktop app.") },
     exportAudio: (exportOptions) =>
       ipc(() => {
+        if (exportOptions.format === "m4a" || exportOptions.format === "wv")
+          throw new Error("WavPack and M4A audio export require the desktop app.")
         if (exportOptions.region) {
           if (exportOptions.mode !== "song")
             throw new Error("A timeline export region requires song mode.")

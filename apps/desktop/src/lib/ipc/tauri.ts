@@ -241,6 +241,8 @@ export function createTauriBackend(): Backend {
     audioEditorOpen: (clip) => call("audio_editor_open", { clip }),
     audioEditorApply: (request) => call("audio_editor_apply", { request }),
     audioEditorDiscard: (token) => call("audio_editor_discard", { token }),
+    audioEditorSaveWavpack: (token, start, end, path, depth) => call("audio_editor_save_wavpack", { token, start, end, path, depth }),
+    m4aCapability: () => call("m4a_capability"),
     audioEditorRegions: (token, regions) => call("audio_editor_regions", { token, regions }),
     audioEditorTransfer: (request) => call("audio_editor_transfer", { request }),
     samplePlaybackDetect: (channel, options, generation, revision) => call("sample_playback_detect", { channel, options, generation, revision }),

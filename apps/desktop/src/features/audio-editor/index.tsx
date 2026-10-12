@@ -20,7 +20,7 @@ import {
 } from "@/lib/store/replaced"
 import { usePlaylistStore } from "@/features/playlist/store"
 import { validSelection, type Selection } from "./selection"
-import { EditTools } from "./tools-panel"
+import { Choice, EditTools } from "./tools-panel"
 import { AnalysisTools } from "./analysis-tools"
 import type { AudioEditOperation, AudioEditPreview } from "./types"
 import { Waveform } from "./waveform"
@@ -206,6 +206,7 @@ function Editor({
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [spectral, setSpectral] = useState(false)
+  const [saveDepth, setSaveDepth] = useState<"int16" | "int24">("int24")
   const token = useRef<number | null>(null)
   const alive = useRef(false)
   const generation = useProjectGeneration()
@@ -312,6 +313,23 @@ function Editor({
     }
   }
   const valid = preview && !stale && validSelection(selection, preview.frames)
+  async function saveWavpack() {
+    if (!preview || !valid || busy) return
+    const savedToken = preview.token
+    const savedGeneration = getProjectGeneration()
+    setBusy(true); onBusy(true); setError(null)
+    try {
+      const path = await backend.pickExportPath(preview.name, "wv")
+      if (!path) return
+      if (savedGeneration !== getProjectGeneration() || selectionAtOpen !== usePlaylistStore.getState().selection)
+        throw new Error("The project changed. Reopen the audio editor.")
+      await backend.audioEditorSaveWavpack(savedToken, selection.start, selection.end, path, saveDepth)
+    } catch (error) {
+      if (alive.current) setError(errorMessage(error))
+    } finally {
+      if (alive.current) { setBusy(false); onBusy(false) }
+    }
+  }
   return (
     <div className="flex flex-col gap-3">
       {(error || stale) && (
@@ -338,6 +356,14 @@ function Editor({
             spectral={spectral}
           />
           <Button size="sm" variant="outline" disabled={!preview.spectral?.length || busy} onClick={() => setSpectral(value => !value)}>{spectral ? "Show waveform" : "Show spectrum"}</Button>
+          <FieldGroup className="flex-row items-end">
+            <Field>
+              <FieldLabel>WavPack bit depth</FieldLabel>
+              <Choice label="WavPack bit depth" value={saveDepth} disabled={busy} onChange={setSaveDepth}
+                options={[{value: "int16", label: "16 bit"}, {value: "int24", label: "24 bit"}]} />
+            </Field>
+            <Button size="sm" variant="outline" disabled={!valid || busy} onClick={() => void saveWavpack()}>Save selection as WavPack</Button>
+          </FieldGroup>
           {spectral && <p className="text-xs text-muted-foreground">Time left to right · frequency 0–{preview.sampleRate/2} Hz bottom to top · brightness −96–0 dBFS.</p>}
           <FieldGroup className="flex-row flex-wrap">
             <Field className="w-40" data-invalid={!valid}>

@@ -1,11 +1,12 @@
 //! Audio files in and out of Windfall.
 //!
-//! Reading: WAV, AIFF, FLAC, MP3 and Ogg Vorbis are decoded whole into an
+//! Reading: WAV, AIFF, FLAC, MP3, Ogg Vorbis and integer WavPack decode into an
 //! [`AudioBuffer`](windfall_core::AudioBuffer) at the file's own sample rate
 //! and channel count. Nothing is resampled here; the engine does that at
 //! playback.
 //!
-//! Writing: WAV, FLAC, Ogg Vorbis and MP3, a block at a time.
+//! Writing: WAV, FLAC, Ogg Vorbis, MP3 and integer WavPack, a block at a time.
+//! Windows also exports AAC-LC M4A using Media Foundation's installed codec.
 //! [`Encoder`] writes any of them the same way.
 //!
 //! Drawing: [`peaks`] reduces a buffer to a waveform overview.
@@ -22,6 +23,8 @@ mod peaks;
 mod vorbis;
 mod wav;
 mod wav_metadata;
+mod wavpack;
+pub use wavpack::{WavPackDepth, WavPackWriter, DEFAULT_WAVPACK_BLOCK_FRAMES};
 pub use wav_metadata::{
     MAX_WAV_MARKERS, MAX_WAV_METADATA_BYTES, WavCue, WavLoop, WavLoopKind, WavMetadata, WavSlice,
     WavTempo, read_wav_metadata, read_wav_metadata_file,
@@ -48,7 +51,7 @@ pub use wav::{DEFAULT_DITHER_SEED, WavSampleFormat, WavWriter, write_wav};
 
 /// File extensions Windfall can decode, lowercase and without the dot.
 pub const AUDIO_EXTENSIONS: &[&str] = &[
-    "wav", "wave", "aif", "aiff", "aifc", "flac", "mp3", "ogg", "oga", "ds",
+    "wav", "wave", "aif", "aiff", "aifc", "flac", "mp3", "ogg", "oga", "ds", "wv",
 ];
 
 /// Whether a file extension (without the dot, in any letter case) names a
@@ -90,6 +93,10 @@ mod tests {
 }
 
 mod m4a;
+mod aac;
+mod mp4;
+pub use aac::{AAC_SAMPLE_RATES, AAC_BITRATES, NativeAacWriter, m4a_capability, decode_m4a_bytes};
+pub use mp4::{M4aInfo, inspect_m4a};
 pub use m4a::{
     AacConfig, AacEncoderAdapter, AacPacket, AacTrim, M4aWriter, MAX_AAC_PACKET_BYTES,
     MAX_M4A_PACKETS,

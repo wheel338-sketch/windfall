@@ -148,6 +148,9 @@ export interface Backend extends AnalysisBackend, MixerPresetLibraryBackend, Ana
     request: import("@/features/audio-editor/types").AudioEditRequest
   ): Promise<DispatchResult>
   audioEditorDiscard(token: number): Promise<void>
+  audioEditorSaveWavpack(token: number, start: number, end: number, path: string, depth: "int16" | "int24"): Promise<void>
+  /** null means the installed OS AAC encoder can produce aligned M4A audio. */
+  m4aCapability(): Promise<string | null>
   audioEditorRegions(token: number, regions: import("@/features/audio-editor/types").AudioRegion[]): Promise<DispatchResult>
   audioEditorTransfer(request: import("@/features/audio-editor/transfer").AudioEditTransferRequest): Promise<DispatchResult>
   samplePlaybackDetect(channel: ChannelId, options: import("@/features/slicer/types").SliceOptions, generation: number, revision: number): Promise<DispatchResult>
@@ -460,6 +463,7 @@ export const AUDIO_EXTENSIONS = [
   "ogg",
   "oga",
   "ds",
+  "wv",
 ]
 
 function rejectionText(error: unknown): string {
