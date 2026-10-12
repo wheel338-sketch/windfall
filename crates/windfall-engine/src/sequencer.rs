@@ -844,6 +844,7 @@ impl Sequencer {
                     let Some(frame) = self.due(plan.warp(tick), from, to) else {
                         continue;
                     };
+                    let end = if event.scripted { tick + event.length } else { (tick + event.length).min(clip_end) };
                     triggers.push(Trigger {
                         frame,
                         order: 0,
@@ -853,7 +854,7 @@ impl Sequencer {
                                 note: event.source,
                                 start: self.pass_start + plan.warp(tick),
                                 end: self.pass_start
-                                    + plan.warp((tick + event.length).min(clip_end)),
+                                    + plan.warp(end),
                                 song_origin: Some(self.pass_start),
                                 base_pan: event.pan,
                                 base_expression: event.expression,
@@ -864,9 +865,9 @@ impl Sequencer {
                             velocity: event.velocity,
                             pan: event.pan,
                             expression: event.expression,
-                            // The clip is a window onto the pattern: a held
-                            // note ends where the clip does.
-                            end: self.pass_start + plan.warp((tick + event.length).min(clip_end)),
+                            // Ordinary held notes respect the clip window;
+                            // scripted notes keep the transformed duration.
+                            end: self.pass_start + plan.warp(end),
                         },
                     });
                 }

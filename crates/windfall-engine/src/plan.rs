@@ -171,6 +171,8 @@ pub(crate) struct PlanSampler {
 
 #[derive(Debug, Clone)]
 pub(crate) struct PlanPattern {
+    /// Authored loop extent, before a channel script extends its score.
+    pub source_length: u32,
     pub note_curves: Vec<windfall_project::NoteExpressionCurve>,
     pub id: PatternId,
     pub signature: windfall_project::TimeSignature,
@@ -198,6 +200,7 @@ pub(crate) struct NoteEvent {
     pub velocity: f32,
     pub pan: f32,
     pub expression: windfall_dsp::NoteExpression,
+    pub scripted: bool,
 }
 
 impl PlanPattern {
@@ -1189,7 +1192,21 @@ fn compile_pattern(
     legacy: windfall_project::TimeSignature,
     script_notes: &[Option<windfall_project::scripting::NoteTransform>],
 ) -> PlanPattern {
-    let length = pattern.length_steps.max(1).saturating_mul(TICKS_PER_STEP);
+    let source_length = pattern.length_steps.max(1).saturating_mul(TICKS_PER_STEP);
+    let mut length = source_length;
+    // Extend the immutable score before placing notes; a relocated onset must
+    // not be dropped just because it is outside the authored loop extent.
+    for lane in &pattern.lanes {
+        let Some(channel) = channel_ids.get(lane.channel.0) else { continue; };
+        let program = script_notes.get(channel).and_then(Option::as_ref);
+        if program.is_some() {
+            for note in lane.notes.iter().filter(|note| note.start < source_length) {
+                for output in crate::script_notes::transform(program, note).as_slice() {
+                    length = length.max(output.start.saturating_add(output.length));
+                }
+            }
+        }
+    }
 
     let mut events = Vec::new();
     for lane in &pattern.lanes {
@@ -1197,11 +1214,13 @@ fn compile_pattern(
             continue;
         };
         let timing = source_channels[channel].timing;
-        for note in lane.notes.iter().filter(|note| note.start < length) {
-            let transformed = crate::script_notes::transform(
-                script_notes.get(channel).and_then(Option::as_ref),
+        for note in lane.notes.iter().filter(|note| note.start < source_length) {
+            let program = script_notes.get(channel).and_then(Option::as_ref);
+            let transformed_notes = crate::script_notes::transform(
+                program,
                 note,
             );
+            for transformed in transformed_notes.as_slice() {
             let Some((tick, duration)) =
                 timing.place(transformed.start, transformed.length, length, swing)
             else {
@@ -1216,7 +1235,9 @@ fn compile_pattern(
                 velocity: unit(transformed.velocity),
                 pan: pan(transformed.pan),
                 expression: note.expression.clamped(),
+                scripted: program.is_some(),
             });
+            }
         }
     }
     // The sort is stable, so notes on the same tick keep lane order.
@@ -1224,6 +1245,7 @@ fn compile_pattern(
     let mut note_curves = pattern.note_curves.clone();
     note_curves.sort_by_key(|curve| (curve.note, curve.parameter));
     PlanPattern {
+        source_length,
         note_curves,
         id: pattern.id,
         signature: pattern.effective_signature(legacy),
@@ -1303,11 +1325,20 @@ fn compile_playlist(
     let mut song_end = 0;
     let mut clips = Vec::new();
     for clip in &playlist.clips {
-        let end = clip.start.saturating_add(clip.length);
+        let pattern = match clip.content {
+            ClipContent::Pattern { pattern } => pattern_ids.get(pattern.0),
+            _ => None,
+        };
+        let extension = pattern.map_or(0, |index| {
+            let score = &patterns[index];
+            clip.length.div_ceil(score.source_length).saturating_mul(score.length.saturating_sub(score.source_length))
+        });
+        let end = clip.start.saturating_add(clip.length).saturating_add(extension)
+            .min(windfall_project::MAX_SONG_TICKS);
         // A silent clip still takes up room on the timeline, so mute and
         // solo do not shorten the song.
         song_end = song_end.max(end);
-        if clip.muted || silent_tracks.contains(&clip.track) || end == clip.start {
+        if clip.muted || silent_tracks.contains(&clip.track) || end <= clip.start {
             continue;
         }
         let ClipContent::Pattern { pattern } = &clip.content else {
@@ -1327,6 +1358,22 @@ fn compile_playlist(
             }
             _ => None,
         };
+        // Short windows limit onsets; admitted scripted notes keep their ends.
+        let score = &patterns[pattern];
+        let offset = clip.offset % score.length;
+        let origin = f64::from(clip.start) - f64::from(offset);
+        let last_repeat = (u64::from(end - clip.start - 1) + u64::from(offset)) / u64::from(score.length);
+        for repeat in [last_repeat.saturating_sub(1), last_repeat] {
+            let shift = origin + repeat as f64 * f64::from(score.length);
+            for event in score.events.iter().filter(|event| event.scripted) {
+                let tick = shift + event.tick;
+                if tick >= f64::from(clip.start) && tick < f64::from(end)
+                    && only.is_none_or(|only| only == event.channel)
+                {
+                    song_end = song_end.max((tick + event.length).ceil() as u32);
+                }
+            }
+        }
         clips.push(PlanClip {
             start: clip.start,
             end,

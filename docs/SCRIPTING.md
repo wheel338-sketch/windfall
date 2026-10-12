@@ -129,8 +129,9 @@ pitch wheel and pressure sources follow `CONTROLLER-LINKS.md`. Normalized input
 is supplied by the existing controller hub. A script binding takes precedence
 over ordinary links for the same incoming source. Other sources continue
 through the existing profiles, learning, pickup and transport action handling.
-Use existing profile rising-edge action links for transport buttons; script
-mapping does not invoke arbitrary UI actions.
+Scripts can select checked transport/button targets from the existing action
+registry. Their mapped output uses its rising-edge runtime; it cannot invoke
+arbitrary UI actions.
 
 `map EXPRESSION` sets the binding's target using its existing automation
 range and checked target command; the last map output wins. It must be 0..1.
@@ -154,16 +155,28 @@ param span 0 300 100
 tempo minimum value span * +
 ```
 
-The editor's initial installation form binds any enabled MIDI input's CC on
-channel 1, maps to Master volume and optionally enables channel-1 feedback.
-The persisted API supports the broader sources and targets above. Review the
-source/target/feedback channel in **Review save and assign**. Installed
-assignments can be removed through a reviewed command without deleting source
-revisions. A removal is undoable.
+The installation form chooses an exact device name or any enabled input, an
+input channel or all channels, and CC, note/pad, 14-bit wheel or pressure.
+Choose a positional, project-parameter or checked action target, takeover mode,
+smoothing (0..5000 ms), encoder/toggle mode and feedback channel. Parameter
+choices use the existing checked automation capabilities, including hosted
+parameters and rack control inlets. Review the exact source/target/map/feedback
+in **Review save and assign**. **Edit controller assignment** restores its saved
+source, parameter values and mapping; saving creates a new immutable revision.
+Removal is reviewed and undoable without deleting source revisions.
 
-The controller pump interprets outside document/hub locks and applies each
-pump's script and ordinary link edits as a guarded batch. Errors discard the
-internal command batch. Recording prevents these script edits and feedback.
+The controller pump interprets outside document/hub locks, then feeds map/tempo
+outputs through the ordinary link runtime. Pickup compares the scripted output
+to the target's normalized value. Smoothing continues on idle pumps, controls
+within 600 ms share a gesture, and armed song/pattern automation capture records
+the actual stored movements using the ordinary pass gesture and audible touch
+path. Relative modes decode the original MIDI data byte. Old saved bindings
+default to immediate takeover with no smoothing. Pickup holds, interpreter
+diagnostics and message drops are visible in the script editor and controller
+settings. Each pump's script and ordinary link edits form a generation/revision
+guarded batch. Errors and event overflow refuse the batch and clear pending
+runtime glides. Audio recording exclusion still prevents document edits and
+feedback; automation-record arming is supported.
 There is no output while source is merely being authored. Feedback preflight
 rejects a disconnected output before applying an internal batch. A disconnect,
 full queue or stale document after internal commit cannot undo physical MIDI:
@@ -174,8 +187,12 @@ transport/clock actions keep their existing separate semantics.
 
 ## Compiled channel note transforms and rack hookup
 
-Note transforms accept parameters, straight-line `set` expressions and exactly
-one final `emit`. They reject loops, controller actions and feedback. Choose
+Note transforms accept parameters, straight-line `set` expressions, optional
+`copies COUNT KEY_STEP TICK_STEP` and exactly one final `emit`. Copies has a
+constant count 1..16, a signed semitone step and nonnegative tick step. Each
+copy retains the transformed duration and original expression source; the host
+creates independent sounding instances. Every key/end is checked before any
+output is admitted. They reject loops, controller actions and feedback. Choose
 **Note transform**, select a channel and **Review save and assign**:
 
 ```text
@@ -186,8 +203,9 @@ emit
 ```
 
 `Program::note_transform(parameters)` builds an owned `NoteTransform` with
-fixed instruction/register arrays. `NoteTransform::evaluate(ScriptNote)` uses
-fixed stack storage, has one input/output, and returns a small `TransformError`
+fixed instruction/register arrays. `NoteTransform::evaluate(ScriptNote)` remains
+the first-output API; `evaluate_notes` returns a fixed array of up to 16 outputs.
+Both use fixed stack storage and return a small `TransformError`
 without allocation, frees, locks, clock queries or IO. Prepare it before
 publishing an engine plan. Do not store `Program` or interpreter output vectors
 in a callback processor.
@@ -208,10 +226,54 @@ Its node should retain an exact script revision, compile off audio, own fixed
 bytecode in immutable runtime storage and map its note event to/from ScriptNote
 while preserving note identity/expression. It must retire runtime owners off
 audio and define pairing/ordering when transforming note-on and note-off.
-This stream does not add a modular-rack node. Hardware audition, automation
-targets for script parameters, live re-evaluation and transformed pattern
-duration/clip expansion are not implemented. Existing pattern/clip duration
-still bounds sequencing; changing start/length does not extend the clip.
+This stream does not add a modular-rack node or alter module automation. Channel
+scripts feed the existing sequenced channel hook before rack/instrument/MIDI-out
+delivery. The immutable pattern extent grows to fit transformed ends; clip
+playback grows by its repeated-pattern extension. Scripted notes admitted in a
+short clip window keep their own release tick and the render/song extent includes
+their tails. The checked document refuses expansion beyond the song bound.
+Authored placements remain saved; reopening derives the same playback extents.
+Hardware audition, automation targets for script parameters and live parameter
+re-evaluation are still SOFTWARE gaps; the UI continues to report this limitation.
+
+## Audio-selection scripts
+
+Open a playlist clip's **Audio editor**. Choose a frame selection, load an original
+example or write source, read its parameters and choose **Run script**. The worker
+returns a waveform of the processed selection without writing a file or editing
+the project. **Audition script result** plays that cached selection. **Apply script
+result** attaches exactly the reviewed audio through the guarded derived-WAV edit
+path as one undo step. Cancel invalidates the native request and cached preview;
+it is rechecked at publication. Source/project changes refuse stale work. Save and
+fresh reopen retain the resulting audio through ordinary project sample storage.
+
+Audio uses the same postfix compiler and arithmetic evaluator, with these
+selection-only statements (no notes, controller actions, feedback or loops):
+
+```text
+param first 0 1 0
+param last 0 1 1
+gain first last first - value * +
+```
+
+`value` is normalized frame position 0..1, `index` is the zero-based frame number,
+and parameters use the existing checked declaration/order rules. Every statement
+is a pass over a private selection copy. `reverse` reverses frames with stereo
+pairing intact. `normalize AMPLITUDE` computes linked peak gain, refuses silence,
+and requires a target 0..1. `gain EXPRESSION` applies linked frame gain and refuses
+non-finite/full-scale overflow. Other shipped examples are `reverse`, `normalize
+peak` with a parameter, `gain value` (linear fade in) and `gain 1 value - 1 value - *`
+(squared fade out). Audio outside the selected range is unchanged.
+
+Parsing, rendering and derived-file work run on blocking control workers. There
+is one admitted script worker shared with piano scripts, a cooperative five-second
+execution deadline and at most 100 million counted instructions/sample visits.
+Source/bytecode/stack/parameter bounds remain unchanged. Input, selection scratch
+and output each obey the editor's two-minute/64-MiB per-buffer cap; one preview
+result is retained. Cancellation is checked throughout every pass, including
+validation, peak scans and reverse. Apply uses the cache and never reruns source.
+The deadline bounds interpreter computation, not OS file IO or engine preparation.
+Browser mode explicitly refuses native audio processing and audition.
 
 ## Bounds, persistence and provider decisions
 

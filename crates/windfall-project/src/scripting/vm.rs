@@ -504,7 +504,8 @@ impl Program {
 
     /// Restricts a program to straight-line note operations with exactly one
     /// emit, last. The stored fixed bytecode owns no heap allocations and cannot
-    /// grow output. An invalid runtime arithmetic result reports an error.
+    /// allocate output. Optional copies use a fixed array, never a heap buffer.
+    /// An invalid runtime arithmetic result reports an error.
     pub fn note_transform(&self, parameters: &[f64]) -> Result<NoteTransform, ScriptDiagnostic> {
         let mut emits = 0;
         let mut copies = None;
