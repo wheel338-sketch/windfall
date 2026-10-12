@@ -5,6 +5,7 @@ import { EffectEditor } from "@/features/effects/effect-editor"
 import { StripWaveform } from "@/features/mixer/waveform-meter"
 import { LargeClock } from "@/features/stage/large-clock"
 import { LargeMasterMeter } from "@/features/stage/large-master-meter"
+import { VisualizerCanvas } from "@/features/visualizer/panel"
 import { backend } from "@/lib/ipc"
 import { useProjectStore } from "@/lib/store/project"
 import { useUiStore } from "@/lib/store/ui"
@@ -27,6 +28,7 @@ type SmokeApi = {
   control(operation: string, value?: number): Promise<unknown>
   select(source: "left" | "right" | "mix"): void
   effect(view: EffectView): void
+  visualizer(enabled: boolean): void
   deleteSource(): Promise<void>
   read(): ReturnType<typeof readDisplays>
 }
@@ -40,6 +42,21 @@ export function readDisplays(root: HTMLElement | null) {
     ...element.dataset,
     label: element.getAttribute("aria-label"),
   }))
+  const visualizer = [...root.querySelectorAll<HTMLCanvasElement>("canvas[aria-label='Audio reactive scene']")].map((canvas) => {
+    const context = canvas.getContext("2d")
+    if (!context) throw new Error("Visualizer has no real CanvasRenderingContext2D")
+    const pixels = context.getImageData(0, 0, canvas.width, canvas.height).data
+    let foreground = 0
+    let opaque = 0
+    let hash = 2166136261
+    for (let at = 0; at < pixels.length; at += 4) {
+      if (pixels[at] !== 8 || pixels[at + 1] !== 12 || pixels[at + 2] !== 20) foreground += 1
+      if (pixels[at + 3] === 255) opaque += 1
+      for (let side = 0; side < 4; side += 1) hash = Math.imul(hash ^ pixels[at + side], 16777619) >>> 0
+    }
+    return { live: canvas.dataset.live, width: canvas.width, height: canvas.height,
+      foreground, opaque, hash: hash.toString(16).padStart(8, "0") }
+  })
   return {
     clock: { position: text("[data-slot=large-clock] [data-part=position]"), time: text("[data-slot=large-clock] [data-part=time]") },
     master: { left: text("[data-slot=large-master-meter] [data-side=left]"), right: text("[data-slot=large-master-meter] [data-side=right]") },
@@ -50,11 +67,13 @@ export function readDisplays(root: HTMLElement | null) {
     eq: data("[data-slot=eq-live-spectrum]"),
     tuner: { note: text("[data-slot=tuner-note]"), cents: text("[data-slot=tuner-cents]"), values: data("[data-slot=tuner-editor]") },
     statuses: data("[data-slot=analyzer-status]"),
+    visualizer,
   }
 }
 
-function SmokeViews({ fixture, source, effect }: { fixture: Fixture | null; source: AnalyzerSource | null; effect: EffectView }) {
+function SmokeViews({ fixture, source, effect, visualizer }: { fixture: Fixture | null; source: AnalyzerSource | null; effect: EffectView; visualizer: boolean }) {
   useAnalyzerSelection("scope", source ? { source, want: { scope:true, spectrum:true, vector:true, envelope:true } } : null)
+  useAnalyzerSelection("visualizer", visualizer && source ? { source, want: { spectrum:true, scope:false, vector:false, envelope:false } } : null)
   const project = useProjectStore((state) => state.project)
   const selected = fixture && effect ? fixture[effect] : null
   const track = project.mixer.tracks.find((track) => track.effects.some((slot) => slot.id === selected))
@@ -70,6 +89,7 @@ function SmokeViews({ fixture, source, effect }: { fixture: Fixture | null; sour
       <div className="h-36"><Vectorscope slot="scope" /></div>
       {fixture?.tracks.map((id) => <div key={id} className="h-12"><StripWaveform id={id} active vertical={false} wide /></div>)}
       {slot && track && <div className="col-span-2"><EffectEditor trackId={track.id} slot={slot} /></div>}
+      {visualizer && <div className="col-span-2"><VisualizerCanvas settings={{ scene:"bars", hue:180, intensity:1 }} /></div>}
     </div>
   </section>
 }
@@ -82,6 +102,7 @@ export function AnalyzerSmokeHost() {
   const [fixture, setFixture] = useState<Fixture | null>(null)
   const [source, setSource] = useState<AnalyzerSource | null>(null)
   const [effect, setEffect] = useState<EffectView>(null)
+  const [visualizer, setVisualizer] = useState(false)
   useEffect(() => {
     if (backend.kind !== "tauri") return
     let disposed = false
@@ -107,6 +128,7 @@ export function AnalyzerSmokeHost() {
         setSource(side === "mix" ? { type:"mixOutput" } : { type:"trackPostFader", track:fixture.tracks[side === "left" ? 0 : 1] })
       },
       effect: setEffect,
+      visualizer: setVisualizer,
       async deleteSource() {
         if (source?.type !== "trackPostFader") throw new Error("Select a track before deleting it")
         await backend.dispatch({ type:"removeMixerTrack", id:source.track })
@@ -116,5 +138,5 @@ export function AnalyzerSmokeHost() {
     window.__windfallAnalyzerSmoke = api
     return () => { if (window.__windfallAnalyzerSmoke === api) delete window.__windfallAnalyzerSmoke }
   }, [enabled, fixture, source])
-  return enabled ? <SmokeViews fixture={fixture} source={source} effect={effect} /> : null
+  return enabled ? <SmokeViews fixture={fixture} source={source} effect={effect} visualizer={visualizer} /> : null
 }
