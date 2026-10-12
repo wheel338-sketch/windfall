@@ -127,6 +127,7 @@ impl DriveChainParams {
 pub const CHAIN_LATENCY_SAMPLES: usize = 3 * DRIVE_LATENCY_SAMPLES;
 const WIDTH: usize = 13;
 struct StageChannel {
+    filter_cache: Option<([f32; 3], SvfCoeffs)>,
     shaper: Oversampler,
     filter: Svf,
     chorus: DelayLine,
@@ -139,6 +140,7 @@ struct StageChannel {
 impl StageChannel {
     fn new(rate: f32, taps: usize) -> Self {
         Self {
+            filter_cache: None,
             shaper: Oversampler::default(),
             filter: Svf::default(),
             chorus: DelayLine::new((rate * 0.04).ceil() as usize),
@@ -176,7 +178,16 @@ impl StageChannel {
                     + sample as f32 * v[5..9].iter().sum::<f32>(),
             )
         });
-        let filtered = self.filter.tick(&SvfCoeffs::new(v[9], v[10], rate), shaped);
+        let key = [v[9], v[10], rate];
+        let coeffs = match self.filter_cache {
+            Some((before, coeffs)) if before == key => coeffs,
+            _ => {
+                let coeffs = SvfCoeffs::new(v[9], v[10], rate);
+                self.filter_cache = Some((key, coeffs));
+                coeffs
+            }
+        };
+        let filtered = self.filter.tick(&coeffs, shaped);
         self.filter.flush();
         let delay = (rate * (0.012 + 0.008 * v[11] * phase.sin() as f32))
             .max(1.0)

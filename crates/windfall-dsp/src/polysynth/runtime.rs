@@ -52,6 +52,11 @@ impl Default for Frame {
 }
 
 pub(super) struct Tone {
+    increment_cache: [[(f32, f32, f32); 7]; UNISON],
+    pan_cache: [Option<(f32, (f32, f32))>; UNISON],
+    filter_cache: Option<([f32; 3], (f32, f32))>,
+    drive_cache: Option<(f32, f32, f32)>,
+    pub matrix_cache: [super::operators::MatrixCache; UNISON],
     pub oscillators: [[Oscillator; 6]; UNISON],
     pub previous: [[f32; 6]; UNISON],
     pub operators: [Adsr; 6],
@@ -74,6 +79,11 @@ pub(super) struct Tone {
 impl Default for Tone {
     fn default() -> Self {
         Self {
+            matrix_cache: [super::operators::MatrixCache::default(); UNISON],
+            increment_cache: [[(f32::NAN, f32::NAN, 0.0); 7]; UNISON],
+            pan_cache: [None; UNISON],
+            filter_cache: None,
+            drive_cache: None,
             oscillators: [[Oscillator::default(); 6]; UNISON],
             previous: [[0.0; 6]; UNISON],
             operators: [Adsr::default(); 6],
@@ -95,11 +105,74 @@ impl Default for Tone {
         }
     }
 }
+impl Tone {
+    #[inline]
+    pub fn drive(&mut self, input: f32, amount: f32) -> f32 {
+        let amount = amount.clamp(0.0, 1.0);
+        if amount <= 0.0 {
+            return input;
+        }
+        let (gain, normalization) = match self.drive_cache {
+            Some((before, gain, normalization)) if before == amount => (gain, normalization),
+            _ => {
+                let gain = 1.0 + 9.0 * amount;
+                let normalization = gain.tanh();
+                self.drive_cache = Some((amount, gain, normalization));
+                (gain, normalization)
+            }
+        };
+        input + amount * ((input * gain).tanh() / normalization - input)
+    }
+    #[inline]
+    pub fn phase_increment(
+        &mut self,
+        lane: usize,
+        oscillator: usize,
+        pitch: f32,
+        rate: f32,
+    ) -> f32 {
+        let (before, before_rate, increment) = self.increment_cache[lane][oscillator];
+        if before == pitch && before_rate == rate {
+            increment
+        } else {
+            let increment = core::increment(pitch, rate);
+            self.increment_cache[lane][oscillator] = (pitch, rate, increment);
+            increment
+        }
+    }
+    #[inline]
+    pub fn pan(&mut self, lane: usize, pan: f32) -> (f32, f32) {
+        match self.pan_cache[lane] {
+            Some((before, gains)) if before == pan => gains,
+            _ => {
+                let gains = core::pan_gains(pan);
+                self.pan_cache[lane] = Some((pan, gains));
+                gains
+            }
+        }
+    }
+    #[inline]
+    pub fn filter_coefficients(&mut self, cutoff: f32, resonance: f32, rate: f32) -> (f32, f32) {
+        let key = [cutoff, resonance, rate];
+        match self.filter_cache {
+            Some((before, coeffs)) if before == key => coeffs,
+            _ => {
+                let coeffs = (
+                    core::swept_gain(cutoff, 0.0, rate),
+                    core::svf_damping(resonance),
+                );
+                self.filter_cache = Some((key, coeffs));
+                coeffs
+            }
+        }
+    }
+}
 pub(super) fn envelope(env: &mut Adsr, p: EnvelopeParams, rate: f32) {
     env.configure(p.attack_ms, p.decay_ms, p.sustain, p.release_ms, rate);
 }
 
 pub(super) struct Context<'a> {
+    pub operator_graph: Option<&'a OperatorGraph>,
     pub pitch: f32,
     pub key: u8,
     pub held: bool,
@@ -110,15 +183,23 @@ pub(super) struct Context<'a> {
     pub bpm: f32,
     pub assets: Option<&'a PackAssets>,
 }
+pub(super) struct OperatorGraph {
+    pub fm: [[f32; 6]; 6],
+    pub outputs: [f32; 6],
+}
 
 pub(super) trait Patch: ParamSet {
     const NEEDS_ASSETS: bool = false;
     fn frame(&self) -> Frame;
     fn configure(&self, _tone: &mut Tone, _rate: f32) {}
+    fn operator_graph(&self) -> Option<OperatorGraph> {
+        None
+    }
     fn sample(&self, tone: &mut Tone, context: &Context) -> (f32, f32);
 }
 
 pub(super) struct Runtime<P: Patch> {
+    operator_graph: Option<OperatorGraph>,
     rate: f32,
     bpm: f32,
     controls: Controls<P>,
@@ -136,6 +217,7 @@ pub(super) struct Runtime<P: Patch> {
 impl<P: Patch> Default for Runtime<P> {
     fn default() -> Self {
         Self {
+            operator_graph: None,
             rate: 48000.0,
             bpm: 120.0,
             controls: Controls::default(),
@@ -167,6 +249,7 @@ impl<P: Patch> Instrument for Runtime<P> {
         self.reset();
     }
     fn reset(&mut self) {
+        self.operator_graph = None;
         self.controls.reset();
         self.notes.reset();
         self.lfo_phase = 0.0;
@@ -221,6 +304,9 @@ impl<P: Patch> Instrument for Runtime<P> {
     fn process(&mut self, left: &mut [f32], right: &mut [f32]) {
         for (left, right) in left.iter_mut().zip(right) {
             let (p, changed) = self.controls.tick();
+            if changed {
+                self.operator_graph = p.operator_graph();
+            }
             let f = p.frame();
             let lfo = (TAU * self.lfo_phase).sin();
             core::advance(&mut self.lfo_phase, f.lfo_rate / self.rate);
@@ -277,6 +363,7 @@ impl<P: Patch> Instrument for Runtime<P> {
                     self.rate * 2.0,
                 );
                 let ctx = Context {
+                    operator_graph: self.operator_graph.as_ref(),
                     pitch,
                     key: note.key,
                     held: note.held,
@@ -356,7 +443,8 @@ pub(super) fn oscillator(
     if wave == Waveform::PinkNoise {
         return tone.pink[u][op].tick(&mut tone.noise);
     }
-    tone.oscillators[u][op].tick(wave, core::increment(pitch, rate), width.clamp(0.05, 0.95))
+    let increment = tone.phase_increment(u, op, pitch, rate);
+    tone.oscillators[u][op].tick(wave, increment, width.clamp(0.05, 0.95))
 }
 
 // Public types have distinct parameter contracts and monomorphized synthesis graphs.

@@ -45,6 +45,27 @@ impl Default for Controls {
     }
 }
 #[derive(Clone, Copy)]
+struct PartialCache {
+    ratio: f32,
+    increment: f32,
+    alias: f32,
+    shape: f32,
+    filter: f32,
+    resonance: f32,
+}
+impl Default for PartialCache {
+    fn default() -> Self {
+        Self {
+            ratio: f32::NAN,
+            increment: 0.0,
+            alias: 0.0,
+            shape: 0.0,
+            filter: 0.0,
+            resonance: 0.0,
+        }
+    }
+}
+#[derive(Clone, Copy)]
 struct Voice {
     active: bool,
     key: u8,
@@ -53,6 +74,8 @@ struct Voice {
     age: u64,
     order: u64,
     phases: [f32; 64],
+    partial_cache: [PartialCache; 64],
+    partial_settings: [f32; 4],
     release: LinearRamp,
     correction_left: LinearRamp,
     correction_right: LinearRamp,
@@ -69,6 +92,8 @@ impl Default for Voice {
             age: 0,
             order: 0,
             phases: [0.0; 64],
+            partial_cache: [PartialCache::default(); 64],
+            partial_settings: [f32::NAN; 4],
             release: LinearRamp::new(1.0),
             correction_left: LinearRamp::new(0.0),
             correction_right: LinearRamp::new(0.0),
@@ -78,6 +103,7 @@ impl Default for Voice {
     }
 }
 pub(super) struct PreparedEngine {
+    shimmer_offsets: [(f64, f64); 64],
     bank: Box<SpectralBank>,
     voices: [Voice; 16],
     controls: Controls,
@@ -90,6 +116,9 @@ pub(super) struct PreparedEngine {
 impl PreparedEngine {
     pub(super) fn new(bank: SpectralBank) -> Self {
         Self {
+            shimmer_offsets: std::array::from_fn(|i| {
+                (std::f64::consts::TAU * f64::from(i as f32 * 0.137)).sin_cos()
+            }),
             bank: Box::new(bank),
             voices: [Voice::default(); 16],
             controls: Controls::default(),
@@ -237,6 +266,14 @@ impl PreparedEngine {
                     1.0
                 };
                 let envelope = attack * natural * v.release.tick() * v.velocity * c.gain;
+                let settings = [c.stretch, c.cutoff, c.resonance, self.target.shape as f32];
+                let changed = settings != v.partial_settings;
+                v.partial_settings = settings;
+                let (shimmer_sine, shimmer_cosine) = if c.shimmer_depth == 0.0 {
+                    (0.0, 1.0)
+                } else {
+                    (std::f64::consts::TAU * f64::from(seconds * c.shimmer)).sin_cos()
+                };
                 let (mut voice_left, mut voice_right) = (0.0, 0.0);
                 for (i, (pa, pb)) in self.bank.frames[a]
                     .partials
@@ -246,43 +283,54 @@ impl PreparedEngine {
                 {
                     let n = (i + 1) as f32;
                     let ratio = pa.ratio + (pb.ratio - pa.ratio) * mix;
-                    let hz = v.hz * ratio * (1.0 + c.stretch * n * n * 0.001);
-                    let increment = hz / self.rate;
-                    let alias = ((0.49 - increment) / 0.05).clamp(0.0, 1.0);
-                    let level = pa.level + (pb.level - pa.level) * mix;
-                    let shape = match self.target.shape {
-                        1 if i % 2 == 1 => 0.0,
-                        2 if i % 2 == 1 => 0.0,
-                        2 => {
-                            if (i / 2) % 2 == 0 {
-                                1.0 / n
-                            } else {
-                                -1.0 / n
+                    let mut cache = v.partial_cache[i];
+                    if changed || cache.ratio != ratio {
+                        cache.ratio = ratio;
+                        let hz = v.hz * ratio * (1.0 + c.stretch * n * n * 0.001);
+                        cache.increment = hz / self.rate;
+                        cache.alias = ((0.49 - cache.increment) / 0.05).clamp(0.0, 1.0);
+                        cache.shape = match self.target.shape {
+                            1 if i % 2 == 1 => 0.0,
+                            2 if i % 2 == 1 => 0.0,
+                            2 => {
+                                if (i / 2) % 2 == 0 {
+                                    1.0 / n
+                                } else {
+                                    -1.0 / n
+                                }
                             }
-                        }
-                        _ => 1.0,
-                    };
-                    let filter = 1.0 / (1.0 + (hz / c.cutoff).powi(4));
-                    let resonance = 1.0
-                        + c.resonance * 4.0 * (1.0 - ((hz / c.cutoff - 1.0) * 3.0).abs()).max(0.0);
+                            _ => 1.0,
+                        };
+                        cache.filter = 1.0 / (1.0 + (hz / c.cutoff).powi(4));
+                        cache.resonance = 1.0
+                            + c.resonance
+                                * 4.0
+                                * (1.0 - ((hz / c.cutoff - 1.0) * 3.0).abs()).max(0.0);
+                        v.partial_cache[i] = cache;
+                    }
+                    let level = pa.level + (pb.level - pa.level) * mix;
+                    let (offset_sine, offset_cosine) = self.shimmer_offsets[i];
                     let shimmer = 1.0
                         + c.shimmer_depth
-                            * sine_turns((seconds * c.shimmer + i as f32 * 0.137).fract());
+                            * (shimmer_sine * offset_cosine + shimmer_cosine * offset_sine) as f32;
                     let pan = ((pa.pan + (pb.pan - pa.pan) * mix) * c.pan_width).clamp(-1.0, 1.0);
-                    let phase_delta = (pb.phase - pa.phase + 0.5).rem_euclid(1.0) - 0.5;
+                    let delta = pb.phase - pa.phase + 0.5;
+                    let phase_delta = delta - delta.floor() - 0.5;
                     let phase_offset =
                         pa.phase - self.bank.frames[0].partials[i].phase + phase_delta * mix;
-                    let sample = sine_turns((v.phases[i] + phase_offset).rem_euclid(1.0))
+                    let phase = v.phases[i] + phase_offset;
+                    let sample = sine_turns(phase - phase.floor())
                         * level
-                        * shape
-                        * filter
-                        * resonance
+                        * cache.shape
+                        * cache.filter
+                        * cache.resonance
                         * shimmer
-                        * alias
+                        * cache.alias
                         * envelope;
                     voice_left += sample * (1.0 - pan) * 0.5;
                     voice_right += sample * (1.0 + pan) * 0.5;
-                    v.phases[i] = (v.phases[i] + increment).rem_euclid(1.0);
+                    let phase = v.phases[i] + cache.increment;
+                    v.phases[i] = phase - phase.floor();
                 }
                 v.last_left = voice_left + v.correction_left.tick();
                 v.last_right = voice_right + v.correction_right.tick();

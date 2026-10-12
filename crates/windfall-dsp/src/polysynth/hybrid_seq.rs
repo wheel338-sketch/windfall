@@ -260,6 +260,9 @@ impl Patch for HybridSeqParams {
         operators::configure(&self.operators, t, rate);
         super::runtime::envelope(&mut t.sequence_env, self.envelope, rate * 2.0);
     }
+    fn operator_graph(&self) -> Option<super::runtime::OperatorGraph> {
+        Some(self.prepared_graph())
+    }
     fn sample(&self, t: &mut Tone, c: &Context) -> (f32, f32) {
         let mut pitch = c.pitch;
         let mut velocity = 1.0;
@@ -294,8 +297,48 @@ impl Patch for HybridSeqParams {
             pitch += s.pitch as f32;
             velocity = s.velocity * t.sequence_env.tick();
         }
+        static RING: [[f32; 6]; 6] = [[0.0; 6]; 6];
+        let fallback;
+        let graph = if let Some(graph) = c.operator_graph {
+            graph
+        } else {
+            fallback = self.prepared_graph();
+            &fallback
+        };
+        let mut sum = (0.0, 0.0);
+        for u in 0..self.unison as usize {
+            let pos = core::unison_position(u, self.unison as usize);
+            let p = pitch + pos * self.detune_cents / 100.0;
+            let ops = operators::matrix(t, c, &self.operators, &graph.fm, &RING, u, p, 0.0);
+            let fm = ops
+                .iter()
+                .zip(graph.outputs)
+                .map(|(v, g)| v * g)
+                .sum::<f32>();
+            // A separate BLEP saw lives beside the operator bank, never masquerading
+            // as an FM preset. Its phase is not one of the operator phases.
+            let phase = t.sample_phase[u];
+            let inc = t.phase_increment(u, 6, p, c.rate);
+            let saw = crate::blocks::oscillator::saw(phase, inc);
+            core::advance(&mut t.sample_phase[u], inc);
+            let raw = (fm * (1.0 - self.saw_mix) + saw * self.saw_mix) * velocity;
+            let pan = t.pan(u, pos * self.spread);
+            sum.0 += raw * pan.0;
+            sum.1 += raw * pan.1;
+        }
+        let (gain, damping) = t.filter_coefficients(c.cutoff, self.resonance, c.rate);
+        let filter = |t: &mut Tone, side: usize, input: f32| {
+            let driven = t.drive(input / self.unison as f32, self.drive);
+            t.svf[side].tick(driven, gain, damping).0
+        };
+        (filter(t, 0, sum.0), filter(t, 1, sum.1))
+    }
+}
+instrument!(HybridSeq, HybridSeqParams);
+
+impl HybridSeqParams {
+    fn prepared_graph(&self) -> super::runtime::OperatorGraph {
         let mut fm = [[0.0; 6]; 6];
-        let ring = [[0.0; 6]; 6];
         let mut outputs = [0.0; 6];
         match self.algorithm {
             HybridAlgorithm::Serial => {
@@ -320,33 +363,6 @@ impl Patch for HybridSeqParams {
             }
             HybridAlgorithm::Parallel => outputs = [1.0 / 6.0; 6],
         }
-        let mut sum = (0.0, 0.0);
-        for u in 0..self.unison as usize {
-            let pos = core::unison_position(u, self.unison as usize);
-            let p = pitch + pos * self.detune_cents / 100.0;
-            let ops = operators::matrix(t, c, &self.operators, &fm, &ring, u, p, 0.0);
-            let fm = ops.iter().zip(outputs).map(|(v, g)| v * g).sum::<f32>();
-            // A separate BLEP saw lives beside the operator bank, never masquerading
-            // as an FM preset. Its phase is not one of the operator phases.
-            let phase = t.sample_phase[u];
-            let inc = core::increment(p, c.rate);
-            let saw = crate::blocks::oscillator::saw(phase, inc);
-            core::advance(&mut t.sample_phase[u], inc);
-            let raw = (fm * (1.0 - self.saw_mix) + saw * self.saw_mix) * velocity;
-            let pan = core::pan_gains(pos * self.spread);
-            sum.0 += raw * pan.0;
-            sum.1 += raw * pan.1;
-        }
-        let filter = |t: &mut Tone, side: usize, input: f32| {
-            t.svf[side]
-                .tick(
-                    core::drive(input / self.unison as f32, self.drive),
-                    core::swept_gain(c.cutoff, 0.0, c.rate),
-                    core::svf_damping(self.resonance),
-                )
-                .0
-        };
-        (filter(t, 0, sum.0), filter(t, 1, sum.1))
+        super::runtime::OperatorGraph { fm, outputs }
     }
 }
-instrument!(HybridSeq, HybridSeqParams);

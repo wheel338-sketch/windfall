@@ -137,3 +137,57 @@ TypeScript changed.
   independent 1M-phase accuracy check. Standard-library reference remains
   unchanged. `target/round4-builder-instruments-optimized3.log` still running;
   not yet accepted or committed as a product fix.
+- LPC profile **1/0/0** (`--release --lib round4_profile_formants`): 50k frames
+  whitening/analysis **80.0726 ms**, synthesis **32.7846 ms**, 100 stereo
+  estimates **154.1876 ms**; `target/round4-builder-lpc-kernel-profile.log`.
+  Four-way full-window correlation and exact autocorrelation sharing for equal
+  or inverted histories retain all order/window support and independent filter
+  memories. Full effect budgets now **3/0/0**:
+  `target/round4-builder-effects-optimized3.log`; Voice block 64 **0.368053x**
+  versus 0.5, Mix **0.192187x**. Temporary profiling tests removed; source
+  snapshots retained under `target/round4_profile_*.rs` for this machine.
+- Third complete instrument run **18/2/0**, 74.49 s;
+  `target/round4-builder-instruments-optimized3.log`: Snapshot **0.4473x**,
+  Metal **0.4823x**, Matrix **0.6532x**, GMS Table **0.8340x** and Hybrid
+  Serial **0.9589x** still fail. Cached oscillator increments and phase-only
+  advancement for inaudible GMS branches preserve their phases across mode
+  changes. Fourth run **18/2/0**, 69.50 s:
+  `target/round4-builder-instruments-optimized4.log`; GMS passes every mode,
+  but a naive per-sample sparse-route filter regressed Matrix/Hybrid. Replace
+  it with prepared active-route masks and a branch-free dense path, borrowing
+  rather than copying the coefficient cache. Focused Matrix **1/0/0**,
+  **0.6819x**: `target/round4-builder-instrument-matrix-final-probe.log`.
+  Hybrid focused and all accuracy/allocator checks still pending.
+- Hybrid still unresolved: prepared graph construction, phase-only inactive
+  oscillators, cached drive normalization and a SIMD-friendly independent
+  six-carrier block bring Serial to **0.6758x** (tail passes), but the next
+  Pairs variant measures **1.1045x** versus 0.75. All six operators, routes,
+  unison lanes, and synthesis substeps remain. No budget/expectation changes.
+  `target/round4-builder-instrument-hybrid-drive-probe.log` (**0/1/0**, 12.01 s).
+  Stack/Parallel have not been reached by that unchanged fail-fast test yet.
+  This is a remaining performance failure, not a claim that one-core admission
+  is impossible. Seven original failing instrument rows have passing release
+  measurements; complete final aggregate run and accuracy checks pending.
+  DSP source formatted; full release unit accuracy check now running.
+- Release DSP units **668/3/0**, 76.95 s;
+  `target/round4-builder-dsp-unit-accuracy.log`. All signal/reference tests,
+  including independent sine error, passed. Three existing standalone allocator
+  probes invoke plain `rustc -Copt-level=1` against release ThinLTO archives and
+  fail to link (`LNK1107` on the core archive plus unresolved core symbols).
+  They are being rerun in the normal test profile with unchanged assertions;
+  this release probe-harness issue is not a passing allocator result.
+- Normal-profile complete DSP units **671/0/0**, 79.07 s,
+  `cargo test -p windfall-dsp --lib -- --test-threads=1`;
+  `target/round4-builder-dsp-unit-accuracy-debug.log`. All existing signal,
+  reference, automation, partition and allocator probes pass, plus the new
+  independent minimax error gate. Full release integration suite now running.
+- Complete release DSP integration **224/0/5**, 123.20 s,
+  `cargo test --release -p windfall-dsp --test dsp -- --test-threads=1`;
+  `target/round4-builder-dsp-integration-accuracy.log`. All 20 instrument
+  deadlines and all effect budgets passed in this aggregate run, alongside
+  the unchanged expanded pitch, independent processor/reference, and callback
+  heap checks. Existing five opt-ins remain ignored. Earlier focused Hybrid
+  Pairs timing failure remains evidence of variability; required final explicit
+  `--nocapture` budget runs will determine final reported admission numbers.
+  DSP fixes now validated for numerical accuracy and allocation behavior and
+  committed as a checkpoint. A7 next, then final serial gates.

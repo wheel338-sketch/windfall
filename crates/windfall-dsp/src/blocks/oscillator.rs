@@ -115,6 +115,26 @@ pub fn sine(phase: f32) -> f32 {
     (TAU * phase).sin()
 }
 
+/// The additive bank's bounded minimax sine, for dense operator kernels.
+/// Fold to a quarter-cycle before the degree-seven odd polynomial; the
+/// independent standard-library curve remains `sine` above.
+#[inline]
+pub(crate) fn sine_fast(phase: f32) -> f32 {
+    let (sign, quarter) = if phase < 0.5 {
+        (1.0, phase)
+    } else {
+        (-1.0, phase - 0.5)
+    };
+    let quarter = if quarter > 0.25 {
+        0.5 - quarter
+    } else {
+        quarter
+    };
+    let y = TAU * quarter;
+    let square = y * y;
+    sign * y * (1.0 + square * (-0.166_656_8 + square * (0.008_312_37 + square * -0.000_184_92)))
+}
+
 /// A saw that rises from -1 to 1 over the cycle. `increment` is the phase
 /// step per sample, which is the frequency divided by the sample rate; it
 /// must stay below 0.25.
@@ -192,11 +212,16 @@ impl Oscillator {
     pub fn tick(&mut self, waveform: Waveform, increment: f32, width: f32) -> f32 {
         let increment = increment.clamp(0.0, MAX_INCREMENT);
         let value = tonal_sample(waveform, self.phase, increment, width);
-        self.phase += increment;
+        self.advance(increment);
+        value
+    }
+
+    #[inline]
+    pub(crate) fn advance(&mut self, increment: f32) {
+        self.phase += increment.clamp(0.0, MAX_INCREMENT);
         if self.phase >= 1.0 {
             self.phase -= 1.0;
         }
-        value
     }
 }
 
@@ -205,6 +230,17 @@ mod tests {
     use super::*;
 
     const RATE: f64 = 48_000.0;
+
+    #[test]
+    fn dense_sine_polynomial_is_bounded_against_independent_trigonometry() {
+        let mut error = 0.0_f64;
+        for n in 0..=1_000_000 {
+            let phase = n as f32 / 1_000_000.0;
+            let reference = (std::f64::consts::TAU * f64::from(phase)).sin();
+            error = error.max((f64::from(sine_fast(phase)) - reference).abs());
+        }
+        assert!(error < 1.5e-6, "sine worst error {error}");
+    }
 
     fn render(waveform: Waveform, frequency: f64, width: f32, samples: usize) -> Vec<f32> {
         let mut oscillator = Oscillator::default();

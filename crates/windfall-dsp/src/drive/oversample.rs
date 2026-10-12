@@ -128,8 +128,10 @@ impl Kernels {
 /// Holds fixed arrays only, so nothing here allocates. A processor keeps one
 /// per channel and hands every call the same shared [`Kernels`].
 pub(crate) struct Oversampler {
-    input: [f64; INPUT_TAPS],
-    high: [f64; MAX_TAPS],
+    // Mirrored rings expose each FIR history as a contiguous slice. Preserve
+    // coefficient accumulation order while avoiding division per tap.
+    input: [f64; INPUT_TAPS * 2],
+    high: [f64; MAX_TAPS * 2],
     input_at: usize,
     high_at: usize,
     quality: Oversampling,
@@ -141,8 +143,8 @@ pub(crate) struct Oversampler {
 impl Default for Oversampler {
     fn default() -> Self {
         Self {
-            input: [0.0; INPUT_TAPS],
-            high: [0.0; MAX_TAPS],
+            input: [0.0; INPUT_TAPS * 2],
+            high: [0.0; MAX_TAPS * 2],
             input_at: 0,
             high_at: 0,
             quality: Oversampling::default(),
@@ -191,6 +193,7 @@ impl Oversampler {
         mut shape: impl FnMut(f64) -> f64,
     ) -> f32 {
         self.input[self.input_at] = f64::from(input);
+        self.input[self.input_at + INPUT_TAPS] = f64::from(input);
         let quality = self.quality;
         let kernel = kernels.and_then(|kernels| kernels.of(quality));
         let shaped = match kernel {
@@ -202,19 +205,24 @@ impl Oversampler {
             Some(kernel) => {
                 let taps = kernel.down.len();
                 let mut output = 0.0;
+                let history = &self.input[self.input_at + 1..self.input_at + INPUT_TAPS + 1];
                 for (phase, branch) in kernel.up.iter().enumerate() {
                     let mut interpolated = 0.0;
-                    for (k, coefficient) in branch.iter().enumerate() {
-                        interpolated +=
-                            coefficient * self.input[(self.input_at + INPUT_TAPS - k) % INPUT_TAPS];
+                    for (coefficient, sample) in branch.iter().zip(history.iter().rev()) {
+                        interpolated += coefficient * sample;
                     }
                     self.high[self.high_at] = shape(interpolated);
+                    self.high[self.high_at + taps] = self.high[self.high_at];
                     if phase == 0 {
-                        for (k, coefficient) in kernel.down.iter().enumerate() {
-                            output += coefficient * self.high[(self.high_at + taps - k) % taps];
+                        let history = &self.high[self.high_at + 1..self.high_at + taps + 1];
+                        for (coefficient, sample) in kernel.down.iter().zip(history.iter().rev()) {
+                            output += coefficient * sample;
                         }
                     }
-                    self.high_at = (self.high_at + 1) % taps;
+                    self.high_at += 1;
+                    if self.high_at == taps {
+                        self.high_at = 0;
+                    }
                 }
                 output
             }

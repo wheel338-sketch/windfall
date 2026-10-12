@@ -5,7 +5,7 @@ const WINDOW: usize = 4096;
 pub(super) struct Formants {
     rate_scale: f64,
     order: usize,
-    history: [[f32; WINDOW]; 2],
+    history: [[f32; WINDOW * 2]; 2],
     cursor: usize,
     hop: usize,
     coefficients: [[f64; ORDER + 1]; 2],
@@ -18,7 +18,7 @@ impl Default for Formants {
         Self {
             rate_scale: 1.0,
             order: 8,
-            history: [[0.0; WINDOW]; 2],
+            history: [[0.0; WINDOW * 2]; 2],
             cursor: 0,
             hop: 0,
             coefficients: [[0.0; ORDER + 1]; 2],
@@ -41,12 +41,20 @@ impl Formants {
     fn estimate(&mut self, channel: usize) {
         let order = self.order;
         let window = (512.0 / self.rate_scale).round().min(WINDOW as f64) as usize;
+        let history = &self.history[channel][self.cursor..self.cursor + window];
         let mut correlation = [0.0_f64; ORDER + 1];
         for (lag, r) in correlation.iter_mut().enumerate().take(order + 1) {
-            for i in lag..window {
-                let a = f64::from(self.history[channel][(self.cursor + i) % window]);
-                let b = f64::from(self.history[channel][(self.cursor + i - lag) % window]);
-                *r += a * b;
+            let (left, remainder) = history[lag..].as_chunks::<4>();
+            let (right, rest) = history[..window - lag].as_chunks::<4>();
+            let mut lanes = [0.0_f64; 4];
+            for (a, b) in left.iter().zip(right) {
+                for i in 0..4 {
+                    lanes[i] += f64::from(a[i]) * f64::from(b[i]);
+                }
+            }
+            *r = lanes.iter().sum();
+            for (a, b) in remainder.iter().zip(rest) {
+                *r += f64::from(*a) * f64::from(*b);
             }
         }
         self.target[channel].fill(0.0);
@@ -84,13 +92,24 @@ impl Formants {
         let window = (512.0 / self.rate_scale).round().min(WINDOW as f64) as usize;
         for (ch, value) in input.iter().enumerate() {
             self.history[ch][self.cursor] = *value;
+            self.history[ch][self.cursor + window] = *value;
         }
         self.cursor = (self.cursor + 1) % window;
         self.hop += 1;
         if self.hop >= (128.0 / self.rate_scale).round() as usize {
             self.hop = 0;
-            for ch in 0..2 {
-                self.estimate(ch);
+            self.estimate(0);
+            // Autocorrelation is identical for equal or polarity-inverted
+            // histories. Share that exact envelope, retaining independent
+            // whitening/filter memories and full estimation for other stereo.
+            let left = &self.history[0][self.cursor..self.cursor + window];
+            let right = &self.history[1][self.cursor..self.cursor + window];
+            if left.iter().zip(right).all(|(a, b)| a == b)
+                || left.iter().zip(right).all(|(a, b)| *a == -*b)
+            {
+                self.target[1] = self.target[0];
+            } else {
+                self.estimate(1);
             }
         }
         std::array::from_fn(|ch| {

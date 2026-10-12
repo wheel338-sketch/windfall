@@ -273,19 +273,14 @@ impl Patch for MatrixSynthParams {
                 self.lfo_index,
             );
             let raw = ops.iter().zip(self.output).map(|(v, g)| v * g).sum::<f32>();
-            let pan = core::pan_gains(pos * self.spread);
+            let pan = t.pan(u, pos * self.spread);
             sum.0 += raw * pan.0;
             sum.1 += raw * pan.1;
         }
+        let (gain, damping) = t.filter_coefficients(c.cutoff, self.resonance, c.rate);
         let filter = |t: &mut Tone, side: usize, input: f32| {
-            let dry = core::drive(input / self.unison as f32, self.drive);
-            let low = t.svf[side]
-                .tick(
-                    dry,
-                    core::swept_gain(c.cutoff, 0.0, c.rate),
-                    core::svf_damping(self.resonance),
-                )
-                .0;
+            let dry = t.drive(input / self.unison as f32, self.drive);
+            let low = t.svf[side].tick(dry, gain, damping).0;
             dry + (low - dry) * self.filter_mix
         };
         (filter(t, 0, sum.0), filter(t, 1, sum.1))

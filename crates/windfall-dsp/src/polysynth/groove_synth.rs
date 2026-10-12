@@ -147,28 +147,39 @@ impl Patch for GrooveSynthParams {
             c.lfo
         };
         let mut sum = (0.0, 0.0);
+        let ratio_pitch = 12.0 * self.ratio.log2();
         for u in 0..self.unison as usize {
             let pos = core::unison_position(u, self.unison as usize);
             let pitch = c.pitch + pos * self.detune_cents / 100.0;
-            let a = oscillator(t, u, 0, pitch, c.rate, Waveform::Saw, 0.5);
-            let b = oscillator(
-                t,
-                u,
-                1,
-                pitch + self.coarse,
-                c.rate,
-                Waveform::Pulse,
-                0.1 + self.shape * 0.8,
-            );
-            let modulator = oscillator(
-                t,
-                u,
-                2,
-                pitch + 12.0 * self.ratio.log2(),
-                c.rate,
-                Waveform::Sine,
-                0.5,
-            );
+            let inc = t.phase_increment(u, 0, pitch, c.rate);
+            let a = if matches!(self.mode, GrooveMode::Analog | GrooveMode::Ring) {
+                t.oscillators[u][0].tick(Waveform::Saw, inc, 0.5)
+            } else {
+                t.oscillators[u][0].advance(inc);
+                0.0
+            };
+            let b = if self.mode == GrooveMode::Analog {
+                oscillator(
+                    t,
+                    u,
+                    1,
+                    pitch + self.coarse,
+                    c.rate,
+                    Waveform::Pulse,
+                    0.1 + self.shape * 0.8,
+                )
+            } else {
+                let inc = t.phase_increment(u, 1, pitch + self.coarse, c.rate);
+                t.oscillators[u][1].advance(inc);
+                0.0
+            };
+            let modulator = if matches!(self.mode, GrooveMode::Phase | GrooveMode::Ring) {
+                oscillator(t, u, 2, pitch + ratio_pitch, c.rate, Waveform::Sine, 0.5)
+            } else {
+                let inc = t.phase_increment(u, 2, pitch + ratio_pitch, c.rate);
+                t.oscillators[u][2].advance(inc);
+                0.0
+            };
             let raw = match self.mode {
                 GrooveMode::Analog => a * (1.0 - self.mix) + b * self.mix,
                 GrooveMode::Phase => {
@@ -189,6 +200,12 @@ impl Patch for GrooveSynthParams {
                     let mut total = 0.0;
                     let carrier = t.oscillators[u][4].phase();
                     oscillator(t, u, 4, pitch, c.rate, Waveform::Sine, 0.5);
+                    // sin((h+1)t) = 2 cos(t) sin(ht) - sin((h-1)t).
+                    // Double precision bounds recurrence error over all 16
+                    // unchanged partials, with one trigonometric pair.
+                    let (mut harmonic, cosine) =
+                        (std::f64::consts::TAU * f64::from(carrier)).sin_cos();
+                    let mut previous = 0.0;
                     for h in 1..=16 {
                         if inc * h as f32 >= 0.24 {
                             break;
@@ -199,26 +216,24 @@ impl Patch for GrooveSynthParams {
                             0.0
                         };
                         let bright = 1.0 / h as f32;
-                        total += (std::f32::consts::TAU * carrier * h as f32).sin()
-                            * (odd + (bright - odd) * self.shape);
+                        total += harmonic as f32 * (odd + (bright - odd) * self.shape);
+                        let next = 2.0 * cosine * harmonic - previous;
+                        previous = harmonic;
+                        harmonic = next;
                     }
                     total * 0.6
                 }
             };
             let gate = 1.0 - self.gate * (0.5 - 0.5 * motion);
-            let pan = core::pan_gains(pos * self.spread);
+            let pan = t.pan(u, pos * self.spread);
             sum.0 += raw * gate * pan.0;
             sum.1 += raw * gate * pan.1;
         }
         let cutoff = core::swept(c.cutoff, motion * self.motion, c.rate);
+        let (gain, damping) = t.filter_coefficients(cutoff, self.resonance, c.rate);
         let filter = |t: &mut Tone, side: usize, input: f32| {
-            t.svf[side]
-                .tick(
-                    core::drive(input / self.unison as f32, self.drive),
-                    core::swept_gain(cutoff, 0.0, c.rate),
-                    core::svf_damping(self.resonance),
-                )
-                .0
+            let driven = t.drive(input / self.unison as f32, self.drive);
+            t.svf[side].tick(driven, gain, damping).0
         };
         (filter(t, 0, sum.0), filter(t, 1, sum.1))
     }

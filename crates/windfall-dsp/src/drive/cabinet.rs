@@ -277,8 +277,19 @@ impl CabinetChannel {
         // After a push, `at` is the oldest sample and the newest sits at
         // `at + taps - 1`.
         let history = &self.ring[self.at..self.at + taps];
-        let mut sum = 0.0_f32;
-        for (tap, sample) in response.iter().zip(history) {
+        // Independent accumulators remove the serial dependency and allow
+        // SIMD without dropping taps. Fewer rounded additions per lane also
+        // reduce the dot product's floating-point error bound.
+        let mut lanes = [0.0_f32; 4];
+        let (groups, remainder) = response.as_chunks::<4>();
+        let (samples, rest) = history.as_chunks::<4>();
+        for (taps, samples) in groups.iter().zip(samples) {
+            for i in 0..4 {
+                lanes[i] += taps[i] * samples[i];
+            }
+        }
+        let mut sum = lanes.iter().sum::<f32>();
+        for (tap, sample) in remainder.iter().zip(rest) {
             sum += tap * sample;
         }
         sum
