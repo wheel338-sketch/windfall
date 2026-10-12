@@ -12,6 +12,7 @@ pub(super) struct PackAssets {
     tables: Box<[f32]>,
     samples: Box<[f32]>,
 }
+
 impl PackAssets {
     /// Called only by prepare on the control thread. Callback code already
     /// owns its strong reference and never accesses the initialization lock.
@@ -127,5 +128,41 @@ impl PackAssets {
         let a = self.samples[offset + index];
         let b = self.samples[offset + index + 1];
         a + (b - a) * fraction
+    }
+}
+
+#[cfg(test)]
+mod preparation_tests {
+    use super::*;
+    use std::time::{Duration, Instant};
+
+    #[test]
+    fn cold_pack_bank_preparation_is_bounded_and_complete() {
+        // Call the uncached constructor directly. Another test may already
+        // have initialized shared(), which would conceal the first-load cost.
+        let started = Instant::now();
+        let bank = PackAssets::prepare();
+        let elapsed = started.elapsed();
+        assert!(elapsed < Duration::from_secs(15), "cold bank: {elapsed:?}");
+        assert_eq!(bank.tables.len(), 3 * 2 * MIPS * TABLE);
+        assert_eq!(bank.samples.len(), 3 * ROOTS.len() * SAMPLE_MIPS * PCM);
+        let bytes = (bank.tables.len() + bank.samples.len()) * std::mem::size_of::<f32>();
+        assert_eq!(bytes, 7_010_304);
+        assert!(bytes < 8 * 1024 * 1024);
+        assert!(
+            bank.tables
+                .iter()
+                .chain(bank.samples.iter())
+                .all(|value| value.is_finite() && value.abs() < 4.0)
+        );
+        // Every bank, root zone and mip must contain actual content. Checking
+        // the entire slab also catches an accidentally unprepared final zone.
+        for table in bank.tables.chunks_exact(TABLE) {
+            assert!(table.iter().any(|value| value.abs() > 0.01));
+        }
+        for sample in bank.samples.chunks_exact(PCM) {
+            assert!(sample.iter().any(|value| value.abs() > 0.01));
+        }
+        eprintln!("cold own pack bank: {elapsed:?}, {bytes} bytes, all zones/mips populated");
     }
 }

@@ -7,6 +7,7 @@ mod delay;
 mod e3_circuits;
 mod eq;
 mod examples;
+mod instrument_deadlines;
 mod limiter;
 mod limiter_dynamics;
 mod modulation;
