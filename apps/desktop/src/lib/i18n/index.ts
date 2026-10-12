@@ -55,6 +55,9 @@ export function useTranslation() {
 }
 export function useActionTitle(id: string, fallback: string): string {
   const language = useLanguageStore((state) => state.language)
+  return actionTitle(id, fallback, language)
+}
+export function actionTitle(id: string, fallback: string, language = useLanguageStore.getState().language): string {
   const key = actionMessages[id]
-  return key ? message(key, {}, language) : fallback
+  return key ? message(key, {}, language) : id.startsWith("file.openRecent.") ? fallback : translatedText(fallback, language)
 }

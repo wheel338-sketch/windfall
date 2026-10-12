@@ -27,13 +27,14 @@ mod sync;
 #[cfg(all(test, windows))]
 mod test_alloc;
 mod updates;
+mod window_calls;
 #[cfg(all(test, windows))]
 #[global_allocator]
 static TEST_ALLOCATOR: test_alloc::CountingAllocator = test_alloc::CountingAllocator;
 mod assistant;
 pub mod template;
 
-use tauri::{Manager, WindowEvent};
+use tauri::{Emitter, Manager, WindowEvent};
 
 use session::Session;
 
@@ -49,6 +50,7 @@ pub fn run() {
         )
         .setup(|app| {
             app.manage(updates::Updates::default());
+            app.manage(window_calls::WindowCalls::default());
             app.manage(panel_layout::PanelLayouts::load(
                 app.path().app_config_dir()?.join("panel-layouts.json"),
             ));
@@ -59,16 +61,29 @@ pub fn run() {
         .on_window_event(|window, event| {
             if let Some(view) = window.app_handle().get_webview_window(window.label()) {
                 match event {
+                    WindowEvent::ScaleFactorChanged { scale_factor, .. } => {
+                        let _ = view.emit("window:dpi", scale_factor);
+                        panel_layout::capture(&view, false);
+                    }
                     WindowEvent::Moved(_) | WindowEvent::Resized(_) => {
                         panel_layout::capture(&view, false)
                     }
-                    WindowEvent::CloseRequested { .. } => panel_layout::capture(&view, true),
+                    WindowEvent::CloseRequested { api, .. } => {
+                        // A native close cannot orphan preparation that still owns
+                        // document admission. Retry close after that call finishes.
+                        if window.state::<window_calls::WindowCalls>().busy(window.label()) {
+                            api.prevent_close();
+                        } else {
+                            panel_layout::capture(&view, true);
+                        }
+                    }
                     _ => {}
                 }
             }
             if matches!(event, WindowEvent::Destroyed)
                 && let Some(session) = window.try_state::<Session>()
             {
+                window.state::<window_calls::WindowCalls>().closed(window.label());
                 session.unsubscribe_realtime(window.label());
                 session.analyzer_window_closed(window.label());
             }

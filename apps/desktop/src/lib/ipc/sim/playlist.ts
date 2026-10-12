@@ -45,7 +45,7 @@ export type PlaylistMockHost = {
     nextId: number
   ): Command[]
   sampleInfo(path: string): SampleInfo
-  exportAudio(options: ExportOptions): Promise<void>
+  exportAudio(options: ExportOptions, request?: string): Promise<void>
 }
 
 export type PlaylistMock = Pick<
@@ -282,7 +282,7 @@ export function createPlaylistMock(
       })
     },
 
-    async exportPlaylistTracks(exportOptions, stems) {
+    async exportPlaylistTracks(exportOptions, stems, request) {
       await host.ipc(() => {
         if (exportOptions.stems)
           throw new Error(
@@ -295,7 +295,7 @@ export function createPlaylistMock(
         playlistStemTracks(host.snapshot().project, stems)
       })
       // The browser writes no files; the progress is the plain export's.
-      return host.exportAudio(exportOptions)
+      return host.exportAudio(exportOptions, request)
     },
 
     onMidiHardwareNote(handler): Unsubscribe {

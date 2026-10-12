@@ -1,14 +1,15 @@
 import { toast } from "sonner"
 
 import { errorMessage } from "@/lib/ipc/backend"
+import { translatedText } from "@/lib/i18n"
 
 /**
  * Shows a failed action to the user. Every rejected backend call ends up
  * here, so nothing fails silently.
  */
 export function reportError(error: unknown, what?: string) {
-  const message = errorMessage(error)
-  if (what) toast.error(what, { description: message })
+  const message = translatedText(errorMessage(error))
+  if (what) toast.error(translatedText(what), { description: message })
   else toast.error(message)
 }
 
@@ -17,7 +18,7 @@ export function reportError(error: unknown, what?: string) {
  * turns down itself, before anything is sent to the backend.
  */
 export function refuse(what: string, why: string) {
-  toast.error(what, { description: why })
+  toast.error(translatedText(what), { description: translatedText(why) })
 }
 
 /** Awaits a backend call. A failure is shown and turned into `null`. */

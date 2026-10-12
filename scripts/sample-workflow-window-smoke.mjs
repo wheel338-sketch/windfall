@@ -82,7 +82,13 @@ try {
     }
     throw new Error(`Timed out waiting for ${what}`)
   }
-  const invoke = (command, args = {}) => evaluate(`window.__TAURI_INTERNALS__.invoke(${JSON.stringify(command)}, ${JSON.stringify(args)})`)
+  const invoke = (command, args = {}) => evaluate(`(async () => {
+    const command = ${JSON.stringify(command)};
+    const args = ${JSON.stringify(args)};
+    if (command === "window_document_snapshot" || command === "document_snapshot") return window.__TAURI_INTERNALS__.invoke(command, args);
+    const owned = await window.__TAURI_INTERNALS__.invoke("window_document_snapshot");
+    return window.__TAURI_INTERNALS__.invoke(command, { ...args, caller: args.caller ?? owned.caller });
+  })()`)
   await until(() => evaluate('typeof window.__TAURI_INTERNALS__?.invoke === "function" && Boolean(document.querySelector("[data-channel-button]"))'), 'the real main desktop rack')
   // Tauri exposes this callback map for debugging. Observe the actual channel
   // payload while preserving its original callback and main-window ownership.

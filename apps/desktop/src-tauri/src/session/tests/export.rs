@@ -25,6 +25,45 @@ fn options(rig: &Rig, name: &str) -> ExportOptions {
     }
 }
 
+#[test]
+fn export_request_identity_survives_success_error_cancel_and_repeated_destinations() {
+    let rig = Rig::new();
+    kick_on_the_beat(&rig);
+    let before = rig.session.document_snapshot();
+    let finish = |request: &str| rig.events.wait_for(|events| events.iter().find_map(|event| {
+        match event {
+            Event::ExportRequestProgress { request: actual, progress } if actual == request && progress.done => Some(progress.clone()),
+            _ => None,
+        }
+    }));
+    let same_path = options(&rig, "correlated.wav");
+    for request in ["tutorial-export-1", "tutorial-export-2"] {
+        rig.events.take();
+        rig.session.start_export_correlated(same_path.clone(), None, Some(request.into())).unwrap();
+        let done = finish(request);
+        assert_eq!(done.error, None);
+        assert_eq!(done.path, same_path.path);
+        let events = rig.events.take();
+        assert!(events.iter().all(|event| matches!(event, Event::ExportRequestProgress { request: actual, .. } if actual == request)));
+        assert!(windfall_codec::decode_file(&same_path.path).unwrap().frames() > 0);
+    }
+    rig.session.start_export_correlated(options(&rig, "absent/failed.wav"), None, Some("failed-request".into())).unwrap();
+    assert!(finish("failed-request").error.unwrap().contains("failed.wav"));
+    rig.events.take();
+    let held = rig.session.hold("sampler:export-snapshot");
+    let cancelled = options(&rig, "cancelled.wav");
+    rig.session.start_export_correlated(cancelled.clone(), None, Some("cancelled-request".into())).unwrap();
+    held.wait();
+    rig.session.export_cancel();
+    held.release();
+    assert_eq!(finish("cancelled-request").cancelled, Some(true));
+    assert!(!Path::new(&cancelled.path).exists());
+    assert_eq!(rig.session.document_snapshot(), before);
+    rig.events.take();
+    assert!(rig.session.start_export_correlated(same_path, None, Some("bad request".into())).is_err());
+    assert!(rig.events.take().is_empty());
+}
+
 fn kick_on_the_beat(rig: &Rig) {
     for step in [0, 4, 8, 12] {
         rig.session
