@@ -5,13 +5,58 @@ use crate::{
     report::{Outcome, ReportSection},
     units,
 };
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 use windfall_core::TICKS_PER_STEP;
 use windfall_project::{
-    ChannelId, Command, MAX_PATTERN_STEPS, MAX_PATTERN_TICKS, NoteInit, PatternId, PatternPatch,
+    AutomationPoint, ChannelId, Command, MAX_AUTOMATION_POINTS, MAX_PATTERN_STEPS,
+    MAX_PATTERN_TICKS, NoteInit, PatternId, PatternPatch,
 };
 
 impl Builder<'_> {
+    fn recorded_controls(&mut self, pattern: PatternId, events: &[crate::model::ControlEvent]) {
+        let section = ReportSection::Automation;
+        // Bound work before building lanes. Last source record at a rounded tick
+        // wins; held points reproduce discrete recorded control changes.
+        let mut groups: BTreeMap<u32, Vec<&crate::model::ControlEvent>> = BTreeMap::new();
+        let budget = crate::parse::MAX_RECORDED_CONTROL_EVENTS;
+        if events.len() > budget {
+            self.report.count(section, Outcome::Dropped, (events.len() - budget).min(u32::MAX as usize) as u32);
+            self.report.say(section, Outcome::Dropped, "Recorded controls exceed the import event budget.");
+        }
+        for event in events.iter().take(budget) {
+            groups.entry(event.location).or_default().push(event);
+        }
+        for (location, events) in groups {
+            let source = crate::target::ControlTarget::decode(location);
+            let Some(target) = self.automation_target(source) else {
+                self.report.count(section, Outcome::Dropped, events.len() as u32);
+                self.report.say(section, Outcome::Dropped,
+                    format!("Recorded pattern target {location:#010x} is unsupported; source event records remain in the FLP reader model."));
+                continue;
+            };
+            let mut points = BTreeMap::new();
+            let mut accepted = 0;
+            for event in &events {
+                let tick = units::rescale(event.position, self.ppq).ticks;
+                let Some(value) = self.recorded_value(source, &target, event.value) else { continue; };
+                if tick > u64::from(MAX_PATTERN_TICKS) ||
+                    (points.len() >= MAX_AUTOMATION_POINTS && !points.contains_key(&(tick as u32))) {
+                    continue;
+                }
+                points.insert(tick as u32, AutomationPoint { tick: tick as u32, value, curve: 0.0, hold: true });
+                accepted += 1;
+            }
+            if accepted != 0 && self.apply(section, "Recorded pattern automation", Command::SetPatternEvents {
+                pattern, target, expected: Vec::new(), points: points.into_values().collect(),
+            }).is_some() {
+                self.report.count(section, Outcome::Approximated, accepted);
+                self.report.say(section, Outcome::Approximated,
+                    "Recorded control integers were mapped to held pattern events; source interpolation and nonlinear control tapers may differ.");
+            } else { accepted = 0; }
+            self.report.count(section, Outcome::Dropped, events.len() as u32 - accepted);
+        }
+    }
+
     pub(super) fn note_channels(&self, iid: u16) -> Vec<ChannelId> {
         let mut seen = BTreeSet::new();
         let mut pending = vec![iid];
@@ -84,6 +129,7 @@ impl Builder<'_> {
             self.patterns
                 .insert(pattern.iid, (id, steps * TICKS_PER_STEP));
             self.pattern_timeline(id, &pattern.markers);
+            self.recorded_controls(id, &pattern.control_events);
             let outcome = if scaled.exact && scaled.ticks == u64::from(steps * TICKS_PER_STEP) {
                 Outcome::Exact
             } else {

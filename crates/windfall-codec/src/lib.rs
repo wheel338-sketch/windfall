@@ -48,7 +48,7 @@ pub use wav::{DEFAULT_DITHER_SEED, WavSampleFormat, WavWriter, write_wav};
 
 /// File extensions Windfall can decode, lowercase and without the dot.
 pub const AUDIO_EXTENSIONS: &[&str] = &[
-    "wav", "wave", "aif", "aiff", "aifc", "flac", "mp3", "ogg", "oga",
+    "wav", "wave", "aif", "aiff", "aifc", "flac", "mp3", "ogg", "oga", "ds",
 ];
 
 /// Whether a file extension (without the dot, in any letter case) names a
@@ -98,4 +98,5 @@ pub use m4a::{
 mod drumsynth;
 pub use drumsynth::{
     DrumSynthPreset, DrumSynthRendered, MAX_DRUMSYNTH_FRAMES, MAX_DRUMSYNTH_PRESET_BYTES,
+    DRUMSYNTH_SOURCE_RATE, DRUMSYNTH_SOURCE_SEED, render_drumsynth_file, render_drumsynth_source,
 };

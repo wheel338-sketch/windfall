@@ -156,6 +156,7 @@ export interface Backend extends AnalysisBackend, MixerPresetLibraryBackend, Ana
   audioAnalysisApply(edit: import("@/features/audio-editor/analysis-types").AudioAnalysisEdit): Promise<DispatchResult>
   audioAnalysisSendMidi(edit: import("@/features/audio-editor/analysis-types").AudioAnalysisEdit, selected: number[]): Promise<DispatchResult>
   audioAnalysisCancel(): Promise<void>
+  samplePlaybackExport(channel: ChannelId, generation: number, revision: number): Promise<void>
   sliceAnalyze(
     clip: number,
     options: import("@/features/slicer/types").SliceOptions
@@ -458,6 +459,7 @@ export const AUDIO_EXTENSIONS = [
   "mp3",
   "ogg",
   "oga",
+  "ds",
 ]
 
 function rejectionText(error: unknown): string {

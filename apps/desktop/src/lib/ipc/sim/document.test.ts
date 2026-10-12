@@ -964,6 +964,7 @@ const EVERY_COMMAND: { [Type in Command["type"]]: (ids: Ids) => Command } = {
     type: "setScriptLibrary",
     library: { assets: [{ reference: { id: "piano-fixture", revision: 1 }, languageVersion: 1, kind: "piano", name: "Fixture", source: "emit" }], channels: [], controllers: [] },
   }),
+  captureArrangementTimeline: (ids) => ({ type: "captureArrangementTimeline", id: ids.project.playlist.arrangementBook!.active! }),
 }
 
 /** A project as the document reports it, apart from the id counter. */

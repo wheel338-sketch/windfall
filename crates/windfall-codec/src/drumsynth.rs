@@ -4,9 +4,34 @@
 use crate::CodecError;
 use std::collections::BTreeMap;
 use windfall_core::AudioBuffer;
+use std::io::Read;
+use std::path::Path;
 
 pub const MAX_DRUMSYNTH_PRESET_BYTES: usize = 64 * 1024;
 pub const MAX_DRUMSYNTH_FRAMES: usize = 3_840_000;
+/// Preset sources always reopen at the same authored rate and noise seed.
+pub const DRUMSYNTH_SOURCE_RATE: u32 = 44_100;
+pub const DRUMSYNTH_SOURCE_SEED: u64 = 7;
+
+pub fn render_drumsynth_source(
+    bytes: &[u8], options: &crate::DecodeOptions,
+) -> Result<DrumSynthRendered, CodecError> {
+    if bytes.is_empty() { return Err(CodecError::NoAudio); }
+    let frames = (options.max_decoded_bytes / 4).min(MAX_DRUMSYNTH_FRAMES as u64) as usize;
+    if frames == 0 { return Err(CodecError::TooLarge { limit_bytes: options.max_decoded_bytes }); }
+    DrumSynthPreset::parse(bytes)?.render(DRUMSYNTH_SOURCE_RATE, frames, DRUMSYNTH_SOURCE_SEED)
+}
+
+/// Reads at most the text budget plus one byte, even if the file grows after
+/// its initial metadata check. Original text remains the persisted source.
+pub fn render_drumsynth_file(
+    path: impl AsRef<Path>, options: &crate::DecodeOptions,
+) -> Result<DrumSynthRendered, CodecError> {
+    let file = std::fs::File::open(path)?;
+    let mut bytes = Vec::new();
+    file.take(MAX_DRUMSYNTH_PRESET_BYTES as u64 + 1).read_to_end(&mut bytes)?;
+    render_drumsynth_source(&bytes, options)
+}
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DrumSynthPreset {
     pub fields: BTreeMap<(String, String), String>,

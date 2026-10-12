@@ -175,6 +175,9 @@ impl SampleCache {
             return Ok(buffer);
         }
         let buffer = windfall_codec::decode_file(path).map_err(|error| unreadable(path, &error))?;
+        if FileKey::of(path)? != key {
+            return Err("The source file changed while audio was being decoded. Try again.".into());
+        }
         lock(&self.inner).insert(key, buffer.clone());
         Ok(buffer)
     }
@@ -206,6 +209,13 @@ impl SampleCache {
             return Ok(info);
         }
         let buffer = self.decode(path)?;
+        let source_warnings = if path.extension().is_some_and(|e| e.eq_ignore_ascii_case("ds")) {
+            windfall_codec::render_drumsynth_file(path, &windfall_codec::DecodeOptions::default())
+                .map_err(|error| unreadable(path, &error))?.warnings
+        } else { Vec::new() };
+        if FileKey::of(path)? != key {
+            return Err("The source file changed while its information was being read. Try again.".into());
+        }
         let info = SampleInfo {
             path: paths::display(path),
             name: paths::stem(path),
@@ -214,6 +224,7 @@ impl SampleCache {
             frames: buffer.frames() as u64,
             duration_secs: buffer.duration_secs(),
             peaks: windfall_codec::peaks(&buffer, PEAK_BUCKETS),
+            source_warnings,
         };
 
         let mut inner = lock(&self.inner);

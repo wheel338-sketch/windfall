@@ -535,8 +535,7 @@ impl<'a> Builder<'a> {
         }
     }
 
-    /// What has no part of its own: recorded control changes and the things
-    /// the reader could not place.
+    /// Events the reader could not place. Recorded controls report in patterns.
     fn leftovers(&mut self) {
         let section = ReportSection::Other;
         let flp = self.flp;

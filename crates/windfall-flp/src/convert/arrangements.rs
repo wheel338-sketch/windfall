@@ -1,4 +1,4 @@
-//! Independent clip/track layouts; timeline navigation remains shared by the project.
+//! Independent clip, track and supported musical-timeline layouts.
 use super::Builder;
 use crate::report::{Outcome, ReportSection};
 use std::collections::BTreeMap;
@@ -83,12 +83,10 @@ impl Builder<'_> {
                 },
                 1,
             );
+            self.arrangement_timeline(&source.markers);
+            self.apply(section, "An independent musical timeline", Command::CaptureArrangementTimeline { id });
             if std::ptr::eq(source, selected) {
                 selected_id = Some(id);
-            } else if !source.markers.is_empty() {
-                self.report
-                    .count(section, Outcome::Dropped, source.markers.len() as u32);
-                self.report.say(section, Outcome::Dropped, "Alternate arrangement markers and meters are retained in the original import file, but Windfall currently has one shared project timeline.");
             }
         }
         if let Some(id) = selected_id {

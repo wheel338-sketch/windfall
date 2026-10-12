@@ -65,8 +65,16 @@ impl Project {
             .timeline
             .check(self.settings.time_signature, self.next_id)?;
         let mut timeline_ids = HashSet::new();
+        let book = &self.playlist.arrangement_book;
+        for (&id, timeline) in &book.timelines {
+            if !book.arrangements.iter().any(|a| a.id == id) {
+                return Err("an arrangement timeline refers to a missing layout".into());
+            }
+            timeline.check(self.settings.time_signature, self.next_id)?;
+        }
         for timeline in std::iter::once(&self.playlist.timeline)
             .chain(self.patterns.iter().map(|pattern| &pattern.timeline))
+            .chain(book.timelines.iter().filter(|(id, _)| Some(**id) != book.active).map(|(_, timeline)| timeline))
         {
             for id in timeline
                 .meters

@@ -150,6 +150,7 @@ impl Session {
 
         if preview {
             let info = SampleInfo {
+                source_warnings: Vec::new(),
                 path: String::new(),
                 name: format!("{name} (prepared preview)"),
                 sample_rate: processed.audio.sample_rate(),

@@ -300,13 +300,28 @@ impl Transaction<'_> {
         next: Result<crate::ArrangementBook, crate::arrangement::ArrangementError>,
         cursor: u32,
     ) -> Result<(), CommandError> {
-        let next = next.map_err(|error| CommandError::invalid(error.to_string()))?;
+        let mut next = next.map_err(|error| CommandError::invalid(error.to_string()))?;
+        let current = &self.project.playlist.arrangement_book;
+        let timeline = if !current.timelines.is_empty() || !next.timelines.is_empty() {
+            if let Some(id) = current.active
+                && next.arrangements.iter().any(|a| a.id == id) {
+                next.timelines.insert(id, self.project.playlist.timeline.clone());
+            }
+            if current.active != next.active {
+                next.active.map(|id| next.timelines.entry(id).or_default().clone())
+            } else { None }
+        } else { None };
         let mut proposed = self.project.clone();
         proposed.playlist.arrangement_book = next.clone();
+        if let Some(timeline) = &timeline { proposed.playlist.timeline = timeline.clone(); }
         proposed.next_id = cursor;
         proposed.check().map_err(CommandError::invalid)?;
         let old = self.project.playlist.arrangement_book.clone();
         self.push(Edit::ArrangementBook(Change { old, new: next }));
+        if let Some(new) = timeline {
+            let old = self.project.playlist.timeline.clone();
+            self.push(Edit::Timeline(Change { old, new }));
+        }
         self.project.next_id = cursor;
         Ok(())
     }
@@ -415,6 +430,13 @@ impl Transaction<'_> {
 
     fn run(&mut self, command: Command) -> Result<String, CommandError> {
         let label = match command {
+            Command::CaptureArrangementTimeline { id } => {
+                let mut book = self.project.playlist.arrangement_book.clone();
+                if book.active != Some(id) { return Err(CommandError::invalid("Capture the active arrangement timeline only.")); }
+                book.timelines.insert(id, self.project.playlist.timeline.clone());
+                self.replace_arrangement_book(Ok(book), self.project.next_id)?;
+                "Capture arrangement timeline"
+            }
             Command::AddArrangement {
                 name,
                 clips,

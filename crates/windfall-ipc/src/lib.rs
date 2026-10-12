@@ -363,6 +363,10 @@ pub struct SampleInfo {
     /// Waveform overview as minimum and maximum pairs, one pair per bucket
     /// across the file, all channels mixed: min, max, min, max.
     pub peaks: Vec<f32>,
+    /// Source render limitations, including retained but uninterpreted fields.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[ts(as = "Option<Vec<String>>", optional)]
+    pub source_warnings: Vec<String>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]

@@ -41,55 +41,75 @@ use crate::model::{
 // allocation to parameter edits and changes Rust callers' construction contract.
 #[allow(clippy::large_enum_variant)]
 pub enum Command {
+    /// Creates an arrangement ID from the document allocator.
+    AddArrangement {
+        name: String,
+        clips: Vec<ClipId>,
+        tracks: Vec<PlaylistTrackId>,
+    },
+
     RenameArrangement {
         id: crate::arrangement::ArrangementId,
         name: String,
     },
+
     SetArrangementReferences {
         id: crate::arrangement::ArrangementId,
         clips: Vec<ClipId>,
         tracks: Vec<PlaylistTrackId>,
     },
+
     /// Changes the active metadata ID; playback still uses the single playlist.
     SwitchArrangement {
         id: crate::arrangement::ArrangementId,
     },
+
     RemoveArrangement {
         id: crate::arrangement::ArrangementId,
     },
+
     AddTrackGroup {
         name: String,
         parent: Option<crate::arrangement::TrackGroupId>,
     },
+
     RenameTrackGroup {
         id: crate::arrangement::TrackGroupId,
         name: String,
     },
+
     MoveTrackGroup {
         id: crate::arrangement::TrackGroupId,
         parent: Option<crate::arrangement::TrackGroupId>,
     },
+
     MoveTrackToGroup {
         track: PlaylistTrackId,
         parent: Option<crate::arrangement::TrackGroupId>,
     },
+
     RemoveTrackGroup {
         id: crate::arrangement::TrackGroupId,
     },
+
     AddClipGroup {
         clips: Vec<ClipId>,
     },
+
     RemoveClipGroup {
         id: crate::arrangement::ClipGroupId,
     },
+
     LinkTrack {
         track: PlaylistTrackId,
         kind: Option<crate::arrangement::TrackKind>,
     },
+
     /// Copies the chosen clip's source and redirects only that clip. Creates the source ID.
     MakeUnique {
         clip: ClipId,
     },
+
     /// Adds an alternative timeline layout and makes it the active one.
     /// `copy` clones every clip of the layout that is active now as a new
     /// clip, so later moves, resizes and deletions in either layout leave
@@ -101,6 +121,7 @@ pub enum Command {
         name: String,
         copy: bool,
     },
+
     /// Adds a channel with its mixer track and a playlist track linked to
     /// it, as one undo step. Pattern clips on the track play only that
     /// channel. Creates a [`ChannelId`], then a [`TrackId`] when the mixer
@@ -116,6 +137,7 @@ pub enum Command {
         #[ts(optional)]
         instrument: Option<InstrumentKind>,
     },
+
     /// Adds a mixer track and a playlist track linked to it, as one undo
     /// step. Audio clips on the track play into that mixer track. Creates a
     /// [`TrackId`] and then a [`PlaylistTrackId`].
@@ -124,12 +146,14 @@ pub enum Command {
         #[ts(optional)]
         name: Option<String>,
     },
+
     AddNotesWithCurves {
         pattern: PatternId,
         channel: ChannelId,
         notes: Vec<NoteInit>,
         curves: Vec<crate::NoteCurveInsert>,
     },
+
     SetNoteExpressionCurves {
         pattern: PatternId,
         channel: ChannelId,
@@ -137,6 +161,7 @@ pub enum Command {
         expected_curves: Vec<crate::NoteExpressionCurve>,
         curves: Vec<crate::NoteExpressionCurve>,
     },
+
     /// Replaces the event automation a pattern stores for `target`: a curve
     /// in pattern ticks that moves the control wherever the pattern plays.
     /// `expected` is the curve as the editor captured it, empty when the
@@ -153,6 +178,7 @@ pub enum Command {
         expected: Vec<AutomationPoint>,
         points: Vec<AutomationPoint>,
     },
+
     /// Writes a bounded musical LFO into a range of a pattern's event lane
     /// in one edit, creating the lane at the target's stored value when the
     /// pattern has none. `expected` is checked as for
@@ -166,6 +192,7 @@ pub enum Command {
         resolution: u32,
         lfo: crate::CurveLfo,
     },
+
     /// Writes a musical LFO into the expression curves of captured notes:
     /// one continuous curve per note for `parameter`, sampled every
     /// `resolution` ticks along the note from `origin`, and blended with the
@@ -182,16 +209,19 @@ pub enum Command {
         strength: f64,
         lfo: crate::CurveLfo,
     },
+
     SetPluginSidechainInput {
         target: crate::PluginTarget,
         input: Option<u32>,
     },
+
     SetSidechain {
         from: TrackId,
         to: TrackId,
         #[ts(optional)]
         gain: Option<f32>,
     },
+
     /// Sends one separately routable output of an effect to another mixer
     /// track, or disconnects it when `target` is absent. Refused when the
     /// effect has no such output, sits on the master, or the route would
@@ -202,43 +232,53 @@ pub enum Command {
         #[ts(optional)]
         target: Option<TrackId>,
     },
+
     ApplyMixerTrackPreset {
         id: TrackId,
         expected: crate::MixerTrack,
         preset: crate::MixerTrackPreset,
         name_color: bool,
     },
+
     MoveMixerTracks {
         expected: Vec<TrackId>,
         ids: Vec<TrackId>,
         before: Option<TrackId>,
     },
+
     SetTrackParam {
         id: TrackId,
         param: u32,
         value: f32,
     },
+
     /// Creates the saved follow-selection utility, or selects its existing id.
     EnsureCurrentMixerTrack,
+
     SetTrackExternalOutput {
         id: TrackId,
         route: Option<crate::ExternalOutputRoute>,
     },
+
     CreateAudioTakeGroup {
         name: String,
         lanes: Vec<crate::AudioTakeLane>,
     },
+
     RenameAudioTakeGroup {
         id: u32,
         name: String,
     },
+
     RemoveAudioTakeGroup {
         id: u32,
     },
+
     AuditionAudioTakeGroup {
         id: u32,
         pass: Option<u16>,
     },
+
     CompAudioTakeGroup {
         expected: crate::AudioTakeGroup,
         sources: Vec<crate::Clip>,
@@ -248,6 +288,7 @@ pub enum Command {
         mute_sources: bool,
         replace_comp: bool,
     },
+
     /// Build editable audio ranges from captured retained takes as one undo step.
     CompAudioClips {
         sources: Vec<crate::Clip>,
@@ -257,51 +298,61 @@ pub enum Command {
         fade_ticks: u32,
         mute_sources: bool,
     },
+
     /// Adds a meter change without moving any notes, clips or automation.
     AddMeterChange {
         tick: u32,
         signature: TimeSignature,
     },
+
     UpdateMeterChange {
         id: crate::MeterChangeId,
         tick: u32,
         signature: TimeSignature,
     },
+
     RemoveMeterChange {
         id: crate::MeterChangeId,
     },
+
     AddTimelineMarker {
         tick: u32,
         name: String,
         kind: crate::MarkerKind,
     },
+
     UpdateTimelineMarker {
         marker: crate::TimelineMarker,
     },
+
     RemoveTimelineMarker {
         id: crate::TimelineMarkerId,
     },
+
     /// Adds an instrument channel and binds its hosted plugin in one undo step.
     AddPluginInstrument {
         plugin: crate::PluginBinding,
     },
+
     /// Adds a hosted effect to the track in one undo step.
     AddPluginEffect {
         track: TrackId,
         plugin: crate::PluginBinding,
     },
+
     /// Moves one discovered parameter in native units, by stable id.
     SetPluginParam {
         target: crate::PluginTarget,
         id: u32,
         value: f32,
     },
+
     /// Stores a complete host snapshot, preserving instance identity.
     SetPluginState {
         target: crate::PluginTarget,
         state: Vec<u8>,
     },
-    // Project
+
     /// Captured pattern-local signature, meter changes and named labels.
     EditPatternTimeline {
         pattern: PatternId,
@@ -309,13 +360,16 @@ pub enum Command {
         expected_signature: Option<TimeSignature>,
         edit: crate::PatternTimelineEdit,
     },
+
     UpdateSettings {
         patch: SettingsPatch,
     },
+
     /// Replaces all saved notebook pages in one undo step. Trims titles only.
     ReplaceNotebook {
         notebook: crate::Notebook,
     },
+
     /// Replaces a channel's sound and settings with a channel preset's, as
     /// one undo step. The channel keeps its id, group, mute, solo and mixer
     /// track. `expected` is the channel as it was when the preset was
@@ -338,6 +392,7 @@ pub enum Command {
         audio: Option<crate::PresetAudio>,
         name_color: bool,
     },
+
     /// Replaces the state of one instrument or effect with a plugin
     /// preset's, as one undo step. `expected` is the state the target had
     /// when the preset was chosen. Automation of settings the preset
@@ -347,6 +402,7 @@ pub enum Command {
         expected: crate::PluginPresetState,
         preset: crate::PluginPreset,
     },
+
     /// Replaces every controller link saved with the project, in one undo
     /// step. Fails, with nothing changed, when a link is malformed, repeats
     /// another, or points at something that is not in the project.
@@ -354,7 +410,6 @@ pub enum Command {
         links: Vec<crate::ControllerLink>,
     },
 
-    // Sample pool
     /// Registers an audio file. Creates a [`SampleId`]. If a sample with the
     /// same path is already in the pool, nothing is added and its id is
     /// reported as the created id.
@@ -362,13 +417,12 @@ pub enum Command {
         name: String,
         path: SamplePath,
     },
+
     /// Fails while any channel or audio clip still uses the sample.
     RemoveSample {
         id: SampleId,
     },
-    /// Stores the separately reviewed estimates/overrides on a derived asset.
 
-    // Channel rack
     /// Adds a channel and, unless `mixer_track` is given, a new mixer track
     /// routed to the master that the channel plays into. Creates a
     /// [`ChannelId`] and then, if a track was made, a [`TrackId`]. When the
@@ -396,12 +450,14 @@ pub enum Command {
         #[ts(optional)]
         mixer_track: Option<TrackId>,
     },
+
     /// Removes the channel and its notes from every pattern, and every
     /// automation of the channel with its clips. The mixer track it was
     /// routed to stays.
     RemoveChannel {
         id: ChannelId,
     },
+
     /// Copies the channel, with its sampler or instrument settings, and its
     /// notes in every pattern. The copy goes right below the original and
     /// shares its mixer track. Its name is the original's with a number, as
@@ -409,10 +465,12 @@ pub enum Command {
     DuplicateChannel {
         id: ChannelId,
     },
+
     MoveChannel {
         id: ChannelId,
         index: u32,
     },
+
     /// A new name is given to the channel's mixer track as well, in the
     /// same undo step, when that track is the channel's own and still has
     /// the channel's old name, as the track made with a channel does. The
@@ -425,10 +483,12 @@ pub enum Command {
         id: ChannelId,
         settings: crate::ChannelVoiceSettings,
     },
+
     UpdateChannel {
         id: ChannelId,
         patch: ChannelPatch,
     },
+
     /// Replaces what the channel's per-note modulation X, modulation Y and
     /// release drive, in one undoable edit. A map with an amount, pitch
     /// range or bend range outside its range is refused.
@@ -440,6 +500,7 @@ pub enum Command {
         #[ts(optional)]
         expected: Option<crate::ExpressionMap>,
     },
+
     /// Moves every listed channel to a named group in one undo entry.
     /// An empty group name means ungrouped. All channel ids are checked
     /// before any membership changes; repeated ids are ignored.
@@ -447,16 +508,19 @@ pub enum Command {
         channels: Vec<ChannelId>,
         group: String,
     },
+
     /// Renames a nonempty existing group; an existing target name merges
     /// the groups without changing rack order or musical data.
     RenameChannelGroup {
         name: String,
         new_name: String,
     },
+
     /// Clears this group's memberships. Channels and their music stay.
     RemoveChannelGroup {
         name: String,
     },
+
     /// Fails on an instrument channel.
     SetChannelSample {
         id: ChannelId,
@@ -464,11 +528,13 @@ pub enum Command {
         #[ts(optional)]
         sample: Option<SampleId>,
     },
+
     /// Fails on an instrument channel.
     UpdateSampler {
         id: ChannelId,
         patch: SamplerPatch,
     },
+
     /// Turns the sampler's volume envelope on (`Some`) or off (`None`).
     /// Fails on an instrument channel.
     SetSamplerEnvelope {
@@ -477,6 +543,7 @@ pub enum Command {
         #[ts(optional)]
         envelope: Option<Envelope>,
     },
+
     /// Sets one setting of the channel's instrument. `param` is its index
     /// in the descriptors of the instrument's kind, and the value is given
     /// the way the descriptors describe it: a toggle as 0 or 1, a choice as
@@ -488,6 +555,7 @@ pub enum Command {
         param: u32,
         value: f32,
     },
+
     /// Replaces every setting of the channel's instrument, as when a preset
     /// is loaded. Fails on a sampler channel, and when the settings are for
     /// another kind of instrument than the channel has.
@@ -496,9 +564,6 @@ pub enum Command {
         params: InstrumentParams,
     },
 
-    /// Loads/replaces a prepared bank as one checked history step.
-
-    // Patterns
     /// Creates a [`PatternId`].
     AddPattern {
         #[serde(default)]
@@ -506,26 +571,29 @@ pub enum Command {
         /// Defaults to "Pattern N".
         name: Option<String>,
     },
+
     /// Removes the pattern and every playlist clip that plays it. Fails on
     /// the last remaining pattern.
     RemovePattern {
         id: PatternId,
     },
+
     /// Creates a [`PatternId`]. The copy goes right after the original. Its
     /// name is the original's with a number, as in "Pattern 1 #2".
     DuplicatePattern {
         id: PatternId,
     },
+
     MovePattern {
         id: PatternId,
         index: u32,
     },
+
     UpdatePattern {
         id: PatternId,
         patch: PatternPatch,
     },
 
-    // Notes
     /// Step sequencer click. If the channel has a note starting exactly at
     /// this step, removes every note that starts there. Otherwise adds a
     /// one-step note at [`DEFAULT_KEY`](crate::model::DEFAULT_KEY) and
@@ -535,12 +603,14 @@ pub enum Command {
         channel: ChannelId,
         step: u32,
     },
+
     /// Creates one [`NoteId`] per note, in order.
     AddNotes {
         pattern: PatternId,
         channel: ChannelId,
         notes: Vec<NoteInit>,
     },
+
     /// Applies a reviewed step fill to [start_step, end_step). The complete
     /// lane and pattern length must still match the preview. Replacement
     /// changes only notes whose starts are in the range; overlay keeps all
@@ -559,11 +629,13 @@ pub enum Command {
         replace: bool,
         notes: Vec<NoteInit>,
     },
+
     RemoveNotes {
         pattern: PatternId,
         channel: ChannelId,
         notes: Vec<NoteId>,
     },
+
     /// The history label follows what the updates do: "Move note" when a
     /// start or a key changes, and "Resize note" when only lengths do,
     /// which includes a note dragged by its start whose end stays put.
@@ -572,6 +644,7 @@ pub enum Command {
         channel: ChannelId,
         updates: Vec<NoteUpdate>,
     },
+
     /// An absolute property edit against captured note identities and values.
     /// Refuses the whole edit if any captured note changed or disappeared.
     UpdateCapturedNotes {
@@ -580,11 +653,13 @@ pub enum Command {
         expected: Vec<crate::Note>,
         updates: Vec<NoteUpdate>,
     },
+
     /// Removes every note the channel has in the pattern.
     ClearLane {
         pattern: PatternId,
         channel: ChannelId,
     },
+
     /// Transform only these captured selected notes. Every id must still be
     /// in this pattern/channel with exactly these properties, otherwise the
     /// whole command fails. Empty selections fail. Pattern extension and all
@@ -596,7 +671,6 @@ pub enum Command {
         transform: crate::NoteTransform,
     },
 
-    // Mixer
     /// Adds a track routed to the master. Creates a [`TrackId`]. Fails when
     /// the mixer already holds
     /// [`MAX_MIXER_TRACKS`](crate::model::MAX_MIXER_TRACKS).
@@ -606,6 +680,7 @@ pub enum Command {
         /// Defaults to "Insert N".
         name: Option<String>,
     },
+
     /// Fails on the master. Channels, audio clips and tracks that were
     /// routed to the removed track are rerouted to the master, and sends to
     /// it are dropped. The track's effects go with it, and so does every
@@ -614,10 +689,12 @@ pub enum Command {
     RemoveMixerTrack {
         id: TrackId,
     },
+
     UpdateMixerTrack {
         id: TrackId,
         patch: MixerTrackPatch,
     },
+
     /// Fails on the master, and when the change would create a routing cycle.
     SetTrackOutput {
         id: TrackId,
@@ -625,6 +702,7 @@ pub enum Command {
         #[ts(optional)]
         output: Option<TrackId>,
     },
+
     /// Adds or changes a send (`Some`), or removes it (`None`). Fails when
     /// the send would create a routing cycle, and on a send from the master.
     /// Removing a send removes the automations of its level with their
@@ -637,7 +715,6 @@ pub enum Command {
         gain: Option<f32>,
     },
 
-    // Effects
     /// Puts a new effect of this kind on a mixer track, switched on, at
     /// full mix and with its default settings. Creates an [`EffectId`].
     /// Fails when the track already holds
@@ -650,11 +727,13 @@ pub enum Command {
         /// Position in the chain. Defaults to the end.
         index: Option<u32>,
     },
+
     /// Removes the effect, and every automation of it with its clips.
     RemoveEffect {
         track: TrackId,
         effect: EffectId,
     },
+
     /// Moves an effect to `index` of its own track's chain or, with
     /// `to_track`, of another track's. The effect keeps its id and its
     /// settings, and its automations follow it to the other track. Fails
@@ -667,11 +746,13 @@ pub enum Command {
         to_track: Option<TrackId>,
         index: u32,
     },
+
     UpdateEffect {
         track: TrackId,
         effect: EffectId,
         patch: EffectSlotPatch,
     },
+
     /// Sets one setting of an effect. `param` is its index in the
     /// descriptors of the effect's kind, and the value is given the way the
     /// descriptors describe it: a toggle as 0 or 1, a choice as the index
@@ -683,6 +764,7 @@ pub enum Command {
         param: u32,
         value: f32,
     },
+
     /// Replaces every setting of an effect, as when a preset is loaded or a
     /// drag moves two settings at once. Fails when the settings are for
     /// another kind of effect than the slot holds.
@@ -691,12 +773,14 @@ pub enum Command {
         effect: EffectId,
         params: EffectParams,
     },
+
     /// Copies an effect with its settings. The copy goes right after the
     /// original. Creates an [`EffectId`]. Fails when the track is full.
     DuplicateEffect {
         track: TrackId,
         effect: EffectId,
     },
+
     /// Puts a new effect of this kind where an effect is now, as one undo
     /// step. The new effect takes the old one's place in the chain and is
     /// otherwise what [`Command::AddEffect`] makes: switched on, at full
@@ -709,7 +793,6 @@ pub enum Command {
         kind: EffectKind,
     },
 
-    // Playlist
     /// Creates a [`PlaylistTrackId`].
     AddPlaylistTrack {
         #[serde(default)]
@@ -721,39 +804,45 @@ pub enum Command {
         /// Position among the playlist tracks. Defaults to the end.
         index: Option<u32>,
     },
+
     /// Removes the track and its clips.
     RemovePlaylistTrack {
         id: PlaylistTrackId,
     },
+
     UpdatePlaylistTrack {
         id: PlaylistTrackId,
         patch: PlaylistTrackPatch,
     },
+
     /// Moves a playlist track, with its clips, to `index` among the
     /// playlist tracks.
     MovePlaylistTrack {
         id: PlaylistTrackId,
         index: u32,
     },
+
     /// Creates one [`ClipId`] per clip, in order.
     AddClips {
         clips: Vec<ClipInit>,
     },
+
     RemoveClips {
         clips: Vec<ClipId>,
     },
+
     /// Changes where clips of any kind sit and what part of their content
     /// they show.
     UpdateClips {
         updates: Vec<ClipUpdate>,
     },
+
     /// Changes what is particular to audio clips. Fails when one of the
     /// clips is not an audio clip.
     UpdateAudioClips {
         updates: Vec<AudioClipUpdate>,
     },
 
-    // Automation
     /// Adds an automation: a curve for `target`. Creates an
     /// [`AutomationId`]. It plays once a clip puts it on the playlist
     /// ([`ClipContent::Automation`]). Fails when the project has no such
@@ -778,14 +867,17 @@ pub enum Command {
         /// now, so that the automation changes nothing until it is drawn.
         points: Option<Vec<AutomationPoint>>,
     },
+
     /// Removes the automation and every clip that shows it.
     RemoveAutomation {
         id: AutomationId,
     },
+
     UpdateAutomation {
         id: AutomationId,
         patch: AutomationPatch,
     },
+
     /// Replaces the whole curve of an automation. Values are brought into 0
     /// to 1 and curves into -1 to 1. Fails when there is no point, when
     /// there are more than
@@ -798,6 +890,7 @@ pub enum Command {
         id: AutomationId,
         points: Vec<AutomationPoint>,
     },
+
     /// Write a bounded musical LFO into a captured curve range in one edit.
     /// The complete automation must still match, including target and points.
     GenerateAutomationLfo {
@@ -807,6 +900,7 @@ pub enum Command {
         resolution: u32,
         lfo: crate::CurveLfo,
     },
+
     /// Copies the automation, with its target and curve but not its clips.
     /// The copy goes right after the original. Its name is the original's
     /// with a number, as in "Tempo #2". Creates an [`AutomationId`].
@@ -823,6 +917,7 @@ pub enum Command {
         label: Option<String>,
         commands: Vec<Command>,
     },
+
     /// Replace/clear a portable IR in one undo transaction. PCM is decoded
     /// before dispatch and FFT partitions are prepared before plan publication.
     SetConvolverImpulse {
@@ -830,6 +925,7 @@ pub enum Command {
         effect: EffectId,
         impulse: Option<crate::ConvolverImpulse>,
     },
+
     /// Attaches validated worker-prepared instrument data as one undo step.
     /// The complete captured source guards asynchronous work from stale edits.
     SetInstrumentAsset {
@@ -843,6 +939,7 @@ pub enum Command {
         channel: ChannelId,
         asset: Option<crate::SamplePlayback>,
     },
+
     /// Generates source-length notes in the saved slice order in one history step.
     GenerateSlicePattern {
         channel: ChannelId,
@@ -853,6 +950,7 @@ pub enum Command {
     SetInternalControllerSettings {
         settings: Vec<crate::InternalControllerSettings>,
     },
+
     /// Atomic checked rack replacement. None removes the rack. Graph-local
     /// node IDs are stable through history; old macro automation is pruned.
     SetChannelRack {
@@ -863,16 +961,19 @@ pub enum Command {
         #[ts(optional)]
         expected: Option<crate::RackGraph>,
     },
+
     /// Replaces saved script revisions/assignments atomically. Existing revision
     /// identities are immutable; edit a script by storing a new revision.
     SetScriptLibrary {
         library: crate::scripting::ScriptLibrary,
     },
+
     /// Replace one saved wrapper policy in one undoable preparation transaction.
     SetPluginWrapper {
         target: crate::PluginTarget,
         options: crate::PluginWrapperOptions,
     },
+
     /// Applies generated notes against the complete reviewed pattern. The
     /// captured notes, curves, events and meter must still match atomically.
     InsertReviewedNotes {
@@ -882,11 +983,13 @@ pub enum Command {
         remove: Vec<NoteId>,
         extend: bool,
     },
+
     SetSampleInstrumentAsset {
         channel: ChannelId,
         expected: Option<crate::SampleInstrumentAsset>,
         asset: Option<crate::SampleInstrumentAsset>,
     },
+
     /// Mapping edits are exclusive to the editable multisampler and pad grid.
     EditSampleZones {
         channel: ChannelId,
@@ -901,14 +1004,14 @@ pub enum Command {
 
     /// Immutable asset metadata, guarded against concurrent region edits.
     SetSampleRegions { sample: SampleId, expected: Vec<crate::AudioRegion>, regions: Vec<crate::AudioRegion> },
-    SetStageMedia { media: crate::StageMedia },
-    /// Creates an arrangement ID from the document allocator.
-    AddArrangement {
-        name: String,
-        clips: Vec<ClipId>,
-        tracks: Vec<PlaylistTrackId>,
-    },
 
+    SetStageMedia { media: crate::StageMedia },
+
+    /// Captures the active layout's independent musical timeline. Subsequent
+    /// switches snapshot current edits and restore the destination timeline.
+    CaptureArrangementTimeline {
+        id: crate::arrangement::ArrangementId,
+    },
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, TS)]

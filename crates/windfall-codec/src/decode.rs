@@ -89,6 +89,9 @@ pub fn decode_file_with(
     options: &DecodeOptions,
 ) -> Result<AudioBuffer, CodecError> {
     let path = path.as_ref();
+    if is_drumsynth(extension_of(path)) {
+        return Ok(crate::render_drumsynth_file(path, options)?.audio);
+    }
     try_both_ways(|seekable| {
         let (file, len) = open_file(path)?;
         let source = as_source(file, seekable);
@@ -104,6 +107,9 @@ pub fn decode_file_strict_with(
     options: &DecodeOptions,
 ) -> Result<AudioBuffer, CodecError> {
     let path = path.as_ref();
+    if is_drumsynth(extension_of(path)) {
+        return Ok(crate::render_drumsynth_file(path, options)?.audio);
+    }
     try_both_ways(|seekable| {
         let (file, len) = open_file(path)?;
         decode(
@@ -122,6 +128,7 @@ pub fn decode_bytes_strict_with(
     hint_ext: Option<&str>,
     options: &DecodeOptions,
 ) -> Result<AudioBuffer, CodecError> {
+    if is_drumsynth(hint_ext) { return Ok(crate::render_drumsynth_source(bytes, options)?.audio); }
     if bytes.is_empty() {
         return Err(CodecError::NoAudio);
     }
@@ -150,6 +157,7 @@ pub fn decode_bytes_with(
     hint_ext: Option<&str>,
     options: &DecodeOptions,
 ) -> Result<AudioBuffer, CodecError> {
+    if is_drumsynth(hint_ext) { return Ok(crate::render_drumsynth_source(bytes, options)?.audio); }
     if bytes.is_empty() {
         return Err(CodecError::NoAudio);
     }
@@ -164,6 +172,9 @@ pub fn decode_bytes_with(
 /// refuses for its channel count or sample rate is refused here as well.
 pub fn probe_file(path: impl AsRef<Path>) -> Result<AudioInfo, CodecError> {
     let path = path.as_ref();
+    if is_drumsynth(extension_of(path)) {
+        return Ok(drumsynth_info(&crate::render_drumsynth_file(path, &DecodeOptions::default())?.audio));
+    }
     try_both_ways(|seekable| {
         let (file, _) = open_file(path)?;
         probe(as_source(file, seekable), extension_of(path))
@@ -172,6 +183,9 @@ pub fn probe_file(path: impl AsRef<Path>) -> Result<AudioInfo, CodecError> {
 
 /// Reads the same information as [`probe_file`] from audio held in memory.
 pub fn probe_bytes(bytes: &[u8], hint_ext: Option<&str>) -> Result<AudioInfo, CodecError> {
+    if is_drumsynth(hint_ext) {
+        return Ok(drumsynth_info(&crate::render_drumsynth_source(bytes, &DecodeOptions::default())?.audio));
+    }
     if bytes.is_empty() {
         return Err(CodecError::NoAudio);
     }
@@ -190,6 +204,17 @@ fn open_file(path: &Path) -> Result<(File, u64), CodecError> {
 
 fn extension_of(path: &Path) -> Option<&str> {
     path.extension().and_then(|extension| extension.to_str())
+}
+
+fn is_drumsynth(ext: Option<&str>) -> bool {
+    ext.is_some_and(|ext| ext.eq_ignore_ascii_case("ds"))
+}
+fn drumsynth_info(audio: &AudioBuffer) -> AudioInfo {
+    AudioInfo {
+        sample_rate: audio.sample_rate(), channels: audio.channels(),
+        frames: Some(audio.frames() as u64), duration_secs: Some(audio.duration_secs()),
+        format: "drumsynth".into(), codec: "drumsynth-approximate".into(), bits_per_sample: None,
+    }
 }
 
 /// Boxes a source for Symphonia, either as it is or as a stream that can only

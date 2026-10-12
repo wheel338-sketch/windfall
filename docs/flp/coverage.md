@@ -154,3 +154,32 @@ Tests added/updated in windfall-flp: **written, not executed**. The historical
 real-file table above is unchanged evidence from earlier runs, not validation of
 this extension. Full-row claim remains partial; corpus, plugin-state decoding,
 controller mappings and precise nonlinear timing still need work.
+
+## 2026-10-12 edit-only pattern automation and alternate timelines (not verified)
+
+Event 223's already-parsed 12-byte records now become held pattern event lanes
+for channel volume/pan, insert volume/pan, existing send gain, slot mix and
+parameters in the existing understood effect translation tables. Source integers
+use the established source-unit conversions, not the automation-clip normalized
+value path. Points sort by rescaled tick, the last source record wins a duplicate
+tick, and existing command point/lane/range limits remain enforced. Conversions
+are reported approximate; unknown targets, pattern tempo events, values without
+an established conversion and overflow remain reported omissions. Original event
+records remain in the reader model; unsupported processor state remains in the
+existing opaque plugin archive. This does not claim recovery of every controller
+or an instrument's opaque patch parameters.
+
+Independent imported arrangements now retain each supported named/meter timeline.
+The additive, default-empty ArrangementBook.timelines field opts into snapshots;
+old v1 files continue to share their one timeline. CaptureArrangementTimeline is
+appended to Command and uses checked edits. Switching snapshots current edits and
+restores the selected layout; copying allocates fresh marker/meter identities;
+deleting the active layout restores its surviving neighbour. Ordinary timeline
+editing, engine compilation, export and patching consume playlist.timeline as
+before. Unsupported navigation kinds still receive warnings; no end positions
+are guessed. Single-arrangement imports retain their legacy allocator behavior.
+
+Synthetic event-byte, checked history, JSON persistence and hostile-range tests
+were written. Nothing was built, generated or run. Channel nonlinear time shift,
+undocumented source state layouts, source formulas/smoothing and additional real
+version corpus checks remain open. See the 2026-10-12 p2 hand-off for exact tests.

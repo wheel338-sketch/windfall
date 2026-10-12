@@ -110,7 +110,8 @@ fn independent_arrangements_keep_distinct_clips_lanes_and_selected_timeline() {
     assert_eq!(positions(&book.arrangements[1]), [3840, 7680]);
     assert_eq!(playlist.timeline.markers[0].name, "Chorus");
     assert_eq!(playlist.timeline.meters[0].signature.numerator, 3);
-    assert!(format!("{:?}", imported.report).contains("one shared project timeline"));
+    assert_eq!(book.timelines.len(), 2);
+    assert_eq!(book.timelines[&book.arrangements[0].id].markers[0].name, "Alternate opening");
     assert_eq!(imported, convert(&source, &ConvertOptions::default()));
     let mut document = Document::new(imported.project.clone());
     document
@@ -126,6 +127,11 @@ fn independent_arrangements_keep_distinct_clips_lanes_and_selected_timeline() {
         Some(book.arrangements[0].id)
     );
     assert_eq!(document.project().playlist.clips, playlist.clips);
+    assert_eq!(document.project().playlist.timeline.markers[0].name, "Alternate opening");
+    assert!(document.project().playlist.timeline.meters.is_empty());
+    document.undo().unwrap();
+    assert_eq!(document.project().playlist.timeline, playlist.timeline);
+    document.redo().unwrap();
     let json = windfall_project::file::to_json(document.project()).unwrap();
     let reopened: windfall_project::Project = windfall_project::file::from_json(&json).unwrap();
     reopened.check().unwrap();

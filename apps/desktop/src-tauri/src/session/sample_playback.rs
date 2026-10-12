@@ -2,6 +2,9 @@
 use super::Session;
 use windfall_project::{ChannelId, Command, DispatchResult, slicer::SliceOptions};
 
+#[path = "sample_wav_metadata.rs"]
+mod wav_metadata;
+
 impl Session {
     pub fn sample_playback_detect(
         &self,
@@ -10,7 +13,7 @@ impl Session {
         generation: u64,
         revision: u64,
     ) -> Result<DispatchResult, String> {
-        let (mut document, pool, preparation, settings, audio, sample, edits) = {
+        let (mut document, pool, preparation, settings, audio, sample, edits, file) = {
             let _recording = self.recording_idle()?;
             let state = self.state();
             if state.generation != generation || state.document.revision() != revision {
@@ -30,6 +33,11 @@ impl Session {
                 .get(sample)
                 .cloned()
                 .ok_or("The sample is not loaded. Reload samples and try again.")?;
+            let file = if matches!(options, SliceOptions::WavMarkers) {
+                let source = state.document.project().sample(sample)
+                    .ok_or("The source sample no longer exists.")?;
+                Some(super::samples::locate(source, state.project_dir(), &self.inner.factory_dir)?)
+            } else { None };
             (
                 state.document.clone(),
                 state.pool.clone(),
@@ -38,18 +46,25 @@ impl Session {
                 audio,
                 sample,
                 state.edits,
+                file,
             )
         };
-        let detected = windfall_project::sample_playback::detect(
-            &audio,
-            sample,
-            settings.source_bpm,
-            options,
-        )?;
+        let metadata = file.as_ref().map(windfall_codec::read_wav_metadata_file)
+            .transpose().map_err(|e| e.to_string())?;
+        let detected = if let Some(metadata) = &metadata {
+            let current = self.inner.cache.decode(file.as_ref().unwrap())?;
+            if !self.inner.cache.same_file_version(&audio, &current) {
+                return Err("The source file changed. Reopen or reload its audio first.".into());
+            }
+            wav_metadata::read(metadata, &audio)?
+        } else {
+            windfall_project::sample_playback::detect(&audio, sample, settings.source_bpm, options)?
+        };
         let mut asset = settings;
         asset.legacy_key_wrap = false;
         asset.slices = detected.slices;
         asset.source_beats = detected.source_beats;
+        asset.source_bpm = detected.source_bpm;
         let command = Command::SetSamplePlayback {
             channel,
             asset: Some(asset),
@@ -68,6 +83,13 @@ impl Session {
             .map_err(|e| e.to_string())?;
         #[cfg(test)]
         self.pause("sample-playback:prepared");
+        if let Some(file) = &file {
+            let current = self.inner.cache.decode(file)?;
+            let now = windfall_codec::read_wav_metadata_file(file).map_err(|e| e.to_string())?;
+            if !self.inner.cache.same_file_version(&audio, &current) || metadata.as_ref() != Some(&now) {
+                return Err("The source file changed during WAV marker import. Try again.".into());
+            }
+        }
         let retirement;
         let result = {
             let _recording = self.recording_idle()?;
@@ -110,5 +132,34 @@ impl Session {
         let mut retirement = retirement;
         self.retire_project(&mut retirement);
         Ok(result)
+    }
+
+    /// Exports source A positions. Per-slice sound edits remain in the project.
+    pub fn sample_playback_export(
+        &self, channel: ChannelId, path: &str, generation: u64, revision: u64,
+    ) -> Result<(), String> {
+        let path = crate::paths::absolute(path)?;
+        if !path.extension().is_some_and(|e| e.eq_ignore_ascii_case("wav")) {
+            return Err("Slice metadata export requires a .wav filename.".into());
+        }
+        let (asset, audio) = {
+            let _recording = self.recording_idle()?;
+            let state = self.state();
+            if state.generation != generation || state.document.revision() != revision {
+                return Err("The project changed before slice export started.".into());
+            }
+            let asset = state.document.project().channel(channel)
+                .and_then(|c| c.sample_playback.clone()).ok_or("Load a sample instrument source first.")?;
+            let audio = asset.sample.and_then(|id| state.pool.get(id)).cloned()
+                .ok_or("Source A is not loaded. Reload samples first.")?;
+            (asset, audio)
+        };
+        let metadata = wav_metadata::write(&asset, &audio)?;
+        let mut writer = windfall_codec::WavWriter::create_with_metadata(
+            &path, audio.sample_rate(), audio.channels(), windfall_codec::WavSampleFormat::Float32,
+            &windfall_codec::AudioTags::default(), &metadata,
+        ).map_err(|e| e.to_string())?;
+        writer.write(audio.samples()).map_err(|e| e.to_string())?;
+        writer.finalize().map_err(|e| e.to_string())
     }
 }

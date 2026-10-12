@@ -1294,7 +1294,16 @@ pub fn handler() -> impl Fn(Invoke) -> bool + Send + Sync + 'static {
         loop_catalog,
         loop_preview,
         loop_insert,
+        sample_playback_export,
     ]
+}
+
+#[tauri::command]
+async fn sample_playback_export(
+    session: State<'_, Session>, channel: ChannelId, path: String, generation: u64, revision: u64,
+) -> Result<(), String> {
+    let session = session.inner().clone();
+    blocking(move || session.sample_playback_export(channel, &path, generation, revision)).await
 }
 
 #[tauri::command]

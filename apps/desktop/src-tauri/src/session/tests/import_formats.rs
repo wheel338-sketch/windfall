@@ -151,3 +151,68 @@ fn broken_compressed_files_do_not_change_the_project_or_publish_edits() {
         assert!(rig.events.take().is_empty());
     }
 }
+
+const DRUMSYNTH: &[u8] = b"[General]\nVersion=DrumSynth v2.0\n[Tone]\nOn=1\nLevel=128\nF1=440\nF2=440\nPhase=0\nEnvelope=0,100 4410,0\n[Own Extension]\nText=retain original text\n";
+
+#[test]
+fn drumsynth_native_sampler_import_reports_limits_and_reopens_original_preset_without_rewriting_it() {
+    let rig = Rig::new();
+    let source = rig.file("original-preset.ds");
+    fs::write(&source, DRUMSYNTH).unwrap();
+    let info = rig.session.sample_info(&source).unwrap();
+    assert_eq!((info.sample_rate, info.channels, info.frames), (44100, 1, 4410));
+    assert!(info.source_warnings.iter().any(|w| w.contains("approximately")));
+    assert!(info.source_warnings.iter().any(|w| w.contains("own extension.text")));
+    let before = rig.session.document_snapshot();
+    let result = rig.session.add_channel_from_file(&source, None).unwrap();
+    let sample = SampleId(result.created[0]);
+    let channel = ChannelId(result.created[1]);
+    let imported = rig.project();
+    assert!(rig.has_audio(sample));
+    assert_eq!(rig.session.document_snapshot().history.cursor, before.history.cursor + 1);
+    rig.session.undo().unwrap();
+    assert!(!rig.project().channels.iter().any(|c| c.id == channel));
+    rig.session.redo().unwrap();
+    assert_eq!(rig.project(), imported);
+    let saved = rig.session.project_save(Some(&rig.file("preset-source.windfall"))).unwrap();
+    rig.session.project_new().unwrap();
+    rig.session.project_open(&saved).unwrap();
+    assert_eq!(rig.project(), imported);
+    assert!(rig.has_audio(sample));
+    assert_eq!(fs::read(&source).unwrap(), DRUMSYNTH);
+    let pcm = windfall_codec::decode_file(&source).unwrap();
+    for frame in [0, 1, 100, 2205, 4409] {
+        let expected = 0.5 * (1.0 - frame as f64 / 4410.0)
+            * (std::f64::consts::TAU * 440.0 * (frame + 1) as f64 / 44100.0).sin();
+        assert!((f64::from(pcm.samples()[frame]) - expected).abs() < 1e-6);
+    }
+}
+
+#[test]
+fn drumsynth_source_changes_replacement_and_unsupported_synthesis_never_install_stale_or_wrong_audio() {
+    for point in ["import:decoded", "import:prepared"] {
+        for replace in [false, true] {
+            let rig = Rig::new();
+            let source = rig.file("guarded-preset.ds");
+            fs::write(&source, DRUMSYNTH).unwrap();
+            let held = rig.session.hold(point);
+            let file = source.clone();
+            let work = rig.session.background(move |s| s.add_channel_from_file(&file, None));
+            held.wait();
+            if replace { rig.session.project_new().unwrap(); }
+            else { fs::write(&source, [DRUMSYNTH, b"[Distortion]\nOn=1\n"].concat()).unwrap(); }
+            let before = rig.session.document_snapshot();
+            held.release();
+            assert!(work.join().unwrap().is_err());
+            assert_eq!(rig.session.document_snapshot(), before);
+        }
+    }
+    let rig = Rig::new();
+    for bytes in [b"[General]\nVersion=DrumSynth v2.0\n[Overtones]\nOn=1\n".as_slice(), b"[General]\nVersion=DrumSynth v2.0\n[Tone]\nOn=1\nF1=NaN\n".as_slice()] {
+        let file = rig.file("unsupported.ds");
+        fs::write(&file, bytes).unwrap();
+        let before = rig.session.document_snapshot();
+        assert!(rig.session.add_channel_from_file(&file, None).is_err());
+        assert_eq!(rig.session.document_snapshot(), before);
+    }
+}

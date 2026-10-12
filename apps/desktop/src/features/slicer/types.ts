@@ -4,6 +4,7 @@ import type { Clip, ClipId } from "@/bindings"
 export type SliceOptions =
   | { mode: "grid"; gridTicks: number }
   | { mode: "transients"; sensitivity: number }
+  | { mode: "wavMarkers" }
 export type SliceAnalysis = {
   markers: { tick: number; strength: number }[]
   peaks: number[]

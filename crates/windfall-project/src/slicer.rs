@@ -17,6 +17,8 @@ pub enum SliceOptions {
     Grid { grid_ticks: u32 },
     /// 0 selects strong attacks; 1 includes weaker attacks. Not beat estimation.
     Transients { sensitivity: f32 },
+    /// Read authored WAV regions in the native shell, without detecting attacks.
+    WavMarkers,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -94,6 +96,9 @@ pub fn analyze(
 ) -> Result<SliceAnalysis, String> {
     supported(clip, tempo, swing)?;
     match options {
+        SliceOptions::WavMarkers => {
+            return Err("WAV slice markers require a native source file.".into());
+        }
         SliceOptions::Grid { grid_ticks }
             if ![PPQ / 4, PPQ / 2, PPQ, PPQ * 2, PPQ * 4].contains(&grid_ticks) =>
         {
@@ -163,6 +168,9 @@ pub fn analyze(
         *energy = (*energy / count as f64).sqrt();
     }
     let markers = match options {
+        SliceOptions::WavMarkers => {
+            return Err("WAV slice markers require a native source file.".into());
+        }
         SliceOptions::Grid { grid_ticks } => {
             let first = grid_ticks - clip.start % grid_ticks;
             let count = clip.length.saturating_sub(first).div_ceil(grid_ticks) as usize;

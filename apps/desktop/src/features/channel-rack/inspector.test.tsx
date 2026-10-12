@@ -86,6 +86,16 @@ function tap(target: HTMLElement, key: string, times = 1) {
 }
 
 describe("the settings panel", () => {
+  it("shows preset source rendering warnings beside the sampler waveform", async () => {
+    const original = backend.sampleInfoById.bind(backend)
+    vi.spyOn(backend, "sampleInfoById").mockImplementation(async (sample) => ({
+      ...await original(sample),
+      sourceWarnings: ["DrumSynth tone/flat-noise rendering is approximate.", "Retained but not interpreted: own extension.text"],
+    }))
+    await openSettings("Kick")
+    expect(await screen.findByText("DrumSynth tone/flat-noise rendering is approximate.")).toBeVisible()
+    expect(screen.getByText("Retained but not interpreted: own extension.text")).toBeVisible()
+  })
   it("dispatches one sampler patch when the loop crossfade knob moves", async () => {
     const user = userEvent.setup()
     await openSettings("Kick")

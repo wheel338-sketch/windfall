@@ -61,6 +61,7 @@ mod performance_media;
 mod remote_cloud_content;
 mod detached_windows;
 mod p2_convolver;
+mod sample_playback;
 
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -480,6 +481,5 @@ fn a_session_starts_on_a_clean_default_project_the_engine_can_play() {
     assert!(rms(&rig.run(4_800)) > 0.01);
 }
 
-mod sample_playback;
 mod sample_instruments;
 mod sample_playback_workflow;
