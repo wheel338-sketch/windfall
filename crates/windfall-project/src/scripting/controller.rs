@@ -7,6 +7,7 @@ use crate::{Command, LinkTarget, Project, SettingsPatch};
 pub struct ControllerScriptResult {
     pub commands: Vec<Command>,
     pub feedback: Vec<[u8; 3]>,
+    pub mapped: Option<f32>,
 }
 
 pub fn controller_event(
@@ -60,7 +61,7 @@ pub fn controller_event(
             },
         })
         .collect();
-    if let Some(value) = output.mapped {
+    if let Some(value) = output.mapped.filter(|_| !matches!(binding.target, Some(LinkTarget::Action { .. }))) {
         let target = match binding.target {
             Some(LinkTarget::Param { target }) => Some(target),
             Some(LinkTarget::Slot { slot }) => slot.resolve(project, bank),
@@ -87,5 +88,5 @@ pub fn controller_event(
     } else {
         Vec::new()
     };
-    Ok(ControllerScriptResult { commands, feedback })
+    Ok(ControllerScriptResult { commands, feedback, mapped: output.mapped })
 }

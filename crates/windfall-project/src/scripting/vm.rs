@@ -102,6 +102,10 @@ enum Op {
     Selected(u16),
     Repeat(u16, u16),
     End(u16),
+    AudioGain,
+    AudioReverse,
+    AudioNormalize,
+    Copies(u8, i8, u32),
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -234,6 +238,24 @@ impl Program {
                     started = true;
                     program.expression(&words[1..], line_no)?;
                     program.push(Op::Map, line_no)?;
+                }
+                "gain" | "normalize" if words.len() >= 2 => {
+                    started = true;
+                    program.expression(&words[1..], line_no)?;
+                    program.push(if words[0] == "gain" { Op::AudioGain } else { Op::AudioNormalize }, line_no)?;
+                }
+                "reverse" if words.len() == 1 => {
+                    started = true;
+                    program.push(Op::AudioReverse, line_no)?;
+                }
+                "copies" if words.len() == 4 => {
+                    started = true;
+                    let count = words[1].parse::<u8>().ok().filter(|n| (1..=16).contains(n))
+                        .ok_or_else(|| error(line_no, "copies count must be 1..16"))?;
+                    let key_step = words[2].parse::<i8>().map_err(|_| error(line_no, "copies key step must be -128..127"))?;
+                    let tick_step = words[3].parse::<u32>().ok().filter(|n| *n <= crate::MAX_PATTERN_TICKS)
+                        .ok_or_else(|| error(line_no, "copies tick step exceeds pattern bound"))?;
+                    program.push(Op::Copies(count, key_step, tick_step), line_no)?;
                 }
                 "feedback" if words.len() >= 3 => {
                     started = true;
@@ -379,6 +401,12 @@ impl Program {
             steps += 1;
             pc += 1;
             match instruction.op {
+                Op::Copies(_, _, _) => {
+                    return Err(error(usize::from(instruction.line), "copies require the compiled channel note host"));
+                }
+                Op::AudioGain | Op::AudioReverse | Op::AudioNormalize => {
+                    return Err(error(usize::from(instruction.line), "audio statements require the audio selection worker"));
+                }
                 Op::Selected(end) => {
                     iteration = 0;
                     if input.selected.is_empty() {
@@ -479,6 +507,7 @@ impl Program {
     /// grow output. An invalid runtime arithmetic result reports an error.
     pub fn note_transform(&self, parameters: &[f64]) -> Result<NoteTransform, ScriptDiagnostic> {
         let mut emits = 0;
+        let mut copies = None;
         for (i, instruction) in self.code[..self.len].iter().enumerate() {
             match instruction.op {
                 Op::Selected(_)
@@ -486,7 +515,10 @@ impl Program {
                 | Op::End(_)
                 | Op::Action
                 | Op::Map
-                | Op::Feedback(_) => {
+                | Op::Feedback(_)
+                | Op::AudioGain
+                | Op::AudioReverse
+                | Op::AudioNormalize => {
                     return Err(error(
                         usize::from(instruction.line),
                         "realtime note transforms allow only set and one final emit",
@@ -496,6 +528,11 @@ impl Program {
                     emits += 1;
                     if i + 1 != self.len {
                         return Err(error(usize::from(instruction.line), "emit must be last"));
+                    }
+                }
+                Op::Copies(count, key_step, tick_step) => {
+                    if copies.replace((count, key_step, tick_step)).is_some() {
+                        return Err(error(usize::from(instruction.line), "use copies once before the final emit"));
                     }
                 }
                 _ => (),
@@ -508,9 +545,13 @@ impl Program {
             code: self.code,
             len: self.len,
             registers: self.registers(parameters)?,
+            copies: copies.unwrap_or((1, 0, 0)),
         })
     }
 }
+
+#[path = "audio.rs"]
+mod audio;
 
 fn finite(word: &str, line: usize) -> Result<f64, ScriptDiagnostic> {
     word.parse::<f64>()
@@ -655,6 +696,7 @@ pub struct NoteTransform {
     code: [Instruction; MAX_OPS],
     len: usize,
     registers: [f64; REGISTERS],
+    copies: (u8, i8, u32),
 }
 
 /// Tiny nonallocating runtime error. Format it on the control thread.
@@ -673,6 +715,7 @@ impl NoteTransform {
         let mut stack = [0.0; STACK];
         let mut sp = 0;
         for instruction in &self.code[..self.len] {
+            if matches!(instruction.op, Op::Copies(_, _, _)) { continue; }
             if instruction.op == Op::Emit {
                 return read_note(&registers).map_err(|_| TransformError::NoteBounds);
             }
@@ -681,4 +724,32 @@ impl NoteTransform {
         }
         Err(TransformError::Arithmetic)
     }
+
+    /// Bounded duplication, with every end/key checked before returning any
+    /// output. Owners/instance IDs belong to the host, not the script VM.
+    pub fn evaluate_notes(&self, input: ScriptNote) -> Result<TransformedNotes, TransformError> {
+        let note = self.evaluate(input)?;
+        let mut output = TransformedNotes { notes: [note; 16], len: usize::from(self.copies.0) };
+        for index in 0..output.len {
+            let key = i32::from(note.key) + index as i32 * i32::from(self.copies.1);
+            let start = note.start.checked_add((index as u32).checked_mul(self.copies.2).ok_or(TransformError::NoteBounds)?)
+                .ok_or(TransformError::NoteBounds)?;
+            if !(0..=127).contains(&key) || start.checked_add(note.length).is_none_or(|end| end > crate::MAX_PATTERN_TICKS) {
+                return Err(TransformError::NoteBounds);
+            }
+            output.notes[index].key = key as u8;
+            output.notes[index].start = start;
+        }
+        Ok(output)
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct TransformedNotes {
+    notes: [ScriptNote; 16],
+    len: usize,
+}
+impl TransformedNotes {
+    pub fn as_slice(&self) -> &[ScriptNote] { &self.notes[..self.len] }
+    pub fn single(note: ScriptNote) -> Self { Self { notes: [note; 16], len: 1 } }
 }

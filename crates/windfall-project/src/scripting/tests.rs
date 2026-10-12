@@ -157,6 +157,57 @@ fn compiled_transform_equals_interpreted_result_and_rejects_unbounded_surface() 
 }
 
 #[test]
+fn bounded_note_copies_preserve_lengths_offsets_keys_and_refuse_partial_results() {
+    let transform = Program::compile("set length length 2 *\ncopies 3 7 240\nemit").unwrap().note_transform(&[]).unwrap();
+    let input = ScriptNote { start: 120, length: 180, key: 60, ..Default::default() };
+    let notes = transform.evaluate_notes(input).unwrap();
+    assert_eq!(notes.as_slice().iter().map(|n| (n.start, n.length, n.key)).collect::<Vec<_>>(),
+        vec![(120, 360, 60), (360, 360, 67), (600, 360, 74)]);
+    assert_eq!(transform.evaluate_notes(ScriptNote { key: 126, ..input }).unwrap_err(), TransformError::NoteBounds);
+    assert_eq!(transform.evaluate_notes(ScriptNote { start: crate::MAX_PATTERN_TICKS - 240, ..input }).unwrap_err(), TransformError::NoteBounds);
+    assert!(Program::compile("copies 17 0 0\nemit").is_err());
+    assert!(Program::compile("copies 2 0 0\ncopies 2 0 0\nemit").unwrap().note_transform(&[]).is_err());
+}
+
+#[test]
+fn legacy_controller_bindings_default_to_immediate_takeover_and_new_maps_roundtrip() {
+    let mut value = serde_json::json!({"source":{"type":"midi","channel":1,"control":{"type":"cc","number":7}},
+        "script":{"id":"legacy","revision":1},"parameters":[],"target":null,"feedbackChannel":null});
+    let legacy: ControllerScript = serde_json::from_value(value.clone()).unwrap();
+    assert_eq!(legacy.map.pickup, crate::PickupMode::Off);
+    value["map"] = serde_json::json!({"pickup":"on","smoothingMs":250,"mode":"absolute","min":0,"max":1});
+    let bound: ControllerScript = serde_json::from_value(value).unwrap();
+    assert_eq!(bound.map.smoothing_ms, 250.0);
+    assert_eq!(serde_json::from_str::<ControllerScript>(&serde_json::to_string(&bound).unwrap()).unwrap(), bound);
+}
+
+#[test]
+fn scripted_clip_expansion_past_song_bound_is_an_atomic_checked_refusal() {
+    let mut document = Document::new(Project::new("Script clip extent"));
+    let channel = crate::ChannelId(document.dispatch(Command::AddChannel {
+        name: None, sample: None, instrument: Some(crate::InstrumentKind::SubtractiveSynth), index: None, mixer_track: None,
+    }, None).unwrap().created[0]);
+    let pattern = document.project().patterns[0].id;
+    document.dispatch(Command::AddNotes { pattern, channel, notes: vec![crate::NoteInit {
+        start: 0, length: 240, key: 60, velocity: None, pan: None, expression: None,
+    }] }, None).unwrap();
+    let track = crate::PlaylistTrackId(document.dispatch(Command::AddPlaylistTrack { name: None, index: None }, None).unwrap().created[0]);
+    document.dispatch(Command::AddClips { clips: vec![crate::ClipInit {
+        track, start: crate::MAX_SONG_TICKS - 3840, length: Some(3840), offset: None, muted: None,
+        content: crate::ClipContent::Pattern { pattern },
+    }] }, None).unwrap();
+    let script = ScriptReference { id: "extent".into(), revision: 1 };
+    let before = document.snapshot(None);
+    let result = document.dispatch(Command::SetScriptLibrary { library: ScriptLibrary {
+        assets: vec![ScriptAsset { reference: script.clone(), language_version: 1, kind: ScriptKind::NoteTransform,
+            name: "Extent".into(), source: "copies 2 0 3840\nemit".into() }],
+        channels: vec![ChannelScript { channel, script, parameters: vec![] }], controllers: vec![],
+    } }, None);
+    assert!(result.unwrap_err().to_string().contains("song bound"));
+    assert_eq!(document.snapshot(None), before);
+}
+
+#[test]
 fn controller_fixture_maps_cc_and_emits_checked_tempo_and_feedback() {
     let program =
         Program::compile("map 1 value -\ntempo value 100 * 60 +\nfeedback 7 value 127 *").unwrap();
@@ -372,6 +423,7 @@ fn controller_adapter_checks_target_range_opt_in_and_message_budget() {
     };
     let mut project = Project::new("Controller");
     let mut binding = ControllerScript {
+        map: crate::ControlMap { pickup: crate::PickupMode::Off, ..Default::default() },
         source: crate::ControlSource::Midi {
             device: None,
             channel: Some(1),
