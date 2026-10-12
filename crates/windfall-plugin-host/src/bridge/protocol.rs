@@ -14,12 +14,17 @@ pub const HEADER_WORDS: usize = 64;
 pub const HELPER_FAILURE: usize = 26;
 pub const OWNER_COMPLETIONS: usize = 27;
 pub const TIMELINE_EPOCH: usize = 28;
+pub const NATIVE_CHANGES: usize = 29;
 pub const META_WORDS: usize = 64;
 pub const INPUT: usize = META_WORDS;
 pub const KEY_INPUT: usize = INPUT + MAX_BLOCK * 2;
 pub const OUTPUT: usize = KEY_INPUT + MAX_BLOCK * 2;
 pub const NOTES: usize = OUTPUT + MAX_BLOCK * 2;
-pub const PARAMETERS: usize = NOTES + 16 * 128;
+pub const NOTE_KEYS: usize = 16 * 128;
+pub const NOTE_SNAPSHOT_WORDS: usize = 8;
+pub const INSTANCES: usize = NOTES + NOTE_KEYS;
+pub const PARAMETERS: usize = INSTANCES + crate::MAX_NOTE_INSTANCES * NOTE_SNAPSHOT_WORDS;
+pub const INSTANCE_COUNT: usize = 54;
 pub const EVENTS: usize = PARAMETERS + PARAM_CAPACITY * 3;
 pub const EVENT_WORDS: usize = 8;
 pub const SLOT_WORDS: usize = (EVENTS + EVENT_CAPACITY * EVENT_WORDS).next_multiple_of(16);
@@ -502,7 +507,7 @@ mod tests {
         assert_eq!(SLOT_WORDS * 4 % 64, 0);
     }
     #[test]
-    fn earlier_mapping_versions_never_downgrade_the_v7_midi_reset_and_sidechain_contract() {
+    fn earlier_mapping_versions_never_downgrade_the_v7_note_snapshot_contract() {
         let mut header = config().header().unwrap();
         assert_eq!(header[1], 7);
         assert_eq!(header[OWNER_COMPLETIONS], 0);

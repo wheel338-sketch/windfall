@@ -875,11 +875,16 @@ async fn plugins_add(
 
 #[tauri::command]
 async fn plugin_editor(
+    app: AppHandle,
     session: State<'_, Session>,
     manager: State<'_, std::sync::Arc<crate::plugins::PluginManager>>,
     target: windfall_project::PluginTarget,
     open: bool,
 ) -> Result<(), String> {
+    #[cfg(windows)]
+    let parent = app.get_webview_window("main").and_then(|window| window.hwnd().ok()).map(|handle| handle.0 as usize);
+    #[cfg(not(windows))]
+    let parent = { let _ = app; None };
     let runtime = manager.runtime.clone();
     let session = session.inner().clone();
     blocking(move || {
@@ -890,7 +895,7 @@ async fn plugin_editor(
                 .plugin(target)
                 .cloned()
                 .ok_or("Plugin no longer exists")?;
-            runtime.editor_binding(target, Some(binding), open)
+            runtime.editor_binding_with_parent(target, Some(binding), open, parent)
         })
     })
     .await

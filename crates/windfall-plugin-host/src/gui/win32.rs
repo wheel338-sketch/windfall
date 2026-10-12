@@ -20,13 +20,13 @@ use windows_sys::Win32::System::LibraryLoader::GetModuleHandleW;
 use windows_sys::Win32::UI::HiDpi::GetDpiForSystem;
 use windows_sys::Win32::UI::WindowsAndMessaging::{
     AdjustWindowRectEx, CREATESTRUCTW, CW_USEDEFAULT, CreateWindowExW, DefWindowProcW,
-    DestroyWindow, DispatchMessageW, GWLP_USERDATA, GetWindowLongPtrW, IDC_ARROW, LoadCursorW, MSG,
-    MsgWaitForMultipleObjects, PM_REMOVE, PeekMessageW, QS_ALLINPUT, RegisterClassExW,
-    SIZE_MINIMIZED, SW_SHOW, SW_SHOWNOACTIVATE, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOZORDER,
-    SetWindowLongPtrW, SetWindowPos, ShowWindow, TranslateMessage, WM_CLOSE, WM_NCCREATE, WM_SIZE,
-    WM_SIZING, WMSZ_BOTTOMLEFT, WMSZ_LEFT, WMSZ_TOP, WMSZ_TOPLEFT, WMSZ_TOPRIGHT, WNDCLASSEXW,
-    WS_CAPTION, WS_CLIPCHILDREN, WS_MAXIMIZEBOX, WS_MINIMIZEBOX, WS_OVERLAPPED, WS_SYSMENU,
-    WS_THICKFRAME,
+    DestroyWindow, DispatchMessageW, GWLP_HWNDPARENT, GWLP_USERDATA, GetWindowLongPtrW, IDC_ARROW,
+    IsWindow, LoadCursorW, MSG, MsgWaitForMultipleObjects, PM_REMOVE, PeekMessageW, QS_ALLINPUT,
+    RegisterClassExW, SIZE_MINIMIZED, SW_SHOW, SW_SHOWNOACTIVATE, SWP_NOACTIVATE, SWP_NOMOVE,
+    SWP_NOZORDER, SetWindowLongPtrW, SetWindowPos, ShowWindow, TranslateMessage, WM_CLOSE,
+    WM_NCCREATE, WM_SIZE, WM_SIZING, WMSZ_BOTTOMLEFT, WMSZ_LEFT, WMSZ_TOP, WMSZ_TOPLEFT,
+    WMSZ_TOPRIGHT, WNDCLASSEXW, WS_CAPTION, WS_CLIPCHILDREN, WS_MAXIMIZEBOX, WS_MINIMIZEBOX,
+    WS_OVERLAPPED, WS_SYSMENU, WS_THICKFRAME,
 };
 use windows_sys::core::w;
 
@@ -174,6 +174,19 @@ impl HostWindow {
         };
         // SAFETY: the window is alive.
         unsafe { ShowWindow(self.hwnd, command) };
+    }
+
+    /// Set native ownership, preserving a top-level plugin window. A DAW-owned
+    /// editor minimizes/closes with that owner; a detached editor has no owner.
+    pub fn set_owner(&self, owner: Option<usize>) -> Result<(), String> {
+        let owner = owner.map_or(ptr::null_mut(), |value| value as HWND);
+        if !owner.is_null() && unsafe { IsWindow(owner) } == 0 {
+            return Err("editor owner window is unavailable".into());
+        }
+        unsafe {
+            SetWindowLongPtrW(self.hwnd, GWLP_HWNDPARENT, owner as isize);
+        }
+        Ok(())
     }
 
     /// Resizes the window so that its content area is `width` by `height`,

@@ -28,7 +28,8 @@ use std::time::Duration;
 pub(crate) mod win32;
 
 /// How to open an editor.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(default, deny_unknown_fields)]
 pub struct EditorOptions {
     /// The window's title.
     pub title: String,
@@ -39,6 +40,11 @@ pub struct EditorOptions {
     /// Where to put the window's top left corner on the screen, in pixels.
     /// `None` leaves it to the system.
     pub position: Option<(i32, i32)>,
+    /// Multiplier of platform DPI. Refused native scaling is an explicit error.
+    pub scale: f64,
+    /// Independent top-level editor versus a window owned by the DAW window.
+    pub detached: bool,
+    pub owner_window: Option<usize>,
 }
 
 impl Default for EditorOptions {
@@ -47,7 +53,26 @@ impl Default for EditorOptions {
             title: "Plugin".to_owned(),
             take_focus: true,
             position: None,
+            scale: 1.0,
+            detached: true,
+            owner_window: None,
         }
+    }
+}
+
+impl EditorOptions {
+    pub fn validate(&self) -> Result<(), EditorError> {
+        if !self.scale.is_finite() || !(0.5..=4.0).contains(&self.scale) {
+            return Err(EditorError::Failed(
+                "editor scale must be between 0.5 and 4".into(),
+            ));
+        }
+        if !self.detached && self.owner_window.is_none() {
+            return Err(EditorError::Failed(
+                "attached editor requires the DAW owner window".into(),
+            ));
+        }
+        Ok(())
     }
 }
 

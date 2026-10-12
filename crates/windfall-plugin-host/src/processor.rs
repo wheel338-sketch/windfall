@@ -36,6 +36,11 @@ pub const EVENT_CAPACITY: usize = 1024;
 pub(crate) const IMMEDIATE_RELEASE_CAPACITY: usize =
     16 * 128 + 2 * crate::events::MAX_NOTE_INSTANCES + 1;
 
+pub(crate) const RECOVERY_EVENT_CAPACITY: usize = 5 * crate::MAX_NOTE_INSTANCES + 16 * 128;
+/// Maximum input a prepared policy can collect for one native block.
+pub(crate) const BLOCK_EVENT_CAPACITY: usize =
+    EVENT_CAPACITY + IMMEDIATE_RELEASE_CAPACITY + RECOVERY_EVENT_CAPACITY;
+
 /// A tail length that stands for "never ends".
 pub(crate) const ENDLESS_TAIL: u32 = u32::MAX;
 
@@ -96,6 +101,10 @@ pub(crate) struct ProcessFailed;
 /// One plugin format's way of running a block. The processor calls these
 /// on the audio thread only, never two at once.
 pub(crate) trait ProcessorBackend: Send + 'static {
+    fn additional_latency(&self) -> u32 {
+        0
+    }
+    fn retire_params(&mut self, _params: &mut Vec<HostEvent>) {}
     fn supports_note_instances(&self) -> bool {
         false
     }
@@ -172,6 +181,7 @@ pub struct PluginProcessor {
     max_block: usize,
     /// Events for the next block, sorted by time.
     pending: Vec<HostEvent>,
+    recovery_events: usize,
     from_main: rtrb::Consumer<HostEvent>,
     to_main: rtrb::Producer<PluginEvent>,
     transport: Transport,
@@ -205,7 +215,12 @@ impl PluginProcessor {
     /// the same frame without exposing a partially initialized voice.
     pub fn push_events(&mut self, events: &[HostEvent]) -> bool {
         if events.iter().any(|event| !event.valid())
-            || self.pending.len().saturating_add(events.len()) > EVENT_CAPACITY
+            || self
+                .pending
+                .len()
+                .saturating_sub(self.recovery_events)
+                .saturating_add(events.len())
+                > EVENT_CAPACITY
         {
             self.shared.health.dropped_events.fetch_add(
                 events.len().min(u32::MAX as usize) as u32,
@@ -235,7 +250,8 @@ impl PluginProcessor {
             shape: parts.shape,
             sample_rate: parts.sample_rate,
             max_block,
-            pending: Vec::with_capacity(EVENT_CAPACITY + IMMEDIATE_RELEASE_CAPACITY),
+            recovery_events: 0,
+            pending: Vec::with_capacity(BLOCK_EVENT_CAPACITY),
             from_main: parts.from_main,
             to_main: parts.to_main,
             transport: Transport::default(),
@@ -258,6 +274,7 @@ impl PluginProcessor {
             };
             self.pending.push(event);
         }
+        self.backend.retire_params(&mut self.pending);
         self.pending.sort_by_key(HostEvent::time);
         self.pending
             .retain(|event| matches!(event, HostEvent::Param { .. }));
@@ -290,7 +307,9 @@ impl PluginProcessor {
     /// counts a dropped event, if the queue is full or the event has invalid
     /// key/channel, non-finite values or an invalid parameter id.
     pub fn push_event(&mut self, event: HostEvent) -> bool {
-        if !event.valid() || self.pending.len() >= EVENT_CAPACITY {
+        if !event.valid()
+            || self.pending.len().saturating_sub(self.recovery_events) >= EVENT_CAPACITY
+        {
             self.shared
                 .health
                 .dropped_events
@@ -304,13 +323,23 @@ impl PluginProcessor {
         true
     }
 
+    /// Owner-side recovery replay after reset; bounded separately from timed admission.
+    pub(crate) fn push_recovery_event(&mut self, event: HostEvent) -> bool {
+        if !event.valid() || self.recovery_events >= RECOVERY_EVENT_CAPACITY {
+            return false;
+        }
+        self.pending.push(event);
+        self.recovery_events += 1;
+        true
+    }
+
     /// Guaranteed admission for the adapter's immediate releases. The public
     /// timed-event API keeps its ordinary capacity and rejection semantics.
     /// Under pressure, a repeated release is redundant only if no matching
     /// note-on follows the previous release at the same frame.
     fn push_immediate_release(&mut self, event: HostEvent) {
         let at = self.pending.partition_point(|queued| queued.time() == 0);
-        if self.pending.len() >= EVENT_CAPACITY {
+        if self.pending.len().saturating_sub(self.recovery_events) >= EVENT_CAPACITY {
             let released =
                 self.pending[..at]
                     .iter()
@@ -353,7 +382,7 @@ impl PluginProcessor {
         }
         // Every additional event is a distinct channel/key release or a panic, and
         // ordinary push_event cannot add note-ons while this reserve is used.
-        debug_assert!(self.pending.len() < EVENT_CAPACITY + IMMEDIATE_RELEASE_CAPACITY);
+        debug_assert!(self.pending.len() < self.pending.capacity());
         self.pending.insert(at, event);
     }
 
@@ -452,7 +481,10 @@ impl PluginProcessor {
 
     /// Samples by which the plugin's output lags its input.
     pub fn latency_samples(&self) -> u32 {
-        self.shared.latency.load(Ordering::Relaxed)
+        self.shared
+            .latency
+            .load(Ordering::Relaxed)
+            .saturating_add(self.backend.additional_latency())
     }
 
     /// Samples for which the plugin can keep sounding after its input has
@@ -478,6 +510,7 @@ impl PluginProcessor {
     /// forgets the events that were queued.
     pub fn reset(&mut self) {
         self.pending.clear();
+        self.recovery_events = 0;
         if !self.shared.health.failed.load(Ordering::Relaxed) {
             self.backend.reset();
         }
@@ -496,7 +529,9 @@ impl PluginProcessor {
         // queue. Leave excess there until a block has room, including after
         // a zero-frame boundary or while immediate releases use the reserve.
         // This also bounds work if the producer keeps filling concurrently.
-        for _ in 0..EVENT_CAPACITY.saturating_sub(self.pending.len()) {
+        for _ in 0..EVENT_CAPACITY
+            .saturating_sub(self.pending.len().saturating_sub(self.recovery_events))
+        {
             let Ok(event) = self.from_main.pop() else {
                 break;
             };
@@ -531,6 +566,7 @@ impl PluginProcessor {
         }
         if self.shared.health.failed.load(Ordering::Relaxed) {
             self.pending.clear();
+            self.recovery_events = 0;
             if !self.shape.has_input {
                 left.fill(0.0);
                 right.fill(0.0);
@@ -543,6 +579,7 @@ impl PluginProcessor {
             shared,
             shape,
             pending,
+            recovery_events,
             to_main,
             scratch,
             ..
@@ -621,6 +658,7 @@ impl PluginProcessor {
                     .fetch_add(backend.failure_dropped_events(), Ordering::Relaxed);
                 shared.health.failed.store(true, Ordering::Relaxed);
                 pending.clear();
+                *recovery_events = 0;
                 // What the plugin left in its output cannot be trusted. An
                 // effect's input is still at hand if it was copied aside.
                 if shape.has_input && separate {
@@ -666,6 +704,7 @@ impl PluginProcessor {
                 .fetch_add(result.dropped_events, Ordering::Relaxed);
             self.status = result.status;
 
+            *recovery_events = recovery_events.saturating_sub(due);
             pending.drain(..due);
             for event in pending.iter_mut() {
                 event.set_time(event.time() - length as u32);

@@ -62,6 +62,11 @@ impl Editor {
             });
         }
 
+        if !options.detached {
+            return Err(EditorError::Failed(
+                "this plugin only supplies a detached editor".into(),
+            ));
+        }
         if !can_float {
             return Err(if can_embed {
                 EditorError::UnsupportedPlatform
@@ -240,7 +245,12 @@ mod embedded {
         gui.create(&plugin, configuration)
             .map_err(failed("the plugin could not create its editor"))?;
         // A plugin that refuses the scale reads it from the system itself.
-        let _ = gui.set_scale(&plugin, system_scale());
+        if let Err(error) = gui.set_scale(&plugin, system_scale() * options.scale) {
+            if options.scale != 1.0 {
+                gui.destroy(&plugin);
+                return Err(failed("plugin refused editor scaling")(error));
+            }
+        }
         let size = gui.get_size(&plugin).unwrap_or(FALLBACK_SIZE);
         let resizable = gui.can_resize(&plugin);
 
@@ -263,6 +273,14 @@ mod embedded {
             EditorError::Failed(error)
         })?;
 
+        if let Err(error) = window.set_owner(if options.detached {
+            None
+        } else {
+            options.owner_window
+        }) {
+            gui.destroy(&plugin);
+            return Err(EditorError::Failed(error));
+        }
         // SAFETY: the window outlives the plugin's editor: `Editor::close`
         // destroys the plugin's part before the window is dropped.
         let parent = unsafe { Window::from_win32_hwnd(window.handle()) };

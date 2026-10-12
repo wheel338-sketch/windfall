@@ -4,8 +4,9 @@ mod bridge;
 mod capture_ack;
 mod manager_workflows;
 mod runtime;
-pub(crate) use capture_ack::{CaptureAcknowledgement, CaptureOutcome};
+mod wrapper;
 pub use manager_workflows::Rescan;
+pub(crate) use capture_ack::{CaptureAcknowledgement, CaptureOutcome};
 pub use runtime::Runtime;
 pub(crate) use runtime::binding_identity;
 #[cfg(all(test, windows))]
@@ -299,6 +300,7 @@ impl PluginManager {
                 format: match plugin.descriptor.format {
                     PluginFormat::Clap => "clap",
                     PluginFormat::Vst3 => "vst3",
+                    PluginFormat::Au => "au",
                 }
                 .into(),
                 id: plugin.descriptor.id.clone(),
@@ -464,6 +466,7 @@ impl PluginManager {
         self.runtime.discover(PluginBinding {
             sidechain_input: None,
             auxiliary_inputs: Vec::new(),
+            wrapper: Default::default(),
             target,
             format: entry.format,
             path: entry.path,

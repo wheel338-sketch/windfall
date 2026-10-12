@@ -42,6 +42,7 @@ pub(crate) fn fixture(index: usize) -> (Arc<Runtime>, PluginBinding) {
         .discover(PluginBinding {
             sidechain_input: None,
             auxiliary_inputs: Vec::new(),
+            wrapper: Default::default(),
             target: if index == 2 {
                 PluginTarget::Instrument {
                     channel: windfall_project::ChannelId(900),

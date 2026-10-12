@@ -1,5 +1,5 @@
 //! Fixed-capacity SDK event and parameter COM objects, allocated at activation.
-use crate::processor::{EVENT_CAPACITY, IMMEDIATE_RELEASE_CAPACITY};
+use crate::processor::{BLOCK_EVENT_CAPACITY, EVENT_CAPACITY};
 use std::cell::{Cell, UnsafeCell};
 use std::rc::Rc;
 use vst3::Steinberg::Vst::*;
@@ -9,14 +9,17 @@ use vst3::{Class, ComPtr, ComWrapper, Steinberg::*};
 // note-on both its native event and a later expanded panic release. Explicit
 // reserved releases also need one slot each. Repeated panics cannot release
 // the same held note twice without another admitted note-on in between.
+// Recovery expressions and fixed-buffer collection share the host block bound.
+// Each admitted note-on may later expand into a panic release, plus initially
+// held keys/instances. Expressions themselves remain one pointer-free event.
 const NOTE_CAPACITY: usize =
-    16 * 128 + crate::events::MAX_NOTE_INSTANCES + 2 * EVENT_CAPACITY + IMMEDIATE_RELEASE_CAPACITY;
+    16 * 128 + crate::events::MAX_NOTE_INSTANCES + 2 * BLOCK_EVENT_CAPACITY;
 
 pub(super) const PENDING_PARAMETER_CAPACITY: usize = 256;
 // All three input sources may be disjoint. Reserved instrument events cannot
 // contain parameters. Neither points nor COM queues grow during a callback.
 const INPUT_PARAMETER_CAPACITY: usize =
-    PENDING_PARAMETER_CAPACITY + crate::instance::QUEUE_CAPACITY + EVENT_CAPACITY;
+    PENDING_PARAMETER_CAPACITY + crate::instance::QUEUE_CAPACITY + BLOCK_EVENT_CAPACITY;
 
 #[derive(Clone, Copy)]
 struct Point {
@@ -306,8 +309,9 @@ impl Events {
     }
     pub fn push(&self, mut event: Event) {
         // SAFETY: event is a live SDK POD struct, used only synchronously.
-        unsafe {
-            self.addEvent(&mut event);
+        let before = self.dropped();
+        if unsafe { self.addEvent(&mut event) } != kResultOk && self.dropped() == before {
+            self.dropped.set(before.saturating_add(1));
         }
     }
     pub fn dropped(&self) -> u32 {
@@ -343,10 +347,20 @@ impl IEventListTrait for Events {
         }
         // SAFETY: synchronous SDK caller supplies Event storage; fixed list is exclusive.
         let event = unsafe { event.read() };
-        // Only pointer-free notes are retained. SysEx/text pointers do not
+        // Only pointer-free notes and numeric expression are retained. SysEx/text pointers do not
         // survive the plugin call and are not part of the public host API.
-        if event.r#type > 1 || event.sampleOffset < 0 {
+        if !matches!(event.r#type, 0 | 1 | 4) || event.sampleOffset < 0 {
             return kNotImplemented;
+        }
+        if event.r#type == 4 {
+            // SAFETY: the checked discriminant selects the pointer-free value.
+            let expression = unsafe { event.__field0.noteExpressionValue };
+            if expression.noteId < 0
+                || !expression.value.is_finite()
+                || !(0.0..=1.0).contains(&expression.value)
+            {
+                return kInvalidArgument;
+            }
         }
         // SAFETY: bounded index into fixed exclusive storage.
         unsafe {
@@ -361,7 +375,7 @@ mod tests {
     use super::*;
     #[test]
     fn all_input_sources_fit_without_coalescing_or_growing() {
-        assert_eq!(INPUT_PARAMETER_CAPACITY, 5376);
+        assert_eq!(INPUT_PARAMETER_CAPACITY, 16641);
         let changes = Changes::input(INPUT_PARAMETER_CAPACITY + 1);
         for id in 0..INPUT_PARAMETER_CAPACITY {
             assert!(changes.push(id as u32, id as u32, 0.5));
@@ -434,5 +448,38 @@ mod tests {
             assert_eq!(events.addEvent(&mut event), kNotImplemented);
             assert_eq!(events.getEvent(0, &mut event), kInvalidArgument);
         }
+    }
+    #[test]
+    fn numeric_expressions_survive_the_sdk_list_and_refusal_counts_as_a_drop() {
+        let events = Events::new();
+        let mut expression: Event = unsafe { std::mem::zeroed() };
+        expression.r#type = 4;
+        expression.sampleOffset = 7;
+        expression.__field0.noteExpressionValue = NoteExpressionValueEvent {
+            typeId: 2,
+            noteId: crate::FIRST_NOTE_INSTANCE_ID as i32,
+            value: 0.75,
+        };
+        for _ in 0..crate::processor::RECOVERY_EVENT_CAPACITY {
+            events.push(expression);
+        }
+        assert_eq!(events.dropped(), 0);
+        let mut returned: Event = unsafe { std::mem::zeroed() };
+        assert_eq!(unsafe { events.getEvent(0, &mut returned) }, kResultOk);
+        assert_eq!(returned.r#type, 4);
+        let value = unsafe { returned.__field0.noteExpressionValue };
+        assert_eq!(
+            (returned.sampleOffset, value.noteId, value.value),
+            (7, crate::FIRST_NOTE_INSTANCE_ID as i32, 0.75)
+        );
+        expression.__field0.noteExpressionValue = NoteExpressionValueEvent {
+            typeId: 2,
+            noteId: crate::FIRST_NOTE_INSTANCE_ID as i32,
+            value: f64::NAN,
+        };
+        events.push(expression);
+        expression.r#type = 5; // Pointer-bearing text is never retained.
+        events.push(expression);
+        assert_eq!(events.dropped(), 2);
     }
 }

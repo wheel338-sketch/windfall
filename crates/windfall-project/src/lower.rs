@@ -1306,6 +1306,15 @@ impl Transaction<'_> {
                 }));
                 "Save plugin state"
             }
+            Command::SetPluginWrapper { target, options } => {
+                options.validate().map_err(CommandError::invalid)?;
+                let mut plugins = self.project.plugins.clone();
+                let plugin = plugins.iter_mut().find(|plugin| plugin.target == target)
+                    .ok_or_else(|| CommandError::invalid("the plugin is not in this project"))?;
+                plugin.wrapper = options;
+                self.push(Edit::Plugins(Change { old: self.project.plugins.clone(), new: plugins }));
+                "Change plugin wrapper"
+            }
             Command::UpdateSettings { patch } => self.update_settings(patch)?,
             Command::ReplaceNotebook { notebook } => {
                 let new = notebook.normalized()?;

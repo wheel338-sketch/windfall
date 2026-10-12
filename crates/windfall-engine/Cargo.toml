@@ -9,6 +9,8 @@ repository.workspace = true
 authors.workspace = true
 
 [features]
+# Host-clock entry points for the separate CLAP export target. No device is opened.
+plugin-export = []
 # ASIO needs the Steinberg ASIO SDK at build time, so it is off by default.
 asio = ["cpal/asio"]
 

@@ -69,7 +69,12 @@ impl EventList {
     pub fn new(dialect: Dialect) -> Self {
         let capacity = match dialect {
             Dialect::None => EVENT_CAPACITY,
-            Dialect::Clap => EVENT_CAPACITY + IMMEDIATE_RELEASE_CAPACITY,
+            Dialect::Clap => {
+                EVENT_CAPACITY
+                    + IMMEDIATE_RELEASE_CAPACITY
+                    + 5 * crate::MAX_NOTE_INSTANCES
+                    + 16 * 128
+            }
             // Every ordinary event could be a panic. The adapter reserve
             // adds at most 2048 channel/key note-offs and one further 32-message panic.
             // Translation must not silently drop an admitted release.

@@ -53,13 +53,15 @@
 //! that misbehaves: output that is not a number is replaced by silence, a
 //! block that takes too long is counted in [`PluginHealth`], and a plugin
 //! that reports a failure is not called again. A plugin that crashes takes
-//! the process down. Only the scanner is protected from that today.
+//! the process down. Scanner and separate audio helpers contain those failures;
+//! direct in-process instances retain this limitation.
 //!
 //! # Moving a plugin to another process
 //!
-//! [`bridge`] provides an opt-in Windows audio/state helper transport. Its
-//! standalone process tests cover crash/deadline containment and native state;
-//! production desktop activation and native bridge editors remain incomplete.
+//! [`bridge`] provides Windows audio/state helper transport, selected by the
+//! desktop's saved wrapper policy. Native helper editors and bounded note-owner
+//! recovery use the creating helper owner. The 2026-10-11 additions are source
+//! candidates with authored, unexecuted tests; see the implementation hand-off.
 //! In-process instances created by the APIs above keep their existing crash
 //! and hang limitations. A separate helper is not a security sandbox.
 //!
@@ -125,3 +127,8 @@ pub use params::{MAX_LISTED_CHOICES, PluginParam, PluginParamChoice, PluginParam
 pub use processor::{EVENT_CAPACITY, PluginProcessor, ProcessStatus};
 pub use scan::{PluginCatalog, ProcessRunner, ScanRunner, scan_file};
 pub use state::{InvalidState, MAX_STATE_BYTES, PluginState};
+
+#[cfg(target_os = "macos")]
+pub mod au;
+
+pub mod wrapper;

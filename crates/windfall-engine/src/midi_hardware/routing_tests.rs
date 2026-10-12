@@ -914,6 +914,7 @@ fn midi_output_plugin_destination_receives_notes_program_cc_and_exact_release_pc
     );
     let mut project = doc.project().clone();
     project.plugins.push(PluginBinding {
+        wrapper: Default::default(),
         target: PluginTarget::Instrument { channel: target },
         format: "clap".into(),
         path: "synthetic-midi".into(),

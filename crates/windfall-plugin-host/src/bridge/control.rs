@@ -155,6 +155,8 @@ pub enum Message {
         layout: crate::PluginLayout,
     },
     Load {
+        #[serde(default)]
+        wrapper: crate::wrapper::WrapperOptions,
         mapping: String,
         settings: Settings,
         path: String,
@@ -165,6 +167,8 @@ pub enum Message {
         offline: bool,
     },
     Ready {
+        note_instances: bool,
+        expression_masks: [u32; 16],
         native_latency: u32,
         tail: u64,
         parameters: Vec<ControlParameter>,
@@ -182,6 +186,7 @@ pub enum Message {
     },
     Editor {
         open: bool,
+        options: crate::EditorOptions,
     },
     Shutdown,
     Stopped,

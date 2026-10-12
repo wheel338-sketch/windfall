@@ -215,6 +215,7 @@ fn bind(rig: &mut Rig, track: TrackId, id: &str, input: Option<u32>) {
         state: Vec::new(),
         parameters: Vec::new(),
         sidechain_input: input,
+        wrapper: Default::default(),
         auxiliary_inputs: vec![
             PluginAuxInput {
                 index: 2,

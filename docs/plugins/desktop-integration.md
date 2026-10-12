@@ -35,3 +35,20 @@ When integrating recording, hold the session's recording-idle guard across manag
 Synthetic engine tests establish nonzero hosted instrument/effect rendering, silent missing instruments, stable-ID edits with instance reuse, zero allocator calls during processing, native-range automation, exact note starts, and offline compensation of a 32-frame native effect delay. Windows desktop tests build a real CLAP fixture and the actual desktop scanner-helper executable; they verify isolated discovery, session instrument/effect playback, offline WAV audio, state/parameter save/reopen, missing-plugin retention, and speculative/export/revision/binding ownership. UI tests exercise manager search/retry/add/selection, native range clamping, undo and editor routing; exhaustive WebAssembly command tests cover all four new document commands.
 
 No hardware output or audible/manual editor verification is required by these tests. External installed plugins and OS editor behavior remain optional manual checks. Plugin-specific nondeterminism, crashes, hangs, unsupported layouts and parameter metadata changes are outside the synthetic fixture guarantee. The project uses the existing GPL-3.0 workspace host dependency; its MIT/Apache-2.0 CLAP bindings, ISC loader and existing compatible dependencies introduce no new external licensing requirement here.
+
+## 2026-10-11 hosting source checkpoint
+
+See [the worker hand-off](../qa/2026-10-11-plugin-hosting.md) for ABI 7 channel/instance
+replay, negotiated expression capabilities, real helper editor lifecycle and
+guarded native dirty capture, DSP wrapper policies, and the unverified macOS
+AUv2 adapter. Earlier ABI/editor-limit notes are historical where superseded.
+All new regressions are written, not executed; platform/corpus/packaging gates
+remain explicit and no whole hosting row is newly verified.
+
+Current source additions also include saved wrapper DSP/owner/editor controls
+with undo/reopen tests, the numeric VST3 expression SDK-list correction and
+native fixture/helper replay cases, and a separate CLAP engine export target.
+[Wrapper settings](wrapper-options.md) documents supported behavior and explicit
+threaded refusal. VST2 is excluded by the owner decision; AU and export remain
+partial. These additions are written, not executed and do not extend historical
+verification claims above.

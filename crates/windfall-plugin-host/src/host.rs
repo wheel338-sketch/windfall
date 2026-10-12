@@ -58,6 +58,13 @@ impl PluginHost {
         Self::new("Windfall", env!("CARGO_PKG_VERSION"))
     }
 
+    /// AUv2 components are registered by macOS, with stable type/subtype/vendor IDs.
+    #[cfg(target_os = "macos")]
+    pub fn create_audio_unit(&self, id: &str) -> Result<PluginInstance, PluginError> {
+        let (descriptor, backend) = crate::au::create(id)?;
+        Ok(PluginInstance::new(descriptor, backend))
+    }
+
     /// Sends what plugins log to `sink`. A plugin may log from any thread
     /// but the audio thread, where its messages are dropped. Without a
     /// sink, all of them are.
@@ -76,6 +83,7 @@ impl PluginHost {
         let inner = match format {
             PluginFormat::Clap => ModuleInner::Clap(ClapModule::load(path)?),
             PluginFormat::Vst3 => ModuleInner::Vst3(Vst3Module::load(path)?),
+            PluginFormat::Au => return Err(PluginError::Unsupported("file-based AU; use installed component identity")),
         };
         Ok(PluginModule {
             path: path.to_path_buf(),

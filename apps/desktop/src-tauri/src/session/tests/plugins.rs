@@ -2587,6 +2587,7 @@ fn n4_settled_gain_with_unprocessed_note(vst3: bool) {
     let binding = loaded.plugin(target).unwrap();
     let plugin = PathBuf::from(&binding.path);
     let (control, audio, _) = supervisor::launch(Launch {
+        wrapper: Default::default(),
         helper: PathBuf::from(std::env::var_os("WINDFALL_DESKTOP_BRIDGE_HELPER").unwrap()),
         plugin: plugin.clone(),
         id: binding.id.clone(),

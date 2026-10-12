@@ -49,6 +49,7 @@ pub fn fresh_identity(token: u64, revision: u64, binding: u64) -> io::Result<Ide
 
 #[derive(Clone)]
 pub struct Launch {
+    pub wrapper: crate::wrapper::WrapperOptions,
     pub helper: PathBuf,
     pub plugin: PathBuf,
     pub id: String,
@@ -152,6 +153,9 @@ impl Control {
     }
     pub fn owner(&self) -> Owner {
         self.0.owner
+    }
+    pub fn native_change_serial(&self) -> u64 {
+        self.0.region.native_change_serial()
     }
     pub fn last_valid_state(&self) -> Option<Captured> {
         self.0
@@ -273,9 +277,18 @@ impl Control {
         Ok(())
     }
     pub fn editor(&self, open: bool) -> Result<(), String> {
-        let packet = self.call(Message::Editor { open }, Duration::from_secs(2))?;
+        self.editor_with_options(open, crate::EditorOptions::default())
+    }
+    pub fn editor_with_options(
+        &self,
+        open: bool,
+        options: crate::EditorOptions,
+    ) -> Result<(), String> {
+        options.validate().map_err(|error| error.to_string())?;
+        let packet = self.call(Message::Editor { open, options }, Duration::from_secs(2))?;
         match packet.body {
             Message::Error { message } => Err(message),
+            Message::Stopped => Ok(()),
             _ => Err("unexpected editor bridge response".into()),
         }
     }
@@ -444,6 +457,7 @@ pub fn launch(options: Launch) -> Result<(Control, Audio, usize), String> {
         1,
         owner,
         Message::Load {
+            wrapper: options.wrapper.clone(),
             mapping: name,
             settings: options.config.into(),
             path: options.plugin.to_string_lossy().into_owned(),
@@ -504,6 +518,8 @@ pub fn launch(options: Launch) -> Result<(Control, Audio, usize), String> {
         return Err(message.clone());
     }
     let Message::Ready {
+        note_instances,
+        expression_masks,
         native_latency,
         tail,
         parameters,
@@ -516,7 +532,10 @@ pub fn launch(options: Launch) -> Result<(Control, Audio, usize), String> {
         .negotiate_latency(native_latency as usize)
         .map_err(|error| error.to_string())?;
     let signals = Arc::new(Signals::default());
-    let audio = Audio::new(region.clone(), signals.clone(), &parameters)
+    let mut audio = Audio::new(region.clone(), signals.clone(), &parameters)
+        .map_err(|error| error.to_string())?;
+    audio
+        .configure_note_capabilities(note_instances, expression_masks)
         .map_err(|error| error.to_string())?;
     let status = Arc::new(Mutex::new(Status {
         process_id: process.0.id(),

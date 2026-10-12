@@ -39,6 +39,7 @@ fn reply(socket: &mut TcpStream, packet: &Packet) -> io::Result<()> {
 }
 
 struct Native {
+    wrapper: crate::wrapper::WrapperOptions,
     processor: Option<PluginProcessor>,
     instance: PluginInstance,
     region: Region,
@@ -128,9 +129,10 @@ impl Native {
     fn activate(&mut self) -> io::Result<()> {
         let mut processor = self
             .instance
-            .activate(
+            .activate_with_options(
                 f64::from(self.region.config.sample_rate),
-                self.region.config.block,
+                self.region.config.block.max(self.wrapper.fixed_block.unwrap_or(0)),
+                &self.wrapper,
             )
             .map_err(error)?;
         processor.set_realtime(!self.offline);
@@ -233,12 +235,30 @@ impl Native {
             processor.reset();
             for (key, velocity) in input.notes.iter().enumerate() {
                 if *velocity > 0.0 {
-                    let accepted = processor.push_event(HostEvent::NoteOn {
+                    let accepted = processor.push_recovery_event(HostEvent::NoteOn {
                         time: 0,
                         key: (key % 128) as u8,
                         channel: (key / 128) as u8,
                         velocity: *velocity,
                     });
+                    admitted &= accepted;
+                    if !accepted {
+                        output.native_drops = output.native_drops.saturating_add(1);
+                    }
+                }
+            }
+        }
+        if discontinuity || needs_parameters || self.notes_uncertain {
+            let masks =
+                std::array::from_fn(|channel| processor.note_expression_mask(channel as u8));
+            for note in &input.instances[..input.instance_count] {
+                if !processor.supports_note_instances() {
+                    return Err(error("instance snapshot for key-only native plugin"));
+                }
+                let mut events = [HostEvent::AllNotesOff { time: 0 }; 5];
+                let count = note.events(&masks, &mut events);
+                for event in &events[..count] {
+                    let accepted = processor.push_recovery_event(*event);
                     admitted &= accepted;
                     if !accepted {
                         output.native_drops = output.native_drops.saturating_add(1);
@@ -571,6 +591,7 @@ fn run(address: SocketAddr) -> io::Result<()> {
     }
     drop(bootstrap); // Clear the launch key before any native module load.
     let Message::Load {
+        wrapper,
         mapping,
         settings,
         path,
@@ -594,6 +615,10 @@ fn run(address: SocketAddr) -> io::Result<()> {
         return Err(error("invalid helper binding"));
     }
     let config = settings.config().map_err(error)?;
+    wrapper.validate(config.block.max(wrapper.fixed_block.unwrap_or(0))).map_err(error)?;
+    if wrapper.processing != crate::wrapper::ProcessingMode::InProcess {
+        return Err(error("helper DSP policy must use its already selected owner"));
+    }
     if config.native_latency != 0 {
         return Err(error("native latency must be negotiated after load"));
     }
@@ -661,7 +686,7 @@ fn run(address: SocketAddr) -> io::Result<()> {
         specs.push(spec);
     }
     let mut processor = instance
-        .activate(f64::from(config.sample_rate), config.block)
+        .activate_with_options(f64::from(config.sample_rate), config.block.max(wrapper.fixed_block.unwrap_or(0)), wrapper)
         .map_err(error)?;
     processor.set_realtime(!offline);
     let latency = processor.latency_samples() as usize;
@@ -685,7 +710,11 @@ fn run(address: SocketAddr) -> io::Result<()> {
         return Err(error(message));
     }
     let tail = u64::from(processor.tail_samples().unwrap_or(config.sample_rate * 10));
+    let note_instances = processor.supports_note_instances();
+    let expression_masks =
+        std::array::from_fn(|channel| processor.note_expression_mask(channel as u8));
     let mut native = Native {
+        wrapper: wrapper.clone(),
         instance,
         processor: Some(processor),
         region,
@@ -704,6 +733,8 @@ fn run(address: SocketAddr) -> io::Result<()> {
         dirty: false,
     };
     let ready = Message::Ready {
+        note_instances,
+        expression_masks,
         native_latency: latency as u32,
         tail,
         parameters: parameters.clone(),
@@ -741,11 +772,19 @@ fn run(address: SocketAddr) -> io::Result<()> {
                     reply(&mut socket, &response)?;
                     return Ok(());
                 }
-                Message::Editor { .. } => {
-                    response.body = Message::Error {
-                        message:
-                            "Native editors are unsupported by this audio/state bridge delivery"
-                                .into(),
+                Message::Editor { open, options } => {
+                    if native.offline {
+                        response.body = Message::Error {
+                            message: "render helpers cannot open editors".into(),
+                        };
+                    } else if open {
+                        if let Err(error) = native.instance.open_editor(&options) {
+                            response.body = Message::Error {
+                                message: error.to_string(),
+                            };
+                        }
+                    } else {
+                        native.instance.close_editor();
                     }
                 }
                 Message::Capture {
@@ -796,17 +835,24 @@ fn run(address: SocketAddr) -> io::Result<()> {
             }
         }
         native.adopt_timeline()?;
+        crate::gui::pump_events(Some(Duration::ZERO));
+        let mut changed = false;
         native.instance.idle(&mut |notification| {
             if matches!(
                 notification,
-                PluginNotification::StateChanged
+                PluginNotification::ParamChanged { .. }
+                    | PluginNotification::StateChanged
                     | PluginNotification::RestartRequested
                     | PluginNotification::ParamsRescanned
             ) {
                 native.dirty = true;
+                changed = true;
             }
         });
         native.adopt_timeline()?;
+        if changed {
+            native.region.publish_native_change().map_err(error)?;
+        }
         native.region.owner_completed().map_err(error)?;
         if !worked {
             std::thread::sleep(Duration::from_micros(200));
@@ -888,6 +934,7 @@ mod tests {
             stepped: false,
         };
         let mut native = Native {
+            wrapper: Default::default(),
             processor: Some(processor),
             instance,
             region: region.clone(),

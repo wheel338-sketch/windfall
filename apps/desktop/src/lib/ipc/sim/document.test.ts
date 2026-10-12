@@ -588,6 +588,11 @@ const EVERY_COMMAND: { [Type in Command["type"]]: (ids: Ids) => Command } = {
     target: { type: "instrument", channel: ids.pluginChannel },
     state: [1, 2],
   }),
+  setPluginWrapper: (ids) => ({
+    type: "setPluginWrapper",
+    target: { type: "instrument", channel: ids.pluginChannel },
+    options: { smartDisable: true, fixedBuffer: 128, processing: "automatic", editorScale: 1.5, detached: true },
+  }),
   updateSettings: () => ({ type: "updateSettings", patch: { swing: 0.25 } }),
   addSample: () => ({
     type: "addSample",

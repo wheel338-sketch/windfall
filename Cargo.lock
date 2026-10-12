@@ -5455,6 +5455,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "windfall-plugin"
+version = "0.1.0-alpha.1"
+dependencies = [
+ "clap-sys",
+ "serde",
+ "serde_json",
+ "windfall-core",
+ "windfall-engine",
+ "windfall-project",
+]
+
+[[package]]
 name = "windfall-plugin-host"
 version = "0.1.0-alpha.1"
 dependencies = [

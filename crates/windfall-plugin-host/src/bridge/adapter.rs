@@ -2,7 +2,7 @@
 
 use super::{
     protocol::*,
-    slots::{InputBlock, OutputBlock, Region, finite_input},
+    slots::{InputBlock, NoteSnapshot, OutputBlock, Region, finite_input},
 };
 use crate::{HostEvent, Transport};
 use std::sync::{
@@ -64,7 +64,10 @@ pub struct Audio {
     input: InputBlock,
     output: OutputBlock,
     parameters: Box<[ParameterSpec]>,
-    held: [f32; 16 * 128],
+    held: [f32; NOTE_KEYS],
+    instances: Box<[NoteSnapshot]>,
+    note_instances: bool,
+    expression_masks: [u32; 16],
     generation: u64,
     epoch: u64,
     sequence: u64,
@@ -118,7 +121,10 @@ impl Audio {
             input: InputBlock::new(),
             output: OutputBlock::silent(),
             parameters: parameters.to_vec().into_boxed_slice(),
-            held: [0.0; 16 * 128],
+            held: [0.0; NOTE_KEYS],
+            instances: vec![NoteSnapshot::EMPTY; crate::MAX_NOTE_INSTANCES].into_boxed_slice(),
+            note_instances: false,
+            expression_masks: [0; 16],
             generation: 1,
             epoch: 1,
             sequence: 0,
@@ -167,6 +173,7 @@ impl Audio {
     }
     pub fn voices(&self) -> usize {
         self.held.iter().filter(|value| **value > 0.0).count()
+            + self.instances.iter().filter(|note| note.id != 0).count()
     }
     fn advance_generation(&mut self) -> bool {
         if let Some(next) = self.generation.checked_add(1) {
@@ -188,6 +195,11 @@ impl Audio {
         self.input.epoch = self.epoch;
         self.input.transport = self.transport;
         self.input.notes = self.held;
+        self.input.instance_count = 0;
+        for note in self.instances.iter().filter(|note| note.id != 0) {
+            self.input.instances[self.input.instance_count] = *note;
+            self.input.instance_count += 1;
+        }
         self.input.control_start = self.generation;
         self.input.control_end = self.generation;
         self.input.controls_complete = true;
@@ -216,24 +228,35 @@ impl Audio {
                     (
                         HostEvent::NoteOn {
                             key: previous,
-                            channel: previous_channel,
+                            channel: pc,
                             ..
                         },
                         HostEvent::NoteOff { key, channel, .. },
-                    ) if previous == key && previous_channel == channel => {
+                    ) if previous == key && pc == channel => {
                         break;
                     }
                     (
                         HostEvent::NoteOff {
                             key: previous,
-                            channel: previous_channel,
+                            channel: pc,
                             ..
                         },
                         HostEvent::NoteOff { key, channel, .. },
-                    ) if previous == key && previous_channel == channel => {
+                    ) if previous == key && pc == channel => {
                         return true;
                     }
-                    (HostEvent::NoteOn { .. }, HostEvent::AllNotesOff { .. }) => break,
+                    (
+                        HostEvent::NoteOnInstance { id: previous, .. },
+                        HostEvent::NoteOffInstance { id, .. },
+                    ) if previous == id => break,
+                    (
+                        HostEvent::NoteOffInstance { id: previous, .. },
+                        HostEvent::NoteOffInstance { id, .. },
+                    ) if previous == id => return true,
+                    (
+                        HostEvent::NoteOn { .. } | HostEvent::NoteOnInstance { .. },
+                        HostEvent::AllNotesOff { .. },
+                    ) => break,
                     _ => {}
                 }
             }
@@ -321,14 +344,112 @@ impl Audio {
         self.advance_generation() && self.admit(event, release)
     }
 
+    pub fn configure_note_capabilities(
+        &mut self,
+        instances: bool,
+        masks: [u32; 16],
+    ) -> Result<(), ProtocolError> {
+        if masks.iter().any(|mask| *mask & !0x7f != 0)
+            || (!instances && masks.iter().any(|mask| *mask != 0))
+        {
+            return Err(ProtocolError::Configuration);
+        }
+        self.note_instances = instances;
+        self.expression_masks = masks;
+        Ok(())
+    }
+    pub fn supports_note_instances(&self) -> bool {
+        self.note_instances
+    }
+    pub fn supports_note_pitch(&self) -> bool {
+        self.expression_masks
+            .iter()
+            .any(|mask| mask & crate::NoteExpressionKind::Tuning.mask() != 0)
+    }
+    pub fn note_on_instance(&mut self, note: NoteSnapshot) -> bool {
+        if !self.note_instances || !note.valid() || self.instances.iter().any(|n| n.id == note.id) {
+            return false;
+        }
+        let Some(slot) = self.instances.iter().position(|n| n.id == 0) else {
+            self.health.dropped_events = self.health.dropped_events.saturating_add(1);
+            return false;
+        };
+        let mut events = [HostEvent::AllNotesOff { time: 0 }; 5];
+        let count = note.events(&self.expression_masks, &mut events);
+        self.instances[slot] = note;
+        if !self.advance_generation() {
+            return false;
+        }
+        if self.input.event_count + count > ORDINARY_EVENTS {
+            self.input.controls_complete = false;
+            self.health.dropped_events = self.health.dropped_events.saturating_add(count as u64);
+            return false;
+        }
+        for event in &events[..count] {
+            self.admit(*event, false);
+        }
+        true
+    }
+    pub fn set_note_controls(&mut self, id: u32, controls: crate::PluginNoteControls) -> bool {
+        let Some(slot) = self.instances.iter().position(|n| n.id == id && id != 0) else {
+            return false;
+        };
+        if !controls.valid(self.instances[slot].key) {
+            return false;
+        }
+        if self.instances[slot].controls == controls {
+            return true;
+        }
+        self.instances[slot].controls = controls;
+        if !self.advance_generation() {
+            return false;
+        }
+        let mut events = [HostEvent::AllNotesOff { time: 0 }; 4];
+        let count = self.instances[slot].expression_events(&self.expression_masks, &mut events);
+        if self.input.event_count + count > ORDINARY_EVENTS {
+            self.input.controls_complete = false;
+            self.health.dropped_events = self.health.dropped_events.saturating_add(count as u64);
+            return false;
+        }
+        for event in &events[..count] {
+            self.admit(*event, false);
+        }
+        true
+    }
+    pub fn note_off_instance(&mut self, id: u32, velocity: f32) -> bool {
+        if !velocity.is_finite() || !(0.0..=1.0).contains(&velocity) {
+            return false;
+        }
+        let Some(slot) = self.instances.iter().position(|n| n.id == id && id != 0) else {
+            return true;
+        };
+        let note = self.instances[slot];
+        self.instances[slot] = NoteSnapshot::EMPTY;
+        if !self.advance_generation() {
+            return false;
+        }
+        self.admit(
+            HostEvent::NoteOffInstance {
+                time: 0,
+                id,
+                key: note.key,
+                channel: note.channel,
+                velocity,
+            },
+            true,
+        )
+    }
     pub fn note_on(&mut self, key: u8, velocity: f32) -> bool {
-        if key > 127 || !velocity.is_finite() || !(0.0..=1.0).contains(&velocity) {
+        self.note_on_channel(key, 0, velocity)
+    }
+    pub fn note_on_channel(&mut self, key: u8, channel: u8, velocity: f32) -> bool {
+        if channel > 15 || key > 127 || !velocity.is_finite() || !(0.0..=1.0).contains(&velocity) {
             return false;
         }
         if velocity == 0.0 {
-            return self.note_off(key);
+            return self.note_off_channel(key, channel);
         }
-        self.held[key as usize] = velocity;
+        self.held[channel as usize * 128 + key as usize] = velocity;
         if !self.advance_generation() {
             return false;
         }
@@ -336,17 +457,20 @@ impl Audio {
             HostEvent::NoteOn {
                 time: 0,
                 key,
-                channel: 0,
+                channel,
                 velocity,
             },
             false,
         )
     }
     pub fn note_off(&mut self, key: u8) -> bool {
-        if key > 127 {
+        self.note_off_channel(key, 0)
+    }
+    pub fn note_off_channel(&mut self, key: u8, channel: u8) -> bool {
+        if channel > 15 || key > 127 {
             return false;
         }
-        self.held[key as usize] = 0.0;
+        self.held[channel as usize * 128 + key as usize] = 0.0;
         if !self.advance_generation() {
             return false;
         }
@@ -354,7 +478,7 @@ impl Audio {
             HostEvent::NoteOff {
                 time: 0,
                 key,
-                channel: 0,
+                channel,
                 velocity: 0.0,
             },
             true,
@@ -362,6 +486,7 @@ impl Audio {
     }
     pub fn all_notes_off(&mut self) {
         self.held.fill(0.0);
+        self.instances.fill(NoteSnapshot::EMPTY);
         if self.advance_generation() {
             self.admit(HostEvent::AllNotesOff { time: 0 }, true);
         }
@@ -773,6 +898,82 @@ mod tests {
             region,
         )
     }
+    #[test]
+    fn instance_snapshot_retains_overlap_expression_and_all_channels_after_reset() {
+        let (mut audio, region) = make(Kind::Instrument, 0);
+        audio.configure_note_capabilities(true, [0x7f; 16]).unwrap();
+        let a = NoteSnapshot {
+            id: crate::FIRST_NOTE_INSTANCE_ID,
+            key: 60,
+            channel: 3,
+            velocity: 0.75,
+            controls: crate::PluginNoteControls {
+                pan: -0.75,
+                pitch: 60.5,
+                modulation_x: 0.2,
+                modulation_y: 0.7,
+            },
+        };
+        let b = NoteSnapshot {
+            id: a.id + 1,
+            channel: 15,
+            ..a
+        };
+        assert!(audio.note_on_instance(a));
+        assert!(audio.note_on_instance(b));
+        assert!(audio.note_on_channel(72, 14, 0.25));
+        audio.reset_timeline();
+        audio.process(&mut [0.0; 64], &mut [0.0; 64]);
+        let mut input = InputBlock::new();
+        region.take_input(&mut input).unwrap().unwrap();
+        assert_eq!(&input.instances[..input.instance_count], &[a, b]);
+        assert_eq!(input.notes[14 * 128 + 72], 0.25);
+        assert_eq!(input.event_count, 0);
+        assert_eq!(audio.completed_proof(), None);
+        assert!(audio.note_off_instance(a.id, 0.4));
+        audio.reset_timeline();
+        audio.process(&mut [0.0; 64], &mut [0.0; 64]);
+        region.take_input(&mut input).unwrap().unwrap();
+        assert_eq!(&input.instances[..input.instance_count], &[b]);
+        assert_eq!(audio.voices(), 2);
+    }
+    #[test]
+    fn saturated_instance_expression_recovers_desired_controls_and_guarantees_release() {
+        let (mut audio, region) = make(Kind::Instrument, 0);
+        audio.configure_note_capabilities(true, [0x7f; 16]).unwrap();
+        let note = NoteSnapshot {
+            id: crate::FIRST_NOTE_INSTANCE_ID,
+            key: 60,
+            channel: 0,
+            velocity: 0.5,
+            controls: crate::PluginNoteControls {
+                pan: 0.0,
+                pitch: 60.0,
+                modulation_x: 0.5,
+                modulation_y: 0.5,
+            },
+        };
+        assert!(audio.note_on_instance(note));
+        for index in 0..ORDINARY_EVENTS {
+            audio.set_param(7, if index % 2 == 0 { 0.5 } else { 0.75 });
+        }
+        let changed = crate::PluginNoteControls {
+            pitch: 72.0,
+            ..note.controls
+        };
+        assert!(!audio.set_note_controls(note.id, changed));
+        audio.process(&mut [0.0; 64], &mut [0.0; 64]);
+        let mut input = InputBlock::new();
+        region.take_input(&mut input).unwrap().unwrap();
+        assert!(!input.controls_complete);
+        assert!(audio.note_off_instance(note.id, 0.25));
+        audio.reset_timeline();
+        audio.process(&mut [0.0; 64], &mut [0.0; 64]);
+        region.take_input(&mut input).unwrap().unwrap();
+        assert_eq!(input.instance_count, 0);
+        assert_eq!(audio.voices(), 0);
+        assert!(audio.health().dropped_events > 0);
+    }
     fn complete(region: &Region, input: &mut InputBlock, output: &mut OutputBlock) {
         while let Some((slot, sequence)) = region.take_input(input).unwrap() {
             output.left.copy_from_slice(&input.left);
@@ -1135,7 +1336,7 @@ mod tests {
         complete(&region, &mut worker, &mut output);
         assert!(worker.controls_complete);
         assert_eq!(worker.parameters[0].value, 0.75);
-        assert_eq!(worker.notes, [0.0; 16 * 128]);
+        assert_eq!(worker.notes, [0.0; NOTE_KEYS]);
     }
 
     #[test]

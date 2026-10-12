@@ -85,6 +85,7 @@ fn options(
 ) -> Launch {
     let identity = supervisor::fresh_identity(1, 7, 99).unwrap();
     Launch {
+        wrapper: Default::default(),
         helper: PathBuf::from(env!("CARGO_BIN_EXE_windfall-plugin-audio")),
         plugin: fixture(format),
         id: id.into(),
@@ -322,7 +323,8 @@ fn native_clap_vst3_healthy_audio_and_state_use_independent_helpers() {
         );
         assert_ne!(control.status().process_id, other.status().process_id);
         assert_eq!(audio.latency(), if format == "clap" { 128 } else { 145 });
-        assert!(control.editor(true).unwrap_err().contains("unsupported"));
+        control.editor(true).unwrap();
+        control.editor(false).unwrap();
         assert!(audio.set_param(7, 0.75));
         let mut left = [1.0; 64];
         let mut right = left;
@@ -648,6 +650,7 @@ fn unrelated_first_and_stalled_clients_receive_no_load_before_real_child_authent
         1,
         options.config.identity.into(),
         Message::Load {
+            wrapper: options.wrapper.clone(),
             mapping: name,
             settings: options.config.into(),
             path: options.plugin.to_string_lossy().into_owned(),
@@ -1647,6 +1650,7 @@ fn authenticated_new_helper_refuses_old_mapping_abis_before_native_activation() 
             1,
             settings.config.identity.into(),
             Message::Load {
+                wrapper: settings.wrapper.clone(),
                 mapping: name,
                 settings: settings.config.into(),
                 path: settings.plugin.to_string_lossy().into_owned(),
@@ -2134,4 +2138,260 @@ fn clap_instrument_measures_real_native_plus_bridge_latency_and_note_release() {
     assert_eq!(audio.voices(), 0);
     drop(audio);
     drop(control);
+}
+
+#[test]
+fn native_clap_instance_expression_audio_matches_reference_after_bridge_latency() {
+    use windfall_plugin_host::{PluginNoteControls, bridge::slots::NoteSnapshot};
+    let mut opts = options(
+        "clap",
+        common::SINE,
+        Kind::Instrument,
+        vec![],
+        Duration::from_secs(2),
+    );
+    opts.offline = true;
+    let (control, mut audio, _) = supervisor::launch(opts).unwrap();
+    let host = PluginHost::windfall();
+    let module = host.load(&fixture("clap")).unwrap();
+    let mut instance = module.create(common::SINE).unwrap();
+    let mut reference = instance.prepare_instrument(48_000.0, 64).unwrap();
+    assert!(audio.supports_note_instances());
+    assert!(audio.supports_note_pitch());
+    let controls = PluginNoteControls {
+        pan: -0.5,
+        pitch: 69.5,
+        modulation_x: 0.5,
+        modulation_y: 0.5,
+    };
+    let a = NoteSnapshot {
+        id: windfall_plugin_host::FIRST_NOTE_INSTANCE_ID,
+        key: 69,
+        channel: 2,
+        velocity: 0.5,
+        controls,
+    };
+    let b = NoteSnapshot {
+        id: a.id + 1,
+        controls: PluginNoteControls {
+            pan: 0.5,
+            pitch: 81.0,
+            ..controls
+        },
+        ..a
+    };
+    assert_eq!(
+        guarded(|| {
+            assert!(audio.note_on_instance(a));
+            assert!(audio.note_on_instance(b));
+        }),
+        0
+    );
+    assert!(reference.note_on_instance(a.id, a.key, a.channel, a.velocity, a.controls));
+    assert!(reference.note_on_instance(b.id, b.key, b.channel, b.velocity, b.controls));
+    let mut expected = Vec::new();
+    let mut actual = Vec::new();
+    for block in 0..12 {
+        if block == 4 {
+            assert_eq!(
+                guarded(|| {
+                    assert!(audio.note_off_instance(a.id, 0.25));
+                }),
+                0
+            );
+            assert!(reference.note_off_instance(a.id, 0.25));
+        }
+        let mut left = [0.0; 64];
+        let mut right = left;
+        reference.process(&mut left, &mut right);
+        expected.extend(left.into_iter().zip(right));
+        audio
+            .process_offline(
+                &mut left,
+                &mut right,
+                Instant::now() + Duration::from_secs(2),
+                &std::sync::atomic::AtomicBool::new(false),
+            )
+            .unwrap();
+        actual.extend(left.into_iter().zip(right));
+    }
+    assert_eq!(audio.voices(), 1);
+    for ((left, right), (el, er)) in actual[128..].iter().zip(expected.iter()) {
+        assert!(
+            (left - el).abs() < 1e-6 && (right - er).abs() < 1e-6,
+            "bridge expression PCM {left}/{right}, expected {el}/{er}"
+        );
+    }
+    assert!(
+        expected[320..]
+            .iter()
+            .any(|(l, r)| l.abs() + r.abs() > 0.01)
+    );
+    instance.release_instrument(reference).unwrap();
+    drop(audio);
+    assert!(control.terminate().reaped);
+}
+
+#[test]
+fn helper_fixed_buffer_policy_reports_and_measures_its_added_latency() {
+    let mut options = options(
+        "clap",
+        common::GAIN,
+        Kind::Effect,
+        vec![],
+        Duration::from_secs(2),
+    );
+    options.offline = true;
+    options.wrapper.fixed_block = Some(32);
+    let (control, mut audio, _) = supervisor::launch(options).unwrap();
+    assert_eq!(audio.latency(), 128 + 32);
+    let cancelled = std::sync::atomic::AtomicBool::new(false);
+    let mut observed = Vec::new();
+    for block in 0..12 {
+        let mut left =
+            std::array::from_fn::<_, 64, _>(|index| ((block * 64 + index) % 31) as f32 / 64.0);
+        let mut right = left.map(|value| -value);
+        audio
+            .process_offline(
+                &mut left,
+                &mut right,
+                Instant::now() + Duration::from_secs(2),
+                &cancelled,
+            )
+            .unwrap();
+        observed.extend(left.into_iter().zip(right));
+    }
+    assert!(observed[..160].iter().all(|(l, r)| *l == 0.0 && *r == 0.0));
+    for (index, (left, right)) in observed[160..].iter().enumerate() {
+        let expected = (index % 31) as f32 / 64.0;
+        assert!((left - expected).abs() < 1e-7 && (right + expected).abs() < 1e-7);
+    }
+    drop(audio);
+    assert!(control.terminate().reaped);
+}
+
+#[test]
+fn vst3_expression_identity_and_controls_replay_after_helper_timeline_reset() {
+    use windfall_plugin_host::{
+        FIRST_NOTE_INSTANCE_ID, PluginNoteControls, bridge::slots::NoteSnapshot,
+    };
+    let mut options = options(
+        "vst3",
+        &vst_id(23),
+        Kind::Instrument,
+        vec![],
+        Duration::from_secs(2),
+    );
+    options.offline = true;
+    let (control, mut audio, _) = supervisor::launch(options).unwrap();
+    assert!(audio.supports_note_instances());
+    assert!(audio.supports_note_pitch());
+    assert_eq!(audio.latency(), 128);
+    let a = NoteSnapshot {
+        id: FIRST_NOTE_INSTANCE_ID,
+        key: 69,
+        channel: 2,
+        velocity: 0.5,
+        controls: PluginNoteControls {
+            pan: -0.5,
+            pitch: 69.5,
+            modulation_x: 0.25,
+            modulation_y: 0.75,
+        },
+    };
+    let b = NoteSnapshot {
+        id: a.id + 1,
+        velocity: 0.25,
+        controls: PluginNoteControls {
+            pan: 0.5,
+            pitch: 75.0,
+            modulation_x: 0.5,
+            modulation_y: 0.25,
+        },
+        ..a
+    };
+    assert_eq!(
+        guarded(|| {
+            assert!(audio.note_on_instance(a));
+            assert!(audio.note_on_instance(b));
+        }),
+        0
+    );
+    let changed = PluginNoteControls {
+        pan: -1.0,
+        pitch: 72.0,
+        modulation_x: 0.75,
+        modulation_y: 0.5,
+    };
+    let mark_a = 0.5_f64 * (1.0 + 0.5 / 12.0 + 0.75 / 4.0 + 0.25 / 8.0);
+    let mark_b = 0.25_f64 * (1.0 + 6.0 / 12.0 + 0.25 / 4.0 + 0.5 / 8.0);
+    let changed_b = 0.25_f64 * (1.0 + 3.0 / 12.0 + 0.5 / 4.0 + 0.75 / 8.0);
+    for phase in 0..5 {
+        let expected = match phase {
+            0 => [mark_a * 0.75 + mark_b * 0.25, mark_a * 0.25 + mark_b * 0.75],
+            1 => {
+                assert_eq!(
+                    guarded(|| {
+                        assert!(audio.set_note_controls(b.id, changed));
+                    }),
+                    0
+                );
+                [mark_a * 0.75 + changed_b, mark_a * 0.25]
+            }
+            2 => {
+                assert_eq!(
+                    guarded(|| {
+                        assert!(audio.note_off_instance(a.id, 0.375));
+                    }),
+                    0
+                );
+                [changed_b, 0.0]
+            }
+            3 => {
+                assert_eq!(guarded(|| audio.reset_timeline()), 0);
+                [changed_b, 0.0]
+            }
+            _ => {
+                assert_eq!(guarded(|| audio.all_notes_off()), 0);
+                [0.0; 2]
+            }
+        };
+        for block in 0..6 {
+            let mut left = [0.0; 64];
+            let mut right = left;
+            audio
+                .process_offline(
+                    &mut left,
+                    &mut right,
+                    Instant::now() + Duration::from_secs(2),
+                    &std::sync::atomic::AtomicBool::new(false),
+                )
+                .unwrap();
+            // Collection+scheduling add 128 frames. After reset allow the
+            // documented 64-frame transition, then compare every actual frame.
+            if block >= 3 {
+                for (l, r) in left.iter().zip(&right) {
+                    assert!(
+                        (f64::from(*l) - expected[0]).abs() < 1e-6
+                            && (f64::from(*r) - expected[1]).abs() < 1e-6,
+                        "phase {phase}: {l}/{r} vs {expected:?}"
+                    );
+                }
+            }
+        }
+        assert_eq!(audio.health().native_drops, 0);
+        assert!(audio.health().acknowledged_generation > 0);
+        assert_eq!(
+            audio.voices(),
+            if phase < 2 {
+                2
+            } else if phase < 4 {
+                1
+            } else {
+                0
+            }
+        );
+    }
+    drop(audio);
+    assert!(control.terminate().reaped);
 }

@@ -430,6 +430,7 @@ mod helper_process {
             fixture_id(&module, format)
         };
         let options = Launch {
+            wrapper: Default::default(),
             helper: PathBuf::from(env!("CARGO_BIN_EXE_windfall-plugin-audio")),
             // The helper refuses a file that is not the one approved here.
             approved_binary: windfall_plugin_host::paths::plugin_file_identity(&plugin).unwrap(),

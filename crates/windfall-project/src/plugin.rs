@@ -4,6 +4,10 @@ use crate::{ChannelId, EffectId};
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
+#[path = "plugin_wrapper.rs"]
+mod wrapper;
+pub use wrapper::{PluginProcessingMode, PluginWrapperOptions};
+
 /// The project object a plugin replaces.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, TS)]
 #[serde(tag = "type", rename_all = "camelCase")]
@@ -43,6 +47,9 @@ pub struct PluginAuxInput {
 #[serde(rename_all = "camelCase")]
 #[ts(export)]
 pub struct PluginBinding {
+    #[serde(default, skip_serializing_if = "PluginWrapperOptions::is_default")]
+    #[ts(as = "Option<PluginWrapperOptions>", optional)]
+    pub wrapper: PluginWrapperOptions,
     pub target: PluginTarget,
     /// "clap" or "vst3"; the model does not load either format.
     pub format: String,
@@ -66,6 +73,7 @@ pub struct PluginBinding {
 impl PluginBinding {
     /// Validates bounded saved data before it reaches native code.
     pub fn validate(&self) -> Result<(), &'static str> {
+        self.wrapper.validate()?;
         if self.sidechain_input.is_some_and(|index| index >= 64)
             || self.auxiliary_inputs.len() > 64
             || self

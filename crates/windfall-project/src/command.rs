@@ -867,6 +867,11 @@ pub enum Command {
     SetScriptLibrary {
         library: crate::scripting::ScriptLibrary,
     },
+    /// Replace one saved wrapper policy in one undoable preparation transaction.
+    SetPluginWrapper {
+        target: crate::PluginTarget,
+        options: crate::PluginWrapperOptions,
+    },
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, TS)]

@@ -403,3 +403,12 @@ The diagnosis is reviewable now. Implementing A requires the narrow N4 fixture
 identity grant; implementing B requires the listed loader/path/helper/entry
 windows and actual native macOS validation access. Nothing in this evidence
 authorizes processor, bridge, Cargo, CI, or unrelated preparation/analyzer edits.
+
+## Hosting stream source follow-up (2026-10-11)
+
+The hosting worker preserves the existing native creator-thread identity and
+module/bundle lifecycle code. It appends a pointer-free numeric expression
+fixture class (23), updates fixture count assertions to 24, and adds native/helper
+PCM tests. See [the hand-off](qa/2026-10-11-plugin-hosting.md). No Linux or Mac
+build/test ran in this stream; earlier diagnostic evidence is not new acceptance
+of the appended fixture or the macOS AU adapter.

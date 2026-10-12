@@ -8,11 +8,12 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use clap_sys::audio_buffer::clap_audio_buffer;
 use clap_sys::events::{
     CLAP_CORE_EVENT_SPACE_ID, CLAP_EVENT_MIDI, CLAP_EVENT_NOTE_CHOKE, CLAP_EVENT_NOTE_END,
-    CLAP_EVENT_NOTE_OFF, CLAP_EVENT_NOTE_ON, CLAP_EVENT_PARAM_GESTURE_BEGIN,
-    CLAP_EVENT_PARAM_GESTURE_END, CLAP_EVENT_PARAM_VALUE, CLAP_TRANSPORT_HAS_BEATS_TIMELINE,
+    CLAP_EVENT_NOTE_EXPRESSION, CLAP_EVENT_NOTE_OFF, CLAP_EVENT_NOTE_ON,
+    CLAP_EVENT_PARAM_GESTURE_BEGIN, CLAP_EVENT_PARAM_GESTURE_END, CLAP_EVENT_PARAM_VALUE,
+    CLAP_NOTE_EXPRESSION_PAN, CLAP_NOTE_EXPRESSION_TUNING, CLAP_TRANSPORT_HAS_BEATS_TIMELINE,
     CLAP_TRANSPORT_HAS_TEMPO, CLAP_TRANSPORT_IS_PLAYING, clap_event_header, clap_event_midi,
-    clap_event_note, clap_event_param_gesture, clap_event_param_value, clap_input_events,
-    clap_output_events,
+    clap_event_note, clap_event_note_expression, clap_event_param_gesture, clap_event_param_value,
+    clap_input_events, clap_output_events,
 };
 use clap_sys::fixedpoint::CLAP_BEATTIME_FACTOR;
 use clap_sys::host::clap_host;
@@ -61,6 +62,7 @@ struct Voice {
     phase: f64,
     step: f64,
     amplitude: f64,
+    pan: f64,
 }
 
 const SILENT_VOICE: Voice = Voice {
@@ -71,6 +73,7 @@ const SILENT_VOICE: Voice = Voice {
     phase: 0.0,
     step: 0.0,
     amplitude: 0.0,
+    pan: 0.5,
 };
 
 /// What only the audio thread touches.
@@ -831,6 +834,7 @@ fn start_voice(audio: &mut Audio, key: i16, channel: i16, note_id: i32, velocity
         phase: 0.0,
         step: std::f64::consts::TAU * frequency / audio.sample_rate,
         amplitude: velocity,
+        pan: 0.5,
     };
 }
 
@@ -896,7 +900,41 @@ unsafe fn process_sine(
                     // SAFETY: the type says which struct the header begins.
                     let note = unsafe { &*(event as *const clap_event_note) };
                     // SAFETY: the output list is the host's.
-                    unsafe { end_voices(audio, note.key, head.time, block.out_events) };
+                    for voice in &mut audio.voices {
+                        if voice.active
+                            && (note.key < 0 || voice.key == note.key)
+                            && (note.channel < 0 || voice.channel == note.channel)
+                            && (note.note_id < 0 || voice.note_id == note.note_id)
+                        {
+                            voice.active = false;
+                        }
+                    }
+                }
+                CLAP_EVENT_NOTE_EXPRESSION if !midi_only => {
+                    // SAFETY: the core event type identifies this payload.
+                    let expression = unsafe { &*(event as *const clap_event_note_expression) };
+                    for voice in &mut audio.voices {
+                        if voice.active
+                            && voice.note_id == expression.note_id
+                            && voice.key == expression.key
+                            && voice.channel == expression.channel
+                        {
+                            match expression.expression_id {
+                                CLAP_NOTE_EXPRESSION_PAN => {
+                                    voice.pan = expression.value.clamp(0.0, 1.0)
+                                }
+                                CLAP_NOTE_EXPRESSION_TUNING => {
+                                    let frequency = 440.0
+                                        * 2.0_f64.powf(
+                                            (f64::from(voice.key) - 69.0 + expression.value) / 12.0,
+                                        );
+                                    voice.step =
+                                        std::f64::consts::TAU * frequency / audio.sample_rate;
+                                }
+                                _ => {}
+                            }
+                        }
+                    }
                 }
                 CLAP_EVENT_MIDI if midi_only => {
                     // SAFETY: the type says which struct the header begins.
@@ -926,10 +964,12 @@ unsafe fn process_sine(
         }
 
         let level = plugin.value(slot::LEVEL);
-        let mut sample = 0.0_f64;
+        let mut sample = [0.0_f64; 2];
         let mut sounding = false;
         for voice in audio.voices.iter_mut().filter(|voice| voice.active) {
-            sample += voice.phase.sin() * voice.amplitude * level;
+            let value = voice.phase.sin() * voice.amplitude * level;
+            sample[0] += value * (1.0 - voice.pan) * 2.0;
+            sample[1] += value * voice.pan * 2.0;
             voice.phase += voice.step;
             sounding = true;
         }
@@ -938,15 +978,15 @@ unsafe fn process_sine(
         } else {
             audio.ringing = audio.ringing.saturating_sub(1);
         }
-        let sample = sample as f32;
+        let sample = sample.map(|value| value as f32);
         let at = frame as usize;
         // SAFETY: both channels hold `frames_count` samples.
         unsafe {
             *out_left.add(at) = audio.delay[0][audio.delay_at];
             *out_right.add(at) = audio.delay[1][audio.delay_at];
         }
-        audio.delay[0][audio.delay_at] = sample;
-        audio.delay[1][audio.delay_at] = sample;
+        audio.delay[0][audio.delay_at] = sample[0];
+        audio.delay[1][audio.delay_at] = sample[1];
         audio.delay_at = (audio.delay_at + 1) % SINE_LATENCY;
     }
 

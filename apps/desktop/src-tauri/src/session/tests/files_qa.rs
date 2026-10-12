@@ -202,6 +202,7 @@ fn plugin_presets_keep_a_missing_plugins_state_and_the_library_lists_them() {
                     plugin: PluginBinding {
                         sidechain_input: None,
                         auxiliary_inputs: Vec::new(),
+                        wrapper: Default::default(),
                         target: PluginTarget::Instrument {
                             channel: windfall_project::ChannelId(0),
                         },
