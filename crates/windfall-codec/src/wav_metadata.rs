@@ -21,6 +21,13 @@ pub struct WavMetadata {
     pub tempo: Option<WavTempo>,
     /// MIDI unity note for smpl. None writes the conventional C4 (60).
     pub root_key: Option<u8>,
+    /// RIFF adtl notes, keyed by cue ID. Multiple notes may describe one cue.
+    pub notes: Vec<WavNote>,
+}
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct WavNote {
+    pub cue_id: u32,
+    pub text: String,
 }
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct WavCue {
@@ -86,6 +93,7 @@ impl WavMetadata {
         if self.cues.len() > MAX_WAV_MARKERS
             || self.loops.len() > MAX_WAV_MARKERS
             || self.slices.len() > MAX_WAV_MARKERS
+            || self.notes.len() > MAX_WAV_MARKERS
         {
             return Err(bad("too many entries"));
         }
@@ -103,6 +111,14 @@ impl WavMetadata {
         }
         if self.root_key.is_some_and(|key| key > 127) {
             return Err(bad("invalid root key"));
+        }
+        for note in &self.notes {
+            if !ids.contains_key(&note.cue_id)
+                || note.text.len() > MAX_LABEL_BYTES
+                || note.text.contains('\0')
+            {
+                return Err(bad("note refers to missing cue, exceeds text budget or contains NUL"));
+            }
         }
         let mut loops = BTreeSet::new();
         for l in &self.loops {
@@ -171,6 +187,13 @@ impl WavMetadata {
                 region.extend_from_slice(b"rgn ");
                 region.extend_from_slice(&[0; 8]);
                 chunk(&mut adtl, b"ltxt", &region);
+            }
+            for note in &self.notes {
+                let mut body = Vec::new();
+                word(&mut body, note.cue_id);
+                body.extend_from_slice(note.text.as_bytes());
+                body.push(0);
+                chunk(&mut adtl, b"note", &body);
             }
             chunk(&mut out, b"cue ", &cues);
             if adtl.len() > 4 {
@@ -422,7 +445,7 @@ fn read<R: Read + Seek>(reader: &mut R) -> Result<WavMetadata, CodecError> {
                             }
                             let data = &b[pos + 8..stop];
                             match &b[pos..pos + 4] {
-                                b"labl" => {
+                                b"labl" | b"note" => {
                                     if !(5..=MAX_LABEL_BYTES + 5).contains(&n) || data[n - 1] != 0 {
                                         return Err(corrupt("invalid label"));
                                     }
@@ -432,7 +455,18 @@ fn read<R: Read + Seek>(reader: &mut R) -> Result<WavMetadata, CodecError> {
                                                 "non-UTF8 cue label".into(),
                                             )
                                         })?;
-                                    if labels.insert(u32le(data, 0), label.to_owned()).is_some()
+                                    if label.contains('\0') {
+                                        return Err(corrupt("NUL inside adtl text"));
+                                    }
+                                    if &b[pos..pos + 4] == b"note" {
+                                        if result.notes.len() >= MAX_WAV_MARKERS {
+                                            return Err(corrupt("too many notes"));
+                                        }
+                                        result.notes.push(WavNote {
+                                            cue_id: u32le(data, 0),
+                                            text: label.to_owned(),
+                                        });
+                                    } else if labels.insert(u32le(data, 0), label.to_owned()).is_some()
                                         || labels.len() > MAX_WAV_MARKERS
                                     {
                                         return Err(corrupt("duplicate or excess labels"));

@@ -24,7 +24,7 @@ mod wav;
 mod wav_metadata;
 pub use wav_metadata::{
     MAX_WAV_MARKERS, MAX_WAV_METADATA_BYTES, WavCue, WavLoop, WavLoopKind, WavMetadata, WavSlice,
-    WavTempo, read_wav_metadata, read_wav_metadata_file,
+    WavNote, WavTempo, read_wav_metadata, read_wav_metadata_file,
 };
 
 pub use decode::{

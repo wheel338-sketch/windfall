@@ -523,7 +523,7 @@ fn pattern_wav_note_cues_follow_swing_shift_repeats_and_saved_notes() {
     assert_eq!(rig.session.document_snapshot(), before);
 }
 #[test]
-fn song_wav_navigation_refusal_preserves_destination_and_a_region_before_navigation_exports() {
+fn song_wav_navigation_notes_preserve_actions_and_linear_pcm_positions_in_full_and_region_exports() {
     use windfall_project::{MarkerKind, TickRange};
     let rig = Rig::new();
     let input = rig.file("navigation-source.wav");
@@ -558,17 +558,16 @@ fn song_wav_navigation_refusal_preserves_destination_and_a_region_before_navigat
     export.mode = PlayMode::Song;
     std::fs::write(&export.path, b"existing destination").unwrap();
     rig.session.export_audio(export.clone()).unwrap();
-    assert!(
-        rig.events
-            .wait_for_export()
-            .error
-            .unwrap()
-            .contains("skip or pause")
-    );
-    assert_eq!(
-        std::fs::read(&export.path).unwrap(),
-        b"existing destination"
-    );
+    assert_eq!(rig.events.wait_for_export().error, None);
+    let audio = windfall_codec::decode_file(&export.path).unwrap();
+    assert_eq!(audio.frames(), 48000);
+    assert!(rms(&audio.samples()[72000..80000]) > 0.1);
+    let metadata = windfall_codec::read_wav_metadata_file(&export.path).unwrap();
+    assert_eq!(metadata.cues[0].frame, 24000);
+    assert!(metadata.notes.iter().any(|n| n.text == "WindfallNavigation/1 skip 36000"));
+    let bytes = std::fs::read(&export.path).unwrap();
+    assert!(bytes.windows(b"WindfallNavigation/1 skip 36000\0".len())
+        .any(|n| n == b"WindfallNavigation/1 skip 36000\0"));
     assert_eq!(rig.session.document_snapshot(), before);
     let guard = rig.session.timeline_state();
     export.path = rig.file("before-navigation.wav");
@@ -582,11 +581,10 @@ fn song_wav_navigation_refusal_preserves_destination_and_a_region_before_navigat
         windfall_codec::decode_file(&export.path).unwrap().frames(),
         12000
     );
-    assert!(
-        windfall_codec::read_wav_metadata_file(&export.path)
-            .unwrap()
-            .cues
-            .is_empty()
-    );
+    let metadata = windfall_codec::read_wav_metadata_file(&export.path).unwrap();
+    assert_eq!(metadata.cues[0].frame, 0);
+    assert_eq!(metadata.tempo.unwrap().beats, 0);
+    assert!(metadata.notes.iter().any(|n| n.text == "WindfallBeats/1 120 0.5"));
+    assert!(!metadata.notes.iter().any(|n| n.text.starts_with("WindfallNavigation/")));
     assert_eq!(rig.session.document_snapshot(), before);
 }

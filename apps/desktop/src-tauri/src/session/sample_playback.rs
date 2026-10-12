@@ -75,6 +75,10 @@ impl Session {
         let mut asset = settings;
         asset.legacy_key_wrap = false;
         asset.slices = detected.slices;
+        if metadata.is_some() {
+            // Both cue-frame decks use the self-contained interchange source.
+            asset.sample_b = asset.slices.iter().any(|s| s.deck == 1).then_some(sample);
+        }
         asset.source_beats = detected.source_beats;
         asset.source_bpm = detected.source_bpm;
         let command = Command::SetSamplePlayback {
@@ -148,7 +152,7 @@ impl Session {
         Ok(result)
     }
 
-    /// Exports source A positions. Per-slice sound edits remain in the project.
+    /// Exports both sources, authored regions and slice attributes off-lock.
     pub fn sample_playback_export(
         &self,
         channel: ChannelId,
@@ -163,7 +167,7 @@ impl Session {
         {
             return Err("Slice metadata export requires a .wav filename.".into());
         }
-        let (asset, audio) = {
+        let (asset, audio, audio_b) = {
             let _recording = self.recording_idle()?;
             let state = self.state();
             if state.generation != generation || state.document.revision() != revision {
@@ -180,9 +184,10 @@ impl Session {
                 .and_then(|id| state.pool.get(id))
                 .cloned()
                 .ok_or("Source A is not loaded. Reload samples first.")?;
-            (asset, audio)
+            let audio_b = asset.sample_b.and_then(|id| state.pool.get(id)).cloned();
+            (asset, audio, audio_b)
         };
-        let metadata = wav_metadata::write(&asset, &audio)?;
+        let (audio, metadata) = wav_metadata::sources(&asset, &audio, audio_b.as_ref())?;
         let mut writer = windfall_codec::WavWriter::create_with_metadata(
             &path,
             audio.sample_rate(),
