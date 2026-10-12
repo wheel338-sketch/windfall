@@ -45,6 +45,8 @@ pub struct Processor {
     sample_rate: u32,
     #[cfg(feature = "plugin-export")]
     plugin_tempo: Option<f64>,
+    #[cfg(feature = "plugin-export")]
+    plugin_meter: Option<windfall_project::TimeSignature>,
     /// Frames processed so far. It is the engine's clock.
     frame: u64,
     plan: Arc<Plan>,
@@ -135,6 +137,8 @@ impl Processor {
             sample_rate,
             #[cfg(feature = "plugin-export")]
             plugin_tempo: None,
+            #[cfg(feature = "plugin-export")]
+            plugin_meter: None,
             frame: 0,
             state,
             sequencer: Sequencer::new(sample_rate, &plan),
@@ -1484,6 +1488,8 @@ impl Processor {
             [..meters.partition_point(|segment| f64::from(segment.start_tick()) <= tick)]
             .last();
         let signature = segment.map_or(base_signature, |segment| segment.signature());
+        #[cfg(feature = "plugin-export")]
+        let signature = self.plugin_meter.unwrap_or(signature);
         let transport = crate::plugins::PluginTransport {
             playing: self.sequencer.playing(),
             tempo_bpm: self.state.tempo(),

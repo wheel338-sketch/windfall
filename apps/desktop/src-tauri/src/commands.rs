@@ -963,6 +963,11 @@ async fn export_audio(session: State<'_, Session>, options: ExportOptions) -> Re
     let session = session.inner().clone();
     blocking(move || session.export_audio(options)).await
 }
+#[tauri::command]
+async fn export_plugin_bundle(session: State<'_, Session>, destination: String, runtime: String) -> Result<(), String> {
+    let session = session.inner().clone();
+    blocking(move || session.export_plugin_bundle(&destination, &runtime)).await
+}
 
 #[tauri::command]
 async fn bounce_selected_clips(
@@ -1130,7 +1135,9 @@ async fn plugin_editor(
         .get_webview_window("main")
         .and_then(|window| window.hwnd().ok())
         .map(|handle| handle.0 as usize);
-    #[cfg(not(windows))]
+    #[cfg(target_os = "macos")]
+    let parent = app.get_webview_window("main").and_then(|window| window.ns_window().ok()).map(|window| window as usize);
+    #[cfg(not(any(windows, target_os = "macos")))]
     let parent = {
         let _ = app;
         None
@@ -1373,6 +1380,7 @@ pub fn handler() -> impl Fn(Invoke) -> bool + Send + Sync + 'static {
         sampler_preprocess_preview,
         collect_derived_assets,
         export_audio,
+        export_plugin_bundle,
         export_cancel,
         midi_preview,
         import_midi,

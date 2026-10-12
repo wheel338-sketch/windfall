@@ -76,6 +76,19 @@ impl Processor {
         }
         true
     }
+    pub fn set_plugin_meter(&mut self, numerator: u16, denominator: u16) -> bool {
+        if numerator == 0 && denominator == 0 { return true; } // host has no meter
+        if numerator == 0 || numerator > 32 || denominator == 0
+            || denominator > 32 || !denominator.is_power_of_two() { return false; }
+        self.plugin_meter = Some(windfall_project::TimeSignature {
+            numerator: numerator as u8, denominator: denominator as u8,
+        });
+        true
+    }
+    pub fn plugin_meter(&self) -> (u16, u16) {
+        let meter = self.plugin_meter.unwrap_or(self.plan.signature);
+        (u16::from(meter.numerator), u16::from(meter.denominator))
+    }
 
     /// Read the bounded interleaved external-output block after process. Each
     /// process call must be at most plugin_block_frames() frames.
@@ -107,13 +120,29 @@ impl Processor {
         }
     }
 
-    /// Audio-thread reset/stop: silence admitted voices using existing fades.
-    /// Native resources are retained for disposal on deactivation.
+    /// Hard reset: no tail, release fade or compensation history survives.
+    /// Samples remain retained by their slots/plan; nothing is freed here.
     pub fn reset_plugin(&mut self) {
         self.handle(Message::Stop {
             sequence: self.transport_sequence.wrapping_add(1),
         });
         self.handle(Message::Seek(0.0));
+        self.voices.reset_plugin();
+        self.clips.reset_plugin();
+        for channel in &mut self.state.channel_voice { channel.reset(); }
+        for unit in self.state.instrument_units() { unit.reset_plugin(); }
+        for unit in self.state.chains.iter_mut().flatten().flatten() { unit.reset_plugin(); }
+        for track in &mut self.state.track_processing { track.reset(); }
+        for delay in self.state.direct.iter_mut()
+            .chain(self.state.external.iter_mut())
+            .chain(self.state.edge_delays.iter_mut())
+            .chain(self.state.key_delays.iter_mut().flatten())
+            .chain([&mut self.state.printed, &mut self.state.master_output]) {
+            if let Some(line) = &mut delay.line { line.reset_plugin(); }
+        }
+        self.metronome = crate::metronome::Metronome::new();
+        self.count_in = None;
+        self.mixer.clear(self.plan.tracks.len(), crate::mixer::MAX_BLOCK);
     }
 
     pub fn plugin_position(&self) -> f64 {

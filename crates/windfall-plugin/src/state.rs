@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use windfall_core::AudioBuffer;
 use windfall_engine::SamplePool;
-use windfall_project::{AutomationTarget, Project, SampleId};
+use windfall_project::{Project, SampleId};
 
 pub const MAX_STATE_BYTES: usize = 64 * 1024 * 1024;
 const MAX_SAMPLES: usize = 4096;
@@ -46,22 +46,6 @@ impl Program {
         if !self.project.plugins.is_empty() {
             return Err(
                 "Nested native plugins need an export-owned provider; not supported yet".into(),
-            );
-        }
-        if self
-            .project
-            .automations
-            .iter()
-            .any(|lane| lane.target == AutomationTarget::Tempo)
-        {
-            return Err(
-                "Internal tempo automation requires host-clock arbitration; not supported yet"
-                    .into(),
-            );
-        }
-        if !self.project.playlist.timeline.markers.is_empty() {
-            return Err(
-                "Song navigation markers require host-clock arbitration; not supported yet".into(),
             );
         }
         for track in &self.project.mixer.tracks {

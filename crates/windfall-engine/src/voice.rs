@@ -899,6 +899,10 @@ pub(crate) struct VoicePool {
 }
 
 impl VoicePool {
+    #[cfg(feature = "plugin-export")]
+    pub fn reset_plugin(&mut self) {
+        for voice in &mut self.voices { voice.active = false; }
+    }
     pub fn new(sample_rate: u32) -> Self {
         let sample_rate = f64::from(sample_rate);
         Self {

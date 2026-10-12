@@ -67,6 +67,7 @@
 mod analysis_jobs;
 mod analyzers;
 mod archive;
+mod plugin_export;
 mod assistant_connection;
 mod audio;
 mod audio_editor;

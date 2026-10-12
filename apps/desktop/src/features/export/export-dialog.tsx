@@ -48,6 +48,7 @@ import {
   type MasteringDraft,
 } from "./mastering"
 import { useMixerRender } from "./mixer-render"
+import { PluginExportControls } from "./plugin-export-controls"
 
 import {
   cleanExportPath,
@@ -509,6 +510,7 @@ export function ExportDialog() {
           </DialogDescription>
         </DialogHeader>
         <ExportForm onDone={closeDialog} />
+        <PluginExportControls />
       </DialogContent>
     </Dialog>
   )

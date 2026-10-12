@@ -4,6 +4,10 @@
 
 mod clap;
 mod state;
+mod publication;
+mod vst3;
+mod panel;
+pub mod package;
 
 pub use clap::clap_entry;
 pub use state::{EmbeddedSample, MAX_STATE_BYTES, Program};
@@ -14,8 +18,8 @@ pub const OUTPUT_PORTS: usize = 16;
 pub const OUTPUT_CHANNELS: usize = OUTPUT_PORTS * 2;
 pub const MAX_HOST_FRAMES: u32 = 8192;
 
-/// Prepared on activation and dropped on the host's main thread. There is no
-/// live document publisher yet: active state loads are explicitly refused.
+/// Prepared on the host's main thread. Publication moves complete engines at
+/// callback boundaries and returns retired engines to main-thread collection.
 pub struct GuestEngine {
     processor: Processor,
     // Retains the queues and owns any retired values. Never called by process.
@@ -34,8 +38,13 @@ impl GuestEngine {
         }
         program.validate()?;
         let samples = program.sample_pool();
+        // Host clock wins. Retain the original document in state, but remove
+        // internal clock/navigation drivers from the detached playback plan.
+        let mut playback = program.project.clone();
+        playback.automations.retain(|lane| lane.target != windfall_project::AutomationTarget::Tempo);
+        playback.playlist.timeline.markers.clear();
         let (processor, controller) = Processor::prepare_plugin(
-            &program.project,
+            &playback,
             &samples,
             sample_rate as u32,
             OUTPUT_CHANNELS,
@@ -62,6 +71,10 @@ impl GuestEngine {
     pub fn sync_transport(&mut self, beats: f64, tempo: f64, playing: bool) -> bool {
         self.processor.sync_plugin_transport(beats, tempo, playing)
     }
+    pub fn sync_meter(&mut self, numerator: u16, denominator: u16) -> bool {
+        self.processor.set_plugin_meter(numerator, denominator)
+    }
+    pub fn meter(&self) -> (u16, u16) { self.processor.plugin_meter() }
     pub fn midi(&mut self, channel: u8, key: u8, velocity: u8) {
         self.processor.plugin_midi(channel, key, velocity);
     }
