@@ -417,6 +417,7 @@ export const AUDIO_EXTENSIONS = [
   "mp3",
   "ogg",
   "oga",
+  "ds",
 ]
 
 function rejectionText(error: unknown): string {

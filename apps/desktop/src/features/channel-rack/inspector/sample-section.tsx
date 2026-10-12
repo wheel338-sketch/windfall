@@ -6,6 +6,7 @@ import type { SampleId } from "@/bindings"
 import { ActionButton } from "@/components/action-button"
 import { formatMs, Waveform } from "@/components/audio"
 import { Button } from "@/components/ui/button"
+import { Alert, AlertDescription } from "@/components/ui/alert"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -194,6 +195,7 @@ export function SampleSection({ channel }: { channel: SamplerChannel }) {
 
   return (
     <Section title="Sample" aside={<ChooseSample channel={channel} />}>
+      {info?.sourceWarnings?.map((warning) => <Alert key={warning}><AlertDescription>{warning}</AlertDescription></Alert>)}
       <div
         data-slot="sample-drop"
         data-over={over ? "" : undefined}
