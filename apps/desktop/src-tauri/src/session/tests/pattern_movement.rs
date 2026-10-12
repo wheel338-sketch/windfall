@@ -39,7 +39,8 @@ fn pattern_mode_movements_write_events_once_and_preserve_history_file_and_outsid
         channel: rig.channel(0),
     };
     let before = rig.session.document_snapshot().history.cursor;
-    let initial_volume = rig.project().channel(rig.channel(0)).unwrap().volume;
+    // Event values use normalized fader units: gain = 2 * unit².
+    let initial_volume = (rig.project().channel(rig.channel(0)).unwrap().volume / 2.0).sqrt();
     begin(&mut rig);
     move_volume(&mut rig, 0.25);
     move_volume(&mut rig, 0.75);
@@ -67,7 +68,7 @@ fn pattern_mode_movements_write_events_once_and_preserve_history_file_and_outsid
         .find(|pair| pair[0].tick == pair[1].tick)
         .unwrap();
     assert_eq!(seam[0].value, initial_volume);
-    assert_eq!(seam[1].value, 0.25);
+    assert_eq!(seam[1].value, (0.25_f32 / 2.0).sqrt());
     assert!(
         lane.points
             .iter()
