@@ -1599,10 +1599,18 @@ impl Audio {
         }
         if let Adapter::Instrument(instrument) = adapter {
             for (bytes, dirty) in midi_controls.iter_mut() {
-                if *reset_notes && bytes.is_some() { *dirty = true; }
+                if *reset_notes && bytes.is_some() {
+                    *dirty = true;
+                }
                 if *dirty && let Some(bytes) = bytes {
-                    let len = if matches!(bytes[0] & 0xf0, 0xc0 | 0xd0) { 2 } else { 3 };
-                    if instrument.midi_message(&bytes[..len]) { *dirty = false; }
+                    let len = if matches!(bytes[0] & 0xf0, 0xc0 | 0xd0) {
+                        2
+                    } else {
+                        3
+                    };
+                    if instrument.midi_message(&bytes[..len]) {
+                        *dirty = false;
+                    }
                 }
             }
         }
@@ -1871,17 +1879,35 @@ pub(crate) mod ownership_tests;
 mod sidechain_bus_tests;
 impl HostedInstrument for Audio {
     fn midi_message(&mut self, bytes: &[u8]) -> bool {
-        if bytes.is_empty() || bytes.len() > 3 || bytes[1..].iter().any(|byte| *byte > 127) { return false; }
+        if bytes.is_empty() || bytes.len() > 3 || bytes[1..].iter().any(|byte| *byte > 127) {
+            return false;
+        }
         let kind = bytes[0] & 0xf0;
         let channel = bytes[0] & 15;
-        if bytes.len() == 3 && kind == 0x90 && bytes[2] != 0 { self.start_on_channel(bytes[1], channel, f32::from(bytes[2]) / 127.0); return true; }
-        if bytes.len() == 3 && (kind == 0x80 || kind == 0x90) { self.end_on_channel(bytes[1], channel); return true; }
-        let index = match kind { 0xb0 if bytes.len() == 3 => usize::from(bytes[1]), 0xd0 if bytes.len() == 2 => 128, 0xe0 if bytes.len() == 3 => 129, 0xc0 if bytes.len() == 2 => 130, _ => return false };
-        let mut stored = [0; 3]; stored[..bytes.len()].copy_from_slice(bytes);
+        if bytes.len() == 3 && kind == 0x90 && bytes[2] != 0 {
+            self.start_on_channel(bytes[1], channel, f32::from(bytes[2]) / 127.0);
+            return true;
+        }
+        if bytes.len() == 3 && (kind == 0x80 || kind == 0x90) {
+            self.end_on_channel(bytes[1], channel);
+            return true;
+        }
+        let index = match kind {
+            0xb0 if bytes.len() == 3 => usize::from(bytes[1]),
+            0xd0 if bytes.len() == 2 => 128,
+            0xe0 if bytes.len() == 3 => 129,
+            0xc0 if bytes.len() == 2 => 130,
+            _ => return false,
+        };
+        let mut stored = [0; 3];
+        stored[..bytes.len()].copy_from_slice(bytes);
         let slot = usize::from(channel) * 131 + index;
         self.midi_controls[slot] = (Some(stored), true);
         if let Some(Adapter::Instrument(adapter)) = self.adapter_mut() {
-            if adapter.midi_message(bytes) { self.midi_controls[slot].1 = false; return true; }
+            if adapter.midi_message(bytes) {
+                self.midi_controls[slot].1 = false;
+                return true;
+            }
             return false;
         }
         true // retained until ownership returns, just like pending parameters

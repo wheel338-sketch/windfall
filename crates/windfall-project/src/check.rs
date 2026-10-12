@@ -46,9 +46,15 @@ impl Project {
             ));
         }
         check_settings(self)?;
-        if let Some(problem) = crate::internal_controllers::settings_problem(self, &self.settings.internal_controllers) { return Err(problem); }
+        if let Some(problem) =
+            crate::internal_controllers::settings_problem(self, &self.settings.internal_controllers)
+        {
+            return Err(problem);
+        }
         crate::rack::check_project(self)?;
         self.notebook.check().map_err(|error| error.to_string())?;
+        self.settings.scripts.check()?;
+        self.settings.scripts.check_notes(self)?;
         if let Some(problem) =
             crate::controller_links::links_problem(&self.settings.controller_links, Some(self))
         {
@@ -547,11 +553,19 @@ fn check_channel(project: &Project, channel: &Channel) -> Result<(), String> {
                 ));
             }
             if let windfall_dsp::InstrumentParams::MidiOut(params) = params {
-                if !(0..=7).contains(&params.output_port) || params.plugin_destination < -1 { return Err(format!("{owner} has an invalid MIDI destination")); }
+                if !(0..=7).contains(&params.output_port) || params.plugin_destination < -1 {
+                    return Err(format!("{owner} has an invalid MIDI destination"));
+                }
                 if params.plugin_destination > 0 {
                     let target = ChannelId(params.plugin_destination as u32);
-                    if target == channel.id || !project.plugins.iter().any(|binding| binding.target == crate::PluginTarget::Instrument { channel: target }) {
-                        return Err(format!("{owner} MIDI destination must be another hosted instrument"));
+                    if target == channel.id
+                        || !project.plugins.iter().any(|binding| {
+                            binding.target == crate::PluginTarget::Instrument { channel: target }
+                        })
+                    {
+                        return Err(format!(
+                            "{owner} MIDI destination must be another hosted instrument"
+                        ));
                     }
                 }
             }

@@ -286,7 +286,12 @@ impl Project {
                 (AutomationRange::MIX, effect(track, id)?.mix)
             }
             AutomationTarget::InstrumentParam { channel, param } => {
-                if let Some(rack) = self.settings.modular_racks.iter().find(|rack| rack.channel == channel) {
+                if let Some(rack) = self
+                    .settings
+                    .modular_racks
+                    .iter()
+                    .find(|rack| rack.channel == channel)
+                {
                     return Some((AutomationRange::MIX, rack.graph.control(param as usize)?));
                 }
                 if let Some(plugin) = self.plugin(crate::PluginTarget::Instrument { channel }) {

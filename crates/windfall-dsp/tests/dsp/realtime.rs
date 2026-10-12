@@ -252,10 +252,15 @@ fn random_effect_params(kind: EffectKind, rng: &mut Rng) -> EffectParams {
         EffectKind::MasterLimiter => EffectParams::MasterLimiter(random_params::<
             windfall_dsp::mastering::MasterLimiterParams,
         >(rng)),
-        EffectKind::FormulaSource => EffectParams::FormulaSource(random_params::<windfall_dsp::control::FormulaSourceParams>(rng)),
-        EffectKind::KeyboardSource => EffectParams::KeyboardSource(random_params::<windfall_dsp::control::KeyboardSourceParams>(rng)),
-        EffectKind::VoltageSource => EffectParams::VoltageSource(random_params::<windfall_dsp::control::VoltageSourceParams>(rng)),
-
+        EffectKind::FormulaSource => EffectParams::FormulaSource(random_params::<
+            windfall_dsp::control::FormulaSourceParams,
+        >(rng)),
+        EffectKind::KeyboardSource => EffectParams::KeyboardSource(random_params::<
+            windfall_dsp::control::KeyboardSourceParams,
+        >(rng)),
+        EffectKind::VoltageSource => EffectParams::VoltageSource(random_params::<
+            windfall_dsp::control::VoltageSourceParams,
+        >(rng)),
     }
 }
 

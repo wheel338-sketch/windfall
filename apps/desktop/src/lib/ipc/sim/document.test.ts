@@ -931,6 +931,10 @@ const EVERY_COMMAND: { [Type in Command["type"]]: (ids: Ids) => Command } = {
     ],
   }),
   setChannelRack: (ids) => ({ type: "setChannelRack", id: ids.synth, graph: null }),
+  setScriptLibrary: () => ({
+    type: "setScriptLibrary",
+    library: { assets: [{ reference: { id: "piano-fixture", revision: 1 }, languageVersion: 1, kind: "piano", name: "Fixture", source: "emit" }], channels: [], controllers: [] },
+  }),
 }
 
 /** A project as the document reports it, apart from the id counter. */

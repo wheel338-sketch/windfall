@@ -43,6 +43,7 @@ mod recording;
 mod recording_completion_qa;
 mod sampler_preprocess;
 mod sampler_processing;
+mod scripting;
 #[cfg(windows)]
 mod sidechain_buses;
 mod slicer;

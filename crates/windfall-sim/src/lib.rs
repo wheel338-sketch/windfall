@@ -217,6 +217,64 @@ pub mod ops {
         })?
     }
 
+    pub fn doc_assistant(handle: u32, input: &str) -> Reply {
+        use windfall_project::assistant::{
+            AssistantContext, AssistantProvider, LOCAL_HELP, LocalRuleProvider,
+        };
+        #[derive(Deserialize)]
+        struct Request {
+            generation: u64,
+            prompt: String,
+        }
+        let request: Request = parse("assistant request", input)?;
+        with_document(handle, |document| {
+            let stamp = windfall_project::proposal::ProposalStamp {
+                generation: request.generation,
+                revision: document.revision(),
+            };
+            let reply = LocalRuleProvider.respond(
+                &request.prompt,
+                AssistantContext {
+                    project: document.project(),
+                    stamp,
+                    help: LOCAL_HELP,
+                },
+            )?;
+            if let Some(proposal) = &reply.proposal {
+                proposal.validate(document, stamp, false)?;
+            }
+            json(&reply)
+        })?
+    }
+
+    pub fn doc_proposal_apply(handle: u32, input: &str) -> Reply {
+        #[derive(Deserialize)]
+        struct Request {
+            generation: u64,
+            recording: bool,
+            proposal: windfall_project::proposal::CommandProposal,
+        }
+        let request: Request = parse("proposal", input)?;
+        with_document(handle, |document| {
+            let stamp = windfall_project::proposal::ProposalStamp {
+                generation: request.generation,
+                revision: document.revision(),
+            };
+            let applied = request.proposal.apply(document, stamp, request.recording)?;
+            json(&DispatchResult {
+                created: applied.created,
+                patch: document.patch(&applied.touched),
+            })
+        })?
+    }
+
+    pub fn script_parameters(_handle: u32, input: &str) -> Reply {
+        let source: String = parse("script source", input)?;
+        let program =
+            windfall_project::scripting::Program::compile(&source).map_err(|e| e.to_string())?;
+        json(&program.parameters)
+    }
+
     /// Undoes the last edit. Result: its `ProjectPatch`, or `null` when
     /// there was nothing to undo.
     pub fn doc_undo(handle: u32, _input: &str) -> Reply {
@@ -415,6 +473,9 @@ export_ops! {
     doc_from_file_json
     doc_free
     doc_dispatch
+    doc_assistant
+    doc_proposal_apply
+    script_parameters
     doc_undo
     doc_redo
     doc_jump

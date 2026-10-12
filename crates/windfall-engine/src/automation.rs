@@ -828,7 +828,14 @@ fn let_go(plan: &Plan, state: &mut PlanState, index: usize, look: Look) -> bool 
 /// Sets a target on its way to `value`, to be there `frames` frames after
 /// `now`, or at once when that is none. A channel or track that mute or
 /// solo silences stays silent.
-pub(crate) fn set(plan: &Plan, state: &mut PlanState, target: Target, value: f32, now: u64, frames: u64) {
+pub(crate) fn set(
+    plan: &Plan,
+    state: &mut PlanState,
+    target: Target,
+    value: f32,
+    now: u64,
+    frames: u64,
+) {
     let aim = |ramp: &mut Ramp, value: f32| {
         if frames == 0 {
             *ramp = Ramp::at_rest(value);
@@ -915,7 +922,9 @@ fn stored(plan: &Plan, target: Target) -> Option<f32> {
         }
         Target::EffectMix(id) => Some(effect(id)?.mix),
         Target::InstrumentParam { channel, param } => {
-            if let Some(rack) = &plan.channels[channel].rack { return rack.control(param); }
+            if let Some(rack) = &plan.channels[channel].rack {
+                return rack.control(param);
+            }
             if let Some(binding) = plan.plugins.iter().find(|binding| {
                 binding.target
                     == windfall_project::PluginTarget::Instrument {

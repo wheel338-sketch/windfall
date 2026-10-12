@@ -849,7 +849,9 @@ pub enum Command {
     },
 
     /// Replaces variable-size internal source configuration in one undo step.
-    SetInternalControllerSettings { settings: Vec<crate::InternalControllerSettings> },
+    SetInternalControllerSettings {
+        settings: Vec<crate::InternalControllerSettings>,
+    },
     /// Atomic checked rack replacement. None removes the rack. Graph-local
     /// node IDs are stable through history; old macro automation is pruned.
     SetChannelRack {
@@ -859,6 +861,11 @@ pub enum Command {
         #[serde(default)]
         #[ts(optional)]
         expected: Option<crate::RackGraph>,
+    },
+    /// Replaces saved script revisions/assignments atomically. Existing revision
+    /// identities are immutable; edit a script by storing a new revision.
+    SetScriptLibrary {
+        library: crate::scripting::ScriptLibrary,
     },
 }
 

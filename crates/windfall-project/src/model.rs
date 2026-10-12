@@ -253,6 +253,7 @@ impl Project {
                 controller_links: Vec::new(),
                 internal_controllers: Vec::new(),
                 modular_racks: Vec::new(),
+                scripts: crate::scripting::ScriptLibrary::default(),
             },
             samples: Vec::new(),
             notebook: crate::Notebook::default(),
@@ -373,6 +374,14 @@ pub struct ProjectSettings {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     #[ts(as = "Option<Vec<crate::ChannelRack>>", optional)]
     pub modular_racks: Vec<crate::ChannelRack>,
+    /// Saved script revisions and explicit note/controller assignments. Missing
+    /// targets suspend an assignment (retained for undo), never reuse its ID.
+    #[serde(
+        default,
+        skip_serializing_if = "crate::scripting::ScriptLibrary::is_empty"
+    )]
+    #[ts(as = "Option<crate::scripting::ScriptLibrary>", optional)]
+    pub scripts: crate::scripting::ScriptLibrary,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]

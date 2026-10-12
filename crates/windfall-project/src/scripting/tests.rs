@@ -1,0 +1,523 @@
+use super::*;
+use crate::proposal::{CommandProposal, ProposalStamp};
+use crate::{Command, Document, Project, SettingsPatch};
+
+#[test]
+fn interpreter_postfix_parameters_selected_and_generation_fixtures() {
+    let program = Program::compile(
+        "param transpose -24 24 12\nselected\nset key key transpose + 0 127 clamp\nemit\nend",
+    )
+    .unwrap();
+    let input = [
+        ScriptNote {
+            key: 60,
+            start: 240,
+            ..Default::default()
+        },
+        ScriptNote {
+            key: 126,
+            ..Default::default()
+        },
+    ];
+    let run = || {
+        program
+            .run(
+                ScriptInput {
+                    selected: &input,
+                    ..Default::default()
+                },
+                RunLimits::default(),
+                || false,
+            )
+            .unwrap()
+    };
+    let result = run();
+    assert_eq!(result, run());
+    assert_eq!(
+        result.notes.iter().map(|n| n.key).collect::<Vec<_>>(),
+        vec![72, 127]
+    );
+    assert_eq!(result.notes[0].start, 240);
+    let generation =
+        Program::compile("repeat 4\nset start index 240 *\nset key 60 index +\nemit\nend")
+            .unwrap()
+            .run(ScriptInput::default(), RunLimits::default(), || false)
+            .unwrap();
+    assert_eq!(
+        generation
+            .notes
+            .iter()
+            .map(|n| (n.start, n.key))
+            .collect::<Vec<_>>(),
+        vec![(0, 60), (240, 61), (480, 62), (720, 63)]
+    );
+}
+
+#[test]
+fn source_stack_step_memory_deadline_and_errors_are_bounded() {
+    assert!(
+        Program::compile(&"#".repeat(MAX_SOURCE_BYTES + 1))
+            .unwrap_err()
+            .message
+            .contains("byte limit")
+    );
+    assert_eq!(Program::compile("set key +").unwrap_err().line, 1);
+    assert!(Program::compile("repeat 2\nselected\nend\nend").is_err());
+    assert!(Program::compile(&format!("set key {}", "1 ".repeat(33))).is_err());
+    assert!(Program::compile(&"set key 60\n".repeat(MAX_OPS)).is_err());
+    let program = Program::compile("repeat 4096\nemit\nend").unwrap();
+    assert!(
+        program
+            .run(
+                ScriptInput::default(),
+                RunLimits {
+                    steps: 2,
+                    ..Default::default()
+                },
+                || false
+            )
+            .unwrap_err()
+            .message
+            .contains("step limit")
+    );
+    assert!(
+        program
+            .run(
+                ScriptInput::default(),
+                RunLimits {
+                    notes: 1,
+                    ..Default::default()
+                },
+                || false
+            )
+            .unwrap_err()
+            .message
+            .contains("memory limit")
+    );
+    assert!(
+        program
+            .run(ScriptInput::default(), RunLimits::default(), || true)
+            .unwrap_err()
+            .message
+            .contains("time limit")
+    );
+    let zero = Program::compile("set velocity 1 0 /\nemit").unwrap();
+    assert_eq!(
+        zero.run(ScriptInput::default(), RunLimits::default(), || false)
+            .unwrap_err()
+            .line,
+        1
+    );
+    assert!(
+        Program::compile("param p 0 1 0.5\nemit")
+            .unwrap()
+            .validate_parameters(&[f64::NAN])
+            .is_err()
+    );
+}
+
+#[test]
+fn compiled_transform_equals_interpreted_result_and_rejects_unbounded_surface() {
+    let program = Program::compile("param amount -24 24 7\nset key key amount + 0 127 clamp\nset velocity velocity 0.5 *\nemit").unwrap();
+    let transform = program.note_transform(&[]).unwrap();
+    for key in 0..=127 {
+        let input = ScriptNote {
+            key,
+            ..Default::default()
+        };
+        let interpreted = program
+            .run(
+                ScriptInput {
+                    selected: &[],
+                    ..Default::default()
+                },
+                RunLimits::default(),
+                || false,
+            )
+            .unwrap();
+        let selected = Program::compile("param amount -24 24 7\nselected\nset key key amount + 0 127 clamp\nset velocity velocity 0.5 *\nemit\nend").unwrap().run(ScriptInput { selected: &[input], ..Default::default() }, RunLimits::default(), || false).unwrap();
+        assert_eq!(transform.evaluate(input).unwrap(), selected.notes[0]);
+        if key == 60 {
+            assert_eq!(selected.notes, interpreted.notes);
+        }
+    }
+    for source in [
+        "repeat 2\nemit\nend",
+        "tempo 120\nemit",
+        "map value\nemit",
+        "emit\nemit",
+    ] {
+        assert!(
+            Program::compile(source)
+                .unwrap()
+                .note_transform(&[])
+                .is_err()
+        );
+    }
+}
+
+#[test]
+fn controller_fixture_maps_cc_and_emits_checked_tempo_and_feedback() {
+    let program =
+        Program::compile("map 1 value -\ntempo value 100 * 60 +\nfeedback 7 value 127 *").unwrap();
+    let result = program
+        .run(
+            ScriptInput {
+                value: 0.5,
+                number: 7,
+                ..Default::default()
+            },
+            RunLimits::default(),
+            || false,
+        )
+        .unwrap();
+    assert_eq!(result.mapped, Some(0.5));
+    assert_eq!(result.tempos, vec![110.0]);
+    assert_eq!(result.feedback, vec![[0xb0, 7, 64]]);
+    assert!(
+        Program::compile("feedback 1 128")
+            .unwrap()
+            .run(ScriptInput::default(), RunLimits::default(), || false)
+            .is_err()
+    );
+}
+
+fn proposal(document: &Document, commands: Vec<Command>) -> CommandProposal {
+    CommandProposal {
+        stamp: ProposalStamp {
+            generation: 1,
+            revision: document.revision(),
+        },
+        label: "Reviewed batch".into(),
+        explanation: "Fixture".into(),
+        commands,
+    }
+}
+
+#[test]
+fn proposal_registry_stale_recording_size_and_failed_batch_preserve_everything() {
+    let mut document = Document::new(Project::new("Proposal"));
+    let before = document.snapshot(None);
+    let good = Command::AddPattern {
+        name: Some("New".into()),
+    };
+    let bad = Command::UpdateChannel {
+        id: crate::ChannelId(u32::MAX),
+        patch: Default::default(),
+    };
+    let p = proposal(&document, vec![good.clone(), bad]);
+    assert!(p.apply(&mut document, p.stamp, false).is_err());
+    assert_eq!(document.snapshot(None), before);
+    let p = proposal(&document, vec![good.clone()]);
+    assert!(p.apply(&mut document, p.stamp, true).is_err());
+    assert!(
+        p.apply(
+            &mut document,
+            ProposalStamp {
+                generation: 2,
+                ..p.stamp
+            },
+            false
+        )
+        .is_err()
+    );
+    assert!(proposal(&document, vec![good; 129]).batch().is_err());
+    assert!(
+        proposal(
+            &document,
+            vec![Command::Batch {
+                label: None,
+                commands: vec![]
+            }]
+        )
+        .batch()
+        .is_err()
+    );
+    assert!(
+        proposal(
+            &document,
+            vec![Command::AddPattern {
+                name: Some("x".repeat(524_288))
+            }]
+        )
+        .batch()
+        .is_err()
+    );
+    assert!(
+        proposal(
+            &document,
+            vec![Command::UpdateSettings {
+                patch: SettingsPatch {
+                    name: Some("Not allowed".into()),
+                    ..Default::default()
+                }
+            }]
+        )
+        .batch()
+        .is_err()
+    );
+    assert_eq!(document.snapshot(None), before);
+}
+
+#[test]
+fn successful_proposal_is_one_undo_step_and_cannot_replay_after_patch() {
+    let mut document = Document::new(Project::new("Batch"));
+    let original = document.project().clone();
+    let p = proposal(
+        &document,
+        vec![
+            Command::AddPattern { name: None },
+            Command::UpdateSettings {
+                patch: SettingsPatch {
+                    tempo_bpm: Some(127.0),
+                    ..Default::default()
+                },
+            },
+        ],
+    );
+    let applied = p.apply(&mut document, p.stamp, false).unwrap();
+    document.patch(&applied.touched);
+    assert_eq!(document.history().entries.len(), 1);
+    assert!(p.apply(&mut document, p.stamp, false).is_err());
+    document.undo().unwrap();
+    assert_eq!(document.project().patterns, original.patterns);
+    assert_eq!(document.project().settings, original.settings);
+    document.redo().unwrap();
+    assert_eq!(document.project().settings.tempo_bpm, 127.0);
+}
+
+#[test]
+fn script_revisions_save_reopen_undo_and_reject_unknown_language() {
+    let mut document = Document::new(Project::new("Scripts"));
+    let asset = ScriptAsset {
+        reference: ScriptReference {
+            id: "transpose".into(),
+            revision: 1,
+        },
+        language_version: 1,
+        kind: ScriptKind::NoteTransform,
+        name: "Transpose".into(),
+        source: "set key key 12 + 0 127 clamp\nemit".into(),
+    };
+    let library = ScriptLibrary {
+        assets: vec![asset.clone()],
+        ..Default::default()
+    };
+    document
+        .dispatch(
+            Command::SetScriptLibrary {
+                library: library.clone(),
+            },
+            None,
+        )
+        .unwrap();
+    let loaded =
+        crate::file::from_json(&crate::file::to_json(document.project()).unwrap()).unwrap();
+    assert_eq!(loaded.settings.scripts, library);
+    let mut changed = library.clone();
+    changed.assets[0].source = "emit".into();
+    assert!(
+        document
+            .dispatch(Command::SetScriptLibrary { library: changed }, None)
+            .is_err()
+    );
+    document.undo().unwrap();
+    assert!(document.project().settings.scripts.is_empty());
+    document.redo().unwrap();
+    let mut future = library;
+    future.assets[0].language_version = 99;
+    assert!(future.check().is_err());
+    let legacy = crate::file::to_json(&Project::new("Legacy")).unwrap();
+    assert!(!legacy.contains("scripts"));
+    assert!(
+        crate::file::from_json(&legacy)
+            .unwrap()
+            .settings
+            .scripts
+            .is_empty()
+    );
+}
+
+#[test]
+fn ineffective_proposal_preserves_prior_history_and_redo() {
+    let mut document = Document::new(Project::new("No-op"));
+    document
+        .dispatch(Command::AddPattern { name: None }, None)
+        .unwrap();
+    document.undo().unwrap();
+    let before = document.snapshot(None);
+    let p = proposal(
+        &document,
+        vec![Command::UpdateSettings {
+            patch: SettingsPatch {
+                tempo_bpm: Some(document.project().settings.tempo_bpm),
+                ..Default::default()
+            },
+        }],
+    );
+    assert!(
+        p.apply(&mut document, p.stamp, false)
+            .unwrap_err()
+            .contains("no changes")
+    );
+    assert_eq!(document.snapshot(None), before);
+    assert!(document.redo().is_some());
+}
+
+#[test]
+fn controller_adapter_checks_target_range_opt_in_and_message_budget() {
+    let reference = ScriptReference {
+        id: "device-fixture".into(),
+        revision: 1,
+    };
+    let mut project = Project::new("Controller");
+    let mut binding = ControllerScript {
+        source: crate::ControlSource::Midi {
+            device: None,
+            channel: Some(1),
+            control: crate::MidiControl::Cc { number: 7 },
+        },
+        script: reference.clone(),
+        parameters: vec![],
+        target: Some(crate::LinkTarget::Slot {
+            slot: crate::SlotTarget::MasterVolume,
+        }),
+        feedback_channel: None,
+    };
+    project.settings.scripts.assets.push(ScriptAsset {
+        reference,
+        language_version: SCRIPT_VERSION,
+        kind: ScriptKind::Controller,
+        name: "Device".into(),
+        source: "map 1 value -\nfeedback 7 value 127 *".into(),
+    });
+    let disabled = controller_event(&project, &binding, 1.0, 7, 0, || false).unwrap();
+    assert!(disabled.feedback.is_empty());
+    let mut document = Document::new(project.clone());
+    document
+        .dispatch(
+            Command::Batch {
+                label: None,
+                commands: disabled.commands,
+            },
+            None,
+        )
+        .unwrap();
+    assert_eq!(
+        document
+            .project()
+            .mixer
+            .track(crate::TrackId::MASTER)
+            .unwrap()
+            .volume,
+        0.0
+    );
+    binding.feedback_channel = Some(16);
+    assert_eq!(
+        controller_event(&project, &binding, 0.5, 7, 0, || false)
+            .unwrap()
+            .feedback,
+        vec![[0xbf, 7, 64]]
+    );
+    binding.feedback_channel = Some(0);
+    assert!(controller_event(&project, &binding, 0.5, 7, 0, || false).is_err());
+    binding.feedback_channel = None;
+    binding.target = None;
+    assert!(controller_event(&project, &binding, 0.5, 7, 0, || false).is_err());
+    project.settings.scripts.assets[0].source = "repeat 17\nfeedback 7 0\nend".into();
+    assert!(
+        controller_event(&project, &binding, 0.5, 7, 0, || false)
+            .unwrap_err()
+            .contains("memory limit")
+    );
+}
+
+#[test]
+fn assigned_transform_rejects_invalid_notes_rolls_back_ids_and_suspends_on_delete() {
+    let mut document = Document::new(Project::new("Transform admission"));
+    let created = document
+        .dispatch(
+            Command::AddChannel {
+                name: None,
+                sample: None,
+                instrument: Some(crate::InstrumentKind::SubtractiveSynth),
+                index: None,
+                mixer_track: None,
+            },
+            None,
+        )
+        .unwrap()
+        .created;
+    let channel = crate::ChannelId(created[0]);
+    let pattern = document.project().patterns[0].id;
+    let reference = ScriptReference {
+        id: "unsafe-octave".into(),
+        revision: 1,
+    };
+    let library = ScriptLibrary {
+        assets: vec![ScriptAsset {
+            reference: reference.clone(),
+            language_version: SCRIPT_VERSION,
+            kind: ScriptKind::NoteTransform,
+            name: "Octave".into(),
+            source: "set key key 12 +\nemit".into(),
+        }],
+        channels: vec![ChannelScript {
+            channel,
+            script: reference,
+            parameters: vec![],
+        }],
+        ..Default::default()
+    };
+    document
+        .dispatch(
+            Command::SetScriptLibrary {
+                library: library.clone(),
+            },
+            None,
+        )
+        .unwrap();
+    let before = document.snapshot(None);
+    let notes = vec![crate::NoteInit {
+        start: 0,
+        length: 240,
+        key: 126,
+        velocity: None,
+        pan: None,
+        expression: None,
+    }];
+    assert!(
+        document
+            .dispatch(
+                Command::Batch {
+                    label: None,
+                    commands: vec![
+                        Command::AddPattern { name: None },
+                        Command::AddNotes {
+                            pattern,
+                            channel,
+                            notes
+                        }
+                    ]
+                },
+                None
+            )
+            .is_err()
+    );
+    assert_eq!(document.snapshot(None), before);
+    document
+        .dispatch(Command::RemoveChannel { id: channel }, None)
+        .unwrap();
+    assert_eq!(document.project().settings.scripts, library);
+    document.project().check().unwrap();
+    document.undo().unwrap();
+    assert!(document.project().channel(channel).is_some());
+    assert_eq!(document.project().settings.scripts, library);
+    let mut invalid = library;
+    invalid.channels[0].channel = crate::ChannelId(u32::MAX);
+    assert!(
+        document
+            .dispatch(Command::SetScriptLibrary { library: invalid }, None)
+            .is_err()
+    );
+}

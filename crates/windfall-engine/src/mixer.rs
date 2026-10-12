@@ -170,8 +170,19 @@ impl Mixer {
                         continue;
                     };
                     if let Some(effect) = track.effects.get(place) {
-                        if unit.control_enabled() { state.controls.process_slot(plan, effect.id, unit.control_params(), left, right, base, control_tempo); }
-                        else { state.controls.silence(plan, effect.id); }
+                        if unit.control_enabled() {
+                            state.controls.process_slot(
+                                plan,
+                                effect.id,
+                                unit.control_params(),
+                                left,
+                                right,
+                                base,
+                                control_tempo,
+                            );
+                        } else {
+                            state.controls.silence(plan, effect.id);
+                        }
                     }
                     self.scratch[..frames]
                         .copy_from_slice(&self.keys[index * MAX_BLOCK..][..frames]);
@@ -403,7 +414,9 @@ impl Mixer {
             let Some(unit) = &seat.unit else {
                 continue;
             };
-            state.controls.dashboard(plan, index, unit.control_params(), base);
+            state
+                .controls
+                .dashboard(plan, index, unit.control_params(), base);
             let (left, right) = unit.output(frames);
             let scratch = &mut self.scratch[..frames];
             apply_strip(left, right, &state.channels[index], base, scratch);

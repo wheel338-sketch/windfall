@@ -712,7 +712,7 @@ fn declarative_surface_feedback_emits_led_motor_and_display_bytes_through_the_wo
     ];
     assert!(rules.iter().all(|rule| rule.problem().is_none()));
     fake.lock().unwrap().sent.clear();
-    worker.feedback(&messages);
+    worker.surface_feedback(&messages);
     assert_eq!(
         fake.lock().unwrap().sent,
         vec![
@@ -723,7 +723,7 @@ fn declarative_surface_feedback_emits_led_motor_and_display_bytes_through_the_wo
             ],
         ]
     );
-    worker.feedback(&[rules[0].encode(0.0, "")]);
+    worker.surface_feedback(&[rules[0].encode(0.0, "")]);
     assert_eq!(fake.lock().unwrap().sent.last().unwrap(), &[0x90, 94, 0]);
     let invalid = ProfileFeedback {
         source: FeedbackSource::Playing,

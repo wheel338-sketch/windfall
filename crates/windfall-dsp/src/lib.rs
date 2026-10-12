@@ -61,23 +61,23 @@ pub mod drums;
 pub mod echo_bank;
 mod effect;
 mod eq;
-pub mod filter_family;
-pub mod frequency_delay;
-mod instrument;
-pub mod notemap;
-pub mod rack_note;
-mod note_expression;
 pub mod expression_map;
+pub mod filter_family;
 pub mod fm;
+pub mod frequency_delay;
 pub mod granular;
+mod instrument;
 mod limiter;
 pub mod lofi;
 pub mod modulation;
 pub mod multiband;
+mod note_expression;
+pub mod notemap;
 mod param;
 pub mod performance;
 pub mod physical;
 mod polarity;
+pub mod rack_note;
 mod reverb;
 mod soft_clipper;
 pub mod spatial;
@@ -173,7 +173,6 @@ pub mod mastering;
 pub mod surface;
 
 pub mod sendtap;
-
 
 pub mod zones;
 

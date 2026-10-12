@@ -67,14 +67,15 @@
 mod analysis_jobs;
 mod analyzers;
 mod archive;
+mod assistant_connection;
 mod audio;
 mod audio_editor;
 mod audio_logger;
 mod autosave;
+mod capture_expression;
 mod clip_processing;
 mod consolidate;
 mod controller_capture;
-mod capture_expression;
 mod controllers;
 mod edit;
 mod export;
@@ -95,6 +96,7 @@ mod sampler_preprocess;
 mod sampler_processing;
 mod samples;
 mod scores;
+mod scripting;
 mod slicer;
 mod templates;
 #[cfg(test)]
@@ -197,6 +199,10 @@ struct Inner {
     controllers_wake: std::sync::Condvar,
     /// Serializes editor workers and retains at most one bounded clip view.
     audio_editor: Mutex<audio_editor::Editor>,
+    /// Worker-only gate. Never acquired by audio or MIDI input callbacks.
+    script_worker: Mutex<()>,
+    script_ticket: std::sync::atomic::AtomicU64,
+    assistant: crate::assistant::Service,
     library: crate::library::Library,
     plugins: Mutex<Option<Arc<crate::plugins::PluginManager>>>,
     /// Held by a save or a backup from before it copies the project until
@@ -463,6 +469,9 @@ impl Session {
                 cache,
                 factory_dir,
                 recording: Mutex::new(None),
+                script_worker: Mutex::new(()),
+                assistant: crate::assistant::Service::default(),
+                script_ticket: std::sync::atomic::AtomicU64::new(0),
                 recording_finishing: AtomicBool::new(false),
                 recording_finish_cancelled: AtomicBool::new(false),
                 input_monitors: Mutex::new(input_monitor::Monitors::default()),

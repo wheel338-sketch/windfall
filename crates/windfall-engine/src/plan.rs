@@ -930,7 +930,12 @@ pub(crate) fn compile(project: &Project, pool: &SamplePool) -> Plan {
         .enumerate()
         .map(|(index, channel)| {
             let mut compiled = compile_channel(channel, pool, &track_ids, solo_audible[index]);
-            compiled.rack = project.settings.modular_racks.iter().find(|rack| rack.channel == channel.id).map(|rack| Arc::new(rack.graph.clone()));
+            compiled.rack = project
+                .settings
+                .modular_racks
+                .iter()
+                .find(|rack| rack.channel == channel.id)
+                .map(|rack| Arc::new(rack.graph.clone()));
             if windfall_project::layer::is_layer(channel) {
                 compiled.layer =
                     Some(windfall_project::layer::targets(&project.channels, index).into());
@@ -940,6 +945,7 @@ pub(crate) fn compile(project: &Project, pool: &SamplePool) -> Plan {
         .collect();
     let channel_ids = IdIndex::new(channels.iter().map(|channel| channel.id.0));
 
+    let script_notes = crate::script_notes::prepare(&project.settings.scripts, &project.channels);
     let patterns: Vec<PlanPattern> = project
         .patterns
         .iter()
@@ -950,6 +956,7 @@ pub(crate) fn compile(project: &Project, pool: &SamplePool) -> Plan {
                 &project.channels,
                 swing,
                 project.settings.time_signature,
+                &script_notes,
             )
         })
         .collect();
@@ -1000,7 +1007,8 @@ pub(crate) fn compile(project: &Project, pool: &SamplePool) -> Plan {
     }
     plan.link();
     plan.lanes = automation::compile(project, &playlist, &plan).into();
-    (plan.control_sources, plan.control_links) = crate::internal_controllers::compile(project, &plan);
+    (plan.control_sources, plan.control_links) =
+        crate::internal_controllers::compile(project, &plan);
     plan.pattern_lanes = plan.lanes.iter().any(|lane| lane.in_patterns());
     let tempo_lane = plan.lanes.iter().find(|lane| lane.is_tempo());
     plan.tempo_map = tempo_lane.map(|lane| TempoMap::new(lane, tempo_bpm, f64::from(song_end)));
@@ -1059,7 +1067,19 @@ fn compile_channel(
 
 impl PlanChannel {
     pub fn latency_samples(&self, rate: f32) -> usize {
-        self.rack.as_ref().map_or_else(|| self.instrument.map_or(0, |params| params.latency_samples(rate)), |graph| graph.latency_with_input(rate, self.instrument.map_or(0, |params| params.latency_samples(rate))))
+        self.rack.as_ref().map_or_else(
+            || {
+                self.instrument
+                    .map_or(0, |params| params.latency_samples(rate))
+            },
+            |graph| {
+                graph.latency_with_input(
+                    rate,
+                    self.instrument
+                        .map_or(0, |params| params.latency_samples(rate)),
+                )
+            },
+        )
     }
 }
 
@@ -1151,6 +1171,7 @@ fn compile_pattern(
     source_channels: &[Channel],
     swing: f64,
     legacy: windfall_project::TimeSignature,
+    script_notes: &[Option<windfall_project::scripting::NoteTransform>],
 ) -> PlanPattern {
     let length = pattern.length_steps.max(1).saturating_mul(TICKS_PER_STEP);
 
@@ -1161,7 +1182,12 @@ fn compile_pattern(
         };
         let timing = source_channels[channel].timing;
         for note in lane.notes.iter().filter(|note| note.start < length) {
-            let Some((tick, duration)) = timing.place(note.start, note.length, length, swing)
+            let transformed = crate::script_notes::transform(
+                script_notes.get(channel).and_then(Option::as_ref),
+                note,
+            );
+            let Some((tick, duration)) =
+                timing.place(transformed.start, transformed.length, length, swing)
             else {
                 continue;
             };
@@ -1170,9 +1196,9 @@ fn compile_pattern(
                 tick,
                 length: duration,
                 channel,
-                key: note.key.min(MAX_KEY),
-                velocity: unit(note.velocity),
-                pan: pan(note.pan),
+                key: transformed.key.min(MAX_KEY),
+                velocity: unit(transformed.velocity),
+                pan: pan(transformed.pan),
                 expression: note.expression.clamped(),
             });
         }

@@ -15,12 +15,14 @@ pub use curve_lfo::{CurveLfo, CurveLfoWave};
 pub mod channel_voice;
 pub use channel_voice::*;
 pub mod controller_links;
-pub mod layer;
 pub mod internal_controllers;
-pub use internal_controllers::{ControlPoint, InternalControllerSettings, SurfaceControl, SurfaceControlKind, VoltageRoute};
+pub mod layer;
 pub use controller_links::{
     ControlAction, ControlMap, ControlSource, ControllerLink, ControllerProfile, LinkTarget,
     MidiControl, PickupMode, ProfileControl, SlotTarget, SourceMode,
+};
+pub use internal_controllers::{
+    ControlPoint, InternalControllerSettings, SurfaceControl, SurfaceControlKind, VoltageRoute,
 };
 mod check;
 pub mod command;
@@ -90,4 +92,10 @@ pub use sample_playback::{KeyPlaybackCurve, SamplePlayback};
 mod legacy_sample_playback;
 pub use sample_playback::InlinePlaybackSource;
 pub mod rack;
-pub use rack::{ChannelRack, RackEdge, RackEndpoint, RackGraph, RackNode, RackPreset, RackProcessor};
+pub use rack::{
+    ChannelRack, RackEdge, RackEndpoint, RackGraph, RackNode, RackPreset, RackProcessor,
+};
+pub mod assistant;
+pub mod assistant_protocol;
+pub mod proposal;
+pub mod scripting;

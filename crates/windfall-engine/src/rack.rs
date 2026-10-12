@@ -270,11 +270,16 @@ impl EffectUnit {
     /// A setting that changes how late the effect puts its output out, the
     /// limiter's look-ahead, is left alone: the delays that line the other
     /// paths up with the effect are made for the plan's value.
-    pub fn control_params(&self) -> EffectParams { self.params }
-    pub fn control_enabled(&self) -> bool { self.enabled }
+    pub fn control_params(&self) -> EffectParams {
+        self.params
+    }
+    pub fn control_enabled(&self) -> bool {
+        self.enabled
+    }
 
     fn control_only(&self) -> bool {
-        self.external.is_none() && !windfall_project::internal_controllers::outputs(self.params.kind()).is_empty()
+        self.external.is_none()
+            && !windfall_project::internal_controllers::outputs(self.params.kind()).is_empty()
     }
 
     pub fn automate(&mut self, param: usize, value: f32) {
@@ -389,7 +394,9 @@ impl EffectUnit {
 
     /// Samples the effect can go on sounding for after its input stops.
     pub fn tail_samples(&self) -> usize {
-        if self.control_only() { return 0; }
+        if self.control_only() {
+            return 0;
+        }
         match self.splice {
             Splice::Gone => 0,
             Splice::Steady | Splice::In { .. } | Splice::Out(_) => self
@@ -402,7 +409,9 @@ impl EffectUnit {
     /// Samples for which the effect's output can fall silent and still
     /// come back with nothing new going in.
     pub fn gap_samples(&self) -> usize {
-        if self.control_only() { return 0; }
+        if self.control_only() {
+            return 0;
+        }
         match self.splice {
             Splice::Gone => 0,
             Splice::Steady | Splice::In { .. } | Splice::Out(_) => self
@@ -530,7 +539,9 @@ impl EffectUnit {
         }
         // The engine evaluates these as sources at the slot input. Preserve the
         // carrier audio; their standalone DSP audio applications remain available.
-        if self.control_only() { return; }
+        if self.control_only() {
+            return;
+        }
         if let Some(external) = &mut self.external {
             external.process_sidechain(left, right, key);
             if let Some(aux) = aux {
@@ -671,24 +682,50 @@ impl InstrumentUnit {
         self.voice_glide = glide;
     }
 
-    pub fn take_rack_rejections(&mut self) -> u64 { self.modular.as_mut().map_or(0, |rack| rack.take_rejected_events()) }
+    pub fn take_rack_rejections(&mut self) -> u64 {
+        self.modular
+            .as_mut()
+            .map_or(0, |rack| rack.take_rejected_events())
+    }
 
-    pub fn install_rack(&mut self, rack: crate::modular::ModularRack) { self.modular = Some(rack); }
+    pub fn install_rack(&mut self, rack: crate::modular::ModularRack) {
+        self.modular = Some(rack);
+    }
 
     /// Prepared replacements replay current parent occurrences. The old DSP
     /// owners remain in the retired state and are destroyed off the callback.
     pub fn inherit_rack_notes(&mut self, before: &Self) {
         self.notes.copy_from_slice(&before.notes);
-        self.held = before.held; self.next_instance = before.next_instance;
+        self.held = before.held;
+        self.next_instance = before.next_instance;
         for index in 0..self.notes.len() {
-            let note = self.notes[index]; if !note.active { continue; }
+            let note = self.notes[index];
+            if !note.active {
+                continue;
+            }
             let controls = self.controls(note.pan, note.expression);
-            self.instrument.note_on_instance(note.id, note.key, note.velocity, controls.pan, controls.expression);
+            self.instrument.note_on_instance(
+                note.id,
+                note.key,
+                note.velocity,
+                controls.pan,
+                controls.expression,
+            );
             self.instrument.set_note_gain(note.id, controls.gain);
-            if let Some(rack) = &mut self.modular { rack.note_on(note.id, windfall_dsp::rack_note::RackNote {
-                key: note.key, velocity: note.velocity, pan: controls.pan, expression: controls.expression,
-                channel: note.expression.color_group.unwrap_or(0), gain: controls.gain, envelope: None,
-            }); }
+            if let Some(rack) = &mut self.modular {
+                rack.note_on(
+                    note.id,
+                    windfall_dsp::rack_note::RackNote {
+                        key: note.key,
+                        velocity: note.velocity,
+                        pan: controls.pan,
+                        expression: controls.expression,
+                        channel: note.expression.color_group.unwrap_or(0),
+                        gain: controls.gain,
+                        envelope: None,
+                    },
+                );
+            }
         }
     }
 
@@ -794,7 +831,9 @@ impl InstrumentUnit {
     }
 
     pub fn set_tempo(&mut self, tempo_bpm: f64) {
-        if let Some(rack) = &mut self.modular { rack.set_tempo(tempo_bpm); }
+        if let Some(rack) = &mut self.modular {
+            rack.set_tempo(tempo_bpm);
+        }
         if let Some(external) = &mut self.external {
             if let Some(unit) = external {
                 unit.set_tempo(tempo_bpm as f32);
@@ -805,10 +844,15 @@ impl InstrumentUnit {
     }
 
     /// Moves one setting, as automation does. Sounding notes glide to it.
-    pub fn control_params(&self) -> InstrumentParams { self.params }
+    pub fn control_params(&self) -> InstrumentParams {
+        self.params
+    }
 
     pub fn automate(&mut self, param: usize, value: f32) {
-        if let Some(rack) = &mut self.modular { rack.set_control(param, value); return; }
+        if let Some(rack) = &mut self.modular {
+            rack.set_control(param, value);
+            return;
+        }
         if let Some(external) = &mut self.external {
             if let Some(cached) = self.plugin_params.get_mut(param)
                 && cached.1 != value
@@ -829,7 +873,14 @@ impl InstrumentUnit {
 
     /// Voices sounding right now, fading ones included.
     pub fn voices(&self) -> u32 {
-        if let Some(rack) = &self.modular { return (rack.active_voices() + if rack.uses_audio_input() { self.instrument.active_voices() } else { 0 }) as u32; }
+        if let Some(rack) = &self.modular {
+            return (rack.active_voices()
+                + if rack.uses_audio_input() {
+                    self.instrument.active_voices()
+                } else {
+                    0
+                }) as u32;
+        }
         self.external.as_ref().map_or_else(
             || self.instrument.active_voices(),
             |unit| unit.as_ref().map_or(0, |unit| unit.voices()),
@@ -845,7 +896,10 @@ impl InstrumentUnit {
     /// True once nothing more can come out of the instrument until its
     /// next note.
     pub fn settled(&self, now: u64) -> bool {
-        if let Some(rack) = &self.modular { return self.voices() == 0 && self.last_sound.saturating_add(rack.tail_samples() as u64) <= now; }
+        if let Some(rack) = &self.modular {
+            return self.voices() == 0
+                && self.last_sound.saturating_add(rack.tail_samples() as u64) <= now;
+        }
         let tail = self.external.as_ref().map_or_else(
             || self.instrument.tail_samples(),
             |unit| unit.as_ref().map_or(0, |unit| unit.tail()),
@@ -949,10 +1003,20 @@ impl InstrumentUnit {
         };
         self.notes[slot] = note;
         self.held += 1;
-        if let Some(rack) = &mut self.modular { rack.note_on(note.id, windfall_dsp::rack_note::RackNote {
-            key: note.key, velocity: note.velocity, pan: controls.pan, expression: controls.expression,
-            channel: note.expression.color_group.unwrap_or(0), gain: controls.gain, envelope: None,
-        }); }
+        if let Some(rack) = &mut self.modular {
+            rack.note_on(
+                note.id,
+                windfall_dsp::rack_note::RackNote {
+                    key: note.key,
+                    velocity: note.velocity,
+                    pan: controls.pan,
+                    expression: controls.expression,
+                    channel: note.expression.color_group.unwrap_or(0),
+                    gain: controls.gain,
+                    envelope: None,
+                },
+            );
+        }
         if let Some(external) = &mut self.external {
             if let Some(unit) = external {
                 unit.note_on_instance(note.id, note.key, note.velocity, note.pan, note.expression);
@@ -1046,7 +1110,9 @@ impl InstrumentUnit {
 
     /// Stops every note with a short fade, as when the transport stops.
     pub fn silence(&mut self) {
-        if let Some(rack) = &mut self.modular { rack.all_notes_off(); }
+        if let Some(rack) = &mut self.modular {
+            rack.all_notes_off();
+        }
         if let Some(external) = &mut self.external {
             if let Some(unit) = external {
                 unit.all_notes_off();
@@ -1239,7 +1305,9 @@ impl InstrumentUnit {
                 note.channel_pitch += self.voice_glide * (note.pitch - note.channel_pitch);
                 let (id, pitch) = (note.id, note.channel_pitch + pitch_offset);
                 if let Some((pan, expression)) = modulated_controls {
-                    if let Some(rack) = &mut self.modular { rack.set_note_expression(id, pan, expression); }
+                    if let Some(rack) = &mut self.modular {
+                        rack.set_note_expression(id, pan, expression);
+                    }
                     // Send through the existing per-instance expression API; don't overwrite base musical curves.
                     if let Some(Some(unit)) = &mut self.external {
                         unit.set_note_expression(id, pan, expression);
@@ -1262,11 +1330,20 @@ impl InstrumentUnit {
 
     fn set_pitch(&mut self, id: NoteInstanceId, pitch: f64) {
         if let Some(rack) = &mut self.modular {
-            let base = self.notes.iter().find(|note| note.active && note.id == id).map_or(0.0, |note| f32::from(note.key) + note.expression.fine_pitch_cents / 100.0);
+            let base = self
+                .notes
+                .iter()
+                .find(|note| note.active && note.id == id)
+                .map_or(0.0, |note| {
+                    f32::from(note.key) + note.expression.fine_pitch_cents / 100.0
+                });
             rack.set_note_pitch_offset(id, pitch as f32 - base);
         }
-        if let Some(Some(unit)) = &mut self.external { unit.set_note_pitch(id, pitch as f32); }
-        else if self.external.is_none() { self.instrument.set_note_pitch(id, pitch as f32); }
+        if let Some(Some(unit)) = &mut self.external {
+            unit.set_note_pitch(id, pitch as f32);
+        } else if self.external.is_none() {
+            self.instrument.set_note_pitch(id, pitch as f32);
+        }
     }
 
     fn process_audio(&mut self, base: u64, from: usize, to: usize) {
@@ -1286,7 +1363,9 @@ impl InstrumentUnit {
             self.instrument.stamp_midi(base + from as u64);
             self.instrument.process(left, right);
         }
-        if let Some(rack) = &mut self.modular { rack.process(left, right); }
+        if let Some(rack) = &mut self.modular {
+            rack.process(left, right);
+        }
         let last = (0..to - from)
             .rev()
             .find(|&index| left[index] != 0.0 || right[index] != 0.0);
@@ -1298,10 +1377,17 @@ impl InstrumentUnit {
     /// Hands over what a MIDI output channel has made, oldest first. Fixed
     /// storage; nothing for any other instrument.
     pub fn midi_message(&mut self, bytes: &[u8]) -> bool {
-        match &mut self.external { Some(Some(unit)) => unit.midi_message(bytes), _ => false }
+        match &mut self.external {
+            Some(Some(unit)) => unit.midi_message(bytes),
+            _ => false,
+        }
     }
 
-    pub fn stamp_midi(&mut self, frame: u64) { if self.external.is_none() { self.instrument.stamp_midi(frame); } }
+    pub fn stamp_midi(&mut self, frame: u64) {
+        if self.external.is_none() {
+            self.instrument.stamp_midi(frame);
+        }
+    }
 
     pub fn drain_midi(&mut self, out: &mut dyn FnMut(windfall_dsp::MidiOutEvent)) {
         if self.external.is_none() {
@@ -1319,7 +1405,9 @@ impl InstrumentUnit {
         }
         self.notes[slot].active = false;
         self.held -= 1;
-        if let Some(rack) = &mut self.modular { rack.note_off(note.id); }
+        if let Some(rack) = &mut self.modular {
+            rack.note_off(note.id);
+        }
         let other_on_key = self
             .notes
             .iter()
@@ -1399,11 +1487,21 @@ impl InstrumentUnit {
             note.map_gain = controls.gain;
             note.map_cents = controls.pitch_cents;
         }
-        if let Some(Some(unit)) = &mut self.external { unit.set_note_expression(id, pan, expression); }
-        if let Some(rack) = &mut self.modular { rack.set_note_expression(id, controls.pan, controls.expression); if gain_changed { rack.set_note_gain(id, controls.gain); } }
+        if let Some(Some(unit)) = &mut self.external {
+            unit.set_note_expression(id, pan, expression);
+        }
+        if let Some(rack) = &mut self.modular {
+            rack.set_note_expression(id, controls.pan, controls.expression);
+            if gain_changed {
+                rack.set_note_gain(id, controls.gain);
+            }
+        }
         if self.external.is_none() {
-            self.instrument.set_note_expression(id, controls.pan, controls.expression);
-            if gain_changed { self.instrument.set_note_gain(id, controls.gain); }
+            self.instrument
+                .set_note_expression(id, controls.pan, controls.expression);
+            if gain_changed {
+                self.instrument.set_note_gain(id, controls.gain);
+            }
         }
         moved
     }

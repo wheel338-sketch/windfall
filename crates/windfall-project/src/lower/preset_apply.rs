@@ -56,7 +56,13 @@ impl Transaction<'_> {
             (None, None) => None,
         };
         let target = PluginTarget::Instrument { channel: id };
-        let replacing_rack = preset.rack.is_some() || self.project.settings.modular_racks.iter().any(|rack| rack.channel == id);
+        let replacing_rack = preset.rack.is_some()
+            || self
+                .project
+                .settings
+                .modular_racks
+                .iter()
+                .any(|rack| rack.channel == id);
         let old = Processor::of_source(&expected.source, self.project.plugin(target));
         let new = Processor::of_source(&preset.source, preset.plugin.as_ref());
         self.remove_automations_of(|automation| match *automation {
@@ -72,7 +78,11 @@ impl Transaction<'_> {
         })));
         self.rebind(target, preset.plugin);
         if replacing_rack {
-            self.run(Command::SetChannelRack { id, graph: preset.rack, expected: None })?;
+            self.run(Command::SetChannelRack {
+                id,
+                graph: preset.rack,
+                expected: None,
+            })?;
         }
         if name_color {
             self.update_channel(

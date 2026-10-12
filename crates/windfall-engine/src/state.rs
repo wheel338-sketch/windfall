@@ -963,12 +963,25 @@ impl PlanState {
                 && !channel.leaving
                 && (held.and_then(|held| held.racks.get(&channel.id)) != Some(graph)
                     || held.and_then(|held| held.instruments.get(&channel.id))
-                        != channel.instrument.map(|params| (params.kind(), channel.instrument_asset.clone())).as_ref()
+                        != channel
+                            .instrument
+                            .map(|params| (params.kind(), channel.instrument_asset.clone()))
+                            .as_ref()
                     || held.and_then(|held| held.sample_playback.get(&channel.id))
-                        != channel.sample_playback.as_ref().map(|asset| &asset.identity))
+                        != channel
+                            .sample_playback
+                            .as_ref()
+                            .map(|asset| &asset.identity))
             {
-                let rack = crate::modular::ModularRack::prepare_with_input_latency(graph, sample_rate, plan.tempo_bpm, channel.instrument.map_or(0, |params| params.latency_samples(sample_rate as f32)))
-                    .map_err(crate::project_preparation::ProjectPreparationError::Rack)?;
+                let rack = crate::modular::ModularRack::prepare_with_input_latency(
+                    graph,
+                    sample_rate,
+                    plan.tempo_bpm,
+                    channel
+                        .instrument
+                        .map_or(0, |params| params.latency_samples(sample_rate as f32)),
+                )
+                .map_err(crate::project_preparation::ProjectPreparationError::Rack)?;
                 prepared_racks.insert(channel.id, rack);
             }
         }
@@ -1177,7 +1190,11 @@ impl PlanState {
             effects: HashMap::new(),
             instruments: HashMap::new(),
             sample_playback: HashMap::new(),
-            racks: plan.channels.iter().filter_map(|channel| channel.rack.clone().map(|graph| (channel.id, graph))).collect(),
+            racks: plan
+                .channels
+                .iter()
+                .filter_map(|channel| channel.rack.clone().map(|graph| (channel.id, graph)))
+                .collect(),
             delays: HashMap::new(),
             meters: Vec::new(),
             latency: u32::try_from(output_latency).unwrap_or(u32::MAX),
@@ -1392,7 +1409,9 @@ impl PlanState {
                     if let Some(asset) = &channel.sample_playback {
                         unit.set_playback_asset(asset.asset.clone());
                     }
-                    if let Some(rack) = prepared_racks.remove(&channel.id) { unit.install_rack(rack); }
+                    if let Some(rack) = prepared_racks.remove(&channel.id) {
+                        unit.install_rack(rack);
+                    }
                     unit.configure_voice(
                         crate::channel_voice::PreparedChannelEnvelopes::prepare(
                             channel.voice.envelopes,
@@ -1689,7 +1708,10 @@ impl PlanState {
                 &mut seat.unit,
                 before.as_ref().and_then(|seat| seat.unit.as_ref()),
             ) {
-                if !channel.leaving && (channel.rack.is_some() || found.is_some_and(|found| old_plan.channels[found].rack.is_some())) {
+                if !channel.leaving
+                    && (channel.rack.is_some()
+                        || found.is_some_and(|found| old_plan.channels[found].rack.is_some()))
+                {
                     unit.inherit_rack_notes(before);
                 }
                 let target = windfall_project::PluginTarget::Instrument {
@@ -2152,8 +2174,15 @@ impl PlanState {
         frames: Range<usize>,
     ) {
         for index in 0..plan.channels.len() {
-            if plan.channels[index].instrument.is_some_and(|params| matches!(params, windfall_dsp::InstrumentParams::MidiOut(_))) { continue; }
-            if let Some(unit) = self.instrument(index) { unit.render_curves(plan, clock, base, frames.start, frames.end); }
+            if plan.channels[index]
+                .instrument
+                .is_some_and(|params| matches!(params, windfall_dsp::InstrumentParams::MidiOut(_)))
+            {
+                continue;
+            }
+            if let Some(unit) = self.instrument(index) {
+                unit.render_curves(plan, clock, base, frames.start, frames.end);
+            }
         }
     }
 

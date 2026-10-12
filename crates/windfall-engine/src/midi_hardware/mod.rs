@@ -198,7 +198,8 @@ pub trait Ports: Send + 'static {
 enum Request {
     Configure(MidiHardwareSettings, mpsc::SyncSender<MidiHardwareState>),
     Refresh(mpsc::SyncSender<MidiHardwareState>),
-    Feedback(Vec<Vec<u8>>),
+    SurfaceFeedback(Vec<Vec<u8>>),
+    Feedback(u64, Vec<[u8; 3]>),
 }
 
 /// Thread-safe control handle; native handles never leave its worker.
@@ -250,7 +251,12 @@ impl Runtime {
                                 worker.refresh();
                                 let _ = reply.send(worker.state());
                             }
-                            Ok(Request::Feedback(messages)) => worker.feedback(&messages),
+                            Ok(Request::SurfaceFeedback(messages)) => {
+                                worker.surface_feedback(&messages)
+                            }
+                            Ok(Request::Feedback(epoch, packets)) => {
+                                worker.feedback(epoch, packets);
+                            }
                             Err(mpsc::TryRecvError::Empty) => break,
                             Err(mpsc::TryRecvError::Disconnected) => break 'serve,
                         }
@@ -285,7 +291,7 @@ impl Runtime {
     }
 
     /// Bounded control-side surface updates; every output call stays on the worker.
-    pub fn feedback(&self, messages: Vec<Vec<u8>>) -> Result<(), String> {
+    pub fn surface_feedback(&self, messages: Vec<Vec<u8>>) -> Result<(), String> {
         if messages.len() > 256
             || messages
                 .iter()
@@ -296,13 +302,33 @@ impl Runtime {
         self.tx
             .as_ref()
             .ok_or("MIDI worker stopped.")?
-            .try_send(Request::Feedback(messages))
+            .try_send(Request::SurfaceFeedback(messages))
             .map_err(|_| "MIDI feedback queue is busy.".to_owned())
     }
 
     pub fn refresh(&self) -> Result<MidiHardwareState, String> {
         let (tx, rx) = mpsc::sync_channel(1);
         self.request(Request::Refresh(tx), rx)
+    }
+
+    /// Explicit installed-script feedback. Bounded control queue, never waits
+    /// for a port or accepts arbitrary MIDI/SysEx. The native worker owns sends.
+    pub fn feedback(&self, packets: Vec<[u8; 3]>) -> Result<(), String> {
+        if packets.len() > 128
+            || packets
+                .iter()
+                .any(|p| p[0] & 0xf0 != 0xb0 || p[1] > 127 || p[2] > 127)
+        {
+            return Err("controller feedback packet limit or format is invalid".into());
+        }
+        if !self.state().output_connected {
+            return Err("controller feedback output is disconnected".into());
+        }
+        self.tx
+            .as_ref()
+            .ok_or("MIDI worker stopped")?
+            .try_send(Request::Feedback(self.controller.hardware_epoch(), packets))
+            .map_err(|e| format!("controller feedback queue refused: {e}"))
     }
 
     fn request(
@@ -372,6 +398,7 @@ struct Worker {
     last_due: [u64; 8],
     /// One bit per MIDI channel a MIDI output channel has sent on.
     used_channels: [u16; 8],
+    feedback_dropped: u32,
 }
 
 impl Worker {
@@ -395,6 +422,7 @@ impl Worker {
             pending: VecDeque::with_capacity(OUTPUT_PENDING),
             last_due: [0; 8],
             used_channels: [0; 8],
+            feedback_dropped: 0,
         }
     }
 
@@ -409,7 +437,10 @@ impl Worker {
             dropped_events: self.dropped.load(Ordering::Relaxed),
             connected_inputs: self.inputs.iter().map(|input| input.id.clone()).collect(),
             clock_running: self.clock.running(),
-            output_dropped: self.controller.midi_out_dropped(),
+            output_dropped: self
+                .controller
+                .midi_out_dropped()
+                .saturating_add(self.feedback_dropped),
             ..self.state.clone()
         }
     }
@@ -569,7 +600,7 @@ impl Worker {
         self.epoch = self.controller.hardware_epoch();
     }
 
-    fn feedback(&mut self, messages: &[Vec<u8>]) {
+    fn surface_feedback(&mut self, messages: &[Vec<u8>]) {
         for bytes in messages.iter().take(256) {
             if !bytes.is_empty() && bytes.len() <= 128 {
                 self.send(bytes);
@@ -600,6 +631,17 @@ impl Worker {
             }
             self.pending.retain(|message| message.port != port);
             self.controller.panic_hardware();
+        }
+    }
+
+    fn feedback(&mut self, epoch: u64, packets: Vec<[u8; 3]>) {
+        if epoch != self.controller.hardware_epoch() || self.output.is_none() {
+            self.feedback_dropped = self.feedback_dropped.saturating_add(packets.len() as u32);
+            self.state.error = Some("stale or disconnected controller feedback discarded".into());
+            return;
+        }
+        for packet in packets {
+            self.send(&packet);
         }
     }
 

@@ -573,7 +573,12 @@ impl ChannelPreset {
             // The asset list is the caller's: it knows where the audio goes.
             sample_asset: sample.as_ref().map(|_| 1),
             plugin,
-            rack: project.settings.modular_racks.iter().find(|rack| rack.channel == id).map(|rack| rack.graph.clone()),
+            rack: project
+                .settings
+                .modular_racks
+                .iter()
+                .find(|rack| rack.channel == id)
+                .map(|rack| rack.graph.clone()),
         };
         preset.validate(sample.as_ref().map(|_| 1))?;
         Ok((preset, sample))
@@ -694,7 +699,10 @@ impl ChannelPreset {
         };
         project.channels.push(self.onto(&base, sample));
         if let Some(graph) = &self.rack {
-            project.settings.modular_racks.push(crate::ChannelRack { channel: id, graph: graph.clone() });
+            project.settings.modular_racks.push(crate::ChannelRack {
+                channel: id,
+                graph: graph.clone(),
+            });
         }
         if let Some(binding) = &self.plugin {
             let mut binding = binding.clone();

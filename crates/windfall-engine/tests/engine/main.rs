@@ -10,8 +10,10 @@ mod effects;
 mod expression_map;
 mod filter_family;
 mod instruments;
+mod internal_controllers;
 mod lofi;
 mod mixer;
+mod modular_rack;
 mod modulation;
 mod nonlinear_performance;
 mod playlist_layouts;
@@ -22,13 +24,12 @@ mod realtime;
 mod rendering;
 mod sampler;
 mod sampler_processing;
+mod script_notes;
 mod sequencing;
 mod stems;
 mod support;
 mod timeline;
 mod utility_effects;
-mod internal_controllers;
-mod modular_rack;
 
 /// Counts allocator calls for the realtime tests. It does nothing on a
 /// thread that is not being watched, so the other tests are unaffected.

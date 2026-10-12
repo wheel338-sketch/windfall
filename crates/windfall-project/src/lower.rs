@@ -71,6 +71,12 @@ pub(crate) fn execute(project: &mut Project, command: Command) -> Result<Outcome
             transaction.prune_arrangement_references();
         }
         transaction.settle_linked_tracks();
+        transaction
+            .project
+            .settings
+            .scripts
+            .check_notes(transaction.project)
+            .map_err(CommandError::invalid)?;
         crate::check::check_arrangement_references(
             transaction.project,
             &transaction.project.playlist.arrangement_book,
@@ -108,19 +114,46 @@ pub(crate) fn execute(project: &mut Project, command: Command) -> Result<Outcome
             }
             let old = transaction.project.settings.clone();
             let mut new = old.clone();
-            new.internal_controllers.retain(|c| crate::internal_controllers::source(transaction.project, c.controller).is_some());
+            new.internal_controllers.retain(|c| {
+                crate::internal_controllers::source(transaction.project, c.controller).is_some()
+            });
             for config in &mut new.internal_controllers {
-                if let Some((_, owner)) = crate::internal_controllers::source(transaction.project, config.controller) {
-                    if owner.kind() != EffectKind::FormulaSource { config.expression = None; }
-                    if owner.kind() != EffectKind::NoteEnvelope { config.envelope.clear(); }
-                    if owner.kind() != EffectKind::ControlSurface { config.controls.clear(); }
-                    if owner.kind() != EffectKind::VoltageSource { config.voltage_routes.clear(); }
-                    if !matches!(owner.kind(), EffectKind::NoteEnvelope | EffectKind::KeyboardSource) { config.note_channel = None; }
-                    if owner.kind() != EffectKind::EnvelopeFollower { config.rms = false; config.sync_beats = None; }
+                if let Some((_, owner)) =
+                    crate::internal_controllers::source(transaction.project, config.controller)
+                {
+                    if owner.kind() != EffectKind::FormulaSource {
+                        config.expression = None;
+                    }
+                    if owner.kind() != EffectKind::NoteEnvelope {
+                        config.envelope.clear();
+                    }
+                    if owner.kind() != EffectKind::ControlSurface {
+                        config.controls.clear();
+                    }
+                    if owner.kind() != EffectKind::VoltageSource {
+                        config.voltage_routes.clear();
+                    }
+                    if !matches!(
+                        owner.kind(),
+                        EffectKind::NoteEnvelope | EffectKind::KeyboardSource
+                    ) {
+                        config.note_channel = None;
+                    }
+                    if owner.kind() != EffectKind::EnvelopeFollower {
+                        config.rms = false;
+                        config.sync_beats = None;
+                    }
                 }
-                if config.note_channel.is_some_and(|id| transaction.project.channel(id).is_none()) { config.note_channel = None; }
+                if config
+                    .note_channel
+                    .is_some_and(|id| transaction.project.channel(id).is_none())
+                {
+                    config.note_channel = None;
+                }
             }
-            if old != new { transaction.push(Edit::Settings(Change { old, new })); }
+            if old != new {
+                transaction.push(Edit::Settings(Change { old, new }));
+            }
             if let Some(links) = crate::controller_links::following(transaction.project) {
                 let old = transaction.project.settings.clone();
                 let mut new = old.clone();
@@ -132,9 +165,19 @@ pub(crate) fn execute(project: &mut Project, command: Command) -> Result<Outcome
                 let new = crate::take_groups::prune(transaction.project);
                 transaction.push(Edit::TakeGroups(Change { old, new }));
             }
-            if let Some(problem) = crate::internal_controllers::settings_problem(transaction.project, &transaction.project.settings.internal_controllers)
-                .or_else(|| crate::internal_controllers::links_problem(transaction.project, &transaction.project.settings.controller_links)) {
-                for edit in transaction.edits.iter().rev() { edit.apply(transaction.project, Direction::Backward); }
+            if let Some(problem) = crate::internal_controllers::settings_problem(
+                transaction.project,
+                &transaction.project.settings.internal_controllers,
+            )
+            .or_else(|| {
+                crate::internal_controllers::links_problem(
+                    transaction.project,
+                    &transaction.project.settings.controller_links,
+                )
+            }) {
+                for edit in transaction.edits.iter().rev() {
+                    edit.apply(transaction.project, Direction::Backward);
+                }
                 transaction.project.next_id = first_id;
                 return Err(CommandError::invalid(problem));
             }
@@ -1298,7 +1341,9 @@ impl Transaction<'_> {
                 "Change controller links"
             }
             Command::SetInternalControllerSettings { settings } => {
-                if let Some(problem) = crate::internal_controllers::settings_problem(self.project, &settings) {
+                if let Some(problem) =
+                    crate::internal_controllers::settings_problem(self.project, &settings)
+                {
                     return Err(CommandError::invalid(problem));
                 }
                 let old = self.project.settings.clone();
@@ -1352,25 +1397,47 @@ impl Transaction<'_> {
                 self.push(Edit::SetChannel(Box::new(Change { old, new })));
                 "Set channel expression mapping"
             }
-            Command::SetChannelRack { id, graph, expected } => {
+            Command::SetChannelRack {
+                id,
+                graph,
+                expected,
+            } => {
                 self.channel_index(id)?;
-                if expected.as_ref().is_some_and(|expected| self.project.settings.modular_racks.iter().find(|rack| rack.channel == id).map(|rack| &rack.graph) != Some(expected)) {
-                    return Err(CommandError::invalid("Rack changed while the editor was open; retry from its current graph"));
+                if expected.as_ref().is_some_and(|expected| {
+                    self.project
+                        .settings
+                        .modular_racks
+                        .iter()
+                        .find(|rack| rack.channel == id)
+                        .map(|rack| &rack.graph)
+                        != Some(expected)
+                }) {
+                    return Err(CommandError::invalid(
+                        "Rack changed while the editor was open; retry from its current graph",
+                    ));
                 }
                 let old = self.project.settings.clone();
                 let mut new = old.clone();
                 let previous = new.modular_racks.iter().find(|rack| rack.channel == id);
-                let retained_macros: Vec<(u8, u32)> = previous.into_iter().flat_map(|rack| &rack.graph.nodes)
+                let retained_macros: Vec<(u8, u32)> = previous
+                    .into_iter()
+                    .flat_map(|rack| &rack.graph.nodes)
                     .filter_map(|node| match &node.processor {
                         crate::RackProcessor::ControlInput { index, .. } => Some((*index, node.id)),
                         _ => None,
-                    }).collect();
+                    })
+                    .collect();
                 let graph = graph.map(|mut graph| {
-                    if let Some(previous) = previous { graph.next_id = graph.next_id.max(previous.graph.next_id); }
+                    if let Some(previous) = previous {
+                        graph.next_id = graph.next_id.max(previous.graph.next_id);
+                    }
                     graph
                 });
                 new.modular_racks.retain(|rack| rack.channel != id);
-                if let Some(graph) = graph { new.modular_racks.push(crate::ChannelRack { channel: id, graph }); }
+                if let Some(graph) = graph {
+                    new.modular_racks
+                        .push(crate::ChannelRack { channel: id, graph });
+                }
                 let mut proposed = self.project.clone();
                 proposed.settings = new.clone();
                 crate::rack::check_project(&proposed).map_err(CommandError::invalid)?;
@@ -1581,6 +1648,46 @@ impl Transaction<'_> {
                 "Write automation LFO"
             }
             Command::DuplicateAutomation { id } => self.duplicate_automation(id)?,
+            Command::SetScriptLibrary { library } => {
+                library.check().map_err(CommandError::invalid)?;
+                let old = self.project.settings.clone();
+                for asset in &library.assets {
+                    if let Some(previous) = old.scripts.asset(&asset.reference)
+                        && previous != asset
+                    {
+                        return Err(CommandError::invalid(
+                            "saved script revision is immutable; increment revision",
+                        ));
+                    }
+                }
+                for binding in &library.channels {
+                    if self.project.channel(binding.channel).is_none()
+                        && !old.scripts.channels.contains(binding)
+                    {
+                        return Err(CommandError::not_found("channel", binding.channel));
+                    }
+                }
+                for binding in &library.controllers {
+                    if !old.scripts.controllers.contains(binding)
+                        && let Some(target) = binding.target
+                    {
+                        let link = crate::ControllerLink {
+                            source: binding.source.clone(),
+                            target,
+                            map: Default::default(),
+                        };
+                        if let Some(problem) =
+                            crate::controller_links::links_problem(&[link], Some(self.project))
+                        {
+                            return Err(CommandError::invalid(problem));
+                        }
+                    }
+                }
+                let mut new = old.clone();
+                new.scripts = library;
+                self.push(Edit::Settings(Change { old, new }));
+                "Change scripts"
+            }
             Command::Batch { label, commands } => {
                 let mut first = None;
                 for command in commands {
@@ -1706,9 +1813,20 @@ impl Transaction<'_> {
 
     fn prune_midi_destinations(&mut self) {
         for index in 0..self.project.channels.len() {
-            if let ChannelSource::Instrument { params: InstrumentParams::MidiOut(params), .. } = &self.project.channels[index].source {
+            if let ChannelSource::Instrument {
+                params: InstrumentParams::MidiOut(params),
+                ..
+            } = &self.project.channels[index].source
+            {
                 let mut params = *params;
-                if params.plugin_destination > 0 && self.project.plugin(crate::PluginTarget::Instrument { channel: ChannelId(params.plugin_destination as u32) }).is_none() {
+                if params.plugin_destination > 0
+                    && self
+                        .project
+                        .plugin(crate::PluginTarget::Instrument {
+                            channel: ChannelId(params.plugin_destination as u32),
+                        })
+                        .is_none()
+                {
                     params.plugin_destination = -1; // Explicitly disconnected, never rerouted to hardware.
                     self.set_instrument(index, InstrumentParams::MidiOut(params));
                 }
@@ -1973,7 +2091,13 @@ impl Transaction<'_> {
 
     fn remove_channel(&mut self, id: ChannelId) -> Result<Label, CommandError> {
         let index = self.channel_index(id)?;
-        if self.project.settings.modular_racks.iter().any(|rack| rack.channel == id) {
+        if self
+            .project
+            .settings
+            .modular_racks
+            .iter()
+            .any(|rack| rack.channel == id)
+        {
             let old = self.project.settings.clone();
             let mut new = old.clone();
             new.modular_racks.retain(|rack| rack.channel != id);
@@ -2036,10 +2160,20 @@ impl Transaction<'_> {
             }
         }
         let copy_id = copy.id;
-        if let Some(rack) = self.project.settings.modular_racks.iter().find(|rack| rack.channel == id).cloned() {
+        if let Some(rack) = self
+            .project
+            .settings
+            .modular_racks
+            .iter()
+            .find(|rack| rack.channel == id)
+            .cloned()
+        {
             let old = self.project.settings.clone();
             let mut new = old.clone();
-            new.modular_racks.push(crate::ChannelRack { channel: copy_id, graph: rack.graph });
+            new.modular_racks.push(crate::ChannelRack {
+                channel: copy_id,
+                graph: rack.graph,
+            });
             self.push(Edit::Settings(Change { old, new }));
         }
         self.push(Edit::Channel(Box::new(ListEdit::Insert {
@@ -2331,13 +2465,27 @@ impl Transaction<'_> {
         param: u32,
         value: f32,
     ) -> Result<String, CommandError> {
-        if let Some(rack) = self.project.settings.modular_racks.iter().find(|rack| rack.channel == channel) {
-            if !value.is_finite() { return Err(CommandError::invalid("Rack macro must be finite")); }
+        if let Some(rack) = self
+            .project
+            .settings
+            .modular_racks
+            .iter()
+            .find(|rack| rack.channel == channel)
+        {
+            if !value.is_finite() {
+                return Err(CommandError::invalid("Rack macro must be finite"));
+            }
             let mut graph = rack.graph.clone();
             let inlet = graph.nodes.iter_mut().find(|node| matches!(node.processor, crate::RackProcessor::ControlInput { index, .. } if u32::from(index) == param))
                 .ok_or_else(|| CommandError::invalid("Rack macro was removed"))?;
-            if let crate::RackProcessor::ControlInput { value: stored, .. } = &mut inlet.processor { *stored = value.clamp(0.0, 1.0); }
-            self.run(Command::SetChannelRack { id: channel, graph: Some(graph), expected: None })?;
+            if let crate::RackProcessor::ControlInput { value: stored, .. } = &mut inlet.processor {
+                *stored = value.clamp(0.0, 1.0);
+            }
+            self.run(Command::SetChannelRack {
+                id: channel,
+                graph: Some(graph),
+                expected: None,
+            })?;
             return Ok("Change rack macro".into());
         }
         let target = crate::PluginTarget::Instrument { channel };
@@ -2362,13 +2510,28 @@ impl Transaction<'_> {
         Ok(setting_label(kind.descriptors(), param))
     }
 
-    fn check_midi_destination(&self, source: ChannelId, params: &InstrumentParams) -> Result<(), CommandError> {
+    fn check_midi_destination(
+        &self,
+        source: ChannelId,
+        params: &InstrumentParams,
+    ) -> Result<(), CommandError> {
         if let InstrumentParams::MidiOut(params) = params {
-            if !(0..=7).contains(&params.output_port) || params.plugin_destination < -1 { return Err(CommandError::invalid("The MIDI destination is outside its range")); }
+            if !(0..=7).contains(&params.output_port) || params.plugin_destination < -1 {
+                return Err(CommandError::invalid(
+                    "The MIDI destination is outside its range",
+                ));
+            }
             if params.plugin_destination > 0 {
                 let target = ChannelId(params.plugin_destination as u32);
-                if target == source || self.project.plugin(crate::PluginTarget::Instrument { channel: target }).is_none() {
-                    return Err(CommandError::invalid("Choose another hosted instrument as the MIDI destination"));
+                if target == source
+                    || self
+                        .project
+                        .plugin(crate::PluginTarget::Instrument { channel: target })
+                        .is_none()
+                {
+                    return Err(CommandError::invalid(
+                        "Choose another hosted instrument as the MIDI destination",
+                    ));
                 }
             }
         }

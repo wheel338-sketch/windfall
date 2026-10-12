@@ -178,8 +178,16 @@ impl Processor {
     }
     /// Configured DC routes outside the prepared device channel count.
     pub fn unavailable_dc_routes(&self) -> usize {
-        let channels = self.hardware_output.as_ref().map_or(0, |output| output.channels());
-        self.plan.control_sources.iter().flat_map(|source| &source.config.voltage_routes).filter(|route| usize::from(route.channel) >= channels).count()
+        let channels = self
+            .hardware_output
+            .as_ref()
+            .map_or(0, |output| output.channels());
+        self.plan
+            .control_sources
+            .iter()
+            .flat_map(|source| &source.config.voltage_routes)
+            .filter(|route| usize::from(route.channel) >= channels)
+            .count()
     }
     /// The most recently prepared multichannel software output block.
     pub fn hardware_samples(&self) -> &[f32] {
@@ -228,10 +236,17 @@ impl Processor {
         self.finish_count_in();
         self.apply_navigation(&mut navigation_left);
         self.publish_automation();
-        let rejected = self.state.instrument_units().fold(0u64, |total, unit| total.saturating_add(unit.take_rack_rejections()));
+        let rejected = self.state.instrument_units().fold(0u64, |total, unit| {
+            total.saturating_add(unit.take_rack_rejections())
+        });
         if rejected > 0 {
             let counter = &self.shared.rejected_rack_events;
-            counter.store(counter.load(Ordering::Relaxed).saturating_add(rejected.min(u64::from(u32::MAX)) as u32), Ordering::Relaxed);
+            counter.store(
+                counter
+                    .load(Ordering::Relaxed)
+                    .saturating_add(rejected.min(u64::from(u32::MAX)) as u32),
+                Ordering::Relaxed,
+            );
         }
         self.collect_midi_out();
         self.shared.publish_transport(
@@ -873,10 +888,25 @@ impl Processor {
 
     /// Starts a note on a channel that makes sound.
     fn start_on(&mut self, note: Note, now: u64) {
-        let before: u32 = self.state.controls.nodes.iter().map(|n| n.rejected_notes).fold(0, u32::saturating_add);
+        let before: u32 = self
+            .state
+            .controls
+            .nodes
+            .iter()
+            .map(|n| n.rejected_notes)
+            .fold(0, u32::saturating_add);
         self.state.controls.note_on(&self.plan, note, now);
-        let after: u32 = self.state.controls.nodes.iter().map(|n| n.rejected_notes).fold(0, u32::saturating_add);
-        self.shared.rejected_control_notes.fetch_add(after.saturating_sub(before), std::sync::atomic::Ordering::Relaxed);
+        let after: u32 = self
+            .state
+            .controls
+            .nodes
+            .iter()
+            .map(|n| n.rejected_notes)
+            .fold(0, u32::saturating_add);
+        self.shared.rejected_control_notes.fetch_add(
+            after.saturating_sub(before),
+            std::sync::atomic::Ordering::Relaxed,
+        );
         let channel = note.channel;
         if self.state.channel_voice[channel].settings.arpeggiator.mode != ArpeggiatorMode::Off
             && note.expression.articulation != windfall_dsp::NoteArticulation::Slide
@@ -1211,10 +1241,18 @@ impl Processor {
         // fixed pending buffer is retired, even while the transport keeps playing.
         for index in 0..self.plan.channels.len() {
             let old = &self.plan.channels[index];
-            if old.instrument.is_some_and(|params| matches!(params, windfall_dsp::InstrumentParams::MidiOut(_)))
-                && plan.channel(old.id).is_none_or(|next| plan.channels[next].leaving || plan.channels[next].instrument.map(|p| p.kind()) != old.instrument.map(|p| p.kind()))
+            if old
+                .instrument
+                .is_some_and(|params| matches!(params, windfall_dsp::InstrumentParams::MidiOut(_)))
+                && plan.channel(old.id).is_none_or(|next| {
+                    plan.channels[next].leaving
+                        || plan.channels[next].instrument.map(|p| p.kind())
+                            != old.instrument.map(|p| p.kind())
+                })
                 && let Some(unit) = self.state.instrument(index)
-            { unit.silence(); }
+            {
+                unit.silence();
+            }
         }
         self.collect_midi_out();
         self.voices.rebind(&plan, &self.plan, &self.state, now);
@@ -1302,23 +1340,50 @@ impl Processor {
     fn route_midi_out(&mut self, frame: Option<u64>) {
         // Each source can queue at most MIDI_OUT_PENDING events. A stack batch
         // lets the source borrow end before its hosted destination is borrowed.
-        let empty = windfall_dsp::MidiOutEvent { frame: 0, bytes: [0; 3], len: 0, output_port: 0, plugin_destination: 0 };
+        let empty = windfall_dsp::MidiOutEvent {
+            frame: 0,
+            bytes: [0; 3],
+            len: 0,
+            output_port: 0,
+            plugin_destination: 0,
+        };
         for index in 0..self.state.instruments.len() {
-            if !self.plan.channels[index].instrument.is_some_and(|params| matches!(params, windfall_dsp::InstrumentParams::MidiOut(_))) { continue; }
+            if !self.plan.channels[index]
+                .instrument
+                .is_some_and(|params| matches!(params, windfall_dsp::InstrumentParams::MidiOut(_)))
+            {
+                continue;
+            }
             let mut messages = [empty; windfall_dsp::midi_out::MIDI_OUT_PENDING];
             let mut count = 0;
             if let Some(unit) = self.state.instrument(index) {
-                if let Some(frame) = frame { unit.stamp_midi(frame); }
-                unit.drain_midi(&mut |event| { if count < messages.len() { messages[count] = event; count += 1; } });
+                if let Some(frame) = frame {
+                    unit.stamp_midi(frame);
+                }
+                unit.drain_midi(&mut |event| {
+                    if count < messages.len() {
+                        messages[count] = event;
+                        count += 1;
+                    }
+                });
             }
             for event in &messages[..count] {
                 if event.plugin_destination == 0 {
-                    self.shared.push_midi_out_to(event.frame, event.bytes, event.len, event.output_port);
+                    self.shared.push_midi_out_to(
+                        event.frame,
+                        event.bytes,
+                        event.len,
+                        event.output_port,
+                    );
                 } else if event.plugin_destination != u32::MAX {
-                    let accepted = self.plan.channel(windfall_project::ChannelId(event.plugin_destination))
+                    let accepted = self
+                        .plan
+                        .channel(windfall_project::ChannelId(event.plugin_destination))
                         .and_then(|target| self.state.instrument(target))
                         .is_some_and(|unit| unit.midi_message(event.message()));
-                    if !accepted { self.shared.refused_midi_out(); }
+                    if !accepted {
+                        self.shared.refused_midi_out();
+                    }
                 }
             }
         }
@@ -1549,8 +1614,17 @@ impl Processor {
         for (index, source) in self.plan.control_sources.iter().enumerate() {
             for route in &source.config.voltage_routes {
                 for offset in 0..out.len() {
-                    let value = self.state.controls.nodes[index].dc[offset][usize::from(route.output)];
-                    output.add(windfall_project::ExternalOutputRoute { left: u16::from(route.channel), right: None, exclusive: true }, first + offset, [value, value]);
+                    let value =
+                        self.state.controls.nodes[index].dc[offset][usize::from(route.output)];
+                    output.add(
+                        windfall_project::ExternalOutputRoute {
+                            left: u16::from(route.channel),
+                            right: None,
+                            exclusive: true,
+                        },
+                        first + offset,
+                        [value, value],
+                    );
                 }
             }
         }
@@ -1594,10 +1668,12 @@ impl Processor {
 
     fn render_voices(&mut self, base: u64, from: usize, to: usize) {
         let routed = self.plan.channels.iter().any(|channel| channel.instrument.is_some_and(|params| matches!(params, windfall_dsp::InstrumentParams::MidiOut(params) if params.plugin_destination != 0)));
-        if !routed && self.state.channel_voice.iter().all(|runtime| {
-            runtime.settings.arpeggiator.mode == ArpeggiatorMode::Off
-                && runtime.echo.pending_events() == 0
-        }) {
+        if !routed
+            && self.state.channel_voice.iter().all(|runtime| {
+                runtime.settings.arpeggiator.mode == ArpeggiatorMode::Off
+                    && runtime.echo.pending_events() == 0
+            })
+        {
             self.render_voice_audio(base, from, to);
             return;
         }
@@ -1736,8 +1812,10 @@ impl Processor {
             // Render MIDI sources first. Plugin routes use one-frame subblocks
             // so source releases/CC changes reach the hosted unit on that frame.
             for index in 0..self.plan.channels.len() {
-                if self.plan.channels[index].instrument.is_some_and(|params| matches!(params, windfall_dsp::InstrumentParams::MidiOut(_)))
-                    && let Some(unit) = self.state.instrument(index) {
+                if self.plan.channels[index].instrument.is_some_and(|params| {
+                    matches!(params, windfall_dsp::InstrumentParams::MidiOut(_))
+                }) && let Some(unit) = self.state.instrument(index)
+                {
                     unit.render_curves(&self.plan, clock, base, from, to);
                 }
             }

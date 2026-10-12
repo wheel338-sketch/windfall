@@ -420,7 +420,10 @@ impl Controller {
     /// Starts playback from the playhead. Does nothing while playing.
     /// Source notes refused by the fixed 128-note table of an internal controller.
     pub fn rejected_control_notes(&self) -> u32 {
-        self.inner.shared.rejected_control_notes.load(Ordering::Relaxed)
+        self.inner
+            .shared
+            .rejected_control_notes
+            .load(Ordering::Relaxed)
     }
 
     pub fn play(&self) {
@@ -750,7 +753,9 @@ impl Controller {
 
     pub fn drain_midi_out_from(&self, mut out: impl FnMut(u64, &[u8], u8)) {
         for _ in 0..crate::shared::MIDI_OUT_CAPACITY {
-            let Some((frame, bytes, len, port)) = self.inner.shared.pop_midi_out_from() else { break; };
+            let Some((frame, bytes, len, port)) = self.inner.shared.pop_midi_out_from() else {
+                break;
+            };
             out(frame, &bytes[..usize::from(len.min(3))], port);
         }
     }
@@ -943,7 +948,8 @@ impl Controller {
             voices: shared.voices(),
             audio_clips: shared.audio_clips(),
             dropped_clips: shared.dropped_clips(),
-            rejected_rack_events: Some(shared.rejected_rack_events.load(Ordering::Relaxed)).filter(|count| *count != 0),
+            rejected_rack_events: Some(shared.rejected_rack_events.load(Ordering::Relaxed))
+                .filter(|count| *count != 0),
             gain_reductions: meters
                 .iter()
                 .map(|(effect, meter)| GainReduction {

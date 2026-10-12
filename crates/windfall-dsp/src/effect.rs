@@ -29,9 +29,10 @@ use crate::performance::{
 use crate::balance::{Balance, BalanceParams};
 use crate::channel_mute::{ChannelMute, ChannelMuteParams};
 use crate::control::{EnvelopeFollower, EnvelopeFollowerParams};
-use crate::control::{KeyboardSource, KeyboardSourceParams, FormulaSource, FormulaSourceParams};
+use crate::control::{FormulaSource, FormulaSourceParams, KeyboardSource, KeyboardSourceParams};
 use crate::control::{NoteEnvelope, NoteEnvelopeParams};
 use crate::control::{PanLfo, PanLfoParams};
+use crate::control::{VoltageSource, VoltageSourceParams};
 use crate::control::{XyPad, XyPadParams};
 use crate::control::{XyzPad, XyzPadParams};
 use crate::dc_block::{DcBlock, DcBlockParams};
@@ -54,7 +55,6 @@ use crate::spectral::{
 };
 use crate::stereo_matrix::{StereoMatrix, StereoMatrixParams};
 use crate::surface::{ControlSurface, ControlSurfaceParams};
-use crate::control::{VoltageSource, VoltageSourceParams};
 use crate::tuner::{Tuner, TunerParams};
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
@@ -689,9 +689,15 @@ impl EffectKind {
             EffectKind::ControlSurface => {
                 EffectParams::ControlSurface(ControlSurfaceParams::default())
             }
-            EffectKind::FormulaSource => EffectParams::FormulaSource(FormulaSourceParams::default()),
-            EffectKind::KeyboardSource => EffectParams::KeyboardSource(KeyboardSourceParams::default()),
-            EffectKind::VoltageSource => EffectParams::VoltageSource(VoltageSourceParams::default()),
+            EffectKind::FormulaSource => {
+                EffectParams::FormulaSource(FormulaSourceParams::default())
+            }
+            EffectKind::KeyboardSource => {
+                EffectParams::KeyboardSource(KeyboardSourceParams::default())
+            }
+            EffectKind::VoltageSource => {
+                EffectParams::VoltageSource(VoltageSourceParams::default())
+            }
             EffectKind::SendTap => EffectParams::SendTap(SendTapParams::default()),
             EffectKind::MasterLimiter => {
                 EffectParams::MasterLimiter(MasterLimiterParams::default())
@@ -1017,7 +1023,9 @@ impl EffectParams {
                 EffectParams::ControlSurface(params.sanitized())
             }
             EffectParams::FormulaSource(params) => EffectParams::FormulaSource(params.sanitized()),
-            EffectParams::KeyboardSource(params) => EffectParams::KeyboardSource(params.sanitized()),
+            EffectParams::KeyboardSource(params) => {
+                EffectParams::KeyboardSource(params.sanitized())
+            }
             EffectParams::VoltageSource(params) => EffectParams::VoltageSource(params.sanitized()),
             EffectParams::SendTap(params) => EffectParams::SendTap(params.sanitized()),
             EffectParams::MasterLimiter(params) => EffectParams::MasterLimiter(params.sanitized()),
@@ -1116,9 +1124,15 @@ impl EffectParams {
             EffectParams::ControlSurface(_) => {
                 EffectKind::ControlSurface.max_latency_samples(sample_rate)
             }
-            EffectParams::FormulaSource(_) => EffectKind::FormulaSource.max_latency_samples(sample_rate),
-            EffectParams::KeyboardSource(_) => EffectKind::KeyboardSource.max_latency_samples(sample_rate),
-            EffectParams::VoltageSource(_) => EffectKind::VoltageSource.max_latency_samples(sample_rate),
+            EffectParams::FormulaSource(_) => {
+                EffectKind::FormulaSource.max_latency_samples(sample_rate)
+            }
+            EffectParams::KeyboardSource(_) => {
+                EffectKind::KeyboardSource.max_latency_samples(sample_rate)
+            }
+            EffectParams::VoltageSource(_) => {
+                EffectKind::VoltageSource.max_latency_samples(sample_rate)
+            }
             EffectParams::SendTap(_) => EffectKind::SendTap.max_latency_samples(sample_rate),
             EffectParams::MasterLimiter(_) => master_limiter_latency(sample_rate),
         }
@@ -1618,9 +1632,15 @@ impl AnyEffect {
             (AnyEffect::ControlSurface(effect), EffectParams::ControlSurface(params)) => {
                 effect.set_params(params)
             }
-            (AnyEffect::FormulaSource(effect), EffectParams::FormulaSource(params)) => effect.set_params(params),
-            (AnyEffect::KeyboardSource(effect), EffectParams::KeyboardSource(params)) => effect.set_params(params),
-            (AnyEffect::VoltageSource(effect), EffectParams::VoltageSource(params)) => effect.set_params(params),
+            (AnyEffect::FormulaSource(effect), EffectParams::FormulaSource(params)) => {
+                effect.set_params(params)
+            }
+            (AnyEffect::KeyboardSource(effect), EffectParams::KeyboardSource(params)) => {
+                effect.set_params(params)
+            }
+            (AnyEffect::VoltageSource(effect), EffectParams::VoltageSource(params)) => {
+                effect.set_params(params)
+            }
             (AnyEffect::SendTap(effect), EffectParams::SendTap(params)) => {
                 effect.set_params(params)
             }
