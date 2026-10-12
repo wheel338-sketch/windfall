@@ -52,7 +52,8 @@ pub fn export_bundle(program: &Program, binary: &Path, destination: &Path, platf
             fs::create_dir_all(&clap_resources).map_err(|e| e.to_string())?;
             write(&clap_resources.join("windfall-state.json"), &packet)?;
             for format in ["vst3", "clap"] {
-                let plist = format!("<?xml version=\"1.0\" encoding=\"UTF-8\"?><!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" \"http://www.apple.com/DTDs/PropertyList-1.0.dtd\"><plist version=\"1.0\"><dict><key>CFBundleIdentifier</key><string>org.windfall.program.{format}</string><key>CFBundleExecutable</key><string>Windfall</string><key>CFBundleName</key><string>Windfall</string><key>CFBundlePackageType</key><string>BNDL</string><key>CFBundleVersion</key><string>1</string><key>CFBundleShortVersionString</key><string>{}</string></dict></plist>", env!("CARGO_PKG_VERSION"));
+                let numeric_version = env!("CARGO_PKG_VERSION").split('-').next().unwrap_or("0.1.0");
+                let plist = format!("<?xml version=\"1.0\" encoding=\"UTF-8\"?><!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" \"http://www.apple.com/DTDs/PropertyList-1.0.dtd\"><plist version=\"1.0\"><dict><key>CFBundleIdentifier</key><string>org.windfall.program.{format}</string><key>CFBundleExecutable</key><string>Windfall</string><key>CFBundleName</key><string>Windfall</string><key>CFBundlePackageType</key><string>BNDL</string><key>CFBundleVersion</key><string>1</string><key>CFBundleShortVersionString</key><string>{numeric_version}</string></dict></plist>");
                 write(&stage.join(format!("Windfall.{format}/Contents/Info.plist")), plist.as_bytes())?;
                 write(&stage.join(format!("Windfall.{format}/Contents/PkgInfo")), b"BNDL????")?;
             }
@@ -102,6 +103,7 @@ fn module_path() -> Option<PathBuf> {
     #[cfg(any(target_os = "linux", target_os = "macos"))] {
         use std::ffi::{c_char, c_void, CStr};
         #[repr(C)] struct Info { name: *const c_char, base: *mut c_void, symbol: *const c_char, address: *mut c_void }
+        #[cfg_attr(target_os = "linux", link(name = "dl"))]
         unsafe extern "C" { fn dladdr(address: *const c_void, info: *mut Info) -> i32; }
         let mut info: Info = unsafe { std::mem::zeroed() };
         if unsafe { dladdr((&raw const crate::clap_entry).cast(), &mut info) } == 0 || info.name.is_null() { return None; }
