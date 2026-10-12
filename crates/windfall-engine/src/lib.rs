@@ -137,6 +137,7 @@ mod mixer;
 pub mod modular;
 mod note_curves;
 mod note_glide;
+mod parallel;
 pub mod performance;
 pub mod performance_recording;
 mod performance_clips;
@@ -175,9 +176,9 @@ pub use controller::capture_control::{
     SeatCounters,
 };
 pub use controller::{
-    Controller, PreparationSnapshot, PreparedProject, PreparedPublication, ProjectPreparationError,
-    ProjectPublicationIntent, ProjectPublicationLease, ProjectRetirement, PublicationRefusal,
-    StreamStats,
+    Controller, PreparationSnapshot, PreparedProject, PreparedPublication, ProcessingNode,
+    ProjectPreparationError, ProjectPublicationIntent, ProjectPublicationLease, ProjectRetirement,
+    PublicationRefusal, StreamStats,
 };
 pub use device::Engine;
 pub use pool::SamplePool;

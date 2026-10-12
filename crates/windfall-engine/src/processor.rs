@@ -33,16 +33,19 @@ mod plugin_export;
 /// The device callback, the offline renderer and the tests all drive the
 /// same `process`, so an export is the same audio as playback.
 ///
-/// `process` is safe to call from a realtime thread. It never allocates,
-/// frees, locks or blocks: every buffer is allocated in [`Processor::new`],
-/// and whatever arrives from the [`Controller`] owning heap memory is sent
-/// back to it to be dropped.
+/// `process` never allocates, frees, takes a mutex or performs an OS wait.
+/// Buffers and workers are prepared off audio; parallel stages use atomic
+/// completion barriers. A missed deadline returns completed audio late and
+/// reports the node/xrun. Heap owners return to the control-side retirement
+/// queue only after every worker has left their prepared plan.
 pub struct Processor {
     performance: crate::performance::Launcher,
     spectrum: Option<crate::spectrum::SpectrumTap>,
     /// The selectable analyzer captures of a device stream. `None` offline.
     captures: Option<crate::capture::AudioCaptures>,
     sample_rate: u32,
+    /// Device converters split a single deadline across bounded stereo blocks.
+    callback_deadline: Option<std::time::Instant>,
     #[cfg(feature = "plugin-export")]
     plugin_tempo: Option<f64>,
     #[cfg(feature = "plugin-export")]
@@ -139,6 +142,7 @@ impl Processor {
             automation_touches: [None; 64],
             captures: None,
             sample_rate,
+            callback_deadline: None,
             #[cfg(feature = "plugin-export")]
             plugin_tempo: None,
             #[cfg(feature = "plugin-export")]
@@ -179,6 +183,19 @@ impl Processor {
 
     pub fn sample_rate(&self) -> u32 {
         self.sample_rate
+    }
+
+    pub(crate) fn begin_device_buffer(&mut self, start: std::time::Instant, frames: usize) {
+        self.callback_deadline = Some(
+            start + std::time::Duration::from_secs_f64(frames as f64 / f64::from(self.sample_rate)),
+        );
+        self.shared
+            .processing_xrun_recorded
+            .store(false, Ordering::Relaxed);
+    }
+
+    pub(crate) fn end_device_buffer(&mut self) {
+        self.callback_deadline = None;
     }
 
     /// Installed during off-audio attachment, before processing can begin.
@@ -224,6 +241,12 @@ impl Processor {
     /// The audio does not depend on how the output is divided into calls,
     /// only on which frame each request arrives at.
     pub fn process(&mut self, out: &mut [f32]) {
+        let processing_started = std::time::Instant::now();
+        if self.callback_deadline.is_none() {
+            self.shared
+                .processing_xrun_recorded
+                .store(false, Ordering::Relaxed);
+        }
         if let Some(captures) = &mut self.captures {
             captures.boundary();
         }
@@ -232,6 +255,13 @@ impl Processor {
         self.voices.sweep(&self.plan, &mut self.garbage);
         self.clips.sweep(&self.plan, &mut self.garbage);
         self.handle_messages();
+        if let Some(deadline) = self.callback_deadline {
+            self.state.workers.deadline = deadline;
+        } else {
+            self.state
+                .workers
+                .begin(processing_started, out.len() / 2, self.sample_rate);
+        }
         if let Some(output) = &mut self.hardware_output {
             output.rewind();
         }
@@ -580,7 +610,8 @@ impl Processor {
             | Message::SetDiskTaps(_)
             | Message::SetAudioLogger(_)
             | Message::SetOutputGain(_)
-            | Message::AutomationTouch { .. } => false,
+            | Message::AutomationTouch { .. }
+            | Message::SetWorkers(_) => false,
         };
         if lets_go {
             self.hold = None;
@@ -826,6 +857,11 @@ impl Processor {
             Message::SetDiskTaps(taps) => {
                 let old = std::mem::replace(&mut self.disk_taps, taps);
                 retire(&mut self.garbage, Garbage::DiskTaps(old));
+            }
+            Message::SetWorkers(workers) => {
+                // All scoped jobs have completed before message handling starts.
+                let old = std::mem::replace(&mut self.state.workers, workers);
+                retire(&mut self.garbage, Garbage::Workers(old));
             }
             Message::SetAudioLogger(tap) => {
                 if let Some(old) = std::mem::replace(&mut self.audio_logger, tap) {
@@ -2114,7 +2150,7 @@ impl Processor {
             }
             self.route_midi_out(Some(base + from as u64));
             self.state
-                .render_instrument_curves(&self.plan, clock, base, from..to);
+                .render_instrument_curves(&self.plan, clock, base, from..to, &self.shared);
             self.clips.render(
                 &self.plan,
                 clock,
@@ -2168,6 +2204,272 @@ impl Processor {
 mod tests {
     use super::*;
     use windfall_project::ChannelId;
+
+    fn parallel_project() -> windfall_project::Project {
+        use windfall_project::{
+            Channel, ChannelSource, EffectId, EffectParams, EffectSlot, InstrumentParams, TrackId,
+        };
+        let mut project = windfall_project::Project::new("parallel ownership");
+        for index in 1..=8u32 {
+            let mut track = project.mixer.tracks[0].clone();
+            track.id = TrackId(index + 10);
+            track.output = Some(TrackId::MASTER);
+            track.effects.push(EffectSlot {
+                impulse: None,
+                id: EffectId(index + 100),
+                enabled: true,
+                mix: 1.0,
+                params: EffectParams::Eq(Default::default()),
+            });
+            project.mixer.tracks.push(track);
+            project.channels.push(Channel {
+                sample_playback: None,
+                id: ChannelId(index + 200),
+                name: String::new(),
+                color: 0,
+                volume: 0.1,
+                pan: 0.0,
+                muted: false,
+                solo: false,
+                group: String::new(),
+                voice: Default::default(),
+                expression_map: Default::default(),
+                sample_instrument: None,
+                timing: Default::default(),
+                mixer_track: TrackId(index + 10),
+                source: ChannelSource::Instrument {
+                    asset: None,
+                    params: InstrumentParams::SubtractiveSynth(Default::default()),
+                },
+            });
+        }
+        project.next_id = 1000;
+        project
+    }
+
+    #[test]
+    fn production_callback_and_actual_dsp_workers_allocate_nothing_and_retire_only_after_control_drain()
+     {
+        let (mut processor, controller) = Processor::new(48_000);
+        let project = parallel_project();
+        let pool = crate::pool::SamplePool::new();
+        controller.set_audio_threads(Some(4)).unwrap();
+        controller.set_project(&project, &pool);
+        processor.process(&mut []);
+        for channel in &project.channels {
+            controller.note_on(channel.id, 60, 0.8);
+        }
+        let mut block = [0.0; 512];
+        for _ in 0..32 {
+            assert_eq!(
+                crate::test_alloc::allocator_calls(|| processor.process(&mut block)),
+                0
+            );
+            assert_eq!(processor.state.workers.allocator_calls(), 0);
+        }
+        assert!(block.iter().any(|sample| sample.abs() > 0.001));
+        assert!(
+            processor.state.workers.executed_jobs() > 0,
+            "allocator guard must observe actual worker DSP"
+        );
+        let old_workers = processor.state.workers.lifetime();
+        controller.set_project(&project, &pool);
+        assert_eq!(
+            crate::test_alloc::allocator_calls(|| processor.process(&mut block)),
+            0
+        );
+        assert!(
+            old_workers.upgrade().is_some(),
+            "old pool belongs to the control retirement queue"
+        );
+        let mut retirement = crate::controller::ProjectRetirement::default();
+        controller.take_retired(&mut retirement);
+        assert!(
+            old_workers.upgrade().is_some(),
+            "draining retains owners until control drops its carrier"
+        );
+        drop(retirement);
+        assert!(
+            old_workers.upgrade().is_none(),
+            "joined workers and their old plan storage must retire completely"
+        );
+        assert_eq!(processor.state.workers.count(), 4);
+        controller.set_audio_threads(Some(1)).unwrap();
+        let previous = processor.state.workers.lifetime();
+        assert_eq!(
+            crate::test_alloc::allocator_calls(|| processor.process(&mut block)),
+            0
+        );
+        assert_eq!(processor.state.workers.count(), 1);
+        let mut retirement = crate::controller::ProjectRetirement::default();
+        controller.take_retired(&mut retirement);
+        drop(retirement);
+        assert!(previous.upgrade().is_none());
+    }
+
+    #[test]
+    fn concurrent_plan_publication_under_load_returns_every_old_worker_to_control_retirement() {
+        let (mut processor, controller) = Processor::new(48_000);
+        let project = parallel_project();
+        let pool = crate::pool::SamplePool::new();
+        controller.set_audio_threads(Some(4)).unwrap();
+        controller.set_project(&project, &pool);
+        processor.process(&mut []);
+        for channel in &project.channels {
+            controller.note_on(channel.id, 60, 0.8);
+        }
+        let done = Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let signal = done.clone();
+        let control = controller.clone();
+        let publisher = std::thread::spawn(move || {
+            let mut project = project;
+            for round in 0..16 {
+                project.mixer.tracks[1].pan = (round as f32 * 0.11).sin() * 0.4;
+                control
+                    .set_audio_threads(Some([2, 4, 8][round % 3]))
+                    .unwrap();
+                control.set_project(&project, &pool);
+                std::thread::sleep(std::time::Duration::from_millis(1));
+            }
+            signal.store(true, Ordering::Release);
+        });
+        let mut old = Vec::new();
+        let mut block = [0.0; 512];
+        let timeout = std::time::Instant::now() + std::time::Duration::from_secs(10);
+        while !done.load(Ordering::Acquire) {
+            let before = processor.state.workers.lifetime();
+            assert_eq!(
+                crate::test_alloc::allocator_calls(|| processor.process(&mut block)),
+                0
+            );
+            if !std::sync::Weak::ptr_eq(&before, &processor.state.workers.lifetime()) {
+                old.push(before);
+            }
+            assert!(block.iter().all(|sample| sample.is_finite()));
+            assert!(
+                std::time::Instant::now() < timeout,
+                "publication must not block behind an audio worker"
+            );
+        }
+        publisher.join().unwrap();
+        let before = processor.state.workers.lifetime();
+        assert_eq!(
+            crate::test_alloc::allocator_calls(|| processor.process(&mut block)),
+            0
+        );
+        if !std::sync::Weak::ptr_eq(&before, &processor.state.workers.lifetime()) {
+            old.push(before);
+        }
+        assert!(
+            !old.is_empty(),
+            "fixture must observe actual pool replacement during DSP"
+        );
+        let mut retired = crate::controller::ProjectRetirement::default();
+        controller.take_retired(&mut retired);
+        drop(retired);
+        assert!(
+            old.iter().all(|owner| owner.upgrade().is_none()),
+            "no retired plan may keep a worker alive"
+        );
+        assert_eq!(processor.state.workers.allocator_calls(), 0);
+    }
+
+    #[test]
+    fn device_buffer_deadline_survives_conversion_subblocks_and_counts_one_xrun() {
+        let (mut processor, controller) = Processor::new(48_000);
+        let project = parallel_project();
+        controller.set_audio_threads(Some(4)).unwrap();
+        controller.set_project(&project, &crate::pool::SamplePool::new());
+        processor.process(&mut []);
+        for channel in &project.channels {
+            controller.note_on(channel.id, 60, 0.8);
+        }
+        let started = std::time::Instant::now() - std::time::Duration::from_secs(1);
+        processor.begin_device_buffer(started, 512);
+        let deadline = processor.callback_deadline.unwrap();
+        let mut block = [0.0; 512];
+        for _ in 0..2 {
+            assert_eq!(
+                crate::test_alloc::allocator_calls(|| processor.process(&mut block)),
+                0
+            );
+            assert_eq!(processor.state.workers.deadline, deadline);
+            assert_eq!(controller.stream_stats().xruns, 1);
+        }
+        let stats = controller.stream_stats();
+        assert!(stats.processing_overruns > 1);
+        assert_eq!(
+            stats.last_processing_overrun,
+            Some(crate::controller::ProcessingNode::Track(
+                windfall_project::TrackId::MASTER
+            ))
+        );
+        assert!(
+            block.iter().any(|sample| sample.abs() > 0.001),
+            "late policy returns completed audio"
+        );
+        processor
+            .shared
+            .record_buffer(512, started.elapsed(), 48_000);
+        processor.end_device_buffer();
+        assert_eq!(controller.stream_stats().xruns, 1);
+        assert!(processor.callback_deadline.is_none());
+    }
+
+    #[test]
+    fn master_and_track_background_logging_preserve_parallel_effect_execution() {
+        let (mut processor, controller) = Processor::new(48_000);
+        let project = parallel_project();
+        controller.set_audio_threads(Some(4)).unwrap();
+        controller.set_project(&project, &crate::pool::SamplePool::new());
+        processor.process(&mut []);
+        let track = project.mixer.tracks[1].id;
+        let logger = controller
+            .start_audio_logger(&crate::audio_logger::LoggerSpec {
+                seconds: 30,
+                master: true,
+                tracks: vec![track],
+                effects: Vec::new(),
+                worker: false,
+            })
+            .unwrap();
+        processor.process(&mut []);
+        processor
+            .state
+            .workers
+            .begin(std::time::Instant::now(), 64, 48_000);
+        processor.mixer.clear(processor.plan.tracks.len(), 64);
+        processor.mixer.track_mut(1)[..64].fill([0.5, 0.25]);
+        let mut output = [[0.0; 2]; 64];
+        let before = processor.state.workers.executed_jobs();
+        assert_eq!(
+            crate::test_alloc::allocator_calls(|| {
+                processor.mixer.mix(
+                    &processor.plan,
+                    &mut processor.state,
+                    &processor.shared,
+                    0,
+                    &mut output,
+                    crate::mixer::CaptureSinks {
+                        disk: &mut [],
+                        logger: &mut processor.audio_logger,
+                    },
+                );
+            }),
+            0
+        );
+        assert!(
+            processor.state.workers.executed_jobs() > before,
+            "default logging must not serialize independent mixer effects"
+        );
+        logger.pump();
+        let captured = logger
+            .tail(windfall_ipc::AudioLoggerSource::Track { track }, None)
+            .unwrap();
+        assert_eq!(captured.samples.len(), 128);
+        assert!(captured.samples.iter().any(|sample| sample.abs() > 0.001));
+        assert!(output.iter().any(|frame| frame[0].abs() > 0.001));
+    }
 
     #[test]
     fn stale_hardware_notes_preserve_stopped_automation_hold() {

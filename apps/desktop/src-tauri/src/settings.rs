@@ -196,12 +196,33 @@ mod tests {
     }
 
     #[test]
+    fn legacy_audio_settings_choose_automatic_and_explicit_processing_threads_roundtrip() {
+        let folder = tempfile::tempdir().unwrap();
+        let file = folder.path().join(SETTINGS_FILE);
+        fs::write(&file, r#"{"audio":{"bufferFrames":128}}"#).unwrap();
+        let mut store = SettingsStore::load(file.clone());
+        assert_eq!(store.settings().audio.processing_threads, None);
+        for threads in [Some(1), Some(2), Some(4), Some(8), None] {
+            store.update(|settings| settings.audio.processing_threads = threads);
+            assert_eq!(
+                SettingsStore::load(file.clone())
+                    .settings()
+                    .audio
+                    .processing_threads,
+                threads
+            );
+            assert_eq!(store.settings().audio.buffer_frames, Some(128));
+        }
+    }
+
+    #[test]
     fn settings_survive_a_reload_and_unknown_fields_are_ignored() {
         let folder = tempfile::tempdir().unwrap();
         let file = folder.path().join("config").join(SETTINGS_FILE);
         let mut store = SettingsStore::load(file.clone());
         store.update(|settings| {
             settings.audio = AudioSettings {
+                processing_threads: None,
                 output_channels: None,
                 host: Some("WASAPI".to_owned()),
                 device: None,

@@ -202,6 +202,9 @@ class Emitter<T> {
  */
 function storedSettings(settings: StoredAudioSettings): StoredAudioSettings {
   return {
+    ...(settings.processingThreads != null
+      ? { processingThreads: settings.processingThreads }
+      : {}),
     host: settings.host ?? null,
     device: settings.device ?? null,
     sampleRate: settings.sampleRate ?? null,

@@ -24,6 +24,84 @@ pub(crate) struct CaptureSinks<'a> {
     pub logger: &'a mut Option<Box<crate::audio_logger::LoggerTap>>,
 }
 
+/// Scratch belongs to a plan, and retires with its DSP/worker owner.
+pub(crate) struct TrackScratch {
+    left: Box<[f32]>,
+    right: Box<[f32]>,
+    dry_left: Box<[f32]>,
+    dry_right: Box<[f32]>,
+    key: Box<[Frame]>,
+}
+impl TrackScratch {
+    pub fn new() -> Self {
+        let side = || vec![0.0; MAX_BLOCK].into_boxed_slice();
+        Self {
+            left: side(),
+            right: side(),
+            dry_left: side(),
+            dry_right: side(),
+            key: vec![[0.0; 2]; MAX_BLOCK].into_boxed_slice(),
+        }
+    }
+}
+struct RenderTrack {
+    buffer: *mut Frame,
+    keys: *const Frame,
+    chain: *mut Vec<Option<crate::rack::EffectUnit>>,
+    key_delays: *mut Vec<crate::state::DelaySlot>,
+    processor: *mut windfall_dsp::TrackProcessor,
+    scratch: *mut TrackScratch,
+    activity: *mut crate::state::Activity,
+    base: u64,
+    frames: usize,
+    silence: f32,
+}
+unsafe fn render_track(context: *mut ()) {
+    // SAFETY: the scoped stage grants one job exclusive access to these specific
+    // track fields. Inputs are read-only for the whole stage. No broad PlanState
+    // or Mixer reference is created while another lane is accessing their fields.
+    let job = unsafe { &mut *context.cast::<RenderTrack>() };
+    let buffer = unsafe { std::slice::from_raw_parts_mut(job.buffer, job.frames) };
+    let keys = unsafe { std::slice::from_raw_parts(job.keys, job.frames) };
+    let chain = unsafe { &mut *job.chain };
+    let delays = unsafe { &mut *job.key_delays };
+    let processor = unsafe { &mut *job.processor };
+    let scratch = unsafe { &mut *job.scratch };
+    let activity = unsafe { &mut *job.activity };
+    let left = &mut scratch.left[..job.frames];
+    let right = &mut scratch.right[..job.frames];
+    for (frame, (left, right)) in buffer.iter().zip(left.iter_mut().zip(right.iter_mut())) {
+        *left = frame[0];
+        *right = frame[1];
+    }
+    for (place, unit) in chain.iter_mut().enumerate() {
+        let Some(unit) = unit else {
+            continue;
+        };
+        scratch.key[..job.frames].copy_from_slice(keys);
+        if let Some(line) = &mut delays[place].line {
+            line.process(&mut scratch.key[..job.frames]);
+        }
+        unit.process_sidechain(
+            left,
+            right,
+            &mut scratch.dry_left,
+            &mut scratch.dry_right,
+            Some(&scratch.key[..job.frames]),
+        );
+    }
+    if !chain.is_empty() {
+        for (frame, (left, right)) in buffer.iter_mut().zip(left.iter().zip(right.iter())) {
+            *frame = [*left, *right];
+        }
+        activity.hear_output(job.base, buffer, job.silence);
+    }
+    processor.process(left, right);
+    for (frame, (left, right)) in buffer.iter_mut().zip(left.iter().zip(right.iter())) {
+        *frame = [*left, *right];
+    }
+}
+
 pub(crate) struct Mixer {
     waveforms: Box<[crate::waveform_meter::WaveAccumulator]>,
     /// [`MAX_BLOCK`] frames per possible mixer track, end to end. Voices add
@@ -130,231 +208,267 @@ impl Mixer {
         self.add_instruments(plan, state, base, frames);
         let control_tempo = state.tempo();
 
-        for &index in &plan.order {
-            let track = &plan.tracks[index];
-            if track.current {
-                let id = shared
-                    .current_track
-                    .load(std::sync::atomic::Ordering::Acquire);
-                if let Some(source) = plan
-                    .track_ids
-                    .get(id)
-                    .filter(|&source| !plan.tracks[source].current)
-                {
-                    self.scratch[..frames]
-                        .copy_from_slice(&self.buffers[source * MAX_BLOCK..][..frames]);
-                    self.buffers[index * MAX_BLOCK..][..frames]
-                        .copy_from_slice(&self.scratch[..frames]);
-                }
+        for wave in plan.waves.ranges() {
+            let parallel = wave.len() > 1
+                && state.workers.count() > 1
+                && plan.control_sources.is_empty()
+                && plan.order[wave.clone()].iter().all(|&index| {
+                    !plan.tracks[index].current
+                        && logger.as_ref().is_none_or(|logger| {
+                            !plan.tracks[index]
+                                .effects
+                                .iter()
+                                .any(|effect| logger.logs_effect(effect.id))
+                        })
+                        && !plan.tracks[index].tapped
+                        && state.chains[index]
+                            .iter()
+                            .flatten()
+                            .all(crate::rack::EffectUnit::parallel_safe)
+                });
+            if parallel {
+                self.render_stage(plan, state, shared, wave.clone(), base, frames);
             }
-            let buffer = &mut self.buffers[index * MAX_BLOCK..][..frames];
-            if let Some(line) = &mut state.direct[index].line {
-                line.process(buffer);
-                let inbox = &self.inbox[index * MAX_BLOCK..][..frames];
-                for (frame, fed) in buffer.iter_mut().zip(inbox) {
-                    frame[0] += fed[0];
-                    frame[1] += fed[1];
-                }
-            }
+            for &index in &plan.order[wave.clone()] {
+                if !parallel {
+                    let track = &plan.tracks[index];
+                    if track.current {
+                        let id = shared
+                            .current_track
+                            .load(std::sync::atomic::Ordering::Acquire);
+                        if let Some(source) = plan
+                            .track_ids
+                            .get(id)
+                            .filter(|&source| !plan.tracks[source].current)
+                        {
+                            self.scratch[..frames]
+                                .copy_from_slice(&self.buffers[source * MAX_BLOCK..][..frames]);
+                            self.buffers[index * MAX_BLOCK..][..frames]
+                                .copy_from_slice(&self.scratch[..frames]);
+                        }
+                    }
+                    let buffer = &mut self.buffers[index * MAX_BLOCK..][..frames];
+                    if let Some(line) = &mut state.direct[index].line {
+                        line.process(buffer);
+                        let inbox = &self.inbox[index * MAX_BLOCK..][..frames];
+                        for (frame, fed) in buffer.iter_mut().zip(inbox) {
+                            frame[0] += fed[0];
+                            frame[1] += fed[1];
+                        }
+                    }
 
-            state.activity[index].hear_input(base, buffer, state.silence);
-            if !state.chains[index].is_empty() {
-                let (left, right) = (&mut self.left[..frames], &mut self.right[..frames]);
-                for (frame, (left, right)) in buffer.iter().zip(left.iter_mut().zip(&mut *right)) {
-                    *left = frame[0];
-                    *right = frame[1];
-                }
-                for place in 0..state.chains[index].len() {
-                    let Some(unit) = &mut state.chains[index][place] else {
-                        if let Some(logger) = logger.as_mut() {
-                            logger.effect(track.effects[place].id, left, right);
+                    state.activity[index].hear_input(base, buffer, state.silence);
+                    if !state.chains[index].is_empty() {
+                        let (left, right) = (&mut self.left[..frames], &mut self.right[..frames]);
+                        for (frame, (left, right)) in
+                            buffer.iter().zip(left.iter_mut().zip(&mut *right))
+                        {
+                            *left = frame[0];
+                            *right = frame[1];
                         }
-                        continue;
-                    };
-                    if let Some(effect) = track.effects.get(place) {
-                        if unit.control_enabled() {
-                            state.controls.process_slot(
-                                plan,
-                                effect.id,
-                                unit.control_params(),
-                                (left, right),
-                                base,
-                                control_tempo,
+                        for place in 0..state.chains[index].len() {
+                            let Some(unit) = &mut state.chains[index][place] else {
+                                if let Some(logger) = logger.as_mut() {
+                                    logger.effect(track.effects[place].id, left, right);
+                                }
+                                continue;
+                            };
+                            if let Some(effect) = track.effects.get(place) {
+                                if unit.control_enabled() {
+                                    state.controls.process_slot(
+                                        plan,
+                                        effect.id,
+                                        unit.control_params(),
+                                        (left, right),
+                                        base,
+                                        control_tempo,
+                                    );
+                                } else {
+                                    state.controls.silence(plan, effect.id);
+                                }
+                            }
+                            self.scratch[..frames]
+                                .copy_from_slice(&self.keys[index * MAX_BLOCK..][..frames]);
+                            if let Some(line) = &mut state.key_delays[index][place].line {
+                                line.process(&mut self.scratch[..frames]);
+                            }
+                            let routed = track.routed_outputs(place);
+                            if routed == 0 {
+                                unit.process_sidechain(
+                                    left,
+                                    right,
+                                    &mut self.dry_left,
+                                    &mut self.dry_right,
+                                    Some(&self.scratch[..frames]),
+                                );
+                                if let Some(logger) = logger.as_mut() {
+                                    logger.effect(track.effects[place].id, left, right);
+                                }
+                                continue;
+                            }
+                            // The effect's own outputs leave the track here, before
+                            // the rest of the chain and the fader. Each goes through
+                            // its compensation delay into the track it is routed to,
+                            // which routing order puts after this one.
+                            let [first, second, third] = &mut self.aux;
+                            let mut aux = windfall_dsp::AuxBlock {
+                                routed,
+                                outputs: [
+                                    &mut first[..frames],
+                                    &mut second[..frames],
+                                    &mut third[..frames],
+                                ],
+                            };
+                            unit.process_routed(
+                                left,
+                                right,
+                                &mut self.dry_left,
+                                &mut self.dry_right,
+                                Some(&self.scratch[..frames]),
+                                &mut aux,
                             );
-                        } else {
-                            state.controls.silence(plan, effect.id);
+                            if let Some(logger) = logger.as_mut() {
+                                logger.effect(track.effects[place].id, left, right);
+                            }
+                            for edge in &track.edges {
+                                let Some(tap) = edge.tap.filter(|tap| tap.place == place) else {
+                                    continue;
+                                };
+                                let sent = &mut self.aux[usize::from(tap.output)][..frames];
+                                if let Some(line) = &mut state.edge_delays[edge.slot].line {
+                                    line.process(sent);
+                                }
+                                let feeds = if state.direct[edge.target].line.is_some() {
+                                    &mut self.inbox
+                                } else {
+                                    &mut self.buffers
+                                };
+                                add_scaled(
+                                    sent,
+                                    &mut feeds[edge.target * MAX_BLOCK..][..frames],
+                                    &state.edges[edge.slot],
+                                    base,
+                                );
+                            }
                         }
-                    }
-                    self.scratch[..frames]
-                        .copy_from_slice(&self.keys[index * MAX_BLOCK..][..frames]);
-                    if let Some(line) = &mut state.key_delays[index][place].line {
-                        line.process(&mut self.scratch[..frames]);
-                    }
-                    let routed = track.routed_outputs(place);
-                    if routed == 0 {
-                        unit.process_sidechain(
-                            left,
-                            right,
-                            &mut self.dry_left,
-                            &mut self.dry_right,
-                            Some(&self.scratch[..frames]),
-                        );
-                        if let Some(logger) = logger.as_mut() {
-                            logger.effect(track.effects[place].id, left, right);
+                        let buffer = &mut self.buffers[index * MAX_BLOCK..][..frames];
+                        for (frame, (left, right)) in buffer
+                            .iter_mut()
+                            .zip(self.left[..frames].iter().zip(&self.right[..frames]))
+                        {
+                            *frame = [*left, *right];
                         }
-                        continue;
+                        state.activity[index].hear_output(base, buffer, state.silence);
                     }
-                    // The effect's own outputs leave the track here, before
-                    // the rest of the chain and the fader. Each goes through
-                    // its compensation delay into the track it is routed to,
-                    // which routing order puts after this one.
-                    let [first, second, third] = &mut self.aux;
-                    let mut aux = windfall_dsp::AuxBlock {
-                        routed,
-                        outputs: [
-                            &mut first[..frames],
-                            &mut second[..frames],
-                            &mut third[..frames],
-                        ],
-                    };
-                    unit.process_routed(
-                        left,
-                        right,
-                        &mut self.dry_left,
-                        &mut self.dry_right,
-                        Some(&self.scratch[..frames]),
-                        &mut aux,
-                    );
-                    if let Some(logger) = logger.as_mut() {
-                        logger.effect(track.effects[place].id, left, right);
+                    let buffer = &mut self.buffers[index * MAX_BLOCK..][..frames];
+
+                    let left = &mut self.left[..frames];
+                    let right = &mut self.right[..frames];
+                    for (frame, (left, right)) in
+                        buffer.iter().zip(left.iter_mut().zip(right.iter_mut()))
+                    {
+                        *left = frame[0];
+                        *right = frame[1];
                     }
-                    for edge in &track.edges {
-                        let Some(tap) = edge.tap.filter(|tap| tap.place == place) else {
-                            continue;
-                        };
-                        let sent = &mut self.aux[usize::from(tap.output)][..frames];
-                        if let Some(line) = &mut state.edge_delays[edge.slot].line {
-                            line.process(sent);
-                        }
-                        let feeds = if state.direct[edge.target].line.is_some() {
-                            &mut self.inbox
-                        } else {
-                            &mut self.buffers
-                        };
-                        add_scaled(
-                            sent,
-                            &mut feeds[edge.target * MAX_BLOCK..][..frames],
-                            &state.edges[edge.slot],
-                            base,
-                        );
+                    state.track_processing[index].process(left, right);
+                    for (frame, (left, right)) in
+                        buffer.iter_mut().zip(left.iter().zip(right.iter()))
+                    {
+                        *frame = [*left, *right];
                     }
+                }
+                let track = &plan.tracks[index];
+                if !parallel {
+                    state.workers.record_node(u64::from(track.id.0), shared);
                 }
                 let buffer = &mut self.buffers[index * MAX_BLOCK..][..frames];
-                for (frame, (left, right)) in buffer
-                    .iter_mut()
-                    .zip(self.left[..frames].iter().zip(&self.right[..frames]))
-                {
-                    *frame = [*left, *right];
-                }
                 state.activity[index].hear_output(base, buffer, state.silence);
-            }
-            let buffer = &mut self.buffers[index * MAX_BLOCK..][..frames];
-
-            let left = &mut self.left[..frames];
-            let right = &mut self.right[..frames];
-            for (frame, (left, right)) in buffer.iter().zip(left.iter_mut().zip(right.iter_mut())) {
-                *left = frame[0];
-                *right = frame[1];
-            }
-            state.track_processing[index].process(left, right);
-            for (frame, (left, right)) in buffer.iter_mut().zip(left.iter().zip(right.iter())) {
-                *frame = [*left, *right];
-            }
-            state.activity[index].hear_output(base, buffer, state.silence);
-            for tap in taps.iter_mut().filter(|tap| tap.tap.track == track.id) {
-                tap.copy(
-                    base,
-                    state.latency,
-                    state.behind[index],
-                    windfall_project::MixerRecordMode::PostEffects,
-                    buffer,
-                );
-            }
-            if let Some(logger) = logger.as_mut() {
-                logger.track(track.id, buffer);
-            }
-            let strip = &state.tracks[index];
-            let steady =
-                strip.gain.settled(base) && strip.pan.settled(base) && strip.law.settled(base);
-            let (mut left, mut right) =
-                fader_gains(strip.law, base, strip.gain.at(base), strip.pan.at(base));
-            let (mut peak_left, mut peak_right) = (0.0_f32, 0.0_f32);
-            for (offset, frame) in buffer.iter_mut().enumerate() {
-                if !steady {
-                    let at = base + offset as u64;
-                    (left, right) = fader_gains(strip.law, at, strip.gain.at(at), strip.pan.at(at));
-                }
-                frame[0] *= left;
-                frame[1] *= right;
-                peak_left = peak_left.max(frame[0].abs());
-                peak_right = peak_right.max(frame[1].abs());
-            }
-            shared.raise_meter(index, peak_left, peak_right);
-            for tap in taps.iter_mut().filter(|tap| tap.tap.track == track.id) {
-                tap.copy(
-                    base,
-                    state.latency,
-                    state.behind[index],
-                    windfall_project::MixerRecordMode::PostFader,
-                    buffer,
-                );
-            }
-
-            for edge in &track.edges {
-                if edge.tap.is_some() {
-                    // Already sent from its place in the chain.
-                    continue;
-                }
-                let gain = &state.edges[edge.slot];
-                let delayed = state.edge_delays[edge.slot].line.as_mut();
-                if edge.sidechain {
-                    let source = &self.buffers[index * MAX_BLOCK..][..frames];
-                    self.scratch[..frames].copy_from_slice(source);
-                    if let Some(line) = delayed {
-                        line.process(&mut self.scratch[..frames]);
-                    }
-                    add_scaled(
-                        &self.scratch[..frames],
-                        &mut self.keys[edge.target * MAX_BLOCK..][..frames],
-                        gain,
+                for tap in taps.iter_mut().filter(|tap| tap.tap.track == track.id) {
+                    tap.copy(
                         base,
+                        state.latency,
+                        state.behind[index],
+                        windfall_project::MixerRecordMode::PostEffects,
+                        buffer,
                     );
-                    continue;
                 }
-                let split = state.direct[edge.target].line.is_some();
-                let (source, target) = match (delayed, split) {
-                    (None, false) => pair(&mut self.buffers, index, edge.target),
-                    (None, true) => (
-                        &self.buffers[index * MAX_BLOCK..][..MAX_BLOCK],
-                        &mut self.inbox[edge.target * MAX_BLOCK..][..MAX_BLOCK],
-                    ),
-                    (Some(line), split) => {
-                        let source = &self.buffers[index * MAX_BLOCK..][..frames];
-                        let scratch = &mut self.scratch[..frames];
-                        scratch.copy_from_slice(source);
-                        line.process(scratch);
-                        let feeds = if split {
-                            &mut self.inbox
-                        } else {
-                            &mut self.buffers
-                        };
-                        (
-                            &*scratch,
-                            &mut feeds[edge.target * MAX_BLOCK..][..MAX_BLOCK],
-                        )
+                if let Some(logger) = logger.as_mut() {
+                    logger.track(track.id, buffer);
+                }
+                let strip = &state.tracks[index];
+                let steady =
+                    strip.gain.settled(base) && strip.pan.settled(base) && strip.law.settled(base);
+                let (mut left, mut right) =
+                    fader_gains(strip.law, base, strip.gain.at(base), strip.pan.at(base));
+                let (mut peak_left, mut peak_right) = (0.0_f32, 0.0_f32);
+                for (offset, frame) in buffer.iter_mut().enumerate() {
+                    if !steady {
+                        let at = base + offset as u64;
+                        (left, right) =
+                            fader_gains(strip.law, at, strip.gain.at(at), strip.pan.at(at));
                     }
-                };
-                add_scaled(&source[..frames], &mut target[..frames], gain, base);
+                    frame[0] *= left;
+                    frame[1] *= right;
+                    peak_left = peak_left.max(frame[0].abs());
+                    peak_right = peak_right.max(frame[1].abs());
+                }
+                shared.raise_meter(index, peak_left, peak_right);
+                for tap in taps.iter_mut().filter(|tap| tap.tap.track == track.id) {
+                    tap.copy(
+                        base,
+                        state.latency,
+                        state.behind[index],
+                        windfall_project::MixerRecordMode::PostFader,
+                        buffer,
+                    );
+                }
+
+                for edge in &track.edges {
+                    if edge.tap.is_some() {
+                        // Already sent from its place in the chain.
+                        continue;
+                    }
+                    let gain = &state.edges[edge.slot];
+                    let delayed = state.edge_delays[edge.slot].line.as_mut();
+                    if edge.sidechain {
+                        let source = &self.buffers[index * MAX_BLOCK..][..frames];
+                        self.scratch[..frames].copy_from_slice(source);
+                        if let Some(line) = delayed {
+                            line.process(&mut self.scratch[..frames]);
+                        }
+                        add_scaled(
+                            &self.scratch[..frames],
+                            &mut self.keys[edge.target * MAX_BLOCK..][..frames],
+                            gain,
+                            base,
+                        );
+                        continue;
+                    }
+                    let split = state.direct[edge.target].line.is_some();
+                    let (source, target) = match (delayed, split) {
+                        (None, false) => pair(&mut self.buffers, index, edge.target),
+                        (None, true) => (
+                            &self.buffers[index * MAX_BLOCK..][..MAX_BLOCK],
+                            &mut self.inbox[edge.target * MAX_BLOCK..][..MAX_BLOCK],
+                        ),
+                        (Some(line), split) => {
+                            let source = &self.buffers[index * MAX_BLOCK..][..frames];
+                            let scratch = &mut self.scratch[..frames];
+                            scratch.copy_from_slice(source);
+                            line.process(scratch);
+                            let feeds = if split {
+                                &mut self.inbox
+                            } else {
+                                &mut self.buffers
+                            };
+                            (
+                                &*scratch,
+                                &mut feeds[edge.target * MAX_BLOCK..][..MAX_BLOCK],
+                            )
+                        }
+                    };
+                    add_scaled(&source[..frames], &mut target[..frames], gain, base);
+                }
             }
         }
         out.copy_from_slice(&self.track_mut(0)[..frames]);
@@ -380,6 +494,73 @@ impl Mixer {
             [peak[0].max(frame[0].abs()), peak[1].max(frame[1].abs())]
         });
         shared.raise_meter(0, peaks[0], peaks[1]);
+        // Include deterministic routing/master reduction in the stage budget.
+        // DSP lanes already identify their own late nodes; if only reduction
+        // ran late, identify the master completion without duplicating the xrun.
+        if !shared
+            .processing_xrun_recorded
+            .load(std::sync::atomic::Ordering::Relaxed)
+        {
+            state
+                .workers
+                .record_node(u64::from(plan.tracks[0].id.0), shared);
+        }
+    }
+
+    fn render_stage(
+        &mut self,
+        plan: &Plan,
+        state: &mut PlanState,
+        shared: &Shared,
+        wave: std::ops::Range<usize>,
+        base: u64,
+        frames: usize,
+    ) {
+        for tracks in plan.order[wave].chunks(crate::parallel::LANES) {
+            let mut contexts: [Option<RenderTrack>; crate::parallel::LANES] =
+                std::array::from_fn(|_| None);
+            let mut tasks = [crate::parallel::Task::EMPTY; crate::parallel::LANES];
+            for (slot, &index) in tracks.iter().enumerate() {
+                let buffer = &mut self.buffers[index * MAX_BLOCK..][..frames];
+                if let Some(line) = &mut state.direct[index].line {
+                    line.process(buffer);
+                    for (frame, fed) in buffer
+                        .iter_mut()
+                        .zip(&self.inbox[index * MAX_BLOCK..][..frames])
+                    {
+                        frame[0] += fed[0];
+                        frame[1] += fed[1];
+                    }
+                }
+                state.activity[index].hear_input(base, buffer, state.silence);
+                contexts[slot] = Some(RenderTrack {
+                    buffer: buffer.as_mut_ptr(),
+                    keys: self.keys[index * MAX_BLOCK..].as_ptr(),
+                    chain: &mut state.chains[index],
+                    key_delays: &mut state.key_delays[index],
+                    processor: &mut state.track_processing[index],
+                    scratch: &mut state.parallel_scratch[index],
+                    activity: &mut state.activity[index],
+                    base,
+                    frames,
+                    silence: state.silence,
+                });
+                // SAFETY: track indices are unique in a wave. Every pointer names
+                // disjoint prepared storage, retained until run's completion barrier.
+                tasks[slot] = unsafe {
+                    crate::parallel::Task::new(
+                        contexts[slot].as_mut().unwrap() as *mut RenderTrack as *mut (),
+                        render_track,
+                        u64::from(plan.tracks[index].id.0),
+                    )
+                };
+            }
+            // SAFETY: contexts, Mixer buffers and DSP seats remain stationary and
+            // untouched until every worker has returned, even after the deadline.
+            unsafe {
+                state.workers.run(&tasks[..tracks.len()], shared);
+            }
+        }
     }
 
     /// Called after mixing, before metronome/device output gain. Master includes prints.

@@ -85,6 +85,33 @@ impl Session {
     /// is left out when opening and stays in the request; see [`openable`].
     pub fn engine_configure(&self, settings: AudioSettings) -> EngineStatus {
         let _configuring = lock(&self.inner.configuring);
+        let previous = self.engine_settings();
+        let mut device_request = settings.clone();
+        device_request.processing_threads = previous.processing_threads;
+        if device_request == previous && settings.processing_threads != previous.processing_threads
+        {
+            if let Err(error) = self
+                .controller()
+                .set_audio_threads(settings.processing_threads.map(usize::from))
+            {
+                let mut status = self.engine_status();
+                status.error = Some(error.to_owned());
+                return status;
+            }
+            self.store()
+                .update(|stored| stored.audio = settings.clone());
+            let status = self.engine_status();
+            self.emit(Event::EngineStatus(status.clone()));
+            return status;
+        }
+        if settings
+            .processing_threads
+            .is_some_and(|count| !(1..=8).contains(&count))
+        {
+            let mut status = self.engine_status();
+            status.error = Some("Audio threads must be 1 through 8".into());
+            return status;
+        }
         let _recording = lock(&self.inner.recording);
         if _recording.is_some()
             || self
@@ -259,6 +286,7 @@ mod tests {
         buffer_frames: Option<u32>,
     ) -> AudioSettings {
         AudioSettings {
+            processing_threads: None,
             output_channels: None,
             host: host.map(str::to_owned),
             device: device.map(str::to_owned),

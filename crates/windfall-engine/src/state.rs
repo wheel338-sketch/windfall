@@ -885,6 +885,8 @@ impl Layout {
 }
 
 pub(crate) struct PlanState {
+    pub workers: Box<crate::parallel::Workers>,
+    pub parallel_scratch: Vec<crate::mixer::TrackScratch>,
     layout: Option<Layout>,
     sample_rate: u32,
     plugin_records: HashMap<windfall_project::PluginTarget, (u64, usize)>,
@@ -935,6 +937,22 @@ pub(crate) struct PlanState {
     /// The tempo the effects and instruments were last told, in beats per
     /// minute. It follows the tempo map while the song plays.
     pub tempo_told: f64,
+}
+
+struct RenderInstrument {
+    unit: *mut InstrumentUnit,
+    plan: *const Plan,
+    clock: Clock,
+    base: u64,
+    from: usize,
+    to: usize,
+}
+unsafe fn render_instrument(context: *mut ()) {
+    // SAFETY: scoped, unique builtin instrument context, and immutable plan.
+    let job = unsafe { &mut *context.cast::<RenderInstrument>() };
+    unsafe {
+        (&mut *job.unit).render_curves(&*job.plan, job.clock, job.base, job.from, job.to);
+    }
 }
 
 impl PlanState {
@@ -1577,7 +1595,16 @@ impl PlanState {
         } else {
             (None, layout.out)
         };
+        let workers = crate::parallel::Workers::new(plan.audio_threads.max(1)).map_err(|_| {
+            crate::project_preparation::ProjectPreparationError::Unsupported(
+                "Could not create audio processing workers",
+            )
+        })?;
         let state = Self {
+            workers: Box::new(workers),
+            parallel_scratch: (0..plan.tracks.len())
+                .map(|_| crate::mixer::TrackScratch::new())
+                .collect(),
             layout,
             sample_rate,
             plugin_records: ledger.plugins.clone(),
@@ -2239,17 +2266,59 @@ impl PlanState {
         clock: Clock,
         base: u64,
         frames: Range<usize>,
+        shared: &crate::shared::Shared,
     ) {
-        for index in 0..plan.channels.len() {
-            if plan.channels[index]
-                .instrument
-                .is_some_and(|params| matches!(params, windfall_dsp::InstrumentParams::MidiOut(_)))
-            {
-                continue;
+        let mut first = 0;
+        while first < plan.channels.len() {
+            let end = (first + crate::parallel::LANES).min(plan.channels.len());
+            let mut contexts: [Option<RenderInstrument>; crate::parallel::LANES] =
+                std::array::from_fn(|_| None);
+            let mut tasks = [crate::parallel::Task::EMPTY; crate::parallel::LANES];
+            let mut count = 0;
+            for index in first..end {
+                if plan.channels[index].instrument.is_some_and(|params| {
+                    matches!(params, windfall_dsp::InstrumentParams::MidiOut(_))
+                }) {
+                    continue; // MIDI routing ran on the callback before this stage.
+                }
+                if let Some(unit) = self.instruments[index]
+                    .as_mut()
+                    .and_then(|seat| seat.unit.as_mut())
+                {
+                    if unit.parallel_safe() {
+                        contexts[count] = Some(RenderInstrument {
+                            unit,
+                            plan,
+                            clock,
+                            base,
+                            from: frames.start,
+                            to: frames.end,
+                        });
+                        // SAFETY: each channel occurs once and has its own instrument,
+                        // notes and scratch. Plan is immutable through the barrier.
+                        tasks[count] = unsafe {
+                            crate::parallel::Task::new(
+                                contexts[count].as_mut().unwrap() as *mut RenderInstrument
+                                    as *mut (),
+                                render_instrument,
+                                (1 << 63) | u64::from(plan.channels[index].id.0),
+                            )
+                        };
+                        count += 1;
+                    } else {
+                        // All hosted instances stay on the actual callback lane.
+                        unit.render_curves(plan, clock, base, frames.start, frames.end);
+                        self.workers
+                            .record_node((1 << 63) | u64::from(plan.channels[index].id.0), shared);
+                    }
+                }
             }
-            if let Some(unit) = self.instrument(index) {
-                unit.render_curves(plan, clock, base, frames.start, frames.end);
+            // SAFETY: no instrument or context is accessed again until every
+            // completion returns. Never publish/swap a plan during this barrier.
+            unsafe {
+                self.workers.run(&tasks[..count], shared);
             }
+            first = end;
         }
     }
 

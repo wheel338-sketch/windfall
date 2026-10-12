@@ -127,6 +127,13 @@ impl Engine {
     /// where it started. A failed attempt is not repeated: the engine only
     /// retries by itself for a device that was running and went away.
     pub fn reconfigure(&self, settings: &AudioSettings) {
+        if let Err(error) = self
+            .controller
+            .set_audio_threads(settings.processing_threads.map(usize::from))
+        {
+            *lock(&self.status) = stopped(settings, error);
+            return;
+        }
         let (done, wait) = mpsc::channel();
         let sent = lock(&self.requests)
             .send(Request::Open(settings.clone(), done))
@@ -921,6 +928,7 @@ impl Feeder {
     fn fill(&mut self, data: &mut cpal::Data) {
         let started = Instant::now();
         let frames = data.len() / self.channels;
+        self.processor.begin_device_buffer(started, frames);
         if self.coverage.fell_behind(started, frames) {
             self.shared.record_xrun();
         }
@@ -943,6 +951,7 @@ impl Feeder {
         }
         self.shared
             .record_buffer(frames, started.elapsed(), self.processor.sample_rate());
+        self.processor.end_device_buffer();
     }
 
     /// Fills the requested device layout in bounded blocks, summing physical

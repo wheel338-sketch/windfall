@@ -69,7 +69,9 @@ export async function configureEngine(
 ): Promise<EngineStatus | null> {
   try {
     const status = await replyStatus(() => backend.engineConfigure(settings))
-    useEngineStore.setState({ request: settings })
+    useEngineStore.setState({
+      request: status.error ? await backend.engineSettings() : settings,
+    })
     return status
   } catch (error) {
     reportError(error, "Could not change the audio device")

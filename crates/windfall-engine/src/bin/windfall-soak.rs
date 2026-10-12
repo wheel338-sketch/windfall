@@ -136,6 +136,7 @@ fn list_devices() {
 /// Runs the soak and returns whether it passed.
 fn soak(options: &Options) -> bool {
     let engine = Engine::start(&AudioSettings {
+        processing_threads: None,
         output_channels: None,
         host: options.host.clone(),
         device: options.device.clone(),

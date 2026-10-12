@@ -224,6 +224,10 @@ pub(crate) struct LoggerTap {
 }
 
 impl LoggerTap {
+    pub(crate) fn logs_effect(&self, id: EffectId) -> bool {
+        self.effects.iter().any(|(logged, _)| *logged == id)
+    }
+
     #[inline]
     pub(crate) fn effect(&mut self, id: EffectId, left: &[f32], right: &[f32]) {
         for (logged, lane) in &mut self.effects {

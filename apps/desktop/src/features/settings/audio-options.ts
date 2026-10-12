@@ -139,6 +139,8 @@ export function withField<K extends keyof AudioSettings>(
   value: AudioSettings[K] | typeof DEFAULT_TEXT | typeof DEFAULT_NUMBER
 ): AudioSettings {
   const next: AudioSettings = {}
+  if (request.processingThreads != null)
+    next.processingThreads = request.processingThreads
   if (request.host != null) next.host = request.host
   if (request.device != null) next.device = request.device
   if (request.sampleRate != null) next.sampleRate = request.sampleRate

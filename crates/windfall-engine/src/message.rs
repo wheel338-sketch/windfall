@@ -29,6 +29,7 @@ pub(crate) const GARBAGE_HEADROOM: usize = 4;
 // Scene requests remain inline so adopting a scene cannot allocate or free.
 #[allow(clippy::large_enum_variant)]
 pub(crate) enum Message {
+    SetWorkers(Box<crate::parallel::Workers>),
     SetPlan {
         plan: Arc<Plan>,
         state: Box<PlanState>,
@@ -102,6 +103,7 @@ pub(crate) enum Message {
 pub(crate) enum Garbage {
     PerformanceReplay(Box<crate::performance_recording::Replay>),
     PerformanceRecording(Arc<crate::performance_recording::PerformanceRecording>),
+    Workers(Box<crate::parallel::Workers>),
     Plan(Arc<Plan>),
     State(Box<PlanState>),
     Sample(AudioBuffer),

@@ -244,6 +244,7 @@ fn configuring_the_engine_remembers_the_settings_and_announces_the_status() {
     rig.events.take();
 
     let settings = AudioSettings {
+        processing_threads: None,
         output_channels: None,
         host: None,
         device: None,
@@ -589,6 +590,7 @@ fn the_audio_request_is_remembered_as_the_user_made_it() {
     // A rate and a buffer size the device cannot do: it opens with its
     // own, and the request stays as it was made.
     let request = AudioSettings {
+        processing_threads: None,
         output_channels: None,
         host: None,
         device: None,
@@ -634,4 +636,42 @@ fn the_audio_request_is_remembered_as_the_user_made_it() {
     session.engine_configure(request.clone());
     let rig = rig.restart();
     assert_eq!(rig.session.engine_settings(), request);
+}
+
+#[test]
+fn processing_threads_persist_and_change_without_reopening_or_moving_playback() {
+    let mut rig = Rig::new();
+    step_on(&rig, 0, 0);
+    rig.session.transport_play().unwrap();
+    let _ = rig.run(256);
+    let before = rig.session.engine_status();
+    let tick = rig.session.controller().playhead().tick;
+    let settings = AudioSettings {
+        processing_threads: Some(4),
+        ..rig.session.engine_settings()
+    };
+    let status = rig.session.engine_configure(settings.clone());
+    assert_eq!(
+        status, before,
+        "thread-only change must not reopen the stream"
+    );
+    assert_eq!(rig.session.controller().audio_threads(), 4);
+    assert_eq!(rig.session.controller().playhead().tick, tick);
+    assert_eq!(rig.session.engine_settings(), settings);
+    assert_eq!(
+        SettingsStore::load(rig.folder.path().join(SETTINGS_FILE))
+            .settings()
+            .audio,
+        settings
+    );
+    let refused = rig.session.engine_configure(AudioSettings {
+        processing_threads: Some(9),
+        ..settings.clone()
+    });
+    assert!(refused.error.as_deref().unwrap().contains("1 through 8"));
+    assert_eq!(rig.session.engine_settings(), settings);
+    assert_eq!(rig.session.controller().audio_threads(), 4);
+    let rig = rig.restart();
+    assert_eq!(rig.session.engine_settings().processing_threads, Some(4));
+    assert_eq!(rig.session.controller().audio_threads(), 4);
 }

@@ -95,6 +95,9 @@ pub(crate) struct Plan {
     /// Track indices ordered so every track comes after the tracks that feed
     /// it.
     pub order: Vec<usize>,
+    pub waves: crate::track_workers::GraphWaves,
+    /// 0 inherits the controller preference during publication.
+    pub audio_threads: usize,
     /// Number of routing edges, which is the number of edge ramps a
     /// [`PlanState`](crate::state::PlanState) holds.
     pub edge_count: usize,
@@ -845,6 +848,38 @@ impl Plan {
             places.map(|(id, place)| (id.0, place)).unzip();
         self.effect_ids = IdIndex::new(ids.into_iter());
         self.effect_places = places;
+        self.compile_waves();
+    }
+
+    fn compile_waves(&mut self) {
+        let dependencies: Vec<_> = self
+            .tracks
+            .iter()
+            .enumerate()
+            .flat_map(|(source, track)| track.edges.iter().map(move |edge| (source, edge.target)))
+            .collect();
+        let serial: Vec<_> = self
+            .tracks
+            .iter()
+            .enumerate()
+            .filter_map(|(index, track)| {
+                (track.current
+                    || track.tapped
+                    || !self.control_sources.is_empty()
+                    || track
+                        .effects
+                        .iter()
+                        .any(|effect| effect.native_owner.is_some()))
+                .then_some(index)
+            })
+            .collect();
+        self.waves = crate::track_workers::GraphWaves::compile(
+            &self.order,
+            self.tracks.len(),
+            &dependencies,
+            &serial,
+        )
+        .expect("routing compiler supplies a topological order");
     }
 
     /// The channel with this id, if the project has it.
@@ -1001,6 +1036,8 @@ pub(crate) fn compile(project: &Project, pool: &SamplePool) -> Plan {
     let audio_clips = compile_audio_clips(&playlist, pool, &track_ids, tempo_bpm);
     let audio_clip_ids = IdIndex::new(audio_clips.iter().map(|clip| clip.id.0));
 
+    let waves = crate::track_workers::GraphWaves::compile(&order, tracks.len(), &[], &[])
+        .expect("compiled track order");
     let mut plan = Plan {
         performance_clips: Vec::new(),
         performance_clip_ids: IdIndex::default(),
@@ -1029,6 +1066,8 @@ pub(crate) fn compile(project: &Project, pool: &SamplePool) -> Plan {
         pattern_ids,
         tracks,
         track_ids,
+        waves,
+        audio_threads: 0,
         order,
         edge_count,
         effect_ids: IdIndex::default(),
@@ -1050,6 +1089,7 @@ pub(crate) fn compile(project: &Project, pool: &SamplePool) -> Plan {
     plan.lanes = automation::compile(project, &playlist, &plan).into();
     (plan.control_sources, plan.control_links) =
         crate::internal_controllers::compile(project, &plan);
+    plan.compile_waves();
     plan.pattern_lanes = plan.lanes.iter().any(|lane| lane.in_patterns());
     let tempo_lane = plan.lanes.iter().find(|lane| lane.is_tempo());
     plan.tempo_map = tempo_lane.map(|lane| TempoMap::new(lane, tempo_bpm, f64::from(plan.song_end)));
@@ -2183,6 +2223,54 @@ mod tests {
             effect_outputs: Vec::new(),
         });
         tracks.iter().map(|track| track.gain).collect()
+    }
+
+    #[test]
+    fn production_waves_cover_wide_graphs_and_cycle_repair_with_fixed_dependency_order() {
+        let mut project = Project::new("wide schedule");
+        project
+            .mixer
+            .tracks
+            .extend((1..=64).map(|id| track(id, Some(0), &[])));
+        let plan = compile(&project, &SamplePool::new());
+        assert_eq!(plan.waves.ranges(), &[0..64, 64..65]);
+        project.mixer.tracks[1].output = Some(TrackId(2));
+        project.mixer.tracks[2].output = Some(TrackId(1));
+        project.mixer.tracks[3]
+            .sidechains
+            .push(windfall_project::Send {
+                target: TrackId(4),
+                gain: 1.0,
+            });
+        let plan = compile(&project, &SamplePool::new());
+        let stage = |node| {
+            plan.waves
+                .ranges()
+                .iter()
+                .position(|range| plan.order[range.clone()].contains(&node))
+                .unwrap()
+        };
+        for (source, track) in plan.tracks.iter().enumerate() {
+            for edge in &track.edges {
+                assert!(stage(source) < stage(edge.target));
+            }
+        }
+        assert_eq!(
+            plan.waves
+                .ranges()
+                .iter()
+                .map(|range| range.len())
+                .sum::<usize>(),
+            plan.tracks.len()
+        );
+        project.mixer.tracks[5].current = true;
+        let plan = compile(&project, &SamplePool::new());
+        assert!(
+            plan.waves
+                .ranges()
+                .iter()
+                .any(|range| range.len() == 1 && plan.order[range.start] == 5)
+        );
     }
 
     #[test]

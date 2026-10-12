@@ -382,6 +382,7 @@ fn an_offline_render_carries_no_logger_and_is_not_changed_by_one() {
     let (logged, synth) = held_synth(&mut rig);
     rig.steps(synth, &[0, 4, 8, 12]);
     let options = RenderOptions {
+        audio_threads: 1,
         region: None,
         sample_rate: RATE,
         mode: PlayMode::Pattern,

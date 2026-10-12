@@ -195,6 +195,27 @@ function AudioSection() {
           onChange={(bufferFrames) => change("bufferFrames", bufferFrames)}
         />
       </Row>
+      <FieldGroup>
+        <Field>
+          <FieldLabel>Processing threads</FieldLabel>
+          <Choice
+            label="Audio processing threads"
+            value={request.processingThreads ?? DEFAULT_NUMBER}
+            disabled={loading}
+            options={[
+              { value: DEFAULT_NUMBER, label: "Automatic" },
+              ...Array.from({ length: 8 }, (_, index) => ({
+                value: index + 1,
+                label: index === 0 ? "1 (serial)" : `${index + 1}`,
+              })),
+            ]}
+            onChange={(threads) => change("processingThreads", threads)}
+          />
+          <FieldDescription>
+            Changes while playing. Hosted plugins use the audio callback lane.
+          </FieldDescription>
+        </Field>
+      </FieldGroup>
       {fixed !== null && (
         <p className="text-muted-foreground">
           This driver uses a fixed buffer of {fixed} samples.
@@ -212,6 +233,7 @@ function AudioSection() {
       >
         {!status && "Waiting for the audio engine."}
         {status?.running && runningSummary(status)}
+        {status?.running && status.error && ` ${status.error}`}
         {status?.running &&
           fixed === null &&
           " A smaller buffer lowers latency and raises CPU load."}

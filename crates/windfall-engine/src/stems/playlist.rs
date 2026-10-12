@@ -282,7 +282,7 @@ pub fn render_playlist_stems(
     if mix_pass {
         let scale = share(0);
         let pass = Pass::new(compile(project, pool), options, &[]);
-        let done = pass.run(
+        let done = pass?.run(
             None,
             &mut |_, block| mix.is_none_or(|stream| sink(stream, block)),
             &mut |fraction| progress(scale(fraction)),
@@ -298,7 +298,7 @@ pub fn render_playlist_stems(
         let scale = share(number + usize::from(mix_pass));
         let stem = playlist_stem_project(project, id);
         let pass = Pass::new(compile(&stem, pool), options, &[]);
-        let done = pass.run(
+        let done = pass?.run(
             length,
             &mut |_, block| sink(stream, block),
             &mut |fraction| progress(scale(fraction)),

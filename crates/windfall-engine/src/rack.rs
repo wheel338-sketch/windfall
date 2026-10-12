@@ -107,6 +107,11 @@ pub(crate) struct EffectUnit {
 impl EffectUnit {
     #[cfg(feature = "plugin-export")]
     pub fn reset_plugin(&mut self) { self.slot.reset(); }
+    /// Native instances and engine control producers retain the callback lane.
+    pub fn parallel_safe(&self) -> bool {
+        self.external.is_none() && !self.control_enabled()
+    }
+
     /// Builds and prepares an effect with its settings in force from its
     /// first frame. Allocates, so it is for the control side. Also returns
     /// the meter of a compressor or limiter.
@@ -654,6 +659,14 @@ impl InstrumentUnit {
         self.held = 0;
         self.left.fill(0.0); self.right.fill(0.0); self.last_sound = 0;
     }
+    pub fn parallel_safe(&self) -> bool {
+        self.external.is_none()
+            && !matches!(
+                self.params,
+                InstrumentParams::MidiOut(_) | InstrumentParams::Dashboard(_)
+            )
+    }
+
     pub fn inherit_playback_notes(&mut self, previous: &Self) {
         if self.instrument.inherit_playback_state(&previous.instrument) {
             self.notes.copy_from_slice(&previous.notes);

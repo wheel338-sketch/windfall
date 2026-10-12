@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event"
 import { afterEach, expect, it, vi } from "vitest"
 import { PluginExportControls } from "./plugin-export-controls"
 const invoke = vi.hoisted(() => vi.fn())
-vi.mock("@tauri-apps/api/core", () => ({ invoke }))
+vi.mock("@/lib/ipc", () => ({ backend: { exportPluginBundle: invoke }, errorMessage: (error: unknown) => String(error) }))
 afterEach(() => {
   Reflect.deleteProperty(window, "__TAURI_INTERNALS__")
   invoke.mockReset()
@@ -23,7 +23,7 @@ it("submits trimmed destinations, reports native failures and permits retry", as
   invoke.mockRejectedValueOnce("Runtime is missing")
   await user.click(screen.getByRole("button", { name: "Export plugin bundles" }))
   expect(await screen.findByText("Runtime is missing")).toBeInTheDocument()
-  expect(invoke).toHaveBeenCalledWith("export_plugin_bundle", { destination: "C:/exports/song", runtime: "C:/Windfall/windfall_plugin.dll" })
+  expect(invoke).toHaveBeenCalledWith("C:/exports/song", "C:/Windfall/windfall_plugin.dll")
   invoke.mockResolvedValueOnce(undefined)
   await user.click(screen.getByRole("button", { name: "Export plugin bundles" }))
   await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("VST3 and CLAP bundles saved"))

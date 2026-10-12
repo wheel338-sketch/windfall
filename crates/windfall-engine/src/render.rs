@@ -11,6 +11,8 @@ use crate::pool::SamplePool;
 /// What [`render`] produces.
 #[derive(Debug, Clone, PartialEq)]
 pub struct RenderOptions {
+    /// Total DSP lanes, including this render caller. Uses the live schedule.
+    pub audio_threads: usize,
     /// Linear, once-only song interval. Navigation markers are not rendered.
     pub region: Option<windfall_project::TickRange>,
     pub sample_rate: u32,
@@ -46,6 +48,7 @@ pub(crate) const TAIL_HOLD_SECONDS: f64 = 0.1;
 impl Default for RenderOptions {
     fn default() -> Self {
         Self {
+            audio_threads: 1,
             region: None,
             sample_rate: 48_000,
             mode: PlayMode::Pattern,
@@ -164,6 +167,15 @@ pub fn render_reporting(
     // The processor is made after the controller has the plan, so it starts
     // out on the project instead of changing over to it.
     let controller = Controller::new();
+    if let Err(error) = controller.set_audio_threads(Some(options.audio_threads)) {
+        return Rendered {
+            audio: AudioBuffer::from_interleaved(sample_rate, 2, Vec::new()),
+            dropped_clips: 0,
+            sampler_error: None,
+            plugin_error: Some(error.to_owned()),
+            timeline_error: None,
+        };
+    }
     controller.set_plan(plan);
     let mut processor = match controller.try_attach(
         sample_rate,
@@ -272,6 +284,9 @@ pub fn render_reporting(
 
 impl RenderOptions {
     pub fn check_region(&self) -> Result<(), String> {
+        if !(1..=crate::parallel::LANES).contains(&self.audio_threads) {
+            return Err("Audio threads must be 1 through 8".into());
+        }
         if let Some(range) = self.region {
             if self.mode != PlayMode::Song {
                 return Err("a timeline export region requires song mode".to_owned());
