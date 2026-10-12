@@ -150,13 +150,23 @@ fn variants(kind: InstrumentKind) -> Vec<InstrumentParams> {
         .into_iter()
         .map(|patch| InstrumentParams::PackSynth(windfall_dsp::PackSynthParams { patch, ..p }))
         .collect(),
+        InstrumentParams::DrumVoice(p) => [
+            DrumMode::Kick,
+            DrumMode::Snare,
+            DrumMode::Hat,
+            DrumMode::Tom,
+        ]
+        .into_iter()
+        .map(|mode| InstrumentParams::DrumVoice(windfall_dsp::DrumVoiceParams { mode, ..p }))
+        .collect(),
         _ => vec![base],
     }
 }
 
 /// Original deterministic stress fixtures, prepared only on the control side.
 /// They fill the accepted asset capacities, including all 256 scan columns.
-fn maximum_asset(kind: InstrumentKind) -> Option<InstrumentAsset> {
+fn maximum_asset(params: &InstrumentParams) -> Option<InstrumentAsset> {
+    let kind = params.kind();
     match kind {
         InstrumentKind::LayerKick => {
             let samples: Vec<_> = (0..MAX_LAYER_FRAMES)
@@ -167,13 +177,14 @@ fn maximum_asset(kind: InstrumentKind) -> Option<InstrumentAsset> {
             Some(InstrumentAsset::Pcm(pcm))
         }
         InstrumentKind::DrumVoice => {
-            let InstrumentParams::DrumVoice(mut params) = dense_params(kind) else {
+            let InstrumentParams::DrumVoice(mut params) = *params else {
                 unreachable!();
             };
-            params.mode = DrumMode::Hat;
             params.level = 1.0;
             Some(InstrumentAsset::DrumKeys {
-                patches: (0..128).map(|key| DrumKeyPatch { key, params }).collect(),
+                patches: (0..128)
+                    .map(|key| DrumKeyPatch { key, params })
+                    .collect(),
             })
         }
         InstrumentKind::NumberVoice => {
@@ -225,10 +236,23 @@ fn start_maximum(unit: &mut AnyInstrument, voices: usize) {
 
 fn profile(params: InstrumentParams, voices: usize) {
     let label = format!("{params:?}");
+    for (index, info) in params.kind().descriptors().iter().enumerate() {
+        if info.id == "polyphony" {
+            assert_eq!(
+                info.max, voices as f32,
+                "{label}: declared voice limit changed"
+            );
+            assert_eq!(params.get(index), Some(info.max));
+        }
+        if info.id == "unison" {
+            assert_eq!(info.max, 7.0, "{label}: declared unison limit changed");
+            assert_eq!(params.get(index), Some(info.max));
+        }
+    }
     let started = Instant::now();
     let mut prepared = None;
     let bytes = allocated_bytes(|| {
-        let asset = maximum_asset(params.kind());
+        let asset = maximum_asset(&params);
         if let Some(asset) = &asset {
             // new_with_asset refuses invalid data by falling back to defaults.
             // Reject it here so such a fallback cannot pass a maximum-load gate.
