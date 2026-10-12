@@ -105,6 +105,8 @@ pub(crate) struct EffectUnit {
 }
 
 impl EffectUnit {
+    #[cfg(feature = "plugin-export")]
+    pub fn reset_plugin(&mut self) { self.slot.reset(); }
     /// Builds and prepares an effect with its settings in force from its
     /// first frame. Allocates, so it is for the control side. Also returns
     /// the meter of a compressor or limiter.
@@ -643,6 +645,14 @@ impl InstrumentUnit {
     }
     pub fn take_unused_sample_bank(&mut self) -> Option<std::sync::Arc<windfall_dsp::sample_bank::SampleBank>> {
         self.instrument.take_unused_sample_bank()
+    }
+    #[cfg(feature = "plugin-export")]
+    pub fn reset_plugin(&mut self) {
+        self.instrument.reset();
+        if let Some(rack) = &mut self.modular { rack.reset(); }
+        self.notes.fill(HeldInstrumentNote::EMPTY);
+        self.held = 0;
+        self.left.fill(0.0); self.right.fill(0.0); self.last_sound = 0;
     }
     pub fn inherit_playback_notes(&mut self, previous: &Self) {
         if self.instrument.inherit_playback_state(&previous.instrument) {
@@ -1799,6 +1809,15 @@ pub(crate) struct Compensation {
 }
 
 impl Compensation {
+    #[cfg(feature = "plugin-export")]
+    pub fn reset_plugin(&mut self) {
+        self.line.ring.fill([0.0; 2]); self.line.write = 0; self.line.valid = 0;
+        self.line.snap(self.line.delay);
+        for stage in &mut self.stages {
+            stage.line.ring.fill([0.0; 2]); stage.line.write = 0; stage.line.valid = 0;
+            stage.line.snap(stage.line.delay);
+        }
+    }
     pub fn reserved_payload(capacity: usize, stages: usize) -> Option<usize> {
         let length = capacity.checked_add(1)?.checked_next_power_of_two()?;
         // TapCrossfade's private Tap has the same usize/f32 storage and

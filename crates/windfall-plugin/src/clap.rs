@@ -1,8 +1,8 @@
 //! Raw CLAP boundary. Host lifecycle/thread rules protect disjoint main/audio
 //! cells. All allocation and state decoding happens on the main thread.
 
-use std::cell::UnsafeCell;
 use std::ffi::{CStr, c_char, c_void};
+use std::{cell::UnsafeCell, rc::Rc};
 use std::ptr;
 use std::sync::OnceLock;
 use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
@@ -34,8 +34,9 @@ use clap_sys::stream::{clap_istream, clap_ostream};
 use clap_sys::version::CLAP_VERSION;
 
 use crate::{
-    GuestEngine, MAX_HOST_FRAMES, MAX_STATE_BYTES, OUTPUT_CHANNELS, OUTPUT_PORTS, Program,
+    MAX_HOST_FRAMES, MAX_STATE_BYTES, OUTPUT_CHANNELS, OUTPUT_PORTS, Program,
 };
+#[cfg(test)] use crate::GuestEngine;
 
 const ID: &CStr = c"org.windfall.program";
 const MAX_EVENTS: u32 = 4096;
@@ -72,8 +73,9 @@ fn descriptor() -> &'static clap_plugin_descriptor {
 
 struct Instance {
     clap: clap_plugin,
-    main: UnsafeCell<Program>,
-    audio: UnsafeCell<Option<GuestEngine>>,
+    state: Rc<crate::publication::Publication>,
+    gui: UnsafeCell<gui::Editor>,
+    host: *const clap_host,
     active: AtomicBool,
     processing: AtomicBool,
     max_frames: AtomicU32,
@@ -116,6 +118,7 @@ unsafe extern "C" fn create(
     {
         return ptr::null();
     }
+    let Ok(program) = crate::package::initial_program() else { return ptr::null(); };
     let plugin = Box::new(Instance {
         clap: clap_plugin {
             desc: descriptor(),
@@ -131,8 +134,9 @@ unsafe extern "C" fn create(
             get_extension: Some(extension),
             on_main_thread: Some(on_main_thread),
         },
-        main: UnsafeCell::new(Program::default()),
-        audio: UnsafeCell::new(None),
+        state: Rc::new(crate::publication::Publication::new(program)),
+        gui: UnsafeCell::new(Default::default()),
+        host,
         active: AtomicBool::new(false),
         processing: AtomicBool::new(false),
         max_frames: AtomicU32::new(0),
@@ -192,15 +196,12 @@ unsafe extern "C" fn activate(plugin: *const clap_plugin, rate: f64, min: u32, m
     }
     // Main-thread only, not active; contain preparation panics at the FFI boundary.
     let prepared = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-        GuestEngine::activate(unsafe { &*instance.main.get() }, rate)
+        instance.state.activate(rate)
     }));
-    let Ok(Ok(engine)) = prepared else {
+    let Ok(Ok(latency)) = prepared else {
         return false;
     };
-    instance.latency.store(engine.latency(), Ordering::Release);
-    unsafe {
-        *instance.audio.get() = Some(engine);
-    }
+    instance.latency.store(latency, Ordering::Release);
     instance.max_frames.store(max, Ordering::Release);
     instance.active.store(true, Ordering::Release);
     true
@@ -213,9 +214,7 @@ unsafe extern "C" fn deactivate(plugin: *const clap_plugin) {
         return;
     }
     // Main-thread deactivation is after every audio callback has returned.
-    unsafe {
-        drop((*instance.audio.get()).take());
-    }
+    instance.state.deactivate();
     instance.active.store(false, Ordering::Release);
     instance.latency.store(0, Ordering::Release);
 }
@@ -235,17 +234,31 @@ unsafe extern "C" fn reset(plugin: *const clap_plugin) {
     let Some(instance) = (unsafe { Instance::get(plugin) }) else {
         return;
     };
-    if let Some(engine) = unsafe { &mut *instance.audio.get() } {
+    if let Some(engine) = unsafe { instance.state.audio() } {
         engine.reset();
     }
 }
-unsafe extern "C" fn on_main_thread(_: *const clap_plugin) {}
+unsafe extern "C" fn on_main_thread(plugin: *const clap_plugin) {
+    if let Some(instance) = unsafe { Instance::get(plugin) } {
+        instance.state.collect();
+        let latency = instance.state.latency();
+        if instance.latency.swap(latency, Ordering::AcqRel) != latency {
+            if let Some(extension) = unsafe { (*instance.host).get_extension } {
+                let host_latency = unsafe { extension(instance.host, CLAP_EXT_LATENCY.as_ptr()).cast::<clap_sys::ext::latency::clap_host_latency>().as_ref() };
+                if let Some(changed) = host_latency.and_then(|latency| latency.changed) { unsafe { changed(instance.host); } }
+            }
+        }
+    }
+}
 
 #[derive(Clone, Copy)]
 struct Clock {
     beats: f64,
     tempo: f64,
     playing: bool,
+    numerator: u16,
+    denominator: u16,
+    tempo_inc: f64,
 }
 fn clock(transport: &clap_event_transport) -> Option<Clock> {
     if transport.header.size < size_of::<clap_event_transport>() as u32
@@ -254,7 +267,7 @@ fn clock(transport: &clap_event_transport) -> Option<Clock> {
         || !transport.tempo.is_finite()
         || !(windfall_project::MIN_TEMPO_BPM..=windfall_project::MAX_TEMPO_BPM)
             .contains(&transport.tempo)
-        || transport.tempo_inc != 0.0
+        || !transport.tempo_inc.is_finite()
     {
         return None;
     }
@@ -262,6 +275,9 @@ fn clock(transport: &clap_event_transport) -> Option<Clock> {
         beats: transport.song_pos_beats as f64 / CLAP_BEATTIME_FACTOR as f64,
         tempo: transport.tempo,
         playing: transport.flags & CLAP_TRANSPORT_IS_PLAYING != 0,
+        numerator: if transport.flags & clap_sys::events::CLAP_TRANSPORT_HAS_TIME_SIGNATURE != 0 { transport.tsig_num } else { 0 },
+        denominator: if transport.flags & clap_sys::events::CLAP_TRANSPORT_HAS_TIME_SIGNATURE != 0 { transport.tsig_denom } else { 0 },
+        tempo_inc: transport.tempo_inc,
     })
 }
 
@@ -305,9 +321,12 @@ unsafe extern "C" fn process(
             .fill(0.0);
         }
     }
-    let Some(engine) = (unsafe { &mut *instance.audio.get() }) else {
+    let Some(engine) = (unsafe { instance.state.audio() }) else {
         return CLAP_PROCESS_ERROR;
     };
+    if instance.state.needs_collection() {
+        if let Some(request) = unsafe { (*instance.host).request_callback } { unsafe { request(instance.host); } }
+    }
     let mut transport = if block.transport.is_null() {
         None
     } else {
@@ -362,7 +381,8 @@ unsafe extern "C" fn process(
     let mut event_index = 0;
     while frame < block.frames_count as usize {
         if let Some(clock) = transport
-            && !engine.sync_transport(clock.beats, clock.tempo, clock.playing)
+            && (!engine.sync_transport(clock.beats, clock.tempo, clock.playing)
+                || !engine.sync_meter(clock.numerator, clock.denominator))
         {
             return CLAP_PROCESS_ERROR;
         }
@@ -393,7 +413,8 @@ unsafe extern "C" fn process(
                 } else if header.type_ == CLAP_EVENT_TRANSPORT {
                     transport = clock(unsafe { &*event.cast::<clap_event_transport>() });
                     if let Some(clock) = transport
-                        && !engine.sync_transport(clock.beats, clock.tempo, clock.playing)
+                        && (!engine.sync_transport(clock.beats, clock.tempo, clock.playing)
+                            || !engine.sync_meter(clock.numerator, clock.denominator))
                     {
                         return CLAP_PROCESS_ERROR;
                     }
@@ -402,6 +423,7 @@ unsafe extern "C" fn process(
             event_index += 1;
         }
         let mut frames = (next - frame).min(windfall_engine::Processor::plugin_block_frames());
+        if transport.is_some_and(|clock| clock.tempo_inc != 0.0) { frames = frames.min(1); }
         if let Some(clock) = transport.filter(|clock| clock.playing && clock.beats < 0.0) {
             let preroll =
                 (-clock.beats * 60.0 * f64::from(engine.sample_rate()) / clock.tempo).ceil();
@@ -430,7 +452,8 @@ unsafe extern "C" fn process(
         if let Some(clock) = &mut transport
             && clock.playing
         {
-            clock.beats += frames as f64 * clock.tempo / (60.0 * f64::from(rate));
+            clock.beats += (frames as f64 * clock.tempo + clock.tempo_inc * frames as f64 * (frames as f64 - 1.0) * 0.5) / (60.0 * f64::from(rate));
+            clock.tempo += frames as f64 * clock.tempo_inc;
         }
         frame += frames;
     }
@@ -497,7 +520,7 @@ static NOTES: clap_plugin_note_ports = clap_plugin_note_ports {
     get: Some(note_get),
 };
 unsafe extern "C" fn latency(plugin: *const clap_plugin) -> u32 {
-    unsafe { Instance::get(plugin) }.map_or(0, |p| p.latency.load(Ordering::Acquire))
+    unsafe { Instance::get(plugin) }.map_or(0, |p| p.state.latency())
 }
 static LATENCY: clap_plugin_latency = clap_plugin_latency { get: Some(latency) };
 
@@ -511,7 +534,7 @@ unsafe extern "C" fn save(plugin: *const clap_plugin, stream: *const clap_ostrea
     let Some(write) = stream_ref.write else {
         return false;
     };
-    let Ok(bytes) = (unsafe { &*instance.main.get() }).encode() else {
+    let Ok(bytes) = instance.state.capture() else {
         return false;
     };
     let mut offset = 0;
@@ -529,9 +552,6 @@ unsafe extern "C" fn load(plugin: *const clap_plugin, stream: *const clap_istrea
     let Some(instance) = (unsafe { Instance::get(plugin) }) else {
         return false;
     };
-    if instance.active.load(Ordering::Acquire) {
-        return false;
-    }
     let Some(stream_ref) = (unsafe { stream.as_ref() }) else {
         return false;
     };
@@ -556,10 +576,7 @@ unsafe extern "C" fn load(plugin: *const clap_plugin, stream: *const clap_istrea
     let Ok(program) = Program::decode(&bytes) else {
         return false;
     };
-    unsafe {
-        *instance.main.get() = program;
-    }
-    true
+    instance.state.load(program).is_ok()
 }
 static STATE: clap_plugin_state = clap_plugin_state {
     save: Some(save),
@@ -579,9 +596,10 @@ unsafe extern "C" fn extension(_: *const clap_plugin, id: *const c_char) -> *con
     } else if id == CLAP_EXT_STATE {
         (&raw const STATE).cast()
     } else {
-        ptr::null()
+        gui::extension(id)
     }
 }
 
 #[cfg(test)]
 mod tests;
+mod gui;

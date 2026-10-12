@@ -1,5 +1,6 @@
-//! Windows plugin owner thread. Native instances never leave this thread;
-//! only prepared audio adapters cross into the engine.
+//! Native owner dispatch; only prepared audio adapters cross into the engine.
+#[cfg(target_os = "macos")]
+#[path = "au_owner.rs"] mod au_owner;
 
 use std::{
     collections::BTreeMap,
@@ -503,6 +504,7 @@ struct Owner {
 /// Control-side handle; synchronous requests are never made by audio processing.
 #[derive(Clone)]
 pub struct Runtime {
+    #[cfg(target_os = "macos")] cocoa_owner: u64,
     selection: Selection,
     jobs: mpsc::Sender<Job>,
     #[cfg(all(test, windows))]
@@ -527,44 +529,15 @@ impl std::fmt::Debug for Runtime {
         f.debug_struct("PluginRuntime").finish_non_exhaustive()
     }
 }
-impl Runtime {
-    pub fn new() -> Result<Self, String> {
-        if !cfg!(any(windows, target_os = "macos", target_os = "linux")) {
-            return Err("Native plugin integration requires Windows, macOS or Linux".into());
-        }
-        let (jobs, receiver) = mpsc::channel::<Job>();
-        let errors = Arc::new(Mutex::new(Vec::new()));
-        let approved: Approved = Default::default();
-        let owner_approved = approved.clone();
-        let controls: ControlRegistry = Default::default();
-        let owner_controls = controls.clone();
-        let owner_errors = errors.clone();
-        let (updates, update_receiver) = mpsc::sync_channel(4096);
-        let revision = Arc::new(std::sync::atomic::AtomicU64::new(0));
-        let owner_revision = revision.clone();
-        let selection: Selection = Default::default();
-        let owner_selection = selection.clone();
-        std::thread::Builder::new()
-            .name("plugin-owner".into())
-            .spawn(move || {
-                let mut owner = Owner {
-                    selection: owner_selection,
-                    host: PluginHost::windfall(),
-                    instances: BTreeMap::new(),
-                    #[cfg(any(windows, target_os = "macos", target_os = "linux"))]
-                    bridges: BTreeMap::new(),
-                    next: 0,
-                    approved: owner_approved,
-                    controls: owner_controls,
-                };
-                let mut gestures = std::collections::HashMap::new();
-                let mut gesture = 1_u64 << 63;
-                loop {
-                    match receiver.recv_timeout(Duration::from_millis(10)) {
-                        Ok(job) => job(&mut owner),
-                        Err(mpsc::RecvTimeoutError::Disconnected) => break,
-                        Err(mpsc::RecvTimeoutError::Timeout) => {}
-                    }
+fn maintain_owner(
+    owner: &mut Owner,
+    owner_revision: &Arc<std::sync::atomic::AtomicU64>,
+    owner_errors: &Arc<Mutex<Vec<(PluginTarget, String)>>>,
+    updates: &mpsc::SyncSender<PendingUpdate>,
+    gestures: &mut std::collections::HashMap<(u64, u32), u64>,
+    gesture: &mut u64,
+) {
+    
                     // Bridge process IO/reaping is confined to this control owner.
                     #[cfg(any(windows, target_os = "macos", target_os = "linux"))]
                     {
@@ -659,8 +632,8 @@ impl Runtime {
                         let mut restart = false;
                         let mut notify = |notification, captured| match notification {
                             PluginNotification::ParamGestureBegin { id } => {
-                                gesture = gesture.wrapping_add(1);
-                                gestures.insert((*token, id), gesture);
+                                *gesture = gesture.wrapping_add(1);
+                                gestures.insert((*token, id), *gesture);
                             }
                             PluginNotification::ParamGestureEnd { id } => {
                                 gestures.remove(&(*token, id));
@@ -733,10 +706,61 @@ impl Runtime {
                                 .is_ok();
                         }
                     }
+}
+
+impl Runtime {
+    #[cfg(target_os = "macos")]
+    pub fn install_cocoa_dispatch(app: tauri::AppHandle) -> Result<(), String> { au_owner::install(app) }
+    #[cfg(target_os = "macos")]
+    pub fn audio_unit_catalog(&self) -> Result<windfall_plugin_host::au_model::Catalog, String> {
+        self.call(|_| Ok(windfall_plugin_host::au::installed_catalog()))
+    }
+    pub fn new() -> Result<Self, String> {
+        if !cfg!(any(windows, target_os = "macos", target_os = "linux")) {
+            return Err("Native plugin integration requires Windows, macOS or Linux".into());
+        }
+        let (jobs, receiver) = mpsc::channel::<Job>();
+        let errors = Arc::new(Mutex::new(Vec::new()));
+        let approved: Approved = Default::default();
+        let owner_approved = approved.clone();
+        let controls: ControlRegistry = Default::default();
+        let owner_controls = controls.clone();
+        let owner_errors = errors.clone();
+        let (updates, update_receiver) = mpsc::sync_channel(4096);
+        let revision = Arc::new(std::sync::atomic::AtomicU64::new(0));
+        let owner_revision = revision.clone();
+        let selection: Selection = Default::default();
+        let owner_selection = selection.clone();
+        #[cfg(not(target_os = "macos"))]
+        std::thread::Builder::new()
+            .name("plugin-owner".into())
+            .spawn(move || {
+                let mut owner = Owner {
+                    selection: owner_selection,
+                    host: PluginHost::windfall(),
+                    instances: BTreeMap::new(),
+                    #[cfg(any(windows, target_os = "macos", target_os = "linux"))]
+                    bridges: BTreeMap::new(),
+                    next: 0,
+                    approved: owner_approved,
+                    controls: owner_controls,
+                };
+                let mut gestures = std::collections::HashMap::new();
+                let mut gesture = 1_u64 << 63;
+                loop {
+                    match receiver.recv_timeout(Duration::from_millis(10)) {
+                        Ok(job) => job(&mut owner),
+                        Err(mpsc::RecvTimeoutError::Disconnected) => break,
+                        Err(mpsc::RecvTimeoutError::Timeout) => {}
+                    }
+                    maintain_owner(&mut owner, &owner_revision, &owner_errors, &updates, &mut gestures, &mut gesture);
                 }
             })
             .map_err(|error| error.to_string())?;
+        #[cfg(target_os = "macos")]
+        let cocoa_owner = au_owner::start(receiver, owner_selection, owner_approved, owner_controls, owner_revision, owner_errors, updates)?;
         Ok(Self {
+            #[cfg(target_os = "macos")] cocoa_owner,
             selection,
             jobs,
             #[cfg(all(test, windows))]
@@ -910,8 +934,7 @@ impl Runtime {
         let (sender, receiver) = mpsc::sync_channel(1);
         let lifetime = Arc::new(JobLifetime::default());
         let owner_lifetime = lifetime.clone();
-        self.jobs
-            .send(Box::new(move |owner| {
+        let request: Job = Box::new(move |owner| {
                 if owner_lifetime
                     .phase
                     .compare_exchange(0, 1, Ordering::AcqRel, Ordering::Acquire)
@@ -934,8 +957,12 @@ impl Runtime {
                         "The plugin owner request timed out and was cancelled".into(),
                     ));
                 }
-            }))
-            .map_err(|_| "The plugin owner stopped".to_owned())?;
+            });
+        #[cfg(target_os = "macos")]
+        let request = au_owner::run_if_main(self.cocoa_owner, request)?;
+        #[cfg(not(target_os = "macos"))]
+        let request = Some(request);
+        if let Some(request) = request { self.jobs.send(request).map_err(|_| "The plugin owner stopped".to_owned())?; }
         match receiver.recv_timeout(timeout) {
             Ok(result) => result,
             Err(mpsc::RecvTimeoutError::Disconnected) => Err("The plugin owner stopped".into()),
@@ -1008,6 +1035,18 @@ impl Runtime {
         Ok(stamp)
     }
     fn create(owner: &mut Owner, binding: &PluginBinding) -> Result<PluginInstance, String> {
+        #[cfg(target_os = "macos")]
+        if binding.format == "au" {
+            binding.validate().map_err(str::to_owned)?;
+            let catalog = windfall_plugin_host::au::installed_catalog();
+            if !catalog.contains(&binding.id, &binding.path) { return Err("AU component is no longer registered; rescan plugins".into()); }
+            let mut instance = owner.host.create_audio_unit(&binding.id).map_err(|e| e.to_string())?;
+            let kind = match binding.target { PluginTarget::Effect { .. } => windfall_plugin_host::PluginKind::Effect, PluginTarget::Instrument { .. } => windfall_plugin_host::PluginKind::Instrument };
+            if instance.descriptor().kind != kind { return Err("AU instrument/effect role mismatch".into()); }
+            if !binding.state.is_empty() { instance.load_state(&PluginState::from_bytes(binding.state.clone())).map_err(|e| e.to_string())?; }
+            for parameter in &binding.parameters { if !parameter.read_only { instance.set_param(parameter.id, f64::from(parameter.value)); } }
+            return Ok(instance);
+        }
         Self::approved_binding(owner, binding)?;
         let format = match binding.format.as_str() {
             "clap" => windfall_plugin_host::PluginFormat::Clap,

@@ -49,6 +49,7 @@ import {
 } from "./mastering"
 import { useMixerRender } from "./mixer-render"
 import { beginExportRequest, failExportRequest, receiveExportRequest, setExportIntent, useExportRequestStore } from "./requests"
+import { PluginExportControls } from "./plugin-export-controls"
 
 import {
   cleanExportPath,
@@ -519,6 +520,7 @@ export function ExportDialog() {
           </DialogDescription>
         </DialogHeader>
         <ExportForm onDone={close} />
+        <PluginExportControls />
       </DialogContent>
     </Dialog>
   )

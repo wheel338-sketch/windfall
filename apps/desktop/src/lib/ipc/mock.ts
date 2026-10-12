@@ -1220,6 +1220,7 @@ export function createMockBackend(options: MockOptions = {}): MockBackend {
         )
       ),
     audioEditorDiscard: () => Promise.resolve(),
+    exportPluginBundle: async () => { throw new Error("Plugin bundle export requires the desktop app.") },
     audioEditorSaveWavpack: async () => { throw new Error("WavPack saving requires the desktop app.") },
     m4aCapability: async () => "M4A export requires the Windows desktop app and its Media Foundation AAC encoder.",
     audioScriptPreview: () => Promise.reject(new Error("Audio script processing requires the desktop app.")),

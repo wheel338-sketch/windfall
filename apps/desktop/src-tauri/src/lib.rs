@@ -49,6 +49,8 @@ pub fn run() {
                 .build(),
         )
         .setup(|app| {
+            #[cfg(target_os = "macos")]
+            plugins::Runtime::install_cocoa_dispatch(app.handle().clone())?;
             app.manage(updates::Updates::default());
             app.manage(window_calls::WindowCalls::default());
             app.manage(panel_layout::PanelLayouts::load(

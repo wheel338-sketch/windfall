@@ -5568,6 +5568,7 @@ dependencies = [
  "windfall-flp",
  "windfall-ipc",
  "windfall-midi",
+ "windfall-plugin",
  "windfall-plugin-host",
  "windfall-project",
  "windfall-stretch",
@@ -5650,9 +5651,13 @@ dependencies = [
  "clap-sys",
  "serde",
  "serde_json",
+ "vst3",
  "windfall-core",
+ "windfall-dsp",
  "windfall-engine",
+ "windfall-plugin-host",
  "windfall-project",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]

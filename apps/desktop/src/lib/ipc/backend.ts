@@ -164,6 +164,7 @@ export interface Backend extends AnalysisBackend, MixerPresetLibraryBackend, Ana
     request: import("@/features/audio-editor/types").AudioEditRequest
   ): Promise<DispatchResult>
   audioEditorDiscard(token: number): Promise<void>
+  exportPluginBundle(destination: string, runtime: string): Promise<void>
   audioEditorSaveWavpack(token: number, start: number, end: number, path: string, depth: "int16" | "int24"): Promise<void>
   /** null means the installed OS AAC encoder can produce aligned M4A audio. */
   m4aCapability(): Promise<string | null>
