@@ -78,7 +78,6 @@ impl MonitorWriter {
     /// and DAC fits, keeping the live queue bounded over long sessions.
     pub(crate) fn push(&mut self, audio: &[Frame], step: f64) {
         let step = step.clamp(0.01, 100.0);
-        let cutoff = (1.0 / step).min(1.0) * 0.94;
         for sample in audio {
             self.history[self.seen as usize % 128] = *sample;
             self.seen += 1;
@@ -89,11 +88,7 @@ impl MonitorWriter {
                 for tap in -15..=16 {
                     let index = center + tap;
                     let distance = self.position - index as f64;
-                    let x = std::f64::consts::PI * distance * cutoff;
-                    let sinc = if x.abs() < 1e-9 { 1.0 } else { x.sin() / x };
-                    let weight = sinc
-                        * cutoff
-                        * (0.5 + 0.5 * (std::f64::consts::PI * distance / 16.0).cos()).max(0.0);
+                    let weight = windfall_core::resample::weight(distance, step);
                     weights += weight;
                     if index >= 0
                         && (index as u64) >= self.seen.saturating_sub(128)

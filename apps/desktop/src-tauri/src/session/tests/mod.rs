@@ -2,6 +2,7 @@
 //! a [`Processor`] the tests run by hand.
 
 mod analysis_jobs;
+mod stem_separation;
 mod analyzers;
 mod archive;
 mod audio_editor;

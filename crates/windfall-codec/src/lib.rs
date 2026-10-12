@@ -31,6 +31,7 @@ pub use decode::{
     AudioInfo, DEFAULT_MAX_DECODED_BYTES, DecodeOptions, decode_bytes, decode_bytes_strict_with,
     decode_bytes_with, decode_file, decode_file_strict_with, decode_file_with, probe_bytes,
     probe_file,
+    decode_file_stream_strict,
 };
 pub use encoder::{AudioFormat, AudioTags, Encoder, EncoderSettings};
 pub use error::CodecError;

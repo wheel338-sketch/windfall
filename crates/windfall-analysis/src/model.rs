@@ -49,8 +49,47 @@ pub struct OnnxContract {
     pub overlap_frames: u32,
     /// Order of the model's stem dimension, independently of tensor names.
     pub stem_roles: Vec<String>,
+    /// Waveform tensors: BCT -> BSCT, or BTC -> BSTC. No implicit FFT.
+    #[serde(default)]
+    pub layout: WaveformLayout,
+    /// Real input context on each side; output includes context, discarded by OLA.
+    #[serde(default)]
+    pub context_frames: u32,
+}
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum WaveformLayout {
+    #[default]
+    ChannelsFirst,
+    ChannelsLast,
 }
 impl OnnxContract {
+    pub fn validate_separation(&self, model: &ModelManifest) -> Result<()> {
+        self.validate(model)?;
+        crate::InferenceTask::StemSeparation.validate(model)?;
+        let n = self.segment_frames.checked_add(self.context_frames.checked_mul(2)
+            .ok_or(AnalysisError::Exhausted)?).ok_or(AnalysisError::Exhausted)?;
+        // Bound scratch even for hostile packs. Require meaningful forward progress.
+        if n > 1_536_000 || self.segment_frames - self.overlap_frames < self.segment_frames / 4
+            || self.context_frames > self.segment_frames || self.inputs.len() != 1 || self.outputs.len() != 1 {
+            return Err(AnalysisError::Invalid("separation chunk/context/tensor bounds"));
+        }
+        let c = u32::from(model.input_channels);
+        let (input, output) = match self.layout {
+            WaveformLayout::ChannelsFirst => (vec![1, c, n], vec![1, 4, c, n]),
+            WaveformLayout::ChannelsLast => (vec![1, n, c], vec![1, 4, n, c]),
+        };
+        for (tensor, expected) in [(&self.inputs[0], input), (&self.outputs[0], output)] {
+            if tensor.shape.len() != expected.len() || tensor.shape.iter().zip(expected).enumerate().any(|(i, (dim, size))| match dim {
+                TensorDimension::Fixed(actual) => *actual != size,
+                TensorDimension::Symbol(symbol) => symbol != "frames" || (match self.layout {
+                    WaveformLayout::ChannelsFirst => i + 1 != tensor.shape.len(),
+                    WaveformLayout::ChannelsLast => i + 2 != tensor.shape.len(),
+                }),
+            }) { return Err(AnalysisError::Invalid("waveform tensor shape convention")); }
+        }
+        Ok(())
+    }
     pub fn validate(&self, model: &ModelManifest) -> Result<()> {
         if !(1..=64).contains(&self.opset)
             || self.sample_rate != model.sample_rate
@@ -286,12 +325,20 @@ impl ModelManifest {
         }
         if let Some(onnx) = &self.onnx {
             onnx.validate(self)?;
+            if p.adapter_id == crate::separation::ADAPTER_ID { onnx.validate_separation(self)?; }
+        } else if p.adapter_id == crate::separation::ADAPTER_ID {
+            return Err(AnalysisError::Invalid("separation pack needs ONNX contract"));
         }
         Ok(())
     }
     pub fn validate_input(&self, shape: AudioShape, frames: u64) -> Result<()> {
         self.validate()?;
-        if shape.sample_rate != self.sample_rate
+        let separation = self.provenance.adapter_id == crate::separation::ADAPTER_ID;
+        if separation {
+            self.onnx.as_ref().ok_or(AnalysisError::Invalid("missing separation ONNX contract"))?.validate_separation(self)?;
+        }
+        if (!separation && shape.sample_rate != self.sample_rate)
+            || !(8_000..=192_000).contains(&shape.sample_rate)
             || shape.channels != self.input_channels
             || frames == 0
             || frames > self.max_input_frames

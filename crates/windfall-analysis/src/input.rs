@@ -153,6 +153,7 @@ impl Default for InputLimits {
 #[derive(Debug)]
 pub struct CapturedInput {
     audio: AudioBuffer,
+    pcm_file: Option<tempfile::NamedTempFile>,
     stamp: CaptureStamp,
     retained_bytes: u64,
 }
@@ -205,6 +206,7 @@ impl CapturedInput {
         work.check()?;
         Ok(Self {
             audio: AudioBuffer::from_interleaved(shape.sample_rate, shape.channels, samples),
+            pcm_file: None,
             stamp,
             retained_bytes,
         })
@@ -212,10 +214,61 @@ impl CapturedInput {
     pub fn stamp(&self) -> &CaptureStamp {
         &self.stamp
     }
+    /// File-backed rendered capture; caller emits sequential, whole-frame,
+    /// finite chunks. The spool is owned until job cancellation/consumption.
+    pub fn capture_stream(root: &std::path::Path, stamp: CaptureStamp, limits: InputLimits,
+        work: &mut Work, render: &mut dyn FnMut(u64, &mut [f32], &mut Work) -> Result<()>) -> Result<Self> {
+        use std::io::Write;
+        let shape = stamp.input_shape;
+        stamp.selection.validate(shape.frames)?;
+        shape.pcm_bytes()?;
+        if !stamp.source_identity.is_live() || stamp.source_fingerprint.bytes == 0
+            || shape.frames > limits.max_frames || !(1..=limits.max_channels).contains(&shape.channels)
+            || !(1..=2).contains(&shape.channels) || shape.sample_rate == 0 || limits.max_bytes < 16*1024
+            || !(limits.min_sample_rate..=limits.max_sample_rate).contains(&shape.sample_rate) {
+            return Err(AnalysisError::Invalid("stream capture shape/source"));
+        }
+        let mut file = tempfile::NamedTempFile::new_in(root)?;
+        let channels = shape.channels as usize;
+        let mut samples = vec![0.0; 4096/channels*channels];
+        let mut start = 0;
+        while start < shape.frames {
+            let frames = (shape.frames-start).min((samples.len()/channels) as u64) as usize;
+            let block = &mut samples[..frames*channels];
+            work.check()?;
+            render(start, block, work)?;
+            let mut bytes = [0u8; 16384];
+            for (x, b) in block.iter().zip(bytes.chunks_exact_mut(4)) {
+                if !x.is_finite() { return Err(AnalysisError::Invalid("nonfinite streamed capture")); }
+                b.copy_from_slice(&x.to_le_bytes());
+            }
+            file.write_all(&bytes[..block.len()*4])?;
+            work.checkpoint(block.len() as u64)?;
+            start += frames as u64;
+        }
+        file.as_file().sync_all()?;
+        work.check()?;
+        Ok(Self { audio: AudioBuffer::from_interleaved(shape.sample_rate, shape.channels, vec![]),
+            pcm_file: Some(file), stamp, retained_bytes: 16*1024 })
+    }
+    pub fn disk_bytes(&self) -> Result<u64> {
+        if self.pcm_file.is_some() { self.stamp.input_shape.pcm_bytes() } else { Ok(0) }
+    }
+    pub fn frame_source(&self) -> Result<Box<dyn crate::separation::FrameSource + '_>> {
+        let mut shape = self.stamp.input_shape;
+        shape.frames = self.stamp.selection.frames()?;
+        if let Some(file) = &self.pcm_file {
+            Ok(Box::new(crate::separation::PcmSource { file: file.reopen()?, shape, origin: self.stamp.selection.start }))
+        } else {
+            Ok(Box::new(crate::separation::SliceSource { samples: self.selected_samples(), shape }))
+        }
+    }
     pub fn audio(&self) -> &AudioBuffer {
+        assert!(self.pcm_file.is_none(), "file-backed captures require frame_source()");
         &self.audio
     }
     pub fn selected_samples(&self) -> &[f32] {
+        assert!(self.pcm_file.is_none(), "file-backed captures require frame_source()");
         let channels = usize::from(self.audio.channels());
         &self.audio.samples()[self.stamp.selection.start as usize * channels
             ..self.stamp.selection.end as usize * channels]

@@ -314,6 +314,7 @@ mod tests {
 }
 
 pub mod yin;
+pub mod resample;
 
 mod pan_ramp;
 pub use pan_ramp::PanLawRamp;

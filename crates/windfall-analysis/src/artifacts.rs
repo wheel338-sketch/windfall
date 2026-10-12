@@ -93,9 +93,15 @@ impl ArtifactWriter {
         origin: u64,
         maximum_disk: u64,
     ) -> Result<Self> {
+        Self::new_at_rate(root, manifest, frames, origin, maximum_disk, manifest.sample_rate)
+    }
+    pub(crate) fn new_at_rate(root: &Path, manifest: &ModelManifest, frames: u64,
+        origin: u64, maximum_disk: u64, rate: u32) -> Result<Self> {
+        let mut output_manifest = manifest.clone();
+        output_manifest.sample_rate = rate;
         Ok(Self {
             directory: tempfile::Builder::new().prefix("job-").tempdir_in(root)?,
-            manifest: manifest.clone(),
+            manifest: output_manifest,
             frames,
             origin,
             maximum_disk,
@@ -298,20 +304,22 @@ impl ArtifactWriter {
 
 fn validate_decoded(path: &Path, shape: AudioShape, work: &mut Work) -> Result<()> {
     work.check()?;
-    let decoded = windfall_codec::decode_file_strict_with(
+    let decoded = windfall_codec::decode_file_stream_strict(
         path,
         &DecodeOptions {
             max_decoded_bytes: shape.pcm_bytes()?,
         },
-    )?;
-    if AudioShape::of(&decoded) != shape {
+        &mut |rate, channels, samples| {
+            if rate != shape.sample_rate || channels != shape.channels {
+                return Err(windfall_codec::CodecError::Corrupt("output layout changed".into()));
+            }
+            work.checkpoint(samples.len() as u64).map_err(|e| windfall_codec::CodecError::Corrupt(e.to_string()))
+        },
+    );
+    work.check()?;
+    let decoded = decoded?;
+    if decoded.frames != Some(shape.frames) || decoded.sample_rate != shape.sample_rate || decoded.channels != shape.channels {
         return Err(AnalysisError::Invalid("output decode/alignment"));
-    }
-    for chunk in decoded.samples().chunks(CHUNK_SAMPLES) {
-        work.checkpoint(chunk.len() as u64)?;
-        if chunk.iter().any(|x| !x.is_finite()) {
-            return Err(AnalysisError::Invalid("nonfinite decoded output"));
-        }
     }
     Ok(())
 }

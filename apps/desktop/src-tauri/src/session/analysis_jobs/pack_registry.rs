@@ -132,6 +132,8 @@ mod tests {
                 channels: 2,
             }],
             onnx: Some(native::OnnxContract {
+                layout: Default::default(),
+                context_frames: 0,
                 opset: 17,
                 inputs: vec![native::TensorSpec {
                     name: "audio".into(),

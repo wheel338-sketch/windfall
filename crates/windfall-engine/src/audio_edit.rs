@@ -11,6 +11,8 @@ pub mod advanced;
 pub mod clean;
 pub mod process;
 mod timeline;
+mod streamed_view;
+pub use streamed_view::StreamedView;
 pub use timeline::{render_view_timed, view_timing};
 
 pub const MAX_EDIT_SECONDS: f64 = 120.0;

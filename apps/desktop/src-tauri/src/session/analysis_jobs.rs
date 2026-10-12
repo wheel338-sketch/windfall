@@ -4,6 +4,8 @@
 use super::{Session, State};
 mod pack_registry;
 mod source_namespace;
+mod runtime_settings;
+mod file_stems;
 use crate::sync::lock;
 use std::collections::BTreeMap;
 use std::io::Read;
@@ -24,7 +26,8 @@ use windfall_project::{
 pub(super) const UNAVAILABLE: &str = "Stem separation/remix require an imported licensed ONNX pack and an installed ONNX Runtime adapter. Pack registration does not install executable code. Classical dereverb is built in.";
 const PCM_LIMIT: u64 = 16 * 1024 * 1024;
 const OUTPUT_PCM_LIMIT: u64 = 32 * 1024 * 1024;
-const MODEL_LIMIT: u64 = 64 * 1024 * 1024;
+const MODEL_LIMIT: u64 = 256 * 1024 * 1024;
+const SONG_PCM_LIMIT: u64 = 1536 * 1024 * 1024;
 const JOBS: usize = 8;
 
 fn error(kind: &str, message: impl std::fmt::Display) -> String {
@@ -85,7 +88,7 @@ fn input_limits() -> native::InputLimits {
         ..Default::default()
     }
 }
-fn manifest(spec: AnalysisModel) -> Result<native::ModelManifest, String> {
+pub(super) fn manifest(spec: AnalysisModel) -> Result<native::ModelManifest, String> {
     let p = spec.provenance;
     if spec.id == native::BUILTIN_DEREVERB_ID {
         return Err(error(
@@ -124,13 +127,16 @@ fn manifest(spec: AnalysisModel) -> Result<native::ModelManifest, String> {
             .collect(),
     };
     model.validate().map_err(native_error)?;
+    if model.provenance.adapter_id == native::separation::ADAPTER_ID {
+        native::separation::contract(&model).map_err(native_error)?;
+    }
     if model.max_bytes > MODEL_LIMIT {
-        return Err(error("budget", "Local model limit is 64 MiB."));
+        return Err(error("budget", "Local model limit is 256 MiB."));
     }
     // Compact incoming IPC storage before retaining it in the bounded registry.
     Ok(model.clone())
 }
-fn model_wire(model: &native::ModelManifest) -> AnalysisModel {
+pub(super) fn model_wire(model: &native::ModelManifest) -> AnalysisModel {
     let p = &model.provenance;
     AnalysisModel {
         onnx: model.onnx.as_ref().map(onnx_wire),
@@ -185,6 +191,11 @@ fn onnx_native(o: windfall_ipc::AnalysisOnnxContract) -> native::OnnxContract {
             .collect()
     }
     native::OnnxContract {
+        context_frames: o.context_frames,
+        layout: match o.layout {
+            windfall_ipc::AnalysisWaveformLayout::ChannelsFirst => native::WaveformLayout::ChannelsFirst,
+            windfall_ipc::AnalysisWaveformLayout::ChannelsLast => native::WaveformLayout::ChannelsLast,
+        },
         opset: o.opset,
         inputs: tensors(o.inputs),
         outputs: tensors(o.outputs),
@@ -216,6 +227,11 @@ fn onnx_wire(o: &native::OnnxContract) -> windfall_ipc::AnalysisOnnxContract {
             .collect()
     }
     windfall_ipc::AnalysisOnnxContract {
+        context_frames: o.context_frames,
+        layout: match o.layout {
+            native::WaveformLayout::ChannelsFirst => windfall_ipc::AnalysisWaveformLayout::ChannelsFirst,
+            native::WaveformLayout::ChannelsLast => windfall_ipc::AnalysisWaveformLayout::ChannelsLast,
+        },
         opset: o.opset,
         inputs: tensors(&o.inputs),
         outputs: tensors(&o.outputs),
@@ -277,7 +293,7 @@ fn current_model(owned: &Owned, review: &native::Review) -> Result<native::Model
         && owned
             .adapter
             .as_ref()
-            .is_some_and(|a| a.id() == native::BUILTIN_DEREVERB_ID)
+            .is_some_and(|a| a.accepts_model(&review.model))
     {
         return native::ClassicalDereverbAdapter::descriptor(
             review.capture.input_shape,
@@ -296,11 +312,19 @@ pub(super) struct Service {
     gate: Mutex<()>,
     owned: Mutex<Owned>,
     preparation: Mutex<Option<native::CancelToken>>,
+    runtime: Arc<native::OrtBackend>,
     #[cfg(test)]
     final_calls: Mutex<Option<(usize, usize)>>,
 }
 impl Service {
     pub(super) fn new(root: PathBuf) -> Self {
+        let settings = runtime_settings::load(&root).unwrap_or_default();
+        let mut directories = vec![root.join("Runtime")];
+        if let Some(path) = &settings.pack_directory { directories.push(PathBuf::from(path)); }
+        let runtime = Arc::new(native::OrtBackend {
+            choice: Arc::new(std::sync::RwLock::new(settings.library_path.map(PathBuf::from))),
+            search_directories: Arc::new(std::sync::RwLock::new(directories)),
+        });
         Self {
             root,
             gate: Mutex::new(()),
@@ -310,11 +334,14 @@ impl Service {
                 manager: None,
                 models: BTreeMap::new(),
                 bindings: BTreeMap::new(),
-                adapter: Some(Arc::new(native::ClassicalDereverbAdapter)),
+                adapter: Some(Arc::new(native::separation::ProductionAdapter {
+                    separation: native::separation::SeparationAdapter { backend: runtime.clone() },
+                })),
                 stage: None,
                 closed: false,
             }),
             preparation: Mutex::new(None),
+            runtime,
             #[cfg(test)]
             final_calls: Mutex::new(None),
         }
@@ -327,7 +354,7 @@ impl Service {
             self.root.join("Models"),
             native::ModelCacheLimits {
                 max_model_bytes: MODEL_LIMIT,
-                max_cache_bytes: 256 * 1024 * 1024,
+                max_cache_bytes: 1024 * 1024 * 1024,
                 max_entries: 8,
                 max_imports: 1,
             },
@@ -365,9 +392,11 @@ impl Service {
         config.workers = 1;
         config.max_queued = 2;
         config.max_retained_jobs = JOBS;
-        config.memory_bytes = 192 * 1024 * 1024;
+        config.memory_bytes = 3 * 1024 * 1024 * 1024;
+        config.disk_bytes = 24 * 1024 * 1024 * 1024;
+        config.max_scratch_bytes = native::separation::SCRATCH_BYTES;
         config.max_work_units = 100_000_000_000;
-        config.input_limits = input_limits();
+        config.input_limits = native::InputLimits { max_frames: 192_000*3600, ..input_limits() };
         let manager =
             Arc::new(native::JobManager::new(config, cache, adapter).map_err(native_error)?);
         let mut owned = lock(&self.owned);
@@ -416,6 +445,10 @@ impl Service {
     #[cfg(test)]
     pub(super) fn test_manager(&self) -> Arc<native::JobManager> {
         self.manager().expect("test installed a real manager")
+    }
+    #[cfg(test)]
+    pub(super) fn test_stage(&self) -> PathBuf {
+        lock(&self.owned).stage.clone().expect("test manager staging")
     }
     #[cfg(test)]
     pub(super) fn final_calls(&self) -> (usize, usize) {
@@ -519,14 +552,18 @@ impl Session {
         let owned = lock(&service.owned);
         let available = owned.adapter.is_some() && !owned.closed;
         AnalysisCapability {
+            stem_separation: owned.adapter.as_ref().is_some_and(|a| a.supports(native::InferenceTask::StemSeparation))
+                && service.runtime.runtime_path().is_ok() && !owned.closed,
             native: true,
             classical_dereverb: owned
                 .adapter
                 .as_ref()
-                .is_some_and(|a| a.id() == native::BUILTIN_DEREVERB_ID)
+                .is_some_and(|a| a.supports(native::InferenceTask::DereverbGeneral))
                 && !owned.closed,
             available,
-            reason: registry_error.or_else(|| (!available).then(|| UNAVAILABLE.into())),
+            reason: registry_error.or_else(|| (!available).then(|| UNAVAILABLE.into()))
+                .or_else(|| owned.adapter.as_ref().filter(|a| a.id() == native::separation::ADAPTER_ID)
+                    .and_then(|_| service.runtime.runtime_path().err()).map(|e| format!("analysis:unavailable: {e}"))),
             models: owned.models.values().map(model_wire).collect(),
         }
     }
@@ -581,6 +618,10 @@ impl Session {
         models.insert(key, model);
         service.persist_packs(&models)?;
         lock(&service.owned).models = models;
+        if response.provenance.adapter_id == native::separation::ADAPTER_ID {
+            let directory = Path::new(path).parent().ok_or_else(|| error("invalid", "Model directory missing."))?;
+            service.remember_pack_directory(directory)?;
+        }
         Ok(response)
     }
     pub fn analysis_submit(&self, request: AnalysisSubmit) -> Result<AnalysisJob, String> {
@@ -604,7 +645,7 @@ impl Session {
             Some(
                 lock(&service.owned)
                     .models
-                    .get(&(request.model_id, request.model_version))
+                    .get(&(request.model_id.clone(), request.model_version.clone()))
                     .cloned()
                     .ok_or_else(|| {
                         error("modelAbsent", "Explicitly import this pinned local model.")
@@ -614,8 +655,7 @@ impl Session {
         if let Some(model) = &imported {
             let owned = lock(&service.owned);
             if !owned.adapter.as_ref().is_some_and(|a| {
-                a.id() == model.provenance.adapter_id
-                    && a.version() == model.provenance.adapter_version
+                a.accepts_model(model)
                     && a.supports(task_native(request.task))
             }) {
                 return Err(error("unavailable", UNAVAILABLE));
@@ -627,6 +667,12 @@ impl Session {
         };
         let preparation = service.begin_preparation();
         let mut work = work(preparation.cancel.clone())?;
+        if request.task == windfall_ipc::AnalysisTask::StemSeparation
+            && imported.as_ref().is_some_and(|m| m.provenance.adapter_id == native::separation::ADAPTER_ID) {
+            work = native::Work::new(preparation.cancel.clone(), 100_000_000_000, Duration::from_secs(600)).map_err(native_error)?;
+            // Keep the same gate/preparation token while the disk capture runs.
+            return self.submit_file_stems(request, imported.unwrap(), selection, manager, &mut work);
+        }
         let (
             clip,
             sample,
@@ -1028,7 +1074,10 @@ impl Session {
         let preparation = service.begin_preparation();
         let mut work = work(preparation.cancel.clone())?;
         let mut file = source_file(&binding.path)?;
-        let current_file = native::ContentFingerprint::reader(&mut file, PCM_LIMIT, &mut work)
+        if review.task == native::InferenceTask::StemSeparation {
+            work = native::Work::new(preparation.cancel.clone(), 100_000_000_000, Duration::from_secs(600)).map_err(native_error)?;
+        }
+        let current_file = native::ContentFingerprint::reader(&mut file, SONG_PCM_LIMIT, &mut work)
             .map_err(native_error)?;
         if current_file != binding.stamp.source_fingerprint
             || crate::library::file_identity(&binding.path).map_err(|e| error("io", e))?
@@ -1102,7 +1151,7 @@ impl Session {
                 }],
             });
         }
-        let rate = f64::from(model.sample_rate);
+        let rate = f64::from(binding.stamp.input_shape.sample_rate);
         let start = binding.clock.tick_after(
             binding.clip.start,
             binding.stamp.selection.start as f64 / rate,
@@ -1155,14 +1204,30 @@ impl Session {
             // Acquire the no-write/no-delete handle before either decoding or
             // hashing: both must describe the same final file version.
             let mut output_file = source_file(path)?;
-            let strict = windfall_codec::decode_file_strict_with(
+            let decoded = self.inner.cache.decode(path)?;
+            if native::AudioShape::of(&decoded) != artifact.shape {
+                return Err(error("invalid", "Published output shape changed."));
+            }
+            let mut offset = 0usize;
+            let strict = windfall_codec::decode_file_stream_strict(
                 path,
                 &windfall_codec::DecodeOptions {
-                    max_decoded_bytes: OUTPUT_PCM_LIMIT,
+                    max_decoded_bytes: artifact.shape.pcm_bytes().map_err(native_error)?,
                 },
-            )
-            .map_err(|e| error("io", e))?;
-            if native::AudioShape::of(&strict) != artifact.shape {
+                &mut |rate, channels, samples| {
+                    work.checkpoint(samples.len() as u64).map_err(|e| windfall_codec::CodecError::Corrupt(e.to_string()))?;
+                    let end = offset.checked_add(samples.len()).ok_or_else(|| windfall_codec::CodecError::Corrupt("sample overflow".into()))?;
+                    if rate != artifact.shape.sample_rate || channels != artifact.shape.channels || decoded.samples().get(offset..end)
+                        .is_none_or(|loaded| loaded.iter().zip(samples).any(|(a,b)| a.to_bits() != b.to_bits())) {
+                        return Err(windfall_codec::CodecError::Corrupt("Cached output differs from published audio.".into()));
+                    }
+                    offset = end;
+                    Ok(())
+                },
+            );
+            work.check().map_err(native_error)?;
+            let strict = strict.map_err(|e| error("io", e))?;
+            if strict.frames != Some(artifact.shape.frames) || offset != decoded.samples().len() {
                 return Err(error("invalid", "Published output shape changed."));
             }
             let fingerprint =
@@ -1171,13 +1236,6 @@ impl Session {
             if fingerprint.bytes != artifact.bytes || fingerprint.sha256 != artifact.sha256 {
                 return Err(error("invalid", "Published output checksum changed."));
             }
-            let decoded = self.inner.cache.decode(path)?;
-            if native::ContentFingerprint::audio(&decoded, &mut work).map_err(native_error)?
-                != native::ContentFingerprint::audio(&strict, &mut work).map_err(native_error)?
-            {
-                return Err(error("stale", "The cached output version changed."));
-            }
-            drop(strict);
             let (track, mixer_track, output) = if request.separate_tracks {
                 let mixer = windfall_project::TrackId(next_id);
                 let playlist = windfall_project::PlaylistTrackId(

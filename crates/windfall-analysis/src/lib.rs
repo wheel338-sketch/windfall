@@ -10,6 +10,9 @@ mod dereverb_adapter;
 mod jobs;
 mod model;
 pub mod pitch;
+pub mod separation;
+mod ort_adapter;
+pub use ort_adapter::OrtBackend;
 pub use dereverb_adapter::{BUILTIN_DEREVERB_ID, ClassicalDereverbAdapter, DEREVERB_SCRATCH_BYTES};
 mod work;
 
@@ -24,7 +27,7 @@ pub use jobs::{
 };
 pub use model::{
     ModelCache, ModelCacheLimits, ModelManifest, ModelProvenance, OnnxContract, OutputRole,
-    TensorDimension, TensorSpec, VerifiedModel,
+    TensorDimension, TensorSpec, VerifiedModel, WaveformLayout,
 };
 pub use work::{CancelToken, Work};
 
