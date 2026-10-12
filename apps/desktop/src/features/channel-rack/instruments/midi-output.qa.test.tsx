@@ -53,5 +53,8 @@ it("mounts named hosted and hardware MIDI destinations with checked history, fil
   expect(params().pluginDestination, JSON.stringify(issued.mock.calls.map(([command]) => command))).toBe(-1)
   await act(async () => { await undo(); await settle() })
   expect(params().pluginDestination).toBe(target)
+  screen.getByRole("combobox", { name: "MIDI destination" }).focus()
+  await user.keyboard("h")
+  await waitFor(() => expect(params().pluginDestination ?? 0).toBe(0))
   expect(await dispatch({ type: "setInstrumentParams", channel: source, params: { ...params(), pluginDestination: source } })).toBeNull()
 })

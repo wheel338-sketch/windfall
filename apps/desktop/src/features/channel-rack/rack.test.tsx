@@ -132,7 +132,7 @@ describe("rows", () => {
     ).not.toBeInTheDocument()
     await userEvent.click(screen.getByRole("button", { name: "Kick row view" }))
     await userEvent.click(
-      screen.getByRole("menuitemcheckbox", { name: /^Show steps/ })
+      await screen.findByRole("menuitemcheckbox", { name: /^Show steps/ })
     )
     const row = stepGrid("Kick").parentElement!
     const marked = [...row.querySelectorAll("[data-detail-step]")].map((mark) =>
@@ -767,7 +767,7 @@ describe("row actions", () => {
       screen.getByRole("button", { name: "Hat plays into Hat. Change routing" })
     )
     // Opening the menu shows the track in the mixer.
-    expect(useUiStore.getState().selectedTrack).toBe(channel("Hat").mixerTrack)
+    await waitFor(() => expect(useUiStore.getState().selectedTrack).toBe(channel("Hat").mixerTrack))
     await user.click(
       await screen.findByRole("menuitemradio", { name: /Master/ })
     )

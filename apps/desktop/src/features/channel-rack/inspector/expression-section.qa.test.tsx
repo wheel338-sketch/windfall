@@ -19,7 +19,7 @@ it("edits a real channel map once, saves/reopens and rejects an obsolete review"
   const before = undoSteps()
   const original = channel("Kick").expressionMap ?? DEFAULT_EXPRESSION_MAP
   await user.click(screen.getByLabelText("Modulation X · plugin"))
-  await user.click(screen.getByRole("option", { name: "Pressure" }))
+  await user.click(await screen.findByRole("option", { name: "Pressure" }))
   fireEvent.change(screen.getByLabelText("Modulation X depth (%)"), { target: { value: "25" } })
   await user.click(screen.getByRole("switch", { name: "Invert Modulation X" }))
   fireEvent.change(screen.getByLabelText("Plugin bend range (semitones)"), { target: { value: "12" } })

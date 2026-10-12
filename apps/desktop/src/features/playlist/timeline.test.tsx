@@ -40,7 +40,7 @@ it("adds, edits, deletes and undoes meters/markers through accessible menus and 
   render(<PlaylistPanel />)
   await user.click(screen.getByRole("button", { name: "Timeline" }))
   expect(
-    screen.getByRole("menuitem", { name: /^Play selected song region/ })
+    await screen.findByRole("menuitem", { name: /^Play selected song region/ })
   ).toHaveAttribute("aria-disabled", "true")
   await user.click(
     screen.getByRole("menuitem", { name: "Add song meter change…" })

@@ -1,6 +1,6 @@
 import type { InstrumentChannel } from "@/lib/channel-source"
 import { useEffect, useState } from "react"
-import type { MidiHardwareState } from "@/bindings"
+import type { InstrumentParams, MidiHardwareState } from "@/bindings"
 import { backend } from "@/lib/ipc"
 import { dispatch, useProjectStore } from "@/lib/store"
 import { ControllerChoice } from "@/features/controllers/links-panel"
@@ -19,12 +19,11 @@ export function MidiOutputEditor({ channel }: { channel: InstrumentChannel }) {
   }, [])
   const params = channel.source.params
   if (params.type !== "midiOut") return null
-  const midiParams = params
   const destination = params.pluginDestination ?? 0
   const plugins = (project.plugins ?? []).flatMap((plugin) => plugin.target.type === "instrument" && plugin.target.channel !== channel.id ? [{ value: String(plugin.target.channel), label: plugin.name }] : [])
   const port = params.outputPort ?? 0
   const ids = [hardware?.settings.output, ...(hardware?.settings.extraOutputs ?? [])]
-  function route(change: Partial<typeof midiParams>) {
+  function route(change: Partial<Extract<InstrumentParams, { type: "midiOut" }>>) {
     const current = useProjectStore.getState().project.channels.find((item) => item.id === channel.id)
     if (current?.source.type !== "instrument" || current.source.params.type !== "midiOut") return
     void dispatch({ type: "setInstrumentParams", channel: channel.id, params: { ...current.source.params, ...change } })

@@ -115,7 +115,7 @@ describe("browser MIDI uses the Rust converter", () => {
         ".mid"
       )
       await expect(
-        backend.exportMidi("bad.mid", { ...options, ppq: 123 })
+        backend.exportMidi("bad.mid", { ...options, ppq: 32768 })
       ).rejects.toThrow("resolution")
     } finally {
       backend.dispose()

@@ -133,6 +133,19 @@ fn measure(params: EffectParams, fraction: f64) {
 
 #[test]
 fn maximum_quality_drive_guitar_and_modular_graphs_have_declared_e4_cpu_budgets() {
+    // Keep every original assertion/budget, but complete independent workloads
+    // after an earlier one fails so integration receives all measurements.
+    let mut failures = Vec::new();
+    let mut measure = |params: EffectParams, fraction| {
+        if let Err(error) = std::panic::catch_unwind(|| measure(params, fraction)) {
+            let message = error
+                .downcast_ref::<String>()
+                .map(String::as_str)
+                .or_else(|| error.downcast_ref::<&str>().copied())
+                .unwrap_or("non-string panic");
+            failures.push(format!("{:?}: {message}", params.kind()));
+        }
+    };
     let shape = windfall_dsp::asset::ShapeRef::new(&[
         windfall_dsp::asset::CurvePoint::new(0.0, 0.0),
         windfall_dsp::asset::CurvePoint::new(0.4, 0.0),
@@ -196,6 +209,7 @@ fn maximum_quality_drive_guitar_and_modular_graphs_have_declared_e4_cpu_budgets(
             0.75,
         );
     }
+    assert!(failures.is_empty(), "{}", failures.join("\n"));
 }
 
 #[test]

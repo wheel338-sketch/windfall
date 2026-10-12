@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useRef, useState } from "react"
 import type { ControllerLink, LinkTarget, SourceMode, PickupMode, ControlAction, SlotTarget } from "@/bindings"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
@@ -15,9 +15,15 @@ import { useControllerStatus } from "./status"
 export function ControllerChoice<T extends string>({ label, value, choices, change, disabled = false }: {
   label: string; value: T; choices: { value: T; label: string }[]; change(value: T): void; disabled?: boolean
 }) {
+  const typingIntent = useRef(false)
   // A queued hidden-input change can outlive the item that was removed.
   // Keep explicit item/key navigation; these routing choices do not autofill.
-  return <Field><FieldLabel>{label}</FieldLabel><Select items={choices} value={value} disabled={disabled} autoComplete="off" onValueChange={(value, details) => { if (value !== null && !(details.reason === "none" && details.event.type === "change")) change(value) }}>
+  return <Field onKeyDownCapture={(event) => { if (event.key.length === 1 && !event.ctrlKey && !event.metaKey && !event.altKey) typingIntent.current = true }}><FieldLabel>{label}</FieldLabel><Select items={choices} value={value} disabled={disabled} autoComplete="off" onValueChange={(value, details) => {
+    if (value === null) return
+    if (details.reason === "none" && (details.event.type === "change" || details.event.type === "input" || !typingIntent.current)) return
+    typingIntent.current = false
+    change(value)
+  }}>
     <SelectTrigger aria-label={label}><SelectValue /></SelectTrigger>
     <SelectContent alignItemWithTrigger={false}><SelectGroup>{choices.map((choice) => <SelectItem key={choice.value} value={choice.value}>{choice.label}</SelectItem>)}</SelectGroup></SelectContent>
   </Select></Field>
