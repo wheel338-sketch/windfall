@@ -84,7 +84,8 @@ pub(super) fn pattern_metadata(
     let length = pattern.length_ticks();
     let per_tick = windfall_core::samples_per_tick(project.settings.tempo_bpm, f64::from(rate));
     let frame = |tick: f64| -> Result<u32, String> {
-        let value = (tick * per_tick).ceil();
+        // Match sequencer::Clock's 1e-6-frame tolerance at exact boundaries.
+        let value = (tick * per_tick - 1e-6).ceil().max(0.0);
         if !value.is_finite() || value < 0.0 || value > f64::from(u32::MAX) {
             return Err("A WAV note marker exceeds the 32-bit frame range.".into());
         }

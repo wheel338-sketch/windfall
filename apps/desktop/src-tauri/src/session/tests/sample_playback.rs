@@ -206,7 +206,8 @@ fn wav_slices(rig: &Rig) -> ChannelId {
         &path, 48000, 1, WavSampleFormat::Float32,
         &windfall_codec::AudioTags::default(), &metadata,
     ).unwrap();
-    writer.write(&vec![0.25; 96000]).unwrap();
+    let pcm = vec![0.25; 96000];
+    writer.write(&pcm).unwrap();
     writer.finalize().unwrap();
     let added = rig.session.add_channel_from_file(path.to_str().unwrap(), None).unwrap();
     let sample = windfall_project::SampleId(added.created[0]);

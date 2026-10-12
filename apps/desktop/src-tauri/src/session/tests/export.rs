@@ -474,3 +474,34 @@ fn pattern_wav_note_cues_follow_swing_shift_repeats_and_saved_notes() {
     }
     assert_eq!(rig.session.document_snapshot(), before);
 }
+#[test]
+fn song_wav_navigation_refusal_preserves_destination_and_a_region_before_navigation_exports() {
+    use windfall_project::{MarkerKind, TickRange};
+    let rig = Rig::new();
+    let input = rig.file("navigation-source.wav");
+    windfall_codec::write_wav(&input,
+        &windfall_core::AudioBuffer::from_interleaved(48000, 1, vec![0.25; 48000]),
+        windfall_codec::WavSampleFormat::Float32).unwrap();
+    rig.session.add_audio_clip_from_file(&input, ClipPlace { start: 0, track: None, mixer_track: None }).unwrap();
+    rig.session.dispatch(Command::AddTimelineMarker {
+        tick: 960, name: "Skip source".into(), kind: MarkerKind::Skip { end: 1440 },
+    }, None).unwrap();
+    let before = rig.session.document_snapshot();
+    let mut export = options(&rig, "navigation.wav");
+    export.mode = PlayMode::Song;
+    std::fs::write(&export.path, b"existing destination").unwrap();
+    rig.session.export_audio(export.clone()).unwrap();
+    assert!(rig.events.wait_for_export().error.unwrap().contains("skip or pause"));
+    assert_eq!(std::fs::read(&export.path).unwrap(), b"existing destination");
+    assert_eq!(rig.session.document_snapshot(), before);
+    let guard = rig.session.timeline_state();
+    export.path = rig.file("before-navigation.wav");
+    export.region = Some(TickRange { start: 0, end: 480 });
+    export.region_generation = Some(guard.generation);
+    export.region_revision = Some(guard.revision);
+    rig.session.export_audio(export.clone()).unwrap();
+    assert_eq!(rig.events.wait_for_export().error, None);
+    assert_eq!(windfall_codec::decode_file(&export.path).unwrap().frames(), 12000);
+    assert!(windfall_codec::read_wav_metadata_file(&export.path).unwrap().cues.is_empty());
+    assert_eq!(rig.session.document_snapshot(), before);
+}
