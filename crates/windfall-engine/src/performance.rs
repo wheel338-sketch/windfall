@@ -47,6 +47,7 @@ pub(crate) struct Launcher {
     slots: [Slot; TRACKS],
     held: [Option<Held>; HELD],
     events: Vec<Event>,
+    accepted: Vec<LaunchRequest>,
     tick: f64,
     token: u64,
     pub dropped: u64,
@@ -86,6 +87,7 @@ impl Launcher {
             slots: [Slot::default(); TRACKS],
             held: [None; HELD],
             events: Vec::with_capacity(EVENTS),
+            accepted: Vec::with_capacity(TRACKS),
             tick: 0.0,
             token: 0,
             dropped: 0,
@@ -179,6 +181,8 @@ impl Launcher {
     pub fn events_len(&self) -> usize {
         self.events.len()
     }
+    pub fn accepted_len(&self) -> usize { self.accepted.len() }
+    pub fn accepted(&self, index: usize) -> LaunchRequest { self.accepted[index] }
     pub fn tick(&self) -> f64 {
         self.tick
     }
@@ -235,6 +239,7 @@ impl Launcher {
     }
     pub fn step(&mut self, plan: &Plan, rate: u32) {
         self.events.clear();
+        self.accepted.clear();
         for track in 0..TRACKS {
             let slot = self.slots[track];
             if let Some(pending) = slot.pending.filter(|p| p.at <= self.tick + 1e-7) {
@@ -244,6 +249,8 @@ impl Launcher {
                     origin: pending.at,
                     ..Slot::default()
                 };
+                // A notification only: do not change pending/held/event order.
+                self.accepted.push(LaunchRequest { quantization: LaunchQuantization::Immediate, ..pending.request });
             }
         }
         for held in &mut self.held {
@@ -375,6 +382,23 @@ mod tests {
     use super::*;
     use crate::{SamplePool, plan::compile};
     use windfall_project::{Project, StageMedia};
+    #[test]
+    fn accepted_log_contains_only_the_winning_launch_at_its_quantized_boundary() {
+        let plan = note_plan();
+        let pattern = plan.patterns[0].id;
+        let mut launcher = Launcher::new(); launcher.tick = 100.0;
+        let request = LaunchRequest { track: 0, pattern: Some(pattern), quantization: LaunchQuantization::Beat };
+        launcher.request(request, &plan);
+        launcher.request(LaunchRequest { pattern: None, ..request }, &plan);
+        launcher.request(request, &plan);
+        launcher.tick = 959.9; launcher.step(&plan, 48000);
+        assert_eq!(launcher.accepted_len(), 0);
+        launcher.tick = 960.0; launcher.step(&plan, 48000);
+        assert_eq!(launcher.accepted_len(), 1);
+        assert_eq!(launcher.accepted(0), LaunchRequest { quantization: LaunchQuantization::Immediate, ..request });
+        launcher.step(&plan, 48000);
+        assert_eq!(launcher.accepted_len(), 0);
+    }
 
     #[test]
     fn beat_bar_meter_boundaries_are_inclusive() {

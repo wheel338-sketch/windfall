@@ -163,14 +163,18 @@ impl Controller {
     }
     pub fn performance_record_end(&self) { self.lock().send(Message::PerformanceRecordEnd); }
     pub fn performance_replay(&self, audio: Option<AudioBuffer>) -> Result<(), String> {
-        if audio.as_ref().is_some_and(|audio| audio.channels() != 2 || audio.frames() == 0 || audio.samples().iter().any(|sample| !sample.is_finite())) {
-            return Err("Performance replay needs finite stereo PCM".into());
-        }
+        let replay = audio.map(|audio| crate::performance_recording::Replay::prepare(audio, Vec::new())).transpose()?;
+        self.enqueue_performance_replay(replay)
+    }
+    pub fn performance_replay_log(&self, audio: AudioBuffer, events: Vec<windfall_project::PerformanceLogEvent>) -> Result<(), String> {
+        self.enqueue_performance_replay(Some(crate::performance_recording::Replay::prepare(audio, events)?))
+    }
+    fn enqueue_performance_replay(&self, replay: Option<Box<crate::performance_recording::Replay>>) -> Result<(), String> {
         let mut state = self.lock();
         state.maintain();
         if !state.backlog.is_empty() { return Err("Performance replay queue is full".into()); }
         state.link.as_mut().ok_or("Performance replay needs an active audio stream")?.messages
-            .push(Message::PerformanceReplay(audio)).map_err(|_| "Performance replay queue is full".into())
+            .push(Message::PerformanceReplay(replay)).map_err(|_| "Performance replay queue is full".into())
     }
     /// Admits a bounded performance request without changing song transport.
     pub fn performance_launch(

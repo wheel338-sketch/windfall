@@ -126,7 +126,7 @@ impl Session {
         if result.is_ok() { self.own_derived(&path); } else { let _ = std::fs::remove_file(&path); }
         result
     }
-    fn performance_take_audio(&self, index: usize, generation: u64, revision: u64) -> Result<windfall_core::AudioBuffer, String> {
+    fn performance_take_audio(&self, index: usize, generation: u64, revision: u64) -> Result<(windfall_core::AudioBuffer, Vec<windfall_project::PerformanceLogEvent>), String> {
         let state = self.state();
         if state.generation != generation || state.document.revision() != revision { return Err("The project changed before performance replay/export".into()); }
         let take = state.document.project().settings.stage_media.takes.get(index).ok_or("Recorded performance no longer exists")?;
@@ -134,15 +134,17 @@ impl Session {
         if audio.sample_rate() != take.sample_rate || audio.frames() != take.frames as usize || audio.channels() != 2 {
             return Err("Recorded performance WAV no longer matches its saved clock".into());
         }
-        Ok(audio.clone())
+        Ok((audio.clone(), take.events.clone()))
     }
     pub fn performance_take_replay(&self, index: Option<usize>, generation: u64, revision: u64) -> Result<(), String> {
         let _recording = self.recording_idle()?;
-        let audio = index.map(|index| self.performance_take_audio(index, generation, revision)).transpose()?;
-        self.controller().performance_replay(audio)
+        if let Some(index) = index {
+            let (audio, events) = self.performance_take_audio(index, generation, revision)?;
+            self.controller().performance_replay_log(audio, events)
+        } else { self.controller().performance_replay(None) }
     }
     pub fn performance_take_export(&self, index: usize, path: &str, generation: u64, revision: u64) -> Result<(), String> {
-        let audio = self.performance_take_audio(index, generation, revision)?;
+        let (audio, _) = self.performance_take_audio(index, generation, revision)?;
         windfall_codec::write_wav(path, &audio, windfall_codec::WavSampleFormat::Float32).map_err(|error| error.to_string())
     }
 }

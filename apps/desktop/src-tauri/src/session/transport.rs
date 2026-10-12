@@ -116,11 +116,11 @@ impl Session {
         &self,
         generation: Option<u64>,
     ) -> Result<TransportState, String> {
-        if self.inner.performance_capturing.load(std::sync::atomic::Ordering::Acquire) { return Err("Finish or cancel performance recording before starting the song".into()); }
         let _recording = generation.map(|_| self.recording_idle()).transpose()?;
         // Held across the check and the start, so the last clip cannot be
         // removed in between.
         let state = self.state();
+        if self.inner.performance_capturing.load(std::sync::atomic::Ordering::Acquire) { return Err("Finish or cancel performance recording before starting the song".into()); }
         if generation.is_some_and(|generation| state.generation != generation) {
             return Err("Remote project generation is stale.".into());
         }

@@ -284,7 +284,10 @@ fn performance_callback_log_pcm_save_reopen_undo_and_wav_export_are_exact() {
     assert_eq!(rig.session.state().pool.get(take.sample).unwrap().samples(), expected);
     let guard = rig.session.timeline_state();
     rig.session.performance_take_replay(Some(0), guard.generation, guard.revision).unwrap();
-    assert_eq!(rig.run(5760), expected);
+    let first = rig.run(2400);
+    assert_eq!(rig.session.performance_state().tracks[0].active, Some(rig.pattern()));
+    let rest = rig.run(3360);
+    assert_eq!(first.into_iter().chain(rest).collect::<Vec<_>>(), expected);
     let exported = rig.file("performance.wav");
     rig.session.performance_take_export(0, &exported, guard.generation, guard.revision).unwrap();
     assert_eq!(windfall_codec::decode_file(&exported).unwrap().samples(), expected);

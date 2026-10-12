@@ -99,19 +99,39 @@ impl PerformanceRecording {
 
 /// The captured final mix bypasses processing on replay to avoid applying
 /// effects/output gain twice. Rate conversion is the only transformation.
-pub(crate) struct Replay { pub audio: AudioBuffer, pub position: f64 }
+pub(crate) struct Replay {
+    pub audio: AudioBuffer,
+    pub position: f64,
+    output_frames: u64,
+    events: Box<[PerformanceLogEvent]>,
+    next: usize,
+    pub slots: [Option<PatternId>; crate::performance::TRACKS],
+}
 impl Replay {
-    pub fn render(&mut self, rate: u32, out: &mut [[f32; 2]]) -> bool {
+    pub fn prepare(audio: AudioBuffer, events: Vec<PerformanceLogEvent>) -> Result<Box<Self>, String> {
+        if audio.channels() != 2 || audio.frames() == 0 || audio.samples().iter().any(|sample| !sample.is_finite())
+            || events.len() > MAX_EVENTS || events.windows(2).any(|pair| pair[0].frame > pair[1].frame)
+            || events.iter().any(|event| usize::from(event.track) >= crate::performance::TRACKS || event.frame as usize > audio.frames())
+        { return Err("Performance replay needs finite stereo PCM and an ordered, bounded callback log".into()); }
+        Ok(Box::new(Self { audio, position: 0.0, output_frames: 0, events: events.into_boxed_slice(), next: 0, slots: [None; crate::performance::TRACKS] }))
+    }
+    pub fn render(&mut self, rate: u32, out: &mut [[f32; 2]], base: u64, capture: Option<&PerformanceRecording>) -> bool {
         let step = f64::from(self.audio.sample_rate()) / f64::from(rate);
-        for frame in out {
+        for (offset, frame) in out.iter_mut().enumerate() {
+            while let Some(event) = self.events.get(self.next).filter(|event| f64::from(event.frame) <= self.position + 1e-7) {
+                self.slots[usize::from(event.track)] = event.pattern;
+                if let Some(capture) = capture { capture.launch(base + offset as u64, crate::performance::LaunchRequest { track: event.track, pattern: event.pattern, quantization: LaunchQuantization::Immediate }); }
+                self.next += 1;
+            }
             let first = self.position.floor() as usize;
             let fraction = (self.position - first as f64) as f32;
             for (side, value) in frame.iter_mut().enumerate() {
                 let a = self.audio.samples().get(first * 2 + side).copied().unwrap_or(0.0);
                 let b = self.audio.samples().get((first + 1) * 2 + side).copied().unwrap_or(a);
-                *value = a + (b - a) * fraction;
+                *value = if fraction == 0.0 { a } else { (f64::from(a) * (1.0 - f64::from(fraction)) + f64::from(b) * f64::from(fraction)) as f32 };
             }
-            self.position += step;
+            self.output_frames += 1;
+            self.position = self.output_frames as f64 * step;
         }
         self.position >= self.audio.frames() as f64
     }
@@ -139,9 +159,9 @@ mod tests {
         assert_eq!(saved.events[0].frame, 0);
         assert_eq!(saved.events[0].pattern, Some(PatternId(42)));
         assert_eq!(saved.events[1].pattern, None);
-        let mut replay = Replay { audio: saved.audio.clone(), position: 0.0 };
+        let mut replay = Replay::prepare(saved.audio.clone(), saved.events.clone()).unwrap();
         let mut heard = [[0.0; 2]; 2];
-        assert_eq!(crate::test_alloc::allocator_calls(|| { assert!(replay.render(8000, &mut heard)); }), 0);
+        assert_eq!(crate::test_alloc::allocator_calls(|| { assert!(replay.render(8000, &mut heard, 0, None)); }), 0);
         assert_eq!(heard, audio);
     }
     #[test]
@@ -201,5 +221,24 @@ mod tests {
         processor.process(&mut block);
         controller.performance_record_end(); processor.process(&mut block);
         assert_eq!(second.snapshot().unwrap().audio.frames(), 8);
+    }
+    #[test]
+    fn replay_consumes_sample_stamped_log_in_order_at_native_and_resampled_rates() {
+        let events = vec![
+            PerformanceLogEvent { frame: 0, track: 2, pattern: Some(PatternId(9)), quantization: LaunchQuantization::Immediate },
+            PerformanceLogEvent { frame: 3, track: 2, pattern: None, quantization: LaunchQuantization::Immediate },
+            PerformanceLogEvent { frame: 3, track: 2, pattern: Some(PatternId(10)), quantization: LaunchQuantization::Immediate },
+        ];
+        let audio = AudioBuffer::from_interleaved(8000, 2, vec![0.25; 16]);
+        for (rate, first_frames) in [(8000, 3), (16000, 6)] {
+            let mut replay = Replay::prepare(audio.clone(), events.clone()).unwrap();
+            let mut first = vec![[0.0; 2]; first_frames];
+            assert_eq!(crate::test_alloc::allocator_calls(|| { assert!(!replay.render(rate, &mut first, 0, None)); }), 0);
+            assert_eq!(replay.slots[2], Some(PatternId(9)));
+            let mut boundary = [[0.0; 2]; 1];
+            replay.render(rate, &mut boundary, first_frames as u64, None);
+            assert_eq!(replay.slots[2], Some(PatternId(10)));
+            assert!(first.iter().chain(&boundary).all(|frame| *frame == [0.25; 2]));
+        }
     }
 }
