@@ -21,6 +21,23 @@ async function open(kind: EffectKind) {
 }
 function slot(effect: EffectId) { return useProjectStore.getState().project.mixer.tracks.find((t) => t.id === track)?.effects.find((e) => e.id === effect) }
 describe("spectral mounted editors", () => {
+  it("keeps the sounding IR and history when native publication refuses an imported WAV", async () => {
+    const effect = await open("convolver")
+    await act(() => dispatch({ type: "setConvolverImpulse", track, effect, impulse: {
+      name: "Admitted IR", sampleRate: 48000, frames: [[1, 1], [0.5, 0.5]],
+    } }))
+    const before = await backend.documentSnapshot()
+    const publication = vi.spyOn(backend, "dispatch").mockRejectedValueOnce(new Error("IR exceeds the host-rate preparation bound"))
+    const file = new File([wav([0.25])], "Refused IR.wav", { type: "audio/wav" })
+    Object.defineProperty(file, "arrayBuffer", { value: () => Promise.resolve(wav([0.25])) })
+    fireEvent.change(screen.getByLabelText("Impulse response WAV"), { target: { files: [file] } })
+    await waitFor(() => expect(screen.getByText("Impulse change was refused; the previous IR is retained")).toBeTruthy())
+    expect(publication).toHaveBeenCalledWith({ type: "setConvolverImpulse", track, effect, impulse: {
+      name: "Refused IR.wav", sampleRate: 48000, frames: [[0.25, 0.25]],
+    } }, undefined)
+    expect(await backend.documentSnapshot()).toEqual(before)
+    expect(slot(effect)?.impulse?.name).toBe("Admitted IR")
+  })
   it("repeated WAV imports retain exact undo redo and saved reopen payloads for native Session publication", async () => {
     const effect = await open("convolver")
     for (const gain of [0.25, 0.5, 0.75]) {
