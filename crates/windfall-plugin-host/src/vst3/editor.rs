@@ -253,8 +253,13 @@ impl Editor {
                 resizable,
                 application: options.scale,
             };
-            if editor.view.cast::<IPlugViewContentScaleSupport>().is_some() || options.scale != 1.0 {
-                editor.set_scale(options.scale)?;
+            // Preserve editors that draw at their own default DPI even when
+            // they expose a scale interface but refuse negotiation.
+            if (editor.view.cast::<IPlugViewContentScaleSupport>().is_some() || options.scale != 1.0)
+                && let Err(error) = editor.set_scale(options.scale)
+                && options.scale != 1.0
+            {
+                return Err(error);
             }
             Ok(editor)
         }
