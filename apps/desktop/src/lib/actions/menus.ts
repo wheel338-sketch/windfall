@@ -29,6 +29,7 @@ export const MENUS: MenuSpec[] = [
     title: "File",
     entries: [
       "file.new",
+      "files.newTemplate",
       "file.open",
       "file.importFlp",
       {
@@ -39,6 +40,13 @@ export const MENUS: MenuSpec[] = [
       separator,
       "file.save",
       "file.saveAs",
+      "files.saveTemplate",
+      "files.saveChannelPreset",
+      "files.savePluginPreset",
+      "files.loadPreset",
+      "files.saveScore",
+      "files.loadScore",
+      "files.mergeScore",
       "file.saveNewVersion",
       "file.archive",
       "file.cancelArchive",
@@ -69,6 +77,7 @@ export const MENUS: MenuSpec[] = [
   {
     title: "Add",
     entries: [
+      "plugins.picker",
       "channel.add",
       "channel.addInstrument.subtractiveSynth",
       "channel.addFromFile",

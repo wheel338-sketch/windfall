@@ -8,7 +8,6 @@ use std::sync::{
     Arc,
     atomic::{AtomicBool, Ordering},
 };
-#[cfg(test)]
 use windfall_archive::Stage;
 use windfall_archive::{Error, Limits};
 use windfall_project::{Document, DocumentSnapshot, Project};
@@ -99,13 +98,14 @@ impl Session {
         // and serialized with Save as, which may carry/relink these sources.
         let saving = lock(&self.inner.save);
         drop(self.recording_idle()?);
-        let (project, played, directory, revision) = {
+        let (project, played, directory, revision, _extraction) = {
             let state = self.state();
             (
                 state.document.project().clone(),
                 self.played(),
                 state.sample_dir.clone(),
                 self.plugin_revision(),
+                self.extraction_lease(state.project_dir()),
             )
         };
         #[cfg(test)]
@@ -165,8 +165,13 @@ impl Session {
                 if stage == Stage::Publish {
                     self.pause("archive:publish");
                 }
-                let _ = stage;
-                job.check()
+                // Publication already committed the whole no-clobber archive.
+                // A cancellation arriving now cannot turn success into failure.
+                if stage == Stage::Published {
+                    Ok(())
+                } else {
+                    job.check()
+                }
             },
         )
         .map_err(|e| e.to_string())?;
@@ -245,7 +250,7 @@ impl Session {
                 decoded,
             )
             .map_err(|refusal| refusal.message(&format!("{what} was not opened")))?;
-        extracted.retain();
+        self.retain_extraction(extracted.retain());
         Ok(snapshot)
     }
 

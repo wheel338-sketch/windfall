@@ -81,6 +81,36 @@ pub struct Score {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     #[ts(as = "Option<Vec<NoteCurveInsert>>", optional)]
     pub curves: Vec<NoteCurveInsert>,
+    /// Pattern-local controls belonging to this lane. Channel id zero is a
+    /// portable placeholder, remapped to the destination when loaded.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[ts(as = "Option<Vec<ScoreEventLane>>", optional)]
+    pub events: Vec<ScoreEventLane>,
+}
+
+/// A reusable pattern event curve without a project-owned automation id.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct ScoreEventLane {
+    pub target: crate::AutomationTarget,
+    pub points: Vec<crate::AutomationPoint>,
+}
+
+fn local_target(
+    target: crate::AutomationTarget,
+    from: ChannelId,
+    to: ChannelId,
+) -> Option<crate::AutomationTarget> {
+    use crate::AutomationTarget::*;
+    match target {
+        ChannelVolume { channel } if channel == from => Some(ChannelVolume { channel: to }),
+        ChannelPan { channel } if channel == from => Some(ChannelPan { channel: to }),
+        InstrumentParam { channel, param } if channel == from => {
+            Some(InstrumentParam { channel: to, param })
+        }
+        _ => None,
+    }
 }
 
 /// What loading a score does with the notes the lane already has.
@@ -113,6 +143,7 @@ impl Score {
             time_signature: None,
             notes: Vec::new(),
             curves: Vec::new(),
+            events: Vec::new(),
         }
     }
 
@@ -176,6 +207,16 @@ impl Score {
                 });
             }
         }
+        score.events = source
+            .events
+            .iter()
+            .filter_map(|lane| {
+                local_target(lane.target, channel, ChannelId(0)).map(|target| ScoreEventLane {
+                    target,
+                    points: lane.points.clone(),
+                })
+            })
+            .collect();
         score.normalize_name();
         score.validate()?;
         Ok(score)
@@ -239,6 +280,22 @@ impl Score {
                 return Err(
                     "The score has a note outside its length or outside a note's ranges".to_owned(),
                 );
+            }
+        }
+        if self.events.len() > crate::pattern_events::MAX_PATTERN_EVENT_LANES {
+            return Err("The score has too many event lanes".into());
+        }
+        let mut event_targets = std::collections::HashSet::new();
+        for lane in &self.events {
+            if local_target(lane.target, ChannelId(0), ChannelId(0)).is_none()
+                || !event_targets.insert(lane.target)
+                || lane.points.is_empty()
+                || crate::pattern_events::checked_points(lane.points.clone())
+                    .map_err(|e| e.to_string())?
+                    != lane.points
+                || lane.points.iter().any(|p| p.tick > self.length_ticks)
+            {
+                return Err("The score has an invalid pattern event lane".into());
             }
         }
         let mut targets = std::collections::HashSet::new();
@@ -374,6 +431,47 @@ impl Score {
                 .collect(),
             curves: self.curves.clone(),
         });
+        if mode == ScoreLoadMode::Replace {
+            for lane in &target.events {
+                if local_target(lane.target, channel, channel).is_some() {
+                    commands.push(Command::SetPatternEvents {
+                        pattern,
+                        target: lane.target,
+                        expected: lane.points.clone(),
+                        points: Vec::new(),
+                    });
+                }
+            }
+        }
+        for lane in &self.events {
+            let target = local_target(lane.target, ChannelId(0), channel)
+                .ok_or("Invalid score event target")?;
+            if project.automation_range(&target).is_none() {
+                return Err("This channel does not have a control required by the score".into());
+            }
+            let expected = if mode == ScoreLoadMode::Replace {
+                Vec::new()
+            } else {
+                crate::pattern_events::captured(
+                    project.pattern(pattern).expect("checked pattern"),
+                    &target,
+                )
+            };
+            // Merge preserves the destination's other times. Score points win
+            // at the same tick, as the newly imported expression does for notes.
+            let mut points = expected.clone();
+            points.retain(|point| !lane.points.iter().any(|new| new.tick == point.tick));
+            points.extend(lane.points.iter().copied());
+            points.sort_by_key(|point| point.tick);
+            let points =
+                crate::pattern_events::checked_points(points).map_err(|error| error.to_string())?;
+            commands.push(Command::SetPatternEvents {
+                pattern,
+                target,
+                expected,
+                points,
+            });
+        }
         Ok(Command::Batch {
             label: Some("Load score".to_owned()),
             commands,

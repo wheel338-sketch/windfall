@@ -54,6 +54,7 @@ impl Session {
             if state.generation != generation || state.document.revision() != revision {
                 return Err("The project changed before the preset was taken; try again".into());
             }
+            self.pin_extraction(state.project_dir());
             (
                 state.document.project().clone(),
                 self.plugin_revision(),
@@ -225,6 +226,18 @@ impl Session {
         name_color: bool,
         without_audio: bool,
     ) -> Result<DispatchResult, String> {
+        self.preset_apply_channel_guarded(path, id, expected, name_color, without_audio, None)
+    }
+
+    pub fn preset_apply_channel_guarded(
+        &self,
+        path: &str,
+        id: ChannelId,
+        expected: Channel,
+        name_color: bool,
+        without_audio: bool,
+        guard: Option<(u64, u64)>,
+    ) -> Result<DispatchResult, String> {
         let review = self.preset_read(path)?;
         let kind = review.preset.kind;
         let Some(body) = review.preset.channel else {
@@ -259,17 +272,20 @@ impl Session {
                 }
             },
         };
-        self.dispatch(
-            Command::ApplyChannelPreset {
-                id,
-                expected,
-                preset: body,
-                sample: None,
-                audio,
-                name_color,
-            },
-            None,
-        )
+        let command = Command::ApplyChannelPreset {
+            id,
+            expected,
+            preset: body,
+            sample: None,
+            audio,
+            name_color,
+        };
+        match guard {
+            Some((generation, revision)) => {
+                self.dispatch_file_command(command, generation, revision)
+            }
+            None => self.dispatch(command, None),
+        }
     }
 
     /// The folder of the user's preset library.

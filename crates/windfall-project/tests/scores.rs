@@ -420,3 +420,99 @@ fn files_that_are_not_readable_scores_are_refused_with_the_reason() {
             .is_err()
     );
 }
+
+#[test]
+fn score_events_remap_the_channel_and_replace_in_one_history_step() {
+    let (mut doc, pattern, lead, bass) = written();
+    doc.dispatch(
+        Command::SetPatternEvents {
+            pattern,
+            target: AutomationTarget::ChannelPan { channel: lead },
+            expected: Vec::new(),
+            points: vec![AutomationPoint {
+                tick: 0,
+                value: 0.25,
+                curve: 0.0,
+                hold: true,
+            }],
+        },
+        None,
+    )
+    .unwrap();
+    let captured = Score::capture(doc.project(), pattern, lead, None).unwrap();
+    assert_eq!(
+        captured.events[0].target,
+        AutomationTarget::ChannelPan {
+            channel: ChannelId(0)
+        }
+    );
+    assert_eq!(
+        Score::from_json(captured.to_json().unwrap().as_bytes()).unwrap(),
+        captured
+    );
+    let before = doc.project().clone();
+    let command = captured
+        .load_command(doc.project(), pattern, bass, ScoreLoadMode::Replace)
+        .unwrap();
+    doc.dispatch(command, None).unwrap();
+    assert_eq!(
+        doc.project()
+            .pattern(pattern)
+            .unwrap()
+            .event_lane(&AutomationTarget::ChannelPan { channel: bass })
+            .unwrap()
+            .points,
+        captured.events[0].points
+    );
+    doc.undo().unwrap();
+    assert_eq!(doc.project(), &before);
+}
+
+#[test]
+fn score_merge_preserves_other_event_times_and_undo_restores_overwritten_points() {
+    let (mut doc, pattern, lead, bass) = written();
+    let point = |tick, value| AutomationPoint {
+        tick,
+        value,
+        curve: 0.0,
+        hold: true,
+    };
+    for (channel, points) in [
+        (lead, vec![point(0, 0.25), point(480, 0.75)]),
+        (bass, vec![point(0, 0.1), point(960, 0.9)]),
+    ] {
+        doc.dispatch(
+            Command::SetPatternEvents {
+                pattern,
+                target: AutomationTarget::ChannelPan { channel },
+                expected: Vec::new(),
+                points,
+            },
+            None,
+        )
+        .unwrap();
+    }
+    let score = Score::capture(doc.project(), pattern, lead, None).unwrap();
+    let before = doc.project().clone();
+    let command = score
+        .load_command(doc.project(), pattern, bass, ScoreLoadMode::Merge)
+        .unwrap();
+    doc.dispatch(command, None).unwrap();
+    let target = AutomationTarget::ChannelPan { channel: bass };
+    assert_eq!(
+        doc.project()
+            .pattern(pattern)
+            .unwrap()
+            .event_lane(&target)
+            .unwrap()
+            .points,
+        vec![point(0, 0.25), point(480, 0.75), point(960, 0.9)]
+    );
+    let after = doc.project().clone();
+    doc.undo().unwrap();
+    assert_eq!(doc.project(), &before);
+    doc.redo().unwrap();
+    assert_eq!(doc.project(), &after);
+    let reopened = file::from_json(&file::to_json(doc.project()).unwrap()).unwrap();
+    assert_eq!(reopened, after);
+}

@@ -19,12 +19,12 @@ export function ProjectOverviewPanel() {
         if (!next) closeProjectOverview()
       }}
     >
-      <DialogContent className="sm:max-w-4xl">
+      <DialogContent className="flex h-dvh max-w-none! flex-col rounded-none">
         <DialogHeader>
           <DialogTitle>Project overview</DialogTitle>
           <DialogDescription>
             Channels, patterns and playlist clips in the open Windfall project.
-            Read-only; marked cells contain notes.
+            Select a relationship to open its piano roll, or a clip to reveal it on the playlist.
           </DialogDescription>
         </DialogHeader>
         {open && <ProjectOverviewView />}

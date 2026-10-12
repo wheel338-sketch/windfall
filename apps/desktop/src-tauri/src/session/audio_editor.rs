@@ -248,7 +248,7 @@ impl Session {
             .ok_or("The clip's audio is not loaded. Reload samples first.")?;
         let clock = windfall_engine::SongClock::new(&project)?;
         let timing = audio_edit::view_timing(&pool, &clip, project.settings.tempo_bpm, &clock)?;
-        let view = audio_edit::render_view_timed(&pool, &clip, &timing)?;
+        let view = audio_edit::render_view_timed_with_law(&pool, &clip, &timing, project.settings.pan_law.core())?;
         let analysis_timing = if let Some(recipe) = &recipe {
             match recipe.source_timing {
                 Some(timing) => timing,
@@ -256,7 +256,7 @@ impl Session {
             }
         } else { timing };
         let analysis_view = if let Some(recipe) = &recipe {
-            audio_edit::render_view_timed(&pool, &recipe.source_clip, &analysis_timing)?
+            audio_edit::render_view_timed_with_law(&pool, &recipe.source_clip, &analysis_timing, project.settings.pan_law.core())?
         } else { view.clone() };
         let analysis_source = recipe.as_ref().map(|recipe| {
             let id = recipe.source_clip.content.sample().expect("checked saved recipe");

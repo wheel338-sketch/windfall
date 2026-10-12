@@ -127,10 +127,8 @@ fn what_a_midi_file_cannot_hold_is_reported_and_the_notes_still_travel() {
     score.validate().unwrap();
 
     let (song, left_out) = score_to_song(&score, 120.0);
-    assert_eq!(left_out.len(), 3, "{left_out:?}");
-    assert!(left_out[0].contains("panned"));
-    assert!(left_out[1].contains("expression beyond their release"));
-    assert!(left_out[2].contains("1 expression curves"));
+    assert_eq!(left_out.len(), 1, "{left_out:?}");
+    assert!(left_out[0].contains("Windfall score metadata"));
     assert_eq!(
         song.time_signatures,
         [TimeSignatureChange {
@@ -146,8 +144,7 @@ fn what_a_midi_file_cannot_hold_is_reported_and_the_notes_still_travel() {
         score_from_song(&read(&write(&song, &WriteOptions::default())).unwrap(), "x").unwrap();
     assert_eq!(back.time_signature, score.time_signature);
     assert_eq!(back.notes[1].expression.release, 0.25);
-    assert_eq!(back.notes[0].pan, 0.0);
-    assert_eq!(back.notes[2].expression, NoteExpression::default());
+    assert_eq!(back, score);
     assert_eq!(
         back.notes
             .iter()
@@ -392,4 +389,42 @@ fn a_midi_file_at_the_project_timebase_holds_what_plays_without_rounding() {
     assert_eq!(Resolution::Ppq(96).ticks_per_quarter(), 96);
     assert_eq!(Resolution::Ppq(0).ticks_per_quarter(), 1);
     assert_eq!(Resolution::Ppq(u16::MAX).ticks_per_quarter(), 0x7FFF);
+}
+
+#[test]
+fn expressive_scores_and_pattern_event_lanes_survive_actual_smf_bytes() {
+    let mut score = plain();
+    score.notes[0].expression.color_group = Some(3);
+    score.notes[0].expression.articulation = NoteArticulation::Slide;
+    score.events.push(ScoreEventLane {
+        target: AutomationTarget::ChannelPan {
+            channel: ChannelId(0),
+        },
+        points: vec![AutomationPoint {
+            tick: 0,
+            value: 0.3,
+            curve: 0.2,
+            hold: true,
+        }],
+    });
+    for options in [
+        WriteOptions::default(),
+        WriteOptions {
+            format: windfall_midi::SmfFormat::Single,
+            ..Default::default()
+        },
+    ] {
+        let (song, _) = score_to_song(&score, 123.0);
+        let bytes = write(&song, &options);
+        let (back, warnings) = score_from_song(&read(&bytes).unwrap(), "fallback").unwrap();
+        assert_eq!(back, score);
+        assert!(warnings.is_empty());
+    }
+    let (mut altered, _) = score_to_song(&score, 120.0);
+    altered.tracks[0].notes[0].key += 1;
+    assert!(
+        score_from_song(&altered, "changed")
+            .unwrap_err()
+            .contains("changed")
+    );
 }

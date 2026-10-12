@@ -188,6 +188,7 @@ struct Inner {
     /// Successful guarded Play owner; accessed only while State is held.
     timeline_play_request: std::sync::atomic::AtomicU64,
     archive_job: Mutex<Option<Arc<AtomicBool>>>,
+    extractions: Mutex<extractions::Extractions>,
     analysis: analysis_jobs::Service,
     /// Live analyzer slots and captures. Locked after `state`, before the
     /// engine's controller; the realtime thread takes it without `state`.
@@ -443,6 +444,7 @@ impl Session {
                 audio_editor: Mutex::new(audio_editor::Editor::default()),
                 audio_analysis_cancel: Mutex::new(None),
                 derived_assets: Mutex::new(derived_assets::Assets::default()),
+                extractions: Mutex::new(extractions::Extractions::default()),
                 library,
                 plugins: Mutex::new(None),
                 save: Mutex::new(()),
@@ -528,3 +530,7 @@ impl Session {
 mod sample_playback;
 mod sample_instruments;
 mod sample_bank_files;
+
+mod file_edits;
+
+mod extractions;

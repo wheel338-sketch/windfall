@@ -2159,6 +2159,7 @@ fn native_clap_instance_expression_audio_matches_reference_after_bridge_latency(
     assert!(audio.supports_note_instances());
     assert!(audio.supports_note_pitch());
     let controls = PluginNoteControls {
+                volume: 1.0,
         pan: -0.5,
         pitch: 69.5,
         modulation_x: 0.5,
@@ -2293,6 +2294,7 @@ fn vst3_expression_identity_and_controls_replay_after_helper_timeline_reset() {
         channel: 2,
         velocity: 0.5,
         controls: PluginNoteControls {
+                volume: 1.0,
             pan: -0.5,
             pitch: 69.5,
             modulation_x: 0.25,
@@ -2303,6 +2305,7 @@ fn vst3_expression_identity_and_controls_replay_after_helper_timeline_reset() {
         id: a.id + 1,
         velocity: 0.25,
         controls: PluginNoteControls {
+                volume: 1.0,
             pan: 0.5,
             pitch: 75.0,
             modulation_x: 0.5,
@@ -2318,6 +2321,7 @@ fn vst3_expression_identity_and_controls_replay_after_helper_timeline_reset() {
         0
     );
     let changed = PluginNoteControls {
+                volume: 1.0,
         pan: -1.0,
         pitch: 72.0,
         modulation_x: 0.75,

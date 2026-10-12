@@ -130,6 +130,25 @@ export class SimDocument {
     return this.call<number[]>("doc_midi_export", options)
   }
 
+  capturePreset(channel: number | null, target: import("@/bindings").PluginTarget | null): import("@/bindings").PresetCapture {
+    return this.call("doc_preset_capture", { channel, target })
+  }
+  presetCommand(preset: import("@/bindings").Preset, channel: number | null, expected: import("@/bindings").Channel | null, target: import("@/bindings").PluginTarget | null, nameColor = false): Command {
+    return this.call("doc_preset_command", { preset, channel, expected, target, name_color: nameColor })
+  }
+  captureScore(pattern: number, channel: number, only: number[] | null): import("@/bindings").Score {
+    return this.call("doc_score_capture", { pattern, channel, only })
+  }
+  scoreCommand(score: import("@/bindings").Score, pattern: number, channel: number, mode: import("@/bindings").ScoreLoadMode): Command {
+    return this.call("doc_score_command", { score, pattern, channel, mode })
+  }
+  writeScore(score: import("@/bindings").Score, path: string): { bytes: number[]; notes: string[] } {
+    return this.call("doc_score_write", { score, path })
+  }
+  readScore(bytes: number[], name: string): import("@/bindings").ScoreReview {
+    return this.call("score_read", { bytes, name })
+  }
+
   redo(): ProjectPatch | null {
     return this.follow(this.call<ProjectPatch | null>("doc_redo"))
   }

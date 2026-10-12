@@ -9,6 +9,7 @@ import {
 import { dispatch, useProjectStore } from "@/lib/store/project"
 import { useProjectGeneration } from "@/lib/store/replaced"
 
+import { ProjectPlaybackSettings } from "./settings"
 import { ProjectInfoPanel } from "./panel"
 
 export function ProjectInfoControls() {
@@ -38,6 +39,7 @@ export function ProjectInfoControls() {
         <PopoverHeader>
           <PopoverTitle>Project info</PopoverTitle>
         </PopoverHeader>
+        <ProjectPlaybackSettings />
         <ProjectInfoPanel
           key={key}
           settings={settings}

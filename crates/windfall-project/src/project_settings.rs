@@ -13,9 +13,8 @@ use ts_rs::TS;
 /// center, so a project in which nothing is panned sounds the same under all
 /// of them. [`windfall_core::PanLaw`] has the formulas.
 ///
-/// What an instrument does with a note's pan inside its own voices, and what
-/// a hosted plugin does with it, is that instrument's panning and does not
-/// follow this setting.
+/// Built-in instance-aware voices also use this law. Native note expressions
+/// carry its stereo balance and level where the plugin supports them.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
 #[ts(export)]

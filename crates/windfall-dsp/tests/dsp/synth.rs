@@ -1113,3 +1113,74 @@ fn changing_the_voice_mode_fades_out_what_was_playing() {
     synth.note_on(60, 1.0);
     assert_eq!(synth.active_voices(), 1);
 }
+
+#[test]
+fn per_note_project_pan_laws_match_an_independent_stereo_pcm_reference() {
+    use windfall_core::PanLaw;
+    use windfall_dsp::{NoteExpression, NoteInstanceId};
+    let params = plain(Waveform::Sine);
+    let mut center = synth(&params, RATE);
+    center.note_on_instance(NoteInstanceId(1), 69, 1.0, 0.0, NoteExpression::default());
+    let (mono, _) = render(&mut center, 6_000);
+    for law in [
+        PanLaw::Balance,
+        PanLaw::ConstantPower,
+        PanLaw::Compromise,
+        PanLaw::Linear,
+    ] {
+        for pan in [-0.6_f32, 0.6] {
+            let angle = (pan + 1.0) * std::f32::consts::FRAC_PI_4;
+            let power = (
+                std::f32::consts::SQRT_2 * angle.cos(),
+                std::f32::consts::SQRT_2 * angle.sin(),
+            );
+            let expected = match law {
+                PanLaw::Balance => ((1.0 - pan).min(1.0), (1.0 + pan).min(1.0)),
+                PanLaw::Linear => (1.0 - pan, 1.0 + pan),
+                PanLaw::ConstantPower => power,
+                PanLaw::Compromise => (
+                    (power.0 * (1.0 - pan)).sqrt(),
+                    (power.1 * (1.0 + pan)).sqrt(),
+                ),
+            };
+            let mut unit = synth(&params, RATE);
+            unit.set_note_pan_law(law);
+            unit.note_on_instance(NoteInstanceId(1), 69, 1.0, pan, NoteExpression::default());
+            let (left, right) = render(&mut unit, mono.len());
+            for i in 0..mono.len() {
+                assert!(
+                    (left[i] - mono[i] * expected.0).abs() < 1e-5,
+                    "{law:?} left {i}"
+                );
+                assert!(
+                    (right[i] - mono[i] * expected.1).abs() < 1e-5,
+                    "{law:?} right {i}"
+                );
+            }
+        }
+    }
+}
+
+#[test]
+fn held_note_law_ramp_has_the_same_pcm_at_every_buffer_size() {
+    use windfall_core::PanLaw;
+    use windfall_dsp::{NoteExpression, NoteInstanceId};
+    let mut reference = None;
+    for block in [1, 17, 64, 127, 512] {
+        let mut unit = synth(&plain(Waveform::Sine), RATE);
+        unit.note_on_instance(NoteInstanceId(1), 69, 1.0, 0.6, NoteExpression::default());
+        render(&mut unit, 2_400);
+        unit.set_note_pan_law(PanLaw::Linear);
+        let mut left = vec![0.0; 1_200];
+        let mut right = left.clone();
+        for (a, b) in left.chunks_mut(block).zip(right.chunks_mut(block)) {
+            unit.process(a, b);
+        }
+        if let Some((a, b)) = &reference {
+            assert_eq!(&left, a);
+            assert_eq!(&right, b);
+        } else {
+            reference = Some((left, right));
+        }
+    }
+}

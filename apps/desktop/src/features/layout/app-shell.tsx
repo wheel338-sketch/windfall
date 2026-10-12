@@ -1,3 +1,4 @@
+import { PluginPicker } from "@/features/plugins/picker"
 import type { CSSProperties } from "react"
 
 import { Toaster } from "@/components/ui/sonner"
@@ -65,6 +66,7 @@ export function Overlays() {
       <PromptHost />
       <ArchiveReport />
       <PluginManager />
+      <PluginPicker />
       <EventEditorPanel />
       <LfoDialog />
       <PatternTimelineDialog />

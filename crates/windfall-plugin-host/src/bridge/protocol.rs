@@ -2,7 +2,7 @@
 
 use crate::{HostEvent, Transport};
 
-pub const VERSION: u32 = 7;
+pub const VERSION: u32 = 8;
 pub const DEFAULT_BLOCK: usize = 256;
 pub const MAGIC: u32 = u32::from_le_bytes(*b"WFBR");
 pub const SLOT_COUNT: usize = 4;
@@ -21,7 +21,7 @@ pub const KEY_INPUT: usize = INPUT + MAX_BLOCK * 2;
 pub const OUTPUT: usize = KEY_INPUT + MAX_BLOCK * 2;
 pub const NOTES: usize = OUTPUT + MAX_BLOCK * 2;
 pub const NOTE_KEYS: usize = 16 * 128;
-pub const NOTE_SNAPSHOT_WORDS: usize = 8;
+pub const NOTE_SNAPSHOT_WORDS: usize = 9;
 pub const INSTANCES: usize = NOTES + NOTE_KEYS;
 pub const PARAMETERS: usize = INSTANCES + crate::MAX_NOTE_INSTANCES * NOTE_SNAPSHOT_WORDS;
 pub const INSTANCE_COUNT: usize = 54;
@@ -507,12 +507,12 @@ mod tests {
         assert_eq!(SLOT_WORDS * 4 % 64, 0);
     }
     #[test]
-    fn earlier_mapping_versions_never_downgrade_the_v7_note_snapshot_contract() {
+    fn earlier_mapping_versions_never_downgrade_the_v8_note_snapshot_contract() {
         let mut header = config().header().unwrap();
-        assert_eq!(header[1], 7);
+        assert_eq!(header[1], 8);
         assert_eq!(header[OWNER_COMPLETIONS], 0);
         assert_eq!(header[TIMELINE_EPOCH], 1);
-        for version in [1, 2, 3, 4, 5, 6] {
+        for version in [1, 2, 3, 4, 5, 6, 7] {
             header[1] = version;
             assert_eq!(
                 Config::from_header(&header, REGION_BYTES),

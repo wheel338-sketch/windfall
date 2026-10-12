@@ -87,7 +87,7 @@ struct Voice {
     velocity: f32,
     /// Linear gain from the expression map of the channel. 1 is unity.
     gain: f32,
-    pan: [f32; 2],
+    pan: f32,
     age: u64,
     release_left: u32,
     release_total: u32,
@@ -113,7 +113,7 @@ impl Default for Voice {
             release_multiplier: 1.0,
             velocity: 0.0,
             gain: 1.0,
-            pan: [1.0; 2],
+            pan: 0.0,
             age: 0,
             release_left: 0,
             release_total: 0,
@@ -147,6 +147,8 @@ impl Voice {
 }
 
 pub(super) struct Engine {
+    note_law: windfall_core::PanLawRamp,
+    pan_clock: u64,
     mode: Mode,
     voices: [Voice; MAX_POLYPHONY],
     sample_rate: f32,
@@ -162,6 +164,8 @@ impl Engine {
     pub fn new(mode: Mode) -> Self {
         Self {
             mode,
+            note_law: windfall_core::PanLawRamp::at_rest(windfall_core::PanLaw::Balance),
+            pan_clock: 0,
             voices: [Voice::default(); MAX_POLYPHONY],
             sample_rate: 48000.0,
             control_left: 0,
@@ -176,6 +180,8 @@ impl Engine {
     pub fn adopt(&mut self, previous: &Self) {
         // Preserve the newly prepared output rate and smoothing coefficient.
         self.voices = previous.voices;
+        self.note_law = previous.note_law;
+        self.pan_clock = previous.pan_clock;
         self.control_left = previous.control_left;
         self.legacy = previous.legacy;
         self.fresh = previous.fresh;
@@ -282,7 +288,7 @@ impl Engine {
             fine: expression.fine_pitch_cents / 100.0,
             release_multiplier: expression.release_multiplier(),
             velocity: velocity.min(1.0),
-            pan: pan_gains(pan),
+            pan: clean(pan, -1.0, 1.0, 0.0),
             deck,
             slice,
             region: region.map(Region::from),
@@ -320,7 +326,7 @@ impl Engine {
             if voice.active && voice.id == id {
                 voice.fine = expression.fine_pitch_cents / 100.0;
                 voice.release_multiplier = expression.release_multiplier();
-                voice.pan = pan_gains(pan);
+                voice.pan = clean(pan, -1.0, 1.0, 0.0);
             }
         }
     }
@@ -347,6 +353,14 @@ impl Engine {
     pub fn stop(&mut self) {
         for voice in &mut self.voices {
             voice.release(samples(4.0, self.sample_rate));
+        }
+    }
+    pub fn set_note_pan_law(&mut self, law: windfall_core::PanLaw) {
+        if self.fresh {
+            self.note_law = windfall_core::PanLawRamp::at_rest(law);
+        } else {
+            self.note_law
+                .retarget(law, self.pan_clock, samples(5.0, self.sample_rate) as u64);
         }
     }
     pub fn tick(&mut self, settings: Settings, asset: Option<&PlaybackAsset>) -> (f32, f32) {
@@ -524,20 +538,26 @@ impl Engine {
                 }
             }
             voice.age = voice.age.saturating_add(1);
-            let scale = envelope * voice.velocity * settings.level * 0.25 * voice.gain;
+            // Preserve this engine's historical equal-power centre level. The
+            // project law changes relative stereo gains around that reference.
+            let scale = envelope
+                * voice.velocity
+                * settings.level
+                * 0.25
+                * voice.gain
+                * std::f32::consts::FRAC_1_SQRT_2;
+            let (left, right) = self.note_law.gains_at(self.pan_clock, voice.pan);
+            let sides = [left, right];
             for channel in 0..2 {
-                bus[channel] += signal[channel] * scale * voice.pan[channel];
+                bus[channel] += signal[channel] * scale * sides[channel];
             }
         }
+        self.pan_clock = self.pan_clock.saturating_add(1);
         (bus[0], bus[1])
     }
 }
 fn samples(ms: f32, rate: f32) -> u32 {
     (ms * 0.001 * rate).round().max(1.0) as u32
-}
-fn pan_gains(pan: f32) -> [f32; 2] {
-    let angle = (clean(pan, -1.0, 1.0, 0.0) + 1.0) * std::f32::consts::FRAC_PI_4;
-    [angle.cos(), angle.sin()]
 }
 #[derive(Clone, Copy)]
 enum Source<'a> {

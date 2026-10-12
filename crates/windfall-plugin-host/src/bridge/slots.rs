@@ -553,6 +553,7 @@ impl NoteSnapshot {
         channel: 0,
         velocity: 0.0,
         controls: crate::PluginNoteControls {
+                volume: 1.0,
             pan: 0.0,
             pitch: 0.0,
             modulation_x: 0.5,
@@ -577,6 +578,7 @@ impl NoteSnapshot {
             self.controls.pitch.to_bits(),
             self.controls.modulation_x.to_bits(),
             self.controls.modulation_y.to_bits(),
+            self.controls.volume.to_bits(),
         ]
     }
     fn decode(words: [u32; NOTE_SNAPSHOT_WORDS]) -> Result<Self, ProtocolError> {
@@ -586,6 +588,7 @@ impl NoteSnapshot {
             channel: u8::try_from(words[2]).map_err(|_| ProtocolError::Event)?,
             velocity: f32::from_bits(words[3]),
             controls: crate::PluginNoteControls {
+                volume: f32::from_bits(words[8]),
                 pan: f32::from_bits(words[4]),
                 pitch: f32::from_bits(words[5]),
                 modulation_x: f32::from_bits(words[6]),
@@ -597,7 +600,7 @@ impl NoteSnapshot {
         }
         Ok(note)
     }
-    pub fn events(self, masks: &[u32; 16], out: &mut [HostEvent; 5]) -> usize {
+    pub fn events(self, masks: &[u32; 16], out: &mut [HostEvent; 6]) -> usize {
         out[0] = HostEvent::NoteOnInstance {
             time: 0,
             id: self.id,
@@ -618,6 +621,7 @@ impl NoteSnapshot {
             ),
             (K::Brightness, f64::from(self.controls.modulation_x)),
             (K::Expression, f64::from(self.controls.modulation_y)),
+            (K::Volume, f64::from(self.controls.volume)),
         ] {
             if masks[self.channel as usize] & kind.mask() != 0 {
                 out[count] = HostEvent::NoteExpression {

@@ -255,7 +255,7 @@ impl Native {
                 if !processor.supports_note_instances() {
                     return Err(error("instance snapshot for key-only native plugin"));
                 }
-                let mut events = [HostEvent::AllNotesOff { time: 0 }; 5];
+                let mut events = [HostEvent::AllNotesOff { time: 0 }; 6];
                 let count = note.events(&masks, &mut events);
                 for event in &events[..count] {
                     let accepted = processor.push_recovery_event(*event);

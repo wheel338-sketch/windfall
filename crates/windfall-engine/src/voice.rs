@@ -15,7 +15,7 @@
 use std::ops::Range;
 
 use rtrb::Producer;
-use windfall_core::{AudioBuffer, PanLaw, db_to_gain};
+use windfall_core::{AudioBuffer, db_to_gain};
 use windfall_dsp::{
     NoteArticulation, NoteExpression,
     blocks::svf::{Svf, SvfCoeffs},
@@ -648,11 +648,13 @@ impl Voice {
             Mix::Strip(strip) => {
                 let (left, right) = stereo_gains(
                     strip.law,
+                    start,
                     strip.gain.at(start),
                     strip.pan.at(start) + self.pan,
                 );
                 let steady = strip.gain.settled(start)
                     && strip.pan.settled(start)
+                    && strip.law.settled(start)
                     && !self.source.is_some_and(|source| source.active);
                 ((!steady).then_some(strip), left, right)
             }
@@ -716,6 +718,7 @@ impl Voice {
             {
                 (left, right) = stereo_gains(
                     strip.law,
+                    frame,
                     strip.gain.at(frame),
                     (strip.pan.at(frame) + self.pan + pan_offset).clamp(-1.0, 1.0),
                 );
@@ -723,6 +726,7 @@ impl Voice {
             if let Some(strip) = gliding {
                 (left, right) = stereo_gains(
                     strip.law,
+                    frame,
                     strip.gain.at(frame),
                     (strip.pan.at(frame) + self.pan + pan_offset).clamp(-1.0, 1.0),
                 );
@@ -879,8 +883,8 @@ fn driven_filter(driver: NoteExpression, sample_rate: f64) -> Option<SvfCoeffs> 
 }
 
 #[inline]
-fn stereo_gains(law: PanLaw, gain: f32, pan: f32) -> (f32, f32) {
-    let (left, right) = law.gains(pan);
+fn stereo_gains(law: windfall_core::PanLawRamp, frame: u64, gain: f32, pan: f32) -> (f32, f32) {
+    let (left, right) = law.gains_at(frame, pan);
     (gain * left, gain * right)
 }
 
@@ -1333,8 +1337,12 @@ impl VoicePool {
             match voice.route {
                 Route::Channel(old_index) => {
                     let strip = &old_state.channels[old_index];
-                    let (left, right) =
-                        stereo_gains(strip.law, strip.gain.at(now), strip.pan.at(now) + voice.pan);
+                    let (left, right) = stereo_gains(
+                        strip.law,
+                        now,
+                        strip.gain.at(now),
+                        strip.pan.at(now) + voice.pan,
+                    );
                     let old_track = old_plan.channels[old_index].track;
                     let kept = plan.channel(voice.channel).filter(|_| !leaving);
                     let Some(new_index) = kept else {

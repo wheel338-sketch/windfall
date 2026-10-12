@@ -167,17 +167,20 @@ const KEYS: usize = 16 * 128;
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct PluginNoteControls {
     pub pan: f32,
+    /// Linear per-note level; used to preserve the project pan law.
+    pub volume: f32,
     pub pitch: f32,
     pub modulation_x: f32,
     pub modulation_y: f32,
 }
 impl PluginNoteControls {
-    fn values(self, key: u8) -> [f64; 4] {
+    fn values(self, key: u8) -> [f64; 5] {
         [
             (f64::from(self.pan) + 1.0) / 2.0,
             f64::from(self.pitch) - f64::from(key),
             f64::from(self.modulation_x),
             f64::from(self.modulation_y),
+            f64::from(self.volume),
         ]
     }
     pub(crate) fn valid(self, key: u8) -> bool {
@@ -187,14 +190,15 @@ impl PluginNoteControls {
             NoteExpressionKind::Tuning,
             NoteExpressionKind::Brightness,
             NoteExpressionKind::Expression,
+            NoteExpressionKind::Volume,
         ]
         .into_iter()
         .zip(values)
         .all(|(kind, value)| kind.valid(value))
     }
     fn mapped(self, key: u8) -> PluginNoteExpression {
-        let [pan, tuning, brightness, expression] = self.values(key);
-        PluginNoteExpression { values: [1.0, pan, tuning, 0.5, expression, brightness, 0.5], mask: 0b0110110 }
+        let [pan, tuning, brightness, expression, volume] = self.values(key);
+        PluginNoteExpression { values: [volume, pan, tuning, 0.5, expression, brightness, 0.5], mask: 0b0110111 }
     }
 }
 /// Standard expressions, ordered like `NoteExpressionKind`. Prepared masks are

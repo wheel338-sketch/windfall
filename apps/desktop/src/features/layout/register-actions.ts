@@ -1,3 +1,5 @@
+import { registerPluginPickerActions } from "@/features/plugins/picker"
+import { registerProjectFilesActions } from "@/features/project-files/actions"
 import { registerAnalysisActions } from "@/features/analysis/actions"
 import { registerAnalyzerActions } from "@/features/analyzers/actions"
 import { registerBrowserActions } from "@/features/browser/actions"
@@ -43,6 +45,8 @@ export function registerAllActions(): () => void {
     registerTouchControllerActions(),
     registerControllerActions(),
     registerAssistantActions(),
+    registerPluginPickerActions(),
+    registerProjectFilesActions(),
   ]
   return () => {
     for (const stop of stops) stop()

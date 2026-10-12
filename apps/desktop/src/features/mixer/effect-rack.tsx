@@ -4,6 +4,7 @@ import type { EffectId, TrackId } from "@/bindings"
 import { ToggleLed } from "@/components/audio"
 import { ContextActions } from "@/components/context-actions"
 import { GainReductionBar } from "@/features/effects"
+import { pluginDropHandlers } from "@/features/plugins/insert"
 import { usePluginBinding } from "@/features/plugins/store"
 import { useShortcutScope } from "@/lib/actions"
 import { useHint } from "@/lib/store"
@@ -74,6 +75,7 @@ const EffectSlotRow = memo(function EffectSlotRow({
     <ContextActions items={effectMenu(view.kind, !!plugin)}>
       <li
         data-slot="effect-slot"
+        {...pluginDropHandlers({ track, effect })}
         data-effect-row={effect}
         data-kind={view.kind}
         data-bypassed={view.enabled ? undefined : ""}
@@ -162,7 +164,7 @@ export const EffectRack = memo(function EffectRack({
         </Fragment>
       ))}
       {dropGap === ids.length && <DropLine />}
-      <li className="flex shrink-0" style={{ height: EFFECT_ROW_HEIGHT }}>
+      <li {...pluginDropHandlers({ track })} className="flex shrink-0" style={{ height: EFFECT_ROW_HEIGHT }}>
         {full ? (
           <span
             data-slot="effect-rack-full"

@@ -560,3 +560,316 @@ fn a_user_template_carries_its_audio_and_opens_as_a_new_project() {
     assert!(rig.session.templates().unwrap().iter().all(|t| t.factory));
     assert!(rig.session.template_new(&template.id).is_err());
 }
+
+#[test]
+fn running_native_channel_and_plugin_presets_capture_apply_undo_and_reopen() {
+    use windfall_project::ChannelId;
+    fn exported_level(rig: &Rig, name: &str) -> f32 {
+        rig.events.take();
+        let options = windfall_ipc::ExportOptions {
+            path: rig.file(name),
+            mode: windfall_ipc::PlayMode::Pattern,
+            tail_secs: 0.0,
+            ..Default::default()
+        };
+        rig.session.export_audio(options.clone()).unwrap();
+        assert_eq!(rig.events.wait_for_export().error, None);
+        super::rms(windfall_codec::decode_file(options.path).unwrap().samples())
+    }
+    for channel_preset in [false, true] {
+        let mut rig = Rig::new();
+        let (manager, path) = super::plugins::manager(&rig);
+        let plugin = manager
+            .binding(
+                &path,
+                "org.windfall.test.sine",
+                PluginTarget::Instrument {
+                    channel: ChannelId(0),
+                },
+            )
+            .unwrap();
+        let channel = ChannelId(
+            rig.session
+                .dispatch(Command::AddPluginInstrument { plugin }, None)
+                .unwrap()
+                .created[0],
+        );
+        let target = PluginTarget::Instrument { channel };
+        rig.session
+            .dispatch(
+                Command::SetPluginParam {
+                    target,
+                    id: 1,
+                    value: 0.7,
+                },
+                None,
+            )
+            .unwrap();
+        rig.session
+            .dispatch(
+                Command::ToggleStep {
+                    pattern: rig.pattern(),
+                    channel,
+                    step: 0,
+                },
+                None,
+            )
+            .unwrap();
+        rig.run(256);
+        let original_level = exported_level(&rig, "capture-reference.wav");
+        assert!(original_level > 0.01);
+        let captured = manager
+            .runtime
+            .capture(rig.project())
+            .unwrap()
+            .plugin(target)
+            .unwrap()
+            .clone();
+        let (generation, revision) = seen(&rig);
+        let capture = if channel_preset {
+            rig.session
+                .preset_capture_channel(channel, generation, revision)
+        } else {
+            rig.session
+                .preset_capture_plugin(target, generation, revision)
+        }
+        .unwrap();
+        let saved = rig
+            .session
+            .preset_write(&rig.file("running.wfpreset"), capture)
+            .unwrap();
+        rig.session
+            .dispatch(
+                Command::SetPluginParam {
+                    target,
+                    id: 1,
+                    value: 0.2,
+                },
+                None,
+            )
+            .unwrap();
+        rig.run(256);
+        let changed_level = exported_level(&rig, "changed-reference.wav");
+        assert!(changed_level < original_level * 0.5);
+        let expected = rig.project().channel(channel).unwrap().clone();
+        let (generation, revision) = seen(&rig);
+        let history = rig.session.document_snapshot().history.entries.len();
+        if channel_preset {
+            rig.session
+                .preset_apply_channel_guarded(
+                    &saved,
+                    channel,
+                    expected,
+                    false,
+                    false,
+                    Some((generation, revision)),
+                )
+                .unwrap();
+        } else {
+            rig.session
+                .preset_apply_plugin(&saved, target, generation, revision)
+                .unwrap();
+        }
+        assert_eq!(
+            rig.session.document_snapshot().history.entries.len(),
+            history + 1
+        );
+        rig.run(256);
+        assert_eq!(
+            manager
+                .runtime
+                .capture(rig.project())
+                .unwrap()
+                .plugin(target)
+                .unwrap(),
+            &captured
+        );
+        rig.session.undo().unwrap();
+        assert_eq!(
+            rig.project()
+                .plugin(target)
+                .unwrap()
+                .parameters
+                .iter()
+                .find(|p| p.id == 1)
+                .unwrap()
+                .value,
+            0.2
+        );
+        rig.session.redo().unwrap();
+        let project = rig
+            .session
+            .project_save(Some(&rig.file("restored.windfall")))
+            .unwrap();
+        rig.session.project_new().unwrap();
+        rig.session.project_open(&project).unwrap();
+        rig.run(256);
+        assert_eq!(
+            manager
+                .runtime
+                .capture(rig.project())
+                .unwrap()
+                .plugin(target)
+                .unwrap(),
+            &captured
+        );
+        let restored_level = exported_level(&rig, "restored.wav");
+        assert!((restored_level - original_level).abs() < original_level * 0.001);
+        assert!(restored_level > changed_level * 3.0);
+        let before = rig.session.document_snapshot();
+        assert!(
+            rig.session
+                .preset_apply_plugin(&saved, target, generation, revision)
+                .unwrap_err()
+                .contains("changed")
+        );
+        assert_eq!(rig.session.document_snapshot(), before);
+    }
+}
+
+#[test]
+fn a_template_install_refuses_edits_and_project_replacement_without_leaking_audio() {
+    for replace in [false, true] {
+        let rig = Rig::new();
+        let template = rig.session.template_save("Race").unwrap();
+        rig.session.project_new().unwrap();
+        let held = rig.session.hold("archive:install");
+        let work = rig
+            .session
+            .background(move |s| s.template_new(&template.id));
+        held.wait();
+        if replace {
+            rig.session.project_new().unwrap();
+        } else {
+            rig.session
+                .dispatch(
+                    Command::UpdateSettings {
+                        patch: SettingsPatch {
+                            tempo_bpm: Some(91.0),
+                            ..Default::default()
+                        },
+                    },
+                    None,
+                )
+                .unwrap();
+        }
+        let before = rig.session.document_snapshot();
+        held.release();
+        assert!(work.join().unwrap().is_err());
+        assert_eq!(rig.session.document_snapshot(), before);
+        assert_eq!(
+            fs::read_dir(rig.folder.path().join("projects"))
+                .unwrap()
+                .count(),
+            0
+        );
+    }
+}
+
+#[test]
+fn extracted_template_audio_is_reclaimed_only_after_replacement_and_captures_pin_it() {
+    let rig = Rig::new();
+    let template = rig.session.template_save("Cleanup").unwrap();
+    rig.session.template_new(&template.id).unwrap();
+    let first = rig.session.state().sample_dir.clone().unwrap();
+    assert!(first.is_dir());
+    // Active document/history sources keep the extraction, even across GC.
+    rig.session.prune_extractions();
+    assert!(first.is_dir());
+    rig.session.template_new(&template.id).unwrap();
+    assert!(!first.exists());
+    let second = rig.session.state().sample_dir.clone().unwrap();
+    let capture = capture_channel(&rig, 0);
+    rig.session.project_new().unwrap();
+    // A snapshot returned to the UI can still be saved after a replacement.
+    assert!(second.is_dir());
+    let preset = rig
+        .session
+        .preset_write(&rig.file("late.wfpreset"), capture)
+        .unwrap();
+    assert!(
+        rig.session
+            .preset_read(&preset)
+            .unwrap()
+            .missing_audio
+            .is_empty()
+    );
+    // An unrelated directory is never swept.
+    let untracked = rig.folder.path().join("projects/project-user-files");
+    fs::create_dir_all(&untracked).unwrap();
+    fs::write(untracked.join("keep"), b"keep").unwrap();
+    rig.session.prune_extractions();
+    assert!(untracked.join("keep").exists());
+}
+
+#[test]
+fn actual_native_scanner_rescans_blocked_and_all_then_removes_a_folder() {
+    use crate::plugins::Rescan;
+    use std::time::{Duration, Instant};
+    fn finish(manager: &crate::plugins::PluginManager) {
+        let deadline = Instant::now() + Duration::from_secs(30);
+        while manager.state().scanning {
+            assert!(Instant::now() < deadline);
+            std::thread::sleep(Duration::from_millis(10));
+        }
+        assert_eq!(manager.state().error, None);
+    }
+    let rig = Rig::new();
+    let (manager, path) = super::plugins::manager(&rig);
+    let folder = Path::new(&path)
+        .parent()
+        .unwrap()
+        .to_string_lossy()
+        .into_owned();
+    let broken = Path::new(&folder).join("broken.clap");
+    fs::write(&broken, b"not a native library").unwrap();
+    manager.rescan(Rescan::Everything).unwrap();
+    finish(&manager);
+    let state = manager.state();
+    assert!(
+        state
+            .entries
+            .iter()
+            .any(|entry| entry.id == "org.windfall.test.sine")
+    );
+    assert!(
+        state
+            .blocked
+            .iter()
+            .any(|entry| entry.path == broken.to_string_lossy() && entry.error.is_some())
+    );
+    fs::copy(&path, &broken).unwrap();
+    manager.rescan(Rescan::Blocked).unwrap();
+    finish(&manager);
+    assert!(
+        manager
+            .state()
+            .entries
+            .iter()
+            .any(|entry| entry.path == broken.to_string_lossy()
+                && entry.id == "org.windfall.test.sine"
+                && entry.error.is_none())
+    );
+    manager.rescan(Rescan::Everything).unwrap();
+    finish(&manager);
+    assert!(
+        manager
+            .state()
+            .entries
+            .iter()
+            .filter(|entry| entry.id == "org.windfall.test.sine")
+            .count()
+            >= 2
+    );
+    manager.remove_folder(&folder).unwrap();
+    manager.scan(None).unwrap();
+    finish(&manager);
+    assert!(
+        !manager
+            .state()
+            .entries
+            .iter()
+            .any(|entry| entry.path.starts_with(&folder))
+    );
+    assert!(!manager.state().folders.contains(&folder));
+}

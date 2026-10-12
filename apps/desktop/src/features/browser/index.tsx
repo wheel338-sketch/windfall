@@ -1,3 +1,5 @@
+import { PluginCatalog } from "@/features/plugins/catalog"
+import { ProjectFilesPanel } from "@/features/project-files/panel"
 import { useEffect } from "react"
 
 import { ContextActions } from "@/components/context-actions"
@@ -40,6 +42,8 @@ export default function BrowserPanel() {
       <TabsList aria-label="Browser view" className="m-1 shrink-0">
         <TabsTrigger value="library">Library</TabsTrigger>
         <TabsTrigger value="project">Project</TabsTrigger>
+        <TabsTrigger value="plugins">Plugins</TabsTrigger>
+        <TabsTrigger value="files">Files</TabsTrigger>
         <TabsTrigger value="backups">Backups</TabsTrigger>
       </TabsList>
       <TabsContent value="library" className="min-h-0">
@@ -74,6 +78,8 @@ export default function BrowserPanel() {
       <TabsContent value="project" className="min-h-0 overflow-auto">
         <ProjectTab />
       </TabsContent>
+      <TabsContent value="plugins" className="min-h-0 overflow-auto"><PluginCatalog /></TabsContent>
+      <TabsContent value="files" className="min-h-0 overflow-auto"><ProjectFilesPanel /></TabsContent>
       <TabsContent value="backups" className="min-h-0 overflow-auto">
         <BackupsTab />
       </TabsContent>

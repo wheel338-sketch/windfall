@@ -534,6 +534,7 @@ impl HostedInstrument for Audio {
             channel: expression.color_group.unwrap_or(0),
             velocity: velocity.clamp(0.0, 1.0),
             controls: windfall_plugin_host::PluginNoteControls {
+                volume: 1.0,
                 pan: if pan.is_finite() {
                     pan.clamp(-1.0, 1.0)
                 } else {

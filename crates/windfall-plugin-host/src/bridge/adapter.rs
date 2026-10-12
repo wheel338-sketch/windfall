@@ -374,7 +374,7 @@ impl Audio {
             self.health.dropped_events = self.health.dropped_events.saturating_add(1);
             return false;
         };
-        let mut events = [HostEvent::AllNotesOff { time: 0 }; 5];
+        let mut events = [HostEvent::AllNotesOff { time: 0 }; 6];
         let count = note.events(&self.expression_masks, &mut events);
         self.instances[slot] = note;
         if !self.advance_generation() {
@@ -404,7 +404,7 @@ impl Audio {
         if !self.advance_generation() {
             return false;
         }
-        let mut events = [HostEvent::AllNotesOff { time: 0 }; 4];
+        let mut events = [HostEvent::AllNotesOff { time: 0 }; 5];
         let count = self.instances[slot].expression_events(&self.expression_masks, &mut events);
         if self.input.event_count + count > ORDINARY_EVENTS {
             self.input.controls_complete = false;
@@ -908,6 +908,7 @@ mod tests {
             channel: 3,
             velocity: 0.75,
             controls: crate::PluginNoteControls {
+                volume: 1.0,
                 pan: -0.75,
                 pitch: 60.5,
                 modulation_x: 0.2,
@@ -947,6 +948,7 @@ mod tests {
             channel: 0,
             velocity: 0.5,
             controls: crate::PluginNoteControls {
+                volume: 1.0,
                 pan: 0.0,
                 pitch: 60.0,
                 modulation_x: 0.5,

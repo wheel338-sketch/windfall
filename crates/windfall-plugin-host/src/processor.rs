@@ -36,7 +36,7 @@ pub const EVENT_CAPACITY: usize = 1024;
 pub(crate) const IMMEDIATE_RELEASE_CAPACITY: usize =
     16 * 128 + 2 * crate::events::MAX_NOTE_INSTANCES + 1;
 
-pub(crate) const RECOVERY_EVENT_CAPACITY: usize = 5 * crate::MAX_NOTE_INSTANCES + 16 * 128;
+pub(crate) const RECOVERY_EVENT_CAPACITY: usize = 6 * crate::MAX_NOTE_INSTANCES + 16 * 128;
 /// Maximum input a prepared policy can collect for one native block.
 pub(crate) const BLOCK_EVENT_CAPACITY: usize =
     EVENT_CAPACITY + IMMEDIATE_RELEASE_CAPACITY + RECOVERY_EVENT_CAPACITY;
