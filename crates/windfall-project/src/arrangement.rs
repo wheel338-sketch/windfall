@@ -25,6 +25,11 @@ pub struct ArrangementBook {
     pub track_parents: BTreeMap<PlaylistTrackId, TrackGroupId>,
     pub clip_groups: Vec<ClipGroup>,
     pub linked_tracks: BTreeMap<PlaylistTrackId, TrackKind>,
+    /// Opt-in independent timelines. An empty map preserves legacy sharing.
+    /// The active entry is a snapshot; playlist.timeline owns current edits.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    #[ts(as = "Option<BTreeMap<ArrangementId, crate::Timeline>>", optional)]
+    pub timelines: BTreeMap<ArrangementId, crate::Timeline>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
@@ -276,6 +281,7 @@ impl ArrangementBook {
                 return Err(ArrangementError::LastArrangement);
             }
             next.arrangements.remove(index);
+            next.timelines.remove(&id);
             if next.active == Some(id) {
                 next.active = Some(next.arrangements[index.min(next.arrangements.len() - 1)].id);
             }

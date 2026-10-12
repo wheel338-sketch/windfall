@@ -847,6 +847,11 @@ pub enum Command {
         channel: ChannelId,
         pattern: PatternId,
     },
+    /// Captures the active layout's independent musical timeline. Subsequent
+    /// switches snapshot current edits and restore the destination timeline.
+    CaptureArrangementTimeline {
+        id: crate::arrangement::ArrangementId,
+    },
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, TS)]

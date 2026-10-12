@@ -534,8 +534,7 @@ impl<'a> Builder<'a> {
         }
     }
 
-    /// What has no part of its own: recorded control changes and the things
-    /// the reader could not place.
+    /// Events the reader could not place. Recorded controls report in patterns.
     fn leftovers(&mut self) {
         let section = ReportSection::Other;
         let flp = self.flp;
@@ -547,22 +546,6 @@ impl<'a> Builder<'a> {
                 Outcome::Dropped,
                 count,
                 format!("Event {id} ({what}) was not interpreted or converted."),
-            );
-        }
-        let recorded: usize = flp
-            .patterns
-            .iter()
-            .map(|pattern| pattern.control_events.len())
-            .sum();
-        if recorded > 0 {
-            self.report
-                .count(section, Outcome::Dropped, recorded as u32);
-            self.report.say(
-                section,
-                Outcome::Dropped,
-                format!(
-                    "{recorded} control changes recorded into patterns were left out: Windfall automates with clips on the playlist."
-                ),
             );
         }
     }

@@ -43,6 +43,14 @@ impl Transaction<'_> {
 
         let id = self.allocate()?;
         let mut insert = Vec::new();
+        let timeline = if !book.timelines.is_empty() {
+            book.timelines.insert(source.id, self.project.playlist.timeline.clone());
+            let mut timeline = if copy { self.project.playlist.timeline.clone() } else { crate::Timeline::default() };
+            for meter in &mut timeline.meters { meter.id = crate::MeterChangeId(self.allocate()?); }
+            for marker in &mut timeline.markers { marker.id = crate::TimelineMarkerId(self.allocate()?); }
+            book.timelines.insert(id, timeline.clone());
+            Some(timeline)
+        } else { None };
         if copy {
             let mut copies = HashMap::new();
             for original in &source.clips {
@@ -89,6 +97,7 @@ impl Transaction<'_> {
         proposed.playlist.clips.extend(insert.iter().cloned());
         proposed.playlist.clips.sort_by_key(Clip::sort_key);
         proposed.playlist.arrangement_book = book.clone();
+        if let Some(timeline) = &timeline { proposed.playlist.timeline = timeline.clone(); }
         proposed.check().map_err(CommandError::invalid)?;
 
         self.push(Edit::Clips {
@@ -97,6 +106,10 @@ impl Transaction<'_> {
         });
         let old = self.project.playlist.arrangement_book.clone();
         self.push(Edit::ArrangementBook(Change { old, new: book }));
+        if let Some(new) = timeline {
+            let old = self.project.playlist.timeline.clone();
+            self.push(Edit::Timeline(Change { old, new }));
+        }
         self.created.push(id);
         self.created.extend(clips.iter().map(|clip| clip.0));
         Ok("Add arrangement")

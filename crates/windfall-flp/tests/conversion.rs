@@ -702,3 +702,100 @@ fn effects_beyond_chain_capacity_keep_their_opaque_state_and_count_the_loss() {
             .any(|entry| entry.state == [last, 90])
     );
 }
+
+#[test]
+fn recorded_event_223_imports_supported_raw_controls_and_effect_parameters() {
+    use windfall_project::AutomationTarget;
+    let mut p = fixture(96);
+    p.mixer.inserts[1].slots = vec![Slot {
+        index: 0, plugin: Plugin { internal_name: "Fruity Compressor".into(),
+            state: [0_i32, -120, 20, 0, 50, 200, 0].into_iter().flat_map(i32::to_le_bytes).collect(),
+            ..Default::default() }, ..Default::default()
+    }];
+    let controls = [
+        (ControlTarget::Channel { channel: 0, param: ChannelParam::Volume }, 12800),
+        (ControlTarget::Channel { channel: 0, param: ChannelParam::Pan }, 6400),
+        (ControlTarget::Insert { insert: 1, param: InsertParam::Pan }, -3200),
+        (ControlTarget::Slot { insert: 1, slot: 0, param: SlotParam::Mix }, 6400),
+        (ControlTarget::SlotPlugin { insert: 1, slot: 0, param: 0 }, -240),
+    ];
+    p.patterns[0].control_events = controls.into_iter().map(|(target, value)| ControlEvent {
+        position: 96, location: target.encode(), value,
+    }).collect();
+    let bytes = write(&p);
+    let read = parse(&bytes).unwrap();
+    assert_eq!(read.patterns[0].control_events, p.patterns[0].control_events);
+    let imported = converted(&p);
+    let pattern = &imported.project.patterns[0];
+    assert_eq!(pattern.events.len(), 5);
+    assert!(pattern.events.iter().all(|lane| lane.points[0].tick == 960 && lane.points[0].hold));
+    for lane in &pattern.events {
+        let actual = imported.project.automation_range(&lane.target).unwrap().value(lane.points[0].value);
+        let expected = match lane.target {
+            AutomationTarget::ChannelVolume { .. } => 1.0,
+            AutomationTarget::ChannelPan { .. } => 0.0,
+            AutomationTarget::TrackPan { .. } => -0.5,
+            AutomationTarget::EffectMix { .. } => 0.5,
+            AutomationTarget::EffectParam { .. } => -24.0,
+            _ => panic!("unexpected target"),
+        };
+        assert!((actual - expected).abs() < 1e-4, "{actual} != {expected}");
+    }
+    let json = windfall_project::file::to_json(&imported.project).unwrap();
+    let reopened = windfall_project::file::from_json(&json).unwrap();
+    assert_eq!(imported.project, reopened);
+    assert_eq!(imported, converted(&p));
+}
+
+#[test]
+fn recorded_events_sort_hold_last_duplicates_and_report_hostile_or_unsupported_targets() {
+    let mut p = fixture(384);
+    let pan = ControlTarget::Channel { channel: 0, param: ChannelParam::Pan }.encode();
+    p.patterns[0].control_events = vec![
+        ControlEvent { position: 3, location: pan, value: 0 },
+        ControlEvent { position: 1, location: pan, value: 6400 },
+        ControlEvent { position: 3, location: pan, value: 12800 },
+        ControlEvent { position: u32::MAX, location: pan, value: i32::MIN },
+        ControlEvent { position: 0, location: ControlTarget::ChannelPlugin { channel: 0, param: 32767 }.encode(), value: i32::MAX },
+    ];
+    let read = parse(&write(&p)).unwrap();
+    assert_eq!(read.patterns[0].control_events.len(), 5);
+    let imported = converted(&p);
+    let events = &imported.project.patterns[0].events;
+    assert_eq!(events.len(), 1);
+    assert_eq!(events[0].points.iter().map(|p| (p.tick, p.value, p.hold)).collect::<Vec<_>>(),
+        vec![(3, 0.5, true), (8, 1.0, true)]);
+    assert!(format!("{:?}", imported.report).contains("unsupported"));
+    imported.project.check().unwrap();
+}
+
+#[test]
+fn synthetic_arrangement_marker_events_restore_each_imported_timeline_after_switch_and_reopen() {
+    let mut p = fixture(96);
+    p.arrangements[0].index = 0;
+    p.arrangements[0].markers = vec![TimeMarker { position: 96, name: Some("Verse cue".into()), ..Default::default() }];
+    let mut second = p.arrangements[0].clone();
+    second.index = 1;
+    second.markers = vec![
+        TimeMarker { position: 0, kind: 8, numerator: Some(3), denominator: Some(4), ..Default::default() },
+        TimeMarker { position: 192, name: Some("Chorus cue".into()), ..Default::default() },
+    ];
+    p.arrangements.push(second);
+    p.current_arrangement = Some(1);
+    let read = parse(&write(&p)).unwrap();
+    assert_eq!(read.arrangements[0].markers[0].name.as_deref(), Some("Verse cue"));
+    let imported = converted(&p);
+    let book = &imported.project.playlist.arrangement_book;
+    assert_eq!(book.timelines.len(), 2);
+    assert_eq!(imported.project.playlist.timeline.markers[0].name, "Chorus cue");
+    let mut doc = windfall_project::Document::new(imported.project.clone());
+    doc.dispatch(windfall_project::Command::SwitchArrangement { id: book.arrangements[0].id }, None).unwrap();
+    assert_eq!(doc.project().playlist.timeline.markers[0].tick, 960);
+    assert_eq!(doc.project().playlist.timeline.markers[0].name, "Verse cue");
+    assert!(doc.project().playlist.timeline.meters.is_empty());
+    doc.undo().unwrap();
+    assert_eq!(doc.project().playlist.timeline, imported.project.playlist.timeline);
+    doc.redo().unwrap();
+    let reopened = windfall_project::file::from_json(&windfall_project::file::to_json(doc.project()).unwrap()).unwrap();
+    assert_eq!(*doc.project(), reopened);
+}

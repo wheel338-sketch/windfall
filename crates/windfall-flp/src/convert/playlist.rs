@@ -14,7 +14,7 @@ use windfall_project::{
 };
 
 impl Builder<'_> {
-    fn automation_target(&self, target: ControlTarget) -> Option<AutomationTarget> {
+    pub(super) fn automation_target(&self, target: ControlTarget) -> Option<AutomationTarget> {
         Some(match target {
             ControlTarget::Channel { channel, param } => {
                 let ChannelRole::Plays(channel) = self.channels.get(&channel)? else {
@@ -75,6 +75,32 @@ impl Builder<'_> {
             },
             _ => return None,
         })
+    }
+
+    /// Event 223 stores source integers, not automation clips' normalized doubles.
+    pub(super) fn recorded_value(
+        &self, source: ControlTarget, target: &AutomationTarget, raw: i32,
+    ) -> Option<f32> {
+        let actual = match source {
+            ControlTarget::Channel { param: ChannelParam::Volume, .. } =>
+                units::channel_gain(raw.max(0) as u32),
+            ControlTarget::Channel { param: ChannelParam::Pan, .. } =>
+                units::channel_pan(raw.max(0) as u32),
+            ControlTarget::Insert { param: InsertParam::Volume, .. }
+                | ControlTarget::Route { .. } | ControlTarget::Main(MainParam::Volume) =>
+                units::fader_gain(raw),
+            ControlTarget::Insert { param: InsertParam::Pan, .. } => units::insert_pan(raw),
+            ControlTarget::Slot { param: SlotParam::Mix, .. } =>
+                (raw as f32 / 12800.0).clamp(0.0, 1.0),
+            ControlTarget::SlotPlugin { insert, slot, param } => {
+                let link = self.effects.get(&(insert, slot))?.links.iter()
+                    .find(|link| link.fl_param == param)?;
+                (link.convert)(f64::from(raw)) as f32
+            }
+            _ => return None,
+        };
+        if !actual.is_finite() { return None; }
+        self.project().automation_range(target).map(|range| range.normalized(actual))
     }
 
     fn automation_value(

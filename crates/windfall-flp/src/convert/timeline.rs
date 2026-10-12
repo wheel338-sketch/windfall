@@ -1,4 +1,4 @@
-//! Only the selected arrangement's documented named/meter markers cross over.
+//! Documented named/meter markers on independent arrangement and pattern timelines.
 use super::Builder;
 use crate::report::{Outcome, ReportSection};
 use windfall_project::{
@@ -97,12 +97,17 @@ impl Builder<'_> {
     }
 
     pub(super) fn timeline(&mut self) {
-        let section = ReportSection::Other;
+        if !self.project().playlist.arrangement_book.timelines.is_empty() { return; }
         let markers = self
             .flp
             .main_arrangement()
             .map(|a| a.markers.clone())
             .unwrap_or_default();
+        self.arrangement_timeline(&markers);
+    }
+
+    pub(super) fn arrangement_timeline(&mut self, markers: &[crate::model::TimeMarker]) {
+        let section = ReportSection::Other;
         for marker in markers {
             let scaled = crate::units::rescale(marker.position, self.ppq);
             let Ok(tick) = u32::try_from(scaled.ticks) else {
@@ -137,10 +142,8 @@ impl Builder<'_> {
                 }
                 0 => Command::AddTimelineMarker {
                     tick,
-                    name: marker
-                        .name
-                        .filter(|name| !name.trim().is_empty())
-                        .unwrap_or_else(|| "Marker".into()),
+                    name: marker.name.as_deref().filter(|name| !name.trim().is_empty())
+                        .unwrap_or("Marker").to_owned(),
                     kind: MarkerKind::Named,
                 },
                 kind => {
