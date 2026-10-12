@@ -27,3 +27,5 @@ mod utility_repairs;
 static ALLOCATOR: realtime::CountingAllocator = realtime::CountingAllocator;
 
 mod sample_playback;
+mod p2_pitch_quality;
+mod p2_effect_budgets;

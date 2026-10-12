@@ -13,7 +13,7 @@ pub use convolver::{
 pub use frequency::{FREQUENCY_SHIFTER_LATENCY, FrequencyShifter, FrequencyShifterParams};
 pub use pitch::{
     PITCH_SHIFT_LATENCY, PitchCorrect, PitchCorrectParams, PitchScale, PitchShift, PitchShiftMode,
-    PitchShiftParams,
+    PitchShiftParams, pitch_shift_latency,
 };
 pub use vocoder::{Vocoder, VocoderParams};
 

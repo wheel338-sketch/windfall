@@ -16,7 +16,8 @@ impl Ring {
         self.clear();
     }
     pub fn clear(&mut self) {
-        self.data.fill([0.0; 2]);
+        // Old PCM is unreachable until overwritten. Reset is constant-time,
+        // even at 384 kHz; read masks every not-yet-written physical slot.
         self.write = 0;
         self.filled = 0;
     }
@@ -44,8 +45,13 @@ impl Ring {
         let position = position.rem_euclid(length as f64);
         let index = position as usize;
         let t = position - index as f64;
-        let a = self.data[(start + index) % self.data.len()];
-        let b = self.data[(start + (index + 1) % length) % self.data.len()];
+        let read = |index: usize| {
+            let index = index % self.data.len();
+            let age = (self.write + self.data.len() - index - 1) % self.data.len();
+            if age < self.filled { self.data[index] } else { [0.0; 2] }
+        };
+        let a = read(start + index);
+        let b = read(start + (index + 1) % length);
         std::array::from_fn(|c| finite((a[c] as f64 * (1.0 - t) + b[c] as f64 * t) as f32))
     }
 }

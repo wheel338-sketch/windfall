@@ -550,7 +550,7 @@ impl EffectKind {
             EffectKind::PerformanceRack => performance_sample_rate(sample_rate).floor() as usize,
             EffectKind::Convolver => CONVOLUTION_PARTITION,
             EffectKind::FrequencyShifter => FREQUENCY_SHIFTER_LATENCY,
-            EffectKind::PitchShift => PITCH_SHIFT_LATENCY,
+            EffectKind::PitchShift => crate::spectral::pitch_shift_latency(sample_rate),
             EffectKind::PitchCorrect => {
                 let rate = crate::blocks::math::clean(sample_rate, 8_000.0, 384_000.0, 48_000.0);
                 256 * (rate / 6_000.0).round().max(1.0) as usize + PITCH_SHIFT_LATENCY
