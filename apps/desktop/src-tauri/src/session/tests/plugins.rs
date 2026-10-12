@@ -1420,8 +1420,8 @@ fn n4_role(vst3: bool, instrument: bool) {
     if !instrument {
         assert_eq!(
             rig.session.controller().latency_frames(),
-            561,
-            "source instrument12 plus actual native37 plus fixed2B256"
+            1073,
+            "source instrument12 plus actual native37 plus live2B512"
         );
     }
     assert!(
@@ -2220,11 +2220,11 @@ fn n4_measured_graph_impulse(vst3: bool) {
         .0
         .iter()
         .position(|frame| frame.iter().any(|sample| sample.abs() > 1e-6));
-    assert_eq!(rig.session.controller().latency_frames(), 561);
+    assert_eq!(rig.session.controller().latency_frames(), 1073);
     assert_eq!(
         onset,
-        Some(1585),
-        "input1024 + source-path PDC12 + real native37 + bridge512"
+        Some(2097),
+        "input1024 + source-path PDC12 + real native37 + live bridge1024"
     );
     let pool = rig.session.state().pool.clone();
     let project = rig.project();

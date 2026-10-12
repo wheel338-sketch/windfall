@@ -100,13 +100,22 @@ impl Record {
                 .iter()
                 .find(|param| param.id == control.id)
                 .map_or(value, |param| param.value);
+            let unobserved_document = control.observed_document.load(Ordering::Acquire) != document;
             let pending_document = control.applied_document.load(Ordering::Acquire) != document;
+            // An inactive capture may settle document intent before callback
+            // adoption. Its acknowledgement does not update the live control
+            // snapshot; keep the newer document value on repeated captures.
+            if unobserved_document {
+                spec.value = f64::from(wanted);
+            }
             if !control.settled(generation) || pending_document || wanted != committed {
-                spec.value = f64::from(if pending_document || wanted != committed {
-                    wanted
-                } else {
-                    value
-                });
+                spec.value = f64::from(
+                    if unobserved_document || pending_document || wanted != committed {
+                        wanted
+                    } else {
+                        value
+                    },
+                );
                 intents.push((spec.id, generation, document, spec.value as f32));
             }
         }
@@ -183,7 +192,13 @@ pub(super) fn options(
             // Keep one complete helper scheduling interval across the desktop's
             // 480-frame callback. A 256-frame interval can be submitted and
             // expire within the same callback, before the helper gets CPU.
-            block: DEFAULT_BLOCK * 2,
+            // Offline rendering explicitly waits at output boundaries and can
+            // keep the shorter collection/pipeline delay.
+            block: if offline {
+                DEFAULT_BLOCK
+            } else {
+                DEFAULT_BLOCK * 2
+            },
             native_latency: 0,
             kind: if matches!(
                 binding.target,

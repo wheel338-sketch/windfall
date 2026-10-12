@@ -458,25 +458,29 @@ impl Native {
         self.deactivate()?;
         let result = (|| {
             self.instance.idle(&mut |_| {});
-            if generation > processed {
-                for parameter in pending {
-                    let value = Parameter {
-                        id: parameter.id,
-                        value: parameter.value,
-                    };
-                    self.validate_parameter(value)?;
-                    if self.host_values.get(&value.id) != Some(&value.value)
-                        || self.uncertain.contains(&value.id)
+            // A document edit can arrive at capture before the next callback
+            // admits it and advances generation. Reconcile differing intent
+            // independently of DSP proof; equal intent still preserves native
+            // edits, including edits made by deactivation itself.
+            let mut reconciled = generation > processed;
+            for parameter in pending {
+                let value = Parameter {
+                    id: parameter.id,
+                    value: parameter.value,
+                };
+                self.validate_parameter(value)?;
+                if self.host_values.get(&value.id) != Some(&value.value)
+                    || self.uncertain.contains(&value.id)
+                {
+                    // Preserve a genuinely newer deactivation preset.
+                    if self.instance.deactivation_param_value(value.id).is_none()
+                        && !self.instance.set_param(value.id, value.value)
                     {
-                        // Preserve a genuinely newer deactivation preset.
-                        if self.instance.deactivation_param_value(value.id).is_none()
-                            && !self.instance.set_param(value.id, value.value)
-                        {
-                            return Err(error("capture parameter reconciliation refused"));
-                        }
-                        self.host_values.insert(value.id, value.value);
-                        self.uncertain.remove(&value.id);
+                        return Err(error("capture parameter reconciliation refused"));
                     }
+                    reconciled = true;
+                    self.host_values.insert(value.id, value.value);
+                    self.uncertain.remove(&value.id);
                 }
             }
             let state = captured_state(self.instance.save_state().map_err(error)?)?;
@@ -491,11 +495,7 @@ impl Native {
                 state,
                 values,
                 processed,
-                if generation > processed {
-                    generation
-                } else {
-                    0
-                },
+                if reconciled { generation } else { 0 },
             ))
         })();
         // Recovery is mandatory even when capture fails. Refusal leaves the

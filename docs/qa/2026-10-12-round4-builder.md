@@ -3,6 +3,9 @@
 Base: `cfd2d37ee5af6ce8dc3f55acd539ba4929b0945b`, branch `feat/parity-100`.
 Serial builds/tests only; Git Bash with `scripts/msvc-env.sh`, Cargo jobs 8,
 temporary native `TS_RS_EXPORT_DIR`. No worktree changes or hardware tests.
+Concurrent branch bookkeeping commit `34005c84` (audited round-three parity
+table) landed between A2 and A3. The builder did not edit or stage parity
+files; this independent commit was retained, not reverted.
 
 - **A1 fixed:** adjacent 5 ms RMS cells mistook beating between held chord
   tones for attacks (27 false onsets), splitting otherwise accurate pitches.
@@ -207,4 +210,61 @@ TypeScript changed.
   initial standalone rustfmt used its default old edition and rejected C-string
   literals, corrected without source semantic changes.
 
-Final serial gates pending. No TypeScript or public UI/simulator schema changed.
+Final serial gates in progress. No TypeScript or public UI/simulator schema changed.
+
+- Current desktop helper rebuilt successfully (`cargo build -p windfall-desktop
+  --bin windfall-desktop`, exit 0), `target/round4-builder-desktop-helper-current.log`.
+- `cargo fmt --all --check`: **PASS**, exit 0;
+  `target/round4-builder-final-fmt.log`.
+- `cargo clippy --workspace --all-targets -- -D warnings`: **PASS**, zero
+  warnings/errors, exit 0, 26.02 s; `target/round4-builder-final-clippy.log`.
+- First full serial workspace run exposed follow-up regressions; it is being
+  allowed to finish before any other build/test starts. Four hosting failures
+  assumed the old live `2 * 256` pipeline; two offline instruments only rendered
+  the new `2 * 512` startup delay; two VST3 pending-document captures returned
+  0.5 instead of 0.75. Keep offline blocks at 256 (their scheduler explicitly
+  waits), and keep live blocks at 512 (a whole desktop scheduling interval).
+  Exact live PDC expectations become `12 + 37 + 2 * 512 = 1073`, and the impulse
+  onset becomes `1024 + 1073 = 2097`. These are changed exact latency values,
+  not enlarged tolerances, skipped samples or relaxed signal assertions.
+- The partial live block also exposes a capture defect: document intent may
+  differ before callback admission advances the DSP generation. VST3 helper
+  capture now reconciles differing host intent independently of DSP proof;
+  equal intent and newer deactivation edits retain their existing behavior.
+  Pending-save assertions remain unchanged. Validation pending.
+- A7's existing gain lifecycle test asserted the Windows fixture had no editor.
+  Its exact assertion now requires the real editor on Windows and retains the
+  editor-free expectation elsewhere, matching the new fixture capability.
+- First workspace dev-profile Matrix deadline measures **1.1227x**. Extend the
+  independent carrier polynomial block to ring graphs too, retaining every
+  route and the original multiplication order; validation pending. Release
+  admission will still be measured separately with unchanged workloads/limits.
+- First complete final workspace run: **4307 passed / 10 failed / 37 ignored**
+  across 171 result blocks, exit 101 (runner reports exit 1),
+  `target/round4-builder-final-workspace.log`. Failures are the eight desktop
+  follow-ups, dev Matrix deadline and the old editor-free fixture assertion
+  identified above. All originally requested A1–A7 tests pass in this run.
+  Follow-up sources formatted and current desktop helper rebuild in progress.
+- Desktop follow-up **623/2/12**, 51.93 s,
+  `cargo test -p windfall-desktop --lib -- --test-threads=1`,
+  `target/round4-builder-desktop-followup.log`: all six latency/offline failures
+  and both original preset tests pass. Remaining VST3 repeated-save failures
+  were traced (`target/round4-builder-pending-capture-probe.log`, **0/1/0**):
+  first capture requests/restores 0.75, marks document intent settled, then
+  the second capture reuses the still-unadopted callback control's old 0.5.
+  Capture now keeps the newer document value until callback adoption, even
+  after inactive reconciliation. Debug instrumentation removed.
+  `cargo test -p windfall-desktop --lib
+  pending_save_undo_recording_and_replacement_barriers --
+  --test-threads=1 --nocapture`: **4/0/0**, 0.75 s,
+  `target/round4-builder-pending-capture-fixed.log`, unchanged assertions.
+- A7 lifecycle regression suite now requires the editor's exact **320x200**
+  dimensions and successful close on Windows (unsupported-platform assertion
+  remains elsewhere). `cargo test -p windfall-plugin-host --test vst3_host --
+  --test-threads=1`: **13/0/0**, 0.07 s,
+  `target/round4-builder-a7-lifecycle-followup.log`.
+- Dev Matrix independent-carrier block alone improves **1.1227x -> 1.0538x**,
+  still **0/1/0**, `target/round4-builder-matrix-dev-followup.log`. Next remove
+  repeated six-source copies from route helpers, inline the tiny kernels,
+  and cache exact swept cutoff by cutoff/octave/rate (dynamic values still
+  recompute). No frequency, graph, coefficient or sample approximation changes.
