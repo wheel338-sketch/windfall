@@ -257,3 +257,5 @@ on `performance_recording.rs`, `performance_extended.rs` and `processor.rs`
 reported formatting differences (exit 1); no syntax diagnostics were seen.
 Formatting is not claimed clean. Integrator formatting must be reconciled with
 the ordering fix. No build or test command was executed.
+
+HAND-OFF COMPLETE
