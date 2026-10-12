@@ -1,8 +1,10 @@
 //! Adaptive source/filter formants. Own LPC estimator, no neural/content model.
 //! Prediction coefficients and warped filter memories are bounded fixed arrays.
-const ORDER: usize = 16;
-const WINDOW: usize = 512;
+const ORDER: usize = 128;
+const WINDOW: usize = 4096;
 pub(super) struct Formants {
+    rate_scale: f64,
+    order: usize,
     history: [[f32; WINDOW]; 2],
     cursor: usize,
     hop: usize,
@@ -14,6 +16,8 @@ pub(super) struct Formants {
 impl Default for Formants {
     fn default() -> Self {
         Self {
+            rate_scale: 1.0,
+            order: 8,
             history: [[0.0; WINDOW]; 2],
             cursor: 0,
             hop: 0,
@@ -25,16 +29,23 @@ impl Default for Formants {
     }
 }
 impl Formants {
-    pub fn reset(&mut self) {
-        *self = Self::default();
+    pub fn prepare(&mut self, sample_rate: f32) {
+        self.rate_scale = (48000.0 / f64::from(sample_rate)).min(1.0);
+        self.reset();
     }
-    fn estimate(&mut self, channel: usize, voice: bool) {
-        let order = if voice { ORDER } else { 8 };
+    pub fn reset(&mut self) {
+        let rate_scale = self.rate_scale;
+        *self = Self::default();
+        self.rate_scale = rate_scale;
+    }
+    fn estimate(&mut self, channel: usize) {
+        let order = self.order;
+        let window = (512.0 / self.rate_scale).round().min(WINDOW as f64) as usize;
         let mut correlation = [0.0_f64; ORDER + 1];
         for (lag, r) in correlation.iter_mut().enumerate().take(order + 1) {
-            for i in lag..WINDOW {
-                let a = f64::from(self.history[channel][(self.cursor + i) % WINDOW]);
-                let b = f64::from(self.history[channel][(self.cursor + i - lag) % WINDOW]);
+            for i in lag..window {
+                let a = f64::from(self.history[channel][(self.cursor + i) % window]);
+                let b = f64::from(self.history[channel][(self.cursor + i - lag) % window]);
                 *r += a * b;
             }
         }
@@ -44,7 +55,7 @@ impl Formants {
         }
         // Diagonal loading and bandwidth expansion keep the all-pole envelope
         // conservative; reflection coefficients are bounded before recursion.
-        let mut energy = correlation[0] * 1.01;
+        let mut energy = correlation[0] * (1.0 + 0.01 * self.rate_scale.powi(2));
         let mut coefficients = [0.0; ORDER + 1];
         coefficients[0] = 1.0;
         for i in 1..=order {
@@ -52,7 +63,8 @@ impl Formants {
                 + (1..i)
                     .map(|j| coefficients[j] * correlation[i - j])
                     .sum::<f64>();
-            let reflection = (-residual / energy.max(1e-12)).clamp(-0.95, 0.95);
+            let bound = 0.95_f64.powf(self.rate_scale);
+            let reflection = (-residual / energy.max(1e-12)).clamp(-bound, bound);
             let old = coefficients;
             for j in 1..i {
                 coefficients[j] = old[j] + reflection * old[i - j];
@@ -61,30 +73,34 @@ impl Formants {
             energy *= 1.0 - reflection * reflection;
         }
         for (i, a) in coefficients.iter().enumerate().take(order + 1).skip(1) {
-            self.target[channel][i] = *a * 0.985_f64.powi(i as i32);
+            self.target[channel][i] = *a * 0.985_f64.powf(i as f64 * self.rate_scale);
         }
     }
     /// Whitening before resampling leaves a pitch-independent vocal envelope.
     pub fn excitation(&mut self, input: [f32; 2], voice: bool) -> [f32; 2] {
+        self.order = ((if voice { 16.0 } else { 8.0 }) / self.rate_scale)
+            .round()
+            .min(ORDER as f64) as usize;
+        let window = (512.0 / self.rate_scale).round().min(WINDOW as f64) as usize;
         for (ch, value) in input.iter().enumerate() {
             self.history[ch][self.cursor] = *value;
         }
-        self.cursor = (self.cursor + 1) % WINDOW;
+        self.cursor = (self.cursor + 1) % window;
         self.hop += 1;
-        if self.hop == 128 {
+        if self.hop >= (128.0 / self.rate_scale).round() as usize {
             self.hop = 0;
             for ch in 0..2 {
-                self.estimate(ch, voice);
+                self.estimate(ch);
             }
         }
         std::array::from_fn(|ch| {
             let mut residual = f64::from(input[ch]);
-            for i in 0..ORDER {
+            for i in 0..self.order {
                 self.coefficients[ch][i + 1] +=
                     (self.target[ch][i + 1] - self.coefficients[ch][i + 1]) * 0.01;
                 residual += self.coefficients[ch][i + 1] * self.input[ch][i];
             }
-            self.input[ch].copy_within(0..ORDER - 1, 1);
+            self.input[ch].copy_within(0..self.order - 1, 1);
             self.input[ch][0] = f64::from(input[ch]);
             super::output(residual as f32)
         })
@@ -99,7 +115,7 @@ impl Formants {
             let mut residual = 0.0;
             let mut denominator = 1.0;
             let mut sum = 0.0;
-            for i in 0..ORDER {
+            for i in 0..self.order {
                 factor *= -warp;
                 residual = -warp * residual + self.memory[ch][i];
                 denominator += self.coefficients[ch][i + 1] * factor;
@@ -115,7 +131,7 @@ impl Formants {
                 value = 0.0;
             }
             let result = value;
-            for i in 0..ORDER {
+            for i in 0..self.order {
                 let next = -warp * value + self.memory[ch][i];
                 self.memory[ch][i] = value + warp * next;
                 value = next;

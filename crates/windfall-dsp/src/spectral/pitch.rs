@@ -28,8 +28,10 @@ pub fn pitch_shift_latency(sample_rate: f32) -> usize {
 fn synchronous_span(frequency: f32, sample_rate: f32, capacity: usize) -> f32 {
     if frequency > 0.0 {
         let pair = 2.0 * sample_rate / frequency;
-        // Never truncate a period pair: both heads must have the same phase.
-        (capacity as f32 / pair).floor().max(1.0) * pair
+        // Use one complete pair: choosing floor(capacity/pair) pairs flips
+        // the head ages by a full period when tracking straddles an integer
+        // count. That creates extra crossings even for a held pure tone.
+        pair.min(capacity as f32)
     } else {
         capacity as f32
     }
@@ -167,7 +169,7 @@ impl Effect for PitchShift {
         self.grains.prepare_span(0, span, centre);
         self.source_grains.prepare_span(0, span, centre);
         self.tracker.prepare(self.sample_rate, 1);
-        self.formants.reset();
+        self.formants.prepare(self.sample_rate);
         self.controls.prepare(rate(sample_rate));
     }
     fn reset(&mut self) {
@@ -294,7 +296,7 @@ param_set!(PitchCorrectParams, "Pitch Correct", {
     float [harmony_mix] "harmonyMix" "Harmony level" { Fraction, Linear, 0.0, 1.0, 0.0 }
 });
 
-/// Monophonic shared-YIN detection at approximately 6 kHz. A bounded
+/// Monophonic shared-YIN detection at approximately 8 kHz. A bounded
 /// 256-sample ring, 32-sample hop and <=151 lags cost no worker handoff/locks.
 pub struct PitchCorrect {
     params: PitchCorrectParams,
@@ -447,15 +449,18 @@ impl Effect for PitchCorrect {
     type Params = PitchCorrectParams;
     fn prepare(&mut self, sample_rate: f32, _max_block: usize) {
         self.sample_rate = rate(sample_rate);
-        self.decimation = (self.sample_rate / 6000.0).round().max(1.0) as usize;
+        self.decimation = (self.sample_rate / 8000.0).round().max(1.0) as usize;
         self.tracker_rate = self.sample_rate / self.decimation as f32;
         self.lowpass_coeffs =
             BiquadCoeffs::low_pass(self.tracker_rate * 0.4, 0.707, self.sample_rate);
         let span = pitch_span_capacity(self.sample_rate);
+        // Retain the public compensation delay while raising detector
+        // resolution: more accurate tracking must not change host PDC.
+        let tracking_delay = TRACK_SIZE * (self.sample_rate / 6000.0).round().max(1.0) as usize;
         self.grains
-            .prepare_span(TRACK_SIZE * self.decimation, span, PITCH_SHIFT_LATENCY);
+            .prepare_span(tracking_delay, span, PITCH_SHIFT_LATENCY);
         for harmony in &mut self.harmonies {
-            harmony.prepare_span(TRACK_SIZE * self.decimation, span, PITCH_SHIFT_LATENCY);
+            harmony.prepare_span(tracking_delay, span, PITCH_SHIFT_LATENCY);
         }
         self.controls.prepare(self.sample_rate);
         self.reset();

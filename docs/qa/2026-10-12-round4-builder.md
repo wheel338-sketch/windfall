@@ -48,6 +48,23 @@ temporary native `TS_RS_EXPORT_DIR`. No worktree changes or hardware tests.
   Neighboring `cargo test -p windfall-engine --test engine expression --
   --test-threads=1`: **2/0/0**, `target/round4-builder-a3-expression-regression.log`.
 
+- **A4 correctness fixed:** pitch-synchronous
+  window period-count rounding jumped by whole periods as the tracker jittered,
+  adding crossings; use a continuous complete two-period span. The ~6 kHz
+  detector's high-frequency lag interpolation lost narrow harmony peaks;
+  raise resolution to ~8 kHz while retaining the existing public/PDC delay.
+  LPC order/window/update cadence and stability loading were fixed in sample
+  units; scale their physical support with rate (bounded at order 128/window
+  4096), preserving baseline behavior through 48 kHz. All test tolerances and
+  assertions unchanged. Pitch units **3/0/0**:
+  `target/round4-builder-a4-span-probe.log`; harmony and latency/heap checks
+  **2 passed**, formants still failed before support fix:
+  `target/round4-builder-a4-quality-rate-fixed.log`. Full nonaligned pitch and
+  independent formants check across all six rates and both modes **1/0/0**,
+  121.64 s: `target/round4-builder-a4-formant-resolution.log`.
+  Full spectral units **23/0/0**, `target/round4-builder-a4-spectral-fixed.log`.
+  High-rate model CPU budget remains to be measured in B.
+
 ## Resume / final gates
 
-A4 is next. A4–A7, release budgets and final gates not yet run.
+A5 is next. A5–A7, release budgets and final gates not yet run.
