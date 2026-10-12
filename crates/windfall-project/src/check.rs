@@ -46,6 +46,16 @@ impl Project {
             ));
         }
         check_settings(self)?;
+        if self.retained_source_data.len() > 32
+            || self.retained_source_data.iter().any(|entry| {
+                entry.source.is_empty() || entry.source.len() > 256
+                    || entry.format.is_empty() || entry.format.len() > 256
+            })
+            || self.retained_source_data.iter().try_fold(0_usize, |size, entry| size.checked_add(entry.data.len()))
+                .is_none_or(|size| size > 16 * 1024 * 1024 + 22)
+        {
+            return Err("retained import data exceeds its count, name or 16 MiB payload budget".into());
+        }
         if let Some(problem) =
             crate::internal_controllers::settings_problem(self, &self.settings.internal_controllers)
         {

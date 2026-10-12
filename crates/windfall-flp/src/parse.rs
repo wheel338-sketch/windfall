@@ -61,6 +61,8 @@ pub const MAX_CHANNEL_GROUPS: usize = 4_096;
 pub const MAX_LAYER_CHILDREN: usize = 4_096;
 /// Global event-223 record budget, across every pattern and repeated event.
 pub const MAX_RECORDED_CONTROL_EVENTS: usize = 262_144;
+/// Complete event-prefix retention budget, including understood source controls.
+pub const MAX_SOURCE_EVENT_BYTES: usize = 16 * 1024 * 1024;
 const MAX_DIAGNOSTICS: usize = 200;
 
 /// Bytes of one note in event 224.
@@ -152,6 +154,7 @@ struct Parser {
     marker_owner: MarkerOwner,
     marker_count: usize,
     recorded_control_count: usize,
+    source_archive_full: bool,
     legacy_tempo: (Option<u16>, Option<u16>),
     /// Diagnostics that were not kept because there were too many.
     dropped_diagnostics: usize,
@@ -176,6 +179,7 @@ impl Parser {
             marker_owner: MarkerOwner::Nobody,
             marker_count: 0,
             recorded_control_count: 0,
+            source_archive_full: false,
             legacy_tempo: (None, None),
             dropped_diagnostics: 0,
             over_cap: BTreeMap::new(),
@@ -203,6 +207,7 @@ impl Parser {
     }
 
     fn event(&mut self, event: &Event<'_>) {
+        self.archive(event);
         let handled = match event.value {
             EventValue::Byte(value) => self.byte(event.id, value),
             EventValue::Word(value) => self.word(event.id, value),
@@ -211,6 +216,42 @@ impl Parser {
         };
         if !handled {
             self.keep(event);
+        }
+    }
+
+    fn archive(&mut self, event: &Event<'_>) {
+        // Deliberately omit the personal licensee event, as keep() already does.
+        if event.id == 200 || self.source_archive_full {
+            return;
+        }
+        let payload = match event.value {
+            EventValue::Byte(_) => 1,
+            EventValue::Word(_) => 2,
+            EventValue::DWord(_) => 4,
+            EventValue::Data(data) => data.len(),
+        };
+        let mut header = vec![event.id];
+        if matches!(event.value, EventValue::Data(_)) {
+            let mut size = payload;
+            loop {
+                let low = (size & 127) as u8;
+                size >>= 7;
+                header.push(low | if size == 0 { 0 } else { 128 });
+                if size == 0 { break; }
+            }
+        }
+        if payload + header.len() > MAX_SOURCE_EVENT_BYTES - self.project.source_event_stream.len() {
+            self.source_archive_full = true;
+            self.note(None, "Original source event archive exceeds 16 MiB; only the complete event prefix was retained.");
+            return;
+        }
+        let out = &mut self.project.source_event_stream;
+        out.extend(header);
+        match event.value {
+            EventValue::Byte(value) => out.push(value),
+            EventValue::Word(value) => out.extend(value.to_le_bytes()),
+            EventValue::DWord(value) => out.extend(value.to_le_bytes()),
+            EventValue::Data(data) => out.extend_from_slice(data),
         }
     }
 

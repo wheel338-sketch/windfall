@@ -18,7 +18,6 @@ mod arrangements;
 mod channels;
 mod effects;
 mod mixer;
-mod pattern_events;
 mod patterns;
 mod playlist;
 mod synth;
@@ -558,9 +557,29 @@ impl<'a> Builder<'a> {
             plugins,
             sampler_loops,
             name,
+            flp,
             ..
         } = self;
         let mut project = document.project().clone();
+        if !flp.source_event_stream.is_empty() {
+            // A valid container lets independent public readers inspect the
+            // retained controls with their original owner-selection events.
+            let mut data = b"FLhd".to_vec();
+            data.extend(6_u32.to_le_bytes());
+            data.extend(0_u16.to_le_bytes());
+            data.extend(flp.header.map_or(0, |h| h.channel_count).to_le_bytes());
+            data.extend(flp.ppq().to_le_bytes());
+            data.extend_from_slice(b"FLdt");
+            data.extend((flp.source_event_stream.len() as u32).to_le_bytes());
+            data.extend_from_slice(&flp.source_event_stream);
+            project.retained_source_data.push(windfall_project::RetainedSourceData {
+                source: "flStudio".into(),
+                format: "flp-events-v1".into(),
+                data,
+            });
+            report.say(ReportSection::Other, Outcome::Placeholder,
+                "Original processor, controller, timing and navigation events are retained opaquely in the saved project. Unsupported controls are not executed; see the conversion warnings. Personal licensee metadata is excluded.");
+        }
         project.retained_plugins = plugins
             .iter()
             .map(|plugin| {
@@ -604,6 +623,7 @@ impl<'a> Builder<'a> {
                 }
                 let mut empty = Project::new(name);
                 empty.retained_plugins = project.retained_plugins;
+                empty.retained_source_data = project.retained_source_data;
                 Conversion {
                     project: empty,
                     report,

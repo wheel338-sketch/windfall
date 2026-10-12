@@ -40,7 +40,7 @@ impl Builder<'_> {
                 self.report
                     .count(section, Outcome::Dropped, events.len() as u32);
                 self.report.say(section, Outcome::Dropped,
-                    format!("Recorded pattern target {location:#010x} is unsupported; source event records remain in the FLP reader model."));
+                    format!("Recorded pattern target {location:#010x} is unsupported; original event records are archived in the saved project when imported from a file."));
                 continue;
             };
             let mut points = BTreeMap::new();
@@ -287,7 +287,6 @@ impl Builder<'_> {
                 self.report
                     .count(ReportSection::Notes, Outcome::Approximated, 1);
             }
-            self.pattern_events(id, &pattern.control_events);
         }
     }
 }

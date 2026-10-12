@@ -30,6 +30,9 @@ use crate::target::ControlTarget;
 /// A whole file.
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct FlpProject {
+    /// Bounded original event stream (except licensee metadata). This is archival
+    /// data, never executed, and includes controls whose semantics are unknown.
+    pub source_event_stream: Vec<u8>,
     pub header: Option<Header>,
     /// The version of FL Studio that saved the file, as the file spells it:
     /// "20.8.4.2576". Event 199. Agreed.

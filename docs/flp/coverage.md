@@ -183,3 +183,36 @@ Synthetic event-byte, checked history, JSON persistence and hostile-range tests
 were written. Nothing was built, generated or run. Channel nonlinear time shift,
 undocumented source state layouts, source formulas/smoothing and additional real
 version corpus checks remain open. See the 2026-10-12 p2 hand-off for exact tests.
+
+## 2026-10-12 round-four edit-only archival extension (not verified)
+
+The reader now retains the original ordered event stream, excluding personal
+licensee event 200, up to 16 MiB. It stops retention at a complete event boundary
+and reports overflow while continuing ordinary bounded conversion. Conversion
+stores a valid FLhd/FLdt container in the default-empty, additive
+Project.retainedSourceData archive (`source: flStudio`, `format: flp-events-v1`).
+Owner-selection events, processor state, event-223 native integers, event-227
+unknown/formula/controller bytes, nonlinear timing and navigation records are
+therefore inspectable after save/reopen, even when their semantics cannot be
+translated. Archive bytes are never executed or routed to an unrelated plugin.
+The archive is separate from retainedPlugins, so plugin counts stay meaningful.
+Project validation bounds its count, names and aggregate payload on reopen.
+
+The obsolete second pattern-control converter was removed; event 223 is now
+processed once by the existing bounded, held-point converter, including its
+understood effect parameter tables. This prevents duplicate command rejection
+warnings and double-counted control losses. No new source processor layout or
+controller formula was invented. Core unsupported synthesis, instrument parameter
+automation, formulas/smoothing, nonlinear shift/glide and navigation translation
+remain software gaps; archival retention is not playback equivalence.
+
+Synthetic tests written in crates/windfall-flp/tests/conversion.rs:
+`unsupported_control_controller_timing_and_navigation_bytes_are_durable_with_owner_context`
+and `source_event_archive_excludes_licensee_and_stops_at_complete_events_with_a_budget_warning`.
+They inspect source event 223, controller 227, timing 89, marker 148, unknown 250,
+personal metadata exclusion, archival container equality, round-trip parsed
+values, JSON persistence and overflow. Existing recorded-control assertions stay
+registered, with an additional assertion against duplicate conversion warnings.
+No test/build/generation, proprietary binary inspection, or real-project corpus
+check was performed. Real projects from additional releases remain an external
+compatibility check, not synthetic-fixture evidence.
