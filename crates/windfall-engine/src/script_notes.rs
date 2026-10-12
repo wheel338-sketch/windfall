@@ -3,7 +3,7 @@
 //! no interpreter, allocation or IO is introduced in the audio callback.
 use windfall_project::{
     Channel,
-    scripting::{NoteTransform, ScriptLibrary, ScriptNote},
+    scripting::{NoteTransform, ScriptLibrary, ScriptNote, TransformedNotes},
 };
 
 pub(crate) fn prepare(library: &ScriptLibrary, channels: &[Channel]) -> Vec<Option<NoteTransform>> {
@@ -16,13 +16,13 @@ pub(crate) fn prepare(library: &ScriptLibrary, channels: &[Channel]) -> Vec<Opti
 pub(crate) fn transform(
     program: Option<&NoteTransform>,
     note: &windfall_project::Note,
-) -> ScriptNote {
+) -> TransformedNotes {
     let input = ScriptNote::from(note);
     // Checked documents reject this case before publication. An unchecked
     // engine fixture fails open, preserving its original musical event.
     program
-        .and_then(|p| p.evaluate(input).ok())
-        .unwrap_or(input)
+        .and_then(|p| p.evaluate_notes(input).ok())
+        .unwrap_or_else(|| TransformedNotes::single(input))
 }
 
 #[cfg(test)]
@@ -47,6 +47,16 @@ mod tests {
                     Err(TransformError::Arithmetic)
                 );
             }
+        });
+        assert_eq!(calls, 0);
+    }
+
+    #[test]
+    fn fixed_note_copy_success_and_bounds_failure_allocate_and_free_nothing() {
+        let transform = Program::compile("copies 16 1 60\nemit").unwrap().note_transform(&[]).unwrap();
+        let calls = crate::test_alloc::allocator_calls(|| {
+            assert_eq!(transform.evaluate_notes(ScriptNote::default()).unwrap().as_slice().len(), 16);
+            assert_eq!(transform.evaluate_notes(ScriptNote { key: 127, ..Default::default() }).unwrap_err(), TransformError::NoteBounds);
         });
         assert_eq!(calls, 0);
     }

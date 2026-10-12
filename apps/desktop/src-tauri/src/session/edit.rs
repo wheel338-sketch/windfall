@@ -152,10 +152,20 @@ impl Session {
         gesture: Option<u64>,
         generation: u64,
     ) -> Result<DispatchResult, String> {
+        self.dispatch_controller_batch(command, gesture, generation, None)
+    }
+
+    pub(super) fn dispatch_controller_batch(
+        &self,
+        command: Command,
+        gesture: Option<u64>,
+        generation: u64,
+        revision: Option<u64>,
+    ) -> Result<DispatchResult, String> {
         let ticket = {
             let _recording = self.recording_idle()?;
             let state = self.state();
-            if state.generation != generation {
+            if state.generation != generation || revision.is_some_and(|r| r != state.document.revision()) {
                 return Err("Project changed. Try again.".into());
             }
             self.sample_edit_ticket(&state, command, gesture, Vec::new())?

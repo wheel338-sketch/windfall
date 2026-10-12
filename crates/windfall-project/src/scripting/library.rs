@@ -53,6 +53,14 @@ pub struct ControllerScript {
     /// Feedback uses the selected native MIDI output and this one-based channel.
     /// None disables external feedback, even when the script emits it.
     pub feedback_channel: Option<u8>,
+    /// Applied after the script's normalized map/tempo output. Legacy bindings
+    /// retain immediate takeover; new bindings can select pickup and smoothing.
+    #[serde(default = "legacy_controller_map")]
+    pub map: crate::ControlMap,
+}
+
+fn legacy_controller_map() -> crate::ControlMap {
+    crate::ControlMap { pickup: crate::PickupMode::Off, ..Default::default() }
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, TS)]
@@ -140,15 +148,13 @@ impl ScriptLibrary {
             if !matches!(binding.source, crate::ControlSource::Midi { .. }) {
                 return Err("controller scripts require a MIDI source".into());
             }
-            if matches!(binding.target, Some(crate::LinkTarget::Action { .. })) {
-                return Err("use profile action links for transport buttons".into());
-            }
+            binding.map.compile()?;
             let link = crate::ControllerLink {
                 source: binding.source.clone(),
-                target: crate::LinkTarget::Slot {
+                target: binding.target.unwrap_or(crate::LinkTarget::Slot {
                     slot: crate::SlotTarget::Tempo,
-                },
-                map: Default::default(),
+                }),
+                map: binding.map.clone(),
             };
             if let Some(problem) = crate::controller_links::links_problem(&[link], None) {
                 return Err(problem);
@@ -189,13 +195,53 @@ impl ScriptLibrary {
                 .flat_map(|l| &l.notes)
             {
                 transform
-                    .evaluate(super::ScriptNote::from(note))
+                    .evaluate_notes(super::ScriptNote::from(note))
                     .map_err(|e| {
                         format!(
                             "script {} revision {} failed on note {}: {e:?}",
                             binding.script.id, binding.script.revision, note.id.0
                         )
                     })?;
+            }
+        }
+        // Expanded playback is checked just like authored clip placement.
+        for pattern in &project.patterns {
+            let source_length = pattern.length_steps.max(1).saturating_mul(crate::TICKS_PER_STEP);
+            let mut length = source_length;
+            let mut notes = Vec::new();
+            for lane in &pattern.lanes {
+                let Some(transform) = self.channel_transform(lane.channel) else { continue; };
+                let Some(channel) = project.channel(lane.channel) else { continue; };
+                for note in lane.notes.iter().filter(|note| note.start < source_length) {
+                    for note in transform.evaluate_notes(super::ScriptNote::from(note)).map_err(|e| format!("script note bounds: {e:?}"))?.as_slice() {
+                        length = length.max(note.start.saturating_add(note.length));
+                        notes.push((channel.timing, *note));
+                    }
+                }
+            }
+            if notes.is_empty() { continue; }
+            for clip in project.playlist.clips.iter().filter(|clip| clip.content == (crate::ClipContent::Pattern { pattern: pattern.id })) {
+                if clip.length == 0 { return Err("scripted clip must have a nonempty window".into()); }
+                let extension = clip.length.div_ceil(source_length).checked_mul(length.saturating_sub(source_length))
+                    .ok_or("scripted clip extent exceeds song bound")?;
+                let end = clip.start.checked_add(clip.length).and_then(|end| end.checked_add(extension))
+                    .filter(|end| *end <= crate::MAX_SONG_TICKS).ok_or("scripted clip extent exceeds song bound")?;
+                let offset = clip.offset % length;
+                let origin = f64::from(clip.start) - f64::from(offset);
+                let repeat = (u64::from(end - clip.start - 1) + u64::from(offset)) / u64::from(length);
+                for repeat in [repeat.saturating_sub(1), repeat] {
+                    let shift = origin + repeat as f64 * f64::from(length);
+                    for (timing, note) in &notes {
+                        if let Some((tick, duration)) = timing.place(note.start, note.length, length, f64::from(project.settings.swing)) {
+                            let onset = shift + tick;
+                            if onset >= f64::from(clip.start) && onset < f64::from(end)
+                                && (onset + duration).ceil() > f64::from(crate::MAX_SONG_TICKS)
+                            {
+                                return Err("scripted note tail exceeds song bound".into());
+                            }
+                        }
+                    }
+                }
             }
         }
         Ok(())

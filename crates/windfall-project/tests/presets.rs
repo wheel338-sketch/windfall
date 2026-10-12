@@ -374,6 +374,7 @@ fn channel_preset_controller_panel_rack_and_script_are_one_portable_history_edit
         source: "map 1 value -\nfeedback 7 value 127 *".into(),
     });
     project.settings.scripts.controllers.push(ControllerScript {
+        map: Default::default(),
         source: ControlSource::Midi {
             device: Some("Keyboard".into()),
             channel: Some(2),

@@ -164,18 +164,36 @@ below predates these additions.
 
 ### Script worker hookup
 
-`Session::audio_editor_run_script_selection(token, AudioEditRange, run)` is the
-production entry point for the separately developed sandbox interpreter. `run`
-receives only the immutable selected `AudioBuffer` and returns its replacement
-or an error. The entry point shares built-in source/token/document guards,
-bounded finite/rate/channel validation, derived-file publication and one-step
-history. It must be called on a blocking worker. The sandbox worker owns script
-parsing, instruction/memory quotas and execution; no second interpreter is here.
-Its IPC/UI adapter should accept a script plus the active token/range, invoke
-this entry point with its sandbox runner, and deliver the returned DispatchResult
-through the editor's ordinary commit/token-renewal flow. Sending `"script"` to
-the built-in apply command explicitly refuses. The interpreter and user-facing
-Run script action remain dependent on `gpt/w3-scripting-assistant` integration.
+**Run script** is connected to Windfall's existing bounded postfix interpreter.
+The source, parameter vector and active token/range travel through blocking IPC
+`audio_script_preview`. It retains one selection result and returns its actual
+waveform without a derived file/history entry. **Audition script result** uses
+`audio_script_audition`; **Apply script result** uses `audio_script_apply` and
+attaches the cached selection through the same guarded publication path as
+`Session::audio_editor_run_script_selection`. Apply never reruns source and renews
+the ordinary editor token on its new clip. Cancel uses the shared nonblocking
+`script_cancel` ticket and is checked again immediately before document mutation.
+Late/stale/cancelled work cannot publish a derived asset.
+
+The audio adapter adds selection-only `gain EXPRESSION`, `reverse` and
+`normalize AMPLITUDE` statements to the same compiler/arithmetic evaluator. It
+accepts no loops, notes, tempo, map, feedback or host handles. Frame position is
+`value` (0..1), frame index is `index`; parameters retain the existing checked
+declaration/range rules. The panel ships original gain-ramp, reverse, linked-peak
+normalization, linear fade-in and squared fade-out examples. See `SCRIPTING.md`.
+
+There is one script worker shared with piano scripting, a cooperative five-second
+interpreter deadline, 100 million counted instructions/sample visits and the
+existing 16-KiB source/512-op/32-stack/16-parameter bounds. Input, selected scratch
+and output each obey the editor's two-minute/64-MiB cap. Every pass checks cancel,
+including validation, peak scans and reverse. File IO/engine preparation remain
+outside the interpreter's execution deadline. Audio outside the selection stays
+unchanged, source WAVs remain untouched and the derived result saves/reopens
+through normal project storage. Browser mode reports the native capability error.
+Sending `"script"` to the built-in apply command still refuses direct execution.
+
+Round-four source and deterministic fixtures are written, not executed. Integrator
+owns compilation, bindings/WASM regeneration and native-window acceptance.
 
 ## What is rendered
 

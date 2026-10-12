@@ -39,7 +39,7 @@ export function controlActionLabel(action: ControlAction): string {
   if ("performancePad" in action) return `Launch track ${action.performancePad.track}, scene ${action.performancePad.scene + 1}`
   return `Stop performance track ${action.performanceStop.track}`
 }
-const globalChoices: { value: string; label: string; target: LinkTarget }[] = [
+export const globalChoices: { value: string; label: string; target: LinkTarget }[] = [
   { value: "master", label: "Master volume", target: { type: "slot", slot: { type: "masterVolume" } } },
   { value: "tempo", label: "Tempo", target: { type: "slot", slot: { type: "tempo" } } },
   ...Object.entries(actionLabels).map(([action, label]) => ({ value: `action:${action}`, label, target: { type: "action", action: action as ControlAction } as LinkTarget })),

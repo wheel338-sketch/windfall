@@ -399,6 +399,7 @@ mod tests {
         let project = Project::new("owned notes");
         let mut plan = compile(&project, &SamplePool::new());
         plan.patterns[0].events = vec![NoteEvent {
+            scripted: false,
             source: windfall_project::NoteId(100),
             tick: 0.0,
             length: 960.0,

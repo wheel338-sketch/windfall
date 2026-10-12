@@ -499,6 +499,21 @@ async fn audio_editor_apply(
     blocking(move || session.audio_editor_apply(request)).await
 }
 #[tauri::command]
+async fn audio_script_preview(session: State<'_, Session>, input: windfall_ipc::AudioScriptRequest) -> Result<windfall_ipc::AudioScriptPreview, String> {
+    let session = session.inner().clone();
+    blocking(move || session.audio_script_preview(input)).await
+}
+#[tauri::command]
+async fn audio_script_apply(session: State<'_, Session>, token: u32, request: u64) -> Result<DispatchResult, String> {
+    let session = session.inner().clone();
+    blocking(move || session.audio_script_apply(token, request)).await
+}
+#[tauri::command]
+async fn audio_script_audition(session: State<'_, Session>, token: u32, request: u64) -> Result<(), String> {
+    let session = session.inner().clone();
+    blocking(move || session.audio_script_audition(token, request)).await
+}
+#[tauri::command]
 async fn audio_editor_discard(session: State<'_, Session>, token: u32) -> Result<(), String> {
     let session = session.inner().clone();
     blocking(move || {
@@ -1401,6 +1416,9 @@ pub fn handler() -> impl Fn(Invoke) -> bool + Send + Sync + 'static {
         detect_clip_tempo,
         audio_editor_open,
         audio_editor_apply,
+        audio_script_preview,
+        audio_script_apply,
+        audio_script_audition,
         audio_editor_discard,
         audio_editor_save_wavpack,
         m4a_capability,

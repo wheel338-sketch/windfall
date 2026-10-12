@@ -158,6 +158,9 @@ export interface Backend extends AnalysisBackend, MixerPresetLibraryBackend, Ana
   audioEditorSaveWavpack(token: number, start: number, end: number, path: string, depth: "int16" | "int24"): Promise<void>
   /** null means the installed OS AAC encoder can produce aligned M4A audio. */
   m4aCapability(): Promise<string | null>
+  audioScriptPreview(input: import("@/features/audio-editor/types").AudioScriptRequest): Promise<import("@/features/audio-editor/types").AudioScriptPreview>
+  audioScriptApply(token: number, request: number): Promise<DispatchResult>
+  audioScriptAudition(token: number, request: number): Promise<void>
   audioEditorRegions(token: number, regions: import("@/features/audio-editor/types").AudioRegion[]): Promise<DispatchResult>
   audioEditorTransfer(request: import("@/features/audio-editor/transfer").AudioEditTransferRequest): Promise<DispatchResult>
   samplePlaybackDetect(channel: ChannelId, options: import("@/features/slicer/types").SliceOptions, generation: number, revision: number): Promise<DispatchResult>

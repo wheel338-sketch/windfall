@@ -5,6 +5,8 @@ import { dispatch, useProjectStore } from "@/lib/store/project"
 import { startRoll, currentPattern, channel, notesOf } from "@/features/piano-roll/test-utils"
 import { ScriptEditor } from "./script-editor"
 import { closeScripts, openScripts } from "./store"
+import userEvent from "@testing-library/user-event"
+import { SimDocument } from "@/lib/ipc/sim/document"
 
 let roll: Awaited<ReturnType<typeof startRoll>>
 beforeEach(async () => { roll = await startRoll() })
@@ -99,5 +101,33 @@ describe("script editor mounted cases (worker responses are explicit fixtures)",
     await screen.findByText(/Remove this installed assignment/)
     fireEvent.click(screen.getByRole("button", { name: "Apply batch" }))
     await waitFor(() => expect(useProjectStore.getState().project.settings.scripts?.controllers).toHaveLength(0))
+  })
+  it("reviews a named pressure binding with soft takeover, smoothing and a checked channel target and reopens it", async () => {
+    Object.defineProperty(roll.backend, "kind", { value: "tauri", configurable: true })
+    const user = userEvent.setup()
+    open()
+    await user.click(screen.getByRole("button", { name: "Controller" }))
+    fireEvent.change(screen.getByLabelText("MIDI device name (blank means any enabled input)"), { target: { value: "Recorded surface" } })
+    fireEvent.change(screen.getByLabelText("Input MIDI channel (0 means all)"), { target: { value: "3" } })
+    await user.click(screen.getByRole("combobox", { name: "Script input type" }))
+    await user.click(await screen.findByRole("option", { name: "Channel pressure" }))
+    await user.click(screen.getByRole("combobox", { name: "Script mapped target" }))
+    await user.click(await screen.findByRole("option", { name: "Kick → pan" }))
+    await user.click(screen.getByRole("combobox", { name: "Script pickup" }))
+    await user.click(await screen.findByRole("option", { name: "Soft takeover" }))
+    fireEvent.change(screen.getByLabelText("Script smoothing (ms)"), { target: { value: "250" } })
+    await user.click(screen.getByRole("button", { name: "Review save and assign" }))
+    await screen.findByText("setScriptLibrary")
+    await user.click(screen.getByRole("button", { name: "Apply batch" }))
+    await waitFor(() => expect(useProjectStore.getState().project.settings.scripts?.controllers).toHaveLength(1))
+    const binding = useProjectStore.getState().project.settings.scripts!.controllers[0]
+    expect(binding.source).toEqual({ type: "midi", device: "Recorded surface", channel: 3, control: { type: "channelPressure" } })
+    expect(binding.map.pickup).toBe("on")
+    expect(binding.map.smoothingMs).toBe(250)
+    expect(binding.target).toEqual({ type: "param", target: { type: "channelPan", channel: channel("Kick").id } })
+    const saved = SimDocument.create(structuredClone(useProjectStore.getState().project))
+    const reopened = SimDocument.open(saved.fileText())
+    expect(reopened.project().settings.scripts?.controllers).toEqual([binding])
+    saved.dispose(); reopened.dispose()
   })
 })

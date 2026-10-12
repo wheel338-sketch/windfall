@@ -22,6 +22,22 @@ export type AudioEditRange = {
   endFrame: number
 }
 
+export type AudioScriptRequest = {
+  request: number
+  token: number
+  range: AudioEditRange
+  source: string
+  parameters: number[]
+}
+export type AudioScriptPreview = {
+  request: number
+  token: number
+  range: AudioEditRange
+  frames: number
+  sampleRate: number
+  peaks: number[]
+}
+
 export type AudioNormalizeMode = "peak" | "rms"
 export type AudioFadeDirection = "in" | "out"
 export type AudioFadeShape = "equalPower" | "linear" | "sCurve"

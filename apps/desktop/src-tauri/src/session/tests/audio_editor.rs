@@ -75,6 +75,63 @@ fn editor_wavpack_publication_rechecks_edits_after_encoding_and_removes_staging(
 }
 
 #[test]
+fn audio_script_preview_apply_is_one_exact_selection_edit_with_undo_and_fresh_reopen() {
+    use windfall_ipc::{AudioEditRange, AudioScriptRequest};
+    let rig = Rig::new();
+    let (clip, path, bytes) = add(&rig);
+    let preview = rig.session.audio_editor_open(clip).unwrap();
+    let before = rig.session.document_snapshot();
+    let ticket = rig.session.script_begin();
+    let result = rig.session.audio_script_preview(AudioScriptRequest {
+        request: ticket, token: preview.token,
+        range: AudioEditRange { start_frame: 1, end_frame: 3 },
+        source: "reverse\ngain 0.5".into(), parameters: vec![],
+    }).unwrap();
+    assert_eq!(result.frames, 2);
+    assert_eq!(rig.session.document_snapshot(), before);
+    assert_eq!(derived_files(&rig), 0);
+    let applied = rig.session.audio_script_apply(preview.token, ticket).unwrap();
+    let sample = SampleId(applied.created[0]);
+    assert_eq!(pooled(&rig, sample), [0.1, -0.1, 0.15, -0.15, 0.1, -0.1, 0.4, -0.4]);
+    assert_eq!(rig.session.document_snapshot().history.cursor, before.history.cursor + 1);
+    let edited = rig.project();
+    rig.session.undo().unwrap();
+    assert_eq!(rig.project().playlist, before.project.playlist);
+    rig.session.redo().unwrap();
+    assert_eq!(rig.project(), edited);
+    let saved = rig.file("script.windfall");
+    rig.session.project_save(Some(&saved)).unwrap();
+    let rig = rig.restart();
+    rig.session.project_open(&saved).unwrap();
+    assert_eq!(pooled(&rig, sample), [0.1, -0.1, 0.15, -0.15, 0.1, -0.1, 0.4, -0.4]);
+    assert_eq!(std::fs::read(path).unwrap(), bytes);
+}
+
+#[test]
+fn audio_script_cancel_during_publication_and_invalid_source_leave_no_history_or_file() {
+    use windfall_ipc::{AudioEditRange, AudioScriptRequest};
+    let rig = Rig::new();
+    let (clip, _, _) = add(&rig);
+    let preview = rig.session.audio_editor_open(clip).unwrap();
+    let before = rig.session.document_snapshot();
+    let ticket = rig.session.script_begin();
+    let input = AudioScriptRequest { request: ticket, token: preview.token,
+        range: AudioEditRange { start_frame: 1, end_frame: 3 },
+        source: "gain 100".into(), parameters: vec![] };
+    assert!(rig.session.audio_script_preview(input.clone()).unwrap_err().contains("full scale"));
+    assert_eq!(rig.session.document_snapshot(), before);
+    rig.session.audio_script_preview(AudioScriptRequest { source: "reverse".into(), ..input }).unwrap();
+    let hold = rig.session.hold("audio-editor:prepared");
+    let job = rig.session.background(move |session| session.audio_script_apply(preview.token, ticket));
+    hold.wait();
+    rig.session.script_cancel(ticket);
+    hold.release();
+    assert!(job.join().unwrap().unwrap_err().contains("cancelled"));
+    assert_eq!(rig.session.document_snapshot(), before);
+    assert_eq!(derived_files(&rig), 0);
+}
+
+#[test]
 fn regions_markers_follow_views_transfers_history_and_fresh_reopen() {
     use windfall_ipc::{AudioEditDestination, AudioEditRange, AudioEditTransferRequest};
     use windfall_project::{AudioRegion, ChannelSource};

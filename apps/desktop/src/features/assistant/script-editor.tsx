@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react"
-import type { CommandProposal, PianoScriptPreview, ScriptKind, ScriptLibrary, ScriptParameter } from "@/bindings"
+import type { CommandProposal, ControlMap, ControlSource, LinkTarget, PianoScriptPreview, ScriptKind, ScriptLibrary, ScriptParameter } from "@/bindings"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -16,6 +16,8 @@ import { useUiStore } from "@/lib/store/ui"
 import { currentSession } from "@/features/piano-roll/session"
 import { ProposalReview } from "./review"
 import { closeScripts, useAssistantWindows } from "./store"
+import { ControllerBindingFields } from "./controller-binding"
+import { useControllerStatus } from "@/features/controllers/status"
 
 const EXAMPLES: Record<ScriptKind, string> = {
   piano: "param transpose -24 24 12\nselected\nset key key transpose + 0 127 clamp\nemit\nend",
@@ -35,7 +37,10 @@ function ScriptForm() {
   const [parameters, setParameters] = useState<ScriptParameter[]>([])
   const [values, setValues] = useState<string[]>([])
   const [replace, setReplace] = useState(true)
-  const [cc, setCc] = useState("7")
+  const [controllerSource, setControllerSource] = useState<ControlSource>({ type: "midi", channel: 1, control: { type: "cc", number: 7 } })
+  const [controllerTarget, setControllerTarget] = useState<LinkTarget | null>({ type: "slot", slot: { type: "masterVolume" } })
+  const [controllerMap, setControllerMap] = useState<ControlMap>({ min: 0, max: 1, smoothingMs: 0, pickup: "off", mode: "absolute" })
+  const [feedbackChannel, setFeedbackChannel] = useState(1)
   const [feedback, setFeedback] = useState(false)
   const [preview, setPreview] = useState<PianoScriptPreview | null>(null)
   const [proposal, setProposal] = useState<CommandProposal | null>(null)
@@ -104,6 +109,20 @@ function ScriptForm() {
     setProposal({ stamp, label: "Remove script assignment", explanation: "Remove this installed assignment. Saved script revisions remain available; Undo restores the assignment.", commands: [{ type: "setScriptLibrary", library }] })
   }) }
 
+  function loadController(index: number) { return work(async token => {
+    const library = useProjectStore.getState().project.settings.scripts
+    const binding = library?.controllers[index]
+    const asset = binding && library?.assets.find(asset => asset.reference.id === binding.script.id && asset.reference.revision === binding.script.revision)
+    if (!asset || !binding) throw new Error("This controller assignment no longer exists.")
+    const parameters = await backend.scriptParameters(asset.source)
+    if (!current(token)) return
+    setId(asset.reference.id); setKind("controller"); setSource(asset.source)
+    setParameters(parameters); setValues(parameters.map((parameter, i) => String(binding.parameters[i] ?? parameter.default)))
+    setControllerSource(binding.source); setControllerTarget(binding.target)
+    setControllerMap(binding.map); setFeedback(binding.feedbackChannel !== null)
+    setFeedbackChannel(binding.feedbackChannel ?? 1)
+  }) }
+
   function saveAndAssign(assign: boolean) { return work(async (token) => {
     const stamp = await backend.proposalStamp()
     const state = useProjectStore.getState()
@@ -122,11 +141,9 @@ function ScriptForm() {
       library.channels = [...library.channels.filter((binding) => binding.channel !== channel), { channel, script: reference, parameters: parameterValues() }]
     }
     if (assign && kind === "controller") {
-      const number = Number(cc)
-      if (!Number.isInteger(number) || number < 0 || number > 127) throw new Error("Controller number must be 0..127.")
-      const sourceInput = { type: "midi" as const, channel: 1, control: { type: "cc" as const, number } }
-      library.controllers = [...library.controllers.filter((binding) => !(binding.source.type === "midi" && binding.source.device == null && binding.source.channel === 1 && binding.source.control.type === "cc" && binding.source.control.number === number)), {
-        source: sourceInput, script: reference, parameters: parameterValues(), target: { type: "slot", slot: { type: "masterVolume" } }, feedbackChannel: feedback ? 1 : null,
+      library.controllers = [...library.controllers.filter(binding => JSON.stringify(binding.source) !== JSON.stringify(controllerSource)), {
+        source: controllerSource, script: reference, parameters: parameterValues(), target: controllerTarget,
+        feedbackChannel: feedback ? feedbackChannel : null, map: controllerMap,
       }]
     }
     setProposal({ stamp, label: assign ? "Install script revision" : "Save script revision", explanation: `Save ${id} revision ${revision}${assign ? ` and assign its ${kind} module` : ""}. Existing revisions remain unchanged.`, commands: [{ type: "setScriptLibrary", library }] })
@@ -142,8 +159,15 @@ function ScriptForm() {
       {parameters.map((parameter, index) => <Field key={parameter.name}><FieldLabel htmlFor={`script-param-${index}`}>{parameter.name} ({parameter.min}..{parameter.max})</FieldLabel><Input id={`script-param-${index}`} type="number" min={parameter.min} max={parameter.max} value={values[index] ?? ""} disabled={busy} onChange={(event) => { setValues(values.map((value, i) => i === index ? event.target.value : value)); setProposal(null); setPreview(null) }} /></Field>)}
       {kind === "piano" && <Field><FieldLabel htmlFor="script-replace">Replace selected notes</FieldLabel><Checkbox id="script-replace" checked={replace} disabled={busy} onCheckedChange={(checked) => { setReplace(checked); setProposal(null) }} /><FieldDescription>Unselected notes stay unchanged. Emitted notes use new IDs and default expression. Empty selection is valid for generation.</FieldDescription></Field>}
       {kind === "controller" && <>
-        <Field><FieldLabel htmlFor="script-cc">Input CC on MIDI channel 1</FieldLabel><Input id="script-cc" type="number" min={0} max={127} value={cc} disabled={busy} onChange={(event) => { setCc(event.target.value); setProposal(null) }} /><FieldDescription>Any enabled input device. Script map output drives Master volume; profile links still handle transport buttons.</FieldDescription></Field>
-        <Field><FieldLabel htmlFor="script-feedback">Enable MIDI feedback</FieldLabel><Checkbox id="script-feedback" checked={feedback} disabled={busy} onCheckedChange={(checked) => { setFeedback(checked); setProposal(null) }} /><FieldDescription>Explicitly send emitted CC feedback through the configured MIDI output on channel 1.</FieldDescription></Field>
+        <ControllerBindingFields project={project} source={controllerSource} target={controllerTarget} map={controllerMap}
+          feedbackChannel={feedbackChannel} disabled={busy} change={patch => {
+            if (patch.source) setControllerSource(patch.source)
+            if ("target" in patch) setControllerTarget(patch.target ?? null)
+            if (patch.map) setControllerMap(patch.map)
+            if (patch.feedbackChannel !== undefined) setFeedbackChannel(patch.feedbackChannel)
+            setProposal(null)
+          }} />
+        <Field><FieldLabel htmlFor="script-feedback">Enable MIDI feedback</FieldLabel><Checkbox id="script-feedback" checked={feedback} disabled={busy} onCheckedChange={(checked) => { setFeedback(checked); setProposal(null) }} /><FieldDescription>Explicitly send emitted CC feedback through the configured MIDI output on the chosen channel.</FieldDescription></Field>
       </>}
     </FieldGroup>
     {backend.kind !== "tauri" && <Alert><AlertDescription>Piano execution and hardware controller scripts require the native bounded worker. You can edit and save revisions here.</AlertDescription></Alert>}
@@ -156,14 +180,24 @@ function ScriptForm() {
       <Button variant="ghost" disabled={!busy} onClick={() => { operation.current += 1; cancelRun(run.current); setBusy(false) }}>Cancel run</Button>
     </div>
     {error && <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}
+    {kind === "controller" && <ControllerScriptStatus />}
     {preview && <details open><summary>{preview.notes.length} emitted notes</summary><pre className="max-h-48 overflow-auto">{preview.notes.slice(0, 24).map((n) => `tick ${n.start} · length ${n.length} · key ${n.key} · velocity ${n.velocity}`).join("\n")}</pre></details>}
     {proposal && <ProposalReview key={`${proposal.stamp.revision}:${proposal.label}:${JSON.stringify(proposal.commands)}`} proposal={proposal} generation={generation} cancel={() => { setProposal(null); setPreview(null) }} />}
     <details><summary>Saved revisions</summary>{project.settings.scripts?.assets.map((asset) => <Button key={`${asset.reference.id}:${asset.reference.revision}`} variant="ghost" disabled={busy} onClick={() => { setId(asset.reference.id); setKind(asset.kind); editSource(asset.source) }}>{asset.name} r{asset.reference.revision}</Button>)}</details>
     <details><summary>Installed assignments</summary>
       {project.settings.scripts?.channels.map((binding) => <div key={binding.channel} className="flex items-center gap-2"><span>Channel {binding.channel}: {binding.script.id} r{binding.script.revision}</span><Button variant="outline" disabled={busy} onClick={() => void unassign(binding.channel, null)}>Review remove channel {binding.channel}</Button></div>)}
-      {project.settings.scripts?.controllers.map((binding, index) => <div key={index} className="flex items-center gap-2"><span>Controller {index + 1}: {binding.script.id} r{binding.script.revision}{binding.feedbackChannel ? " · feedback enabled" : ""}</span><Button variant="outline" disabled={busy} onClick={() => void unassign(null, index)}>Review remove controller {index + 1}</Button></div>)}
+      {project.settings.scripts?.controllers.map((binding, index) => <div key={index} className="flex items-center gap-2"><span>Controller {index + 1}: {binding.script.id} r{binding.script.revision}{binding.feedbackChannel ? " · feedback enabled" : ""}</span><Button variant="outline" disabled={busy} onClick={() => void loadController(index)}>Edit controller assignment {index + 1}</Button><Button variant="outline" disabled={busy} onClick={() => void unassign(null, index)}>Review remove controller {index + 1}</Button></div>)}
     </details>
   </div>
+}
+
+function ControllerScriptStatus() {
+  const { state } = useControllerStatus()
+  return <>
+    <p role="status">{state?.waiting.length ? `${state.waiting.length} control targets held for pickup.` : "No controls held for pickup."}</p>
+    {state?.error && <Alert variant="destructive"><AlertDescription>{state.error}</AlertDescription></Alert>}
+    {!!state?.dropped && <p role="status">{state.dropped} controller messages dropped.</p>}
+  </>
 }
 
 export function ScriptEditor() {

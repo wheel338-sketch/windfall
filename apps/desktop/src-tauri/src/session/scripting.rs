@@ -13,110 +13,79 @@ use windfall_project::scripting::{
 };
 
 impl Session {
-    /// Already installed controller scripts run on the controller pump worker.
-    /// Snapshot/interpretation happens outside document/hub locks. An entire
-    /// pump's edits form a guarded checked batch; feedback is queued afterwards.
+    /// Evaluate outside document/hub locks. The pump feeds normalized outputs
+    /// through its ordinary gesture/pickup/smoothing/capture path afterwards.
     pub(super) fn controller_scripts(
         &self,
-        events: Vec<(windfall_project::ControlSource, f32, u8)>,
-        stamp: ProposalStamp,
-        bank: u32,
-        mut commands: Vec<windfall_project::Command>,
-    ) -> Result<(), String> {
+        plan: &mut super::controllers::Plan,
+        now: Instant,
+    ) -> Result<Vec<[u8; 3]>, String> {
         let project = {
             let state = self.state();
-            if stamp
-                != (ProposalStamp {
-                    generation: state.generation,
-                    revision: state.document.revision(),
-                })
-            {
+            if plan.generation != state.generation || plan.revision != state.document.revision() {
                 return Err("controller script event became stale".into());
             }
             state.document.project().clone()
         };
         let start = Instant::now();
         let mut feedback = Vec::new();
-        for (source, value, number) in events {
-            for binding in project
-                .settings
-                .scripts
-                .controllers
-                .iter()
-                .filter(|binding| super::controllers::source_matches(&binding.source, &source))
-            {
-                let result = windfall_project::scripting::controller_event(
-                    &project,
-                    binding,
-                    f64::from(value),
-                    number,
-                    bank,
+        let mut motions = Vec::new();
+        for (source, input, number) in std::mem::take(&mut plan.script_events) {
+            for binding in project.settings.scripts.controllers.iter()
+                .filter(|binding| super::controllers::source_matches(&binding.source, &source)) {
+                let mut result = windfall_project::scripting::controller_event(
+                    &project, binding, f64::from(input.value), number, plan.script_bank,
                     || start.elapsed() > Duration::from_millis(100),
                 )?;
-                commands.extend(result.commands);
+                if let Some(value) = result.mapped {
+                    let target = binding.target.ok_or("controller script mapping target is unavailable")?;
+                    // The pure adapter includes this command for non-session clients;
+                    // session delivery must pass through the link runtime instead.
+                    if !matches!(target, windfall_project::LinkTarget::Action { .. }) { let _ = result.commands.pop(); }
+                    motions.push((binding.source.clone(), target, binding.map.clone(),
+                        windfall_project::controller_links::SourceInput { value, raw: input.raw }));
+                }
+                for command in result.commands {
+                    if let windfall_project::Command::UpdateSettings { patch } = command {
+                        if let Some(tempo) = patch.tempo_bpm {
+                            let target = windfall_project::AutomationTarget::Tempo;
+                            let range = project.automation_range(&target).ok_or("tempo target is unavailable")?;
+                            motions.push((binding.source.clone(), windfall_project::LinkTarget::Param { target },
+                                binding.map.clone(), windfall_project::controller_links::SourceInput {
+                                    value: range.normalized(tempo as f32), raw: input.raw,
+                                }));
+                        }
+                    }
+                }
                 feedback.extend(result.feedback);
-                if commands.len() > 128 || feedback.len() > 128 {
+                if motions.len() > 128 || feedback.len() > 128 {
                     return Err("controller script output batch limit exceeded".into());
                 }
             }
         }
-        let feedback_runtime = if feedback.is_empty() {
-            None
-        } else {
-            let runtime = crate::sync::lock(&self.inner.midi_hardware)
-                .clone()
+        if start.elapsed() > Duration::from_millis(100) {
+            return Err("controller script pump deadline exceeded".into());
+        }
+        // Preflight feedback before allowing any document movement.
+        if !feedback.is_empty() {
+            let runtime = crate::sync::lock(&self.inner.midi_hardware).clone()
                 .ok_or("native MIDI output is unavailable for feedback")?;
             if !runtime.state().output_connected {
-                return Err(
-                    "controller feedback output is disconnected; no project batch applied".into(),
-                );
-            }
-            Some(runtime)
-        };
-        let changed = !commands.is_empty();
-        let applied = if commands.is_empty() {
-            stamp
-        } else {
-            let result = self.proposal_apply(CommandProposal {
-                stamp,
-                label: "Controller script".into(),
-                explanation: "Installed controller script batch".into(),
-                commands,
-            })?;
-            ProposalStamp {
-                revision: result.patch.revision,
-                ..stamp
-            }
-        };
-        if !feedback.is_empty() {
-            let queued: Result<(), String> = (|| {
-                let _recording = self.recording_idle()?;
-                let state = self.state();
-                if applied
-                    != (ProposalStamp {
-                        generation: state.generation,
-                        revision: state.document.revision(),
-                    })
-                {
-                    return Err("controller feedback became stale".into());
-                }
-                // Enqueue while the stamp is current; the native worker sends.
-                feedback_runtime
-                    .expect("feedback preflight")
-                    .feedback(feedback)
-            })();
-            if let Err(error) = queued {
-                if !changed {
-                    return Err(error);
-                }
-                self.emit(crate::events::Event::ProjectWarnings(vec![format!(
-                    "Controller command batch applied; MIDI feedback failed: {error}"
-                )]));
+                return Err("controller feedback output is disconnected; no project batch applied".into());
             }
         }
-        Ok(())
+        self.controllers_script_motion(plan, motions, now)?;
+        Ok(feedback)
     }
 
+    pub(super) fn controller_script_feedback(&self, feedback: Vec<[u8; 3]>, generation: u64, revision: u64) -> Result<(), String> {
+        if feedback.is_empty() { return Ok(()); }
+        let _recording = self.recording_idle()?;
+        let state = self.state();
+        if state.generation != generation || state.document.revision() != revision { return Err("controller feedback became stale".into()); }
+        crate::sync::lock(&self.inner.midi_hardware).clone()
+            .ok_or("native MIDI output is unavailable for feedback")?.feedback(feedback)
+    }
     pub fn proposal_stamp(&self) -> ProposalStamp {
         let state = self.state();
         ProposalStamp {
