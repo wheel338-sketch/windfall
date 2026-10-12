@@ -62,6 +62,14 @@ impl ProjectPreparation {
         pool: &SamplePool,
     ) -> Result<SamplePool, String> {
         let mut pool = pool.clone();
+        pool.retain_video_audio(project);
+        for video in project.settings.stage_media.videos.iter().filter(|video| !video.muted) {
+            if pool.video_audio(&video.path).is_none() {
+                let audio = windfall_codec::decode_video_audio_file(std::path::Path::new(&video.path))
+                    .map_err(|error| format!("Cannot decode video audio '{}': {error}. Mute it or choose AVI PCM / Ogg Vorbis.", video.path))?;
+                pool.insert_video_audio(video.path.clone(), audio);
+            }
+        }
         for channel in &project.channels {
             let Some(asset @ windfall_project::SampleInstrumentAsset::SoundFont { path, .. }) =
                 &channel.sample_instrument

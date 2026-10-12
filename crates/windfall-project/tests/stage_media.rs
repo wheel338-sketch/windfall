@@ -17,6 +17,7 @@ fn stage_settings_legacy_omission_history_and_roundtrip() {
         length_ticks: 3840,
         offset_seconds: 1.25,
         muted: true,
+        mixer_track: TrackId::MASTER,
     });
     doc.dispatch(
         Command::SetStageMedia {
@@ -105,4 +106,18 @@ fn performance_midi_action_uses_checked_controller_contract() {
         )
         .is_err()
     );
+}
+
+#[test]
+fn legacy_video_route_defaults_to_master_and_invalid_route_is_atomic() {
+    let legacy = r#"{"path":"own.avi","startTick":0,"lengthTicks":960,"offsetSeconds":0.0,"muted":true}"#;
+    let placement: VideoPlacement = serde_json::from_str(legacy).unwrap();
+    assert_eq!(placement.mixer_track, TrackId::MASTER);
+    let mut doc = Document::new(Project::new("video route"));
+    let mut media = StageMedia::default();
+    media.videos.push(placement);
+    let before = doc.project().clone();
+    media.videos[0].mixer_track = TrackId(u32::MAX);
+    assert!(doc.dispatch(Command::SetStageMedia { media }, None).is_err());
+    assert_eq!(doc.project(), &before);
 }

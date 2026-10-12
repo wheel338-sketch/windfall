@@ -35,7 +35,7 @@ export function VideoPlayer({ placement }: { placement: VideoPlacement }) {
     })().then((bytes) => {
       if (cancelled || bytes === null) return
       const extension = placement.path.split(".").pop()?.toLowerCase()
-      const mime = extension === "webm" ? "video/webm" : extension === "ogv" ? "video/ogg" : extension === "mov" ? "video/quicktime" : "video/mp4"
+      const mime = extension === "avi" ? "video/x-msvideo" : extension === "webm" ? "video/webm" : extension === "ogv" ? "video/ogg" : extension === "mov" ? "video/quicktime" : "video/mp4"
       owned = URL.createObjectURL(new Blob([bytes], { type: mime }))
       setLoaded({ path: placement.path, generation, url: owned, error: null })
     }).catch((reason: unknown) => { if (!cancelled) setLoaded({ path: placement.path, generation, url: null, error: String(reason) }) })
@@ -62,7 +62,7 @@ export function VideoPlayer({ placement }: { placement: VideoPlacement }) {
 
   return (
     <div className="flex flex-col gap-2">
-      <video ref={video} src={url ?? undefined} muted={placement.muted} playsInline preload="auto" aria-label="Timeline video" className="w-full rounded-md bg-background" onError={() => setLoaded({ path: placement.path, generation, url, error: "The webview cannot decode this video. Choose a supported local file." })}>
+      <video ref={video} src={url ?? undefined} muted playsInline preload="auto" aria-label="Timeline video" className="w-full rounded-md bg-background" onError={() => setLoaded({ path: placement.path, generation, url, error: "The webview cannot decode this video. Choose a supported local file." })}>
         <track kind="captions" />
       </video>
       <p ref={readout} className="text-xs text-muted-foreground" aria-live="off">Waiting for the audio presentation clock</p>

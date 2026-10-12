@@ -4,7 +4,7 @@ use std::time::Instant;
 use windfall_engine::midi_hardware::{InputMessage, MidiMessage};
 use windfall_project::{
     Command, ControlAction, ControlMap, ControlSource, ControllerLink, LaunchQuantization,
-    LinkTarget, MidiControl, PerformancePad, StageMedia, VideoPlacement,
+    LinkTarget, MidiControl, PerformancePad, StageMedia, VideoPlacement, TrackId,
 };
 
 fn seed(rig: &Rig) -> StageMedia {
@@ -186,6 +186,7 @@ fn saved_media_reopens_and_only_saved_paths_in_current_generation_can_be_read() 
         length_ticks: 3840,
         offset_seconds: 1.25,
         muted: true,
+        mixer_track: TrackId::MASTER,
     }];
     media.dance_channel = Some(rig.channel(0));
     media.visual.hue = 240.0;
@@ -216,4 +217,36 @@ fn saved_media_reopens_and_only_saved_paths_in_current_generation_can_be_read() 
     assert!(rig.session.media_video_read(&path, generation).is_err());
     rig.session.project_open(&saved).unwrap();
     assert_eq!(rig.project().settings.stage_media, media);
+}
+
+#[test]
+fn unmuted_video_audio_prepares_without_document_lock_and_reopens_exact_pcm() {
+    let rig = Rig::new();
+    let path = rig.file("video-audio.ogg");
+    // The existing decoder probes bytes, not extensions. A PCM fixture makes
+    // mixer/persistence assertions independent of a third-party lossy encoder.
+    let source = windfall_core::AudioBuffer::from_interleaved(48000, 2, vec![0.25; 48000]);
+    windfall_codec::write_wav(&path, &source, windfall_codec::WavSampleFormat::Float32).unwrap();
+    let mut media = StageMedia::default();
+    media.videos.push(VideoPlacement { path: path.clone(), start_tick: 0, length_ticks: 960, offset_seconds: 0.0, muted: false, mixer_track: TrackId::MASTER });
+    rig.session.dispatch(Command::SetStageMedia { media: media.clone() }, None).unwrap();
+    assert_eq!(rig.session.state().pool.video_audio(&path).unwrap().samples(), source.samples());
+    let saved = rig.session.project_save(Some(&rig.file("unmuted-video.windfall"))).unwrap();
+    rig.session.project_new().unwrap();
+    rig.session.project_open(&saved).unwrap();
+    assert_eq!(rig.project().settings.stage_media, media);
+    assert_eq!(rig.session.state().pool.video_audio(&path).unwrap().samples(), source.samples());
+}
+
+#[test]
+fn missing_video_decoder_refuses_unmute_atomically() {
+    let rig = Rig::new();
+    let path = rig.file("missing-codec.webm");
+    std::fs::write(&path, b"no supported decoder").unwrap();
+    let before = rig.project();
+    let mut media = StageMedia::default();
+    media.videos.push(VideoPlacement { path, start_tick: 0, length_ticks: 960, offset_seconds: 0.0, muted: false, mixer_track: TrackId::MASTER });
+    let error = rig.session.dispatch(Command::SetStageMedia { media }, None).unwrap_err();
+    assert!(error.to_string().contains("Cannot decode video audio"));
+    assert_eq!(rig.project(), before);
 }

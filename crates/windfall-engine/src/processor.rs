@@ -1523,6 +1523,7 @@ impl Processor {
                 monitor.render(&mut self.mixer.track_mut(track)[..frames]);
             }
         }
+        crate::video_audio::render(&self.plan, &self.sequencer, &mut self.mixer, base, 0, frames);
         self.metronome.clear_block();
 
         // Voices and instruments are rendered up to each note's frame

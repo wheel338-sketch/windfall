@@ -11,7 +11,7 @@ const media = (): MediaLike => ({ currentTime: 0, playbackRate: 1, paused: true,
 
 describe("audio-clock video follower", () => {
   it("maps clip offsets against musical tempo and stops outside the half-open placement", () => {
-    const placement = { path: "C:/own.webm", startTick: 960, lengthTicks: 1920, offsetSeconds: 2, muted: true }
+    const placement = { path: "C:/own.webm", startTick: 960, lengthTicks: 1920, offsetSeconds: 2, muted: true, mixerTrack: 0 }
     const normal = new TempoMap(null, 120, 0); const slow = new TempoMap(null, 60, 0)
     expect(videoTarget(placement, clock({ tick: 1920 }), (tick) => normal.secondsAt(tick))).toBe(2.5)
     expect(videoTarget(placement, clock({ tick: 1920, epoch: "2" }), (tick) => slow.secondsAt(tick))).toBe(3)

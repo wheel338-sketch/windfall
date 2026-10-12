@@ -62,6 +62,7 @@ impl IdIndex {
 
 #[derive(Debug, Clone)]
 pub(crate) struct Plan {
+    pub videos: Vec<crate::video_audio::PreparedVideo>,
     /// Control-side memory admission shared across this controller's plans.
     pub echo_history: Arc<crate::effect_host::HistoryPool>,
     _asset_pins: windfall_dsp::asset::AssetPins,
@@ -981,6 +982,7 @@ pub(crate) fn compile(project: &Project, pool: &SamplePool) -> Plan {
     let audio_clip_ids = IdIndex::new(audio_clips.iter().map(|clip| clip.id.0));
 
     let mut plan = Plan {
+        videos: crate::video_audio::compile(project, pool, &track_ids),
         echo_history: Arc::new(crate::effect_host::HistoryPool::default()),
         _asset_pins: windfall_dsp::asset::AssetPins::default(),
         navigation: crate::timeline::compile(&project.playlist.timeline),
@@ -1010,7 +1012,7 @@ pub(crate) fn compile(project: &Project, pool: &SamplePool) -> Plan {
         clips,
         audio_clips,
         audio_clip_ids,
-        song_end,
+        song_end: project.settings.stage_media.videos.iter().fold(song_end, |end, video| end.max(video.start_tick.saturating_add(video.length_ticks))),
         lanes: Arc::from([]),
         control_sources: Vec::new(),
         control_links: Vec::new(),

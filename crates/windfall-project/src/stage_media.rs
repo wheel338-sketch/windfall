@@ -38,7 +38,11 @@ pub struct VideoPlacement {
     /// Source seconds at the clip's first timeline tick.
     pub offset_seconds: f64,
     pub muted: bool,
+    /// Legacy placements route to master. Audio is decoded by the native host.
+    #[serde(default = "master_track")]
+    pub mixer_track: crate::TrackId,
 }
+fn master_track() -> crate::TrackId { crate::TrackId::MASTER }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
@@ -113,6 +117,7 @@ impl StageMedia {
                 || video.path.len() > 4096
                 || video.path.contains('\0')
                 || video.length_ticks == 0
+                || !project.mixer.tracks.iter().any(|track| track.id == video.mixer_track)
                 || video
                     .start_tick
                     .checked_add(video.length_ticks)
@@ -144,6 +149,11 @@ impl StageMedia {
         let mut next = self.clone();
         next.pads
             .retain(|pad| project.pattern(pad.pattern).is_some());
+        for video in &mut next.videos {
+            if !project.mixer.tracks.iter().any(|track| track.id == video.mixer_track) {
+                video.mixer_track = crate::TrackId::MASTER;
+            }
+        }
         if next
             .dance_channel
             .is_some_and(|id| project.channel(id).is_none())
