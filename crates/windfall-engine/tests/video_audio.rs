@@ -50,6 +50,32 @@ fn video_audio_mute_and_missing_decoder_cannot_silently_export_success() {
 }
 
 #[test]
+fn video_audio_short_loops_wrap_multiple_times_per_callback_without_partition_drift() {
+    let (mut project, mut pool) = fixture();
+    project.settings.stage_media.videos[0].length_ticks = 1;
+    pool.insert_video_audio("own.avi".into(), AudioBuffer::from_interleaved(48000, 2,
+        (0..100).flat_map(|frame| [frame as f32 / 1000.0; 2]).collect()));
+    let render = |block_frames: usize| {
+        let (mut processor, controller) = Processor::new(48000);
+        controller.set_project(&project, &pool);
+        controller.set_transport(TransportPatch { mode: Some(PlayMode::Song), loop_song: Some(true), ..Default::default() });
+        controller.play();
+        let mut samples = vec![0.0; 2000];
+        for block in samples.chunks_mut(block_frames * 2) { processor.process(block); }
+        samples
+    };
+    let small = render(7);
+    let large = render(256);
+    for (frame, (a, b)) in small.chunks_exact(2).zip(large.chunks_exact(2)).enumerate() {
+        let expected = (frame % 25) as f32 / 2000.0;
+        for side in 0..2 {
+            assert!((a[side] - expected).abs() < 1e-6, "small block frame {frame}");
+            assert!((b[side] - expected).abs() < 1e-6, "large block frame {frame}");
+        }
+    }
+}
+
+#[test]
 fn video_mixer_stems_discover_sources_and_isolate_each_soundtrack() {
     let (mut project, mut pool) = fixture();
     let mut second = project.mixer.tracks[1].clone();

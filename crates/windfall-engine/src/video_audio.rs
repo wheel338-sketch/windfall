@@ -45,7 +45,7 @@ impl PreparedVideo {
 pub(crate) fn render(plan: &Plan, sequencer: &Sequencer, mixer: &mut crate::mixer::Mixer, base: u64, from: usize, to: usize) {
     for video in &plan.videos {
         for frame in from..to {
-            let Some(tick) = sequencer.song_tick_at(plan, base + frame as u64) else { continue; };
+            let Some(tick) = sequencer.video_tick_at(plan, base + frame as u64) else { continue; };
             let value = video.sample(plan, tick);
             let out = &mut mixer.track_mut(video.track)[frame];
             out[0] += value[0]; out[1] += value[1];
