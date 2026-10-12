@@ -48,3 +48,22 @@ fn video_audio_mute_and_missing_decoder_cannot_silently_export_success() {
     assert_eq!(muted.audio.frames(), 24000);
     assert!(muted.audio.samples().iter().all(|sample| *sample == 0.0));
 }
+
+#[test]
+fn video_mixer_stems_discover_sources_and_isolate_each_soundtrack() {
+    let (mut project, mut pool) = fixture();
+    let mut second = project.mixer.tracks[1].clone();
+    second.id = TrackId(1001); second.name = "Second picture".into(); second.volume = 1.0;
+    project.mixer.tracks.push(second); project.next_id = 1002;
+    let mut placement = project.settings.stage_media.videos[0].clone();
+    placement.path = "second.avi".into(); placement.mixer_track = TrackId(1001);
+    project.settings.stage_media.videos.push(placement);
+    pool.insert_video_audio("second.avi".into(), AudioBuffer::from_interleaved(48000, 2, vec![0.5; 48000]));
+    let mut streams = [Vec::new(), Vec::new(), Vec::new()];
+    let rendered = windfall_engine::render_stems(&project, &pool, &RenderOptions { mode: PlayMode::Song, ..Default::default() }, &windfall_engine::StemOptions { mode: windfall_engine::StemMode::ToMaster, tracks: None, include_mix: true, numbered: false }, &mut |index, samples| { streams[index].extend_from_slice(samples); true }, &mut |_| true).unwrap();
+    assert!(rendered.completed);
+    for (stream, expected) in streams.iter().zip([0.625, 0.125, 0.5]) {
+        assert_eq!(stream.len(), 48000);
+        assert!(stream.iter().all(|sample| (*sample - expected).abs() < 1e-6));
+    }
+}
