@@ -232,7 +232,68 @@ Drop is only the first attempt; retirement checks both tracked paths. A crash
 leftover in the publication root is counted by the next startup inventory and
 is never guessed to be garbage.
 
-## First-stage verification and next exclusive window
+## Round-four classical aggregate quotas and file-backed dereverb
+
+Classical editor preparation now has a 256-MiB aggregate worker quota.
+`classical_memory` preflights detection arrays, transient/note/count/candidate
+growth, FFT construction, denoise f64 overlap-add and frame-weight arrays,
+returned f32 PCM, contextual interleaved/planar stretch buffers, full render
+output and seam/runtime storage. `Work::with_memory_limit` includes caller-held
+audio and recipe capacities; `peak_memory_bytes` exposes the accounted high
+water mark. The Session counts distinct prepared audio identities and retained
+recipe capacities, incoming edits, and every still-live audition identity.
+Quota failure is an ordinary observable resource error before DSP allocation;
+previous proposals/document/history remain available. Shared input clones and
+neutral recipes do not allocate another complete PCM buffer. This is an audited
+cooperative bound, rather than an OS memory sandbox or a process-wide RSS cap.
+
+Controller audition accounting uses a fixed 256-slot weak-identity table on the
+control side. Queued, playing and control-retirement owners remain charged
+until their audio allocation actually dies; repeated aliases count once. The
+table never pins PCM and requires no callback changes. Exhausting this table
+fails subsequent analysis admission closed. Other still-live owners can cause
+conservative overcharging, which cannot bypass the quota.
+
+Built-in dereverb uses an anonymous file-backed Float32 selection, retaining at
+most 64 KiB of input/IO allowance rather than the full source/view. The full
+rendered producer is checked in whole-frame chunks, but only selection bytes
+occupy the capture file. Source identity, actual file fingerprint, frozen clip
+timing/binding, native file authority and final stale checks remain required.
+Loaded project audio is borrowed during capture; this path does not add another
+whole decoded/source buffer. Strict source verification and staged-output
+verification decode bounded blocks. A short DrumSynth recipe keeps its previous
+bounded synthesis path; it is not treated as a packetized audio file.
+
+Tape/reverse/pitch/offset/normalize/pan/fades stream with the existing view law.
+Spectral preparation uses the same exact offline clock/latency with bounded
+planar input and an anonymous intermediate file; no full planar or output copy
+is retained. Workers consume selection blocks through `for_each_selected`.
+The existing review lease, no-clobber file publication and one-step guarded
+document apply/undo/save/reopen protocol are unchanged.
+
+The native Session manager now admits at most 512 MiB of job memory and 1 GiB
+of capture/staging/publication/retained disk. A built-in job reserves 64 MiB of
+DSP scratch, 64 KiB of input storage, three selected-result PCM allocations
+(decoding/reallocation and audition coexistence), model/record/codec metadata,
+and caller-held auditions. Capture scratch and temporary disk are preflighted
+alongside retained jobs. Captured selection disk bytes and its open file slot
+stay reserved through cancellation/consumption retirement. Every preview/apply
+also rechecks still-live controller auditions. Final project PCM belongs to the
+ordinary prepared project pool; it is not claimed to stay file-backed at playback.
+
+Explicit bounds: mono/stereo at 8–192 kHz, one-hour rendered frame-count cap,
+128 MiB of selected PCM/result and optional spectral intermediate, 1 GiB of
+encoded source, existing 500,000,000-unit/120-second capture/apply work bounds,
+and 100,000,000,000-unit/600-second dereverb execution bounds. Longer clips can
+use a bounded selection without capturing the whole clip to disk. Bounds remain
+observable refusals, never truncation or successful dry substitution. Imported
+model input/output limits stay on their previous path; no separation runtime,
+rate converter, weight pack or dependency is introduced here.
+
+New allocator/lifecycle regressions are listed in the round-four analysis
+hand-off. They are written, not executed by the edit-only worker.
+
+## First-stage verification and next exclusive window (historical)
 
 Tests live in auto-discovered `tests/analysis_jobs.rs` and library unit tests.
 The authored CPU fixture contract is in `tests/fixtures/README.md`; model SHA-256

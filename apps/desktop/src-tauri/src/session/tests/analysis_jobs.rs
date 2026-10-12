@@ -1421,6 +1421,121 @@ fn builtin_descriptor_cannot_be_imported_as_fake_weights() {
 }
 
 #[test]
+fn builtin_long_file_capture_ready_cancel_and_atomic_saved_apply() {
+    let rig = Rig::new();
+    let path = rig.file("long-dereverb.wav");
+    let audio = AudioBuffer::from_interleaved(16000, 2, vec![0.125; 16000 * 150 * 2]);
+    assert!(audio.samples().len() * 4 > 16 * 1024 * 1024);
+    assert!(audio.duration_secs() > 120.0);
+    windfall_codec::write_wav(&path, &audio, windfall_codec::WavSampleFormat::Float32).unwrap();
+    let imported = rig
+        .session
+        .add_audio_clip_from_file(
+            &path,
+            ClipPlace {
+                track: None,
+                start: 0,
+                mixer_track: None,
+            },
+        )
+        .unwrap();
+    let clip = ClipId(*imported.created.last().unwrap());
+    let before = rig.session.document_snapshot();
+    let frames = {
+        let state = rig.session.state();
+        let project = state.document.project();
+        let selected = project
+            .playlist
+            .clips
+            .iter()
+            .find(|item| item.id == clip)
+            .unwrap();
+        let clock = windfall_engine::SongClock::new(project).unwrap();
+        let timing = windfall_engine::audio_edit::view_timing(
+            &state.pool,
+            selected,
+            project.settings.tempo_bpm,
+            &clock,
+        )
+        .unwrap();
+        (timing.duration_frames - 1e-6).ceil() as u64
+    };
+    let submit = || {
+        let mut request = request(clip);
+        request.task = windfall_ipc::AnalysisTask::DereverbGeneral;
+        request.model_id = native::BUILTIN_DEREVERB_ID.into();
+        request.end_frame = frames.to_string();
+        request.amount = Some(0.0); // exact long-stream lifecycle, independent of DSP quality gates
+        rig.session.analysis_submit(request).unwrap()
+    };
+    let cancelled = submit();
+    let manager = rig.session.inner.analysis.test_manager();
+    let cancelled_id = native::JobId(cancelled.job.parse().unwrap());
+    let settled = manager.wait(cancelled_id).unwrap();
+    assert_eq!(settled.status, native::JobStatus::Ready, "{settled:?}");
+    let usage = manager.usage();
+    assert!(usage.memory_bytes < 128 * 1024 * 1024);
+    assert!(usage.reserved_disk_bytes >= frames * 8 * 4); // captured PCM + three output copies
+    manager.cancel(cancelled_id).unwrap();
+    manager.wait(cancelled_id).unwrap();
+    manager.forget(cancelled_id).unwrap();
+    assert_eq!(manager.usage().reserved_disk_bytes, 0);
+    assert_eq!(manager.usage().memory_bytes, 0);
+    assert_eq!(rig.session.document_snapshot(), before);
+    let job = submit();
+    let settled = manager
+        .wait(native::JobId(job.job.parse().unwrap()))
+        .unwrap();
+    assert_eq!(settled.status, native::JobStatus::Ready, "{settled:?}");
+    let review = rig.session.analysis_review(&job.ticket).unwrap();
+    assert_eq!(review.artifacts[0].frames, frames.to_string());
+    rig.session
+        .analysis_preview(&job.ticket, "dry-input")
+        .unwrap();
+    rig.session
+        .analysis_preview(&job.ticket, &review.artifacts[0].role)
+        .unwrap();
+    let result = rig.session.analysis_apply(apply(&job, true)).unwrap();
+    assert_eq!(
+        rig.session.document_snapshot().history.cursor,
+        before.history.cursor + 1
+    );
+    let derived = SampleId(result.created[0]);
+    let output = rig.session.state().pool.get(derived).unwrap().clone();
+    assert_eq!(output.frames() as u64, frames);
+    assert_eq!(
+        &output.samples()[..audio.samples().len().min(output.samples().len())],
+        &audio.samples()[..audio.samples().len().min(output.samples().len())]
+    );
+    let edited = rig.project();
+    rig.session.undo().unwrap();
+    let mut restored = before.project;
+    restored.next_id = rig.project().next_id;
+    assert_eq!(rig.project(), restored);
+    rig.session.redo().unwrap();
+    assert_eq!(rig.project(), edited);
+    let saved = rig.file("long-dereverb.windfall");
+    rig.session.project_save(Some(&saved)).unwrap();
+    let reopened = rig.restart();
+    reopened.session.project_open(&saved).unwrap();
+    assert_eq!(reopened.project(), edited);
+    assert_eq!(
+        reopened
+            .session
+            .state()
+            .pool
+            .get(derived)
+            .unwrap()
+            .samples(),
+        output.samples()
+    );
+    assert_eq!(
+        windfall_codec::decode_file(&path).unwrap().samples(),
+        audio.samples()
+    );
+}
+
+#[test]
 fn explicit_pack_registration_is_restored_on_actual_session_restart() {
     let rig = Rig::new();
     let path = rig.file("authored.model");
