@@ -1,0 +1,12 @@
+{
+  "schema": "windfall.preset",
+  "version": 1,
+  "kind": "plugin",
+  "name": "Warm safety stages",
+  "plugin": {
+    "state": {
+      "type": "effect",
+      "params": {"type": "stageStack", "driveDb": 5.0, "tone": 0.3, "ceilingDb": -2.0, "mix": 0.8}
+    }
+  }
+}

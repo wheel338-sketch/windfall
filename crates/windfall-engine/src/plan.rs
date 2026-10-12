@@ -62,6 +62,8 @@ impl IdIndex {
 
 #[derive(Debug, Clone)]
 pub(crate) struct Plan {
+    /// Control-side memory admission shared across this controller's plans.
+    pub echo_history: Arc<crate::effect_host::HistoryPool>,
     pub navigation: Vec<crate::timeline::NavigationPoint>,
     pub signature: windfall_project::TimeSignature,
     pub meters: Result<
@@ -542,6 +544,7 @@ impl Plan {
     /// nowhere left for them to be heard.
     #[cfg(test)]
     pub fn keep_leaving(&mut self, previous: &Plan, prepared: Option<&crate::state::Ledger>) {
+        self.echo_history = previous.echo_history.clone();
         // Refresh on installation too: precompilation may precede a retry.
         // Never query the old plan's mutable factory for its past revision.
         self.snapshot_native_owners();
@@ -638,6 +641,7 @@ impl Plan {
         held: &crate::state::Ledger,
     ) -> Result<(), crate::project_preparation::ProjectPreparationError> {
         use crate::project_preparation::ProjectPreparationError;
+        self.echo_history = previous.echo_history.clone();
         for effect in self.tracks.iter_mut().flat_map(|track| &mut track.effects) {
             if let Some(index) = previous.effect_ids.get(effect.id.0) {
                 let (track, place) = previous.effect_places[index];
@@ -971,6 +975,7 @@ pub(crate) fn compile(project: &Project, pool: &SamplePool) -> Plan {
     let audio_clip_ids = IdIndex::new(audio_clips.iter().map(|clip| clip.id.0));
 
     let mut plan = Plan {
+        echo_history: Arc::new(crate::effect_host::HistoryPool::default()),
         navigation: crate::timeline::compile(&project.playlist.timeline),
         signature: project.settings.time_signature,
         meters: windfall_project::timeline::MeterMap::checked(

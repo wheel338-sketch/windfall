@@ -1,0 +1,12 @@
+{
+  "schema": "windfall.preset",
+  "version": 1,
+  "kind": "plugin",
+  "name": "Short stereo space",
+  "plugin": {
+    "state": {
+      "type": "effect",
+      "params": {"type": "spreader", "width": 1.4, "haasMs": 6.0, "amount": 0.2, "mix": 0.8}
+    }
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "schema": "windfall.preset",
+  "version": 1,
+  "kind": "plugin",
+  "name": "Gentle level and color",
+  "plugin": {
+    "state": {
+      "type": "effect",
+      "params": {"type": "masterLimiter", "gainDb": 5.0, "leveling": 0.65, "saturation": 0.15, "tone": 0.25, "ceilingDb": -1.5, "releaseMs": 220.0, "truePeak": true}
+    }
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "schema": "windfall.preset",
+  "version": 1,
+  "kind": "plugin",
+  "name": "Bass octave support",
+  "plugin": {
+    "state": {
+      "type": "effect",
+      "params": {"type": "bassHarmonics", "cutoffHz": 140.0, "drive": 4.0, "amount": 0.4}
+    }
+  }
+}

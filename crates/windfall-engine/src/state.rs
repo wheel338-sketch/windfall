@@ -455,6 +455,7 @@ fn last_sound(block: &[[f32; 2]], silence: f32) -> (Option<usize>, Option<usize>
 /// the last plan sent: enough to build the next [`PlanState`] with only
 /// what is missing.
 pub(crate) struct Ledger {
+    echo_history: std::sync::Arc<crate::effect_host::HistoryPool>,
     plugins: HashMap<windfall_project::PluginTarget, (u64, usize)>,
     unavailable: HashMap<windfall_project::PluginTarget, u64>,
     /// Latency metadata only, excluded from active native-owner reuse.
@@ -958,6 +959,12 @@ impl PlanState {
         held: Option<&Ledger>,
     ) -> Result<(Self, Ledger), crate::project_preparation::ProjectPreparationError> {
         let sample_rate = sample_rate.max(1);
+        // Select before filtering a different-rate ledger. Its histories still
+        // occupy memory until their concrete owners retire.
+        let echo_history = held.map_or_else(
+            || plan.echo_history.clone(),
+            |held| held.echo_history.clone(),
+        );
         let held = held.filter(|held| held.sample_rate == sample_rate);
         let mut prepared_racks = HashMap::new();
         for channel in &plan.channels {
@@ -1138,6 +1145,25 @@ impl PlanState {
         });
         // Large echo histories are admitted before anything is prepared.
         let admission = crate::effect_host::HistoryAdmission::of(plan, sample_rate)?;
+        let new_histories = plan.tracks.iter().flat_map(|track| &track.effects)
+            .filter(|effect| !effect.leaving)
+            .filter(|effect| {
+                let target = windfall_project::PluginTarget::Effect { effect: effect.id };
+                let native = if plan.plugin_factory.is_some() {
+                    effect.native_identity()
+                } else {
+                    None
+                };
+                !held.is_some_and(|held| {
+                    held.effects.get(&effect.id)
+                        == Some(&(effect.params.kind(), effect.life.generation))
+                        && held.plugins.get(&target).map(|record| record.0) == native
+                })
+            })
+            .filter_map(|effect| effect.params.kind().history_bytes(sample_rate as f32))
+            .try_fold(0_usize, |total, bytes| total.checked_add(bytes))
+            .ok_or(crate::project_preparation::ProjectPreparationError::SizeOverflow)?;
+        let mut echo_reservation = echo_history.reserve(new_histories)?;
         let (mut prepared, plugins) = crate::plugins::prepare(plan, sample_rate, &known_plugins)?;
         Layout::validate_native_routes(plan, sample_rate, &plugins)?;
         let mut departing_plugins = HashMap::new();
@@ -1178,6 +1204,7 @@ impl PlanState {
             .unwrap_or(output_latency)
             .max(output_latency);
         let mut ledger = Ledger {
+            echo_history,
             unavailable: if plan.plugin_factory.is_none() {
                 plan.plugins
                     .iter()
@@ -1306,6 +1333,8 @@ impl PlanState {
                     sample_rate,
                     plan.tempo_bpm,
                     admission.budget(kind),
+                    kind.history_bytes(sample_rate as f32)
+                        .map(|bytes| echo_reservation.take(bytes)).transpose()?,
                 )?;
                 if let Some(binding) = plan.plugins.iter().find(|binding| binding.target == target)
                 {

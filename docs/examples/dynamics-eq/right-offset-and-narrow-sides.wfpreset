@@ -1,0 +1,12 @@
+{
+  "schema": "windfall.preset",
+  "version": 1,
+  "kind": "plugin",
+  "name": "Right offset and narrow sides",
+  "plugin": {
+    "state": {
+      "type": "effect",
+      "params": {"type": "stereoEnhancer", "width": 0.7, "phaseOffsetMs": 3.0, "invert": "off"}
+    }
+  }
+}

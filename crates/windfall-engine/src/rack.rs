@@ -100,6 +100,8 @@ pub(crate) struct EffectUnit {
     life: std::sync::Arc<EffectLife>,
     /// This particular prepared owner has actually had an audible splice.
     heard: bool,
+    /// Last field: release admission only AFTER the slot's history is freed.
+    _echo_history: Option<crate::effect_host::HistoryReservation>,
 }
 
 impl EffectUnit {
@@ -116,6 +118,7 @@ impl EffectUnit {
         sample_rate: u32,
         tempo_bpm: f64,
         budget: windfall_dsp::echo_bank::PreparationBudget,
+        echo_history: Option<crate::effect_host::HistoryReservation>,
     ) -> Result<
         (Self, Option<GainReductionMeter>),
         crate::project_preparation::ProjectPreparationError,
@@ -158,6 +161,7 @@ impl EffectUnit {
             sample_rate: sample_rate as f32,
             life: effect.life.clone(),
             heard: false,
+            _echo_history: echo_history,
         };
         Ok((unit, meter))
     }
