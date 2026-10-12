@@ -5,6 +5,36 @@ use windfall_plugin_host::{
     wrapper::{ProcessingMode, WrapperOptions},
 };
 #[test]
+fn threaded_native_vst3_deactivation_refusal_returns_same_worker_pipeline() {
+    let file = common::plugin_file("threaded-refusal", "threaded.vst3");
+    let module = PluginHost::windfall().load(&file).unwrap();
+    let mut instance = module.create(&module.descriptors()[6].id).unwrap();
+    let options = WrapperOptions { processing: ProcessingMode::Threaded, ..Default::default() };
+    let processor = instance.activate_with_options(48_000.0, 64, &options).unwrap();
+    let refused = instance.deactivate(processor).unwrap_err();
+    assert!(instance.is_active());
+    assert!(instance.save_state().is_err());
+    let mut processor = refused.returned;
+    processor.set_realtime(false);
+    assert_eq!(processor.latency_samples(), 145);
+    assert!(processor.set_param(0, 7, 0.75));
+    for _ in 0..5 {
+        assert_ne!(processor.process(&mut [1.0; 64], &mut [1.0; 64]), windfall_plugin_host::ProcessStatus::Failed);
+    }
+    let refused = instance.deactivate(processor).unwrap_err();
+    assert!(refused.error.to_string().contains("setProcessing(false) refused"));
+    let mut processor = refused.returned;
+    assert!(processor.set_param(0, 7, 0.25));
+    let mut left = [1.0; 64]; let mut right = left;
+    for _ in 0..5 {
+        left.fill(1.0); right.fill(1.0);
+        assert_ne!(processor.process(&mut left, &mut right), windfall_plugin_host::ProcessStatus::Failed);
+    }
+    assert_eq!(left, [0.5; 64]); assert_eq!(right, left);
+    instance.deactivate(processor).unwrap();
+    assert!(!instance.is_active()); assert_eq!(instance.param_value(7), Some(0.25));
+}
+#[test]
 fn threaded_native_clap_and_vst3_capture_reopen_preserves_latest_collected_control() {
     for vst3 in [false, true] {
         let file = common::plugin_file("threaded-native", if vst3 { "threaded.vst3" } else { "threaded.clap" });
