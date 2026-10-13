@@ -1,4 +1,8 @@
 export const inspectorEn = {
+  "In the plugin, per note": "In the plugin, per note",
+  "On the channel, after the plugin": "On the channel, after the plugin",
+  "The project pan law applies to every note. A property routed on the channel is applied to the whole output of this instrument after the plugin, and follows the most recent note that sounds.": "The project pan law applies to every note. A property routed on the channel is applied to the whole output of this instrument after the plugin, and follows the most recent note that sounds.",
+  "The note capabilities of this plugin are not known yet, or a note uses an invalid MIDI channel. Apply once the instrument is running.": "The note capabilities of this plugin are not known yet, or a note uses an invalid MIDI channel. Apply once the instrument is running.",
   "Note MIDI channel {channel}": "Note MIDI channel {channel}",
   "Pan route: {pan}; Volume route: {volume}": "Pan route: {pan}; Volume route: {volume}",
   "Native": "Native",
@@ -394,7 +398,6 @@ export const inspectorEn = {
   "Loop end: exclusive end within the trimmed sample. Short loops hold at least one frame": "Loop end: exclusive end within the trimmed sample. Short loops hold at least one frame",
   "Loop start: percentage of the trimmed sample, in source order": "Loop start: percentage of the trimmed sample, in source order",
   "Mixer track: where this channel's sound goes. Click to route it to another track or a new one": "Mixer track: where this channel's sound goes. Click to route it to another track or a new one",
-  "Native Pan, Volume or note instances are unavailable. Choose another plugin destination before applying.": "Native Pan, Volume or note instances are unavailable. Choose another plugin destination before applying.",
   "No auxiliary inputs were reported when this plugin was added.": "No auxiliary inputs were reported when this plugin was added.",
   "Off. Every hit plays the sample to its end, which suits drums. Turn it on to shape held notes.": "Off. Every hit plays the sample to its end, which suits drums. Turn it on to shape held notes.",
   "Off. Looped notes hold until note-off, then release over 4 ms. Turn it on to shape the loop and its release.": "Off. Looped notes hold until note-off, then release over 4 ms. Turn it on to shape the loop and its release.",
@@ -428,7 +431,6 @@ export const inspectorEn = {
   "The whole song": "The whole song",
   "This channel is silent.": "This channel is silent.",
   "This effect is bypassed.": "This effect is bypassed.",
-  "This hosted instrument cannot apply the project law to individual notes. Native Pan, Volume and note-instance support are required. Channel and mixer panning still apply.": "This hosted instrument cannot apply the project law to individual notes. Native Pan, Volume and note-instance support are required. Channel and mixer panning still apply.",
   "Tunes the sample so the played region lasts that many beats at its root key. Tape changes pitch with speed.": "Tunes the sample so the played region lasts that many beats at its root key. Tape changes pitch with speed.",
   "Turn off to keep an editor window owned by Windfall. Scaling and window ownership require support from the native plugin.": "Turn off to keep an editor window owned by Windfall. Scaling and window ownership require support from the native plugin.",
   "Turn on a forward loop to crossfade its seam.": "Turn on a forward loop to crossfade its seam.",
@@ -620,7 +622,6 @@ export const inspectorEn = {
   "No running hosted instrument is selected": "No running hosted instrument is selected",
   "Hosted note capabilities are unavailable for this document": "Hosted note capabilities are unavailable for this document",
   "Native note capabilities require a running hosted instrument": "Native note capabilities require a running hosted instrument",
-  "This hosted instrument lacks native Pan, Volume or note-instance support on the selected MIDI channel; per-note project pan law is unavailable.": "This hosted instrument lacks native Pan, Volume or note-instance support on the selected MIDI channel; per-note project pan law is unavailable.",
   "Removed unused sample files": {
     "one": "Removed {count} unused file.",
     "other": "Removed {count} unused files."
@@ -629,6 +630,10 @@ export const inspectorEn = {
 } as const
 
 export const inspectorEs = {
+  "In the plugin, per note": "En el plugin, por nota",
+  "On the channel, after the plugin": "En el canal, después del plugin",
+  "The project pan law applies to every note. A property routed on the channel is applied to the whole output of this instrument after the plugin, and follows the most recent note that sounds.": "La ley de panorama del proyecto se aplica a todas las notas. Una propiedad encaminada al canal se aplica a toda la salida de este instrumento después del plugin y sigue a la nota más reciente que suena.",
+  "The note capabilities of this plugin are not known yet, or a note uses an invalid MIDI channel. Apply once the instrument is running.": "Aún no se conocen las capacidades de nota de este plugin, o una nota usa un canal MIDI no válido. Aplica cuando el instrumento esté en marcha.",
   "Note MIDI channel {channel}": "Canal MIDI de nota {channel}",
   "Pan route: {pan}; Volume route: {volume}": "Ruta de panorama: {pan}; ruta de volumen: {volume}",
   "Native": "Nativa",
@@ -1024,7 +1029,6 @@ export const inspectorEs = {
   "Loop end: exclusive end within the trimmed sample. Short loops hold at least one frame": "Final del bucle: final exclusivo dentro de la muestra recortada. Los bucles breves mantienen al menos un fotograma.",
   "Loop start: percentage of the trimmed sample, in source order": "Inicio del bucle: porcentaje de la muestra recortada en el orden de la fuente.",
   "Mixer track: where this channel's sound goes. Click to route it to another track or a new one": "Pista del mezclador: destino del sonido de este canal. Haz clic para enviarlo a otra pista o a una nueva.",
-  "Native Pan, Volume or note instances are unavailable. Choose another plugin destination before applying.": "No hay panorama, volumen o instancias de nota nativos. Elige otro destino del plugin antes de aplicar.",
   "No auxiliary inputs were reported when this plugin was added.": "El plugin no informó de entradas auxiliares cuando se añadió.",
   "Off. Every hit plays the sample to its end, which suits drums. Turn it on to shape held notes.": "Desactivado. Cada golpe reproduce toda la muestra, adecuado para batería. Actívalo para dar forma a notas sostenidas.",
   "Off. Looped notes hold until note-off, then release over 4 ms. Turn it on to shape the loop and its release.": "Desactivado. Las notas en bucle se sostienen hasta soltar la nota y se liberan en 4 ms. Actívalo para dar forma al bucle y su liberación.",
@@ -1058,7 +1062,6 @@ export const inspectorEs = {
   "The whole song": "La canción completa",
   "This channel is silent.": "Este canal está en silencio.",
   "This effect is bypassed.": "Este efecto está desactivado.",
-  "This hosted instrument cannot apply the project law to individual notes. Native Pan, Volume and note-instance support are required. Channel and mixer panning still apply.": "Este instrumento no puede aplicar la ley del proyecto a cada nota. Se requieren panorama, volumen e instancias de nota nativos. El panorama del canal y del mezclador sigue funcionando.",
   "Tunes the sample so the played region lasts that many beats at its root key. Tape changes pitch with speed.": "Afina la muestra para que la región dure esos pulsos en su nota raíz. Cinta cambia la afinación con la velocidad.",
   "Turn off to keep an editor window owned by Windfall. Scaling and window ownership require support from the native plugin.": "Desactívalo para conservar una ventana de editor gestionada por Windfall. La escala y propiedad de la ventana requieren compatibilidad del plugin nativo.",
   "Turn on a forward loop to crossfade its seam.": "Activa un bucle hacia delante para fundir su unión.",
@@ -1250,7 +1253,6 @@ export const inspectorEs = {
   "No running hosted instrument is selected": "No hay un instrumento nativo activo seleccionado.",
   "Hosted note capabilities are unavailable for this document": "Las capacidades nativas de nota no están disponibles para este documento.",
   "Native note capabilities require a running hosted instrument": "Las capacidades nativas de nota requieren un instrumento nativo activo.",
-  "This hosted instrument lacks native Pan, Volume or note-instance support on the selected MIDI channel; per-note project pan law is unavailable.": "Este instrumento no ofrece panorama, volumen o instancias de nota nativos en el canal MIDI seleccionado; la ley de panorama por nota no está disponible.",
   "Removed unused sample files": {
     "one": "Se eliminó {count} archivo sin usar.",
     "other": "Se eliminaron {count} archivos sin usar."

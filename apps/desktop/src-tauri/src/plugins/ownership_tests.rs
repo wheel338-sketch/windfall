@@ -5,6 +5,13 @@ use std::sync::OnceLock;
 use windfall_project::{Command, Document, EffectId, TrackId};
 
 pub(crate) fn clap_expression_fixture(midi: bool) -> (Arc<Runtime>, PluginBinding) {
+    let (runtime, mut bindings) = clap_expression_fixtures(&[midi]);
+    (runtime, bindings.remove(0))
+}
+
+/// The CLAP sine with native note expressions (`false`) and its MIDI-only
+/// twin (`true`) on one provider, bound to the same project object.
+pub(crate) fn clap_expression_fixtures(midi: &[bool]) -> (Arc<Runtime>, Vec<PluginBinding>) {
     static CLAP: OnceLock<PathBuf> = OnceLock::new();
     let path = CLAP.get_or_init(|| {
         let (_, binding) = fixture(2);
@@ -13,22 +20,36 @@ pub(crate) fn clap_expression_fixture(midi: bool) -> (Arc<Runtime>, PluginBindin
         path
     });
     let runtime = Arc::new(Runtime::new().unwrap());
-    let id = if midi {
-        "org.windfall.test.midi-sine"
-    } else {
-        "org.windfall.test.sine"
+    let id = |midi: bool| {
+        if midi {
+            "org.windfall.test.midi-sine"
+        } else {
+            "org.windfall.test.sine"
+        }
     };
-    runtime.approve(&[windfall_ipc::PluginEntry {
-        path: path.to_string_lossy().into_owned(),
-        id: id.into(),
-        format: "clap".into(),
-        name: "Expression fixture".into(),
-        vendor: "Fixture".into(),
-        instrument: true,
-        usable: true,
-        error: None,
-    }]);
-    let binding = runtime
+    let entries: Vec<_> = midi
+        .iter()
+        .map(|&midi| windfall_ipc::PluginEntry {
+            path: path.to_string_lossy().into_owned(),
+            id: id(midi).into(),
+            format: "clap".into(),
+            name: "Expression fixture".into(),
+            vendor: "Fixture".into(),
+            instrument: true,
+            usable: true,
+            error: None,
+        })
+        .collect();
+    runtime.approve(&entries);
+    let bindings = midi
+        .iter()
+        .map(|&midi| clap_binding(&runtime, path, id(midi)))
+        .collect();
+    (runtime, bindings)
+}
+
+fn clap_binding(runtime: &Runtime, path: &Path, id: &str) -> PluginBinding {
+    runtime
         .discover(PluginBinding {
             wrapper: Default::default(),
             target: PluginTarget::Instrument {
@@ -44,11 +65,10 @@ pub(crate) fn clap_expression_fixture(midi: bool) -> (Arc<Runtime>, PluginBindin
             auxiliary_inputs: vec![],
             capabilities: Default::default(),
         })
-        .unwrap();
-    (runtime, binding)
+        .unwrap()
 }
 
-fn expression_audio(audio: &mut dyn HostedInstrument, frames: usize) -> Vec<[f32; 2]> {
+pub(crate) fn expression_audio(audio: &mut dyn HostedInstrument, frames: usize) -> Vec<[f32; 2]> {
     let mut output = Vec::with_capacity(frames);
     for _ in 0..frames.div_ceil(64) {
         let mut left = [0.0; 64];
@@ -240,8 +260,14 @@ fn vst3_cached_midi_mapping_routes_color_channels_replays_owner_and_matches_rend
 }
 
 pub(crate) fn fixture(index: usize) -> (Arc<Runtime>, PluginBinding) {
+    let (runtime, mut bindings) = fixtures(&[index]);
+    (runtime, bindings.remove(0))
+}
+
+/// The owned VST3 fixture file, built or copied once per test process.
+fn fixture_file() -> &'static PathBuf {
     static FILE: OnceLock<PathBuf> = OnceLock::new();
-    let path = FILE.get_or_init(|| {
+    FILE.get_or_init(|| {
         if let Some(source) = std::env::var_os("WINDFALL_BRIDGE_FIXTURE") {
             let folder = Path::new(env!("CARGO_MANIFEST_DIR"))
                 .join("../../../target/vst3-ownership-fixture");
@@ -267,27 +293,65 @@ pub(crate) fn fixture(index: usize) -> (Arc<Runtime>, PluginBinding) {
         let path = target.join("fixture.vst3");
         std::fs::copy(target.join("debug/windfall_test_plugins.dll"), &path).unwrap();
         path
-    });
+    })
+}
+
+/// Several classes of the fixture on one provider, all bound to the same
+/// project object: the same plugin target before and after it changes what
+/// it can do.
+pub(crate) fn fixtures(indices: &[usize]) -> (Arc<Runtime>, Vec<PluginBinding>) {
+    let path = fixture_file();
     let module = PluginHost::windfall().load(path).unwrap();
-    let descriptor = module.descriptors()[index].clone();
     let runtime = Arc::new(Runtime::new().unwrap());
-    runtime.approve(&[windfall_ipc::PluginEntry {
-        path: path.to_string_lossy().into_owned(),
-        id: descriptor.id.clone(),
-        format: "vst3".into(),
-        name: descriptor.name.clone(),
-        vendor: "Fixture".into(),
-        instrument: index == 2 || index == 23 || index == 24 || index == 26,
-        usable: true,
-        error: None,
-    }]);
-    let binding = runtime
+    let instrument =
+        |index: usize| index == 2 || index == 23 || index == 24 || index == 26 || index == 27;
+    let entries: Vec<_> = indices
+        .iter()
+        .map(|&index| {
+            let descriptor = module.descriptors()[index].clone();
+            windfall_ipc::PluginEntry {
+                path: path.to_string_lossy().into_owned(),
+                id: descriptor.id,
+                format: "vst3".into(),
+                name: descriptor.name,
+                vendor: "Fixture".into(),
+                instrument: instrument(index),
+                usable: true,
+                error: None,
+            }
+        })
+        .collect();
+    runtime.approve(&entries);
+    let bindings = indices
+        .iter()
+        .map(|&index| {
+            let descriptor = module.descriptors()[index].clone();
+            fixture_binding(
+                &runtime,
+                descriptor.id,
+                descriptor.name,
+                path,
+                instrument(index),
+            )
+        })
+        .collect();
+    (runtime, bindings)
+}
+
+fn fixture_binding(
+    runtime: &Runtime,
+    id: String,
+    name: String,
+    path: &Path,
+    instrument: bool,
+) -> PluginBinding {
+    runtime
         .discover(PluginBinding {
             sidechain_input: None,
             auxiliary_inputs: Vec::new(),
             capabilities: Default::default(),
             wrapper: Default::default(),
-            target: if index == 2 || index == 23 || index == 24 || index == 26 {
+            target: if instrument {
                 PluginTarget::Instrument {
                     channel: windfall_project::ChannelId(900),
                 }
@@ -298,16 +362,15 @@ pub(crate) fn fixture(index: usize) -> (Arc<Runtime>, PluginBinding) {
             },
             format: "vst3".into(),
             path: path.to_string_lossy().into_owned(),
-            id: descriptor.id,
-            name: descriptor.name,
+            id,
+            name,
             state: vec![],
             parameters: vec![],
         })
-        .unwrap();
-    (runtime, binding)
+        .unwrap()
 }
 
-fn transport() -> windfall_engine::plugins::PluginTransport {
+pub(crate) fn transport() -> windfall_engine::plugins::PluginTransport {
     windfall_engine::plugins::PluginTransport {
         playing: false,
         tempo_bpm: 120.0,
@@ -1550,25 +1613,42 @@ fn native_clap_project_pan_laws_and_live_ramps_match_render_pcm_without_allocati
     }
 }
 #[test]
-fn vst3_missing_native_volume_visibly_refuses_per_note_law_and_keeps_pcm_running() {
+fn vst3_missing_native_volume_gets_the_law_level_on_the_channel_after_the_plugin() {
+    // Until round seven this fixture was refused the project law, because
+    // it has per-note pan and no per-note volume. The decision recorded in
+    // docs/qa/README.md replaces the refusal: the plugin pans the note and
+    // the channel applies the law's level after it.
     use windfall_dsp::{NoteExpression, NoteInstanceId};
+    use windfall_plugin_host::project_expression::Routes;
     let (runtime, binding) = fixture(23);
     let mut unit = runtime.instrument(&binding, 48_000, 64).unwrap();
     unit.transport(transport());
     let caps = runtime.note_capabilities(binding.target).unwrap();
     assert!(caps.instances && caps.native_pan[0] && !caps.native_volume[0]);
-    assert!(
-        caps.require_pan_law(0)
-            .unwrap_err()
-            .contains("native Pan, Volume or note-instance")
+    assert_eq!(
+        caps.routes(0),
+        Routes {
+            pan: true,
+            volume: false
+        }
     );
+    caps.require_pan_law(0).unwrap();
     assert!(!caps.native_pan[15]);
+    assert_eq!(caps.routes(15), Routes::CHANNEL);
     unit.note_on_instance(NoteInstanceId(1), 69, 0.5, 0.4, NoteExpression::NEUTRAL);
+    // No project law yet: the plugin's own pan, `(1 - p, p)` at p = 0.7.
     let before = expression_audio(unit.as_mut(), 512);
+    let mark = before[511][0] + before[511][1];
+    assert!(mark > 0.0);
+    assert!((before[511][1] - mark * 0.7).abs() < 2e-6);
     unit.set_note_pan_law(windfall_core::PanLaw::Linear);
+    expression_audio(unit.as_mut(), 512);
     let after = expression_audio(unit.as_mut(), 512);
-    assert_eq!(before, after);
-    assert!(after.iter().any(|v| v[0] > 0.0 && v[1] > 0.0));
+    let gains = windfall_core::PanLaw::Linear.gains(0.4);
+    for frame in &after {
+        assert!((frame[0] - mark * gains.0 / 2.0).abs() < 2e-6, "{frame:?}");
+        assert!((frame[1] - mark * gains.1 / 2.0).abs() < 2e-6, "{frame:?}");
+    }
 }
 
 #[test]

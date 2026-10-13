@@ -931,6 +931,131 @@ mod tests {
         }
     }
 
+    #[test]
+    fn bridged_and_in_process_agree_on_all_four_pan_and_volume_routes() {
+        // The helper process and the in-process owner share one rule: a
+        // property the plugin offers per note is applied by the plugin, one
+        // it does not offer by the channel after it. Fixture class 26 offers
+        // pan and volume, 23 pan only, 27 volume only, 2 neither. Each plays
+        // the same law changes, per-note moves and a newer and an ended note
+        // through both, and the two outputs must be the same samples.
+        use windfall_core::PanLaw;
+        use windfall_dsp::{NoteExpression, NoteInstanceId};
+        use windfall_plugin_host::project_expression::Routes;
+        let mut worst = 0.0_f32;
+        for (class, pan, volume) in [
+            (26, true, true),
+            (23, true, false),
+            (27, false, true),
+            (2, false, false),
+        ] {
+            for offline in [false, true] {
+                for law in [PanLaw::ConstantPower, PanLaw::Linear] {
+                    let (runtime, binding) = super::super::runtime::ownership_tests::fixture(class);
+                    let mut direct = runtime.instrument(&binding, 48_000, 64).unwrap();
+                    let helper = PathBuf::from(
+                        std::env::var_os("WINDFALL_DESKTOP_BRIDGE_HELPER")
+                            .expect("explicit prebuilt current helper"),
+                    );
+                    let stamp =
+                        windfall_plugin_host::paths::plugin_file_identity(Path::new(&binding.path))
+                            .unwrap();
+                    let launch_options =
+                        options(helper, &binding, stamp, 8181, 1, 48_000, offline).unwrap();
+                    let controls = super::super::runtime::parameter_controls(&binding);
+                    let error = Arc::new(Mutex::new(None));
+                    let (record, mut bridge) =
+                        launch(launch_options, binding, controls, None, error.clone()).unwrap();
+                    assert_eq!(
+                        record.note_capabilities.snapshot().routes(3),
+                        Routes { pan, volume },
+                        "class {class}"
+                    );
+                    let delay = HostedEffect::latency(&bridge) - direct.latency();
+                    let on = |channel| NoteExpression {
+                        color_group: Some(channel),
+                        ..NoteExpression::NEUTRAL
+                    };
+                    for unit in [&mut *direct, &mut bridge as &mut dyn HostedInstrument] {
+                        unit.set_note_pan_law(law);
+                        unit.note_on_instance(NoteInstanceId(1), 69, 0.4, 0.65, on(3));
+                        unit.note_on_instance(NoteInstanceId(2), 76, 0.2, -0.4, on(5));
+                    }
+                    let mut native_pcm = Vec::new();
+                    let mut bridge_pcm = Vec::new();
+                    let total = 3584 + delay;
+                    for frame in (0..total).step_by(64) {
+                        for unit in [&mut *direct, &mut bridge as &mut dyn HostedInstrument] {
+                            match frame {
+                                1024 => unit.set_note_pan_law(PanLaw::Balance),
+                                1536 => {
+                                    unit.set_note_expression(NoteInstanceId(1), -0.3, on(3));
+                                    unit.set_note_gain(NoteInstanceId(2), 0.6);
+                                }
+                                // A newer note leads the channel's share...
+                                2048 => {
+                                    unit.note_on_instance(NoteInstanceId(3), 81, 0.3, 0.9, on(7))
+                                }
+                                // ...and hands it back when it ends.
+                                2560 => unit.note_off_on_channel(NoteInstanceId(3), 81, 7),
+                                _ => {}
+                            }
+                        }
+                        let (mut left, mut right) = ([0.0; 64], [0.0; 64]);
+                        assert_eq!(
+                            crate::test_alloc::allocator_calls(
+                                || direct.process(&mut left, &mut right)
+                            ),
+                            0
+                        );
+                        native_pcm.extend(
+                            left.into_iter()
+                                .zip(right)
+                                .map(|(left, right)| [left, right]),
+                        );
+                        let (mut left, mut right) = ([0.0; 64], [0.0; 64]);
+                        if offline {
+                            HostedEffect::process(&mut bridge, &mut left, &mut right);
+                        } else {
+                            assert_eq!(
+                                crate::test_alloc::allocator_calls(|| HostedEffect::process(
+                                    &mut bridge,
+                                    &mut left,
+                                    &mut right
+                                )),
+                                0
+                            );
+                            // This is the test's device clock, not an audio callback wait.
+                            std::thread::sleep(Duration::from_millis(2));
+                        }
+                        bridge_pcm.extend(
+                            left.into_iter()
+                                .zip(right)
+                                .map(|(left, right)| [left, right]),
+                        );
+                        assert!(error.lock().unwrap().is_none());
+                        assert!(!record.control.status().failed);
+                    }
+                    assert!(native_pcm.iter().any(|frame| frame[0].abs() > 0.001));
+                    for frame in 0..3584 {
+                        for side in 0..2 {
+                            let apart =
+                                (bridge_pcm[frame + delay][side] - native_pcm[frame][side]).abs();
+                            worst = worst.max(apart);
+                            assert!(
+                                apart < 2e-6,
+                                "class {class} offline={offline} {law:?} frame={frame} side={side}: {} vs {}",
+                                bridge_pcm[frame + delay][side],
+                                native_pcm[frame][side]
+                            );
+                        }
+                    }
+                }
+            }
+        }
+        println!("ROUTE bridged against in-process, four combinations: worst {worst:.3e}");
+    }
+
     fn native_selected_sidechain_reaches_desktop_facade(vst3: bool) {
         for offline in [false, true] {
             let folder = tempfile::tempdir().unwrap();

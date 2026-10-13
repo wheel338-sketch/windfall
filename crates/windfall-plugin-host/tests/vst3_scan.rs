@@ -96,7 +96,7 @@ fn vst3_factory_metadata_and_initialized_buses_are_scanned_out_of_process() {
     let path = common::plugin_file("vst3", "fixture.vst3");
     let scan = scan_file(&common::scanner(Duration::from_secs(20)), &path).unwrap();
     assert!(scan.failure.is_none());
-    assert_eq!(scan.plugins.len(), 27);
+    assert_eq!(scan.plugins.len(), 28);
     let good = &scan.plugins[0];
     assert_eq!(good.descriptor.format, PluginFormat::Vst3);
     assert_eq!(good.descriptor.kind, PluginKind::Effect);

@@ -620,7 +620,17 @@ pub struct Runtime {
     bridge_helper: Option<std::path::PathBuf>,
     render_error: Arc<Mutex<Option<String>>>,
     editor_scale_percent: Arc<std::sync::atomic::AtomicU32>,
+    /// Sounding notes per plugin target, for the unit that replaces one.
+    carries: Carries,
 }
+type Carries = Arc<
+    Mutex<
+        std::collections::HashMap<
+            PluginTarget,
+            Arc<Mutex<windfall_plugin_host::project_expression::Carry>>,
+        >,
+    >,
+>;
 impl std::fmt::Debug for Runtime {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("PluginRuntime").finish_non_exhaustive()
@@ -921,6 +931,7 @@ impl Runtime {
             bridge_helper: None,
             render_error: Arc::new(Mutex::new(None)),
             editor_scale_percent: Arc::new(std::sync::atomic::AtomicU32::new(100)),
+            carries: Arc::default(),
         })
     }
     pub fn approve_catalog(&self, catalog: &windfall_plugin_host::scan::PluginCatalog) {
@@ -2240,6 +2251,13 @@ struct ExpressionOwner {
     started: bool,
     dirty: bool,
     gain: f32,
+    /// Order of arrival: the latest sounding note leads the channel stage.
+    serial: u64,
+    /// The channel's share of this note's pan and volume for this frame.
+    host: (f32, f32),
+    /// Played to the plugin by key and channel, because it has no note
+    /// instances. Nothing about this note is sent as an expression.
+    keyed: bool,
 }
 impl ExpressionOwner {
     const EMPTY: Self = Self {
@@ -2256,6 +2274,9 @@ impl ExpressionOwner {
         started: false,
         dirty: false,
         gain: 1.0,
+        serial: 0,
+        host: (1.0, 1.0),
+        keyed: false,
     };
     fn desired(
         self,
@@ -2279,17 +2300,17 @@ impl ExpressionOwner {
         &mut self,
         map: windfall_dsp::ExpressionMap,
         law: Option<windfall_core::PanLaw>,
-        native: bool,
+        routes: windfall_plugin_host::project_expression::Routes,
         rate: f32,
     ) {
         let controls = self.desired(map);
-        if self.started {
-            self.ramp.retarget(controls, law, native, rate);
+        if self.started || self.keyed {
+            self.ramp.retarget(controls, law, routes, rate);
         } else {
             self.ramp =
-                windfall_plugin_host::project_expression::NoteRamp::new(controls, law, native);
+                windfall_plugin_host::project_expression::NoteRamp::new(controls, law, routes);
         }
-        self.frame_controls = self.ramp.current();
+        (self.frame_controls, self.host) = self.ramp.split();
     }
     fn controls(self) -> windfall_plugin_host::PluginNoteExpression {
         self.frame_controls
@@ -2328,8 +2349,148 @@ struct Audio {
     reset_notes: bool,
     transport: Option<windfall_plugin_host::Transport>,
     tempo: Option<f32>,
+    /// Who applies per-note pan and volume for the notes that sound: the
+    /// plugin where it can for every one of them, the channel otherwise.
+    routes: windfall_plugin_host::project_expression::Routes,
+    /// The channel's side: gains for the whole output after the plugin.
+    stage: windfall_plugin_host::project_expression::ChannelStage,
+    next_serial: u64,
+    /// The sounding notes of this plugin target, shared with whichever unit
+    /// replaces this one after the plugin changes what it can do.
+    carry: Option<Arc<Mutex<windfall_plugin_host::project_expression::Carry>>>,
+    carry_dirty: bool,
+    /// Audio ran since the last boundary, so a fade can make progress.
+    progressed: bool,
+    /// The channel's share, held back by the plugin's own latency.
+    share_delay: windfall_plugin_host::project_expression::ShareDelay,
 }
 impl Audio {
+    fn rate(&self) -> f32 {
+        self.pan_ramp_frames as f32 * 200.0
+    }
+    /// Decides the routes for the notes that sound now. A change moves every
+    /// note over the fade, from the next frame on, without touching its
+    /// ramp. Called at the start of a block and when a note starts.
+    fn refresh_routes(&mut self) {
+        use windfall_plugin_host::project_expression::{Routes, fade_frames};
+        let mut routes = Routes::NATIVE;
+        let mut any = false;
+        for note in self
+            .expression_owners
+            .iter()
+            .filter(|note| note.native != 0)
+        {
+            any = true;
+            routes = routes.and(if note.keyed {
+                Routes::CHANNEL
+            } else {
+                self.note_capabilities.routes(note.channel)
+            });
+        }
+        if !any {
+            return;
+        }
+        let fade = fade_frames(self.rate());
+        let changed = routes != self.routes;
+        self.routes = routes;
+        for note in self
+            .expression_owners
+            .iter_mut()
+            .filter(|note| note.native != 0)
+        {
+            // What the plugin no longer offers is the channel's at once;
+            // everything else moves across the fade.
+            note.ramp.limit(if note.keyed {
+                Routes::CHANNEL
+            } else {
+                self.note_capabilities.routes(note.channel)
+            });
+            note.ramp.route(routes, fade);
+        }
+        self.carry_dirty |= changed;
+    }
+    /// The latest sounding note and the channel's share of it.
+    fn leader(&self) -> (u64, (f32, f32)) {
+        let mut leader = (0, (1.0, 1.0));
+        for note in self
+            .expression_owners
+            .iter()
+            .filter(|note| note.native != 0)
+        {
+            if note.serial > leader.0 {
+                leader = (note.serial, note.host);
+            }
+        }
+        leader
+    }
+    fn apply_stage(&mut self, gain: [f32; 2], left: &mut [f32], right: &mut [f32], offset: usize) {
+        if gain == [1.0; 2] {
+            return;
+        }
+        let frames = left.len().min(right.len());
+        for sample in &mut left[..frames] {
+            *sample *= gain[0];
+        }
+        for sample in &mut right[..frames] {
+            *sample *= gain[1];
+        }
+        for output in self.rendered.buses.iter_mut() {
+            for frame in &mut output[offset..offset + frames] {
+                frame[0] *= gain[0];
+                frame[1] *= gain[1];
+            }
+        }
+    }
+    /// Leaves the sounding notes where a replacement can find them. Only a
+    /// unit that still has its plugin writes: one that lost it keeps what it
+    /// wrote in its last block, with every ramp where it stopped.
+    fn store_carry(&mut self) {
+        if !self.carry_dirty || self.adapter().is_none() {
+            return;
+        }
+        let Some(carry) = &self.carry else {
+            return;
+        };
+        if let Ok(mut carry) = carry.try_lock() {
+            carry.store(
+                &self.stage,
+                self.expression_owners
+                    .iter()
+                    .filter(|note| note.native != 0)
+                    .map(|note| windfall_plugin_host::project_expression::Carried {
+                        id: note.id.0,
+                        key: note.key,
+                        channel: note.channel,
+                        serial: note.serial,
+                        ramp: note.ramp,
+                    }),
+            );
+            self.carry_dirty = false;
+        }
+    }
+    /// The ramp a replaced unit left for this note, before this unit has
+    /// played anything. The first one found also brings the channel stage
+    /// over and fades this unit in from silence.
+    fn carried(
+        &mut self,
+        id: windfall_dsp::NoteInstanceId,
+        key: u8,
+        channel: u8,
+    ) -> Option<windfall_plugin_host::project_expression::Carried> {
+        if self.pan_clock != 0 {
+            return None;
+        }
+        let carry = self.carry.as_ref()?.try_lock().ok()?;
+        let found = carry.find(id.0, key, channel)?;
+        if self.next_serial == 0
+            && let Some(stage) = carry.stage()
+        {
+            self.stage.inherit(&stage);
+            self.stage.arrive();
+        }
+        self.next_serial = self.next_serial.max(carry.serial());
+        Some(found)
+    }
     fn reconcile(&mut self) {
         let Self {
             ownership,
@@ -2386,7 +2547,10 @@ impl Audio {
                 *reset_notes = false;
             }
             let mut complete = true;
-            for note in expression_owners.iter_mut().filter(|note| note.native != 0) {
+            for note in expression_owners
+                .iter_mut()
+                .filter(|note| note.native != 0 && !note.keyed)
+            {
                 let accepted = if !note.started {
                     instrument.note_on_expression_instance(
                         note.native,
@@ -2523,12 +2687,36 @@ impl HostedEffect for Audio {
         }
     }
     fn control_boundary(&mut self) {
+        let sounding = self.instrument
+            && (self.expression_owners.iter().any(|note| note.native != 0)
+                || self.held.iter().any(|velocity| *velocity > 0.0));
         if let Some(ownership) = &mut self.ownership {
             if let Some(adapter) = ownership.current() {
                 self.latency = adapter.latency();
                 self.tail = adapter.tail();
             }
-            ownership.boundary();
+            let present = ownership.current().is_some();
+            if present && sounding && ownership.requested() && !self.stage.departed() {
+                // The owner wants the plugin while notes sound. Fade the
+                // output out first, then hand it over at a later boundary.
+                if !self.stage.departing() {
+                    self.stage.depart();
+                    self.progressed = true;
+                }
+                if self.progressed {
+                    self.progressed = false;
+                } else {
+                    // No audio ran since the last boundary: nothing to fade.
+                    ownership.boundary();
+                }
+            } else {
+                if present && !ownership.requested() && self.stage.departing() {
+                    self.stage.resume();
+                }
+                if ownership.boundary() && self.stage.departing() {
+                    self.stage.resume();
+                }
+            }
             if ownership.current().is_none() {
                 self.reconcile_notes = true;
                 self.reset_notes = true;
@@ -2571,18 +2759,41 @@ impl HostedEffect for Audio {
         self.process_sidechain(left, right, None);
     }
     fn process_sidechain(&mut self, left: &mut [f32], right: &mut [f32], key: Option<&[[f32; 2]]>) {
-        if self.instrument
-            && self
-                .expression_owners
-                .iter()
-                .any(|note| note.native != 0 && note.ramp.active())
-        {
+        if !self.instrument {
+            self.process_pan_block(left, right, key, 0);
+            self.pan_clock = self
+                .pan_clock
+                .saturating_add(left.len().min(right.len()) as u64);
+            return;
+        }
+        self.refresh_routes();
+        // A plugin that is away plays nothing, and the ramps of its notes
+        // wait for it where they are.
+        let present = self.adapter().is_some();
+        self.share_delay.set_latency(self.latency);
+        let moving = present
+            && (self.stage.moving()
+                || self.share_delay.pending()
+                || self.share_delay.changes(self.leader())
+                || !self.stage.follows(self.leader().0)
+                || self
+                    .expression_owners
+                    .iter()
+                    .any(|note| note.native != 0 && note.ramp.active()));
+        if moving {
             let frames = left.len().min(right.len());
+            // While the output fades out for a plugin that is leaving, the
+            // notes' ramps wait: they go on in whichever unit plays next.
+            let waiting = self.stage.departing();
             for index in 0..frames {
                 for slot in 0..self.expression_owners.len() {
                     if self.expression_owners[slot].native != 0 {
                         let note = &mut self.expression_owners[slot];
-                        note.frame_controls = note.ramp.tick();
+                        (note.frame_controls, note.host) = if waiting {
+                            note.ramp.split()
+                        } else {
+                            note.ramp.tick_split()
+                        };
                         self.publish_expression_owner(slot);
                     }
                 }
@@ -2592,23 +2803,40 @@ impl HostedEffect for Audio {
                     None,
                     index,
                 );
+                let leader = self.share_delay.push(self.leader());
+                let gain = self.stage.tick(leader.0, leader.1);
+                self.apply_stage(
+                    gain,
+                    &mut left[index..index + 1],
+                    &mut right[index..index + 1],
+                    index,
+                );
                 self.pan_clock = self.pan_clock.saturating_add(1);
             }
+            self.progressed = true;
+            self.carry_dirty = true;
         } else {
             // Publish the exact endpoint even when a callback ends at frame 240.
             for slot in 0..self.expression_owners.len() {
                 let note = &mut self.expression_owners[slot];
-                let controls = note.ramp.current();
+                let (controls, host) = note.ramp.split();
+                note.host = host;
                 if note.native != 0 && note.frame_controls != controls {
                     note.frame_controls = controls;
                     self.publish_expression_owner(slot);
                 }
             }
             self.process_pan_block(left, right, key, 0);
+            if present {
+                let leader = self.leader();
+                let gain = self.stage.tick(leader.0, leader.1);
+                self.apply_stage(gain, left, right, 0);
+            }
             self.pan_clock = self
                 .pan_clock
                 .saturating_add(left.len().min(right.len()) as u64);
         }
+        self.store_carry();
     }
     fn set_param(&mut self, id: u32, value: f32) {
         if !value.is_finite() || !self.controls.iter().any(|control| control.id == id) {
@@ -2723,6 +2951,9 @@ pub(crate) mod ownership_tests;
 #[path = "provider_policy_tests.rs"]
 mod provider_policy_tests;
 #[cfg(all(test, windows))]
+#[path = "route_tests.rs"]
+mod route_tests;
+#[cfg(all(test, windows))]
 #[path = "sidechain_bus_tests.rs"]
 mod sidechain_bus_tests;
 impl HostedInstrument for Audio {
@@ -2737,12 +2968,12 @@ impl HostedInstrument for Audio {
         else {
             return;
         };
+        self.carry_dirty = true;
         self.expression_owners[slot].gain = gain.clamp(0.0, 4.0);
-        let channel = self.expression_owners[slot].channel;
         self.expression_owners[slot].retarget(
             self.expression_map,
             self.apply_pan_law.then_some(self.pan_law),
-            self.note_capabilities.supports_pan_law(channel),
+            self.routes,
             self.pan_ramp_frames as f32 * 200.0,
         );
         self.expression_owners[slot].dirty = true;
@@ -2797,7 +3028,7 @@ impl HostedInstrument for Audio {
             note.retarget(
                 map,
                 self.apply_pan_law.then_some(self.pan_law),
-                self.note_capabilities.supports_pan_law(note.channel),
+                self.routes,
                 self.pan_ramp_frames as f32 * 200.0,
             );
         }
@@ -2827,7 +3058,7 @@ impl HostedInstrument for Audio {
             note.retarget(
                 self.expression_map,
                 Some(law),
-                self.note_capabilities.supports_pan_law(note.channel),
+                self.routes,
                 self.pan_ramp_frames as f32 * 200.0,
             );
             note.dirty = true;
@@ -2859,9 +3090,12 @@ impl HostedInstrument for Audio {
         self.note_capabilities
             .observe_channel(expression.color_group.unwrap_or(0));
         let expression = expression.clamped();
-        if !self.note_instances {
+        // A plugin without note instances is played by key and channel. Its
+        // notes are still owned here, so the channel can apply their pan and
+        // volume after it.
+        let keyed = !self.note_instances;
+        if keyed {
             self.start_on_channel(key, expression.color_group.unwrap_or(0), velocity);
-            return;
         }
         if id.0 == 0 || !velocity.is_finite() {
             return;
@@ -2886,7 +3120,11 @@ impl HostedInstrument for Audio {
             return;
         }
         if self.expression_owners[slot].native != 0 {
-            self.end_instance(self.expression_owners[slot].id);
+            let stolen = self.expression_owners[slot];
+            self.end_instance(stolen.id);
+            if stolen.keyed {
+                self.end_on_channel(stolen.key, stolen.channel);
+            }
         }
         let native = loop {
             let next = self.next_note_id;
@@ -2918,19 +3156,17 @@ impl HostedInstrument for Audio {
             values: mapped.values,
             mask: mapped.mask,
         };
-        let ramp = windfall_plugin_host::project_expression::NoteRamp::new(
-            raw,
-            self.apply_pan_law.then_some(self.pan_law),
-            self.note_capabilities
-                .supports_pan_law(expression.color_group.unwrap_or(0)),
-        );
+        let channel = expression.color_group.unwrap_or(0);
+        let law = self.apply_pan_law.then_some(self.pan_law);
+        let carried = self.carried(id, key.min(127), channel);
+        self.next_serial += 1;
         self.expression_owners[slot] = ExpressionOwner {
-            ramp,
-            frame_controls: ramp.current(),
+            ramp: windfall_plugin_host::project_expression::NoteRamp::EMPTY,
+            frame_controls: windfall_plugin_host::project_expression::NEUTRAL,
             id,
             native,
             key: key.min(127),
-            channel: expression.color_group.unwrap_or(0),
+            channel,
             velocity: velocity.clamp(0.0, 1.0),
             pan: if pan.is_finite() {
                 pan.clamp(-1.0, 1.0)
@@ -2942,20 +3178,65 @@ impl HostedInstrument for Audio {
             started: false,
             dirty: true,
             gain: 1.0,
+            serial: carried.map_or(self.next_serial, |carried| carried.serial),
+            host: (1.0, 1.0),
+            keyed,
         };
+        // The routes take this note's channel into account before its ramp
+        // starts, so it begins on the route it will stay on.
+        self.refresh_routes();
+        let routes = if self
+            .expression_owners
+            .iter()
+            .filter(|note| note.native != 0)
+            .count()
+            == 1
+        {
+            let alone = if keyed {
+                windfall_plugin_host::project_expression::Routes::CHANNEL
+            } else {
+                self.note_capabilities.routes(channel)
+            };
+            self.routes = alone;
+            alone
+        } else {
+            self.routes
+        };
+        let ramp = match carried {
+            // The same note in the unit that replaced its plugin: the value,
+            // its target and the frames it has left carry on; only the
+            // routes move, over the fade.
+            Some(carried) if law.is_some() => {
+                let mut ramp = carried.ramp;
+                ramp.limit(if keyed {
+                    windfall_plugin_host::project_expression::Routes::CHANNEL
+                } else {
+                    self.note_capabilities.routes(channel)
+                });
+                ramp.retarget(raw, law, routes, self.rate());
+                ramp
+            }
+            _ => windfall_plugin_host::project_expression::NoteRamp::new(raw, law, routes),
+        };
+        let note = &mut self.expression_owners[slot];
+        note.ramp = ramp;
+        (note.frame_controls, note.host) = ramp.split();
+        if carried.is_some() {
+            let share = (note.serial, note.host);
+            self.share_delay.prime(share);
+        }
+        self.carry_dirty = true;
         self.publish_expression_owner(slot);
     }
     fn note_off_instance(&mut self, id: windfall_dsp::NoteInstanceId, key: u8) {
-        if self.note_instances {
-            self.end_instance(id);
-        } else {
+        self.end_instance(id);
+        if !self.note_instances {
             self.end_on_channel(key, 0);
         }
     }
     fn note_off_on_channel(&mut self, id: windfall_dsp::NoteInstanceId, key: u8, channel: u8) {
-        if self.note_instances {
-            self.end_instance(id);
-        } else {
+        self.end_instance(id);
+        if !self.note_instances {
             self.end_on_channel(key, channel);
         }
     }
@@ -2991,10 +3272,11 @@ impl HostedInstrument for Audio {
         note.retarget(
             self.expression_map,
             self.apply_pan_law.then_some(self.pan_law),
-            self.note_capabilities.supports_pan_law(note.channel),
+            self.routes,
             self.pan_ramp_frames as f32 * 200.0,
         );
         note.dirty = true;
+        self.carry_dirty = true;
         self.publish_expression_owner(slot);
     }
     fn set_note_pitch(&mut self, id: windfall_dsp::NoteInstanceId, pitch: f32) {
@@ -3010,11 +3292,10 @@ impl HostedInstrument for Audio {
         }
         let key = f32::from(self.expression_owners[slot].key);
         self.expression_owners[slot].pitch = pitch.clamp(key - 120.0, key + 120.0);
-        let channel = self.expression_owners[slot].channel;
         self.expression_owners[slot].retarget(
             self.expression_map,
             self.apply_pan_law.then_some(self.pan_law),
-            self.note_capabilities.supports_pan_law(channel),
+            self.routes,
             self.pan_ramp_frames as f32 * 200.0,
         );
         self.expression_owners[slot].dirty = true;
@@ -3029,6 +3310,7 @@ impl HostedInstrument for Audio {
     fn all_notes_off(&mut self) {
         self.held.fill(0.0);
         self.expression_owners.fill(ExpressionOwner::EMPTY);
+        self.carry_dirty = true;
         if !self.reconcile_notes {
             let accepted = if let Some(Adapter::Instrument(adapter)) = self.adapter_mut() {
                 adapter.all_notes_off()
@@ -3049,7 +3331,7 @@ impl HostedInstrument for Audio {
                 + self
                     .expression_owners
                     .iter()
-                    .filter(|note| note.native != 0)
+                    .filter(|note| note.native != 0 && !note.keyed)
                     .count();
         }
         match self.adapter() {
@@ -3061,7 +3343,7 @@ impl HostedInstrument for Audio {
 
 impl Audio {
     fn publish_expression_owner(&mut self, slot: usize) {
-        if self.reconcile_notes {
+        if self.reconcile_notes || self.expression_owners[slot].keyed {
             return;
         }
         let note = self.expression_owners[slot];
@@ -3103,7 +3385,8 @@ impl Audio {
         };
         let note = self.expression_owners[slot];
         self.expression_owners[slot] = ExpressionOwner::EMPTY;
-        if note.started {
+        self.carry_dirty = true;
+        if note.started && !note.keyed {
             let accepted = if let Some(Adapter::Instrument(adapter)) = self.adapter_mut() {
                 adapter.note_off_instance(note.native, note.expression.release)
             } else {
@@ -3163,6 +3446,8 @@ impl PluginFactory for Runtime {
         let mut runtime = self.clone();
         runtime.render_error = Arc::new(Mutex::new(None));
         runtime.rendering = true;
+        // An offline render never continues a note of the live session.
+        runtime.carries = Arc::default();
         Some(Arc::new(runtime))
     }
     fn render_error(&self) -> Option<String> {
@@ -3314,6 +3599,13 @@ impl PluginFactory for Runtime {
                     reset_notes: false,
                     transport: None,
                     tempo: None,
+                    routes: windfall_plugin_host::project_expression::Routes::NATIVE,
+                    stage: windfall_plugin_host::project_expression::ChannelStage::new(rate as f32),
+                    next_serial: 0,
+                    carry: None,
+                    carry_dirty: false,
+                    progressed: false,
+                    share_delay: windfall_plugin_host::project_expression::ShareDelay::new(0),
                 }) as Box<dyn HostedEffect>)
             }),
         )
@@ -3349,6 +3641,13 @@ impl PluginFactory for Runtime {
                 reset_notes: false,
                 transport: None,
                 tempo: None,
+                routes: windfall_plugin_host::project_expression::Routes::NATIVE,
+                stage: windfall_plugin_host::project_expression::ChannelStage::new(rate as f32),
+                next_serial: 0,
+                carry: None,
+                carry_dirty: false,
+                progressed: false,
+                share_delay: windfall_plugin_host::project_expression::ShareDelay::new(0),
             }) as Box<dyn HostedEffect>)
         })
     }
@@ -3390,6 +3689,20 @@ impl PluginFactory for Runtime {
         let playback = !self.rendering;
         let selection = self.selection(target);
         let fallback_selection = selection.clone();
+        // One carry per plugin target, found here on the control thread and
+        // shared by every unit that plays that target for this provider.
+        let carry = Some(
+            self.carries
+                .lock()
+                .unwrap_or_else(|error| error.into_inner())
+                .entry(target)
+                .or_insert_with(|| {
+                    Arc::new(Mutex::new(
+                        windfall_plugin_host::project_expression::Carry::new(),
+                    ))
+                })
+                .clone(),
+        );
         self.record(
             target,
             self.call(move |owner| {
@@ -3500,6 +3813,16 @@ impl PluginFactory for Runtime {
                     reset_notes: false,
                     transport: None,
                     tempo: None,
+                    routes: windfall_plugin_host::project_expression::Routes::NATIVE,
+                    stage: windfall_plugin_host::project_expression::ChannelStage::new(rate as f32),
+                    next_serial: 0,
+                    carry,
+                    carry_dirty: false,
+                    progressed: false,
+                    // One second is the longest latency this provider admits.
+                    share_delay: windfall_plugin_host::project_expression::ShareDelay::new(
+                        rate as usize,
+                    ),
                 }) as Box<dyn HostedInstrument>)
             }),
         )
@@ -3539,6 +3862,13 @@ impl PluginFactory for Runtime {
                 reset_notes: false,
                 transport: None,
                 tempo: None,
+                routes: windfall_plugin_host::project_expression::Routes::NATIVE,
+                stage: windfall_plugin_host::project_expression::ChannelStage::new(rate as f32),
+                next_serial: 0,
+                carry: None,
+                carry_dirty: false,
+                progressed: false,
+                share_delay: windfall_plugin_host::project_expression::ShareDelay::new(0),
             }) as Box<dyn HostedInstrument>)
         })
     }

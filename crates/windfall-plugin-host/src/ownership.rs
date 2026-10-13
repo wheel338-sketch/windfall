@@ -97,6 +97,11 @@ impl<T> AudioOwnership<T> {
         acquired
     }
 
+    /// True while the owner is asking for the value back.
+    pub fn requested(&self) -> bool {
+        self.requested.load(Ordering::Acquire)
+    }
+
     pub fn current(&self) -> Option<&T> {
         self.current.as_ref()
     }

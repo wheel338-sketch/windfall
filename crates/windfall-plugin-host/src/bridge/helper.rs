@@ -303,7 +303,8 @@ impl Native {
         output.native_drops = 0;
         if discontinuity || needs_parameters || self.notes_uncertain {
             processor.reset();
-            self.expression_ramps.reset();
+            // Notes the snapshot names again keep their ramp in flight.
+            self.expression_ramps.begin_recovery();
             // Recovery uses the prepared native event reserve. Re-activation
             // allocates native buffers and belongs to control/state admission,
             // never to the helper's block-processing path.
@@ -358,6 +359,7 @@ impl Native {
                     }
                 }
             }
+            self.expression_ramps.end_recovery();
         }
         output.left.copy_from_slice(&input.left);
         output.right.copy_from_slice(&input.right);
@@ -437,6 +439,23 @@ impl Native {
             output.output_count = self.instance.layout().audio_outputs.len();
             for bus in 0..output.output_count {
                 processor.copy_output(bus as u32, &mut output.auxiliary.buses[bus][at..end]);
+            }
+            // The channel's share of per-note pan and volume, for the
+            // properties this plugin has no per-note route for.
+            let gain = self.expression_ramps.gain();
+            if gain != [1.0; 2] {
+                for sample in &mut output.left[at..end] {
+                    *sample *= gain[0];
+                }
+                for sample in &mut output.right[at..end] {
+                    *sample *= gain[1];
+                }
+                for bus in 0..output.output_count {
+                    for frame in &mut output.auxiliary.buses[bus][at..end] {
+                        frame[0] *= gain[0];
+                        frame[1] *= gain[1];
+                    }
+                }
             }
             let after = processor.health();
             output.native_drops = output
@@ -865,6 +884,7 @@ fn run(address: SocketAddr) -> io::Result<()> {
     };
     #[cfg(any(target_os = "macos", target_os = "linux"))]
     let mut editor_refusals = crate::gui::bridge_editor::Refusals::default();
+    native.expression_ramps.set_latency(latency);
     let ready = Message::Ready {
         note_instances,
         expression_masks,

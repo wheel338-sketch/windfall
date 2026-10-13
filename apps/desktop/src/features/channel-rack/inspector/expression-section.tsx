@@ -46,7 +46,7 @@ export function ExpressionSection({ channel }: { channel: Channel }) {
   const reload = () => { setReview({ map: structuredClone(channel.expressionMap ?? DEFAULT_EXPRESSION_MAP), revision, generation: getProjectGeneration() }); setFailed(false) }
   return <Section title={t("Note expression mapping")}>
     {(stale || failed) && <Alert><AlertDescription>{stale ? t("The channel changed. Reload the map before applying.") : t("The map could not be applied.")}</AlertDescription></Alert>}
-    {refused && <Alert><AlertDescription>{t("Native Pan, Volume or note instances are unavailable. Choose another plugin destination before applying.")}</AlertDescription></Alert>}
+    {refused && <Alert><AlertDescription>{t("The note capabilities of this plugin are not known yet, or a note uses an invalid MIDI channel. Apply once the instrument is running.")}</AlertDescription></Alert>}
     <FieldGroup>
       {ROUTES.map(({ key, label }) => <FieldGroup key={key}>
         <Field><FieldLabel htmlFor={`${channel.id}-${key}-built`}>{message("{label} · built-in", { label: t(label) })}</FieldLabel>

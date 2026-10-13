@@ -39,11 +39,25 @@ export function useNativeNoteCapabilities(target: PluginTarget | undefined): { c
   }, [channel, revision])
   return result.channel === channel && result.generation === getProjectGeneration() ? { ...result, error: result.error ? localizeBackendText(result.error) : undefined } : {}
 }
-export function panLawSupported(capabilities: PluginNoteCapabilities | undefined, midiChannel = 0) {
-  return Number.isInteger(midiChannel) && midiChannel >= 0 && midiChannel < 16 && capabilities?.projectPanLaw === true && expressionSupported(capabilities, midiChannel, true, true)
+function validChannel(midiChannel: number) {
+  return Number.isInteger(midiChannel) && midiChannel >= 0 && midiChannel < 16
 }
-export function expressionSupported(capabilities: PluginNoteCapabilities | undefined, midiChannel: number, pan: boolean, volume: boolean) {
-  return Number.isInteger(midiChannel) && midiChannel >= 0 && midiChannel < 16 && capabilities?.instances === true && (!pan || capabilities.nativePan[midiChannel] === true) && (!volume || capabilities.nativeVolume[midiChannel] === true)
+/**
+ * Who applies each per-note property on a MIDI channel. A hosted plugin
+ * returns one summed output, so a property it offers per note is applied in
+ * the plugin, and one it does not offer is applied on the channel after it.
+ */
+export function noteRoutes(capabilities: PluginNoteCapabilities | undefined, midiChannel = 0): { pan: "plugin" | "channel"; volume: "plugin" | "channel" } {
+  const native = (offered: boolean[] | undefined) => validChannel(midiChannel) && capabilities?.instances === true && offered?.[midiChannel] === true
+  return { pan: native(capabilities?.nativePan) ? "plugin" : "channel", volume: native(capabilities?.nativeVolume) ? "plugin" : "channel" }
+}
+/** The project pan law reaches every note on a valid channel, by one route or the other. */
+export function panLawSupported(capabilities: PluginNoteCapabilities | undefined, midiChannel = 0) {
+  return validChannel(midiChannel) && capabilities?.projectPanLaw === true
+}
+/** Pan and volume destinations always have a route; only an invalid channel or an unknown plugin refuses them. */
+export function expressionSupported(capabilities: PluginNoteCapabilities | undefined, midiChannel: number, _pan: boolean, _volume: boolean) {
+  return validChannel(midiChannel) && capabilities !== undefined
 }
 export function useNoteChannels(target: PluginTarget | undefined, capabilities: PluginNoteCapabilities | undefined) {
   const patterns = useProjectStore((state) => state.project.patterns)

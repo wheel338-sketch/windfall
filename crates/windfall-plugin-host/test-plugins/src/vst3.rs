@@ -26,7 +26,7 @@ fn cid(index: i32) -> TUID {
 }
 /// How many classes the factory offers. New ones are appended, so the
 /// positions and ids of the earlier ones do not move.
-const CLASSES: i32 = 27;
+const CLASSES: i32 = 28;
 /// The auxiliary input buses of the multi-detector class, after its main
 /// stereo bus: their names and speaker arrangements (left; left and right;
 /// left, right and both surrounds).
@@ -94,6 +94,7 @@ impl IPluginFactoryTrait for Factory {
                         "VST3 MIDI Mapping Instrument",
                         "VST3 Dynamic Capabilities",
                         "VST3 Project Expression Probe",
+                        "VST3 Volume Expression Probe",
                     ][index as usize],
                 ),
             });
@@ -126,9 +127,11 @@ impl IPluginFactoryTrait for Factory {
                     || class == cid(12)
                     || class == cid(23)
                     || class == cid(24)
-                    || class == cid(26),
-                expression_probe: class == cid(23) || class == cid(26),
+                    || class == cid(26)
+                    || class == cid(27),
+                expression_probe: class == cid(23) || class == cid(26) || class == cid(27),
                 project_expression_probe: class == cid(26),
+                volume_expression_probe: class == cid(27),
                 midi_mapping: class == cid(24),
                 midi_bend: std::array::from_fn(|_| {
                     std::sync::atomic::AtomicU64::new(0.5_f64.to_bits())
@@ -227,10 +230,11 @@ impl IPluginFactory2Trait for Factory {
                         "VST3 MIDI Mapping Instrument",
                         "VST3 Dynamic Capabilities",
                         "VST3 Project Expression Probe",
+                        "VST3 Volume Expression Probe",
                     ][index as usize],
                 ),
                 classFlags: 0,
-                subCategories: chars(if index == 2 || index == 12 || index == 23 || index == 24 || index == 26 {
+                subCategories: chars(if index == 2 || index == 12 || index == 23 || index == 24 || index == 26 || index == 27 {
                     "Instrument|Synth"
                 } else {
                     "Fx|Tools"
@@ -255,6 +259,8 @@ struct Component {
     instrument: bool,
     expression_probe: bool,
     project_expression_probe: bool,
+    /// Volume per note, and no pan: the mirror of the plain expression probe.
+    volume_expression_probe: bool,
     midi_mapping: bool,
     midi_bend: [std::sync::atomic::AtomicU64; 16],
     bridge_note_probe: bool,

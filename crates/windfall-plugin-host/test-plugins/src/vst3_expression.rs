@@ -149,7 +149,13 @@ impl INoteExpressionControllerTrait for Component {
             return kInvalidArgument;
         }
         let mut value: NoteExpressionTypeInfo = unsafe { std::mem::zeroed() };
-        value.typeId = if self.project_expression_probe { [0, 1, 2, 4, 5][index as usize] } else { [1, 2, 4, 5][index as usize] };
+        value.typeId = if self.project_expression_probe {
+            [0, 1, 2, 4, 5][index as usize]
+        } else if self.volume_expression_probe {
+            [0, 2, 4, 5][index as usize]
+        } else {
+            [1, 2, 4, 5][index as usize]
+        };
         value.unitId = -1;
         value.valueDesc.defaultValue = 0.5;
         value.valueDesc.maximum = 1.0;
