@@ -129,6 +129,12 @@ fn hosted_fixture(vst3: bool) {
     let preset = Preset::of_channel("Native node", body, None);
     let loaded = Preset::from_json(preset.to_json().unwrap().as_bytes()).unwrap().0;
     assert_eq!(loaded.channel.unwrap().rack.unwrap().nodes[1].hosted, captured.settings.modular_racks[0].graph.nodes[1].hosted);
+    let project_file = rig.session.project_save(Some(&rig.file("native rack.windfall"))).unwrap();
+    let on_disk = windfall_project::file::from_json(&std::fs::read_to_string(&project_file).unwrap()).unwrap();
+    assert_eq!(on_disk.plugin(target).unwrap().state, captured.plugin(target).unwrap().state);
+    rig.session.project_open(&project_file).unwrap();
+    rig.run(480);
+    assert_eq!(rig.project().plugin(target).unwrap().state, on_disk.plugin(target).unwrap().state);
     let before = rig.project();
     rig.session.dispatch(Command::SetChannelRack { id: channel, graph: None, expected: None }, None).unwrap();
     let mut out = [0.0; 960];
