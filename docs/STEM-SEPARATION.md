@@ -187,7 +187,7 @@ and runtime scratch, and sets native manager admission to 3 GiB memory / 24 GiB 
 These are cooperative reservations, not an ORT allocator sandbox or measured
 RSS guarantee. Scratch includes the runtime's own workspace and model allocations;
 imported model bytes are charged separately. The native UMX-HQ 1.0.1 harness
-initially measured a process peak of about 852 MiB (later runs about 864 MiB),
+initially measured a process peak of about 852 MiB (later runs reached about 918 MiB),
 including the harness, codecs and
 playback pool. That exceeded the former aggregate reservation of about 672 MiB,
 so the scratch allowance was raised from 512 to 768 MiB. Other packs require
