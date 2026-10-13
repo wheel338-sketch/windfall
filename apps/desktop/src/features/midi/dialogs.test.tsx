@@ -49,7 +49,7 @@ describe("MIDI dialogs", () => {
     act(() => setLanguage("es"))
     expect(screen.getByRole("button", { name: "Elegir archivo MIDI…" })).toBeVisible()
     expect(screen.getByRole("checkbox", { name: "Importar el primer compás" })).toBeVisible()
-    expect(screen.getByText("Se añadirán 1 canal, 1 patrón, 1 clip y 1 nota.")).toBeVisible()
+    expect(screen.getByText("Se añadirán 1 canal, 1 patrón, 1 fragmento MIDI y 1 nota.")).toBeVisible()
     expect(screen.getByText("Lead")).toBeVisible()
     expect(screen.getByText("No se han importado 2 marcadores")).toBeVisible()
     expect(screen.getByRole("button", { name: "Importar" })).toBeEnabled()

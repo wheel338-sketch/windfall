@@ -138,6 +138,10 @@ impl Reply {
             while !cancel.load(Ordering::Acquire) && Instant::now()<deadline {
                 match listener.accept() {
                     Ok((mut stream,_))=>{
+                        // Winsock inherits the listener's nonblocking mode.
+                        // Accepted clients may connect before their headers arrive;
+                        // use the bounded blocking reads below on every platform.
+                        if stream.set_nonblocking(false).is_err() { continue; }
                         let _=stream.set_read_timeout(Some(Duration::from_secs(1)));
                         let _=stream.set_write_timeout(Some(Duration::from_secs(2)));
                         let Ok(request) = read_request(&mut stream, &cancel, deadline) else { continue; };
@@ -170,6 +174,37 @@ impl Drop for Reply {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn replay_accepts_connected_clients_whose_headers_arrive_after_accept() {
+        let bytes = b"delayed authenticated update replay".to_vec();
+        let reply = Reply::new(bytes.clone()).unwrap();
+        let mut client = std::net::TcpStream::connect((
+            std::net::Ipv4Addr::LOCALHOST,
+            reply.url.port().unwrap(),
+        ))
+        .unwrap();
+        client
+            .set_read_timeout(Some(Duration::from_secs(2)))
+            .unwrap();
+        client
+            .set_write_timeout(Some(Duration::from_secs(2)))
+            .unwrap();
+        // Give the 10 ms accept loop time to observe a connection without headers.
+        // This must use its bounded reads, rather than inherit nonblocking mode.
+        std::thread::sleep(Duration::from_millis(100));
+        write!(
+            client,
+            "GET {} HTTP/1.1\r\nHost: 127.0.0.1\r\n\r\n",
+            reply.url.path()
+        )
+        .unwrap();
+        let mut response = Vec::new();
+        client.read_to_end(&mut response).unwrap();
+        assert!(response.starts_with(b"HTTP/1.1 200 OK\r\n"));
+        let body = response.windows(4).position(|v| v == b"\r\n\r\n").unwrap() + 4;
+        assert_eq!(&response[body..], bytes);
+    }
+
     #[test]
     fn dripfed_replay_headers_cannot_extend_the_absolute_deadline() {
         let listener = TcpListener::bind((std::net::Ipv4Addr::LOCALHOST, 0)).unwrap();

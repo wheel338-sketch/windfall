@@ -18,6 +18,14 @@ function create() {
 }
 
 describe("mock backend: document", () => {
+  it("preserves reserved native messages through string and Error refusals", () => {
+    const source = 'windfall-message:{"code":"midi.import.markersNotImported","params":{"count":2}}'
+    expect(errorMessage(source)).toBe(source)
+    expect(errorMessage(new Error(source))).toBe(source)
+    const malformed = "windfall-message:{"
+    expect(errorMessage(malformed)).toBe(malformed)
+  })
+
   it("starts with the demo project, clean and unsaved", async () => {
     const snapshot = await create().documentSnapshot()
     expect(snapshot).toMatchObject({ revision: 0, dirty: false, path: null })

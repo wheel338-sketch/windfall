@@ -829,7 +829,10 @@ impl Controller {
         state.transport.playing = true;
         state.sequence = state.sequence.wrapping_add(1);
         let sequence = state.sequence;
-        let from = (state.transport.mode == windfall_ipc::PlayMode::Song
+        // Imported Start markers select an ordinary playback origin. Offline
+        // finite passes retain the renderer's explicit full-song/region origin.
+        let from = (passes.is_none()
+            && state.transport.mode == windfall_ipc::PlayMode::Song
             && state.region.is_none()
             && self.inner.shared.tick() == 0.0)
             .then_some(state.plan.song_start)

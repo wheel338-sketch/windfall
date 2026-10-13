@@ -11,6 +11,72 @@ use crate::support::{Rig, counted, counting, left, run};
 const RATE: u32 = 48_000;
 
 #[test]
+fn imported_start_anchor_does_not_shift_whole_song_streaming_or_stem_exports() {
+    let reference = tape();
+    let mut imported = tape();
+    marker(&mut imported, 100, MarkerKind::Start);
+    marker(&mut imported, 110, MarkerKind::Punch { end: 130 });
+    for sample_rate in [22_050, RATE, 96_000] {
+        for region in [
+            None,
+            Some(TickRange { start: 0, end: 300 }),
+            Some(TickRange {
+                start: 100,
+                end: 300,
+            }),
+        ] {
+            let options = RenderOptions {
+                mode: PlayMode::Song,
+                sample_rate,
+                region,
+                block_frames: 37,
+                ..Default::default()
+            };
+            let expected = render(&reference.project, &reference.pool, &options, &mut |_| true);
+            let actual = render(&imported.project, &imported.pool, &options, &mut |_| true);
+            assert_eq!(
+                actual.samples(),
+                expected.samples(),
+                "rate={sample_rate}, region={region:?}"
+            );
+            let mut streamed = Vec::new();
+            let outcome = render_streaming_checked(
+                &imported.project,
+                &imported.pool,
+                &options,
+                &mut |block| {
+                    streamed.extend_from_slice(block);
+                    true
+                },
+                &mut |_| true,
+            )
+            .unwrap();
+            assert!(outcome.completed);
+            assert_eq!(streamed, expected.samples());
+            let mut mix = Vec::new();
+            render_stems(
+                &imported.project,
+                &imported.pool,
+                &options,
+                &StemOptions {
+                    mode: StemMode::TrackOutputs,
+                    tracks: Some(Vec::new()),
+                    include_mix: true,
+                    numbered: false,
+                },
+                &mut |_, block| {
+                    mix.extend_from_slice(block);
+                    true
+                },
+                &mut |_| true,
+            )
+            .unwrap();
+            assert_eq!(mix, expected.samples());
+        }
+    }
+}
+
+#[test]
 fn imported_start_anchor_and_punch_marker_preserve_real_transport_frames_without_navigation() {
     let mut rig = tape();
     marker(&mut rig, 100, MarkerKind::Start);

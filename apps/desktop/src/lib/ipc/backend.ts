@@ -524,5 +524,9 @@ function rejectionText(error: unknown): string {
  */
 export function errorMessage(error: unknown): string {
   const text = rejectionText(error)
+  // Reserved native envelopes are protocol data. Retain the exact code and
+  // parameters so consumers can translate them when they render, including
+  // after a language change. Capitalization applies only to legacy prose.
+  if (text.startsWith("windfall-message:")) return text
   return text.charAt(0).toUpperCase() + text.slice(1)
 }
