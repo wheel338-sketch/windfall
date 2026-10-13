@@ -49,6 +49,19 @@ fn write_record(root: &Path, record: &ExtractionRecord) -> Result<(), String> {
     )
     .map_err(|e| format!("Could not record extracted audio ownership: {e}"))
 }
+// Windows will not remove or move a byte-range-locked file. Serialize collectors
+// using a lock outside the child being reclaimed, then release its owner lease.
+// Another session cannot claim the child during that short filesystem operation.
+fn collector_lease(managed: &Path) -> std::io::Result<File> {
+    let lease = File::options()
+        .read(true)
+        .write(true)
+        .create(true)
+        .truncate(false)
+        .open(managed.join("collector.owner-lock"))?;
+    lease.lock()?;
+    Ok(lease)
+}
 fn under(root: &Path, source: &Path) -> bool {
     let root = paths::clean(root);
     let source = paths::clean(source);
@@ -86,6 +99,9 @@ impl Extractions {
     pub(super) fn recover(managed: &Path) -> (Self, Vec<String>) {
         let mut registry = Self::default();
         let mut warnings = Vec::new();
+        let Ok(_collector) = collector_lease(managed) else {
+            return (registry, warnings);
+        };
         let Ok(listing) = fs::read_dir(managed) else {
             return (registry, warnings);
         };
@@ -150,6 +166,7 @@ impl Extractions {
                     continue;
                 }
                 let target = recovery.join(root.file_name().unwrap());
+                drop(owner);
                 match fs::rename(&root, &target) {
                     Ok(()) => {
                         registry.recovered.push(target.join("project.windfall"));
@@ -161,6 +178,7 @@ impl Extractions {
                     )),
                 }
             } else {
+                drop(owner);
                 if let Err(error) = fs::remove_dir_all(&root) {
                     warnings.push(format!(
                         "Could not reclaim abandoned extraction {}: {error}",
@@ -204,14 +222,18 @@ impl Drop for Extractions {
                     .any(|path| referenced(&root, path).unwrap_or(true))
                 && let Some(managed) = root.parent()
                 && managed_child(&root, managed)
-                && let Err(error) = fs::remove_dir_all(&root)
+                && let Ok(_collector) = collector_lease(managed)
             {
-                log::warn!(
-                    "Could not reclaim ended-session preset capture {}: {error}",
-                    paths::display(&root)
-                );
+                drop(owner);
+                if let Err(error) = fs::remove_dir_all(&root) {
+                    log::warn!(
+                        "Could not reclaim ended-session preset capture {}: {error}",
+                        paths::display(&root)
+                    );
+                }
+            } else {
+                drop(owner);
             }
-            drop(owner);
         }
     }
 }
@@ -268,7 +290,9 @@ impl Session {
         let target = root.path().join(name);
         fs::copy(source, &target)
             .map_err(|e| format!("Could not preserve preset capture audio: {e}"))?;
-        File::open(&target)
+        File::options()
+            .write(true)
+            .open(&target)
             .and_then(|file| file.sync_all())
             .map_err(|e| e.to_string())?;
         let root = root.keep();
@@ -328,6 +352,15 @@ impl Session {
         let Ok(_saving) = self.inner.save.try_lock() else {
             return;
         };
+        let managed = self
+            .store()
+            .recordings_dir()
+            .parent()
+            .unwrap_or(Path::new("."))
+            .join("projects");
+        let Ok(_collector) = collector_lease(&managed) else {
+            return;
+        };
         let (sources, sample_dir, project_path) = {
             let state = self.state();
             let sources: Vec<_> = state
@@ -369,12 +402,6 @@ impl Session {
             });
             retired
         };
-        let managed = self
-            .store()
-            .recordings_dir()
-            .parent()
-            .unwrap_or(Path::new("."))
-            .join("projects");
         for root in retired {
             // Only direct, marked and exclusively owned children.
             // also refuse one here so a renamed/replaced root never becomes a traversal.
@@ -385,12 +412,13 @@ impl Session {
             {
                 continue;
             }
-            // Hold the OS lease through deletion so another recovering session
-            // cannot claim this root between the reference check and removal.
+            // The collector lease prevents recovery while Windows requires us
+            // to release the child's byte-range owner lock before removal.
             let owner = lock(&self.inner.extractions).owners.remove(&root);
             if owner.is_none() {
                 continue;
             }
+            drop(owner);
             if std::fs::symlink_metadata(&root)
                 .is_ok_and(|meta| meta.file_type().is_dir() && !meta.file_type().is_symlink())
                 && let Err(error) = std::fs::remove_dir_all(&root)
@@ -401,7 +429,12 @@ impl Session {
                 )]));
                 let mut registry = lock(&self.inner.extractions);
                 registry.roots.push(root.clone());
-                if let Some(owner) = owner {
+                if let Ok(owner) = File::options()
+                    .read(true)
+                    .write(true)
+                    .open(root.join(OWNER_LOCK))
+                    && owner.try_lock().is_ok()
+                {
                     registry.owners.insert(root, owner);
                 }
             }
@@ -472,7 +505,12 @@ mod tests {
         fs::create_dir(root.join("samples")).unwrap();
         let audio = root.join("samples/exact.bin");
         fs::write(&audio, [19, 27, 0, 255, 45]).unwrap();
-        File::open(&audio).unwrap().sync_all().unwrap();
+        File::options()
+            .write(true)
+            .open(&audio)
+            .unwrap()
+            .sync_all()
+            .unwrap();
         let mut project = Project::new("Recover");
         let id = SampleId(project.next_id);
         project.next_id += 1;

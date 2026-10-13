@@ -209,7 +209,16 @@ fn audio_and_automation_pads_loop_route_and_restore_without_song_playback() {
             hold: true,
         }],
     });
-    let track = project.playlist.tracks[0].id;
+    let track = PlaylistTrackId(project.next_id);
+    project.next_id += 1;
+    project.playlist.tracks.push(PlaylistTrack {
+        id: track,
+        name: "Pad clips".into(),
+        muted: false,
+        solo: false,
+        color: 0,
+        height: 0,
+    });
     project.playlist.clips.push(Clip {
         id: clip,
         track,

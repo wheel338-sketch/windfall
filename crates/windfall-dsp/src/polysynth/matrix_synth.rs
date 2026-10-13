@@ -1,8 +1,5 @@
 use super::operators::{self, MatrixOperator, OperatorWave};
-use super::{
-    core,
-    runtime::{Context, Frame, Patch, Tone, instrument},
-};
+use super::runtime::{Context, Frame, Patch, Tone, instrument};
 use crate::EnvelopeParams;
 use crate::param::param_set;
 use serde::{Deserialize, Serialize};
@@ -263,11 +260,14 @@ impl Patch for MatrixSynthParams {
     fn configure(&self, t: &mut Tone, rate: f32) {
         operators::configure(&self.operators, t, rate);
     }
+    #[inline(always)]
     fn sample(&self, t: &mut Tone, c: &Context) -> (f32, f32) {
         let mut sum = (0.0, 0.0);
+        let unison = t
+            .matrix_unison
+            .prepare(self.unison as usize, self.detune_cents, self.spread);
         for u in 0..self.unison as usize {
-            let pos = core::unison_position(u, self.unison as usize);
-            let pitch = c.pitch + pos * self.detune_cents / 100.0 + c.lfo * self.lfo_pitch;
+            let pitch = c.pitch + unison.offsets[u] + c.lfo * self.lfo_pitch;
             let ops = operators::matrix(
                 t,
                 c,
@@ -278,8 +278,13 @@ impl Patch for MatrixSynthParams {
                 pitch,
                 self.lfo_index,
             );
-            let raw = ops.iter().zip(self.output).map(|(v, g)| v * g).sum::<f32>();
-            let pan = t.pan(u, pos * self.spread);
+            let raw = ops[0] * self.output[0]
+                + ops[1] * self.output[1]
+                + ops[2] * self.output[2]
+                + ops[3] * self.output[3]
+                + ops[4] * self.output[4]
+                + ops[5] * self.output[5];
+            let pan = unison.pans[u];
             sum.0 += raw * pan.0;
             sum.1 += raw * pan.1;
         }

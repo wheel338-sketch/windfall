@@ -218,7 +218,15 @@ impl Oscillator {
 
     #[inline]
     pub(crate) fn advance(&mut self, increment: f32) {
-        self.phase += increment.clamp(0.0, MAX_INCREMENT);
+        self.advance_bounded(increment.clamp(0.0, MAX_INCREMENT));
+    }
+
+    /// Prepared operator increments have already been clamped to this range.
+    /// Keep the generic advance's clamp at its other call sites, and avoid
+    /// repeating that sanitation for both substeps of each matrix operator.
+    #[inline]
+    pub(crate) fn advance_bounded(&mut self, increment: f32) {
+        self.phase += increment;
         if self.phase >= 1.0 {
             self.phase -= 1.0;
         }
@@ -230,6 +238,19 @@ mod tests {
     use super::*;
 
     const RATE: f64 = 48_000.0;
+    #[test]
+    fn bounded_prepared_increments_preserve_generic_phase_bits() {
+        for i in 0..1024 {
+            let increment = i as f32 / 1023.0 * MAX_INCREMENT;
+            let mut generic = Oscillator::new(i as f32 * 0.137);
+            let mut prepared = generic;
+            for _ in 0..1024 {
+                generic.advance(increment);
+                prepared.advance_bounded(increment);
+                assert_eq!(generic.phase().to_bits(), prepared.phase().to_bits());
+            }
+        }
+    }
 
     #[test]
     fn dense_sine_polynomial_is_bounded_against_independent_trigonometry() {

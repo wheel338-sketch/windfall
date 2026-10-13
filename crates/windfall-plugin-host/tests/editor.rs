@@ -129,7 +129,12 @@ fn joined_vst3_fixture_monitor_scaling_preserves_the_real_view_and_native_owner(
         }));
         // SAFETY: live native host HWND, on its GUI owner thread.
         assert_eq!(
-            unsafe { GetParent(window as *mut std::ffi::c_void) } as usize,
+            unsafe {
+                windows_sys::Win32::UI::WindowsAndMessaging::GetWindow(
+                    window as *mut std::ffi::c_void,
+                    windows_sys::Win32::UI::WindowsAndMessaging::GW_OWNER,
+                )
+            } as usize,
             owner_window
         );
     }

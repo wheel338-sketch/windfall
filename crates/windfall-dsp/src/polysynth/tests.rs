@@ -1,4 +1,5 @@
 use super::*;
+
 use crate::{AnyInstrument, InstrumentKind, InstrumentParams};
 
 #[test]

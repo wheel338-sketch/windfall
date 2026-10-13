@@ -159,7 +159,7 @@ impl ScriptLibrary {
                 }),
                 map: binding.map.clone(),
             };
-            if let Some(problem) = crate::controller_links::links_problem(&[link], None) {
+            if let Some(problem) = link.problem() {
                 return Err(problem);
             }
             let asset = self
@@ -186,6 +186,20 @@ impl ScriptLibrary {
     /// Admission validates every stored event against its assigned bytecode.
     /// An invalid transform cannot silently delete notes in a checked project.
     pub fn check_notes(&self, project: &crate::Project) -> Result<(), String> {
+        for binding in &self.controllers {
+            if let Some(target) = binding.target {
+                let link = crate::ControllerLink {
+                    source: binding.source.clone(),
+                    target,
+                    map: binding.map.clone(),
+                };
+                if let Some(problem) =
+                    crate::controller_links::links_problem(&[link], Some(project))
+                {
+                    return Err(problem);
+                }
+            }
+        }
         for binding in &self.channels {
             let Some(transform) = self.channel_transform(binding.channel) else {
                 continue;

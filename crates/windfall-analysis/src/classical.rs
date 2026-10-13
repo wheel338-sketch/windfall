@@ -120,6 +120,11 @@ fn mono_notes(
 ) -> Result<Vec<DetectedAudioNote>> {
     let config = PitchConfig {
         sample_rate: audio.sample_rate(),
+        // The calibrated detector requires at least eight samples per period.
+        // Keep its musical ceiling where supported, including 8 kHz sources.
+        max_hz: PitchConfig::default()
+            .max_hz
+            .min(f64::from(audio.sample_rate()) / 8.0),
         hop_frames: (audio.sample_rate() / 100).max(1),
         ..PitchConfig::default()
     };

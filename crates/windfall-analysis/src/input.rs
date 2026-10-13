@@ -374,7 +374,11 @@ impl CapturedInput {
             audio: None,
             file: Some(std::sync::Mutex::new(file)),
             stamp,
-            retained_bytes: 64 * 1024,
+            // No PCM, pathname, or read buffers survive capture: only the
+            // inline stamp, weak identity, mutex and OS handle remain. Reserve
+            // a full chunk for this compact metadata; working read buffers
+            // belong to the consuming algorithm's scratch allowance.
+            retained_bytes: CHUNK_BYTES as u64,
         })
     }
     /// Selected PCM in bounded whole-frame blocks, from either storage kind.

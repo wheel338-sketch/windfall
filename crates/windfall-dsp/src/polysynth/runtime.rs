@@ -58,6 +58,8 @@ pub(super) struct Tone {
     cutoff_cache: Option<([f32; 3], f32)>,
     drive_cache: Option<(f32, f32, f32)>,
     pub matrix_cache: [super::operators::MatrixCache; UNISON],
+    pub matrix_graph: super::operators::MatrixGraph,
+    pub matrix_unison: UnisonCache,
     pub oscillators: [[Oscillator; 6]; UNISON],
     pub previous: [[f32; 6]; UNISON],
     pub operators: [Adsr; 6],
@@ -81,6 +83,8 @@ impl Default for Tone {
     fn default() -> Self {
         Self {
             matrix_cache: [super::operators::MatrixCache::default(); UNISON],
+            matrix_graph: super::operators::MatrixGraph::default(),
+            matrix_unison: UnisonCache::default(),
             increment_cache: [[(f32::NAN, f32::NAN, 0.0); 7]; UNISON],
             pan_cache: [None; UNISON],
             filter_cache: None,
@@ -197,6 +201,40 @@ pub(super) struct Context<'a> {
     pub bpm: f32,
     pub assets: Option<&'a PackAssets>,
 }
+
+#[derive(Clone, Copy)]
+pub(super) struct UnisonFrame {
+    count: usize,
+    detune: f32,
+    spread: f32,
+    pub offsets: [f32; UNISON],
+    pub pans: [(f32, f32); UNISON],
+}
+#[derive(Default)]
+pub(super) struct UnisonCache(Option<UnisonFrame>);
+impl UnisonCache {
+    #[inline]
+    pub fn prepare(&mut self, count: usize, detune: f32, spread: f32) -> UnisonFrame {
+        if let Some(frame) = self.0
+            && frame.count == count
+            && frame.detune == detune
+            && frame.spread == spread
+        {
+            return frame;
+        }
+        let positions = std::array::from_fn::<_, UNISON, _>(|u| core::unison_position(u, count));
+        let frame = UnisonFrame {
+            count,
+            detune,
+            spread,
+            offsets: positions.map(|position| position * detune / 100.0),
+            pans: positions.map(|position| core::pan_gains(position * spread)),
+        };
+        self.0 = Some(frame);
+        frame
+    }
+}
+
 pub(super) struct OperatorGraph {
     pub fm: [[f32; 6]; 6],
     pub outputs: [f32; 6],
@@ -259,6 +297,7 @@ impl<P: Patch> Default for Runtime<P> {
 impl<P: Patch> Instrument for Runtime<P> {
     type Params = P;
     fn prepare(&mut self, rate: f32, _max_block: usize) {
+        let _ = super::operators::prepare_vector_features();
         self.rate = core::rate(rate);
         if P::NEEDS_ASSETS && self.assets.is_none() {
             self.assets = Some(PackAssets::shared());
@@ -326,9 +365,21 @@ impl<P: Patch> Instrument for Runtime<P> {
         tail
     }
     fn process(&mut self, left: &mut [f32], right: &mut [f32]) {
+        // If the current configured graph already equals the target graph,
+        // smoothing unrelated controls cannot change it anywhere in this block.
+        // Graph/envelope edits keep the per-sample comparison and preparation.
+        let configuration_may_change = self
+            .configuration
+            .as_ref()
+            .is_none_or(|previous| self.controls.target().configuration_changed(previous));
+        let target_frame = self.controls.target().frame();
+        let envelopes_may_change = self.envelope_configuration.is_none_or(|(amp, filter)| {
+            amp != target_frame.amp || filter != target_frame.filter_env
+        });
         for (left, right) in left.iter_mut().zip(right) {
             let (p, changed) = self.controls.tick();
             let configure = changed
+                && configuration_may_change
                 && self
                     .configuration
                     .as_ref()
@@ -338,13 +389,17 @@ impl<P: Patch> Instrument for Runtime<P> {
                 self.configuration = Some(p);
             }
             let f = p.frame();
-            let amp_changed = self
-                .envelope_configuration
-                .is_none_or(|(amp, _)| amp != f.amp);
-            let filter_changed = self
-                .envelope_configuration
-                .is_none_or(|(_, filter)| filter != f.filter_env);
-            self.envelope_configuration = Some((f.amp, f.filter_env));
+            let amp_changed = envelopes_may_change
+                && self
+                    .envelope_configuration
+                    .is_none_or(|(amp, _)| amp != f.amp);
+            let filter_changed = envelopes_may_change
+                && self
+                    .envelope_configuration
+                    .is_none_or(|(_, filter)| filter != f.filter_env);
+            if amp_changed || filter_changed {
+                self.envelope_configuration = Some((f.amp, f.filter_env));
+            }
             let lfo = (TAU * self.lfo_phase).sin();
             core::advance(&mut self.lfo_phase, f.lfo_rate / self.rate);
             let mut sum = (0.0, 0.0);
@@ -529,3 +584,33 @@ macro_rules! instrument {
     };
 }
 pub(super) use instrument;
+
+#[cfg(test)]
+mod unison_tests {
+    use super::*;
+    #[test]
+    fn prepared_matrix_unison_matches_original_positions_and_pan_bits() {
+        let mut cache = UnisonCache::default();
+        for count in 1..=UNISON {
+            for detune in [-50.0, 0.0, 23.7] {
+                for spread in [0.0, 0.3, 1.0] {
+                    for _ in 0..2 {
+                        let frame = cache.prepare(count, detune, spread);
+                        for u in 0..count {
+                            let position = core::unison_position(u, count);
+                            assert_eq!(
+                                frame.offsets[u].to_bits(),
+                                (position * detune / 100.0).to_bits()
+                            );
+                            let expected = core::pan_gains(position * spread);
+                            assert_eq!(
+                                (frame.pans[u].0.to_bits(), frame.pans[u].1.to_bits()),
+                                (expected.0.to_bits(), expected.1.to_bits())
+                            );
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

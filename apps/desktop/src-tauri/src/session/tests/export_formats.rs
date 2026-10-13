@@ -167,7 +167,7 @@ fn every_format_is_exported_and_reads_back_as_the_song() {
     }
     assert_eq!(
         written(&rig),
-        ["beat.flac", "beat.mp3", "beat.ogg", "beat.wav"]
+        ["beat.flac", "beat.mp3", "beat.ogg", "beat.wav", "beat.wv"]
     );
 }
 

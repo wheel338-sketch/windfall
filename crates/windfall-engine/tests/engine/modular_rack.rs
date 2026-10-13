@@ -352,7 +352,11 @@ fn auxiliary_audio_ports_match_independent_split_outputs_and_muting_clears_every
         windfall_dsp::EffectKind::TransientSplit,
     ] {
         for port in 0..kind.aux_outputs().len() {
-            let params = kind.default_params();
+            let params = if kind == windfall_dsp::EffectKind::SendTap {
+                EffectParams::SendTap(windfall_dsp::sendtap::SendTapParams { level: 0.75 })
+            } else {
+                kind.default_params()
+            };
             let graph = RackGraph {
                 next_id: 4,
                 nodes: vec![

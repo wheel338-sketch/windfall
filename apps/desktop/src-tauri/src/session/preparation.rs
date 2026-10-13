@@ -74,7 +74,7 @@ impl ProjectPreparation {
                 // Join picture bytes and PCM from one immutable read.
                 use std::io::Read;
                 let file = std::fs::File::open(&video.path)
-                    .map_err(|error| format!("Cannot open video '{}': {error}", video.path))?;
+                    .map_err(|error| format!("Cannot decode video audio '{}': cannot open video: {error}. Mute it or restore the file.", video.path))?;
                 let mut bytes = Vec::new();
                 file.take(windfall_codec::MAX_VIDEO_FILE_BYTES + 1)
                     .read_to_end(&mut bytes)

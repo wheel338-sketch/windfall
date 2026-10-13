@@ -575,7 +575,11 @@ mod bank_budget_tests {
         let (decoded, workspace) = cache.decode_sample_bank(&path, &budget).unwrap();
         assert_eq!(decoded.samples(), audio.samples());
         assert_eq!(budget.used(), 64);
+        // Decoder scratch has retired; the 64-byte PCM leaves 192 bytes free.
+        assert!(budget.reserve(193).is_err());
+        let remaining = budget.reserve(192).unwrap();
         assert!(budget.reserve(1).is_err());
+        drop(remaining);
         drop(workspace);
         assert_eq!(budget.used(), 0);
     }

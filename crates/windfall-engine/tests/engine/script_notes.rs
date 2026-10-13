@@ -182,11 +182,10 @@ fn scripted_short_long_and_duplicated_durations_match_manual_score_live_and_offl
                 expected.samples(),
                 "scale={scale} copies={copies}"
             );
-            assert_eq!(
-                actual.samples(),
-                rig.play_song(48_000, actual.frames(), 251)
-            );
             let (mut processor, controller) = rig.song_processor(48_000);
+            let latency = controller.latency_frames() as usize;
+            let played = rig.play_song(48_000, actual.frames() + latency, 251);
+            assert_eq!(actual.samples(), &played[latency * 2..]);
             controller.play();
             let mut block = [0.0; 502];
             for _ in 0..actual.frames().div_ceil(251) {

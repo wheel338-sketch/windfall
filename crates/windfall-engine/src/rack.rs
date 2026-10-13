@@ -111,7 +111,7 @@ impl EffectUnit {
     }
     /// Native instances and engine control producers retain the callback lane.
     pub fn parallel_safe(&self) -> bool {
-        self.external.is_none() && !self.control_enabled()
+        self.external.is_none() && !self.control_only()
     }
 
     /// Builds and prepares an effect with its settings in force from its

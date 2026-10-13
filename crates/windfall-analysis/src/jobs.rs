@@ -485,9 +485,12 @@ impl JobManager {
             return Err(AnalysisError::Invalid("job budget bounds"));
         }
         let limits = config.input_limits;
-        if request.input.is_file_backed() && !request.model.is_builtin_dereverb() {
+        if request.input.is_file_backed()
+            && !request.model.is_builtin_dereverb()
+            && request.task != crate::InferenceTask::StemSeparation
+        {
             return Err(AnalysisError::Invalid(
-                "file-backed input requires built-in dereverb",
+                "file-backed input requires built-in dereverb or stem separation",
             ));
         }
         if request.input.retained_bytes() > limits.max_bytes

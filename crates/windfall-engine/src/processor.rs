@@ -324,7 +324,11 @@ impl Processor {
             .store(self.frame, Ordering::Release);
         self.publish_performance();
         let mut pose = 0;
-        for (channel, runtime) in self.state.channel_voice.iter().enumerate() {
+        for (channel, runtime) in self.state.channel_voice.iter_mut().enumerate() {
+            // The fast render path ends DSP voices without visiting the
+            // per-sample arp/echo scheduler. Retire logical held owners at the
+            // same publication clock so release tails never become held poses.
+            runtime.expire(self.sequencer.clock(), self.frame);
             if pose == self.shared.note_poses.len() {
                 break;
             }
@@ -2614,7 +2618,16 @@ mod tests {
         );
         assert!(
             processor.state.workers.executed_jobs() > before,
-            "default logging must not serialize independent mixer effects"
+            "default logging must not serialize independent mixer effects: workers={}, waves={:?}, controls={}, tracks={:?}",
+            processor.state.workers.count(),
+            processor.plan.waves.ranges(),
+            processor.plan.control_sources.len(),
+            processor
+                .plan
+                .tracks
+                .iter()
+                .map(|track| (track.id, track.current, track.tapped))
+                .collect::<Vec<_>>()
         );
         logger.pump();
         let captured = logger

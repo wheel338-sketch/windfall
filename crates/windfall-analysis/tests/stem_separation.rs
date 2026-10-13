@@ -335,7 +335,7 @@ fn cancellation_after_chunk_returns_no_emission_and_file_capture_matches_memory(
     )
     .unwrap();
     assert!(captured.retained_bytes() <= 16384);
-    assert_eq!(captured.disk_bytes().unwrap(), input.len() as u64 * 4);
+    assert_eq!(captured.disk_bytes().unwrap(), (997 - 11) * 2 * 4);
     let mut source = captured.frame_source().unwrap();
     let mut selected = vec![0.0; (997 - 11) * 2];
     source

@@ -730,8 +730,13 @@ fn the_panning_law_a_file_names_becomes_the_projects_law() {
             ),
             "law {law}"
         );
-        // Nothing else about the project depends on the law.
+        // The archive must preserve the changed source law too. Compare the
+        // executable project separately after verifying those exact source bytes.
         let mut same = with.project.clone();
+        let mut expected_archive = write(&source);
+        expected_archive[10..12].copy_from_slice(&0_u16.to_le_bytes());
+        assert_eq!(same.retained_source_data[0].data, expected_archive);
+        same.retained_source_data = without.project.retained_source_data.clone();
         same.settings.pan_law = PanLaw::Balance;
         assert_eq!(same, without.project, "law {law}");
         // Supported source editing resolution is preserved; musical ticks

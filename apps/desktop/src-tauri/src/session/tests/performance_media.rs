@@ -9,6 +9,38 @@ use windfall_project::{
 };
 
 fn seed(rig: &Rig) -> StageMedia {
+    let channel = windfall_project::ChannelId(
+        rig.session
+            .dispatch(
+                Command::AddChannel {
+                    name: Some("Performance evidence tone".into()),
+                    sample: None,
+                    instrument: Some(windfall_project::InstrumentKind::TripleOsc),
+                    index: None,
+                    mixer_track: None,
+                },
+                None,
+            )
+            .unwrap()
+            .created[0],
+    );
+    rig.session
+        .dispatch(
+            Command::AddNotes {
+                pattern: rig.pattern(),
+                channel,
+                notes: vec![windfall_project::NoteInit {
+                    start: 0,
+                    length: 120,
+                    key: 60,
+                    velocity: Some(1.0),
+                    pan: None,
+                    expression: None,
+                }],
+            },
+            None,
+        )
+        .unwrap();
     let media = StageMedia {
         quantization: LaunchQuantization::Immediate,
         pads: vec![
@@ -352,6 +384,7 @@ fn performance_callback_log_pcm_save_reopen_undo_and_wav_export_are_exact() {
         .performance_pad(0, Some(0), guard.generation, guard.revision)
         .unwrap();
     let live = rig.run(4800);
+    assert!(live.iter().any(|sample| sample.abs() > 0.001));
     rig.session.performance_stop_all();
     let tail = rig.run(960);
     rig.session.performance_record_stop();

@@ -13,7 +13,9 @@ pub fn supports(platform: *const c_char) -> bool {
     }
     #[cfg(windows)]
     {
-        unsafe { CStr::from_ptr(platform) == c"HWND" }
+        unsafe {
+            matches!(CStr::from_ptr(platform), value if value == c"HWND" || value == c"win32")
+        }
     }
     #[cfg(not(windows))]
     {
