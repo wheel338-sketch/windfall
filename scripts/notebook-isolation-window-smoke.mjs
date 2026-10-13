@@ -67,11 +67,11 @@ try {
     if (message.error) request.reject(new Error(JSON.stringify(message.error)))
     else request.resolve(message.result)
   })
-  const cdp = (method, params) => new Promise((resolve, reject) => {
+  const cdp = (method, params, sessionId) => new Promise((resolve, reject) => {
     const id = ++next
     const timer = setTimeout(() => { pending.delete(id); reject(new Error(`${method} timed out`)) }, 15000)
     pending.set(id, { resolve, reject, timer })
-    socket.send(JSON.stringify({ id, method, params }))
+    socket.send(JSON.stringify({ id, method, params, ...(sessionId ? { sessionId } : {}) }))
   })
   const evaluate = async (expression) => {
     const result = await cdp("Runtime.evaluate", { expression, awaitPromise:true, returnByValue:true })
@@ -85,6 +85,15 @@ try {
       if (found) return found
       await delay(50)
     }
+    try {
+      report.timeoutFrameTree = await cdp('Page.getFrameTree', {})
+      report.timeoutTargets = await cdp('Target.getTargets', {})
+      const root = await cdp('DOM.getDocument', {})
+      const owner = await cdp('DOM.querySelector', { nodeId: root.root.nodeId, selector: 'iframe[title="Notebook HTML preview"]' })
+      if (owner.nodeId) report.timeoutFrameOwner = await cdp('DOM.describeNode', { nodeId: owner.nodeId })
+      report.timeoutFrame = await evaluate(`(() => {const frame=document.querySelector('iframe[title="Notebook HTML preview"]');return frame?{src:frame.src,sandbox:frame.getAttribute('sandbox'),width:frame.getBoundingClientRect().width,height:frame.getBoundingClientRect().height}:null})()`)
+      report.timeoutDom = await evaluate('document.body.innerText.slice(-12000)')
+    } catch { /* Retain the original assertion failure. */ }
     throw new Error(`Timed out waiting for ${what}`)
   }
   const invoke = (command, args = {}) => evaluate(`(async () => {
@@ -125,10 +134,22 @@ try {
     await key('Tab','Tab')
   }
 
-  check('packaged application origin', /^https?:\/\/tauri\.localhost|^tauri:\/\/localhost/.test(tab.url), tab.url)
+  // DevTools can expose the target while its initial about:blank is still
+  // navigating. Read the live document rather than that stale target record.
+  const packagedUrl = await until(async () => {
+    const url = await evaluate('location.href')
+    const parsed = new URL(url)
+    return ((['http:', 'https:'].includes(parsed.protocol) && parsed.hostname === 'tauri.localhost') ||
+      (parsed.protocol === 'tauri:' && parsed.hostname === 'localhost')) ? url : null
+  }, 'the packaged application origin')
+  const origin = new URL(packagedUrl)
+  check('packaged application origin',
+    (['http:', 'https:'].includes(origin.protocol) && origin.hostname === 'tauri.localhost') ||
+    (origin.protocol === 'tauri:' && origin.hostname === 'localhost'), packagedUrl)
   const before = (await owned()).snapshot
   const nonce = 'windfall-notebook-hostile-r4'
   await evaluate(`(() => { window.__notebookAttackCount = 0; window.addEventListener('message', event => { if(event.data === ${JSON.stringify(nonce)}) window.__notebookAttackCount++ }); return true })()`)
+  await click('[role="tab"]', 'Playlist')
   await click('button', 'Notebook')
   await click('label', 'Safe HTML preview')
   const fixtures = [
@@ -145,11 +166,39 @@ try {
     await cdp('Input.insertText', { text:source })
     await until(() => evaluate(`(() => {const frame=document.querySelector('iframe[title="Notebook HTML preview"]');if(!frame?.src.startsWith('data:'))return false;const delivered=decodeURIComponent(frame.src.slice(frame.src.indexOf(',')+1));return delivered.includes('Visible note')&&!delivered.includes('<script')})()`), 'the inert native notebook document')
     const previewUrl = await evaluate(`document.querySelector('iframe[title="Notebook HTML preview"]').src`)
-    await until(async () => {
+    const navigation = await until(async () => {
+      const root = await cdp('DOM.getDocument', {})
+      const found = await cdp('DOM.querySelector', { nodeId: root.root.nodeId, selector: 'iframe[title="Notebook HTML preview"]' })
+      if (!found.nodeId) return null
+      const owner = await cdp('DOM.describeNode', { nodeId: found.nodeId })
+      const frameId = owner.node.frameId
       const tree = await cdp('Page.getFrameTree', {})
-      const contains = (node) => node.frame.url === previewUrl || (node.childFrames ?? []).some(contains)
-      return contains(tree.frameTree)
+      const contains = (node) => (node.frame.id === frameId && node.frame.url === previewUrl) || (node.childFrames ?? []).some(contains)
+      if (contains(tree.frameTree)) return { frameId }
+      // WebView2 isolates this opaque iframe in a different renderer. Its
+      // target belongs to this exact DOM frame owner and packaged parent.
+      const targets = await cdp('Target.getTargets', {})
+      const target = targets.targetInfos.find(info => info.type === 'iframe' && info.targetId === frameId &&
+        info.parentFrameId === tree.frameTree.frame.id && info.url === previewUrl)
+      return target ? { frameId, targetId: target.targetId } : null
     }, 'the actual packaged iframe navigation')
+    let sessionId
+    let contextId
+    try {
+      if (navigation.targetId) {
+        sessionId = (await cdp('Target.attachToTarget', { targetId: navigation.targetId, flatten: true })).sessionId
+      } else {
+        contextId = (await cdp('Page.createIsolatedWorld', { frameId: navigation.frameId, worldName: 'notebook-evidence', grantUniversalAccess: false })).executionContextId
+      }
+      const visible = await until(async () => {
+        const result = await cdp('Runtime.evaluate', { expression: 'document.body?.innerText.trim()', returnByValue: true,
+          ...(contextId ? { contextId } : {}) }, sessionId)
+        return !result.exceptionDetails && result.result.value === 'Visible note'
+      }, 'the rendered authored notebook text')
+      check(`fixture ${index}: authored formatting actually renders`, visible, navigation)
+    } finally {
+      if (sessionId) await cdp('Target.detachFromTarget', { sessionId })
+    }
     const frame = await evaluate(`(() => {const f=document.querySelector('iframe[title="Notebook HTML preview"]');let parentReadDenied=false;try {void f.contentWindow.document}catch(error){parentReadDenied=error.name==='SecurityError'}const delivered=decodeURIComponent(f.src.slice(f.src.indexOf(',')+1));return {sandbox:f.getAttribute('sandbox'),srcdoc:f.hasAttribute('srcdoc'),origin:new URL(f.src).origin,parentReadDenied,contentDocumentNull:f.contentDocument===null,referrer:f.referrerPolicy,delivered,witness:window.__notebookAttackCount}})()`)
     check(`fixture ${index}: opaque native frame`, frame.origin==='null' && frame.parentReadDenied && frame.contentDocumentNull, frame)
     check(`fixture ${index}: permissionless sandbox`, frame.sandbox==='' && !frame.srcdoc && frame.referrer==='no-referrer', frame)
@@ -173,6 +222,9 @@ try {
   await invoke('project_open', {path:projectFile})
   const reopened=(await owned()).snapshot
   check('hostile source survives native save/reopen', reopened.project.notebook.pages[0].body===lastSource && reopened.project.notebook.pages[0].html===true && !reopened.dirty, reopened.project.notebook)
+  // Document replacement correctly closes transient editors. Reopen through
+  // the persisted project's real toolbar before inspecting its preview.
+  await click('button', 'Notebook')
   await until(() => evaluate(`Boolean(document.querySelector('iframe[title="Notebook HTML preview"]')?.src.startsWith('data:'))`), 'the reopened isolated notebook preview')
   check('reopened native preview still refuses parent access', await evaluate(`(() => {const f=document.querySelector('iframe[title="Notebook HTML preview"]');try {void f.contentWindow.document;return false}catch(error){return error.name==='SecurityError'&&f.contentDocument===null&&f.getAttribute('sandbox')===''}})()`), null)
   check('no notebook network request across the complete packaged run', requests===0, {requests})

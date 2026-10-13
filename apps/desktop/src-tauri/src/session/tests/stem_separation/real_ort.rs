@@ -235,6 +235,7 @@ fn real_onnx_four_stem_rate_evidence(rate: u32) {
         }
     };
     let worker_start = Instant::now();
+    let admitted_usage = rig.session.inner.analysis.test_manager().usage();
     let snapshot = rig
         .session
         .inner
@@ -243,6 +244,8 @@ fn real_onnx_four_stem_rate_evidence(rate: u32) {
         .wait(native::JobId(job.job.parse().unwrap()))
         .unwrap();
     let worker_ms = worker_start.elapsed().as_secs_f64() * 1000.0;
+    let ready_usage = rig.session.inner.analysis.test_manager().usage();
+    let inference_peak = peak_memory_bytes();
     if snapshot.status != native::JobStatus::Ready {
         std::fs::write(evidence.join("report.json"), serde_json::to_vec_pretty(&json!({ "failure": snapshot.failure, "status": snapshot.status, "model": model_wire(&model), "captureMs": capture_ms, "workerMs": worker_ms, "peakMemoryBytes": peak_memory_bytes() })).unwrap()).unwrap();
         panic!("Runtime job failed; see {}", evidence.display());
@@ -289,6 +292,10 @@ fn real_onnx_four_stem_rate_evidence(rate: u32) {
     let report = json!({ "runtimePath": library, "model": model_wire(&model), "sampleRate": rate, "frames": frames,
         "captureMs": capture_ms, "workerMs": worker_ms, "applyMs": apply_ms, "totalMs": start.elapsed().as_secs_f64()*1000.0,
         "processPeakMemoryBytesBefore": before_peak, "peakMemoryBytes": peak, "memoryMeasurement": "process peak working set / VmHWM; includes harness, codec and ORT; not allocator-only",
+        "inferencePeakMemoryBytes": inference_peak,
+        "cooperativeScratchReservationBytes": native::separation::SCRATCH_BYTES,
+        "admittedMemoryReservationBytes": admitted_usage.memory_bytes,
+        "readyMemoryReservationBytes": ready_usage.memory_bytes,
         "jobReservation": format!("{:?}", rig.session.inner.analysis.test_manager().usage()),
         "artifacts": review.artifacts, "stems": scores, "pass": own_is_closest });
     std::fs::write(
