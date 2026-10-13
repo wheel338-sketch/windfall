@@ -13,6 +13,18 @@ vi.mock("@tauri-apps/plugin-dialog", () => ({ open: vi.fn(), save: vi.fn() }))
 import { createTauriBackend } from "./tauri"
 
 describe("native window document identity", () => {
+  it("authenticates the debug smoke capability and control through the same owned caller", async () => {
+    fixture.invoke.mockReset()
+    const caller = { generation: 7, token: "smoke-opening" }
+    const prepared = { tracks: [12, 13] }
+    fixture.invoke.mockResolvedValueOnce({ generation: 7, caller, snapshot: {} })
+      .mockResolvedValueOnce(true).mockResolvedValueOnce(prepared)
+    const backend = createTauriBackend()
+    expect(await backend.analyzerSmokeEnabled()).toBe(true)
+    expect(fixture.invoke).toHaveBeenLastCalledWith("analyzer_smoke_enabled", { caller })
+    expect(await backend.analyzerSmokeControl("prepare", null)).toBe(prepared)
+    expect(fixture.invoke).toHaveBeenLastCalledWith("analyzer_smoke_control", { operation: "prepare", value: null, caller })
+  })
   it("sends the server generation with edits and history, then uses the replacement envelope", async () => {
     fixture.invoke.mockReset()
     const backend = createTauriBackend()

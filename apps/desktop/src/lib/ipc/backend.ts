@@ -219,6 +219,8 @@ export interface Backend extends AnalysisBackend, MixerPresetLibraryBackend, Ana
   onWindowScale?(handler: () => void): Unsubscribe
 
   documentSnapshot(): Promise<DocumentSnapshot>
+  analyzerSmokeEnabled(): Promise<boolean>
+  analyzerSmokeControl<T = unknown>(operation: string, value: number | null): Promise<T>
   proposalStamp(): Promise<import("@/bindings").ProposalStamp>
   assistantRespond(prompt: string): Promise<import("@/bindings").AssistantReply>
   proposalApply(proposal: import("@/bindings").CommandProposal): Promise<DispatchResult>

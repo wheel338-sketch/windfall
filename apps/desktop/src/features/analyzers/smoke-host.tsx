@@ -1,4 +1,3 @@
-import { invoke } from "@tauri-apps/api/core"
 import { useEffect, useState } from "react"
 
 import { EffectEditor } from "@/features/effects/effect-editor"
@@ -106,17 +105,17 @@ export function AnalyzerSmokeHost() {
   useEffect(() => {
     if (backend.kind !== "tauri") return
     let disposed = false
-    void invoke<boolean>("analyzer_smoke_enabled").then((allowed) => {
+    void backend.analyzerSmokeEnabled().then((allowed) => {
       if (!disposed && allowed) setEnabled(true)
     }).catch(() => {})
     return () => { disposed = true }
   }, [])
   useEffect(() => {
     if (!enabled) return
-    const control = (operation: string, value?: number) => invoke("analyzer_smoke_control", { operation, value: value ?? null })
+    const control = (operation: string, value?: number) => backend.analyzerSmokeControl(operation, value ?? null)
     const api: SmokeApi = {
       async prepare() {
-        const result = await invoke<Fixture>("analyzer_smoke_control", { operation:"prepare", value:null })
+        const result = await backend.analyzerSmokeControl<Fixture>("prepare", null)
         setFixture(result)
         setSource({ type:"trackPostFader", track:result.tracks[0] })
         useUiStore.setState((state) => ({ mixerMeterMode:"waveform", panels:{ ...state.panels, mixer:true } }))

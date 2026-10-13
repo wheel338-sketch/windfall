@@ -852,6 +852,8 @@ export function createMockBackend(options: MockOptions = {}): MockBackend {
         return timelineState()
       }),
     documentSnapshot: () => ipc(() => doc.snapshot(path)),
+    analyzerSmokeEnabled: () => Promise.resolve(false),
+    analyzerSmokeControl: () => Promise.reject(new Error("Analyzer window smoke requires an explicitly enabled debug desktop app")),
     proposalStamp: () => ipc(() => {
       const { generation, revision } = timelineState()
       return { generation, revision }

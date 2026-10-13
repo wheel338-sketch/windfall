@@ -104,6 +104,8 @@ export function createTauriBackend(): Backend {
 
   return {
     kind: "tauri",
+    analyzerSmokeEnabled: () => call("analyzer_smoke_enabled"),
+    analyzerSmokeControl: (operation, value) => call("analyzer_smoke_control", { operation, value }),
     proposalStamp: () => call("proposal_stamp"),
     assistantRespond: (prompt) => call("assistant_respond", { prompt }),
     proposalApply: (proposal) => call("proposal_apply", { proposal }),
