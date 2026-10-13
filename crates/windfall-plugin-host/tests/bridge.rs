@@ -519,7 +519,7 @@ fn auth_impostor_client_process() {
     let endpoint = std::env::var("WINDFALL_TEST_AUTH_ENDPOINT").unwrap();
     if let Ok(version) = std::env::var("WINDFALL_TEST_OLD_HELLO") {
         let version: u32 = version.parse().unwrap();
-        assert!(matches!(version, 1 | 2));
+        assert!(matches!(version, 1..=3));
         let mut bootstrap = [0u8; 56];
         std::io::stdin().read_exact(&mut bootstrap).unwrap();
         assert_eq!(&bootstrap[..4], b"WFAP");

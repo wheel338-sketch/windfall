@@ -57,12 +57,7 @@ pub(super) fn prepare_export_program(
     let mut preset_bytes = 0usize;
     let mut raw_bytes = 0usize;
     for asset in &project.samples {
-        if project
-            .settings
-            .preset_renders
-            .iter()
-            .any(|recipe| recipe.source == asset.id)
-        {
+        if project.is_preset_source(asset.id) {
             let path =
                 windfall_project::file::resolve_sample_path(&asset.path, sample_dir, factory_dir)
                     .ok_or_else(|| {

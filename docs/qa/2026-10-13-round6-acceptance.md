@@ -10,6 +10,12 @@ Integration in progress. No final acceptance recommendation yet. Tracker files r
 
 ### Integration and verification record
 
+- Packet full library regression after schema fixture correction PASS **26/0/0**, exit0,85s (`cargo test --offline -p windfall-plugin --lib -- --test-threads=1`, `target/round6-packet-regression-repair1.log`), including the full-workspace packet failure. Unsupported schema input is now4 because schemas1..3 are implemented; all hostile/refusal assertions remain. Source-role extension explicitly defers to an existing SoundFont flag, preserving renamed bank identities. All three preceding full-workspace failures are now individually green; no claim of a zero-failure full rerun yet.
+
+- Process-bridge regression after exact fixture repairs PASS: `cargo test --offline -p windfall-plugin-host --test bridge -- --test-threads=1`, **36/0/1**, exit0,26s (`target/round6-bridge-regression-repair1.log`). Includes both full-workspace host failures now green, all native loss/unknown/ACK recovery/allocator assertions intact, old Hello1/2/3 rejected before metadata and fault/capture/epoch/state/latency/reap cases. Strengthened fixture rebuilt serially (`target/round6-fixture-flood-refresh.log`, exit0,1s). One pre-existing ordinarily ignored subprocess role is invoked by its authenticated parent test; no hardware opt-in. Full workspace still must rerun after remaining merges/source fixes.
+
+- Unused-source follow-up: native test first correctly refused removing a sample while its channel still referenced it; corrected the reproducer to remove the channel first. The resulting tight reproduction failed because a retained `.wfpreset` lost its raw role when the result/recipe relation was removed (`target/round6-orphan-preset-repro.log`). Raw-source classification now also recognizes the original file type, shared by project loading and plugin packaging; the sampler picker excludes orphan originals too. Exact native packet test plus all preset job tests PASS **7/0/0**, exit0,179s (`target/round6-orphan-preset-repair1.log`). It now includes actual checked removal, unused-source export, exact bytes/PCM, source deletion/recall, damage and hostile bounds. No relaxed assertion. Source-role fix changes no schema/registry; simulator freshness needs a later rebuild.
+
 - Six-merge frontend lint PASS `pnpm --dir apps/desktop lint`, exit 0, zero diagnostics, 34 s (`target/round6-lint-first.log`). Six-merge Rust strict Clippy PASS `cargo clippy --workspace --all-targets -- -D warnings`, exit 0, zero diagnostics, 3 s (`target/round6-clippy-six-repair2.log`); retained initial/new preset fixed-chunk warnings, replaced both stereo iterators without changing samples/assertions.
 - Cross-branch source review found an additional real export seam: the new retained original `.wfpreset` has no PCM, so the SF2-only packet preparation would refuse it. Implemented schema **3** `presetSources` with exact bytes/source IDs, separate rendered PCM, 1 MiB per original /16 MiB aggregate /64 MiB outer limits, immutable bounded file reads and FileKey fencing, schema1/2 compatibility, duplicate/unknown/type refusal and non-destructive damaged/missing recall diagnostics. Native `rendered_preset_plugin_packet_carries_exact_original_source_without_pcm_substitution` PASS **1/0/0**, exit 0, 144 s (`target/round6-raw-preset-native.log`): exact originals and result PCM survive source-file deletion and encode/decode, source IDs never claim PCM, damaged bytes stay saveable and reported, duplicate/oversized inputs refuse. Initial all-target check required adding the default empty source table to an existing Packet test literal; no assertion changed (`target/round6-raw-preset-check.log`). Runtime/helper rebuild is required before further native bundle tests. Documentation updated; no dependency/registry change.
 
@@ -53,6 +59,23 @@ Integration in progress. No final acceptance recommendation yet. Tracker files r
 - Updates merged without conflicts; `cargo check --workspace --all-targets` PASS, zero warnings/errors, exit 0, 8 s (`target/round6-branch02-check-repair1.log`). Added an explicit `Result<(), String>` for capture publication's error type; initial inference failure retained. Rollback/dirty capture/endpoint native tests pending.
 
 ## Final gate table
+
+First six-merge full workspace completed **4772 passed /3 failed /40 ignored**,
+185 completed result blocks, exit101,1551s (`target/round6-workspace-six.log`).
+Failures: future-schema test still refuses now-supported schema3 (use4), older
+Hello3 child fixture still only permits1/2 (permit1..3 while asserting rejection
+before metadata), and VST3 native output-flood workload30,000 no longer exceeds
+the grown164,866 SDK note buffer. Increase the injected flood to200,000; preserve
+all drop/unknown/ACK/recovery/memory assertions. Capacity derivation:
+2048 keys +1024 instances +2×80897 block reserve =164866. These are stronger or
+updated fixture inputs, never looser limits. Repairs and reruns pending.
+
+Six-merge schema3 native refresh PASS `cargo build --offline -p windfall-desktop
+-p windfall-plugin -p windfall-plugin-host --bins --lib`, exit0,106s
+(`target/round6-native-build-six.log`). First full workspace run on this
+checkpoint started with rebuilt owned fixtures and explicit environment:
+`cargo test --workspace --no-fail-fast -- --test-threads=1`
+(`target/round6-workspace-six.log`). No completion/count credited while active.
 
 Pending all eight merges. Counts above are actual completed commands on the
 stated intermediate source; no final full-workspace or frontend-suite result is

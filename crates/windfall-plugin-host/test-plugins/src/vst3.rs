@@ -1030,9 +1030,9 @@ impl IAudioProcessorTrait for Component {
                 event.__field0.noteOn.pitch = 69;
                 event.__field0.noteOn.velocity = 0.75;
                 event.__field0.noteOn.noteId = -1;
-                // Exceed the host's recovery/fixed-block note reserve (27,650),
+                // Exceed the ABI10 recovery/fixed-block note reserve (164,866),
                 // so this fixture still exercises rejected native output.
-                for _ in 0..30_000 {
+                for _ in 0..200_000 {
                     unsafe {
                         events.addEvent(&mut event);
                     }

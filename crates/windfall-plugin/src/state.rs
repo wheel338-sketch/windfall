@@ -33,11 +33,7 @@ pub struct EmbeddedPresetSource {
 }
 
 fn preset_source(project: &Project, id: SampleId) -> bool {
-    project
-        .settings
-        .preset_renders
-        .iter()
-        .any(|recipe| recipe.source == id)
+    project.is_preset_source(id)
 }
 
 #[derive(Clone)]

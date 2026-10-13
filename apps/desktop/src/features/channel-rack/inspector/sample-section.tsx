@@ -52,7 +52,7 @@ function ProjectSamples({ channel }: { channel: SamplerChannel }) {
   useLanguageStore((state) => state.language)
   const project = useProjectStore((state) => state.project)
   const sources = (project.settings as typeof project.settings & { presetRenders?: SamplePresetRender[] }).presetRenders ?? []
-  const samples = project.samples.filter((sample) => !sources.some((recipe) => recipe.source === sample.id))
+  const samples = project.samples.filter((sample) => !/\.wfpreset$/i.test(sample.path.path) && !sources.some((recipe) => recipe.source === sample.id))
   return (
     <>
       {samples.length > 0 && (

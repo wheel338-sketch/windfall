@@ -325,7 +325,18 @@ impl Project {
     }
     /// A source preset is raw recipe storage, carried with project assets.
     pub fn is_preset_source(&self, id: SampleId) -> bool {
-        self.settings
+        self.sample(id).is_some_and(|sample| {
+            let path = match &sample.path {
+                SamplePath::Factory(path)
+                | SamplePath::Project(path)
+                | SamplePath::External(path) => path,
+            };
+            !sample.soundfont
+                && std::path::Path::new(path)
+                    .extension()
+                    .is_some_and(|extension| extension.eq_ignore_ascii_case("wfpreset"))
+        }) || self
+            .settings
             .preset_renders
             .iter()
             .any(|recipe| recipe.source == id)

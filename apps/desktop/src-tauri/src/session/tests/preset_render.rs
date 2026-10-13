@@ -108,6 +108,24 @@ fn rendered_preset_plugin_packet_carries_exact_original_source_without_pcm_subst
         .find(|sample| sample.id == recipe.sample)
         .unwrap();
     assert_eq!(rendered.data, pool.get(recipe.sample).unwrap().samples());
+    let channel = project.channels.iter().find(|channel| matches!(&channel.source, ChannelSource::Sampler(settings) if settings.sample == Some(recipe.sample))).unwrap().id;
+    rig.session
+        .dispatch(Command::RemoveChannel { id: channel }, None)
+        .unwrap();
+    rig.session
+        .dispatch(Command::RemoveSample { id: recipe.sample }, None)
+        .unwrap();
+    let orphan = rig.project();
+    assert!(orphan.settings.preset_renders.is_empty());
+    assert!(orphan.sample(recipe.source).is_some());
+    let orphan_program = crate::session::plugin_export::prepare_export_program(
+        orphan,
+        &pool,
+        directory.as_deref(),
+        std::path::Path::new(super::DEV_FACTORY_DIR),
+    )
+    .unwrap();
+    assert_eq!(orphan_program.preset_sources[0].bytes, bytes);
     fs::remove_file(&path).unwrap();
     for file in owned(&rig) {
         fs::remove_file(file).unwrap();

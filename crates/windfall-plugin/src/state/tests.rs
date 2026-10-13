@@ -164,7 +164,7 @@ fn schema_one_pcm_packets_still_load_and_hostile_packets_are_bounded() {
     }
     let mut value: serde_json::Value =
         serde_json::from_slice(&bank_program().encode().unwrap()).unwrap();
-    value["schema"] = 3.into();
+    value["schema"] = 4.into();
     assert!(Program::decode(&serde_json::to_vec(&value).unwrap()).is_err());
     value["schema"] = 1.into();
     assert!(Program::decode(&serde_json::to_vec(&value).unwrap()).is_err());
