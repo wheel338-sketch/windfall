@@ -17,6 +17,7 @@ mod document;
 mod effects;
 mod export;
 mod export_formats;
+mod export_tempo;
 mod files;
 mod files_qa;
 mod flp;

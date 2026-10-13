@@ -326,3 +326,45 @@ fn reader_accepts_independent_extensible_pcm_frame_layout() {
         WavMetadata::default()
     );
 }
+
+#[test]
+fn rendered_metadata_follows_streamed_pcm_without_rewriting_or_moving_data() {
+    let path = std::env::temp_dir().join(format!("windfall-rendered-markers-{}.wav", std::process::id()));
+    let expected = metadata();
+    let samples: Vec<f32> = (0..64).map(|i| i as f32 / 128.0).collect();
+    let mut writer = WavWriter::create(&path, 48000, 2, WavSampleFormat::Float32).unwrap();
+    writer.write(&samples[..18]).unwrap();
+    writer.write(&samples[18..]).unwrap();
+    writer.set_rendered_metadata(&expected).unwrap();
+    writer.finalize().unwrap();
+    let bytes = std::fs::read(&path).unwrap();
+    let table = chunks(&bytes);
+    let data = table.iter().position(|(id, _)| id == b"data").unwrap();
+    let cues = table.iter().position(|(id, _)| id == b"cue ").unwrap();
+    assert!(data < cues);
+    let actual: Vec<f32> = table[data].1.chunks_exact(4).map(|b| f32::from_le_bytes(b.try_into().unwrap())).collect();
+    assert_eq!(actual, samples);
+    assert_eq!(le(table[cues].1, 24), 2);
+    let smpl = table.iter().find(|(id, _)| id == b"smpl").unwrap().1;
+    assert_eq!((le(smpl, 44), le(smpl, 48)), (2, 11));
+    assert_eq!(read_wav_metadata(&bytes).unwrap(), expected);
+    assert_eq!(decode_file(&path).unwrap().samples(), samples);
+    std::fs::remove_file(path).unwrap();
+}
+
+#[test]
+fn invalid_rendered_metadata_and_duplicate_header_metadata_preserve_destination() {
+    let path = std::env::temp_dir().join(format!("windfall-rendered-refusal-{}.wav", std::process::id()));
+    std::fs::write(&path, b"original destination").unwrap();
+    let mut writer = WavWriter::create(&path, 48000, 2, WavSampleFormat::Float32).unwrap();
+    writer.write(&[0.0; 4]).unwrap();
+    assert!(writer.set_rendered_metadata(&metadata()).is_err());
+    drop(writer);
+    assert_eq!(std::fs::read(&path).unwrap(), b"original destination");
+    let mut writer = WavWriter::create_with_metadata(&path, 48000, 2, WavSampleFormat::Float32, &AudioTags::default(), &metadata()).unwrap();
+    writer.write(&[0.0; 64]).unwrap();
+    assert!(writer.set_rendered_metadata(&metadata()).is_err());
+    drop(writer);
+    assert_eq!(std::fs::read(&path).unwrap(), b"original destination");
+    std::fs::remove_file(path).unwrap();
+}
