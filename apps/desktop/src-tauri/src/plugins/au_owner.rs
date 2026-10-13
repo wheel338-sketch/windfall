@@ -58,7 +58,7 @@ pub(super) fn start(
         return Err("Cocoa plugin dispatcher is not installed".into());
     }
     let id = NEXT
-        .fetch_update(
+        .try_update(
             std::sync::atomic::Ordering::Relaxed,
             std::sync::atomic::Ordering::Relaxed,
             |next| next.checked_add(1),

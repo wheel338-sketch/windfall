@@ -26,10 +26,10 @@ export function RackInstrumentEditor({ channel, node, setParam, apply, current }
 }) {
   if (node.processor.type !== "instrument") return null
   const params = node.processor.params
-  const pseudo: InstrumentChannel = { ...channel, source: { type: "instrument", params, asset: node.asset?.type === "instrument" ? node.asset.asset : null } }
+  const pseudo: InstrumentChannel = { ...channel, source: { type: "instrument", params, asset: node.asset?.type === "instrument" ? node.asset.asset : undefined } }
   const read = () => {
     const found = current()
-    return found?.processor.type === "instrument" ? { ...pseudo, source: { type: "instrument" as const, params: found.processor.params, asset: found.asset?.type === "instrument" ? found.asset.asset : null } } : undefined
+    return found?.processor.type === "instrument" ? { ...pseudo, source: { type: "instrument" as const, params: found.processor.params, asset: found.asset?.type === "instrument" ? found.asset.asset : undefined } } : undefined
   }
   const owner = { setParam, currentChannel: read, setAsset: (expected: import("@/bindings").ChannelSource, asset: InstrumentAsset | null, gesture?: number) => {
     const before = read()

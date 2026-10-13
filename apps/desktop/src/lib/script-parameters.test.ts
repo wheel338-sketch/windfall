@@ -3,7 +3,7 @@ import type { Project } from "@/bindings"
 import { targetState, describeTarget } from "@/lib/automation/targets"
 import { scriptParameterTargets, SCRIPT_PARAMETER_BASE } from "./script-parameters"
 
-const settings = { scripts: { parameterAddresses: [{ channel: 2, script: "live", name: "transpose" }, { channel: 2, script: "retired", name: "old" }],
+const settings = { name: "Script parameters", tempoBpm: 120, timeSignature: { numerator: 4, denominator: 4 }, swing: 0, scripts: { parameterAddresses: [{ channel: 2, script: "live", name: "transpose" }, { channel: 2, script: "retired", name: "old" }],
   assets: [{ reference: { id: "live", revision: 2 }, languageVersion: 1, kind: "noteTransform", name: "Live", source: "# checked revision\nparam gain 0 1 1\nparam transpose -12 12 0 # units\nemit" }],
   channels: [{ channel: 2, script: { id: "live", revision: 2 }, parameters: [0.5, 7] }], controllers: [] } } as Project["settings"]
 

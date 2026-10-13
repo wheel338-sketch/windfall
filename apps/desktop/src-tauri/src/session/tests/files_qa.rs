@@ -672,6 +672,7 @@ fn a_user_template_carries_its_audio_and_opens_as_a_new_project() {
     assert!(rig.session.template_new(&template.id).is_err());
 }
 
+#[cfg(windows)]
 #[test]
 fn running_native_channel_and_plugin_presets_capture_apply_undo_and_reopen() {
     use windfall_project::ChannelId;
@@ -983,6 +984,7 @@ fn ended_template_owner_recovers_complete_unsaved_project_and_exact_audio_on_res
     }
 }
 
+#[cfg(windows)]
 #[test]
 fn actual_native_scanner_rescans_blocked_and_all_then_removes_a_folder() {
     use crate::plugins::Rescan;

@@ -24,12 +24,12 @@ pub mod session;
 pub mod settings;
 mod shell;
 mod sync;
-#[cfg(all(test, windows))]
+#[cfg(test)]
 mod test_alloc;
 mod update_transfer;
 mod updates;
 mod window_calls;
-#[cfg(all(test, windows))]
+#[cfg(test)]
 #[global_allocator]
 static TEST_ALLOCATOR: test_alloc::CountingAllocator = test_alloc::CountingAllocator;
 mod assistant;

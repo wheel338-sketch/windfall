@@ -70,7 +70,7 @@ it("cancels the frozen decision and rolls back installer failure before retry", 
   await act(async()=>fireEvent.click(screen.getByRole("button",{name:"Download and verify"})));
   await act(async()=>fireEvent.click(screen.getByRole("button",{name:"Install and restart"})));
   expect(api.begin).toHaveBeenCalledTimes(1);expect(api.install).not.toHaveBeenCalled();
-  await act(async()=>fireEvent.click(screen.getByRole("button",{name:"Cancel",exact:true})));
+  await act(async()=>fireEvent.click(screen.getByRole("button",{name:"Cancel"})));
   expect(api.cancel).toHaveBeenCalledWith(1);expect(screen.getByRole("button",{name:"Install and restart"})).toBeEnabled();
   await act(async()=>fireEvent.click(screen.getByRole("button",{name:"Install and restart"})));
   vi.mocked(api.install).mockRejectedValueOnce(new Error("Installer refused"));

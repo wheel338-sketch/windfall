@@ -21,6 +21,6 @@ export function ProjectPlaybackSettings() {
       <Choice<number> disabled={false} id={`${id}-ppq`} value={settings.timebasePpq ?? 960} options={PROJECT_TIMEBASES.map((value) => ({ value, label: message("{value} PPQ", { value }) }))} onChange={(timebasePpq) => void dispatch({ type: "updateSettings", patch: { timebasePpq } })} />
       <FieldDescription>{t("Playback and export use this grid. Stored note positions stay at 960 PPQ.")}</FieldDescription>
     </Field>
-    {plugins.filter((binding) => binding.target.type === "instrument").map((binding) => <NativeNoteCapabilities key={binding.target.type === "instrument" ? binding.target.channel : binding.target.effect} binding={binding} />)}
+    {plugins.flatMap((binding) => binding.target.type === "instrument" ? [<NativeNoteCapabilities key={binding.target.channel} binding={binding} />] : [])}
   </FieldGroup>
 }
