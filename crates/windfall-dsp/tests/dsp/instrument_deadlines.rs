@@ -576,7 +576,8 @@ maximum_test!(drumsynth_live_maximum_load_deadline, DrumVoice, 8);
 
 // PianoKeys admission: at most 5% of one logical core for a representative
 // 16-note chord, 20% for all 128 voices. These are release-build budgets, far
-// below the general 75% gate. No debug multiplier: acceptance runs --release.
+// below the general 75% gate. Like e1_cpu, debug uses a separately labelled
+// 40x diagnostic allowance; only --release can establish low-CPU acceptance.
 const PIANO_REPRESENTATIVE_RATIO: f64 = 0.05;
 const PIANO_MAXIMUM_RATIO: f64 = 0.20;
 
@@ -605,10 +606,15 @@ fn piano_deadline(
     voices: usize,
     bank: &std::sync::Arc<windfall_dsp::sample_bank::SampleBank>,
 ) {
-    let budget = if voices == 128 {
+    let release_budget = if voices == 128 {
         PIANO_MAXIMUM_RATIO
     } else {
         PIANO_REPRESENTATIVE_RATIO
+    };
+    let (profile, budget) = if cfg!(debug_assertions) {
+        ("debug-diagnostic", release_budget * 40.0)
+    } else {
+        ("release-admission", release_budget)
     };
     let params = InstrumentKind::PianoKeys.default_params();
     let mut unit = AnyInstrument::new(&params);
@@ -660,11 +666,11 @@ fn piano_deadline(
                     .min(event_frames - frame % event_frames)
                     .min(boundary - frame);
                 let at = Instant::now();
-                if frame % event_frames == 0 {
+                if frame.is_multiple_of(event_frames) {
                     let mut changed = params;
                     assert!(changed.set(
                         2,
-                        if frame / event_frames % 2 == 0 {
+                        if (frame / event_frames).is_multiple_of(2) {
                             80.0
                         } else {
                             110.0
@@ -672,7 +678,7 @@ fn piano_deadline(
                     ));
                     assert!(changed.set(
                         0,
-                        if frame / event_frames % 2 == 0 {
+                        if (frame / event_frames).is_multiple_of(2) {
                             0.37
                         } else {
                             0.51
@@ -680,7 +686,7 @@ fn piano_deadline(
                     ));
                     assert!(changed.set(
                         1,
-                        if frame / event_frames % 2 == 0 {
+                        if (frame / event_frames).is_multiple_of(2) {
                             -0.25
                         } else {
                             0.35
@@ -688,14 +694,14 @@ fn piano_deadline(
                     ));
                     assert!(changed.set(
                         3,
-                        if frame / event_frames % 2 == 0 {
+                        if (frame / event_frames).is_multiple_of(2) {
                             0.65
                         } else {
                             0.92
                         }
                     ));
                     unit.set_params(&changed);
-                    if frame > 0 && frame < rate * 2 && frame % (event_frames * 4) == 0 {
+                    if frame > 0 && frame < rate * 2 && frame.is_multiple_of(event_frames * 4) {
                         piano_strike(&mut unit, voices);
                     }
                 }
@@ -769,7 +775,7 @@ fn piano_deadline(
     {
         let ratio = best[phase].as_secs_f64() / seconds;
         eprintln!(
-            "PianoKeys admission rate={rate} voices={voices} partition={partition:?} phase={phase} ratio={ratio:.5} budget={budget}"
+            "PianoKeys profile={profile} rate={rate} voices={voices} partition={partition:?} phase={phase} ratio={ratio:.5} budget={budget} release_budget={release_budget}"
         );
         assert!(
             ratio < budget,
