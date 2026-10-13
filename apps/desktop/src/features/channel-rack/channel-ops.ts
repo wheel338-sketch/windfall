@@ -361,7 +361,7 @@ export async function initInstrument(id: ChannelId): Promise<void> {
   await loadInstrumentSound(
     id,
     descriptor.defaults,
-    `Init ${descriptor.name.toLowerCase()}`
+    message("Init {name}", { name: t(descriptor.name).toLowerCase() })
   )
 }
 

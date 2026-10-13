@@ -96,7 +96,7 @@ export function ProjectTab() {
                     >
                       <span className="min-w-0 break-words">
                         {plugin?.name ??
-                          effectDescriptor(slot.params.type).name}
+                          t(effectDescriptor(slot.params.type).name)}
                       </span>
                       {!slot.enabled && (
                         <Badge variant="outline">{t("Bypassed")}</Badge>

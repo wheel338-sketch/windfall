@@ -15,7 +15,7 @@ export function PackBrowser({ bind }: { bind: ParamBinder }) {
     </Field></FieldGroup>
     {["Ember", "Prism", "Meadow"].map((bank) => <ParamGroup key={bank} title={message("{bank} pack", { bank })}>
       <div className="flex flex-wrap gap-1">{patch.info.choices.map((choice, index) => choice.label.startsWith(`${bank} /`) && choice.label.toLowerCase().includes(query) ?
-        <Button key={choice.value} variant="outline" size="sm" aria-pressed={index === patch.value} onClick={() => patch.onValueChange(index)}>{choice.label}</Button> : null)}</div>
+        <Button key={choice.value} variant="outline" size="sm" aria-pressed={index === patch.value} onClick={() => patch.onValueChange(index)}>{t(choice.label)}</Button> : null)}</div>
     </ParamGroup>)}
     {!patch.info.choices.some((choice) => choice.label.toLowerCase().includes(query)) && <p>{t("No matching Windfall patches.")}</p>}
   </ParamGroup>

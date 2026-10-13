@@ -62,7 +62,16 @@ export const actionMessages: Record<string, MessageKey> = {
   "mixer.addTrack": "Add mixer track"
 }
 
-export type DynamicActionMessage = { key: MessageKey; values: Record<string, string | number> }
+/**
+ * A kept message. `translate` names the values that are catalog keys
+ * themselves, such as a built-in effect's name, so they are translated when
+ * the message is shown; "lower" also puts them in lower case.
+ */
+export type DynamicActionMessage = {
+  key: MessageKey
+  values: Record<string, string | number>
+  translate?: Readonly<Record<string, "plain" | "lower">>
+}
 const dynamic = new Map<string, { owner: object; message: DynamicActionMessage }>()
 export function registerDynamicActionMessage(id: string, owner: object, message: DynamicActionMessage | undefined) {
   if (message) dynamic.set(id, { owner, message })

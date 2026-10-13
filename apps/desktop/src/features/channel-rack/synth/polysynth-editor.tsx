@@ -81,7 +81,7 @@ export function PolysynthEditor({ channel, params }: { channel: ChannelId; param
       <ParamGroup title={title}><ParamRow>{ids.map((id) => <ParamControl key={id} {...bind(id)} />)}</ParamRow></ParamGroup>
     </TabsContent>)}
   </Tabs>
-  return <div data-slot="polysynth-editor" role="group" aria-label={message("{descriptorName} settings", { descriptorName: descriptor.name })} className="flex flex-col gap-2">
+  return <div data-slot="polysynth-editor" role="group" aria-label={message("{descriptorName} settings", { descriptorName: t(descriptor.name) })} className="flex flex-col gap-2">
     {params.type === "packSynth" && <PackBrowser bind={bind} />}
     {params.type === "matrixSynth" && (["fm", "ring"] as const).map((matrix) => <ParamGroup key={matrix} title={matrix === "fm" ? "FM routing matrix" : "Ring routing matrix"}>
       <p className="text-muted-foreground">{t("Rows receive modulation from the operators shown above each column.")}</p>

@@ -158,7 +158,7 @@ const onlyFor =
 
 const ADD_INSTRUMENT_ACTIONS = INSTRUMENT_KINDS.map((kind): Action => ({
   id: `channel.addInstrument.${kind}`,
-  ...dynamicTitle("Add {value0}", { value0: instrumentDescriptor(kind).name.toLowerCase() }),
+  ...dynamicTitle("Add {value0}", { value0: instrumentDescriptor(kind).name }, { value0: "lower" }),
   section: "Channels",
   keywords: "new channel instrument synthesizer synth keys bass lead pad",
   run: () => addInstrumentChannel(kind),

@@ -170,11 +170,11 @@ function describe({ channels, clips, inputs }: Feeds): string {
   const parts: string[] = []
   if (channels.length > 0) {
     parts.push(
-      channels.length === 1 ? "1 channel" : `${channels.length} channels`
+      channels.length === 1 ? t("1 channel") : message("{channels} channels", { channels: plainNumber(channels.length) })
     )
   }
   if (clips.length > 0) parts.push(clipsLabel(clips.length))
-  if (inputs > 0) parts.push(inputs === 1 ? "1 track" : `${inputs} tracks`)
+  if (inputs > 0) parts.push(inputs === 1 ? t("1 track") : message("{inputs} tracks", { inputs: plainNumber(inputs) }))
   return parts.join(", ")
 }
 

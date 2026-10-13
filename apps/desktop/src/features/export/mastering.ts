@@ -224,12 +224,12 @@ export function reviewVerdict(review: MasteringReview): string {
 export function reviewSummary(review: MasteringReview): string {
   const parts = [message("{signed} dB of gain", { signed: signed(review.gainDb) })]
   if (review.compressionDb > 0.05) {
-    parts.push(`up to ${review.compressionDb.toFixed(1)} dB of band compression`)
+    parts.push(message("up to {amount} dB of band compression", { amount: review.compressionDb.toFixed(1) }))
   }
   parts.push(
     review.limitingDb > 0.05
-      ? `up to ${review.limitingDb.toFixed(1)} dB of limiting`
-      : "no limiting"
+      ? message("up to {amount} dB of limiting", { amount: review.limitingDb.toFixed(1) })
+      : t("no limiting")
   )
   return message("{parts}, in {passes} passes.", { parts: parts.join(", "), passes: plainNumber(review.passes) })
 }

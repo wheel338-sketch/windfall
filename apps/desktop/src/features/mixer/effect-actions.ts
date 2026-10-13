@@ -1,3 +1,4 @@
+import { effectDescriptor } from "@/features/params"
 import { dynamicTitle, message, plainNumber } from "@/lib/i18n"
 import type { EffectKind } from "@/bindings"
 import { EFFECT_KINDS } from "@/features/params"
@@ -8,7 +9,6 @@ import { useUiStore } from "@/lib/store"
 import {
   addEffect,
   duplicateEffect,
-  effectName,
   findEffect,
   MAX_EFFECT_SLOTS,
   moveEffectBy,
@@ -130,7 +130,7 @@ export const EFFECT_ACTIONS: Action[] = [
   },
   ...EFFECT_KINDS.map((kind): Action => ({
     id: addEffectActionId(kind),
-    ...dynamicTitle("Add {value0}", { value0: effectName(kind) }),
+    ...dynamicTitle("Add {value0}", { value0: effectDescriptor(kind).name }, { value0: "plain" }),
     section: ADD_EFFECT_SECTION,
     keywords: "effect insert fx plugin new",
     enabled: (state) => {
@@ -205,7 +205,7 @@ export const EFFECT_ACTIONS: Action[] = [
   },
   ...EFFECT_KINDS.map((kind): Action => ({
     id: replaceEffectActionId(kind),
-    ...dynamicTitle("Replace effect with {value0}", { value0: effectName(kind) }),
+    ...dynamicTitle("Replace effect with {value0}", { value0: effectDescriptor(kind).name }, { value0: "plain" }),
     section: REPLACE_EFFECT_SECTION,
     keywords: "swap change",
     enabled: (state) => {

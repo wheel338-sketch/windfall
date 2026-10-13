@@ -8,7 +8,7 @@ import { backend } from "@/lib/ipc"
 import { dispatch, useProjectStore } from "@/lib/store/project"
 import { getProjectGeneration } from "@/lib/store/replaced"
 import { exampleRack, importRackGraph, RACK_EXAMPLES } from "./examples"
-import { translatedText as t } from "@/lib/i18n"
+import { message, translatedText as t } from "@/lib/i18n"
 
 /** Rack files use the existing native .wfpreset container. Capture includes
  * the whole graph; loading here applies only its rack in one checked edit. */
@@ -50,7 +50,7 @@ export function RackLibrary({ channel, root }: { channel: Channel; root: RackGra
     if (!graph) throw new Error(t("This preset does not contain a modular rack"))
     await apply(graph, guard)
     const warnings = [...review.notes]
-    if (review.missingAudio.length > 0) warnings.push(`Missing rack assets: ${review.missingAudio.join(", ")}. Open the owning module and choose a replacement source to relink.`)
+    if (review.missingAudio.length > 0) warnings.push(message("Missing rack assets: {names}. Open the owning module and choose a replacement source to relink.", { names: review.missingAudio.join(", ") }))
     if (warnings.length > 0) setError(warnings.join(" "))
   })
   const save = (library: boolean) => action(async (guard, generation, revision) => {

@@ -401,7 +401,7 @@ export async function resetEffect(id: EffectId) {
 }
 
 export function effectName(kind: EffectKind): string {
-  return effectDescriptor(kind).name
+  return t(effectDescriptor(kind).name)
 }
 
 /** Whether an effect of this kind reports gain reduction. */

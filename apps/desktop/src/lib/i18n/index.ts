@@ -2,7 +2,7 @@ import { create } from "zustand"
 import { en } from "./en"
 import { es } from "./es"
 import { nativeEn } from "./native-messages"
-import { actionMessages, dynamicActionMessage } from "./action-messages"
+import { actionMessages, dynamicActionMessage, type DynamicActionMessage } from "./action-messages"
 import type { Catalog, Language, Message, MessageKey } from "./types"
 export type { Language, MessageKey } from "./types"
 export const catalogs: Record<Language, Catalog> = { en, es }
@@ -64,14 +64,27 @@ export function useActionTitle(id: string, fallback: string): string {
 }
 export function actionTitle(id: string, fallback: string, language = useLanguageStore.getState().language): string {
   const dynamic = dynamicActionMessage(id)
-  if (dynamic) return message(dynamic.key, dynamic.values, language)
+  if (dynamic) return dynamicMessage(dynamic, language)
   const key = actionMessages[id]
   return key ? message(key, {}, language) : id.startsWith("file.openRecent.") ? fallback : translatedText(fallback, language)
 }
 
 /** English compatibility title plus bounded registry-owned translation metadata. */
-export function dynamicTitle(key: MessageKey, values: Record<string, string | number>) {
-  return { title: message(key, values, "en"), titleMessage: { key, values } }
+export function dynamicTitle(key: MessageKey, values: Record<string, string | number>, translate?: DynamicActionMessage["translate"]) {
+  const titleMessage: DynamicActionMessage = translate ? { key, values, translate } : { key, values }
+  return { title: dynamicMessage(titleMessage, "en"), titleMessage }
+}
+
+/** A kept message in the language it is shown in, with the values it marks translated too. */
+export function dynamicMessage(source: DynamicActionMessage, language = useLanguageStore.getState().language): string {
+  const values = { ...source.values }
+  for (const [name, form] of Object.entries(source.translate ?? {})) {
+    const value = values[name]
+    if (typeof value !== "string") continue
+    const translated = translatedText(value, language)
+    values[name] = form === "lower" ? translated.toLocaleLowerCase(locales[language]) : translated
+  }
+  return message(source.key, values, language)
 }
 
 export function localizeBackendText(text: string): string {

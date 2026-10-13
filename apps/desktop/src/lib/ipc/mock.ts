@@ -969,11 +969,11 @@ export function createMockBackend(options: MockOptions = {}): MockBackend {
           report,
           missingSamples,
           retainedPlugins: project.retainedPlugins?.length ?? 0,
-          warnings: missingSamples.map((s) => `Missing sample: ${s.path}`),
+          warnings: missingSamples.map((s) => i18nMessage("Missing sample: {path}", { path: s.path })),
         }
         if (missingSamples.length > 0)
           preview.warnings.push(
-            "The browser cannot read external sample folders. Open the desktop app to locate and load those samples."
+            t("The browser cannot read external sample folders. Open the desktop app to locate and load those samples.")
           )
         const next = SimDocument.imported(project)
         flpPending = {

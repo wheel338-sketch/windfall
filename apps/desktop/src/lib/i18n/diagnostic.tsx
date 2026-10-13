@@ -1,4 +1,4 @@
-import { localizeBackendText, message, useLanguageStore, useTranslation } from "."
+import { dynamicMessage, localizeBackendText, useLanguageStore, useTranslation } from "."
 import type { DynamicActionMessage } from "./action-messages"
 
 /** Keep the wire message in an already visible toast, rather than its translation. */
@@ -9,5 +9,5 @@ export function LocalizedDiagnostic({ source }: { source: string }) {
 
 export function LocalizedLabel({ source }: { source: string | DynamicActionMessage }) {
   const t = useTranslation()
-  return <>{typeof source === "string" ? t(source) : message(source.key, source.values)}</>
+  return <>{typeof source === "string" ? t(source) : dynamicMessage(source)}</>
 }

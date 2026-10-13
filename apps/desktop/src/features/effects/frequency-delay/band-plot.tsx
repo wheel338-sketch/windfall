@@ -24,7 +24,7 @@ import {
   type Lane,
   type PlotPoint,
 } from "./bands"
-import { message } from "@/lib/i18n"
+import { message, translatedText } from "@/lib/i18n"
 
 const BANDS = Array.from({ length: BAND_COUNT }, (_, band) => band)
 
@@ -104,7 +104,7 @@ function Bar({ band, lane, bind, bipolar }: BarProps) {
     <div
       role="slider"
       tabIndex={binding.disabled ? -1 : 0}
-      aria-label={info.name}
+      aria-label={translatedText(info.name)}
       aria-orientation="vertical"
       aria-valuemin={info.min}
       aria-valuemax={info.max}
@@ -266,7 +266,7 @@ export function BandPlot({ lane, bind }: BandPlotProps) {
                 <ToggleLed
                   variant="dot"
                   size="sm"
-                  aria-label={toggle.info.name}
+                  aria-label={translatedText(toggle.info.name)}
                   pressed={toggle.value >= 0.5}
                   disabled={toggle.disabled}
                   onPressedChange={(next) => {

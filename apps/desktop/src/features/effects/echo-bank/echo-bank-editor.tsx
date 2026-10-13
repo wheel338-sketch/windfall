@@ -76,7 +76,7 @@ function UnitTile({ unit, selected, routing, bind, onSelect }: UnitTileProps) {
       <ToggleLed
         variant="dot"
         size="md"
-        aria-label={enabled.info.name}
+        aria-label={t(enabled.info.name)}
         pressed={routing.enabled}
         disabled={enabled.disabled}
         onPressedChange={(next) => {
