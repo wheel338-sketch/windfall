@@ -64,6 +64,8 @@
 //! lock held and then touches the document or the sample pool compares it
 //! first and gives up if another document has taken its place.
 
+mod update_shutdown;
+pub(crate) use update_shutdown::UpdateShutdown;
 mod analysis_jobs;
 mod analyzers;
 mod archive;
@@ -145,6 +147,7 @@ pub use window_document::WindowDocumentSnapshot;
 /// The audio output as the session needs it. [`Engine`] is the real one.
 pub trait AudioDevice: Send + Sync {
     fn status(&self) -> EngineStatus;
+    fn suspend(&self) -> Result<(), String> { Err("Audio device does not support acknowledged update shutdown".into()) }
     /// Closes the stream and opens one with new settings. May take seconds.
     fn reconfigure(&self, settings: &AudioSettings);
     /// Lists the hosts and devices of this machine. May take a while.
@@ -152,6 +155,7 @@ pub trait AudioDevice: Send + Sync {
 }
 
 impl AudioDevice for Engine {
+    fn suspend(&self) -> Result<(), String> { Engine::suspend(self) }
     fn status(&self) -> EngineStatus {
         Engine::status(self)
     }
@@ -194,6 +198,7 @@ impl WeakSession {
 }
 
 struct Inner {
+    update_installing: AtomicBool,
     /// State's generation mirrored only at committed replacement for event emission.
     window_document_generation: std::sync::atomic::AtomicU64,
     /// Transient timeline watermark, accessed under State and retained across replacement.
@@ -466,6 +471,7 @@ impl Session {
         }
         let session = Self {
             inner: Arc::new(Inner {
+                update_installing: AtomicBool::new(false),
                 window_document_generation: std::sync::atomic::AtomicU64::new(0),
                 timeline_request: std::sync::atomic::AtomicU64::new(0),
                 timeline_play_request: std::sync::atomic::AtomicU64::new(0),

@@ -46,6 +46,7 @@
   },
   "plugins": {
     "updater": {
+      "dangerousInsecureTransportProtocol": true,
       "pubkey": "",
       "endpoints": [],
       "windows": { "installMode": "passive" }

@@ -67,6 +67,7 @@ pub(crate) struct CapturedState {
     serial: u64,
 }
 struct Instance {
+    note_capabilities: Arc<super::note_capabilities::Published>,
     identity: u64,
     target: PluginTarget,
     plugin: PluginInstance,
@@ -1661,6 +1662,33 @@ impl Runtime {
             Ok(audio)
         })
     }
+    pub(crate) fn update_shutdown_barrier(&self) -> Result<(),String> {
+        self.call(|owner| {
+            // Audio::drop queued all native retirement before the acknowledged
+            // stream shutdown. FIFO dispatch joins those jobs before returning.
+            for record in owner.instances.values_mut() {
+                if let Some(adapter)=record.ownership.take_returned() { record.retire(adapter); }
+                if let Some(adapter)=record.returned.take() { record.retire(adapter); }
+            }
+            Ok(())
+        })
+    }
+    pub fn note_capabilities(&self, target: PluginTarget) -> Result<super::NoteCapabilities, String> {
+        let revision = self.document_revision();
+        self.call(move |owner| {
+            let token = selected(&owner.selection, target).ok_or("No running hosted instrument is selected")?;
+            if let Some(record) = owner.instances.get(&token).filter(|r| r.instrument && r.playback && r.revision == revision) {
+                return Ok(record.note_capabilities.snapshot());
+            }
+            #[cfg(any(windows, target_os = "macos", target_os = "linux"))]
+            if let Some(record) = owner.bridges.get(&token).filter(|r| r.playback && r.revision == revision) {
+                let mut capabilities=record.note_capabilities.snapshot();
+                capabilities.project_pan_law=false;
+                return Ok(capabilities);
+            }
+            Err("Hosted note capabilities are unavailable for this document".into())
+        })
+    }
     pub fn errors(&self) -> Vec<(PluginTarget, String)> {
         self.errors
             .lock()
@@ -1725,6 +1753,8 @@ impl Adapter {
 }
 #[derive(Clone, Copy)]
 struct ExpressionOwner {
+    pan_state: windfall_dsp::NotePan,
+    pan_gains: (f32, f32),
     id: windfall_dsp::NoteInstanceId,
     native: u32,
     key: u8,
@@ -1738,6 +1768,8 @@ struct ExpressionOwner {
 }
 impl ExpressionOwner {
     const EMPTY: Self = Self {
+        pan_state: windfall_dsp::NotePan::CENTER,
+        pan_gains: (1.0, 1.0),
         id: windfall_dsp::NoteInstanceId(0),
         native: 0,
         key: 0,
@@ -1752,24 +1784,23 @@ impl ExpressionOwner {
     fn controls(
         self,
         map: windfall_dsp::ExpressionMap,
-        law: windfall_core::PanLawRamp,
-        clock: u64,
+        native_pan_law: bool,
     ) -> windfall_plugin_host::PluginNoteExpression {
         let mut controls = map.plugin_controls(
             self.pan,
             f64::from(self.pitch) - f64::from(self.key),
             self.expression,
         );
-        let (left, right) = law.gains_at(clock, (controls.values[1] * 2.0 - 1.0) as f32);
-        let volume = left.max(right);
-        controls.values[1] = if volume > 0.0 {
-            f64::from((right - left) / volume + 1.0) * 0.5
-        } else {
-            0.5
-        };
-        controls.values[0] *= f64::from(volume);
-        controls.mask |= windfall_plugin_host::NoteExpressionKind::Pan.mask()
-            | windfall_plugin_host::NoteExpressionKind::Volume.mask();
+        if native_pan_law {
+            // Native Pan is normalized to 0..1. Volume retains total energy
+            // independently of Pan; both capabilities are required.
+            let (left,right)=self.pan_gains;
+            let sum=left+right;
+            controls.values[1]=if sum>0.0 {f64::from(right/sum)} else {0.5};
+            controls.values[0]*=f64::from(sum*0.5);
+            controls.mask |= windfall_plugin_host::NoteExpressionKind::Pan.mask()
+                | windfall_plugin_host::NoteExpressionKind::Volume.mask();
+        }
         windfall_plugin_host::PluginNoteExpression {
             values: controls.values,
             mask: controls.mask,
@@ -1778,6 +1809,7 @@ impl ExpressionOwner {
 }
 
 struct Audio {
+    note_capabilities: Arc<super::note_capabilities::Published>,
     sidechain_input: Option<u32>,
     instrument: bool,
     selection: Option<Arc<std::sync::atomic::AtomicU64>>,
@@ -1795,6 +1827,8 @@ struct Audio {
     expression_owners: Box<[ExpressionOwner]>,
     expression_map: windfall_dsp::ExpressionMap,
     note_law: windfall_core::PanLawRamp,
+    pan_law: windfall_core::PanLaw,
+    apply_pan_law: bool,
     pan_clock: u64,
     pan_ramp_frames: u64,
     next_note_id: u32,
@@ -1817,8 +1851,8 @@ impl Audio {
             midi_controls,
             expression_owners,
             expression_map,
-            note_law,
-            pan_clock,
+            note_capabilities,
+            apply_pan_law,
             reconcile_notes,
             reset_notes,
             transport,
@@ -1871,12 +1905,12 @@ impl Audio {
                         note.key,
                         note.channel,
                         note.velocity,
-                        note.controls(*expression_map, *note_law, *pan_clock),
+                        note.controls(*expression_map, *apply_pan_law && note_capabilities.supports_pan_law(note.channel)),
                     )
                 } else if note.dirty {
                     instrument.set_note_expression(
                         note.native,
-                        note.controls(*expression_map, *note_law, *pan_clock),
+                        note.controls(*expression_map, *apply_pan_law && note_capabilities.supports_pan_law(note.channel)),
                     )
                 } else {
                     true
@@ -2001,6 +2035,10 @@ impl HostedEffect for Audio {
                 self.reset_notes = true;
             }
         }
+        if let Some(Adapter::Instrument(adapter)) = self.adapter() {
+            let capabilities = adapter.native_note_capabilities();
+            self.note_capabilities.publish(capabilities.0, capabilities.1);
+        }
     }
     fn transport(&mut self, transport: windfall_engine::plugins::PluginTransport) {
         if let Some(selection) = &self.selection {
@@ -2036,6 +2074,8 @@ impl HostedEffect for Audio {
             for index in 0..frames {
                 for slot in 0..self.expression_owners.len() {
                     if self.expression_owners[slot].native != 0 {
+                        let note=&mut self.expression_owners[slot];
+                        note.pan_gains=note.pan_state.tick();
                         self.publish_expression_owner(slot);
                     }
                 }
@@ -2047,6 +2087,15 @@ impl HostedEffect for Audio {
                 self.pan_clock = self.pan_clock.saturating_add(1);
             }
         } else {
+            // Publish the exact endpoint even when a callback ends at frame 240.
+            for slot in 0..self.expression_owners.len() {
+                let note=&mut self.expression_owners[slot];
+                let gains=note.pan_state.gains();
+                if note.native!=0 && note.pan_gains!=gains {
+                    note.pan_gains=gains;
+                    self.publish_expression_owner(slot);
+                }
+            }
             self.process_pan_block(left, right, key);
             self.pan_clock = self
                 .pan_clock
@@ -2184,6 +2233,11 @@ impl HostedInstrument for Audio {
             return;
         }
         self.expression_map = map;
+        for note in self.expression_owners.iter_mut().filter(|note|note.native!=0) {
+            let mapped=map.plugin_controls(note.pan,0.0,note.expression);
+            note.pan_state=windfall_dsp::NotePan::new((mapped.values[1]*2.0-1.0) as f32,self.pan_law);
+            note.pan_gains=note.pan_state.gains();
+        }
         for slot in 0..self.expression_owners.len() {
             if self.expression_owners[slot].native != 0 {
                 self.expression_owners[slot].dirty = true;
@@ -2192,6 +2246,10 @@ impl HostedInstrument for Audio {
         }
     }
     fn set_note_pan_law(&mut self, law: windfall_core::PanLaw) {
+        // The engine explicitly supplies the project law. Direct host clients
+        // which never opt in retain the plugin's native expression semantics.
+        self.apply_pan_law=true;
+        self.pan_law=law;
         if self.pan_clock == 0 {
             self.note_law = windfall_core::PanLawRamp::at_rest(law);
         } else {
@@ -2203,6 +2261,7 @@ impl HostedInstrument for Audio {
             .iter_mut()
             .filter(|note| note.native != 0)
         {
+            note.pan_state.retarget(law, self.pan_ramp_frames as f32 * 200.0);
             note.dirty = true;
         }
         self.reconcile_notes = true;
@@ -2270,7 +2329,11 @@ impl HostedInstrument for Audio {
                 break next;
             }
         };
+        let mapped=self.expression_map.plugin_controls(pan,0.0,expression);
+        let pan_state=windfall_dsp::NotePan::new((mapped.values[1]*2.0-1.0) as f32,self.pan_law);
         self.expression_owners[slot] = ExpressionOwner {
+            pan_state,
+            pan_gains: pan_state.gains(),
             id,
             native,
             key: key.min(127),
@@ -2322,6 +2385,9 @@ impl HostedInstrument for Audio {
             + (expression.fine_pitch_cents - note.expression.fine_pitch_cents) / 100.0)
             .clamp(key - 120.0, key + 120.0);
         note.expression = expression;
+        let mapped=self.expression_map.plugin_controls(pan,0.0,expression);
+        note.pan_state=windfall_dsp::NotePan::new((mapped.values[1]*2.0-1.0) as f32,self.pan_law);
+        note.pan_gains=note.pan_state.gains();
         note.pan = if pan.is_finite() {
             pan.clamp(-1.0, 1.0)
         } else {
@@ -2391,7 +2457,7 @@ impl Audio {
             return;
         }
         let note = self.expression_owners[slot];
-        let controls = note.controls(self.expression_map, self.note_law, self.pan_clock);
+        let controls = note.controls(self.expression_map, self.apply_pan_law && self.note_capabilities.supports_pan_law(note.channel));
         let bend_range = self.expression_map.bend_range_semitones;
         let accepted = if let Some(Adapter::Instrument(adapter)) = self.adapter_mut() {
             adapter.set_bend_range_semitones(bend_range);
@@ -2569,6 +2635,7 @@ impl PluginFactory for Runtime {
                     .filter(|param| !param.read_only)
                     .map(|param| (param.id, None))
                     .collect();
+                let note_capabilities = Arc::new(super::note_capabilities::Published::default());
                 let controls = parameter_controls(&binding);
                 if playback {
                     owner
@@ -2583,6 +2650,7 @@ impl PluginFactory for Runtime {
                 owner.instances.insert(
                     token,
                     Instance {
+                        note_capabilities: note_capabilities.clone(),
                         identity: binding_identity(&binding),
                         target,
                         plugin: instance,
@@ -2606,6 +2674,7 @@ impl PluginFactory for Runtime {
                 );
 
                 Ok(Box::new(Audio {
+                    note_capabilities,
                     sidechain_input: None,
                     instrument: false,
                     selection,
@@ -2622,6 +2691,8 @@ impl PluginFactory for Runtime {
                     expression_owners: Box::new([]),
                     expression_map: windfall_dsp::ExpressionMap::default(),
                     note_law: windfall_core::PanLawRamp::at_rest(windfall_core::PanLaw::Balance),
+                    pan_law: windfall_core::PanLaw::Balance,
+                    apply_pan_law: false,
                     pan_clock: 0,
                     pan_ramp_frames: (f64::from(rate) * 0.005).round().max(1.0) as u64,
                     next_note_id: windfall_plugin_host::FIRST_NOTE_INSTANCE_ID,
@@ -2636,6 +2707,7 @@ impl PluginFactory for Runtime {
         )
         .or_else(|_| {
             Ok(Box::new(Audio {
+                note_capabilities: Arc::new(super::note_capabilities::Published::default()),
                 sidechain_input: None,
                 instrument: false,
                 selection: fallback_selection,
@@ -2652,6 +2724,8 @@ impl PluginFactory for Runtime {
                 expression_owners: Box::new([]),
                 expression_map: windfall_dsp::ExpressionMap::default(),
                 note_law: windfall_core::PanLawRamp::at_rest(windfall_core::PanLaw::Balance),
+                pan_law: windfall_core::PanLaw::Balance,
+                apply_pan_law: false,
                 pan_clock: 0,
                 pan_ramp_frames: (f64::from(rate) * 0.005).round().max(1.0) as u64,
                 next_note_id: windfall_plugin_host::FIRST_NOTE_INSTANCE_ID,
@@ -2721,6 +2795,7 @@ impl PluginFactory for Runtime {
                 let token = owner.next;
                 let note_instances = adapter.supports_note_instances();
                 let note_pitch = adapter.supports_note_pitch();
+                let native_capabilities = adapter.native_note_capabilities();
                 let adapter = Adapter::Instrument(adapter);
                 let latency = adapter.latency();
                 let tail = adapter.tail();
@@ -2731,6 +2806,8 @@ impl PluginFactory for Runtime {
                     .filter(|param| !param.read_only)
                     .map(|param| (param.id, None))
                     .collect();
+                let note_capabilities = Arc::new(super::note_capabilities::Published::default());
+                note_capabilities.publish(native_capabilities.0, native_capabilities.1);
                 let controls = parameter_controls(&binding);
                 if playback {
                     owner
@@ -2745,6 +2822,7 @@ impl PluginFactory for Runtime {
                 owner.instances.insert(
                     token,
                     Instance {
+                        note_capabilities: note_capabilities.clone(),
                         identity: binding_identity(&binding),
                         target,
                         plugin: instance,
@@ -2768,6 +2846,7 @@ impl PluginFactory for Runtime {
                 );
 
                 Ok(Box::new(Audio {
+                    note_capabilities,
                     sidechain_input: None,
                     instrument: true,
                     selection,
@@ -2787,6 +2866,8 @@ impl PluginFactory for Runtime {
                     ]
                     .into_boxed_slice(),
                     note_law: windfall_core::PanLawRamp::at_rest(windfall_core::PanLaw::Balance),
+                    pan_law: windfall_core::PanLaw::Balance,
+                    apply_pan_law: false,
                     pan_clock: 0,
                     pan_ramp_frames: (f64::from(rate) * 0.005).round().max(1.0) as u64,
                     next_note_id: windfall_plugin_host::FIRST_NOTE_INSTANCE_ID,
@@ -2802,6 +2883,7 @@ impl PluginFactory for Runtime {
         )
         .or_else(|_| {
             Ok(Box::new(Audio {
+                note_capabilities: Arc::new(super::note_capabilities::Published::default()),
                 sidechain_input: None,
                 instrument: true,
                 selection: fallback_selection,
@@ -2821,6 +2903,8 @@ impl PluginFactory for Runtime {
                 ]
                 .into_boxed_slice(),
                 note_law: windfall_core::PanLawRamp::at_rest(windfall_core::PanLaw::Balance),
+                pan_law: windfall_core::PanLaw::Balance,
+                apply_pan_law: false,
                 pan_clock: 0,
                 pan_ramp_frames: (f64::from(rate) * 0.005).round().max(1.0) as u64,
                 next_note_id: windfall_plugin_host::FIRST_NOTE_INSTANCE_ID,

@@ -164,6 +164,7 @@ impl ReadyProject {
         session: &'a Session,
         state: &State,
     ) -> Result<ProjectPublicationLease<'a>, AdmissionRefusal> {
+        if session.inner.update_installing.load(std::sync::atomic::Ordering::Acquire) { return Err(AdmissionRefusal::Document); }
         let before = &self.baseline;
         if state.generation != before.generation
             || state.edits != before.edits

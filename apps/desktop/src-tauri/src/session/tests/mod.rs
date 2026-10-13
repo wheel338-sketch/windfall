@@ -1,6 +1,7 @@
 //! Headless tests of the session: no window, no audio device. The engine is
 //! a [`Processor`] the tests run by hand.
 
+mod update_shutdown;
 mod analysis_jobs;
 mod analyzers;
 mod archive;
@@ -297,6 +298,7 @@ impl FakeDevice {
 }
 
 impl AudioDevice for FakeDevice {
+    fn suspend(&self) -> Result<(), String> { lock(&self.status).running=false; Ok(()) }
     fn status(&self) -> EngineStatus {
         lock(&self.status).clone()
     }

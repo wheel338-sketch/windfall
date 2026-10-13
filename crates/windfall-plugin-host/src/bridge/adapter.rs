@@ -358,6 +358,9 @@ impl Audio {
         self.expression_masks = masks;
         Ok(())
     }
+    pub fn native_note_capabilities(&self) -> (bool, [u32; 16]) {
+        (self.note_instances, self.expression_masks)
+    }
     pub fn supports_note_instances(&self) -> bool {
         self.note_instances
     }

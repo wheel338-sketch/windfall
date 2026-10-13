@@ -82,6 +82,7 @@ enum Request {
     /// Close the stream and open one with these settings. The sender is
     /// signalled when the attempt is over.
     Open(AudioSettings, Sender<()>),
+    Suspend(Sender<Result<(), String>>),
     Close,
 }
 
@@ -141,6 +142,14 @@ impl Engine {
         if !sent || wait.recv().is_err() {
             *lock(&self.status) = stopped(settings, "the audio device thread is not running");
         }
+    }
+
+    /// Control-side installer shutdown. Acknowledges only after callback owner
+    /// and stream destruction, and cancels automatic device recovery.
+    pub fn suspend(&self) -> Result<(), String> {
+        let (done, wait) = mpsc::channel();
+        lock(&self.requests).send(Request::Suspend(done)).map_err(|_| "Audio device owner is unavailable".to_owned())?;
+        wait.recv().map_err(|_| "Audio shutdown acknowledgement was lost".to_owned())?
     }
 
     /// What is open right now. `buffer_frames` is the size of the buffers
@@ -240,6 +249,9 @@ fn device_thread(
             Some(Request::Open(settings, done)) => {
                 supervisor.configure(settings);
                 let _ = done.send(());
+            }
+            Some(Request::Suspend(done)) => {
+                let _ = done.send(supervisor.suspend());
             }
             Some(Request::Close) => break,
             None => {}
@@ -387,6 +399,17 @@ impl<B: Backend, C: Fn() -> Instant> Supervisor<B, C> {
         if let Err(failure) = self.open() {
             *lock(&self.status) = failure;
         }
+    }
+
+    fn suspend(&mut self) -> Result<(), String> {
+        self.recovery.cancel();
+        let closing = self.controller.begin_close(true).map_err(|error|error.to_string())?;
+        self.stream = None;
+        self.controller.finish_close(closing);
+        let mut status = lock(&self.status);
+        status.running = false;
+        status.error = None;
+        Ok(())
     }
 
     /// Checks on the stream and makes any try at reopening that is due.
@@ -1506,6 +1529,24 @@ mod tests {
             }
             tries
         }
+    }
+
+    #[test]
+    fn installer_suspend_destroys_the_stream_cancels_recovery_and_reopens_running() {
+        let mut bench=Bench::running();
+        bench.controller.play();bench.process();
+        assert!(bench.controller.frame().playing);
+        let attempts=bench.attempts();
+        bench.supervisor.suspend().unwrap();
+        assert!(bench.supervisor.stream.is_none());
+        assert!(!bench.status().running);
+        assert!(bench.status().error.is_none());
+        assert!(bench.run(0,30_000).is_empty());
+        assert_eq!(bench.attempts(),attempts);
+        bench.configure(30_001);bench.process();
+        assert!(bench.status().running);
+        assert!(bench.controller.frame().playing);
+        assert_eq!(bench.attempts(),attempts+1);
     }
 
     #[test]

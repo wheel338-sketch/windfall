@@ -1897,6 +1897,18 @@ async fn plugin_editor_scale(
     blocking(move || runtime.set_editor_scale(application)).await
 }
 
+#[tauri::command]
+async fn plugin_note_capabilities(
+    manager: State<'_, std::sync::Arc<crate::plugins::PluginManager>>,
+    target: windfall_project::PluginTarget,
+    window: tauri::WebviewWindow,
+    caller: crate::window_calls::WindowCaller,
+) -> Result<crate::plugins::NoteCapabilities, String> {
+    let _window_call = caller.enter(&window, "plugin_note_capabilities")?;
+    let runtime = manager.runtime.clone();
+    blocking(move || runtime.note_capabilities(target)).await
+}
+
 // Creating a WebView2 window in a synchronous command can deadlock on Windows.
 #[tauri::command]
 async fn detach_panel(
@@ -1988,6 +2000,8 @@ pub fn handler() -> impl Fn(Invoke) -> bool + Send + Sync + 'static {
         crate::updates::update_check,
         crate::updates::update_download,
         crate::updates::update_install,
+        crate::updates::update_install_begin,
+        crate::updates::update_install_cancel,
         analysis_capability,
         analysis_model_import,
         analysis_runtime_settings,
@@ -2179,6 +2193,7 @@ pub fn handler() -> impl Fn(Invoke) -> bool + Send + Sync + 'static {
         plugins_add,
         plugin_editor,
         plugin_editor_scale,
+        plugin_note_capabilities,
         crate::files_commands::preset_capture_channel,
         crate::files_commands::preset_capture_plugin,
         crate::files_commands::preset_write,
