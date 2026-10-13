@@ -68,6 +68,7 @@ pub(crate) fn translate(internal_name: &str, state: &[u8], tempo_bpm: f64) -> Op
         "fruity parametric eq 2" => equaliser(numbers, true),
         "fruity parametric eq" => equaliser(numbers, false),
         "fruity compressor" => compressor(numbers),
+        "fruity balance" => balance(numbers),
         "fruity limiter" => untranslated(
             EffectParams::Limiter(LimiterParams::default()),
             "its settings are not understood, so it starts from Windfall's defaults",
@@ -95,7 +96,6 @@ const SETTINGS_NOT_DECODED: &str =
 /// Import keys only: these names do not define Windfall processor names.
 /// Keep mappings limited to kinds registered in `windfall_dsp::EffectKind`.
 const DEFAULT_EFFECTS: &[(&str, EffectKind)] = &[
-    ("Fruity Balance", EffectKind::Balance),
     ("Fruity Center", EffectKind::DcBlock),
     ("Fruity Mute 2", EffectKind::ChannelMute),
     ("Fruity Phase Inverter", EffectKind::Polarity),
@@ -161,6 +161,38 @@ fn untranslated(params: EffectParams, note: &'static str) -> Translated {
         params: params.sanitized(),
         notes: vec![note],
         links: Vec::new(),
+    }
+}
+
+/// PyFLP FruityBalanceEvent; DawVert fl_studio.ddef/dset and
+/// flstudio_univ.pltr explicitly divide pan by 128 and volume by 256.
+fn balance(numbers: Numbers<'_>) -> Translated {
+    let mut params = windfall_dsp::BalanceParams::default();
+    if let Some(pan) = numbers.get(0) {
+        params.pan = pan as f32 / 128.0;
+    }
+    if let Some(gain) = numbers.get(1) {
+        params.gain = gain as f32 / 256.0;
+    }
+    Translated {
+        params: EffectParams::Balance(params.sanitized()),
+        notes: vec![
+            "pan and gain translated from the public two-word state; gain uses DawVert's /256 approximation (PyFLP describes logarithmic gain)",
+        ],
+        links: vec![
+            ParamLink {
+                fl_param: 0,
+                fl_range: (-128.0, 128.0),
+                id: "pan",
+                convert: |v| v / 128.0,
+            },
+            ParamLink {
+                fl_param: 1,
+                fl_range: (0.0, 320.0),
+                id: "gain",
+                convert: |v| v / 256.0,
+            },
+        ],
     }
 }
 

@@ -216,3 +216,25 @@ registered, with an additional assertion against duplicate conversion warnings.
 No test/build/generation, proprietary binary inspection, or real-project corpus
 check was performed. Real projects from additional releases remain an external
 compatibility check, not synthetic-fixture evidence.
+
+## 2026-10-13 round-six builder progress (verified targeted suite)
+
+`cargo test -p windfall-flp --no-fail-fast -- --test-threads=1`: 174 passed,
+zero failed (97 unit, 27 conversion, 41 model, 9 independent byte-stream tests).
+Full workspace gates are tracked in
+[the round-six record](../qa/2026-10-13-r6-formats.md).
+
+| Translated item | Public source, licence and pin | Mapping and remaining limits |
+|---|---|---|
+| Channel portamento | DawVert c6c8be9e, GPL-3.0-or-later, mi_flp.py | `(slide/1024)^4` sixteenth steps to ms at imported tempo; 0..60,000 ms; engine glide shape is approximate |
+| Arpeggiator and echo | PyFLP f937126b channel.py; DawVert c6c8be9e channel.py/mi_flp.py, GPL-3.0-or-later | Direction/range/gate/rate and echo feedback/time/count/pitch mapped; unsupported chords/repeats/slide/random/sticky and echo pan/flags reported individually; arp float/u32 dispute reported |
+| Modulation ADSR and LFO tails | Same public channel sources | Pan/cutoff/resonance/pitch ADSR/depth; all optional tail words read; sixteen-step LFO timing anchor mapped, other nonlinear periods and delay/hold/tension/sync reported |
+| Fruity Balance native state and automation | PyFLP plugin.py; DawVert fl_studio.ddef/dset and flstudio_univ.pltr | Pan/128, gain/256 approximation; public source parameter 0 pan/1 volume maps by descriptor id to Windfall pan=1/gain=0; clip and recorded automation fixtures; opaque state also retained |
+| SimSynth FLP native state | DawVert fl_studio.ddef, flp_dec_plugins.py, n_flstudio_foss.py, same pin/grant | 45 doubles + 76 reserved bytes + flags; oscillator shape/coarse/fine/level/on and amplitude ADSR/gain; other named filter/modulation/unison/chorus fields still opaque; not a standalone .syn reader |
+| Arrangement loop/skip/pause | DawVert mi_flp.py action numbers; [public Playlist manual](https://www.image-line.com/fl-studio-learning-content/fl-studio-online-manual/html/playlist.htm), copyrighted documentation | Marker-loop/skip end at next source marker; song-loop ends at playlist data; pause maps unless preceding song-loop suppresses it; missing endpoints reported; start/punch names survive but transport behavior remains open |
+
+All exact full pins and attribution remain in NOTICE.md and the round-six record.
+Every fixture is constructed in Rust; no third-party preset/project/audio enters
+the repository. Processor layouts not implemented yet, note grouping, controller
+formulas/smoothing, instrument parameter numbering, nonlinear timing and start/
+punch regions remain software work, not merely archival or external checks.

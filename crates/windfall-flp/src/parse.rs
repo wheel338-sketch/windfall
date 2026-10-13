@@ -29,10 +29,11 @@ use std::collections::BTreeMap;
 use crate::error::FlpError;
 use crate::event::{self, Event, EventValue, u16_at, u32_at};
 use crate::model::{
-    Arrangement, AutomationCurve, AutomationPoint, Channel, ChannelKind, ChannelParams,
-    ControlEvent, ControlValue, CutGroups, Diagnostic, EnvelopeLfo, FlVersion, FlpProject, Insert,
-    LegacyPlaylistItem, LegacyStep, Note, Pattern, PlaylistItem, PlaylistItemExtra, PlaylistSource,
-    Polyphony, RawEvent, RawValue, RemoteController, Route, Slot, TimeMarker, Track,
+    Arrangement, AutomationCurve, AutomationPoint, Channel, ChannelEcho, ChannelKind,
+    ChannelParams, ControlEvent, ControlValue, CutGroups, Diagnostic, EnvelopeLfo, FlVersion,
+    FlpProject, Insert, LegacyPlaylistItem, LegacyStep, Note, Pattern, PlaylistItem,
+    PlaylistItemExtra, PlaylistSource, Polyphony, RawEvent, RawValue, RemoteController, Route,
+    Slot, TimeMarker, Track,
 };
 use crate::target::{ControlTarget, InsertParam, SlotParam};
 use crate::text::{self, TextEncoding};
@@ -338,6 +339,7 @@ impl Parser {
             74 => return self.on_channel(|channel| channel.preamp = Some(value)),
             97 => return self.on_channel(|channel| channel.swing = Some(value)),
             89 => return self.on_channel(|channel| channel.time_shift = Some(value)),
+            83 => return self.on_channel(|channel| channel.pitch_range = Some(value)),
             94 => {
                 let mut full = false;
                 let handled = self.on_channel(|channel| {
@@ -544,6 +546,21 @@ impl Parser {
             215 => {
                 let params = channel_params(data);
                 return self.on_channel(|channel| channel.params = Some(params));
+            }
+            209 => {
+                if data.len() < 20 {
+                    self.note(offset, "A channel echo record is shorter than 20 bytes.");
+                    return true;
+                }
+                return self.on_channel(|channel| {
+                    channel.echo = Some(ChannelEcho {
+                        feedback: u32_at(data, 0),
+                        pan: u32_at(data, 4) as i32,
+                        pitch_cents: u32_at(data, 8) as i32,
+                        repeats: u32_at(data, 12),
+                        time: u32_at(data, 16),
+                    })
+                });
             }
             216 => self.project.initial_controls.extend(control_values(data)),
             218 => {
@@ -1201,6 +1218,18 @@ fn channel_params(data: &[u8]) -> ChannelParams {
         Some(f64::from_le_bytes(bytes))
     };
     ChannelParams {
+        arp_direction: dword(40),
+        arp_range: dword(44),
+        arp_chord: dword(48),
+        arp_time: dword(52),
+        arp_gate: dword(56),
+        arp_slide: data.get(60).map(|b| *b != 0),
+        full_porta: data.get(62).map(|b| *b != 0),
+        gate: data
+            .get(64..66)
+            .map(|b| u16::from_le_bytes(b.try_into().unwrap())),
+        arp_repeat: dword(92),
+        delay_flags: data.get(10).copied(),
         stretch_time: dword(96),
         stretch_pitch: dword(100).map(|value| value as i32),
         stretch_multiplier: dword(104).map(|value| value as i32),
@@ -1214,6 +1243,10 @@ fn envelope(data: &[u8]) -> Option<EnvelopeLfo> {
     if data.len() < 36 {
         return None;
     }
+    let optional = |at: usize| {
+        data.get(at..at + 4)
+            .map(|b| u32::from_le_bytes(b.try_into().unwrap()))
+    };
     Some(EnvelopeLfo {
         flags: u32_at(data, 0),
         enabled: u32_at(data, 4) != 0,
@@ -1224,6 +1257,14 @@ fn envelope(data: &[u8]) -> Option<EnvelopeLfo> {
         sustain: u32_at(data, 24),
         release: u32_at(data, 28),
         amount: u32_at(data, 32) as i32,
+        lfo_predelay: optional(36),
+        lfo_attack: optional(40),
+        lfo_amount: optional(44).map(|v| v as i32),
+        lfo_speed: optional(48),
+        lfo_shape: optional(52).map(|v| v as i32),
+        attack_tension: optional(56).map(|v| v as i32),
+        decay_tension: optional(60).map(|v| v as i32),
+        release_tension: optional(64).map(|v| v as i32),
     })
 }
 

@@ -191,7 +191,10 @@ impl Builder<'_> {
                 self.report.say(
                     ReportSection::Automation,
                     Outcome::Dropped,
-                    "An automation target is unsupported or was not imported.",
+                    match source {
+                        ControlTarget::ChannelPlugin {channel,param} => format!("Instrument {} parameter {param}: no public automation-number mapping to its stand-in; kept in source events.", self.flp.channel(channel).and_then(|c| c.display_name()).unwrap_or("unnamed")),
+                        target => format!("Automation target {target:?} is unsupported or was not imported; kept in source events."),
+                    },
                 );
                 continue;
             };

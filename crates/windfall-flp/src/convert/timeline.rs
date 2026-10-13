@@ -116,6 +116,9 @@ impl Builder<'_> {
 
     pub(super) fn arrangement_timeline(&mut self, markers: &[crate::model::TimeMarker]) {
         let section = ReportSection::Other;
+        // DawVert names actions 1..5, 9,10. The public Playlist manual says
+        // marker-loop/skip end at the next marker and song-loop ends at data.
+        // Endpoints come from the source timeline, never from arbitrary bars.
         for marker in markers {
             let scaled = crate::units::rescale(marker.position, self.ppq);
             let Ok(tick) = u32::try_from(scaled.ticks) else {
@@ -158,6 +161,86 @@ impl Builder<'_> {
                         .to_owned(),
                     kind: MarkerKind::Named,
                 },
+                1 | 2 | 4 => {
+                    let source_end = if marker.kind == 4 {
+                        self.project()
+                            .playlist
+                            .clips
+                            .iter()
+                            .map(|c| c.start.saturating_add(c.length))
+                            .max()
+                            .unwrap_or(0)
+                            .max(tick)
+                    } else {
+                        markers
+                            .iter()
+                            .filter(|m| m.position > marker.position)
+                            .map(|m| crate::units::rescale(m.position, self.ppq).ticks)
+                            .min()
+                            .and_then(|t| u32::try_from(t).ok())
+                            .unwrap_or(tick)
+                    };
+                    if source_end <= tick {
+                        self.report.count(section, Outcome::Dropped, 1);
+                        self.report.say(section,Outcome::Dropped,format!("Marker {:?} action {} has no positive source endpoint; no region was invented.",marker.name,marker.kind));
+                        continue;
+                    }
+                    Command::AddTimelineMarker {
+                        tick,
+                        name: marker
+                            .name
+                            .clone()
+                            .filter(|s| !s.trim().is_empty())
+                            .unwrap_or_else(|| "Imported region".into()),
+                        kind: if marker.kind == 2 {
+                            MarkerKind::Skip { end: source_end }
+                        } else {
+                            MarkerKind::Loop { end: source_end }
+                        },
+                    }
+                }
+                3 => {
+                    let previous = markers
+                        .iter()
+                        .filter(|m| m.position < marker.position)
+                        .max_by_key(|m| m.position);
+                    let suppressed = previous.is_some_and(|m| m.kind == 4);
+                    if suppressed {
+                        self.report.say(section,Outcome::Exact,format!("Pause {:?} suppressed because its preceding source marker is a song loop.",marker.name));
+                    }
+                    Command::AddTimelineMarker {
+                        tick,
+                        name: marker
+                            .name
+                            .clone()
+                            .filter(|s| !s.trim().is_empty())
+                            .unwrap_or_else(|| "Pause".into()),
+                        kind: if suppressed {
+                            MarkerKind::Named
+                        } else {
+                            MarkerKind::Pause
+                        },
+                    }
+                }
+                5 | 9 | 10 => {
+                    self.report.say(section,Outcome::Approximated,format!("Marker {:?} action {} retained as a named marker; start-position/punch transport behavior is not translated.",marker.name,marker.kind));
+                    Command::AddTimelineMarker {
+                        tick,
+                        name: marker
+                            .name
+                            .clone()
+                            .filter(|s| !s.trim().is_empty())
+                            .unwrap_or_else(|| {
+                                match marker.kind {
+                                    5 => "Start",
+                                    9 => "Punch in",
+                                    _ => "Punch out",
+                                }
+                                .into()
+                            }),
+                        kind: MarkerKind::Named,
+                    }
+                }
                 kind => {
                     self.report.count(section, Outcome::Dropped, 1);
                     self.report.say(section, Outcome::Dropped, format!("Arrangement marker kind {kind} is not mapped: its navigation semantics are not supported by this importer."));
@@ -168,9 +251,21 @@ impl Builder<'_> {
                 .apply(section, "An arrangement timeline marker", command)
                 .is_some()
             {
+                self.report.say(
+                    section,
+                    if scaled.exact && !matches!(marker.kind, 4 | 5 | 9 | 10) {
+                        Outcome::Exact
+                    } else {
+                        Outcome::Approximated
+                    },
+                    format!(
+                        "Arrangement marker kind {} {:?} translated at tick {tick}.",
+                        marker.kind, marker.name
+                    ),
+                );
                 self.report.count(
                     section,
-                    if scaled.exact {
+                    if scaled.exact && !matches!(marker.kind, 4 | 5 | 9 | 10) {
                         Outcome::Exact
                     } else {
                         Outcome::Approximated

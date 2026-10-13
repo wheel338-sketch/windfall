@@ -172,6 +172,16 @@ fn a_sampler_channel_reads_its_name_colour_sample_and_levels() {
             stretch_mode: Some(0),
             sample_start: Some(0.25),
             sample_length: Some(0.5),
+            arp_direction: Some(0),
+            arp_range: Some(0),
+            arp_chord: Some(0),
+            arp_time: Some(0),
+            arp_gate: Some(0),
+            arp_slide: Some(false),
+            arp_repeat: Some(0),
+            full_porta: Some(false),
+            gate: Some(0),
+            delay_flags: Some(0),
         }),
         envelopes: vec![
             EnvelopeLfo::default(),
@@ -185,6 +195,7 @@ fn a_sampler_channel_reads_its_name_colour_sample_and_levels() {
                 sustain: 50,
                 release: 20_000,
                 amount: 0,
+                ..Default::default()
             },
         ],
         polyphony: Some(Polyphony {

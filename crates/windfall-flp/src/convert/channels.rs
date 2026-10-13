@@ -306,7 +306,7 @@ impl Builder<'_> {
                             }),
                         },
                     );
-                    self.report.say(ReportSection::Channels, outcome, "The sampler envelope uses fitted times; delay, hold, tempo sync and LFOs have no equivalent.");
+                    self.report.say(ReportSection::Channels, outcome, "The sampler volume ADSR uses fitted times; predelay, hold and tempo sync are reported separately, as are any unexpressible LFO values.");
                 }
                 if channel
                     .volume

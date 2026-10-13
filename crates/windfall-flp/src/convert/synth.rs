@@ -76,6 +76,9 @@ pub(crate) fn translate(channel: &Channel) -> Option<Translated> {
     if name.eq_ignore_ascii_case(THREE_OSC) {
         return Some(three_osc(Numbers(&plugin.state), channel));
     }
+    if name.eq_ignore_ascii_case("SimSynth") {
+        return Some(simsynth(&plugin.state));
+    }
     let (_, kind) = DEFAULT_INSTRUMENTS
         .iter()
         .find(|(source, _)| source.eq_ignore_ascii_case(name))?;
@@ -83,6 +86,154 @@ pub(crate) fn translate(channel: &Channel) -> Option<Translated> {
         params: kind.default_params().sanitized(),
         notes: vec![PATCH_SETTINGS_NOT_DECODED],
     })
+}
+
+/// Public DawVert `fl_studio.ddef`: 45 f64 values, 76 reserved bytes,
+/// then oscillator/feature flags. This is FLP state, not standalone .syn.
+fn simsynth(state: &[u8]) -> Translated {
+    if state.len() < 436 {
+        return Translated {
+            params: InstrumentKind::TripleOsc.default_params(),
+            notes: vec![PATCH_SETTINGS_NOT_DECODED],
+        };
+    }
+    let mut params = windfall_dsp::analog::TripleOscParams::default();
+    let value = |index: usize| {
+        state
+            .get(index * 8..index * 8 + 8)
+            .and_then(|b| b.try_into().ok())
+            .map(f64::from_le_bytes)
+            .filter(|v| v.is_finite())
+    };
+    let word = |index: usize| {
+        state
+            .get(436 + index * 4..440 + index * 4)
+            .and_then(|b| b.try_into().ok())
+            .map(u32::from_le_bytes)
+    };
+    let mut notes = vec![
+        "public SimSynth oscillator shape/coarse/fine/level and amplitude ADSR translated to Three oscillator synth; source synthesis differs",
+    ];
+    for (i, osc) in params.oscillators.iter_mut().enumerate() {
+        if let Some(shape) = value(i * 7 + 6) {
+            osc.waveform = match (shape * 10.0).round() as i32 {
+                0 => Waveform::Triangle,
+                1 => Waveform::Saw,
+                2 => Waveform::Square,
+                3 => Waveform::Sine,
+                4 => Waveform::WhiteNoise,
+                _ => {
+                    notes
+                        .push("an unknown SimSynth oscillator shape stays at the stand-in default");
+                    osc.waveform
+                }
+            };
+        }
+        if let Some(coarse) = value(i * 7 + 1) {
+            osc.semitones = ((coarse - 0.5) * 48.0) as f32;
+        }
+        if let Some(fine) = value(i * 7 + 2) {
+            osc.detune_cents = ((fine - 0.5) * 200.0) as f32;
+        }
+        if let Some(level) = value(i * 7 + 3) {
+            osc.level = level as f32;
+        }
+        if word(i * 4) == Some(0) {
+            osc.level = 0.0;
+        }
+        if value(i * 7).is_some_and(|v| v != 0.5) {
+            notes.push(match i {
+                0 => "osc1_pw: pulse-width shaping has no stand-in control",
+                1 => "osc2_pw: pulse-width shaping has no stand-in control",
+                _ => "osc3_pw: pulse-width shaping has no stand-in control",
+            });
+        }
+        if value(i * 7 + 4).is_some_and(|v| v != 0.5) {
+            notes.push(match i {
+                0 => "osc1_lfo: oscillator pitch LFO not translated",
+                1 => "osc2_lfo: oscillator pitch LFO not translated",
+                _ => "osc3_lfo: oscillator pitch LFO not translated",
+            });
+        }
+        if value(i * 7 + 5).is_some_and(|v| v != 0.5) {
+            notes.push(match i {
+                0 => "osc1_env: oscillator pitch envelope not translated",
+                1 => "osc2_env: oscillator pitch envelope not translated",
+                _ => "osc3_env: oscillator pitch envelope not translated",
+            });
+        }
+        for (offset, name) in [
+            (1, "oscillator octave-one layer"),
+            (2, "oscillator octave-two layer"),
+            (3, "oscillator warm/unison"),
+        ] {
+            if word(i * 4 + offset).is_some_and(|v| v != 0) {
+                notes.push(name);
+            }
+        }
+    }
+    // DawVert simsynth_time(v) = (2*v)^3 / 2 seconds.
+    if let Some(v) = value(35) {
+        params.envelope.attack_ms = (4.0 * v.powi(3) * 1000.0) as f32;
+    }
+    if let Some(v) = value(36) {
+        params.envelope.decay_ms = (4.0 * v.powi(3) * 1000.0) as f32;
+    }
+    if let Some(v) = value(37) {
+        params.envelope.sustain = v as f32;
+    }
+    if let Some(v) = value(38) {
+        params.envelope.release_ms = (4.0 * v.powi(3) * 1000.0) as f32;
+    }
+    if let Some(v) = value(39) {
+        params.gain = v as f32;
+    }
+    // Separate cutoff and amplitude envelopes cannot both be represented by
+    // this stand-in's one shared envelope. Keep individually named omissions.
+    for (index, name) in [
+        (21, "lfo_del"),
+        (22, "lfo_rate"),
+        (24, "lfo_shape"),
+        (26, "svf_cut"),
+        (27, "svf_emph"),
+        (28, "svf_env"),
+        (29, "svf_lfo"),
+        (30, "svf_kb"),
+        (32, "svf_high"),
+        (33, "svf_band"),
+        (41, "svf_att"),
+        (42, "svf_dec"),
+        (43, "svf_sus"),
+        (44, "svf_rel"),
+    ] {
+        if value(index).is_some() {
+            notes.push(name);
+        }
+    }
+    for (index, name) in [
+        (12, "lfo_on"),
+        (13, "lfo_retrigger"),
+        (14, "svf_on"),
+        (16, "lfo_trackamp"),
+        (18, "chorus_on"),
+    ] {
+        if word(index).is_some_and(|v| v != 0) {
+            notes.push(name);
+        }
+    }
+    if state
+        .as_chunks::<8>()
+        .0
+        .iter()
+        .take(45)
+        .any(|b| !f64::from_le_bytes(*b).is_finite())
+    {
+        notes.push("nonfinite SimSynth values were refused and left at safe defaults");
+    }
+    Translated {
+        params: InstrumentParams::TripleOsc(params.sanitized()),
+        notes,
+    }
 }
 
 /// FL Studio's oscillator shapes, in the order of the numbers it stores:

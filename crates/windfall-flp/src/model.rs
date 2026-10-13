@@ -295,6 +295,10 @@ pub struct Channel {
     pub swing: Option<u16>,
     /// Nonlinear fine shift. Event 89 (PyFLP); retained, not guessed.
     pub time_shift: Option<u16>,
+    /// Semitone range for channel pitch control. Event 83 (PyFLP).
+    pub pitch_range: Option<u16>,
+    /// Note echo, event 209 (PyFLP DelayEvent and DawVert).
+    pub echo: Option<ChannelEcho>,
     /// The key that plays a sample at its own pitch, where 60 is the key
     /// FL Studio calls C5. Event 135. Agreed (PyFLP, DawVert).
     pub root_note: Option<u32>,
@@ -366,6 +370,18 @@ pub struct CutGroups {
 /// as a pair of 16-bit numbers and decodes them to the same value.
 #[derive(Debug, Clone, Copy, PartialEq, Default)]
 pub struct ChannelParams {
+    /// PyFLP ParametersEvent / DawVert channel.py, bytes 40..64 and 92..96.
+    pub arp_direction: Option<u32>,
+    pub arp_range: Option<u32>,
+    pub arp_chord: Option<u32>,
+    /// Disputed: DawVert reads u32, PyFLP float32. Preserve the raw word.
+    pub arp_time: Option<u32>,
+    pub arp_gate: Option<u32>,
+    pub arp_slide: Option<bool>,
+    pub arp_repeat: Option<u32>,
+    pub full_porta: Option<bool>,
+    pub gate: Option<u16>,
+    pub delay_flags: Option<u8>,
     /// How long the stretched sample is to last. Bytes 96 to 100.
     pub stretch_time: Option<u32>,
     /// Pitch shift of the time stretcher in cents. Bytes 100 to 104.
@@ -399,6 +415,24 @@ pub struct EnvelopeLfo {
     pub release: u32,
     /// -128 to 128.
     pub amount: i32,
+    /// Optional tails of event 218; PyFLP EnvelopeLFOEvent, bytes 36..68.
+    pub lfo_predelay: Option<u32>,
+    pub lfo_attack: Option<u32>,
+    pub lfo_amount: Option<i32>,
+    pub lfo_speed: Option<u32>,
+    pub lfo_shape: Option<i32>,
+    pub attack_tension: Option<i32>,
+    pub decay_tension: Option<i32>,
+    pub release_tension: Option<i32>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct ChannelEcho {
+    pub feedback: u32,
+    pub pan: i32,
+    pub pitch_cents: i32,
+    pub repeats: u32,
+    pub time: u32,
 }
 
 /// Event 221.

@@ -478,6 +478,12 @@ fn channel_params(params: &ChannelParams) -> Vec<u8> {
     let mut data = vec![0_u8; if long { 168 } else { 112 }];
     data[0..4].copy_from_slice(&u32::MAX.to_le_bytes());
     let mut put = |at: usize, value: u32| data[at..at + 4].copy_from_slice(&value.to_le_bytes());
+    put(40, params.arp_direction.unwrap_or(0));
+    put(44, params.arp_range.unwrap_or(0));
+    put(48, params.arp_chord.unwrap_or(0));
+    put(52, params.arp_time.unwrap_or(0));
+    put(56, params.arp_gate.unwrap_or(0));
+    put(92, params.arp_repeat.unwrap_or(0));
     put(96, params.stretch_time.unwrap_or(0));
     put(100, params.stretch_pitch.unwrap_or(0) as u32);
     put(104, params.stretch_multiplier.unwrap_or(0) as u32);
@@ -500,16 +506,24 @@ fn envelope_record(envelope: &EnvelopeLfo) -> Vec<u8> {
         envelope.sustain,
         envelope.release,
         envelope.amount as u32,
-        100,
-        20_000,
-        0,
-        32_950,
-        0,
-        0,
-        0,
-        0,
     ];
-    fields.into_iter().flat_map(u32::to_le_bytes).collect()
+    let mut data: Vec<u8> = fields.into_iter().flat_map(u32::to_le_bytes).collect();
+    let tail = [
+        envelope.lfo_predelay,
+        envelope.lfo_attack,
+        envelope.lfo_amount.map(|v| v as u32),
+        envelope.lfo_speed,
+        envelope.lfo_shape.map(|v| v as u32),
+        envelope.attack_tension.map(|v| v as u32),
+        envelope.decay_tension.map(|v| v as u32),
+        envelope.release_tension.map(|v| v as u32),
+    ];
+    if let Some(last) = tail.iter().rposition(Option::is_some) {
+        for value in &tail[..=last] {
+            data.extend(value.unwrap_or(0).to_le_bytes());
+        }
+    }
+    data
 }
 
 fn write_arrangement(events: &mut Events, arrangement: &Arrangement, layout: Layout) {
