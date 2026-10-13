@@ -1530,15 +1530,19 @@ fn native_clap_project_pan_laws_and_live_ramps_match_render_pcm_without_allocati
         let baseline = expression_audio(center.as_mut(), 512);
         let ramp = expression_audio(unit.as_mut(), 512);
         let to = PanLaw::Linear.gains(0.65);
-        for i in 0..512 {
-            let part = (i as f32 / 240.0).min(1.0);
+        // Native controls act on the input clock. The fixture's declared
+        // latency delays the resulting ramp on the output clock equally.
+        let latency = unit.latency();
+        for i in 0usize..512 {
+            let part = (i.saturating_sub(latency) as f32 / 240.0).min(1.0);
             assert!(
                 (ramp[i][0] - baseline[i][0] * (gains.0 + (to.0 - gains.0) * part)).abs() < 2e-6,
                 "{law:?} ramp left {i}"
             );
             assert!(
                 (ramp[i][1] - baseline[i][1] * (gains.1 + (to.1 - gains.1) * part)).abs() < 2e-6,
-                "{law:?} ramp right {i}"
+                "{law:?} ramp right {i}: actual={} expected={} latency={}",
+                ramp[i][1], baseline[i][1] * (gains.1 + (to.1 - gains.1) * part), unit.latency()
             );
         }
     }

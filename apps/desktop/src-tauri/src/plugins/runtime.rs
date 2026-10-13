@@ -684,7 +684,7 @@ fn maintain_owner(
                     errors.push((
                         record.binding.target,
                         format!(
-                            "Process bridge recovery is pending: {}",
+                            "Process bridge recovery is pending; retry manually: {}",
                             status
                                 .error
                                 .unwrap_or_else(|| { "native helper unavailable".into() })

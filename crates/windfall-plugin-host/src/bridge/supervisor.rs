@@ -608,6 +608,7 @@ pub fn launch(options: Launch) -> Result<(Control, Audio, usize), String> {
     let worker = std::thread::Builder::new()
         .name("plugin-bridge-supervisor".into())
         .spawn(move || {
+            let mut terminal_reply = None;
             let result = supervise(
                 &mut process,
                 &mut socket,
@@ -619,6 +620,7 @@ pub fn launch(options: Launch) -> Result<(Control, Audio, usize), String> {
                     signals: worker_signals.clone(),
                     audio_timeout: options.audio_timeout,
                 },
+                &mut terminal_reply,
             );
             worker_signals.failed.store(true, Ordering::Release);
             let exit = process.reap();
@@ -629,6 +631,13 @@ pub fn launch(options: Launch) -> Result<(Control, Audio, usize), String> {
             if let Err(error) = result.and(exit) {
                 status.failed = true;
                 status.error = Some(error);
+            }
+            drop(status);
+            // Terminal native work must be reaped before its caller releases
+            // recording/replacement exclusion. Healthy queued cancellations
+            // still reply in supervise without terminating the owner.
+            if let Some((response, error)) = terminal_reply {
+                let _ = response.send(Err(error));
             }
         })
         .map_err(|error| error.to_string())?;
@@ -707,6 +716,7 @@ struct Supervision {
     signals: Arc<Signals>,
     audio_timeout: Duration,
 }
+type TerminalReply = Option<(mpsc::SyncSender<Result<Packet, String>>, String)>;
 fn supervise(
     process: &mut Process,
     socket: &mut TcpStream,
@@ -714,6 +724,7 @@ fn supervise(
     owner: Owner,
     incoming: mpsc::Receiver<Job>,
     context: Supervision,
+    terminal_reply: &mut TerminalReply,
 ) -> Result<(), String> {
     let Supervision {
         region,
@@ -778,10 +789,12 @@ fn supervise(
                         },
                     )
                 });
-                let failed = result.as_ref().err().cloned();
-                let _ = response.send(result);
-                if let Some(error) = failed {
-                    return Err(error);
+                match result {
+                    Ok(packet) => { let _ = response.send(Ok(packet)); }
+                    Err(error) => {
+                        *terminal_reply = Some((response, error.clone()));
+                        return Err(error);
+                    }
                 }
             }
             Err(mpsc::TryRecvError::Empty) => {}

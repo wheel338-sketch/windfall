@@ -77,12 +77,10 @@ fn set(rig: &Rig, id: ChannelId, graph: RackGraph) {
         .unwrap();
 }
 fn capture(rig: &Rig, channel: ChannelId) -> windfall_ipc::PresetCapture {
+    let generation = rig.session.state().generation;
+    let revision = rig.session.document_snapshot().revision;
     rig.session
-        .preset_capture_channel(
-            channel,
-            rig.session.state().generation,
-            rig.session.document_snapshot().revision,
-        )
+        .preset_capture_channel(channel, generation, revision)
         .unwrap()
 }
 
