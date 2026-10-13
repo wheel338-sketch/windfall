@@ -4,7 +4,7 @@ use std::path::{Path, PathBuf};
 use std::sync::OnceLock;
 use windfall_project::{Command, Document, EffectId, TrackId};
 
-fn clap_expression_fixture(midi: bool) -> (Arc<Runtime>, PluginBinding) {
+pub(crate) fn clap_expression_fixture(midi: bool) -> (Arc<Runtime>, PluginBinding) {
     static CLAP: OnceLock<PathBuf> = OnceLock::new();
     let path = CLAP.get_or_init(|| {
         let (_, binding) = fixture(2);
@@ -277,7 +277,7 @@ pub(crate) fn fixture(index: usize) -> (Arc<Runtime>, PluginBinding) {
         format: "vst3".into(),
         name: descriptor.name.clone(),
         vendor: "Fixture".into(),
-        instrument: index == 2 || index == 23 || index == 24,
+        instrument: index == 2 || index == 23 || index == 24 || index == 26,
         usable: true,
         error: None,
     }]);
@@ -287,7 +287,7 @@ pub(crate) fn fixture(index: usize) -> (Arc<Runtime>, PluginBinding) {
             auxiliary_inputs: Vec::new(),
             capabilities: Default::default(),
             wrapper: Default::default(),
-            target: if index == 2 || index == 23 || index == 24 {
+            target: if index == 2 || index == 23 || index == 24 || index == 26 {
                 PluginTarget::Instrument {
                     channel: windfall_project::ChannelId(900),
                 }
@@ -1569,4 +1569,24 @@ fn vst3_missing_native_volume_visibly_refuses_per_note_law_and_keeps_pcm_running
     let after = expression_audio(unit.as_mut(), 512);
     assert_eq!(before, after);
     assert!(after.iter().any(|v| v[0] > 0.0 && v[1] > 0.0));
+}
+
+#[test]
+fn native_colour_group_and_live_midi_channels_are_observed_and_invalid_notes_are_refused() {
+    use windfall_dsp::{NoteExpression, NoteInstanceId};
+    let (runtime, binding) = clap_expression_fixture(false);
+    let mut unit = runtime.instrument(&binding, 48_000, 64).unwrap();
+    unit.transport(transport());
+    unit.set_note_pan_law(windfall_core::PanLaw::ConstantPower);
+    assert_eq!(crate::test_alloc::allocator_calls(|| {
+        unit.note_on_instance(NoteInstanceId(1), 69, 0.4, -0.5, NoteExpression { color_group: Some(3), ..NoteExpression::NEUTRAL });
+        unit.note_on_instance(NoteInstanceId(2), 81, 0.4, 0.5, NoteExpression { color_group: Some(16), ..NoteExpression::NEUTRAL });
+        assert!(unit.midi_message(&[0x99, 60, 64]));
+    }), 0);
+    assert_eq!(unit.voices(), 2, "one sequenced and one actual live-channel owner; invalid note has no voice");
+    let pcm = expression_audio(unit.as_mut(), 512);
+    assert!(pcm.iter().any(|frame| frame[0].abs() > 0.001));
+    let capabilities = runtime.note_capabilities(binding.target).unwrap();
+    assert_eq!(capabilities.observed_channels, vec![3, 9]);
+    assert!(capabilities.refusal.unwrap().contains("Invalid note MIDI channel"));
 }
