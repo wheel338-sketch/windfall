@@ -11,10 +11,9 @@
 //!
 //! # Platforms
 //!
-//! The host window is implemented for Windows. On macOS and Linux only
-//! plugins that open their own window work so far. The pieces to fill in
-//! are a `HostWindow` for Cocoa and for X11 with the same four operations
-//! as the one in `win32.rs`.
+//! The native parents are HWND (Windows), NSView (Cocoa) and an XEmbed
+//! container XID (Linux). Cocoa uses the application's actual main thread;
+//! X11 connections/run-loop callbacks stay on the plugin's creating owner.
 //!
 //! # The event loop
 //!
@@ -24,9 +23,29 @@
 
 use std::time::Duration;
 
+#[cfg(any(test, target_os = "macos", target_os = "linux"))]
+pub(crate) mod bridge_editor;
+#[cfg(target_os = "macos")]
+mod cocoa;
+#[cfg(target_os = "macos")]
+#[allow(dead_code)] // shared ABI includes the exported panel's selectors
+pub(crate) mod cocoa_ffi;
+#[cfg(any(test, target_os = "macos"))]
+pub mod dispatch;
+#[cfg(any(test, target_os = "macos", target_os = "linux"))]
+pub(crate) mod lifecycle;
+#[cfg(any(target_os = "macos", target_os = "linux"))]
+pub(crate) mod native;
+#[cfg(any(test, target_os = "linux"))]
+pub(crate) mod run_loop;
 pub(crate) mod scaling;
 #[cfg(windows)]
 pub(crate) mod win32;
+#[cfg(target_os = "linux")]
+mod x11;
+#[cfg(target_os = "linux")]
+#[allow(dead_code)] // shared ABI includes the exported panel's drawing calls
+mod x11_ffi;
 
 /// How to open an editor.
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
@@ -102,9 +121,8 @@ pub enum EditorError {
     UnsupportedScale,
     #[error("application scale must be finite and between 75% and 200%")]
     InvalidScale,
-    /// The plugin only embeds its editor in a host window, and this
-    /// platform's host window is not written yet.
-    #[error("editors that need a host window are not supported on this platform yet")]
+    /// The plugin's parent API is not available on this target/window system.
+    #[error("the plugin editor's native parent API is unsupported on this platform")]
     UnsupportedPlatform,
     #[error("the editor could not be opened: {0}")]
     Failed(String),
@@ -119,7 +137,11 @@ pub enum EditorError {
 pub fn pump_events(wait: Option<Duration>) {
     #[cfg(windows)]
     win32::pump_events(wait);
-    #[cfg(not(windows))]
+    #[cfg(any(target_os = "macos", target_os = "linux"))]
+    native::pump_events(wait);
+    #[cfg(target_os = "linux")]
+    crate::vst3::pump_run_loops();
+    #[cfg(not(any(windows, target_os = "macos", target_os = "linux")))]
     if let Some(wait) = wait {
         std::thread::sleep(wait);
     }

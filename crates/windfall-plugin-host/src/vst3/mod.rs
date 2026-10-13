@@ -3,6 +3,8 @@ mod buffers;
 #[cfg(target_os = "macos")]
 pub(crate) mod bundle_macos;
 mod editor;
+#[cfg(target_os = "linux")]
+mod gui_context_linux;
 mod handlers;
 mod instance;
 #[cfg(any(target_os = "macos", test))]
@@ -248,7 +250,12 @@ impl Vst3Module {
     }
     pub fn probe(&self, id: &str) -> Result<PluginLayout, PluginError> {
         let cid = parse_id(id).ok_or_else(|| PluginError::NotFound(id.into()))?;
+        #[cfg(target_os = "linux")]
+        let gui_context = gui_context_linux::Owner::new(self)?;
+        #[cfg(target_os = "linux")]
+        let context = gui_context.context();
         let component = self.object::<IComponent>(&cid)?;
+        #[cfg(not(target_os = "linux"))]
         let context = ComWrapper::new(HostApplication)
             .to_com_ptr::<IHostApplication>()
             .expect("host interface");
@@ -398,9 +405,21 @@ impl Drop for ModuleData {
         let _ = &self.library;
     }
 }
+#[cfg(not(target_os = "linux"))]
 struct HostApplication;
+#[cfg(target_os = "linux")]
+struct HostApplication {
+    run_loop: editor::run_loop::RunLoop,
+}
 impl Class for HostApplication {
+    #[cfg(not(target_os = "linux"))]
     type Interfaces = (IHostApplication,);
+    #[cfg(target_os = "linux")]
+    type Interfaces = (IHostApplication, vst3::Steinberg::Linux::IRunLoop);
+}
+#[cfg(target_os = "linux")]
+pub(crate) fn pump_run_loops() {
+    editor::run_loop::pump();
 }
 #[allow(non_snake_case)]
 impl IHostApplicationTrait for HostApplication {

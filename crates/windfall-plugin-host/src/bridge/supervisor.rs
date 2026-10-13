@@ -1,4 +1,6 @@
 //! Per-instance process/control owner. No method here belongs on audio.
+#[cfg(any(target_os = "macos", target_os = "linux"))]
+mod editor;
 
 use super::{
     adapter::{Audio, ParameterSpec, Signals},
@@ -284,6 +286,8 @@ impl Control {
         open: bool,
         options: crate::EditorOptions,
     ) -> Result<(), String> {
+        #[cfg(target_os = "macos")]
+        let options = crate::gui::bridge_editor::helper_options(options, true);
         options.validate().map_err(|error| error.to_string())?;
         let packet = self.call(Message::Editor { open, options }, Duration::from_secs(2))?;
         match packet.body {

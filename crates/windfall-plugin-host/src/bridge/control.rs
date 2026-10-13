@@ -193,6 +193,17 @@ pub enum Message {
     Error {
         message: String,
     },
+    #[cfg(any(target_os = "macos", target_os = "linux"))]
+    EditorScale {
+        application: f64,
+    },
+    #[cfg(any(target_os = "macos", target_os = "linux"))]
+    EditorStatus,
+    #[cfg(any(target_os = "macos", target_os = "linux"))]
+    EditorReport {
+        open: bool,
+        refused: Option<[f64; 2]>,
+    },
 }
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
