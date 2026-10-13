@@ -91,3 +91,33 @@ or when it needs an asset the project does not have (a trained model).
 - Sample pre-processing normalizes to −1 dBFS, as the audio editor does. An
   instrument track's pattern clips play only the linked channel, in playback
   and in MIDI export.
+
+## Decisions — 2026-10-13
+
+- **Deadline budgets** mean a share of one performance core. On a hybrid CPU
+  the release deadline harness restricts its own measuring thread to the
+  highest efficiency class, judges the minimum of three identical trials and
+  still prints the median, the worst and one unrestricted trial. Limits,
+  workloads and declared maxima are unchanged.
+- **Code that exists only for macOS or Linux** counts as verified on this
+  machine when it type-checks in the recorded cross-target check and its
+  platform-independent logic passes its tests on Windows. Running it on those
+  systems is an external check.
+- **Recording rows** were accepted on the real-device harness run against a
+  real WASAPI driver (a digital output with its loopback as input; no audible
+  device and no microphone). An analogue round trip through a physical
+  interface, ASIO hardware and unplugging are external checks.
+- `core-stem-separation`, `wf-remix-a-song`: accepted after the real ONNX
+  Runtime harness ran a four-stem model end to end (Open-Unmix UMX-HQ, MIT
+  weights, exported locally; neither the runtime library nor the weights are
+  in the repository). Real-music listening is an external check.
+- `fmt-import-legacy-presets`: the public drum-synth text preset format is
+  implemented in full. The reference product's small-synth (`.syn`) and speech
+  preset files have no public byte-level description (search recorded in
+  `2026-10-13-r6-formats.md`) and the plan rules out reverse engineering, so
+  those files stay unsupported with an explicit message. The capability is
+  completed with Windfall's own synth and speech presets rendering into a
+  sampler channel as samples.
+- `fmt-flp-import`: everything the public open-source readers describe is
+  translated; device state with no public layout stays opaque with a per-device
+  warning. That is the designed end state, not a gap.
