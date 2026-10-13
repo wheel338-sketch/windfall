@@ -211,6 +211,16 @@ fn sf2_stereo_linked_zones_make_one_phase_locked_voice_with_24_bit_pcm() {
 }
 
 #[test]
+fn sf2_preset_pan_adds_after_stereo_channel_layout_and_keeps_one_voice() {
+    let mut b=stereo_fixture();b.pgen=gens(&[(17,100),(41,0),(0,0)]);put16(&mut b.pbag,4,2);
+    let bank=Arc::new(parsed(&b));assert_eq!(bank.zones().len(),1);near(bank.sf2[0].generators[17],100.0);
+    let mut unit=SoundFont::default();unit.prepare(RATE,127);unit.install_bank(bank);unit.note_on(60,1.0);
+    let mut l=[0.0;127];let mut r=[0.0;127];unit.process(&mut l,&mut r);
+    assert_eq!(unit.active_voices(),1);assert!(r.iter().any(|sample|sample.abs()>0.001));
+    for frame in 0..127 {assert!((l[frame]-0.8*r[frame]).abs()<1e-6);}
+}
+
+#[test]
 fn sf2_negative_24_bit_reconstruction_and_hostile_lengths_links_modes() {
     let mut b=fixture(&[]);b.sm24=Some(vec![255;8192]);
     b.smpl[..2].copy_from_slice(&(-1i16).to_le_bytes());

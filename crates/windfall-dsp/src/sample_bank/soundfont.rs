@@ -402,7 +402,8 @@ impl<'a> Tables<'a> {
                 let partner=if matches!(kind,2|4|8) { Some(u16_at(header,42) as usize) } else { None };
                 // Paired hard-left/right zones encode the channel layout, not a
                 // second musical pan offset. Both samples share one oscillator.
-                if matches!(kind,2|4) && values[17].abs()==500.0 { values[17]=0.0; }
+                let channel_pan=instrument.values[17].unwrap_or(0) as f32;
+                if matches!(kind,2|4) && channel_pan.abs()==500.0 { values[17]-=channel_pan; }
                 let root=if values[58]>=0.0 {values[58] as u8} else if header[40]<=127 {header[40]} else {60};
                 if header[40]==255 && values[58]<0.0 {values[56]=0.0;}
                 let mut programs=Vec::new();
