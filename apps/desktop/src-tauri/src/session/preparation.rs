@@ -182,10 +182,11 @@ impl ReadyProject {
         state: &State,
         installation: bool,
     ) -> Result<ProjectPublicationLease<'a>, AdmissionRefusal> {
-        if !installation && session
-            .inner
-            .update_installing
-            .load(std::sync::atomic::Ordering::Acquire)
+        if !installation
+            && session
+                .inner
+                .update_installing
+                .load(std::sync::atomic::Ordering::Acquire)
         {
             return Err(AdmissionRefusal::Document);
         }

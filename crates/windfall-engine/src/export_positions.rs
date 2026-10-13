@@ -16,18 +16,25 @@ pub struct RenderFrameMap {
 impl RenderFrameMap {
     pub(crate) fn new(plan: &crate::plan::Plan, options: &crate::RenderOptions) -> Self {
         let song = options.mode == windfall_ipc::PlayMode::Song;
-        let length = options.pattern
+        let length = options
+            .pattern
             .and_then(|id| plan.pattern_ids.get(id.0))
             .or_else(|| (!plan.patterns.is_empty()).then_some(0))
             .map_or(0, |i| plan.patterns[i].length);
         Self {
             clocks: Vec::new(),
-            map: (song && !plan.linked_tempo()).then(|| plan.tempo_map.clone()).flatten(),
+            map: (song && !plan.linked_tempo())
+                .then(|| plan.tempo_map.clone())
+                .flatten(),
             rate: options.sample_rate.max(1),
             first: options.region.map_or(0.0, |r| f64::from(r.start)),
             end_tick: if song {
-                options.region.map_or(f64::from(plan.song_end), |r| f64::from(r.end))
-            } else { f64::from(length) * f64::from(options.pattern_loops) },
+                options
+                    .region
+                    .map_or(f64::from(plan.song_end), |r| f64::from(r.end))
+            } else {
+                f64::from(length) * f64::from(options.pattern_loops)
+            },
         }
     }
     pub(crate) fn record(&mut self, frame: u64, clock: crate::sequencer::Clock) {
@@ -42,8 +49,12 @@ impl RenderFrameMap {
             return Err("A WAV position lies outside the rendered tick range.".into());
         }
         let tick = self.map.as_ref().map_or(tick, |map| map.warp(tick));
-        let after = self.clocks.partition_point(|(frame, clock)| clock.tick_at(*frame) <= tick);
-        let (_, clock) = self.clocks.get(after.saturating_sub(1))
+        let after = self
+            .clocks
+            .partition_point(|(frame, clock)| clock.tick_at(*frame) <= tick);
+        let (_, clock) = self
+            .clocks
+            .get(after.saturating_sub(1))
             .ok_or("The render did not capture a musical clock.")?;
         Ok(clock.frame_of(tick))
     }
@@ -54,7 +65,9 @@ impl RenderFrameMap {
         }
         let (_, first) = self.clocks.first()?;
         let slope = first.frames_between(0.0, 1.0);
-        self.clocks.iter().all(|(_, clock)| clock.frames_between(0.0, 1.0) == slope)
+        self.clocks
+            .iter()
+            .all(|(_, clock)| clock.frames_between(0.0, 1.0) == slope)
             .then(|| 60.0 * f64::from(self.rate) / (f64::from(windfall_project::PPQ) * slope))
     }
 }

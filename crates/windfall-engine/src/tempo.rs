@@ -141,8 +141,11 @@ impl Segment {
 impl TempoMap {
     pub(crate) fn constant_tempo(&self, first: f64, last: f64) -> Option<f64> {
         let bpm = self.tempo_at(first);
-        self.segments.iter().filter(|s| s.tick < last && s.tick + s.length > first)
-            .all(|s| s.from == bpm && s.to == bpm).then_some(bpm)
+        self.segments
+            .iter()
+            .filter(|s| s.tick < last && s.tick + s.length > first)
+            .all(|s| s.from == bpm && s.to == bpm)
+            .then_some(bpm)
     }
     /// The map for a song whose tempo follows `lane`, the lane of the
     /// tempo, and is `base` wherever the lane has nothing to say. `end` is

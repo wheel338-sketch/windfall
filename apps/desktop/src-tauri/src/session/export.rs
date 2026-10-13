@@ -896,18 +896,29 @@ fn write_files(
 
     let wav_metadata = if matches!(job.settings, EncoderSettings::Wav { .. }) {
         let metadata = match options.mode {
-            PlayMode::Song => markers::song_metadata(&job.project, &streamed.frame_map, options.region)?,
-            PlayMode::Pattern => markers::pattern_metadata(&job.project, job.pattern, &streamed.frame_map, options.pattern_loops)?,
+            PlayMode::Song => {
+                markers::song_metadata(&job.project, &streamed.frame_map, options.region)?
+            }
+            PlayMode::Pattern => markers::pattern_metadata(
+                &job.project,
+                job.pattern,
+                &streamed.frame_map,
+                options.pattern_loops,
+            )?,
         };
         for encoder in &mut encoders {
-            encoder.set_rendered_wav_metadata(&metadata).map_err(|error| error.to_string())?;
+            encoder
+                .set_rendered_wav_metadata(&metadata)
+                .map_err(|error| error.to_string())?;
         }
         Some(if metadata.tempo.is_some() {
             "WAV tempo and beat metadata written for the constant rendered tempo."
         } else {
             "WAV static tempo and beat metadata omitted because the rendered tempo or meter changes."
         }.to_owned())
-    } else { None };
+    } else {
+        None
+    };
 
     // Finalize under staging names so a later encoder failure cannot
     // replace an earlier destination. The transaction restores backups

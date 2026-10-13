@@ -302,7 +302,8 @@ impl Instance {
                 adapter.all_notes_off();
                 adapter.process(&mut [0.0; 1], &mut [0.0; 1]);
                 adapter.reset();
-                self.plugin.release_instrument(adapter)
+                self.plugin
+                    .release_instrument(adapter)
                     .map_err(|error| error.error.to_string())
             }
         }
@@ -1360,10 +1361,21 @@ impl Runtime {
     pub fn capture_at(&self, project: Project, revision: u64) -> Result<Project, String> {
         self.capture_at_deadline(project, revision, Duration::from_secs(15), true)
     }
-    pub(crate) fn capture_for_update(&self, project: Project, revision: u64, timeout: Duration) -> Result<Project, String> {
+    pub(crate) fn capture_for_update(
+        &self,
+        project: Project,
+        revision: u64,
+        timeout: Duration,
+    ) -> Result<Project, String> {
         self.capture_at_deadline(project, revision, timeout, false)
     }
-    fn capture_at_deadline(&self, mut project: Project, revision: u64, timeout: Duration, join_running: bool) -> Result<Project, String> {
+    fn capture_at_deadline(
+        &self,
+        mut project: Project,
+        revision: u64,
+        timeout: Duration,
+        join_running: bool,
+    ) -> Result<Project, String> {
         let current_revision = self.revision.clone();
         let errors = self.errors.clone();
         self.call_with_deadline(timeout, join_running, move |owner, lifetime| {
@@ -1757,10 +1769,21 @@ impl Runtime {
     ) -> Result<(), String> {
         self.editor_owned(target, binding, open, parent, true)
     }
-    pub(crate) fn update_reopen_editor(&self, target: PluginTarget, parent: Option<usize>) -> Result<(), String> {
+    pub(crate) fn update_reopen_editor(
+        &self,
+        target: PluginTarget,
+        parent: Option<usize>,
+    ) -> Result<(), String> {
         self.editor_owned(target, None, true, parent, false)
     }
-    fn editor_owned(&self, target: PluginTarget, binding: Option<PluginBinding>, open: bool, parent: Option<usize>, join_running: bool) -> Result<(), String> {
+    fn editor_owned(
+        &self,
+        target: PluginTarget,
+        binding: Option<PluginBinding>,
+        open: bool,
+        parent: Option<usize>,
+        join_running: bool,
+    ) -> Result<(), String> {
         let revision = self.revision.load(std::sync::atomic::Ordering::Relaxed);
         let scale = self.editor_scale_percent.clone();
         self.call_with_deadline(Duration::from_secs(5), join_running, move |owner, _| {
@@ -1943,11 +1966,15 @@ impl Runtime {
             Ok(audio)
         })
     }
-    pub(crate) fn update_editors(&self, timeout: Duration) -> Result<Vec<(PluginTarget, Option<usize>)>, String> {
+    pub(crate) fn update_editors(
+        &self,
+        timeout: Duration,
+    ) -> Result<Vec<(PluginTarget, Option<usize>)>, String> {
         self.call_with_deadline(timeout, false, |owner, _| {
             let mut editors = Vec::new();
             for (token, record) in &owner.instances {
-                if record.playback && selected(&owner.selection, record.target) == Some(*token)
+                if record.playback
+                    && selected(&owner.selection, record.target) == Some(*token)
                     && record.plugin.editor().is_some()
                 {
                     editors.push((record.target, record.editor_parent));
@@ -1955,7 +1982,8 @@ impl Runtime {
             }
             #[cfg(any(windows, target_os = "macos", target_os = "linux"))]
             for (token, record) in &owner.bridges {
-                if record.playback && selected(&owner.selection, record.binding.target) == Some(*token)
+                if record.playback
+                    && selected(&owner.selection, record.binding.target) == Some(*token)
                     && record.editor_open
                 {
                     editors.push((record.binding.target, record.editor_parent));
@@ -1968,38 +1996,79 @@ impl Runtime {
     pub(crate) fn update_test_editor_window(&self, target: PluginTarget) -> Result<usize, String> {
         self.call(move |owner| {
             let token = selected(&owner.selection, target).ok_or("No selected native owner")?;
-            if let Some(window) = owner.instances.get(&token)
-                .and_then(|record| record.plugin.editor()).and_then(|info| info.window)
-            { return Ok(window); }
-            let record = owner.bridges.get(&token).filter(|record| record.editor_open).ok_or("No native editor window")?;
-            struct Search { process: u32, parent: Option<usize>, window: usize }
-            unsafe extern "system" fn find(window: windows_sys::Win32::Foundation::HWND, data: isize) -> i32 {
-                use windows_sys::Win32::UI::WindowsAndMessaging::{GetWindowThreadProcessId, GetWindow, GW_OWNER};
+            if let Some(window) = owner
+                .instances
+                .get(&token)
+                .and_then(|record| record.plugin.editor())
+                .and_then(|info| info.window)
+            {
+                return Ok(window);
+            }
+            let record = owner
+                .bridges
+                .get(&token)
+                .filter(|record| record.editor_open)
+                .ok_or("No native editor window")?;
+            struct Search {
+                process: u32,
+                parent: Option<usize>,
+                window: usize,
+            }
+            unsafe extern "system" fn find(
+                window: windows_sys::Win32::Foundation::HWND,
+                data: isize,
+            ) -> i32 {
+                use windows_sys::Win32::UI::WindowsAndMessaging::{
+                    GW_OWNER, GetWindow, GetWindowThreadProcessId,
+                };
                 // SAFETY: synchronous EnumWindows callback borrows Search.
                 let search = unsafe { &mut *(data as *mut Search) };
                 let mut process = 0;
-                unsafe { GetWindowThreadProcessId(window, &mut process); }
-                if process == search.process && search.parent.is_none_or(|parent| unsafe { GetWindow(window, GW_OWNER) } as usize == parent) {
+                unsafe {
+                    GetWindowThreadProcessId(window, &mut process);
+                }
+                if process == search.process
+                    && search.parent.is_none_or(
+                        |parent| unsafe { GetWindow(window, GW_OWNER) } as usize == parent,
+                    )
+                {
                     search.window = window as usize;
                     return 0;
                 }
                 1
             }
-            let mut search = Search { process: record.status().process_id, parent: record.editor_parent, window: 0 };
-            unsafe { windows_sys::Win32::UI::WindowsAndMessaging::EnumWindows(Some(find), (&mut search as *mut Search) as isize); }
-            if search.window == 0 { Err("No native helper editor window".into()) } else { Ok(search.window) }
+            let mut search = Search {
+                process: record.status().process_id,
+                parent: record.editor_parent,
+                window: 0,
+            };
+            unsafe {
+                windows_sys::Win32::UI::WindowsAndMessaging::EnumWindows(
+                    Some(find),
+                    (&mut search as *mut Search) as isize,
+                );
+            }
+            if search.window == 0 {
+                Err("No native helper editor window".into())
+            } else {
+                Ok(search.window)
+            }
         })
     }
 
     pub(crate) fn update_close_editors(&self, timeout: Duration) -> Result<(), String> {
         self.call_with_deadline(timeout, false, |owner, lifetime| {
             for record in owner.instances.values_mut() {
-                if lifetime.cancelled() { return Err("Update editor close cancelled".into()); }
+                if lifetime.cancelled() {
+                    return Err("Update editor close cancelled".into());
+                }
                 record.plugin.close_editor();
             }
             #[cfg(any(windows, target_os = "macos", target_os = "linux"))]
             for record in owner.bridges.values_mut() {
-                if lifetime.cancelled() { return Err("Update editor close cancelled".into()); }
+                if lifetime.cancelled() {
+                    return Err("Update editor close cancelled".into());
+                }
                 if record.editor_open {
                     record.control.editor(false)?;
                     record.editor_open = false;
@@ -2025,15 +2094,32 @@ impl Runtime {
             {
                 // A job's reply precedes the next owner idle turn. Reap here
                 // rather than acknowledging while idle still owns old helpers.
-                let retired: Vec<_> = owner.bridges.iter().filter_map(|(token, record)|
-                    (!record.alive.load(std::sync::atomic::Ordering::Acquire)).then_some(*token)).collect();
+                let retired: Vec<_> = owner
+                    .bridges
+                    .iter()
+                    .filter_map(|(token, record)| {
+                        (!record.alive.load(std::sync::atomic::Ordering::Acquire)).then_some(*token)
+                    })
+                    .collect();
                 let mut refused = Vec::new();
                 for token in retired {
                     if let Some(record) = owner.bridges.remove(&token)
-                        && let Err(error) = record.control.shutdown_for_update() { refused.push(error); }
-                    owner.controls.lock().unwrap_or_else(|error| error.into_inner()).remove(&token);
+                        && let Err(error) = record.control.shutdown_for_update()
+                    {
+                        refused.push(error);
+                    }
+                    owner
+                        .controls
+                        .lock()
+                        .unwrap_or_else(|error| error.into_inner())
+                        .remove(&token);
                 }
-                if !refused.is_empty() { return Err(format!("Native helper update shutdown failed: {}", refused.join("; "))); }
+                if !refused.is_empty() {
+                    return Err(format!(
+                        "Native helper update shutdown failed: {}",
+                        refused.join("; ")
+                    ));
+                }
             }
             Ok(())
         })
@@ -2158,27 +2244,43 @@ impl ExpressionOwner {
         dirty: false,
         gain: 1.0,
     };
-    fn desired(self, map: windfall_dsp::ExpressionMap) -> windfall_plugin_host::PluginNoteExpression {
+    fn desired(
+        self,
+        map: windfall_dsp::ExpressionMap,
+    ) -> windfall_plugin_host::PluginNoteExpression {
         let mut controls = map.plugin_controls(
             self.pan,
             f64::from(self.pitch) - f64::from(self.key),
             self.expression,
         );
         controls.values[0] *= f64::from(self.gain);
-        if self.gain != 1.0 { controls.mask |= windfall_plugin_host::NoteExpressionKind::Volume.mask(); }
-        windfall_plugin_host::PluginNoteExpression { values: controls.values, mask: controls.mask }
+        if self.gain != 1.0 {
+            controls.mask |= windfall_plugin_host::NoteExpressionKind::Volume.mask();
+        }
+        windfall_plugin_host::PluginNoteExpression {
+            values: controls.values,
+            mask: controls.mask,
+        }
     }
-    fn retarget(&mut self, map: windfall_dsp::ExpressionMap, law: Option<windfall_core::PanLaw>, native: bool, rate: f32) {
+    fn retarget(
+        &mut self,
+        map: windfall_dsp::ExpressionMap,
+        law: Option<windfall_core::PanLaw>,
+        native: bool,
+        rate: f32,
+    ) {
         let controls = self.desired(map);
         if self.started {
             self.ramp.retarget(controls, law, native, rate);
         } else {
-            self.ramp = windfall_plugin_host::project_expression::NoteRamp::new(controls, law, native);
+            self.ramp =
+                windfall_plugin_host::project_expression::NoteRamp::new(controls, law, native);
         }
         self.frame_controls = self.ramp.current();
     }
-    fn controls(self) -> windfall_plugin_host::PluginNoteExpression { self.frame_controls }
-
+    fn controls(self) -> windfall_plugin_host::PluginNoteExpression {
+        self.frame_controls
+    }
 }
 
 struct Audio {
@@ -2281,10 +2383,7 @@ impl Audio {
                         note.controls(),
                     )
                 } else if note.dirty {
-                    instrument.set_note_expression(
-                        note.native,
-                        note.controls(),
-                    )
+                    instrument.set_note_expression(note.native, note.controls())
                 } else {
                     true
                 };
@@ -2459,7 +2558,12 @@ impl HostedEffect for Audio {
         self.process_sidechain(left, right, None);
     }
     fn process_sidechain(&mut self, left: &mut [f32], right: &mut [f32], key: Option<&[[f32; 2]]>) {
-        if self.instrument && self.expression_owners.iter().any(|note| note.native != 0 && note.ramp.active()) {
+        if self.instrument
+            && self
+                .expression_owners
+                .iter()
+                .any(|note| note.native != 0 && note.ramp.active())
+        {
             let frames = left.len().min(right.len());
             for index in 0..frames {
                 for slot in 0..self.expression_owners.len() {
@@ -2622,7 +2726,12 @@ impl HostedInstrument for Audio {
         };
         self.expression_owners[slot].gain = gain.clamp(0.0, 4.0);
         let channel = self.expression_owners[slot].channel;
-        self.expression_owners[slot].retarget(self.expression_map, self.apply_pan_law.then_some(self.pan_law), self.note_capabilities.supports_pan_law(channel), self.pan_ramp_frames as f32 * 200.0);
+        self.expression_owners[slot].retarget(
+            self.expression_map,
+            self.apply_pan_law.then_some(self.pan_law),
+            self.note_capabilities.supports_pan_law(channel),
+            self.pan_ramp_frames as f32 * 200.0,
+        );
         self.expression_owners[slot].dirty = true;
         self.publish_expression_owner(slot);
     }
@@ -2672,7 +2781,12 @@ impl HostedInstrument for Audio {
             .iter_mut()
             .filter(|note| note.native != 0)
         {
-            note.retarget(map, self.apply_pan_law.then_some(self.pan_law), self.note_capabilities.supports_pan_law(note.channel), self.pan_ramp_frames as f32 * 200.0);
+            note.retarget(
+                map,
+                self.apply_pan_law.then_some(self.pan_law),
+                self.note_capabilities.supports_pan_law(note.channel),
+                self.pan_ramp_frames as f32 * 200.0,
+            );
         }
         for slot in 0..self.expression_owners.len() {
             if self.expression_owners[slot].native != 0 {
@@ -2697,7 +2811,12 @@ impl HostedInstrument for Audio {
             .iter_mut()
             .filter(|note| note.native != 0)
         {
-            note.retarget(self.expression_map, Some(law), self.note_capabilities.supports_pan_law(note.channel), self.pan_ramp_frames as f32 * 200.0);
+            note.retarget(
+                self.expression_map,
+                Some(law),
+                self.note_capabilities.supports_pan_law(note.channel),
+                self.pan_ramp_frames as f32 * 200.0,
+            );
             note.dirty = true;
         }
         self.reconcile_notes = true;
@@ -2724,7 +2843,8 @@ impl HostedInstrument for Audio {
             self.note_capabilities.refuse_channel();
             return;
         }
-        self.note_capabilities.observe_channel(expression.color_group.unwrap_or(0));
+        self.note_capabilities
+            .observe_channel(expression.color_group.unwrap_or(0));
         let expression = expression.clamped();
         if !self.note_instances {
             self.start_on_channel(key, expression.color_group.unwrap_or(0), velocity);
@@ -2771,12 +2891,26 @@ impl HostedInstrument for Audio {
             }
         };
         let pitch = f32::from(key.min(127)) + expression.fine_pitch_cents / 100.0;
-        let pan = if pan.is_finite() { pan.clamp(-1.0, 1.0) } else { 0.0 };
+        let pan = if pan.is_finite() {
+            pan.clamp(-1.0, 1.0)
+        } else {
+            0.0
+        };
         let mapped = self.expression_map.plugin_controls(
-            pan, f64::from(pitch) - f64::from(key.min(127)), expression,
+            pan,
+            f64::from(pitch) - f64::from(key.min(127)),
+            expression,
         );
-        let raw = windfall_plugin_host::PluginNoteExpression { values: mapped.values, mask: mapped.mask };
-        let ramp = windfall_plugin_host::project_expression::NoteRamp::new(raw, self.apply_pan_law.then_some(self.pan_law), self.note_capabilities.supports_pan_law(expression.color_group.unwrap_or(0)));
+        let raw = windfall_plugin_host::PluginNoteExpression {
+            values: mapped.values,
+            mask: mapped.mask,
+        };
+        let ramp = windfall_plugin_host::project_expression::NoteRamp::new(
+            raw,
+            self.apply_pan_law.then_some(self.pan_law),
+            self.note_capabilities
+                .supports_pan_law(expression.color_group.unwrap_or(0)),
+        );
         self.expression_owners[slot] = ExpressionOwner {
             ramp,
             frame_controls: ramp.current(),
@@ -2841,7 +2975,12 @@ impl HostedInstrument for Audio {
         } else {
             0.0
         };
-        note.retarget(self.expression_map, self.apply_pan_law.then_some(self.pan_law), self.note_capabilities.supports_pan_law(note.channel), self.pan_ramp_frames as f32 * 200.0);
+        note.retarget(
+            self.expression_map,
+            self.apply_pan_law.then_some(self.pan_law),
+            self.note_capabilities.supports_pan_law(note.channel),
+            self.pan_ramp_frames as f32 * 200.0,
+        );
         note.dirty = true;
         self.publish_expression_owner(slot);
     }
@@ -2859,7 +2998,12 @@ impl HostedInstrument for Audio {
         let key = f32::from(self.expression_owners[slot].key);
         self.expression_owners[slot].pitch = pitch.clamp(key - 120.0, key + 120.0);
         let channel = self.expression_owners[slot].channel;
-        self.expression_owners[slot].retarget(self.expression_map, self.apply_pan_law.then_some(self.pan_law), self.note_capabilities.supports_pan_law(channel), self.pan_ramp_frames as f32 * 200.0);
+        self.expression_owners[slot].retarget(
+            self.expression_map,
+            self.apply_pan_law.then_some(self.pan_law),
+            self.note_capabilities.supports_pan_law(channel),
+            self.pan_ramp_frames as f32 * 200.0,
+        );
         self.expression_owners[slot].dirty = true;
         self.publish_expression_owner(slot);
     }
@@ -2904,7 +3048,9 @@ impl HostedInstrument for Audio {
 
 impl Audio {
     fn publish_expression_owner(&mut self, slot: usize) {
-        if self.reconcile_notes { return; }
+        if self.reconcile_notes {
+            return;
+        }
         let note = self.expression_owners[slot];
         let controls = self.expression_owners[slot].controls();
         let bend_range = self.expression_map.bend_range_semitones;

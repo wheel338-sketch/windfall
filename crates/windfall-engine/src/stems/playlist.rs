@@ -319,7 +319,9 @@ pub fn render_playlist_stems(
             return Ok(done);
         }
         frames = done.frames;
-        if frame_map.is_none() { frame_map = Some(done.frame_map); }
+        if frame_map.is_none() {
+            frame_map = Some(done.frame_map);
+        }
         // A lane alone never drops more clips than the mix does; report the
         // most any stream of the render left out.
         dropped_clips = dropped_clips.max(done.dropped_clips);

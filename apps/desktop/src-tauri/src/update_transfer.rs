@@ -26,12 +26,15 @@ pub(crate) async fn fetch(
         .redirect(super::updates::update_redirect_policy())
         .connect_timeout(Duration::from_secs(10))
         .timeout(Duration::from_secs(120));
-    let client = if loopback_http { client.no_proxy() } else { client };
+    let client = if loopback_http {
+        client.no_proxy()
+    } else {
+        client
+    };
     fetch_client(
         url,
         cap,
-        &client.build()
-            .map_err(|error| error.to_string())?,
+        &client.build().map_err(|error| error.to_string())?,
         &mut progress,
     )
     .await

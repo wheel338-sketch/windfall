@@ -222,11 +222,14 @@ impl Region {
             || block.event_count > EVENT_CAPACITY
             || block.law_event_count > MAX_BLOCK
             || crate::project_expression::decode_law(block.project_law).is_err()
-            || block.law_events[..block.law_event_count].iter().enumerate().any(|(i, event)| {
-                event.0 as usize >= self.config.block
-                    || crate::project_expression::decode_law(event.1).is_err()
-                    || (i > 0 && event.0 <= block.law_events[i - 1].0)
-            })
+            || block.law_events[..block.law_event_count]
+                .iter()
+                .enumerate()
+                .any(|(i, event)| {
+                    event.0 as usize >= self.config.block
+                        || crate::project_expression::decode_law(event.1).is_err()
+                        || (i > 0 && event.0 <= block.law_events[i - 1].0)
+                })
             || self.timeline_epoch() != Ok(block.epoch)
         {
             return false;
@@ -363,10 +366,16 @@ impl Region {
         block.project_law = self.get(slot, PROJECT_LAW);
         crate::project_expression::decode_law(block.project_law)?;
         block.law_event_count = self.get(slot, PROJECT_LAW_COUNT) as usize;
-        if block.law_event_count > MAX_BLOCK { return Err(ProtocolError::Layout); }
+        if block.law_event_count > MAX_BLOCK {
+            return Err(ProtocolError::Layout);
+        }
         for index in 0..block.law_event_count {
-            let event = (self.get(slot, LAW_EVENTS + index * 2), self.get(slot, LAW_EVENTS + index * 2 + 1));
-            if event.0 as usize >= frames || (index > 0 && event.0 <= block.law_events[index - 1].0) {
+            let event = (
+                self.get(slot, LAW_EVENTS + index * 2),
+                self.get(slot, LAW_EVENTS + index * 2 + 1),
+            );
+            if event.0 as usize >= frames || (index > 0 && event.0 <= block.law_events[index - 1].0)
+            {
                 return Err(ProtocolError::Event);
             }
             crate::project_expression::decode_law(event.1)?;
@@ -636,7 +645,9 @@ impl NoteSnapshot {
             && self.velocity.is_finite()
             && (0.0..=1.0).contains(&self.velocity)
             && self.controls.valid(self.key)
-            && self.expression.is_none_or(|expression| expression.valid() && expression.values.iter().all(|value| value.is_finite()))
+            && self.expression.is_none_or(|expression| {
+                expression.valid() && expression.values.iter().all(|value| value.is_finite())
+            })
     }
     fn encode(self) -> [u32; NOTE_SNAPSHOT_WORDS] {
         let mut words = [0; NOTE_SNAPSHOT_WORDS];
@@ -667,7 +678,9 @@ impl NoteSnapshot {
                 0 if words[10..].iter().all(|word| *word == 0) => None,
                 1 => Some(crate::PluginNoteExpression {
                     mask: words[10],
-                    values: std::array::from_fn(|index| f64::from_bits(pair(words[11 + index * 2], words[12 + index * 2]))),
+                    values: std::array::from_fn(|index| {
+                        f64::from_bits(pair(words[11 + index * 2], words[12 + index * 2]))
+                    }),
                 }),
                 _ => return Err(ProtocolError::Event),
             },
@@ -700,9 +713,22 @@ impl NoteSnapshot {
     }
     pub fn expression_events(self, masks: &[u32; 16], out: &mut [HostEvent]) -> usize {
         use crate::NoteExpressionKind as K;
-        let expression = self.expression.unwrap_or_else(|| self.controls.mapped(self.key));
+        let expression = self
+            .expression
+            .unwrap_or_else(|| self.controls.mapped(self.key));
         let mut count = 0;
-        for (index, kind) in [K::Volume, K::Pan, K::Tuning, K::Vibrato, K::Expression, K::Brightness, K::Pressure].into_iter().enumerate() {
+        for (index, kind) in [
+            K::Volume,
+            K::Pan,
+            K::Tuning,
+            K::Vibrato,
+            K::Expression,
+            K::Brightness,
+            K::Pressure,
+        ]
+        .into_iter()
+        .enumerate()
+        {
             let value = expression.values[index];
             if masks[self.channel as usize] & expression.mask & kind.mask() != 0 {
                 out[count] = HostEvent::NoteExpression {
@@ -843,10 +869,19 @@ mod tests {
         assert_eq!(decoded.project_law, 2);
         assert_eq!(&decoded.law_events[..decoded.law_event_count], &[(13, 4)]);
         assert_eq!(decoded.instances[0], note);
-        assert_eq!(decoded.instances[0].expression.unwrap().values, expression.values);
-        let invalid = NoteSnapshot { channel: 16, ..note };
+        assert_eq!(
+            decoded.instances[0].expression.unwrap().values,
+            expression.values
+        );
+        let invalid = NoteSnapshot {
+            channel: 16,
+            ..note
+        };
         assert!(!invalid.valid());
-        assert_eq!(NoteSnapshot::decode(invalid.encode()), Err(ProtocolError::Event));
+        assert_eq!(
+            NoteSnapshot::decode(invalid.encode()),
+            Err(ProtocolError::Event)
+        );
         input.instances[0] = invalid;
         assert!(!region.submit(1, &input));
         input.instances[0] = note;

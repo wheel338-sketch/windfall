@@ -233,7 +233,9 @@ pub fn accept(
             ));
         }
         if child.try_wait()?.is_some() {
-            return Err(io::Error::other("helper exited before authentication (requires Hello4 / mapping ABI10; incompatible helpers are refused)"));
+            return Err(io::Error::other(
+                "helper exited before authentication (requires Hello4 / mapping ABI10; incompatible helpers are refused)",
+            ));
         }
         // At most eight new accepts per iteration, including rejected excess.
         for _ in 0..CANDIDATES {
@@ -289,11 +291,16 @@ pub fn accept(
             {
                 if candidate.received == HELLO_BYTES
                     && &candidate.bytes[..4] == MAGIC
-                    && candidate.bytes[8..].iter().zip(&key.0)
-                        .fold(0u8, |difference, (left, right)| difference | (left ^ right)) == 0
+                    && candidate.bytes[8..]
+                        .iter()
+                        .zip(&key.0)
+                        .fold(0u8, |difference, (left, right)| difference | (left ^ right))
+                        == 0
                 {
-                    return Err(io::Error::new(io::ErrorKind::Unsupported,
-                        "audio helper protocol mismatch: this host requires Hello4 / mapping ABI10; replace the older helper"));
+                    return Err(io::Error::new(
+                        io::ErrorKind::Unsupported,
+                        "audio helper protocol mismatch: this host requires Hello4 / mapping ABI10; replace the older helper",
+                    ));
                 }
                 reject = true;
             }

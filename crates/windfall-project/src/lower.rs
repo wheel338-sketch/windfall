@@ -1398,8 +1398,10 @@ impl Transaction<'_> {
                         current.parameters = parameters.clone();
                         current.capabilities.unavailable_parameters.clear();
                         current.validate().map_err(CommandError::invalid)?;
-                        plugin.capabilities.revision = plugin.capabilities.revision.checked_add(1)
-                            .ok_or_else(|| CommandError::invalid("plugin capability revision exhausted"))?;
+                        plugin.capabilities.revision =
+                            plugin.capabilities.revision.checked_add(1).ok_or_else(|| {
+                                CommandError::invalid("plugin capability revision exhausted")
+                            })?;
                         plugin.state = state;
                         plugin.admit_parameters(parameters);
                         plugin.auxiliary_inputs = auxiliary_inputs;
@@ -1411,7 +1413,9 @@ impl Transaction<'_> {
                     let plugin = plugins
                         .iter_mut()
                         .find(|plugin| plugin.target == target)
-                        .ok_or_else(|| CommandError::invalid("the plugin is not in this project"))?;
+                        .ok_or_else(|| {
+                            CommandError::invalid("the plugin is not in this project")
+                        })?;
                     let mut current = plugin.clone();
                     current.parameters = parameters.clone();
                     current.capabilities.unavailable_parameters.clear();

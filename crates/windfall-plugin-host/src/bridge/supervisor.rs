@@ -338,13 +338,13 @@ impl Control {
     /// releases native notes and deactivates on its GUI/native owner, then the
     /// supervisor confirms exit. A nonanswer is contained by the same deadline.
     pub fn shutdown_for_update(&self) -> Result<(), String> {
-        let result = self.call(Message::Shutdown, Duration::from_secs(2)).and_then(|packet| {
-            match packet.body {
+        let result = self
+            .call(Message::Shutdown, Duration::from_secs(2))
+            .and_then(|packet| match packet.body {
                 Message::Stopped => Ok(()),
                 Message::Error { message } => Err(message),
                 _ => Err("unexpected update shutdown bridge response".into()),
-            }
-        });
+            });
         self.terminate();
         result
     }

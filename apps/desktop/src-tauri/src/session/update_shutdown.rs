@@ -1,7 +1,10 @@
 //! Owned update shutdown: native state is frozen before the unsaved decision.
 use super::Session;
 use crate::sync::lock;
-use std::{sync::{Mutex, MutexGuard, TryLockError, atomic::Ordering}, time::{Duration, Instant}};
+use std::{
+    sync::{Mutex, MutexGuard, TryLockError, atomic::Ordering},
+    time::{Duration, Instant},
+};
 use windfall_project::{Command, PluginTarget, Project};
 
 const CAPTURE_WAIT: Duration = Duration::from_secs(5);
@@ -31,21 +34,27 @@ impl Session {
         self.begin_update_shutdown_at(|_| Ok(()))
     }
     // The native fixture table injects cancellation only between real stages.
-    pub(super) fn begin_update_shutdown_at(&self, mut stage: impl FnMut(&'static str) -> Result<(), String>) -> Result<UpdateShutdown, String> {
+    pub(super) fn begin_update_shutdown_at(
+        &self,
+        mut stage: impl FnMut(&'static str) -> Result<(), String>,
+    ) -> Result<UpdateShutdown, String> {
         let deadline = Instant::now() + CAPTURE_WAIT;
         let saving = bounded_lock(&self.inner.save, deadline)?;
         // Joins an in-flight native capture's entire guarded owner lifetime.
         // A prepared result whose guard has ended is rejected by the freeze;
         // the fresh full capture below includes its unpublished native state.
         let recording = bounded_lock(&self.inner.recording, deadline)?;
-        if recording.is_some() || self.inner.exporting.load(Ordering::Acquire)
+        if recording.is_some()
+            || self.inner.exporting.load(Ordering::Acquire)
             || self.inner.recording_finishing.load(Ordering::Acquire)
             || self.inner.performance_capturing.load(Ordering::Acquire)
         {
             return Err("Wait for export or recording completion before installing".into());
         }
         let state = self.state();
-        self.inner.update_installing.compare_exchange(false, true, Ordering::AcqRel, Ordering::Acquire)
+        self.inner
+            .update_installing
+            .compare_exchange(false, true, Ordering::AcqRel, Ordering::Acquire)
             .map_err(|_| "Update installation already owns the session")?;
         let project = state.document.project().clone();
         let revision = self.plugin_revision();
@@ -53,9 +62,14 @@ impl Session {
         drop(recording);
         drop(saving);
         let mut shutdown = UpdateShutdown {
-            session: self.clone(), suspended: false, monitoring: false,
-            audio_settings: self.engine_settings(), editors: Vec::new(),
-            editors_closed: false, captured: None, restored: false,
+            session: self.clone(),
+            suspended: false,
+            monitoring: false,
+            audio_settings: self.engine_settings(),
+            editors: Vec::new(),
+            editors_closed: false,
+            captured: None,
+            restored: false,
         };
         let result: Result<(), String> = (|| {
             stage("frozen")?;
@@ -78,36 +92,64 @@ impl Session {
             let captured = shutdown.captured.as_ref().expect("captured project");
             let mut commands = Vec::new();
             for binding in captured.plugin_bindings() {
-                let before = project.plugin(binding.target).ok_or("Plugin disappeared during update capture")?;
+                let before = project
+                    .plugin(binding.target)
+                    .ok_or("Plugin disappeared during update capture")?;
                 if before != binding {
                     let mut metadata = binding.parameters.clone();
                     for parameter in &mut metadata {
-                        if let Some(old) = before.parameters.iter().find(|old| old.id == parameter.id) { parameter.value = old.value; }
+                        if let Some(old) =
+                            before.parameters.iter().find(|old| old.id == parameter.id)
+                        {
+                            parameter.value = old.value;
+                        }
                     }
-                    if metadata != before.parameters || binding.auxiliary_inputs != before.auxiliary_inputs
+                    if metadata != before.parameters
+                        || binding.auxiliary_inputs != before.auxiliary_inputs
                         || binding.capabilities.outputs != before.capabilities.outputs
                     {
                         commands.push(Command::ReadmitPlugin {
-                            target: binding.target, state: binding.state.clone(),
+                            target: binding.target,
+                            state: binding.state.clone(),
                             parameters: binding.parameters.clone(),
                             auxiliary_inputs: binding.auxiliary_inputs.clone(),
                             outputs: binding.capabilities.outputs.clone(),
                         });
                     } else {
                         for parameter in &binding.parameters {
-                            if !parameter.read_only && before.parameters.iter().any(|old| old.id == parameter.id && old.value != parameter.value) {
-                                commands.push(Command::SetPluginParam { target: binding.target, id: parameter.id, value: parameter.value });
+                            if !parameter.read_only
+                                && before.parameters.iter().any(|old| {
+                                    old.id == parameter.id && old.value != parameter.value
+                                })
+                            {
+                                commands.push(Command::SetPluginParam {
+                                    target: binding.target,
+                                    id: parameter.id,
+                                    value: parameter.value,
+                                });
                             }
                         }
                         if before.state != binding.state {
-                            commands.push(Command::SetPluginState { target: binding.target, state: binding.state.clone() });
+                            commands.push(Command::SetPluginState {
+                                target: binding.target,
+                                state: binding.state.clone(),
+                            });
                         }
                     }
                 }
             }
             if !commands.is_empty() {
                 let mut state = self.state();
-                let applied = state.document.dispatch(Command::Batch { label: Some("Native plugin state before update".into()), commands }, None).map_err(|error| error.to_string())?;
+                let applied = state
+                    .document
+                    .dispatch(
+                        Command::Batch {
+                            label: Some("Native plugin state before update".into()),
+                            commands,
+                        },
+                        None,
+                    )
+                    .map_err(|error| error.to_string())?;
                 self.publish(&mut state, &applied.touched);
             }
             stage("captured")?;
@@ -116,26 +158,41 @@ impl Session {
             Ok(())
         })();
         if let Err(error) = result {
-            let recovery = shutdown.restore().err().map(|error| format!("; {error}")).unwrap_or_default();
+            let recovery = shutdown
+                .restore()
+                .err()
+                .map(|error| format!("; {error}"))
+                .unwrap_or_default();
             return Err(format!("{error}{recovery}"));
         }
         Ok(shutdown)
     }
 }
 impl UpdateShutdown {
-    pub(super) fn session(&self) -> &Session { &self.session }
+    pub(super) fn session(&self) -> &Session {
+        &self.session
+    }
     pub(crate) fn save(&self, path: Option<&str>) -> Result<(), String> {
-        self.session.project_save_owned(path, false, true).map(|_| ())
+        self.session
+            .project_save_owned(path, false, true)
+            .map(|_| ())
     }
     pub(crate) fn quiesce(&mut self) -> Result<(), String> {
         self.quiesce_at(&mut |_| Ok(()))
     }
-    fn quiesce_at(&mut self, stage: &mut impl FnMut(&'static str) -> Result<(), String>) -> Result<(), String> {
-        if self.suspended { return Ok(()); }
+    fn quiesce_at(
+        &mut self,
+        stage: &mut impl FnMut(&'static str) -> Result<(), String>,
+    ) -> Result<(), String> {
+        if self.suspended {
+            return Ok(());
+        }
         let _configuring = lock(&self.session.inner.configuring);
         self.audio_settings = self.session.engine_settings();
         self.monitoring |= self.session.input_monitor_state().active;
-        if self.monitoring { self.session.input_monitor_stop(); }
+        if self.monitoring {
+            self.session.input_monitor_stop();
+        }
         stage("monitoring-stopped")?;
         self.suspended = true;
         self.session.inner.audio.suspend()?;
@@ -146,17 +203,26 @@ impl UpdateShutdown {
         stage("owners-retired")?;
         Ok(())
     }
-    pub(crate) fn rollback(mut self) -> Result<(), String> { self.restore() }
+    pub(crate) fn rollback(mut self) -> Result<(), String> {
+        self.restore()
+    }
     fn restore(&mut self) -> Result<(), String> {
-        if self.restored { return Ok(()); }
+        if self.restored {
+            return Ok(());
+        }
         // Never launch edits while rollback still owns the audio/editor boundary.
         let result = self.restore_owned();
         self.restored = true;
-        self.session.inner.update_installing.store(false, Ordering::Release);
+        self.session
+            .inner
+            .update_installing
+            .store(false, Ordering::Release);
         if self.monitoring {
             self.monitoring = false;
             let monitor = self.session.input_monitor_start();
-            if result.is_ok() { monitor?; }
+            if result.is_ok() {
+                monitor?;
+            }
         }
         result
     }
@@ -171,7 +237,11 @@ impl UpdateShutdown {
             if self.captured.is_some() {
                 let (mut project, pool, preparation) = {
                     let state = self.session.state();
-                    (state.document.project().clone(), state.pool.clone(), self.session.project_preparation(&state))
+                    (
+                        state.document.project().clone(),
+                        state.pool.clone(),
+                        self.session.project_preparation(&state),
+                    )
                 };
                 // Reapply the retained opaque memento byte-for-byte. Save may
                 // have relinked assets/paths; those accepted document changes
@@ -183,7 +253,13 @@ impl UpdateShutdown {
                         }
                     }
                 }
-                let mut prepared = preparation.prepare(&project, &pool, windfall_engine::ProjectPublicationIntent::Edit).map_err(|error| error.to_string())?;
+                let mut prepared = preparation
+                    .prepare(
+                        &project,
+                        &pool,
+                        windfall_engine::ProjectPublicationIntent::Edit,
+                    )
+                    .map_err(|error| error.to_string())?;
                 let mut retirement = {
                     let mut state = self.session.state();
                     let pool = prepared.pool().clone();
@@ -197,7 +273,10 @@ impl UpdateShutdown {
             self.session.inner.audio.reconfigure(&self.audio_settings);
             self.suspended = false;
             if !self.session.inner.audio.status().running {
-                return Err("Audio could not resume after update cancellation; reopen Audio settings".into());
+                return Err(
+                    "Audio could not resume after update cancellation; reopen Audio settings"
+                        .into(),
+                );
             }
             self.session.sync_transport();
         }
@@ -205,9 +284,16 @@ impl UpdateShutdown {
             if let Some(manager) = lock(&self.session.inner.plugins).clone() {
                 let mut errors = Vec::new();
                 for (target, parent) in &self.editors {
-                    if let Err(error) = manager.runtime.update_reopen_editor(*target, *parent) { errors.push(error); }
+                    if let Err(error) = manager.runtime.update_reopen_editor(*target, *parent) {
+                        errors.push(error);
+                    }
                 }
-                if !errors.is_empty() { return Err(format!("Plugin editors could not resume after update cancellation: {}", errors.join("; "))); }
+                if !errors.is_empty() {
+                    return Err(format!(
+                        "Plugin editors could not resume after update cancellation: {}",
+                        errors.join("; ")
+                    ));
+                }
             }
             self.editors_closed = false;
         }
@@ -215,5 +301,7 @@ impl UpdateShutdown {
     }
 }
 impl Drop for UpdateShutdown {
-    fn drop(&mut self) { let _ = self.restore(); }
+    fn drop(&mut self) {
+        let _ = self.restore();
+    }
 }

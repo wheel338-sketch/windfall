@@ -26,7 +26,12 @@ impl Session {
                 state.sample_dir.clone(),
             )
         };
-        let program = prepare_export_program(project, &pool, sample_dir.as_deref(), &self.inner.factory_dir)?;
+        let program = prepare_export_program(
+            project,
+            &pool,
+            sample_dir.as_deref(),
+            &self.inner.factory_dir,
+        )?;
         let result = export_bundle(
             &program,
             &binary,
@@ -51,22 +56,39 @@ pub(super) fn prepare_export_program(
     let mut raw_bytes = 0usize;
     for asset in &project.samples {
         if asset.soundfont {
-            let path = windfall_project::file::resolve_sample_path(&asset.path, sample_dir, factory_dir)
-                .ok_or_else(|| format!("Raw SF2 source '{}' cannot be resolved", asset.name))?;
-            let size = std::fs::metadata(&path).map_err(|e| format!("Raw SF2 source '{}': {e}", asset.name))?.len();
+            let path =
+                windfall_project::file::resolve_sample_path(&asset.path, sample_dir, factory_dir)
+                    .ok_or_else(|| format!("Raw SF2 source '{}' cannot be resolved", asset.name))?;
+            let size = std::fs::metadata(&path)
+                .map_err(|e| format!("Raw SF2 source '{}': {e}", asset.name))?
+                .len();
             let size = usize::try_from(size).map_err(|_| "Raw SF2 source size overflow")?;
-            raw_bytes = raw_bytes.checked_add(size).ok_or("Raw SF2 source size overflow")?;
+            raw_bytes = raw_bytes
+                .checked_add(size)
+                .ok_or("Raw SF2 source size overflow")?;
             if raw_bytes > MAX_RAW_BANK_BYTES {
                 return Err("Plugin raw SF2 sources exceed the aggregate 16 MiB bank limit".into());
             }
-            let (bytes, _workspace) = super::sample_instruments::read_soundfont_with_limit(&path, &pool.sample_bank_budget_handle(), size as u64)?;
+            let (bytes, _workspace) = super::sample_instruments::read_soundfont_with_limit(
+                &path,
+                &pool.sample_bank_budget_handle(),
+                size as u64,
+            )?;
             // The file may have changed between metadata and the bounded reader.
             if bytes.len() != size {
                 return Err("Raw SF2 source changed while exporting; retry".into());
             }
-            soundfonts.push(EmbeddedSoundFont { id: asset.id, bytes });
+            soundfonts.push(EmbeddedSoundFont {
+                id: asset.id,
+                bytes,
+            });
         } else {
-            let audio = pool.get(asset.id).ok_or_else(|| format!("Sample '{}' is not decoded; plugin export requires every PCM source", asset.name))?;
+            let audio = pool.get(asset.id).ok_or_else(|| {
+                format!(
+                    "Sample '{}' is not decoded; plugin export requires every PCM source",
+                    asset.name
+                )
+            })?;
             samples.push(EmbeddedSample {
                 id: asset.id,
                 sample_rate: audio.sample_rate(),

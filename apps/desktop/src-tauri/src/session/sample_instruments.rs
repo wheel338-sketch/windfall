@@ -57,7 +57,9 @@ pub(super) fn read_soundfont_with_limit(
         if limit == 160 * 1024 * 1024 {
             return Err("SoundFont file exceeds 160 MiB".into());
         }
-        return Err(format!("SoundFont file exceeds the {limit}-byte read limit"));
+        return Err(format!(
+            "SoundFont file exceeds the {limit}-byte read limit"
+        ));
     }
     let size = usize::try_from(metadata.len()).map_err(|_| "SoundFont file size overflow")?;
     let reservation = budget.reserve(size)?;

@@ -66,8 +66,15 @@ struct UncertainParameters {
     count: usize,
 }
 impl UncertainParameters {
-    fn new() -> Self { Self { ids: [0; PARAM_CAPACITY], count: 0 } }
-    fn contains(&self, id: &u32) -> bool { self.ids[..self.count].contains(id) }
+    fn new() -> Self {
+        Self {
+            ids: [0; PARAM_CAPACITY],
+            count: 0,
+        }
+    }
+    fn contains(&self, id: &u32) -> bool {
+        self.ids[..self.count].contains(id)
+    }
     fn insert(&mut self, id: u32) {
         if !self.contains(&id) && self.count < PARAM_CAPACITY {
             self.ids[self.count] = id;
@@ -80,7 +87,9 @@ impl UncertainParameters {
             self.ids[index] = self.ids[self.count];
         }
     }
-    fn clear(&mut self) { self.count = 0; }
+    fn clear(&mut self) {
+        self.count = 0;
+    }
 }
 impl Drop for Native {
     fn drop(&mut self) {
@@ -286,7 +295,8 @@ impl Native {
             .processor
             .as_mut()
             .ok_or_else(|| error("native processor unavailable"))?;
-        self.expression_ramps.set_law(crate::project_expression::decode_law(input.project_law).map_err(error)?);
+        self.expression_ramps
+            .set_law(crate::project_expression::decode_law(input.project_law).map_err(error)?);
         processor.set_transport(input.transport);
         processor.set_sidechain_input(input.sidechain_input);
         let mut admitted = true;
@@ -302,11 +312,16 @@ impl Native {
                     || self.uncertain.contains(&value.id)
                 {
                     let accepted = processor.push_recovery_event(HostEvent::Param {
-                        time: 0, id: value.id, value: value.value,
+                        time: 0,
+                        id: value.id,
+                        value: value.value,
                     });
                     admitted &= accepted;
-                    if accepted { self.host_values.insert(value.id, value.value); }
-                    else { output.native_drops = output.native_drops.saturating_add(1); }
+                    if accepted {
+                        self.host_values.insert(value.id, value.value);
+                    } else {
+                        output.native_drops = output.native_drops.saturating_add(1);
+                    }
                 }
             }
             for (key, velocity) in input.notes.iter().enumerate() {
@@ -333,7 +348,9 @@ impl Native {
                 let mut events = [HostEvent::AllNotesOff { time: 0 }; 8];
                 let count = note.events(&masks, &mut events);
                 for event in &events[..count] {
-                    if self.expression_ramps.observe(*event) { continue; }
+                    if self.expression_ramps.observe(*event) {
+                        continue;
+                    }
                     let accepted = processor.push_recovery_event(*event);
                     admitted &= accepted;
                     if !accepted {
@@ -351,7 +368,10 @@ impl Native {
         let mut good_audio = true;
         while at < self.region.config.block {
             while law_at < input.law_event_count && input.law_events[law_at].0 as usize == at {
-                self.expression_ramps.set_law(crate::project_expression::decode_law(input.law_events[law_at].1).map_err(error)?);
+                self.expression_ramps.set_law(
+                    crate::project_expression::decode_law(input.law_events[law_at].1)
+                        .map_err(error)?,
+                );
                 law_at += 1;
             }
             while event_at < input.event_count && input.events[event_at].time() as usize == at {
@@ -394,10 +414,14 @@ impl Native {
             } else {
                 self.region.config.block
             };
-            if law_at < input.law_event_count { end = end.min(input.law_events[law_at].0 as usize); }
+            if law_at < input.law_event_count {
+                end = end.min(input.law_events[law_at].0 as usize);
+            }
             let ramping = self.expression_ramps.active();
             admitted &= self.expression_ramps.frame(processor);
-            if ramping || self.expression_ramps.active() { end = end.min(at + 1); }
+            if ramping || self.expression_ramps.active() {
+                end = end.min(at + 1);
+            }
             if end <= at {
                 return Err(error("unordered bridge event times"));
             }

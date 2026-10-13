@@ -279,11 +279,23 @@ impl NoteOwner {
         gain: 1.0,
         expression: windfall_dsp::NoteExpression::NEUTRAL,
     };
-    fn mapped(self, map: windfall_dsp::ExpressionMap) -> windfall_plugin_host::PluginNoteExpression {
-        let mut controls = map.plugin_controls(self.note.controls.pan, f64::from(self.note.controls.pitch) - f64::from(self.note.key), self.expression);
+    fn mapped(
+        self,
+        map: windfall_dsp::ExpressionMap,
+    ) -> windfall_plugin_host::PluginNoteExpression {
+        let mut controls = map.plugin_controls(
+            self.note.controls.pan,
+            f64::from(self.note.controls.pitch) - f64::from(self.note.key),
+            self.expression,
+        );
         controls.values[0] *= f64::from(self.gain);
-        if self.gain != 1.0 { controls.mask |= windfall_plugin_host::NoteExpressionKind::Volume.mask(); }
-        windfall_plugin_host::PluginNoteExpression { values: controls.values, mask: controls.mask }
+        if self.gain != 1.0 {
+            controls.mask |= windfall_plugin_host::NoteExpressionKind::Volume.mask();
+        }
+        windfall_plugin_host::PluginNoteExpression {
+            values: controls.values,
+            mask: controls.mask,
+        }
     }
 }
 pub(super) struct Audio {
@@ -550,7 +562,9 @@ impl Audio {
 }
 impl HostedInstrument for Audio {
     fn set_expression_map(&mut self, map: windfall_dsp::ExpressionMap) {
-        if self.expression_map == map { return; }
+        if self.expression_map == map {
+            return;
+        }
         self.expression_map = map;
         for owner in self.notes.iter_mut().filter(|owner| owner.note.id != 0) {
             let controls = owner.mapped(map);
@@ -581,7 +595,9 @@ impl HostedInstrument for Audio {
         self.publish(false);
     }
     fn midi_message(&mut self, bytes: &[u8]) -> bool {
-        if let Some(status) = bytes.first() { self.note_capabilities.observe_channel(status & 15); }
+        if let Some(status) = bytes.first() {
+            self.note_capabilities.observe_channel(status & 15);
+        }
         let accepted = self.process.midi_message(bytes);
         self.publish(false);
         accepted
@@ -607,7 +623,8 @@ impl HostedInstrument for Audio {
             self.note_capabilities.refuse_channel();
             return;
         }
-        self.note_capabilities.observe_channel(expression.color_group.unwrap_or(0));
+        self.note_capabilities
+            .observe_channel(expression.color_group.unwrap_or(0));
         let expression = expression.clamped();
         if !self.process.supports_note_instances() {
             self.process.note_on_channel(
@@ -778,43 +795,78 @@ mod tests {
 
     #[test]
     fn bridged_and_in_process_project_laws_and_live_expression_ramps_match_pcm() {
-        use windfall_dsp::{ExpressionMap, NoteExpression, NoteInstanceId, PluginExpressionDestination};
         use windfall_core::PanLaw;
+        use windfall_dsp::{
+            ExpressionMap, NoteExpression, NoteInstanceId, PluginExpressionDestination,
+        };
         for vst3 in [false, true] {
             for offline in [false, true] {
-                for law in [PanLaw::Balance, PanLaw::ConstantPower, PanLaw::Compromise, PanLaw::Linear] {
+                for law in [
+                    PanLaw::Balance,
+                    PanLaw::ConstantPower,
+                    PanLaw::Compromise,
+                    PanLaw::Linear,
+                ] {
                     let (runtime, binding) = if vst3 {
                         super::super::runtime::ownership_tests::fixture(26)
                     } else {
                         super::super::runtime::ownership_tests::clap_expression_fixture(false)
                     };
                     let mut direct = runtime.instrument(&binding, 48_000, 64).unwrap();
-                    let helper = PathBuf::from(std::env::var_os("WINDFALL_DESKTOP_BRIDGE_HELPER").expect("explicit prebuilt current helper"));
-                    let stamp = windfall_plugin_host::paths::plugin_file_identity(Path::new(&binding.path)).unwrap();
-                    let launch_options = options(helper, &binding, stamp, 8181, 1, 48_000, offline).unwrap();
+                    let helper = PathBuf::from(
+                        std::env::var_os("WINDFALL_DESKTOP_BRIDGE_HELPER")
+                            .expect("explicit prebuilt current helper"),
+                    );
+                    let stamp =
+                        windfall_plugin_host::paths::plugin_file_identity(Path::new(&binding.path))
+                            .unwrap();
+                    let launch_options =
+                        options(helper, &binding, stamp, 8181, 1, 48_000, offline).unwrap();
                     let controls = super::super::runtime::parameter_controls(&binding);
                     let error = Arc::new(Mutex::new(None));
-                    let (record, mut bridge) = launch(launch_options, binding, controls, None, error.clone()).unwrap();
+                    let (record, mut bridge) =
+                        launch(launch_options, binding, controls, None, error.clone()).unwrap();
                     let delay = HostedEffect::latency(&bridge) - direct.latency();
-                    let note = NoteExpression { color_group: Some(3), ..NoteExpression::NEUTRAL };
+                    let note = NoteExpression {
+                        color_group: Some(3),
+                        ..NoteExpression::NEUTRAL
+                    };
                     let mut map = ExpressionMap::default();
                     map.modulation_x.plugin = PluginExpressionDestination::Volume;
                     for unit in [&mut *direct, &mut bridge as &mut dyn HostedInstrument] {
                         unit.set_expression_map(map);
                         unit.set_note_pan_law(law);
                         unit.note_on_instance(NoteInstanceId(1), 69, 0.4, 0.65, note);
-                        unit.note_on_instance(NoteInstanceId(2), 76, 0.2, -0.4, NoteExpression { color_group: Some(5), ..note });
+                        unit.note_on_instance(
+                            NoteInstanceId(2),
+                            76,
+                            0.2,
+                            -0.4,
+                            NoteExpression {
+                                color_group: Some(5),
+                                ..note
+                            },
+                        );
                     }
                     let mut native_pcm = Vec::new();
                     let mut bridge_pcm = Vec::new();
                     let total = 4096 + delay;
                     for frame in (0..total).step_by(64) {
                         if frame == 1024 {
-                            for unit in [&mut *direct, &mut bridge as &mut dyn HostedInstrument] { unit.set_note_pan_law(PanLaw::Linear); }
+                            for unit in [&mut *direct, &mut bridge as &mut dyn HostedInstrument] {
+                                unit.set_note_pan_law(PanLaw::Linear);
+                            }
                         }
                         if frame == 1536 {
                             for unit in [&mut *direct, &mut bridge as &mut dyn HostedInstrument] {
-                                unit.set_note_expression(NoteInstanceId(1), -0.3, NoteExpression { modulation_x: 0.4, ..note });
+                                unit.set_note_expression(
+                                    NoteInstanceId(1),
+                                    -0.3,
+                                    NoteExpression {
+                                        modulation_x: 0.4,
+                                        ..note
+                                    },
+                                );
                                 unit.set_note_gain(NoteInstanceId(2), 0.6);
                             }
                         }
@@ -825,27 +877,54 @@ mod tests {
                             }
                         }
                         let (mut left, mut right) = ([0.0; 64], [0.0; 64]);
-                        assert_eq!(crate::test_alloc::allocator_calls(|| direct.process(&mut left, &mut right)), 0);
-                        native_pcm.extend(left.into_iter().zip(right).map(|(left, right)| [left, right]));
+                        assert_eq!(
+                            crate::test_alloc::allocator_calls(
+                                || direct.process(&mut left, &mut right)
+                            ),
+                            0
+                        );
+                        native_pcm.extend(
+                            left.into_iter()
+                                .zip(right)
+                                .map(|(left, right)| [left, right]),
+                        );
                         let (mut left, mut right) = ([0.0; 64], [0.0; 64]);
-                        if offline { HostedEffect::process(&mut bridge, &mut left, &mut right); }
-                        else {
-                            assert_eq!(crate::test_alloc::allocator_calls(|| HostedEffect::process(&mut bridge, &mut left, &mut right)), 0);
+                        if offline {
+                            HostedEffect::process(&mut bridge, &mut left, &mut right);
+                        } else {
+                            assert_eq!(
+                                crate::test_alloc::allocator_calls(|| HostedEffect::process(
+                                    &mut bridge,
+                                    &mut left,
+                                    &mut right
+                                )),
+                                0
+                            );
                             // This is the test's device clock, not an audio callback wait.
                             std::thread::sleep(Duration::from_millis(2));
                         }
-                        bridge_pcm.extend(left.into_iter().zip(right).map(|(left, right)| [left, right]));
+                        bridge_pcm.extend(
+                            left.into_iter()
+                                .zip(right)
+                                .map(|(left, right)| [left, right]),
+                        );
                         assert!(error.lock().unwrap().is_none());
                         assert!(!record.control.status().failed);
                     }
                     assert!(native_pcm.iter().any(|frame| frame[0].abs() > 0.001));
                     for frame in 0..4096 {
                         for side in 0..2 {
-                            assert!((bridge_pcm[frame + delay][side] - native_pcm[frame][side]).abs() < 2e-6,
-                                "{vst3} {offline} {law:?} frame={frame} side={side}");
+                            assert!(
+                                (bridge_pcm[frame + delay][side] - native_pcm[frame][side]).abs()
+                                    < 2e-6,
+                                "{vst3} {offline} {law:?} frame={frame} side={side}"
+                            );
                         }
                     }
-                    assert_eq!(record.note_capabilities.snapshot().observed_channels, vec![3, 5]);
+                    assert_eq!(
+                        record.note_capabilities.snapshot().observed_channels,
+                        vec![3, 5]
+                    );
                     assert!(record.note_capabilities.snapshot().project_pan_law);
                 }
             }

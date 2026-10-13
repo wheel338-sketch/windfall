@@ -384,9 +384,13 @@ impl Audio {
     }
     pub fn set_project_pan_law(&mut self, law: windfall_dsp::ProjectPanLaw) -> bool {
         let code = crate::project_expression::encode_law(Some(law));
-        if code == self.project_law { return true; }
+        if code == self.project_law {
+            return true;
+        }
         self.project_law = code;
-        if !self.advance_generation() { return false; }
+        if !self.advance_generation() {
+            return false;
+        }
         let count = self.input.law_event_count;
         if count > 0 && self.input.law_events[count - 1].0 == self.cursor as u32 {
             self.input.law_events[count - 1].1 = code;
@@ -417,7 +421,11 @@ impl Audio {
             return false;
         };
         let mut events = [HostEvent::AllNotesOff { time: 0 }; 8];
-        let masks = if note.expression.is_some() { [0x7f; 16] } else { self.expression_masks };
+        let masks = if note.expression.is_some() {
+            [0x7f; 16]
+        } else {
+            self.expression_masks
+        };
         let count = note.events(&masks, &mut events);
         self.instances[slot] = note;
         if !self.advance_generation() {
@@ -434,13 +442,23 @@ impl Audio {
         true
     }
     pub fn set_note_controls(&mut self, id: u32, controls: crate::PluginNoteControls) -> bool {
-        let Some(note) = self.instances.iter().find(|n| n.id == id && id != 0) else { return false; };
-        if !controls.valid(note.key) { return false; }
+        let Some(note) = self.instances.iter().find(|n| n.id == id && id != 0) else {
+            return false;
+        };
+        if !controls.valid(note.key) {
+            return false;
+        }
         let key = note.key;
-        if let Some(note) = self.instances.iter_mut().find(|n| n.id == id) { note.controls = controls; }
+        if let Some(note) = self.instances.iter_mut().find(|n| n.id == id) {
+            note.controls = controls;
+        }
         self.set_note_expression(id, controls.mapped(key))
     }
-    pub fn set_note_expression(&mut self, id: u32, expression: crate::PluginNoteExpression) -> bool {
+    pub fn set_note_expression(
+        &mut self,
+        id: u32,
+        expression: crate::PluginNoteExpression,
+    ) -> bool {
         let Some(slot) = self.instances.iter().position(|n| n.id == id && id != 0) else {
             return false;
         };
@@ -450,7 +468,11 @@ impl Audio {
         if self.instances[slot].expression == Some(expression) {
             return true;
         }
-        let before = self.instances[slot].expression.unwrap_or_else(|| self.instances[slot].controls.mapped(self.instances[slot].key));
+        let before = self.instances[slot].expression.unwrap_or_else(|| {
+            self.instances[slot]
+                .controls
+                .mapped(self.instances[slot].key)
+        });
         // Explicit neutral values clear destinations removed by a map edit.
         let mut expression = expression;
         for index in 0..7 {

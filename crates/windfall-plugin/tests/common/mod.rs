@@ -95,17 +95,30 @@ pub fn soundfont_program() -> Program {
     program.samples.clear();
     program.project.samples[0].soundfont = true;
     program.project.samples[0].path = SamplePath::Project("original.sf2".into());
-    program.soundfonts.push(windfall_plugin::EmbeddedSoundFont { id: SampleId(2), bytes: sf2::bytes() });
+    program.soundfonts.push(windfall_plugin::EmbeddedSoundFont {
+        id: SampleId(2),
+        bytes: sf2::bytes(),
+    });
     let channel = &mut program.project.channels[0];
     channel.name = "SoundFont / GM destination".into();
-    channel.source = ChannelSource::Instrument { params: windfall_project::InstrumentKind::SoundFont.default_params(), asset: None };
+    channel.source = ChannelSource::Instrument {
+        params: windfall_project::InstrumentKind::SoundFont.default_params(),
+        asset: None,
+    };
     channel.sample_instrument = Some(windfall_project::SampleInstrumentAsset::SoundFont {
-        path: program.project.samples[0].path.clone(), bank: 0, program: 0, source: Some(SampleId(2)),
+        path: program.project.samples[0].path.clone(),
+        bank: 0,
+        program: 0,
+        source: Some(SampleId(2)),
     });
     program.project.patterns[0].lanes[0].notes[0].start = 0;
     program.project.patterns[0].lanes[0].notes[0].length = 96;
     program.project.patterns[0].lanes[0].notes[0].key = 60;
-    program.project.mixer.tracks[0].external_output = Some(ExternalOutputRoute { left: 0, right: Some(1), exclusive: false });
+    program.project.mixer.tracks[0].external_output = Some(ExternalOutputRoute {
+        left: 0,
+        right: Some(1),
+        exclusive: false,
+    });
     program.validate().unwrap();
     program
 }

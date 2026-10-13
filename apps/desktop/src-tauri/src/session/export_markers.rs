@@ -67,7 +67,8 @@ pub(super) fn song_metadata(
     // ACID has one tempo/meter, so it cannot describe an automated tempo or
     // changing meter honestly. Cue positions still follow the render clock.
     if let Some(bpm) = map.constant_tempo()
-        && project.playlist.timeline.meters.is_empty() {
+        && project.playlist.timeline.meters.is_empty()
+    {
         if metadata.cues.is_empty() {
             metadata.cues.push(WavCue {
                 id: 0,
@@ -132,10 +133,16 @@ pub(super) fn pattern_metadata(
         }
         let id = metadata.cues.len() as u32 + 1;
         let start = frame(tick)?;
-        metadata.cues.push(WavCue { id, frame: start, label });
+        metadata.cues.push(WavCue {
+            id,
+            frame: start,
+            label,
+        });
         if let Some(end) = end {
             let length = frame(end)?.saturating_sub(start);
-            if length > 0 { metadata.slices.push(WavSlice { cue_id: id, length }); }
+            if length > 0 {
+                metadata.slices.push(WavSlice { cue_id: id, length });
+            }
         }
         Ok(())
     };
@@ -172,7 +179,8 @@ pub(super) fn pattern_metadata(
     }
     let signature = pattern.effective_signature(project.settings.time_signature);
     if let Some(bpm) = map.constant_tempo()
-        && pattern.timeline.meters.is_empty() {
+        && pattern.timeline.meters.is_empty()
+    {
         if metadata.cues.is_empty() {
             metadata.cues.push(WavCue {
                 id: 1,
@@ -213,13 +221,27 @@ pub(super) fn pattern_metadata(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use windfall_engine::{RenderOptions, SamplePool, render_streaming_checked};
     use windfall_project::{Command, Document};
-    use windfall_engine::{SamplePool, RenderOptions, render_streaming_checked};
-    fn song_metadata(project: &Project, pool: &SamplePool, rate: u32, region: Option<TickRange>) -> Result<WavMetadata, String> {
-        let report = render_streaming_checked(project, pool, &RenderOptions {
-            mode: windfall_ipc::PlayMode::Song, sample_rate: rate, region,
-            ..Default::default()
-        }, &mut |_| true, &mut |_| true).map_err(|e| e.to_string())?;
+    fn song_metadata(
+        project: &Project,
+        pool: &SamplePool,
+        rate: u32,
+        region: Option<TickRange>,
+    ) -> Result<WavMetadata, String> {
+        let report = render_streaming_checked(
+            project,
+            pool,
+            &RenderOptions {
+                mode: windfall_ipc::PlayMode::Song,
+                sample_rate: rate,
+                region,
+                ..Default::default()
+            },
+            &mut |_| true,
+            &mut |_| true,
+        )
+        .map_err(|e| e.to_string())?;
         super::song_metadata(project, &report.frame_map, region)
     }
     #[test]

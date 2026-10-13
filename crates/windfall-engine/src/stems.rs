@@ -472,7 +472,9 @@ pub fn render_stems(
                     return Ok(done);
                 }
                 frames = done.frames;
-                if frame_map.is_none() { frame_map = Some(done.frame_map); }
+                if frame_map.is_none() {
+                    frame_map = Some(done.frame_map);
+                }
                 dropped_clips = done.dropped_clips;
             }
             Ok(Streamed {
@@ -791,8 +793,13 @@ impl Pass {
             };
             let fresh = &mut buffer[..frames * 2];
             self.processor.process(fresh);
-            if self.processor.rendered_end().is_none_or(|end| (done as u64) < end) {
-                self.frame_map.record(done as u64, self.processor.export_clock());
+            if self
+                .processor
+                .rendered_end()
+                .is_none_or(|end| (done as u64) < end)
+            {
+                self.frame_map
+                    .record(done as u64, self.processor.export_clock());
             }
             if done.is_multiple_of(crate::automation::GRID as usize)
                 && let Some(trajectory) = &mut clock_capture

@@ -109,7 +109,9 @@ fn unsaved_decision_waits_for_an_inflight_capture_guard_and_refuses_a_nonanswer(
         session.pause("update-test:capturing");
     });
     hold.wait();
-    let waiting = rig.session.background(|session| session.begin_update_shutdown());
+    let waiting = rig
+        .session
+        .background(|session| session.begin_update_shutdown());
     assert!(still_running(&waiting));
     hold.release();
     capturing.join().unwrap();
@@ -122,10 +124,18 @@ fn unsaved_decision_waits_for_an_inflight_capture_guard_and_refuses_a_nonanswer(
     });
     hold.wait();
     let started = Instant::now();
-    let error = match rig.session.begin_update_shutdown() { Ok(_) => panic!("unanswered capture admitted installation"), Err(error) => error };
+    let error = match rig.session.begin_update_shutdown() {
+        Ok(_) => panic!("unanswered capture admitted installation"),
+        Err(error) => error,
+    };
     assert!(error.contains("timed out"));
     assert!(started.elapsed() < Duration::from_secs(7));
-    assert!(!rig.session.inner.update_installing.load(std::sync::atomic::Ordering::Acquire));
+    assert!(
+        !rig.session
+            .inner
+            .update_installing
+            .load(std::sync::atomic::Ordering::Acquire)
+    );
     assert!(rig.device.status().running);
     hold.release();
     capturing.join().unwrap();

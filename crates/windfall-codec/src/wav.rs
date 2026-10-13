@@ -238,9 +238,14 @@ impl WavWriter {
 
     /// Adds metadata discovered while rendering, without moving streamed PCM.
     /// RIFF permits cue/smpl/LIST/acid chunks after the data chunk.
-    pub fn set_rendered_metadata(&mut self, metadata: &crate::WavMetadata) -> Result<(), CodecError> {
+    pub fn set_rendered_metadata(
+        &mut self,
+        metadata: &crate::WavMetadata,
+    ) -> Result<(), CodecError> {
         if !self.layout.marker_chunks.is_empty() {
-            return Err(CodecError::InvalidInput("WAV metadata was already supplied before rendering".into()));
+            return Err(CodecError::InvalidInput(
+                "WAV metadata was already supplied before rendering".into(),
+            ));
         }
         metadata.validate(Some(self.data_bytes / u64::from(self.layout.block_align)))?;
         let chunks = metadata.chunks(self.layout.sample_rate)?;
@@ -429,7 +434,8 @@ impl Layout {
         chunks.extend_from_slice(b"data");
         chunks.extend_from_slice(&(data_bytes as u32).to_le_bytes());
 
-        let riff_size = chunks.len() as u64 + data_bytes + data_bytes % 2 + self.trailing_chunks.len() as u64;
+        let riff_size =
+            chunks.len() as u64 + data_bytes + data_bytes % 2 + self.trailing_chunks.len() as u64;
         let mut header = Vec::with_capacity(chunks.len() + 8);
         header.extend_from_slice(b"RIFF");
         header.extend_from_slice(&(riff_size as u32).to_le_bytes());

@@ -1578,15 +1578,45 @@ fn native_colour_group_and_live_midi_channels_are_observed_and_invalid_notes_are
     let mut unit = runtime.instrument(&binding, 48_000, 64).unwrap();
     unit.transport(transport());
     unit.set_note_pan_law(windfall_core::PanLaw::ConstantPower);
-    assert_eq!(crate::test_alloc::allocator_calls(|| {
-        unit.note_on_instance(NoteInstanceId(1), 69, 0.4, -0.5, NoteExpression { color_group: Some(3), ..NoteExpression::NEUTRAL });
-        unit.note_on_instance(NoteInstanceId(2), 81, 0.4, 0.5, NoteExpression { color_group: Some(16), ..NoteExpression::NEUTRAL });
-        assert!(unit.midi_message(&[0x99, 60, 64]));
-    }), 0);
-    assert_eq!(unit.voices(), 2, "one sequenced and one actual live-channel owner; invalid note has no voice");
+    assert_eq!(
+        crate::test_alloc::allocator_calls(|| {
+            unit.note_on_instance(
+                NoteInstanceId(1),
+                69,
+                0.4,
+                -0.5,
+                NoteExpression {
+                    color_group: Some(3),
+                    ..NoteExpression::NEUTRAL
+                },
+            );
+            unit.note_on_instance(
+                NoteInstanceId(2),
+                81,
+                0.4,
+                0.5,
+                NoteExpression {
+                    color_group: Some(16),
+                    ..NoteExpression::NEUTRAL
+                },
+            );
+            assert!(unit.midi_message(&[0x99, 60, 64]));
+        }),
+        0
+    );
+    assert_eq!(
+        unit.voices(),
+        2,
+        "one sequenced and one actual live-channel owner; invalid note has no voice"
+    );
     let pcm = expression_audio(unit.as_mut(), 512);
     assert!(pcm.iter().any(|frame| frame[0].abs() > 0.001));
     let capabilities = runtime.note_capabilities(binding.target).unwrap();
     assert_eq!(capabilities.observed_channels, vec![3, 9]);
-    assert!(capabilities.refusal.unwrap().contains("Invalid note MIDI channel"));
+    assert!(
+        capabilities
+            .refusal
+            .unwrap()
+            .contains("Invalid note MIDI channel")
+    );
 }

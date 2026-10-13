@@ -146,11 +146,21 @@ impl Session {
         let (targets, runtime) = {
             let state = self.state();
             let mut targets = Vec::new();
-            fn channels(project: &windfall_project::Project, target: windfall_project::PluginTarget) -> Vec<u8> {
-                let windfall_project::PluginTarget::Instrument { channel } = target else { return Vec::new(); };
-                let mut channels = project.patterns.iter().flat_map(|pattern| &pattern.lanes)
-                    .filter(|lane| lane.channel == channel).flat_map(|lane| &lane.notes)
-                    .map(|note| note.expression.color_group.unwrap_or(0)).collect::<Vec<_>>();
+            fn channels(
+                project: &windfall_project::Project,
+                target: windfall_project::PluginTarget,
+            ) -> Vec<u8> {
+                let windfall_project::PluginTarget::Instrument { channel } = target else {
+                    return Vec::new();
+                };
+                let mut channels = project
+                    .patterns
+                    .iter()
+                    .flat_map(|pattern| &pattern.lanes)
+                    .filter(|lane| lane.channel == channel)
+                    .flat_map(|lane| &lane.notes)
+                    .map(|note| note.expression.color_group.unwrap_or(0))
+                    .collect::<Vec<_>>();
                 channels.sort_unstable();
                 channels.dedup();
                 channels
@@ -161,22 +171,43 @@ impl Session {
                 targets: &mut Vec<(windfall_project::PluginTarget, Vec<u8>, bool, bool, bool)>,
             ) {
                 match command {
-                    Command::UpdateSettings { patch } if patch.pan_law.is_some_and(|law| law != project.settings.pan_law) => {
-                        for binding in project.plugins.iter().filter(|binding| binding.target.is_instrument()) {
-                            targets.push((binding.target, channels(project, binding.target), true, true, true));
+                    Command::UpdateSettings { patch }
+                        if patch
+                            .pan_law
+                            .is_some_and(|law| law != project.settings.pan_law) =>
+                    {
+                        for binding in project
+                            .plugins
+                            .iter()
+                            .filter(|binding| binding.target.is_instrument())
+                        {
+                            targets.push((
+                                binding.target,
+                                channels(project, binding.target),
+                                true,
+                                true,
+                                true,
+                            ));
                         }
                     }
                     Command::SetChannelExpressionMap { id, map, .. } => {
-                        let routes = [map.modulation_x.plugin, map.modulation_y.plugin, map.release.plugin];
+                        let routes = [
+                            map.modulation_x.plugin,
+                            map.modulation_y.plugin,
+                            map.release.plugin,
+                        ];
                         let pan = routes.contains(&windfall_dsp::PluginExpressionDestination::Pan);
-                        let volume = routes.contains(&windfall_dsp::PluginExpressionDestination::Volume);
+                        let volume =
+                            routes.contains(&windfall_dsp::PluginExpressionDestination::Volume);
                         let target = windfall_project::PluginTarget::Instrument { channel: *id };
                         if (pan || volume) && project.plugin(target).is_some() {
                             targets.push((target, channels(project, target), false, pan, volume));
                         }
                     }
                     Command::Batch { commands, .. } => {
-                        for command in commands { collect(command, project, targets); }
+                        for command in commands {
+                            collect(command, project, targets);
+                        }
                     }
                     _ => {}
                 }
@@ -195,12 +226,17 @@ impl Session {
             for (target, mut channels, law, pan, volume) in targets {
                 let capabilities = runtime.note_capabilities(target)?;
                 channels.extend(capabilities.observed_channels.iter().copied());
-                if channels.is_empty() { channels.push(0); }
+                if channels.is_empty() {
+                    channels.push(0);
+                }
                 channels.sort_unstable();
                 channels.dedup();
                 for channel in channels {
-                    if law { capabilities.require_pan_law(channel)?; }
-                    else { capabilities.require_expression(channel, pan, volume)?; }
+                    if law {
+                        capabilities.require_pan_law(channel)?;
+                    } else {
+                        capabilities.require_expression(channel, pan, volume)?;
+                    }
                 }
             }
         }

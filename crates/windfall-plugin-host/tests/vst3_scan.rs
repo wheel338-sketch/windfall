@@ -117,5 +117,8 @@ fn vst3_factory_metadata_and_initialized_buses_are_scanned_out_of_process() {
     assert_eq!(instance.params()[0].id, 7);
     assert_eq!(scan.plugins[2].descriptor.kind, PluginKind::Instrument);
     assert_eq!(scan.plugins[26].descriptor.kind, PluginKind::Instrument);
-    assert_eq!(scan.plugins[26].descriptor.name, "VST3 Project Expression Probe");
+    assert_eq!(
+        scan.plugins[26].descriptor.name,
+        "VST3 Project Expression Probe"
+    );
 }

@@ -54,7 +54,9 @@ impl std::io::Write for Bounded {
         self.0.extend_from_slice(bytes);
         Ok(bytes.len())
     }
-    fn flush(&mut self) -> std::io::Result<()> { Ok(()) }
+    fn flush(&mut self) -> std::io::Result<()> {
+        Ok(())
+    }
 }
 
 impl Default for Program {
@@ -64,14 +66,27 @@ impl Default for Program {
 }
 
 impl Program {
-    pub fn new(project: Project, samples: Vec<EmbeddedSample>, soundfonts: Vec<EmbeddedSoundFont>) -> Self {
+    pub fn new(
+        project: Project,
+        samples: Vec<EmbeddedSample>,
+        soundfonts: Vec<EmbeddedSoundFont>,
+    ) -> Self {
         let mut pins = windfall_dsp::asset::AssetPins::for_effects(
-            project.mixer.tracks.iter().flat_map(|t| t.effects.iter().map(|e| &e.params)),
+            project
+                .mixer
+                .tracks
+                .iter()
+                .flat_map(|t| t.effects.iter().map(|e| &e.params)),
         );
         for rack in &project.settings.modular_racks {
             pins.extend(rack.graph.effect_asset_pins());
         }
-        Self { project, samples, soundfonts, _asset_pins: std::sync::Arc::new(pins) }
+        Self {
+            project,
+            samples,
+            soundfonts,
+            _asset_pins: std::sync::Arc::new(pins),
+        }
     }
     /// Validate on the main thread before preparing or replacing state.
     pub fn validate(&self) -> Result<(), String> {
@@ -132,31 +147,49 @@ impl Program {
         let mut raw_bytes = 0usize;
         for bank in &self.soundfonts {
             if !ids.insert(bank.id)
-                || !self.project.samples.iter().any(|s| s.id == bank.id && s.soundfont)
+                || !self
+                    .project
+                    .samples
+                    .iter()
+                    .any(|s| s.id == bank.id && s.soundfont)
             {
                 return Err("Duplicate, unknown or non-SF2 embedded bank source identity".into());
             }
-            raw_bytes = raw_bytes.checked_add(bank.bytes.len()).ok_or("Raw SF2 byte overflow")?;
+            raw_bytes = raw_bytes
+                .checked_add(bank.bytes.len())
+                .ok_or("Raw SF2 byte overflow")?;
         }
         fn rack_bytes(graph: &windfall_project::RackGraph) -> Result<usize, String> {
             let mut bytes = 0usize;
             for node in &graph.nodes {
-                if let Some(windfall_project::RackNodeAsset::SoundFont { bytes: Some(raw), .. }) = &node.asset {
-                    bytes = bytes.checked_add(raw.len()).ok_or("Raw SF2 byte overflow")?;
+                if let Some(windfall_project::RackNodeAsset::SoundFont {
+                    bytes: Some(raw), ..
+                }) = &node.asset
+                {
+                    bytes = bytes
+                        .checked_add(raw.len())
+                        .ok_or("Raw SF2 byte overflow")?;
                 }
                 if let windfall_project::RackProcessor::Rack { graph } = &node.processor {
-                    bytes = bytes.checked_add(rack_bytes(graph)?).ok_or("Raw SF2 byte overflow")?;
+                    bytes = bytes
+                        .checked_add(rack_bytes(graph)?)
+                        .ok_or("Raw SF2 byte overflow")?;
                 }
             }
             Ok(bytes)
         }
         for rack in &self.project.settings.modular_racks {
-            raw_bytes = raw_bytes.checked_add(rack_bytes(&rack.graph)?).ok_or("Raw SF2 byte overflow")?;
+            raw_bytes = raw_bytes
+                .checked_add(rack_bytes(&rack.graph)?)
+                .ok_or("Raw SF2 byte overflow")?;
         }
         if raw_bytes > MAX_RAW_BANK_BYTES {
             return Err("Plugin raw SF2 sources exceed the aggregate 16 MiB bank limit".into());
         }
-        if bytes.checked_add(raw_bytes).is_none_or(|sum| sum > MAX_STATE_BYTES) {
+        if bytes
+            .checked_add(raw_bytes)
+            .is_none_or(|sum| sum > MAX_STATE_BYTES)
+        {
             return Err("Embedded assets exceed the 64 MiB state bound".into());
         }
         Ok(())
@@ -193,7 +226,8 @@ impl Program {
             return Err("Plugin state exceeds 64 MiB".into());
         }
         let packet: Packet = serde_json::from_slice(bytes).map_err(|e| e.to_string())?;
-        if !matches!(packet.schema, 1 | 2) || (packet.schema == 1 && !packet.soundfonts.is_empty()) {
+        if !matches!(packet.schema, 1 | 2) || (packet.schema == 1 && !packet.soundfonts.is_empty())
+        {
             return Err("Unsupported Windfall plugin-state schema".into());
         }
         let program = Self::new(
@@ -227,18 +261,26 @@ impl Program {
         let mut errors = Vec::new();
         let mut seen = Vec::new();
         for channel in &self.project.channels {
-            let Some(asset @ windfall_project::SampleInstrumentAsset::SoundFont { .. }) = &channel.sample_instrument else {
+            let Some(asset @ windfall_project::SampleInstrumentAsset::SoundFont { .. }) =
+                &channel.sample_instrument
+            else {
                 continue;
             };
             let asset = asset.canonical(&self.project);
-            if seen.contains(&asset) { continue; }
+            if seen.contains(&asset) {
+                continue;
+            }
             seen.push(asset.clone());
             let source = asset.soundfont_source();
-            let result = source.and_then(|id| self.soundfonts.iter().find(|b| b.id == id))
+            let result = source
+                .and_then(|id| self.soundfonts.iter().find(|b| b.id == id))
                 .ok_or_else(|| format!("Missing embedded raw SF2 source {source:?}"))
                 .and_then(|bank| pool.insert_soundfont(asset.clone(), &bank.bytes));
             if let Err(reason) = result {
-                let message = format!("SoundFont instrument '{}' (raw source {source:?}): {reason}; this instrument is silent", channel.name);
+                let message = format!(
+                    "SoundFont instrument '{}' (raw source {source:?}): {reason}; this instrument is silent",
+                    channel.name
+                );
                 pool.insert_unavailable_soundfont(asset, message.clone());
                 errors.push(message);
             }
@@ -252,13 +294,31 @@ impl Program {
     pub(crate) fn prepare_rack_soundfonts(playback: &mut Project) -> Vec<String> {
         fn prepare(graph: &mut windfall_project::RackGraph, errors: &mut Vec<String>) {
             for node in &mut graph.nodes {
-                if let Some(windfall_project::RackNodeAsset::SoundFont { bytes, bank, program, .. }) = &mut node.asset {
-                    let result = bytes.as_deref().ok_or_else(|| "Missing embedded raw rack SF2 bytes".to_owned())
-                        .and_then(|raw| windfall_dsp::sample_bank::soundfont::parse_soundfont_preset_budgeted(
-                            raw, *bank, *program, &windfall_dsp::sample_bank::BankBudget::shared(),
-                        ).map(|_| ()).map_err(|e| e.to_string()));
+                if let Some(windfall_project::RackNodeAsset::SoundFont {
+                    bytes,
+                    bank,
+                    program,
+                    ..
+                }) = &mut node.asset
+                {
+                    let result = bytes
+                        .as_deref()
+                        .ok_or_else(|| "Missing embedded raw rack SF2 bytes".to_owned())
+                        .and_then(|raw| {
+                            windfall_dsp::sample_bank::soundfont::parse_soundfont_preset_budgeted(
+                                raw,
+                                *bank,
+                                *program,
+                                &windfall_dsp::sample_bank::BankBudget::shared(),
+                            )
+                            .map(|_| ())
+                            .map_err(|e| e.to_string())
+                        });
                     if let Err(reason) = result {
-                        errors.push(format!("Rack SoundFont instrument '{}': {reason}; this instrument is silent", node.name));
+                        errors.push(format!(
+                            "Rack SoundFont instrument '{}': {reason}; this instrument is silent",
+                            node.name
+                        ));
                         *bytes = None;
                     }
                 }
@@ -268,7 +328,9 @@ impl Program {
             }
         }
         let mut errors = Vec::new();
-        for rack in &mut playback.settings.modular_racks { prepare(&mut rack.graph, &mut errors); }
+        for rack in &mut playback.settings.modular_racks {
+            prepare(&mut rack.graph, &mut errors);
+        }
         errors
     }
 
@@ -277,7 +339,10 @@ impl Program {
     pub fn validate_soundfont_sources(&self) -> Result<(), String> {
         self.validate()?;
         for source in self.project.samples.iter().filter(|s| s.soundfont) {
-            let bank = self.soundfonts.iter().find(|b| b.id == source.id)
+            let bank = self
+                .soundfonts
+                .iter()
+                .find(|b| b.id == source.id)
                 .ok_or_else(|| format!("Missing embedded raw SF2 source '{}'", source.name))?;
             windfall_dsp::sample_bank::soundfont::presets(&bank.bytes)
                 .map_err(|e| format!("Raw SF2 source '{}': {e}", source.name))?;
@@ -285,7 +350,11 @@ impl Program {
         let mut pool = SamplePool::new();
         let mut errors = self.prepare_soundfonts(&mut pool);
         errors.extend(Self::prepare_rack_soundfonts(&mut self.project.clone()));
-        if errors.is_empty() { Ok(()) } else { Err(errors.join("\n")) }
+        if errors.is_empty() {
+            Ok(())
+        } else {
+            Err(errors.join("\n"))
+        }
     }
 }
 

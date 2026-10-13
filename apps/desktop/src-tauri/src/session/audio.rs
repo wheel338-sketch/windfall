@@ -169,7 +169,13 @@ impl Session {
 
     /// Plays a note on a channel right away, as from the UI keyboard.
     pub fn audition_note_on(&self, channel: ChannelId, key: u8, velocity: f32) {
-        if self.inner.update_installing.load(std::sync::atomic::Ordering::Acquire) { return; }
+        if self
+            .inner
+            .update_installing
+            .load(std::sync::atomic::Ordering::Acquire)
+        {
+            return;
+        }
         self.controller().note_on(channel, key, velocity);
         self.controller_played(channel, key, Some(velocity), std::time::Instant::now());
     }
