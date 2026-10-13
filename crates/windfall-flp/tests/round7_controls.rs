@@ -97,8 +97,7 @@ fn sixteen_band_reference(
         } else {
             (1.0 - pan[band]).min(1.0)
         };
-        for n in delay..input.len() {
-            let m = n - delay;
+        for (m, out) in output.iter_mut().skip(delay).enumerate() {
             let upto = if band < 15 {
                 lowpassed[band][m]
             } else {
@@ -109,7 +108,7 @@ fn sixteen_band_reference(
             } else {
                 lowpassed[band - 1][m]
             };
-            output[n] += (upto - below) * level[band] * balance;
+            *out += (upto - below) * level[band] * balance;
         }
     }
     output

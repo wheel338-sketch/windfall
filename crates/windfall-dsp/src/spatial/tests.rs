@@ -472,8 +472,7 @@ fn wide_reference(
         } else {
             (1.0 - side).min(1.0)
         };
-        for n in delay..input.len() {
-            let m = n - delay;
+        for (m, out) in output.iter_mut().skip(delay).enumerate() {
             let upto = if band < WIDE_BANDS - 1 {
                 lowpassed[band][m]
             } else {
@@ -484,7 +483,7 @@ fn wide_reference(
             } else {
                 lowpassed[band - 1][m]
             };
-            output[n] += (upto - below) * f64::from(level[band]) * balance;
+            *out += (upto - below) * f64::from(level[band]) * balance;
         }
     }
     output

@@ -1112,6 +1112,78 @@ pub(super) fn effect(name: &str, state: &[u8], tempo: f64) -> Option<Translated>
     })
 }
 
+/// Why a decoded field has no stand-in control of its own.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum Unmapped {
+    /// Version words, payload markers and padding: not a control.
+    Structure,
+    /// Editor display or transport state: nothing heard depends on it.
+    Display,
+    /// Named in the public layout without any meaning.
+    NoMeaning,
+    /// Translated by a rule outside the field table, which the text names.
+    Elsewhere(&'static str),
+    /// A sound control the stand-in does not have yet.
+    Open,
+}
+
+/// Sorts a field that has no target in its layout. Anything not named here
+/// is a sound control the stand-in still lacks; the test at the end of this
+/// file pins that list, so it only changes on purpose.
+pub(super) fn unmapped(device: &str, field: &str) -> Unmapped {
+    use Unmapped::{Display, Elsewhere, NoMeaning, Open, Structure};
+    if field.starts_with("version")
+        || field.starts_with("reserved")
+        || matches!(field, "header" | "data_exists" | "sample_header")
+    {
+        return Structure;
+    }
+    if field.starts_with("unknown") || field.starts_with("unk_") {
+        return NoMeaning;
+    }
+    if field.starts_with("visual_") || field.starts_with("display_") || field == "theme" {
+        return Display;
+    }
+    match (device, field) {
+        ("fruity dx10", "mod_fine" | "mod2_fine") => {
+            Elsewhere("DawVert fine=(raw/65536)^4*180 cents folded into the operator ratio")
+        }
+        ("fruity dx10", "octave") => Elsewhere("the carrier octave sets operators.0.ratio"),
+        ("fruity dx10", "vibrato" | "lforate") => {
+            Elsewhere("vibrato amount and rate drive the channel pitch LFO")
+        }
+        ("fruit kick" | "fruity kick", "max_freq") => {
+            Elsewhere("with min_freq it gives pitchDropSemitones")
+        }
+        ("fruity slicer", "beats" | "bpm" | "attack" | "pitch") | ("slicex", "master_pitch") => {
+            Elsewhere("read by the slice reader into the sample playback")
+        }
+        ("slicex", "play_pause" | "live_selection") => Display,
+        ("fruity center", "on")
+        | ("spreader", "enabled")
+        | ("transient processor", "effect_on") => {
+            Elsewhere("the native enable state switches the imported effect slot")
+        }
+        ("effector", "bypass") => Elsewhere("bypass switches the imported effect slot"),
+        ("effector", "effect") => NoMeaning,
+        ("fruity mute 2", "mute" | "channel") => {
+            Elsewhere("mute and channel set the left and right mutes")
+        }
+        ("fruity phase inverter", "state") => {
+            Elsewhere("0..1024 fitted to inverting both sides above 512")
+        }
+        ("fruity flanger", "inv_feedback") => Elsewhere("above 512 it negates feedback"),
+        ("frequency shifter", "freqtype") => {
+            Elsewhere("it selects the 20 kHz or 200 Hz range of shiftHz")
+        }
+        ("fruity delay 3", "tempo_sync") => {
+            Elsewhere("when set, delay_time is taken in steps at the import tempo")
+        }
+        ("tuner", "reactivity" | "bass") => Display,
+        _ => Open,
+    }
+}
+
 /// Report every field independently, including absent tails and decoded fields
 /// for which the stand-in has no control. No generic defaults warning hides a
 /// known layout. This runs off the audio thread during review.
@@ -1192,7 +1264,7 @@ pub(super) fn reports(name: &str, state: &[u8]) -> Vec<String> {
             "{name}: a documented field is nonfinite or outside the public source range; state retained, safe defaults used."
         )];
     }
-    let mut reports:Vec<String>=l.fields.iter().filter(|f|!matches!(f.name.as_str(),"version"|"reserved") && key != "multiband delay").map(|f| {
+    let mut reports:Vec<String>=l.fields.iter().filter(|f|(!f.target.is_empty() || unmapped(&key, &f.name) != Unmapped::Structure) && key != "multiband delay").map(|f| {
         match f.read(bytes) {
             None=>format!("{name}.{}: truncated/nonfinite public field; safe default retained.",f.name),
             Some(v)=>match descriptors.iter().find(|p|p.id==f.target) {
@@ -1201,7 +1273,13 @@ pub(super) fn reports(name: &str, state: &[u8]) -> Vec<String> {
                 None if matches!(f.name.as_str(),"on"|"enabled"|"effect_on")=>format!("{name}.{}={v}: native enable state controls the imported effect slot.",f.name),
                 None if matches!(key.as_str(),"slicex"|"fruity slicer") && matches!(f.name.as_str(),"pitch"|"master_pitch")=>format!("{name}.{}={v}: pitch/100 mapped to sample playback slice pitch.",f.name),
                 None if key=="fruity dx10" && matches!(f.name.as_str(),"mod_fine"|"mod2_fine")=>format!("{name}.{}={v}: DawVert fine=(raw/65536)^4*180 cents folded into operator ratio by 2^(cents/1200); zero coarse/fine disables its branch.",f.name),
-                None=>format!("{name}.{}={v}: decoded public field; no corresponding stand-in control (state retained).",f.name),
+                None=>match unmapped(&key, &f.name) {
+                    Unmapped::Structure=>format!("{name}.{}={v}: layout structure, not a control.",f.name),
+                    Unmapped::Display=>format!("{name}.{}={v}: editor display state; nothing heard depends on it (state retained).",f.name),
+                    Unmapped::NoMeaning=>format!("{name}.{}={v}: named in the public layout without a meaning; kept opaque (state retained).",f.name),
+                    Unmapped::Elsewhere(rule)=>format!("{name}.{}={v}: {rule}.",f.name),
+                    Unmapped::Open=>format!("{name}.{}={v}: decoded public field; no corresponding stand-in control (state retained).",f.name),
+                },
             },
         }
     }).collect();
@@ -1473,4 +1551,203 @@ mod tests {
             }
         }
     }
+}
+
+#[cfg(test)]
+mod open_list {
+    use super::*;
+    use std::collections::{BTreeMap, BTreeSet};
+
+    /// Every layout the importer knows, with a state long enough to build
+    /// the variable ones.
+    fn layouts() -> Vec<(String, Layout)> {
+        let names: Vec<String> = super::super::synth::DEFAULT_INSTRUMENTS
+            .iter()
+            .map(|(n, _)| n.to_string())
+            .chain(
+                super::super::effects::DEFAULT_EFFECTS
+                    .iter()
+                    .map(|(n, _)| n.to_string()),
+            )
+            .chain(
+                [
+                    "Fruity Limiter",
+                    "Fruity Delay 3",
+                    "Fruity Waveshaper",
+                    "Fruity Vocoder",
+                    "Fruit Kick",
+                    "Slicex",
+                    "Fruity Slicer",
+                    "BassDrum",
+                    "Effector",
+                    "Pitcher",
+                    "Multiband Delay",
+                    "Pitch Shifter",
+                    "Tuner",
+                ]
+                .map(String::from),
+            )
+            .collect();
+        let mut seen = BTreeSet::new();
+        let mut found = Vec::new();
+        for name in names {
+            let key = name.to_ascii_lowercase();
+            if !seen.insert(key.clone()) {
+                continue;
+            }
+            let mut state = vec![0_u8; 100];
+            state[4] = 2;
+            if let Some(layout) = instrument_layout(&key, 0)
+                .map(|(_, layout)| layout)
+                .or_else(|| {
+                    effect_layout(&key, 0)
+                        .or_else(|| dynamic_layout(&key, &state))
+                        .map(|(_, layout)| layout)
+                })
+            {
+                found.push((key, layout));
+            }
+        }
+        found
+    }
+
+    /// `bank_3_e/grain_div` and `bands.7` name one control each of several
+    /// like it: the bank number and a trailing index are replaced so a row
+    /// stands for all of them.
+    fn family(field: &str) -> String {
+        let field = match field.strip_prefix("bank_") {
+            Some(rest) => format!(
+                "bank_#{}",
+                rest.trim_start_matches(|c: char| c.is_ascii_digit())
+            ),
+            None => field.to_string(),
+        };
+        match field.rsplit_once('.') {
+            Some((stem, index)) if index.chars().all(|c| c.is_ascii_digit()) => format!("{stem}.#"),
+            _ => field,
+        }
+    }
+
+    fn open() -> BTreeMap<String, BTreeSet<String>> {
+        let mut open: BTreeMap<String, BTreeSet<String>> = BTreeMap::new();
+        for (device, layout) in layouts() {
+            for field in layout.fields.iter().filter(|f| f.target.is_empty()) {
+                if unmapped(&device, &field.name) == Unmapped::Open {
+                    open.entry(device.clone())
+                        .or_default()
+                        .insert(family(&field.name));
+                }
+            }
+        }
+        open
+    }
+
+    #[test]
+    fn decoded_fields_without_a_stand_in_control_are_exactly_the_recorded_list() {
+        let actual = open();
+        for (device, fields) in &actual {
+            println!(
+                "OPEN|{device}|{}",
+                fields.iter().cloned().collect::<Vec<_>>().join(" ")
+            );
+        }
+        let expected: BTreeMap<String, BTreeSet<String>> = EXPECTED
+            .iter()
+            .map(|(device, fields)| {
+                (
+                    device.to_string(),
+                    fields.split_whitespace().map(String::from).collect(),
+                )
+            })
+            .collect();
+        assert_eq!(actual, expected);
+        // The two devices completed in round seven have nothing left.
+        assert!(!actual.contains_key("multiband delay"));
+    }
+
+    /// Device, then its decoded sound controls that still have no stand-in
+    /// control. Removing a field from this table is how one gets finished.
+    const EXPECTED: &[(&str, &str)] = &[
+        (
+            "bassdrum",
+            "attack butt click_cut click_freq drive noise_a noise_d noise_filter noise_mix noise_pitch noise_s noise_start peak var_base var_peak var_phase var_slide_time",
+        ),
+        (
+            "effector",
+            "input_level mod_rate mod_shape output_gain tempo x_mod y_mod",
+        ),
+        (
+            "frequency shifter",
+            "feedback lr_phase mixer_track shape_left shape_right start_phase stereo type",
+        ),
+        ("fruit kick", "osc_dist"),
+        (
+            "fruity chorus",
+            "crosscutoff crosstype lfo1_wave lfo2_wave lfo3_wave wetonly",
+        ),
+        (
+            "fruity delay 3",
+            "delay_type diffusion_level diffusion_spread dry feedback_bits feedback_reso feedback_sample_rate feedbackdist_knee feedbackdist_symmetry feedbackdist_type keep_pitch mod_cutoff smoothing stereo tone wet_input",
+        ),
+        (
+            "fruity delay bank",
+            "2x_oversampling bank_#_e/feedback_leave_first_echo bank_#_e/grain_div bank_#_e/grain_sh",
+        ),
+        ("fruity dx10", "mod2_velsen mod_thru mod_velsen waveform"),
+        ("fruity fast dist", "mix type"),
+        ("fruity flanger", "cross dry"),
+        ("fruity flangus", "cross dry"),
+        ("fruity free filter", "center"),
+        (
+            "fruity granulizer",
+            "depth hold hold_2 key_to loop pan speed trans_hold trans_mode wave_spacing",
+        ),
+        ("fruity kick", "osc_dist"),
+        (
+            "fruity limiter",
+            "comp_att_curve comp_rel comp_sus limiter_att_curve limiter_rel_curve limiter_safety limiter_sus noise_gain s_comp_att s_comp_att_curve s_comp_knee s_comp_ratio s_comp_rel s_comp_sus s_comp_thres s_gain s_limiter_att s_limiter_att_curve s_limiter_ceil s_limiter_rel s_limiter_rel_curve s_limiter_sus s_noise_gain s_noise_rel s_noise_thres s_sat sat sidechain_number",
+        ),
+        (
+            "fruity multiband compressor",
+            "filter_type gain hi_knee hi_state limiter low_knee low_state mid_freq_h mid_freq_l mid_knee mid_state",
+        ),
+        ("fruity panomatic", "lfo_target"),
+        ("fruity phaser", "freq_range gain num_stages"),
+        ("fruity slicer", "fitlen stretchtype"),
+        ("fruity soft clipper", "postgain"),
+        ("fruity stereo enhancer", "prepost vol"),
+        ("fruity stereo shaper", "delay dephase iodiff prepost"),
+        (
+            "fruity vocoder",
+            "bands.# filter freq_bandwidth freq_invert freq_max freq_min freq_scale hold left_right mix_car mix_mod num_bands",
+        ),
+        ("fruity waveshaper", "removedc"),
+        (
+            "pitch shifter",
+            "channel delay delay_mode density duration feedback formant_correction jitter pitch_mode rand wet",
+        ),
+        (
+            "pitcher",
+            "bypass.# bypass_all finetune formant gender harmonize harmonize_vel key_on.# min_freq octaves ref_chan selector_key selector_type stereo use_midi voice1_pan voice2_pan voice3_pan voice4_pan",
+        ),
+        ("plucked!", "norm_decay release wide"),
+        (
+            "slicex",
+            "crossfade layering master_lfo_level master_random_level mod_x mod_y",
+        ),
+        ("soundgoodizer", "mode"),
+        ("spreader", "low_bypass mono postfx prefx"),
+        (
+            "transient processor",
+            "attack_shape gain release_shape split_balance split_freq",
+        ),
+        (
+            "vintage chorus",
+            "delay_feedback delay_hp delay_time2 invert_wet mod_phase_start mod_shape_sine mod_tempo_sync mono_input noise noise_gain noise_gate",
+        ),
+        (
+            "vintage phaser",
+            "color_freq color_gain delay_feedback delay_hp delay_keeppitch delay_lp delay_mix delay_on delay_stereo delay_tempo delay_time feedback_hp input_hp levels_mono levels_noise levels_noise_gate lfo_pull lfo_scale mod_phase_start mod_shape_sine mod_tempo mod_tension phaser_freq phaser_hq phaser_manual rate_freq1 rate_freq2",
+        ),
+    ];
 }

@@ -75,6 +75,9 @@ pub struct RackNode {
     pub hosted: Option<crate::PluginBinding>,
 }
 
+// Parameters are plain copyable data, as in `Command` and `EffectParams`:
+// boxing the larger sets would allocate where plans are built for audio.
+#[allow(clippy::large_enum_variant)]
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
 #[serde(tag = "type", rename_all = "camelCase")]
 #[ts(export)]
