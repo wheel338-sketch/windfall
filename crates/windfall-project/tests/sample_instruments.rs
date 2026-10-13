@@ -21,6 +21,7 @@ fn soundfont_source_identity_relink_history_json_and_legacy_upgrade() {
     let reopened=file::from_json(&file::to_json(doc.project()).unwrap()).unwrap();assert_eq!(reopened,after);
     let mut legacy=before.clone();
     if let Some(SampleInstrumentAsset::SoundFont{source,..})=&mut legacy.channels.iter_mut().find(|c|c.id==channel).unwrap().sample_instrument {*source=None;}
+    for sample in &mut legacy.samples {sample.soundfont=false;}
     let json=file::to_json(&legacy).unwrap();
     let upgraded=file::from_json(&json).unwrap();
     assert_eq!(upgraded.channel(channel).unwrap().sample_instrument.as_ref().unwrap().soundfont_source(),Some(source));
