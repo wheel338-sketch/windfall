@@ -596,6 +596,8 @@ const EVERY_COMMAND: { [Type in Command["type"]]: (ids: Ids) => Command } = {
     target: { type: "instrument", channel: ids.pluginChannel },
     state: [1, 2],
   }),
+  readmitPlugin: (ids) => ({ type: "readmitPlugin", target: { type: "effect", effect: ids.pluginEffect }, state: [], parameters: [], auxiliaryInputs: [], outputs: [] }),
+  setPluginOutputRoute: (ids) => ({ type: "setPluginOutputRoute", target: { type: "effect", effect: ids.pluginEffect }, output: 1, track: null }),
   setPluginWrapper: (ids) => ({
     type: "setPluginWrapper",
     target: { type: "instrument", channel: ids.pluginChannel },

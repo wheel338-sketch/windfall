@@ -292,6 +292,18 @@ impl Mixer {
                             if let Some(line) = &mut state.key_delays[index][place].line {
                                 line.process(&mut self.scratch[..frames]);
                             }
+                            if unit.has_native_outputs() {
+                                unit.process_sidechain(left, right, &mut self.dry_left, &mut self.dry_right, Some(&self.scratch[..frames]));
+                                for edge in &track.edges {
+                                    let Some(tap) = edge.tap.filter(|tap| tap.place == place) else { continue; };
+                                    unit.copy_native_output(u32::from(tap.output), &mut self.scratch[..frames]);
+                                    if let Some(line) = &mut state.edge_delays[edge.slot].line { line.process(&mut self.scratch[..frames]); }
+                                    let feeds = if state.direct[edge.target].line.is_some() { &mut self.inbox } else { &mut self.buffers };
+                                    add_scaled(&self.scratch[..frames], &mut feeds[edge.target * MAX_BLOCK..][..frames], &state.edges[edge.slot], base);
+                                }
+                                if let Some(logger) = logger.as_mut() { logger.effect(track.effects[place].id, left, right); }
+                                continue;
+                            }
                             let routed = track.routed_outputs(place);
                             if routed == 0 {
                                 unit.process_sidechain(
@@ -622,6 +634,15 @@ impl Mixer {
                 target[0] += frame[0];
                 target[1] += frame[1];
             }
+        }
+        for route in &mut state.native_instrument_outputs {
+            let Some(unit) = state.instruments[route.channel].as_ref().and_then(|seat| seat.unit.as_ref()) else { continue; };
+            let Some(output) = unit.native_output(route.bus, frames) else { continue; };
+            for (frame, value) in output.iter().enumerate() { self.left[frame] = value[0]; self.right[frame] = value[1]; }
+            apply_strip(&self.left[..frames], &self.right[..frames], &state.channels[route.channel], base, &mut self.scratch[..frames]);
+            route.delay.process(&mut self.scratch[..frames]);
+            let feeds = if state.direct[route.track].line.is_some() { &mut self.inbox } else { &mut self.buffers };
+            for (target, value) in feeds[route.track * MAX_BLOCK..][..frames].iter_mut().zip(&self.scratch[..frames]) { target[0] += value[0]; target[1] += value[1]; }
         }
     }
 }

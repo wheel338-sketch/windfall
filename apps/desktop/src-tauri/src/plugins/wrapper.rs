@@ -66,6 +66,7 @@ mod tests {
             parameters: vec![],
             sidechain_input: None,
             auxiliary_inputs: vec![],
+            capabilities: Default::default(),
         };
         assert_eq!(use_bridge(&binding, true), Ok(true));
         assert_eq!(use_bridge(&binding, false), Ok(false));

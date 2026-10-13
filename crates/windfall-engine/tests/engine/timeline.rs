@@ -98,6 +98,7 @@ fn timeline_hosted_transport_uses_song_meters_only_in_song_mode() {
             rig.project.plugins.push(PluginBinding {
                 sidechain_input: None,
                 auxiliary_inputs: Vec::new(),
+                capabilities: Default::default(),
                 wrapper: Default::default(),
                 target,
                 format: format.into(),

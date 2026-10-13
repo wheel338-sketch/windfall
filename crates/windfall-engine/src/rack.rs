@@ -81,6 +81,7 @@ impl Splice {
 /// its tail.
 pub(crate) struct EffectUnit {
     harmony_frames: [[u8; 4]; MAX_BLOCK],
+    native_output_gain: [f32; MAX_BLOCK],
     external: Option<crate::plugins::ExternalEffect>,
     slot: EffectSlot,
     /// What the slot was last given.
@@ -105,6 +106,12 @@ pub(crate) struct EffectUnit {
 }
 
 impl EffectUnit {
+    pub fn has_native_outputs(&self) -> bool { self.external.is_some() }
+    pub fn copy_native_output(&self, bus: u32, output: &mut [[f32; 2]]) -> bool {
+        let available = self.external.as_ref().is_some_and(|unit| unit.copy_output(bus, output));
+        for (frame, gain) in output.iter_mut().zip(&self.native_output_gain) { frame[0] *= gain; frame[1] *= gain; }
+        available
+    }
     #[cfg(feature = "plugin-export")]
     pub fn reset_plugin(&mut self) {
         self.slot.reset();
@@ -157,6 +164,7 @@ impl EffectUnit {
         slot.set_mix(effect.mix);
         let unit = Self {
             harmony_frames: [[255; 4]; MAX_BLOCK],
+            native_output_gain: [1.0; MAX_BLOCK],
             external: None,
             slot,
             params: effect.params,
@@ -484,6 +492,7 @@ impl EffectUnit {
         key: Option<&[[f32; 2]]>,
         mut aux: Option<&mut windfall_dsp::AuxBlock<'_>>,
     ) {
+        self.native_output_gain[..left.len()].fill(1.0);
         match self.splice {
             Splice::Steady => {
                 self.heard = true;
@@ -492,6 +501,7 @@ impl EffectUnit {
                 return;
             }
             Splice::Gone => {
+                self.native_output_gain[..left.len()].fill(0.0);
                 if let Some(aux) = aux {
                     for output in &mut aux.outputs {
                         output[..left.len()].fill([0.0; 2]);
@@ -514,6 +524,7 @@ impl EffectUnit {
                 break;
             }
             let wet = self.splice.next(length) * self.splice_scale;
+            self.native_output_gain[index] = wet;
             if wet > 0.0 {
                 self.heard = true;
                 self.life.hear();
@@ -627,6 +638,7 @@ pub(crate) struct InstrumentUnit {
     map: ExpressionMap,
     external: Option<Option<Box<dyn crate::plugins::HostedInstrument>>>,
     plugin_params: Box<[(u32, f32)]>,
+    native_outputs: Vec<(u32, Box<[[f32; 2]]>)>,
     instrument: AnyInstrument,
     params: InstrumentParams,
     /// Separate end, origin and expression for every sounding occurrence.
@@ -711,6 +723,7 @@ impl InstrumentUnit {
             map: ExpressionMap::DEFAULT,
             external: None,
             plugin_params: Box::new([]),
+            native_outputs: Vec::new(),
             instrument,
             params: *params,
             notes: vec![HeldInstrumentNote::EMPTY; MAX_HELD_NOTES].into_boxed_slice(),
@@ -834,6 +847,7 @@ impl InstrumentUnit {
         binding: &windfall_project::PluginBinding,
     ) {
         self.external = Some(unit);
+        self.native_outputs = binding.capabilities.outputs.iter().map(|port| (port.index, vec![[0.0; 2]; crate::mixer::MAX_BLOCK].into_boxed_slice())).collect();
         self.plugin_params = binding
             .parameters
             .iter()
@@ -1417,6 +1431,7 @@ impl InstrumentUnit {
         if let Some(external) = &mut self.external {
             if let Some(unit) = external {
                 unit.process(left, right);
+                for (bus, output) in &mut self.native_outputs { unit.copy_output(*bus, &mut output[from..to]); }
             } else {
                 left.fill(0.0);
                 right.fill(0.0);
@@ -1625,6 +1640,9 @@ impl InstrumentUnit {
         }
     }
 
+    pub fn native_output(&self, bus: u32, frames: usize) -> Option<&[[f32; 2]]> {
+        self.native_outputs.iter().find(|(index, _)| *index == bus).map(|(_, output)| &output[..frames])
+    }
     /// The first `frames` frames of the block just rendered.
     pub fn output(&self, frames: usize) -> (&[f32], &[f32]) {
         (&self.left[..frames], &self.right[..frames])

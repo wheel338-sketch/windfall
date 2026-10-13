@@ -2,6 +2,7 @@
 #[cfg(any(windows, target_os = "macos", target_os = "linux"))]
 mod bridge;
 mod capture_ack;
+mod capabilities;
 mod manager_workflows;
 mod runtime;
 mod wrapper;
@@ -516,6 +517,7 @@ impl PluginManager {
         self.runtime.discover(PluginBinding {
             sidechain_input: None,
             auxiliary_inputs: Vec::new(),
+            capabilities: Default::default(),
             wrapper: Default::default(),
             target,
             format: entry.format,

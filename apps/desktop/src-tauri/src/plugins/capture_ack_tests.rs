@@ -16,6 +16,7 @@ fn captured_request() -> (PendingUpdate, CapturedState) {
             },
         },
         CapturedState {
+            readmission: None,
             bytes: vec![1, 2, 3],
             parameters: vec![(0, 0.625)],
             restart: true,
@@ -127,6 +128,7 @@ fn native_owner() -> (
         .discover(PluginBinding {
             sidechain_input: None,
             auxiliary_inputs: Vec::new(),
+            capabilities: Default::default(),
             wrapper: Default::default(),
             target: PluginTarget::Effect {
                 effect: windfall_project::EffectId(9),
@@ -519,4 +521,143 @@ fn session_fault_seam_derives_ticket_after_real_native_capture_and_owner_effects
             Ok(())
         })
         .unwrap();
+}
+
+#[cfg(windows)]
+#[test]
+fn bridge_capture_ack_restart_replacement_native_interleaving_table() {
+    use crate::plugins::capture_ack::{CaptureAckCompletion, CaptureAckTicket};
+    use windfall_project::{Command, Document, Project, TrackId};
+    #[derive(Clone, Copy, Debug)] enum Boundary { BeforeReply, AfterReply, AfterCommit, AfterAck }
+    fn fail_during_capture(runtime: &Arc<Runtime>, token: u64) {
+        let result = runtime.call(move |owner| {
+            let record = owner.bridges.get(&token).unwrap();
+            let pending = record.binding.parameters.iter().filter(|p| !p.read_only).map(|p| windfall_plugin_host::bridge::adapter::ParameterSpec { id: p.id, min: f64::from(p.min), max: f64::from(p.max), value: if p.id == 7 { 0.75 } else { f64::from(p.value) }, read_only: false, stepped: p.stepped }).collect::<Vec<_>>();
+            record.control.readmit(1, &pending, Duration::from_millis(100)).map(|_| ())
+        });
+        assert!(result.is_err(), "real helper must exit/hang inside native save");
+        assert!(runtime.bridge_status().iter().all(|(_, _, status)| status.reaped));
+    }
+    // Crash/hang x four capture/ack boundaries x replacement/no replacement,
+    // for BOTH formats. Every row uses real helper state, a checked document
+    // edit, a fresh helper on recovery, and retired-owner ACK delivery.
+    for format in ["clap", "vst3"] {
+        for (fault, class) in [("capture-exit", 13), ("capture-hang", 14)] {
+            for boundary in [Boundary::BeforeReply, Boundary::AfterReply, Boundary::AfterCommit, Boundary::AfterAck] {
+                for replace in [false, true] {
+                    let row = format!("{format}/{fault}/{boundary:?}/replacement={replace}");
+                    let folder = tempfile::tempdir().unwrap();
+                    let path = folder.path().join(format!("composition.{format}"));
+                    std::fs::copy(std::env::var_os("WINDFALL_BRIDGE_FIXTURE").unwrap(), &path).unwrap();
+                    let helper = std::path::PathBuf::from(std::env::var_os("WINDFALL_DESKTOP_BRIDGE_HELPER").unwrap());
+                    let runtime = Runtime::bridge_fixture(&helper);
+                    let id = if format == "clap" { format!("org.windfall.test.bridge-{fault}") } else { format!("{:032X}", class + 1) };
+                    runtime.approve(&[windfall_ipc::PluginEntry { path: path.to_string_lossy().into_owned(), id: id.clone(), format: format.into(), name: row.clone(), vendor: "Windfall Tests".into(), instrument: false, usable: true, error: None }]);
+                    // Discovery saves a healthy low-gain checkpoint before fault.
+                    let binding = runtime.discover(PluginBinding { capabilities: Default::default(), sidechain_input: None, auxiliary_inputs: vec![], wrapper: Default::default(), target: PluginTarget::Effect { effect: windfall_project::EffectId(0) }, path: path.to_string_lossy().into_owned(), id, format: format.into(), name: row.clone(), state: vec![], parameters: vec![windfall_project::PluginParameter { id: 7, name: "Gain".into(), min: 0.0, max: if format == "clap" { 2.0 } else { 1.0 }, value: 0.5, stepped: false, read_only: false, automatable: true }] }).unwrap();
+                    let mut document = Document::new(Project::new("Capture composition"));
+                    document.dispatch(Command::AddPluginEffect { track: TrackId::MASTER, plugin: binding }, None).unwrap();
+                    let binding = document.project().plugins[0].clone(); let target = binding.target;
+                    let mut audio = runtime.effect(&binding, 48_000, 128).unwrap();
+                    audio.transport(windfall_engine::plugins::PluginTransport { playing: false, tempo_bpm: 120.0, position_beats: 0.0, position_seconds: 0.0, numerator: 4, denominator: 4, meter_anchor: None });
+                    let token = runtime.selected_token(target).unwrap();
+                    let checkpoint = runtime.call(move |owner| {
+                        let record = owner.bridges.get_mut(&token).unwrap();
+                        let captured = record.capture(&record.binding.parameters)?;
+                        record.dirty_serial = 1; record.capture_sent = true;
+                        Ok(captured.0)
+                    }).unwrap();
+                    let request = PendingUpdate { binding: binding_identity(&binding), token, revision: runtime.document_revision(), update: Update::Capture { target, serial: 1 } };
+                    if replace && matches!(boundary, Boundary::BeforeReply) {
+                        // Replace the document while the old creating owner is
+                        // inside an admitted control job, before its fault reply.
+                        let (entered, receive) = mpsc::channel();
+                        let old_runtime = runtime.clone();
+                        let fault = std::thread::spawn(move || old_runtime.call(move |owner| {
+                            let record = owner.bridges.get(&token).unwrap();
+                            let pending = record.binding.parameters.iter().filter(|p| !p.read_only).map(|p| windfall_plugin_host::bridge::adapter::ParameterSpec { id: p.id, min: f64::from(p.min), max: f64::from(p.max), value: if p.id == 7 { 0.75 } else { f64::from(p.value) }, read_only: false, stepped: p.stepped }).collect::<Vec<_>>();
+                            entered.send(()).unwrap();
+                            record.control.readmit(1, &pending, Duration::from_millis(100)).map(|_| ())
+                        }));
+                        receive.recv_timeout(Duration::from_secs(3)).unwrap();
+                        runtime.retry(); document = Document::new(Project::new("Replaced during native capture"));
+                        let replacement = document.project().clone();
+                        assert!(fault.join().unwrap().is_err(), "{row}");
+                        assert!(runtime.capture_pending(request.clone(), binding.parameters.clone()).unwrap().is_none(), "{row}");
+                        assert_eq!(document.project(), &replacement, "{row}");
+                        drop(audio); runtime.call(|_| Ok(())).unwrap();
+                        assert_eq!(runtime.retry_capture_ack(CaptureAckTicket { token, serial: 1 }).unwrap(), CaptureAckCompletion::Retired, "{row}");
+                        continue;
+                    }
+                    let mut desired = binding.parameters.clone();
+                    if matches!(boundary, Boundary::BeforeReply) {
+                        desired.iter_mut().find(|p| p.id == 7).unwrap().value = 0.75;
+                        fail_during_capture(&runtime, token);
+                    }
+                    if !matches!(boundary, Boundary::BeforeReply) { audio.set_param(7, 0.625); }
+                    let captured = runtime.capture_pending(request.clone(), desired.clone()).unwrap().unwrap();
+                    let retried = runtime.capture_pending(request.clone(), desired.clone()).unwrap().unwrap();
+                    assert_eq!(captured.bytes, retried.bytes, "completed bytes must survive retry: {row}");
+                    if matches!(boundary, Boundary::BeforeReply) { assert_eq!(captured.bytes, checkpoint, "{row}"); }
+                    if matches!(boundary, Boundary::AfterReply) { fail_during_capture(&runtime, token); }
+                    let before = document.project().clone();
+                    let mut accepted = 0;
+                    if replace && matches!(boundary, Boundary::AfterReply) {
+                        runtime.retry();
+                        document = Document::new(Project::new("Replacement"));
+                        assert!(runtime.capture_pending(request.clone(), desired).unwrap().is_none(), "{row}");
+                        assert!(document.project().plugins.is_empty(), "{row}");
+                    } else {
+                        assert!(runtime.is_current(request.revision, token));
+                        let mut commands = captured.parameters.iter().filter(|(id, _)| binding.parameters.iter().any(|p| p.id == *id && !p.read_only)).map(|&(id, value)| Command::SetPluginParam { target, id, value }).collect::<Vec<_>>();
+                        commands.push(Command::SetPluginState { target, state: captured.bytes.clone() });
+                        document.dispatch(Command::Batch { label: Some("Captured state".into()), commands }, None).unwrap(); accepted += 1;
+                        if matches!(boundary, Boundary::AfterCommit) {
+                            fail_during_capture(&runtime, token);
+                            if replace { runtime.retry(); document = Document::new(Project::new("Replaced before acknowledgement")); }
+                        }
+                        // Lose the first actual ACK receipt AFTER its effects.
+                        let acknowledgement = runtime.acknowledge_committed_capture_with(&request, &captured, |ticket| { runtime.retry_capture_ack(ticket)?; Err("receipt lost after bookkeeping".into()) });
+                        assert!(matches!(acknowledgement, CaptureAcknowledgement::Pending { .. }), "{row}");
+                        if matches!(boundary, Boundary::AfterAck) { fail_during_capture(&runtime, token); }
+                        if replace {
+                            if !matches!(boundary, Boundary::AfterCommit) { runtime.retry(); document = Document::new(Project::new("Replaced after capture acceptance")); }
+                            let replacement = document.project().clone();
+                            assert!(runtime.capture_pending(request.clone(), desired).unwrap().is_none(), "{row}");
+                            drop(audio); runtime.call(|_| Ok(())).unwrap();
+                            let ticket = CaptureAckTicket { token, serial: captured.serial };
+                            assert_eq!(runtime.retry_capture_ack(ticket).unwrap(), CaptureAckCompletion::Retired, "{row}");
+                            assert_eq!(document.project(), &replacement, "{row}");
+                            assert_eq!(accepted, 1, "{row}");
+                            continue;
+                        }
+                        let restored = document.project().plugin(target).unwrap().clone();
+                        let mut replacement = runtime.effect(&restored, 48_000, 128).unwrap();
+                        replacement.transport(windfall_engine::plugins::PluginTransport { playing: false, tempo_bpm: 120.0, position_beats: 0.0, position_seconds: 0.0, numerator: 4, denominator: 4, meter_anchor: None });
+                        assert_ne!(runtime.selected_token(target), Some(token), "{row}");
+                        assert_eq!(restored.state, captured.bytes, "{row}");
+                        let expected = if matches!(boundary, Boundary::BeforeReply) { 0.75 } else { 0.625 };
+                        let deadline = std::time::Instant::now() + Duration::from_secs(3);
+                        loop {
+                            let mut left = [1.0; 512]; let mut right = left;
+                            assert_eq!(crate::test_alloc::allocator_calls(|| replacement.process(&mut left, &mut right)), 0);
+                            if left.iter().all(|value| (*value - expected).abs() < 1e-6) && right == left { break; }
+                            assert!(std::time::Instant::now() < deadline, "recovered PCM differs: {row}");
+                            std::thread::sleep(Duration::from_millis(2));
+                        }
+                        assert_eq!(accepted, 1, "{row}");
+                        document.undo().unwrap(); assert_eq!(document.project(), &before);
+                        document.redo().unwrap(); assert_eq!(document.project().plugin(target).unwrap(), &restored);
+                        drop(replacement);
+                    }
+                    drop(audio);
+                    runtime.call(|_| Ok(())).unwrap();
+                    let ticket = CaptureAckTicket { token, serial: captured.serial };
+                    assert_eq!(runtime.retry_capture_ack(ticket).unwrap(), CaptureAckCompletion::Retired, "{row}");
+                    assert_eq!(runtime.retry_capture_ack(ticket).unwrap(), CaptureAckCompletion::Retired, "{row}");
+                    assert_eq!(accepted, usize::from(!replace), "{row}");
+                }
+            }
+        }
+    }
 }

@@ -925,6 +925,7 @@ fn midi_output_plugin_destination_receives_notes_program_cc_and_exact_release_pc
         parameters: Vec::new(),
         sidechain_input: None,
         auxiliary_inputs: Vec::new(),
+        capabilities: Default::default(),
     });
     doc = Document::new(project);
     let mut params = InstrumentKind::MidiOut.default_params();

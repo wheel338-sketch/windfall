@@ -42,6 +42,7 @@ fn clap_expression_fixture(midi: bool) -> (Arc<Runtime>, PluginBinding) {
             parameters: vec![],
             sidechain_input: None,
             auxiliary_inputs: vec![],
+            capabilities: Default::default(),
         })
         .unwrap();
     (runtime, binding)
@@ -284,6 +285,7 @@ pub(crate) fn fixture(index: usize) -> (Arc<Runtime>, PluginBinding) {
         .discover(PluginBinding {
             sidechain_input: None,
             auxiliary_inputs: Vec::new(),
+            capabilities: Default::default(),
             wrapper: Default::default(),
             target: if index == 2 || index == 23 || index == 24 {
                 PluginTarget::Instrument {

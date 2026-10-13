@@ -205,6 +205,7 @@ impl PluginFactory for ProbeFactory {
 fn probe(rig: &mut Rig, track: TrackId, id: &str, input: Option<u32>) -> EffectId {
     let effect = rig.effect(track, EffectKind::Balance.default_params());
     rig.project.plugins.push(PluginBinding {
+        capabilities: Default::default(),
         target: PluginTarget::Effect { effect },
         format: "clap".into(),
         path: "qa-key-fixture.clap".into(),

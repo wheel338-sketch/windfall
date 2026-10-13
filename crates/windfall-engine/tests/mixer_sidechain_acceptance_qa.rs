@@ -207,6 +207,7 @@ impl PluginFactory for KeyFactory {
 fn bind(rig: &mut Rig, track: TrackId, id: &str, input: Option<u32>) {
     let effect = rig.effect(track, EffectKind::Balance.default_params());
     rig.project.plugins.push(PluginBinding {
+        capabilities: Default::default(),
         target: PluginTarget::Effect { effect },
         format: "clap".into(),
         path: "qa-key-fixture.clap".into(),

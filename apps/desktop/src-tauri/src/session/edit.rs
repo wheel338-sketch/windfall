@@ -58,6 +58,9 @@ impl Session {
         if binding.parameters != desired {
             return Err("Plugin parameters changed during state capture; retrying".into());
         }
+        let commands = if let Some(metadata) = &captured.readmission {
+            vec![Command::ReadmitPlugin { target, state: captured.bytes.clone(), parameters: metadata.parameters.clone(), auxiliary_inputs: metadata.auxiliary_inputs.clone(), outputs: metadata.outputs.clone() }]
+        } else {
         let mut commands: Vec<_> = captured
             .parameters
             .iter()
@@ -73,6 +76,8 @@ impl Session {
             target,
             state: captured.bytes.clone(),
         });
+            commands
+        };
         let ticket = self.sample_edit_ticket(
             &state,
             Command::Batch {
