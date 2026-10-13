@@ -1,3 +1,5 @@
+import { openPresetRender } from "@/features/preset-render/dialog"
+import { isPresetPath } from "@/features/preset-render/types"
 import type {
   Channel,
   ChannelId,
@@ -309,7 +311,9 @@ export async function addChannelFromFile(
   const count = project().channels.length
   const at = index === undefined ? undefined : clamp(index, 0, count)
   const result = await attempt(
-    browser
+    isPresetPath(path)
+      ? openPresetRender({ path, index: at, browser }, undefined, () => generation === getProjectGeneration())
+      : browser
       ? backend.addChannelFromFile(path, at, browser)
       : backend.addChannelFromFile(path, at),
     "Could not add the sample"
@@ -387,7 +391,9 @@ export async function replaceSampleFromFile(
 ): Promise<void> {
   const generation = getProjectGeneration()
   const result = await attempt(
-    browser
+    isPresetPath(path)
+      ? openPresetRender({ path, channel: id, browser }, undefined, () => generation === getProjectGeneration())
+      : browser
       ? backend.setChannelSampleFromFile(id, path, browser)
       : backend.setChannelSampleFromFile(id, path),
     "Could not change the sample"

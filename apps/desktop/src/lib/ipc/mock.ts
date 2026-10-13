@@ -1,4 +1,5 @@
 import { unavailableAnalysis } from "@/features/analysis/unavailable"
+import { UNSUPPORTED_PRESET, isPresetPath, isProprietaryPreset } from "@/features/preset-render/types"
 import { unavailableRemoteContent } from "./remote-content"
 import { NATIVE_ONLY, unavailableLogger } from "@/features/audio-logger/types"
 import { unavailableAnalyzer } from "@/features/analyzers/types"
@@ -563,6 +564,9 @@ export function createMockBackend(options: MockOptions = {}): MockBackend {
   }
 
   function sampleCommands(filePath: string) {
+    if (isPresetPath(filePath)) {
+      throw new Error(isProprietaryPreset(filePath) ? UNSUPPORTED_PRESET : "Preset audio rendering is available in the desktop app. The browser cannot render instrument DSP.")
+    }
     if (!isAudioPath(filePath)) {
       throw new Error(`"${filePath}" is not an audio file Windfall can read`)
     }
@@ -1257,6 +1261,9 @@ export function createMockBackend(options: MockOptions = {}): MockBackend {
         return sampleInfoFor(roots, sampleFile(asset))
       }),
 
+    presetRenderBegin: async () => { throw new Error("Preset audio rendering is available in the desktop app. The browser cannot render instrument DSP.") },
+    presetRenderCancel: async () => {},
+    presetRenderFile: async (_request, input) => { throw new Error(isProprietaryPreset(input.path) ? UNSUPPORTED_PRESET : "Preset audio rendering is available in the desktop app. The browser cannot render instrument DSP.") },
     addChannelFromFile: (filePath, index, browser) =>
       ipc(() => {
         library.check(filePath, browser)

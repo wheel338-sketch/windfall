@@ -1,4 +1,5 @@
 import { PluginPicker } from "@/features/plugins/picker"
+import { PresetRenderDialog } from "@/features/preset-render/dialog"
 import type { CSSProperties } from "react"
 
 import { Toaster } from "@/components/ui/sonner"
@@ -70,6 +71,7 @@ export function Overlays() {
   return (
     <>
       <PromptHost />
+      <PresetRenderDialog />
       <ArchiveReport />
       <PluginManager />
       <PluginPicker />

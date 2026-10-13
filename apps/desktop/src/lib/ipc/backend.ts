@@ -34,6 +34,7 @@ import type {
   MidiExportOptions,
 } from "@/bindings"
 import type { AnalysisBackend } from "@/features/analysis/types"
+import type { PresetRenderBackend } from "@/features/preset-render/types"
 import type { AnalyzerBackend } from "@/features/analyzers/types"
 import type { PanelId } from "@/lib/store/ui"
 
@@ -74,7 +75,7 @@ export type AudioClipPlace = {
  * the shell needs. A failed call rejects with an `Error` whose message is
  * plain text that can be shown to the user.
  */
-export interface Backend extends AnalysisBackend, MixerPresetLibraryBackend, AnalyzerBackend, ProjectFilesBackend, RemoteContentBackend {
+export interface Backend extends AnalysisBackend, PresetRenderBackend, MixerPresetLibraryBackend, AnalyzerBackend, ProjectFilesBackend, RemoteContentBackend {
   updateCall<T>(command: string, args: Record<string, unknown>): Promise<T>
   musicLightingStatus?(): Promise<{connected: boolean; message: string}>
   sampleInstrumentLoadBank?(channel: ChannelId, expected: import("@/bindings").SampleInstrumentAsset | null,
@@ -497,6 +498,9 @@ export const AUDIO_EXTENSIONS = [
   "oga",
   "ds",
   "wv",
+  "wfpreset",
+  "syn",
+  "speech",
 ]
 
 function rejectionText(error: unknown): string {
