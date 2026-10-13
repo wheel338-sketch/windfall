@@ -137,30 +137,30 @@ Workload correction candidate: six distinct ratios/detunes/levels/key scales/fee
 - Corrected effect release gate **3/0/0**, exit 0, 4.63s (`target/round4-effects-dense-release.log`): independent stereo histories and moving parameters pass all unchanged maximum-quality/model/graph/reset/callback budgets. Pitch Shift Mix worst **0.247547 / 0.50**, Voice **0.395398 / 0.50**, four-harmony Pitch Correct **0.099909 / 0.50**. No effect DSP repair was needed after workload correction. Remaining instrument final aggregate is required.
 - Final corrected instrument aggregate **21/0/0**, exit 0, 76.53s (`target/round4-instruments-dense-final-release.log`), all 20 instruments/variants plus density guard; unchanged **0.75x** admission and every tail/allocator/signal/repeatability assertion pass. Matrix **0.7409x**; Hybrid Serial/Pairs/Stack/Parallel **0.4913/0.4783/0.4898/0.4824x**. This is local admitted CPU share, not a physical device callback-deadline claim. Workspace strict Clippy after optimization also passes zero warnings/errors (`target/round4-clippy-dsp-repair.log`, 17.34s). Source optimization checkpoint `dfdabc4c`.
 
-Before/after maximum held CPU shares (worst variant per instrument). The first column is **inherited** builder evidence from `target/round4-builder-final-instruments.log`, not a test run by this integrator. Both corrected-workload columns were measured here, and every limit remains 0.75x. Tail and allocator gates are recorded separately in the same raw logs.
+Before/after maximum held CPU shares (worst variant per instrument). The first column is **inherited** builder evidence from `target/round4-builder-final-instruments.log`, not a test run by this integrator. All corrected-workload columns were measured here, and every limit remains 0.75x. The current column comes from `target/round4-post-dispatch-instruments-release.log` (73.71s); historical failures remain below. Current DSP is unchanged by the subsequent analysis-only memory-accounting correction. Tail and allocator gates are recorded separately in the same raw logs.
 
-| Instrument test | Inherited builder workload | First corrected workload | After invariant hoisting | Final exact SIMD optimization |
+| Instrument test | Inherited builder workload | First corrected workload | After invariant hoisting | Current default-scheduler release |
 | --- | ---: | ---: | ---: | ---: |
-| `autogun` | 0.2742x | 0.2679x | 0.2667x | 0.2745x |
-| `bassdrum` | 0.0138x | 0.0154x | 0.0151x | 0.0155x |
-| `beepmap` | 0.4524x | 0.4540x | 0.4590x | 0.4663x |
+| `autogun` | 0.2742x | 0.2679x | 0.2667x | 0.2750x |
+| `bassdrum` | 0.0138x | 0.0154x | 0.0151x | 0.0158x |
+| `beepmap` | 0.4524x | 0.4540x | 0.4590x | 0.4678x |
 | `boobass` | 0.0009x | 0.0009x | 0.0009x | 0.0009x |
-| `drumaxx` | 0.1132x | 0.1128x | 0.1132x | 0.1128x |
+| `drumaxx` | 0.1132x | 0.1128x | 0.1132x | 0.1144x |
 | `drumpad` | 0.0063x | 0.0077x | 0.0077x | 0.0077x |
 | `drumsynth_live` | 0.0124x | 0.0122x | 0.0125x | 0.0126x |
-| `flex` | 0.3239x | 0.3407x | 0.3276x | 0.3016x |
-| `gms` | 0.5492x | 0.5653x | 0.5655x | 0.5288x |
-| `harmless` | 0.4431x | 0.5839x | 0.5803x | 0.5827x |
-| `harmor` | 0.4531x | 0.4626x | 0.4615x | 0.4654x |
-| `kepler` | 0.3482x | 0.3512x | 0.3482x | 0.3089x |
-| `kepler_exo` | 0.4048x | 0.4189x | 0.4166x | 0.3983x |
-| `minisynth` | 0.0667x | 0.0768x | 0.0670x | 0.0651x |
-| `morphine` | 0.4454x | 0.4504x | 0.4540x | 0.4577x |
-| `ogun` | 0.4751x | 0.4777x | 0.4845x | 0.4867x |
-| `poizone` | 0.2622x | 0.2806x | 0.2822x | 0.2830x |
-| `sawer` | 0.3589x | 0.3701x | 0.3517x | 0.2983x |
-| `sytrus` | 0.4975x | 1.2084x | 0.7409x | 0.5785x |
-| `toxic_biohazard` | 0.4893x | 1.1185x | 0.4913x | 0.5249x |
+| `flex` | 0.3239x | 0.3407x | 0.3276x | 0.3003x |
+| `gms` | 0.5492x | 0.5653x | 0.5655x | 0.5273x |
+| `harmless` | 0.4431x | 0.5839x | 0.5803x | 0.5974x |
+| `harmor` | 0.4531x | 0.4626x | 0.4615x | 0.4646x |
+| `kepler` | 0.3482x | 0.3512x | 0.3482x | 0.3107x |
+| `kepler_exo` | 0.4048x | 0.4189x | 0.4166x | 0.3957x |
+| `minisynth` | 0.0667x | 0.0768x | 0.0670x | 0.0649x |
+| `morphine` | 0.4454x | 0.4504x | 0.4540x | 0.4596x |
+| `ogun` | 0.4751x | 0.4777x | 0.4845x | 0.4886x |
+| `poizone` | 0.2622x | 0.2806x | 0.2822x | 0.2769x |
+| `sawer` | 0.3589x | 0.3701x | 0.3517x | 0.2977x |
+| `sytrus` | 0.4975x | 1.2084x | 0.7409x | 0.5715x |
+| `toxic_biohazard` | 0.4893x | 1.1185x | 0.4913x | 0.5278x |
 
 ## macOS cross-check
 
@@ -174,9 +174,9 @@ Before/after maximum held CPU shares (worst variant per instrument). The first c
 - Independent plugin fixture reuses `windows-sys` 0.61.2 (MIT OR Apache-2.0), adding GDI feature only; plugin export reuses already-locked VST3 0.3.0/windows-sys and workspace GPL engine/runtime edges. No existing package version/checksum upgrades.
 - `ort` =2.0.0-rc.10, `ort-sys` =2.0.0-rc.10, `smallvec` 2.0.0-alpha.10, `ndarray` 0.16.1, `matrixmultiply` 0.3.11 and `rawpointer` 0.2.1 added exclusively for authorized ORT tree. All six downloaded Cargo manifests declare MIT/Apache-2.0 alternatives; GPL-3.0 compatible. `default-features=false`, only `load-dynamic`; default download-binaries/copy-dylibs disabled. No runtime library or weights downloaded. `std` pulls ndarray in rc.10 despite ndarray feature omission; this accounts for its three transitive packages. Existing package identities/checksums unchanged; smallvec references qualified to disambiguate two versions.
 
-## Row acceptance
+## Further execution and repair history
 
-Pending integration and actual evidence. Tracker files remain unchanged.
+Final row recommendations are listed after the final gate table. Tracker files remain unchanged.
 
 Additional DSP regression: `cargo test --offline -p windfall-dsp --lib -- --test-threads=1` **703/0/0**, exit 0, 83.71 s (`target/round4-dsp-vector-borrow-units.log`), including both exact-bit additive references and all existing polysynth PCM/state/partition/heap cases. Isolated ordinary deadline invocation initially selected the wrong top-level test target and exited 101 before any test (`target/round4-borrow-tail-deadlines.log`); correct `--test dsp instrument_deadlines` execution **14/7/0**, exit101,112.67s (`target/round4-borrow-tail-deadlines-repair1.log`). Maximum workloads, profiles, CPU affinity, process priority and limits are unchanged. Full current gates are in progress; timing admission is not yet established for this checkpoint.
 
@@ -203,3 +203,9 @@ Dispatch hint refinement: only activate busy-worker polling when the batch conta
 CPU policy decision: overseer selected **Default Windows scheduler**. All admission measurements retain Normal priority, unrestricted process affinity and the existing power/QoS policy. No pinning, priority boost, admission limit change or maximum-load reduction is authorized or applied. Earlier timing variability is diagnostic, not a waiver of a failed gate.
 
 Attribution correction: the legacy additive TIME-lane kernel in `additive/partials.rs` does not serve prepared-bank Harmless/Harmor/Morphine/Ogun. Their hot path is `additive/prepared.rs::PreparedEngine`; any association of legacy SIMD with a later prepared-bank timing pass is not causal evidence.
+
+Final ordinary/release checkpoint after dispatch refinement: full workspace **4550/0/38**,180 result blocks,exit0 (`target/round4-post-dispatch-workspace-tests.log`). Corrected instrument release **21/0/0**,73.71s; effects **3/0/0**,4.74s; E1 **3/0/0**,0.96s,144 measurements (`target/round4-post-dispatch-{instruments,effects,e1}-release.log`). Thread maximum-load gate **1/0/0**,13.11s (`target/round4-post-dispatch-threads-release.log`): five paired speedups3.267/2.050/3.686/3.831/1.665x, unchanged1.02x floor. Host/plugin Apple all-target check PASS zero diagnostics,2.98s (`target/round4-post-dispatch-macos-host.log`). Default Windows scheduler, Normal priority and full affinity remain unchanged. Previous failed measurements are historical; their cause has not been established or waived.
+
+Real supplied ORT/model harness first run **1/0/0**,exit0,18.63s (`target/round4-real-stems.log`), actual native import/job/inference/review/apply at44.1 and48kHz. Reports: `target/round4-stem-evidence/1791873491873-38828-44100Hz/report.json` and `target/round4-stem-evidence/1791873499878-38828-48000Hz/report.json`. All four stems strictly rank their own known source highest at both rates; exact529200/576000 frames, source rate, stereo layout and four native published tracks pass. SDRs drums/bass/vocals/other: **4.9490/13.3459/0.1500/6.4083dB** at44.1kHz, **4.9370/13.3419/0.1495/6.4076dB** at48kHz. Vocal quality on synthetic material is weak; no absolute SDR assertion was invented or relaxed, and real-music listening remains external.
+
+Memory decision follows the existing `AnalysisAdapter` contract (`jobs.rs`): adapter-owned model/runtime memory must be included in scratch, in addition to imported model bytes charged separately. Initial admitted memory703942818/704317218 bytes is below measured inference process peak880488448/893755392 bytes (about840/852MiB). Measurements include codecs, playback/harness and process-pinned runtime; they are process high-water marks, not allocator-only figures, and the second rate's baseline is cumulative. A512MiB runtime/chunk allowance is therefore not adequate evidence for this pack. Raised separation cooperative scratch to **768MiB**; manager3GiB total memory/24GiB disk,256MiB model limit, one-worker policy and all CPU limits remain unchanged. Native config derives its scratch limit from this constant, so refusals and accounting use the same value. This is reservation correction, not a hard allocator/RSS sandbox or a universal bound for arbitrary models. Updated STEM-SEPARATION.md to state the measured scope and include ORT-owned workspace. Strict fmt/Clippy/check after correction PASS zero diagnostics (`target/round4-stem-memory-fmt-check.log`, `target/round4-stem-memory-clippy.log`,5.68s, `target/round4-stem-memory-check.log`,27.19s). Full Rust, packaged artifact and final harness refresh are active.

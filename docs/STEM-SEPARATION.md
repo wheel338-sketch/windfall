@@ -2,10 +2,10 @@
 
 This is a user-installed CPU ONNX Runtime feature. Windfall contains neither
 runtime binaries nor trained weights, makes no network request, and never uses
-the deterministic reference backend as a production result. The new code in
-round four is edit-only: compilation, deterministic suites, and real-model
-quality evidence still require the integrator. No separation-quality claim is
-made by the lifecycle fixtures.
+the deterministic reference backend as a production result. Round-four
+acceptance includes compilation, deterministic suites and a real UMX-HQ/ORT
+synthetic-mix harness at 44.1 and 48 kHz. Lifecycle fixtures alone make no
+separation-quality claim; real-music listening remains separate acceptance.
 
 In Settings → Stem separation choose the absolute shared-library path, explicitly
 import `model.onnx` with its manifest JSON, then save the selected default pack.
@@ -182,10 +182,17 @@ retain already-published assets, as documented in ANALYSIS-JOBS.md.
 The ordinary playback sample pool continues to own whole-song source/output
 assets. Thus total app playback RAM grows with imported song assets even though
 separation processing scratch does not grow with song length. The native job
-permits at most one-hour views / 1.5 GiB source assets, reserves 512 MiB for chunk
+permits at most one-hour views / 1.5 GiB source assets, reserves 768 MiB for chunk
 and runtime scratch, and sets native manager admission to 3 GiB memory / 24 GiB disk.
 These are cooperative reservations, not an ORT allocator sandbox or measured
-RSS guarantee. The chosen model's resident memory needs acceptance measurement.
+RSS guarantee. Scratch includes the runtime's own workspace and model allocations;
+imported model bytes are charged separately. The native UMX-HQ 1.0.1 harness
+measured a process peak of about 852 MiB, including the harness, codecs and
+playback pool. That exceeded the former aggregate reservation of about 672 MiB,
+so the scratch allowance was raised from 512 to 768 MiB. Other packs require
+their own memory and quality measurement; the fixed allowance does not establish
+a universal bound on arbitrary runtime/model code. See the round-four acceptance
+record for exact measurements and provenance.
 Large spectral-stretched sources must first be rendered to an audio asset;
 ordinary tape/pitch/reverse/pan/fades and tempo-map clip windows stream directly.
 
@@ -239,13 +246,13 @@ separate these synthetic timbres fails and leaves its evidence. No arbitrary
 quality tolerance is weakened for a selected model. Also evaluate real licensed
 music and listening/alignment/stereo balance before claiming general quality.
 
-## ort adapter source/API review required
+## ort adapter source/API review
 
 `ort = =2.0.0-rc.10`, MIT OR Apache-2.0, `default-features=false`, only
 `load-dynamic`; no download-binaries or runtime/weights repository assets.
 All calls are isolated in `windfall-analysis/src/ort_adapter.rs` behind
-`SeparationBackend` / `PreparedSeparation`. Exact rc.10 APIs were not available
-offline. Check these calls/types against the downloaded crate:
+`SeparationBackend` / `PreparedSeparation`. The integrator checked the downloaded
+rc.10 API and exercised it with a native runtime/model. The reviewed calls/types are:
 
 1. `ort::init_from(path).with_name(...).commit()` and its loader/panic semantics.
 2. `ort::session::Session::builder()`, `with_intra_threads(1)`,

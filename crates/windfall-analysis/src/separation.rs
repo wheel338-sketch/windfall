@@ -1,5 +1,6 @@
-//! Offline four-stem waveform separation. Every allocation is chunk-sized;
-//! whole-song input/output lives in private files, never in the inference loop.
+//! Offline four-stem waveform separation. Windfall frame buffers are chunk-sized;
+//! runtime/model allocations are charged separately in the job reservation.
+//! Whole-song input/output lives in private files, never in the inference loop.
 use crate::{
     AnalysisAdapter, AnalysisError, ArtifactWriter, AudioShape, CapturedInput, InferenceTask,
     ModelManifest, RelativeName, Result, VerifiedModel, Work, WorkerContext,
@@ -9,7 +10,11 @@ use std::path::PathBuf;
 use std::sync::{Arc, RwLock};
 
 pub const ADAPTER_ID: &str = "windfall-onnx-separation";
-pub const SCRATCH_BYTES: u64 = 512 * 1024 * 1024;
+/// Includes foreign runtime workspace and its owned model allocations, in
+/// addition to Windfall's tiling/resampling buffers. The UMX-HQ native harness
+/// exceeded the former 512-MiB allowance even with model bytes charged apart.
+/// This remains cooperative admission, not an ORT allocator or process RSS cap.
+pub const SCRATCH_BYTES: u64 = 768 * 1024 * 1024;
 
 /// Prepare once per job, then run fixed-size chunks at the model rate/channels.
 /// Chunks and each ordered stem use interleaved f32; the runtime handles layout.
