@@ -122,7 +122,7 @@ mod tests {
 impl INoteExpressionControllerTrait for Component {
     unsafe fn getNoteExpressionCount(&self, bus: i32, channel: i16) -> i32 {
         // Channel 16 deliberately has no expression: negotiation must be per channel.
-        if self.expression_probe && bus == 0 && (0..15).contains(&channel) {
+        if (self.expression_probe || self.dynamic && self.dynamic_mode.load(std::sync::atomic::Ordering::Relaxed) == 5) && bus == 0 && (0..15).contains(&channel) {
             4
         } else {
             0

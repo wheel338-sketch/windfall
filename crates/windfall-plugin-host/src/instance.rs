@@ -77,6 +77,7 @@ pub(crate) trait InstanceBackend {
         processor.stop();
         Ok(())
     }
+    fn refresh_capabilities(&mut self) -> Result<(), PluginError> { Ok(()) }
     fn layout(&self) -> &PluginLayout;
     fn shape(&self) -> AudioShape;
     fn params(&self) -> &[PluginParam];
@@ -162,6 +163,14 @@ impl PluginInstance {
     /// The plugin's ports and what else it reports about itself.
     pub fn layout(&self) -> &PluginLayout {
         self.backend.layout()
+    }
+
+    /// Re-read native ports, parameter metadata and note dialects on the creating
+    /// owner after returning/deactivating audio. Existing processors are never
+    /// resized or mutated; the caller must prepare a fresh plan afterwards.
+    pub fn refresh_capabilities(&mut self) -> Result<(), PluginError> {
+        if self.is_active() { return Err(PluginError::AlreadyActive); }
+        self.backend.refresh_capabilities()
     }
 
     /// The plugin's parameters, in the plugin's order. The list can change
@@ -274,7 +283,10 @@ impl PluginInstance {
     /// this instance or any other of the same plugin.
     pub fn load_state(&mut self, state: &PluginState) -> Result<(), PluginError> {
         match state.content()? {
-            StateContent::Native(bytes) => self.backend.load_state(bytes),
+            StateContent::Native(bytes) => {
+                self.backend.load_state(bytes)?;
+                if self.is_active() { Ok(()) } else { self.refresh_capabilities() }
+            },
             StateContent::Parameters(values) => {
                 for (id, value) in values {
                     self.set_param(id, value);
@@ -334,6 +346,7 @@ impl PluginInstance {
             options,
             sample_rate,
             shared.tail.load(std::sync::atomic::Ordering::Relaxed),
+            max_block,
         );
         let backend = if options.processing == crate::wrapper::ProcessingMode::Threaded {
             crate::threaded::wrap(backend, max_block, sample_rate)

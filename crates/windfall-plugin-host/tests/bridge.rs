@@ -2399,3 +2399,49 @@ fn vst3_expression_identity_and_controls_replay_after_helper_timeline_reset() {
     drop(audio);
     assert!(control.terminate().reaped);
 }
+
+#[test]
+fn dynamic_clap_and_vst3_helpers_readmit_live_capabilities_into_fresh_mappings() {
+    for format in ["clap", "vst3"] {
+        let id = if format == "clap" { "org.windfall.test.dynamic".into() } else { vst_id(25) };
+        let mut specs = vec![ParameterSpec { value: if format == "clap" { 1.0 } else { 0.5 }, ..gain(format) },
+            ParameterSpec { id: 12000, min: 0.0, max: 6.0, value: 0.0, read_only: false, stepped: true },
+            ParameterSpec { id: 31, min: 0.0, max: 1.0, value: 0.5, read_only: false, stepped: false }];
+        let mut settings = options(format, &id, Kind::Effect, specs.clone(), Duration::from_secs(2)); settings.offline = true;
+        let (mut control, mut audio, _) = supervisor::launch(settings).unwrap();
+        for phase in 1..=6 {
+            assert!(audio.set_param(12000, f64::from(phase)));
+            specs.iter_mut().find(|spec| spec.id == 12000).unwrap().value = f64::from(phase);
+            for _ in 0..8 {
+                audio.process_offline(&mut [0.0; 64], &mut [0.0; 64], Instant::now() + Duration::from_secs(2), &std::sync::atomic::AtomicBool::new(false)).unwrap();
+                if control.readmission_requested() { break; }
+            }
+            assert!(control.readmission_requested(), "{format} phase {phase}");
+            let old_owner = control.owner();
+            let (state, parameters, layout) = control.readmit(1, &specs, Duration::from_secs(2)).unwrap();
+            assert_eq!(layout.audio_outputs.len(), if phase == 2 { 3 } else { 1 });
+            assert_eq!(layout.note_inputs, if phase == 4 { 2 } else { 1 });
+            assert_eq!(parameters.iter().any(|p| p.spec.id == 31), phase != 3);
+            assert_eq!(control.last_valid_readmission().unwrap().0, state);
+            assert!(control.terminate().reaped); drop(audio);
+            specs = parameters.into_iter().filter(|param| !param.spec.read_only).map(|param| param.spec.into()).collect();
+            let mut settings = options(format, &id, Kind::Effect, specs.clone(), Duration::from_secs(2)); settings.offline = true; settings.state = state;
+            let launched = supervisor::launch(settings).unwrap(); control = launched.0; audio = launched.1;
+            assert_ne!(control.owner().session, old_owner.session);
+            assert_eq!(audio.latency(), 128 + if phase == 1 { 37 } else { 0 });
+            for _ in 0..8 { audio.process_offline(&mut [0.0; 64], &mut [0.0; 64], Instant::now() + Duration::from_secs(2), &std::sync::atomic::AtomicBool::new(false)).unwrap(); }
+            let mut measured = Vec::new();
+            for block in 0..5 {
+                let mut left = [0.0; 64]; let mut right = left; if block == 0 { left[0] = 1.0; right[0] = 1.0; }
+                audio.process_offline(&mut left, &mut right, Instant::now() + Duration::from_secs(2), &std::sync::atomic::AtomicBool::new(false)).unwrap(); measured.extend(left);
+                if phase == 2 && block == 4 {
+                    let mut mono = [[0.0; 2]; 64]; let mut stereo = mono;
+                    assert_eq!(guarded(|| { assert!(audio.copy_output(1, &mut mono)); assert!(audio.copy_output(2, &mut stereo)); }), 0);
+                    assert_eq!(mono, [[0.11, 0.11]; 64]); assert_eq!(stereo, [[0.21, 0.22]; 64]);
+                }
+            }
+            assert_eq!(measured.iter().position(|value| *value != 0.0), Some(audio.latency()), "{format} phase {phase}");
+        }
+        assert!(control.terminate().reaped);
+    }
+}

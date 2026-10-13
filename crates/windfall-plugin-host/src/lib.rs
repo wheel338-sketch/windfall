@@ -134,3 +134,5 @@ pub mod au;
 
 mod threaded;
 pub mod wrapper;
+
+pub mod outputs;

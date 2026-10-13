@@ -140,6 +140,12 @@ impl Region {
         word.store(next.to_le(), Ordering::Release);
         Ok(())
     }
+    pub(super) fn request_readmission(&self) {
+        self.storage.words()[READMISSION].store(1u32.to_le(), Ordering::Release);
+    }
+    pub fn readmission_requested(&self) -> bool {
+        u32::from_le(self.storage.words()[READMISSION].load(Ordering::Acquire)) != 0
+    }
     pub fn native_change_serial(&self) -> u64 {
         u64::from(u32::from_le(
             self.storage.words()[NATIVE_CHANGES].load(Ordering::Acquire),
@@ -424,6 +430,14 @@ impl Region {
                 output.right[index].to_bits(),
             );
         }
+        self.put(slot, OUTPUT_COUNT, output.output_count as u32);
+        for bus in 0..output.output_count.min(crate::MAX_PORTS as usize) {
+            for frame in 0..self.config.block {
+                let value = output.auxiliary.buses[bus][frame];
+                self.put(slot, AUX_OUTPUT + (bus * MAX_BLOCK + frame) * 2, value[0].to_bits());
+                self.put(slot, AUX_OUTPUT + (bus * MAX_BLOCK + frame) * 2 + 1, value[1].to_bits());
+            }
+        }
         self.publish(slot, DONE);
     }
     /// Callback: inspect four slots and copy only one acquired matching reply.
@@ -473,6 +487,17 @@ impl Region {
             output.right[index] = f32::from_bits(self.get(slot, OUTPUT + MAX_BLOCK + index));
             if !output.left[index].is_finite() || !output.right[index].is_finite() {
                 return Err(ProtocolError::Audio);
+            }
+        }
+        let count = self.get(slot, OUTPUT_COUNT) as usize;
+        if count > crate::MAX_PORTS as usize { return Err(ProtocolError::Audio); }
+        output.output_count = count;
+        for bus in 0..count {
+            for frame in 0..self.config.block {
+                let at = AUX_OUTPUT + (bus * MAX_BLOCK + frame) * 2;
+                let value = [f32::from_bits(self.get(slot, at)), f32::from_bits(self.get(slot, at + 1))];
+                if value.iter().any(|sample| !sample.is_finite()) { return Err(ProtocolError::Audio); }
+                output.auxiliary.buses[bus][frame] = value;
             }
         }
         // Even a malformed peer changing metadata during copy cannot make a
@@ -685,6 +710,8 @@ impl Default for InputBlock {
     }
 }
 pub struct OutputBlock {
+    pub auxiliary: crate::outputs::OutputBank,
+    pub output_count: usize,
     pub epoch: u64,
     pub processed_generation: u64,
     pub native_drops: u32,
@@ -692,8 +719,10 @@ pub struct OutputBlock {
     pub right: [f32; MAX_BLOCK],
 }
 impl OutputBlock {
-    pub const fn silent() -> Self {
+    pub fn silent() -> Self {
         Self {
+            auxiliary: crate::outputs::OutputBank::new(MAX_BLOCK),
+            output_count: 0,
             epoch: 1,
             processed_generation: 0,
             native_drops: 0,
@@ -741,7 +770,7 @@ mod tests {
         assert_eq!((TRANSPORT, EPOCH, REPLY_IDENTITY), (16, 30, 32));
         assert_eq!(
             (HEADER_WORDS * 4, SLOT_WORDS * 4, REGION_BYTES),
-            (256, 270_656, 1_082_880)
+            (256, 532_800, 2_131_456)
         );
         let before: Vec<_> = region
             .storage

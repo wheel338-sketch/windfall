@@ -150,6 +150,8 @@ impl From<ControlParameter> for ParameterSpec {
 #[serde(tag = "type", rename_all = "camelCase", deny_unknown_fields)]
 pub enum Message {
     Describe,
+    /// Quiesce and read fresh capabilities; this helper stays inactive until retirement.
+    Readmit { epoch: u64, pending: Vec<ControlParameter> },
     Described {
         parameters: Vec<DescribedParameter>,
         layout: crate::PluginLayout,
@@ -255,6 +257,13 @@ impl Packet {
                 || self.state.is_empty()
             {
                 return Err(invalid("malformed native discovery metadata"));
+            }
+        }
+        if let Message::Readmit { epoch, pending } = &self.body {
+            let mut ids = std::collections::BTreeSet::new();
+            if *epoch == 0 || *epoch > u64::from(u32::MAX) || pending.len() > super::protocol::PARAM_CAPACITY
+                || pending.iter().any(|param| !ParameterSpec::from(*param).valid() || !ids.insert(param.id)) {
+                return Err(invalid("malformed capability re-admission intent"));
             }
         }
         Ok(())

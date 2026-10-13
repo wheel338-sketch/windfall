@@ -89,6 +89,8 @@ enum Job {
     },
     Stop,
 }
+type ReadmissionSnapshot = (Vec<u8>, Vec<DescribedParameter>, crate::PluginLayout);
+struct ReadmissionCache { request: u64, snapshot: ReadmissionSnapshot }
 struct Inner {
     jobs: mpsc::SyncSender<Job>,
     worker: Mutex<Option<JoinHandle<()>>>,
@@ -97,6 +99,7 @@ struct Inner {
     owner: Owner,
     region: Region,
     last_state: Mutex<Option<(u64, Captured)>>,
+    last_readmission: Mutex<Option<ReadmissionCache>>,
 }
 impl Inner {
     fn stop(&self) {
@@ -129,13 +132,33 @@ impl Control {
     pub fn describe(
         &self,
         timeout: Duration,
-    ) -> Result<(Vec<u8>, Vec<DescribedParameter>, crate::PluginLayout), String> {
+    ) -> Result<ReadmissionSnapshot, String> {
         let packet = self.call(Message::Describe, timeout)?;
         packet.validate().map_err(|error| error.to_string())?;
         match packet.body {
             Message::Described { parameters, layout } => Ok((packet.state, parameters, layout)),
             Message::Error { message } => Err(message),
             _ => Err("unexpected native discovery response".into()),
+        }
+    }
+    pub fn last_valid_readmission(&self) -> Option<ReadmissionSnapshot> {
+        self.0.last_readmission.lock().unwrap_or_else(|error| error.into_inner()).as_ref().map(|cache| cache.snapshot.clone())
+    }
+    pub fn readmission_requested(&self) -> bool { self.0.region.readmission_requested() }
+    pub fn readmit(&self, epoch: u64, pending: &[ParameterSpec], timeout: Duration) -> Result<ReadmissionSnapshot, String> {
+        self.check_capture_epoch(epoch)?;
+        let packet = self.call(Message::Readmit { epoch, pending: pending.iter().copied().map(Into::into).collect() }, timeout)?;
+        self.check_capture_epoch(epoch)?;
+        packet.validate().map_err(|error| error.to_string())?;
+        match packet.body {
+            Message::Described { parameters, layout } => {
+                let mut cache = self.0.last_readmission.lock().unwrap_or_else(|error| error.into_inner());
+                self.check_capture_epoch(epoch)?;
+                if cache.as_ref().is_none_or(|cache| packet.request > cache.request) { *cache = Some(ReadmissionCache { request: packet.request, snapshot: (packet.state.clone(), parameters.clone(), layout.clone()) }); }
+                Ok((packet.state, parameters, layout))
+            },
+            Message::Error { message } => Err(message),
+            _ => Err("unexpected capability re-admission response".into()),
         }
     }
     /// Control/render caller only. Ends this instance and confirms process exit
@@ -581,6 +604,7 @@ pub fn launch(options: Launch) -> Result<(Control, Audio, usize), String> {
             owner,
             region: control_region,
             last_state: Mutex::new(None),
+            last_readmission: Mutex::new(None),
         })),
         audio,
         tail.min(usize::MAX as u64) as usize,
@@ -806,6 +830,7 @@ mod tests {
             )
             .unwrap(),
             last_state: Mutex::new(None),
+            last_readmission: Mutex::new(None),
         }))
     }
     fn captured(value: f64, epoch: u64) -> Captured {

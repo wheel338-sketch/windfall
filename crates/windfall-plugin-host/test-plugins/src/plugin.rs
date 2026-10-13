@@ -105,6 +105,7 @@ pub(crate) struct Main {
 #[repr(C)]
 pub(crate) struct Plugin {
     clap: clap_plugin,
+    dynamic_changed: std::sync::atomic::AtomicBool,
     pub host: *const clap_host,
     pub kind: Kind,
     /// Parameter values and readings, as the bits of an `f64`, so both
@@ -162,6 +163,7 @@ pub(crate) fn create(
 ) -> *const clap_plugin {
     let values = std::array::from_fn(|_| AtomicU64::new(0));
     let plugin = Box::new(Plugin {
+        dynamic_changed: std::sync::atomic::AtomicBool::new(false),
         clap: clap_plugin {
             desc: descriptor,
             plugin_data: ptr::null_mut(),
@@ -287,9 +289,26 @@ unsafe extern "C" fn on_main_thread(plugin: *const clap_plugin) {
     if plugin.kind == Kind::BridgeIdleHang {
         crate::bridge_behaviors::hang();
     }
-    plugin.add_value(slot::MAIN_THREAD_CALLS, 1.0);
+    if plugin.kind == Kind::Dynamic {
+        if plugin.dynamic_changed.swap(false, Ordering::AcqRel) { unsafe { notify_dynamic(plugin); } }
+    } else { plugin.add_value(slot::MAIN_THREAD_CALLS, 1.0); }
 }
 
+unsafe fn notify_dynamic(plugin: &Plugin) {
+    // Host requests are emitted only on the fixture's creating owner.
+    unsafe {
+        if let Some(restart) = (*plugin.host).request_restart { restart(plugin.host); }
+        let Some(get) = (*plugin.host).get_extension else { return; };
+        let audio = get(plugin.host, clap_sys::ext::audio_ports::CLAP_EXT_AUDIO_PORTS.as_ptr()).cast::<clap_sys::ext::audio_ports::clap_host_audio_ports>();
+        if !audio.is_null() && let Some(rescan) = (*audio).rescan { rescan(plugin.host, u32::MAX); }
+        let notes = get(plugin.host, clap_sys::ext::note_ports::CLAP_EXT_NOTE_PORTS.as_ptr()).cast::<clap_sys::ext::note_ports::clap_host_note_ports>();
+        if !notes.is_null() && let Some(rescan) = (*notes).rescan { rescan(plugin.host, u32::MAX); }
+        let params = get(plugin.host, clap_sys::ext::params::CLAP_EXT_PARAMS.as_ptr()).cast::<clap_sys::ext::params::clap_host_params>();
+        if !params.is_null() && let Some(rescan) = (*params).rescan { rescan(plugin.host, u32::MAX); }
+        let latency = get(plugin.host, clap_sys::ext::latency::CLAP_EXT_LATENCY.as_ptr()).cast::<clap_sys::ext::latency::clap_host_latency>();
+        if !latency.is_null() && let Some(changed) = (*latency).changed { changed(plugin.host); }
+    }
+}
 unsafe extern "C" fn get_extension(plugin: *const clap_plugin, id: *const c_char) -> *const c_void {
     if id.is_null() {
         return ptr::null();
@@ -401,6 +420,7 @@ unsafe extern "C" fn process(
     // SAFETY: every pointer below comes from the host's block.
     unsafe {
         match plugin.kind {
+            Kind::Dynamic => process_dynamic(plugin, block),
             Kind::Gain => process_gain(plugin, block),
             Kind::BridgeDelayed
             | Kind::BridgeIdleHang
@@ -534,6 +554,28 @@ unsafe fn process_bridge_note_probe(
         unsafe {
             *left.add(frame as usize) = marker;
             *right.add(frame as usize) = marker;
+        }
+    }
+    CLAP_PROCESS_CONTINUE
+}
+
+unsafe fn process_dynamic(plugin: &Plugin, block: &clap_process) -> clap_process_status {
+    let mut incoming = unsafe { Incoming::new(block.in_events) };
+    for frame in 0..block.frames_count {
+        while let Some(event) = unsafe { incoming.due(frame) } { unsafe { handle_param_event(plugin, event, block.out_events); } }
+        let mode = plugin.value(slot::MODE);
+        let mut pair = [0.0; 2];
+        for ch in 0..2 {
+            let input = unsafe { channel(block.audio_inputs, block.audio_inputs_count, 0, ch) };
+            if !input.is_null() { pair[ch as usize] = unsafe { *input.add(frame as usize) } * plugin.value(slot::GAIN) as f32; }
+        }
+        if mode == 1.0 { pair = unsafe { plugin.audio() }.bridge_delay.tick(pair, 1.0); }
+        for ch in 0..2 { let out = unsafe { channel(block.audio_outputs, block.audio_outputs_count, 0, ch) }; if !out.is_null() { unsafe { *out.add(frame as usize) = pair[ch as usize]; } } }
+        for bus in 1..block.audio_outputs_count {
+            for ch in 0..unsafe { (*block.audio_outputs.add(bus as usize)).channel_count } {
+                let out = unsafe { channel(block.audio_outputs, block.audio_outputs_count, bus, ch) };
+                if !out.is_null() { unsafe { *out.add(frame as usize) = (bus * 10 + ch + 1) as f32 / 100.0; } }
+            }
         }
     }
     CLAP_PROCESS_CONTINUE
@@ -716,11 +758,16 @@ pub(crate) unsafe fn handle_param_event(
         CLAP_EVENT_PARAM_VALUE => {
             // SAFETY: the type says which struct the header begins.
             let event = unsafe { &*(header as *const clap_event_param_value) };
-            if let Some(param) = ext::params_of(plugin.kind)
+            if let Some(param) = ext::params_for(plugin)
                 .iter()
                 .find(|param| param.id == event.param_id)
             {
-                plugin.set_value(param.slot, event.value.clamp(param.min, param.max));
+                let value = event.value.clamp(param.min, param.max);
+                if plugin.kind == Kind::Dynamic && event.param_id == 12000 && value != plugin.value(slot::MODE) {
+                    plugin.dynamic_changed.store(true, Ordering::Release);
+                    unsafe { if let Some(callback) = (*plugin.host).request_callback { callback(plugin.host); } }
+                }
+                plugin.set_value(param.slot, value);
             }
         }
         CLAP_EVENT_NOTE_ON if plugin.kind == Kind::Gain => {
