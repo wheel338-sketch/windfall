@@ -363,7 +363,9 @@ fn nested_gain_effects_preserve_stereo_and_measure_saved_parameter_attenuation()
         expected += engine
             .render(256)
             .unwrap()
-            .chunks_exact(windfall_plugin::OUTPUT_CHANNELS)
+            .as_chunks::<{ windfall_plugin::OUTPUT_CHANNELS }>()
+            .0
+            .iter()
             .map(|p| f64::from(p[0]).powi(2))
             .sum::<f64>();
     }

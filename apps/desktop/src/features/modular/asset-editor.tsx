@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react"
-import type { Channel, InstrumentAsset, RackNode, RackNodeAsset, RackSampleZone } from "@/bindings"
+import type { Channel, EffectKind, InstrumentAsset, RackNode, RackNodeAsset, RackSampleZone } from "@/bindings"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
 import { Field, FieldDescription, FieldGroup, FieldLabel } from "@/components/ui/field"
@@ -18,6 +18,13 @@ import { getProjectGeneration } from "@/lib/store/replaced"
 import { useProjectStore } from "@/lib/store"
 import { RackAudioInput } from "./audio-input"
 import { ChoiceField } from "./note-editor"
+
+const ASSET_EDITORS: Partial<Record<EffectKind, ReturnType<typeof customEditor>>> = {
+  convolver: customEditor("convolver"),
+  waveshaper: customEditor("waveshaper"),
+  volumeGate: customEditor("volumeGate"),
+  scratch: customEditor("scratch"),
+}
 
 export function RackInstrumentEditor({ channel, node, setParam, apply, current }: {
   channel: Channel; node: RackNode; setParam: SetParam
@@ -54,7 +61,7 @@ export function RackEffectEditor({ node, setParam, apply, commit }: { node: Rack
   const descriptor = effectDescriptor(params.type)
   const bind = useParamBinding({ descriptor, params, setParam })
   if (node.processor.type !== "effect") return null
-  const Editor = customEditor(params.type)
+  const Editor = ASSET_EDITORS[params.type]
   const owner = { impulse: node.asset?.type === "impulse" ? node.asset.impulse : null,
     setImpulse: (impulse: import("@/bindings").ConvolverImpulse | null) => apply(impulse ? { type: "impulse", impulse } : null), commit,
     source: node.asset?.type === "audio" ? node.asset.audio : params.type === "scratch" && params.sourceId !== 0 ? { name: `Unowned legacy sample ${params.sourceId}`, sampleRate: 48000, frames: null } : null,

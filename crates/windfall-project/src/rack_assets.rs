@@ -24,18 +24,15 @@ impl RackAudioAsset {
         {
             return Err("Invalid rack audio source name or sample rate".into());
         }
-        if let Some(frames) = &self.frames {
-            if frames.is_empty()
+        if let Some(frames) = &self.frames
+            && (frames.is_empty()
                 || frames.len() > MAX_RACK_ASSET_BYTES / 8
                 || frames
                     .iter()
                     .flatten()
-                    .any(|v| !v.is_finite() || v.abs() > 8.0)
-            {
-                return Err(
-                    "Rack audio source must contain finite PCM within the 64 MiB limit".into(),
-                );
-            }
+                    .any(|v| !v.is_finite() || v.abs() > 8.0))
+        {
+            return Err("Rack audio source must contain finite PCM within the 64 MiB limit".into());
         }
         Ok(())
     }
@@ -114,10 +111,10 @@ impl RackNodeAsset {
                         return Err("Rack zones use owned audio, not project sample IDs".into());
                     }
                     zone.audio.check()?;
-                    if let Some(frames) = &zone.audio.frames {
-                        if zone.mapping.loop_end as usize > frames.len() {
-                            return Err("Rack zone loop exceeds its owned sample".into());
-                        }
+                    if let Some(frames) = &zone.audio.frames
+                        && zone.mapping.loop_end as usize > frames.len()
+                    {
+                        return Err("Rack zone loop exceeds its owned sample".into());
                     }
                 }
                 Ok(())

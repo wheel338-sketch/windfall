@@ -258,28 +258,30 @@ function SoundFontEditor({ channel }: { channel: InstrumentChannel }) {
   const samples = useProjectStore(state => state.project.samples)
   const source = samples.find(sample => sample.id === selected?.source)
   const storedPath = source?.path ?? selected?.path
-  const [path,setPath] = useState(storedPath?.path ?? "")
+  const savedPath = storedPath?.path ?? ""
+  const [draft,setDraft] = useState({ savedPath, value: savedPath })
+  const path = draft.savedPath === savedPath ? draft.value : savedPath
   const [presets,setPresets] = useState<SoundFontPreset[]>([])
   const [error,setError] = useState<string | null>(null)
   const [busy,setBusy] = useState(false)
   const [missing,setMissing] = useState(false)
   const [relink,setRelink] = useState(false)
   const [replacement,setReplacement] = useState("")
-  const request = useRef(0)
+  const request = useRef({ value: 0 })
   useEffect(() => {
-    setPath(storedPath?.path ?? "")
+    const ticket = request.current
     let current = true
     void backend.sampleInstrumentMissingSources?.(channel.id).then(ids => {
       if (current) setMissing(selected?.source != null && ids.includes(selected.source))
     }).catch(error => { if (current) setError(errorMessage(error)) })
-    return () => { current = false; request.current++ }
+    return () => { current = false; ticket.value++ }
   }, [channel.id, selected, storedPath])
   return <FieldGroup>
-    <Field><FieldLabel>SoundFont file</FieldLabel><Input aria-label="SoundFont file" value={path} onChange={event=>{setPath(event.target.value);setPresets([]);request.current++}} /></Field>
+    <Field><FieldLabel>SoundFont file</FieldLabel><Input aria-label="SoundFont file" value={path} onChange={event=>{setDraft({ savedPath, value: event.target.value });setPresets([]);request.current.value++}} /></Field>
     <Button disabled={busy || !backend.soundfontPresets || !path} onClick={async()=>{
-      const token = ++request.current
-      try { const found=await backend.soundfontPresets!(path);if(token===request.current){setPresets(found);setError(null)} }
-      catch(error){if(token===request.current)setError(errorMessage(error))}
+      const token = ++request.current.value
+      try { const found=await backend.soundfontPresets!(path);if(token===request.current.value){setPresets(found);setError(null)} }
+      catch(error){if(token===request.current.value)setError(errorMessage(error))}
     }}>Browse presets</Button>
     <div role="group" aria-label="SoundFont presets" className="flex flex-col gap-1">
       {presets.map(preset=><Button key={`${preset.bank}:${preset.program}`} variant="outline"

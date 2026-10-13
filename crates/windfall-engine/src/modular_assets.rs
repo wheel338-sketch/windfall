@@ -58,15 +58,25 @@ impl GenerationFamily {
                 .checked_add(512 * 1024)
                 .ok_or("Rack fixed storage size overflow")?,
         )?;
-        self.used
-            .try_update(
-                std::sync::atomic::Ordering::AcqRel,
-                std::sync::atomic::Ordering::Acquire,
-                |used| (used < 64).then_some(used + 1),
-            )
-            .map_err(|_| {
-                "Rack has 64 retained generations; wait for voices and tails to finish".to_owned()
-            })?;
+        use std::sync::atomic::Ordering;
+        let mut used = self.used.load(Ordering::Acquire);
+        loop {
+            if used >= 64 {
+                return Err(
+                    "Rack has 64 retained generations; wait for voices and tails to finish"
+                        .to_owned(),
+                );
+            }
+            match self.used.compare_exchange_weak(
+                used,
+                used + 1,
+                Ordering::AcqRel,
+                Ordering::Acquire,
+            ) {
+                Ok(_) => break,
+                Err(current) => used = current,
+            }
+        }
         Ok(GenerationPermit {
             family: self.clone(),
             _payload: payload,
@@ -167,10 +177,10 @@ pub(super) fn instrument(
         }
         _ => None,
     };
-    if let Some(bank) = bank {
-        if !dsp.install_sample_bank(Arc::new(bank)) {
-            return Err("Rack instrument refused its prepared sample bank".into());
-        }
+    if let Some(bank) = bank
+        && !dsp.install_sample_bank(Arc::new(bank))
+    {
+        return Err("Rack instrument refused its prepared sample bank".into());
     }
     Ok(dsp)
 }

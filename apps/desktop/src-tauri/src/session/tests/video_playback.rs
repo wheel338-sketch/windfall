@@ -95,7 +95,7 @@ fn publication(rig: &Rig, wire: &Mutex<Vec<String>>) -> MediaClock {
 fn assert_pcm(pcm: &[f32], first_source_frame: usize, loop_frames: Option<usize>) {
     // Ignore only the established engine's 5 ms seek fade. Compare every
     // interior stereo sample with the independently authored PCM, not export.
-    for (frame, pair) in pcm.chunks_exact(2).enumerate().skip(512) {
+    for (frame, pair) in pcm.as_chunks::<2>().0.iter().enumerate().skip(512) {
         let relative = loop_frames.map_or(frame, |length| frame % length);
         if loop_frames.is_some() && relative < 512 {
             continue;

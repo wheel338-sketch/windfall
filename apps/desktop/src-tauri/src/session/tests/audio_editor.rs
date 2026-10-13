@@ -127,7 +127,9 @@ fn annotated(rig: &Rig) -> (ClipId, String) {
 }
 
 /// Independent byte walker: no production metadata reader is used here.
-fn riff_annotations(bytes: &[u8]) -> (Vec<u32>, Vec<(String, u32, String)>, Vec<(u32, u32)>) {
+type RiffAnnotations = (Vec<u32>, Vec<(String, u32, String)>, Vec<(u32, u32)>);
+
+fn riff_annotations(bytes: &[u8]) -> RiffAnnotations {
     let word = |at| u32::from_le_bytes(bytes[at..at + 4].try_into().unwrap());
     assert_eq!(&bytes[..4], b"RIFF");
     assert_eq!(word(4) as usize + 8, bytes.len());

@@ -153,23 +153,21 @@ unsafe extern "C" fn create(
         (*raw).state.set_notifier(Some(Box::new(move |flags| {
             // Main-thread editor/state preparation only. The host outlives its plugin.
             if let Some(get) = (*host).get_extension {
-                if flags & crate::publication::DIRTY != 0 {
-                    if let Some(state) = get(host, CLAP_EXT_STATE.as_ptr())
+                if flags & crate::publication::DIRTY != 0
+                    && let Some(state) = get(host, CLAP_EXT_STATE.as_ptr())
                         .cast::<clap_sys::ext::state::clap_host_state>()
                         .as_ref()
-                        && let Some(mark) = state.mark_dirty
-                    {
-                        mark(host);
-                    }
+                    && let Some(mark) = state.mark_dirty
+                {
+                    mark(host);
                 }
-                if flags & crate::publication::PARAMETERS != 0 {
-                    if let Some(params) = get(host, clap_sys::ext::params::CLAP_EXT_PARAMS.as_ptr())
+                if flags & crate::publication::PARAMETERS != 0
+                    && let Some(params) = get(host, clap_sys::ext::params::CLAP_EXT_PARAMS.as_ptr())
                         .cast::<clap_sys::ext::params::clap_host_params>()
                         .as_ref()
-                        && let Some(rescan) = params.rescan
-                    {
-                        rescan(host, clap_sys::ext::params::CLAP_PARAM_RESCAN_VALUES);
-                    }
+                    && let Some(rescan) = params.rescan
+                {
+                    rescan(host, clap_sys::ext::params::CLAP_PARAM_RESCAN_VALUES);
                 }
             }
             if flags & crate::publication::RESTART != 0

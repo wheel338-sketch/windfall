@@ -493,14 +493,13 @@ impl Session {
             .flat_map(SampleInstrumentAsset::samples)
             .filter(|id| !state.pool.contains(*id))
             .collect();
-        if let Some(asset) = &current.sample_instrument {
-            if let Some(source) = asset.soundfont_source()
-                && !state
-                    .pool
-                    .has_sample_instrument_asset(&asset.canonical(state.document.project()))
-            {
-                missing.push(source);
-            }
+        if let Some(asset) = &current.sample_instrument
+            && let Some(source) = asset.soundfont_source()
+            && !state
+                .pool
+                .has_sample_instrument_asset(&asset.canonical(state.document.project()))
+        {
+            missing.push(source);
         }
         missing.sort_by_key(|id| id.0);
         missing.dedup();

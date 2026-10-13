@@ -178,27 +178,27 @@ impl RackEffect {
         }
     }
     pub fn control_boundary(&mut self) {
-        if let Self::Hosted(dsp) = self {
-            if let Some(unit) = &mut dsp.unit {
-                unit.control_boundary();
-            }
+        if let Self::Hosted(dsp) = self
+            && let Some(unit) = &mut dsp.unit
+        {
+            unit.control_boundary();
         }
     }
     pub fn transport(&mut self, transport: PluginTransport) {
-        if let Self::Hosted(dsp) = self {
-            if let Some(unit) = &mut dsp.unit {
-                unit.transport(transport);
-            }
+        if let Self::Hosted(dsp) = self
+            && let Some(unit) = &mut dsp.unit
+        {
+            unit.transport(transport);
         }
     }
     pub fn is_hosted(&self) -> bool {
         matches!(self, Self::Hosted(_))
     }
     pub fn retire(&mut self) {
-        if let Self::Hosted(dsp) = self {
-            if let Some(unit) = &mut dsp.unit {
-                unit.retire_from_document();
-            }
+        if let Self::Hosted(dsp) = self
+            && let Some(unit) = &mut dsp.unit
+        {
+            unit.retire_from_document();
         }
     }
 }

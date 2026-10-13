@@ -897,7 +897,7 @@ fn modulators(
     let begin = u16_at(bags, bag * 4 + 2) as usize;
     let end = u16_at(bags, (bag + 1) * 4 + 2) as usize;
     let mut raw = Vec::with_capacity(end - begin);
-    for record in data[begin * 10..end * 10].chunks_exact(10) {
+    for record in data[begin * 10..end * 10].as_chunks::<10>().0 {
         let m = Modulator {
             source: u16_at(record, 0),
             destination: u16_at(record, 2),

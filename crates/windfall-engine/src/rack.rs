@@ -792,12 +792,12 @@ impl InstrumentUnit {
     }
     pub fn inherit_rack_retirement(&mut self, previous: &mut Self, audible: bool) {
         std::mem::swap(&mut self.retiring_racks, &mut previous.retiring_racks);
-        if let Some(slot) = self.retiring_racks.iter_mut().find(|slot| slot.is_none()) {
-            if let Some(mut rack) = previous.modular.take() {
-                rack.retire_from_document();
-                rack.retirement_audible = audible;
-                *slot = Some(rack);
-            }
+        if let Some(slot) = self.retiring_racks.iter_mut().find(|slot| slot.is_none())
+            && let Some(mut rack) = previous.modular.take()
+        {
+            rack.retire_from_document();
+            rack.retirement_audible = audible;
+            *slot = Some(rack);
         }
     }
     pub fn take_retired_rack(&mut self) -> Option<crate::modular::ModularRack> {

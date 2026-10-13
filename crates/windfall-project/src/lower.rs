@@ -1426,8 +1426,8 @@ impl Transaction<'_> {
                     .iter_mut()
                     .find(|plugin| plugin.target == target)
                     .ok_or_else(|| CommandError::invalid("the plugin is not in this project"))?;
-                if let Some(track) = track {
-                    if !plugin
+                if let Some(track) = track
+                    && (!plugin
                         .capabilities
                         .outputs
                         .iter()
@@ -1436,12 +1436,11 @@ impl Transaction<'_> {
                             .project
                             .mixer
                             .track(track)
-                            .is_none_or(|track| track.current)
-                    {
-                        return Err(CommandError::invalid(
-                            "the native output or mixer track is unavailable",
-                        ));
-                    }
+                            .is_none_or(|track| track.current))
+                {
+                    return Err(CommandError::invalid(
+                        "the native output or mixer track is unavailable",
+                    ));
                 }
                 plugin
                     .capabilities

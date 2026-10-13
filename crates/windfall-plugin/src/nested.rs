@@ -146,10 +146,19 @@ impl Provider {
                     plugin.display()
                 )
             })?;
-        let token = self
-            .next
-            .try_update(Ordering::AcqRel, Ordering::Acquire, |v| v.checked_add(1))
-            .map_err(|_| "Export-owned helper tokens exhausted".to_owned())?;
+        let mut token = self.next.load(Ordering::Acquire);
+        loop {
+            let next = token
+                .checked_add(1)
+                .ok_or("Export-owned helper tokens exhausted")?;
+            match self
+                .next
+                .compare_exchange_weak(token, next, Ordering::AcqRel, Ordering::Acquire)
+            {
+                Ok(_) => break,
+                Err(current) => token = current,
+            }
+        }
         let identity = windfall_plugin_host::bridge::protocol::Identity {
             session: self.session,
             token,
@@ -368,7 +377,6 @@ impl HostedEffect for Unit {
                 bar_origin_beats: a.bar_origin_beats,
                 bar_origin_index: a.bar_origin_index,
             }),
-            ..Default::default()
         });
         self.frontier.store(&self.audio);
     }

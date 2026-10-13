@@ -6,7 +6,7 @@ use std::sync::{
     atomic::{AtomicBool, AtomicU64, Ordering},
 };
 use std::time::Duration;
-use tauri::{AppHandle, State, WebviewWindow, ipc::Channel};
+use tauri::{AppHandle, Manager, State, WebviewWindow, ipc::Channel};
 use tauri_plugin_updater::{Update, UpdaterExt};
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
@@ -386,7 +386,6 @@ pub async fn update_install(
     app: AppHandle,
     window: WebviewWindow,
     state: State<'_, Updates>,
-    session: State<'_, Session>,
     token: u64,
     decision: Option<String>,
     path: Option<String>,
@@ -416,7 +415,7 @@ pub async fn update_install(
     if decision == "save" {
         shutdown.save(path.as_deref())?;
     }
-    if decision == "save" && session.document_snapshot().dirty {
+    if decision == "save" && app.state::<Session>().document_snapshot().dirty {
         return Err("The project was not saved; installation cancelled".into());
     }
     let candidate = {

@@ -246,18 +246,17 @@ pub(crate) fn write(regions: &[AudioRegion], frames: u32) -> Result<WavMetadata,
                     }
                     source_beats = Some((number(1)?, number(2)?));
                 }
-                Some("WindfallSlice/1") => {
-                    if fields.len() != 7
+                Some("WindfallSlice/1")
+                    if (fields.len() != 7
                         || region.start_frame >= region.end_frame
                         || !(0.0..=2.0).contains(&number(1)?)
                         || !(-48.0..=48.0).contains(&number(2)?)
                         || !(0.0..=1000.0).contains(&number(3)?)
                         || !(1.0..=1000.0).contains(&number(4)?)
                         || !["0", "1"].contains(&fields[5])
-                        || !["0", "1"].contains(&fields[6])
-                    {
-                        return Err("Invalid slice attributes.".into());
-                    }
+                        || !["0", "1"].contains(&fields[6])) =>
+                {
+                    return Err("Invalid slice attributes.".into());
                 }
                 _ => {}
             }
@@ -296,10 +295,10 @@ pub(crate) fn mapped(region: &AudioRegion, map: impl Fn(u32) -> u32) -> AudioReg
     result.start_frame = a.min(b);
     result.end_frame = a.max(b);
     for note in &mut result.notes {
-        if let Some(text) = note.strip_prefix("WindfallNavigation/1 ") {
-            if let Some((kind, _)) = text.split_once(' ') {
-                *note = format!("WindfallNavigation/1 {kind} {}", result.end_frame);
-            }
+        if let Some(text) = note.strip_prefix("WindfallNavigation/1 ")
+            && let Some((kind, _)) = text.split_once(' ')
+        {
+            *note = format!("WindfallNavigation/1 {kind} {}", result.end_frame);
         }
         if a == b
             && (note.starts_with("WindfallLoop/1 ")
@@ -350,90 +349,6 @@ pub(crate) fn crop_beats(region: &mut AudioRegion, fraction: f64) {
     }
     if let Some(note) = added {
         region.notes.push(note);
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn note_frame_maps_preserve_unknown_notes_loop_types_counts_and_fractional_beats() {
-        let region = AudioRegion {
-            name: "Phrase".into(),
-            start_frame: 10,
-            end_frame: 30,
-            notes: vec![
-                "A note\nwith two lines".into(),
-                "WindfallLoop/1 alternating 3".into(),
-                "WindfallNavigation/1 skip 30".into(),
-            ],
-        };
-        let mapped = mapped(&region, |frame| 100 - frame);
-        assert_eq!((mapped.start_frame, mapped.end_frame), (70, 90));
-        assert_eq!(mapped.notes[0], "A note\nwith two lines");
-        assert_eq!(mapped.notes[2], "WindfallNavigation/1 skip 90");
-        let metadata = write(&[mapped], 100).unwrap();
-        assert_eq!(metadata.loops[0].kind, WavLoopKind::Alternating);
-        assert_eq!(metadata.loops[0].play_count, 3);
-        let regions = read(&metadata, 100).unwrap();
-        assert_eq!(regions[0].notes[0], "A note\nwith two lines");
-        assert!(
-            regions[0]
-                .notes
-                .contains(&"WindfallLoop/1 alternating 3".into())
-        );
-        let mut beats = AudioRegion {
-            name: "Source metadata".into(),
-            start_frame: 0,
-            end_frame: 100,
-            notes: vec![
-                "WindfallTempo/1 120 4 4 4 -1 0".into(),
-                "WindfallRoot/1 60".into(),
-            ],
-        };
-        crop_beats(&mut beats, 0.375);
-        assert!(beats.notes.contains(&"WindfallBeats/1 120 1.5".into()));
-        let metadata = write(&[beats], 100).unwrap();
-        assert_eq!(metadata.tempo.unwrap().beats, 0);
-        assert_eq!(metadata.root_key, Some(60));
-    }
-
-    #[test]
-    fn malformed_annotations_and_overflow_are_explicitly_refused() {
-        for note in [
-            "WindfallNavigation/1 skip 0",
-            "WindfallLoop/1 unknown 0",
-            "WindfallRoot/1 128",
-            "WindfallTempo/1 120 4 0 4 -1 0",
-            "WindfallBeats/1 120 NaN",
-            "WindfallSlice/1 1 0 1 4 0 2",
-        ] {
-            assert!(
-                write(
-                    &[AudioRegion {
-                        name: "Cue".into(),
-                        start_frame: 0,
-                        end_frame: 10,
-                        notes: vec![note.into()]
-                    }],
-                    10
-                )
-                .is_err(),
-                "{note}"
-            );
-        }
-        let metadata = WavMetadata {
-            cues: (0..257)
-                .map(|id| WavCue {
-                    id,
-                    frame: 0,
-                    label: "Cue".into(),
-                })
-                .collect(),
-            ..Default::default()
-        };
-        assert!(read(&metadata, 10).is_err());
     }
 }
 
@@ -607,5 +522,89 @@ impl super::Session {
         let result = self.finish_sample_edit(ticket)?;
         editor.prepared = None;
         Ok(result)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn note_frame_maps_preserve_unknown_notes_loop_types_counts_and_fractional_beats() {
+        let region = AudioRegion {
+            name: "Phrase".into(),
+            start_frame: 10,
+            end_frame: 30,
+            notes: vec![
+                "A note\nwith two lines".into(),
+                "WindfallLoop/1 alternating 3".into(),
+                "WindfallNavigation/1 skip 30".into(),
+            ],
+        };
+        let mapped = mapped(&region, |frame| 100 - frame);
+        assert_eq!((mapped.start_frame, mapped.end_frame), (70, 90));
+        assert_eq!(mapped.notes[0], "A note\nwith two lines");
+        assert_eq!(mapped.notes[2], "WindfallNavigation/1 skip 90");
+        let metadata = write(&[mapped], 100).unwrap();
+        assert_eq!(metadata.loops[0].kind, WavLoopKind::Alternating);
+        assert_eq!(metadata.loops[0].play_count, 3);
+        let regions = read(&metadata, 100).unwrap();
+        assert_eq!(regions[0].notes[0], "A note\nwith two lines");
+        assert!(
+            regions[0]
+                .notes
+                .contains(&"WindfallLoop/1 alternating 3".into())
+        );
+        let mut beats = AudioRegion {
+            name: "Source metadata".into(),
+            start_frame: 0,
+            end_frame: 100,
+            notes: vec![
+                "WindfallTempo/1 120 4 4 4 -1 0".into(),
+                "WindfallRoot/1 60".into(),
+            ],
+        };
+        crop_beats(&mut beats, 0.375);
+        assert!(beats.notes.contains(&"WindfallBeats/1 120 1.5".into()));
+        let metadata = write(&[beats], 100).unwrap();
+        assert_eq!(metadata.tempo.unwrap().beats, 0);
+        assert_eq!(metadata.root_key, Some(60));
+    }
+
+    #[test]
+    fn malformed_annotations_and_overflow_are_explicitly_refused() {
+        for note in [
+            "WindfallNavigation/1 skip 0",
+            "WindfallLoop/1 unknown 0",
+            "WindfallRoot/1 128",
+            "WindfallTempo/1 120 4 0 4 -1 0",
+            "WindfallBeats/1 120 NaN",
+            "WindfallSlice/1 1 0 1 4 0 2",
+        ] {
+            assert!(
+                write(
+                    &[AudioRegion {
+                        name: "Cue".into(),
+                        start_frame: 0,
+                        end_frame: 10,
+                        notes: vec![note.into()]
+                    }],
+                    10
+                )
+                .is_err(),
+                "{note}"
+            );
+        }
+        let metadata = WavMetadata {
+            cues: (0..257)
+                .map(|id| WavCue {
+                    id,
+                    frame: 0,
+                    label: "Cue".into(),
+                })
+                .collect(),
+            ..Default::default()
+        };
+        assert!(read(&metadata, 10).is_err());
     }
 }

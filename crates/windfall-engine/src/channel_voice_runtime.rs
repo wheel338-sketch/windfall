@@ -21,6 +21,8 @@ pub(crate) struct Owner {
     pub admitted: bool,
 }
 
+type HeldEchoOwner = (u8, Origin, Option<u64>, HeldEcho);
+
 pub(crate) struct ChannelVoiceRuntime {
     pub settings: ChannelVoiceSettings,
     pub envelopes: PreparedChannelEnvelopes,
@@ -32,7 +34,7 @@ pub(crate) struct ChannelVoiceRuntime {
     chord: [Option<Note>; MAX_CHORD_NOTES],
     echo_sources: [Option<(u64, Note)>; ECHO_EVENT_CAPACITY],
     /// Echoes of notes still held by hand, waiting for their release.
-    held_echoes: [Option<(u8, Origin, Option<u64>, HeldEcho)>; MAX_HELD_NOTES],
+    held_echoes: [Option<HeldEchoOwner>; MAX_HELD_NOTES],
     pub arp_events: NoteEvents,
     pub echo_events: NoteEvents,
     pub rejected_echoes: u64,

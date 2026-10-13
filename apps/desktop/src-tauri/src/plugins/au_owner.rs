@@ -57,13 +57,17 @@ pub(super) fn start(
     if APP.get().is_none() {
         return Err("Cocoa plugin dispatcher is not installed".into());
     }
-    let id = NEXT
-        .try_update(
-            std::sync::atomic::Ordering::Relaxed,
-            std::sync::atomic::Ordering::Relaxed,
-            |next| next.checked_add(1),
-        )
-        .map_err(|_| "Cocoa plugin owner identity exhausted")?;
+    use std::sync::atomic::Ordering;
+    let mut id = NEXT.load(Ordering::Relaxed);
+    loop {
+        let next = id
+            .checked_add(1)
+            .ok_or("Cocoa plugin owner identity exhausted")?;
+        match NEXT.compare_exchange_weak(id, next, Ordering::Relaxed, Ordering::Relaxed) {
+            Ok(_) => break,
+            Err(current) => id = current,
+        }
+    }
     let (ready, initialized) = mpsc::sync_channel(1);
     let cancelled = Arc::new(Startup::default());
     let initialize_cancelled = cancelled.clone();

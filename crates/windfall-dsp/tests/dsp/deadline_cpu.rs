@@ -124,9 +124,9 @@ mod windows {
             // SAFETY: signatures exactly match the named Windows APIs.
             let (query, get, set): (Query, Get, Set) = unsafe {
                 (
-                    std::mem::transmute(query),
-                    std::mem::transmute(get),
-                    std::mem::transmute(set),
+                    std::mem::transmute::<*mut c_void, Query>(query),
+                    std::mem::transmute::<*mut c_void, Get>(get),
+                    std::mem::transmute::<*mut c_void, Set>(set),
                 )
             };
             // SAFETY: Windows pseudo handles refer to this process and thread.

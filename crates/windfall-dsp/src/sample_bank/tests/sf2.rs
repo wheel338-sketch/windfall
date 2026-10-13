@@ -873,8 +873,10 @@ fn sf2_raw_midi_rpn_pitch_pressure_arbitrary_cc_and_sustain_reach_sounding_voice
     near(unit.engine.voices[0].sf2.values_for_test()[6], 100.0);
     assert_eq!(unit.engine.sf2_controls.cc[20], 99);
     assert_eq!(unit.engine.sf2_poly[60], 100);
-    let mut p = SoundFontParams::default();
-    p.level = 0.75;
+    let p = SoundFontParams {
+        level: 0.75,
+        ..SoundFontParams::default()
+    };
     unit.set_params(&p);
     assert_eq!(unit.engine.sf2_controls.cc[20], 99);
     near(unit.engine.sf2_controls.sensitivity, 12.5);
