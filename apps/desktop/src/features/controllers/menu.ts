@@ -72,12 +72,7 @@ export function controllerEntries(target: AutomationTarget): ContextItem[] {
       const links = project.settings.controllerLinks ?? []
       const linked = linksOf(links, target)
       const sources = internalSources(project)
-      const items: ContextItem[] = target.type === "tempo" ? [{
-        title: "Internal tempo links are unavailable",
-        disabled: true,
-        reason: "Tempo uses the song clock map",
-        run: () => {},
-      }] : [{
+      const items: ContextItem[] = [{
         submenu: "Link to internal controller",
         items: sources.length ? sources.map((source) => ({
           submenu: source.name,

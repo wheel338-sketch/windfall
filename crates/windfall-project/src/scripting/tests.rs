@@ -301,6 +301,7 @@ fn scripted_clip_expansion_past_song_bound_is_an_atomic_checked_refusal() {
                     parameters: vec![],
                 }],
                 controllers: vec![],
+        parameter_addresses: vec![],
             },
         },
         None,
@@ -677,4 +678,94 @@ fn assigned_transform_rejects_invalid_notes_rolls_back_ids_and_suspends_on_delet
             .dispatch(Command::SetScriptLibrary { library: invalid }, None)
             .is_err()
     );
+}
+
+#[test]
+fn script_parameter_addresses_are_checked_append_only_undoable_and_reopen_with_tombstones() {
+    let mut document = Document::new(Project::new("Script parameters"));
+    let channel = crate::ChannelId(document.dispatch(Command::AddChannel { name: None, sample: None,
+        instrument: None, index: None, mixer_track: None }, None).unwrap().created[0]);
+    let reference = ScriptReference { id: "parameterized".into(), revision: 1 };
+    let library = ScriptLibrary { assets: vec![ScriptAsset { reference: reference.clone(), language_version: 1,
+        kind: ScriptKind::NoteTransform, name: "Parameterized".into(),
+        source: "param transpose 0 12 0\nset key key transpose + 0 127 clamp\nemit".into() }],
+        channels: vec![ChannelScript { channel, script: reference, parameters: vec![] }], ..Default::default() };
+    document.dispatch(Command::SetScriptLibrary { library }, None).unwrap();
+    let target = crate::AutomationTarget::InstrumentParam { channel, param: SCRIPT_PARAMETER_BASE };
+    assert_eq!(document.project().automation_range(&target).unwrap().max, 12.0);
+    document.dispatch(Command::SetInstrumentParam { channel, param: SCRIPT_PARAMETER_BASE, value: 7.0 }, Some(5)).unwrap();
+    assert_eq!(document.project().automation_stored_value(&target), Some(7.0));
+    document.undo().unwrap();
+    assert_eq!(document.project().automation_stored_value(&target), Some(0.0));
+    document.redo().unwrap();
+    let before = document.snapshot(None);
+    assert!(document.dispatch(Command::SetInstrumentParam { channel, param: SCRIPT_PARAMETER_BASE, value: 13.0 }, None).is_err());
+    assert_eq!(document.snapshot(None), before);
+    let saved = document.project().settings.scripts.clone();
+    let mut next = saved.clone();
+    next.assets.push(ScriptAsset { reference: ScriptReference { id: "parameterized".into(), revision: 2 },
+        source: "param gain 0 1 1\nparam transpose 0 12 0\nset velocity velocity gain *\nset key key transpose + 0 127 clamp\nemit".into(),
+        ..saved.assets[0].clone() });
+    next.channels[0].script.revision = 2;
+    next.channels[0].parameters.clear();
+    document.dispatch(Command::SetScriptLibrary { library: next }, None).unwrap();
+    let registry = &document.project().settings.scripts.parameter_addresses;
+    assert_eq!(registry[0].name, "transpose");
+    assert_eq!(registry[1].name, "gain");
+    assert_eq!(document.project().settings.scripts.parameter(channel, SCRIPT_PARAMETER_BASE).unwrap().0, 1);
+    let mut removed = document.project().settings.scripts.clone();
+    removed.channels.clear();
+    document.dispatch(Command::SetScriptLibrary { library: removed }, None).unwrap();
+    assert!(document.project().automation_range(&target).is_none());
+    assert_eq!(document.project().settings.scripts.parameter_addresses.len(), 2);
+    document.undo().unwrap();
+    let reopened = crate::file::from_json(&crate::file::to_json(document.project()).unwrap()).unwrap();
+    assert_eq!(reopened, *document.project());
+    assert_eq!(reopened.settings.scripts.parameter_addresses[0].name, "transpose");
+    let mut deleted = Document::new(reopened);
+    deleted.dispatch(Command::RemoveChannel { id: channel }, None).unwrap();
+    assert!(deleted.project().automation_range(&target).is_none());
+    let before = deleted.snapshot(None);
+    assert!(deleted.dispatch(Command::SetInstrumentParam { channel, param: SCRIPT_PARAMETER_BASE, value: 3.0 }, None).is_err());
+    assert_eq!(deleted.snapshot(None), before);
+    deleted.undo().unwrap();
+    assert!(deleted.project().automation_range(&target).is_some());
+}
+
+#[test]
+fn script_time_extent_is_proven_over_parameter_bounds_and_invalid_division_is_refused() {
+    let mut transform = Program::compile("param delay 0 480 0\nparam gate 1 960 240\nset start start delay +\nset length gate\ncopies 3 7 60\nemit")
+        .unwrap().note_transform(&[]).unwrap();
+    let note = ScriptNote { start: 240, ..Default::default() };
+    assert_eq!(transform.maximum_end(note), Ok(1800));
+    assert!(transform.set_parameter(0, 480.0));
+    assert!(transform.set_parameter(1, 960.0));
+    assert_eq!(transform.evaluate_notes(note).unwrap().as_slice()[2].start, 840);
+    assert_eq!(transform.evaluate_notes(note).unwrap().as_slice()[2].length, 960);
+    assert!(!transform.set_parameter(0, f32::NAN));
+    let unbounded = Program::compile("param divisor -1 1 1\nset length length divisor /\nemit").unwrap().note_transform(&[]).unwrap();
+    assert_eq!(unbounded.maximum_end(note), Err(TransformError::Arithmetic));
+}
+
+#[test]
+fn legacy_parameterized_baked_scores_load_and_unsafe_time_automation_is_refused_atomically() {
+    let mut document = Document::new(Project::new("legacy script"));
+    let channel = crate::ChannelId(document.dispatch(Command::AddChannel { name: None, sample: None,
+        instrument: None, index: None, mixer_track: None }, None).unwrap().created[0]);
+    let mut project = document.project().clone();
+    let note = crate::NoteId(project.next_id);
+    project.next_id += 1;
+    project.patterns[0].lanes.push(crate::Lane { channel, notes: vec![crate::Note { id: note,
+        start: 480, length: 240, key: 60, velocity: 0.8, pan: 0.0, expression: Default::default() }] });
+    let reference = ScriptReference { id: "legacy".into(), revision: 1 };
+    project.settings.scripts = ScriptLibrary { assets: vec![ScriptAsset { reference: reference.clone(), language_version: 1,
+        kind: ScriptKind::NoteTransform, name: "Legacy".into(), source: "param amount 0 1 1\nset start 0\nemit".into() }],
+        channels: vec![ChannelScript { channel, script: reference, parameters: vec![] }], ..Default::default() };
+    let reopened = crate::file::from_json(&crate::file::to_json(&project).unwrap()).unwrap();
+    assert_eq!(reopened.settings.scripts.parameter_addresses.len(), 1);
+    let mut document = Document::new(reopened);
+    let before = document.snapshot(None);
+    assert!(document.dispatch(Command::AddAutomation { name: None,
+        target: crate::AutomationTarget::InstrumentParam { channel, param: SCRIPT_PARAMETER_BASE }, points: None }, None).is_err());
+    assert_eq!(document.snapshot(None), before);
 }

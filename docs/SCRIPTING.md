@@ -212,10 +212,11 @@ in a callback processor.
 
 Current engine hosting is the channel side table
 `ProjectSettings.scripts.channels`. `engine/src/script_notes.rs::prepare`
-prepares it on the control side; `engine/src/plan.rs::compile_pattern`
-evaluates before channel timing/swing and bakes transformed tick/key/length/
-velocity/pan into immutable sequencer events. Live sequencing and export
-consume that same table. Original note IDs/source expression remain attached.
+prepares fixed bytecode on the control side. Constant scores are baked before
+channel timing/swing. Scores with script parameter automation or controller links sample their parameters on each raw
+onset in the callback, after channel timing; UI and hardware notes use that same
+fixed-array evaluator. Live sequencing and export share the scheduler. Original
+note IDs/source expression remain attached.
 Checked project loading/edits validate all stored notes against assigned
 transforms; invalid runtime results reject the edit transaction. Unchecked
 engine fixtures preserve the input event on evaluator failure.
@@ -233,8 +234,39 @@ playback grows by its repeated-pattern extension. Scripted notes admitted in a
 short clip window keep their own release tick and the render/song extent includes
 their tails. The checked document refuses expansion beyond the song bound.
 Authored placements remain saved; reopening derives the same playback extents.
-Hardware audition, automation targets for script parameters and live parameter
-re-evaluation are still SOFTWARE gaps; the UI continues to report this limitation.
+Raw keyboard and hardware notes retain a monotonically assigned press identity.
+Each original channel/key/origin release ends the oldest outstanding press of
+that key, releases exactly its surviving instrument instances, removes its chord
+and echo metadata, and cancels copies that have not started. Evaluated outputs
+retain their keys, velocities, pans and gates across script edits. Hardware panic
+invalidates hardware inputs independently; Stop cancels all pending note origins.
+There are 256 original presses and 4096 queued copies, prepared off audio. A whole
+input is refused before any output if capacity or evaluation bounds fail; the
+Script editor reports the existing note-path refusal counter.
+
+Live input starts at tick zero with a 240-tick provisional length. A script that
+does not write `length` sustains each live copy until its original key release.
+Writing `length` gives each copy a musical gate, capped by the original release.
+Delays are musical ticks on the current sequencer clock, including Tempo links.
+Automated programs are causal: declared bounds must prove that no onset
+precedes its input. Division through zero or an unbounded time interval refuses
+automation/link admission atomically. Unautomated legacy assignments stay baked
+with their stored values and retain their existing placement
+semantics. Automated pattern/clip extents reserve the maximum end over all
+declared parameter bounds, so moving a delay/gate never changes the loop extent
+or truncates an already admitted note. This may reserve silence after a shorter
+gate, identically in playback and export.
+
+`ScriptLibrary.parameterAddresses` is append-only (maximum 4096 entries), keyed
+by channel, script ID and declaration name. `InstrumentParam` address
+`0x80000000 + index` occupies a reserved namespace above native/rack indices.
+Changing declaration order preserves the address; removing an owner leaves a
+tombstone and removes its automation/links in the same undo step. Parameter
+values use checked `SetInstrumentParam` edits and normal gestures, undo/redo,
+project saving and reopening. Old files without the registry derive it on load.
+The Script editor shows installed ParamControls with automation and internal or
+hardware controller-link menus. Controller script target choices include them.
+Live/offline evaluation samples the same bounded parameter array.
 
 ## Audio-selection scripts
 

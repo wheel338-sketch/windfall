@@ -156,11 +156,18 @@ pub fn render_reporting(
         }
         PlayMode::Song => (1, plan.warp(f64::from(plan.song_end))),
     };
-    let frames_per_tick = samples_per_tick(plan.tempo_bpm, f64::from(sample_rate));
+    let linked_tempo = plan.linked_tempo();
+    let frames_per_tick = samples_per_tick(
+        if linked_tempo { windfall_project::MIN_TEMPO_BPM } else { plan.tempo_bpm },
+        f64::from(sample_rate));
     let region = options.region.filter(|_| options.mode == PlayMode::Song);
     let body_frames = region.map_or((ticks * frames_per_tick).ceil() as usize, |range| {
-        let (first, last) = crate::timeline::region_frames(&plan, range, sample_rate);
-        (last - first) as usize
+        if linked_tempo {
+            (f64::from(range.end - range.start) * frames_per_tick).ceil() as usize
+        } else {
+            let (first, last) = crate::timeline::region_frames(&plan, range, sample_rate);
+            (last - first) as usize
+        }
     });
     let tail_frames = if options.tail_secs.is_finite() {
         (f64::from(options.tail_secs.max(0.0)) * f64::from(sample_rate)).round() as usize
@@ -225,19 +232,21 @@ pub fn render_reporting(
         };
     }
     let latency = controller.latency_frames() as usize;
-    let most = latency + body_frames + tail_frames;
-    let body_end = latency + body_frames;
+    let mut most = latency + body_frames + tail_frames;
+    let mut body_end = latency + body_frames;
     let hold = (TAIL_HOLD_SECONDS * f64::from(sample_rate)).round() as usize;
     let silence = db_to_gain(TAIL_SILENCE_DB);
 
     // Once nothing can sound any more the output only dies away, so quiet
     // for this long is quiet for good.
-    let rung_out = |processor: &crate::Processor, done: usize, loud_end: usize| {
+    let rung_out = |processor: &crate::Processor, done: usize, loud_end: usize, body_end: usize| {
         done >= body_end && done >= loud_end + hold && processor.settled()
     };
 
     let block = options.block_frames.max(1);
-    let certain = if options.auto_tail { body_end } else { most };
+    let certain = if linked_tempo {
+        ((ticks * samples_per_tick(project.settings.tempo_bpm, f64::from(sample_rate))).ceil() as usize).min(most)
+    } else if options.auto_tail { body_end } else { most };
     let mut data = Vec::with_capacity(certain * 2);
     let mut done = 0;
     // One past the last frame that was not silent.
@@ -248,6 +257,10 @@ pub fn render_reporting(
         data.resize((done + frames) * 2, 0.0);
         let fresh = &mut data[done * 2..];
         processor.process(fresh);
+        if linked_tempo && let Some(end) = processor.rendered_end() {
+            body_end = latency + end as usize;
+            most = body_end + tail_frames;
+        }
         if plugin_error().is_some() {
             break;
         }
@@ -257,20 +270,21 @@ pub fn render_reporting(
             loud_end = done + last + 1;
         }
         done += frames;
-        if !progress(done as f32 / most as f32) {
+        if !progress((done as f32 / most as f32).min(1.0)) {
             cancelled = true;
             break;
         }
-        if options.auto_tail && rung_out(&processor, done, loud_end) {
+        if options.auto_tail && rung_out(&processor, done, loud_end, body_end) {
             break;
         }
     }
-    if options.auto_tail && !cancelled && rung_out(&processor, done, loud_end) {
+    if options.auto_tail && !cancelled && rung_out(&processor, done, loud_end, body_end) {
         // The same length whatever the block size: it only depends on
         // where the sound ends. A tail that was still sounding when it ran
         // out of time is kept whole.
         data.truncate(loud_end.max(body_end) * 2);
     }
+    if linked_tempo && !cancelled { data.truncate(most * 2); }
     let plugin_error = plugin_error();
     if plugin_error.is_some() {
         data.clear();

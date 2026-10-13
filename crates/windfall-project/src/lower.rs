@@ -1590,6 +1590,7 @@ impl Transaction<'_> {
                 let current = new.modular_racks.iter().find(|rack| rack.channel == id);
                 self.remove_automations_of(|target| match *target {
                     AutomationTarget::InstrumentParam { channel, param } if channel == id => {
+                        if param >= crate::scripting::SCRIPT_PARAMETER_BASE { return false; }
                         if param >= 32 {
                             let index = (param - 32) as usize;
                             return !current.is_some_and(|rack| retained_parameters.get(index).is_some()
@@ -1915,7 +1916,8 @@ impl Transaction<'_> {
                 "Write automation LFO"
             }
             Command::DuplicateAutomation { id } => self.duplicate_automation(id)?,
-            Command::SetScriptLibrary { library } => {
+            Command::SetScriptLibrary { mut library } => {
+                library.register_parameters(&self.project.settings.scripts).map_err(CommandError::invalid)?;
                 library.check().map_err(CommandError::invalid)?;
                 let old = self.project.settings.clone();
                 for asset in &library.assets {
@@ -1951,8 +1953,12 @@ impl Transaction<'_> {
                     }
                 }
                 let mut new = old.clone();
-                new.scripts = library;
+                new.scripts = library.clone();
                 self.push(Edit::Settings(Change { old, new }));
+                self.remove_automations_of(|target| matches!(*target,
+                    AutomationTarget::InstrumentParam { channel, param }
+                        if param >= crate::scripting::SCRIPT_PARAMETER_BASE
+                            && library.parameter_state(channel, param).is_none()));
                 "Change scripts"
             }
             Command::Batch { label, commands } => {
@@ -2751,6 +2757,27 @@ impl Transaction<'_> {
         param: u32,
         value: f32,
     ) -> Result<String, CommandError> {
+        if param >= crate::scripting::SCRIPT_PARAMETER_BASE {
+            self.channel_index(channel)?;
+            let (index, info, _) = self.project.settings.scripts.parameter(channel, param)
+                .ok_or_else(|| CommandError::invalid("Script parameter owner was removed"))?;
+            if !value.is_finite() || value < info.min as f32 || value > info.max as f32 {
+                return Err(CommandError::invalid("Script parameter is outside declared bounds"));
+            }
+            let mut library = self.project.settings.scripts.clone();
+            let binding = library.channels.iter_mut().find(|b| b.channel == channel)
+                .ok_or_else(|| CommandError::invalid("Script assignment was removed"))?;
+            if binding.parameters.is_empty() {
+                let reference = binding.script.clone();
+                let defaults = crate::scripting::Program::compile(&library.asset(&reference).unwrap().source)
+                    .map_err(|e| CommandError::invalid(e.to_string()))?.parameters
+                    .iter().map(|p| p.default).collect();
+                library.channels.iter_mut().find(|b| b.channel == channel).unwrap().parameters = defaults;
+            }
+            library.channels.iter_mut().find(|b| b.channel == channel).unwrap().parameters[index] = f64::from(value).clamp(info.min, info.max);
+            self.run(Command::SetScriptLibrary { library })?;
+            return Ok(format!("Change script {}", info.name));
+        }
         if let Some(rack) = self
             .project
             .settings
@@ -4660,6 +4687,10 @@ impl Transaction<'_> {
                 self.effect_index(track, effect)?;
             }
             AutomationTarget::InstrumentParam { channel, param } => {
+                if param >= crate::scripting::SCRIPT_PARAMETER_BASE {
+                    return self.project.automation_range(target).zip(self.project.automation_stored_value(target))
+                        .ok_or_else(|| CommandError::invalid("Script parameter owner was removed"));
+                }
                 if self
                     .project
                     .settings
@@ -4790,6 +4821,10 @@ impl Transaction<'_> {
                 format!("{} mix", effect(track, id))
             }
             AutomationTarget::InstrumentParam { channel: id, param } => {
+                if let Some((_, info, _)) = project.settings.scripts.parameter(id, param) {
+                    return unused_name(format!("{} script {}", channel(id), info.name),
+                        project.automations.iter().map(|a| a.name.as_str()));
+                }
                 if let Some(rack) = project
                     .settings
                     .modular_racks

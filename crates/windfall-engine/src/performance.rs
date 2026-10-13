@@ -51,7 +51,11 @@ pub(crate) enum Event {
     },
 }
 
+#[derive(Clone, Copy)]
+struct ScriptedOn { track: u8, note: NoteEvent, pattern: PatternId, start: f64 }
+
 pub(crate) struct Launcher {
+    scripted: Vec<Option<ScriptedOn>>,
     slots: [Slot; TRACKS],
     held: [Option<Held>; HELD],
     events: Vec<Event>,
@@ -93,6 +97,7 @@ impl Launcher {
     pub fn new() -> Self {
         Self {
             slots: [Slot::default(); TRACKS],
+            scripted: vec![None; HELD],
             held: [None; HELD],
             events: Vec::with_capacity(EVENTS),
             accepted: Vec::with_capacity(TRACKS),
@@ -206,6 +211,9 @@ impl Launcher {
         let delta = frames as f64 * plan.tempo_bpm * f64::from(PPQ) / (60.0 * f64::from(rate));
         self.tick = plan.unwarp(plan.warp(self.tick) + delta);
     }
+    pub fn advance_control_tempo(&mut self, frames: usize, rate: u32, tempo: f64) {
+        self.tick += frames as f64 * tempo * f64::from(PPQ) / (60.0 * f64::from(rate));
+    }
     pub fn tempo_override(&self, plan: &Plan) -> Option<f64> {
         if !plan.performance_tempo {
             return None;
@@ -240,6 +248,9 @@ impl Launcher {
         Some((id, elapsed - cycle * length, slot.origin + cycle * length))
     }
     fn off_track(&mut self, track: u8) {
+        for pending in &mut self.scripted {
+            if pending.is_some_and(|p| p.track == track) { *pending = None; }
+        }
         for held in &mut self.held {
             if let Some(note) = held.filter(|note| note.track == track) {
                 self.events.push(Event::Off {
@@ -262,6 +273,9 @@ impl Launcher {
         }
     }
     pub fn step(&mut self, plan: &Plan, rate: u32) {
+        self.step_with_scripts(plan, rate, &plan.scripts, None);
+    }
+    pub fn step_with_scripts(&mut self, plan: &Plan, rate: u32, scripts: &[Option<windfall_project::scripting::NoteTransform>], tempo: Option<f64>) {
         self.events.clear();
         self.accepted.clear();
         for track in 0..TRACKS {
@@ -314,6 +328,26 @@ impl Launcher {
                     slot.next = 0;
                     slot.cycle = slot.cycle.saturating_add(1);
                 }
+                if let Some(input) = note.script_input {
+                    let outputs = scripts.get(note.channel).and_then(Option::as_ref).and_then(|p| p.evaluate_notes(input).ok());
+                    let Some(outputs) = outputs else { self.dropped = self.dropped.saturating_add(1); continue; };
+                    let available = HELD - self.held.iter().flatten().count() - self.scripted.iter().flatten().count();
+                    if available < outputs.as_slice().len() || outputs.as_slice().iter().any(|o| o.start < input.start) {
+                        self.dropped = self.dropped.saturating_add(1); continue;
+                    }
+                    for output in outputs.as_slice() {
+                        let start = at + f64::from(output.start - input.start);
+                        let transformed = NoteEvent { tick: note.tick + f64::from(output.start - input.start),
+                            key: output.key, velocity: output.velocity, pan: output.pan, length: f64::from(output.length),
+                            script_input: None, ..note };
+                        *self.scripted.iter_mut().find(|p| p.is_none()).unwrap() = Some(ScriptedOn {
+                            track: track as u8, note: transformed, pattern: pattern.id, start });
+                    }
+                    continue;
+                }
+                if self.held.iter().flatten().count() + self.scripted.iter().flatten().count() >= HELD {
+                    self.dropped = self.dropped.saturating_add(1); continue;
+                }
                 let Some(held) = self.held.iter_mut().find(|held| held.is_none()) else {
                     self.dropped = self.dropped.saturating_add(1);
                     continue;
@@ -336,7 +370,20 @@ impl Launcher {
                 });
             }
         }
-        self.advance(plan, 1, rate);
+        while let Some((index, pending)) = self.scripted.iter().enumerate()
+            .filter_map(|(index, p)| p.map(|p| (index, p)))
+            .filter(|(_, p)| p.start <= self.tick + 1e-7)
+            .min_by(|(ia, a), (ib, b)| a.start.total_cmp(&b.start).then(ia.cmp(ib))) {
+            self.scripted[index] = None;
+            let Some(held) = self.held.iter_mut().find(|held| held.is_none()) else { self.dropped = self.dropped.saturating_add(1); continue; };
+            let Some(token) = self.token.checked_add(1) else { self.dropped = self.dropped.saturating_add(1); continue; };
+            self.token = token;
+            *held = Some(Held { track: pending.track, token, end: pending.start + pending.note.length });
+            self.events.push(Event::On { token, note: pending.note, pattern: pending.pattern, start: pending.start });
+        }
+        if let Some(tempo) = tempo {
+            self.tick += tempo * f64::from(PPQ) / (60.0 * f64::from(rate));
+        } else { self.advance(plan, 1, rate); }
     }
 }
 
@@ -504,6 +551,8 @@ mod tests {
         let mut plan = compile(&project, &SamplePool::new());
         plan.patterns[0].events = vec![NoteEvent {
             scripted: false,
+            script_input: None,
+            script_tail: None,
             source: windfall_project::NoteId(100),
             tick: 0.0,
             length: 960.0,
@@ -713,4 +762,33 @@ mod tests {
             0
         );
     }
+    #[test]
+    fn launched_script_parameters_sample_once_and_preserve_delayed_copy_gates() {
+        let mut plan = note_plan();
+        plan.patterns[0].events[0].script_input = Some(windfall_project::scripting::ScriptNote::default());
+        let script = windfall_project::scripting::Program::compile("param transpose 0 12 12\nset key key transpose +\nset length 120\ncopies 3 7 60\nemit")
+            .unwrap().note_transform(&[]).unwrap();
+        let scripts = vec![Some(script)];
+        let mut launcher = Launcher::new();
+        launcher.request(LaunchRequest { track: 0, pattern: Some(plan.patterns[0].id), quantization: LaunchQuantization::Immediate }, &plan);
+        assert_eq!(crate::test_alloc::allocator_calls(|| launcher.step_with_scripts(&plan, 48000, &scripts, Some(120.0))), 0);
+        match launcher.event(0) {
+            Event::On { note, .. } => { assert_eq!(note.key, 72); assert_eq!(note.length, 120.0); }
+            Event::Off { .. } => panic!("expected transformed onset"),
+        }
+        assert_eq!(launcher.scripted.iter().flatten().count(), 2);
+        launcher.tick = 60.0;
+        let mut edited = scripts;
+        edited[0].as_mut().unwrap().set_parameter(0, 0.0);
+        assert_eq!(crate::test_alloc::allocator_calls(|| launcher.step_with_scripts(&plan, 48000, &edited, Some(120.0))), 0);
+        match launcher.event(0) { Event::On { note, .. } => assert_eq!(note.key, 79), Event::Off { .. } => panic!("expected retained copy") }
+        launcher.tick = 120.0;
+        launcher.step_with_scripts(&plan, 48000, &edited, Some(120.0));
+        assert!(matches!(launcher.event(0), Event::Off { stopped: false, .. }));
+        assert!(matches!(launcher.event(1), Event::On { note: NoteEvent { key: 86, .. }, .. }));
+        assert_eq!(crate::test_alloc::allocator_calls(|| launcher.release(true)), 0);
+        assert!(launcher.scripted.iter().all(Option::is_none));
+        assert!(launcher.held.iter().all(Option::is_none));
+    }
+
 }

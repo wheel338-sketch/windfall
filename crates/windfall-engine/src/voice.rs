@@ -123,6 +123,8 @@ pub(crate) struct Stretch {
 /// A note to start.
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct Note {
+    /// One original scripted key press, retained through all generated copies.
+    pub input: Option<u64>,
     pub source: Option<crate::note_curves::CurveSource>,
     /// Index into [`Plan::channels`].
     pub channel: usize,

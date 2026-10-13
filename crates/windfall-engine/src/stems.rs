@@ -416,7 +416,11 @@ pub fn render_stems(
         StemMode::ToMaster => {
             // The mix comes first even when it is not wanted, where only
             // it can say how long an automatic tail is.
-            let mix_pass = mix.is_some() || options.auto_tail;
+            let linked_tempo = project.settings.controller_links.iter().any(|link|
+                matches!(link.source, windfall_project::ControlSource::Internal { .. })
+                    && link.target == windfall_project::LinkTarget::Param { target: windfall_project::AutomationTarget::Tempo });
+            let mix_pass = mix.is_some() || options.auto_tail || linked_tempo;
+            let mut tempo_trajectory = Vec::new();
             let passes = tracks.len() + usize::from(mix_pass);
             let share = |pass: usize| {
                 move |fraction: f32| (pass as f32 + fraction.clamp(0.0, 1.0)) / passes as f32
@@ -426,10 +430,11 @@ pub fn render_stems(
             if mix_pass {
                 let scale = share(0);
                 let pass = Pass::new(compile(project, pool), options, &[])?;
-                let done = pass.run(
+                let done = pass.run_clock(
                     None,
                     &mut |_, block| mix.is_none_or(|stream| sink(stream, block)),
                     &mut |fraction| progress(scale(fraction)),
+                    linked_tempo.then_some(&mut tempo_trajectory),
                 )?;
                 if !done.completed {
                     return Ok(done);
@@ -437,10 +442,12 @@ pub fn render_stems(
                 length = Some(done.frames as usize);
                 dropped_clips = done.dropped_clips;
             }
+            let tempo_trajectory: std::sync::Arc<[f64]> = tempo_trajectory.into();
             let mut frames = length.unwrap_or(0) as u64;
             for (number, &(stream, id)) in tracks.iter().enumerate() {
                 let scale = share(number + usize::from(mix_pass));
                 let mut plan = compile(project, pool);
+                plan.tempo_replay = tempo_trajectory.clone();
                 plan.leave_only(id);
                 let pass = Pass::new(plan, options, &[])?;
                 // Without an automatic tail every pass is as long as the
@@ -608,6 +615,8 @@ struct Pass {
     latency: usize,
     /// The frame of the processor on which the pattern or song ends.
     body_end: usize,
+    linked_tempo: bool,
+    tail_frames: usize,
     /// The frame on which the longest tail the options allow ends.
     most: usize,
     auto_tail: bool,
@@ -637,11 +646,13 @@ impl Pass {
             }
             PlayMode::Song => (1, plan.warp(f64::from(plan.song_end))),
         };
-        let frames_per_tick = samples_per_tick(plan.tempo_bpm, f64::from(sample_rate));
+        let linked_tempo = plan.linked_tempo();
+        let frames_per_tick = samples_per_tick(
+            if linked_tempo { windfall_project::MIN_TEMPO_BPM } else { plan.tempo_bpm }, f64::from(sample_rate));
         let region = options.region.filter(|_| options.mode == PlayMode::Song);
         let body_frames = region.map_or((ticks * frames_per_tick).ceil() as usize, |range| {
-            let (first, last) = crate::timeline::region_frames(&plan, range, sample_rate);
-            (last - first) as usize
+            if linked_tempo { (f64::from(range.end - range.start) * frames_per_tick).ceil() as usize }
+            else { let (first, last) = crate::timeline::region_frames(&plan, range, sample_rate); (last - first) as usize }
         });
         let tail_frames = if options.tail_secs.is_finite() {
             (f64::from(options.tail_secs.max(0.0)) * f64::from(sample_rate)).round() as usize
@@ -694,6 +705,8 @@ impl Pass {
             outlets,
             latency,
             body_end: latency + body_frames,
+            linked_tempo,
+            tail_frames,
             most: latency + body_frames + tail_frames,
             auto_tail: options.auto_tail,
             hold: (TAIL_HOLD_SECONDS * f64::from(sample_rate)).round() as usize,
@@ -707,10 +720,19 @@ impl Pass {
     /// next frames. With `length`, the streams are made exactly that many
     /// frames long, whatever the options say about a tail.
     fn run(
+        self,
+        length: Option<usize>,
+        sink: &mut dyn FnMut(usize, &[f32]) -> bool,
+        progress: &mut dyn FnMut(f32) -> bool,
+    ) -> Result<Streamed, StemError> {
+        self.run_clock(length, sink, progress, None)
+    }
+    fn run_clock(
         mut self,
         length: Option<usize>,
         sink: &mut dyn FnMut(usize, &[f32]) -> bool,
         progress: &mut dyn FnMut(f32) -> bool,
+        mut clock_capture: Option<&mut Vec<f64>>,
     ) -> Result<Streamed, StemError> {
         let check = || {
             self.provider
@@ -719,12 +741,12 @@ impl Pass {
                 .map_or(Ok(()), |error| Err(StemError::Plugin(error)))
         };
         check()?;
-        let most = length.map_or(self.most, |frames| self.latency + frames);
+        let mut most = length.map_or(self.most, |frames| self.latency + frames);
         let auto_tail = self.auto_tail && length.is_none();
-        let (body_end, hold) = (self.body_end, self.hold);
+        let (mut body_end, hold) = (self.body_end, self.hold);
         // Once nothing can sound any more the output only dies away, so
         // quiet for this long is quiet for good.
-        let rung_out = |processor: &Processor, done: usize, loud_end: usize| {
+        let rung_out = |processor: &Processor, done: usize, loud_end: usize, body_end: usize| {
             done >= body_end && done >= loud_end + hold && processor.settled()
         };
 
@@ -734,9 +756,19 @@ impl Pass {
         let mut loud_end = 0;
         let mut completed = true;
         while done < most && completed {
-            let frames = self.block.min(most - done);
+            let frames = if self.linked_tempo {
+                self.block.min(most - done).min((crate::automation::GRID - done as u64 % crate::automation::GRID) as usize)
+            } else { self.block.min(most - done) };
             let fresh = &mut buffer[..frames * 2];
             self.processor.process(fresh);
+            if done.is_multiple_of(crate::automation::GRID as usize)
+                && let Some(trajectory) = &mut clock_capture {
+                trajectory.push(self.processor.effective_tempo());
+            }
+            if self.linked_tempo && length.is_none() && let Some(end) = self.processor.rendered_end() {
+                body_end = self.latency + end as usize;
+                most = body_end + self.tail_frames;
+            }
             check()?;
             let silence = self.silence;
             let loud = |frame: &[f32; 2]| frame[0].abs() >= silence || frame[1].abs() >= silence;
@@ -757,15 +789,15 @@ impl Pass {
             let certain = if auto_tail {
                 loud_end.max(body_end).min(done)
             } else {
-                done
+                done.min(most)
             };
             let certain = certain.saturating_sub(self.latency);
             for (stream, outlet) in self.outlets.iter_mut().enumerate() {
                 completed = completed && outlet.release(certain, &mut |block| sink(stream, block));
             }
-            completed = completed && progress(done as f32 / most as f32);
+            completed = completed && progress((done as f32 / most as f32).min(1.0));
             check()?;
-            if auto_tail && rung_out(&self.processor, done, loud_end) {
+            if auto_tail && rung_out(&self.processor, done, loud_end, body_end) {
                 break;
             }
         }
@@ -773,10 +805,10 @@ impl Pass {
         // The same length whatever the block size: it only depends on
         // where the sound ends. A tail that was still sounding when it ran
         // out of time is kept whole.
-        let end = if auto_tail && rung_out(&self.processor, done, loud_end) {
+        let end = if auto_tail && rung_out(&self.processor, done, loud_end, body_end) {
             loud_end.max(body_end)
         } else {
-            done
+            done.min(most)
         };
         let frames = end.saturating_sub(self.latency);
         for (stream, outlet) in self.outlets.iter_mut().enumerate() {

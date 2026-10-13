@@ -40,6 +40,7 @@ fn channel_script_matches_manual_score_live_offline_irregular_blocks_and_saved_r
             parameters: vec![],
         }],
         controllers: vec![],
+        parameter_addresses: vec![],
     };
     rig.project.check().unwrap();
     let options = RenderOptions {
@@ -166,6 +167,7 @@ fn scripted_short_long_and_duplicated_durations_match_manual_score_live_and_offl
                     parameters: vec![],
                 }],
                 controllers: vec![],
+        parameter_addresses: vec![],
             };
             rig.project.check().unwrap();
             let options = RenderOptions {
@@ -212,4 +214,83 @@ fn scripted_short_long_and_duplicated_durations_match_manual_score_live_and_offl
             );
         }
     }
+}
+
+#[test]
+fn script_parameter_automation_and_internal_links_match_manual_notes_live_and_offline() {
+    use windfall_project::*;
+    use windfall_project::scripting::*;
+    let mut rig = Rig::new();
+    let channel = rig.channel(sine(48000, 220.0, 0.1));
+    for start in [0, 480, 960] { rig.note(channel, start, 240).key = 60; }
+    let lane = rig.playlist_track();
+    rig.clip(lane, rig.first_pattern(), 0, 1920);
+    let reference = ScriptReference { id: "automated".into(), revision: 1 };
+    let mut library = ScriptLibrary { assets: vec![ScriptAsset { reference: reference.clone(), language_version: 1,
+        kind: ScriptKind::NoteTransform, name: "Automated".into(),
+        source: "param transpose 0 12 0\nset key key transpose +\nemit".into() }],
+        channels: vec![ChannelScript { channel, script: reference, parameters: vec![] }], ..Default::default() };
+    library.register_parameters(&ScriptLibrary::default()).unwrap();
+    rig.project.settings.scripts = library;
+    let target = AutomationTarget::InstrumentParam { channel, param: SCRIPT_PARAMETER_BASE };
+    let automation = rig.automation(target, &[(0, 0.0), (480, 1.0)]);
+    rig.automation_mut(automation).points[0].hold = true;
+    rig.automation_clip(lane, automation, 0, 1920);
+    let mut manual = rig.project.clone();
+    manual.settings.scripts = ScriptLibrary::default();
+    manual.automations.clear();
+    manual.playlist.clips.retain(|clip| !matches!(clip.content, ClipContent::Automation { .. }));
+    for note in &mut manual.patterns[0].lanes[0].notes { if note.start >= 480 { note.key += 12; } }
+    let options = RenderOptions { mode: PlayMode::Song, block_frames: 251, ..Default::default() };
+    let actual = render(&rig.project, &rig.pool, &options, &mut |_| true);
+    let expected = render(&manual, &rig.pool, &options, &mut |_| true);
+    assert_eq!(actual.samples(), expected.samples());
+    assert_eq!(actual.samples(), rig.play_song(48000, actual.frames(), 7));
+    let track = rig.track();
+    let source = rig.effect(track, EffectParams::ControlSurface(windfall_dsp::surface::ControlSurfaceParams {
+        knob1: 0.5, ..Default::default()
+    }));
+    rig.project.settings.controller_links.push(ControllerLink { source: ControlSource::Internal { controller: source.0, output: 0 },
+        target: LinkTarget::Param { target }, map: ControlMap { pickup: PickupMode::Off, ..Default::default() } });
+    for note in &mut manual.patterns[0].lanes[0].notes { note.key = 66; }
+    let linked = render(&rig.project, &rig.pool, &options, &mut |_| true);
+    let expected = render(&manual, &rig.pool, &options, &mut |_| true);
+    assert_eq!(linked.samples(), expected.samples());
+    assert_eq!(linked.samples(), rig.play_song(48000, linked.frames(), 37));
+}
+
+#[test]
+fn automated_script_delay_and_gate_keep_short_clip_tails_and_reserved_export_extent() {
+    use windfall_project::*;
+    use windfall_project::scripting::*;
+    let mut rig = Rig::new();
+    let channel = rig.channel(sine(48000, 220.0, 2.0));
+    rig.sampler_mut(channel).envelope = Some(Envelope { attack_ms: 0.0, decay_ms: 0.0, sustain: 1.0, release_ms: 0.0 });
+    rig.note(channel, 0, 240).key = 60;
+    let lane = rig.playlist_track();
+    let clip = rig.clip(lane, rig.first_pattern(), 0, 240).id;
+    let reference = ScriptReference { id: "timed".into(), revision: 1 };
+    let mut library = ScriptLibrary { assets: vec![ScriptAsset { reference: reference.clone(), language_version: 1,
+        kind: ScriptKind::NoteTransform, name: "Timed".into(),
+        source: "param delay 0 120 0\nparam gate 1 960 240\nset start start delay +\nset length gate\nemit".into() }],
+        channels: vec![ChannelScript { channel, script: reference, parameters: vec![] }], ..Default::default() };
+    library.register_parameters(&ScriptLibrary::default()).unwrap();
+    rig.project.settings.scripts = library;
+    for param in [SCRIPT_PARAMETER_BASE, SCRIPT_PARAMETER_BASE+1] {
+        let automation = rig.automation(AutomationTarget::InstrumentParam { channel, param }, &[(0, 1.0)]);
+        rig.automation_clip(lane, automation, 0, 240);
+    }
+    let mut manual = rig.project.clone();
+    manual.settings.scripts = ScriptLibrary::default();
+    manual.automations.clear();
+    manual.playlist.clips.retain(|c| !matches!(c.content, ClipContent::Automation { .. }));
+    manual.playlist.clips.iter_mut().find(|c| c.id == clip).unwrap().length = 1080;
+    manual.patterns[0].lanes[0].notes[0].start = 120;
+    manual.patterns[0].lanes[0].notes[0].length = 960;
+    let options = RenderOptions { mode: PlayMode::Song, block_frames: 251, ..Default::default() };
+    let actual = render(&rig.project, &rig.pool, &options, &mut |_| true);
+    let expected = render(&manual, &rig.pool, &options, &mut |_| true);
+    assert_eq!(actual.frames(), 27000);
+    assert_eq!(actual.samples(), expected.samples());
+    assert_eq!(actual.samples(), rig.play_song(48000, actual.frames(), 7));
 }

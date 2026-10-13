@@ -86,7 +86,8 @@ impl Transaction<'_> {
         let new = Processor::of_source(&preset.source, preset.plugin.as_ref());
         self.remove_automations_of(|automation| match *automation {
             AutomationTarget::InstrumentParam { channel, param } => {
-                channel == id && (replacing_rack || !old.keeps_param(&new, param))
+                channel == id && param < crate::scripting::SCRIPT_PARAMETER_BASE
+                    && (replacing_rack || !old.keeps_param(&new, param))
             }
             _ => false,
         });
@@ -166,7 +167,7 @@ impl Transaction<'_> {
                     AutomationTarget::InstrumentParam {
                         channel: moved,
                         param,
-                    } => moved == channel && !old.keeps_param(&new, param),
+                    } => moved == channel && param < crate::scripting::SCRIPT_PARAMETER_BASE && !old.keeps_param(&new, param),
                     _ => false,
                 });
                 match state {

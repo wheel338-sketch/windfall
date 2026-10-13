@@ -360,9 +360,6 @@ pub fn links_problem(project: &Project, links: &[ControllerLink]) -> Option<Stri
         let LinkTarget::Param { target } = link.target else {
             return Some("internal sources require a project parameter target".into());
         };
-        if target == AutomationTarget::Tempo {
-            return Some("internal tempo modulation requires a clock feedback node".into());
-        }
         if let Some(to) = owner(target) {
             edges.push((controller, to));
         }

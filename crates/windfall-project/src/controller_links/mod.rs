@@ -494,7 +494,7 @@ pub fn target_command(project: &Project, target: &AutomationTarget, value: f32) 
         },
         AutomationTarget::InstrumentParam { channel, param } => {
             let plugin = PluginTarget::Instrument { channel };
-            if project.plugin(plugin).is_some() {
+            if param < crate::scripting::SCRIPT_PARAMETER_BASE && project.plugin(plugin).is_some() {
                 return plugin_param(plugin, param);
             }
             Command::SetInstrumentParam {

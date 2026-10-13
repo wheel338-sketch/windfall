@@ -17,6 +17,7 @@ import { currentSession } from "@/features/piano-roll/session"
 import { ProposalReview } from "./review"
 import { closeScripts, useAssistantWindows } from "./store"
 import { ControllerBindingFields } from "./controller-binding"
+import { InstalledScriptParameters, ScriptNoteRefusals } from "./script-parameters"
 import { useControllerStatus } from "@/features/controllers/status"
 
 const EXAMPLES: Record<ScriptKind, string> = {
@@ -171,7 +172,7 @@ function ScriptForm() {
       </>}
     </FieldGroup>
     {backend.kind !== "tauri" && <Alert><AlertDescription>Piano execution and hardware controller scripts require the native bounded worker. You can edit and save revisions here.</AlertDescription></Alert>}
-    {kind === "noteTransform" && <Alert><AlertDescription>Assigned transforms compile into channel pattern events for playback and export. Hardware audition and automation transforms are not supported by this version.</AlertDescription></Alert>}
+    {kind === "noteTransform" && <Alert><AlertDescription>Assigned transforms process channel notes from patterns, the keyboard and MIDI input. Installed parameter controls support automation and controller links. Key release cancels pending copies and releases the voices from that press.</AlertDescription></Alert>}
     <div className="flex flex-wrap gap-2">
       <Button variant="outline" disabled={busy} onClick={() => void readParameters()}>Read parameters</Button>
       {kind === "piano" && <Button disabled={busy || backend.kind !== "tauri"} onClick={() => void previewNotes()}>Preview notes</Button>}
@@ -180,6 +181,8 @@ function ScriptForm() {
       <Button variant="ghost" disabled={!busy} onClick={() => { operation.current += 1; cancelRun(run.current); setBusy(false) }}>Cancel run</Button>
     </div>
     {error && <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}
+    <InstalledScriptParameters />
+    <ScriptNoteRefusals />
     {kind === "controller" && <ControllerScriptStatus />}
     {preview && <details open><summary>{preview.notes.length} emitted notes</summary><pre className="max-h-48 overflow-auto">{preview.notes.slice(0, 24).map((n) => `tick ${n.start} · length ${n.length} · key ${n.key} · velocity ${n.velocity}`).join("\n")}</pre></details>}
     {proposal && <ProposalReview key={`${proposal.stamp.revision}:${proposal.label}:${JSON.stringify(proposal.commands)}`} proposal={proposal} generation={generation} cancel={() => { setProposal(null); setPreview(null) }} />}

@@ -517,7 +517,7 @@ impl Sequencer {
     /// [`Sequencer::moved`].
     pub fn set_plan(&mut self, plan: &Plan, old: &Plan, now: u64) -> bool {
         let frames_per_tick = samples_per_tick(plan.tempo_bpm, self.sample_rate);
-        if self.in_song() && plan.tempo_map != old.tempo_map {
+        if self.in_song() && (plan.tempo_map != old.tempo_map || plan.linked_tempo() != old.linked_tempo()) {
             let before = self.clock;
             let origin = self.pass_start;
             let moved = |tick: f64| Self::moved(plan, old, origin, tick);
@@ -704,8 +704,25 @@ impl Sequencer {
         }
     }
 
-    /// Moves the transport through frames `from..to`: around any loop point
-    /// in that range, and to a stop at the end of the last pass.
+    /// Final boundary of finite playback, using this block's clock.
+    pub fn finite_end_frame(&self, plan: &Plan) -> Option<u64> {
+        if !self.playing { return None; }
+        self.passes_left.map(|passes| self.clock.frame_of(
+            self.pass_start + self.length(plan) * f64::from(passes)))
+    }
+
+    /// Reanchor at the fixed control grid. Endpoints remain musical ticks.
+    pub fn control_tempo(&mut self, bpm: f64, now: u64) {
+        let frames_per_tick = samples_per_tick(bpm, self.sample_rate);
+        if frames_per_tick == self.clock.frames_per_tick { return; }
+        let old = self.clock;
+        self.clock = Clock { anchor_frame: now, anchor_tick: old.tick_at(now), frames_per_tick };
+        if self.playing && now > old.anchor_frame {
+            self.floor = Floor::Clock { clock: old, frame: now };
+        }
+    }
+
+    /// Moves through frames `from..to`, wrapping or stopping at pass ends.
     pub fn advance(&mut self, plan: &Plan, from: u64, to: u64) {
         self.walk(plan, from, to, |_, _, _| {});
     }

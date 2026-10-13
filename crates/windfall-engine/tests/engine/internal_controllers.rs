@@ -378,3 +378,67 @@ fn unchanged_link_survives_unrelated_plan_edit_between_grid_boundaries_without_a
     let out = run(&mut processor, 256, 37);
     assert!(left(&out).iter().all(|value| (*value - 0.16).abs() < 1e-6));
 }
+
+#[test]
+fn feedback_tempo_matches_live_offline_audio_notes_automation_and_loop_partitions() {
+    let (mut rig, target) = carrier();
+    let source = rig.effect(TrackId::MASTER, EffectParams::EnvelopeFollower(EnvelopeFollowerParams::default()));
+    rig.project.settings.internal_controllers.push(InternalControllerSettings {
+        controller: source.0, sync_beats: Some(0.25), ..Default::default()
+    });
+    connect(&mut rig, source, 1, AutomationTarget::Tempo, 0.0);
+    let link = rig.project.settings.controller_links.last_mut().unwrap();
+    link.map.min = (90.0 - 10.0) / 512.0;
+    link.map.max = (150.0 - 10.0) / 512.0;
+    let channel = rig.channel(crate::support::sine(RATE, 220.0, 0.1));
+    rig.note(channel, 240, 240);
+    rig.note(channel, 720, 360);
+    let lane = rig.project.playlist.tracks[0].id;
+    rig.clip(lane, rig.first_pattern(), 0, 1920);
+    let automation = rig.automation(AutomationTarget::TrackPan { track: target }, &[(0, 0.5), (480, 0.75), (960, 0.25)]);
+    rig.automation_clip(lane, automation, 0, 1920);
+    let a = render(&rig.project, &rig.pool, &RenderOptions { mode: PlayMode::Song, block_frames: 37, ..Default::default() }, &mut |_| true);
+    let b = render(&rig.project, &rig.pool, &RenderOptions { mode: PlayMode::Song, block_frames: 251, ..Default::default() }, &mut |_| true);
+    assert_eq!(a.samples(), b.samples());
+    assert!(a.samples().iter().any(|s| s.abs() > 0.01));
+    assert_eq!(a.samples(), rig.play_song(RATE, a.frames(), 7));
+    assert!((38400..=64000).contains(&a.frames()));
+    let looping = |block| {
+        let (mut processor, controller) = rig.song_processor(RATE);
+        controller.set_transport(windfall_ipc::TransportPatch { loop_song: Some(true), ..Default::default() });
+        controller.play();
+        run(&mut processor, 150000, block)
+    };
+    assert_eq!(looping(7), looping(1024));
+}
+
+#[test]
+fn isolated_stems_replay_the_full_mix_audio_dependent_tempo_clock() {
+    use windfall_engine::{StemMode, StemOptions, render_stems, render_streaming};
+    let (mut rig, target) = carrier();
+    let other = rig.track();
+    let lane = rig.project.playlist.tracks[0].id;
+    rig.audio_clip(lane, level(RATE, 0.5, 2.0), other, 0, 1920);
+    let source = rig.effect(TrackId::MASTER, EffectParams::EnvelopeFollower(EnvelopeFollowerParams {
+        attack_ms: 0.0, release_ms: 0.0, ..Default::default()
+    }));
+    connect(&mut rig, source, 0, AutomationTarget::Tempo, 0.0);
+    let link = rig.project.settings.controller_links.last_mut().unwrap();
+    link.map.min = (90.0-10.0)/512.0;
+    link.map.max = (150.0-10.0)/512.0;
+    let options = RenderOptions { mode: PlayMode::Song, block_frames: 37, ..Default::default() };
+    let mix = render(&rig.project, &rig.pool, &options, &mut |_| true);
+    let mut streamed = Vec::new();
+    let outcome = render_streaming(&rig.project, &rig.pool, &options, &mut |block| { streamed.extend_from_slice(block); true }, &mut |_| true);
+    assert!(outcome.completed);
+    assert_eq!(outcome.frames as usize, mix.frames());
+    assert_eq!(streamed, mix.samples());
+    let mut isolated = Vec::new();
+    let outcome = render_stems(&rig.project, &rig.pool, &options, &StemOptions { mode: StemMode::ToMaster,
+        tracks: Some(vec![target]), include_mix: false, numbered: false },
+        &mut |stream, block| { assert_eq!(stream, 0); isolated.extend_from_slice(block); true }, &mut |_| true).unwrap();
+    assert!(outcome.completed);
+    assert_eq!(outcome.frames as usize, mix.frames());
+    let expected: Vec<f32> = mix.samples().iter().map(|sample| sample * 0.5).collect();
+    assert_eq!(isolated, expected);
+}
