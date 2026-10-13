@@ -117,9 +117,10 @@ describe("the range of a target", () => {
       })
     }
     // All generated effect and instrument ranges, nine samples per range.
-    // 1,095 effect + 1,577 instrument controls, plus four shared ranges.
-    expect(fixtures.ranges).toHaveLength(2676)
-    expect(checked).toBe(2676 * 9)
+    // Round seven appended 386 band-delay and 11 three-oscillator controls:
+    // 1,481 effect + 1,588 instrument controls, plus the four shared ranges.
+    expect(fixtures.ranges).toHaveLength(3073)
+    expect(checked).toBe(3073 * 9)
     expect(worstForward).toBeLessThan(RANGE_TOLERANCE)
     expect(worstBack).toBeLessThan(RANGE_TOLERANCE)
   })

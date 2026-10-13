@@ -48385,6 +48385,7 @@
         "solo": false,
         "source": {
           "params": {
+            "bandMix": 0.0,
             "cutoffHz": 4000.0,
             "envelope": {
               "attackMs": 5.0,
@@ -48394,23 +48395,33 @@
             },
             "envelopeAmount": 0.30000001192092896,
             "gain": 0.5,
+            "highMix": 0.0,
             "oscillators": [
               {
                 "detuneCents": 0.0,
                 "level": 0.5,
+                "octaveUp": false,
+                "pulseWidth": 0.5,
                 "semitones": 0.0,
+                "twoOctavesUp": false,
                 "waveform": "saw"
               },
               {
                 "detuneCents": 0.0,
                 "level": 0.5,
+                "octaveUp": false,
+                "pulseWidth": 0.5,
                 "semitones": 0.0,
+                "twoOctavesUp": false,
                 "waveform": "saw"
               },
               {
                 "detuneCents": 0.0,
                 "level": 0.5,
+                "octaveUp": false,
+                "pulseWidth": 0.5,
                 "semitones": 0.0,
+                "twoOctavesUp": false,
                 "waveform": "saw"
               }
             ],
@@ -48487,6 +48498,7 @@
         "solo": false,
         "source": {
           "params": {
+            "bandMix": 0.0,
             "cutoffHz": 4000.0,
             "envelope": {
               "attackMs": 5.0,
@@ -48496,23 +48508,33 @@
             },
             "envelopeAmount": 0.30000001192092896,
             "gain": 0.5,
+            "highMix": 0.0,
             "oscillators": [
               {
                 "detuneCents": 0.0,
                 "level": 0.5,
+                "octaveUp": false,
+                "pulseWidth": 0.5,
                 "semitones": 0.0,
+                "twoOctavesUp": false,
                 "waveform": "saw"
               },
               {
                 "detuneCents": 0.0,
                 "level": 0.5,
+                "octaveUp": false,
+                "pulseWidth": 0.5,
                 "semitones": 0.0,
+                "twoOctavesUp": false,
                 "waveform": "saw"
               },
               {
                 "detuneCents": 0.0,
                 "level": 0.5,
+                "octaveUp": false,
+                "pulseWidth": 0.5,
                 "semitones": 0.0,
+                "twoOctavesUp": false,
                 "waveform": "saw"
               }
             ],

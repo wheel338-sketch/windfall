@@ -56,7 +56,7 @@ export function panLawSupported(capabilities: PluginNoteCapabilities | undefined
   return validChannel(midiChannel) && capabilities?.projectPanLaw === true
 }
 /** Pan and volume destinations always have a route; only an invalid channel or an unknown plugin refuses them. */
-export function expressionSupported(capabilities: PluginNoteCapabilities | undefined, midiChannel: number, _pan: boolean, _volume: boolean) {
+export function expressionSupported(capabilities: PluginNoteCapabilities | undefined, midiChannel: number) {
   return validChannel(midiChannel) && capabilities !== undefined
 }
 export function useNoteChannels(target: PluginTarget | undefined, capabilities: PluginNoteCapabilities | undefined) {

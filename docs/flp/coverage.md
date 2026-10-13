@@ -311,7 +311,7 @@ with no published unit use an explicitly reported identity/bounded stand-in fit.
 | Fruity Limiter | All public limiter/compressor/noise words, mirrored words and byte tails; target limiter/compressor/gate controls, disclosed range fits; midpoint ceiling -> -12 dB |
 | Fruity Delay 3 | Public 27-word state and time/mix/feedback/modulation/damping fits; tempo sync uses source /192 quarters to ms; feedback midpoint -> .475 |
 | Fruity Delay Bank | All eight 64-byte banks and eight 32-byte extras decoded; EchoBank control matrix/enable/filters/modes/times and global /128 gains; first-unit half input -> 1 |
-| Multiband Delay | Explicitly unfinished public prefix, all eight arrays of delay/vol/pan decoded; sixteen target bands use first bank; 120 float -> 120 ms; other banks are named target-capability limits |
+| Multiband Delay | Explicitly unfinished public prefix, all eight arrays of delay/vol/pan decoded; since round seven all eight banks of sixteen bands land on the stand-in's banks (see the round-seven section); 120 float -> 120 ms |
 | Pitcher | SSLF floats and key bytes, speed/tuning/harmony fits; reference=415.3+raw*50.9, .5 -> 440.75 Hz |
 | Vintage Chorus | Public state and mode/rate/delay/wet/stereo fits; half rate -> 2.5 Hz |
 | Vintage Phaser | Public state and rate/min/max/feedback/stereo/mix fits; half rate -> 2.5 Hz |
@@ -360,3 +360,104 @@ whitespace checks were performed. Integration must regenerate bindings and
 WASM/simulator artifacts and run the existing strict gates before this row can
 be accepted. No previous test or tolerance was weakened; event83's fixture now
 asserts the correct resonance identity supported by all three public sources.
+
+## 2026-10-13 round seven: decoded fields and stand-in controls (built and tested)
+
+The importer used to say "no corresponding stand-in control" for every decoded
+field whose layout entry had no target. Round seven enumerated all of them
+(42 native devices have a public layout in the field table; SimSynth and 3x Osc are decoded separately), gave the two devices named in the
+round-six table the controls their fields need, and made every other field say
+which of four things it is. `convert/native.rs::unmapped` holds the rule and
+the test `open_list::decoded_fields_without_a_stand_in_control_are_exactly_the_recorded_list`
+pins the last group, so a field leaves it only on purpose. Evidence and
+measurements are in `docs/qa/2026-10-13-r7-builder.md`.
+
+### Given a stand-in control in round seven
+
+| Device and field | Stand-in control | Value scaling | Source of the rule |
+|---|---|---|---|
+| Multiband Delay `bank_1..8/delay.0..15` (128 fields) | Band Delay `banks.N.timeMs.M` | raw float taken as milliseconds, clamped 1..1000 | DawVert `fl_studio.ddef` names the arrays and gives no unit |
+| Multiband Delay `bank_1..8/vol.0..15` (128) | `banks.N.level.M` | raw float taken as gain, clamped 0..1 | same |
+| Multiband Delay `bank_1..8/pan.0..15` (128) | `banks.N.pan.M` | raw float taken as pan, clamped -1..1 | same |
+| Multiband Delay (no field) | `layout` = sixteen bands, `bank` = 1 | the public layout names no playing bank, band frequency, feedback or wet level: bank 1 plays, the other seven are selectable, band edges are Windfall's own (40 Hz to 16 kHz in equal ratios), feedback and mix stay at the stand-in defaults | stated in the import report |
+| SimSynth `osc1..3_pw` | Three oscillator synth `oscillators.N.pulseWidth`; a square becomes the pulse waveform | share high = `0.5 - asin((pw - 0.5) * 2) / pi`; other shapes carry it unheard | DawVert `objects/convproj/wave.py` `wave_squ`, `plugconv_ext/n_flstudio_foss.py` |
+| SimSynth `osc1..3_o1`, `osc1..3_o2` | `oscillators.N.octaveUp`, `.twoOctavesUp` | the same wave at 2x and 4x pitch, each mixed half and half with what is there | `n_flstudio_foss.py` `add_wave(shape, pw, 2, 0.5)` and `add_wave(shape, pw, 4, 0.5)` |
+| SimSynth `svf_band`, `svf_high` | `bandMix`, `highMix` | 0..1 taken as the level of that filter output beside the low-pass; 0 when the source filter is off | named in `fl_studio.ddef`; no public rule |
+| SimSynth `lfo_del` | channel LFO start delay (`TargetLfo.delayMs`) on the cutoff and pitch LFOs | `4 * v^3` seconds, the time rule the device publishes for its envelopes | `flp_dec_plugins.py` `simsynth_time`; the converter reads `lfo_del` without a rule of its own |
+| SimSynth `lfo_retrigger` | channel LFO `retrigger` | flag | `n_flstudio_foss.py` |
+| Channel envelope/LFO flag bit 5 | channel LFO `retrigger` | flag | PyFLP `_EnvLFOFlags.LFOPhaseRetrig` |
+
+### Translated by a rule outside the field table (the report now says which)
+
+`Fruity DX10` `mod_fine`, `mod2_fine` (folded into the operator ratio),
+`octave` (carrier ratio), `vibrato`, `lforate` (channel pitch LFO);
+`Fruit Kick` / `Fruity Kick` `max_freq` (pitch drop, with `min_freq`);
+`Fruity Slicer` `beats`, `bpm`, `attack`, `pitch` and `Slicex` `master_pitch`
+(slice reader); `Fruity Center` `on`, `Spreader` `enabled`, `Transient
+Processor` `effect_on`, `Effector` `bypass` (the effect slot's enable);
+`Fruity Mute 2` `mute`, `channel`; `Fruity Phase Inverter` `state`;
+`Fruity Flanger` `inv_feedback`; `Frequency Shifter` `freqtype`;
+`Fruity Delay 3` `tempo_sync`.
+
+### Not a sound control (kept in the saved original state; nothing to add)
+
+- Layout structure: every `version*`, `reserved*` and `header` word, and
+  Slicex `data_exists` and `sample_header`.
+- Editor display or transport state: every `visual_*` and `display_*` field
+  (Fruity Limiter, Fruity Multiband Compressor, Transient Processor, Pitch
+  Shifter, Tuner), Spreader `theme`, Slicex `play_pause` and
+  `live_selection`, Tuner `reactivity` and `bass` (the tuner only measures).
+- Named in the public layout without a meaning: every `unknown_*` and `unk_*`
+  word (Fruity Limiter, Fruity Blood Overdrive, Fruity Multiband Compressor,
+  Fruity Delay 3, SimSynth) and Effector `effect`, whose selector order no
+  public source gives.
+
+### Still open: decoded sound controls with no stand-in control
+
+233 control families on 33 devices. A family written `name.#` or
+`bank_#_e/name` stands for each index of that control (every vocoder band, the 12
+pitcher keys, the 8 delay-bank units). `fruit kick` and `fruity kick` are two
+names of one device. Each still imports with
+the per-field report "decoded public field; no corresponding stand-in control
+(state retained)".
+
+| Device | Count | Fields |
+|---|---|---|
+| bassdrum | 17 | `attack`, `butt`, `click_cut`, `click_freq`, `drive`, `noise_a`, `noise_d`, `noise_filter`, `noise_mix`, `noise_pitch`, `noise_s`, `noise_start`, `peak`, `var_base`, `var_peak`, `var_phase`, `var_slide_time` |
+| effector | 7 | `input_level`, `mod_rate`, `mod_shape`, `output_gain`, `tempo`, `x_mod`, `y_mod` |
+| frequency shifter | 8 | `feedback`, `lr_phase`, `mixer_track`, `shape_left`, `shape_right`, `start_phase`, `stereo`, `type` |
+| fruit kick | 1 | `osc_dist` |
+| fruity chorus | 6 | `crosscutoff`, `crosstype`, `lfo1_wave`, `lfo2_wave`, `lfo3_wave`, `wetonly` |
+| fruity delay 3 | 16 | `delay_type`, `diffusion_level`, `diffusion_spread`, `dry`, `feedback_bits`, `feedback_reso`, `feedback_sample_rate`, `feedbackdist_knee`, `feedbackdist_symmetry`, `feedbackdist_type`, `keep_pitch`, `mod_cutoff`, `smoothing`, `stereo`, `tone`, `wet_input` |
+| fruity delay bank | 4 | `2x_oversampling`, `bank_#_e/feedback_leave_first_echo`, `bank_#_e/grain_div`, `bank_#_e/grain_sh` |
+| fruity dx10 | 4 | `mod2_velsen`, `mod_thru`, `mod_velsen`, `waveform` |
+| fruity fast dist | 2 | `mix`, `type` |
+| fruity flanger | 2 | `cross`, `dry` |
+| fruity flangus | 2 | `cross`, `dry` |
+| fruity free filter | 1 | `center` |
+| fruity granulizer | 10 | `depth`, `hold`, `hold_2`, `key_to`, `loop`, `pan`, `speed`, `trans_hold`, `trans_mode`, `wave_spacing` |
+| fruity kick | 1 | `osc_dist` |
+| fruity limiter | 28 | `comp_att_curve`, `comp_rel`, `comp_sus`, `limiter_att_curve`, `limiter_rel_curve`, `limiter_safety`, `limiter_sus`, `noise_gain`, `s_comp_att`, `s_comp_att_curve`, `s_comp_knee`, `s_comp_ratio`, `s_comp_rel`, `s_comp_sus`, `s_comp_thres`, `s_gain`, `s_limiter_att`, `s_limiter_att_curve`, `s_limiter_ceil`, `s_limiter_rel`, `s_limiter_rel_curve`, `s_limiter_sus`, `s_noise_gain`, `s_noise_rel`, `s_noise_thres`, `s_sat`, `sat`, `sidechain_number` |
+| fruity multiband compressor | 11 | `filter_type`, `gain`, `hi_knee`, `hi_state`, `limiter`, `low_knee`, `low_state`, `mid_freq_h`, `mid_freq_l`, `mid_knee`, `mid_state` |
+| fruity panomatic | 1 | `lfo_target` |
+| fruity phaser | 3 | `freq_range`, `gain`, `num_stages` |
+| fruity slicer | 2 | `fitlen`, `stretchtype` |
+| fruity soft clipper | 1 | `postgain` |
+| fruity stereo enhancer | 2 | `prepost`, `vol` |
+| fruity stereo shaper | 4 | `delay`, `dephase`, `iodiff`, `prepost` |
+| fruity vocoder | 12 | `bands.#`, `filter`, `freq_bandwidth`, `freq_invert`, `freq_max`, `freq_min`, `freq_scale`, `hold`, `left_right`, `mix_car`, `mix_mod`, `num_bands` |
+| fruity waveshaper | 1 | `removedc` |
+| pitch shifter | 11 | `channel`, `delay`, `delay_mode`, `density`, `duration`, `feedback`, `formant_correction`, `jitter`, `pitch_mode`, `rand`, `wet` |
+| pitcher | 19 | `bypass.#`, `bypass_all`, `finetune`, `formant`, `gender`, `harmonize`, `harmonize_vel`, `key_on.#`, `min_freq`, `octaves`, `ref_chan`, `selector_key`, `selector_type`, `stereo`, `use_midi`, `voice1_pan`, `voice2_pan`, `voice3_pan`, `voice4_pan` |
+| plucked! | 3 | `norm_decay`, `release`, `wide` |
+| slicex | 6 | `crossfade`, `layering`, `master_lfo_level`, `master_random_level`, `mod_x`, `mod_y` |
+| soundgoodizer | 1 | `mode` |
+| spreader | 4 | `low_bypass`, `mono`, `postfx`, `prefx` |
+| transient processor | 5 | `attack_shape`, `gain`, `release_shape`, `split_balance`, `split_freq` |
+| vintage chorus | 11 | `delay_feedback`, `delay_hp`, `delay_time2`, `invert_wet`, `mod_phase_start`, `mod_shape_sine`, `mod_tempo_sync`, `mono_input`, `noise`, `noise_gain`, `noise_gate` |
+| vintage phaser | 27 | `color_freq`, `color_gain`, `delay_feedback`, `delay_hp`, `delay_keeppitch`, `delay_lp`, `delay_mix`, `delay_on`, `delay_stereo`, `delay_tempo`, `delay_time`, `feedback_hp`, `input_hp`, `levels_mono`, `levels_noise`, `levels_noise_gate`, `lfo_pull`, `lfo_scale`, `mod_phase_start`, `mod_shape_sine`, `mod_tempo`, `mod_tension`, `phaser_freq`, `phaser_hq`, `phaser_manual`, `rate_freq1`, `rate_freq2` |
+
+Outside the field tables, reported per channel: SimSynth `osc1..3_warm`
+(the public converter maps it to a six-voice unison), `lfo_trackamp` and
+`chorus_on`; and the channel LFO's `predelay` and `attack`, which the public
+sources give only as a percentage with no time unit, and its tempo-sync flag.

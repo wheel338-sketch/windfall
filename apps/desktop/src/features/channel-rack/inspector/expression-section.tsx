@@ -38,7 +38,7 @@ export function ExpressionSection({ channel }: { channel: Channel }) {
   const map = review.map
   const pan = ROUTES.some(({ key }) => map[key].plugin === "pan")
   const volume = ROUTES.some(({ key }) => map[key].plugin === "volume")
-  const refused = !!binding && (pan || volume) && midiChannels.some((channel) => !expressionSupported(native.capabilities, channel, pan, volume))
+  const refused = !!binding && (pan || volume) && midiChannels.some((channel) => !expressionSupported(native.capabilities, channel))
   const valid = ROUTES.every(({ key }) => Number.isFinite(map[key].amount) && map[key].amount >= 0 && map[key].amount <= 1)
     && Number.isFinite(map.pitchRangeCents) && map.pitchRangeCents >= 1 && map.pitchRangeCents <= 4800
     && Number.isFinite(map.bendRangeSemitones) && map.bendRangeSemitones >= 1 && map.bendRangeSemitones <= 96
