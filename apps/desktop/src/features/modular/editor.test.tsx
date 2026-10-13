@@ -3,6 +3,7 @@ import { act, fireEvent, render, screen, waitFor, within } from "@testing-librar
 import userEvent from "@testing-library/user-event"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import type { RackGraph, RackNoteModule } from "@/bindings"
+import { ValueContextMenus } from "@/components/value-context-menu"
 import { dispatch, useProjectStore } from "@/lib/store/project"
 import { targetState } from "@/lib/automation/targets"
 import type { MockBackend } from "@/lib/ipc/mock"
@@ -26,7 +27,7 @@ function Mounted() {
 beforeEach(async () => {
   const app = await startRack(); stop = app.stop; files = app.backend
   await dispatch({ type: "addChannel", name: NAME, instrument: "subtractiveSynth" })
-  await act(settle); render(<Mounted />)
+  await act(settle); render(<ValueContextMenus><Mounted /></ValueContextMenus>)
   fireEvent.click(screen.getByRole("button", { name: "Create modular rack" })); await act(settle)
   fireEvent.click(screen.getByRole("button", { name: "Edit modular rack" })); await act(settle)
 })

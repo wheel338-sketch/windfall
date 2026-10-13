@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react"
+import { render, screen, waitFor, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
@@ -276,7 +276,7 @@ describe("audio settings in the dialog", () => {
     })
     const listed = async (name: string) => {
       await user.click(box(name))
-      const options = await screen.findAllByRole("option")
+      const options = within(await screen.findByRole("listbox")).getAllByRole("option")
       const texts = options.map((item) => item.textContent)
       await user.keyboard("{Escape}")
       return texts
@@ -303,13 +303,13 @@ describe("audio settings in the dialog", () => {
     await open()
     await user.click(box("Sample rate"))
     expect(
-      (await screen.findAllByRole("option")).map((item) => item.textContent)
+      within(await screen.findByRole("listbox")).getAllByRole("option").map((item) => item.textContent)
     ).toEqual(["Default", "44.1 kHz", "48 kHz", "96 kHz"])
     await user.keyboard("{Escape}")
 
     await user.click(box("Buffer size"))
     expect(
-      (await screen.findAllByRole("option")).map((item) => item.textContent)
+      within(await screen.findByRole("listbox")).getAllByRole("option").map((item) => item.textContent)
     ).toEqual([
       "Default",
       "64 samples, 1.3 ms",

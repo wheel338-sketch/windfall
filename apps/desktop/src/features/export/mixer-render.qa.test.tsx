@@ -66,7 +66,8 @@ it("selected inserts plus Master submit captured output stems while Current is e
         numbered: true,
         folder: true,
       },
-    })
+    }),
+    expect.stringMatching(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/)
   )
   expect(useMixerRender.getState().request).toBeNull()
 })
@@ -110,7 +111,8 @@ it("saved armed inserts and Master open the matching offline export request with
         includeMix: true,
         mode: "trackOutputs",
       }),
-    })
+    }),
+    expect.stringMatching(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/)
   )
   expect(
     useProjectStore
@@ -176,6 +178,7 @@ it("surfaces native export admission errors for the selected stem request", asyn
   expect(exported).toHaveBeenCalledWith(
     expect.objectContaining({
       stems: expect.objectContaining({ tracks: [kick.id], includeMix: false }),
-    })
+    }),
+    expect.stringMatching(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/)
   )
 })

@@ -23,12 +23,16 @@ export function GuidedTutorial({ kind }: { kind: TutorialKind }) {
   const [step, setStep] = useState(0)
   const owner = useId()
   const request = useExportRequestStore((state) => state.request)
-  const [exported, setExported] = useState(() => request?.owner === owner && request.generation === getProjectGeneration() && request.status === "succeeded")
+  const [exportedGeneration, setExportedGeneration] = useState<number | null>(() => request?.owner === owner && request.status === "succeeded" ? request.generation : null)
+  const [openedGeneration, setOpenedGeneration] = useState<number | null>(() => dialog === "export" ? getProjectGeneration() : null)
   useEffect(() => {
     return useExportRequestStore.subscribe(({ request }) => {
-      if (request?.owner === owner && request.generation === getProjectGeneration() && request.status === "succeeded") setExported(true)
+      if (request?.owner === owner && request.generation === getProjectGeneration() && request.status === "succeeded") setExportedGeneration(request.generation)
     })
   }, [owner])
+  useEffect(() => useUiStore.subscribe(({ dialog }) => {
+    if (dialog === "export") setOpenedGeneration(getProjectGeneration())
+  }), [])
   const [error, setError] = useState("")
   const [busy, setBusy] = useState(false)
   const pending = useRef(false)
@@ -49,7 +53,7 @@ export function GuidedTutorial({ kind }: { kind: TutorialKind }) {
   const exportError = request?.owner === owner ? request.error : null
   const recovery = kind === "record" && (recordingError || (step > 0 && !recording.state.active))
   if (!current) return <p role="status">{t("Completed")}: {t(tutorial.title)}</p>
-  const completed = current.complete({ project, before, dirty, playing: transport.playing, song: transport.mode === "song", recording: recording.state.active, recordingOpen: recording.open, inputs: recording.inputs.length, exportOpen: dialog === "export", exported })
+  const completed = current.complete({ project, before, dirty, playing: transport.playing, song: transport.mode === "song", recording: recording.state.active, recordingOpen: recording.open, inputs: recording.inputs.length, exportOpen: dialog === "export" || openedGeneration === getProjectGeneration(), exported: exportedGeneration === getProjectGeneration() })
   return <section aria-label={t(tutorial.title)} className="flex flex-col gap-3">
     <Badge variant="secondary">{step + 1} / {tutorial.steps.length}</Badge>
     <h3 className="font-medium">{t(current.title)}</h3>

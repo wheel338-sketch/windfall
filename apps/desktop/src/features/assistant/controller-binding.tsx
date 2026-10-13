@@ -31,6 +31,15 @@ export function scriptTargetChoices(project: Project): { value: string; label: s
   }
   const choices = targets.filter(target => targetState(project, target) && !automationBlocked(project, target))
     .map(target => ({ value: JSON.stringify({ type: "param", target }), label: describeTarget(project, target), target: { type: "param" as const, target } }))
+  const labelCounts = new Map<string, number>()
+  for (const choice of choices) labelCounts.set(choice.label, (labelCounts.get(choice.label) ?? 0) + 1)
+  for (const choice of choices) {
+    if ((labelCounts.get(choice.label) ?? 0) > 1) {
+      const target = choice.target.target
+      const scope = "channel" in target ? "Channel" : "Mixer"
+      choice.label = `${scope} · ${choice.label}`
+    }
+  }
   return [{ value: "none", label: "No mapped target (tempo / feedback only)", target: null },
     ...globalChoices.map(choice => ({ ...choice, value: JSON.stringify(choice.target) })),
     ...choices.filter((choice, index) => choices.findIndex(other => other.value === choice.value) === index)]

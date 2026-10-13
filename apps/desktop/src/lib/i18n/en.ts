@@ -1,4 +1,6 @@
 export const en = {
+  "Choose installed ONNX Runtime library": "Choose installed ONNX Runtime library",
+  "Shared library": "Shared library",
   "This window is closing.": "This window is closing.",
   "Reopen the main window before docking a panel.": "Reopen the main window before docking a panel.",
   "Discard failed take and retry setup": "Discard failed take and retry setup",

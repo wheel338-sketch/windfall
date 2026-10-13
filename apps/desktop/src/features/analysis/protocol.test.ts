@@ -50,21 +50,25 @@ describe("analysis native protocol", () => {
   })
   it("preserves exact decimal identifiers and forwards refusals without successful fallback", async () => {
     const native = createTauriBackend()
-    vi.mocked(invoke).mockResolvedValue(null)
+    const caller = { generation: 1, token: "analysis-fixture-window" }
+    vi.mocked(invoke).mockResolvedValue(null).mockResolvedValueOnce({ generation: 1, caller })
     const request = {
       ticket: "9007199254740993",
       request: "18446744073709551614",
       replaceOriginal: false,
     }
     await native.analysisApply(request)
-    expect(invoke).toHaveBeenLastCalledWith("analysis_apply", { request })
+    expect(invoke).toHaveBeenNthCalledWith(1, "window_document_snapshot", undefined)
+    expect(invoke).toHaveBeenLastCalledWith("analysis_apply", { request, caller })
     await native.analysisReview(request.ticket)
     expect(invoke).toHaveBeenLastCalledWith("analysis_review", {
       ticket: request.ticket,
+      caller,
     })
     await native.analysisRetryCleanup(request.ticket)
     expect(invoke).toHaveBeenLastCalledWith("analysis_retry_cleanup", {
       job: request.ticket,
+      caller,
     })
     vi.mocked(invoke).mockRejectedValue(
       "analysis:unavailable: No inference algorithm is installed."

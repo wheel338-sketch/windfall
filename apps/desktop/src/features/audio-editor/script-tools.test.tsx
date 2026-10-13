@@ -31,7 +31,7 @@ it("runs the captured selection, reviews waveform, auditions and applies only th
   await waitFor(() => expect(audition).toHaveBeenCalledWith(7, 9))
   await waitFor(() => expect(screen.getByRole("button", { name: "Apply script result" })).toBeEnabled())
   fireEvent.click(screen.getByRole("button", { name: "Apply script result" }))
-  expect(await screen.findByText("fixture publication refused")).toBeVisible()
+  expect(await screen.findByText("Fixture publication refused")).toBeVisible()
   expect(apply).toHaveBeenCalledWith(7, 9)
   expect(commit).not.toHaveBeenCalled()
 })

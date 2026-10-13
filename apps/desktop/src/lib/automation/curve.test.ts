@@ -117,9 +117,9 @@ describe("the range of a target", () => {
       })
     }
     // All generated effect and instrument ranges, nine samples per range.
-    // 1,071 effect + 1,547 instrument controls, plus four shared ranges.
-    expect(fixtures.ranges).toHaveLength(2622)
-    expect(checked).toBe(2622 * 9)
+    // 1,095 effect + 1,552 instrument controls, plus four shared ranges.
+    expect(fixtures.ranges).toHaveLength(2651)
+    expect(checked).toBe(2651 * 9)
     expect(worstForward).toBeLessThan(RANGE_TOLERANCE)
     expect(worstBack).toBeLessThan(RANGE_TOLERANCE)
   })

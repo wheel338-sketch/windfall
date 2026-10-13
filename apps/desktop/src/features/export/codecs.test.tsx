@@ -33,7 +33,7 @@ it("sends M4A bitrate and constrained sample rate through the real export dialog
   await user.click(await screen.findByRole("option", {name: "128 kbps"}))
   await user.click(screen.getByRole("button", {name: "Choose…"}))
   await user.click(screen.getByRole("button", {name: "Export"}))
-  await waitFor(() => expect(exported).toHaveBeenCalledWith(expect.objectContaining({format: "m4a", aacBitrate: 128, path: "/exports/Mix.m4a"})))
+  await waitFor(() => expect(exported).toHaveBeenCalledWith(expect.objectContaining({format: "m4a", aacBitrate: 128, path: "/exports/Mix.m4a"}), expect.stringMatching(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/)))
   // The browser backend refuses actual encoding and displays that failure.
   await screen.findByText(/WavPack and M4A audio export require the desktop app/)
   expect(exportSampleRates("m4a")).toEqual([44100, 48000])

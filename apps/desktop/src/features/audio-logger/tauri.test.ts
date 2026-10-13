@@ -9,9 +9,11 @@ vi.mock("@tauri-apps/plugin-dialog", () => ({ open: vi.fn(), save: vi.fn() }))
 describe("native audio logger IPC", () => {
   it("passes settings and dump requests under the names the commands take", async () => {
     const backend = createTauriBackend()
-    vi.mocked(invoke).mockResolvedValue(null)
+    const caller = { generation: 1, token: "logger-fixture-window" }
+    vi.mocked(invoke).mockResolvedValue(null).mockResolvedValueOnce({ generation: 1, caller })
     await backend.audioLoggerState()
-    expect(invoke).toHaveBeenLastCalledWith("audio_logger_state", undefined)
+    expect(invoke).toHaveBeenNthCalledWith(1, "window_document_snapshot", undefined)
+    expect(invoke).toHaveBeenLastCalledWith("audio_logger_state", { caller })
     const settings: AudioLoggerSettings = {
       enabled: true,
       seconds: 300,
@@ -22,6 +24,7 @@ describe("native audio logger IPC", () => {
     await backend.audioLoggerConfigure(settings)
     expect(invoke).toHaveBeenLastCalledWith("audio_logger_configure", {
       settings,
+      caller,
     })
     const request: AudioLoggerDumpRequest = {
       source: { type: "track", track: 3 },
@@ -30,6 +33,6 @@ describe("native audio logger IPC", () => {
       track: null,
     }
     await backend.audioLoggerDump(request)
-    expect(invoke).toHaveBeenLastCalledWith("audio_logger_dump", { request })
+    expect(invoke).toHaveBeenLastCalledWith("audio_logger_dump", { request, caller })
   })
 })

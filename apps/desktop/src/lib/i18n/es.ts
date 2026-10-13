@@ -1,6 +1,8 @@
 import type { Catalog } from "./types"
 
 export const es = {
+  "Choose installed ONNX Runtime library": "Elige la biblioteca instalada de ONNX Runtime",
+  "Shared library": "Biblioteca compartida",
   "This window is closing.": "Esta ventana se está cerrando.",
   "Reopen the main window before docking a panel.": "Abre de nuevo la ventana principal antes de acoplar un panel.",
   "Discard failed take and retry setup": "Descartar la toma fallida y reintentar la configuración",

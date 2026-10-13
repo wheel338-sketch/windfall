@@ -111,6 +111,7 @@ describe("adding a sound to the rack", () => {
       "Preview",
       "Add to new channelEnter",
       "Add to playlist",
+      "Separate into four stems",
       "Replace selected channel's sample",
       "Copy path",
     ])

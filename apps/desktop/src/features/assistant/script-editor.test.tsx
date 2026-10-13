@@ -112,7 +112,7 @@ describe("script editor mounted cases (worker responses are explicit fixtures)",
     await user.click(screen.getByRole("combobox", { name: "Script input type" }))
     await user.click(await screen.findByRole("option", { name: "Channel pressure" }))
     await user.click(screen.getByRole("combobox", { name: "Script mapped target" }))
-    await user.click(await screen.findByRole("option", { name: "Kick → pan" }))
+    await user.click(await screen.findByRole("option", { name: "Channel · Kick → pan" }))
     await user.click(screen.getByRole("combobox", { name: "Script pickup" }))
     await user.click(await screen.findByRole("option", { name: "Soft takeover" }))
     fireEvent.change(screen.getByLabelText("Script smoothing (ms)"), { target: { value: "250" } })

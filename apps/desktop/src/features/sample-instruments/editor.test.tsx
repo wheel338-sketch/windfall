@@ -184,7 +184,7 @@ describe("sample instrument purpose-built editors",()=>{
     fireEvent.click(screen.getByRole("button",{name:"Browse GM bank presets"}));await act(()=>settle())
     fireEvent.click(screen.getByRole("button",{name:"Use GM preset 0:0 · Own GM"}));await act(()=>settle())
     expect(backend.sampleInstrumentGeneralMidi).toHaveBeenCalledWith(id,before,"C:/own-gm.sf2",0,0)
-    expect(screen.getByRole("alert")).toHaveTextContent("Unsupported SoundFont content")
+    expect(screen.getByText("Unsupported SoundFont content").closest('[role="alert"]')).toHaveTextContent("Unsupported SoundFont content")
     expect(useProjectStore.getState().project.channels.find(channel=>channel.id===id)?.source).toEqual(before)
   })
 

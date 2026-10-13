@@ -54,7 +54,8 @@ describe("audio export formats", () => {
       expect.objectContaining({
         format: "flac",
         path: expect.stringMatching(/\.flac$/),
-      })
+      }),
+      expect.stringMatching(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/)
     )
   })
 
@@ -90,7 +91,8 @@ describe("audio export formats", () => {
     await choose(user, "Vorbis quality", "10 (highest)")
     await submit(user)
     expect(exported).toHaveBeenCalledWith(
-      expect.objectContaining({ format: "ogg", oggQuality: 10 })
+      expect.objectContaining({ format: "ogg", oggQuality: 10 }),
+      expect.stringMatching(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/)
     )
     await backend.exportCancel()
     await settle()
@@ -104,7 +106,8 @@ describe("audio export formats", () => {
       expect.objectContaining({
         format: "mp3",
         mp3: { rate: { mode: "vbr", quality: 0 }, channels: "mono" },
-      })
+      }),
+      expect.stringMatching(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/)
     )
   })
 
@@ -159,7 +162,8 @@ describe("stem exports and cancellation", () => {
           numbered: true,
           folder: true,
         },
-      })
+      }),
+      expect.stringMatching(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/)
     )
   })
 

@@ -636,7 +636,9 @@ describe("analysis app controls", () => {
     // separation is asserted by the native reference and opt-in ORT suites.
     vi.spyOn(backend, "analysisApply").mockImplementation(async (request) => {
       expect(request).toMatchObject({ separateTracks: true, muteOriginal: true, selectedRoles: ["drums", "bass", "vocals", "other"] })
-      const project = useProjectStore.getState().project
+      // Native apply allocates from the authoritative document. UI patches
+      // intentionally omit nextId, so its cached counter cannot predict IDs.
+      const project = (await backend.documentSnapshot()).project
       const original = project.playlist.clips.find((c) => c.id === useAnalysisDialog.getState().target!.id)!
       let next = project.nextId
       const commands: Command[] = [{ type: "updateClips", updates: [{ id: original.id, patch: { muted: true } }] }]

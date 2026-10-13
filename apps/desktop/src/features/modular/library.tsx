@@ -26,7 +26,12 @@ export function RackLibrary({ channel, root }: { channel: Channel; root: RackGra
         throw new Error("The project changed while the rack preset was open; retry from its current graph")
     }
     setBusy(true); setError(null); setStatus("")
-    try { await run(guard, generation, revision) }
+    try {
+      const identity = await backend.timelineState()
+      guard()
+      if (identity.revision !== revision) throw new Error("The project changed while the rack preset was open; retry from its current graph")
+      await run(guard, identity.generation, identity.revision)
+    }
     catch (cause) { if (generation === getProjectGeneration()) setError(cause instanceof Error ? cause.message : "Rack preset operation failed") }
     finally { if (generation === getProjectGeneration()) setBusy(false) }
   }

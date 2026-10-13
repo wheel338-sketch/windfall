@@ -132,7 +132,7 @@ describe("purpose-built sample instrument editors", () => {
       await user.click(screen.getByRole("button", { name: "Export" }))
       await flush()
       expect(exported).toHaveBeenCalledOnce()
-      expect(exported).toHaveBeenCalledWith(expect.objectContaining({ mode: "pattern", format: "wav" }))
+      expect(exported).toHaveBeenCalledWith(expect.objectContaining({ mode: "pattern", format: "wav" }), expect.stringMatching(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/))
     }
   )
   it("reports native WAV import and export capabilities without changing slices", async () => {

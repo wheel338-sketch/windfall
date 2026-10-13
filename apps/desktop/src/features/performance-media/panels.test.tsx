@@ -134,7 +134,7 @@ describe("mounted performance and media editors", () => {
     const user = userEvent.setup()
     await user.click(await screen.findByRole("switch", { name: "Mute video 1" }))
     await waitFor(() => expect(useProjectStore.getState().project.settings.stageMedia?.videos[0].muted).toBe(false))
-    expect((screen.getByLabelText("Timeline video") as HTMLVideoElement).muted).toBe(true)
+    expect((screen.getByLabelText("Timeline video", { selector: "video" }) as HTMLVideoElement).muted).toBe(true)
     const offset = screen.getByRole("spinbutton", { name: "Video 1 source offset seconds" })
     await user.clear(offset); await user.type(offset, "1.25"); await user.tab()
     await waitFor(() => expect(useProjectStore.getState().project.settings.stageMedia?.videos[0].offsetSeconds).toBe(1.25))

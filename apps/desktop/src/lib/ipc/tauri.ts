@@ -58,7 +58,7 @@ export function createTauriBackend(): Backend {
     if (loading) return loading
     const epoch = documentEpoch
     loading = invokeCall<WindowSnapshot>("window_document_snapshot").then((owned) => {
-      if (!owned.caller?.token) throw new Error("The native window did not supply its caller identity")
+      if (!owned?.caller?.token) throw new Error("The native window did not supply its caller identity")
       callerToken = owned.caller.token
       if (epoch === documentEpoch) documentGeneration = owned.generation
       return owned
@@ -205,8 +205,8 @@ export function createTauriBackend(): Backend {
     analysisRuntimeSettings: () => call("analysis_runtime_settings"),
     analysisRuntimeConfigure: (settings) => call("analysis_runtime_configure", { settings }),
     pickAnalysisRuntime: async () => {
-      const picked = await open({ title: "Choose installed ONNX Runtime library", multiple: false,
-        filters: [{ name: "Shared library", extensions: ["dll", "so", "dylib"] }] })
+      const picked = await open({ title: translatedText("Choose installed ONNX Runtime library"), multiple: false,
+        filters: [{ name: translatedText("Shared library"), extensions: ["dll", "so", "dylib"] }] })
       return typeof picked === "string" ? picked : null
     },
     analysisModelImport: (path, model) =>
