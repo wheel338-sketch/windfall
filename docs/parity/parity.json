@@ -16,7 +16,7 @@
       "status": "in-progress",
       "reason": null,
       "fl_edition": "fruity",
-      "notes": "Windfall is free under GPL-3.0; this row closes when auto-update ships. QA 2026-10-13: SOFTWARE: Freeze internal controller/plugin/background edits under installation shutdown; quiesce audio/plugins and resolve unsaved work with cancel/rollback; bound response bodies before buffering; verify real generated-key signatures and corrupt/truncated/redirect-loop packages. Evidence: docs/qa/2026-10-12-round4-acceptance.md."
+      "notes": "Windfall is free under GPL-3.0; this row closes when auto-update ships. QA 2026-10-13: SOFTWARE: Retain and restore hosted opaque state, native editor ownership and sounding-note state across installer failure; join/capture unpublished dirty native state before the unsaved decision; expand version/platform/architecture endpoint placeholders before bounded manifest fetch. Evidence: docs/qa/2026-10-13-round5-acceptance.md."
     },
     {
       "id": "core-stem-separation",
@@ -73,10 +73,10 @@
       "summary": "A rack plugin that loads the instrument and effect modules of the mobile app inside the desktop program.",
       "windfall_name": null,
       "phase": 5,
-      "status": "in-progress",
+      "status": "done",
       "reason": null,
       "fl_edition": "fruity",
-      "notes": "A Windfall equivalent would be a rack of Windfall's own modules. FL 2026 added a SoundFont player and a note arpeggiator module. QA 2026-10-13: SOFTWARE: Implement persisted asset ownership, control-side preparation, editor loading/capture and portable preset asset packaging for asset-bearing rack processors. Evidence: docs/qa/2026-10-12-round4-acceptance.md."
+      "notes": "A Windfall equivalent would be a rack of Windfall's own modules. FL 2026 added a SoundFont player and a note arpeggiator module. Software complete, QA 2026-10-13: built and passing in the full suites on this machine; an independent read-only audit confirmed the implementation is reachable and tested. External checks outstanding: Physical audio/MIDI, musical listening and other-OS rack/runtime acceptance. Evidence: docs/qa/2026-10-13-round5-acceptance.md."
     },
     {
       "id": "core-audio-logger",
@@ -232,7 +232,7 @@
       "status": "in-progress",
       "reason": null,
       "fl_edition": "fruity",
-      "notes": "Windows desktop CLAP instruments/effects, isolated CLAP/VST3 scanning, parameter automation, editors and saved state are integrated. VST3 processor-return/capture foundation is tested, while production desktop additions await remaining lifecycle/event safeguards. Native macOS/Linux desktop hosting, AU and audio crash containment remain pending. The plan covers CLAP, VST3 and AU, not VST2. See docs/plugins/desktop-integration.md and docs/plugins/vst3-desktop.md. QA 2026-10-13: SOFTWARE: Complete dynamic capability re-admission, saved native multi-output routing, capture/restart/replacement composition and non-Windows embedded editors; unblock desktop AU compilation. VST2 retains its separate recorded scope exclusion. Evidence: docs/qa/2026-10-12-round4-acceptance.md."
+      "notes": "Windows desktop CLAP instruments/effects, isolated CLAP/VST3 scanning, parameter automation, editors and saved state are integrated. VST3 processor-return/capture foundation is tested, while production desktop additions await remaining lifecycle/event safeguards. Native macOS/Linux desktop hosting, AU and audio crash containment remain pending. The plan covers CLAP, VST3 and AU, not VST2. See docs/plugins/desktop-integration.md and docs/plugins/vst3-desktop.md. QA 2026-10-13: SOFTWARE: Route AU discovery and default instrument/effect preparation to the real Cocoa-main AU owner, or implement a genuine AU helper; do not feed AU identities into CLAP/VST3-only bridge validation. Add registered nonignored portable production-policy regressions for AU discovery/default preparation with bridging enabled, preserving CLAP/VST3 policies. Factor selection out of cfg(test)-dependent construction and repeat Apple integration type-checks. (Raised by the independent audit of the round-five recommendations; the rest of the row passes.). Evidence: docs/qa/2026-10-13-round5-acceptance.md."
     },
     {
       "id": "core-fl-studio-remote",
@@ -1813,10 +1813,10 @@
       "summary": "Loads and plays SoundFont (.sf2) instrument banks.",
       "windfall_name": null,
       "phase": 5,
-      "status": "in-progress",
+      "status": "done",
       "reason": null,
       "fl_edition": "producer",
-      "notes": "QA 2026-10-13: SOFTWARE: Implement remaining SF2 2.04 generators, explicit/default modulators and composition, stereo-linked/24-bit samples, delay-volume envelope import, portable SF2 sources and dedicated relink. Evidence: docs/qa/2026-10-12-round4-acceptance.md."
+      "notes": "Software complete, QA 2026-10-13: built and passing in the full suites on this machine; an independent read-only audit confirmed the implementation is reachable and tested. External checks outstanding: Listening, physical MIDI/audio, interoperability with licensed private banks and required ROM content; other-OS runtime. Evidence: docs/qa/2026-10-13-round5-acceptance.md."
     },
     {
       "id": "inst-sytrus",
@@ -2101,10 +2101,10 @@
       "summary": "A sample-based piano and keyboard instrument with low CPU use.",
       "windfall_name": null,
       "phase": 5,
-      "status": "in-progress",
+      "status": "done",
       "reason": null,
       "fl_edition": "fruity",
-      "notes": "Its samples are Image-Line content; needs own. QA 2026-10-13: SOFTWARE: Add and run a declared low-CPU admission benchmark for the production PianoKeys renderer at representative/max polyphony, sample rates and callback partitions, including release/tail and live control changes; record the target-machine result. (Raised by the independent audit of the round-four recommendations; the rest of the row passes.). Evidence: docs/qa/2026-10-12-round4-acceptance.md."
+      "notes": "Its samples are Image-Line content; needs own. Software complete, QA 2026-10-13: built and passing in the full suites on this machine; an independent read-only audit confirmed the implementation is reachable and tested. External checks outstanding: Listening, physical MIDI/audio and performance/runtime on other machines and operating systems. Evidence: docs/qa/2026-10-13-round5-acceptance.md."
     },
     {
       "id": "inst-dashboard",
@@ -2605,10 +2605,10 @@
       "summary": "Plays the operating system's built-in General MIDI synth from inside the project.",
       "windfall_name": null,
       "phase": 5,
-      "status": "in-progress",
+      "status": "done",
       "reason": null,
       "fl_edition": "fruity",
-      "notes": "Windows only in FL (built on Microsoft DirectX). QA 2026-10-13: SOFTWARE: Complete SF2 2.04 bank support underlying the GM equivalent: generators/modulators/composition, stereo/24-bit samples, delay envelopes and portable/relink ownership. Evidence: docs/qa/2026-10-12-round4-acceptance.md."
+      "notes": "Windows only in FL (built on Microsoft DirectX). Software complete, QA 2026-10-13: built and passing in the full suites on this machine; an independent read-only audit confirmed the implementation is reachable and tested. External checks outstanding: User-chosen SoundFont GM equivalent listening and physical MIDI/audio with a user-supplied GM bank; other-OS runtime. No OS-synth capture or bundled GM bank is claimed. Evidence: docs/qa/2026-10-13-round5-acceptance.md."
     },
     {
       "id": "fx-fruity-multiband-compressor",
@@ -2833,10 +2833,10 @@
       "summary": "A modular environment for wiring instruments and effects into custom chains saved as one preset.",
       "windfall_name": null,
       "phase": 4,
-      "status": "in-progress",
+      "status": "done",
       "reason": null,
       "fl_edition": "fruity",
-      "notes": "The plan's phase-4 modular plugin rack. QA 2026-10-13: SOFTWARE: Implement hosted-node provider/preparation/state/editor/retirement and asset-bearing node ownership/preparation/loading/capture/preset packaging. Evidence: docs/qa/2026-10-12-round4-acceptance.md."
+      "notes": "The plan's phase-4 modular plugin rack. Software complete, QA 2026-10-13: built and passing in the full suites on this machine; an independent read-only audit confirmed the implementation is reachable and tested. External checks outstanding: Physical devices, musical listening, vendor processors and other-OS rack/editor runtime. Portable node ownership/preparation/capture/preset mechanisms are verified here; platform-wide editor integration is tracked separately below. Evidence: docs/qa/2026-10-13-round5-acceptance.md."
     },
     {
       "id": "fx-fruity-peak-controller",
@@ -2977,10 +2977,10 @@
       "summary": "Runs Python code that transforms notes and automation in real time.",
       "windfall_name": null,
       "phase": 6,
-      "status": "in-progress",
+      "status": "done",
       "reason": null,
       "fl_edition": "fruity",
-      "notes": "Only works inside FL's modular rack (Patcher); depends on fx-patcher. Grouped with the plan's phase-6 scripting. QA 2026-10-13: SOFTWARE: Apply scripts allocation-free to raw UI/hardware notes, preserving original-key/instance releases, delayed copies and gates; add append-only script parameter addresses, checked edits and matching live/offline automation. Evidence: docs/qa/2026-10-12-round4-acceptance.md."
+      "notes": "Only works inside FL's modular rack (Patcher); depends on fx-patcher. Grouped with the plan's phase-6 scripting. Software complete, QA 2026-10-13: built and passing in the full suites on this machine; an independent read-only audit confirmed the implementation is reachable and tested. External checks outstanding: Physical MIDI/audio, listening and other-OS runtime; live/offline identity, gates, automation and allocator logic pass here. Evidence: docs/qa/2026-10-13-round5-acceptance.md."
     },
     {
       "id": "fx-fruity-7-band-eq",
@@ -3097,10 +3097,10 @@
       "summary": "Plays a video file in sync with the project timeline.",
       "windfall_name": null,
       "phase": 6,
-      "status": "in-progress",
+      "status": "done",
       "reason": null,
       "fl_edition": "signature",
-      "notes": "The plan's phase-6 video player. QA 2026-10-13: SOFTWARE: Add and run a Windows supported-video playback test through the real VideoPlayer and native media clock: verify rendered frame pixels/time at start, offset, seek, loop and stop, including the unmuted native soundtrack. Record the result; this can use an authored raw RGB/PCM AVI and does not need physical hardware or listening. (Raised by the independent audit of the round-four recommendations; the rest of the row passes.). Evidence: docs/qa/2026-10-12-round4-acceptance.md."
+      "notes": "The plan's phase-6 video player. Software complete, QA 2026-10-13: built and passing in the full suites on this machine; an independent read-only audit confirmed the implementation is reachable and tested. External checks outstanding: Other-OS runtime, independent codec/player interoperability, physical display/DAC timing and human audiovisual/listening review. V uses a software memory sink, not a DAC. Evidence: docs/qa/2026-10-13-round5-acceptance.md."
     },
     {
       "id": "vis-fruity-big-clock",
@@ -3280,7 +3280,7 @@
       "status": "in-progress",
       "reason": null,
       "fl_edition": null,
-      "notes": "Desktop picker prepares a reviewed conversion with category reports, bounded sample searches, missing-audio warnings, unsaved-project confirmation and stale-request guards. Unsupported plugin bytes and metadata persist in .windfall files and an Imported sounds report. Two real FL 20.8.4 reader projects verified; other versions remain unverified. Sound mappings and some timing/automation are approximate; proprietary restoration and identical playback remain unavailable. See docs/flp/coverage.md. QA 2026-10-13: SOFTWARE: Translate processor/instrument state and instrument parameter automation, controller formulas/smoothing, nonlinear shift/gate/glide and navigation semantics instead of retaining them only as archival data. Evidence: docs/qa/2026-10-12-round4-acceptance.md."
+      "notes": "Desktop picker prepares a reviewed conversion with category reports, bounded sample searches, missing-audio warnings, unsaved-project confirmation and stale-request guards. Unsupported plugin bytes and metadata persist in .windfall files and an Imported sounds report. Two real FL 20.8.4 reader projects verified; other versions remain unverified. Sound mappings and some timing/automation are approximate; proprietary restoration and identical playback remain unavailable. See docs/flp/coverage.md. QA 2026-10-13: SOFTWARE: Translate processor/instrument state beyond decoded tables; instrument parameter automation in clips/recorded events; controller formula/smoothing; nonlinear shift/gate/glide/portamento; region/loop/navigation semantics with per-item reports and independent event-stream reference fixtures. Evidence: docs/qa/2026-10-13-round5-acceptance.md."
     },
     {
       "id": "fmt-cloud-backup",
@@ -3400,7 +3400,7 @@
       "status": "in-progress",
       "reason": null,
       "fl_edition": null,
-      "notes": "Not in the plan; legacy formats. QA 2026-10-13: SOFTWARE: Implement complete DrumSynth overtone/noise-band/slope/droop/filter/distortion semantics and public SYN/speech readers. Evidence: docs/qa/2026-10-12-round4-acceptance.md."
+      "notes": "Not in the plan; legacy formats. QA 2026-10-13: SOFTWARE: Implement complete DrumSynth pitch droop/sweep, second overtone waves, slope/fixed noise bands, filters/high-pass, clipping/bit reduction and envelopes/globals; public SYN and speech readers/renderers with portable original-source ownership and computed-reference/hostile-input fixtures. Archived or refused synthesis is not accepted completion. Evidence: docs/qa/2026-10-13-round5-acceptance.md."
     },
     {
       "id": "fmt-import-zgr",
@@ -3532,7 +3532,7 @@
       "status": "in-progress",
       "reason": null,
       "fl_edition": null,
-      "notes": "Not named in the plan's phase table, so placed in phase 6. QA 2026-10-13: SOFTWARE: Expose editor source/view/edit/transfer of cue notes, slice attributes, beats and navigation metadata; add native timeline marker import and real UI label authoring. Evidence: docs/qa/2026-10-12-round4-acceptance.md."
+      "notes": "Not named in the plan's phase table, so placed in phase 6. QA 2026-10-13: SOFTWARE: Use the actual render tick-to-output-frame trajectory for WAV song cues/loop endpoints and pattern note/marker cues under linked Tempo, including region rebasing and stem exports. Do not claim static ACID tempo for a changing linked clock. Add registered nonignored native export regressions combining internal linked Tempo with cues, loops and note cues. Inspect RIFF offsets independently against rendered PCM events, including full/region and audio-dependent Tempo cases. (Raised by the independent audit of the round-five recommendations; the rest of the row passes.). Evidence: docs/qa/2026-10-13-round5-acceptance.md."
     },
     {
       "id": "fmt-wavpack",
@@ -3553,10 +3553,10 @@
       "summary": "Loads VST3 instruments and effects.",
       "windfall_name": "VST3 hosting",
       "phase": 4,
-      "status": "in-progress",
+      "status": "done",
       "reason": null,
       "fl_edition": null,
-      "notes": "Production Windows VST3 additions are enabled with bounded owner-thread capture, deferred dirty-state scheduling, held-note/control reconciliation and fallible deactivation. Native fixtures verify playback/capture/save/export. Round four closed pending-parameter persistence, scanned inner-binary approval and full-channel panic repairs, but found two further document-adoption and native parameter-overflow cases under repair. Combined checks remain pending. Installed external plugins, native editor operation, macOS/Linux and audio crash containment remain unverified or unfinished. See docs/plugins/vst3-desktop.md and docs/plugins/runtime-repairs.md. QA 2026-10-13: SOFTWARE: Re-admit dynamic ports/latency/parameters/note capabilities with stable parameter tombstones, stale automation diagnostics and PDC; save/reopen/export routed extra outputs; implement macOS/Linux owned embedded editors. Evidence: docs/qa/2026-10-12-round4-acceptance.md."
+      "notes": "Production Windows VST3 additions are enabled with bounded owner-thread capture, deferred dirty-state scheduling, held-note/control reconciliation and fallible deactivation. Native fixtures verify playback/capture/save/export. Round four closed pending-parameter persistence, scanned inner-binary approval and full-channel panic repairs, but found two further document-adoption and native parameter-overflow cases under repair. Combined checks remain pending. Installed external plugins, native editor operation, macOS/Linux and audio crash containment remain unverified or unfinished. See docs/plugins/vst3-desktop.md and docs/plugins/runtime-repairs.md. Software complete, QA 2026-10-13: built and passing in the full suites on this machine; an independent read-only audit confirmed the implementation is reachable and tested. External checks outstanding: Other-OS linking/runtime with real ALSA/GTK/WebKit and X11 libraries, vendor plugin/editor interoperability, Cocoa/XEmbed monitor/resize/lifetime interaction and physical audio/MIDI/listening. Linux synthetic pkg-config establishes Rust type consistency, not native ABI/link/runtime availability. Evidence: docs/qa/2026-10-13-round5-acceptance.md."
     },
     {
       "id": "fmt-host-clap",
@@ -3565,10 +3565,10 @@
       "summary": "Loads CLAP instruments and effects.",
       "windfall_name": "CLAP hosting",
       "phase": 4,
-      "status": "in-progress",
+      "status": "done",
       "reason": null,
       "fl_edition": null,
-      "notes": "Windows desktop CLAP instruments/effects now integrate project persistence, native-range automation, playback/export, mixer latency compensation, parameter inspectors and native editors. Real CLAP fixtures verify session audio, state round-trip and current-instance ownership. The host backend was also exercised with Surge XT/Effects and OB-Xf. Native macOS/Linux desktop hosting and audio crash containment remain unfinished. See docs/plugins/desktop-integration.md and docs/plugins/host-evaluation.md. QA 2026-10-13: SOFTWARE: Re-admit dynamic ports/latency/parameters/note capabilities with stable parameter tombstones, stale automation diagnostics and PDC; save/reopen/export routed extra outputs; implement Cocoa/X11 owned embedded editors. Evidence: docs/qa/2026-10-12-round4-acceptance.md."
+      "notes": "Windows desktop CLAP instruments/effects now integrate project persistence, native-range automation, playback/export, mixer latency compensation, parameter inspectors and native editors. Real CLAP fixtures verify session audio, state round-trip and current-instance ownership. The host backend was also exercised with Surge XT/Effects and OB-Xf. Native macOS/Linux desktop hosting and audio crash containment remain unfinished. See docs/plugins/desktop-integration.md and docs/plugins/host-evaluation.md. Software complete, QA 2026-10-13: built and passing in the full suites on this machine; an independent read-only audit confirmed the implementation is reachable and tested. External checks outstanding: Other-OS linking/runtime with real ALSA/GTK/WebKit and X11 libraries, vendor plugin/editor interoperability, Cocoa/XEmbed monitor/resize/lifetime interaction and physical audio/MIDI/listening. Linux synthetic pkg-config establishes Rust type consistency, not native ABI/link/runtime availability. Evidence: docs/qa/2026-10-13-round5-acceptance.md."
     },
     {
       "id": "fmt-host-au",
@@ -3580,7 +3580,7 @@
       "status": "in-progress",
       "reason": null,
       "fl_edition": null,
-      "notes": "macOS only. QA 2026-10-13: SOFTWARE: Desktop AU ownership, Cocoa dispatcher/window-parent and Tauri integration remain untypechecked because objc2-exception-helper stops at missing cc. Unblock that C dependency and resolve any Rust integration errors before admission; host AU adapter/Cocoa/sys and portable parts are checked. Evidence: docs/qa/2026-10-12-round4-acceptance.md."
+      "notes": "macOS only. QA 2026-10-13: SOFTWARE: Implement format-aware AU discovery/default preparation that reaches the Cocoa-main adapter, or an actual AU-capable helper, instead of CLAP/VST3-only validation. Add nonignored Windows-testable production-policy/discovery/preparation regressions using cfg(test)-independent owner selection, and repeat the Apple host/desktop type-checks. Native AU execution remains external after the software repair. (Raised by the independent audit of the round-five recommendations; the rest of the row passes.). Evidence: docs/qa/2026-10-13-round5-acceptance.md."
     },
     {
       "id": "fmt-host-vst2",
@@ -3613,10 +3613,10 @@
       "summary": "Runs a plugin in its own process, isolated from the host.",
       "windfall_name": "Out-of-process plugins",
       "phase": 4,
-      "status": "in-progress",
+      "status": "done",
       "reason": null,
       "fl_edition": null,
-      "notes": "Windows per-instance atomic mapping/helper/supervisor and a nonblocking measured 2B callback pipeline are under implementation. ABI2/authentication repair ba61a255 follows 27dc8a4a outside root. R2 supports five original trigger closures but finds incomplete post-reset DSP proof, startup state backpressure and final-DONE cancellation/deadline cases under repair before desktop activation. Native fault fixtures, graph PDC, packaged discovery, editors, external plugins and other platforms remain required. See docs/plugins/process-bridge.md. QA 2026-10-13: SOFTWARE: Complete capture/ACK/helper-restart/document-replacement composition and capability re-admission into prepared helpers/plans; implement Cocoa/X11 editor embedding and ownership. Evidence: docs/qa/2026-10-12-round4-acceptance.md."
+      "notes": "Windows per-instance atomic mapping/helper/supervisor and a nonblocking measured 2B callback pipeline are under implementation. ABI2/authentication repair ba61a255 follows 27dc8a4a outside root. R2 supports five original trigger closures but finds incomplete post-reset DSP proof, startup state backpressure and final-DONE cancellation/deadline cases under repair before desktop activation. Native fault fixtures, graph PDC, packaged discovery, editors, external plugins and other platforms remain required. See docs/plugins/process-bridge.md. Software complete, QA 2026-10-13: built and passing in the full suites on this machine; an independent read-only audit confirmed the implementation is reachable and tested. External checks outstanding: Other-OS linking/runtime with real ALSA/GTK/WebKit and X11 libraries, vendor plugin/editor interoperability, Cocoa/XEmbed monitor/resize/lifetime interaction and physical audio/MIDI/listening. Linux synthetic pkg-config establishes Rust type consistency, not native ABI/link/runtime availability. Evidence: docs/qa/2026-10-13-round5-acceptance.md."
     },
     {
       "id": "fmt-host-wrapper-options",
@@ -3640,7 +3640,7 @@
       "status": "in-progress",
       "reason": null,
       "fl_edition": "fruity",
-      "notes": "The plan lists this as 'possible later' and assigns no phase. QA 2026-10-13: SOFTWARE: Implement Cocoa/X11 exported panels, distributed runtime bundling/autoresolution/ABI validation, editor program-load dirty and PDC/restart notifications, and nested native providers. Evidence: docs/qa/2026-10-12-round4-acceptance.md."
+      "notes": "The plan lists this as 'possible later' and assigns no phase. QA 2026-10-13: SOFTWARE: Embed bounded raw SF2 bytes/source IDs in Program/Packet and prepare parsed banks off audio; desktop export currently requires SamplePool PCM for every source and refuses raw SF2 identities. Add native raw-bank export/reopen and real-kind PCM/allocator reference fixtures; do not substitute decoded PCM for the bank source. Evidence: docs/qa/2026-10-13-round5-acceptance.md."
     },
     {
       "id": "wf-audio-settings",
@@ -3724,7 +3724,7 @@
       "status": "in-progress",
       "reason": null,
       "fl_edition": null,
-      "notes": "Whole-application scaling with persisted preferences and coherent canvas/control coordinates is being implemented in an isolated T3 task. Native third-party editor content scaling remains a required plugin-host integration; application-only browser checks will not complete this row. QA 2026-10-13: SOFTWARE: Implement macOS/Linux embedded editor GUI-thread ownership, parent handles, application scaling and monitor DPI transitions. Evidence: docs/qa/2026-10-12-round4-acceptance.md."
+      "notes": "Whole-application scaling with persisted preferences and coherent canvas/control coordinates is being implemented in an isolated T3 task. Native third-party editor content scaling remains a required plugin-host integration; application-only browser checks will not complete this row. QA 2026-10-13: SOFTWARE: Implement AU host-owned Cocoa application zoom and a real InstanceBackend::set_editor_scale path, with logical-point/backing-density handling and preserved resize/close ownership instead of unconditional unsupported returns. Add registered nonignored portable AU scale/geometry tests for nondefault wrapper opening, live application zoom and monitor transitions, then Apple host/desktop type-check the adapter. Actual AppKit interaction remains external. (Raised by the independent audit of the round-five recommendations; the rest of the row passes.). Evidence: docs/qa/2026-10-13-round5-acceptance.md."
     },
     {
       "id": "wf-hint-bar",
@@ -3844,7 +3844,7 @@
       "status": "in-progress",
       "reason": null,
       "fl_edition": null,
-      "notes": "Tempo, time signature and swing. QA 2026-10-13: SOFTWARE: Implement project per-note pan-law behavior and live ramps for remaining FM/analog/acid/additive/physical/drum/polysynth/SpeechVoice families; expose native Pan/Volume/note-instance capabilities, visible refusals and capability-aware live PCM behavior. Evidence: docs/qa/2026-10-12-round4-acceptance.md."
+      "notes": "Tempo, time signature and swing. QA 2026-10-13: SOFTWARE: Implement isolated-bridge project pan-law/expression ramps (currently visible projectPanLaw=false); select/validate actual color-group/live MIDI channels instead of channel zero; admit independent Pan and Volume routes; handle dynamic native capability loss with measured fixture coverage. Evidence: docs/qa/2026-10-13-round5-acceptance.md."
     },
     {
       "id": "wf-midi-settings",
@@ -3985,10 +3985,10 @@
       "summary": "Links any control to the output of a controller plugin such as an envelope, peak or formula source.",
       "windfall_name": "Internal modulation links",
       "phase": 5,
-      "status": "in-progress",
+      "status": "done",
       "reason": null,
       "fl_edition": null,
-      "notes": "Depends on the controller plugins in the effect and core lists. QA 2026-10-13: SOFTWARE: Implement feedback-safe internal-source Tempo clock/map, bounds/sync-source behavior and matching note/audio/metronome scheduling and live/offline export duration; Tempo is currently explicitly refused. Evidence: docs/qa/2026-10-12-round4-acceptance.md."
+      "notes": "Depends on the controller plugins in the effect and core lists. Software complete, QA 2026-10-13: built and passing in the full suites on this machine; an independent read-only audit confirmed the implementation is reachable and tested. External checks outstanding: Physical audio/MIDI, listening and other-OS runtime. Bounded Tempo feedback, clock integration, seek/loop, automation, export extent and isolated stems pass here. Evidence: docs/qa/2026-10-13-round5-acceptance.md."
     },
     {
       "id": "wf-audio-to-midi",
@@ -4096,7 +4096,7 @@
       "status": "in-progress",
       "reason": null,
       "fl_edition": null,
-      "notes": "QA 2026-10-13: SOFTWARE: Translate remaining inspectors, MIDI/plugin dialog interiors, dynamic status/help/error text and dynamic palette entries. Evidence: docs/qa/2026-10-12-round4-acceptance.md."
+      "notes": "QA 2026-10-13: SOFTWARE: Translate transitive instrument/synth/sample/rack editors, shared descriptor controls and mixer/helper menus; native MIDI adjustment/status/error strings; retranslate stored errors on locale change and localize remaining dynamic semantic labels. Scoped source guards do not establish whole-app coverage. Evidence: docs/qa/2026-10-13-round5-acceptance.md."
     },
     {
       "id": "wf-help-tutorials",
