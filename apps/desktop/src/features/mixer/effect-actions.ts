@@ -1,3 +1,4 @@
+import { dynamicTitle } from "@/lib/i18n"
 import type { EffectKind } from "@/bindings"
 import { EFFECT_KINDS } from "@/features/params"
 import type { Action, AppState } from "@/lib/actions"
@@ -129,7 +130,7 @@ export const EFFECT_ACTIONS: Action[] = [
   },
   ...EFFECT_KINDS.map((kind): Action => ({
     id: addEffectActionId(kind),
-    title: `Add ${effectName(kind)}`,
+    ...dynamicTitle("Add {value0}", { value0: effectName(kind) }),
     section: ADD_EFFECT_SECTION,
     keywords: "effect insert fx plugin new",
     enabled: (state) => {
@@ -204,7 +205,7 @@ export const EFFECT_ACTIONS: Action[] = [
   },
   ...EFFECT_KINDS.map((kind): Action => ({
     id: replaceEffectActionId(kind),
-    title: `Replace effect with ${effectName(kind)}`,
+    ...dynamicTitle("Replace effect with {value0}", { value0: effectName(kind) }),
     section: REPLACE_EFFECT_SECTION,
     keywords: "swap change",
     enabled: (state) => {

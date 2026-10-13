@@ -1,3 +1,4 @@
+import { useTranslation } from "@/lib/i18n"
 import {
   Select,
   SelectContent,
@@ -22,9 +23,11 @@ export function Choice<T extends string | number>({
   disabled: boolean
   onChange(value: T): void
 }) {
+  const t = useTranslation()
+  const localized = options.map((option) => ({ ...option, label: t(option.label) }))
   return (
     <Select
-      items={options}
+      items={localized}
       value={value}
       disabled={disabled}
       onValueChange={(next: T | null) => {
@@ -36,7 +39,7 @@ export function Choice<T extends string | number>({
       </SelectTrigger>
       <SelectContent alignItemWithTrigger={false}>
         <SelectGroup>
-          {options.map((option) => (
+          {localized.map((option) => (
             <SelectItem key={option.value} value={option.value}>
               {option.label}
             </SelectItem>

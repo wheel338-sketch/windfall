@@ -1,3 +1,5 @@
+import { message as i18nMessage } from "@/lib/i18n"
+import { translatedText as t, useLanguageStore } from "@/lib/i18n"
 import { useId, useRef, useState } from "react"
 import type { PluginBinding, PluginWrapperOptions } from "@/bindings"
 import {
@@ -45,10 +47,11 @@ function NumericChoice({
   disabled: boolean
   change(value: number): void
 }) {
+  useLanguageStore((state) => state.language)
   const id = useId()
   return (
     <Field>
-      <FieldLabel htmlFor={id}>{label}</FieldLabel>
+      <FieldLabel htmlFor={id}>{t(label)}</FieldLabel>
       <Select
         value={value}
         items={items}
@@ -57,14 +60,14 @@ function NumericChoice({
           if (next !== null) change(next)
         }}
       >
-        <SelectTrigger id={id} aria-label={label}>
+        <SelectTrigger id={id} aria-label={t(label)}>
           <SelectValue />
         </SelectTrigger>
         <SelectContent alignItemWithTrigger={false}>
           <SelectGroup>
             {items.map((item) => (
               <SelectItem key={item.value} value={item.value}>
-                {item.label}
+                {t(item.label)}
               </SelectItem>
             ))}
           </SelectGroup>
@@ -75,6 +78,7 @@ function NumericChoice({
 }
 
 function WrapperFields({ binding }: { binding: PluginBinding }) {
+  useLanguageStore((state) => state.language)
   const smartId = useId()
   const detachedId = useId()
   const processingId = useId()
@@ -84,16 +88,16 @@ function WrapperFields({ binding }: { binding: PluginBinding }) {
   const options = binding.wrapper ?? DEFAULTS
   const buffer = options.fixedBuffer ?? 0
   const buffers = [
-    { value: 0, label: "Variable" },
-    ...BUFFER_SIZES.map((value) => ({ value, label: `${value} frames` })),
+    { value: 0, label: t("Variable") },
+    ...BUFFER_SIZES.map((value) => ({ value, label: i18nMessage("{value} frames", { value }) })),
     ...(buffer !== 0 && !BUFFER_SIZES.includes(buffer)
-      ? [{ value: buffer, label: `${buffer} frames (saved)` }]
+      ? [{ value: buffer, label: i18nMessage("{value0} frames (saved)", { value0: buffer }) }]
       : []),
   ]
   const scales = [
     ...EDITOR_SCALES.map((value) => ({ value, label: `${value * 100}%` })),
     ...(!EDITOR_SCALES.includes(options.editorScale)
-      ? [{ value: options.editorScale, label: `${options.editorScale * 100}% (saved)` }]
+      ? [{ value: options.editorScale, label: i18nMessage("{value}% (saved)", { value: options.editorScale * 100 }) }]
       : []),
   ]
 
@@ -118,7 +122,7 @@ function WrapperFields({ binding }: { binding: PluginBinding }) {
         target: current.target,
         options: { ...(current.wrapper ?? DEFAULTS), ...patch },
       })
-      if (!result) setError("Wrapper settings were not changed. Try again.")
+      if (!result) setError(t("Wrapper settings were not changed. Try again."))
     } finally {
       working.current = false
       setBusy(false)
@@ -127,18 +131,16 @@ function WrapperFields({ binding }: { binding: PluginBinding }) {
 
   return (
     <FieldSet disabled={busy} aria-busy={busy}>
-      <FieldLegend>Plugin wrapper</FieldLegend>
+      <FieldLegend>{t("Plugin wrapper")}</FieldLegend>
       <FieldDescription>
-        Settings are saved with this plugin. Processing changes restart its audio;
-        editor settings apply the next time its window opens.
+        {t("Settings are saved with this plugin. Processing changes restart its audio; editor settings apply the next time its window opens.")}
       </FieldDescription>
       <FieldGroup>
         <Field orientation="horizontal">
           <FieldContent>
-            <FieldLabel htmlFor={smartId}>Smart disable</FieldLabel>
+            <FieldLabel htmlFor={smartId}>{t("Smart disable")}</FieldLabel>
             <FieldDescription>
-              Sleep after a finite tail and sustained silence. Input or controls
-              wake the plugin; plugins with endless tails stay awake.
+              {t("Sleep after a finite tail and sustained silence. Input or controls wake the plugin; plugins with endless tails stay awake.")}
             </FieldDescription>
           </FieldContent>
           <Switch
@@ -149,18 +151,15 @@ function WrapperFields({ binding }: { binding: PluginBinding }) {
           />
         </Field>
         <NumericChoice
-          label="Native buffer"
+          label={t("Native buffer")}
           value={buffer}
           items={buffers}
           disabled={busy}
           change={(fixedBuffer) => void change({ fixedBuffer: fixedBuffer || undefined })}
         />
-        <FieldDescription>
-          A fixed buffer adds that many samples of latency. Choose Variable to
-          process the incoming block size.
-        </FieldDescription>
+        <FieldDescription>{t("A fixed buffer adds that many samples of latency. Choose Variable to process the incoming block size.")}</FieldDescription>
         <Field>
-          <FieldLabel id={processingId}>Processing</FieldLabel>
+          <FieldLabel id={processingId}>{t("Processing")}</FieldLabel>
           <ToggleGroup
             aria-labelledby={processingId}
             value={[options.processing]}
@@ -178,20 +177,15 @@ function WrapperFields({ binding }: { binding: PluginBinding }) {
               ) void change({ processing })
             }}
           >
-            <ToggleGroupItem value="automatic">Automatic</ToggleGroupItem>
-            <ToggleGroupItem value="inProcess">In process</ToggleGroupItem>
-            <ToggleGroupItem value="bridged">Bridged</ToggleGroupItem>
-            <ToggleGroupItem value="threaded">Threaded</ToggleGroupItem>
+            <ToggleGroupItem value="automatic">{t("Automatic")}</ToggleGroupItem>
+            <ToggleGroupItem value="inProcess">{t("In process")}</ToggleGroupItem>
+            <ToggleGroupItem value="bridged">{t("Bridged")}</ToggleGroupItem>
+            <ToggleGroupItem value="threaded">{t("Threaded")}</ToggleGroupItem>
           </ToggleGroup>
-          <FieldDescription>
-            Automatic uses the platform default. Bridged isolates failures in a
-            helper process. Threaded uses a dedicated worker and adds two native
-            blocks of latency. A missed worker deadline reports a plugin failure.
-            In process shares the desktop process.
-          </FieldDescription>
+          <FieldDescription>{t("Automatic uses the platform default. Bridged isolates failures in a helper process. Threaded uses a dedicated worker and adds two native blocks of latency. A missed worker deadline reports a plugin failure. In process shares the desktop process.")}</FieldDescription>
         </Field>
         <NumericChoice
-          label="Native editor scale"
+          label={t("Native editor scale")}
           value={options.editorScale}
           items={scales}
           disabled={busy}
@@ -199,11 +193,8 @@ function WrapperFields({ binding }: { binding: PluginBinding }) {
         />
         <Field orientation="horizontal">
           <FieldContent>
-            <FieldLabel htmlFor={detachedId}>Detached editor</FieldLabel>
-            <FieldDescription>
-              Turn off to keep an editor window owned by Windfall. Scaling and
-              window ownership require support from the native plugin.
-            </FieldDescription>
+            <FieldLabel htmlFor={detachedId}>{t("Detached editor")}</FieldLabel>
+            <FieldDescription>{t("Turn off to keep an editor window owned by Windfall. Scaling and window ownership require support from the native plugin.")}</FieldDescription>
           </FieldContent>
           <Switch
             id={detachedId}
@@ -219,6 +210,7 @@ function WrapperFields({ binding }: { binding: PluginBinding }) {
 }
 
 export function PluginWrapperControls({ binding }: { binding: PluginBinding }) {
+  useLanguageStore((state) => state.language)
   const generation = useProjectGeneration()
   return (
     <WrapperFields

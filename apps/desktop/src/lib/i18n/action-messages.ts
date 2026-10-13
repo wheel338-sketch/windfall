@@ -61,3 +61,13 @@ export const actionMessages: Record<string, MessageKey> = {
   "help.about": "About Windfall",
   "mixer.addTrack": "Add mixer track"
 }
+
+export type DynamicActionMessage = { key: MessageKey; values: Record<string, string | number> }
+const dynamic = new Map<string, { owner: object; message: DynamicActionMessage }>()
+export function registerDynamicActionMessage(id: string, owner: object, message: DynamicActionMessage | undefined) {
+  if (message) dynamic.set(id, { owner, message })
+}
+export function removeDynamicActionMessage(id: string, owner: object) {
+  if (dynamic.get(id)?.owner === owner) dynamic.delete(id)
+}
+export function dynamicActionMessage(id: string) { return dynamic.get(id)?.message }

@@ -1,3 +1,4 @@
+import { useLanguageStore } from "@/lib/i18n"
 import { DashboardEditor } from "@/features/internal-controllers/dashboard"
 import { SpecialOutputEditor } from "@/features/sample-instruments/special-output-editor"
 import { SampleInstrumentEditor } from "@/features/sample-instruments/editor"
@@ -31,6 +32,7 @@ import { Section } from "./parts"
  * its name, with starting sounds beside the subtractive synth's panel.
  */
 export function InstrumentSection({ channel }: { channel: InstrumentChannel }) {
+  useLanguageStore((state) => state.language)
   const generation = useProjectGeneration()
   const plugin = usePluginBinding({ type: "instrument", channel: channel.id })
   if (plugin)

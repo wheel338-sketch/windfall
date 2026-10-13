@@ -1,3 +1,6 @@
+import { localizeBackendText } from "@/lib/i18n"
+import { message as i18nMessage } from "@/lib/i18n"
+import { translatedText as t, useLanguageStore } from "@/lib/i18n"
 import { useEffect, useId, useRef, useState } from "react"
 
 import { Knob, percentUnit } from "@/components/audio"
@@ -52,6 +55,7 @@ export function SamplePreprocessSection({
 }: {
   channel: SamplerChannel
 }) {
+  useLanguageStore((state) => state.language)
   // A new sample or a changed sampler setting starts a fresh form.
   return (
     <PreprocessForm key={JSON.stringify(channel.source)} channel={channel} />
@@ -59,6 +63,7 @@ export function SamplePreprocessSection({
 }
 
 function PreprocessForm({ channel }: { channel: SamplerChannel }) {
+  useLanguageStore((state) => state.language)
   const [preview, setPreview] = useState<import("@/bindings").SampleInfo | null>(null)
   const [collected, setCollected] = useState<number | null>(null)
   const [choices, setChoices] = useState<PreprocessChoices>(NO_PREPROCESSING)
@@ -145,41 +150,41 @@ function PreprocessForm({ channel }: { channel: SamplerChannel }) {
         disabled={pending || empty || disabled}
         onCheckedChange={(checked) => set(toggled(name, checked === true))}
       />
-      <FieldLabel htmlFor={`${id}-${name}`}>{label}</FieldLabel>
+      <FieldLabel htmlFor={`${id}-${name}`}>{t(label)}</FieldLabel>
     </Field>
   )
 
   return (
-    <Section title="Pre-process sample">
+    <Section title={t("Pre-process sample")}>
       <FieldGroup>
-        {toggle("trim", "Trim to the played region", !trimmed)}
-        {toggle("reverse", "Reverse the audio")}
-        {toggle("removeDc", "Remove DC offset")}
-        {toggle("invertPolarity", "Invert polarity")}
-        {toggle("swapStereo", "Swap left and right")}
+        {toggle("trim", t("Trim to the played region"), !trimmed)}
+        {toggle("reverse", t("Reverse the audio"))}
+        {toggle("removeDc", t("Remove DC offset"))}
+        {toggle("invertPolarity", t("Invert polarity"))}
+        {toggle("swapStereo", t("Swap left and right"))}
         <Field>
-          <FieldLabel htmlFor={`${id}-fade-in`}>Fade in (ms)</FieldLabel>
+          <FieldLabel htmlFor={`${id}-fade-in`}>{t("Fade in (ms)")}</FieldLabel>
           <Input
             id={`${id}-fade-in`}
             type="number"
             min={0}
             max={MAX_PREPROCESS_FADE_MS}
             step={1}
-            placeholder="0"
+            placeholder={t("0")}
             value={choices.fadeInMs}
             disabled={pending || empty}
             onChange={(event) => set({ fadeInMs: event.target.value })}
           />
         </Field>
         <Field>
-          <FieldLabel htmlFor={`${id}-fade-out`}>Fade out (ms)</FieldLabel>
+          <FieldLabel htmlFor={`${id}-fade-out`}>{t("Fade out (ms)")}</FieldLabel>
           <Input
             id={`${id}-fade-out`}
             type="number"
             min={0}
             max={MAX_PREPROCESS_FADE_MS}
             step={1}
-            placeholder="0"
+            placeholder={t("0")}
             value={choices.fadeOutMs}
             disabled={pending || empty}
             onChange={(event) => set({ fadeOutMs: event.target.value })}
@@ -187,8 +192,8 @@ function PreprocessForm({ channel }: { channel: SamplerChannel }) {
         </Field>
         <Field data-disabled={!seam || undefined}>
           <Knob
-            label="Loop crossfade"
-            aria-label="Crossfade written into the loop seam"
+            label={t("Loop crossfade")}
+            aria-label={t("Crossfade written into the loop seam")}
             value={choices.loopCrossfade}
             onValueChange={(loopCrossfade) => set({ loopCrossfade })}
             min={0}
@@ -201,55 +206,43 @@ function PreprocessForm({ channel }: { channel: SamplerChannel }) {
           />
           <FieldDescription>
             {seam
-              ? "Blends this share of the forward loop across its seam in the new sample, and sets the playback crossfade to zero."
-              : "Turn on a forward loop to crossfade its seam."}
+              ? t("Blends this share of the forward loop across its seam in the new sample, and sets the playback crossfade to zero.")
+              : t("Turn on a forward loop to crossfade its seam.")}
           </FieldDescription>
         </Field>
-        {toggle("normalize", "Normalize to −1 dBFS")}
-        <FieldDescription>
-          Apply renders a new sample and gives it to this channel as one undo
-          step. The original sample and its file are kept.
-        </FieldDescription>
+        {toggle("normalize", t("Normalize to −1 dBFS"))}
+        <FieldDescription>{t("Apply renders a new sample and gives it to this channel as one undo step. The original sample and its file are kept.")}</FieldDescription>
         {backend.kind === "mock" && (
-          <FieldDescription>
-            Browser mode cannot render a new sample. Apply will keep the
-            settings and history.
-          </FieldDescription>
+          <FieldDescription>{t("Browser mode cannot render a new sample. Apply will keep the settings and history.")}</FieldDescription>
         )}
         {error && (
           <Field data-invalid>
-            <FieldError role="alert">{error}</FieldError>
+            <FieldError role="alert">{localizeBackendText(error)}</FieldError>
           </Field>
         )}
       </FieldGroup>
       {pending && (
         <p role="status" className="flex items-center gap-2">
-          <Spinner role="presentation" aria-hidden />
-          Rendering the new sample…
-        </p>
+          <Spinner role="presentation" aria-hidden />{t("Rendering the new sample…")}</p>
       )}
       <div className="flex gap-2">
-        <Button size="sm" variant="outline" disabled={pending || empty} onClick={() => void audition()}>
-          Preview prepared sample
-        </Button>
+        <Button size="sm" variant="outline" disabled={pending || empty} onClick={() => void audition()}>{t("Preview prepared sample")}</Button>
         <Button
           size="sm"
           disabled={pending || empty}
           onClick={() => void apply()}
-        >
-          Apply to sample
-        </Button>
+        >{t("Apply to sample")}</Button>
       </div>
       {preview && <div>
-        <output aria-label="Prepared sample duration">{preview.frames} frames · {preview.durationSecs.toFixed(3)} s · {preview.sampleRate} Hz</output>
-        <svg role="img" aria-label="Prepared sample waveform" viewBox="0 0 512 100" className="h-24 w-full">
+        <output aria-label={t("Prepared sample duration")}>{i18nMessage("{frames} frames · {seconds} s · {rate} Hz", { frames: preview.frames, seconds: preview.durationSecs.toFixed(3), rate: preview.sampleRate })}</output>
+        <svg role="img" aria-label={t("Prepared sample waveform")} viewBox="0 0 512 100" className="h-24 w-full">
           <path stroke="currentColor" d={preview.peaks.map((value, i) => `${i % 2 ? "L" : "M"}${Math.floor(i / 2) * 512 / Math.max(1, preview.peaks.length / 2 - 1)},${50 - value * 45}`).join(" ")} />
         </svg>
-        <Button size="sm" variant="outline" onClick={() => void backend.previewStop()}>Stop prepared preview</Button>
+        <Button size="sm" variant="outline" onClick={() => void backend.previewStop()}>{t("Stop prepared preview")}</Button>
       </div>}
-      <Button size="sm" variant="ghost" disabled={pending} onClick={() => void collect()}>Collect unused sample edits</Button>
-      <p className="text-xs text-muted-foreground">Cleanup retains current sources, undo/redo and saved assets. Only files created in this session are eligible.</p>
-      {collected !== null && <output aria-label="Collected sample edits">Removed {collected} unused file{collected === 1 ? "" : "s"}.</output>}
+      <Button size="sm" variant="ghost" disabled={pending} onClick={() => void collect()}>{t("Collect unused sample edits")}</Button>
+      <p className="text-xs text-muted-foreground">{t("Cleanup retains current sources, undo/redo and saved assets. Only files created in this session are eligible.")}</p>
+      {collected !== null && <output aria-label={t("Collected sample edits")}>{i18nMessage("Removed unused sample files", { count: collected })}</output>}
     </Section>
   )
 }

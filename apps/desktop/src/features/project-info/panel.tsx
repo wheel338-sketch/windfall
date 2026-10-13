@@ -1,3 +1,4 @@
+import { message, translatedText as t, useLanguageStore } from "@/lib/i18n"
 import { useId, useRef, useState } from "react"
 
 import type { ProjectSettings, SettingsPatch } from "@/bindings"
@@ -26,6 +27,7 @@ export function ProjectInfoPanel({
   settings: ProjectSettings
   onSave(patch: SettingsPatch): Promise<boolean>
 }) {
+  useLanguageStore((state) => state.language)
   const id = useId()
   const [draft, setDraft] = useState({
     name: settings.name,
@@ -42,8 +44,8 @@ export function ProjectInfoPanel({
   const nameError = nameChange.ok
     ? null
     : nameChange.reason === "empty"
-      ? "Name must not be blank."
-      : "Name must be at most 256 bytes."
+      ? t("Name must not be blank.")
+      : t("Name must be at most 256 bytes.")
   const changed =
     (nameChange.ok && nameChange.name !== null) ||
     FIELDS.some(({ key }) => draft[key].trim() !== (settings[key] ?? ""))
@@ -61,9 +63,9 @@ export function ProjectInfoPanel({
     setSaving(true)
     setError(null)
     try {
-      if (!(await onSave(patch))) setError("Could not save project info.")
+      if (!(await onSave(patch))) setError(t("Could not save project info."))
     } catch {
-      setError("Could not save project info.")
+      setError(t("Could not save project info."))
     } finally {
       pending.current = false
       setSaving(false)
@@ -72,7 +74,7 @@ export function ProjectInfoPanel({
 
   return (
     <form
-      aria-label="Project info"
+      aria-label={t("Project info")}
       aria-busy={saving}
       onSubmit={(event) => {
         event.preventDefault()
@@ -82,7 +84,7 @@ export function ProjectInfoPanel({
     >
       <FieldGroup>
         <Field data-disabled={saving} data-invalid={!!nameError}>
-          <FieldLabel htmlFor={`${id}-name`}>Name</FieldLabel>
+          <FieldLabel htmlFor={`${id}-name`}>{t("Name")}</FieldLabel>
           <Input
             id={`${id}-name`}
             value={draft.name}
@@ -102,7 +104,7 @@ export function ProjectInfoPanel({
           const overCap = invalid(key, cap)
           return (
             <Field key={key} data-disabled={saving} data-invalid={overCap}>
-              <FieldLabel htmlFor={`${id}-${key}`}>{label}</FieldLabel>
+              <FieldLabel htmlFor={`${id}-${key}`}>{t(label)}</FieldLabel>
               <Control
                 id={`${id}-${key}`}
                 value={draft[key]}
@@ -118,7 +120,7 @@ export function ProjectInfoPanel({
               />
               {overCap && (
                 <FieldError id={`${id}-${key}-error`}>
-                  {label} must be at most {cap.toLocaleString("en-US")} bytes.
+                  {message("{label} must be at most {cap} bytes.", { label: t(label), cap })}
                 </FieldError>
               )}
             </Field>
@@ -130,7 +132,7 @@ export function ProjectInfoPanel({
           size="sm"
           disabled={saving || !changed || !nameChange.ok || tooLong}
         >
-          {saving ? "Saving…" : "Save project info"}
+          {saving ? t("Saving…") : t("Save project info")}
         </Button>
       </FieldGroup>
     </form>

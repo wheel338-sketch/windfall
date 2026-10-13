@@ -1,3 +1,5 @@
+import { message as i18nMessage } from "@/lib/i18n"
+import { translatedText as t, useLanguageStore } from "@/lib/i18n"
 import { useState } from "react"
 
 import type { ChannelId, SamplerPatch } from "@/bindings"
@@ -74,6 +76,7 @@ function storedTune(id: ChannelId): number {
 
 /** Pitch, level and how the channel's notes cut each other off. */
 export function SoundSection({ channel }: { channel: SamplerChannel }) {
+  useLanguageStore((state) => state.language)
   const { id, source } = channel
   const send = (patch: SamplerPatch) =>
     dispatch({ type: "updateSampler", id, patch })
@@ -132,26 +135,26 @@ export function SoundSection({ channel }: { channel: SamplerChannel }) {
   )
 
   const rootHint = useHint(
-    `Root key: ${formatKey(root.value)}. The key that plays the sample at its own pitch. Double-click for C5`
+    i18nMessage("Root key: {value0}. The key that plays the sample at its own pitch. Double-click for C5", { value0: formatKey(root.value) })
   )
   const tuneHint = useHint(
-    `Tune: ${semitonesUnit.format(tune.value)}. Whole semitones up or down. Double-click to reset`
+    i18nMessage("Tune: {value0}. Whole semitones up or down. Double-click to reset", { value0: semitonesUnit.format(tune.value) })
   )
   const fineHint = useHint(
-    `Fine tune: ${formatCents(fine.value)}. Hundredths of a semitone. Double-click to reset`
+    i18nMessage("Fine tune: {value0}. Hundredths of a semitone. Double-click to reset", { value0: formatCents(fine.value) })
   )
   const gainHint = useHint(
-    `Sample gain: ${formatGain(gain.value)}. Level of the sample before the channel volume. Double-click for 0 dB`
+    i18nMessage("Sample gain: {value0}. Level of the sample before the channel volume. Double-click for 0 dB", { value0: formatGain(gain.value) })
   )
   const cutHint = useHint(
-    "Cut group: channels with the same number stop each other, like an open and a closed hat. 0 means none"
+    t("Cut group: channels with the same number stop each other, like an open and a closed hat. 0 means none")
   )
 
   return (
-    <Section title="Sound">
+    <Section title={t("Sound")}>
       <div className="grid grid-cols-4 justify-items-center gap-1">
         <Knob
-          label="Root"
+          label={t("Root")}
           showValue
           min={0}
           max={MAX_KEY}
@@ -163,7 +166,7 @@ export function SoundSection({ channel }: { channel: SamplerChannel }) {
           {...rootHint}
         />
         <Knob
-          label="Tune"
+          label={t("Tune")}
           showValue
           bipolar
           min={-MAX_TUNE}
@@ -175,7 +178,7 @@ export function SoundSection({ channel }: { channel: SamplerChannel }) {
           {...tuneHint}
         />
         <Knob
-          label="Fine"
+          label={t("Fine")}
           showValue
           bipolar
           min={-50}
@@ -187,7 +190,7 @@ export function SoundSection({ channel }: { channel: SamplerChannel }) {
           {...fineHint}
         />
         <Knob
-          label="Gain"
+          label={t("Gain")}
           showValue
           min={0}
           max={MAX_GAIN}
@@ -217,7 +220,7 @@ export function SoundSection({ channel }: { channel: SamplerChannel }) {
               }
             }}
           >
-            {label}
+            {t(label)}
           </Button>
         ))}
       </div>
@@ -229,8 +232,8 @@ export function SoundSection({ channel }: { channel: SamplerChannel }) {
             size="sm"
             aria-label={
               direction === "previous"
-                ? "Choose the previous root key preset"
-                : "Choose the next root key preset"
+                ? t("Choose the previous root key preset")
+                : t("Choose the next root key preset")
             }
             disabled={nextRootKeyPreset(source.rootKey, direction) === null}
             onClick={() => {
@@ -245,7 +248,7 @@ export function SoundSection({ channel }: { channel: SamplerChannel }) {
               })
             }}
           >
-            {direction === "previous" ? "Previous" : "Next"}
+            {direction === "previous" ? t("Previous") : t("Next")}
           </Button>
         ))}
       </div>
@@ -257,8 +260,8 @@ export function SoundSection({ channel }: { channel: SamplerChannel }) {
             size="sm"
             aria-label={
               factor === "half"
-                ? "Halve root distance from C5"
-                : "Double root distance from C5"
+                ? t("Halve root distance from C5")
+                : t("Double root distance from C5")
             }
             disabled={nextRootKeyScale(source.rootKey, factor) === null}
             onClick={() => {
@@ -274,7 +277,7 @@ export function SoundSection({ channel }: { channel: SamplerChannel }) {
               }
             }}
           >
-            {factor === "half" ? "Half" : "Double"}
+            {factor === "half" ? t("Half") : t("Double")}
           </Button>
         ))}
       </div>
@@ -293,7 +296,7 @@ export function SoundSection({ channel }: { channel: SamplerChannel }) {
               }
             }}
           >
-            {label}
+            {t(label)}
           </Button>
         ))}
       </div>
@@ -305,8 +308,8 @@ export function SoundSection({ channel }: { channel: SamplerChannel }) {
             size="sm"
             aria-label={
               direction === "previous"
-                ? "Choose the previous sampler tune"
-                : "Choose the next sampler tune"
+                ? t("Choose the previous sampler tune")
+                : t("Choose the next sampler tune")
             }
             disabled={nextSamplerTunePreset(source.tune, coarse, direction) === null}
             onClick={() => {
@@ -317,7 +320,7 @@ export function SoundSection({ channel }: { channel: SamplerChannel }) {
               }
             }}
           >
-            {direction === "previous" ? "Previous" : "Next"}
+            {direction === "previous" ? t("Previous") : t("Next")}
           </Button>
         ))}
       </div>
@@ -336,7 +339,7 @@ export function SoundSection({ channel }: { channel: SamplerChannel }) {
               }
             }}
           >
-            {factor === "half" ? "Half" : "Double"}
+            {factor === "half" ? t("Half") : t("Double")}
           </Button>
         ))}
       </div>
@@ -358,7 +361,7 @@ export function SoundSection({ channel }: { channel: SamplerChannel }) {
               }
             }}
           >
-            {label}
+            {t(label)}
           </Button>
         ))}
       </div>
@@ -370,8 +373,8 @@ export function SoundSection({ channel }: { channel: SamplerChannel }) {
             size="sm"
             aria-label={
               direction === "previous"
-                ? "Choose the previous sampler fine tune"
-                : "Choose the next sampler fine tune"
+                ? t("Choose the previous sampler fine tune")
+                : t("Choose the next sampler fine tune")
             }
             disabled={
               nextSamplerFinePreset(source.tune, coarse, direction) === null
@@ -387,7 +390,7 @@ export function SoundSection({ channel }: { channel: SamplerChannel }) {
               }
             }}
           >
-            {direction === "previous" ? "Previous" : "Next"}
+            {direction === "previous" ? t("Previous") : t("Next")}
           </Button>
         ))}
       </div>
@@ -399,8 +402,8 @@ export function SoundSection({ channel }: { channel: SamplerChannel }) {
             size="sm"
             aria-label={
               factor === "half"
-                ? "Halve fine tune cents"
-                : "Double fine tune cents"
+                ? t("Halve fine tune cents")
+                : t("Double fine tune cents")
             }
             disabled={nextSamplerFineScale(source.tune, coarse, factor) === null}
             onClick={() => {
@@ -414,7 +417,7 @@ export function SoundSection({ channel }: { channel: SamplerChannel }) {
               }
             }}
           >
-            {factor === "half" ? "Halve cents" : "Double cents"}
+            {factor === "half" ? t("Halve cents") : t("Double cents")}
           </Button>
         ))}
       </div>
@@ -437,7 +440,7 @@ export function SoundSection({ channel }: { channel: SamplerChannel }) {
               }
             }}
           >
-            {label}
+            {t(label)}
           </Button>
         ))}
       </div>
@@ -449,8 +452,8 @@ export function SoundSection({ channel }: { channel: SamplerChannel }) {
             size="sm"
             aria-label={
               direction === "previous"
-                ? "Choose the previous sample gain"
-                : "Choose the next sample gain"
+                ? t("Choose the previous sample gain")
+                : t("Choose the next sample gain")
             }
             disabled={nextSampleGainPreset(source.gain, direction) === null}
             onClick={() => {
@@ -466,7 +469,7 @@ export function SoundSection({ channel }: { channel: SamplerChannel }) {
               }
             }}
           >
-            {direction === "previous" ? "Previous" : "Next"}
+            {direction === "previous" ? t("Previous") : t("Next")}
           </Button>
         ))}
       </div>
@@ -490,20 +493,20 @@ export function SoundSection({ channel }: { channel: SamplerChannel }) {
               }
             }}
           >
-            {factor === "half" ? "Half" : "Double"}
+            {factor === "half" ? t("Half") : t("Double")}
           </Button>
         ))}
       </div>
       <div className="mt-1 flex flex-col gap-1.5">
         <SwitchRow
-          label="Reverse"
-          hint="Reverse: play the sample backwards"
+          label={t("Reverse")}
+          hint={t("Reverse: play the sample backwards")}
           checked={source.reverse}
           onCheckedChange={(reverse) => void send({ reverse })}
         />
         <SwitchRow
-          label="Cut itself"
-          hint="Cut itself: a new note stops the one still ringing, so hits never overlap"
+          label={t("Cut itself")}
+          hint={t("Cut itself: a new note stops the one still ringing, so hits never overlap")}
           checked={source.cutSelf}
           onCheckedChange={(cutSelf) => void send({ cutSelf })}
         />
@@ -511,14 +514,14 @@ export function SoundSection({ channel }: { channel: SamplerChannel }) {
           className="flex h-6 items-center justify-between gap-2"
           {...cutHint}
         >
-          <span className="truncate text-foreground/85">Cut group</span>
+          <span className="truncate text-foreground/85">{t("Cut group")}</span>
           <span className="flex items-center gap-1.5">
             {cutGroup.value === 0 && (
-              <span className="text-muted-foreground">none</span>
+              <span className="text-muted-foreground">{t("none")}</span>
             )}
             <NumberField
               size="sm"
-              aria-label="Cut group"
+              aria-label={t("Cut group")}
               min={0}
               max={MAX_CUT_GROUP}
               step={1}
@@ -547,7 +550,7 @@ export function SoundSection({ channel }: { channel: SamplerChannel }) {
                 }
               }}
             >
-              {label}
+              {t(label)}
             </Button>
           ))}
         </div>
@@ -559,8 +562,8 @@ export function SoundSection({ channel }: { channel: SamplerChannel }) {
               size="sm"
               aria-label={
                 direction === "previous"
-                  ? "Choose the previous cut group preset"
-                  : "Choose the next cut group preset"
+                  ? t("Choose the previous cut group preset")
+                  : t("Choose the next cut group preset")
               }
               disabled={nextCutGroupPreset(source.cutGroup, direction) === null}
               onClick={() => {
@@ -575,7 +578,7 @@ export function SoundSection({ channel }: { channel: SamplerChannel }) {
                 })
               }}
             >
-              {direction === "previous" ? "Previous" : "Next"}
+              {direction === "previous" ? t("Previous") : t("Next")}
             </Button>
           ))}
         </div>

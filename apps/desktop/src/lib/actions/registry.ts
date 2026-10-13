@@ -1,3 +1,4 @@
+import { registerDynamicActionMessage, removeDynamicActionMessage, type DynamicActionMessage } from "@/lib/i18n/action-messages"
 import type { ChannelId, TrackId, TransportState } from "@/bindings"
 import type { ProjectState } from "@/lib/store/project"
 import type {
@@ -46,6 +47,7 @@ export type Action = {
   id: string
   /** What menus and the palette show. Sentence case, no trailing dots. */
   title: string
+  titleMessage?: DynamicActionMessage
   /** Groups actions in the palette: File, Edit, Transport, View and so on. */
   section: string
   /**
@@ -158,12 +160,12 @@ export function createRegistry(): Registry {
           }
         }
       }
-      for (const action of added) actions.set(action.id, action)
+      for (const action of added) { actions.set(action.id, action); registerDynamicActionMessage(action.id, action, action.titleMessage) }
       batches.add(options)
       changed()
       return () => {
         for (const action of added) {
-          if (actions.get(action.id) === action) actions.delete(action.id)
+          if (actions.get(action.id) === action) { actions.delete(action.id); removeDynamicActionMessage(action.id, action) }
         }
         batches.delete(options)
         changed()

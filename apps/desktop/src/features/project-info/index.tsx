@@ -1,3 +1,4 @@
+import { useTranslation } from "@/lib/i18n"
 import { Button } from "@/components/ui/button"
 import {
   Popover,
@@ -13,6 +14,7 @@ import { ProjectPlaybackSettings } from "./settings"
 import { ProjectInfoPanel } from "./panel"
 
 export function ProjectInfoControls() {
+  const t = useTranslation()
   const settings = useProjectStore((state) => state.project.settings)
   const generation = useProjectGeneration()
   const key = JSON.stringify([
@@ -28,7 +30,7 @@ export function ProjectInfoControls() {
       <PopoverTrigger
         render={
           <Button variant="ghost" size="sm">
-            Project info
+            {t("Project info")}
           </Button>
         }
       />
@@ -37,7 +39,7 @@ export function ProjectInfoControls() {
         className="max-h-[75vh] w-96 max-w-[90vw] overflow-y-auto"
       >
         <PopoverHeader>
-          <PopoverTitle>Project info</PopoverTitle>
+          <PopoverTitle>{t("Project info")}</PopoverTitle>
         </PopoverHeader>
         <ProjectPlaybackSettings />
         <ProjectInfoPanel

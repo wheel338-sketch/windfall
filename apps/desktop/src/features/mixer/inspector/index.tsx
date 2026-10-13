@@ -1,3 +1,5 @@
+import { message as i18nMessage } from "@/lib/i18n"
+import { translatedText as t, useLanguageStore } from "@/lib/i18n"
 import {
   Add01Icon,
   ArrowExpand01Icon,
@@ -77,10 +79,11 @@ function useChainLatency(id: TrackId | null, sampleRate: number): number {
  * own under it in a narrow panel.
  */
 function Latency({ track }: { track: TrackId }) {
+  useLanguageStore((state) => state.language)
   const sampleRate = useSampleRate()
   const frames = useChainLatency(track, sampleRate)
   const hint = useHint(
-    "Built-in effects on this track add this shared delay. The engine compensates other paths to keep them aligned; extra stereo delay is intentional"
+    t("Built-in effects on this track add this shared delay. The engine compensates other paths to keep them aligned; extra stereo delay is intentional")
   )
   if (frames === 0) return null
   return (
@@ -89,12 +92,13 @@ function Latency({ track }: { track: TrackId }) {
       className="order-last flex h-5 min-w-0 basis-full items-center truncate font-readout text-[9px] leading-none text-muted-foreground @min-[26rem]/inspector:order-none @min-[26rem]/inspector:h-auto @min-[26rem]/inspector:basis-auto @min-[26rem]/inspector:pl-1"
       {...hint}
     >
-      {formatLatency(frames, sampleRate)} compensated
+      {i18nMessage("{latency} compensated", { latency: formatLatency(frames, sampleRate) })}
     </span>
   )
 }
 
 function Chain({ track }: { track: TrackId }) {
+  useLanguageStore((state) => state.language)
   const ids = useEffectIds(track)
   const drop = useEffectDrop(track)
 
@@ -105,25 +109,20 @@ function Chain({ track }: { track: TrackId }) {
         className="flex flex-1 flex-col items-center justify-center gap-2 p-4 text-center text-muted-foreground"
         {...drop.zone}
       >
-        <p className="font-medium text-foreground">No effects on this track</p>
-        <p className="max-w-56 leading-snug">
-          Sound runs through a track's effects from the top down, before its
-          fader. Add one, or drag one here from another track.
-        </p>
+        <p className="font-medium text-foreground">{t("No effects on this track")}</p>
+        <p className="max-w-56 leading-snug">{t("Sound runs through a track's effects from the top down, before its fader. Add one, or drag one here from another track.")}</p>
         <AddEffectMenu
           track={track}
           className="h-6 gap-1 border border-dashed px-2 text-xs text-foreground"
         >
-          <HugeiconsIcon icon={Add01Icon} strokeWidth={2} className="size-3" />
-          Add effect
-        </AddEffectMenu>
+          <HugeiconsIcon icon={Add01Icon} strokeWidth={2} className="size-3" />{t("Add effect")}</AddEffectMenu>
       </div>
     )
   }
 
   return (
     <ul
-      aria-label="Effect chain"
+      aria-label={t("Effect chain")}
       data-slot="effect-chain"
       // One column beside the strips. With the room of the editor area the
       // effects sit side by side, each wide enough for its wide layout.
@@ -144,9 +143,7 @@ function Chain({ track }: { track: TrackId }) {
               icon={Add01Icon}
               strokeWidth={2}
               className="size-3"
-            />
-            Add effect
-          </AddEffectMenu>
+            />{t("Add effect")}</AddEffectMenu>
         </li>
       )}
     </ul>
@@ -165,6 +162,7 @@ type EffectInspectorProps = {
  * area for detailed work.
  */
 export function EffectInspector({ enlarged = false }: EffectInspectorProps) {
+  useLanguageStore((state) => state.language)
   const selected = useUiStore((state) => state.selectedTrack)
   const { name, color, current } = useTrackFace(selected)
   const count = useEffectIds(selected).length
@@ -184,7 +182,7 @@ export function EffectInspector({ enlarged = false }: EffectInspectorProps) {
       <aside
         ref={root}
         tabIndex={-1}
-        aria-label="Effects"
+        aria-label={t("Effects")}
         data-slot="effect-inspector"
         data-enlarged={enlarged ? "" : undefined}
         // Docked, it is the bottom right corner, where toasts come up.
@@ -204,13 +202,13 @@ export function EffectInspector({ enlarged = false }: EffectInspectorProps) {
             className="min-w-0 truncate text-xs font-medium"
             title={name ?? undefined}
           >
-            {name === null ? "Effects" : `${name} effects`}
+            {name === null ? t("Effects") : i18nMessage("{name} effects", { name })}
           </h2>
           {/* Outside the name, so a long name is cut short and not this. */}
           {name !== null && count > 0 && (
             <span
               data-slot="effect-count"
-              aria-label={`${count} of ${MAX_EFFECT_SLOTS} effects`}
+              aria-label={i18nMessage("{value0} of {value1} effects", { value0: count, value1: MAX_EFFECT_SLOTS })}
               className="shrink-0 font-readout text-[9px] text-muted-foreground"
             >
               {count}/{MAX_EFFECT_SLOTS}
@@ -254,8 +252,8 @@ export function EffectInspector({ enlarged = false }: EffectInspectorProps) {
           <Chain key={selected} track={selected} />
         ) : (
           <div className="flex flex-1 flex-col items-center justify-center gap-1 p-4 text-center text-muted-foreground">
-            <p className="font-medium text-foreground">No track selected</p>
-            <p>Click a strip to see its effects here.</p>
+            <p className="font-medium text-foreground">{t("No track selected")}</p>
+            <p>{t("Click a strip to see its effects here.")}</p>
           </div>
         )}
       </aside>
@@ -268,6 +266,7 @@ export function EffectInspector({ enlarged = false }: EffectInspectorProps) {
  * still the mixer's, so the mixer's keys work in here.
  */
 export function EnlargedEffects() {
+  useLanguageStore((state) => state.language)
   const scope = useShortcutScope("mixer")
   useEffect(() => registerMixerActions(), [])
   return (
@@ -289,18 +288,19 @@ type EffectInspectorTabProps = {
 export function EffectInspectorTab({
   enlarged = false,
 }: EffectInspectorTabProps) {
+  useLanguageStore((state) => state.language)
   const action = enlarged ? "mixer.enlargeEffects" : "mixer.effects"
   const shortcut = useShortcutLabel(action)
   const what = enlarged
-    ? "The effects are in the editor area. Click to bring them back here"
-    : "Show the selected track's effects"
-  const hint = useHint(shortcut ? `${what} (${shortcut})` : what)
+    ? t("The effects are in the editor area. Click to bring them back here")
+    : t("Show the selected track's effects")
+  const hint = useHint(shortcut ? i18nMessage("{help} ({shortcut})", { help: what, shortcut }) : what)
   return (
     <button
       type="button"
       data-slot="effect-inspector-tab"
       data-toast-clear=""
-      aria-label={enlarged ? "Bring the effects back" : "Show effects"}
+      aria-label={enlarged ? t("Bring the effects back") : t("Show effects")}
       aria-expanded={false}
       className={cn(
         "flex h-full w-[22px] shrink-0 flex-col items-center gap-1.5 border-l bg-chassis/60 pt-1.5 text-muted-foreground outline-none hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset",
@@ -314,9 +314,7 @@ export function EffectInspectorTab({
         strokeWidth={2}
         className="size-3.5 shrink-0"
       />
-      <span className="text-[10px] leading-none [writing-mode:vertical-rl]">
-        Effects
-      </span>
+      <span className="text-[10px] leading-none [writing-mode:vertical-rl]">{t("Effects")}</span>
     </button>
   )
 }

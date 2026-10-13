@@ -1,3 +1,4 @@
+import { translatedText as t, useLanguageStore } from "@/lib/i18n"
 import { formatPercent, Knob, percentUnit } from "@/components/audio"
 import { Button } from "@/components/ui/button"
 import { Field, FieldDescription } from "@/components/ui/field"
@@ -24,6 +25,7 @@ import { Section } from "./parts"
 
 /** A loop's points stay relative to the trimmed sample, in source order. */
 export function LoopSection({ channel }: { channel: SamplerChannel }) {
+  useLanguageStore((state) => state.language)
   const { id, source } = channel
   const mode = source.loopMode ?? "off"
   const start = useGestureValue(source.loopStart ?? 0, (value, send) => {
@@ -48,20 +50,20 @@ export function LoopSection({ channel }: { channel: SamplerChannel }) {
     send({ type: "updateSampler", id, patch: { loopCrossfade: value } })
   )
   const crossfadeHint = useHint(
-    "Loop crossfade: blends the loop seam during playback. Zero keeps the original loop"
+    t("Loop crossfade: blends the loop seam during playback. Zero keeps the original loop")
   )
   const startHint = useHint(
-    "Loop start: percentage of the trimmed sample, in source order"
+    t("Loop start: percentage of the trimmed sample, in source order")
   )
   const endHint = useHint(
-    "Loop end: exclusive end within the trimmed sample. Short loops hold at least one frame"
+    t("Loop end: exclusive end within the trimmed sample. Short loops hold at least one frame")
   )
 
   return (
-    <Section title="Loop">
+    <Section title={t("Loop")}>
       <Field>
         <ToggleGroup
-          aria-label="Sample loop mode"
+          aria-label={t("Sample loop mode")}
           size="sm"
           variant="outline"
           spacing={0}
@@ -76,9 +78,9 @@ export function LoopSection({ channel }: { channel: SamplerChannel }) {
               void dispatch({ type: "updateSampler", id, patch: { loopMode } })
           }}
         >
-          <ToggleGroupItem value="off">Off</ToggleGroupItem>
-          <ToggleGroupItem value="forward">Forward</ToggleGroupItem>
-          <ToggleGroupItem value="pingPong">Ping-pong</ToggleGroupItem>
+          <ToggleGroupItem value="off">{t("Off")}</ToggleGroupItem>
+          <ToggleGroupItem value="forward">{t("Forward")}</ToggleGroupItem>
+          <ToggleGroupItem value="pingPong">{t("Ping-pong")}</ToggleGroupItem>
         </ToggleGroup>
         <div className="flex flex-wrap gap-1">
           {(["previous", "next"] as const).map((direction) => (
@@ -88,8 +90,8 @@ export function LoopSection({ channel }: { channel: SamplerChannel }) {
               size="sm"
               aria-label={
                 direction === "previous"
-                  ? "Choose the previous loop mode"
-                  : "Choose the next loop mode"
+                  ? t("Choose the previous loop mode")
+                  : t("Choose the next loop mode")
               }
               disabled={
                 nextLoopMode(source.loopMode ?? "off", direction) === null
@@ -106,18 +108,15 @@ export function LoopSection({ channel }: { channel: SamplerChannel }) {
                   })
               }}
             >
-              {direction === "previous" ? "Previous" : "Next"}
+              {direction === "previous" ? t("Previous") : t("Next")}
             </Button>
           ))}
         </div>
-        <FieldDescription>
-          Repeats while held, including release. Points are percentages of the
-          trimmed sample.
-        </FieldDescription>
+        <FieldDescription>{t("Repeats while held, including release. Points are percentages of the trimmed sample.")}</FieldDescription>
       </Field>
       <div className="flex justify-center gap-4">
         <Knob
-          label="Loop start"
+          label={t("Loop start")}
           showValue
           min={0}
           max={1}
@@ -129,7 +128,7 @@ export function LoopSection({ channel }: { channel: SamplerChannel }) {
           {...startHint}
         />
         <Knob
-          label="Loop end"
+          label={t("Loop end")}
           showValue
           min={0}
           max={1}
@@ -141,7 +140,7 @@ export function LoopSection({ channel }: { channel: SamplerChannel }) {
           {...endHint}
         />
         <Knob
-          label="Loop crossfade"
+          label={t("Loop crossfade")}
           showValue
           min={0}
           max={1}
@@ -181,7 +180,7 @@ export function LoopSection({ channel }: { channel: SamplerChannel }) {
                 })
             }}
           >
-            {label}
+            {t(label)}
           </Button>
         ))}
       </div>
@@ -193,8 +192,8 @@ export function LoopSection({ channel }: { channel: SamplerChannel }) {
             size="sm"
             aria-label={
               direction === "previous"
-                ? "Choose the previous loop crossfade preset"
-                : "Choose the next loop crossfade preset"
+                ? t("Choose the previous loop crossfade preset")
+                : t("Choose the next loop crossfade preset")
             }
             disabled={
               mode === "off" ||
@@ -220,7 +219,7 @@ export function LoopSection({ channel }: { channel: SamplerChannel }) {
               })
             }}
           >
-            {direction === "previous" ? "Previous" : "Next"}
+            {direction === "previous" ? t("Previous") : t("Next")}
           </Button>
         ))}
       </div>
@@ -253,7 +252,7 @@ export function LoopSection({ channel }: { channel: SamplerChannel }) {
                 })
             }}
           >
-            {factor === "half" ? "Half" : "Double"}
+            {factor === "half" ? t("Half") : t("Double")}
           </Button>
         ))}
       </div>
@@ -287,7 +286,7 @@ export function LoopSection({ channel }: { channel: SamplerChannel }) {
                 })
             }}
           >
-            {preset.label}
+            {t(preset.label)}
           </Button>
         ))}
       </div>
@@ -299,8 +298,8 @@ export function LoopSection({ channel }: { channel: SamplerChannel }) {
             size="sm"
             aria-label={
               direction === "previous"
-                ? "Choose the previous loop region preset"
-                : "Choose the next loop region preset"
+                ? t("Choose the previous loop region preset")
+                : t("Choose the next loop region preset")
             }
             disabled={
               nextLoopRegionPreset(
@@ -325,7 +324,7 @@ export function LoopSection({ channel }: { channel: SamplerChannel }) {
               })
             }}
           >
-            {direction === "previous" ? "Previous" : "Next"}
+            {direction === "previous" ? t("Previous") : t("Next")}
           </Button>
         ))}
       </div>
@@ -336,7 +335,7 @@ export function LoopSection({ channel }: { channel: SamplerChannel }) {
             variant="outline"
             size="sm"
             aria-label={
-              factor === "half" ? "Halve loop length" : "Double loop length"
+              factor === "half" ? t("Halve loop length") : t("Double loop length")
             }
             disabled={
               nextLoopLengthScale(
@@ -361,7 +360,7 @@ export function LoopSection({ channel }: { channel: SamplerChannel }) {
                 })
             }}
           >
-            {factor === "half" ? "Halve length" : "Double length"}
+            {factor === "half" ? t("Halve length") : t("Double length")}
           </Button>
         ))}
       </div>
@@ -373,8 +372,8 @@ export function LoopSection({ channel }: { channel: SamplerChannel }) {
             size="sm"
             aria-label={
               factor === "half"
-                ? "Halve loop length from the end"
-                : "Double loop length from the end"
+                ? t("Halve loop length from the end")
+                : t("Double loop length from the end")
             }
             disabled={
               nextLoopStartScale(
@@ -399,7 +398,7 @@ export function LoopSection({ channel }: { channel: SamplerChannel }) {
                 })
             }}
           >
-            {factor === "half" ? "Halve from end" : "Double from end"}
+            {factor === "half" ? t("Halve from end") : t("Double from end")}
           </Button>
         ))}
       </div>

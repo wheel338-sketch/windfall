@@ -1,3 +1,5 @@
+import { message as i18nMessage } from "@/lib/i18n"
+import { translatedText as t, useLanguageStore } from "@/lib/i18n"
 import type { Channel, ChannelId, Envelope } from "@/bindings"
 import {
   DEFAULT_ENVELOPE_LIMITS,
@@ -54,6 +56,7 @@ function EnvelopeControls({
   channel: Channel
   envelope: Envelope
 }) {
+  useLanguageStore((state) => state.language)
   const { id } = channel
   const envelope = useGestureValue(stored, (value, send) =>
     send({ type: "setSamplerEnvelope", id, envelope: withinLimits(value) })
@@ -67,23 +70,23 @@ function EnvelopeControls({
   }
 
   const editorHint = useHint(
-    "Drag the nodes: attack, then decay and sustain level, then release. Double-click a node to reset it"
+    t("Drag the nodes: attack, then decay and sustain level, then release. Double-click a node to reset it")
   )
-  const attackHint = useHint("Attack: how long the sound takes to fade in")
+  const attackHint = useHint(t("Attack: how long the sound takes to fade in"))
   const decayHint = useHint(
-    "Decay: how long it takes to fall to the sustain level"
+    t("Decay: how long it takes to fall to the sustain level")
   )
   const sustainHint = useHint(
-    "Sustain: the level held for as long as the note lasts"
+    t("Sustain: the level held for as long as the note lasts")
   )
   const releaseHint = useHint(
-    "Release: how long the sound rings on after the note ends"
+    t("Release: how long the sound rings on after the note ends")
   )
 
   return (
     <>
       <EnvelopeEditor
-        aria-label="Envelope shape"
+        aria-label={t("Envelope shape")}
         {...value}
         defaults={DEFAULT_ENVELOPE}
         // The sampler's envelope: a straight attack, exponential falls.
@@ -96,7 +99,7 @@ function EnvelopeControls({
       />
       <div className="grid grid-cols-4 justify-items-center gap-1">
         <Knob
-          label="Attack"
+          label={t("Attack")}
           showValue
           min={0}
           max={maxAttackMs}
@@ -109,7 +112,7 @@ function EnvelopeControls({
           {...attackHint}
         />
         <Knob
-          label="Decay"
+          label={t("Decay")}
           showValue
           min={0}
           max={maxDecayMs}
@@ -122,7 +125,7 @@ function EnvelopeControls({
           {...decayHint}
         />
         <Knob
-          label="Sustain"
+          label={t("Sustain")}
           showValue
           min={0}
           max={1}
@@ -134,7 +137,7 @@ function EnvelopeControls({
           {...sustainHint}
         />
         <Knob
-          label="Release"
+          label={t("Release")}
           showValue
           min={0}
           max={maxReleaseMs}
@@ -165,22 +168,22 @@ function EnvelopeControls({
               }
             }}
           >
-            {label}
+            {t(label)}
           </Button>
         ))}
       </div>
       <div className="flex gap-1">
         {(
           [
-            ["Previous", "previous"],
-            ["Next", "next"],
+            [t("Previous"), "previous"],
+            [t("Next"), "next"],
           ] as const
         ).map(([label, direction]) => (
           <Button
             key={direction}
             variant="outline"
             size="sm"
-            aria-label={`Choose the ${direction} envelope preset`}
+            aria-label={i18nMessage("Choose the {value0} envelope preset", { value0: t(direction) })}
             disabled={nextEnvelopePreset(value, direction) === null}
             onClick={() => {
               const next = nextEnvelopePreset(value, direction)
@@ -193,15 +196,15 @@ function EnvelopeControls({
               }
             }}
           >
-            {label}
+            {t(label)}
           </Button>
         ))}
       </div>
       <div className="flex gap-1">
         {(
           [
-            ["Half", 0.5],
-            ["Double", 2],
+            [t("Half"), 0.5],
+            [t("Double"), 2],
           ] as const
         ).map(([label, factor]) => (
           <Button
@@ -220,15 +223,15 @@ function EnvelopeControls({
               }
             }}
           >
-            {label}
+            {t(label)}
           </Button>
         ))}
       </div>
       <div className="flex gap-1">
         {(
           [
-            ["Halve sustain", 0.5],
-            ["Double sustain", 2],
+            [t("Halve sustain"), 0.5],
+            [t("Double sustain"), 2],
           ] as const
         ).map(([label, factor]) => (
           <Button
@@ -247,7 +250,7 @@ function EnvelopeControls({
               }
             }}
           >
-            {label}
+            {t(label)}
           </Button>
         ))}
       </div>
@@ -257,13 +260,14 @@ function EnvelopeControls({
 
 /** The sampler's volume envelope: on or off, and its shape when on. */
 export function EnvelopeSection({ channel }: { channel: SamplerChannel }) {
+  useLanguageStore((state) => state.language)
   const { id } = channel
   const envelope = channel.source.envelope
   const looping = (channel.source.loopMode ?? "off") !== "off"
   const hint = useHint(
     looping
-      ? "Envelope: shape held loops and their release. When off, looped notes use a short release"
-      : "Envelope: when on, the note's length shapes the sound. When off, every hit plays the sample to its end"
+      ? t("Envelope: shape held loops and their release. When off, looped notes use a short release")
+      : t("Envelope: when on, the note's length shapes the sound. When off, every hit plays the sample to its end")
   )
 
   function setOn(on: boolean) {
@@ -281,16 +285,16 @@ export function EnvelopeSection({ channel }: { channel: SamplerChannel }) {
 
   return (
     <Section
-      title="Envelope"
+      title={t("Envelope")}
       aside={
         <span className="flex items-center gap-1.5" {...hint}>
           {/* Not a label: the switch is named for what it does, not its state. */}
           <span aria-hidden className="text-muted-foreground">
-            {envelope ? "On" : "Off"}
+            {envelope ? t("On") : t("Off")}
           </span>
           <Switch
             size="sm"
-            aria-label="Volume envelope"
+            aria-label={t("Volume envelope")}
             checked={envelope !== null}
             onCheckedChange={(on) => setOn(on)}
           />
@@ -302,8 +306,8 @@ export function EnvelopeSection({ channel }: { channel: SamplerChannel }) {
       ) : (
         <p className="text-muted-foreground">
           {looping
-            ? "Off. Looped notes hold until note-off, then release over 4 ms. Turn it on to shape the loop and its release."
-            : "Off. Every hit plays the sample to its end, which suits drums. Turn it on to shape held notes."}
+            ? t("Off. Looped notes hold until note-off, then release over 4 ms. Turn it on to shape the loop and its release.")
+            : t("Off. Every hit plays the sample to its end, which suits drums. Turn it on to shape held notes.")}
         </p>
       )}
     </Section>

@@ -1,3 +1,5 @@
+import { message as i18nMessage } from "@/lib/i18n"
+import { translatedText as t, useLanguageStore } from "@/lib/i18n"
 import { pluginDropHandlers } from "@/features/plugins/insert"
 import {
   ArrowDown01Icon,
@@ -41,6 +43,7 @@ const clampMix = (mix: number) => (Number.isFinite(mix) ? clamp(mix, 0, 1) : 1)
 
 /** How much of the effect is heard against the untouched signal. */
 function MixKnob({ track, slot }: { track: TrackId; slot: EffectSlot }) {
+  useLanguageStore((state) => state.language)
   const plugin = usePluginBinding({ type: "effect", effect: slot.id })
   const name = plugin?.name ?? effectName(slot.params.type)
   const mix = useGestureValue(
@@ -54,7 +57,7 @@ function MixKnob({ track, slot }: { track: TrackId; slot: EffectSlot }) {
     clampMix
   )
   const hint = useHint(
-    `Dry/wet: ${formatPercent(mix.value)} of the signal goes through this ${name}. Double-click for 100%`
+    i18nMessage("Dry/wet: {value0} of the signal goes through this {value1}. Double-click for 100%", { value0: formatPercent(mix.value), value1: name })
   )
   const automation = useAutomation({
     type: "effectMix",
@@ -73,7 +76,7 @@ function MixKnob({ track, slot }: { track: TrackId; slot: EffectSlot }) {
         items={[
           ...automation.items,
           {
-            submenu: "Mix",
+            submenu: t("Mix"),
             items: [
               ...MIX_PRESETS.map((preset) => ({
                 title: preset.label,
@@ -91,7 +94,7 @@ function MixKnob({ track, slot }: { track: TrackId; slot: EffectSlot }) {
               })),
               ...(["previous", "next"] as const).map((direction) => ({
                 title:
-                  direction === "previous" ? "Previous preset" : "Next preset",
+                  direction === "previous" ? t("Previous preset") : t("Next preset"),
                 disabled: nextMixPreset(slot.mix, direction) === null,
                 run: () => {
                   const latest = useProjectStore
@@ -110,7 +113,7 @@ function MixKnob({ track, slot }: { track: TrackId; slot: EffectSlot }) {
                 },
               })),
               ...(["halve", "double"] as const).map((factor) => ({
-                title: factor === "halve" ? "Halve" : "Double",
+                title: factor === "halve" ? t("Halve") : t("Double"),
                 disabled: nextMixScale(slot.mix, factor) === null,
                 run: () => {
                   const latest = useProjectStore
@@ -137,7 +140,7 @@ function MixKnob({ track, slot }: { track: TrackId; slot: EffectSlot }) {
           min={0}
           max={1}
           defaultValue={1}
-          aria-label={`${name} dry/wet mix`}
+          aria-label={i18nMessage("{value0} dry/wet mix", { value0: name })}
           live={automation.live}
           marker={automation.marker}
           {...percentUnit}
@@ -159,6 +162,7 @@ export const EffectPanel = memo(function EffectPanel({
   track,
   effect,
 }: EffectPanelProps) {
+  useLanguageStore((state) => state.language)
   const slot = useEffectSlot(track, effect)
   const plugin = usePluginBinding({ type: "effect", effect })
   const collapsed = useEffectsUi((state) => state.collapsed.includes(effect))
@@ -166,7 +170,7 @@ export const EffectPanel = memo(function EffectPanel({
   const revealing = useEffectsUi((state) => state.revealing === effect)
   const root = useRef<HTMLLIElement>(null)
   const gripHint = useHint(
-    "Drag to reorder, or onto another track's strip to move it there. Ctrl copies"
+    t("Drag to reorder, or onto another track's strip to move it there. Ctrl copies")
   )
   // With the focus on the header, Delete and Ctrl+D mean this effect.
   const scope = useShortcutScope("effect")
@@ -225,7 +229,7 @@ export const EffectPanel = memo(function EffectPanel({
             size="md"
             pressed={slot.enabled}
             color="var(--wf-ok)"
-            aria-label={`${name} on`}
+            aria-label={i18nMessage("{name} on", { name })}
             onPressedChange={(on) => void setEffectEnabled(effect, on)}
           />
           <button
@@ -244,9 +248,7 @@ export const EffectPanel = memo(function EffectPanel({
               className="size-3 shrink-0 text-muted-foreground"
             />
             {!slot.enabled && (
-              <span className="ml-1 shrink-0 text-[10px] font-normal text-muted-foreground">
-                Bypassed
-              </span>
+              <span className="ml-1 shrink-0 text-[10px] font-normal text-muted-foreground">{t("Bypassed")}</span>
             )}
           </button>
           <MixKnob track={track} slot={slot} />

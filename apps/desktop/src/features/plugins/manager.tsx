@@ -1,3 +1,6 @@
+import { localizeBackendText } from "@/lib/i18n"
+import { message as i18nMessage } from "@/lib/i18n"
+import { translatedText as t, useLanguageStore } from "@/lib/i18n"
 import { useEffect, useState } from "react"
 import { PluginCatalog } from "./catalog"
 import type { PluginManagerState } from "@/bindings"
@@ -27,6 +30,7 @@ import { selectChannel } from "@/features/channel-rack/channel-ops"
 import { openEffect } from "@/features/mixer/effect-ops"
 
 export function PluginManager() {
+  useLanguageStore((state) => state.language)
   const open = usePluginUi((state) => state.open)
   const requestedTrack = usePluginUi((state) => state.track)
   const selectedTrack = useUiStore((state) => state.selectedTrack)
@@ -42,7 +46,7 @@ export function PluginManager() {
         .then((state) => {
           if (!cancelled) setState(state)
         })
-        .catch((error: unknown) => reportError(error, "Could not load plugins"))
+        .catch((error: unknown) => reportError(error, t("Could not load plugins")))
     void refresh()
     const timer = window.setInterval(() => void refresh(), 500)
     return () => {
@@ -56,7 +60,7 @@ export function PluginManager() {
       await task()
       setState(await backend.pluginsState())
     } catch (error) {
-      reportError(error, "Plugin request failed")
+      reportError(error, t("Plugin request failed"))
     } finally {
       setBusy(false)
     }
@@ -70,19 +74,15 @@ export function PluginManager() {
     <Dialog open={open} onOpenChange={(open) => usePluginUi.setState({ open })}>
       <DialogContent className="flex max-h-[85vh] flex-col sm:max-w-2xl">
         <DialogHeader>
-          <DialogTitle>Plugin manager</DialogTitle>
-          <DialogDescription>
-            Scan your folders, then add instruments to the rack or effects to
-            mixer track {requestedTrack ?? selectedTrack ?? 0}.
+          <DialogTitle>{t("Plugin manager")}</DialogTitle>
+          <DialogDescription>{i18nMessage("Scan your folders, then add instruments to the rack or effects to mixer track {track}.", { track: requestedTrack ?? selectedTrack ?? 0 })}
           </DialogDescription>
         </DialogHeader>
         <div className="flex gap-2">
           <Button
             disabled={busy || state?.scanning || backend.kind === "mock"}
             onClick={() => void work(() => backend.pluginsScan())}
-          >
-            Scan plugins
-          </Button>
+          >{t("Scan plugins")}</Button>
           <Button
             variant="outline"
             disabled={busy || state?.scanning || backend.kind === "mock"}
@@ -92,25 +92,22 @@ export function PluginManager() {
                 if (folder) await backend.pluginsAddFolder(folder)
               })
             }
-          >
-            Add folder
-          </Button>
+          >{t("Add folder")}</Button>
         </div>
-        <div className="flex flex-wrap gap-2"><Button variant="outline" disabled={busy || state?.scanning || backend.kind === "mock"} onClick={() => void work(() => backend.pluginsRescan(false))}>Retry blocked plugins</Button><Button variant="outline" disabled={busy || state?.scanning || backend.kind === "mock"} onClick={() => void work(() => backend.pluginsRescan(true))}>Verify every plugin again</Button><Button variant="outline" disabled={busy} onClick={() => void work(() => backend.pluginDatabaseForgetMissing())}>Forget missing plugins</Button></div>
+        <div className="flex flex-wrap gap-2"><Button variant="outline" disabled={busy || state?.scanning || backend.kind === "mock"} onClick={() => void work(() => backend.pluginsRescan(false))}>{t("Retry blocked plugins")}</Button><Button variant="outline" disabled={busy || state?.scanning || backend.kind === "mock"} onClick={() => void work(() => backend.pluginsRescan(true))}>{t("Verify every plugin again")}</Button><Button variant="outline" disabled={busy} onClick={() => void work(() => backend.pluginDatabaseForgetMissing())}>{t("Forget missing plugins")}</Button></div>
         {state?.scanning && (
-          <p role="status">
-            Scanning {state.completed}/{state.total}: {state.current}
+          <p role="status">{i18nMessage("Scanning {completed}/{total}: {current}", { completed: state.completed, total: state.total, current: state.current ?? "" })}
           </p>
         )}
         {state?.error && (
           <Alert>
-            <AlertTitle>Plugin status</AlertTitle>
-            <AlertDescription>{state.error}</AlertDescription>
+            <AlertTitle>{t("Plugin status")}</AlertTitle>
+            <AlertDescription>{localizeBackendText(state.error)}</AlertDescription>
           </Alert>
         )}
         <FieldGroup>
           <Field>
-            <FieldLabel htmlFor="plugin-search">Search plugins</FieldLabel>
+            <FieldLabel htmlFor="plugin-search">{t("Search plugins")}</FieldLabel>
             <Input
               id="plugin-search"
               value={search}
@@ -120,11 +117,11 @@ export function PluginManager() {
         </FieldGroup>
         <div className="flex min-h-0 flex-col gap-3 overflow-y-auto">
           <details>
-            <summary>Plugin folders ({state?.folders.length ?? 0})</summary>
+            <summary>{i18nMessage("Plugin folders ({count})", { count: state?.folders.length ?? 0 })}</summary>
             <ul>
               {state?.folders.map((folder) => (
                 <li key={folder} className="truncate" title={folder}>
-                  {folder}<Button size="sm" variant="ghost" disabled={busy || state?.scanning || backend.kind === "mock"} onClick={() => void work(() => backend.pluginsRemoveFolder(folder))}>Remove folder</Button>
+                  {folder}<Button size="sm" variant="ghost" disabled={busy || state?.scanning || backend.kind === "mock"} onClick={() => void work(() => backend.pluginsRemoveFolder(folder))}>{t("Remove folder")}</Button>
                 </li>
               ))}
             </ul>
@@ -132,10 +129,8 @@ export function PluginManager() {
           {entries.length === 0 && (
             <Empty>
               <EmptyHeader>
-                <EmptyTitle>No plugins found</EmptyTitle>
-                <EmptyDescription>
-                  Add your plugin folder and scan it.
-                </EmptyDescription>
+                <EmptyTitle>{t("No plugins found")}</EmptyTitle>
+                <EmptyDescription>{t("Add your plugin folder and scan it.")}</EmptyDescription>
               </EmptyHeader>
             </Empty>
           )}
@@ -149,8 +144,8 @@ export function PluginManager() {
                   {entry.name} · {entry.vendor} · {entry.format.toUpperCase()}
                 </p>
                 <p className="text-muted-foreground">
-                  {entry.instrument ? "Instrument" : "Effect"}
-                  {entry.error ? ` · ${entry.error}` : ""}
+                  {entry.instrument ? t("Instrument") : t("Effect")}
+                  {entry.error ? ` · ${entry.error && localizeBackendText(entry.error)}` : ""}
                 </p>
               </div>
               <Button
@@ -174,16 +169,16 @@ export function PluginManager() {
                   })
                 }
               >
-                Add {entry.instrument ? "instrument" : "effect"}
+                {entry.instrument ? t("Add instrument") : t("Add effect")}
               </Button>
             </div>
           ))}
-          <PluginCatalog key={`${state?.completed ?? 0}:${state?.scanning ?? false}:${busy}`} track={requestedTrack ?? selectedTrack ?? 0} searchLabel="Search plugin database" />
+          <PluginCatalog key={`${state?.completed ?? 0}:${state?.scanning ?? false}:${busy}`} track={requestedTrack ?? selectedTrack ?? 0} searchLabel={t("Search plugin database")} />
           {state?.blocked.map((entry) => (
             <Alert key={`${entry.path}:${entry.id}`}>
-              <AlertTitle>{entry.name} is blocked</AlertTitle>
+              <AlertTitle>{i18nMessage("{name} is blocked", { name: entry.name })}</AlertTitle>
               <AlertDescription>
-                {entry.error}
+                {entry.error && localizeBackendText(entry.error)}
                 <Button
                   variant="outline"
                   size="sm"
@@ -192,7 +187,7 @@ export function PluginManager() {
                     void work(() => backend.pluginsScan(entry.path))
                   }
                 >
-                  Retry {entry.name}
+                  {i18nMessage("Retry {name}", { name: entry.name })}
                 </Button>
               </AlertDescription>
             </Alert>

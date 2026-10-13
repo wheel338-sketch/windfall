@@ -41,6 +41,7 @@ import type { ProjectFilesBackend } from "./files"
 import type { MixerPresetLibraryBackend } from "./mixer-presets"
 import type { RemoteContentBackend } from "./remote-content"
 
+export type PluginNoteCapabilities = { projectPanLaw: boolean; instances: boolean; nativePan: boolean[]; nativeVolume: boolean[] }
 export type Unsubscribe = () => void
 /** Runtime correlation envelope, never saved in a project or export preset. */
 export type ExportRequestProgress = ExportProgress & { request?: string }
@@ -74,6 +75,7 @@ export type AudioClipPlace = {
  * plain text that can be shown to the user.
  */
 export interface Backend extends AnalysisBackend, MixerPresetLibraryBackend, AnalyzerBackend, ProjectFilesBackend, RemoteContentBackend {
+  updateCall<T>(command: string, args: Record<string, unknown>): Promise<T>
   musicLightingStatus?(): Promise<{connected: boolean; message: string}>
   sampleInstrumentLoadBank?(channel: ChannelId, expected: import("@/bindings").SampleInstrumentAsset | null,
     path: string): Promise<DispatchResult>
@@ -216,6 +218,7 @@ export interface Backend extends AnalysisBackend, MixerPresetLibraryBackend, Ana
   pluginsAdd(path: string, id: string, track?: TrackId): Promise<DispatchResult>
   pluginEditor(target: PluginTarget, open: boolean): Promise<void>
   pluginEditorScale(application: number): Promise<void>
+  pluginNoteCapabilities(target: PluginTarget): Promise<PluginNoteCapabilities>
   onWindowScale?(handler: () => void): Unsubscribe
 
   documentSnapshot(): Promise<DocumentSnapshot>

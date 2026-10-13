@@ -1,3 +1,4 @@
+import { dynamicTitle } from "@/lib/i18n"
 import {
   invalidateActionsOn,
   registry,
@@ -182,7 +183,7 @@ const ACTIONS: Action[] = [
   ...[null, ...NOTE_COLOR_GROUPS.map((_, group) => group)].flatMap((group): Action[] => [
     {
       id: `pianoRoll.color.${group ?? "auto"}`,
-      title: `Set selected notes: ${noteColorGroupLabel(group)}`,
+      ...dynamicTitle("Set selected notes: {value0}", { value0: noteColorGroupLabel(group) }),
       section: SECTION,
       keywords: "note color group MIDI channel routing",
       enabled: hasSelection,
@@ -190,7 +191,7 @@ const ACTIONS: Action[] = [
     },
     {
       id: `pianoRoll.selectColor.${group ?? "auto"}`,
-      title: `Select notes: ${noteColorGroupLabel(group)}`,
+      ...dynamicTitle("Select notes: {value0}", { value0: noteColorGroupLabel(group) }),
       section: SECTION,
       keywords: "note color group MIDI channel selection",
       enabled: hasNotes,
@@ -204,7 +205,7 @@ const ACTIONS: Action[] = [
   ]),
   ...NOTE_ARTICULATIONS.map((item): Action => ({
     id: `pianoRoll.articulation.${item.value}`,
-    title: `Set selected notes: ${item.label.toLowerCase()}`,
+    ...dynamicTitle("Set selected notes: {value0}", { value0: item.label.toLowerCase() }),
     section: SECTION,
     keywords: "slide portamento glide articulation pitch bend",
     enabled: hasSelection,
@@ -212,7 +213,7 @@ const ACTIONS: Action[] = [
   })),
   ...GLIDE_PRESETS.map((item): Action => ({
     id: `pianoRoll.glide.${item.glideTicks}`,
-    title: `Set selected notes: ${item.label.toLowerCase()} portamento`,
+    ...dynamicTitle("Set selected notes: {value0} portamento", { value0: item.label.toLowerCase() }),
     section: SECTION,
     keywords: "portamento duration glide ticks",
     enabled: hasSelection,
@@ -257,7 +258,7 @@ const ACTIONS: Action[] = [
   },
   ...LENGTH_PRESETS.map((item): Action => ({
     id: `pianoRoll.length.${item.length}`,
-    title: `Set selected notes: ${item.label.toLowerCase()}`,
+    ...dynamicTitle("Set selected notes: {value0}", { value0: item.label.toLowerCase() }),
     section: SECTION,
     keywords: "note length duration ticks",
     enabled: hasSelection,
@@ -550,7 +551,7 @@ const ACTIONS: Action[] = [
   ...NOTE_TOOLS.filter((tool) => tool.value !== "quantize").map(
     (tool): Action => ({
       id: `pianoRoll.${tool.value}`,
-      title: `${tool.label} selected notes…`,
+      ...dynamicTitle("{value0} selected notes…", { value0: tool.label }),
       section: SECTION,
       keywords: tool.description,
       enabled: hasSelection,
@@ -682,7 +683,7 @@ const ACTIONS: Action[] = [
   })),
   ...LANE_KINDS.map((kind): Action => ({
     id: `pianoRoll.lane.${kind.id}`,
-    title: `Show ${kind.label.toLowerCase()} under the notes`,
+    ...dynamicTitle("Show {value0} under the notes", { value0: kind.label.toLowerCase() }),
     section: SECTION,
     keywords: "lane bars",
     checked: () => roll().laneKind === kind.id,

@@ -1,3 +1,4 @@
+import { translatedText as t, useLanguageStore } from "@/lib/i18n"
 import { Cancel01Icon, Edit02Icon } from "@hugeicons/core-free-icons"
 import { HugeiconsIcon } from "@hugeicons/react"
 
@@ -34,6 +35,7 @@ import { ModularRackSection } from "@/features/modular/editor"
  * keyboard to play it and its mixer track.
  */
 export function ChannelInspector() {
+  useLanguageStore((state) => state.language)
   const selected = useUiStore((state) => state.selectedChannel)
   const channel = useChannel(selected)
   const count = useChannelCount()
@@ -47,7 +49,7 @@ export function ChannelInspector() {
   return (
     <ContextActions items={INSPECTOR_MENU}>
       <aside
-        aria-label="Channel settings"
+        aria-label={t("Channel settings")}
         className="flex h-full min-h-0 min-w-0 flex-col bg-background"
         {...scope}
       >
@@ -63,7 +65,7 @@ export function ChannelInspector() {
             className="min-w-0 flex-1 truncate text-xs font-medium"
             title={channel?.name}
           >
-            {channel ? channel.name : "Channel settings"}
+            {channel ? channel.name : t("Channel settings")}
           </h2>
           {channel && (
             <ActionButton
@@ -127,11 +129,11 @@ export function ChannelInspector() {
           </div>
         ) : (
           <div className="flex flex-1 flex-col items-center justify-center gap-1 p-4 text-center text-muted-foreground">
-            <p className="font-medium text-foreground">No channel selected</p>
+            <p className="font-medium text-foreground">{t("No channel selected")}</p>
             <p>
               {count === 0
-                ? "Add a channel to shape its sound here."
-                : "Click a channel's name to shape its sound here."}
+                ? t("Add a channel to shape its sound here.")
+                : t("Click a channel's name to shape its sound here.")}
             </p>
           </div>
         )}
