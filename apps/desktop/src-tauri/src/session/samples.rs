@@ -41,7 +41,7 @@ pub(super) fn decode_all(
         decoded.warnings.push(format!("{} imported plugin states are retained; unsupported instruments stay silent and effects bypassed. Use the source FL project with a compatible host to recover those sounds.", project.retained_plugins.len()));
     }
     for sample in &project.samples {
-        if project.is_soundfont_source(sample.id) {
+        if project.is_soundfont_source(sample.id) || project.is_preset_source(sample.id) {
             continue;
         }
         let bank_source = project
@@ -136,7 +136,7 @@ impl Session {
         let wanted: HashSet<SampleId> = project
             .samples
             .iter()
-            .filter(|s| !s.soundfont)
+            .filter(|s| !s.soundfont && !project.is_preset_source(s.id))
             .map(|sample| sample.id)
             .collect();
         loaded.retain(|id| {
@@ -166,7 +166,7 @@ impl Session {
         let mut warnings = Vec::new();
         let mut pending = Vec::new();
         for sample in &project.samples {
-            if project.is_soundfont_source(sample.id) {
+            if project.is_soundfont_source(sample.id) || project.is_preset_source(sample.id) {
                 continue;
             }
             let id = sample.id;

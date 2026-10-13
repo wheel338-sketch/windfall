@@ -13,6 +13,21 @@ fn render(text: &str, rate: u32, seed: u64) -> Vec<f32> {
 fn pcm(x: f64) -> f32 {
     (x.clamp(-32700.0, 32700.0).trunc() / 32768.0) as f32
 }
+
+#[test]
+fn cancellable_drumsynth_matches_full_pcm_and_never_returns_a_cancelled_prefix() {
+    let source = b"[General]\nVersion=DrumSynth v2.0\n[Tone]\nOn=1\nF1=440\nF2=440\nEnvelope=0,100 44100,0\n";
+    let preset = DrumSynthPreset::parse(source).unwrap();
+    let full = preset.render(48000, MAX_DRUMSYNTH_FRAMES, 7).unwrap();
+    let cancellable = preset.render_cancellable(48000, MAX_DRUMSYNTH_FRAMES, 7, &mut || true).unwrap();
+    assert_eq!(full.audio.samples(), cancellable.audio.samples());
+    let mut blocks = 0;
+    let error = preset.render_cancellable(48000, MAX_DRUMSYNTH_FRAMES, 7, &mut || {
+        blocks += 1; blocks < 4
+    }).unwrap_err();
+    assert!(error.to_string().contains("cancelled"));
+    assert_eq!(blocks, 4);
+}
 fn close(a: f32, b: f32) {
     assert!((a - b).abs() <= 1.0 / 32768.0, "{a} versus {b}");
 }

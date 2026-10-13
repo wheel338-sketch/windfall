@@ -79,7 +79,7 @@ pub mod preset;
 pub mod preset_tables;
 pub use preset::{
     ChannelPreset, PluginPreset, PluginPresetState, Preset, PresetAsset, PresetAudio, PresetKind,
-    PresetPluginIdentity,
+    PresetPluginIdentity, PresetRenderSettings, SamplePresetRender,
 };
 mod project_settings;
 pub use project_settings::PanLaw;

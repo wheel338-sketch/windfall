@@ -1,4 +1,6 @@
 import { toast } from "sonner"
+import { openPresetRender } from "@/features/preset-render/dialog"
+import { isPresetPath } from "@/features/preset-render/types"
 
 import type {
   BrowserRoot,
@@ -63,7 +65,7 @@ type SelectOptions = {
 export function selectRow(row: EntryRow, options: SelectOptions = {}) {
   const selected = selectionOf(row)
   set({ selected })
-  if (row.kind !== "audio") {
+  if (row.kind !== "audio" || isPresetPath(row.path)) {
     clearInfo()
     return
   }
@@ -115,7 +117,10 @@ export async function addToRack(
   )
     return
   const result = await attempt(
-    backend.addChannelFromFile(path, undefined, token),
+    isPresetPath(path)
+      ? openPresetRender({ path, browser: token }, undefined,
+          () => generation === getProjectGeneration() && fileRequestCurrent(file))
+      : backend.addChannelFromFile(path, undefined, token),
     "Could not add the sound"
   )
   if (
@@ -205,7 +210,10 @@ export async function replaceChannelSample(
   )
     return
   const result = await attempt(
-    backend.setChannelSampleFromFile(channel.id, path, token),
+    isPresetPath(path)
+      ? openPresetRender({ path, channel: channel.id, browser: token }, undefined,
+          () => generation === getProjectGeneration() && fileRequestCurrent(file))
+      : backend.setChannelSampleFromFile(channel.id, path, token),
     `Could not replace the sample of ${channel.name}`
   )
   if (

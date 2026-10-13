@@ -46,6 +46,7 @@ impl Project {
             ));
         }
         check_settings(self)?;
+        crate::preset::check_render_sources(self)?;
         if self.retained_source_data.len() > 32
             || self.retained_source_data.iter().any(|entry| {
                 entry.source.is_empty()

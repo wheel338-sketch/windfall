@@ -1,4 +1,6 @@
 import { localizeBackendText } from "@/lib/i18n"
+import { PresetRerenderButton } from "@/features/preset-render/dialog"
+import type { SamplePresetRender } from "@/features/preset-render/types"
 import { translatedText as t, useLanguageStore } from "@/lib/i18n"
 import { ArrowDown01Icon } from "@hugeicons/core-free-icons"
 import { HugeiconsIcon } from "@hugeicons/react"
@@ -48,7 +50,9 @@ import { nextTrimStartScale } from "./trim-start-scale"
 /** Lists the samples already in the project, to point the channel at one. */
 function ProjectSamples({ channel }: { channel: SamplerChannel }) {
   useLanguageStore((state) => state.language)
-  const samples = useProjectStore((state) => state.project.samples)
+  const project = useProjectStore((state) => state.project)
+  const sources = (project.settings as typeof project.settings & { presetRenders?: SamplePresetRender[] }).presetRenders ?? []
+  const samples = project.samples.filter((sample) => !sources.some((recipe) => recipe.source === sample.id))
   return (
     <>
       {samples.length > 0 && (
@@ -253,6 +257,7 @@ export function SampleSection({ channel }: { channel: SamplerChannel }) {
           <div className="pointer-events-none absolute inset-0 flex items-center justify-center rounded-sm bg-background/80 font-medium text-brand">{t("Drop to use this sample")}</div>
         )}
       </div>
+      <PresetRerenderButton channel={id} />
       <div className="flex flex-wrap gap-1">
         {SAMPLE_TRIM_PRESETS.map((preset) => (
           <Button

@@ -10,13 +10,17 @@ use std::{
 use windfall_core::AudioBuffer;
 
 static SERIAL: AtomicU64 = AtomicU64::new(0);
-pub(super) fn read_original(path: &std::path::Path) -> Result<Vec<u8>, String> {
+pub(crate) fn read_original(path: &std::path::Path) -> Result<Vec<u8>, String> {
+    let limit = if path.extension().is_some_and(|e| e.eq_ignore_ascii_case("wfpreset")) {
+        windfall_engine::preset_render::MAX_PRESET_BYTES
+    } else { windfall_codec::MAX_DRUMSYNTH_PRESET_BYTES };
     let mut bytes = Vec::new();
     fs::File::open(path)
         .map_err(|e| e.to_string())?
-        .take(windfall_codec::MAX_DRUMSYNTH_PRESET_BYTES as u64 + 1)
+        .take(limit as u64 + 1)
         .read_to_end(&mut bytes)
         .map_err(|e| e.to_string())?;
+    if bytes.len() > limit { return Err(format!("Preset source exceeds {limit} bytes.")); }
     Ok(bytes)
 }
 pub(super) struct OwnedPreset {
@@ -24,39 +28,29 @@ pub(super) struct OwnedPreset {
     pub rendered: PathBuf,
     pub rate: u32,
     pub original: PathBuf,
-    pub original_audio: AudioBuffer,
+    pub original_version: crate::samples::FileKey,
     pub bytes: Vec<u8>,
+    pub settings: Option<windfall_project::PresetRenderSettings>,
     pub installed: bool,
+    rendered_owned: bool,
 }
 impl Drop for OwnedPreset {
     fn drop(&mut self) {
         if !self.installed {
             let _ = fs::remove_file(&self.path);
-            let _ = fs::remove_file(&self.rendered);
+            if self.rendered_owned { let _ = fs::remove_file(&self.rendered); }
         }
     }
 }
 impl Session {
-    pub(super) fn own_preset(&self, import: &mut Import) -> Result<Option<OwnedPreset>, String> {
-        if !import
-            .file
-            .extension()
-            .is_some_and(|e| e.eq_ignore_ascii_case("ds"))
-        {
-            return Ok(None);
-        }
-        let bytes = read_original(&import.file)?;
-        let render = windfall_codec::render_drumsynth_source(
-            &bytes,
-            &windfall_codec::DecodeOptions::default(),
-        )
-        .map_err(|e| e.to_string())?;
-        let current = self.inner.cache.decode(&import.file)?;
-        if !self.inner.cache.same_file_version(&import.buffer, &current)
-            || render.audio.samples() != import.buffer.samples()
-        {
-            return Err("The preset source changed before ownership was copied. Try again.".into());
-        }
+    pub(super) fn own_preset(&self, import: &mut Import) -> Option<OwnedPreset> {
+        import.owned.take()
+    }
+
+    /// Both public DrumSynth and Windfall recipes use this same RAII ownership
+    /// and subsequent import batch. No installed asset can be overwritten.
+    pub(super) fn stage_preset(&self, original: &std::path::Path, bytes: Vec<u8>, audio: &AudioBuffer,
+        original_version: crate::samples::FileKey) -> Result<OwnedPreset, String> {
         let folder = self.store().recordings_dir().join("Imported presets");
         fs::create_dir_all(&folder).map_err(|e| e.to_string())?;
         let mut staged = tempfile::NamedTempFile::new_in(&folder).map_err(|e| e.to_string())?;
@@ -68,10 +62,11 @@ impl Session {
         let mut published = None;
         for _ in 0..1000 {
             let path = folder.join(format!(
-                "{}-{}-{}.ds",
-                crate::paths::stem(&import.file),
+                "{}-{}-{}.{}",
+                crate::paths::stem(original),
                 std::process::id(),
-                SERIAL.fetch_add(1, Ordering::Relaxed)
+                SERIAL.fetch_add(1, Ordering::Relaxed),
+                original.extension().and_then(|e| e.to_str()).unwrap_or("wfpreset")
             ));
             match staged.persist_noclobber(&path) {
                 Ok(_) => {
@@ -89,30 +84,24 @@ impl Session {
         // The original text is also registered as a project sample asset so
         // ordinary save/save-as/archive carrying preserves both independently.
         let rendered = path.with_extension("wav");
-        let rate = self.inner.audio.status().sample_rate;
-        let owned = OwnedPreset {
+        let rate = audio.sample_rate();
+        let mut owned = OwnedPreset {
             path: path.clone(),
             rendered: rendered.clone(),
             rate,
-            original: import.file.clone(),
-            original_audio: import.buffer.clone(),
+            original: original.to_path_buf(),
+            original_version,
             bytes,
+            settings: None,
             installed: false,
+            rendered_owned: false,
         };
-        let audio = windfall_codec::DrumSynthPreset::parse(&owned.bytes)
-            .and_then(|preset| {
-                preset.render(
-                    rate,
-                    windfall_codec::MAX_DRUMSYNTH_FRAMES,
-                    windfall_codec::DRUMSYNTH_SOURCE_SEED,
-                )
-            })
-            .map_err(|e| e.to_string())?
-            .audio;
-        windfall_codec::write_wav(&rendered, &audio, windfall_codec::WavSampleFormat::Float32)
+        let staged_wav = tempfile::NamedTempFile::new_in(&folder).map_err(|e| e.to_string())?;
+        windfall_codec::write_wav(staged_wav.path(), audio, windfall_codec::WavSampleFormat::Float32)
             .map_err(|e| e.to_string())?;
-        import.file = rendered;
-        import.buffer = self.inner.cache.decode(&import.file)?;
-        Ok(Some(owned))
+        staged_wav.as_file().sync_all().map_err(|e| e.to_string())?;
+        staged_wav.persist_noclobber(&rendered).map_err(|e| e.error.to_string())?;
+        owned.rendered_owned = true;
+        Ok(owned)
     }
 }

@@ -26,6 +26,7 @@ pub(super) struct SampleEditTicket {
     preserve_noop: bool,
     retry_sources: bool,
     installed: Option<std::sync::Arc<std::sync::atomic::AtomicBool>>,
+    cancelled: Option<std::sync::Arc<std::sync::atomic::AtomicBool>>,
 }
 
 pub(super) struct PreparedSampleEdit {
@@ -34,6 +35,10 @@ pub(super) struct PreparedSampleEdit {
 }
 
 impl SampleEditTicket {
+    pub(super) fn cancellable(mut self, flag: std::sync::Arc<std::sync::atomic::AtomicBool>) -> Self {
+        self.cancelled = Some(flag);
+        self
+    }
     /// Off-lock native bank admission. Preparation subsequently reuses this exact
     /// parsed owner instead of rereading a changed file during publication.
     pub(super) fn with_soundfont(
@@ -59,13 +64,14 @@ impl SampleEditTicket {
         self
     }
     fn current(&self) -> bool {
-        self.request
+        !self.cancelled.as_ref().is_some_and(|flag| flag.load(Ordering::Acquire)) && self.request
             .is_none_or(|id| self.session.inner.sampler_ticket.load(Ordering::Acquire) == id)
     }
 
     /// Slow DSP/compilation; call only after dropping State/library guards.
     /// Does not acquire recording exclusion, including for recording-finish imports.
     pub(super) fn prepare(mut self) -> Result<PreparedSampleEdit, String> {
+        if !self.current() { return Err("Preset/sample preparation cancelled".into()); }
         self.candidate_pool = self
             .preparation
             .as_ref()
@@ -224,6 +230,7 @@ impl PreparedSampleEdit {
             .reuse_soundfont_candidates(&ticket.candidate_pool);
         next.preparation = Some(preparation);
         next.request = ticket.request;
+        next.cancelled = ticket.cancelled.clone();
         next.preserve_noop = ticket.preserve_noop;
         next.installed = ticket.installed.clone();
         Ok(Some(next))
@@ -308,6 +315,7 @@ impl Session {
         if applied.touched.samples {
             for asset in &document.project().samples {
                 if !asset.soundfont
+                    && !document.project().is_preset_source(asset.id)
                     && !candidate_pool.contains(asset.id)
                     && !state.loading.contains(&asset.id)
                     && let Ok(path) = super::samples::locate(
@@ -339,6 +347,7 @@ impl Session {
             preserve_noop: true,
             retry_sources,
             installed: None,
+            cancelled: None,
         })
     }
     pub fn sampler_preparation_begin(&self) -> Result<u64, String> {

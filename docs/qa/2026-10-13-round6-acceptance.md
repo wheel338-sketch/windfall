@@ -10,6 +10,8 @@ Integration in progress. No final acceptance recommendation yet. Tracker files r
 
 ## Final gates
 
+- Preset-render merged without conflicts; `cargo check --workspace --all-targets` PASS, zero warnings/errors, exit 0, 29 s (`target/round6-branch06-check.log`). Appended RegisterPresetRender and defaulted source/result recipe metadata require fresh bindings/simulator. Windfall synth/Text Voice rendering and source ownership tests pending; no compile repair/dependency addition. UI review uses existing shadcn skill/components; no component/package installed.
+
 - First-five integrated desktop library PASS: `cargo test --offline -p windfall-desktop --lib -- --test-threads=1`, **737/0/14**, exit 0, 146 s (`target/round6-desktop-lib-first.log`). Includes real AU provider entry policies, all native update/capture/ownership/expression/output/editor/project/export/preset/recording/library cases and new tempo/raw-bank cases. No ignored cases enabled. Preset-render hand-off now ready/read; FLP remains unready. Proceeding to sixth merge.
 
 - Repaired native binary refresh PASS: `cargo build --offline -p windfall-desktop -p windfall-plugin -p windfall-plugin-host --bins --lib`, exit 0, 89 s (`target/round6-native-build-repairs.log`). Languages hand-off read/ready but explicitly partial: whole-app/descriptor/backend/retained-message omissions remain SOFTWARE and guards are deliberately red. Preset-render has its first source commit but no completed hand-off; FLP likewise not ready. Languages will merge last as required.

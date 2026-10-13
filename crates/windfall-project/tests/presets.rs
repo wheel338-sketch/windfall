@@ -12,6 +12,84 @@ fn created(doc: &mut Document, command: Command) -> u32 {
     doc.dispatch(command, None).unwrap().created[0]
 }
 
+#[test]
+fn speech_channel_preset_retains_text_recipe_discards_generated_pcm_and_has_legacy_defaults() {
+    let mut doc = Document::new(Project::new("Speech portability"));
+    let channel = synth(&mut doc, "Speech", InstrumentKind::TextVoice);
+    let source = sample(&mut doc, "generated phrase");
+    doc.dispatch(Command::SetSampleInstrumentAsset { channel, expected: None,
+        asset: Some(SampleInstrumentAsset::Speech { text: "Hello windfall".into(), pitch: 48.0,
+            duration: 0.5, version: 1, source: Some(source) }) }, None).unwrap();
+    let (body, audio) = ChannelPreset::capture(doc.project(), channel).unwrap();
+    assert!(audio.is_none());
+    assert!(matches!(&body.sample_instrument, Some(SampleInstrumentAsset::Speech { source: None, text, .. }) if text == "Hello windfall"));
+    let preset = Preset::of_channel("Speech", body, None);
+    let json = preset.to_json().unwrap();
+    let (read, _) = Preset::from_json(json.as_bytes()).unwrap();
+    assert_eq!(read, preset);
+    let destination = synth(&mut doc, "Destination", InstrumentKind::TextVoice);
+    let expected = doc.project().channel(destination).unwrap().clone();
+    doc.dispatch(Command::ApplyChannelPreset { id: destination, expected,
+        preset: read.channel.unwrap(), sample: None, audio: None, name_color: false }, None).unwrap();
+    let loaded = doc.project().channel(destination).unwrap().sample_instrument.clone();
+    assert_eq!(loaded, preset.channel.as_ref().unwrap().sample_instrument);
+    doc.undo().unwrap();
+    assert!(doc.project().channel(destination).unwrap().sample_instrument.is_none());
+    doc.redo().unwrap();
+    assert_eq!(doc.project().channel(destination).unwrap().sample_instrument, loaded);
+    let mut legacy: Value = serde_json::from_str(&json).unwrap();
+    legacy["channel"].as_object_mut().unwrap().remove("sampleInstrument");
+    let old = Preset::from_json(&serde_json::to_vec(&legacy).unwrap()).unwrap().0;
+    assert!(old.channel.unwrap().sample_instrument.is_none());
+    let mut empty: Value = serde_json::from_str(&json).unwrap();
+    empty["channel"]["sampleInstrument"]["text"] = json!("  ");
+    assert!(Preset::from_json(&serde_json::to_vec(&empty).unwrap()).unwrap_err().contains("empty"));
+    let mut hostile: Value = serde_json::from_str(&json).unwrap();
+    hostile["channel"]["sampleInstrument"]["source"] = json!(source.0);
+    assert!(Preset::from_json(&serde_json::to_vec(&hostile).unwrap()).is_err());
+}
+
+#[test]
+fn rendered_preset_source_links_have_checked_history_serialization_and_legacy_defaults() {
+    let mut doc = Document::new(Project::new("Retained preset"));
+    let pcm = sample(&mut doc, "Rendered");
+    let source = SampleId(created(&mut doc, Command::AddSample {
+        name: "Recipe".into(), path: SamplePath::External("C:/Own/Recipe.wfpreset".into()),
+    }));
+    let before = doc.snapshot(None);
+    let recipe = SamplePresetRender { sample: pcm, source, settings: PresetRenderSettings::default() };
+    doc.dispatch(Command::RegisterPresetRender { recipe: recipe.clone() }, None).unwrap();
+    assert_eq!(doc.project().settings.preset_renders, vec![recipe.clone()]);
+    doc.project().check().unwrap();
+    let json = file::to_json(doc.project()).unwrap();
+    let loaded = file::from_json(&json).unwrap();
+    assert_eq!(loaded.settings.preset_renders, vec![recipe.clone()]);
+    assert!(doc.dispatch(Command::RemoveSample { id: source }, None).is_err());
+    assert!(doc.dispatch(Command::AddChannel { name: None, sample: Some(source), instrument: None,
+        index: None, mixer_track: None }, None).is_err());
+    let after = doc.snapshot(None);
+    for invalid in [
+        SamplePresetRender { source: pcm, ..recipe.clone() },
+        SamplePresetRender { source: SampleId(9999), ..recipe.clone() },
+        SamplePresetRender { settings: PresetRenderSettings { tail_secs: f32::NAN, ..Default::default() }, ..recipe.clone() },
+        recipe,
+    ] {
+        assert!(doc.dispatch(Command::RegisterPresetRender { recipe: invalid }, None).is_err());
+        assert_eq!(doc.snapshot(None), after);
+    }
+    doc.undo().unwrap();
+    assert_eq!(doc.project(), &before.project);
+    doc.redo().unwrap();
+    assert_eq!(doc.project(), &loaded);
+    let mut legacy: Value = serde_json::from_str(&json).unwrap();
+    legacy["settings"].as_object_mut().unwrap().remove("presetRenders");
+    assert!(file::from_json(&serde_json::to_string(&legacy).unwrap()).unwrap().settings.preset_renders.is_empty());
+    doc.dispatch(Command::RemoveSample { id: pcm }, None).unwrap();
+    assert!(doc.project().settings.preset_renders.is_empty());
+    doc.undo().unwrap();
+    assert_eq!(doc.project(), &loaded);
+}
+
 fn sample(doc: &mut Document, name: &str) -> SampleId {
     SampleId(created(
         doc,

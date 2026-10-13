@@ -101,6 +101,10 @@ mod playlist_export;
 mod plugin_export;
 mod preparation;
 mod preset_assets;
+mod preset_render;
+pub use preset_render::{PresetRenderRequest, PresetRenderTicket};
+pub(crate) use preset_render::unsupported_source;
+pub(crate) use preset_assets::read_original as read_preset_source;
 mod presets;
 mod realtime;
 mod recording;
@@ -232,6 +236,7 @@ struct Inner {
     assistant: crate::assistant::Service,
     audio_analysis_cancel: Mutex<Option<windfall_analysis::CancelToken>>,
     speech_jobs: Mutex<sample_instruments::SpeechJobs>,
+    preset_jobs: Mutex<preset_render::Jobs>,
     music_lighting: music_lighting::Service,
     derived_assets: Mutex<derived_assets::Assets>,
     library: crate::library::Library,
@@ -491,6 +496,7 @@ impl Session {
                 audio_editor: Mutex::new(audio_editor::Editor::default()),
                 audio_analysis_cancel: Mutex::new(None),
                 speech_jobs: Mutex::new(sample_instruments::SpeechJobs::default()),
+                preset_jobs: Mutex::new(preset_render::Jobs::default()),
                 music_lighting: music_lighting::Service::default(),
                 derived_assets: Mutex::new(derived_assets::Assets::default()),
                 extractions: Mutex::new(extractions),

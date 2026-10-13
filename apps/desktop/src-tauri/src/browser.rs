@@ -90,7 +90,7 @@ pub(crate) fn file_kind(path: &Path) -> BrowserEntryKind {
     let Some(extension) = path.extension().and_then(|extension| extension.to_str()) else {
         return BrowserEntryKind::Other;
     };
-    if windfall_codec::is_audio_extension(extension) {
+    if windfall_codec::is_audio_extension(extension) || ["wfpreset", "syn", "speech"].iter().any(|e| extension.eq_ignore_ascii_case(e)) {
         BrowserEntryKind::Audio
     } else if extension.eq_ignore_ascii_case(FILE_EXTENSION) {
         BrowserEntryKind::Project

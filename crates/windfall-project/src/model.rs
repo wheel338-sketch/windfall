@@ -268,6 +268,7 @@ impl Project {
                 modular_racks: Vec::new(),
                 scripts: crate::scripting::ScriptLibrary::default(),
                 stage_media: crate::StageMedia::default(),
+                preset_renders: Vec::new(),
             },
             samples: Vec::new(),
             notebook: crate::Notebook::default(),
@@ -322,6 +323,10 @@ impl Project {
     pub fn sample(&self, id: SampleId) -> Option<&SampleAsset> {
         self.samples.iter().find(|sample| sample.id == id)
     }
+    /// A source preset is raw recipe storage, carried with project assets.
+    pub fn is_preset_source(&self, id: SampleId) -> bool {
+        self.settings.preset_renders.iter().any(|recipe| recipe.source == id)
+    }
 
     pub fn channel(&self, id: ChannelId) -> Option<&Channel> {
         self.channels.iter().find(|channel| channel.id == id)
@@ -342,6 +347,9 @@ impl Project {
 #[serde(rename_all = "camelCase")]
 #[ts(export)]
 pub struct ProjectSettings {
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[ts(as = "Option<Vec<crate::SamplePresetRender>>", optional)]
+    pub preset_renders: Vec<crate::SamplePresetRender>,
     pub name: String,
     /// Project author, at most 256 UTF-8 bytes after trimming.
     #[serde(default, skip_serializing_if = "String::is_empty")]

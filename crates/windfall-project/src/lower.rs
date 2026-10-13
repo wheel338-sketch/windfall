@@ -190,7 +190,8 @@ pub(crate) fn execute(project: &mut Project, command: Command) -> Result<Outcome
                     transaction.project,
                     &transaction.project.settings.controller_links,
                 )
-            }) {
+            })
+            .or_else(|| crate::preset::check_render_sources(transaction.project).err()) {
                 for edit in transaction.edits.iter().rev() {
                     edit.apply(transaction.project, Direction::Backward);
                 }
@@ -1641,6 +1642,22 @@ impl Transaction<'_> {
                 expected,
                 regions,
             } => self.set_sample_regions(sample, expected, regions)?,
+            Command::RegisterPresetRender { recipe } => {
+                recipe.settings.check().map_err(CommandError::invalid)?;
+                self.sample_index(recipe.sample)?;
+                self.sample_index(recipe.source)?;
+                if recipe.sample == recipe.source || self.project.samples[self.sample_index(recipe.source)?].soundfont {
+                    return Err(CommandError::invalid("A preset render needs a separate retained source"));
+                }
+                let old = self.project.settings.clone();
+                let mut new = old.clone();
+                if new.preset_renders.iter().any(|r| r.sample == recipe.sample) {
+                    return Err(CommandError::invalid("This sample already has a preset recipe"));
+                }
+                new.preset_renders.push(recipe);
+                self.push(Edit::Settings(Change { old, new }));
+                "Retain preset render recipe"
+            }
             Command::RemoveSample { id } => self.remove_sample(id)?,
             Command::AddChannel {
                 name,
@@ -2441,6 +2458,9 @@ impl Transaction<'_> {
 
     fn remove_sample(&mut self, id: SampleId) -> Result<Label, CommandError> {
         let index = self.sample_index(id)?;
+        if self.project.settings.preset_renders.iter().any(|r| r.source == id) {
+            return Err(CommandError::invalid("This source is retained by a preset render recipe"));
+        }
         if self
             .project
             .mixer
@@ -2491,6 +2511,12 @@ impl Transaction<'_> {
             )));
         }
         let item = self.project.samples[index].clone();
+        if self.project.settings.preset_renders.iter().any(|r| r.sample == id) {
+            let old = self.project.settings.clone();
+            let mut new = old.clone();
+            new.preset_renders.retain(|r| r.sample != id);
+            self.push(Edit::Settings(Change { old, new }));
+        }
         self.push(Edit::Sample(ListEdit::Remove { index, item }));
         Ok("Delete sample")
     }

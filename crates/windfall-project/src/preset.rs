@@ -152,6 +152,11 @@ pub struct Preset {
 #[serde(rename_all = "camelCase")]
 #[ts(export)]
 pub struct ChannelPreset {
+    /// Portable text-voice recipe. Its generated project PCM is deliberately
+    /// excluded: the versioned recipe regenerates it on the control side.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub sample_instrument: Option<crate::SampleInstrumentAsset>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(optional)]
     pub tables: Option<crate::preset_tables::PresetTables>,
@@ -253,6 +258,73 @@ pub struct PresetPluginIdentity {
 pub struct PresetAudio {
     pub name: String,
     pub path: SamplePath,
+}
+
+/// Settings retained with rendered PCM so a sample can be regenerated.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase", default, deny_unknown_fields)]
+#[ts(export)]
+pub struct PresetRenderSettings {
+    pub note: u8,
+    pub velocity: f32,
+    pub length_secs: f32,
+    pub tail_secs: f32,
+    pub stereo: bool,
+}
+impl Default for PresetRenderSettings {
+    fn default() -> Self {
+        Self { note: 60, velocity: 0.8, length_secs: 1.0, tail_secs: 3.0, stereo: true }
+    }
+}
+impl PresetRenderSettings {
+    pub fn check(self) -> Result<(), String> {
+        if self.note > 127 || !(0.0..=1.0).contains(&self.velocity)
+            || !(0.01..=60.0).contains(&self.length_secs)
+            || !(0.0..=30.0).contains(&self.tail_secs) {
+            return Err("Invalid preset render note, velocity, length or tail.".into());
+        }
+        Ok(())
+    }
+}
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct SamplePresetRender {
+    pub sample: SampleId,
+    pub source: SampleId,
+    pub settings: PresetRenderSettings,
+}
+
+/// Shared checked-command/file invariant. Presets are retained recipe files,
+/// never accidentally attached as PCM by a sampler or source-edit command.
+pub(crate) fn check_render_sources(project: &Project) -> Result<(), String> {
+    let mut samples = std::collections::HashSet::new();
+    for recipe in &project.settings.preset_renders {
+        recipe.settings.check()?;
+        if !samples.insert(recipe.sample) || recipe.sample == recipe.source
+            || project.sample(recipe.sample).is_none_or(|s| s.soundfont)
+            || project.sample(recipe.source).is_none_or(|s| s.soundfont) {
+            return Err("A preset render has duplicate or missing sample/source identities".into());
+        }
+        let source = project.sample(recipe.source).expect("checked source");
+        let (SamplePath::Project(path) | SamplePath::External(path) | SamplePath::Factory(path)) = &source.path;
+        if path.rsplit_once('.').is_none_or(|(_, extension)| !extension.eq_ignore_ascii_case("wfpreset")) {
+            return Err("A retained Windfall preset source must be a .wfpreset file".into());
+        }
+        let id = recipe.source;
+        if source.processing.is_some()
+            || project.channels.iter().any(|c| c.source.sample() == Some(id)
+                || c.sample_instrument.as_ref().is_some_and(|a| a.samples().any(|s| s == id))
+                || c.sample_playback.as_ref().is_some_and(|a| a.references(id)))
+            || project.playlist.clips.iter().any(|c| c.content.sample() == Some(id))
+            || project.samples.iter().any(|s| s.processing.as_ref().is_some_and(|p| p.source_clip.content.sample() == Some(id)))
+            || project.mixer.tracks.iter().flat_map(|t| &t.effects).any(|effect|
+                matches!(effect.params, EffectParams::Scratch(p) if p.source_id == id.0))
+            || project.settings.preset_renders.iter().any(|r| r.sample == id) {
+            return Err("A retained preset source cannot be used as PCM. Render it as a sample first.".into());
+        }
+    }
+    Ok(())
 }
 
 /// A setting of a built-in processor that has had another name.
@@ -591,7 +663,7 @@ impl ChannelPreset {
         if channel.sample_playback.is_some() {
             return Err("Sample playback sources, maps and curves cannot be bundled in a channel preset yet. Save a project or duplicate the channel to retain them.".into());
         }
-        if channel.sample_instrument.is_some() {
+        if channel.sample_instrument.as_ref().is_some_and(|asset| !matches!(asset, crate::SampleInstrumentAsset::Speech { .. })) {
             return Err("Save this sample-bank instrument in its project; portable bank preset export is not supported yet".into());
         }
         let mut source = channel.source.clone();
@@ -624,6 +696,12 @@ impl ChannelPreset {
             tables.include_rack(project, graph);
         }
         let preset = Self {
+            sample_instrument: channel.sample_instrument.clone().map(|mut asset| {
+                if let crate::SampleInstrumentAsset::Speech { source, .. } = &mut asset {
+                    *source = None;
+                }
+                asset
+            }),
             tables: tables.has_configuration().then_some(tables),
             name: clean_name(&channel.name),
             color: channel.color,
@@ -650,13 +728,13 @@ impl ChannelPreset {
         if let ChannelSource::Sampler(sampler) = &mut source {
             sampler.sample = sample;
         }
-        let sample_instrument = match (&base.source, &source) {
+        let sample_instrument = self.sample_instrument.clone().or_else(|| match (&base.source, &source) {
             (
                 ChannelSource::Instrument { params: old, .. },
                 ChannelSource::Instrument { params: new, .. },
             ) if old.kind() == new.kind() => base.sample_instrument.clone(),
             _ => None,
-        };
+        });
         Channel {
             sample_playback: if matches!(&source, ChannelSource::Instrument { params, .. }
                 if crate::sample_playback::supported(params.kind()))
@@ -683,6 +761,20 @@ impl ChannelPreset {
     /// project and checking that project, so a preset is held to exactly
     /// what a project file is.
     pub fn validate(&self, asset: Option<u32>) -> Result<(), String> {
+        if let Some(recipe) = &self.sample_instrument {
+            let ChannelSource::Instrument { params, .. } = &self.source else {
+                return Err("A speech recipe requires a Text Voice instrument".into());
+            };
+            if !matches!(recipe, crate::SampleInstrumentAsset::Speech { source: None, .. }) {
+                return Err("Only a portable speech recipe is accepted in a channel preset".into());
+            }
+            if let crate::SampleInstrumentAsset::Speech { text, .. } = recipe
+                && text.trim().is_empty()
+            {
+                return Err("Speech preset text is empty. Enter a phrase before rendering.".into());
+            }
+            recipe.validate(&Project::new("Speech preset"), params.kind())?;
+        }
         if let Some(tables) = &self.tables {
             tables.check_single_owner("channel")?;
         }
