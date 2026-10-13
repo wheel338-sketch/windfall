@@ -7,6 +7,7 @@ import { TooltipProvider } from "@/components/ui/tooltip"
 import { NotebookPanel } from "@/features/notebook/panel"
 import { catalogs, connectLanguage, formatDate, formatNumber, LANGUAGE_STORAGE_KEY, message, setLanguage, translatedText, useLanguageStore } from "."
 import type { MessageKey } from "./types"
+import { sameAsEnglish } from "./invariants"
 
 afterEach(() => { setLanguage("en"); localStorage.removeItem(LANGUAGE_STORAGE_KEY); vi.restoreAllMocks() })
 describe("shell message catalogs", () => {
@@ -31,6 +32,25 @@ describe("shell message catalogs", () => {
           expect(forms(translated)[index].match(/\{\w+\}/g)?.sort()).toEqual(form.match(/\{\w+\}/g)?.sort())
         })
       }
+    }
+  })
+  it("rejects untranslated English entries unless their equality has an explicit reason", () => {
+    for (const [language, catalog] of Object.entries(catalogs)) {
+      if (language === "en") continue
+      for (const key of Object.keys(catalogs.en) as MessageKey[]) {
+        const base = catalogs.en[key]
+        const translated = catalog[key]
+        const forms = (entry: typeof base) => typeof entry === "string" ? [entry] : [entry.one, entry.other]
+        forms(base).forEach((form, index) => {
+          if (forms(translated)[index] === form)
+            expect(sameAsEnglish[key], `${language}: untranslated English for ${key}`).toBeTruthy()
+        })
+      }
+    }
+    // An obsolete exception must not become an unnoticed future escape hatch.
+    for (const [key, reason] of Object.entries(sameAsEnglish)) {
+      expect(Object.hasOwn(catalogs.en, key), key).toBe(true)
+      expect(reason.length, key).toBeGreaterThan(10)
     }
   })
   it("formats plurals, numbers and dates using the selected locale", () => {

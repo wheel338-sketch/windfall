@@ -18,6 +18,8 @@ pub use audio_edit::*;
 pub mod library;
 pub use library::*;
 mod midi;
+mod ui_messages;
+pub use ui_messages::*;
 mod slicer;
 pub use midi::*;
 mod midi_hardware;

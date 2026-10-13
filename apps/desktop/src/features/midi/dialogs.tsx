@@ -105,7 +105,7 @@ function ImportForm({ done, busy }: FormProps) {
       setPreview(result)
     } catch (failure) {
       if (mounted.current && current === request.current)
-        setError(localizeBackendText(errorMessage(failure)))
+        setError(errorMessage(failure))
     } finally {
       if (mounted.current && current === request.current) setReading(false)
     }
@@ -127,7 +127,7 @@ function ImportForm({ done, busy }: FormProps) {
       setPath(file)
       await review(file, options)
     } catch (failure) {
-      if (mounted.current) setError(localizeBackendText(errorMessage(failure)))
+      if (mounted.current) setError(errorMessage(failure))
     }
   }
 
@@ -146,7 +146,7 @@ function ImportForm({ done, busy }: FormProps) {
       useUiStore.getState().showCenterTab("playlist")
       done()
     } catch (failure) {
-      setError(localizeBackendText(errorMessage(failure)))
+      setError(errorMessage(failure))
     } finally {
       busy(false)
       if (mounted.current) setImporting(false)
@@ -234,14 +234,14 @@ function ImportForm({ done, busy }: FormProps) {
             {preview.adjustments.length > 0 && (
               <ul className="list-disc pl-4">
                 {preview.adjustments.map((line, index) => (
-                  <li key={index}>{line}</li>
+                  <li key={index}>{localizeBackendText(line)}</li>
                 ))}
               </ul>
             )}
           </>
         )}
       </div>
-      {error && <FieldError role="alert">{error}</FieldError>}
+      {error && <FieldError role="alert">{localizeBackendText(error)}</FieldError>}
       <DialogFooter>
         <Button variant="outline" disabled={importing} onClick={done}>{t("Cancel")}</Button>
         <Button
@@ -282,7 +282,7 @@ function ExportForm({ done, busy }: FormProps) {
       toast.success(t("Exported MIDI"), { description: fileName(saved) })
       done()
     } catch (failure) {
-      setError(localizeBackendText(errorMessage(failure)))
+      setError(errorMessage(failure))
     } finally {
       setWorking(false)
       busy(false)
@@ -371,7 +371,7 @@ function ExportForm({ done, busy }: FormProps) {
       <FieldDescription>
         {t("Exports notes, tempo and meter. Audio clips, instrument sounds and effects are omitted. Tempo glides are sampled; more than 15 melodic tracks share MIDI channels.")}
       </FieldDescription>
-      {error && <FieldError role="alert">{error}</FieldError>}
+      {error && <FieldError role="alert">{localizeBackendText(error)}</FieldError>}
       <DialogFooter>
         <Button variant="outline" disabled={working} onClick={done}>{t("Cancel")}</Button>
         <Button disabled={working || !expressionValid || !resolutionValid} onClick={() => void save()}>

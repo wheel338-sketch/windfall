@@ -1,7 +1,11 @@
 import { inspectorEs } from "./inspector-messages"
+import { nativeEs } from "./native-messages"
+import { controlEs } from "./control-messages"
 import type { Catalog } from "./types"
 
 export const es = {
+  ...controlEs,
+  ...nativeEs,
   ...inspectorEs,
   "Choose installed ONNX Runtime library": "Elige la biblioteca instalada de ONNX Runtime",
   "Shared library": "Biblioteca compartida",

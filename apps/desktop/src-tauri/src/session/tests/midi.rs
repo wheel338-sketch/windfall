@@ -327,13 +327,13 @@ fn reviewed_import_still_reports_unsupported_key_signature_without_false_marker_
         preview
             .adjustments
             .iter()
-            .any(|message| message.contains("key signature"))
+            .any(|message| message.contains("midi.import.keySignaturesNotImported"))
     );
     assert!(
         !preview
             .adjustments
             .iter()
-            .any(|message| message.contains("marker"))
+            .any(|message| message.contains("midi.import.markersNotImported"))
     );
     assert_eq!(rig.session.document_snapshot(), before);
     rig.session

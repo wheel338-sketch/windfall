@@ -1,14 +1,24 @@
 import { toast } from "sonner"
+import { createElement } from "react"
 
 import { errorMessage } from "@/lib/ipc/backend"
-import { translatedText } from "@/lib/i18n"
+import { localizeBackendText, nativeMessage, translatedText } from "@/lib/i18n"
+import { LocalizedDiagnostic, LocalizedLabel } from "@/lib/i18n/diagnostic"
+import type { DynamicActionMessage } from "@/lib/i18n/action-messages"
 
 /**
  * Shows a failed action to the user. Every rejected backend call ends up
  * here, so nothing fails silently.
  */
-export function reportError(error: unknown, what?: string) {
-  const message = translatedText(errorMessage(error))
+export function reportError(error: unknown, what?: string | DynamicActionMessage) {
+  const source = errorMessage(error)
+  if (nativeMessage(source) !== null || typeof what === "object") {
+    const diagnostic = createElement(LocalizedDiagnostic, { source })
+    if (what) toast.error(createElement(LocalizedLabel, { source: what }), { description: diagnostic })
+    else toast.error(diagnostic)
+    return
+  }
+  const message = localizeBackendText(source)
   if (what) toast.error(translatedText(what), { description: message })
   else toast.error(message)
 }
@@ -18,13 +28,13 @@ export function reportError(error: unknown, what?: string) {
  * turns down itself, before anything is sent to the backend.
  */
 export function refuse(what: string, why: string) {
-  toast.error(translatedText(what), { description: translatedText(why) })
+  reportError(why, what)
 }
 
 /** Awaits a backend call. A failure is shown and turned into `null`. */
 export async function attempt<T>(
   work: Promise<T>,
-  what?: string
+  what?: string | DynamicActionMessage
 ): Promise<T | null> {
   try {
     return await work
