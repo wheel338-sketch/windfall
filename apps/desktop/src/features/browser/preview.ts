@@ -12,6 +12,7 @@ import {
   resolveFile,
   type FileRequest,
 } from "./file-token"
+import { translatedText as t } from "@/lib/i18n"
 
 /**
  * How long the selection must rest before a held arrow key plays or reads
@@ -48,7 +49,7 @@ function createRunners() {
       try {
         await backend.previewStop()
       } catch (error) {
-        if (current()) reportError(error, "Could not stop the preview")
+        if (current()) reportError(error, t("Could not stop the preview"))
       }
       return
     }

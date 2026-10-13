@@ -48,11 +48,11 @@ export default function BrowserPanel() {
       <TabsList aria-label={t("Browser view")} className="m-1 h-auto shrink-0 flex-wrap">
         <TabsTrigger value="library">{t("Library")}</TabsTrigger>
         <TabsTrigger value="project">{t("Project")}</TabsTrigger>
-        <TabsTrigger value="plugins">Plugins</TabsTrigger>
-        <TabsTrigger value="files">Files</TabsTrigger>
+        <TabsTrigger value="plugins">{t("Plugins")}</TabsTrigger>
+        <TabsTrigger value="files">{t("Files")}</TabsTrigger>
         <TabsTrigger value="backups">{t("Backups")}</TabsTrigger>
-        <TabsTrigger value="loops">Loops</TabsTrigger>
-        <TabsTrigger value="cloudBackup">Cloud backup</TabsTrigger>
+        <TabsTrigger value="loops">{t("Loops")}</TabsTrigger>
+        <TabsTrigger value="cloudBackup">{t("Cloud backup")}</TabsTrigger>
       </TabsList>
       <TabsContent value="library" className="min-h-0">
         <ContextActions items={BROWSER_MENU}>

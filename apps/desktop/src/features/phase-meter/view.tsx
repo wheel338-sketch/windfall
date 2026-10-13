@@ -1,6 +1,7 @@
 import { useRef } from "react"
 
 import { useRealtime } from "@/lib/store/realtime"
+import { translatedText as t } from "@/lib/i18n"
 
 /** Existing stereo correlation, painted without a React render per frame. */
 export function PhaseMeterView() {
@@ -17,7 +18,7 @@ export function PhaseMeterView() {
     indicator.current.hidden = !valid
     meter.current.setAttribute(
       "aria-valuetext",
-      valid ? value.toFixed(2) : "No correlation available"
+      valid ? value.toFixed(2) : t("No correlation available")
     )
     if (valid) {
       indicator.current.style.left = `${((value + 1) / 2) * 100}%`
@@ -25,20 +26,20 @@ export function PhaseMeterView() {
       readout.current.textContent = value.toFixed(2)
     } else {
       meter.current.removeAttribute("aria-valuenow")
-      readout.current.textContent = "No correlation available"
+      readout.current.textContent = t("No correlation available")
     }
   })
 
   return (
-    <section aria-label="Phase meter" className="flex flex-col gap-2">
+    <section aria-label={t("Phase meter")} className="flex flex-col gap-2">
       <div className="rounded-md bg-display p-4">
         <div
           ref={meter}
           role="meter"
-          aria-label="Stereo correlation"
+          aria-label={t("Stereo correlation")}
           aria-valuemin={-1}
           aria-valuemax={1}
-          aria-valuetext="No correlation available"
+          aria-valuetext={t("No correlation available")}
           className="relative h-4 rounded-sm bg-display-dim/20"
         >
           <span
@@ -53,16 +54,16 @@ export function PhaseMeterView() {
           />
         </div>
         <div className="mt-2 flex justify-between text-xs text-display-dim">
-          <span>Side · −1</span>
+          <span>{t("Side · −1")}</span>
           <span>0</span>
-          <span>Mid · +1</span>
+          <span>{t("Mid · +1")}</span>
         </div>
       </div>
       <p
         ref={readout}
         className="text-center font-mono text-xs text-muted-foreground"
       >
-        No correlation available
+        {t("No correlation available")}
       </p>
     </section>
   )

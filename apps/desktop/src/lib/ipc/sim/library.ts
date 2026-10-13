@@ -9,6 +9,7 @@ import type {
 
 import { listFolder } from "./browser"
 import { sim } from "./wasm"
+import { translatedText } from "@/lib/i18n"
 
 const METADATA_KEY = "windfall.mock.browser-library"
 const ROOTS_KEY = "windfall.mock.browser-roots"
@@ -51,7 +52,7 @@ export function createLibraryMock(
     const raw = storage?.getItem(METADATA_KEY)
     if (raw) {
       if (raw.length > 8 * 1024 * 1024)
-        throw new Error("metadata exceeds 8 MiB")
+        throw new Error(translatedText("metadata exceeds 8 MiB"))
       const value: unknown = JSON.parse(raw)
       if (
         !value ||
@@ -59,7 +60,7 @@ export function createLibraryMock(
         Array.isArray(value) ||
         Object.keys(value).length > 10_000
       )
-        throw new Error("invalid metadata")
+        throw new Error(translatedText("invalid metadata"))
       for (const [path, held] of Object.entries(value)) {
         if (
           path.length > 4096 ||
@@ -69,7 +70,7 @@ export function createLibraryMock(
           !Array.isArray(held.tags) ||
           !held.tags.every((t: unknown) => typeof t === "string")
         )
-          throw new Error("invalid metadata entry")
+          throw new Error(translatedText("invalid metadata entry"))
         metadata[path] = {
           favorite: held.favorite,
           tags: sim.call<string[]>("browser_tags", 0, held.tags),
@@ -84,12 +85,12 @@ export function createLibraryMock(
 
   function file(path: string): LibraryFileToken {
     const root = roots().find((r) => path.startsWith(`${r.path}/`))
-    if (!root) throw new Error(STALE)
+    if (!root) throw new Error(translatedText(STALE))
     const entry = listFolder(
       roots(),
       path.slice(0, path.lastIndexOf("/"))
     ).find((e) => e.path === path && e.kind !== "folder")
-    if (!entry) throw new Error(STALE)
+    if (!entry) throw new Error(translatedText(STALE))
     return { path, rootPath: root.path, generation, fingerprint: "fixture-v1" }
   }
 
@@ -102,7 +103,7 @@ export function createLibraryMock(
       current.generation !== token.generation ||
       (token.fingerprint !== "" && current.fingerprint !== token.fingerprint)
     )
-      throw new Error(STALE)
+      throw new Error(translatedText(STALE))
   }
 
   return {
@@ -116,7 +117,7 @@ export function createLibraryMock(
         )
       } catch {
         throw new Error(
-          "Could not save browser folders. Check browser storage space and access, then try again."
+          translatedText("Could not save browser folders. Check browser storage space and access, then try again.")
         )
       }
       generation += 1
@@ -143,16 +144,16 @@ export function createLibraryMock(
       else updated[path] = value
       if (Object.keys(updated).length > 10_000)
         throw new Error(
-          "The library has reached its 10,000 annotated-file limit."
+          translatedText("The library has reached its 10,000 annotated-file limit.")
         )
       const encoded = JSON.stringify(updated)
       if (encoded.length > 8 * 1024 * 1024)
-        throw new Error("The library metadata has reached its 8 MiB limit.")
+        throw new Error(translatedText("The library metadata has reached its 8 MiB limit."))
       try {
         storage?.setItem(METADATA_KEY, encoded)
       } catch {
         throw new Error(
-          "Could not save favorites and tags. Check browser storage space and access, then try again."
+          translatedText("Could not save favorites and tags. Check browser storage space and access, then try again.")
         )
       }
       metadata = updated

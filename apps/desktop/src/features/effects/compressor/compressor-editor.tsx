@@ -8,6 +8,7 @@ import type { EditorProps } from "../editor-props"
 import { GainReductionMeter } from "../gain-reduction"
 import { totalMakeupDb } from "./curve"
 import { TransferDisplay } from "./transfer-display"
+import { translatedText as t } from "@/lib/i18n"
 
 /**
  * The compressor: its curve and how far it is turning the signal down
@@ -44,7 +45,7 @@ export function CompressorEditor({
         />
         <GainReductionMeter
           effect={effect}
-          label="Compressor"
+          label={t("Compressor")}
           // The enlarged height carries the docked rule's container query, so
           // it is the later rule of the two and wins.
           className="@min-[26rem]/editor:h-32 in-data-enlarged:@min-[26rem]/editor:h-48"
@@ -108,8 +109,8 @@ export function CompressorEditor({
           data-slot="compressor-makeup"
           className="font-readout text-[10px] text-muted-foreground"
         >
-          <span className="sr-only">Makeup in effect: </span>
-          {formatDb(totalMakeupDb(shown))} makeup
+          <span className="sr-only">{t("Makeup in effect:")}{" "}</span>
+          {formatDb(totalMakeupDb(shown))}{" "}{t("makeup")}
         </span>
       </div>
     </div>

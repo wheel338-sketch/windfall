@@ -9,6 +9,7 @@ import { ParamControl, type EffectParamsOf } from "@/features/params"
 import { clamp } from "@/lib/units"
 
 import type { EditorProps } from "../editor-props"
+import { translatedText as t } from "@/lib/i18n"
 
 /** How far the needle travels either side of the note, in cents. */
 export const TUNER_RANGE_CENTS = 50
@@ -137,10 +138,10 @@ export function TunerReadout({ slot, reference }: { slot: string; reference?: Re
         <div
           ref={meter}
           role="meter"
-          aria-label="Cents from the nearest note"
+          aria-label={t("Cents from the nearest note")}
           aria-valuemin={-TUNER_RANGE_CENTS}
           aria-valuemax={TUNER_RANGE_CENTS}
-          aria-valuetext="No steady pitch"
+          aria-valuetext={t("No steady pitch")}
           data-slot="tuner-meter"
           className="relative h-3 rounded-sm bg-(--wf-meter-bg)"
         >
@@ -159,9 +160,9 @@ export function TunerReadout({ slot, reference }: { slot: string; reference?: Re
           aria-hidden
           className="flex justify-between font-readout text-[9px] text-muted-foreground"
         >
-          <span>−{TUNER_RANGE_CENTS} ¢ flat</span>
-          <span>in tune</span>
-          <span>sharp +{TUNER_RANGE_CENTS} ¢</span>
+          <span>−{TUNER_RANGE_CENTS}{" "}{t("¢ flat")}</span>
+          <span>{t("in tune")}</span>
+          <span>{t("sharp +")}{TUNER_RANGE_CENTS} ¢</span>
         </div>
         <AnalyzerStatusLine slot={slot} location="this track, one note at a time" />
       </div>

@@ -12,6 +12,7 @@ import { getProjectGeneration } from "@/lib/store/replaced"
 import { ProposalReview } from "./review"
 import { closeAssistant, useAssistantWindows } from "./store"
 import { ConnectionSettings } from "./connection-settings"
+import { translatedText as t } from "@/lib/i18n"
 
 function AssistantForm() {
   const project = useProjectStore((state) => state.project)
@@ -44,18 +45,18 @@ function AssistantForm() {
   }
   return <div className="flex flex-col gap-4">
     <FieldGroup><Field>
-      <FieldLabel htmlFor="assistant-request">Ask about Windfall or request an edit</FieldLabel>
-      <Textarea id="assistant-request" maxLength={4096} value={prompt} onChange={(event) => setPrompt(event.target.value)} placeholder="Set tempo 120; create pattern Verse; add channel Bass" />
+      <FieldLabel htmlFor="assistant-request">{t("Ask about Windfall or request an edit")}</FieldLabel>
+      <Textarea id="assistant-request" maxLength={4096} value={prompt} onChange={(event) => setPrompt(event.target.value)} placeholder={t("Set tempo 120; create pattern Verse; add channel Bass")} />
     </Field></FieldGroup>
     <div className="flex gap-2">
-      <Button disabled={busy || !prompt.trim()} onClick={() => void ask()}>Ask offline assistant</Button>
-      <Button disabled={busy || !prompt.trim() || !connection.enabled || !connection.hasKey || backend.kind !== "tauri"} onClick={() => void ask(true)}>Ask BYOK assistant</Button>
-      <Button variant="outline" disabled={!busy} onClick={() => { request.current += 1; if (remote.current !== null) void backend.assistantRequestCancel(remote.current).catch(() => {}); remote.current = null; setBusy(false) }}>Cancel response</Button>
+      <Button disabled={busy || !prompt.trim()} onClick={() => void ask()}>{t("Ask offline assistant")}</Button>
+      <Button disabled={busy || !prompt.trim() || !connection.enabled || !connection.hasKey || backend.kind !== "tauri"} onClick={() => void ask(true)}>{t("Ask BYOK assistant")}</Button>
+      <Button variant="outline" disabled={!busy} onClick={() => { request.current += 1; if (remote.current !== null) void backend.assistantRequestCancel(remote.current).catch(() => {}); remote.current = null; setBusy(false) }}>{t("Cancel response")}</Button>
     </div>
-    {connection.enabled && <p>BYOK requests send your prompt, the command schema and a bounded list of project IDs to {connection.baseUrl}, using {connection.model}. Replies still require review.</p>}
+    {connection.enabled && <p>{t("BYOK requests send your prompt, the command schema and a bounded list of project IDs to")}{" "}{connection.baseUrl}{t(", using")}{" "}{connection.model}{t(". Replies still require review.")}</p>}
     <ConnectionSettings requestBusy={busy} onSaved={setConnection} />
-    <details><summary>Channel and mixer IDs</summary>
-      <p>{project.channels.map((channel) => `${channel.name}: ${channel.id}`).join(" · ") || "No channels"}</p>
+    <details><summary>{t("Channel and mixer IDs")}</summary>
+      <p>{project.channels.map((channel) => `${channel.name}: ${channel.id}`).join(" · ") || t("No channels")}</p>
       <p>{project.mixer.tracks.map((track) => `${track.name}: ${track.id}`).join(" · ")}</p>
     </details>
     {error && <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}
@@ -69,7 +70,7 @@ export function AssistantPanel() {
   const epoch = useAssistantWindows((state) => state.epoch)
   return <Dialog open={open} onOpenChange={(next) => { if (!next) closeAssistant() }}>
     <DialogContent className="max-h-[85vh] overflow-y-auto">
-      <DialogHeader><DialogTitle>Assistant</DialogTitle><DialogDescription>Offline help and optional user-configured BYOK requests. Review every edit before applying it.</DialogDescription></DialogHeader>
+      <DialogHeader><DialogTitle>{t("Assistant")}</DialogTitle><DialogDescription>{t("Offline help and optional user-configured BYOK requests. Review every edit before applying it.")}</DialogDescription></DialogHeader>
       {open && <AssistantForm key={epoch} />}
     </DialogContent>
   </Dialog>

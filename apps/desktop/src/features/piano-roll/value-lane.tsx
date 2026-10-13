@@ -34,6 +34,7 @@ import {
 import { fadePastEnd, shownLengthTicks } from "./overlays"
 import type { PianoRollSession } from "./session"
 import { usePianoRollStore } from "./store"
+import { message } from "@/lib/i18n"
 
 /** More bars than this in view are drawn merged by pixel column. */
 const MAX_SEPARATE_BARS = 3000
@@ -382,7 +383,7 @@ export function ValueLane({ kind, color }: ValueLaneProps) {
   return (
     <canvas
       ref={canvasRef}
-      aria-label={`Note ${LANE_KINDS.find((item) => item.id === kind)?.label.toLowerCase() ?? kind} values`}
+      aria-label={message("Note {findLabel} values", { findLabel: LANE_KINDS.find((item) => item.id === kind)?.label.toLowerCase() ?? kind })}
       className="block h-full w-full cursor-crosshair touch-none"
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}

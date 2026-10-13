@@ -33,6 +33,7 @@ import { cn } from "@/lib/utils"
 
 import { replaceEffectActionId } from "./effect-actions"
 import { addEffect, effectName, selectEffect } from "./effect-ops"
+import { translatedText as t, dynamicTitle, message } from "@/lib/i18n"
 
 /**
  * What can be done to an effect, for the right-click menu of its slot and
@@ -48,7 +49,7 @@ export function effectMenu(kind: EffectKind, hosted = false): ContextItem[] {
     "mixer.moveEffectUp",
     "mixer.moveEffectDown",
     {
-      submenu: "Replace with",
+      submenu: t("Replace with"),
       items: EFFECT_KINDS.map((other) => ({
         title: effectName(other),
         disabled: !hosted && other === kind,
@@ -58,7 +59,7 @@ export function effectMenu(kind: EffectKind, hosted = false): ContextItem[] {
     ...(!hosted ? ["mixer.resetEffect"] : []),
     contextSeparator,
     {
-      title: "Remove effect",
+      ...dynamicTitle("Remove effect", {}),
       destructive: true,
       // The key works while a slot or an effect's header has the focus.
       shortcut: shortcutLabel("mixer.removeEffect"),
@@ -143,7 +144,7 @@ export function EffectMenuButton({
 }: EffectMenuButtonProps) {
   const plugin = usePluginBinding({ type: "effect", effect })
   const name = plugin?.name ?? effectName(kind)
-  const hint = useHint(`Everything that can be done to this ${name}`)
+  const hint = useHint(message("Everything that can be done to this {name}", { name }))
   return (
     <DropdownMenu
       onOpenChange={(open) => {
@@ -154,7 +155,7 @@ export function EffectMenuButton({
         render={
           <button
             type="button"
-            aria-label={`${name} actions`}
+            aria-label={message("{name} actions", { name })}
             data-slot="effect-menu"
             className={cn(
               "flex size-5 shrink-0 items-center justify-center rounded-sm text-muted-foreground outline-none hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring aria-expanded:bg-muted aria-expanded:text-foreground",
@@ -194,7 +195,7 @@ export function AddEffectMenu({
   className,
 }: AddEffectMenuProps) {
   const hint = useHint(
-    "Add an effect to this track. The signal runs through them from the top down, before the fader"
+    t("Add an effect to this track. The signal runs through them from the top down, before the fader")
   )
   return (
     <DropdownMenu>
@@ -203,7 +204,7 @@ export function AddEffectMenu({
           <button
             type="button"
             data-slot="track-add-effect"
-            aria-label="Add effect"
+            aria-label={t("Add effect")}
             className={cn(
               "flex h-[18px] min-w-0 items-center gap-0.5 rounded-[3px] pr-1 pl-0.5 text-[10px] leading-none text-muted-foreground outline-none hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring aria-expanded:bg-muted aria-expanded:text-foreground",
               className
@@ -219,15 +220,15 @@ export function AddEffectMenu({
               strokeWidth={2}
               className="size-3 shrink-0"
             />
-            <span className="truncate">Effect</span>
+            <span className="truncate">{t("Effect")}</span>
           </>
         )}
       </DropdownMenuTrigger>
       <DropdownMenuContent className="w-auto min-w-40">
         <DropdownMenuItem onClick={() => openPluginManager(track)}>
-          Browse plugins…
+          {t("Browse plugins…")}
         </DropdownMenuItem>
-        <DropdownMenuItem onClick={() => void addEffect(track, "sendTap", index)}>Audio editor recorder</DropdownMenuItem>
+        <DropdownMenuItem onClick={() => void addEffect(track, "sendTap", index)}>{t("Audio editor recorder")}</DropdownMenuItem>
         {EFFECT_KINDS.map((kind) => (
           <DropdownMenuItem
             key={kind}

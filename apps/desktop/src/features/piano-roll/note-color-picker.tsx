@@ -1,6 +1,7 @@
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { isNoteColorGroup, NOTE_COLOR_GROUPS, noteColorGroupLabel } from "@/lib/note-colors"
 import { colorToCss } from "@/lib/units"
+import { translatedText as t } from "@/lib/i18n"
 
 export function NoteColorPicker({ value, onChange, disabled, mixed = false, compact = false }: {
   value: number | null | "keep"
@@ -10,7 +11,7 @@ export function NoteColorPicker({ value, onChange, disabled, mixed = false, comp
   compact?: boolean
 }) {
   const items = [
-    ...(mixed ? [{ value: "keep", label: "Keep each note's color" }] : []),
+    ...(mixed ? [{ value: "keep", label: t("Keep each note's color") }] : []),
     { value: "auto", label: noteColorGroupLabel(null) },
     ...NOTE_COLOR_GROUPS.map((_, group) => ({ value: String(group), label: noteColorGroupLabel(group) })),
   ]
@@ -19,7 +20,7 @@ export function NoteColorPicker({ value, onChange, disabled, mixed = false, comp
     else if (next === "keep" && mixed) onChange("keep")
     else if (next !== null && isNoteColorGroup(Number(next))) onChange(Number(next))
   }}>
-    <SelectTrigger size={compact ? "sm" : "default"} aria-label="Note color and MIDI channel" className={compact ? "w-44" : undefined}>
+    <SelectTrigger size={compact ? "sm" : "default"} aria-label={t("Note color and MIDI channel")} className={compact ? "w-44" : undefined}>
       {typeof value === "number" && <span aria-hidden className="size-2 shrink-0 rounded-[2px]" style={{ background: colorToCss(NOTE_COLOR_GROUPS[value]) }} />}
       <SelectValue />
     </SelectTrigger>

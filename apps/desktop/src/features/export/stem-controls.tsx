@@ -15,6 +15,7 @@ import { useProjectStore } from "@/lib/store/project"
 import { MASTER_TRACK } from "@/lib/units"
 
 import { Choice } from "./choice"
+import { translatedText as t } from "@/lib/i18n"
 
 const DEFAULT_STEMS: ExportStems = {
   mode: "trackOutputs",
@@ -43,7 +44,7 @@ export function StemControls({
   }
   return (
     <FieldSet disabled={disabled}>
-      <FieldLegend variant="label">Files to export</FieldLegend>
+      <FieldLegend variant="label">{t("Files to export")}</FieldLegend>
       <FieldGroup className="gap-3">
         <Field orientation="horizontal" data-disabled={disabled || undefined}>
           <Checkbox
@@ -55,41 +56,41 @@ export function StemControls({
             }
           />
           <FieldLabel htmlFor="export-stems">
-            Export mixer tracks as stems
+            {t("Export mixer tracks as stems")}
           </FieldLabel>
         </Field>
         {value && (
           <>
             <Field data-disabled={disabled || undefined}>
               <FieldLabel htmlFor="export-stem-mode">
-                Each stem contains
+                {t("Each stem contains")}
               </FieldLabel>
               <Choice
                 id="export-stem-mode"
                 value={value.mode}
                 options={[
-                  { value: "trackOutputs", label: "The track output" },
-                  { value: "toMaster", label: "The source through the master" },
+                  { value: "trackOutputs", label: t("The track output") },
+                  { value: "toMaster", label: t("The source through the master") },
                 ]}
                 disabled={disabled}
                 onChange={(mode) => set("mode", mode)}
               />
               <FieldDescription>
                 {value.mode === "trackOutputs"
-                  ? "After track effects and faders. Buses are included; their stems can overlap with the tracks feeding them."
-                  : "Includes bus and master processing. Compressors and limiters react to each stem separately."}
+                  ? t("After track effects and faders. Buses are included; their stems can overlap with the tracks feeding them.")
+                  : t("Includes bus and master processing. Compressors and limiters react to each stem separately.")}
               </FieldDescription>
             </Field>
             <Field data-disabled={disabled || undefined}>
               <FieldLabel htmlFor="export-stem-selection">
-                Mixer tracks
+                {t("Mixer tracks")}
               </FieldLabel>
               <Choice
                 id="export-stem-selection"
                 value={value.tracks === undefined ? "all" : "selected"}
                 options={[
-                  { value: "all", label: "All tracks that have sound" },
-                  { value: "selected", label: "Choose tracks" },
+                  { value: "all", label: t("All tracks that have sound") },
+                  { value: "selected", label: t("Choose tracks") },
                 ]}
                 disabled={disabled}
                 onChange={(selection) =>
@@ -103,13 +104,13 @@ export function StemControls({
               />
             </Field>
             <div className="flex flex-wrap gap-2">
-              <Button type="button" size="sm" variant="outline" disabled={disabled || !selected.length} onClick={() => set("tracks", selectedMixerTracks().filter((track) => track.id !== MASTER_TRACK && !track.current).map((track) => track.id))}>Use mixer selection ({selected.length})</Button>
-              <Button type="button" size="sm" variant="outline" disabled={disabled || !armed.length} onClick={() => set("tracks", tracks.filter((track) => track.recording?.armed).map((track) => track.id))}>Use armed tracks ({armed.length})</Button>
-              {value.tracks !== undefined && <Button type="button" size="sm" variant="ghost" disabled={disabled} onClick={() => set("tracks", [])}>Clear track selection</Button>}
+              <Button type="button" size="sm" variant="outline" disabled={disabled || !selected.length} onClick={() => set("tracks", selectedMixerTracks().filter((track) => track.id !== MASTER_TRACK && !track.current).map((track) => track.id))}>{t("Use mixer selection (")}{selected.length})</Button>
+              <Button type="button" size="sm" variant="outline" disabled={disabled || !armed.length} onClick={() => set("tracks", tracks.filter((track) => track.recording?.armed).map((track) => track.id))}>{t("Use armed tracks (")}{armed.length})</Button>
+              {value.tracks !== undefined && <Button type="button" size="sm" variant="ghost" disabled={disabled} onClick={() => set("tracks", [])}>{t("Clear track selection")}</Button>}
             </div>
             {value.tracks !== undefined && (
               <FieldSet>
-                <FieldLegend variant="label">Selected tracks</FieldLegend>
+                <FieldLegend variant="label">{t("Selected tracks")}</FieldLegend>
                 <FieldGroup className="max-h-36 gap-2 overflow-y-auto">
                   {tracks.map((track) => (
                     <Field
@@ -150,7 +151,7 @@ export function StemControls({
                   onCheckedChange={(checked) => set("includeMix", checked)}
                 />
                 <FieldLabel htmlFor="export-stem-mix">
-                  Include the full mix
+                  {t("Include the full mix")}
                 </FieldLabel>
               </Field>
               <Field
@@ -164,7 +165,7 @@ export function StemControls({
                   onCheckedChange={(checked) => set("numbered", checked)}
                 />
                 <FieldLabel htmlFor="export-stem-numbered">
-                  Number files in mixer order
+                  {t("Number files in mixer order")}
                 </FieldLabel>
               </Field>
               <Field
@@ -178,7 +179,7 @@ export function StemControls({
                   onCheckedChange={(checked) => set("folder", checked)}
                 />
                 <FieldLabel htmlFor="export-stem-folder">
-                  Put stems in their own folder
+                  {t("Put stems in their own folder")}
                 </FieldLabel>
               </Field>
             </FieldGroup>

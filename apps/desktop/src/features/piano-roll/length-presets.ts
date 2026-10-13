@@ -3,13 +3,14 @@ import { dispatch } from "@/lib/store/project"
 import { PPQ, TICKS_PER_STEP } from "@/lib/units"
 
 import { currentSession } from "./session"
+import { translatedText as t } from "@/lib/i18n"
 
 export const LENGTH_PRESETS = [
-  { label: "16th", length: TICKS_PER_STEP },
-  { label: "8th", length: TICKS_PER_STEP * 2 },
-  { label: "Quarter", length: PPQ },
-  { label: "Half", length: PPQ * 2 },
-  { label: "Whole", length: PPQ * 4 },
+  { get label() { return t("16th") }, length: TICKS_PER_STEP },
+  { get label() { return t("8th") }, length: TICKS_PER_STEP * 2 },
+  { get label() { return t("Quarter") }, length: PPQ },
+  { get label() { return t("Half") }, length: PPQ * 2 },
+  { get label() { return t("Whole") }, length: PPQ * 4 },
 ] as const
 
 type LengthNote = {

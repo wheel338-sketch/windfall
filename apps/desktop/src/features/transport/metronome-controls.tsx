@@ -7,15 +7,16 @@ import { METRONOME_GAINS, nextMetronomeGain } from "./metronome-gain"
 import { nextMetronomeGainScale } from "./metronome-gain-scale"
 import { nextMetronomePreset } from "./metronome-preset-step"
 import { useRecordingStore } from "./recording-store"
+import { translatedText as t } from "@/lib/i18n"
 
 export function MetronomeControls() {
   const settings = useTransportStore((state) => state.metronome ?? DEFAULT_METRONOME)
   const recording = useRecordingStore((state) => state.state.active)
   return <div className="flex items-center gap-0.5">
-    <ActionButton action="transport.metronome" variant={settings.enabled ? "secondary" : "ghost"} size="sm" aria-pressed={settings.enabled}>Click</ActionButton>
-    <Popover><PopoverTrigger render={<Button variant="ghost" size="sm" aria-label="Metronome settings">⋯</Button>} /><PopoverContent className="w-64 space-y-3">
-      <p className="text-sm font-medium">Metronome</p>
-      <label className="block space-y-1 text-xs">Click volume (%)<Input type="number" min={0} max={100} value={Math.round(settings.gain * 100)} disabled={recording} onChange={(event) => { const value = Number(event.target.value); if (event.target.value && Number.isFinite(value) && value >= 0 && value <= 100) void setMetronome({ gain: value / 100 }) }} /></label>
+    <ActionButton action="transport.metronome" variant={settings.enabled ? "secondary" : "ghost"} size="sm" aria-pressed={settings.enabled}>{t("Click")}</ActionButton>
+    <Popover><PopoverTrigger render={<Button variant="ghost" size="sm" aria-label={t("Metronome settings")}>⋯</Button>} /><PopoverContent className="w-64 space-y-3">
+      <p className="text-sm font-medium">{t("Metronome")}</p>
+      <label className="block space-y-1 text-xs">{t("Click volume (%)")}<Input type="number" min={0} max={100} value={Math.round(settings.gain * 100)} disabled={recording} onChange={(event) => { const value = Number(event.target.value); if (event.target.value && Number.isFinite(value) && value >= 0 && value <= 100) void setMetronome({ gain: value / 100 }) }} /></label>
       <div className="flex gap-1">
         {METRONOME_GAINS.map((preset) => (
           <Button key={preset.label} variant="outline" size="sm" disabled={recording || nextMetronomeGain(settings.gain, preset.value) === null} onClick={() => {
@@ -26,12 +27,12 @@ export function MetronomeControls() {
       </div>
       <div className="flex gap-1">
         {(["previous", "next"] as const).map((direction) => (
-          <Button key={direction} variant="outline" size="sm" aria-label={`Choose the ${direction} metronome volume`} disabled={recording || nextMetronomePreset(settings.gain, direction) === null} onClick={() => {
+          <Button key={direction} variant="outline" size="sm" aria-label={direction === "previous" ? t("Choose the previous metronome volume") : t("Choose the next metronome volume")} disabled={recording || nextMetronomePreset(settings.gain, direction) === null} onClick={() => {
             if (useRecordingStore.getState().state.active) return
             const latest = useTransportStore.getState().metronome?.gain ?? DEFAULT_METRONOME.gain
             const next = nextMetronomePreset(latest, direction)
             if (next !== null) void setMetronome({ gain: next })
-          }}>{direction === "previous" ? "Previous" : "Next"}</Button>
+          }}>{direction === "previous" ? t("Previous") : t("Next")}</Button>
         ))}
       </div>
       <div className="flex gap-1">
@@ -41,10 +42,10 @@ export function MetronomeControls() {
             const gain = useTransportStore.getState().metronome?.gain ?? DEFAULT_METRONOME.gain
             const next = nextMetronomeGainScale(gain, factor)
             if (next !== null) void setMetronome({ gain: next })
-          }}>{factor === "half" ? "Half" : "Double"}</Button>
+          }}>{factor === "half" ? t("Half") : t("Double")}</Button>
         ))}
       </div>
-      <Button variant={settings.accent ? "secondary" : "outline"} size="sm" aria-pressed={settings.accent} disabled={recording} onClick={() => void setMetronome({ accent: !settings.accent })}>Accent the first beat</Button>
+      <Button variant={settings.accent ? "secondary" : "outline"} size="sm" aria-pressed={settings.accent} disabled={recording} onClick={() => void setMetronome({ accent: !settings.accent })}>{t("Accent the first beat")}</Button>
     </PopoverContent></Popover>
   </div>
 }

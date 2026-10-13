@@ -20,6 +20,7 @@ import { cn } from "@/lib/utils"
 import { describeSynthParam } from "./descriptions"
 import type { SynthSettings } from "./presets"
 import { isWaveShape, WaveGlyph } from "./wave-glyph"
+import { message, plainNumber, translatedText as t } from "@/lib/i18n"
 
 const descriptor = instrumentDescriptor("subtractiveSynth")
 
@@ -83,7 +84,7 @@ function Oscillator({ bind, index }: { bind: ParamBinder; index: number }) {
   return (
     <div
       role="group"
-      aria-label={`Oscillator ${index + 1}`}
+      aria-label={message("Oscillator {index}", { index: plainNumber(index + 1) })}
       data-off={off ? "" : undefined}
       className="flex min-w-0 flex-col gap-2 py-2 first:pt-0 last:pb-0 @[17.5rem]:px-2 @[17.5rem]:py-0 @[17.5rem]:first:pl-0 @[17.5rem]:last:pr-0"
     >
@@ -92,7 +93,7 @@ function Oscillator({ bind, index }: { bind: ParamBinder; index: number }) {
           <span className="font-medium text-foreground/80">
             Osc {index + 1}
           </span>
-          {off && <span className="text-muted-foreground">off</span>}
+          {off && <span className="text-muted-foreground">{t("off")}</span>}
         </span>
         {control(bind, `${at}.waveform`, null, {
           choiceIcon: waveIcon,
@@ -126,11 +127,11 @@ function Oscillators({ bind }: { bind: ParamBinder }) {
       </div>
       <div
         role="group"
-        aria-label="Unison"
+        aria-label={t("Unison")}
         className="flex items-center gap-2 border-t border-border/70 pt-2"
       >
         <span className="w-12 shrink-0 text-[0.6875rem] font-medium text-foreground/80">
-          Unison
+          {t("Unison")}
         </span>
         <ParamRow columns={3} className="max-w-64 flex-1">
           {control(bind, "unisonVoices", "Voices")}
@@ -177,14 +178,14 @@ function Envelope({
   color: string
 }) {
   const hint = useHint(
-    `${title}: drag the nodes for attack, decay and sustain level, and release. Double-click a node to reset it`
+    message("{title}: drag the nodes for attack, decay and sustain level, and release. Double-click a node to reset it", { title })
   )
   return (
     <ParamGroup title={title}>
       <ParamEnvelope
         bind={bind}
         prefix={prefix}
-        aria-label={`${title} shape`}
+        aria-label={message("{title} shape", { title })}
         color={color}
         className="h-20"
         {...hint}
@@ -297,13 +298,13 @@ export function SynthEditor({
       <div className="grid gap-2 @[30rem]:grid-cols-2">
         <Envelope
           bind={bind}
-          title="Amp envelope"
+          title={t("Amp envelope")}
           prefix="ampEnvelope"
           color={color}
         />
         <Envelope
           bind={bind}
-          title="Filter envelope"
+          title={t("Filter envelope")}
           prefix="filterEnvelope"
           color={color}
         />

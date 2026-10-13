@@ -1,20 +1,21 @@
 import type { Envelope } from "@/bindings"
+import { translatedText as t } from "@/lib/i18n"
 
 export const ENVELOPE_PRESETS = [
   {
-    label: "Pluck",
+    get label() { return t("Pluck") },
     envelope: { attackMs: 1, decayMs: 180, sustain: 0, releaseMs: 80 },
   },
   {
-    label: "Keys",
+    get label() { return t("Keys") },
     envelope: { attackMs: 8, decayMs: 400, sustain: 0.7, releaseMs: 250 },
   },
   {
-    label: "Organ",
+    get label() { return t("Organ") },
     envelope: { attackMs: 8, decayMs: 0, sustain: 1, releaseMs: 30 },
   },
   {
-    label: "Pad",
+    get label() { return t("Pad") },
     envelope: { attackMs: 500, decayMs: 300, sustain: 0.85, releaseMs: 800 },
   },
 ] as const satisfies readonly { label: string; envelope: Envelope }[]

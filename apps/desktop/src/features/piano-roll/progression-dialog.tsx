@@ -40,6 +40,7 @@ import {
   type ProgressionRequest,
   type ProgressionSettings,
 } from "./progression"
+import { translatedText as t } from "@/lib/i18n"
 
 function Choices<T extends string>({
   label,
@@ -142,15 +143,14 @@ function ProgressionForm({ request }: { request: ProgressionRequest }) {
           }}
         >
           <DialogHeader>
-            <DialogTitle>Generate progression</DialogTitle>
+            <DialogTitle>{t("Generate progression")}</DialogTitle>
             <DialogDescription>
-              Append diatonic triads from a fixed mood cycle after this
-              channel's notes.
+              {t("Append diatonic triads from a fixed mood cycle after this channel's notes.")}
             </DialogDescription>
           </DialogHeader>
           <FieldGroup>
             <Field data-disabled={pending}>
-              <FieldLabel htmlFor={`${id}-root`}>Root</FieldLabel>
+              <FieldLabel htmlFor={`${id}-root`}>{t("Root")}</FieldLabel>
               <Select
                 value={root}
                 items={ROOT_NAMES.map((label, value) => ({ label, value }))}
@@ -174,7 +174,7 @@ function ProgressionForm({ request }: { request: ProgressionRequest }) {
               </Select>
             </Field>
             <Choices<ProgressionSettings["mode"]>
-              label="Mode"
+              label={t("Mode")}
               value={mode}
               set={setMode}
               items={PROGRESSION_MODES}
@@ -188,7 +188,7 @@ function ProgressionForm({ request }: { request: ProgressionRequest }) {
               }
               data-disabled={pending}
             >
-              <FieldLabel htmlFor={`${id}-bars`}>Length (bars)</FieldLabel>
+              <FieldLabel htmlFor={`${id}-bars`}>{t("Length (bars)")}</FieldLabel>
               <Input
                 id={`${id}-bars`}
                 type="number"
@@ -206,7 +206,7 @@ function ProgressionForm({ request }: { request: ProgressionRequest }) {
               />
             </Field>
             <Choices<ProgressionSettings["mood"]>
-              label="Mood"
+              label={t("Mood")}
               value={mood}
               set={setMood}
               items={PROGRESSION_MOODS}
@@ -220,7 +220,7 @@ function ProgressionForm({ request }: { request: ProgressionRequest }) {
               }
               data-disabled={pending}
             >
-              <FieldLabel htmlFor={`${id}-seed`}>Seed</FieldLabel>
+              <FieldLabel htmlFor={`${id}-seed`}>{t("Seed")}</FieldLabel>
               <Input
                 id={`${id}-seed`}
                 type="number"
@@ -237,21 +237,20 @@ function ProgressionForm({ request }: { request: ProgressionRequest }) {
                 onChange={(event) => setSeed(event.target.value)}
               />
               <FieldDescription>
-                Use the same settings and seed to repeat the chords. Meter and
-                draw velocity are captured when this dialog opens.
+                {t("Use the same settings and seed to repeat the chords. Meter and draw velocity are captured when this dialog opens.")}
               </FieldDescription>
             </Field>
           </FieldGroup>
           {!error && (
             <p role="status">
-              {count} notes · {request.barTicks} ticks per chord · one undo step
+              {count}{" "}{t("notes ·")}{" "}{request.barTicks}{" "}{t("ticks per chord · one undo step")}
             </p>
           )}
           {(error || failure || !current) && (
             <Alert variant="destructive">
               <AlertDescription>
                 {!current
-                  ? "The project or piano-roll channel changed. Close and reopen the generator."
+                  ? t("The project or piano-roll channel changed. Close and reopen the generator.")
                   : (error ?? failure)}
               </AlertDescription>
             </Alert>
@@ -263,10 +262,10 @@ function ProgressionForm({ request }: { request: ProgressionRequest }) {
               disabled={pending}
               onClick={closeProgressionGenerator}
             >
-              Cancel
+              {t("Cancel")}
             </Button>
             <Button type="submit" disabled={!!error || !current || pending}>
-              {pending ? "Applying…" : "Apply"}
+              {pending ? t("Applying…") : t("Apply")}
             </Button>
           </DialogFooter>
         </form>

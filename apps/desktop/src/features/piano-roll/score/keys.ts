@@ -13,7 +13,7 @@ export type Spelling = { step: number; alter: -1 | 0 | 1; octave: number }
 
 /** Steps in line-of-fifths order: F C G D A E B. */
 const FIFTH_STEPS = [3, 0, 4, 1, 5, 2, 6] as const
-const STEP_NAMES = "CDEFGAB"
+const STEP_NAMES = ["C", "D", "E", "F", "G", "A", "B"]
 
 function mod(value: number, by: number): number {
   return ((value % by) + by) % by

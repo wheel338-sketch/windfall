@@ -15,6 +15,7 @@ import type { EqBandId, EqBandShape } from "./eq-response"
 import { selectEqBand, setEqRange, useEqBand, useEqRange } from "./eq-view"
 import { DB_RANGES } from "./geometry"
 import { EqLiveSpectrum } from "./live-spectrum"
+import { translatedText as t, message, plainNumber } from "@/lib/i18n"
 
 const descriptor = effectDescriptor("eq")
 
@@ -85,7 +86,7 @@ function BandTabs({ params, selected, onSelect }: BandTabsProps) {
   return (
     <div
       role="radiogroup"
-      aria-label="Band"
+      aria-label={t("Band")}
       data-slot="eq-bands"
       className={cn(
         "flex min-w-0 flex-1 rounded-[5px] bg-(--wf-step-off)/70 p-px",
@@ -137,7 +138,7 @@ function RangeTabs({ range, onChange }: RangeTabsProps) {
   return (
     <div
       role="radiogroup"
-      aria-label="Gain range of the display"
+      aria-label={t("Gain range of the display")}
       data-slot="eq-range"
       className={cn(
         "flex shrink-0 self-center rounded-[5px] bg-(--wf-step-off)/70 p-px",
@@ -159,7 +160,7 @@ function RangeTabs({ range, onChange }: RangeTabsProps) {
           type="button"
           role="radio"
           aria-checked={item === range}
-          aria-label={`Show ${item} dB either side of 0`}
+          aria-label={message("Show {item} dB either side of 0", { item: plainNumber(item) })}
           data-range={item}
           tabIndex={item === range ? 0 : -1}
           onClick={() => onChange(item)}

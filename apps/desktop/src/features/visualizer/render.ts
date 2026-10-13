@@ -1,5 +1,6 @@
 import type { VisualSettings } from "@/bindings"
 import type { AnalyzerFrame } from "@/features/analyzers/types"
+import { translatedText as t } from "@/lib/i18n"
 
 export type VisualSignal = { rms: number; bands: readonly number[] }
 export const VISUAL_FPS = 24
@@ -10,7 +11,7 @@ const BACKGROUND_RGBA = new Uint32Array(new Uint8Array([8, 12, 20, 255]).buffer)
 
 /** Shared song-time phase for live seeks/loops and range export. */
 export function visualSongFrame(seconds: number): number {
-  if (!Number.isFinite(seconds) || seconds < 0) throw new Error("Invalid visual song time")
+  if (!Number.isFinite(seconds) || seconds < 0) throw new Error(t("Invalid visual song time"))
   return Math.floor(seconds * VISUAL_FPS)
 }
 
@@ -37,7 +38,7 @@ function color(hue: number): [number, number, number] {
 /** Authored software rasterizer shared by live canvas and offline export.
  * No canvas text/font/GPU state enters an exported pixel or its hash. */
 export function renderVisual(width: number, height: number, settings: VisualSettings, signal: VisualSignal | null, frame: number): Uint8ClampedArray {
-  if (!Number.isInteger(width) || !Number.isInteger(height) || width < 1 || height < 1 || width > 1920 || height > 1080) throw new Error("Invalid visual dimensions")
+  if (!Number.isInteger(width) || !Number.isInteger(height) || width < 1 || height < 1 || width > 1920 || height > 1080) throw new Error(t("Invalid visual dimensions"))
   const pixels = new Uint8ClampedArray(width * height * 4)
   new Uint32Array(pixels.buffer).fill(BACKGROUND_RGBA)
   if (!signal) return pixels

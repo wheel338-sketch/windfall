@@ -14,6 +14,7 @@ import { usePlaylistStore } from "@/features/playlist/store"
 import { useProjectStore } from "@/lib/store/project"
 
 import { Choice } from "./choice"
+import { translatedText as t } from "@/lib/i18n"
 
 const DEFAULT_PLAYLIST_STEMS: ExportPlaylistStems = {
   includeMix: true,
@@ -52,7 +53,7 @@ export function PlaylistStemControls({
   }
   return (
     <FieldSet disabled={disabled}>
-      <FieldLegend variant="label">Playlist tracks</FieldLegend>
+      <FieldLegend variant="label">{t("Playlist tracks")}</FieldLegend>
       <FieldGroup className="gap-3">
         <Field orientation="horizontal" data-disabled={disabled || undefined}>
           <Checkbox
@@ -64,28 +65,24 @@ export function PlaylistStemControls({
             }
           />
           <FieldLabel htmlFor="export-playlist-tracks">
-            Export each playlist track to its own file
+            {t("Export each playlist track to its own file")}
           </FieldLabel>
         </Field>
         {value && (
           <>
             <FieldDescription>
-              Each file is the song with only that track&apos;s pattern and
-              audio clips placed, heard through its mixer tracks, buses and
-              the master. Automation plays in every file. Compressors,
-              limiters and sidechains react to each track alone, so the files
-              add up to the mix only where the path is linear.
+              {t("Each file is the song with only that track's pattern and audio clips placed, heard through its mixer tracks, buses and the master. Automation plays in every file. Compressors, limiters and sidechains react to each track alone, so the files add up to the mix only where the path is linear.")}
             </FieldDescription>
             <Field data-disabled={disabled || undefined}>
               <FieldLabel htmlFor="export-playlist-selection">
-                Tracks to export
+                {t("Tracks to export")}
               </FieldLabel>
               <Choice
                 id="export-playlist-selection"
                 value={value.tracks === undefined ? "all" : "selected"}
                 options={[
-                  { value: "all", label: "All tracks that have sound" },
-                  { value: "selected", label: "Choose tracks" },
+                  { value: "all", label: t("All tracks that have sound") },
+                  { value: "selected", label: t("Choose tracks") },
                 ]}
                 disabled={disabled}
                 onChange={(choice) =>
@@ -106,12 +103,12 @@ export function PlaylistStemControls({
                 disabled={disabled || selectedTracks.length === 0}
                 onClick={() => set("tracks", selectedTracks)}
               >
-                Use tracks of selected clips ({selectedTracks.length})
+                {t("Use tracks of selected clips (")}{selectedTracks.length})
               </Button>
             </div>
             {value.tracks !== undefined && (
               <FieldSet>
-                <FieldLegend variant="label">Selected playlist tracks</FieldLegend>
+                <FieldLegend variant="label">{t("Selected playlist tracks")}</FieldLegend>
                 <FieldGroup className="max-h-36 gap-2 overflow-y-auto">
                   {shown.tracks.map((track) => (
                     <Field
@@ -152,7 +149,7 @@ export function PlaylistStemControls({
                   onCheckedChange={(checked) => set("includeMix", checked)}
                 />
                 <FieldLabel htmlFor="export-playlist-mix">
-                  Include the full mix
+                  {t("Include the full mix")}
                 </FieldLabel>
               </Field>
               <Field
@@ -166,7 +163,7 @@ export function PlaylistStemControls({
                   onCheckedChange={(checked) => set("numbered", checked)}
                 />
                 <FieldLabel htmlFor="export-playlist-numbered">
-                  Number files in playlist order
+                  {t("Number files in playlist order")}
                 </FieldLabel>
               </Field>
               <Field
@@ -180,7 +177,7 @@ export function PlaylistStemControls({
                   onCheckedChange={(checked) => set("folder", checked)}
                 />
                 <FieldLabel htmlFor="export-playlist-folder">
-                  Put the files in their own folder
+                  {t("Put the files in their own folder")}
                 </FieldLabel>
               </Field>
             </FieldGroup>

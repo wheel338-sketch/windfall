@@ -37,6 +37,7 @@ import {
   type VoiceFilter,
   type VoiceFilterMode,
 } from "./settings"
+import { translatedText as t, message } from "@/lib/i18n"
 
 /** The targets that have an envelope in this panel. */
 type EnvelopeTarget = "filter" | "pitch" | "pan" | "resonance"
@@ -49,22 +50,22 @@ type GestureHandlers = {
 const GestureContext = createContext<GestureHandlers>({})
 
 const SHAPES: readonly { value: LfoShape; label: string }[] = [
-  { value: "sine", label: "Sine" },
-  { value: "triangle", label: "Triangle" },
-  { value: "square", label: "Square" },
+  { value: "sine", get label() { return t("Sine") } },
+  { value: "triangle", get label() { return t("Triangle") } },
+  { value: "square", get label() { return t("Square") } },
 ]
 const FILTER_MODES: readonly { value: VoiceFilterMode; label: string }[] = [
-  { value: "lowPass", label: "Low-pass" },
-  { value: "highPass", label: "High-pass" },
-  { value: "bandPass", label: "Band-pass" },
-  { value: "notch", label: "Notch" },
+  { value: "lowPass", get label() { return t("Low-pass") } },
+  { value: "highPass", get label() { return t("High-pass") } },
+  { value: "bandPass", get label() { return t("Band-pass") } },
+  { value: "notch", get label() { return t("Notch") } },
 ]
 const LFO_FULL_DEPTH: Record<TargetLfoName, string> = {
-  volume: "down to silence",
-  pan: "full pan travel",
-  pitch: "2400 cents",
-  cutoff: "8 octaves",
-  resonance: "the whole resonance range",
+  get volume() { return t("down to silence") },
+  get pan() { return t("full pan travel") },
+  get pitch() { return t("2400 cents") },
+  get cutoff() { return t("8 octaves") },
+  get resonance() { return t("the whole resonance range") },
 }
 
 const ENVELOPE_DEPTH: Record<EnvelopeTarget, { max: number; unit: string }> =
@@ -148,7 +149,7 @@ function EnvelopeControls({
   onChange(value: ModulationEnvelope): void
 }) {
   const gestures = useContext(GestureContext)
-  const title = `${target[0].toUpperCase()}${target.slice(1)} envelope`
+  const title = target === "filter" ? t("Filter envelope") : target === "pitch" ? t("Pitch envelope") : target === "pan" ? t("Pan envelope") : t("Resonance envelope")
   const { max: maxDepth, unit: depthUnit } = ENVELOPE_DEPTH[target]
   const set = (patch: Partial<ModulationEnvelope>) =>
     onChange({ ...value, ...patch })
@@ -157,15 +158,15 @@ function EnvelopeControls({
       <FieldLegend>{title}</FieldLegend>
       <FieldGroup>
         <Enabled
-          label={`Enable ${target} envelope`}
+          label={message("Enable {target} envelope", { target: t(target) })}
           checked={value.enabled}
           onChange={(enabled) => set({ enabled })}
         />
         <FieldGroup className="grid grid-cols-2 justify-items-center gap-2 @min-[22rem]:grid-cols-5">
           <Field>
             <Knob
-              label="Attack"
-              aria-label={`${title} attack`}
+              label={t("Attack")}
+              aria-label={message("{title} attack", { title })}
               value={value.attackMs}
               min={0}
               max={10_000}
@@ -179,8 +180,8 @@ function EnvelopeControls({
           </Field>
           <Field>
             <Knob
-              label="Decay"
-              aria-label={`${title} decay`}
+              label={t("Decay")}
+              aria-label={message("{title} decay", { title })}
               value={value.decayMs}
               min={1}
               max={10_000}
@@ -194,8 +195,8 @@ function EnvelopeControls({
           </Field>
           <Field>
             <Knob
-              label="Sustain"
-              aria-label={`${title} sustain`}
+              label={t("Sustain")}
+              aria-label={message("{title} sustain", { title })}
               value={value.sustain}
               min={0}
               max={1}
@@ -208,8 +209,8 @@ function EnvelopeControls({
           </Field>
           <Field>
             <Knob
-              label="Release"
-              aria-label={`${title} release`}
+              label={t("Release")}
+              aria-label={message("{title} release", { title })}
               value={value.releaseMs}
               min={1}
               max={10_000}
@@ -223,8 +224,8 @@ function EnvelopeControls({
           </Field>
           <Field>
             <Knob
-              label="Depth"
-              aria-label={`${title} depth`}
+              label={t("Depth")}
+              aria-label={message("{title} depth", { title })}
               value={value.depth}
               min={-maxDepth}
               max={maxDepth}
@@ -261,12 +262,12 @@ function TargetLfoControls({
       <FieldLegend>{title}</FieldLegend>
       <FieldGroup>
         <Enabled
-          label={`Enable ${target} LFO`}
+          label={message("Enable {target} LFO", { target: t(target) })}
           checked={value.enabled}
           onChange={(enabled) => set({ enabled })}
         />
         <Choices
-          label={`${title} waveform`}
+          label={message("{title} waveform", { title })}
           value={value.shape}
           options={SHAPES}
           onChange={(shape) => set({ shape })}
@@ -274,8 +275,8 @@ function TargetLfoControls({
         <FieldGroup className="grid grid-cols-2 justify-items-center gap-2">
           <Field>
             <Knob
-              label="Rate"
-              aria-label={`${title} rate`}
+              label={t("Rate")}
+              aria-label={message("{title} rate", { title })}
               value={value.rateHz}
               min={0.01}
               max={30}
@@ -289,8 +290,8 @@ function TargetLfoControls({
           </Field>
           <Field>
             <Knob
-              label="Depth"
-              aria-label={`${title} depth`}
+              label={t("Depth")}
+              aria-label={message("{title} depth", { title })}
               value={value.depth}
               min={-1}
               max={1}
@@ -323,7 +324,7 @@ function TargetLfoControls({
           onChange={(retrigger) => set({ retrigger })}
         />
         <FieldDescription>
-          Full depth: {LFO_FULL_DEPTH[target]}.
+          {t("Full depth:")}{" "}{LFO_FULL_DEPTH[target]}.
         </FieldDescription>
       </FieldGroup>
     </FieldSet>
@@ -461,27 +462,27 @@ function VoiceEditor({
 
   return (
     <div
-      aria-label="Channel voice settings"
+      aria-label={t("Channel voice settings")}
       role="group"
       className="@container flex min-w-0 flex-col text-xs"
     >
       <FieldSet className="border-b px-2.5 py-2">
-        <FieldLegend>Arpeggiator</FieldLegend>
+        <FieldLegend>{t("Arpeggiator")}</FieldLegend>
         <FieldGroup>
           <Choices
-            label="Arpeggiator mode"
+            label={t("Arpeggiator mode")}
             value={arp.mode}
             options={[
-              { value: "off", label: "Off" },
-              { value: "up", label: "Up" },
-              { value: "down", label: "Down" },
-              { value: "upDown", label: "Up-down" },
-              { value: "asPlayed", label: "As played" },
+              { value: "off", label: t("Off") },
+              { value: "up", label: t("Up") },
+              { value: "down", label: t("Down") },
+              { value: "upDown", label: t("Up-down") },
+              { value: "asPlayed", label: t("As played") },
             ]}
             onChange={(mode) => setArp({ mode })}
           />
           <Choices
-            label="Arpeggiator rate"
+            label={t("Arpeggiator rate")}
             value={arp.rate}
             options={DIVISIONS}
             onChange={(rate) => setArp({ rate })}
@@ -489,8 +490,8 @@ function VoiceEditor({
           <FieldGroup className="grid grid-cols-2 justify-items-center gap-2">
             <Field>
               <Knob
-                label="Gate"
-                aria-label="Arpeggiator gate"
+                label={t("Gate")}
+                aria-label={t("Arpeggiator gate")}
                 value={arp.gate}
                 min={0}
                 max={1}
@@ -503,8 +504,8 @@ function VoiceEditor({
             </Field>
             <Field>
               <Knob
-                label="Octaves"
-                aria-label="Arpeggiator octave range"
+                label={t("Octaves")}
+                aria-label={t("Arpeggiator octave range")}
                 value={arp.rangeOctaves}
                 min={1}
                 max={4}
@@ -519,19 +520,19 @@ function VoiceEditor({
         </FieldGroup>
       </FieldSet>
       <FieldSet className="border-b px-2.5 py-2">
-        <FieldLegend>Note echo</FieldLegend>
+        <FieldLegend>{t("Note echo")}</FieldLegend>
         <FieldGroup>
           <Enabled
-            label="Enable note echo"
+            label={t("Enable note echo")}
             checked={echo.enabled}
             onChange={(enabled) => setEcho({ enabled })}
           />
           <Choices
-            label="Echo timing"
+            label={t("Echo timing")}
             value={echo.time.unit}
             options={[
-              { value: "milliseconds", label: "Milliseconds" },
-              { value: "division", label: "Tempo" },
+              { value: "milliseconds", label: t("Milliseconds") },
+              { value: "division", label: t("Tempo") },
             ]}
             onChange={(unit) => {
               if (unit !== echo.time.unit)
@@ -545,7 +546,7 @@ function VoiceEditor({
           />
           {echo.time.unit === "division" ? (
             <Choices
-              label="Echo note division"
+              label={t("Echo note division")}
               value={echo.time.division}
               options={DIVISIONS}
               onChange={(division) =>
@@ -555,8 +556,8 @@ function VoiceEditor({
           ) : (
             <Field>
               <Knob
-                label="Delay"
-                aria-label="Echo delay time"
+                label={t("Delay")}
+                aria-label={t("Echo delay time")}
                 value={echo.time.ms}
                 min={1}
                 max={60_000}
@@ -574,8 +575,8 @@ function VoiceEditor({
           <FieldGroup className="grid grid-cols-3 justify-items-center gap-2">
             <Field>
               <Knob
-                label="Feedback"
-                aria-label="Echo feedback"
+                label={t("Feedback")}
+                aria-label={t("Echo feedback")}
                 value={echo.feedback}
                 min={0}
                 max={0.95}
@@ -588,8 +589,8 @@ function VoiceEditor({
             </Field>
             <Field>
               <Knob
-                label="Pitch"
-                aria-label="Echo pitch offset"
+                label={t("Pitch")}
+                aria-label={t("Echo pitch offset")}
                 value={echo.pitchSemitones}
                 min={-48}
                 max={48}
@@ -604,8 +605,8 @@ function VoiceEditor({
             </Field>
             <Field>
               <Knob
-                label="Repeats"
-                aria-label="Echo repeat count"
+                label={t("Repeats")}
+                aria-label={t("Echo repeat count")}
                 value={echo.repeats}
                 min={0}
                 max={8}
@@ -618,24 +619,23 @@ function VoiceEditor({
             </Field>
           </FieldGroup>
           <FieldDescription>
-            Each repeat adds the pitch offset and fades by feedback. Very quiet
-            repeats stop early.
+            {t("Each repeat adds the pitch offset and fades by feedback. Very quiet repeats stop early.")}
           </FieldDescription>
         </FieldGroup>
       </FieldSet>
       <FieldSet className="border-b px-2.5 py-2">
-        <FieldLegend>Polyphony and glide</FieldLegend>
+        <FieldLegend>{t("Polyphony and glide")}</FieldLegend>
         <FieldGroup>
           <Enabled
-            label="Mono legato"
+            label={t("Mono legato")}
             checked={poly.monoLegato}
             onChange={(monoLegato) => setPoly({ monoLegato })}
           />
           <FieldGroup className="grid grid-cols-2 justify-items-center gap-2">
             <Field>
               <Knob
-                label="Voices"
-                aria-label="Maximum channel voices"
+                label={t("Voices")}
+                aria-label={t("Maximum channel voices")}
                 value={poly.maxVoices}
                 min={1}
                 max={32}
@@ -648,8 +648,8 @@ function VoiceEditor({
             </Field>
             <Field>
               <Knob
-                label="Portamento"
-                aria-label="Portamento time"
+                label={t("Portamento")}
+                aria-label={t("Portamento time")}
                 value={poly.portamentoMs}
                 min={0}
                 max={60_000}
@@ -663,22 +663,21 @@ function VoiceEditor({
             </Field>
           </FieldGroup>
           <FieldDescription>
-            Mono legato keeps one voice and preserves envelopes between
-            overlapping notes. Portamento time covers 63% of the pitch change.
+            {t("Mono legato keeps one voice and preserves envelopes between overlapping notes. Portamento time covers 63% of the pitch change.")}
           </FieldDescription>
         </FieldGroup>
       </FieldSet>
       {sampler && (
         <FieldSet className="border-b px-2.5 py-2">
-          <FieldLegend>Channel filter</FieldLegend>
+          <FieldLegend>{t("Channel filter")}</FieldLegend>
           <FieldGroup>
             <Enabled
-              label="Enable channel filter"
+              label={t("Enable channel filter")}
               checked={filter.enabled}
               onChange={(enabled) => setFilter({ enabled })}
             />
             <Choices
-              label="Filter type"
+              label={t("Filter type")}
               value={filter.mode}
               options={FILTER_MODES}
               onChange={(mode) => setFilter({ mode })}
@@ -686,8 +685,8 @@ function VoiceEditor({
             <FieldGroup className="grid grid-cols-2 justify-items-center gap-2">
               <Field>
                 <Knob
-                  label="Cutoff"
-                  aria-label="Channel filter cutoff"
+                  label={t("Cutoff")}
+                  aria-label={t("Channel filter cutoff")}
                   value={filter.cutoffHz}
                   min={MIN_VOICE_CUTOFF_HZ}
                   max={MAX_VOICE_CUTOFF_HZ}
@@ -701,8 +700,8 @@ function VoiceEditor({
               </Field>
               <Field>
                 <Knob
-                  label="Resonance"
-                  aria-label="Channel filter resonance"
+                  label={t("Resonance")}
+                  aria-label={t("Channel filter resonance")}
                   value={filter.resonance}
                   min={0}
                   max={1}
@@ -715,9 +714,7 @@ function VoiceEditor({
               </Field>
             </FieldGroup>
             <FieldDescription>
-              Cutoff and resonance are the two modulation targets: the filter
-              and resonance envelopes and the cutoff and resonance LFOs move
-              them. The volume envelope is the sampler&apos;s Envelope section.
+              {t("Cutoff and resonance are the two modulation targets: the filter and resonance envelopes and the cutoff and resonance LFOs move them. The volume envelope is the sampler's Envelope section.")}
             </FieldDescription>
           </FieldGroup>
         </FieldSet>
@@ -743,35 +740,35 @@ function VoiceEditor({
         />
       ))}
       <FieldSet className="border-b px-2.5 py-2">
-        <FieldLegend>Voice LFO</FieldLegend>
+        <FieldLegend>{t("Voice LFO")}</FieldLegend>
         <FieldGroup>
           <Enabled
-            label="Enable voice LFO"
+            label={t("Enable voice LFO")}
             checked={lfo.enabled}
             onChange={(enabled) => setLfo({ enabled })}
           />
           <Choices
-            label="LFO waveform"
+            label={t("LFO waveform")}
             value={lfo.shape}
             options={SHAPES}
             onChange={(shape) => setLfo({ shape })}
           />
           <Choices
-            label="LFO target"
+            label={t("LFO target")}
             value={lfo.target}
             options={
               sampler
                 ? [
-                    { value: "filter", label: "Filter" },
-                    { value: "pitch", label: "Pitch" },
-                    { value: "pan", label: "Pan" },
-                    { value: "volume", label: "Volume" },
-                    { value: "resonance", label: "Resonance" },
+                    { value: "filter", label: t("Filter") },
+                    { value: "pitch", label: t("Pitch") },
+                    { value: "pan", label: t("Pan") },
+                    { value: "volume", label: t("Volume") },
+                    { value: "resonance", label: t("Resonance") },
                   ]
                 : [
-                    { value: "filter", label: "Filter" },
-                    { value: "pitch", label: "Pitch" },
-                    { value: "pan", label: "Pan" },
+                    { value: "filter", label: t("Filter") },
+                    { value: "pitch", label: t("Pitch") },
+                    { value: "pan", label: t("Pan") },
                   ]
             }
             onChange={(target) => setLfo({ target })}
@@ -779,8 +776,8 @@ function VoiceEditor({
           <FieldGroup className="grid grid-cols-2 justify-items-center gap-2">
             <Field>
               <Knob
-                label="Rate"
-                aria-label="LFO rate"
+                label={t("Rate")}
+                aria-label={t("LFO rate")}
                 value={lfo.rateHz}
                 min={0.01}
                 max={30}
@@ -794,8 +791,8 @@ function VoiceEditor({
             </Field>
             <Field>
               <Knob
-                label="Depth"
-                aria-label="LFO depth"
+                label={t("Depth")}
+                aria-label={t("LFO depth")}
                 value={lfo.depth}
                 min={-1}
                 max={1}
@@ -809,9 +806,7 @@ function VoiceEditor({
             </Field>
           </FieldGroup>
           <FieldDescription>
-            One extra LFO for any target. Full depth: 8 filter octaves, 2400
-            pitch cents, full pan travel, a tremolo down to silence, or the
-            whole resonance range. Negative depth reverses the motion.
+            {t("One extra LFO for any target. Full depth: 8 filter octaves, 2400 pitch cents, full pan travel, a tremolo down to silence, or the whole resonance range. Negative depth reverses the motion.")}
           </FieldDescription>
         </FieldGroup>
       </FieldSet>

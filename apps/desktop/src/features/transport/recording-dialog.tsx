@@ -33,6 +33,7 @@ import { nextDialogMonitorScale } from "./dialog-monitor-scale"
 import { nextDialogOffsetScale } from "./dialog-offset-scale"
 import { nextDialogStartScale } from "./dialog-start-scale"
 import { refreshRecording, useRecordingStore } from "./recording-store"
+import { translatedText, message, plainNumber } from "@/lib/i18n"
 function Choice({
   label,
   value,
@@ -56,7 +57,7 @@ function Choice({
       }}
     >
       <SelectTrigger aria-label={label}>
-        <SelectValue placeholder="Not available" />
+        <SelectValue placeholder={translatedText("Not available")} />
       </SelectTrigger>
       <SelectContent>
         <SelectGroup>
@@ -86,7 +87,7 @@ export function RecordingDialog() {
   const input = s.inputs[s.device]
   const channels = Array.from({ length: input?.channels ?? 0 }, (_, value) => ({
     value,
-    label: `Input ${value + 1}`,
+    label: message("Input {value}", { value: plainNumber(value + 1) }),
   }))
   return (
     <Dialog
@@ -95,28 +96,27 @@ export function RecordingDialog() {
     >
       <DialogContent className="max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Record audio input</DialogTitle>
+          <DialogTitle>{translatedText("Record audio input")}</DialogTitle>
           <DialogDescription>
-            Record a mono or stereo input into the playlist. Synchronize playback
-            to the chosen start, use a count-in, and set an offset for your setup.
+            {translatedText("Record a mono or stereo input into the playlist. Synchronize playback to the chosen start, use a count-in, and set an offset for your setup.")}
           </DialogDescription>
         </DialogHeader>
         <FieldGroup>
           <Field orientation="horizontal">
             <Checkbox id="record-armed" checked={s.armedTracks} disabled={disabled} onCheckedChange={(checked) => useRecordingStore.setState({ armedTracks: checked === true })} />
-            <FieldLabel htmlFor="record-armed">Record all armed mixer tracks</FieldLabel>
+            <FieldLabel htmlFor="record-armed">{translatedText("Record all armed mixer tracks")}</FieldLabel>
           </Field>
-          {s.armedTracks && <FieldDescription>Choose dry inputs or processed track sound and arm tracks in the mixer inspector. Each armed source gets its own aligned recording. {mixerTracks.filter((track) => track.recording?.armed).length} tracks armed.</FieldDescription>}
+          {s.armedTracks && <FieldDescription>{translatedText("Choose dry inputs or processed track sound and arm tracks in the mixer inspector. Each armed source gets its own aligned recording.")}{" "}{mixerTracks.filter((track) => track.recording?.armed).length}{" "}{translatedText("tracks armed.")}</FieldDescription>}
           <Field>
-            <FieldLabel>Count-in</FieldLabel>
-            <Choice label="Count-in bars" value={countInBars} disabled={disabled} items={[{ value: 0, label: "None" }, { value: 1, label: "1 bar" }, { value: 2, label: "2 bars" }, { value: 4, label: "4 bars" }, { value: 8, label: "8 bars" }]} onChange={(countInBars) => void setTransport({ countInBars })} />
+            <FieldLabel>{translatedText("Count-in")}</FieldLabel>
+            <Choice label={translatedText("Count-in bars")} value={countInBars} disabled={disabled} items={[{ value: 0, label: translatedText("None") }, { value: 1, label: translatedText("1 bar") }, { value: 2, label: translatedText("2 bars") }, { value: 4, label: translatedText("4 bars") }, { value: 8, label: translatedText("8 bars") }]} onChange={(countInBars) => void setTransport({ countInBars })} />
             <div className="flex gap-2">
               {(["half", "double"] as const).map((factor) => (
                 <Button
                   key={factor}
                   variant="outline"
                   size="sm"
-                  aria-label={factor === "half" ? "Halve count-in" : "Double count-in"}
+                  aria-label={factor === "half" ? translatedText("Halve count-in") : translatedText("Double count-in")}
                   disabled={disabled || nextCountInScale(countInBars, factor) === null}
                   onClick={() => {
                     const recording = useRecordingStore.getState()
@@ -126,20 +126,20 @@ export function RecordingDialog() {
                     if (next !== null) void setTransport({ countInBars: next })
                   }}
                 >
-                  {factor === "half" ? "Half" : "Double"}
+                  {factor === "half" ? translatedText("Half") : translatedText("Double")}
                 </Button>
               ))}
             </div>
-            <FieldDescription>Count-in follows the song meter and tempo at the chosen start. Playback begins there after the clicks.</FieldDescription>
+            <FieldDescription>{translatedText("Count-in follows the song meter and tempo at the chosen start. Playback begins there after the clicks.")}</FieldDescription>
           </Field>
           <Field orientation="horizontal">
             <Checkbox id="record-sync" checked={s.synchronize || s.loopRecording || s.armedTracks || countInBars > 0} disabled={disabled || countInBars > 0 || s.loopRecording || s.armedTracks} onCheckedChange={(checked) => useRecordingStore.setState({ synchronize: checked === true })} />
-            <FieldLabel htmlFor="record-sync">Start playback with recording</FieldLabel>
+            <FieldLabel htmlFor="record-sync">{translatedText("Start playback with recording")}</FieldLabel>
           </Field>
           <Field>
-            <FieldLabel>Input device</FieldLabel>
+            <FieldLabel>{translatedText("Input device")}</FieldLabel>
             <Choice
-              label="Input device"
+              label={translatedText("Input device")}
               value={s.device}
               disabled={disabled || s.armedTracks}
               items={s.inputs.map((d, value) => ({
@@ -151,22 +151,22 @@ export function RecordingDialog() {
               }
             />
             <FieldDescription>
-              Input opens before playback. Mono is stored as duplicated stereo.
+              {translatedText("Input opens before playback. Mono is stored as duplicated stereo.")}
             </FieldDescription>
           </Field>
           <Field>
-            <FieldLabel>Input sample rate</FieldLabel>
-            <Choice label="Input sample rate" value={s.inputRate} disabled={disabled} items={[{ value: 0, label: "Automatic" }, ...(input?.sampleRates ?? []).map((value) => ({ value, label: `${value} Hz` }))]} onChange={(inputRate) => useRecordingStore.setState({ inputRate })} />
-            <FieldDescription>Audio is converted to the output sample rate when needed.</FieldDescription>
+            <FieldLabel>{translatedText("Input sample rate")}</FieldLabel>
+            <Choice label={translatedText("Input sample rate")} value={s.inputRate} disabled={disabled} items={[{ value: 0, label: translatedText("Automatic") }, ...(input?.sampleRates ?? []).map((value) => ({ value, label: `${value} Hz` }))]} onChange={(inputRate) => useRecordingStore.setState({ inputRate })} />
+            <FieldDescription>{translatedText("Audio is converted to the output sample rate when needed.")}</FieldDescription>
           </Field>
           <Field orientation="horizontal">
             <Checkbox id="record-drift" checked={s.driftCorrection} disabled={disabled} onCheckedChange={(checked) => useRecordingStore.setState({ driftCorrection: checked === true })} />
-            <FieldLabel htmlFor="record-drift">Correct independent device clock drift</FieldLabel>
+            <FieldLabel htmlFor="record-drift">{translatedText("Correct independent device clock drift")}</FieldLabel>
           </Field>
           <Field>
-            <FieldLabel htmlFor="record-offset">Recording offset (milliseconds)</FieldLabel>
+            <FieldLabel htmlFor="record-offset">{translatedText("Recording offset (milliseconds)")}</FieldLabel>
             <Input id="record-offset" type="number" min={-1000} max={1000} step={0.1} value={s.offsetMs} disabled={disabled} onChange={(event) => useRecordingStore.setState({ offsetMs: Math.max(-1000, Math.min(1000, Number(event.target.value))) })} />
-            <FieldDescription>Positive values advance captured audio. Driver timestamps supply automatic input/output latency alignment.</FieldDescription>
+            <FieldDescription>{translatedText("Positive values advance captured audio. Driver timestamps supply automatic input/output latency alignment.")}</FieldDescription>
             <div className="flex gap-2">
               {(["half", "double"] as const).map((factor) => (
                 <Button
@@ -181,15 +181,15 @@ export function RecordingDialog() {
                     if (next !== null) useRecordingStore.setState({ offsetMs: next })
                   }}
                 >
-                  {factor === "half" ? "Half" : "Double"}
+                  {factor === "half" ? translatedText("Half") : translatedText("Double")}
                 </Button>
               ))}
             </div>
           </Field>
           <Field>
-            <FieldLabel>Left or mono channel</FieldLabel>
+            <FieldLabel>{translatedText("Left or mono channel")}</FieldLabel>
             <Choice
-              label="Left or mono channel"
+              label={translatedText("Left or mono channel")}
               value={s.left}
               disabled={disabled || s.armedTracks}
               items={channels}
@@ -197,20 +197,20 @@ export function RecordingDialog() {
             />
           </Field>
           <Field>
-            <FieldLabel>Right channel</FieldLabel>
+            <FieldLabel>{translatedText("Right channel")}</FieldLabel>
             <Choice
-              label="Right channel"
+              label={translatedText("Right channel")}
               value={s.right}
               disabled={disabled || s.armedTracks}
               items={[
-                { value: -1, label: "Mono (duplicate left)" },
+                { value: -1, label: translatedText("Mono (duplicate left)") },
                 ...channels,
               ]}
               onChange={(right) => useRecordingStore.setState({ right })}
             />
           </Field>
           <Field>
-            <FieldLabel htmlFor="record-start">Playlist start tick</FieldLabel>
+            <FieldLabel htmlFor="record-start">{translatedText("Playlist start tick")}</FieldLabel>
             <Input
               id="record-start"
               type="number"
@@ -230,7 +230,7 @@ export function RecordingDialog() {
                   key={factor}
                   variant="outline"
                   size="sm"
-                  aria-label={factor === "half" ? "Halve playlist start" : "Double playlist start"}
+                  aria-label={factor === "half" ? translatedText("Halve playlist start") : translatedText("Double playlist start")}
                   disabled={disabled || nextDialogStartScale(s.start, factor) === null}
                   onClick={() => {
                     const latest = useRecordingStore.getState()
@@ -239,19 +239,19 @@ export function RecordingDialog() {
                     if (next !== null) useRecordingStore.setState({ start: next })
                   }}
                 >
-                  {factor === "half" ? "Half" : "Double"}
+                  {factor === "half" ? translatedText("Half") : translatedText("Double")}
                 </Button>
               ))}
             </div>
           </Field>
           <Field>
-            <FieldLabel>Playlist track</FieldLabel>
+            <FieldLabel>{translatedText("Playlist track")}</FieldLabel>
             <Choice
-              label="Playlist track"
+              label={translatedText("Playlist track")}
               value={s.track}
               disabled={disabled}
               items={[
-                { value: -1, label: "New recording track" },
+                { value: -1, label: translatedText("New recording track") },
                 ...tracks.map((t) => ({ value: t.id, label: t.name })),
               ]}
               onChange={(track) => useRecordingStore.setState({ track })}
@@ -259,11 +259,11 @@ export function RecordingDialog() {
           </Field>
           <Field orientation="horizontal">
             <Checkbox id="record-loop" checked={s.loopRecording} disabled={disabled} onCheckedChange={(checked) => useRecordingStore.setState({ loopRecording: checked === true })} />
-            <FieldLabel htmlFor="record-loop">Record loop takes</FieldLabel>
+            <FieldLabel htmlFor="record-loop">{translatedText("Record loop takes")}</FieldLabel>
           </Field>
           {s.loopRecording && <>
             <Field>
-              <FieldLabel htmlFor="record-loop-end">Loop end tick</FieldLabel>
+              <FieldLabel htmlFor="record-loop-end">{translatedText("Loop end tick")}</FieldLabel>
               <Input id="record-loop-end" type="number" min={s.start + 1} step={1} value={s.loopEnd} disabled={disabled} onChange={(event) => useRecordingStore.setState({ loopEnd: Math.max(s.start + 1, Math.floor(Number(event.target.value))) })} />
               <div className="flex gap-2">
                 {(["half", "double"] as const).map((factor) => (
@@ -271,7 +271,7 @@ export function RecordingDialog() {
                     key={factor}
                     variant="outline"
                     size="sm"
-                    aria-label={factor === "half" ? "Halve recording loop" : "Double recording loop"}
+                    aria-label={factor === "half" ? translatedText("Halve recording loop") : translatedText("Double recording loop")}
                     disabled={disabled || nextDialogLoopScale(s.start, s.loopEnd, factor) === null}
                     onClick={() => {
                       const latest = useRecordingStore.getState()
@@ -280,29 +280,29 @@ export function RecordingDialog() {
                       if (next !== null) useRecordingStore.setState({ loopEnd: next })
                     }}
                   >
-                    {factor === "half" ? "Halve loop" : "Double loop"}
+                    {factor === "half" ? translatedText("Halve loop") : translatedText("Double loop")}
                   </Button>
                 ))}
               </div>
-              <FieldDescription>Each pass from the start tick to this end becomes a take. The final partial pass is retained too.</FieldDescription>
+              <FieldDescription>{translatedText("Each pass from the start tick to this end becomes a take. The final partial pass is retained too.")}</FieldDescription>
             </Field>
             <Field orientation="horizontal">
               <Checkbox id="record-latest" checked={s.keepLatest} disabled={s.busy} onCheckedChange={(checked) => useRecordingStore.setState({ keepLatest: checked === true })} />
-              <FieldLabel htmlFor="record-latest">Keep only the latest take</FieldLabel>
+              <FieldLabel htmlFor="record-latest">{translatedText("Keep only the latest take")}</FieldLabel>
             </Field>
           </>}
           <Field orientation="horizontal">
             <Checkbox id="record-monitor" checked={s.monitor && !s.armedTracks} disabled={disabled || s.armedTracks} onCheckedChange={(checked) => useRecordingStore.setState({ monitor: checked === true })} />
-            <FieldLabel htmlFor="record-monitor">Monitor input through Windfall</FieldLabel>
+            <FieldLabel htmlFor="record-monitor">{translatedText("Monitor input through Windfall")}</FieldLabel>
           </Field>
           {s.monitor && !s.armedTracks && <>
             <Field>
-              <FieldLabel>Monitor mixer track</FieldLabel>
-              <Choice label="Monitor mixer track" value={s.monitorTrack} disabled={disabled} items={mixerTracks.map((track) => ({ value: track.id, label: track.name }))} onChange={(monitorTrack) => useRecordingStore.setState({ monitorTrack })} />
-              <FieldDescription>Use headphones to keep the output from feeding back into the microphone. Monitor effects are heard while the recording keeps the original input.</FieldDescription>
+              <FieldLabel>{translatedText("Monitor mixer track")}</FieldLabel>
+              <Choice label={translatedText("Monitor mixer track")} value={s.monitorTrack} disabled={disabled} items={mixerTracks.map((track) => ({ value: track.id, label: track.name }))} onChange={(monitorTrack) => useRecordingStore.setState({ monitorTrack })} />
+              <FieldDescription>{translatedText("Use headphones to keep the output from feeding back into the microphone. Monitor effects are heard while the recording keeps the original input.")}</FieldDescription>
             </Field>
             <Field>
-              <FieldLabel htmlFor="record-monitor-gain">Monitor level (%)</FieldLabel>
+              <FieldLabel htmlFor="record-monitor-gain">{translatedText("Monitor level (%)")}</FieldLabel>
               <Input id="record-monitor-gain" type="number" min={0} max={100} step={1} value={Math.round(s.monitorGain * 100)} disabled={disabled} onChange={(event) => useRecordingStore.setState({ monitorGain: Math.max(0, Math.min(1, Number(event.target.value) / 100)) })} />
               <div className="flex gap-2">
                 {(["half", "double"] as const).map((factor) => (
@@ -310,7 +310,7 @@ export function RecordingDialog() {
                     key={factor}
                     variant="outline"
                     size="sm"
-                    aria-label={factor === "half" ? "Halve dialog monitor level" : "Double dialog monitor level"}
+                    aria-label={factor === "half" ? translatedText("Halve dialog monitor level") : translatedText("Double dialog monitor level")}
                     disabled={disabled || nextDialogMonitorScale(s.monitorGain, factor) === null}
                     onClick={() => {
                       const latest = useRecordingStore.getState()
@@ -319,13 +319,13 @@ export function RecordingDialog() {
                       if (next !== null) useRecordingStore.setState({ monitorGain: next })
                     }}
                   >
-                    {factor === "half" ? "Half" : "Double"}
+                    {factor === "half" ? translatedText("Half") : translatedText("Double")}
                   </Button>
                 ))}
               </div>
             </Field>
             <Field>
-              <FieldLabel htmlFor="record-monitor-buffer">Monitor buffer (milliseconds)</FieldLabel>
+              <FieldLabel htmlFor="record-monitor-buffer">{translatedText("Monitor buffer (milliseconds)")}</FieldLabel>
               <Input id="record-monitor-buffer" type="number" min={5} max={100} step={1} value={s.monitorBufferMs} disabled={disabled} onChange={(event) => useRecordingStore.setState({ monitorBufferMs: Math.max(5, Math.min(100, Math.round(Number(event.target.value)))) })} />
               <div className="flex gap-2">
                 {(["half", "double"] as const).map((factor) => (
@@ -333,7 +333,7 @@ export function RecordingDialog() {
                     key={factor}
                     variant="outline"
                     size="sm"
-                    aria-label={factor === "half" ? "Halve dialog monitor buffer" : "Double dialog monitor buffer"}
+                    aria-label={factor === "half" ? translatedText("Halve dialog monitor buffer") : translatedText("Double dialog monitor buffer")}
                     disabled={disabled || nextDialogBufferScale(s.monitorBufferMs, factor) === null}
                     onClick={() => {
                       const latest = useRecordingStore.getState()
@@ -342,42 +342,41 @@ export function RecordingDialog() {
                       if (next !== null) useRecordingStore.setState({ monitorBufferMs: next })
                     }}
                   >
-                    {factor === "half" ? "Half" : "Double"}
+                    {factor === "half" ? translatedText("Half") : translatedText("Double")}
                   </Button>
                 ))}
               </div>
-              <FieldDescription>A larger buffer accommodates driver scheduling delays and adds monitoring latency.</FieldDescription>
+              <FieldDescription>{translatedText("A larger buffer accommodates driver scheduling delays and adds monitoring latency.")}</FieldDescription>
             </Field>
           </>}
         </FieldGroup>
         {s.inputs.length === 0 && !s.armedTracks && (
           <p>
-            No audio inputs found. Recording needs the native desktop app and an
-            available input device.
+            {translatedText("No audio inputs found. Recording needs the native desktop app and an available input device.")}
           </p>
         )}
         <p role="status">
           {s.state.active
-            ? countInRemaining > 0 ? `Count-in: ${countInRemaining} beats remaining.` : `Recording ${(s.state.frames / Math.max(1, s.state.sampleRate)).toFixed(1)} seconds at ${s.state.sampleRate} Hz. Stop and keep, or discard.`
-            : "Ready. Recording sources are kept in Windfall’s recordings folder and copied into the project on save."}
+            ? countInRemaining > 0 ? message("Count-in: {countInRemaining} beats remaining.", { countInRemaining: plainNumber(countInRemaining) }) : message("Recording {frames} seconds at {sampleRate} Hz. Stop and keep, or discard.", { frames: (s.state.frames / Math.max(1, s.state.sampleRate)).toFixed(1), sampleRate: plainNumber(s.state.sampleRate) })
+            : translatedText("Ready. Recording sources are kept in Windfall’s recordings folder and copied into the project on save.")}
         </p>
         {s.state.active && s.state.alignment && <p className="text-sm text-muted-foreground">
-          Input {s.state.alignment.inputSampleRate} Hz · input latency {s.state.alignment.inputLatencyMs.toFixed(1)} ms · output latency {s.state.alignment.outputLatencyMs.toFixed(1)} ms · drift {s.state.alignment.driftPpm.toFixed(1)} ppm.
-          {s.state.alignment.measuredTimestamps ? " Driver timestamps available." : " Timestamp estimate in use."}
+          {translatedText("Input")}{" "}{s.state.alignment.inputSampleRate}{" "}{translatedText("Hz · input latency")}{" "}{s.state.alignment.inputLatencyMs.toFixed(1)}{" "}{translatedText("ms · output latency")}{" "}{s.state.alignment.outputLatencyMs.toFixed(1)}{" "}{translatedText("ms · drift")}{" "}{s.state.alignment.driftPpm.toFixed(1)} ppm.
+          {s.state.alignment.measuredTimestamps ? translatedText(" Driver timestamps available.") : translatedText(" Timestamp estimate in use.")}
         </p>}
         {s.state.active && s.state.takes && s.state.takes.length > 0 && <fieldset className="max-h-40 space-y-2 overflow-y-auto rounded border p-3">
-          <legend className="px-1 text-sm">Takes to keep</legend>
+          <legend className="px-1 text-sm">{translatedText("Takes to keep")}</legend>
           {s.state.takes.map((take, index, takes) => <Field key={take.index} orientation="horizontal">
             <Checkbox id={`record-take-${take.index}`} checked={s.keepLatest ? index === takes.length - 1 : !s.excludedTakes.includes(take.index)} disabled={s.busy || s.keepLatest} onCheckedChange={(checked) => useRecordingStore.setState({ excludedTakes: checked === true ? s.excludedTakes.filter((value) => value !== take.index) : [...s.excludedTakes, take.index] })} />
-            <FieldLabel htmlFor={`record-take-${take.index}`}>Take {take.index + 1} · {(take.frames / Math.max(1, s.state.sampleRate)).toFixed(1)} s{take.complete ? "" : " (recording)"}</FieldLabel>
+            <FieldLabel htmlFor={`record-take-${take.index}`}>{translatedText("Take")}{" "}{take.index + 1} · {(take.frames / Math.max(1, s.state.sampleRate)).toFixed(1)} s{take.complete ? "" : translatedText(" (recording)")}</FieldLabel>
           </Field>)}
-          <p className="text-xs text-muted-foreground">Kept takes share the loop start. The latest is audible; earlier takes are muted for auditioning in the playlist.</p>
+          <p className="text-xs text-muted-foreground">{translatedText("Kept takes share the loop start. The latest is audible; earlier takes are muted for auditioning in the playlist.")}</p>
         </fieldset>}
-        {s.state.active && s.state.monitor && <p className="text-sm text-muted-foreground">Monitor buffer {s.state.monitor.bufferedMs.toFixed(1)} ms · dropped {s.state.monitor.droppedFrames} frames · starved {s.state.monitor.starvedFrames} frames.</p>}
-        {s.state.active && s.state.tracks && <ul aria-label="Recording tracks" className="max-h-40 space-y-1 overflow-y-auto text-xs">
+        {s.state.active && s.state.monitor && <p className="text-sm text-muted-foreground">{translatedText("Monitor buffer")}{" "}{s.state.monitor.bufferedMs.toFixed(1)}{" "}{translatedText("ms · dropped")}{" "}{s.state.monitor.droppedFrames}{" "}{translatedText("frames · starved")}{" "}{s.state.monitor.starvedFrames}{" "}{translatedText("frames.")}</p>}
+        {s.state.active && s.state.tracks && <ul aria-label={translatedText("Recording tracks")} className="max-h-40 space-y-1 overflow-y-auto text-xs">
           {s.state.tracks.map((track) => <li key={track.mixerTrack} className="rounded border p-2">
-            <p className="font-medium">{track.name} · {(track.frames / Math.max(1, s.state.sampleRate)).toFixed(1)} s · {mixerTracks.find((item) => item.id === track.mixerTrack)?.recording?.mode === "postEffects" ? "after effects" : mixerTracks.find((item) => item.id === track.mixerTrack)?.recording?.mode === "postFader" ? "after fader" : "dry input"}</p>
-            <p className="text-muted-foreground">Source {track.alignment.inputSampleRate} Hz · latency {track.alignment.inputLatencyMs.toFixed(1)} ms · drift {track.alignment.driftPpm.toFixed(1)} ppm{track.monitor ? ` · monitor ${track.monitor.bufferedMs.toFixed(1)} ms / ${track.monitor.droppedFrames} dropped frames` : ""}</p>
+            <p className="font-medium">{track.name} · {(track.frames / Math.max(1, s.state.sampleRate)).toFixed(1)} s · {mixerTracks.find((item) => item.id === track.mixerTrack)?.recording?.mode === "postEffects" ? translatedText("after effects") : mixerTracks.find((item) => item.id === track.mixerTrack)?.recording?.mode === "postFader" ? translatedText("after fader") : translatedText("dry input")}</p>
+            <p className="text-muted-foreground">{translatedText("Source")}{" "}{track.alignment.inputSampleRate}{" "}{translatedText("Hz · latency")}{" "}{track.alignment.inputLatencyMs.toFixed(1)}{" "}{translatedText("ms · drift")}{" "}{track.alignment.driftPpm.toFixed(1)} ppm{track.monitor ? message(" · monitor {bufferedMs} ms / {droppedFrames} dropped frames", { bufferedMs: track.monitor.bufferedMs.toFixed(1), droppedFrames: plainNumber(track.monitor.droppedFrames) }) : ""}</p>
           </li>)}
         </ul>}
         {(s.error || s.state.error) && (
@@ -386,12 +385,12 @@ export function RecordingDialog() {
           </p>
         )}
         <div className="flex gap-2">
-          <ActionButton action="recording.start">Start recording</ActionButton>
+          <ActionButton action="recording.start">{translatedText("Start recording")}</ActionButton>
           <ActionButton action="recording.stop" variant="secondary">
-            Stop and keep
+            {translatedText("Stop and keep")}
           </ActionButton>
           <ActionButton action="recording.cancel" variant="outline">
-            Discard
+            {translatedText("Discard")}
           </ActionButton>
         </div>
       </DialogContent>

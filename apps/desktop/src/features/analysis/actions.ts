@@ -25,6 +25,7 @@ import {
   type AnalysisReview,
   type AnalysisTask,
 } from "./types"
+import { translatedText as t, message, dynamicTitle } from "@/lib/i18n"
 
 /** UI identity only. Native capture/recheck remains the installation authority. */
 export function captureAnalysisClip(id: number) {
@@ -124,57 +125,57 @@ function selectedClip() {
 
 function reason(command: AnalysisCommand): string | undefined {
   const context = panel
-  if (!context) return "Open Analysis for an audio clip"
+  if (!context) return t("Open Analysis for an audio clip")
   if (command === "cancelPreparation")
-    return context.busy ? undefined : "No analysis preparation is active"
-  if (context.busy) return "Analysis operation in progress"
+    return context.busy ? undefined : t("No analysis preparation is active")
+  if (context.busy) return t("Analysis operation in progress")
   // Job retirement does not change the document and remains possible when stale.
   if (["cancel", "retryCleanup", "forget"].includes(command)) {
-    if (!context.job) return "No retained analysis job"
+    if (!context.job) return t("No retained analysis job")
     if (command === "cancel" && isTerminalStatus(context.job.status))
-      return "Job is already retired"
+      return t("Job is already retired")
     if (command === "forget" && !isTerminalStatus(context.job.status))
-      return "Cancel the job before forgetting it"
+      return t("Cancel the job before forgetting it")
     return undefined
   }
   if (context.stale || !context.current())
-    return "Project, clip selection or source changed; reopen Analysis"
-  if (recording()) return "Finish recording before analysis preparation"
-  if (!context.capability) return "Checking native availability"
+    return t("Project, clip selection or source changed; reopen Analysis")
+  if (recording()) return t("Finish recording before analysis preparation")
+  if (!context.capability) return t("Checking native availability")
   if (!context.capability.native)
-    return context.capability.reason ?? "Analysis requires the desktop app"
+    return context.capability.reason ?? t("Analysis requires the desktop app")
   if (command === "chooseModel") return undefined
   if (command === "importModel")
     return context.localPath && context.manifest
       ? undefined
-      : "Choose a local file and enter its pinned manifest"
+      : t("Choose a local file and enter its pinned manifest")
   if (!context.capability.available)
-    return context.capability.reason ?? "No inference algorithm is available"
+    return context.capability.reason ?? t("No inference algorithm is available")
   const model = context.capability.models[context.modelIndex]
   const builtin = context.capability.classicalDereverb && isDereverb(context.task ?? "audio") &&
     (context.modelIndex === -1 || context.capability.models.length === 0)
   if (command === "submit") {
     if (!hasRecoveryCapacity())
-      return "Retire retained analysis jobs first (limit 8)"
-    if (context.job) return "Retire the current job before submitting another"
-    if (!model && !builtin) return "Import and select a pinned model"
+      return t("Retire retained analysis jobs first (limit 8)")
+    if (context.job) return t("Retire the current job before submitting another")
+    if (!model && !builtin) return t("Import and select a pinned model")
     const amount = context.amount ?? 1
-    if (!Number.isFinite(amount) || amount < 0 || amount > 1) return "Wet/dry amount must be 0 to 1"
+    if (!Number.isFinite(amount) || amount < 0 || amount > 1) return t("Wet/dry amount must be 0 to 1")
     const mismatch = !builtin && model ? taskProblem(context.task ?? "audio", model) : undefined
     if (mismatch) return mismatch
     if (context.task === "stemSeparation" && context.capability.stemSeparation === false)
-      return context.capability.reason ?? "Choose an installed ONNX Runtime library in Settings"
+      return context.capability.reason ?? t("Choose an installed ONNX Runtime library in Settings")
     if (!builtin && model && context.capability.classicalDereverb && !context.capability.stemSeparation && model.provenance.adapterId !== BUILTIN_DEREVERB_ID)
-      return "Pack registered; the ONNX Runtime separation adapter is not installed"
+      return t("Pack registered; the ONNX Runtime separation adapter is not installed")
     if (!validRange(context.start, context.end))
-      return "Enter a valid frame range"
+      return t("Enter a valid frame range")
   }
   if (command === "review" && context.job?.status !== "ready")
-    return "Job outputs are not ready"
+    return t("Job outputs are not ready")
   if (command === "apply") {
     const { job, review, capability } = context
-    if (!review || job?.status !== "ready") return "Review ready outputs first"
-    if (context.selectedRoles?.length === 0) return "Select at least one reviewed output"
+    if (!review || job?.status !== "ready") return t("Review ready outputs first")
+    if (context.selectedRoles?.length === 0) return t("Select at least one reviewed output")
     const modelCurrent = (capability.classicalDereverb && isBuiltinDereverb(review.model)) ||
       capability.models.some((model) => model.id === review.model.id &&
         model.version === review.model.version && model.revision === review.model.revision)
@@ -185,12 +186,12 @@ function reason(command: AnalysisCommand): string | undefined {
       review.clip !== context.clip ||
       !modelCurrent
     )
-      return "Review or model revision changed; review again"
+      return t("Review or model revision changed; review again")
     if (
       context.replace &&
       (review.startFrame !== "0" || review.endFrame !== review.inputFrames)
     )
-      return "Replacement requires the complete input range"
+      return t("Replacement requires the complete input range")
   }
   return undefined
 }
@@ -215,12 +216,12 @@ function recoveryCommand(
 ): Action {
   const reason = () => {
     const item = selectedRecoveryJob()
-    if (!item) return "No selected retained analysis job"
-    if (item.busy) return `Analysis job ${item.job.job}: cleanup in progress`
+    if (!item) return t("No selected retained analysis job")
+    if (item.busy) return message("Analysis job {job}: cleanup in progress", { job: item.job.job })
     if (operation === "cancel" && isTerminalStatus(item.job.status))
-      return `Analysis job ${item.job.job} is retired`
+      return message("Analysis job {job} is retired", { job: item.job.job })
     if (operation === "forget" && !isTerminalStatus(item.job.status))
-      return `Cancel analysis job ${item.job.job} first`
+      return message("Cancel analysis job {job} first", { job: item.job.job })
     return undefined
   }
   return {
@@ -237,7 +238,7 @@ function recoveryCommand(
 export const ANALYSIS_ACTIONS: Action[] = [
   {
     id: "analysis.open",
-    title: "Analysis",
+    ...dynamicTitle("Analysis", {}),
     section: "Analysis",
     defaultShortcut: "Mod+Shift+A",
     keywords: "audio clip native model review",
@@ -247,10 +248,10 @@ export const ANALYSIS_ACTIONS: Action[] = [
       useAnalysisDialog.getState().target === null,
     whyDisabled: () =>
       useAnalysisDialog.getState().target !== null
-        ? "Analysis is already open"
+        ? t("Analysis is already open")
         : recording()
-          ? "Finish recording first"
-          : "Select one audio clip with a source",
+          ? t("Finish recording first")
+          : t("Select one audio clip with a source"),
     run: () => {
       if (recording() || useAnalysisDialog.getState().target !== null) return
       const target = selectedClip()
@@ -274,22 +275,22 @@ export const ANALYSIS_ACTIONS: Action[] = [
   recoveryCommand("recoveryForget", "Forget retained job", "forget"),
   {
     id: "analysis.recoveryNext",
-    title: "Select next retained analysis job",
+    ...dynamicTitle("Select next retained analysis job", {}),
     section: "Analysis",
     enabled: () =>
       useAnalysisRecovery.getState().jobs.some((item) => item.dismissed),
-    whyDisabled: () => "No retained analysis job",
+    whyDisabled: () => t("No retained analysis job"),
     run: selectNextRecoveryJob,
   },
   {
     id: "analysis.remix",
-    title: "Remix a song",
+    ...dynamicTitle("Remix a song", {}),
     section: "Analysis",
     keywords: "load song stems drums bass vocals separate playlist mixer",
     enabled: () => !recording() && !useRemixLoader.getState().busy &&
       useAnalysisDialog.getState().target === null,
-    whyDisabled: () => recording() ? "Finish recording first" :
-      useRemixLoader.getState().busy ? "Song import in progress" : "Close Analysis first",
+    whyDisabled: () => recording() ? t("Finish recording first") :
+      useRemixLoader.getState().busy ? t("Song import in progress") : t("Close Analysis first"),
     run: async () => {
       const current = () => !recording() && useAnalysisDialog.getState().target === null
       const id = await loadRemixSong(current)
@@ -303,11 +304,11 @@ export const ANALYSIS_ACTIONS: Action[] = [
   },
   {
     id: "analysis.separate",
-    title: "Separate into four stems",
+    ...dynamicTitle("Separate into four stems", {}),
     section: "Analysis",
     keywords: "drums bass vocals other separate clip",
     enabled: () => selectedClip() !== null && !recording() && useAnalysisDialog.getState().target === null,
-    whyDisabled: () => recording() ? "Finish recording first" : "Select one audio clip and close Analysis",
+    whyDisabled: () => recording() ? t("Finish recording first") : t("Select one audio clip and close Analysis"),
     run: () => { const target = selectedClip(); if (target && !recording()) openStemClip(target.id) },
   },
 ]

@@ -30,6 +30,7 @@ import { matchingPatternIds } from "./pattern-filter"
 import { PickerEmpty, PickerSection } from "./picker-section"
 import { useClipCounts } from "./selectors"
 import { usePlaylistStore } from "./store"
+import { translatedText as t, message, plainNumber } from "@/lib/i18n"
 
 /** The row's menu acts on the selected pattern; a right press selects the row first. */
 const PATTERN_MENU: ContextItem[] = [
@@ -47,8 +48,8 @@ export function describePatternLength(
   barTicks: number
 ): string {
   const bars = (lengthSteps * TICKS_PER_STEP) / barTicks
-  if (Number.isInteger(bars)) return bars === 1 ? "1 bar" : `${bars} bars`
-  return lengthSteps === 1 ? "1 step" : `${lengthSteps} steps`
+  if (Number.isInteger(bars)) return bars === 1 ? t("1 bar") : message("{bars} bars", { bars: plainNumber(bars) })
+  return lengthSteps === 1 ? t("1 step") : message("{lengthSteps} steps", { lengthSteps: plainNumber(lengthSteps) })
 }
 
 /** Makes a pattern the brush, and the pattern selected everywhere else. */
@@ -74,12 +75,12 @@ const PatternRow = memo(function PatternRow({
   const name = pattern?.name ?? ""
   const used =
     clips === 0
-      ? "not on the timeline yet"
-      : `on the timeline ${clips === 1 ? "once" : `${clips} times`}`
+      ? t("not on the timeline yet")
+      : `on the timeline ${clips === 1 ? "once" : message("{clips} times", { clips: plainNumber(clips) })}`
   const hint = useHint(
     selected
-      ? `${name} is the pattern Draw and Paint place. It is ${used}. Double-click to rename`
-      : `Click to place ${name} with Draw and Paint. It is ${used}`
+      ? message("{name} is the pattern Draw and Paint place. It is {used}. Double-click to rename", { name, used })
+      : message("Click to place {name} with Draw and Paint. It is {used}", { name, used })
   )
   if (!pattern) return null
 
@@ -152,12 +153,12 @@ export function PatternPicker() {
 
   return (
     <aside
-      aria-label="Clips to place"
+      aria-label={t("Clips to place")}
       className="flex min-h-0 shrink-0 flex-col overflow-y-auto border-r bg-chassis/30"
       style={{ width: PICKER_WIDTH }}
     >
       <PickerSection
-        title="Patterns"
+        title={t("Patterns")}
         action={
           <ActionButton
             action="pattern.add"
@@ -171,12 +172,12 @@ export function PatternPicker() {
       >
         <div
           role="group"
-          aria-label="Pattern to place"
+          aria-label={t("Pattern to place")}
           onKeyDown={onKeyDown}
           className="flex flex-col py-0.5"
         >
           <label className="flex flex-col gap-1 px-2 py-1 text-[0.6875rem] text-muted-foreground">
-            Filter patterns
+            {t("Filter patterns")}
             <input
               type="text"
               value={query}
@@ -187,7 +188,7 @@ export function PatternPicker() {
               className="h-7 w-full min-w-0 rounded-md border border-input bg-input/20 px-2 text-xs text-foreground outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30"
             />
           </label>
-          {ids.length === 0 && <PickerEmpty>No patterns match.</PickerEmpty>}
+          {ids.length === 0 && <PickerEmpty>{t("No patterns match.")}</PickerEmpty>}
           {ids.map((id, index) => (
             <PatternRow
               key={id}

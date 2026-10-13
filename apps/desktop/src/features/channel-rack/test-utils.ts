@@ -17,6 +17,7 @@ import { registerChannelRackActions } from "./actions"
 import { clearSampleInfo } from "./inspector/sample-info"
 import { useRackStore } from "./rack-store"
 import { litSteps } from "./steps"
+import { message, translatedText as t } from "@/lib/i18n"
 
 /** The test app with the rack's actions registered and its own state reset. */
 export async function startRack(options: { project?: Project } = {}) {
@@ -39,14 +40,14 @@ export const labels = () => history().entries.map((entry) => entry.label)
 
 export function channel(name: string): Channel {
   const found = project().channels.find((item) => item.name === name)
-  if (!found) throw new Error(`No channel called ${name}`)
+  if (!found) throw new Error(message("No channel called {name}", { name }))
   return found
 }
 
 /** The sampler settings of a channel, which must be a sampler. */
 export function samplerOf(name: string): SamplerSource {
   const found = channel(name)
-  if (!isSamplerChannel(found)) throw new Error(`${name} is not a sampler`)
+  if (!isSamplerChannel(found)) throw new Error(message("{name} is not a sampler", { name }))
   return found.source
 }
 
@@ -54,7 +55,7 @@ export function samplerOf(name: string): SamplerSource {
 export function instrumentChannel(name: string): InstrumentChannel {
   const found = channel(name)
   if (!isInstrumentChannel(found)) {
-    throw new Error(`${name} is not an instrument`)
+    throw new Error(message("{name} is not an instrument", { name }))
   }
   return found
 }
@@ -64,7 +65,7 @@ export const channelNames = () => project().channels.map((item) => item.name)
 function currentPattern() {
   const id = selectedPatternId(project(), useTransportStore.getState().pattern)
   const pattern = project().patterns.find((item) => item.id === id)
-  if (!pattern) throw new Error("No pattern")
+  if (!pattern) throw new Error(t("No pattern"))
   return pattern
 }
 

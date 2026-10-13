@@ -44,6 +44,7 @@ import {
   seededTriad,
   triadKeys,
 } from "./generator"
+import { translatedText as t } from "@/lib/i18n"
 
 type Request = {
   context: EditorContext
@@ -106,7 +107,7 @@ function ChordForm({ request, close }: { request: Request; close(): void }) {
         command: null,
         label: null,
         error:
-          error instanceof Error ? error.message : "Check the chord values.",
+          error instanceof Error ? error.message : t("Check the chord values."),
       }
     }
   }
@@ -140,7 +141,7 @@ function ChordForm({ request, close }: { request: Request; close(): void }) {
   const numericFields = [
     {
       name: "root",
-      label: "Root / major-key tonic (MIDI)",
+      label: t("Root / major-key tonic (MIDI)"),
       value: root,
       set: setRoot,
       min: 0,
@@ -148,7 +149,7 @@ function ChordForm({ request, close }: { request: Request; close(): void }) {
     },
     {
       name: "start",
-      label: "Start (ticks)",
+      label: t("Start (ticks)"),
       value: start,
       set: setStart,
       min: 0,
@@ -156,7 +157,7 @@ function ChordForm({ request, close }: { request: Request; close(): void }) {
     },
     {
       name: "length",
-      label: "Length (ticks)",
+      label: t("Length (ticks)"),
       value: length,
       set: setLength,
       min: 1,
@@ -164,7 +165,7 @@ function ChordForm({ request, close }: { request: Request; close(): void }) {
     },
     {
       name: "seed",
-      label: "Seed integer",
+      label: t("Seed integer"),
       value: seed,
       set: setSeed,
       min: MIN_SEED,
@@ -184,20 +185,19 @@ function ChordForm({ request, close }: { request: Request; close(): void }) {
         showCloseButton={!pending}
       >
         <DialogHeader>
-          <DialogTitle>Chord tools</DialogTitle>
+          <DialogTitle>{t("Chord tools")}</DialogTitle>
           <DialogDescription>
-            Detect the selection or insert three simultaneous notes in one undo
-            step.
+            {t("Detect the selection or insert three simultaneous notes in one undo step.")}
           </DialogDescription>
         </DialogHeader>
-        <p role="status" aria-label="Selection chord">
+        <p role="status" aria-label={t("Selection chord")}>
           {detection.label}
         </p>
         <FieldGroup>
           <Field>
-            <FieldLabel>Triad quality</FieldLabel>
+            <FieldLabel>{t("Triad quality")}</FieldLabel>
             <ToggleGroup
-              aria-label="Triad quality"
+              aria-label={t("Triad quality")}
               variant="outline"
               size="sm"
               className="flex-wrap"
@@ -243,35 +243,30 @@ function ChordForm({ request, close }: { request: Request; close(): void }) {
             )
           })}
           <FieldDescription>
-            Manual insertion uses the root and triad quality. The seed chooses
-            among I, ii, iii, IV, V, vi and vii° in the major key whose tonic is
-            above (MIDI 0–110). Next seed changes the choice; choices repeat
-            every seven seeds.
+            {t("Manual insertion uses the root and triad quality. The seed chooses among I, ii, iii, IV, V, vi and vii° in the major key whose tonic is above (MIDI 0–110). Next seed changes the choice; choices repeat every seven seeds.")}
           </FieldDescription>
         </FieldGroup>
-        <p aria-label="Manual chord preview">{manual.label ?? manual.error}</p>
-        <p aria-label="Seeded chord preview">
+        <p aria-label={t("Manual chord preview")}>{manual.label ?? manual.error}</p>
+        <p aria-label={t("Seeded chord preview")}>
           {generated.label ?? generated.error}
         </p>
         {!current && (
           <Alert>
             <AlertDescription>
-              The project or piano-roll lane changed. Close and reopen chord
-              tools.
+              {t("The project or piano-roll lane changed. Close and reopen chord tools.")}
             </AlertDescription>
           </Alert>
         )}
         {failed && (
           <Alert>
             <AlertDescription>
-              The chord could not be inserted. Check the current lane and try
-              again.
+              {t("The chord could not be inserted. Check the current lane and try again.")}
             </AlertDescription>
           </Alert>
         )}
         <DialogFooter>
           <Button variant="ghost" disabled={pending} onClick={close}>
-            Close
+            {t("Close")}
           </Button>
           <Button
             variant="outline"
@@ -283,20 +278,20 @@ function ChordForm({ request, close }: { request: Request; close(): void }) {
             }
             onClick={() => setSeed(String(advanceSeed(whole(seed))))}
           >
-            Next seed
+            {t("Next seed")}
           </Button>
           <Button
             variant="outline"
             disabled={pending || !current || !manual.command}
             onClick={() => void insert(false)}
           >
-            Insert triad
+            {t("Insert triad")}
           </Button>
           <Button
             disabled={pending || !current || !generated.command}
             onClick={() => void insert(true)}
           >
-            {pending ? "Inserting…" : "Insert seeded triad"}
+            {pending ? t("Inserting…") : t("Insert seeded triad")}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -345,7 +340,7 @@ export function ChordToolsControl() {
           })
         }}
       >
-        Chords
+        {t("Chords")}
       </Button>
       {request && (
         <ChordForm

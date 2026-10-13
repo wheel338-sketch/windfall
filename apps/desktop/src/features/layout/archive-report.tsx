@@ -9,6 +9,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { archiveReport, useArchiveStore } from "@/lib/flows/portable"
+import { translatedText as t } from "@/lib/i18n"
 
 /** Persistent, scrollable file report for missing sources and IO failures. */
 export function ArchiveReport() {
@@ -22,13 +23,13 @@ export function ArchiveReport() {
     >
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Project archive report</DialogTitle>
+          <DialogTitle>{t("Project archive report")}</DialogTitle>
           <DialogDescription>
-            Resolve the reported problem, then retry the file action.
+            {t("Resolve the reported problem, then retry the file action.")}
           </DialogDescription>
         </DialogHeader>
         <Alert variant="destructive">
-          <AlertTitle>Archive operation stopped</AlertTitle>
+          <AlertTitle>{t("Archive operation stopped")}</AlertTitle>
           <AlertDescription
             className="max-h-[50vh] overflow-y-auto wrap-anywhere whitespace-pre-wrap"
             tabIndex={0}
@@ -37,7 +38,7 @@ export function ArchiveReport() {
           </AlertDescription>
         </Alert>
         <DialogFooter>
-          <Button onClick={() => archiveReport(null)}>Close report</Button>
+          <Button onClick={() => archiveReport(null)}>{t("Close report")}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

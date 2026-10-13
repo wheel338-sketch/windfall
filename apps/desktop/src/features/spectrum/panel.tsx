@@ -8,6 +8,7 @@ import {
 
 import { closeSpectrum, useSpectrumPanel } from "./actions"
 import { SpectrumView } from "./view"
+import { translatedText as t } from "@/lib/i18n"
 
 /** Closing the panel unmounts its realtime subscriber immediately. */
 export function SpectrumPanel() {
@@ -22,10 +23,9 @@ export function SpectrumPanel() {
     >
       <DialogContent className="sm:max-w-2xl">
         <DialogHeader>
-          <DialogTitle>Spectrum</DialogTitle>
+          <DialogTitle>{t("Spectrum")}</DialogTitle>
           <DialogDescription>
-            Current engine spectrum. Relative power, without history or hardware
-            calibration.
+            {t("Current engine spectrum. Relative power, without history or hardware calibration.")}
           </DialogDescription>
         </DialogHeader>
         {open && <SpectrumView />}

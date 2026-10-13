@@ -19,6 +19,7 @@ import { nextScaleRoot } from "./scale-root-step"
 import { nextScale } from "./scale-step"
 import { isScaleId, ROOT_NAMES, scaleDefinition, SCALES } from "./scales"
 import { usePianoRollStore } from "./store"
+import { message, translatedText as t } from "@/lib/i18n"
 
 /** Independent scale shading and pitch snapping; changing either never edits notes. */
 export function ScaleControls() {
@@ -26,7 +27,7 @@ export function ScaleControls() {
   const id = usePianoRollStore((state) => state.scaleId)
   const highlight = usePianoRollStore((state) => state.highlightScale)
   const snap = usePianoRollStore((state) => state.snapToScale)
-  const label = `${ROOT_NAMES[root]} ${scaleDefinition(id).label}`
+  const label = message("{root} {scale}", { root: ROOT_NAMES[root], scale: scaleDefinition(id).label })
 
   return (
     <DropdownMenu>
@@ -35,18 +36,18 @@ export function ScaleControls() {
           <Button
             variant={highlight || snap ? "secondary" : "outline"}
             size="sm"
-            aria-label={`Scale settings: ${label}`}
+            aria-label={message("Scale settings: {label}", { label })}
           />
         }
       >
-        Scale: {ROOT_NAMES[root].split(" / ")[0]} {scaleDefinition(id).label}
-        {snap ? " · snap" : ""}
+        {t("Scale:")}{" "}{ROOT_NAMES[root].split(" / ")[0]} {scaleDefinition(id).label}
+        {snap ? t(" · snap") : ""}
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" className="w-80">
         <DropdownMenuGroup>
           <DropdownMenuLabel>{label}</DropdownMenuLabel>
           <DropdownMenuSub>
-            <DropdownMenuSubTrigger>Root key</DropdownMenuSubTrigger>
+            <DropdownMenuSubTrigger>{t("Root key")}</DropdownMenuSubTrigger>
             <DropdownMenuSubContent className="w-40">
               <DropdownMenuRadioGroup
                 value={String(root)}
@@ -54,7 +55,7 @@ export function ScaleControls() {
                   usePianoRollStore.getState().setScaleRoot(Number(value))
                 }
               >
-                <DropdownMenuLabel>Root key</DropdownMenuLabel>
+                <DropdownMenuLabel>{t("Root key")}</DropdownMenuLabel>
                 {ROOT_NAMES.map((name, index) => (
                   <DropdownMenuRadioItem key={name} value={String(index)}>
                     {name}
@@ -70,7 +71,7 @@ export function ScaleControls() {
               if (next !== null) state.setScaleRoot(next)
             }}
           >
-            Lower root
+            {t("Lower root")}
           </DropdownMenuItem>
           <DropdownMenuItem
             onClick={() => {
@@ -79,10 +80,10 @@ export function ScaleControls() {
               if (next !== null) state.setScaleRoot(next)
             }}
           >
-            Higher root
+            {t("Higher root")}
           </DropdownMenuItem>
           <DropdownMenuSub>
-            <DropdownMenuSubTrigger>Musical scale</DropdownMenuSubTrigger>
+            <DropdownMenuSubTrigger>{t("Musical scale")}</DropdownMenuSubTrigger>
             <DropdownMenuSubContent className="w-64">
               <DropdownMenuRadioGroup
                 value={id}
@@ -91,7 +92,7 @@ export function ScaleControls() {
                     usePianoRollStore.getState().setScaleId(value)
                 }}
               >
-                <DropdownMenuLabel>Musical scale</DropdownMenuLabel>
+                <DropdownMenuLabel>{t("Musical scale")}</DropdownMenuLabel>
                 {SCALES.map((scale) => (
                   <DropdownMenuRadioItem key={scale.id} value={scale.id}>
                     {scale.label}
@@ -107,7 +108,7 @@ export function ScaleControls() {
               if (next !== null) state.setScaleId(next)
             }}
           >
-            Previous scale
+            {t("Previous scale")}
           </DropdownMenuItem>
           <DropdownMenuItem
             onClick={() => {
@@ -116,7 +117,7 @@ export function ScaleControls() {
               if (next !== null) state.setScaleId(next)
             }}
           >
-            Next scale
+            {t("Next scale")}
           </DropdownMenuItem>
         </DropdownMenuGroup>
         <DropdownMenuSeparator />
@@ -127,7 +128,7 @@ export function ScaleControls() {
               usePianoRollStore.getState().setHighlightScale(enabled)
             }
           >
-            Highlight scale
+            {t("Highlight scale")}
           </DropdownMenuCheckboxItem>
           <DropdownMenuCheckboxItem
             checked={snap}
@@ -135,13 +136,13 @@ export function ScaleControls() {
               usePianoRollStore.getState().setSnapToScale(enabled)
             }
           >
-            Snap pitches to scale
+            {t("Snap pitches to scale")}
           </DropdownMenuCheckboxItem>
           <DropdownMenuLabel>
-            Alt bypasses snap when drawing or dragging.
+            {t("Alt bypasses snap when drawing or dragging.")}
           </DropdownMenuLabel>
           <DropdownMenuLabel>
-            Groups snap their anchor and keep their intervals.
+            {t("Groups snap their anchor and keep their intervals.")}
           </DropdownMenuLabel>
         </DropdownMenuGroup>
       </DropdownMenuContent>

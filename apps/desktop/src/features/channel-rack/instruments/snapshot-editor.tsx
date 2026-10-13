@@ -9,6 +9,7 @@ import { onHistoryNavigation } from "@/lib/store/project"
 import { getProjectGeneration, onProjectReplaced } from "@/lib/store/replaced"
 import { prepareAsset } from "./asset-job"
 import { useInstrumentBinding } from "./use-instrument-binding"
+import { translatedText as t, message } from "@/lib/i18n"
 
 export function SnapshotEditor({ channel }: { channel: InstrumentChannel }) {
   const dispatch = useInstrumentAssetDispatch()
@@ -25,15 +26,15 @@ export function SnapshotEditor({ channel }: { channel: InstrumentChannel }) {
     const expected=channel.source, generation=getProjectGeneration(), a=levels(0), b=levels(1)
     if (snapshot === 0) a[harmonic-1]=value; else b[harmonic-1]=value
     setBusy(true);setError(null)
-    try { const asset = await prepareAsset({ type: "snapshots",a,b },request.signal); if (!request.signal.aborted && generation===getProjectGeneration()) if (!await dispatch({ type: "setInstrumentAsset",channel: channel.id,expected,asset })) throw new Error("The instrument changed; prepare the snapshot again") }
+    try { const asset = await prepareAsset({ type: "snapshots",a,b },request.signal); if (!request.signal.aborted && generation===getProjectGeneration()) if (!await dispatch({ type: "setInstrumentAsset",channel: channel.id,expected,asset })) throw new Error(t("The instrument changed; prepare the snapshot again")) }
     catch (error) { if (!request.signal.aborted) setError(error instanceof Error ? error.message : String(error)) }
     finally { if (!request.signal.aborted) setBusy(false) }
   }
-  return <div role="group" aria-label="Snapshot Morph settings" className="flex flex-col gap-3">
+  return <div role="group" aria-label={t("Snapshot Morph settings")} className="flex flex-col gap-3">
     <ParamGroup title="Harmonic snapshots">
-      <div className="grid grid-cols-2 gap-2">{[0,1].map(snapshot => <svg key={snapshot} viewBox="0 0 160 80" role="img" aria-label={`Snapshot ${snapshot===0 ? "A" : "B"} spectrum`} className="h-24 text-foreground">{levels(snapshot).map((level,index) => <rect key={index} x={index*5} y={80-level*80} width="4" height={level*80} fill="currentColor" />)}</svg>)}</div>
-      <FieldGroup><Field><FieldLabel htmlFor={`harmonic-${channel.id}`}>Harmonic</FieldLabel><Input id={`harmonic-${channel.id}`} type="number" min={1} max={32} value={harmonic} onChange={event => { const n=Number(event.target.value); if (Number.isInteger(n) && n>=1 && n<=32) setHarmonic(n) }} /></Field>
-      {[0,1].map(snapshot => <Field key={snapshot}><FieldLabel htmlFor={`snapshot-${snapshot}-${channel.id}`}>Snapshot {snapshot===0 ? "A" : "B"} harmonic level</FieldLabel><Input id={`snapshot-${snapshot}-${channel.id}`} type="number" min={0} max={1} step={0.01} value={levels(snapshot)[harmonic-1]} disabled={busy} onChange={event => void edit(snapshot,Number(event.target.value))} /></Field>)}</FieldGroup>
+      <div className="grid grid-cols-2 gap-2">{[0,1].map(snapshot => <svg key={snapshot} viewBox="0 0 160 80" role="img" aria-label={message("Snapshot {snapshot} spectrum", { snapshot: snapshot===0 ? t("A") : t("B") })} className="h-24 text-foreground">{levels(snapshot).map((level,index) => <rect key={index} x={index*5} y={80-level*80} width="4" height={level*80} fill="currentColor" />)}</svg>)}</div>
+      <FieldGroup><Field><FieldLabel htmlFor={`harmonic-${channel.id}`}>{t("Harmonic")}</FieldLabel><Input id={`harmonic-${channel.id}`} type="number" min={1} max={32} value={harmonic} onChange={event => { const n=Number(event.target.value); if (Number.isInteger(n) && n>=1 && n<=32) setHarmonic(n) }} /></Field>
+      {[0,1].map(snapshot => <Field key={snapshot}><FieldLabel htmlFor={`snapshot-${snapshot}-${channel.id}`}>{t("Snapshot")}{" "}{snapshot===0 ? "A" : "B"}{" "}{t("harmonic level")}</FieldLabel><Input id={`snapshot-${snapshot}-${channel.id}`} type="number" min={0} max={1} step={0.01} value={levels(snapshot)[harmonic-1]} disabled={busy} onChange={event => void edit(snapshot,Number(event.target.value))} /></Field>)}</FieldGroup>
       {error && <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}
     </ParamGroup>
     <ParamRow>{["morph","attackMs","releaseMs","level","polyphony"].map(id => <ParamControl key={id} {...bind(id)} />)}</ParamRow>

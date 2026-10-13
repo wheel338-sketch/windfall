@@ -14,6 +14,7 @@ import {
 import { InputGroup, InputGroupAddon } from "@/components/ui/input-group"
 import { HugeiconsIcon } from "@hugeicons/react"
 import { SearchIcon, Tick02Icon } from "@hugeicons/core-free-icons"
+import { translatedText as t } from "@/lib/i18n"
 
 function Command({
   className,
@@ -32,8 +33,8 @@ function Command({
 }
 
 function CommandDialog({
-  title = "Command Palette",
-  description = "Search for a command to run...",
+  title = t("Command Palette"),
+  description = t("Search for a command to run..."),
   children,
   className,
   showCloseButton = false,

@@ -1,5 +1,6 @@
 import { Channel } from "@tauri-apps/api/core"
 import { backend, errorMessage } from "@/lib/ipc"
+import { translatedText as t } from "@/lib/i18n"
 
 export type UpdateChannel = "stable" | "preview"
 export type UpdateInfo = { token: number; version: string; notes: string; channel: UpdateChannel; projectFormat: number }
@@ -13,7 +14,7 @@ export type UpdateApi = {
   install(token: number, decision?: "save" | "discard", path?: string): Promise<void>
 }
 async function call<T>(command: string, args: Record<string, unknown>): Promise<T> {
-  if (backend.kind !== "tauri") throw new Error("Updates require the installed desktop application.")
+  if (backend.kind !== "tauri") throw new Error(t("Updates require the installed desktop application."))
   try { return await backend.updateCall<T>(command, args) }
   catch (error) { throw new Error(errorMessage(error), { cause: error }) }
 }

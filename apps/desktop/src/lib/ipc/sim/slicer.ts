@@ -10,6 +10,7 @@ import { sim } from "./wasm"
 import { detectInWorker } from "@/features/sample-playback/analyze"
 import type { SamplePlayback } from "@/bindings"
 import type { SimDocument } from "./document"
+import { translatedText as t } from "@/lib/i18n"
 
 export type SlicerMockOptions = {
   /** Optional decoded fixtures for headless tests. Browser library audio is simulated. */
@@ -21,7 +22,7 @@ function fixture(info: SampleInfo): SliceAudio {
   const sampleRate = 8_000
   const frames = Math.ceil(info.durationSecs * sampleRate)
   if (frames > 32_000_000)
-    throw new Error("The simulated clip is too long to analyze.")
+    throw new Error(t("The simulated clip is too long to analyze."))
   return {
     sampleRate,
     channels: 1,
@@ -61,20 +62,20 @@ export function createSlicerMock(
   }
   return {
     async samplePlaybackDetect(channel: number, options: SliceOptions, generation: number, revision: number): Promise<DispatchResult> {
-      if (options.mode === "wavMarkers") throw new Error("WAV slice markers require the desktop app and a source WAV file.")
+      if (options.mode === "wavMarkers") throw new Error(t("WAV slice markers require the desktop app and a source WAV file."))
       const original = document()
       const current = guard?.()
       if (original.snapshot(null).revision !== revision || (current && current.generation !== generation))
-        throw new Error("The project changed before slice detection started.")
+        throw new Error(t("The project changed before slice detection started."))
       const settings = original.project().channels.find((c) => c.id === channel)?.samplePlayback
-      if (!settings?.sample) throw new Error("Load a source sample first.")
+      if (!settings?.sample) throw new Error(t("Load a source sample first."))
       const buffer = source(settings.sample)
       const request = { ...buffer, sample: settings.sample, bpm: settings.sourceBpm, options }
       const detected = typeof Worker === "undefined"
         ? sim.call<SamplePlayback>("sample_playback_detect", 0, request)
         : await detectInWorker(request)
       if (document() !== original || original.snapshot(null).revision !== revision || source(settings.sample) !== buffer)
-        throw new Error("The project or source changed during slice detection. Try again.")
+        throw new Error(t("The project or source changed during slice detection. Try again."))
       return dispatch({ type: "setSamplePlayback", channel, asset: { ...settings, legacyKeyWrap: false, slices: detected.slices, sourceBeats: detected.sourceBeats } })
     },
     async sliceAnalyze(
@@ -88,11 +89,11 @@ export function createSlicerMock(
       const project = original.project()
       if (project.automations.some((lane) => lane.target.type === "tempo"))
         throw new Error(
-          "Slicing tempo-automated projects is not supported. Remove tempo automation before slicing."
+          t("Slicing tempo-automated projects is not supported. Remove tempo automation before slicing.")
         )
       const clip = project.playlist.clips.find((c) => c.id === id)
       if (!clip || clip.content.type !== "audio")
-        throw new Error("Select one playlist audio clip to slice.")
+        throw new Error(t("Select one playlist audio clip to slice."))
       const buffer = source(clip.content.sample)
       const request = {
         ...buffer,
@@ -113,7 +114,7 @@ export function createSlicerMock(
         source(clip.content.sample) !== buffer
       ) {
         throw new Error(
-          "The project or source changed. Analyze the clip again."
+          t("The project or source changed. Analyze the clip again.")
         )
       }
       const review = { token, clip: id, lengthTicks: clip.length, analysis }
@@ -126,7 +127,7 @@ export function createSlicerMock(
     ): Promise<DispatchResult> {
       const current = pending
       if (!current || current.review.token !== token || token !== ticket)
-        throw new Error("This slice review expired. Analyze the clip again.")
+        throw new Error(t("This slice review expired. Analyze the clip again."))
       const doc = document()
       const sample =
         current.clip.content.type === "audio" ? current.clip.content.sample : 0
@@ -136,7 +137,7 @@ export function createSlicerMock(
         source(sample) !== current.audio
       ) {
         throw new Error(
-          "The project or source changed. Analyze the clip again."
+          t("The project or source changed. Analyze the clip again.")
         )
       }
       if (
@@ -146,7 +147,7 @@ export function createSlicerMock(
         )
       )
         throw new Error(
-          "Apply accepts only markers from the current slice review."
+          t("Apply accepts only markers from the current slice review.")
         )
       const project = doc.project()
       const command = sim.call<Command>("slice_command", 0, {

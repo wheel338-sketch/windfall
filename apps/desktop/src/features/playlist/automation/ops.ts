@@ -15,6 +15,7 @@ import {
   straighten,
   toggleHold,
 } from "./points"
+import { translatedText as t, message, plainNumber } from "@/lib/i18n"
 
 /*
  * What the playlist does to automations and their curves. Each function is
@@ -71,8 +72,8 @@ export async function deletePointAt(ref: PointRef): Promise<void> {
   const points = deletePoint(found.automation.points, ref.index)
   if (!points) {
     refuse(
-      "A curve keeps at least one point",
-      "Delete the clip, or the automation in the list on the left, instead."
+      t("A curve keeps at least one point"),
+      t("Delete the clip, or the automation in the list on the left, instead.")
     )
     return
   }
@@ -85,17 +86,17 @@ export async function typePointValue(ref: PointRef): Promise<void> {
   if (!found) return
   const { automation, point } = found
   const text = await askText({
-    title: `Value of the point in ${automation.name}`,
-    label: "Value",
+    title: message("Value of the point in {automationName}", { automationName: automation.name }),
+    label: t("Value"),
     initial: formatAutomationValue(project(), automation.target, point.value),
-    submitLabel: "Set",
+    submitLabel: t("Set"),
   })
   if (text === null) return
   const value = parseAutomationValue(project(), automation.target, text)
   if (value === null) {
     refuse(
-      `"${text}" is not a value for ${automation.name}`,
-      "Type it the way it is shown, such as −6 dB, 40% or 1.2 kHz."
+      message("\"{text}\" is not a value for {automationName}", { text, automationName: automation.name }),
+      t("Type it the way it is shown, such as −6 dB, 40% or 1.2 kHz.")
     )
     return
   }
@@ -113,10 +114,10 @@ export async function renameAutomation(id: AutomationId): Promise<void> {
   const automation = automationById(id)
   if (!automation) return
   const name = await askText({
-    title: "Rename automation",
-    label: "Name",
+    title: t("Rename automation"),
+    label: t("Name"),
     initial: automation.name,
-    submitLabel: "Rename",
+    submitLabel: t("Rename"),
   })
   const trimmed = name?.trim()
   if (!trimmed || trimmed === automation.name) return
@@ -150,10 +151,10 @@ export async function deleteAutomation(id: AutomationId): Promise<void> {
   ).length
   if (count > 0) {
     const choice = await askConfirm({
-      title: `Delete ${automation.name}?`,
-      description: `Its ${count === 1 ? "clip" : `${count} clips`} on the playlist will be deleted with it. Undo brings them back.`,
+      title: message("Delete {automationName}?", { automationName: automation.name }),
+      description: message("Its {shown} clips on the playlist will be deleted with it. Undo brings them back.", { count, shown: plainNumber(count) }),
       choices: [
-        { id: "delete", label: "Delete automation", variant: "destructive" },
+        { id: "delete", label: t("Delete automation"), variant: "destructive" },
       ],
     })
     if (choice !== "delete") return

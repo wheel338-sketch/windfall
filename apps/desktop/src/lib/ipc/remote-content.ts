@@ -1,4 +1,5 @@
 import type { BackupVersion, DispatchResult, LoopCatalog, RemoteSettingsState } from "@/bindings"
+import { translatedText as t } from "@/lib/i18n"
 
 export interface RemoteContentBackend {
   phoneRemoteState(): Promise<RemoteSettingsState>
@@ -27,6 +28,6 @@ export function nativeRemoteContent(call: NativeCall): RemoteContentBackend {
 }
 /** Browser mode must not invent a listener, filesystem or backup success. */
 export function unavailableRemoteContent(): RemoteContentBackend {
-  const unavailable = async (): Promise<never> => { throw new Error("This feature requires the Windfall desktop app.") }
+  const unavailable = async (): Promise<never> => { throw new Error(t("This feature requires the Windfall desktop app.")) }
   return { phoneRemoteState: unavailable, phoneRemoteSet: unavailable, backupVersions: unavailable, backupSave: unavailable, backupRestore: unavailable, backupCancel: unavailable, loopCatalog: unavailable, loopPreview: unavailable, loopInsert: unavailable }
 }

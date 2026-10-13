@@ -32,6 +32,7 @@ import { PPQ } from "@/lib/units"
 import { usePlaylistStore } from "@/features/playlist/store"
 import { nextSliceGrid } from "./grid-step"
 import type { SliceOptions, SliceReview } from "./types"
+import { translatedText, message, plainNumber } from "@/lib/i18n"
 
 /** Entry point for one selected playlist clip; markers remain review-only. */
 export function SliceControls({ clips }: { clips: Clip[] }) {
@@ -71,14 +72,13 @@ export function SliceControls({ clips }: { clips: Clip[] }) {
         disabled={!single}
         render={<Button size="sm" variant="outline" />}
       >
-        Slice clip
+        {translatedText("Slice clip")}
       </DialogTrigger>
       <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-2xl">
         <DialogHeader>
-          <DialogTitle>Slice audio clip</DialogTitle>
+          <DialogTitle>{translatedText("Slice audio clip")}</DialogTitle>
           <DialogDescription>
-            Review the cut markers, then split into clips linked to the original
-            file. Apply is one undo step.
+            {translatedText("Review the cut markers, then split into clips linked to the original file. Apply is one undo step.")}
           </DialogDescription>
         </DialogHeader>
         {session && (
@@ -131,7 +131,7 @@ function SliceForm({
         void backend.sliceDiscard(retained.current.token).catch(() => {})
       retained.current = null
       setBusy(false)
-      setError("The project changed. Analyze the clip again.")
+      setError(translatedText("The project changed. Analyze the clip again."))
     })
     return () => {
       alive.current = false
@@ -182,7 +182,7 @@ function SliceForm({
       ) {
         void backend.sliceDiscard(result.token).catch(() => {})
         if (alive.current)
-          setError("The project changed. Analyze the clip again.")
+          setError(translatedText("The project changed. Analyze the clip again."))
         return
       }
       retained.current = result
@@ -248,12 +248,11 @@ function SliceForm({
     <FieldGroup>
       {backend.kind === "mock" && (
         <FieldDescription>
-          Browser demonstration: audio and waveforms are simulated. Native
-          analysis uses the loaded file.
+          {translatedText("Browser demonstration: audio and waveforms are simulated. Native analysis uses the loaded file.")}
         </FieldDescription>
       )}
       <Field>
-        <FieldLabel>Find markers</FieldLabel>
+        <FieldLabel>{translatedText("Find markers")}</FieldLabel>
         <ToggleGroup
           value={[mode]}
           disabled={busy}
@@ -264,13 +263,13 @@ function SliceForm({
             }
           }}
         >
-          <ToggleGroupItem value="grid">Beat grid</ToggleGroupItem>
-          <ToggleGroupItem value="transients">Transients</ToggleGroupItem>
+          <ToggleGroupItem value="grid">{translatedText("Beat grid")}</ToggleGroupItem>
+          <ToggleGroupItem value="transients">{translatedText("Transients")}</ToggleGroupItem>
         </ToggleGroup>
       </Field>
       {mode === "grid" ? (
         <Field>
-          <FieldLabel>Grid division</FieldLabel>
+          <FieldLabel>{translatedText("Grid division")}</FieldLabel>
           <ToggleGroup
             value={[String(grid)]}
             disabled={busy}
@@ -283,7 +282,7 @@ function SliceForm({
           >
             {[PPQ / 4, PPQ / 2, PPQ, PPQ * 2, PPQ * 4].map((ticks, index) => (
               <ToggleGroupItem key={ticks} value={String(ticks)}>
-                {["1/16", "1/8", "1/4", "1/2", "4 beats"][index]}
+                {["1/16", "1/8", "1/4", "1/2", translatedText("4 beats")][index]}
               </ToggleGroupItem>
             ))}
           </ToggleGroup>
@@ -291,7 +290,7 @@ function SliceForm({
             <Button
               variant="outline"
               size="sm"
-              aria-label="Choose a finer slice grid"
+              aria-label={translatedText("Choose a finer slice grid")}
               disabled={busy || nextSliceGrid(grid, "finer") === null}
               onClick={() => {
                 const next = nextSliceGrid(grid, "finer")
@@ -301,12 +300,12 @@ function SliceForm({
                 }
               }}
             >
-              Finer
+              {translatedText("Finer")}
             </Button>
             <Button
               variant="outline"
               size="sm"
-              aria-label="Choose a coarser slice grid"
+              aria-label={translatedText("Choose a coarser slice grid")}
               disabled={busy || nextSliceGrid(grid, "coarser") === null}
               onClick={() => {
                 const next = nextSliceGrid(grid, "coarser")
@@ -316,16 +315,16 @@ function SliceForm({
                 }
               }}
             >
-              Coarser
+              {translatedText("Coarser")}
             </Button>
           </div>
           <FieldDescription>
-            Note divisions aligned to the song, measured in quarter-note beats.
+            {translatedText("Note divisions aligned to the song, measured in quarter-note beats.")}
           </FieldDescription>
         </Field>
       ) : (
         <Field data-invalid={invalidSensitivity}>
-          <FieldLabel htmlFor={id + "sensitivity"}>Sensitivity (%)</FieldLabel>
+          <FieldLabel htmlFor={id + "sensitivity"}>{translatedText("Sensitivity (%)")}</FieldLabel>
           <Input
             id={id + "sensitivity"}
             type="number"
@@ -341,10 +340,10 @@ function SliceForm({
             }}
           />
           <FieldDescription>
-            Higher values include weaker energy attacks; review before applying.
+            {translatedText("Higher values include weaker energy attacks; review before applying.")}
           </FieldDescription>
           {invalidSensitivity && (
-            <FieldError>Enter a sensitivity from 0 to 100.</FieldError>
+            <FieldError>{translatedText("Enter a sensitivity from 0 to 100.")}</FieldError>
           )}
         </Field>
       )}
@@ -355,21 +354,18 @@ function SliceForm({
         }
         onClick={() => void analyze()}
       >
-        {busy ? "Working…" : "Analyze markers"}
+        {busy ? translatedText("Working…") : translatedText("Analyze markers")}
       </Button>
       <FieldDescription>
-        Tape clips support trim, offset, reverse, pitch, gain, pan, mute, and
-        routing. Fades, spectral stretch, and project swing must be removed
-        before slicing.
+        {translatedText("Tape clips support trim, offset, reverse, pitch, gain, pan, mute, and routing. Fades, spectral stretch, and project swing must be removed before slicing.")}
       </FieldDescription>
       {review && (
         <>
           <MarkerPreview review={review} selected={selected} />
           <FieldSet disabled={busy || stale}>
-            <FieldLegend>Cut markers ({selected.length} selected)</FieldLegend>
+            <FieldLegend>{translatedText("Cut markers (")}{selected.length}{" "}{translatedText("selected)")}</FieldLegend>
             <FieldDescription>
-              Positions are relative to the visible clip. Turn off any cut you
-              do not want.
+              {translatedText("Positions are relative to the visible clip. Turn off any cut you do not want.")}
             </FieldDescription>
             <div className="flex flex-wrap gap-2">
               <Button
@@ -380,7 +376,7 @@ function SliceForm({
                   setSelected(review.analysis.markers.map((m) => m.tick))
                 }
               >
-                Select all
+                {translatedText("Select all")}
               </Button>
               <Button
                 size="sm"
@@ -388,7 +384,7 @@ function SliceForm({
                 disabled={busy || stale}
                 onClick={() => setSelected([])}
               >
-                Clear markers
+                {translatedText("Clear markers")}
               </Button>
             </div>
             <FieldGroup className="max-h-44 overflow-y-auto">
@@ -401,31 +397,31 @@ function SliceForm({
                     onCheckedChange={() => toggle(marker.tick)}
                   />
                   <FieldLabel htmlFor={id + marker.tick}>
-                    Cut at {(marker.tick / PPQ).toFixed(3)} beats ({marker.tick}{" "}
-                    ticks)
+                    {translatedText("Cut at")}{" "}{(marker.tick / PPQ).toFixed(3)}{" "}{translatedText("beats (")}{marker.tick}{" "}
+                    {translatedText("ticks)")}
                   </FieldLabel>
                 </Field>
               ))}
             </FieldGroup>
             {!review.analysis.markers.length && (
               <FieldDescription>
-                No interior markers found. Try another grid or sensitivity.
+                {translatedText("No interior markers found. Try another grid or sensitivity.")}
               </FieldDescription>
             )}
           </FieldSet>
           <p role="status">
             {selected.length
-              ? `${selected.length + 1} linked-source slices`
-              : "No cuts selected"}
+              ? message("{count} linked-source slices", { count: plainNumber(selected.length + 1) })
+              : translatedText("No cuts selected")}
           </p>
         </>
       )}
       {(stale || error) && (
         <FieldError>
           {replaced
-            ? "The project changed. Close and reopen slicing."
+            ? translatedText("The project changed. Close and reopen slicing.")
             : stale
-              ? "The project changed. Analyze the clip again."
+              ? translatedText("The project changed. Analyze the clip again.")
               : error}
         </FieldError>
       )}
@@ -433,7 +429,7 @@ function SliceForm({
         disabled={busy || stale || !review || !selected.length}
         onClick={() => void apply()}
       >
-        Apply slices
+        {translatedText("Apply slices")}
       </Button>
     </FieldGroup>
   )
@@ -452,7 +448,7 @@ function MarkerPreview({
   return (
     <svg
       role="img"
-      aria-label={`Slice marker preview: ${selected.length} cuts`}
+      aria-label={message("Slice marker preview: {count} cuts", { count: plainNumber(selected.length) })}
       viewBox={`0 0 ${width} ${height}`}
       className="h-28 w-full rounded-md border bg-muted"
     >

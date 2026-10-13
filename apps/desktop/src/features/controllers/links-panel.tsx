@@ -11,6 +11,7 @@ import { dispatch, useProjectStore } from "@/lib/store/project"
 import { getProjectGeneration } from "@/lib/store/replaced"
 import { sameShape } from "./menu"
 import { useControllerStatus } from "./status"
+import { message, plainNumber, translatedText as t } from "@/lib/i18n"
 
 export function ControllerChoice<T extends string>({ label, value, choices, change, disabled = false }: {
   label: string; value: T; choices: { value: T; label: string }[]; change(value: T): void; disabled?: boolean
@@ -30,32 +31,36 @@ export function ControllerChoice<T extends string>({ label, value, choices, chan
 }
 
 const actionLabels: Record<Extract<ControlAction, string>, string> = {
-  play: "Play", stop: "Stop", togglePlay: "Play / stop", toggleLoop: "Toggle song loop", toggleMetronome: "Toggle metronome",
-  toggleNoteRecord: "Toggle MIDI recording", toggleAutomationRecord: "Toggle automation recording", undo: "Undo", redo: "Redo",
-  patternPrevious: "Previous pattern", patternNext: "Next pattern", bankPrevious: "Previous controller bank", bankNext: "Next controller bank", panicMidi: "Release MIDI notes", performanceStopAll: "Stop all performance tracks",
+  get play() { return t("Play") }, get stop() { return t("Stop") }, get togglePlay() { return t("Play / stop") }, get toggleLoop() { return t("Toggle song loop") }, get toggleMetronome() { return t("Toggle metronome") },
+  get toggleNoteRecord() { return t("Toggle MIDI recording") }, get toggleAutomationRecord() { return t("Toggle automation recording") }, get undo() { return t("Undo") }, get redo() { return t("Redo") },
+  get patternPrevious() { return t("Previous pattern") }, get patternNext() { return t("Next pattern") }, get bankPrevious() { return t("Previous controller bank") }, get bankNext() { return t("Next controller bank") }, get panicMidi() { return t("Release MIDI notes") }, get performanceStopAll() { return t("Stop all performance tracks") },
 }
 export function controlActionLabel(action: ControlAction): string {
   if (typeof action === "string") return actionLabels[action]
-  if ("performancePad" in action) return `Launch track ${action.performancePad.track}, scene ${action.performancePad.scene + 1}`
-  return `Stop performance track ${action.performanceStop.track}`
+  if ("performancePad" in action) return message("Launch track {track}, scene {scene}", { track: plainNumber(action.performancePad.track), scene: plainNumber(action.performancePad.scene + 1) })
+  return message("Stop performance track {track}", { track: plainNumber(action.performanceStop.track) })
 }
 export const globalChoices: { value: string; label: string; target: LinkTarget }[] = [
-  { value: "master", label: "Master volume", target: { type: "slot", slot: { type: "masterVolume" } } },
-  { value: "tempo", label: "Tempo", target: { type: "slot", slot: { type: "tempo" } } },
+  { value: "master", get label() { return t("Master volume") }, target: { type: "slot", slot: { type: "masterVolume" } } },
+  { value: "tempo", get label() { return t("Tempo") }, target: { type: "slot", slot: { type: "tempo" } } },
   ...Object.entries(actionLabels).map(([action, label]) => ({ value: `action:${action}`, label, target: { type: "action", action: action as ControlAction } as LinkTarget })),
   ...(["mixerVolume", "mixerPan", "channelVolume", "channelPan"] as const).flatMap((type) => Array.from({ length: 8 }, (_, index) => ({
-    value: `${type}:${index}`, label: `${type.startsWith("mixer") ? "Mixer strip" : "Channel"} ${index + 1} ${type.endsWith("Volume") ? "volume" : "pan"}`, target: { type: "slot", slot: { type, index } } as LinkTarget,
+    value: `${type}:${index}`, get label() { return slotName({ type, index }) }, target: { type: "slot", slot: { type, index } } as LinkTarget,
   }))),
 ]
 function slotName(slot: SlotTarget): string {
-  if (slot.type === "masterVolume") return "Master volume"
-  if (slot.type === "tempo") return "Tempo"
-  return `${slot.type.startsWith("mixer") ? "Mixer strip" : "Channel"} ${slot.index + 1} ${slot.type.endsWith("Volume") ? "volume" : "pan"}`
+  if (slot.type === "masterVolume") return t("Master volume")
+  if (slot.type === "tempo") return t("Tempo")
+  const index = plainNumber(slot.index + 1)
+  return slot.type === "mixerVolume" ? message("Mixer strip {index} volume", { index })
+    : slot.type === "mixerPan" ? message("Mixer strip {index} pan", { index })
+    : slot.type === "channelVolume" ? message("Channel {index} volume", { index })
+    : message("Channel {index} pan", { index })
 }
 function sourceName(source: ControllerLink["source"]): string {
-  if (source.type !== "midi") return "Internal controller"
-  const control = source.control.type === "cc" ? `CC ${source.control.number}` : source.control.type === "note" ? `Key ${source.control.key}` : source.control.type === "pitchBend" ? "Pitch wheel" : "Pressure"
-  return `${source.device ?? "Any MIDI device"} · ${source.channel ? `Channel ${source.channel}` : "All channels"} · ${control}`
+  if (source.type !== "midi") return t("Internal controller")
+  const control = source.control.type === "cc" ? `CC ${source.control.number}` : source.control.type === "note" ? message("Key {key}", { key: plainNumber(source.control.key) }) : source.control.type === "pitchBend" ? t("Pitch wheel") : t("Pressure")
+  return message("{device} · {channel} · {control}", { device: source.device ?? t("Any MIDI device"), channel: source.channel ? message("Channel {channel}", { channel: plainNumber(source.channel) }) : t("All channels"), control })
 }
 
 type Draft = { link: ControllerLink; links: ControllerLink[]; index: number; global: boolean; revision: number; generation: number }
@@ -89,10 +94,10 @@ export function ControllerLinksPanel() {
       const current = await backend.controllerState()
       if (draft.generation !== getProjectGeneration() || draft.revision !== useProjectStore.getState().revision ||
         !sameShape(draft.links, draft.global ? current.settings.links : useProjectStore.getState().project.settings.controllerLinks ?? []))
-        throw new Error("The links changed. Reopen the link before applying.")
+        throw new Error(t("The links changed. Reopen the link before applying."))
       const links = draft.links.flatMap((link, index) => index === draft.index ? remove ? [] : [draft.link] : [link])
       if (draft.global) setState(await backend.controllerSettingsSet({ ...current.settings, links }))
-      else if (!await dispatch({ type: "setControllerLinks", links })) throw new Error("Controller link was refused. Check the mapping and try again.")
+      else if (!await dispatch({ type: "setControllerLinks", links })) throw new Error(t("Controller link was refused. Check the mapping and try again."))
       setDraft(null)
     } catch (failure) { setError(errorMessage(failure)) } finally { setBusy(false) }
   }
@@ -105,39 +110,39 @@ export function ControllerLinksPanel() {
       setState(await backend.controllerLearn([target], true, false, state.generation))
     } catch (failure) { setError(errorMessage(failure)) } finally { setBusy(false) }
   }
-  return <FieldSet><FieldLegend>Controller links</FieldLegend>
-    <div role="list" aria-label="Project controller links">{links.map((link, index) => <div role="listitem" key={index}>
+  return <FieldSet><FieldLegend>{t("Controller links")}</FieldLegend>
+    <div role="list" aria-label={t("Project controller links")}>{links.map((link, index) => <div role="listitem" key={index}>
       <span>{targetName(link.target)}</span>{" "}
-      <Button size="sm" variant="outline" onClick={() => capture(index, false)} aria-label={`Edit project link ${index + 1}`}>Edit link</Button>
-    </div>)}{links.length === 0 && <p>No project links.</p>}</div>
-    <div role="list" aria-label="Global controller links">{globals.map((link, index) => <div role="listitem" key={index}>
+      <Button size="sm" variant="outline" onClick={() => capture(index, false)} aria-label={message("Edit project link {index}", { index: plainNumber(index + 1) })}>{t("Edit link")}</Button>
+    </div>)}{links.length === 0 && <p>{t("No project links.")}</p>}</div>
+    <div role="list" aria-label={t("Global controller links")}>{globals.map((link, index) => <div role="listitem" key={index}>
       <span>{targetName(link.target)}</span>{" "}
-      <Button size="sm" variant="outline" onClick={() => capture(index, true)} aria-label={`Edit global link ${index + 1}`}>Edit global link</Button>
-    </div>)}{globals.length === 0 && <p>No global links.</p>}</div>
-    <ControllerChoice<string> label="Global link target" value={globalTarget} change={setGlobalTarget} choices={globalChoices} />
-    <Button variant="outline" disabled={busy || backend.kind !== "tauri"} onClick={() => void learnGlobal()}>Learn global link</Button>
-    <Button variant="outline" disabled={busy || backend.kind !== "tauri"} onClick={() => void backend.controllerLearn([], false, true, state?.generation ?? 0).then(setState).catch((failure: unknown) => setError(errorMessage(failure)))}>Multi-link controllers</Button>
-    {state?.learn && <p role="status">Move hardware controls in order: {state.learn.linked} of {state.learn.targets.length} linked.
-      <Button size="sm" variant="outline" onClick={() => void backend.controllerLearnCancel().then(setState).catch((failure: unknown) => setError(errorMessage(failure)))}>Stop linking</Button></p>}
+      <Button size="sm" variant="outline" onClick={() => capture(index, true)} aria-label={message("Edit global link {index}", { index: plainNumber(index + 1) })}>{t("Edit global link")}</Button>
+    </div>)}{globals.length === 0 && <p>{t("No global links.")}</p>}</div>
+    <ControllerChoice<string> label={t("Global link target")} value={globalTarget} change={setGlobalTarget} choices={globalChoices} />
+    <Button variant="outline" disabled={busy || backend.kind !== "tauri"} onClick={() => void learnGlobal()}>{t("Learn global link")}</Button>
+    <Button variant="outline" disabled={busy || backend.kind !== "tauri"} onClick={() => void backend.controllerLearn([], false, true, state?.generation ?? 0).then(setState).catch((failure: unknown) => setError(errorMessage(failure)))}>{t("Multi-link controllers")}</Button>
+    {state?.learn && <p role="status">{t("Move hardware controls in order:")}{" "}{state.learn.linked}{" "}{t("of")}{" "}{state.learn.targets.length}{" "}{t("linked.")}
+      <Button size="sm" variant="outline" onClick={() => void backend.controllerLearnCancel().then(setState).catch((failure: unknown) => setError(errorMessage(failure)))}>{t("Stop linking")}</Button></p>}
     {draft && <FieldGroup>
       <p>{targetName(draft.link.target)} · {sourceName(draft.link.source)}</p>
-      {(["min", "max", "smoothingMs"] as const).map((key) => <Field key={key}><FieldLabel htmlFor={`controller-${key}`}>{key === "min" ? "Range start" : key === "max" ? "Range end" : "Smoothing (ms)"}</FieldLabel>
+      {(["min", "max", "smoothingMs"] as const).map((key) => <Field key={key}><FieldLabel htmlFor={`controller-${key}`}>{key === "min" ? t("Range start") : key === "max" ? t("Range end") : t("Smoothing (ms)")}</FieldLabel>
         <Input id={`controller-${key}`} type="number" min={0} max={key === "smoothingMs" ? 5000 : 1} step={key === "smoothingMs" ? 1 : 0.01} value={draft.link.map[key]} onChange={(event) => map({ [key]: Number(event.target.value) })} /></Field>)}
-      <Field><FieldLabel htmlFor="controller-formula">Mapping formula</FieldLabel><Input id="controller-formula" value={draft.link.map.formula ?? ""} placeholder="x" onChange={(event) => map({ formula: event.target.value || undefined })} /></Field>
-      <ControllerChoice<SourceMode> label="Controller mode" value={draft.link.map.mode} change={(mode) => map({ mode })} choices={[
-        { value: "absolute", label: "Absolute" }, { value: "relativeTwosComplement", label: "Relative: two's complement" },
-        { value: "relativeSignedBit", label: "Relative: sign bit" }, { value: "relativeBinaryOffset", label: "Relative: offset" }, { value: "toggle", label: "Toggle" },
+      <Field><FieldLabel htmlFor="controller-formula">{t("Mapping formula")}</FieldLabel><Input id="controller-formula" value={draft.link.map.formula ?? ""} placeholder="x" onChange={(event) => map({ formula: event.target.value || undefined })} /></Field>
+      <ControllerChoice<SourceMode> label={t("Controller mode")} value={draft.link.map.mode} change={(mode) => map({ mode })} choices={[
+        { value: "absolute", label: t("Absolute") }, { value: "relativeTwosComplement", label: t("Relative: two's complement") },
+        { value: "relativeSignedBit", label: t("Relative: sign bit") }, { value: "relativeBinaryOffset", label: t("Relative: offset") }, { value: "toggle", label: t("Toggle") },
       ]} />
-      <ControllerChoice<PickupMode> label="Link pickup" value={draft.link.map.pickup} change={(pickup) => map({ pickup })} choices={[
-        { value: "inherit", label: "Use global pickup" }, { value: "on", label: "On" }, { value: "off", label: "Off" },
+      <ControllerChoice<PickupMode> label={t("Link pickup")} value={draft.link.map.pickup} change={(pickup) => map({ pickup })} choices={[
+        { value: "inherit", label: t("Use global pickup") }, { value: "on", label: t("On") }, { value: "off", label: t("Off") },
       ]} />
-      {stale && <p role="status">The project changed. Reopen this link to edit it.</p>}
-      <div className="flex gap-2"><Button disabled={stale || busy} onClick={() => void apply()}>Apply controller link</Button>
-        <Button variant="destructive" disabled={stale || busy} onClick={() => void apply(true)}>Remove link</Button>
-        <Button variant="outline" onClick={() => setDraft(null)}>Cancel</Button></div>
+      {stale && <p role="status">{t("The project changed. Reopen this link to edit it.")}</p>}
+      <div className="flex gap-2"><Button disabled={stale || busy} onClick={() => void apply()}>{t("Apply controller link")}</Button>
+        <Button variant="destructive" disabled={stale || busy} onClick={() => void apply(true)}>{t("Remove link")}</Button>
+        <Button variant="outline" onClick={() => setDraft(null)}>{t("Cancel")}</Button></div>
     </FieldGroup>}
-    <div role="status" aria-label="Controller pickup state">{state?.waiting.length ?
-      `Pickup held: ${state.waiting.map((target) => describeTarget(project, target)).join(", ")}` : "No controls held for pickup."}</div>
+    <div role="status" aria-label={t("Controller pickup state")}>{state?.waiting.length ?
+      message("Pickup held: {map}", { map: state.waiting.map((target) => describeTarget(project, target)).join(", ") }) : t("No controls held for pickup.")}</div>
     {(error || (backend.kind === "tauri" && state?.error)) && <Alert variant="destructive"><AlertDescription>{error || state?.error}</AlertDescription></Alert>}
   </FieldSet>
 }

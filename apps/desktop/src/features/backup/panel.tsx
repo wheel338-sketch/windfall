@@ -11,6 +11,7 @@ import { backend, errorMessage } from "@/lib/ipc"
 import { useProjectStore } from "@/lib/store/project"
 import { getProjectGeneration, useProjectGeneration } from "@/lib/store/replaced"
 import { EMPTY_BACKUP, rememberBackup, useBackupConfig, useBackupJob, type FolderBackupConfig } from "./store"
+import { translatedText as t } from "@/lib/i18n"
 
 export function FolderBackupPanel() {
   const path = useProjectStore((state) => state.path)
@@ -51,7 +52,7 @@ export function FolderBackupPanel() {
     useBackupJob.setState({ busy: true, error: null, result: null })
     try {
       const catalog = await backend.loopCatalog()
-      if (localGeneration !== getProjectGeneration()) throw new Error("The project changed before backup started.")
+      if (localGeneration !== getProjectGeneration()) throw new Error(t("The project changed before backup started."))
       const row = await backend.backupSave(config.folder, config.head, config.keep, catalog.generation)
       if (localGeneration === getProjectGeneration()) configure({ ...config, head: row.id })
       useBackupJob.setState({ result: "Portable backup created and checksum recorded." })
@@ -72,17 +73,17 @@ export function FolderBackupPanel() {
   }
   const native = backend.kind === "tauri"
   return <div className="flex flex-col gap-4 p-3">
-    <FieldSet><FieldLegend>Optional folder backup</FieldLegend><FieldGroup>
-      <Field><FieldDescription>Choose a dedicated folder for this project, including a folder synced by your own drive client. Windfall has no cloud account or upload service. No backup runs until you request it or enable backup after Save.</FieldDescription></Field>
-      <Field><FieldLabel>Backup folder</FieldLabel><FieldDescription>{config.folder ?? "No folder selected"}</FieldDescription><Button variant="outline" disabled={!native || job.busy} onClick={() => void choose()}>Choose backup folder</Button></Field>
-      <Field><FieldLabel htmlFor="backup-keep">Versions to retain</FieldLabel><Input id="backup-keep" type="number" min={1} max={1000} value={config.keep} disabled={job.busy} onChange={(event) => { const keep = Number(event.target.value); if (Number.isInteger(keep) && keep >= 1 && keep <= 1000) configure({ ...config, keep }) }} /></Field>
-      <Field orientation="horizontal"><Checkbox id="backup-after-save" checked={config.afterSave} disabled={!native || !path || !config.folder || job.busy} onCheckedChange={(checked) => configure({ ...config, afterSave: checked === true })} /><FieldLabel htmlFor="backup-after-save">Back up this project after Save</FieldLabel></Field>
-      {!path && <FieldDescription>Save the project once before enabling automatic backup. Manual backup also works for an unsaved project.</FieldDescription>}
-      <div className="flex flex-wrap gap-2"><Button disabled={!native || !config.folder || job.busy} onClick={() => void save()}>Back up now</Button><Button variant="outline" disabled={!config.folder || job.busy} onClick={() => void refresh()}>Refresh history</Button><Button variant="outline" disabled={!job.busy} onClick={() => void backend.backupCancel().catch((error: unknown) => useBackupJob.setState({ error: errorMessage(error) }))}>Cancel backup</Button></div>
+    <FieldSet><FieldLegend>{t("Optional folder backup")}</FieldLegend><FieldGroup>
+      <Field><FieldDescription>{t("Choose a dedicated folder for this project, including a folder synced by your own drive client. Windfall has no cloud account or upload service. No backup runs until you request it or enable backup after Save.")}</FieldDescription></Field>
+      <Field><FieldLabel>{t("Backup folder")}</FieldLabel><FieldDescription>{config.folder ?? t("No folder selected")}</FieldDescription><Button variant="outline" disabled={!native || job.busy} onClick={() => void choose()}>{t("Choose backup folder")}</Button></Field>
+      <Field><FieldLabel htmlFor="backup-keep">{t("Versions to retain")}</FieldLabel><Input id="backup-keep" type="number" min={1} max={1000} value={config.keep} disabled={job.busy} onChange={(event) => { const keep = Number(event.target.value); if (Number.isInteger(keep) && keep >= 1 && keep <= 1000) configure({ ...config, keep }) }} /></Field>
+      <Field orientation="horizontal"><Checkbox id="backup-after-save" checked={config.afterSave} disabled={!native || !path || !config.folder || job.busy} onCheckedChange={(checked) => configure({ ...config, afterSave: checked === true })} /><FieldLabel htmlFor="backup-after-save">{t("Back up this project after Save")}</FieldLabel></Field>
+      {!path && <FieldDescription>{t("Save the project once before enabling automatic backup. Manual backup also works for an unsaved project.")}</FieldDescription>}
+      <div className="flex flex-wrap gap-2"><Button disabled={!native || !config.folder || job.busy} onClick={() => void save()}>{t("Back up now")}</Button><Button variant="outline" disabled={!config.folder || job.busy} onClick={() => void refresh()}>{t("Refresh history")}</Button><Button variant="outline" disabled={!job.busy} onClick={() => void backend.backupCancel().catch((error: unknown) => useBackupJob.setState({ error: errorMessage(error) }))}>{t("Cancel backup")}</Button></div>
     </FieldGroup></FieldSet>
-    {!native && <Alert><AlertDescription>Folder backups require the Windfall desktop app.</AlertDescription></Alert>}
+    {!native && <Alert><AlertDescription>{t("Folder backups require the Windfall desktop app.")}</AlertDescription></Alert>}
     {job.error && <Alert variant="destructive"><AlertDescription>{job.error}</AlertDescription></Alert>}
     {job.result && <p role="status">{job.result}</p>}
-    {!rows.length ? <Empty><EmptyHeader><EmptyTitle>No backup versions</EmptyTitle><EmptyDescription>Choose a folder and create a portable backup.</EmptyDescription></EmptyHeader></Empty> : <ul className="flex flex-col gap-3">{rows.slice().reverse().map((row) => <li key={row.id} className="flex flex-col gap-1"><span>{new Date(row.createdMs).toLocaleString()} · {row.bytes.toLocaleString()} bytes · {row.id.slice(0, 8)}</span><span className="break-all text-muted-foreground">SHA-256 {row.checksum}</span><Button variant="outline" disabled={job.busy} onClick={() => void restore(row)}>Restore {row.id.slice(0, 8)}</Button></li>)}</ul>}
+    {!rows.length ? <Empty><EmptyHeader><EmptyTitle>{t("No backup versions")}</EmptyTitle><EmptyDescription>{t("Choose a folder and create a portable backup.")}</EmptyDescription></EmptyHeader></Empty> : <ul className="flex flex-col gap-3">{rows.slice().reverse().map((row) => <li key={row.id} className="flex flex-col gap-1"><span>{new Date(row.createdMs).toLocaleString()} · {row.bytes.toLocaleString()}{" "}{t("bytes ·")}{" "}{row.id.slice(0, 8)}</span><span className="break-all text-muted-foreground">SHA-256 {row.checksum}</span><Button variant="outline" disabled={job.busy} onClick={() => void restore(row)}>{t("Restore")}{" "}{row.id.slice(0, 8)}</Button></li>)}</ul>}
   </div>
 }

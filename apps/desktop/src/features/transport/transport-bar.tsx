@@ -34,6 +34,7 @@ import { TempoField } from "./tempo-field"
 import { TimeSignatureField } from "./time-signature"
 import { TapTempoDialog } from "./tap-tempo-dialog"
 import { MetronomeControls } from "./metronome-controls"
+import { translatedText as t } from "@/lib/i18n"
 
 function Divider() {
   return <Separator orientation="vertical" className="mx-1 my-2.5" />
@@ -98,7 +99,7 @@ export function TransportBar() {
     <ContextActions items={TRANSPORT_MENU}>
       <div
         role="toolbar"
-        aria-label="Transport"
+        aria-label={t("Transport")}
         className="flex h-12 shrink-0 items-center gap-2 overflow-hidden border-b bg-chassis px-2"
       >
         <PlayControls />
@@ -106,16 +107,16 @@ export function TransportBar() {
           action="recording.open"
           variant={recording ? "destructive" : "secondary"}
         >
-          {recording ? "Recording..." : "Record"}
+          {recording ? t("Recording...") : t("Record")}
         </ActionButton>
         <RecordingDialog />
         <MidiRecordingControls />
         <ActionButton action="audioLogger.open" variant="ghost" size="sm">
-          Logger
+          {t("Logger")}
         </ActionButton>
         <AudioLoggerDialog />
         <Button
-          title="Record automation"
+          title={t("Record automation")}
           aria-pressed={recordArmed}
           variant={recordArmed ? "destructive" : "secondary"}
           onClick={() =>
@@ -124,14 +125,14 @@ export function TransportBar() {
             }))
           }
         >
-          Record automation
+          {t("Record automation")}
         </Button>
         <ModeSwitch />
         <MetronomeControls />
         <Divider />
         <Display />
         <ActionButton action="tempo.tap" variant="ghost" size="sm">
-          Tap
+          {t("Tap")}
         </ActionButton>
         <TapTempoDialog />
         <Divider />

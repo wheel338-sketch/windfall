@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 import { Knob, type KnobProps } from "./knob"
 import { formatPan, parsePan } from "./units"
+import { translatedText as t } from "@/lib/i18n"
 
 type PanControlProps = Omit<KnobProps, "min" | "max" | "bipolar" | "center">
 
@@ -28,7 +29,7 @@ function PanControl({
       parse={parse}
       unitKind={unitKind}
       label={label}
-      aria-label={ariaLabel ?? (label ? undefined : "Pan")}
+      aria-label={ariaLabel ?? (label ? undefined : t("Pan"))}
       {...props}
     />
   )

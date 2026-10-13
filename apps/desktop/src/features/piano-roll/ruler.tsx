@@ -34,6 +34,7 @@ import { patternEdgeTick } from "./pattern-jumps"
 import type { PianoRollSession } from "./session"
 import { snapRound, snapTicks } from "./snap"
 import { usePianoRollStore } from "./store"
+import { dynamicTitle, translatedText as t } from "@/lib/i18n"
 
 const HANDLE_REACH_PX = 6
 const MIN_BAR_LABEL_PX = 46
@@ -316,16 +317,16 @@ export function Ruler() {
   return (
     <ContextActions
       items={[
-        { title: "Edit markers / meter here…", run: () => openPatternTimeline(menuTick.current), afterClose: true },
-        { title: "Jump to the start", run: () => jumpToEdge("start") },
-        { title: "Jump to the end", run: () => jumpToEdge("end") },
+        { ...dynamicTitle("Edit markers / meter here…", {}), run: () => openPatternTimeline(menuTick.current), afterClose: true },
+        { ...dynamicTitle("Jump to the start", {}), run: () => jumpToEdge("start") },
+        { ...dynamicTitle("Jump to the end", {}), run: () => jumpToEdge("end") },
         contextSeparator,
         ...RULER_MENU,
       ]}
     >
       <canvas
         ref={canvasRef}
-        aria-label="Time ruler. Drag the marker at the end of the pattern to change its length"
+        aria-label={t("Time ruler. Drag the marker at the end of the pattern to change its length")}
         className="block h-full w-full touch-none"
         onContextMenuCapture={(event) => {
           const view = session.view

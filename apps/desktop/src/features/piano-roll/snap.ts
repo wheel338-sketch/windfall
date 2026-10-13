@@ -2,6 +2,7 @@ import type { NoteMusicalGrid, TimeSignature, Timeline } from "@/bindings"
 import { MIN_LINE_SPACING_PX, type TimeGridSpec } from "@/lib/canvas"
 import { ticksPerBar, ticksPerBeat } from "@/lib/time"
 import { TICKS_PER_STEP } from "@/lib/units"
+import { translatedText as t } from "@/lib/i18n"
 
 export type SnapId =
   | "none"
@@ -25,18 +26,18 @@ export type SnapOption = {
 }
 
 export const SNAP_OPTIONS: SnapOption[] = [
-  { id: "none", label: "None", group: "none" },
-  { id: "step/6", label: "1/6 step", group: "step" },
-  { id: "step/4", label: "1/4 step", group: "step" },
-  { id: "step/3", label: "1/3 step", group: "step" },
-  { id: "step/2", label: "1/2 step", group: "step" },
-  { id: "step", label: "Step", group: "step" },
-  { id: "beat/6", label: "1/6 beat", group: "beat" },
-  { id: "beat/4", label: "1/4 beat", group: "beat" },
-  { id: "beat/3", label: "1/3 beat", group: "beat" },
-  { id: "beat/2", label: "1/2 beat", group: "beat" },
-  { id: "beat", label: "Beat", group: "beat" },
-  { id: "bar", label: "Bar", group: "bar" },
+  { id: "none", get label() { return t("None") }, group: "none" },
+  { id: "step/6", get label() { return t("1/6 step") }, group: "step" },
+  { id: "step/4", get label() { return t("1/4 step") }, group: "step" },
+  { id: "step/3", get label() { return t("1/3 step") }, group: "step" },
+  { id: "step/2", get label() { return t("1/2 step") }, group: "step" },
+  { id: "step", get label() { return t("Step") }, group: "step" },
+  { id: "beat/6", get label() { return t("1/6 beat") }, group: "beat" },
+  { id: "beat/4", get label() { return t("1/4 beat") }, group: "beat" },
+  { id: "beat/3", get label() { return t("1/3 beat") }, group: "beat" },
+  { id: "beat/2", get label() { return t("1/2 beat") }, group: "beat" },
+  { id: "beat", get label() { return t("Beat") }, group: "beat" },
+  { id: "bar", get label() { return t("Bar") }, group: "bar" },
 ]
 
 export const DEFAULT_SNAP: SnapId = "step"

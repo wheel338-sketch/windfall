@@ -1,6 +1,7 @@
 import { ParamControl, ParamGroup, ParamRow, type EffectParamsOf } from "@/features/params"
 import type { EditorProps } from "../editor-props"
 import { CIRCUIT_LAYOUT, Motion } from "./motion"
+import { translatedText as t } from "@/lib/i18n"
 
 const COUNTS = [12, 4, 6, 8]
 
@@ -11,7 +12,7 @@ export function StagePhaserEditor({ bind }: EditorProps<EffectParamsOf<"vintageP
       <ParamGroup title="Allpass circuit">
         <ParamControl {...bind("stages")} layout="inline" />
         <p className="text-[10px] text-muted-foreground" data-slot="phaser-notches">
-          {stages / 2} moving notches. Four stages with zero stagger use the pedal circuit.
+          {stages / 2}{" "}{t("moving notches. Four stages with zero stagger use the pedal circuit.")}
         </p>
         <ParamRow columns={3}>
           <ParamControl {...bind("stagger")} description="At zero all stages have the same corner frequency" />

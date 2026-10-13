@@ -3,6 +3,7 @@ import { create } from "zustand"
 import type { AudioHost, AudioSettings, EngineStatus } from "@/bindings"
 import { attempt, reportError } from "@/lib/errors"
 import { backend, type StoredAudioSettings } from "@/lib/ipc"
+import { translatedText as t } from "@/lib/i18n"
 
 type EngineState = {
   /** Null until the backend has reported once. */
@@ -49,15 +50,15 @@ export async function refreshEngineStatus(): Promise<void> {
   try {
     await replyStatus(() => backend.engineStatus())
   } catch (error) {
-    reportError(error, "Could not read the audio engine")
+    reportError(error, t("Could not read the audio engine"))
   }
 }
 
 /** Loads the devices and the stored request, for the settings dialog. */
 export async function loadAudioDevices(): Promise<void> {
   const [hosts, request] = await Promise.all([
-    attempt(backend.engineDevices(), "Could not list audio devices"),
-    attempt(backend.engineSettings(), "Could not read the audio settings"),
+    attempt(backend.engineDevices(), t("Could not list audio devices")),
+    attempt(backend.engineSettings(), t("Could not read the audio settings")),
   ])
   if (hosts) useEngineStore.setState({ hosts })
   if (request) useEngineStore.setState({ request })
@@ -74,7 +75,7 @@ export async function configureEngine(
     })
     return status
   } catch (error) {
-    reportError(error, "Could not change the audio device")
+    reportError(error, t("Could not change the audio device"))
     return null
   }
 }

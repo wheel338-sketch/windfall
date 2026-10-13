@@ -29,20 +29,20 @@ import {
   processingCommand,
   type AudioClip,
 } from "./processing"
+import { translatedText as t, message, plainNumber } from "@/lib/i18n"
 
 export function ClipProcessingControls({ clips }: { clips: AudioClip[] }) {
   const [open, setOpen] = useState(false)
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger render={<Button size="sm" variant="outline" />}>
-        Stretch / tempo
+        {t("Stretch / tempo")}
       </DialogTrigger>
       <DialogContent className="max-h-[85vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Stretch and pitch</DialogTitle>
+          <DialogTitle>{t("Stretch and pitch")}</DialogTitle>
           <DialogDescription>
-            Prepare selected playlist clips. Original audio stays intact; Apply
-            is one undo step.
+            {t("Prepare selected playlist clips. Original audio stays intact; Apply is one undo step.")}
           </DialogDescription>
         </DialogHeader>
         {open && (
@@ -112,7 +112,7 @@ function ProcessingForm({
         .filter((clip): clip is AudioClip => clip?.content.type === "audio")
       if (latest.length !== clips.length)
         throw new Error(
-          "The selected clips changed. Close this window and select them again."
+          t("The selected clips changed. Close this window and select them again.")
         )
       const result = await backend.prepareClipCommand(
         processingCommand(latest, stretch, Number(pitch))
@@ -137,7 +137,7 @@ function ProcessingForm({
   return (
     <FieldGroup>
       <Field>
-        <FieldLabel>Playback mode</FieldLabel>
+        <FieldLabel>{t("Playback mode")}</FieldLabel>
         <ToggleGroup
           disabled={busy}
           value={[mode]}
@@ -145,18 +145,17 @@ function ProcessingForm({
             if (v[0]) setMode(v[0] as "tape" | "spectral")
           }}
         >
-          <ToggleGroupItem value="tape">Tape</ToggleGroupItem>
+          <ToggleGroupItem value="tape">{t("Tape")}</ToggleGroupItem>
           <ToggleGroupItem value="spectral">
-            Independent stretch
+            {t("Independent stretch")}
           </ToggleGroupItem>
         </ToggleGroup>
         <FieldDescription>
-          Tape links pitch to speed. Independent stretch keeps duration and
-          pitch separate.
+          {t("Tape links pitch to speed. Independent stretch keeps duration and pitch separate.")}
         </FieldDescription>
       </Field>
       <Field>
-        <FieldLabel htmlFor={id + "pitch"}>Pitch (semitones)</FieldLabel>
+        <FieldLabel htmlFor={id + "pitch"}>{t("Pitch (semitones)")}</FieldLabel>
         <Input
           id={id + "pitch"}
           type="number"
@@ -171,7 +170,7 @@ function ProcessingForm({
       {mode === "spectral" && (
         <>
           <Field>
-            <FieldLabel htmlFor={id + "ratio"}>Duration multiplier</FieldLabel>
+            <FieldLabel htmlFor={id + "ratio"}>{t("Duration multiplier")}</FieldLabel>
             <Input
               id={id + "ratio"}
               type="number"
@@ -183,12 +182,11 @@ function ProcessingForm({
               disabled={busy}
             />
             <FieldDescription>
-              1 keeps the source duration; 2 doubles it. Trims and fades follow
-              the same source interval.
+              {t("1 keeps the source duration; 2 doubles it. Trims and fades follow the same source interval.")}
             </FieldDescription>
           </Field>
           <Field>
-            <FieldLabel>Quality</FieldLabel>
+            <FieldLabel>{t("Quality")}</FieldLabel>
             <ToggleGroup
               disabled={busy}
               value={[quality]}
@@ -198,7 +196,7 @@ function ProcessingForm({
             >
               {(["fast", "standard", "high"] as const).map((q) => (
                 <ToggleGroupItem key={q} value={q}>
-                  {q === "fast" ? "Fast" : q === "high" ? "High" : "Standard"}
+                  {q === "fast" ? t("Fast") : q === "high" ? t("High") : t("Standard")}
                 </ToggleGroupItem>
               ))}
             </ToggleGroup>
@@ -206,7 +204,7 @@ function ProcessingForm({
               <Button
                 variant="outline"
                 size="sm"
-                aria-label="Choose the previous clip stretch quality"
+                aria-label={t("Choose the previous clip stretch quality")}
                 disabled={
                   busy || nextClipStretchQuality(quality, "previous") === null
                 }
@@ -215,19 +213,19 @@ function ProcessingForm({
                   if (next !== null) setQuality(next)
                 }}
               >
-                Previous
+                {t("Previous")}
               </Button>
               <Button
                 variant="outline"
                 size="sm"
-                aria-label="Choose the next clip stretch quality"
+                aria-label={t("Choose the next clip stretch quality")}
                 disabled={busy || nextClipStretchQuality(quality, "next") === null}
                 onClick={() => {
                   const next = nextClipStretchQuality(quality, "next")
                   if (next !== null) setQuality(next)
                 }}
               >
-                Next
+                {t("Next")}
               </Button>
             </div>
           </Field>
@@ -238,12 +236,12 @@ function ProcessingForm({
               onCheckedChange={setFormants}
               disabled={busy}
             />
-            <FieldLabel htmlFor={id + "formants"}>Preserve formants</FieldLabel>
+            <FieldLabel htmlFor={id + "formants"}>{t("Preserve formants")}</FieldLabel>
           </Field>
         </>
       )}
       <Field>
-        <FieldLabel htmlFor={id + "bpm"}>Source BPM</FieldLabel>
+        <FieldLabel htmlFor={id + "bpm"}>{t("Source BPM")}</FieldLabel>
         <Input
           id={id + "bpm"}
           type="number"
@@ -264,28 +262,26 @@ function ProcessingForm({
               )
             }
           >
-            Detect tempo
+            {t("Detect tempo")}
           </Button>
           <Button
             variant="outline"
             disabled={busy}
             onClick={() => void fit(false)}
           >
-            Fit to {tempo} BPM
+            {t("Fit to")}{" "}{tempo} BPM
           </Button>
         </div>
         <FieldDescription>
-          Fitting sets a fixed multiplier. Later project tempo changes do not
-          automatically refit. Detection uses the first whole source file and
-          can confuse half or double tempo.
+          {t("Fitting sets a fixed multiplier. Later project tempo changes do not automatically refit. Detection uses the first whole source file and can confuse half or double tempo.")}
         </FieldDescription>
       </Field>
       {candidates !== null && (
         <Field>
           <FieldDescription>
             {candidates.length
-              ? "Choose a candidate, then Fit. Scores show relative periodicity, not certainty."
-              : "No reliable tempo found. Enter source BPM or the whole file's beat count."}
+              ? t("Choose a candidate, then Fit. Scores show relative periodicity, not certainty.")
+              : t("No reliable tempo found. Enter source BPM or the whole file's beat count.")}
           </FieldDescription>
           <div className="flex flex-wrap gap-2">
             {candidates.map((c) => (
@@ -304,7 +300,7 @@ function ProcessingForm({
       )}
       <Field>
         <FieldLabel htmlFor={id + "beats"}>
-          Beats in the whole source file
+          {t("Beats in the whole source file")}
         </FieldLabel>
         <Input
           id={id + "beats"}
@@ -319,18 +315,18 @@ function ProcessingForm({
           disabled={busy || !singleSource}
           onClick={() => void fit(true)}
         >
-          Fit beat length to {tempo} BPM
+          {t("Fit beat length to")}{" "}{tempo} BPM
         </Button>
         <FieldDescription>
-          Beat-count fitting requires the selected clips to use one source file.
+          {t("Beat-count fitting requires the selected clips to use one source file.")}
         </FieldDescription>
       </Field>
       {error && <FieldError role="alert">{error}</FieldError>}
       <Button disabled={busy} onClick={() => void apply()}>
         {busy && <Spinner />}
         {busy
-          ? "Preparing audio…"
-          : `Apply to ${clips.length} clip${clips.length === 1 ? "" : "s"}`}
+          ? t("Preparing audio…")
+          : message("Apply to {count} clip{count2}", { count: plainNumber(clips.length), count2: clips.length === 1 ? "" : t("s") })}
       </Button>
     </FieldGroup>
   )

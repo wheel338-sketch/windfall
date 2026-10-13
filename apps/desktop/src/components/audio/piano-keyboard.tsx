@@ -2,6 +2,7 @@
 import * as React from "react"
 
 import { cn } from "@/lib/utils"
+import { translatedText as t } from "@/lib/i18n"
 
 const BLACK = [0, 1, 0, 1, 0, 0, 1, 0, 1, 0, 1, 0]
 const NAMES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]
@@ -428,7 +429,7 @@ function PianoKeyboard({
     <div
       ref={rootRef}
       role="group"
-      aria-label="Piano keyboard"
+      aria-label={t("Piano keyboard")}
       data-slot="piano-keyboard"
       data-orientation={orientation}
       data-disabled={disabled ? "" : undefined}

@@ -21,6 +21,7 @@ import {
   type TreeRow,
 } from "./tree-model"
 import { ROW_HEIGHT } from "./use-virtual-window"
+import { translatedText as t } from "@/lib/i18n"
 
 /** How far each level sits to the right of the one above. */
 const INDENT = 12
@@ -177,19 +178,19 @@ function StatusLine({ row, index }: { row: StatusRow; index: number }) {
       {row.status === "loading" && (
         <>
           <Spinner className="mr-1.5 size-3 shrink-0" />
-          <span className="truncate">Reading…</span>
+          <span className="truncate">{t("Reading…")}</span>
         </>
       )}
       {row.status === "empty" && (
-        <span className="truncate italic">Empty folder</span>
+        <span className="truncate italic">{t("Empty folder")}</span>
       )}
       {row.status === "error" && (
         <>
           {/* The folder's warning icon says it failed; the room here goes
               to the reason. */}
           <span data-name role="alert" className="min-w-0 truncate">
-            <span className="sr-only">Could not read this folder. </span>
-            {row.message || "Could not read this folder."}
+            <span className="sr-only">{t("Could not read this folder.")}{" "}</span>
+            {row.message || t("Could not read this folder.")}
           </span>
           <button
             type="button"
@@ -198,7 +199,7 @@ function StatusLine({ row, index }: { row: StatusRow; index: number }) {
             tabIndex={-1}
             className="ml-auto shrink-0 rounded-sm pl-2 font-medium text-foreground underline underline-offset-2 hover:text-brand"
           >
-            Retry
+            {t("Retry")}
           </button>
         </>
       )}

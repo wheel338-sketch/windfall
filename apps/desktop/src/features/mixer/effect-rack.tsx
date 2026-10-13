@@ -24,6 +24,7 @@ import {
 import { useEffectsUi } from "./effects-ui"
 import { EFFECT_ROW_HEIGHT } from "./layout"
 import { useEffectCount, useEffectIds, useSlotView } from "./strip-track"
+import { translatedText as t, message, plainNumber } from "@/lib/i18n"
 
 /** The line that shows where a dragged effect would land. */
 export function DropLine() {
@@ -55,7 +56,7 @@ const EffectSlotRow = memo(function EffectSlotRow({
   const focusing = useEffectsUi((state) => state.focusing === effect)
   const open = useRef<HTMLButtonElement>(null)
   const hint = useHint(
-    "Click to edit, drag to reorder or to another track (Ctrl copies). Alt+↑ or ↓ moves it, Delete removes it. Right-click for more"
+    t("Click to edit, drag to reorder or to another track (Ctrl copies). Alt+↑ or ↓ moves it, Delete removes it. Right-click for more")
   )
   // Delete means "this effect" while a slot has the focus and "this track"
   // anywhere else in the strip, so a slot is a scope of its own inside the
@@ -99,7 +100,7 @@ const EffectSlotRow = memo(function EffectSlotRow({
           tabIndex={-1}
           pressed={view.enabled}
           color="var(--wf-ok)"
-          aria-label={`${name} on`}
+          aria-label={message("{name} on", { name })}
           className="relative after:absolute after:-inset-1"
           onPressedChange={(on) => void setEffectEnabled(effect, on)}
         />
@@ -149,7 +150,7 @@ export const EffectRack = memo(function EffectRack({
 
   return (
     <ul
-      aria-label="Effects"
+      aria-label={t("Effects")}
       data-slot="effect-rack"
       className={cn(
         "ml-0.5 flex shrink-0 flex-col overflow-x-hidden overflow-y-auto overscroll-contain",
@@ -168,7 +169,7 @@ export const EffectRack = memo(function EffectRack({
         {full ? (
           <span
             data-slot="effect-rack-full"
-            title={`A track holds ${MAX_EFFECT_SLOTS} effects at most`}
+            title={message("A track holds {maxEffectSlots} effects at most", { maxEffectSlots: plainNumber(MAX_EFFECT_SLOTS) })}
             className="flex h-full items-center pl-1 font-readout text-[9px] text-muted-foreground"
           >
             {ids.length}/{MAX_EFFECT_SLOTS}
@@ -196,8 +197,8 @@ export function EffectBadge({ track, showEmpty, className }: EffectBadgeProps) {
   const count = useEffectCount(track)
   const hint = useHint(
     count === 0
-      ? "No effects on this track. Click to add one"
-      : "Click to see this track's effects"
+      ? t("No effects on this track. Click to add one")
+      : t("Click to see this track's effects")
   )
   if (count === 0 && !showEmpty) return null
   return (
@@ -205,7 +206,7 @@ export function EffectBadge({ track, showEmpty, className }: EffectBadgeProps) {
       type="button"
       data-slot="effect-badge"
       data-empty={count === 0 ? "" : undefined}
-      aria-label={count === 1 ? "FX: 1 effect" : `FX: ${count} effects`}
+      aria-label={count === 1 ? t("FX: 1 effect") : message("FX: {count} effects", { count: plainNumber(count) })}
       className={cn(
         "flex h-4 shrink-0 items-center gap-0.5 rounded-[3px] bg-muted px-1 font-readout text-[9px] leading-none text-foreground outline-none hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring data-empty:bg-transparent data-empty:text-muted-foreground data-empty:hover:bg-muted",
         className

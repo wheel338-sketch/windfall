@@ -1,6 +1,7 @@
 import { create } from "zustand"
 
 import { registry, type Action } from "@/lib/actions"
+import { dynamicTitle } from "@/lib/i18n"
 
 export const useProjectOverviewPanel = create(() => ({ open: false }))
 
@@ -11,7 +12,7 @@ export function closeProjectOverview() {
 const PROJECT_OVERVIEW_ACTIONS: Action[] = [
   {
     id: "view.projectOverview",
-    title: "Show project overview",
+    ...dynamicTitle("Show project overview", {}),
     section: "View",
     keywords: "channels patterns clips relationships",
     run: () => useProjectOverviewPanel.setState({ open: true }),

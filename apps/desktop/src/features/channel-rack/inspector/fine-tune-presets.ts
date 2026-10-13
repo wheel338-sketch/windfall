@@ -1,9 +1,10 @@
 import { joinTune, splitTune } from "../steps"
+import { translatedText as t } from "@/lib/i18n"
 
 export const FINE_TUNE_PRESETS = [
   { label: "−50", cents: -50 },
   { label: "−25", cents: -25 },
-  { label: "In tune", cents: 0 },
+  { get label() { return t("In tune") }, cents: 0 },
   { label: "+25", cents: 25 },
   { label: "+50", cents: 50 },
 ] as const

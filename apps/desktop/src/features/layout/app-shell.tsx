@@ -27,6 +27,8 @@ import { ScopePanel } from "@/features/analyzers/scope-panel"
 import { AnalyzerSmokeHost } from "@/features/analyzers/smoke-host"
 import { TransportBar } from "@/features/transport/transport-bar"
 import { resolveTheme, useUiStore } from "@/lib/store/ui"
+import { cn } from "@/lib/utils"
+import { LanguageBoundary } from "@/lib/i18n/boundary"
 
 import { PanelFrame } from "./panel-frame"
 import { PANELS, type PanelId } from "./panels"
@@ -57,8 +59,9 @@ const TOAST_CLASSES = {
   toast:
     "cn-toast min-h-6! gap-1.5! rounded-md! py-0.5! pr-7! pl-2! text-xs! shadow-md!",
   content: "min-w-0! flex-row! flex-wrap! items-baseline! gap-x-2! gap-y-0!",
-  title: "min-w-0! leading-5! wrap-anywhere!",
-  description: "min-w-0! leading-5! wrap-anywhere! text-muted-foreground!",
+  // Class lists, passed through cn so they are not mistaken for captions.
+  title: cn("min-w-0! leading-5! wrap-anywhere!"),
+  description: cn("min-w-0! leading-5! wrap-anywhere! text-muted-foreground!"),
   closeButton:
     "top-1/2! right-1! left-auto! size-4! -translate-y-1/2! transform-none! border-0! bg-transparent! text-muted-foreground! hover:text-foreground!",
 }
@@ -70,6 +73,7 @@ export function Overlays() {
   const offset = useToastOffset()
   return (
     <>
+      <LanguageBoundary>
       <PromptHost />
       <PresetRenderDialog />
       <ArchiveReport />
@@ -91,6 +95,7 @@ export function Overlays() {
       <AssistantPanel />
       <ScriptEditor />
       <GettingStartedDialog />
+      </LanguageBoundary>
       <Toaster
         theme={theme}
         position="bottom-right"
@@ -114,20 +119,25 @@ export function AppShell() {
   return (
     <TooltipProvider delay={500}>
       <ValueContextMenus>
-        <div className="flex h-full flex-col bg-chassis">
-          <TitleBar />
-          <TransportBar />
-          <Workspace />
-          <StatusBar />
-        </div>
+        {/* What translates while it renders is mounted again on a language
+            change. The palette, the settings, a MIDI review and the toasts
+            follow the language themselves, and keep what they hold. */}
+        <LanguageBoundary>
+          <div className="flex h-full flex-col bg-chassis">
+            <TitleBar />
+            <TransportBar />
+            <Workspace />
+            <StatusBar />
+          </div>
+          <ExportDialog />
+          <FlpImportDialog />
+          <RetainedSoundsDialog />
+          <AnalyzerSmokeHost />
+        </LanguageBoundary>
         <CommandPalette />
         <SettingsDialog />
-        <ExportDialog />
         <MidiDialogs />
-        <FlpImportDialog />
-        <RetainedSoundsDialog />
         <Overlays />
-        <AnalyzerSmokeHost />
       </ValueContextMenus>
     </TooltipProvider>
   )
@@ -147,18 +157,20 @@ export function PanelWindow({ panel }: { panel: PanelId }) {
   return (
     <TooltipProvider delay={500}>
       <ValueContextMenus>
-        <div className="h-full">
-          <PanelFrame title={title} panel={panel} detached>
-            <Panel />
-          </PanelFrame>
-        </div>
+        <LanguageBoundary>
+          <div className="h-full">
+            <PanelFrame title={title} panel={panel} detached>
+              <Panel />
+            </PanelFrame>
+          </div>
+          <ExportDialog />
+          <RecordingDialog />
+          <FlpImportDialog />
+          <RetainedSoundsDialog />
+        </LanguageBoundary>
         <CommandPalette />
         <SettingsDialog />
-        <ExportDialog />
-        <RecordingDialog />
         <MidiDialogs />
-        <FlpImportDialog />
-        <RetainedSoundsDialog />
         <Overlays />
       </ValueContextMenus>
     </TooltipProvider>

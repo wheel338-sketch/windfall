@@ -22,6 +22,7 @@ import {
 } from "@/components/audio"
 
 import { makeDemoPeaks } from "./demo-data"
+import { translatedText as t, message, plainNumber } from "@/lib/i18n"
 
 function Group({
   title,
@@ -98,7 +99,7 @@ const FADER_HEIGHTS = [
 function ControlledClip({ feed }: { feed: ReturnType<typeof createFeed> }) {
   const [clipped, setClipped] = React.useState(false)
   return (
-    <Cell caption="clipped prop">
+    <Cell caption={t("clipped prop")}>
       <div className="flex items-end gap-2" data-testid="clip-controlled">
         <LevelMeter
           subscribe={feed.subscribe}
@@ -109,7 +110,7 @@ function ControlledClip({ feed }: { feed: ReturnType<typeof createFeed> }) {
           pressed={clipped}
           onPressedChange={setClipped}
           color="var(--wf-meter-high)"
-          aria-label="Clip light on"
+          aria-label={t("Clip light on")}
         >
           C
         </ToggleLed>
@@ -142,7 +143,7 @@ function RemountedClip() {
   const [held, setHeld] = React.useState(false)
 
   return (
-    <Cell caption="set through the ref">
+    <Cell caption={t("set through the ref")}>
       <div className="flex items-end gap-2" data-testid="clip-ref">
         <div className="flex h-32 w-2.5 items-end">
           {mounted ? <HeldMeter held={held} onHeldChange={setHeld} /> : null}
@@ -152,14 +153,14 @@ function RemountedClip() {
             pressed={held}
             onPressedChange={setHeld}
             color="var(--wf-meter-high)"
-            aria-label="Latch a clip"
+            aria-label={t("Latch a clip")}
           >
             C
           </ToggleLed>
           <ToggleLed
             pressed={mounted}
             onPressedChange={setMounted}
-            aria-label="Meter mounted"
+            aria-label={t("Meter mounted")}
           >
             M
           </ToggleLed>
@@ -236,7 +237,7 @@ function StressRack() {
           size="sm"
           steps={steps}
           onToggle={handlers[row]}
-          aria-label={`Row ${row + 1}`}
+          aria-label={message("Row {row}", { row: plainNumber(row + 1) })}
         />
       ))}
     </StepGridGroup>
@@ -311,12 +312,12 @@ export function KitStates() {
 
   return (
     <div className="grid grid-cols-2 gap-3" data-testid="states">
-      <Group title="Knob">
+      <Group title={t("Knob")}>
         {SIZES.map((size, index) => (
-          <Cell key={size} caption={`${size}, unipolar`}>
+          <Cell key={size} caption={message("{size}, unipolar", { size })}>
             <Knob
               size={size}
-              label="Amount"
+              label={t("Amount")}
               defaultValue={0.5}
               {...knobs[index]}
               {...percentUnit}
@@ -324,31 +325,31 @@ export function KitStates() {
           </Cell>
         ))}
         {SIZES.map((size, index) => (
-          <Cell key={size} caption={`${size}, bipolar`}>
-            <PanControl size={size} label="Pan" {...pans[index]} />
+          <Cell key={size} caption={message("{size}, bipolar", { size })}>
+            <PanControl size={size} label={t("Pan")} {...pans[index]} />
           </Cell>
         ))}
-        <Cell caption="value shown">
+        <Cell caption={t("value shown")}>
           <Knob
-            label="Drive"
+            label={t("Drive")}
             showValue
             defaultValue={0.5}
             {...knobs[1]}
             {...percentUnit}
           />
         </Cell>
-        <Cell caption="own color">
+        <Cell caption={t("own color")}>
           <Knob
-            label="Width"
+            label={t("Width")}
             color="oklch(0.74 0.13 195)"
             defaultValue={0.5}
             {...colored}
             {...percentUnit}
           />
         </Cell>
-        <Cell caption="stepped 0 to 10">
+        <Cell caption={t("stepped 0 to 10")}>
           <Knob
-            label="Voices"
+            label={t("Voices")}
             showValue
             min={0}
             max={10}
@@ -357,17 +358,17 @@ export function KitStates() {
             {...stepped}
           />
         </Cell>
-        <Cell caption="disabled">
-          <Knob label="Amount" disabled value={0.4} />
+        <Cell caption={t("disabled")}>
+          <Knob label={t("Amount")} disabled value={0.4} />
         </Cell>
       </Group>
 
-      <Group title="Fader">
-        <Cell caption="gain, with meter">
+      <Group title={t("Fader")}>
+        <Cell caption={t("gain, with meter")}>
           <Fader
             {...gain}
             showValue
-            aria-label="Level"
+            aria-label={t("Level")}
             meter={
               <LevelMeter
                 subscribe={feed.subscribe}
@@ -376,10 +377,10 @@ export function KitStates() {
             }
           />
         </Cell>
-        <Cell caption="no marks">
-          <Fader {...gain} ticks={false} aria-label="Level without marks" />
+        <Cell caption={t("no marks")}>
+          <Fader {...gain} ticks={false} aria-label={t("Level without marks")} />
         </Cell>
-        <Cell caption="own range and marks">
+        <Cell caption={t("own range and marks")}>
           <Fader
             {...percentFader}
             min={0}
@@ -393,17 +394,17 @@ export function KitStates() {
               { value: 50, label: "50", strong: true },
               { value: 0, label: "0" },
             ]}
-            aria-label="Amount"
+            aria-label={t("Amount")}
           />
         </Cell>
-        <Cell caption="disabled">
-          <Fader value={0.5} disabled aria-label="Disabled level" />
+        <Cell caption={t("disabled")}>
+          <Fader value={0.5} disabled aria-label={t("Disabled level")} />
         </Cell>
         {FADER_HEIGHTS.map(({ height, caption }) => (
           <Cell key={height} caption={caption}>
             <Fader
               {...gain}
-              aria-label={`Level, ${caption} tall`}
+              aria-label={message("Level, {caption} tall", { caption })}
               data-testid={`fader-${height}`}
               className="h-auto"
               style={{ height }}
@@ -411,24 +412,24 @@ export function KitStates() {
           </Cell>
         ))}
         <div className="flex flex-col gap-4">
-          <Cell caption="horizontal gain">
+          <Cell caption={t("horizontal gain")}>
             <Fader
               orientation="horizontal"
               {...wideFader}
-              aria-label="Send level"
+              aria-label={t("Send level")}
             />
           </Cell>
-          <Cell caption="horizontal, short and thin">
+          <Cell caption={t("horizontal, short and thin")}>
             <Fader
               orientation="horizontal"
               size="sm"
               {...wideFader}
-              aria-label="Short send level"
+              aria-label={t("Short send level")}
               data-testid="fader-thin"
               className="w-24"
             />
           </Cell>
-          <Cell caption="horizontal, plain range">
+          <Cell caption={t("horizontal, plain range")}>
             <Fader
               orientation="horizontal"
               min={0}
@@ -437,40 +438,40 @@ export function KitStates() {
               {...plainFader}
               {...percentUnit}
               showValue
-              aria-label="Mix"
+              aria-label={t("Mix")}
             />
           </Cell>
         </div>
       </Group>
 
-      <Group title="Level meter">
-        <Cell caption="stereo">
+      <Group title={t("Level meter")}>
+        <Cell caption={t("stereo")}>
           <LevelMeter subscribe={feed.subscribe} />
         </Cell>
-        <Cell caption="mono">
+        <Cell caption={t("mono")}>
           <LevelMeter subscribe={feed.subscribe} channels={1} />
         </Cell>
-        <Cell caption="wide, no peak hold">
+        <Cell caption={t("wide, no peak hold")}>
           <LevelMeter
             subscribe={feed.subscribe}
             peakHoldMs={0}
             className="w-5"
           />
         </Cell>
-        <Cell caption="no clip light">
+        <Cell caption={t("no clip light")}>
           <LevelMeter subscribe={feed.subscribe} showClip={false} />
         </Cell>
         <ControlledClip feed={feed} />
         <RemountedClip />
         <div className="flex flex-col gap-4">
-          <Cell caption="horizontal stereo">
+          <Cell caption={t("horizontal stereo")}>
             <LevelMeter
               subscribe={feed.subscribe}
               orientation="horizontal"
               className="w-48"
             />
           </Cell>
-          <Cell caption="horizontal mono">
+          <Cell caption={t("horizontal mono")}>
             <LevelMeter
               subscribe={feed.subscribe}
               orientation="horizontal"
@@ -480,48 +481,46 @@ export function KitStates() {
           </Cell>
         </div>
         <p className="max-w-52 self-center text-[11px] text-muted-foreground">
-          The clip light stays on after a peak above 0 dB. Click a meter to
-          clear it. The C buttons own or set the light from outside, and M
-          unmounts a meter that gets its latch back when it returns.
+          {t("The clip light stays on after a peak above 0 dB. Click a meter to clear it. The C buttons own or set the light from outside, and M unmounts a meter that gets its latch back when it returns.")}
         </p>
       </Group>
 
-      <Group title="Toggle and number field">
+      <Group title={t("Toggle and number field")}>
         {SIZES.map((size) => (
-          <Cell key={size} caption={`button ${size}`}>
+          <Cell key={size} caption={message("button {size}", { size })}>
             <ToggleLed
               size={size}
               pressed={toggles.button}
               onPressedChange={flip("button")}
-              aria-label="Example"
+              aria-label={t("Example")}
             >
               A
             </ToggleLed>
           </Cell>
         ))}
         {SIZES.map((size) => (
-          <Cell key={size} caption={`light ${size}`}>
+          <Cell key={size} caption={message("light {size}", { size })}>
             <ToggleLed
               variant="dot"
               size={size}
               pressed={toggles.dot}
               onPressedChange={flip("dot")}
               color="var(--wf-meter-low)"
-              aria-label="Channel on"
+              aria-label={t("Channel on")}
             />
           </Cell>
         ))}
-        <Cell caption="arm">
+        <Cell caption={t("arm")}>
           <ToggleLed
             pressed={toggles.arm}
             onPressedChange={flip("arm")}
             color="var(--wf-arm, var(--wf-meter-high))"
-            aria-label="Arm for recording"
+            aria-label={t("Arm for recording")}
           >
             R
           </ToggleLed>
         </Cell>
-        <Cell caption="mute and solo">
+        <Cell caption={t("mute and solo")}>
           <MuteSolo
             muted={toggles.muted}
             solo={toggles.solo}
@@ -529,21 +528,21 @@ export function KitStates() {
             onSoloChange={flip("solo")}
           />
         </Cell>
-        <Cell caption="disabled">
+        <Cell caption={t("disabled")}>
           <MuteSolo muted solo={false} disabled />
         </Cell>
-        <Cell caption="whole numbers">
+        <Cell caption={t("whole numbers")}>
           <NumberField
-            aria-label="Bars"
+            aria-label={t("Bars")}
             min={1}
             max={64}
             defaultValue={8}
             {...whole}
           />
         </Cell>
-        <Cell caption="split drag">
+        <Cell caption={t("split drag")}>
           <NumberField
-            aria-label="Tempo"
+            aria-label={t("Tempo")}
             size="lg"
             min={10}
             max={522}
@@ -554,56 +553,56 @@ export function KitStates() {
             {...decimal}
           />
         </Cell>
-        <Cell caption="small">
+        <Cell caption={t("small")}>
           <NumberField
-            aria-label="Group"
+            aria-label={t("Group")}
             size="sm"
             min={0}
             max={16}
             {...small}
           />
         </Cell>
-        <Cell caption="disabled">
-          <NumberField aria-label="Disabled" value={24} disabled />
+        <Cell caption={t("disabled")}>
+          <NumberField aria-label={t("Disabled")} value={24} disabled />
         </Cell>
       </Group>
 
-      <Group title="Step button and step grid">
-        <Cell caption="off">
-          <StepButton on={false} aria-label="Off step" />
+      <Group title={t("Step button and step grid")}>
+        <Cell caption={t("off")}>
+          <StepButton on={false} aria-label={t("Off step")} />
         </Cell>
-        <Cell caption="off, other beat">
-          <StepButton on={false} alt aria-label="Off step on the other beat" />
+        <Cell caption={t("off, other beat")}>
+          <StepButton on={false} alt aria-label={t("Off step on the other beat")} />
         </Cell>
-        <Cell caption="on">
-          <StepButton on={single} onToggle={setSingle} aria-label="Step" />
+        <Cell caption={t("on")}>
+          <StepButton on={single} onToggle={setSingle} aria-label={t("Step")} />
         </Cell>
-        <Cell caption="playing">
-          <StepButton on={false} playing aria-label="Playing step" />
+        <Cell caption={t("playing")}>
+          <StepButton on={false} playing aria-label={t("Playing step")} />
         </Cell>
-        <Cell caption="on, playing">
-          <StepButton on playing aria-label="Lit playing step" />
+        <Cell caption={t("on, playing")}>
+          <StepButton on playing aria-label={t("Lit playing step")} />
         </Cell>
-        <Cell caption="own color">
+        <Cell caption={t("own color")}>
           <StepButton
             on
             color="oklch(0.74 0.13 195)"
-            aria-label="Colored step"
+            aria-label={t("Colored step")}
           />
         </Cell>
-        <Cell caption="disabled">
-          <StepButton on disabled aria-label="Disabled step" />
+        <Cell caption={t("disabled")}>
+          <StepButton on disabled aria-label={t("Disabled step")} />
         </Cell>
         {SIZES.map((size) => (
           <Cell key={size} caption={size}>
-            <StepButton on size={size} aria-label={`Step, ${size}`} />
+            <StepButton on size={size} aria-label={message("Step, {size}", { size })} />
           </Cell>
         ))}
-        <Cell caption="32 steps, small" className="w-full items-stretch">
+        <Cell caption={t("32 steps, small")} className="w-full items-stretch">
           <StepGrid
             size="sm"
             steps={steps}
-            aria-label="Thirty-two steps"
+            aria-label={t("Thirty-two steps")}
             onToggle={(step, on) =>
               setSteps((was) => was.map((lit, at) => (at === step ? on : lit)))
             }
@@ -615,17 +614,17 @@ export function KitStates() {
             data-testid="stress-toggle"
             pressed={stress}
             onPressedChange={setStress}
-            aria-label="Show 50 rows of 64 steps"
+            aria-label={t("Show 50 rows of 64 steps")}
           >
             50
           </ToggleLed>
-          Show 50 rows of 64 steps with a running playhead
+          {t("Show 50 rows of 64 steps with a running playhead")}
         </label>
         {stress ? <StressRack /> : null}
       </Group>
 
-      <Group title="Keyboard, waveform and envelope">
-        <Cell caption="piano-roll gutter">
+      <Group title={t("Keyboard, waveform and envelope")}>
+        <Cell caption={t("piano-roll gutter")}>
           <PianoKeyboard
             orientation="vertical"
             lowKey={60}
@@ -634,7 +633,7 @@ export function KitStates() {
           />
         </Cell>
         <div className="flex min-w-0 flex-1 flex-col gap-4">
-          <Cell caption="one octave, own color" className="items-stretch">
+          <Cell caption={t("one octave, own color")} className="items-stretch">
             <PianoKeyboard
               lowKey={60}
               highKey={72}
@@ -643,23 +642,23 @@ export function KitStates() {
               className="h-14"
             />
           </Cell>
-          <Cell caption="disabled" className="items-stretch">
+          <Cell caption={t("disabled")} className="items-stretch">
             <PianoKeyboard lowKey={48} highKey={72} disabled className="h-10" />
           </Cell>
           <Cell
-            caption="waveform with a playhead, no region"
+            caption={t("waveform with a playhead, no region")}
             className="items-stretch"
           >
             <Waveform ref={waveform} peaks={peaks} className="h-12" />
           </Cell>
           <Cell
-            caption="handles resting at both ends"
+            caption={t("handles resting at both ends")}
             className="items-stretch"
           >
             <FullRegion peaks={peaks} />
           </Cell>
           <Cell
-            caption="quiet sample, magnified, and the same at full scale"
+            caption={t("quiet sample, magnified, and the same at full scale")}
             className="items-stretch"
           >
             <div className="grid w-full grid-cols-2 gap-2">
@@ -671,7 +670,7 @@ export function KitStates() {
               <Waveform peaks={quietPeaks} normalize={false} className="h-12" />
             </div>
           </Cell>
-          <Cell caption="envelope, disabled" className="items-stretch">
+          <Cell caption={t("envelope, disabled")} className="items-stretch">
             <EnvelopeEditor
               attackMs={40}
               decayMs={300}

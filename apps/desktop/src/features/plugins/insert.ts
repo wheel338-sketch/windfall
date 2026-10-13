@@ -8,6 +8,7 @@ import { useUiStore } from "@/lib/store/ui"
 import { selectChannel } from "@/features/channel-rack/channel-ops"
 import { openEffect } from "@/features/mixer/effect-ops"
 import { reportError } from "@/lib/errors"
+import { translatedText as t } from "@/lib/i18n"
 
 const MIME = "application/x-windfall-plugin"
 type Destination = { channel?: number; track?: number; effect?: number; index?: number }
@@ -17,20 +18,20 @@ export function startPluginDrag(event: DragEvent, record: PluginRecord) {
   event.dataTransfer.setData("text/plain", record.name)
 }
 export async function insertPlugin(record: PluginRecord, destination: Destination = {}) {
-  if (record.status !== "builtin" && record.status !== "verified") throw new Error(record.detail ?? "This plugin is unavailable")
+  if (record.status !== "builtin" && record.status !== "verified") throw new Error(record.detail ?? t("This plugin is unavailable"))
   let result
   const project = useProjectStore.getState().project
-  if (destination.channel !== undefined && !project.channels.some((channel) => channel.id === destination.channel)) throw new Error("The destination channel was removed")
-  if (destination.track !== undefined && !project.mixer.tracks.some((track) => track.id === destination.track)) throw new Error("The destination mixer track was removed")
-  if (destination.effect !== undefined && !project.mixer.tracks.some((track) => (destination.track === undefined || track.id === destination.track) && track.effects.some((effect) => effect.id === destination.effect))) throw new Error("The destination effect slot was removed")
+  if (destination.channel !== undefined && !project.channels.some((channel) => channel.id === destination.channel)) throw new Error(t("The destination channel was removed"))
+  if (destination.track !== undefined && !project.mixer.tracks.some((track) => track.id === destination.track)) throw new Error(t("The destination mixer track was removed"))
+  if (destination.effect !== undefined && !project.mixer.tracks.some((track) => (destination.track === undefined || track.id === destination.track) && track.effects.some((effect) => effect.id === destination.effect))) throw new Error(t("The destination effect slot was removed"))
   if (record.format === "builtin") {
     if (record.instrument) {
-      if (!INSTRUMENT_KINDS.includes(record.id as InstrumentKind)) throw new Error("Unknown built-in instrument")
+      if (!INSTRUMENT_KINDS.includes(record.id as InstrumentKind)) throw new Error(t("Unknown built-in instrument"))
       const kind = record.id as InstrumentKind
       const channel = project.channels.find((c) => c.id === destination.channel)
       result = channel ? await dispatch({ type: "applyChannelPreset", id: channel.id, expected: channel, preset: { name: record.name, color: channel.color, volume: channel.volume, pan: channel.pan, source: { type: "instrument", params: instrumentDescriptor(kind).defaults } }, nameColor: false }) : await dispatch({ type: "addChannel", instrument: kind })
     } else {
-      if (!EFFECT_KINDS.includes(record.id as EffectKind)) throw new Error("Unknown built-in effect")
+      if (!EFFECT_KINDS.includes(record.id as EffectKind)) throw new Error(t("Unknown built-in effect"))
       const track = destination.track ?? useUiStore.getState().selectedTrack ?? 0
       result = destination.effect === undefined ? await dispatch({ type: "addEffect", track, kind: record.id as EffectKind, index: destination.index }) : await dispatch({ type: "replaceEffect", track, effect: destination.effect, kind: record.id as EffectKind })
     }
@@ -38,7 +39,7 @@ export async function insertPlugin(record: PluginRecord, destination: Destinatio
     const generation = getProjectGeneration()
     const revision = useProjectStore.getState().revision
     const state = await backend.timelineState()
-    if (generation !== getProjectGeneration() || revision !== useProjectStore.getState().revision) throw new Error("The project changed during plugin insertion")
+    if (generation !== getProjectGeneration() || revision !== useProjectStore.getState().revision) throw new Error(t("The project changed during plugin insertion"))
     const target = destination.channel !== undefined ? { type: "instrument" as const, channel: destination.channel } : destination.effect !== undefined ? { type: "effect" as const, effect: destination.effect } : null
     result = await backend.pluginsInsert(record.path, record.id, target, record.instrument ? null : (destination.track ?? useUiStore.getState().selectedTrack ?? 0), state.generation, state.revision)
     if (generation !== getProjectGeneration()) return
@@ -56,15 +57,15 @@ export function pluginDropHandlers(destination: Destination) {
       event.preventDefault(); event.stopPropagation()
       void (async () => {
         const value = JSON.parse(text) as { format: string; id: string; generation: number; revision: number }
-        if (value.generation !== getProjectGeneration() || value.revision !== useProjectStore.getState().revision) throw new Error("The project changed during the plugin drag")
+        if (value.generation !== getProjectGeneration() || value.revision !== useProjectStore.getState().revision) throw new Error(t("The project changed during the plugin drag"))
         const catalog = await backend.pluginDatabase()
-        if (value.generation !== getProjectGeneration() || value.revision !== useProjectStore.getState().revision) throw new Error("The project changed during the plugin drag")
+        if (value.generation !== getProjectGeneration() || value.revision !== useProjectStore.getState().revision) throw new Error(t("The project changed during the plugin drag"))
         const record = catalog.records.find((r) => r.format === value.format && r.id === value.id)
-        if (!record) throw new Error("This plugin is no longer in the catalog")
-        if ((destination.channel !== undefined) !== record.instrument && destination.channel !== undefined) throw new Error("Drop an instrument onto a channel")
-        if (destination.track !== undefined && record.instrument) throw new Error("Drop an effect onto a mixer slot")
+        if (!record) throw new Error(t("This plugin is no longer in the catalog"))
+        if ((destination.channel !== undefined) !== record.instrument && destination.channel !== undefined) throw new Error(t("Drop an instrument onto a channel"))
+        if (destination.track !== undefined && record.instrument) throw new Error(t("Drop an effect onto a mixer slot"))
         await insertPlugin(record, destination)
-      })().catch((error: unknown) => reportError(error, "Could not add plugin"))
+      })().catch((error: unknown) => reportError(error, t("Could not add plugin")))
     },
   }
 }

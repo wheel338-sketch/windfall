@@ -43,6 +43,7 @@ import { markerJumps } from "./marker-jumps"
 import { wheelInput, type GridMetrics } from "./metrics"
 import { currentSnapTicks, seekSong, songTick, toggleLoopSong } from "./ops"
 import { usePlaylistStore } from "./store"
+import { translatedText as t, dynamicTitle, message, plainNumber } from "@/lib/i18n"
 
 const RULER_COLORS = {
   ink: "var(--muted-foreground)",
@@ -206,8 +207,8 @@ export function Ruler({ metrics }: { metrics: GridMetrics }) {
   const lastSeek = useRef<number | null>(null)
   const hint = useHint(
     mode === "song"
-      ? `Click or drag to move the playhead. ${MODIFIER_HINTS.free}`
-      : "Click to set where the song starts. The transport is looping the pattern, so the song is not playing"
+      ? message("Click or drag to move the playhead. {free}", { free: MODIFIER_HINTS.free })
+      : t("Click to set where the song starts. The transport is looping the pattern, so the song is not playing")
   )
 
   usePlayhead((tick) => {
@@ -327,9 +328,9 @@ export function Ruler({ metrics }: { metrics: GridMetrics }) {
   }
 
   const items: ContextItem[] = [
-    { title: "Jump to the start", run: () => seekSong(0) },
+    { ...dynamicTitle("Jump to the start", {}), run: () => seekSong(0) },
     {
-      title: "Jump to the end of the song",
+      ...dynamicTitle("Jump to the end of the song", {}),
       run: () => seekSong(end),
       disabled: end === 0,
     },
@@ -346,11 +347,11 @@ export function Ruler({ metrics }: { metrics: GridMetrics }) {
     contextSeparator,
     "playlist.zoomToFit",
     {
-      title: loop ? "Stop at the end of the song" : "Loop the song",
+      ...dynamicTitle(loop ? "Stop at the end of the song" : "Loop the song", {}),
       run: toggleLoopSong,
     },
     {
-      title: follow ? "Stop following the playhead" : "Follow the playhead",
+      ...dynamicTitle(follow ? "Stop following the playhead" : "Follow the playhead", {}),
       run: toggleFollow,
     },
   ]
@@ -360,11 +361,11 @@ export function Ruler({ metrics }: { metrics: GridMetrics }) {
       <div
         ref={rootRef}
         role="slider"
-        aria-label="Song position"
+        aria-label={t("Song position")}
         aria-valuemin={0}
         aria-valuemax={Math.max(end, 1)}
         aria-valuenow={cursor}
-        aria-valuetext={`Bar ${musicalPosition(cursor, signature, timeline?.meters).bar}`}
+        aria-valuetext={message("Bar {bar}", { bar: plainNumber(musicalPosition(cursor, signature, timeline?.meters).bar) })}
         tabIndex={0}
         data-mode={mode}
         className="relative cursor-pointer overflow-hidden border-b bg-chassis/30"

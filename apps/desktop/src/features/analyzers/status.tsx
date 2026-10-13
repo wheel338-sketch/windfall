@@ -2,24 +2,25 @@ import { cn } from "@/lib/utils"
 
 import { useAnalyzerStatus } from "./feed"
 import type { AnalyzerReason, AnalyzerStatus } from "./types"
+import { translatedText as t } from "@/lib/i18n"
 
 const REASONS: Record<AnalyzerReason, string> = {
-  desktopRequired: "Needs the desktop app's audio engine",
-  notSubscribed: "Not connected to the analyzer",
-  invalidSlot: "Not connected to the analyzer",
-  subscriptionCapacity: "Four analyzer views are open already",
-  sourceCapacity: "Two other sources are being analyzed already",
-  staleProject: "The project changed",
-  sourceMissing: "This track is no longer in the project",
-  effectMissing: "This effect is no longer in the project",
-  effectNotOnSource: "This effect is not on the selected track",
-  rateUnsupported: "The audio device's sample rate is not supported",
-  latencyUnsupported: "This source's latency is more than a second",
-  preparation: "The analyzer could not be started",
-  exhausted: "The analyzer needs the app to be restarted",
-  audioStalled: "No audio is arriving",
-  viewStalled: "This view fell behind",
-  projectReplaced: "The project was replaced",
+  get desktopRequired() { return t("Needs the desktop app's audio engine") },
+  get notSubscribed() { return t("Not connected to the analyzer") },
+  get invalidSlot() { return t("Not connected to the analyzer") },
+  get subscriptionCapacity() { return t("Four analyzer views are open already") },
+  get sourceCapacity() { return t("Two other sources are being analyzed already") },
+  get staleProject() { return t("The project changed") },
+  get sourceMissing() { return t("This track is no longer in the project") },
+  get effectMissing() { return t("This effect is no longer in the project") },
+  get effectNotOnSource() { return t("This effect is not on the selected track") },
+  get rateUnsupported() { return t("The audio device's sample rate is not supported") },
+  get latencyUnsupported() { return t("This source's latency is more than a second") },
+  get preparation() { return t("The analyzer could not be started") },
+  get exhausted() { return t("The analyzer needs the app to be restarted") },
+  get audioStalled() { return t("No audio is arriving") },
+  get viewStalled() { return t("This view fell behind") },
+  get projectReplaced() { return t("The project was replaced") },
 }
 
 /**
@@ -27,24 +28,24 @@ const REASONS: Record<AnalyzerReason, string> = {
  * is drawn is current audio.
  */
 export function analyzerStatusText(status: AnalyzerStatus | null): string {
-  if (!status) return "No source selected"
+  if (!status) return t("No source selected")
   switch (status.phase) {
     case "idle":
-      return "No source selected"
+      return t("No source selected")
     case "preparing":
-      return "Starting…"
+      return t("Starting…")
     case "awaitingAudio":
-      return "Waiting for audio"
+      return t("Waiting for audio")
     case "live":
-      return "Live"
+      return t("Live")
     case "waitingForStream":
-      return "No audio device is open"
+      return t("No audio device is open")
     case "stalled":
-      return status.reason ? REASONS[status.reason] : "Stalled"
+      return status.reason ? REASONS[status.reason] : t("Stalled")
     case "unavailable":
       return REASONS[status.reason ?? "desktopRequired"]
     case "refused":
-      return status.reason ? REASONS[status.reason] : "Not available"
+      return status.reason ? REASONS[status.reason] : t("Not available")
   }
 }
 

@@ -1,8 +1,9 @@
+import { translatedText as t } from "@/lib/i18n"
 export const SIDECHAIN_PRESETS = [
-  { label: "Off", value: 0 },
-  { label: "Quiet", value: 0.5 },
-  { label: "Unity", value: 1 },
-  { label: "Loud", value: 1.5 },
+  { get label() { return t("Off") }, value: 0 },
+  { get label() { return t("Quiet") }, value: 0.5 },
+  { get label() { return t("Unity") }, value: 1 },
+  { get label() { return t("Loud") }, value: 1.5 },
 ] as const
 
 export function nextSidechainGain(current: number, preset: number): number | null {

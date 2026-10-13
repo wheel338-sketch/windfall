@@ -1,4 +1,5 @@
 import type { VisualSignal } from "./render"
+import { translatedText as t } from "@/lib/i18n"
 
 const N = 1024
 const HOP = 256
@@ -52,12 +53,12 @@ function powers(input: Float64Array): Float64Array {
 export function offlineSignal(samples: ArrayLike<number>, endFrame: number): VisualSignal | null {
   if (endFrame < N) return null
   const end = N + Math.floor((endFrame - N) / HOP) * HOP
-  if (end * 2 > samples.length) throw new Error("Analysis extends beyond the audio")
+  if (end * 2 > samples.length) throw new Error(t("Analysis extends beyond the audio"))
   const left = new Float64Array(N); const right = new Float64Array(N)
   let leftSquare = 0; let rightSquare = 0
   for (let i = 0; i < N; i += 1) {
     const l = samples[(end - N + i) * 2]; const r = samples[(end - N + i) * 2 + 1]
-    if (!Number.isFinite(l) || !Number.isFinite(r)) throw new Error("Audio contains an invalid sample")
+    if (!Number.isFinite(l) || !Number.isFinite(r)) throw new Error(t("Audio contains an invalid sample"))
     leftSquare += l * l; rightSquare += r * r
     const window = HANN[i]
     left[i] = l * window; right[i] = r * window

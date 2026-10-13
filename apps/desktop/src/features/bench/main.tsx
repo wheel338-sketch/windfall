@@ -4,6 +4,7 @@ import "@/index.css"
 
 import { BenchApp } from "./BenchApp"
 import { parseParams } from "./params"
+import { translatedText as t } from "@/lib/i18n"
 
 const params = parseParams(window.location.search)
 
@@ -13,7 +14,7 @@ document.documentElement.classList.remove("light", "dark")
 document.documentElement.classList.add(params.theme)
 
 const root = document.getElementById("root")
-if (!root) throw new Error("bench.html has no #root element")
+if (!root) throw new Error(t("bench.html has no #root element"))
 
 // No StrictMode: its double mount would create and destroy a GPU context
 // before the measured one.

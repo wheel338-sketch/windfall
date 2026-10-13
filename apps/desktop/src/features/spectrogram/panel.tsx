@@ -8,6 +8,7 @@ import {
 
 import { closeSpectrogram, useSpectrogramPanel } from "./actions"
 import { SpectrogramView } from "./view"
+import { translatedText as t } from "@/lib/i18n"
 
 /** Closing the panel immediately unmounts its realtime subscriber. */
 export function SpectrogramPanel() {
@@ -22,10 +23,9 @@ export function SpectrogramPanel() {
     >
       <DialogContent className="sm:max-w-2xl">
         <DialogHeader>
-          <DialogTitle>Spectrogram</DialogTitle>
+          <DialogTitle>{t("Spectrogram")}</DialogTitle>
           <DialogDescription>
-            Short history of engine power. Relative levels without hardware
-            calibration.
+            {t("Short history of engine power. Relative levels without hardware calibration.")}
           </DialogDescription>
         </DialogHeader>
         {open && <SpectrogramView />}

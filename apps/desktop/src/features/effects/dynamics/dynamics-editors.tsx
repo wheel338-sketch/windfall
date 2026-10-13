@@ -6,7 +6,7 @@ import type {
   TransientShaperParams,
 } from "@/bindings"
 import {
-  formatParam,
+  formatParamDisplay,
   ParamControl,
   ParamGroup,
   ParamRow,
@@ -24,6 +24,7 @@ import {
   TRANSIENT_RANGE_DB,
 } from "./curves"
 import { TransientDisplay } from "./transient-display"
+import { translatedText as t } from "@/lib/i18n"
 
 const NOTE = "text-[10px] leading-snug text-muted-foreground"
 const READOUT = "font-readout text-foreground/85"
@@ -40,7 +41,7 @@ export function OneKnobEditor({ effect, bind }: EditorProps<OneKnobParams>) {
     <div
       data-slot="one-knob-editor"
       role="group"
-      aria-label="One Knob settings"
+      aria-label={t("One Knob settings")}
       className="flex max-w-[26rem] items-center gap-4"
     >
       <ParamControl
@@ -51,22 +52,21 @@ export function OneKnobEditor({ effect, bind }: EditorProps<OneKnobParams>) {
       <GainReductionMeter effect={effect} label="One Knob" className="h-24" />
       <div className="flex min-w-0 flex-col gap-1">
         <p data-slot="one-knob-recipe" className={NOTE}>
-          Drive{" "}
+          {t("Drive")}{" "}
           <span className={READOUT}>+{recipe.inputGainDb.toFixed(1)} dB</span>{" "}
-          into three bands at{" "}
+          {t("into three bands at")}{" "}
           <span className={READOUT}>
-            {recipe.low.ratio.toFixed(1)}:1, {recipe.mid.ratio.toFixed(1)}:1
-            and {recipe.high.ratio.toFixed(1)}:1
+            {recipe.low.ratio.toFixed(1)}:1, {recipe.mid.ratio.toFixed(1)}{t(":1 and")}{" "}{recipe.high.ratio.toFixed(1)}:1
           </span>
-          , with a ceiling of{" "}
+          {t(", with a ceiling of")}{" "}
           <span className={READOUT}>{recipe.ceilingDb.toFixed(1)} dB</span>.
         </p>
         <p data-slot="one-knob-latency" className={NOTE}>
-          Delays this track by{" "}
+          {t("Delays this track by")}{" "}
           <span className={READOUT}>
             {formatLatency(maximizerLatencyFrames(sampleRate), sampleRate)}
           </span>
-          . For the bands themselves, use the Multiband Maximizer.
+          {t(". For the bands themselves, use the Multiband Maximizer.")}
         </p>
       </div>
     </div>
@@ -92,7 +92,7 @@ export function TransientShaperEditor({
     <div
       data-slot="transient-editor"
       role="group"
-      aria-label="Transient Shaper settings"
+      aria-label={t("Transient Shaper settings")}
       className="flex max-w-[30rem] flex-col gap-2"
     >
       <TransientDisplay attack={attack} sustain={sustain} listen={listen} />
@@ -116,7 +116,7 @@ export function TransientShaperEditor({
         description="Audition the whole sound, its attack, or its sustain in this chain. Use the output routing below to send the shaped parts to separate tracks; routed parts play independently of this selector"
       />
       <p data-slot="transient-amounts" className={NOTE}>
-        Attack <span className={READOUT}>{db(attack)}</span>, sustain{" "}
+        {t("Attack")}{" "}<span className={READOUT}>{db(attack)}</span>{t(", sustain")}{" "}
         <span className={READOUT}>{db(sustain)}</span>.
       </p>
     </div>
@@ -137,7 +137,7 @@ export function BassHarmonicsEditor({
     <div
       data-slot="bass-harmonics-editor"
       role="group"
-      aria-label="Bass Harmonics settings"
+      aria-label={t("Bass Harmonics settings")}
       className="flex max-w-[26rem] flex-col gap-2"
     >
       <ParamRow columns={3}>
@@ -155,13 +155,12 @@ export function BassHarmonicsEditor({
         />
       </ParamRow>
       <p data-slot="bass-harmonics-range" className={NOTE}>
-        Notes below{" "}
-        <span className={READOUT}>{formatParam(info, cutoff)}</span> gain an
-        octave above them, up to{" "}
+        {t("Notes below")}{" "}
+        <span className={READOUT}>{formatParamDisplay(info, cutoff)}</span>{" "}{t("gain an octave above them, up to")}{" "}
         <span className={READOUT}>
-          {formatParam({ ...info, max: info.max * 2 }, cutoff * 2)}
+          {formatParamDisplay({ ...info, max: info.max * 2 }, cutoff * 2)}
         </span>
-        , where small speakers can play them. Delays this track by{" "}
+        {t(", where small speakers can play them. Delays this track by")}{" "}
         <span className={READOUT}>
           {formatLatency(HARMONICS_LATENCY_FRAMES, sampleRate)}
         </span>
@@ -183,7 +182,7 @@ export function StageStackEditor({
     <div
       data-slot="stage-stack-editor"
       role="group"
-      aria-label="Stage Stack settings"
+      aria-label={t("Stage Stack settings")}
       className="flex max-w-[30rem] gap-3"
     >
       <GainReductionMeter effect={effect} label="Stage Stack" className="h-28" />
@@ -235,7 +234,7 @@ export function MasterLimiterEditor({
     <div
       data-slot="master-limiter-editor"
       role="group"
-      aria-label="Mastering Limiter settings"
+      aria-label={t("Mastering Limiter settings")}
       className="flex max-w-[40rem] gap-3"
     >
       <div className="flex shrink-0 flex-col items-center gap-2">
@@ -246,7 +245,7 @@ export function MasterLimiterEditor({
         />
         <GainReductionMeter
           effect={effect}
-          label="Mastering Limiter"
+          label={t("Mastering Limiter")}
           className="h-24"
         />
       </div>
@@ -291,9 +290,7 @@ export function MasterLimiterEditor({
           </ParamGroup>
         </div>
         <p data-slot="master-limiter-latency" className={NOTE}>
-          One gain for the whole band and both channels at every stage, so
-          the tonal balance and the stereo image stay as they came in. Looking
-          ahead delays this track by{" "}
+          {t("One gain for the whole band and both channels at every stage, so the tonal balance and the stereo image stay as they came in. Looking ahead delays this track by")}{" "}
           <span className={READOUT}>
             {formatLatency(masterLimiterLatencyFrames(sampleRate), sampleRate)}
           </span>

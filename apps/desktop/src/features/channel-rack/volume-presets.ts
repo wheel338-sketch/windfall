@@ -1,8 +1,9 @@
+import { translatedText as t } from "@/lib/i18n"
 export const CHANNEL_VOLUME_PRESETS = [
-  { label: "Quiet", value: 0.5 },
-  { label: "Default", value: 0.8 },
-  { label: "Unity", value: 1 },
-  { label: "Loud", value: 1.5 },
+  { get label() { return t("Quiet") }, value: 0.5 },
+  { get label() { return t("Default") }, value: 0.8 },
+  { get label() { return t("Unity") }, value: 1 },
+  { get label() { return t("Loud") }, value: 1.5 },
 ] as const
 
 export function nextChannelVolume(

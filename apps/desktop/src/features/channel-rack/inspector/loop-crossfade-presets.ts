@@ -1,8 +1,9 @@
+import { translatedText as t } from "@/lib/i18n"
 export const LOOP_CROSSFADE_PRESETS = [
-  { label: "None", crossfade: 0 },
-  { label: "Short", crossfade: 0.25 },
-  { label: "Medium", crossfade: 0.5 },
-  { label: "Long", crossfade: 1 },
+  { get label() { return t("None") }, crossfade: 0 },
+  { get label() { return t("Short") }, crossfade: 0.25 },
+  { get label() { return t("Medium") }, crossfade: 0.5 },
+  { get label() { return t("Long") }, crossfade: 1 },
 ] as const
 
 export function nextLoopCrossfade(

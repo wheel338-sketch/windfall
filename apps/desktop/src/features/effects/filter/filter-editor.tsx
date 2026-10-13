@@ -5,6 +5,7 @@ import { ParamControl, ParamGroup, ParamRow } from "@/features/params"
 import type { EditorProps } from "../editor-props"
 import { bandPass, highPass, highShelf, lowPass, lowShelf, notch, peak, seriesResponseDb } from "../response/curve"
 import { ResponseDisplay, type ResponseCurve } from "../response/response-display"
+import { translatedText as t, message } from "@/lib/i18n"
 
 /** A resonant sweep, with its transfer shown and automation on every control. */
 export function FilterEditor({ bind }: EditorProps<SelectableFilterParams>) {
@@ -24,10 +25,10 @@ export function FilterEditor({ bind }: EditorProps<SelectableFilterParams>) {
     return seriesResponseDb([section], grid)
   }
   return (
-    <div role="group" aria-label="Selectable filter settings" className="flex min-w-0 flex-col gap-2">
+    <div role="group" aria-label={t("Selectable filter settings")} className="flex min-w-0 flex-col gap-2">
       <ParamControl {...bind("mode")} choiceStyle="select" layout="inline" />
       <ResponseDisplay response={response} rangeDb={24}
-        label={`Resonant filter: ${info.choices[mode]?.label}, ${formatHz(hz)}, Q ${q.toFixed(2)}`} />
+        label={message("Resonant filter: {choicesLabel}, {hz}, Q {q}", { choicesLabel: info.choices[mode]?.label, hz: formatHz(hz), q: q.toFixed(2) })} />
       <ParamGroup title="Sweep">
         <ParamRow columns={3}>
           <ParamControl {...bind("frequencyHz")} description="Sweep the cutoff or center; right-click to draw an automation curve" />

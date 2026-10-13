@@ -18,6 +18,7 @@ import {
   setAutoPreview,
   useBrowserStore,
 } from "./store"
+import { dynamicTitle, translatedText as t } from "@/lib/i18n"
 
 const SECTION = "Browser"
 
@@ -29,14 +30,14 @@ const SECTION = "Browser"
 export const BROWSER_ACTIONS: Action[] = [
   {
     id: "browser.addFolder",
-    title: "Add folder to the browser…",
+    ...dynamicTitle("Add folder to the browser…", {}),
     section: SECTION,
     keywords: "samples library location directory user",
     run: addFolder,
   },
   {
     id: "browser.focusSearch",
-    title: "Filter the browser",
+    ...dynamicTitle("Filter the browser", {}),
     section: SECTION,
     defaultShortcut: "Mod+F",
     keywords: "search find samples sounds",
@@ -48,7 +49,7 @@ export const BROWSER_ACTIONS: Action[] = [
   },
   {
     id: "browser.toggleAutoPreview",
-    title: "Preview sounds when selected",
+    ...dynamicTitle("Preview sounds when selected", {}),
     section: SECTION,
     keywords: "audition auto play listen",
     checked: () => useBrowserStore.getState().autoPreview,
@@ -60,7 +61,7 @@ export const BROWSER_ACTIONS: Action[] = [
   },
   {
     id: "browser.stopPreview",
-    title: "Stop preview",
+    ...dynamicTitle("Stop preview", {}),
     section: SECTION,
     defaultShortcut: "Escape",
     keywords: "audition silence",
@@ -68,7 +69,7 @@ export const BROWSER_ACTIONS: Action[] = [
   },
   {
     id: "browser.previewSelected",
-    title: "Preview selected sound",
+    ...dynamicTitle("Preview selected sound", {}),
     section: SECTION,
     keywords: "audition play listen",
     enabled: () => selectedSound() !== null,
@@ -79,7 +80,7 @@ export const BROWSER_ACTIONS: Action[] = [
   },
   {
     id: "browser.addSelectedToRack",
-    title: "Add selected sound to the rack",
+    ...dynamicTitle("Add selected sound to the rack", {}),
     section: SECTION,
     keywords: "new channel sample load",
     enabled: () => selectedSound() !== null,
@@ -90,7 +91,7 @@ export const BROWSER_ACTIONS: Action[] = [
   },
   {
     id: "browser.addSelectedToPlaylist",
-    title: "Add selected sound to the playlist",
+    ...dynamicTitle("Add selected sound to the playlist", {}),
     section: SECTION,
     keywords: "audio clip timeline song place",
     enabled: () => selectedSound() !== null,
@@ -101,14 +102,14 @@ export const BROWSER_ACTIONS: Action[] = [
   },
   {
     id: "browser.replaceChannelSample",
-    title: "Replace selected channel's sample",
+    ...dynamicTitle("Replace selected channel's sample", {}),
     section: SECTION,
     keywords: "swap sound load",
     enabled: () =>
       selectedSound() !== null && selectedChannel()?.source.type === "sampler",
     whyDisabled: () =>
       selectedChannel()?.source.type === "instrument"
-        ? "Samplers only"
+        ? t("Samplers only")
         : undefined,
     run: async () => {
       const sound = selectedSound()
@@ -117,21 +118,21 @@ export const BROWSER_ACTIONS: Action[] = [
   },
   {
     id: "browser.refresh",
-    title: "Refresh browser folder",
+    ...dynamicTitle("Refresh browser folder", {}),
     section: SECTION,
     keywords: "reload rescan read again",
     run: refreshSelection,
   },
   {
     id: "browser.collapseFolders",
-    title: "Collapse folders",
+    ...dynamicTitle("Collapse folders", {}),
     section: SECTION,
     keywords: "close tree directories",
     run: collapseAllFolders,
   },
   {
     id: "browser.expandLoadedFolders",
-    title: "Expand loaded folders",
+    ...dynamicTitle("Expand loaded folders", {}),
     section: SECTION,
     keywords: "open tree directories",
     run: expandLoadedFolders,

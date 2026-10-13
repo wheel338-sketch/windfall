@@ -1,4 +1,4 @@
-import { dynamicTitle } from "@/lib/i18n"
+import { dynamicTitle, translatedText as t } from "@/lib/i18n"
 import type { PatternId, PlaylistTrack } from "@/bindings"
 import {
   invalidateActionsOn,
@@ -108,56 +108,56 @@ const TOOL_ACTIONS: {
 }[] = [
   {
     tool: "draw",
-    title: "Draw tool",
+    get title() { return t("Draw tool") },
     key: "D",
     flKey: "P",
     words: "pencil place clips",
   },
   {
     tool: "paint",
-    title: "Paint tool",
+    get title() { return t("Paint tool") },
     key: "B",
     flKey: "B",
     words: "brush repeat fill",
   },
   {
     tool: "select",
-    title: "Select tool",
+    get title() { return t("Select tool") },
     key: "S",
     flKey: "E",
     words: "marquee box",
   },
   {
     tool: "erase",
-    title: "Erase tool",
+    get title() { return t("Erase tool") },
     key: "E",
     flKey: "D",
     words: "delete rubber",
   },
   {
     tool: "mute",
-    title: "Mute tool",
+    get title() { return t("Mute tool") },
     key: "M",
     flKey: "T",
     words: "silence clips",
   },
   {
     tool: "slip",
-    title: "Slip tool",
+    get title() { return t("Slip tool") },
     key: "Y",
     flKey: "Y",
     words: "slide content offset fixed window",
   },
   {
     tool: "playback",
-    title: "Playback tool",
+    get title() { return t("Playback tool") },
     key: "Q",
     flKey: "Q",
     words: "scrub seek transport position",
   },
   {
     tool: "slice",
-    title: "Slice tool",
+    get title() { return t("Slice tool") },
     key: "C",
     flKey: "C",
     words: "cut split clips vertical line",
@@ -174,7 +174,7 @@ const ACTIONS: Action[] = [
   ...TIMELINE_ACTIONS,
   {
     id: "playlist.step",
-    title: "Step",
+    ...dynamicTitle("Step", {}),
     section: SECTION,
     defaultShortcut: "H",
     keywords: "automation draw held steps",
@@ -203,7 +203,7 @@ const ACTIONS: Action[] = [
 
   {
     id: "playlist.selectAll",
-    title: "Select all clips",
+    ...dynamicTitle("Select all clips", {}),
     section: SECTION,
     editCommand: "selectAll",
     defaultShortcut: "Mod+A",
@@ -212,14 +212,14 @@ const ACTIONS: Action[] = [
   },
   {
     id: "playlist.selectMatchingClips",
-    title: "Select matching clips",
+    ...dynamicTitle("Select matching clips", {}),
     section: SECTION,
     enabled: hasSelection,
     run: () => ui().select(selectMatchingClips(selectedClips(), playlist().clips)),
   },
   {
     id: "playlist.selectAtPlayhead",
-    title: "Select clips at the playhead",
+    ...dynamicTitle("Select clips at the playhead", {}),
     section: SECTION,
     enabled: (state) =>
       inPlaylist(state) &&
@@ -231,7 +231,7 @@ const ACTIONS: Action[] = [
   },
   {
     id: "playlist.selectMutedClips",
-    title: "Select muted clips",
+    ...dynamicTitle("Select muted clips", {}),
     section: SECTION,
     enabled: (state) =>
       inPlaylist(state) && mutedClipIds(playlist().clips).length > 0,
@@ -242,7 +242,7 @@ const ACTIONS: Action[] = [
   },
   {
     id: "playlist.selectClipsOnMutedTracks",
-    title: "Select clips on muted tracks",
+    ...dynamicTitle("Select clips on muted tracks", {}),
     section: SECTION,
     enabled: (state) =>
       inPlaylist(state) &&
@@ -254,7 +254,7 @@ const ACTIONS: Action[] = [
   },
   {
     id: "playlist.deselect",
-    title: "Deselect clips",
+    ...dynamicTitle("Deselect clips", {}),
     section: SECTION,
     defaultShortcut: "Escape",
     keywords: "clear selection cancel",
@@ -269,7 +269,7 @@ const ACTIONS: Action[] = [
   },
   {
     id: "playlist.deleteClips",
-    title: "Delete clips",
+    ...dynamicTitle("Delete clips", {}),
     section: SECTION,
     editCommand: "delete",
     defaultShortcut: ["Delete", "Backspace"],
@@ -279,7 +279,7 @@ const ACTIONS: Action[] = [
   },
   {
     id: "playlist.cut",
-    title: "Cut clips",
+    ...dynamicTitle("Cut clips", {}),
     section: SECTION,
     editCommand: "cut",
     defaultShortcut: "Mod+X",
@@ -288,7 +288,7 @@ const ACTIONS: Action[] = [
   },
   {
     id: "playlist.copy",
-    title: "Copy clips",
+    ...dynamicTitle("Copy clips", {}),
     section: SECTION,
     editCommand: "copy",
     defaultShortcut: "Mod+C",
@@ -299,7 +299,7 @@ const ACTIONS: Action[] = [
   },
   {
     id: "playlist.paste",
-    title: "Paste clips at the song position",
+    ...dynamicTitle("Paste clips at the song position", {}),
     section: SECTION,
     editCommand: "paste",
     defaultShortcut: "Mod+V",
@@ -308,7 +308,7 @@ const ACTIONS: Action[] = [
   },
   {
     id: "playlist.duplicate",
-    title: "Duplicate clips to the right",
+    ...dynamicTitle("Duplicate clips to the right", {}),
     section: SECTION,
     editCommand: "duplicate",
     defaultShortcut: "Mod+D",
@@ -322,66 +322,66 @@ const ACTIONS: Action[] = [
     section: SECTION,
     keywords: "clip length bars duration",
     enabled: hasSelection,
-    whyDisabled: () => "Select clips in the playlist",
+    whyDisabled: () => t("Select clips in the playlist"),
     run: () => setSelectedClipLength(bars),
   })),
   {
     id: "playlist.length.half",
-    title: "Halve selected clip lengths",
+    ...dynamicTitle("Halve selected clip lengths", {}),
     section: SECTION,
     keywords: "clip length half double duration",
     enabled: hasSelection,
-    whyDisabled: () => "Select clips in the playlist",
+    whyDisabled: () => t("Select clips in the playlist"),
     run: () => setSelectedClipLengthScale("half"),
   },
   {
     id: "playlist.length.double",
-    title: "Double selected clip lengths",
+    ...dynamicTitle("Double selected clip lengths", {}),
     section: SECTION,
     keywords: "clip length half double duration",
     enabled: hasSelection,
-    whyDisabled: () => "Select clips in the playlist",
+    whyDisabled: () => t("Select clips in the playlist"),
     run: () => setSelectedClipLengthScale("double"),
   },
   {
     id: "playlist.start.half",
-    title: "Halve selected clip starts",
+    ...dynamicTitle("Halve selected clip starts", {}),
     section: SECTION,
     keywords: "clip start half double position",
     enabled: hasSelection,
-    whyDisabled: () => "Select clips in the playlist",
+    whyDisabled: () => t("Select clips in the playlist"),
     run: () => setSelectedClipStartScale("half"),
   },
   {
     id: "playlist.start.double",
-    title: "Double selected clip starts",
+    ...dynamicTitle("Double selected clip starts", {}),
     section: SECTION,
     keywords: "clip start half double position",
     enabled: hasSelection,
-    whyDisabled: () => "Select clips in the playlist",
+    whyDisabled: () => t("Select clips in the playlist"),
     run: () => setSelectedClipStartScale("double"),
   },
   {
     id: "playlist.fromEnd.half",
-    title: "Halve selected clips from the end",
+    ...dynamicTitle("Halve selected clips from the end", {}),
     section: SECTION,
     keywords: "clip end half double length duration position",
     enabled: hasSelection,
-    whyDisabled: () => "Select clips in the playlist",
+    whyDisabled: () => t("Select clips in the playlist"),
     run: () => setSelectedClipFromEndScale("half"),
   },
   {
     id: "playlist.fromEnd.double",
-    title: "Double selected clips from the end",
+    ...dynamicTitle("Double selected clips from the end", {}),
     section: SECTION,
     keywords: "clip end half double length duration position",
     enabled: hasSelection,
-    whyDisabled: () => "Select clips in the playlist",
+    whyDisabled: () => t("Select clips in the playlist"),
     run: () => setSelectedClipFromEndScale("double"),
   },
   {
     id: "playlist.makeUnique",
-    title: "Make unique",
+    ...dynamicTitle("Make unique", {}),
     section: SECTION,
     enabled: (state) =>
       inPlaylist(state) && makeUniqueClipIds(selectedClips()).length > 0,
@@ -390,14 +390,14 @@ const ACTIONS: Action[] = [
       if (clips.length === 0) return
       await dispatch({
         type: "batch",
-        label: "Make unique",
+        label: t("Make unique"),
         commands: clips.map((clip) => ({ type: "makeUnique", clip })),
       })
     },
   },
   {
     id: "playlist.muteClips",
-    title: "Mute clips",
+    ...dynamicTitle("Mute clips", {}),
     section: SECTION,
     defaultShortcut: "Shift+M",
     keywords: "silence unmute",
@@ -410,7 +410,7 @@ const ACTIONS: Action[] = [
   },
   {
     id: "playlist.bounceSelectedClips",
-    title: "Bounce selected clips",
+    ...dynamicTitle("Bounce selected clips", {}),
     section: SECTION,
     keywords: "render audio consolidate mute sources",
     enabled: hasSelection,
@@ -418,7 +418,7 @@ const ACTIONS: Action[] = [
   },
   {
     id: "playlist.consolidateSelectedTracks",
-    title: "Consolidate tracks of selected clips",
+    ...dynamicTitle("Consolidate tracks of selected clips", {}),
     section: SECTION,
     keywords: "freeze render audio print bounce mute sources lane",
     enabled: (state) =>
@@ -428,7 +428,7 @@ const ACTIONS: Action[] = [
   },
   {
     id: "playlist.nudgeLeft",
-    title: "Move clips left",
+    ...dynamicTitle("Move clips left", {}),
     section: SECTION,
     defaultShortcut: "ArrowLeft",
     repeats: true,
@@ -438,7 +438,7 @@ const ACTIONS: Action[] = [
   },
   {
     id: "playlist.nudgeRight",
-    title: "Move clips right",
+    ...dynamicTitle("Move clips right", {}),
     section: SECTION,
     defaultShortcut: "ArrowRight",
     repeats: true,
@@ -448,7 +448,7 @@ const ACTIONS: Action[] = [
   },
   {
     id: "playlist.moveUp",
-    title: "Move clips up a track",
+    ...dynamicTitle("Move clips up a track", {}),
     section: SECTION,
     defaultShortcut: "ArrowUp",
     repeats: true,
@@ -457,7 +457,7 @@ const ACTIONS: Action[] = [
   },
   {
     id: "playlist.moveDown",
-    title: "Move clips down a track",
+    ...dynamicTitle("Move clips down a track", {}),
     section: SECTION,
     defaultShortcut: "ArrowDown",
     repeats: true,
@@ -466,7 +466,7 @@ const ACTIONS: Action[] = [
   },
   {
     id: "playlist.editPattern",
-    title: "Edit the clip's pattern",
+    ...dynamicTitle("Edit the clip's pattern", {}),
     section: SECTION,
     defaultShortcut: "Enter",
     keywords: "open channel rack",
@@ -475,7 +475,7 @@ const ACTIONS: Action[] = [
       inPlaylist(state) &&
       ui().selection.size === 1 &&
       selectedPatternClip() === null
-        ? "Pattern clips only"
+        ? t("Pattern clips only")
         : undefined,
     run: () => {
       const pattern = selectedPatternClip()
@@ -485,13 +485,13 @@ const ACTIONS: Action[] = [
 
   {
     id: "playlist.reverseClips",
-    title: "Reverse audio clips",
+    ...dynamicTitle("Reverse audio clips", {}),
     section: SECTION,
     keywords: "backwards flip",
     enabled: (state) => inPlaylist(state) && selectedAudioClips().length > 0,
     whyDisabled: (state) =>
       inPlaylist(state) && ui().selection.size > 0
-        ? "Audio clips only"
+        ? t("Audio clips only")
         : undefined,
     checked: () => {
       const clips = selectedAudioClips()
@@ -512,19 +512,19 @@ const ACTIONS: Action[] = [
   },
   {
     id: "playlist.compAudio",
-    title: "Comp selected audio takes…",
+    ...dynamicTitle("Comp selected audio takes…", {}),
     section: SECTION,
     keywords: "recording loop take composite ranges crossfade",
     enabled: (state) =>
       inPlaylist(state) &&
       selectedAudioClips().length > 0 &&
       selectedAudioClips().length <= 256,
-    whyDisabled: () => "Select 1–256 audio source clips",
+    whyDisabled: () => t("Select 1–256 audio source clips"),
     run: openAudioComp,
   },
   {
     id: "playlist.clipInspector",
-    title: "Audio clip settings",
+    ...dynamicTitle("Audio clip settings", {}),
     section: SECTION,
     keywords: "inspector gain pan pitch fade route show hide",
     checked: () => ui().inspectorOpen,
@@ -532,7 +532,7 @@ const ACTIONS: Action[] = [
   },
   {
     id: "playlist.groupAudioTakes",
-    title: "Group selected audio takes",
+    ...dynamicTitle("Group selected audio takes", {}),
     section: SECTION,
     keywords: "recording retained multitrack link passes",
     enabled: (state) =>
@@ -543,7 +543,7 @@ const ACTIONS: Action[] = [
   },
   {
     id: "playlist.compTakeGroup",
-    title: "Comp the selected recording group…",
+    ...dynamicTitle("Comp the selected recording group…", {}),
     section: SECTION,
     keywords: "linked synchronized multitrack takes crossfade",
     enabled: (state) =>
@@ -560,7 +560,7 @@ const ACTIONS: Action[] = [
   },
   {
     id: "playlist.tallTracks",
-    title: "Tall tracks",
+    ...dynamicTitle("Tall tracks", {}),
     section: SECTION,
     keywords: "row height automation curve zoom lanes",
     enabled: (state) => inPlaylist(state) && activeMetrics() !== null,
@@ -573,7 +573,7 @@ const ACTIONS: Action[] = [
 
   {
     id: "playlist.zoomToFit",
-    title: "Zoom to fit the song",
+    ...dynamicTitle("Zoom to fit the song", {}),
     section: SECTION,
     defaultShortcut: "Mod+0",
     keywords: "show all whole",
@@ -582,7 +582,7 @@ const ACTIONS: Action[] = [
   },
   {
     id: "playlist.zoomIn",
-    title: "Zoom in on the timeline",
+    ...dynamicTitle("Zoom in on the timeline", {}),
     section: SECTION,
     defaultShortcut: "Mod+=",
     repeats: true,
@@ -591,7 +591,7 @@ const ACTIONS: Action[] = [
   },
   {
     id: "playlist.zoomOut",
-    title: "Zoom out of the timeline",
+    ...dynamicTitle("Zoom out of the timeline", {}),
     section: SECTION,
     defaultShortcut: "Mod+-",
     repeats: true,
@@ -600,7 +600,7 @@ const ACTIONS: Action[] = [
   },
   {
     id: "playlist.follow",
-    title: "Follow the playhead",
+    ...dynamicTitle("Follow the playhead", {}),
     section: SECTION,
     keywords: "scroll auto",
     checked: () => ui().follow,
@@ -608,7 +608,7 @@ const ACTIONS: Action[] = [
   },
   {
     id: "playlist.patterns",
-    title: "Clip list",
+    ...dynamicTitle("Clip list", {}),
     section: SECTION,
     keywords: "show hide toggle picker brush patterns audio automation",
     checked: () => ui().pickerOpen,
@@ -616,7 +616,7 @@ const ACTIONS: Action[] = [
   },
   {
     id: "playlist.loopSong",
-    title: "Loop the song",
+    ...dynamicTitle("Loop the song", {}),
     section: SECTION,
     keywords: "repeat end restart",
     checked: (state) => state.transport.loopSong,
@@ -624,7 +624,7 @@ const ACTIONS: Action[] = [
   },
   {
     id: "playlist.playSong",
-    title: "Play the song now",
+    ...dynamicTitle("Play the song now", {}),
     section: SECTION,
     keywords: "song mode start playlist",
     enabled: (state) =>
@@ -634,28 +634,28 @@ const ACTIONS: Action[] = [
 
   {
     id: "playlist.addTrack",
-    title: "Add playlist track",
+    ...dynamicTitle("Add playlist track", {}),
     section: SECTION,
     keywords: "new lane row",
     run: addTrack,
   },
   {
     id: "playlist.addInstrumentTrack",
-    title: "New instrument track",
+    ...dynamicTitle("New instrument track", {}),
     section: SECTION,
     keywords: "channel mixer linked lane sampler conventional",
     run: addInstrumentTrack,
   },
   {
     id: "playlist.addAudioTrack",
-    title: "New audio track",
+    ...dynamicTitle("New audio track", {}),
     section: SECTION,
     keywords: "mixer insert linked lane recording conventional",
     run: addAudioTrack,
   },
   {
     id: "playlist.insertTrack",
-    title: "Insert a track above",
+    ...dynamicTitle("Insert a track above", {}),
     section: SECTION,
     keywords: "new lane row",
     enabled: hasTarget,
@@ -665,7 +665,7 @@ const ACTIONS: Action[] = [
   },
   {
     id: "playlist.moveTrackUp",
-    title: "Move playlist track up",
+    ...dynamicTitle("Move playlist track up", {}),
     section: SECTION,
     defaultShortcut: "Alt+ArrowUp",
     keywords: "reorder lane row",
@@ -674,7 +674,7 @@ const ACTIONS: Action[] = [
   },
   {
     id: "playlist.moveTrackDown",
-    title: "Move playlist track down",
+    ...dynamicTitle("Move playlist track down", {}),
     section: SECTION,
     defaultShortcut: "Alt+ArrowDown",
     keywords: "reorder lane row",
@@ -686,7 +686,7 @@ const ACTIONS: Action[] = [
   },
   {
     id: "playlist.renameTrack",
-    title: "Rename playlist track…",
+    ...dynamicTitle("Rename playlist track…", {}),
     section: SECTION,
     defaultShortcut: "F2",
     enabled: hasTarget,
@@ -694,7 +694,7 @@ const ACTIONS: Action[] = [
   },
   {
     id: "playlist.selectTrackClips",
-    title: "Select clips on this track",
+    ...dynamicTitle("Select clips on this track", {}),
     section: SECTION,
     enabled: () => {
       const track = targetTrack()
@@ -709,7 +709,7 @@ const ACTIONS: Action[] = [
   },
   {
     id: "playlist.consolidateTrack",
-    title: "Consolidate track",
+    ...dynamicTitle("Consolidate track", {}),
     section: SECTION,
     keywords: "freeze render audio print bounce mute sources lane",
     enabled: () => {
@@ -720,13 +720,13 @@ const ACTIONS: Action[] = [
     },
     whyDisabled: () =>
       targetTrack() !== undefined
-        ? "No unmuted pattern or audio clip on it"
+        ? t("No unmuted pattern or audio clip on it")
         : undefined,
     run: withTarget((track) => consolidateTracks([track.id])),
   },
   {
     id: "playlist.muteTrack",
-    title: "Mute playlist track",
+    ...dynamicTitle("Mute playlist track", {}),
     section: SECTION,
     keywords: "silence lamp",
     enabled: hasTarget,
@@ -735,7 +735,7 @@ const ACTIONS: Action[] = [
   },
   {
     id: "playlist.deleteTrack",
-    title: "Delete playlist track…",
+    ...dynamicTitle("Delete playlist track…", {}),
     section: SECTION,
     keywords: "remove lane row",
     enabled: hasTarget,

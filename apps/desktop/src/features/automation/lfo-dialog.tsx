@@ -18,6 +18,7 @@ import { dispatch, onHistoryNavigation, useProjectStore } from "@/lib/store/proj
 import { getProjectGeneration, onProjectReplaced } from "@/lib/store/replaced"
 import { ticksPerBar } from "@/lib/time"
 import { MAX_PATTERN_STEPS, MAX_SONG_TICKS, PPQ, TICKS_PER_STEP } from "@/lib/units"
+import { translatedText as t, message, plainNumber } from "@/lib/i18n"
 
 type Capture = { generation: number; revision: number; serial: number }
 type Request = Capture & (
@@ -28,8 +29,8 @@ type Request = Capture & (
 /** Where a note LFO goes: one value per note at its start, or a curve along each note. */
 type NoteLfoMode = "onset" | "curve"
 const NOTE_LFO_MODES: { value: NoteLfoMode; label: string }[] = [
-  { value: "onset", label: "One value per note" },
-  { value: "curve", label: "Curve along each note" },
+  { value: "onset", get label() { return t("One value per note") } },
+  { value: "curve", get label() { return t("Curve along each note") } },
 ]
 const useLfoDialog = create<{ request: Request | null }>(() => ({ request: null }))
 let serial = 0
@@ -46,7 +47,7 @@ export function openNoteLfo() {
   const selected = session.editor.selectedNotes()
   const notes = selected.length ? selected : context.notes
   if (!notes.length) return
-  if (notes.length > 16384) { refuse("LFO selection is too large", "Choose at most 16,384 notes."); return }
+  if (notes.length > 16384) { refuse(t("LFO selection is too large"), t("Choose at most 16,384 notes.")); return }
   const ids = new Set(notes.map((note) => note.id))
   const stored = useProjectStore.getState().project.patterns.find((item) => item.id === context.pattern.id)
   useLfoDialog.setState({ request: {
@@ -145,8 +146,8 @@ function LfoForm({ request }: { request: Request }) {
   return <Dialog open onOpenChange={(open) => { if (!open && !submitting.current) closeLfoDialog() }}>
     <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-lg" showCloseButton={!pending}>
       <DialogHeader>
-        <DialogTitle>{request.kind === "piano" ? "Note-event LFO" : request.kind === "events" ? `Event LFO · ${request.label}` : `LFO · ${request.expected.name}`}</DialogTitle>
-        <DialogDescription>{request.kind === "piano" ? (curved ? `Write a curve along each of ${request.notes.length} captured notes in one undo step.` : `Write values at the onsets of ${request.notes.length} captured notes in one undo step.`) : request.kind === "events" ? "Write an editable LFO into this pattern's event lane, in pattern ticks. The lane is created at the control's current value when the pattern has none." : "Write an editable LFO into this curve's source ticks. Every clip sharing this curve follows the edit."}</DialogDescription>
+        <DialogTitle>{request.kind === "piano" ? t("Note-event LFO") : request.kind === "events" ? message("Event LFO · {requestLabel}", { requestLabel: request.label }) : `LFO · ${request.expected.name}`}</DialogTitle>
+        <DialogDescription>{request.kind === "piano" ? (curved ? message("Write a curve along each of {count} captured notes in one undo step.", { count: plainNumber(request.notes.length) }) : message("Write values at the onsets of {count} captured notes in one undo step.", { count: plainNumber(request.notes.length) })) : request.kind === "events" ? t("Write an editable LFO into this pattern's event lane, in pattern ticks. The lane is created at the control's current value when the pattern has none.") : t("Write an editable LFO into this curve's source ticks. Every clip sharing this curve follows the edit.")}</DialogDescription>
       </DialogHeader>
       <form className="flex flex-col gap-4" onSubmit={async (event) => {
         event.preventDefault()
@@ -165,42 +166,42 @@ function LfoForm({ request }: { request: Request }) {
           else setFailed(true)
         } finally { submitting.current = false; setPending(false) }
       }}>
-        <Field><FieldLabel>Shape</FieldLabel><Select items={LFO_WAVES} value={wave} disabled={pending} onValueChange={(value) => { const option = LFO_WAVES.find((item) => item.value === value); if (option) setWave(option.value) }}>
-          <SelectTrigger aria-label="LFO shape"><SelectValue /></SelectTrigger><SelectContent><SelectGroup>{LFO_WAVES.map((item) => <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>)}</SelectGroup></SelectContent>
+        <Field><FieldLabel>{t("Shape")}</FieldLabel><Select items={LFO_WAVES} value={wave} disabled={pending} onValueChange={(value) => { const option = LFO_WAVES.find((item) => item.value === value); if (option) setWave(option.value) }}>
+          <SelectTrigger aria-label={t("LFO shape")}><SelectValue /></SelectTrigger><SelectContent><SelectGroup>{LFO_WAVES.map((item) => <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>)}</SelectGroup></SelectContent>
         </Select></Field>
-        {preview && <svg role="img" aria-label="LFO shape preview" viewBox="0 0 320 70" className="h-20 w-full rounded border bg-display text-brand">
+        {preview && <svg role="img" aria-label={t("LFO shape preview")} viewBox="0 0 320 70" className="h-20 w-full rounded border bg-display text-brand">
           <path d="M0 34 H320" className="stroke-border" fill="none" /><polyline points={preview} fill="none" stroke="currentColor" strokeWidth={1.5} />
         </svg>}
         <FieldGroup className="grid grid-cols-2 gap-3">
-          <Numeric label="Period (ticks)" value={period} set={setPeriod} min={1} max={MAX_SONG_TICKS} />
-          <Numeric label="Phase (%)" value={phase} set={setPhase} min={0} max={100} step={0.1} />
-          <Numeric label="Center (%)" value={center} set={setCenter} min={0} max={100} step={0.1} />
-          <Numeric label="Depth (± %)" value={depth} set={setDepth} min={0} max={100} step={0.1} />
-          {wave === "square" && <Numeric label="Pulse width (%)" value={width} set={setWidth} min={0} max={100} step={0.1} />}
-          {wave === "sampleHold" && <Numeric label="Seed" value={seed} set={setSeed} min={0} max={4294967295} />}
-          <Numeric label={request.kind === "piano" ? "Origin (ticks)" : request.kind === "events" ? "Start (pattern ticks)" : "Start (source ticks)"} value={start} set={setStart} min={0} max={maximum} />
+          <Numeric label={t("Period (ticks)")} value={period} set={setPeriod} min={1} max={MAX_SONG_TICKS} />
+          <Numeric label={t("Phase (%)")} value={phase} set={setPhase} min={0} max={100} step={0.1} />
+          <Numeric label={t("Center (%)")} value={center} set={setCenter} min={0} max={100} step={0.1} />
+          <Numeric label={t("Depth (± %)")} value={depth} set={setDepth} min={0} max={100} step={0.1} />
+          {wave === "square" && <Numeric label={t("Pulse width (%)")} value={width} set={setWidth} min={0} max={100} step={0.1} />}
+          {wave === "sampleHold" && <Numeric label={t("Seed")} value={seed} set={setSeed} min={0} max={4294967295} />}
+          <Numeric label={request.kind === "piano" ? t("Origin (ticks)") : request.kind === "events" ? t("Start (pattern ticks)") : t("Start (source ticks)")} value={start} set={setStart} min={0} max={maximum} />
           {request.kind !== "piano" && <>
-            <Numeric label={request.kind === "events" ? "End (pattern ticks)" : "End (source ticks)"} value={end} set={setEnd} min={numeric(start) + 1} max={maximum} />
-            <Numeric label="Point spacing (ticks)" value={resolution} set={setResolution} min={1} max={MAX_SONG_TICKS} />
+            <Numeric label={request.kind === "events" ? t("End (pattern ticks)") : t("End (source ticks)")} value={end} set={setEnd} min={numeric(start) + 1} max={maximum} />
+            <Numeric label={t("Point spacing (ticks)")} value={resolution} set={setResolution} min={1} max={MAX_SONG_TICKS} />
           </>}
           {request.kind === "piano" && <>
-            <Field><FieldLabel>Event property</FieldLabel><Select value={property} onValueChange={(value) => { const option = LANE_KINDS.find((item) => item.id === value); if (option) setProperty(option.id) }}>
-              <SelectTrigger aria-label="LFO event property"><SelectValue /></SelectTrigger><SelectContent><SelectGroup>{LANE_KINDS.map((item) => <SelectItem key={item.id} value={item.id}>{item.label}</SelectItem>)}</SelectGroup></SelectContent>
+            <Field><FieldLabel>{t("Event property")}</FieldLabel><Select value={property} onValueChange={(value) => { const option = LANE_KINDS.find((item) => item.id === value); if (option) setProperty(option.id) }}>
+              <SelectTrigger aria-label={t("LFO event property")}><SelectValue /></SelectTrigger><SelectContent><SelectGroup>{LANE_KINDS.map((item) => <SelectItem key={item.id} value={item.id}>{item.label}</SelectItem>)}</SelectGroup></SelectContent>
             </Select></Field>
-            <Numeric label="Apply strength (%)" value={strength} set={setStrength} min={0} max={100} step={0.1} />
-            <Field><FieldLabel>Write as</FieldLabel><Select items={NOTE_LFO_MODES} value={mode} disabled={pending} onValueChange={(value) => { const option = NOTE_LFO_MODES.find((item) => item.value === value); if (option) setMode(option.value) }}>
-              <SelectTrigger aria-label="LFO note mode"><SelectValue /></SelectTrigger><SelectContent><SelectGroup>{NOTE_LFO_MODES.map((item) => <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>)}</SelectGroup></SelectContent>
+            <Numeric label={t("Apply strength (%)")} value={strength} set={setStrength} min={0} max={100} step={0.1} />
+            <Field><FieldLabel>{t("Write as")}</FieldLabel><Select items={NOTE_LFO_MODES} value={mode} disabled={pending} onValueChange={(value) => { const option = NOTE_LFO_MODES.find((item) => item.value === value); if (option) setMode(option.value) }}>
+              <SelectTrigger aria-label={t("LFO note mode")}><SelectValue /></SelectTrigger><SelectContent><SelectGroup>{NOTE_LFO_MODES.map((item) => <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>)}</SelectGroup></SelectContent>
             </Select></Field>
-            {curved && <Numeric label="Point spacing (ticks)" value={resolution} set={setResolution} min={1} max={maximum} />}
+            {curved && <Numeric label={t("Point spacing (ticks)")} value={resolution} set={setResolution} min={1} max={maximum} />}
           </>}
         </FieldGroup>
-        <div className="flex gap-1"><Button type="button" size="sm" variant="outline" onClick={() => setPeriod(String(PPQ))}>1 beat</Button><Button type="button" size="sm" variant="outline" onClick={() => setPeriod(String(ticksPerBar(useProjectStore.getState().project.settings.timeSignature)))}>1 bar</Button></div>
-        {request.kind === "piano" && mode === "curve" && property === "velocity" && <Alert><AlertDescription>Velocity is struck once at each note's start, so it is written as one value per note.</AlertDescription></Alert>}
-        <FieldDescription>{request.kind === "piano" ? "Center and depth span the selected property's full range; 50% is centered pan/fine pitch and neutral release/modulation. Apply strength blends with current note values. Notes retain their lengths, MIDI keys, articulation and color routing." : "Point spacing samples continuous shapes. Pulse and sample-and-hold use held values; saw and pulse jumps receive explicit boundaries. The curve outside Start–End is retained. Combined curves are limited to 4,096 points."} The preview shows up to eight cycles.</FieldDescription>
-        {!current && <Alert><AlertDescription>The project or selection changed. Close this tool and reopen the current source.</AlertDescription></Alert>}
-        {!controlsValid && <Alert><AlertDescription>Use finite values within the displayed ranges, with whole ticks and seeds.</AlertDescription></Alert>}
-        {failed && <Alert><AlertDescription>The LFO could not be applied. Reopen the current source or increase its period/point spacing if the curve reached its point limit.</AlertDescription></Alert>}
-        <DialogFooter><Button type="button" variant="ghost" disabled={pending} onClick={closeLfoDialog}>Cancel</Button><Button type="submit" disabled={pending || !current || !controlsValid}>{pending ? "Applying…" : "Write LFO"}</Button></DialogFooter>
+        <div className="flex gap-1"><Button type="button" size="sm" variant="outline" onClick={() => setPeriod(String(PPQ))}>{t("1 beat")}</Button><Button type="button" size="sm" variant="outline" onClick={() => setPeriod(String(ticksPerBar(useProjectStore.getState().project.settings.timeSignature)))}>{t("1 bar")}</Button></div>
+        {request.kind === "piano" && mode === "curve" && property === "velocity" && <Alert><AlertDescription>{t("Velocity is struck once at each note's start, so it is written as one value per note.")}</AlertDescription></Alert>}
+        <FieldDescription>{request.kind === "piano" ? t("Center and depth span the selected property's full range; 50% is centered pan/fine pitch and neutral release/modulation. Apply strength blends with current note values. Notes retain their lengths, MIDI keys, articulation and color routing.") : t("Point spacing samples continuous shapes. Pulse and sample-and-hold use held values; saw and pulse jumps receive explicit boundaries. The curve outside Start–End is retained. Combined curves are limited to 4,096 points.")}{" "}{t("The preview shows up to eight cycles.")}</FieldDescription>
+        {!current && <Alert><AlertDescription>{t("The project or selection changed. Close this tool and reopen the current source.")}</AlertDescription></Alert>}
+        {!controlsValid && <Alert><AlertDescription>{t("Use finite values within the displayed ranges, with whole ticks and seeds.")}</AlertDescription></Alert>}
+        {failed && <Alert><AlertDescription>{t("The LFO could not be applied. Reopen the current source or increase its period/point spacing if the curve reached its point limit.")}</AlertDescription></Alert>}
+        <DialogFooter><Button type="button" variant="ghost" disabled={pending} onClick={closeLfoDialog}>{t("Cancel")}</Button><Button type="submit" disabled={pending || !current || !controlsValid}>{pending ? t("Applying…") : t("Write LFO")}</Button></DialogFooter>
       </form>
     </DialogContent>
   </Dialog>

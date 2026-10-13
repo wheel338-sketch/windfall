@@ -1,6 +1,7 @@
 import { useRef } from "react"
 
 import { useRealtime } from "@/lib/store/realtime"
+import { translatedText as t } from "@/lib/i18n"
 
 const MAX_BINS = 64
 const HEIGHT = 160
@@ -34,17 +35,17 @@ export function SpectrumView() {
       quiet.current.hidden = sounding
       quiet.current.style.display = sounding ? "none" : ""
       quiet.current.textContent =
-        count === 0 ? "No spectrum available" : "Quiet"
+        count === 0 ? t("No spectrum available") : t("Quiet")
     }
   })
 
   return (
-    <section aria-label="Spectrum" className="flex flex-col gap-2">
+    <section aria-label={t("Spectrum")} className="flex flex-col gap-2">
       <div className="relative rounded-md bg-display p-4">
         <svg
           ref={plot}
           role="img"
-          aria-label="Current spectrum, low to high frequency"
+          aria-label={t("Current spectrum, low to high frequency")}
           viewBox={`0 0 ${MAX_BINS} ${HEIGHT}`}
           preserveAspectRatio="none"
           className="h-40 w-full text-brand"
@@ -65,12 +66,12 @@ export function SpectrumView() {
           ref={quiet}
           className="pointer-events-none absolute inset-0 flex items-center justify-center text-display-dim"
         >
-          No spectrum available
+          {t("No spectrum available")}
         </p>
       </div>
       <div className="flex justify-between text-xs text-muted-foreground">
         <span>DC</span>
-        <span>Power · −90 to 0 dB</span>
+        <span>{t("Power · −90 to 0 dB")}</span>
         <span>Nyquist</span>
       </div>
     </section>

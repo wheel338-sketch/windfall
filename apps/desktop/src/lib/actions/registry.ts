@@ -9,6 +9,7 @@ import type {
   SidePanel,
   Theme,
 } from "@/lib/store/ui"
+import { message } from "@/lib/i18n"
 
 /** What an action may look at to decide whether it is enabled or checked. */
 export type AppState = {
@@ -142,11 +143,11 @@ export function createRegistry(): Registry {
     register(added, options = {}) {
       for (const action of added) {
         if (actions.has(action.id)) {
-          throw new Error(`Action "${action.id}" is registered twice`)
+          throw new Error(message("Action \"{actionId}\" is registered twice", { actionId: action.id }))
         }
         if (action.editCommand !== undefined && action.scope === undefined) {
           throw new Error(
-            `Action "${action.id}" has an edit command but no scope`
+            message("Action \"{actionId}\" has an edit command but no scope", { actionId: action.id })
           )
         }
       }
@@ -155,7 +156,7 @@ export function createRegistry(): Registry {
         for (const id of Object.keys(shortcuts)) {
           if (!ids.has(id)) {
             throw new Error(
-              `A keymap preset names "${id}", which is not among the actions it was registered with`
+              message("A keymap preset names \"{id}\", which is not among the actions it was registered with", { id })
             )
           }
         }

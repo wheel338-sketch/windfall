@@ -1,8 +1,9 @@
 import type { AnalysisBackend } from "./types"
+import { translatedText as t } from "@/lib/i18n"
 
 export const BROWSER_REASON =
   "Native analysis requires the desktop app. No inference runs in the browser."
-const unavailable = () => Promise.reject(new Error(BROWSER_REASON))
+const unavailable = () => Promise.reject(new Error(t(BROWSER_REASON)))
 /** Honest mock: no weights, workers, fabricated review or successful apply. */
 export function unavailableAnalysis(): AnalysisBackend {
   return {
@@ -13,7 +14,7 @@ export function unavailableAnalysis(): AnalysisBackend {
       Promise.resolve({
         native: false,
         available: false,
-        reason: BROWSER_REASON,
+        reason: t(BROWSER_REASON),
         models: [],
       }),
     analysisModelImport: unavailable,

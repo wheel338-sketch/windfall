@@ -2,6 +2,7 @@ import { useEffect, useRef, type PointerEvent } from "react"
 import { Button } from "@/components/ui/button"
 import type { ParamBinder } from "@/features/params"
 import { ParamFader } from "../controls/param-fader"
+import { message, plainNumber, translatedText as t } from "@/lib/i18n"
 
 const POINTS = 8
 /** A fixed-time curve: draw across it, or edit its points by keyboard/value entry. */
@@ -16,7 +17,7 @@ export function PatternEditor({ bind, unit, kind }: {
   const ids = Array.from({ length: POINTS }, (_, i) => `${prefix}.${i}`)
   const values = ids.map((id) => bind.value(id))
   const min = kind === "gate" ? 0 : -1
-  const label = `Unit ${unit + 1} ${kind} envelope`
+  const label = message("Unit {unit} {kind} envelope", { unit: plainNumber(unit + 1), kind: t(kind) })
   const y = (value: number) => 90 - ((value - min) / (1 - min)) * 80
   const points = values.map((value, i) => `${10 + i * 40},${y(value)}`).join(" ")
   const draw = (event: PointerEvent<SVGSVGElement>) => {
@@ -48,12 +49,12 @@ export function PatternEditor({ bind, unit, kind }: {
   return (
     <section aria-label={label} className="flex min-w-0 flex-col gap-1">
       <div className="flex items-center justify-between gap-2">
-        <span className="text-xs text-muted-foreground">{kind === "gate" ? "Volume gate" : "Cutoff pattern"}</span>
+        <span className="text-xs text-muted-foreground">{kind === "gate" ? t("Volume gate") : t("Cutoff pattern")}</span>
         <Button size="xs" variant="outline" disabled={bind.disabled} onClick={flatten}>
-          {kind === "gate" ? "Open gate" : "Center cutoff"}
+          {kind === "gate" ? t("Open gate") : t("Center cutoff")}
         </Button>
       </div>
-      <svg role="img" aria-label={`${label}: ${values.map((v) => v.toFixed(2)).join(", ")}`}
+      <svg role="img" aria-label={message("{name}: {value}", { name: label, value: values.map((v) => plainNumber(Number(v.toFixed(2)))).join(", ") })}
         data-slot={`${kind}-pattern`} viewBox="0 0 320 100"
         className="h-24 w-full touch-none rounded-md border bg-chassis text-foreground"
         onPointerDown={(event) => {

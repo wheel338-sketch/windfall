@@ -9,6 +9,7 @@ import { useHistory } from "@/lib/store/selectors"
 import { cn } from "@/lib/utils"
 
 import { matchingRuns } from "./history-filter"
+import { message, translatedText as t, plainNumber } from "@/lib/i18n"
 
 type StepState = "done" | "current" | "undone"
 
@@ -108,7 +109,7 @@ function RunRows({ run, cursor }: { run: HistoryRun; cursor: number }) {
         <button
           type="button"
           aria-expanded={open}
-          aria-label={`${open ? "Fold" : "Unfold"} the ${count} steps of ${run.label}`}
+          aria-label={message("{open} the {count} steps of {runLabel}", { open: open ? t("Fold") : t("Unfold"), count: plainNumber(count), runLabel: run.label })}
           // Open because the current step is inside: there is no folding it.
           disabled={inside}
           onClick={() => setUnfolded(!open)}
@@ -130,7 +131,7 @@ function RunRows({ run, cursor }: { run: HistoryRun; cursor: number }) {
       </div>
       {open && (
         <ol
-          aria-label={`Steps of ${run.label}`}
+          aria-label={message("Steps of {runLabel}", { runLabel: run.label })}
           className="flex flex-col gap-px"
         >
           {Array.from({ length: count }, (_, index) => (
@@ -162,7 +163,7 @@ export function HistoryList({
 }) {
   const { entries, cursor } = useHistory()
   const runs = matchingRuns(
-    [{ label: "Project opened", first: 0, last: 0 }, ...groupRuns(entries)],
+    [{ label: t("Project opened"), first: 0, last: 0 }, ...groupRuns(entries)],
     query
   )
   const list = useRef<HTMLOListElement>(null)
@@ -180,7 +181,7 @@ export function HistoryList({
   if (runs.length === 0) {
     return (
       <Empty className="p-2" role="status">
-        <EmptyDescription>No steps match.</EmptyDescription>
+        <EmptyDescription>{t("No steps match.")}</EmptyDescription>
       </Empty>
     )
   }
@@ -188,7 +189,7 @@ export function HistoryList({
   return (
     <ol
       ref={list}
-      aria-label="Undo history"
+      aria-label={t("Undo history")}
       className={cn("flex flex-col gap-px overflow-y-auto", className)}
     >
       {runs.map((run) =>

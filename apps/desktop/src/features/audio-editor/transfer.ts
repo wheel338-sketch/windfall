@@ -4,6 +4,7 @@ import { reportError } from "@/lib/errors"
 import { receivePatch } from "@/lib/store/project"
 import { getProjectGeneration } from "@/lib/store/replaced"
 import { usePlaylistStore } from "@/features/playlist/store"
+import { translatedText as t } from "@/lib/i18n"
 export const SELECTION_DRAG = "application/x-windfall-editor-selection"
 export type AudioEditDestination = {type:"sampler";channel:number} | {type:"playlist";track:number|null;start:number}
 export type AudioEditTransferRequest = {token:number;startFrame:number;endFrame:number;destination:AudioEditDestination}
@@ -35,7 +36,7 @@ export async function transferSelection(value: DragSelection, destination: Audio
   const receiver=receivers.get(value.token)
   receiver?.begin()
   try {
-    if (value.generation!==getProjectGeneration()) throw new Error("The selection belongs to an earlier project.")
+    if (value.generation!==getProjectGeneration()) throw new Error(t("The selection belongs to an earlier project."))
     const result=await backend.audioEditorTransfer({token:value.token,startFrame:value.startFrame,endFrame:value.endFrame,destination})
     if (value.generation!==getProjectGeneration()) return
     receivePatch(result.patch)

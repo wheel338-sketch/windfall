@@ -6,6 +6,7 @@ import {
   withExtension,
   type PatternInfo,
 } from "../edit-math"
+import { translatedText as t, message, plainNumber } from "@/lib/i18n"
 
 /** Three simultaneous notes, including any pattern extension, in one dispatch. */
 export function chordInsertCommand(
@@ -19,7 +20,7 @@ export function chordInsertCommand(
     new Set(keys).size !== 3 ||
     keys.some((key) => !Number.isInteger(key) || key < 0 || key > 127)
   ) {
-    throw new Error("A triad needs three distinct MIDI keys from 0 to 127.")
+    throw new Error(t("A triad needs three distinct MIDI keys from 0 to 127."))
   }
   if (
     !Number.isInteger(start) ||
@@ -29,7 +30,7 @@ export function chordInsertCommand(
     start + length > MAX_PATTERN_TICKS
   ) {
     throw new Error(
-      `Use whole ticks, a positive length, and an end at or before ${MAX_PATTERN_TICKS}.`
+      message("Use whole ticks, a positive length, and an end at or before {maxPatternTicks}.", { maxPatternTicks: plainNumber(MAX_PATTERN_TICKS) })
     )
   }
   const notes = keys.map((key) => ({

@@ -1,5 +1,6 @@
+import { translatedText as t } from "@/lib/i18n"
 export const LATENCY_PRESETS = [
-  { label: "None", value: 0 },
+  { get label() { return t("None") }, value: 0 },
   { label: "1 ms", value: 1 },
   { label: "5 ms", value: 5 },
   { label: "10 ms", value: 10 },

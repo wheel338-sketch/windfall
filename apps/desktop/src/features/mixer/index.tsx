@@ -36,6 +36,7 @@ import { maxEffectCount } from "./strip-track"
 import { DockStrips } from "./dock-strips"
 import { MixerToolbar } from "./toolbar"
 import { matchingTrackIds } from "./track-filter"
+import { translatedText as t } from "@/lib/i18n"
 
 /** Where the split between the strips and the effects is remembered. */
 const LAYOUT_KEY = "mixer:strips+effects"
@@ -70,13 +71,12 @@ function AddTrack({
       </ActionButton>
       {noMatches && (
         <Empty className="max-w-64 p-0 pt-0.5">
-          <EmptyDescription role="status">No tracks match.</EmptyDescription>
+          <EmptyDescription role="status">{t("No tracks match.")}</EmptyDescription>
         </Empty>
       )}
       {first && (
         <p className="max-w-64 pt-0.5 leading-snug text-muted-foreground">
-          No insert tracks yet. Every channel you add to the rack gets its own
-          track here, or add an empty one to use as a bus.
+          {t("No insert tracks yet. Every channel you add to the rack gets its own track here, or add an empty one to use as a bus.")}
         </p>
       )}
     </div>
@@ -280,7 +280,7 @@ export default function MixerPanel() {
           </ResizablePanel>
           {inspectorOpen && (
             <>
-              <ResizableHandle aria-label="Resize the effects" />
+              <ResizableHandle aria-label={t("Resize the effects")} />
               <ResizablePanel
                 id="effects"
                 defaultSize={inspectorWidth}

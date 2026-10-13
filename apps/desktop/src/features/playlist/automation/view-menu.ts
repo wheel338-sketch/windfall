@@ -14,6 +14,7 @@ import { askText } from "@/lib/store/prompts"
 import { project, selectedClips } from "../selectors"
 import { formatAutomationValue, parseAutomationValue } from "./format"
 import { chosenView, useCurveViews } from "./view-store"
+import { message, translatedText as t, dynamicTitle } from "@/lib/i18n"
 
 /*
  * Choosing how much of a curve's range its clips show: the entries of the
@@ -94,12 +95,12 @@ export async function typeViewRange(id: AutomationId): Promise<void> {
   const format = (value: number) =>
     formatAutomationValue(current, automation.target, value)
   const text = await askText({
-    title: `Range shown for ${automation.name}`,
+    title: message("Range shown for {automationName}", { automationName: automation.name }),
     description:
-      "The lowest and the highest value its clips show. This changes how the curve is drawn, not what it does.",
-    label: "From, to",
+      t("The lowest and the highest value its clips show. This changes how the curve is drawn, not what it does."),
+    label: t("From, to"),
     initial: `${format(view.lo)} to ${format(view.hi)}`,
-    submitLabel: "Set range",
+    submitLabel: t("Set range"),
   })
   if (text === null) return
   const found = automationById(id)
@@ -107,8 +108,8 @@ export async function typeViewRange(id: AutomationId): Promise<void> {
   const range = parseViewRange(found, text)
   if (!range) {
     refuse(
-      `"${text}" is not a range for ${automation.name}`,
-      `Type the lowest and the highest value to show, such as ${format(view.lo)} to ${format(view.hi)}.`
+      message("\"{text}\" is not a range for {automationName}", { text, automationName: automation.name }),
+      message("Type the lowest and the highest value to show, such as {format} to {format2}.", { format: format(view.lo), format2: format(view.hi) })
     )
     return
   }
@@ -132,32 +133,31 @@ export function viewRangeItems(ids: readonly AutomationId[]): ContextItem[] {
   const items: ContextItem[] = [
     {
       // "Fit" for the tempo, whose default is a fit of a kind already.
-      title:
-        tempo.length === automations.length ? "Fit to curve" : "Zoom to curve",
+      ...dynamicTitle(tempo.length === automations.length ? "Fit to curve" : "Zoom to curve", {}),
       run: all(fitViewToCurve),
     },
     {
-      title: "Full range",
+      ...dynamicTitle("Full range", {}),
       checked: automations.every((item) => isFullView(currentView(item))),
       run: all(showFullRange),
     },
     {
-      title: "Set range…",
+      ...dynamicTitle("Set range…", {}),
       disabled: automations.length !== 1,
-      reason: "One automation at a time",
+      reason: t("One automation at a time"),
       run: () => typeViewRange(automations[0].id),
     },
   ]
   if (tempo.length > 0) {
     items.push({
-      title: "Around the tempo",
+      ...dynamicTitle("Around the tempo", {}),
       checked: tempo.every((item) => chosenView(item.id) === undefined),
       run: () => {
         for (const automation of tempo) followTempo(automation.id)
       },
     })
   }
-  return [{ submenu: "Range shown", items }]
+  return [{ submenu: t("Range shown"), items }]
 }
 
 /** The same for the automation clips that are selected on the playlist. */

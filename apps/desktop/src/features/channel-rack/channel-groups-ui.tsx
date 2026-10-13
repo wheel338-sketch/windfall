@@ -41,6 +41,7 @@ import {
   type GroupRequest,
 } from "./channel-groups"
 import { useRackStore } from "./rack-store"
+import { translatedText as t, message, plainNumber } from "@/lib/i18n"
 
 const ALL = "all:"
 const UNGROUPED = "ungrouped:"
@@ -69,22 +70,22 @@ export function ChannelGroupFilter() {
             setFilter(value.slice(6))
         }}
       >
-        <SelectTrigger size="sm" aria-label="Channel group filter">
+        <SelectTrigger size="sm" aria-label={t("Channel group filter")}>
           <SelectValue>
             {filter === null
-              ? `All channels (${channels.length})`
+              ? message("All channels ({count})", { count: plainNumber(channels.length) })
               : filter === ""
-                ? `Ungrouped (${count})`
+                ? message("Ungrouped ({count})", { count: plainNumber(count) })
                 : `${filter} (${count})`}
           </SelectValue>
         </SelectTrigger>
         <SelectContent>
           <SelectGroup>
             <SelectItem value={ALL}>
-              All channels ({channels.length})
+              {t("All channels (")}{channels.length})
             </SelectItem>
             <SelectItem value={UNGROUPED}>
-              Ungrouped ({channels.filter((channel) => !channel.group).length})
+              {t("Ungrouped (")}{channels.filter((channel) => !channel.group).length})
             </SelectItem>
             {groups.map((name) => (
               <SelectItem key={name} value={groupValue(name)}>
@@ -96,10 +97,10 @@ export function ChannelGroupFilter() {
         </SelectContent>
       </Select>
       <span className="sr-only" aria-live="polite">
-        {count} visible channels
+        {count}{" "}{t("visible channels")}
       </span>
       <ActionButton action="channelRack.groups" variant="ghost" size="xs">
-        Groups…
+        {t("Groups…")}
       </ActionButton>
     </div>
   )
@@ -141,10 +142,9 @@ function GroupForm({ request }: { request: GroupRequest }) {
         showCloseButton={!pending}
       >
         <DialogHeader>
-          <DialogTitle>Channel groups</DialogTitle>
+          <DialogTitle>{t("Channel groups")}</DialogTitle>
           <DialogDescription>
-            Choose channels and assign a group. This changes their organization
-            in one undo step and keeps their music and routing.
+            {t("Choose channels and assign a group. This changes their organization in one undo step and keeps their music and routing.")}
           </DialogDescription>
         </DialogHeader>
         <form
@@ -167,7 +167,7 @@ function GroupForm({ request }: { request: GroupRequest }) {
         >
           <FieldGroup>
             <Field>
-              <FieldLabel>Target group</FieldLabel>
+              <FieldLabel>{t("Target group")}</FieldLabel>
               <Select
                 value={target}
                 disabled={pending}
@@ -175,31 +175,31 @@ function GroupForm({ request }: { request: GroupRequest }) {
                   if (typeof value === "string") setTarget(value)
                 }}
               >
-                <SelectTrigger aria-label="Target channel group">
+                <SelectTrigger aria-label={t("Target channel group")}>
                   <SelectValue>
                     {target === NEW
-                      ? "New group…"
+                      ? t("New group…")
                       : target === UNGROUPED
-                        ? "Ungrouped"
+                        ? t("Ungrouped")
                         : target.slice(6)}
                   </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   <SelectGroup>
-                    <SelectItem value={UNGROUPED}>Ungrouped</SelectItem>
+                    <SelectItem value={UNGROUPED}>{t("Ungrouped")}</SelectItem>
                     {groups.map((group) => (
                       <SelectItem key={group} value={groupValue(group)}>
                         {group}
                       </SelectItem>
                     ))}
-                    <SelectItem value={NEW}>New group…</SelectItem>
+                    <SelectItem value={NEW}>{t("New group…")}</SelectItem>
                   </SelectGroup>
                 </SelectContent>
               </Select>
             </Field>
             {target === NEW && (
               <Field data-invalid={!valid}>
-                <FieldLabel htmlFor={nameId}>Group name</FieldLabel>
+                <FieldLabel htmlFor={nameId}>{t("Group name")}</FieldLabel>
                 <Input
                   id={nameId}
                   value={name}
@@ -209,13 +209,12 @@ function GroupForm({ request }: { request: GroupRequest }) {
                   onChange={(event) => setName(event.target.value)}
                 />
                 <FieldDescription>
-                  Use a nonempty name up to 128 UTF-8 bytes. An existing name
-                  joins that group.
+                  {t("Use a nonempty name up to 128 UTF-8 bytes. An existing name joins that group.")}
                 </FieldDescription>
               </Field>
             )}
             <FieldSet>
-              <FieldLegend>Channels ({selected.size} selected)</FieldLegend>
+              <FieldLegend>{t("Channels (")}{selected.size}{" "}{t("selected)")}</FieldLegend>
               <div className="flex flex-wrap gap-1">
                 <Button
                   type="button"
@@ -228,7 +227,7 @@ function GroupForm({ request }: { request: GroupRequest }) {
                     )
                   }
                 >
-                  Select all
+                  {t("Select all")}
                 </Button>
                 <Button
                   type="button"
@@ -249,7 +248,7 @@ function GroupForm({ request }: { request: GroupRequest }) {
                     )
                   }
                 >
-                  Select visible
+                  {t("Select visible")}
                 </Button>
                 <Button
                   type="button"
@@ -258,7 +257,7 @@ function GroupForm({ request }: { request: GroupRequest }) {
                   disabled={pending}
                   onClick={() => setSelected(new Set())}
                 >
-                  Select none
+                  {t("Select none")}
                 </Button>
               </div>
               <FieldGroup className="max-h-64 overflow-y-auto rounded-md border p-3">
@@ -287,14 +286,14 @@ function GroupForm({ request }: { request: GroupRequest }) {
                     >
                       {channel.name}
                       <span className="text-muted-foreground">
-                        {channel.group || "Ungrouped"}
+                        {channel.group || t("Ungrouped")}
                       </span>
                     </FieldLabel>
                   </Field>
                 ))}
                 {request.channels.length === 0 && (
                   <FieldDescription>
-                    Add a channel to create your first group.
+                    {t("Add a channel to create your first group.")}
                   </FieldDescription>
                 )}
               </FieldGroup>
@@ -303,16 +302,14 @@ function GroupForm({ request }: { request: GroupRequest }) {
           {!current && (
             <Alert variant="destructive">
               <AlertDescription>
-                The project changed. Close and reopen Channel groups to see the
-                current channels.
+                {t("The project changed. Close and reopen Channel groups to see the current channels.")}
               </AlertDescription>
             </Alert>
           )}
           {failure && (
             <Alert variant="destructive">
               <AlertDescription>
-                The assignment could not be applied. Close and reopen the
-                manager to try again.
+                {t("The assignment could not be applied. Close and reopen the manager to try again.")}
               </AlertDescription>
             </Alert>
           )}
@@ -323,13 +320,13 @@ function GroupForm({ request }: { request: GroupRequest }) {
               disabled={pending}
               onClick={closeChannelGroups}
             >
-              Cancel
+              {t("Cancel")}
             </Button>
             <Button
               type="submit"
               disabled={pending || !current || !valid || selected.size === 0}
             >
-              {pending ? "Assigning…" : "Assign selected"}
+              {pending ? t("Assigning…") : t("Assign selected")}
             </Button>
           </DialogFooter>
         </form>

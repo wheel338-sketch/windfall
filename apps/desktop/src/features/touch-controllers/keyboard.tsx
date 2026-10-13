@@ -19,6 +19,7 @@ import {
 } from "./geometry"
 import { noteId, useHeldNotes } from "./held-notes"
 import { useTouchControllersStore } from "./store"
+import { translatedText as t, message, plainNumber } from "@/lib/i18n"
 
 /**
  * A keyboard for fingers: every touch holds its own key, and sliding plays
@@ -47,22 +48,22 @@ export function TouchKeyboard({ channel }: { channel: Channel }) {
           <Button
             variant="outline"
             size="icon-lg"
-            aria-label="Octave down"
+            aria-label={t("Octave down")}
             disabled={low <= 0}
             onClick={() => shiftOctave(-1)}
           >
             <HugeiconsIcon icon={ArrowLeft01Icon} strokeWidth={2} />
           </Button>
           <output
-            aria-label="Key range"
+            aria-label={t("Key range")}
             className="min-w-20 text-center font-readout text-xs"
           >
-            {noteName(low)} to {noteName(high)}
+            {noteName(low)}{" "}{t("to")}{" "}{noteName(high)}
           </output>
           <Button
             variant="outline"
             size="icon-lg"
-            aria-label="Octave up"
+            aria-label={t("Octave up")}
             disabled={low >= maxLowKey(octaves)}
             onClick={() => shiftOctave(1)}
           >
@@ -70,7 +71,7 @@ export function TouchKeyboard({ channel }: { channel: Channel }) {
           </Button>
         </div>
         <ToggleGroup
-          aria-label="Octaves shown"
+          aria-label={t("Octaves shown")}
           value={[String(octaves)]}
           variant="outline"
           size="sm"
@@ -83,7 +84,7 @@ export function TouchKeyboard({ channel }: { channel: Channel }) {
             <ToggleGroupItem
               key={range}
               value={String(range)}
-              aria-label={`${range} octaves`}
+              aria-label={message("{range} octaves", { range: plainNumber(range) })}
             >
               {range}
             </ToggleGroupItem>
@@ -91,7 +92,7 @@ export function TouchKeyboard({ channel }: { channel: Channel }) {
         </ToggleGroup>
       </div>
       <PianoKeyboard
-        aria-label={`Touch keyboard, ${channel.name}`}
+        aria-label={message("Touch keyboard, {channelName}", { channelName: channel.name })}
         lowKey={low}
         highKey={high}
         activeKeys={active}

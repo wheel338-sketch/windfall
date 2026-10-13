@@ -11,6 +11,7 @@ import { announceProjectReplaced } from "./replaced"
 import { receiveTransportState, refreshTransport } from "./transport"
 import { useUiStore } from "./ui"
 import { clearWarnings, receiveWarnings, samplesReloaded } from "./warnings"
+import { translatedText as t } from "@/lib/i18n"
 
 const LATENCY_REFRESH_MS = 150
 
@@ -63,7 +64,7 @@ export function connectStores(): () => void {
     }),
     backend.onProjectWarnings((warnings) => {
       receiveWarnings(warnings)
-      for (const warning of warnings) reportError(warning, "Project")
+      for (const warning of warnings) reportError(warning, t("Project"))
     }),
   ]
 

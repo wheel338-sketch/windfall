@@ -1,9 +1,11 @@
 import { inspectorEs } from "./inspector-messages"
 import { nativeEs } from "./native-messages"
 import { controlEs } from "./control-messages"
+import { areaEs } from "./messages"
 import type { Catalog } from "./types"
 
 export const es = {
+  ...areaEs,
   ...controlEs,
   ...nativeEs,
   ...inspectorEs,

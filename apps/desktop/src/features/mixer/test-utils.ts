@@ -4,6 +4,7 @@ import { vi } from "vitest"
 import type { MixerTrack } from "@/bindings"
 import { useProjectStore } from "@/lib/store/project"
 import { settle } from "@/test/harness"
+import { message } from "@/lib/i18n"
 
 /** Helpers the mixer's tests share. Not part of the app. */
 
@@ -13,13 +14,13 @@ export const tracks = () => project().mixer.tracks
 
 export function trackNamed(name: string): MixerTrack {
   const track = tracks().find((item) => item.name === name)
-  if (!track) throw new Error(`There is no track called "${name}"`)
+  if (!track) throw new Error(message("There is no track called \"{name}\"", { name }))
   return track
 }
 
 export function channelNamed(name: string) {
   const channel = project().channels.find((item) => item.name === name)
-  if (!channel) throw new Error(`There is no channel called "${name}"`)
+  if (!channel) throw new Error(message("There is no channel called \"{name}\"", { name }))
   return channel
 }
 

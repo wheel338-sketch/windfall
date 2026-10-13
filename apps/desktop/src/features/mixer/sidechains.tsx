@@ -27,6 +27,7 @@ import { nextSidechainPreset } from "./sidechain-preset-step"
 import { nextSidechainGain, SIDECHAIN_PRESETS } from "./sidechain-presets"
 import { nextSidechainGainScale } from "./sidechain-scale"
 import { useGestureValue } from "./use-gesture-value"
+import { translatedText as t, message } from "@/lib/i18n"
 
 function SidechainRow({ from, send }: { from: TrackId; send: Send }) {
   const target = useProjectStore(
@@ -43,7 +44,7 @@ function SidechainRow({ from, send }: { from: TrackId; send: Send }) {
     (): ContextItem[] => [
       ...trackValueItems(from, { sidechain: send.target }),
       {
-        submenu: "Sidechain level",
+        submenu: t("Sidechain level"),
         items: [
           ...SIDECHAIN_PRESETS.map((preset) => ({
             title: preset.label,
@@ -60,7 +61,7 @@ function SidechainRow({ from, send }: { from: TrackId; send: Send }) {
             },
           })),
           ...(["previous", "next"] as const).map((direction) => ({
-            title: direction === "previous" ? "Previous preset" : "Next preset",
+            title: direction === "previous" ? t("Previous preset") : t("Next preset"),
             disabled: nextSidechainPreset(send.gain, direction) === null,
             run: () => {
               const sidechain = useProjectStore
@@ -79,7 +80,7 @@ function SidechainRow({ from, send }: { from: TrackId; send: Send }) {
             },
           })),
           ...(["half", "double"] as const).map((factor) => ({
-            title: factor === "half" ? "Half" : "Double",
+            title: factor === "half" ? t("Half") : t("Double"),
             disabled: nextSidechainGainScale(send.gain, factor) === null,
             run: () => {
               const sidechain = useProjectStore
@@ -120,7 +121,7 @@ function SidechainRow({ from, send }: { from: TrackId; send: Send }) {
           max={MAX_GAIN}
           scale={faderTaper}
           defaultValue={1}
-          aria-label={`Sidechain level to ${target}`}
+          aria-label={message("Sidechain level to {target}", { target })}
           {...gainUnit}
           {...level}
         />
@@ -129,7 +130,7 @@ function SidechainRow({ from, send }: { from: TrackId; send: Send }) {
       <Button
         size="sm"
         variant="ghost"
-        aria-label={`Remove sidechain to ${target}`}
+        aria-label={message("Remove sidechain to {target}", { target })}
         onClick={() => void removeSidechain(from, send.target)}
       >
         ×
@@ -163,17 +164,15 @@ export function SidechainPanel({ track }: { track: TrackId }) {
               size="sm"
               className="w-full justify-start"
             >
-              Sidechain · {incoming.length} in / {sends.length} out
+              {t("Sidechain ·")}{" "}{incoming.length}{" "}{t("in /")}{" "}{sends.length}{" "}{t("out")}
             </Button>
           }
         />
         <PopoverContent align="start" className="w-80 space-y-3">
           <p className="text-xs text-muted-foreground">
-            Detector-only audio is kept separate from the destination's audible
-            input. Enable External sidechain on its compressor to use the
-            combined key bus.
+            {t("Detector-only audio is kept separate from the destination's audible input. Enable External sidechain on its compressor to use the combined key bus.")}
           </p>
-          <p className="text-xs font-medium">Detector inputs</p>
+          <p className="text-xs font-medium">{t("Detector inputs")}</p>
           {incoming.length ? (
             <ul className="max-h-36 space-y-1 overflow-y-auto">
               {incoming.map((item) => (
@@ -182,7 +181,7 @@ export function SidechainPanel({ track }: { track: TrackId }) {
                   <Button
                     size="sm"
                     variant="ghost"
-                    aria-label={`Remove detector input from ${item.name}`}
+                    aria-label={message("Remove detector input from {itemName}", { itemName: item.name })}
                     onClick={() => void removeSidechain(item.id, track)}
                   >
                     ×
@@ -192,12 +191,12 @@ export function SidechainPanel({ track }: { track: TrackId }) {
             </ul>
           ) : (
             <p className="text-xs text-muted-foreground">
-              No external detector signal.
+              {t("No external detector signal.")}
             </p>
           )}
           {track !== 0 && (
             <>
-              <p className="text-xs font-medium">Send to detectors</p>
+              <p className="text-xs font-medium">{t("Send to detectors")}</p>
               <ul className="max-h-48 space-y-1 overflow-y-auto">
                 {sends.map((send) => (
                   <SidechainRow key={send.target} from={track} send={send} />
@@ -220,8 +219,8 @@ export function SidechainPanel({ track }: { track: TrackId }) {
                     })
                 }}
               >
-                <SelectTrigger aria-label="Add detector-only sidechain">
-                  <SelectValue placeholder="Add sidechain destination…" />
+                <SelectTrigger aria-label={t("Add detector-only sidechain")}>
+                  <SelectValue placeholder={t("Add sidechain destination…")} />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectGroup>

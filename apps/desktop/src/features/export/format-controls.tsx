@@ -12,6 +12,7 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { formatSampleRate } from "@/lib/time"
 
 import { Choice, type Option } from "./choice"
+import { message, plainNumber, translatedText as t } from "@/lib/i18n"
 
 type Settings = Pick<
   ExportOptions,
@@ -27,9 +28,9 @@ const FORMATS: Option<ExportFormat>[] = [
   { value: "m4a", label: "M4A (AAC)" },
 ]
 const DEPTHS: Option<BitDepth>[] = [
-  { value: "int16", label: "16 bit" },
-  { value: "int24", label: "24 bit" },
-  { value: "float32", label: "32 bit float" },
+  { value: "int16", get label() { return t("16 bit") } },
+  { value: "int24", get label() { return t("24 bit") } },
+  { value: "float32", get label() { return t("32 bit float") } },
 ]
 const RATES = [44_100, 48_000, 88_200, 96_000]
 const MP3_DEFAULT: NonNullable<ExportOptions["mp3"]> = {
@@ -84,7 +85,7 @@ export function FormatControls({
   return (
     <FieldGroup>
       <Field data-disabled={disabled || undefined}>
-        <FieldTitle id="export-format-label">File format</FieldTitle>
+        <FieldTitle id="export-format-label">{t("File format")}</FieldTitle>
         <ToggleGroup
           aria-labelledby="export-format-label"
           value={[settings.format]}
@@ -106,18 +107,18 @@ export function FormatControls({
         {m4aReason && <FieldDescription>M4A: {m4aReason}</FieldDescription>}
         <FieldDescription>
           {settings.format === "wav"
-            ? "Uncompressed audio for editing and sharing with other music apps."
+            ? t("Uncompressed audio for editing and sharing with other music apps.")
             : settings.format === "flac" || settings.format === "wv"
-              ? "Lossless audio in a smaller file."
+              ? t("Lossless audio in a smaller file.")
               : settings.format === "ogg"
-                ? "Compressed Vorbis audio, with a choice of quality."
-                : "Compressed audio for players and sharing."}
+                ? t("Compressed Vorbis audio, with a choice of quality.")
+                : t("Compressed audio for players and sharing.")}
         </FieldDescription>
       </Field>
       <FieldGroup className="grid grid-cols-2 gap-3">
         {lossless && (
           <Field data-disabled={disabled || undefined}>
-            <FieldLabel htmlFor="export-depth">Bit depth</FieldLabel>
+            <FieldLabel htmlFor="export-depth">{t("Bit depth")}</FieldLabel>
             <Choice
               id="export-depth"
               value={settings.bitDepth}
@@ -132,7 +133,7 @@ export function FormatControls({
           </Field>
         )}
         <Field data-disabled={disabled || undefined}>
-          <FieldLabel htmlFor="export-rate">Sample rate</FieldLabel>
+          <FieldLabel htmlFor="export-rate">{t("Sample rate")}</FieldLabel>
           <Choice
             id="export-rate"
             value={settings.sampleRate}
@@ -146,14 +147,14 @@ export function FormatControls({
         </Field>
         {settings.format === "flac" && (
           <Field data-disabled={disabled || undefined}>
-            <FieldLabel htmlFor="export-flac-level">Compression</FieldLabel>
+            <FieldLabel htmlFor="export-flac-level">{t("Compression")}</FieldLabel>
             <Choice
               id="export-flac-level"
               value={settings.flacLevel ?? 5}
               options={[
-                { value: 0, label: "Fastest" },
-                { value: 5, label: "Standard" },
-                { value: 8, label: "Smallest file" },
+                { value: 0, label: t("Fastest") },
+                { value: 5, label: t("Standard") },
+                { value: 8, label: t("Smallest file") },
               ]}
               disabled={disabled}
               onChange={(value) => set("flacLevel", value)}
@@ -162,7 +163,7 @@ export function FormatControls({
         )}
         {settings.format === "m4a" && (
           <Field data-disabled={disabled || undefined}>
-            <FieldLabel htmlFor="export-aac-bitrate">AAC bitrate</FieldLabel>
+            <FieldLabel htmlFor="export-aac-bitrate">{t("AAC bitrate")}</FieldLabel>
             <Choice id="export-aac-bitrate" value={settings.aacBitrate ?? 192}
               options={[96, 128, 160, 192].map(value => ({value, label: `${value} kbps`}))}
               disabled={disabled} onChange={value => set("aacBitrate", value)} />
@@ -170,13 +171,13 @@ export function FormatControls({
         )}
         {settings.format === "ogg" && (
           <Field data-disabled={disabled || undefined}>
-            <FieldLabel htmlFor="export-ogg-quality">Vorbis quality</FieldLabel>
+            <FieldLabel htmlFor="export-ogg-quality">{t("Vorbis quality")}</FieldLabel>
             <Choice
               id="export-ogg-quality"
               value={settings.oggQuality ?? 6}
               options={Array.from({ length: 12 }, (_, index) => ({
                 value: index - 1,
-                label: `${index - 1}${index === 0 ? " (smallest)" : index === 11 ? " (highest)" : ""}`,
+                label: index === 0 ? message("{value} (smallest)", { value: plainNumber(index - 1) }) : index === 11 ? message("{value} (highest)", { value: plainNumber(index - 1) }) : String(index - 1),
               }))}
               disabled={disabled}
               onChange={(value) => set("oggQuality", value)}
@@ -186,13 +187,13 @@ export function FormatControls({
         {settings.format === "mp3" && (
           <>
             <Field data-disabled={disabled || undefined}>
-              <FieldLabel htmlFor="export-mp3-mode">Bitrate mode</FieldLabel>
+              <FieldLabel htmlFor="export-mp3-mode">{t("Bitrate mode")}</FieldLabel>
               <Choice
                 id="export-mp3-mode"
                 value={mp3.rate.mode}
                 options={[
-                  { value: "cbr", label: "Constant bitrate" },
-                  { value: "vbr", label: "Variable bitrate" },
+                  { value: "cbr", label: t("Constant bitrate") },
+                  { value: "vbr", label: t("Variable bitrate") },
                 ]}
                 disabled={disabled}
                 onChange={(mode) =>
@@ -208,7 +209,7 @@ export function FormatControls({
             </Field>
             <Field data-disabled={disabled || undefined}>
               <FieldLabel htmlFor="export-mp3-rate">
-                {mp3.rate.mode === "cbr" ? "Bitrate" : "MP3 quality"}
+                {mp3.rate.mode === "cbr" ? t("Bitrate") : t("MP3 quality")}
               </FieldLabel>
               {mp3.rate.mode === "cbr" ? (
                 <Choice
@@ -229,7 +230,7 @@ export function FormatControls({
                   value={mp3.rate.quality}
                   options={Array.from({ length: 10 }, (_, value) => ({
                     value,
-                    label: `${value}${value === 0 ? " (highest)" : value === 9 ? " (smallest)" : ""}`,
+                    label: value === 0 ? message("{value} (highest)", { value: plainNumber(value) }) : value === 9 ? message("{value} (smallest)", { value: plainNumber(value) }) : String(value),
                   }))}
                   disabled={disabled}
                   onChange={(quality) =>
@@ -239,14 +240,14 @@ export function FormatControls({
               )}
             </Field>
             <Field data-disabled={disabled || undefined}>
-              <FieldLabel htmlFor="export-mp3-channels">Channels</FieldLabel>
+              <FieldLabel htmlFor="export-mp3-channels">{t("Channels")}</FieldLabel>
               <Choice
                 id="export-mp3-channels"
                 value={mp3.channels}
                 options={[
-                  { value: "jointStereo", label: "Joint stereo" },
-                  { value: "stereo", label: "Stereo" },
-                  { value: "mono", label: "Mono" },
+                  { value: "jointStereo", label: t("Joint stereo") },
+                  { value: "stereo", label: t("Stereo") },
+                  { value: "mono", label: t("Mono") },
                 ]}
                 disabled={disabled}
                 onChange={(channels) => set("mp3", { ...mp3, channels })}

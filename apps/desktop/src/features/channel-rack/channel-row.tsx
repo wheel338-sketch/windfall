@@ -57,10 +57,8 @@ import type { WaveShape } from "./synth/wave-glyph"
 import { useGestureValue } from "./use-gesture-value"
 import { CHANNEL_VOLUME_PRESETS, nextChannelVolume } from "./volume-presets"
 import { nextChannelVolumeScale } from "./volume-scale"
+import { translatedText as t, message } from "@/lib/i18n"
 
-const STEPS_HINT =
-  "Click a step to turn it on or off, drag to paint, right-drag to erase. Enter toggles the focused step, Space plays or stops"
-const STEPS_HINT_WITH_DETAIL = `${STEPS_HINT}. A dot marks notes the step grid cannot show`
 
 type ChannelRowProps = {
   id: ChannelId
@@ -77,13 +75,13 @@ type ChannelRowProps = {
 
 function Grip({ id, name }: { id: ChannelId; name: string }) {
   const hint = useHint(
-    "Drag to move the channel up or down. Alt+Up and Alt+Down move the selected channel"
+    t("Drag to move the channel up or down. Alt+Up and Alt+Down move the selected channel")
   )
   return (
     <span
       draggable
       data-drag-channel={id}
-      aria-label={`Move ${name}`}
+      aria-label={message("Move {name}", { name })}
       role="img"
       className="flex h-5 cursor-grab items-center justify-center text-muted-foreground/50 hover:text-foreground active:cursor-grabbing"
       {...hint}
@@ -115,10 +113,10 @@ function Mix({
     dispatch({ type: "updateChannel", id, patch: { volume: value } })
   )
   const panHint = useHint(
-    `${name} pan: ${formatPan(panControl.value)}. Drag up or down, Shift for fine, double-click to center`
+    message("{name} pan: {pan}. Drag up or down, Shift for fine, double-click to center", { name, pan: formatPan(panControl.value) })
   )
   const volumeHint = useHint(
-    `${name} volume: ${formatGain(volumeControl.value)} (${formatPercent(volumeControl.value)}). Drag up or down, Shift for fine, double-click to reset`
+    message("{name} volume: {gain} ({percent}). Drag up or down, Shift for fine, double-click to reset", { name, gain: formatGain(volumeControl.value), percent: formatPercent(volumeControl.value) })
   )
 
   // What the knobs are bound to adds its own entries to their menus, and
@@ -139,7 +137,7 @@ function Mix({
         items={[
           ...panItems,
           {
-            submenu: "Pan",
+            submenu: t("Pan"),
             items: [
               ...CHANNEL_PAN_PRESETS.map((preset) => ({
                 title: preset.label,
@@ -156,7 +154,7 @@ function Mix({
               })),
               ...(["previous", "next"] as const).map((direction) => ({
                 title:
-                  direction === "previous" ? "Previous preset" : "Next preset",
+                  direction === "previous" ? t("Previous preset") : t("Next preset"),
                 disabled: nextChannelPanPreset(pan, direction) === null,
                 run: () => {
                   const channel = findChannel(id)
@@ -171,7 +169,7 @@ function Mix({
                 },
               })),
               ...(["half", "double"] as const).map((factor) => ({
-                title: factor === "half" ? "Half" : "Double",
+                title: factor === "half" ? t("Half") : t("Double"),
                 disabled: nextChannelPanScale(pan, factor) === null,
                 run: () => {
                   const channel = findChannel(id)
@@ -191,7 +189,7 @@ function Mix({
       >
         <PanControl
           size="sm"
-          aria-label={`${name} channel pan`}
+          aria-label={message("{name} channel pan", { name })}
           live={panLive}
           marker={panMarker}
           {...panControl}
@@ -202,7 +200,7 @@ function Mix({
         items={[
           ...volumeItems,
           {
-            submenu: "Volume",
+            submenu: t("Volume"),
             items: [
               ...CHANNEL_VOLUME_PRESETS.map((preset) => ({
                 title: preset.label,
@@ -219,7 +217,7 @@ function Mix({
               })),
               ...(["previous", "next"] as const).map((direction) => ({
                 title:
-                  direction === "previous" ? "Previous preset" : "Next preset",
+                  direction === "previous" ? t("Previous preset") : t("Next preset"),
                 disabled: nextChannelVolumePreset(volume, direction) === null,
                 run: () => {
                   const channel = findChannel(id)
@@ -234,7 +232,7 @@ function Mix({
                 },
               })),
               ...(["half", "double"] as const).map((factor) => ({
-                title: factor === "half" ? "Half" : "Double",
+                title: factor === "half" ? t("Half") : t("Double"),
                 disabled: nextChannelVolumeScale(volume, factor) === null,
                 run: () => {
                   const channel = findChannel(id)
@@ -254,7 +252,7 @@ function Mix({
       >
         <Knob
           size="sm"
-          aria-label={`${name} channel volume`}
+          aria-label={message("{name} channel volume", { name })}
           min={0}
           max={MAX_GAIN}
           scale={faderTaper}
@@ -332,7 +330,9 @@ export const ChannelRow = memo(function ChannelRow({
     [gesture, pattern, id]
   )
   const stepsHint = useHint(
-    detail.length > 0 ? STEPS_HINT_WITH_DETAIL : STEPS_HINT
+    detail.length > 0
+      ? t(t("Click a step to turn it on or off, drag to paint, right-drag to erase. Enter toggles the focused step, Space plays or stops. A dot marks notes the step grid cannot show"))
+      : t(t("Click a step to turn it on or off, drag to paint, right-drag to erase. Enter toggles the focused step, Space plays or stops"))
   )
 
   if (!channel) return null
@@ -434,7 +434,7 @@ export const ChannelRow = memo(function ChannelRow({
               color={colorToCss(channel.color)}
               groupSize={groupSize}
               beatShades={beatShades}
-              aria-label={`${channel.name} steps`}
+              aria-label={message("{channelName} steps", { channelName: channel.name })}
               stepLabel={stepLabel}
               onToggle={onToggle}
               onGestureStart={gesture.begin}

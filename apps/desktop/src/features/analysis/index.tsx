@@ -45,6 +45,7 @@ import {
   type AnalysisReview,
   type AnalysisTask,
 } from "./types"
+import { translatedText as t } from "@/lib/i18n"
 
 export function AnalysisButton() {
   const target = useAnalysisDialog((state) => state.target)
@@ -60,10 +61,9 @@ export function AnalysisButton() {
       <ActionButton action="analysis.remix" size="sm" variant="outline" />
       <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
         <DialogHeader>
-          <DialogTitle>Native analysis</DialogTitle>
+          <DialogTitle>{t("Native analysis")}</DialogTitle>
           <DialogDescription>
-            Review outputs before applying one undo step. Original sources and
-            applied output files remain available to history and saved projects.
+            {t("Review outputs before applying one undo step. Original sources and applied output files remain available to history and saved projects.")}
           </DialogDescription>
         </DialogHeader>
         {target && (
@@ -226,7 +226,7 @@ export function AnalysisPanel({
     )
       return
     if (sequence.current >= Number.MAX_SAFE_INTEGER) {
-      setError("Reopen this panel before continuing.")
+      setError(t("Reopen this panel before continuing."))
       return
     }
     const request = ++sequence.current
@@ -366,7 +366,7 @@ export function AnalysisPanel({
               }
               case "apply": {
                 if (!review) return
-                if (selectedRoles.length === 0) throw new Error("Select at least one output.")
+                if (selectedRoles.length === 0) throw new Error(t("Select at least one output."))
                 const result = await backend.analysisApply({
                   ticket: review.job.ticket,
                   request: review.job.request,
@@ -394,26 +394,23 @@ export function AnalysisPanel({
   return (
     <div className="flex flex-col gap-3 text-sm">
       <RecoveryControls />
-      {initialTask === "stemSeparation" && <section aria-label="Remix song workflow">
-        <p>1. Song loaded onto the playlist. 2. Choose a licensed local model and rendered frame range.
-          3. Review and audition drums, bass, vocals and other. 4. Import chosen stems onto aligned
-          playlist rows and mixer inserts.</p>
-        <p>The original song remains available. Loading it and importing reviewed stems are separate
-          undo steps. Choose the runtime library and default model pack in Settings → Stem separation.</p>
-        {remix.clip === clip && <p>Source tempo: {remix.tempoCandidates.length
+      {initialTask === "stemSeparation" && <section aria-label={t("Remix song workflow")}>
+        <p>{t("1. Song loaded onto the playlist. 2. Choose a licensed local model and rendered frame range. 3. Review and audition drums, bass, vocals and other. 4. Import chosen stems onto aligned playlist rows and mixer inserts.")}</p>
+        <p>{t("The original song remains available. Loading it and importing reviewed stems are separate undo steps. Choose the runtime library and default model pack in Settings → Stem separation.")}</p>
+        {remix.clip === clip && <p>{t("Source tempo:")}{" "}{remix.tempoCandidates.length
           ? remix.tempoCandidates.map((c) => `${c.bpm.toFixed(1)} BPM (${Math.round(c.confidence * 100)}%)`).join(" · ")
-          : "No reliable tempo estimate"}. Detection can return half or double tempo; stem audio stays aligned to the original recording.</p>}
-        {remix.clip === clip && remix.tempoProblem && <p role="status">Tempo detection: {remix.tempoProblem}</p>}
+          : t("No reliable tempo estimate")}{t(". Detection can return half or double tempo; stem audio stays aligned to the original recording.")}</p>}
+        {remix.clip === clip && remix.tempoProblem && <p role="status">{t("Tempo detection:")}{" "}{remix.tempoProblem}</p>}
       </section>}
-      {!capability && <p>Checking native availability…</p>}
+      {!capability && <p>{t("Checking native availability…")}</p>}
       {capability?.reason && (
         <p role="status">
-          {capability.reason ?? "No inference algorithm is available."}
+          {capability.reason ?? t("No inference algorithm is available.")}
         </p>
       )}
       {stale && (
         <p role="alert">
-          The project or clip selection changed. Close and reopen Analysis.
+          {t("The project or clip selection changed. Close and reopen Analysis.")}
         </p>
       )}
       {error && <p role="alert">{error}</p>}
@@ -421,22 +418,19 @@ export function AnalysisPanel({
         disabled={busy || stale || !capability?.native}
         className="flex flex-col gap-2"
       >
-        <legend>Explicit local model import</legend>
+        <legend>{t("Explicit local model import")}</legend>
         <p>
-          Import a pinned manifest and local file. No download or algorithm
-          installation occurs. Check its author, provenance and license before
-          importing. Registered ONNX contracts survive app restart; separation
-          uses the installed ONNX Runtime library selected in Settings. Classical dereverb needs no pack.
+          {t("Import a pinned manifest and local file. No download or algorithm installation occurs. Check its author, provenance and license before importing. Registered ONNX contracts survive app restart; separation uses the installed ONNX Runtime library selected in Settings. Classical dereverb needs no pack.")}
         </p>
         <Input
-          aria-label="Local model path"
+          aria-label={t("Local model path")}
           value={localPath}
           onChange={(e) => setLocalPath(e.target.value)}
           maxLength={2048}
         />
         <ActionButton action="analysis.chooseModel" variant="outline" />
         <textarea
-          aria-label="Pinned model manifest JSON"
+          aria-label={t("Pinned model manifest JSON")}
           maxLength={16384}
           value={manifest}
           onChange={(e) => setManifest(e.target.value)}
@@ -448,58 +442,55 @@ export function AnalysisPanel({
         disabled={busy || stale || !capability?.available || job !== null}
         className="flex flex-col gap-2"
       >
-        <legend>Submit rendered clip range</legend>
-        <label>Analysis operation
-          <select aria-label="Analysis operation" value={task}
+        <legend>{t("Submit rendered clip range")}</legend>
+        <label>{t("Analysis operation")}
+          <select aria-label={t("Analysis operation")} value={task}
             onChange={(e) => {
               const next = e.target.value as AnalysisTask
               setTask(next)
               if (capability?.classicalDereverb && isDereverb(next)) setModelIndex(-1)
             }}>
-            <option value="audio">Imported adapter audio job</option>
-            <option value="stemSeparation">Separate drums / bass / vocals / other</option>
-            <option value="dereverbGeneral">Dereverb — general audio</option>
-            <option value="dereverbVocal">Dereverb — vocals</option>
+            <option value="audio">{t("Imported adapter audio job")}</option>
+            <option value="stemSeparation">{t("Separate drums / bass / vocals / other")}</option>
+            <option value="dereverbGeneral">{t("Dereverb — general audio")}</option>
+            <option value="dereverbVocal">{t("Dereverb — vocals")}</option>
           </select>
         </label>
         <select
-          aria-label="Pinned model"
+          aria-label={t("Pinned model")}
           value={builtin ? -1 : modelIndex}
           onChange={(e) => setModelIndex(Number(e.target.value))}
         >
           {capability?.classicalDereverb && isDereverb(task) &&
-            <option value={-1}>Built-in classical dereverb (no model pack)</option>}
+            <option value={-1}>{t("Built-in classical dereverb (no model pack)")}</option>}
           {capability?.models.map((m, index) => (
             <option key={`${m.id}/${m.version}/${m.revision}`} value={index}>
-              {m.id} {m.version} · revision {m.revision}
+              {m.id} {m.version}{" "}{t("· revision")}{" "}{m.revision}
             </option>
           ))}
         </select>
         {isDereverb(task) && <Field data-invalid={!Number.isFinite(amount) || amount < 0 || amount > 1}>
-          <FieldLabel htmlFor="dereverb-amount">Dereverb wet/dry amount</FieldLabel>
-          <Input id="dereverb-amount" aria-label="Dereverb wet/dry amount" type="number"
+          <FieldLabel htmlFor="dereverb-amount">{t("Dereverb wet/dry amount")}</FieldLabel>
+          <Input id="dereverb-amount" aria-label={t("Dereverb wet/dry amount")} type="number"
             aria-invalid={!Number.isFinite(amount) || amount < 0 || amount > 1}
             min={0} max={1} step={0.05} value={amount}
             onChange={(e) => setAmount(Number(e.target.value))} />
           <FieldDescription>
-            0 preserves dry input; 1 applies full processing. Vocal mode uses
-            delayed multichannel prediction; general mode conservatively suppresses
-            late decay with transient protection. Review and audition before applying.
+            {t("0 preserves dry input; 1 applies full processing. Vocal mode uses delayed multichannel prediction; general mode conservatively suppresses late decay with transient protection. Review and audition before applying.")}
           </FieldDescription>
         </Field>}
         <p>
-          Frames refer to the rendered clip before mixer effects. A partial
-          range adds a derived clip at the nearest timeline tick.
+          {t("Frames refer to the rendered clip before mixer effects. A partial range adds a derived clip at the nearest timeline tick.")}
         </p>
         <Input
-          aria-label="Start frame"
+          aria-label={t("Start frame")}
           inputMode="numeric"
           value={start}
           onChange={(e) => setStart(e.target.value)}
           maxLength={20}
         />
         <Input
-          aria-label="End frame exclusive"
+          aria-label={t("End frame exclusive")}
           inputMode="numeric"
           value={end}
           onChange={(e) => setEnd(e.target.value)}
@@ -510,7 +501,7 @@ export function AnalysisPanel({
       {job && (
         <div className="flex flex-col gap-2">
           <p role="status">
-            Job {job.job}: {job.status} · work {job.completedWork}/
+            {t("Job")}{" "}{job.job}: {job.status}{" "}{t("· work")}{" "}{job.completedWork}/
             {job.maximumWork}
           </p>
           {job.failure && <p role="alert">{job.failure}</p>}
@@ -522,12 +513,12 @@ export function AnalysisPanel({
       )}
       {review && (
         <div className="flex flex-col gap-2 break-all">
-          <p>Source SHA256: {review.sourceSha256}</p>
+          <p>{t("Source SHA256:")}{" "}{review.sourceSha256}</p>
           {isBuiltinDereverb(review.model) ? <p>
-            Built-in classical dereverb · {review.task === "dereverbVocal" ? "vocal" : "general"}
-            {" · "}wet/dry {(review.amount * 100).toFixed(0)}%. No model weights.
+            {t("Built-in classical dereverb ·")}{" "}{review.task === "dereverbVocal" ? t("vocal") : t("general")}
+            {" · "}{t("wet/dry")}{" "}{(review.amount * 100).toFixed(0)}{t("%. No model weights.")}
           </p> : <p>
-            Model: {review.model.id} {review.model.version}, SHA256{" "}
+            {t("Model:")}{" "}{review.model.id} {review.model.version}, SHA256{" "}
             {review.model.sha256}
           </p>}
           <p>
@@ -535,37 +526,35 @@ export function AnalysisPanel({
             · {review.model.provenance.sourceRevision}
           </p>
           <p>
-            License: {review.model.provenance.licenseSpdx} ·{" "}
+            {t("License:")}{" "}{review.model.provenance.licenseSpdx} ·{" "}
             {review.model.provenance.licenseReference}
           </p>
           {review.artifacts.map((output) => (
             <div key={output.name} className="flex flex-col gap-2">
             <label><input type="checkbox" checked={selectedRoles.includes(output.role)}
               disabled={busy || stale} onChange={(e) => setSelectedRoles((roles) => e.target.checked ?
-                [...roles, output.role] : roles.filter((role) => role !== output.role))} /> Import {output.role}</label>
+                [...roles, output.role] : roles.filter((role) => role !== output.role))} />{" "}{t("Import")}{" "}{output.role}</label>
             <p>
-              {output.role}: {output.frames} frames, {output.channels} channels
-              at {output.sampleRate} Hz; origin {output.frameOrigin}; SHA256{" "}
+              {output.role}: {output.frames}{" "}{t("frames,")}{" "}{output.channels}{" "}{t("channels at")}{" "}{output.sampleRate}{" "}{t("Hz; origin")}{" "}{output.frameOrigin}; SHA256{" "}
               {output.sha256}
             </p>
             <Button variant="outline" disabled={busy || stale} onClick={() => void action(async () => {
               await backend.analysisPreview(review.job.ticket, output.role)
-            })}>Audition {output.role}</Button>
+            })}>{t("Audition")}{" "}{output.role}</Button>
             </div>
           ))}
           {isBuiltinDereverb(review.model) && <Button variant="outline" disabled={busy || stale}
             onClick={() => void action(async () => {
               await backend.analysisPreview(review.job.ticket, "dry-input")
-            })}>Audition dry input</Button>}
-          <Button variant="outline" onClick={() => void backend.previewStop()}>Stop audition</Button>
+            })}>{t("Audition dry input")}</Button>}
+          <Button variant="outline" onClick={() => void backend.previewStop()}>{t("Stop audition")}</Button>
           {review.task === "stemSeparation" && <fieldset className="flex flex-col gap-2" disabled={busy || stale}>
-            <legend>Remix layout</legend>
-            <p>Choose the stems above. Apply creates an aligned playlist row and a mixer insert for each
-              selected stem in one undo step, ready for arrangement and effects.</p>
+            <legend>{t("Remix layout")}</legend>
+            <p>{t("Choose the stems above. Apply creates an aligned playlist row and a mixer insert for each selected stem in one undo step, ready for arrangement and effects.")}</p>
             <label><input type="checkbox" checked={separateTracks}
-              onChange={(e) => setSeparateTracks(e.target.checked)} />Create separate playlist and mixer tracks</label>
+              onChange={(e) => setSeparateTracks(e.target.checked)} />{t("Create separate playlist and mixer tracks")}</label>
             <label><input type="checkbox" checked={muteOriginal}
-              onChange={(e) => setMuteOriginal(e.target.checked)} />Mute original mix when importing stems</label>
+              onChange={(e) => setMuteOriginal(e.target.checked)} />{t("Mute original mix when importing stems")}</label>
           </fieldset>}
           <label>
             <input
@@ -577,7 +566,7 @@ export function AnalysisPanel({
               }
               onChange={(e) => setReplace(e.target.checked)}
             />{" "}
-            Replace original clip (complete range only)
+            {t("Replace original clip (complete range only)")}
           </label>
           <ActionButton action="analysis.apply" />
         </div>
@@ -598,11 +587,10 @@ function RecoveryControls() {
   return (
     <div className="flex flex-col gap-2">
       <p>
-        Retained analysis jobs require explicit cleanup. These controls cannot
-        apply outputs to the current clip.
+        {t("Retained analysis jobs require explicit cleanup. These controls cannot apply outputs to the current clip.")}
       </p>
       <select
-        aria-label="Retained analysis job"
+        aria-label={t("Retained analysis job")}
         value={selected ?? ""}
         onChange={(event) =>
           useAnalysisRecovery.setState({ selected: event.target.value })
@@ -616,7 +604,7 @@ function RecoveryControls() {
       </select>
       {current && (
         <p>
-          Retained job {current.job.job}: {current.job.status}
+          {t("Retained job")}{" "}{current.job.job}: {current.job.status}
         </p>
       )}
       {current?.error && <p role="alert">{current.error}</p>}

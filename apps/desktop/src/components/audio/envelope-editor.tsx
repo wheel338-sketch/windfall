@@ -5,6 +5,7 @@ import * as React from "react"
 import { cn } from "@/lib/utils"
 
 import { formatMs, formatPercent } from "./units"
+import { translatedText as t, message } from "@/lib/i18n"
 
 export type EnvelopeValues = {
   attackMs: number
@@ -262,19 +263,19 @@ const NODES: Record<
   { label: string; time: TimeField; max: keyof EnvelopeLimits; level: boolean }
 > = {
   attack: {
-    label: "Attack",
+    get label() { return t("Attack") },
     time: "attackMs",
     max: "maxAttackMs",
     level: false,
   },
   decay: {
-    label: "Decay and sustain",
+    get label() { return t("Decay and sustain") },
     time: "decayMs",
     max: "maxDecayMs",
     level: true,
   },
   release: {
-    label: "Release",
+    get label() { return t("Release") },
     time: "releaseMs",
     max: "maxReleaseMs",
     level: false,
@@ -305,7 +306,7 @@ function axisLabel(ms: number): string {
 function describeNode(node: NodeName, values: EnvelopeValues): string {
   const time = formatMs(values[NODES[node].time])
   return node === "decay"
-    ? `${time}, sustain ${formatPercent(values.sustain)}`
+    ? message("{time}, sustain {percent}", { time, percent: formatPercent(values.sustain) })
     : time
 }
 

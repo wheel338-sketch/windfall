@@ -27,6 +27,7 @@ import type { AudioEditOperation, AudioEditPreview } from "./types"
 import { Waveform } from "./waveform"
 import { Regions } from "./regions"
 import { startSelectionDrag, endSelectionDrag, registerSelectionReceiver } from "./transfer"
+import { translatedText as t, message } from "@/lib/i18n"
 
 const OPERATIONS: {
   /** The edits without parameters, which travel as their name. */
@@ -36,43 +37,43 @@ const OPERATIONS: {
 }[] = [
   {
     operation: "trim",
-    label: "Trim to selection",
-    help: "Keep the selection and replace the clip at its selected timeline position",
+    get label() { return t("Trim to selection") },
+    get help() { return t("Keep the selection and replace the clip at its selected timeline position") },
   },
   {
     operation: "extract",
-    label: "Extract selection",
-    help: "Add a copy after the original clip, leaving the original in place",
+    get label() { return t("Extract selection") },
+    get help() { return t("Add a copy after the original clip, leaving the original in place") },
   },
   {
     operation: "normalize",
-    label: "Normalize",
-    help: "Normalize the selection to −1 dBFS with linked stereo gain",
+    get label() { return t("Normalize") },
+    get help() { return t("Normalize the selection to −1 dBFS with linked stereo gain") },
   },
   {
     operation: "reverse",
-    label: "Reverse selection",
-    help: "Reverse the selected frames",
+    get label() { return t("Reverse selection") },
+    get help() { return t("Reverse the selected frames") },
   },
   {
     operation: "fadeIn",
-    label: "Fade in selection",
-    help: "Apply an equal-power fade from silence to full level",
+    get label() { return t("Fade in selection") },
+    get help() { return t("Apply an equal-power fade from silence to full level") },
   },
   {
     operation: "fadeOut",
-    label: "Fade out selection",
-    help: "Apply an equal-power fade from full level to silence",
+    get label() { return t("Fade out selection") },
+    get help() { return t("Apply an equal-power fade from full level to silence") },
   },
   {
     operation: "silence",
-    label: "Silence selection",
-    help: "Replace the selection with silence, keeping its duration",
+    get label() { return t("Silence selection") },
+    get help() { return t("Replace the selection with silence, keeping its duration") },
   },
   {
     operation: "cut",
-    label: "Cut selection",
-    help: "Remove the selection and join the remaining audio",
+    get label() { return t("Cut selection") },
+    get help() { return t("Remove the selection and join the remaining audio") },
   },
 ]
 
@@ -144,7 +145,7 @@ export function AudioEditorButton({
           />
         }
       >
-        Audio editor
+        {t("Audio editor")}
       </DialogTrigger>
       <DialogContent
         className="max-h-[90vh] overflow-y-auto sm:max-w-3xl"
@@ -152,10 +153,9 @@ export function AudioEditorButton({
         showBackdrop={false}
       >
         <DialogHeader>
-          <DialogTitle>Audio editor</DialogTitle>
+          <DialogTitle>{t("Audio editor")}</DialogTitle>
           <DialogDescription>
-            Select a range to process audio or edit its markers and notes.
-            Each change is undoable. Original audio sources stay intact.
+            {t("Select a range to process audio or edit its markers and notes. Each change is undoable. Original audio sources stay intact.")}
           </DialogDescription>
         </DialogHeader>
         {session && (
@@ -221,7 +221,7 @@ function Editor({
         token.current = null
       }
       setBusy(false)
-      setError("The project changed. Close and reopen the audio editor.")
+      setError(t("The project changed. Close and reopen the audio editor."))
     })
     void backend
       .audioEditorOpen(clip)
@@ -233,7 +233,7 @@ function Editor({
         ) {
           void backend.audioEditorDiscard(value.token).catch(() => {})
           if (!cancelled)
-            setError("The project changed. Close and reopen the audio editor.")
+            setError(t("The project changed. Close and reopen the audio editor."))
           return
         }
         token.current = value.token
@@ -323,7 +323,7 @@ function Editor({
       const path = await backend.pickExportPath(preview.name, "wv")
       if (!path) return
       if (savedGeneration !== getProjectGeneration() || selectionAtOpen !== usePlaylistStore.getState().selection)
-        throw new Error("The project changed. Reopen the audio editor.")
+        throw new Error(t("The project changed. Reopen the audio editor."))
       await backend.audioEditorSaveWavpack(savedToken, selection.start, selection.end, path, saveDepth)
     } catch (error) {
       if (alive.current) setError(errorMessage(error))
@@ -340,7 +340,7 @@ function Editor({
       const path = await backend.pickExportPath(preview.name, "wav")
       if (!path) return
       if (!alive.current || savedGeneration !== getProjectGeneration() || selectionAtOpen !== usePlaylistStore.getState().selection)
-        throw new Error("The project changed. Reopen the audio editor.")
+        throw new Error(t("The project changed. Reopen the audio editor."))
       await backend.audioEditorSaveWav(savedToken, selection.start, selection.end, path)
     } catch (error) {
       if (alive.current && savedGeneration === getProjectGeneration()) setError(errorMessage(error))
@@ -354,17 +354,17 @@ function Editor({
         <Alert variant="destructive">
           <AlertDescription>
             {stale
-              ? "The project changed. Close and reopen the audio editor."
+              ? t("The project changed. Close and reopen the audio editor.")
               : error}
           </AlertDescription>
         </Alert>
       )}
-      {!preview && !error && <p role="status">Preparing clip waveform…</p>}
+      {!preview && !error && <p role="status">{t("Preparing clip waveform…")}</p>}
       {preview && (
         <>
           <p className="text-muted-foreground">
             {preview.name} · {(preview.frames / preview.sampleRate).toFixed(3)}{" "}
-            s · {preview.sampleRate} Hz · stereo
+            s · {preview.sampleRate}{" "}{t("Hz · stereo")}
           </p>
           <Waveform
             preview={preview}
@@ -373,20 +373,20 @@ function Editor({
             disabled={busy}
             spectral={spectral}
           />
-          <Button size="sm" variant="outline" disabled={!preview.spectral?.length || busy} onClick={() => setSpectral(value => !value)}>{spectral ? "Show waveform" : "Show spectrum"}</Button>
+          <Button size="sm" variant="outline" disabled={!preview.spectral?.length || busy} onClick={() => setSpectral(value => !value)}>{spectral ? t("Show waveform") : t("Show spectrum")}</Button>
           <FieldGroup className="flex-row items-end">
             <Field>
-              <FieldLabel>WavPack bit depth</FieldLabel>
-              <Choice label="WavPack bit depth" value={saveDepth} disabled={busy} onChange={setSaveDepth}
-                options={[{value: "int16", label: "16 bit"}, {value: "int24", label: "24 bit"}]} />
+              <FieldLabel>{t("WavPack bit depth")}</FieldLabel>
+              <Choice label={t("WavPack bit depth")} value={saveDepth} disabled={busy} onChange={setSaveDepth}
+                options={[{value: "int16", label: t("16 bit")}, {value: "int24", label: t("24 bit")}]} />
             </Field>
-            <Button size="sm" variant="outline" disabled={!valid || busy} onClick={() => void saveWavpack()}>Save selection as WavPack</Button>
+            <Button size="sm" variant="outline" disabled={!valid || busy} onClick={() => void saveWavpack()}>{t("Save selection as WavPack")}</Button>
           </FieldGroup>
-          {spectral && <p className="text-xs text-muted-foreground">Time left to right · frequency 0–{preview.sampleRate/2} Hz bottom to top · brightness −96–0 dBFS.</p>}
+          {spectral && <p className="text-xs text-muted-foreground">{t("Time left to right · frequency 0–")}{preview.sampleRate/2}{" "}{t("Hz bottom to top · brightness −96–0 dBFS.")}</p>}
           <FieldGroup className="flex-row flex-wrap">
             <Field className="w-40" data-invalid={!valid}>
               <FieldLabel htmlFor="audio-edit-start">
-                Start frame (included)
+                {t("Start frame (included)")}
               </FieldLabel>
               <Input
                 id="audio-edit-start"
@@ -404,7 +404,7 @@ function Editor({
             </Field>
             <Field className="w-40" data-invalid={!valid}>
               <FieldLabel htmlFor="audio-edit-end">
-                End frame (excluded)
+                {t("End frame (excluded)")}
               </FieldLabel>
               <Input
                 id="audio-edit-end"
@@ -428,17 +428,17 @@ function Editor({
               disabled={busy}
               onClick={() => setSelection({ start: 0, end: preview.frames })}
             >
-              Select all
+              {t("Select all")}
             </Button>
             <span className="text-muted-foreground">
               {valid
-                ? `${((selection.end - selection.start) / preview.sampleRate).toFixed(3)} s selected`
-                : "Choose a valid nonempty frame range"}
+                ? message("{end} s selected", { end: ((selection.end - selection.start) / preview.sampleRate).toFixed(3) })
+                : t("Choose a valid nonempty frame range")}
             </span>
           </div>
           <div
             role="group"
-            aria-label="Audio edit operations"
+            aria-label={t("Audio edit operations")}
             className="flex flex-wrap gap-2"
           >
             {OPERATIONS.map(({ operation, label, help }) => (
@@ -493,27 +493,22 @@ function Editor({
             }} />
           <Regions preview={preview} selection={selection} disabled={!valid || busy} onSelect={setSelection} onWrite={regions=>void commit(()=>backend.audioEditorRegions(preview.token,regions),false)} />
           <div className="flex flex-wrap gap-2">
-            <Button size="sm" variant="outline" disabled={!valid || busy} onClick={() => void saveWav()}>Save selection as WAV with annotations</Button>
+            <Button size="sm" variant="outline" disabled={!valid || busy} onClick={() => void saveWav()}>{t("Save selection as WAV with annotations")}</Button>
             <Button size="sm" variant="outline" disabled={!valid || busy || !preview.regions?.length}
-              onClick={() => void commit(() => backend.audioEditorImportTimeline(preview.token), false)}>Import annotations to timeline</Button>
+              onClick={() => void commit(() => backend.audioEditorImportTimeline(preview.token), false)}>{t("Import annotations to timeline")}</Button>
           </div>
           <Button size="sm" variant="outline" disabled={!valid || busy} draggable={!!valid && !busy}
             onDragStart={event=>{if (!valid || busy) {event.preventDefault();return}; startSelectionDrag(event,{token:preview.token,startFrame:selection.start,endFrame:selection.end,durationSecs:(selection.end-selection.start)/preview.sampleRate})}}
-            onDragEnd={endSelectionDrag}>Drag selection to sampler or playlist</Button>
+            onDragEnd={endSelectionDrag}>{t("Drag selection to sampler or playlist")}</Button>
           <p className="text-muted-foreground">
-            Edits include the clip’s offset, reverse, pitch/stretch, gain, pan
-            and fades. Mixer effects are excluded. Trim preserves the selected
-            timeline position; extract places a new clip after the original.
-            Cleaning and processing change only the selection; stretching,
-            trimming silence and inserting silence move the audio after it.
-            Maximum two minutes / 64 MiB per buffer.
+            {t("Edits include the clip’s offset, reverse, pitch/stretch, gain, pan and fades. Mixer effects are excluded. Trim preserves the selected timeline position; extract places a new clip after the original. Cleaning and processing change only the selection; stretching, trimming silence and inserting silence move the audio after it. Maximum two minutes / 64 MiB per buffer.")}
           </p>
         </>
       )}
-      {busy && <p role="status">Processing audio…</p>}
+      {busy && <p role="status">{t("Processing audio…")}</p>}
       <div className="flex justify-end">
         <Button variant="outline" disabled={busy} onClick={onClose}>
-          Close editor
+          {t("Close editor")}
         </Button>
       </div>
     </div>

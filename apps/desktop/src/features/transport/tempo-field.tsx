@@ -23,6 +23,7 @@ import { DEFAULT_TEMPO_BPM, MAX_TEMPO_BPM, MIN_TEMPO_BPM } from "@/lib/units"
 
 import { nextTempoPreset } from "./tempo-preset-step"
 import { nextTempo, TEMPO_PRESETS } from "./tempo-presets"
+import { translatedText as t, dynamicTitle, message } from "@/lib/i18n"
 
 /** How far the pointer must move before a press counts as a drag. */
 const DRAG_THRESHOLD_PX = 3
@@ -90,7 +91,7 @@ export function TempoField() {
     }
   })
   const hint = useHint(
-    "Tempo: drag up or down, hold Shift for fine steps, or click to type"
+    t("Tempo: drag up or down, hold Shift for fine steps, or click to type")
   )
 
   const shown = dragValue ?? tempo
@@ -181,7 +182,7 @@ export function TempoField() {
   if (draft !== null) {
     return (
       <ValueInput
-        aria-label="Tempo in beats per minute"
+        aria-label={t("Tempo in beats per minute")}
         initialText={draft.text}
         selectAll={draft.selectAll}
         onCommit={(text) => {
@@ -216,7 +217,7 @@ export function TempoField() {
         ...TEMPO_AUTOMATION,
         contextSeparator,
         {
-          submenu: "Tempo presets",
+          submenu: t("Tempo presets"),
           items: TEMPO_PRESETS.map((preset) => ({
             title: `${preset} BPM`,
             disabled: nextTempo(tempo, preset) === null,
@@ -224,7 +225,7 @@ export function TempoField() {
           })),
         },
         {
-          title: "Previous tempo preset",
+          ...dynamicTitle("Previous tempo preset", {}),
           disabled: nextTempoPreset(tempo, "previous") === null,
           run: () => {
             const next = nextTempoPreset(tempo, "previous")
@@ -232,7 +233,7 @@ export function TempoField() {
           },
         },
         {
-          title: "Next tempo preset",
+          ...dynamicTitle("Next tempo preset", {}),
           disabled: nextTempoPreset(tempo, "next") === null,
           run: () => {
             const next = nextTempoPreset(tempo, "next")
@@ -251,11 +252,11 @@ export function TempoField() {
         ref={root}
         role="spinbutton"
         tabIndex={0}
-        aria-label="Tempo in beats per minute"
+        aria-label={t("Tempo in beats per minute")}
         aria-valuenow={shown}
         aria-valuemin={MIN_TEMPO_BPM}
         aria-valuemax={MAX_TEMPO_BPM}
-        aria-valuetext={`${formatTempo(shown)} beats per minute`}
+        aria-valuetext={message("{tempo} beats per minute", { tempo: formatTempo(shown) })}
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}

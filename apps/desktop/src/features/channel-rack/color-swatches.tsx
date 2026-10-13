@@ -1,5 +1,6 @@
 import { colorToCss } from "@/lib/units"
 import { cn } from "@/lib/utils"
+import { translatedText as t } from "@/lib/i18n"
 
 /** Colors a channel can be given, in hue order with a few neutrals last. */
 export const CHANNEL_COLORS: { color: number; name: string }[] = [
@@ -36,7 +37,7 @@ export function ColorSwatches({
   return (
     <div
       role="group"
-      aria-label="Channel color"
+      aria-label={t("Channel color")}
       className={cn("grid grid-cols-8 gap-1", className)}
     >
       {CHANNEL_COLORS.map(({ color, name }) => (

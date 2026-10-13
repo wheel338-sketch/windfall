@@ -1,4 +1,4 @@
-import { useLanguageStore } from "@/lib/i18n"
+import { translatedText, useLanguageStore } from "@/lib/i18n"
 import { DashboardEditor } from "@/features/internal-controllers/dashboard"
 import { SpecialOutputEditor } from "@/features/sample-instruments/special-output-editor"
 import { SampleInstrumentEditor } from "@/features/sample-instruments/editor"
@@ -45,7 +45,7 @@ export function InstrumentSection({ channel }: { channel: InstrumentChannel }) {
   return (
     <Section
       key={`${channel.id}:${generation}`}
-      title={instrumentDescriptor(params.type).name}
+      title={translatedText(instrumentDescriptor(params.type).name)}
       aside={
         params.type === "subtractiveSynth" ? (
           <SoundMenu params={params} />

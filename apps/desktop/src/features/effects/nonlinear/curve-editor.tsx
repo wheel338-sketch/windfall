@@ -4,6 +4,7 @@ import type { CurvePoint } from "@/bindings/CurvePoint"
 import { Button } from "@/components/ui/button"
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
+import { message, translatedText } from "@/lib/i18n"
 
 const LIMIT = 64
 const clamp = (value: number) => Math.max(0, Math.min(1, value))
@@ -38,7 +39,7 @@ export function CurveEditor({
   return (
     <div role="group" aria-label={label} className="flex max-w-xl flex-col gap-2">
       <svg
-        role="application" aria-label={`${label} drawing`} tabIndex={0}
+        role="application" aria-label={message("{label} drawing", { label })} tabIndex={0}
         viewBox="0 0 100 100" preserveAspectRatio="none"
         className="h-48 w-full touch-none rounded border border-border bg-muted text-primary"
         onPointerDown={(event) => {
@@ -98,8 +99,8 @@ export function CurveEditor({
       <FieldGroup className="flex flex-row gap-2">
         {(["x", "y", "tension"] as const).map((axis) => (
           <Field key={axis}>
-            <FieldLabel htmlFor={`${label}-${axis}`}>{axis === "x" ? "Position" : axis === "y" ? "Value" : "Bend"}</FieldLabel>
-            <Input id={`${label}-${axis}`} aria-label={`${label} ${axis}`} type="number" min={axis === "tension" ? -1 : 0} max={1} step={0.01} value={point?.[axis] ?? 0} onChange={(event) => {
+            <FieldLabel htmlFor={`${label}-${axis}`}>{axis === "x" ? translatedText("Position") : axis === "y" ? translatedText("Value") : translatedText("Bend")}</FieldLabel>
+            <Input id={`${label}-${axis}`} aria-label={message("{name} {label}", { name: label, label: translatedText(axis) })} type="number" min={axis === "tension" ? -1 : 0} max={1} step={0.01} value={point?.[axis] ?? 0} onChange={(event) => {
               const value = Number(event.target.value)
               if (!Number.isFinite(value)) return
               const next = [...shown]
@@ -110,9 +111,9 @@ export function CurveEditor({
         ))}
       </FieldGroup>
       <div className="flex items-center gap-2">
-        <Button size="sm" variant="outline" onClick={() => commit(fallback)}>Reset {label}</Button>
-        <Button size="sm" variant="outline" disabled={shown.length <= 2} onClick={() => commit(shown.filter((_, i) => i !== index))}>Delete point</Button>
-        <span className="text-xs text-muted-foreground">{shown.length}/{LIMIT} points. Drag to add or move; arrows adjust; Escape cancels.</span>
+        <Button size="sm" variant="outline" onClick={() => commit(fallback)}>{translatedText("Reset")}{" "}{label}</Button>
+        <Button size="sm" variant="outline" disabled={shown.length <= 2} onClick={() => commit(shown.filter((_, i) => i !== index))}>{translatedText("Delete point")}</Button>
+        <span className="text-xs text-muted-foreground">{shown.length}/{LIMIT}{" "}{translatedText("points. Drag to add or move; arrows adjust; Escape cancels.")}</span>
       </div>
     </div>
   )

@@ -1,4 +1,4 @@
-import { dynamicTitle } from "@/lib/i18n"
+import { dynamicTitle, message, plainNumber, translatedText as t } from "@/lib/i18n"
 import {
   openRecording,
   startRecording,
@@ -72,11 +72,11 @@ const ui = () => useUiStore.getState()
 /** The audio output in one line, for a bug report or a forum post. */
 export function deviceInfo(status: EngineStatus): string {
   if (!status.running) {
-    return `No audio: ${status.error ?? "the output is not running"}`
+    return message("No audio: {error}", { error: status.error ?? t("the output is not running") })
   }
   const plugins =
-    status.latencyFrames > 0 ? `, plus ${status.latencyFrames} samples` : ""
-  return `${status.host} ${status.device ?? "default device"}, ${formatSampleRate(status.sampleRate)}, ${status.bufferFrames} samples, ${status.latencyMs.toFixed(1)} ms${plugins}`
+    status.latencyFrames > 0 ? message(", plus {latencyFrames} samples", { latencyFrames: plainNumber(status.latencyFrames) }) : ""
+  return message("{host} {device}, {rate}, {buffer} samples, {latency} ms{plugins}", { host: status.host, device: status.device ?? t("default device"), rate: formatSampleRate(status.sampleRate), buffer: plainNumber(status.bufferFrames), latency: status.latencyMs.toFixed(1), plugins })
 }
 
 async function copyDeviceInfo() {
@@ -84,17 +84,17 @@ async function copyDeviceInfo() {
   if (!status) return
   const text = deviceInfo(status)
   await navigator.clipboard.writeText(text)
-  toast.success("Copied", { description: text })
+  toast.success(t("Copied"), { description: text })
 }
 
 const EDIT_COMMANDS: { command: EditCommand; title: string; words: string }[] =
   [
-    { command: "cut", title: "Cut", words: "clipboard move" },
-    { command: "copy", title: "Copy", words: "clipboard" },
-    { command: "paste", title: "Paste", words: "clipboard insert" },
-    { command: "duplicate", title: "Duplicate", words: "clone repeat" },
-    { command: "delete", title: "Delete", words: "remove erase" },
-    { command: "selectAll", title: "Select all", words: "everything" },
+    { command: "cut", get title() { return t("Cut") }, words: "clipboard move" },
+    { command: "copy", get title() { return t("Copy") }, words: "clipboard" },
+    { command: "paste", get title() { return t("Paste") }, words: "clipboard insert" },
+    { command: "duplicate", get title() { return t("Duplicate") }, words: "clone repeat" },
+    { command: "delete", get title() { return t("Delete") }, words: "remove erase" },
+    { command: "selectAll", get title() { return t("Select all") }, words: "everything" },
   ]
 
 /**
@@ -147,34 +147,34 @@ function patternIndex(state: AppState): number {
 export const BUILTIN_ACTIONS: Action[] = [
   {
     id: "file.importMidi",
-    title: "Import MIDI…",
+    ...dynamicTitle("Import MIDI…", {}),
     section: "File",
     keywords: "mid append notes arrangement",
     run: () => ui().openDialog("midiImport"),
   },
   {
     id: "file.exportMidi",
-    title: "Export MIDI…",
+    ...dynamicTitle("Export MIDI…", {}),
     section: "File",
     keywords: "mid notes tempo pattern song",
     run: () => ui().openDialog("midiExport"),
   },
   {
     id: "recording.open",
-    title: "Record audio input",
+    ...dynamicTitle("Record audio input", {}),
     section: "Transport",
     run: openRecording,
   },
   {
     id: "audioLogger.open",
-    title: "Audio logger…",
+    ...dynamicTitle("Audio logger…", {}),
     section: "Transport",
     keywords: "background history recover take capture retrospective log",
     run: openAudioLogger,
   },
   {
     id: "recording.start",
-    title: "Start recording",
+    ...dynamicTitle("Start recording", {}),
     section: "Transport",
     enabled: () =>
       !useRecordingStore.getState().busy &&
@@ -184,7 +184,7 @@ export const BUILTIN_ACTIONS: Action[] = [
   },
   {
     id: "recording.stop",
-    title: "Stop recording and keep take",
+    ...dynamicTitle("Stop recording and keep take", {}),
     section: "Transport",
     enabled: () =>
       !useRecordingStore.getState().busy &&
@@ -193,7 +193,7 @@ export const BUILTIN_ACTIONS: Action[] = [
   },
   {
     id: "recording.cancel",
-    title: "Discard recording",
+    ...dynamicTitle("Discard recording", {}),
     section: "Transport",
     enabled: () =>
       !useRecordingStore.getState().busy &&
@@ -203,28 +203,28 @@ export const BUILTIN_ACTIONS: Action[] = [
 
   {
     id: "file.new",
-    title: "New project",
+    ...dynamicTitle("New project", {}),
     section: "File",
     defaultShortcut: "Mod+N",
     run: newProject,
   },
   {
     id: "file.open",
-    title: "Open project…",
+    ...dynamicTitle("Open project…", {}),
     section: "File",
     defaultShortcut: "Mod+O",
     run: openProject,
   },
   {
     id: "file.importFlp",
-    title: "Import FL Studio project…",
+    ...dynamicTitle("Import FL Studio project…", {}),
     section: "File",
     keywords: "flp convert notes arrangement samples",
     run: () => ui().openDialog("flpImport"),
   },
   {
     id: "file.save",
-    title: "Save",
+    ...dynamicTitle("Save", {}),
     section: "File",
     defaultShortcut: "Mod+S",
     keywords: "write project",
@@ -234,7 +234,7 @@ export const BUILTIN_ACTIONS: Action[] = [
   },
   {
     id: "file.saveAs",
-    title: "Save as…",
+    ...dynamicTitle("Save as…", {}),
     section: "File",
     defaultShortcut: "Mod+Shift+S",
     run: async () => {
@@ -243,7 +243,7 @@ export const BUILTIN_ACTIONS: Action[] = [
   },
   {
     id: "file.saveNewVersion",
-    title: "Save new version",
+    ...dynamicTitle("Save new version", {}),
     section: "File",
     keywords: "numbered snapshot incremental",
     enabled: canArchive,
@@ -254,7 +254,7 @@ export const BUILTIN_ACTIONS: Action[] = [
   },
   {
     id: "file.archive",
-    title: "Export portable project archive…",
+    ...dynamicTitle("Export portable project archive…", {}),
     section: "File",
     keywords: "zip package samples backup share",
     enabled: canArchive,
@@ -263,21 +263,21 @@ export const BUILTIN_ACTIONS: Action[] = [
   },
   {
     id: "file.cancelArchive",
-    title: "Cancel project archive",
+    ...dynamicTitle("Cancel project archive", {}),
     section: "File",
     enabled: () => useArchiveStore.getState().cancellable,
     run: cancelArchive,
   },
   {
     id: "file.reloadSamples",
-    title: "Reload missing samples",
+    ...dynamicTitle("Reload missing samples", {}),
     section: "File",
     keywords: "retry find relink audio files warnings",
     run: reloadMissingSamples,
   },
   {
     id: "file.export",
-    title: "Export audio…",
+    ...dynamicTitle("Export audio…", {}),
     section: "File",
     defaultShortcut: "Mod+E",
     keywords: "render bounce wav",
@@ -286,7 +286,7 @@ export const BUILTIN_ACTIONS: Action[] = [
 
   {
     id: "edit.undo",
-    title: "Undo",
+    ...dynamicTitle("Undo", {}),
     section: "Edit",
     defaultShortcut: "Mod+Z",
     repeats: true,
@@ -295,7 +295,7 @@ export const BUILTIN_ACTIONS: Action[] = [
   },
   {
     id: "edit.redo",
-    title: "Redo",
+    ...dynamicTitle("Redo", {}),
     section: "Edit",
     defaultShortcut: ["Mod+Shift+Z", "Mod+Y"],
     repeats: true,
@@ -305,7 +305,7 @@ export const BUILTIN_ACTIONS: Action[] = [
   },
   {
     id: "edit.history",
-    title: "History",
+    ...dynamicTitle("History", {}),
     section: "Edit",
     keywords: "steps list earlier back",
     run: () => ui().setHistoryOpen(true),
@@ -314,7 +314,7 @@ export const BUILTIN_ACTIONS: Action[] = [
 
   {
     id: "transport.toggle",
-    title: "Play or stop",
+    ...dynamicTitle("Play or stop", {}),
     section: "Transport",
     defaultShortcut: "Space",
     keywords: "start pause playback",
@@ -322,20 +322,20 @@ export const BUILTIN_ACTIONS: Action[] = [
   },
   {
     id: "transport.play",
-    title: "Play",
+    ...dynamicTitle("Play", {}),
     section: "Transport",
     enabled: (state) => !state.transport.playing,
     run: play,
   },
   {
     id: "transport.stop",
-    title: "Stop",
+    ...dynamicTitle("Stop", {}),
     section: "Transport",
     run: stop,
   },
   {
     id: "transport.metronome",
-    title: "Metronome",
+    ...dynamicTitle("Metronome", {}),
     section: "Transport",
     keywords: "click beat bar accent time signature",
     checked: (state) => state.transport.metronome?.enabled ?? false,
@@ -344,7 +344,7 @@ export const BUILTIN_ACTIONS: Action[] = [
   },
   {
     id: "transport.patternMode",
-    title: "Play the pattern",
+    ...dynamicTitle("Play the pattern", {}),
     section: "Transport",
     keywords: "pattern mode loop",
     checked: (state) => state.transport.mode === "pattern",
@@ -352,7 +352,7 @@ export const BUILTIN_ACTIONS: Action[] = [
   },
   {
     id: "transport.songMode",
-    title: "Play the song",
+    ...dynamicTitle("Play the song", {}),
     section: "Transport",
     keywords: "song mode playlist",
     checked: (state) => state.transport.mode === "song",
@@ -360,7 +360,7 @@ export const BUILTIN_ACTIONS: Action[] = [
   },
   {
     id: "transport.toggleMode",
-    title: "Switch between pattern and song",
+    ...dynamicTitle("Switch between pattern and song", {}),
     section: "Transport",
     defaultShortcut: "L",
     run: () =>
@@ -371,14 +371,14 @@ export const BUILTIN_ACTIONS: Action[] = [
 
   {
     id: "tempo.tap",
-    title: "Tap tempo",
+    ...dynamicTitle("Tap tempo", {}),
     section: "Transport",
     keywords: "bpm beat measure speed",
     run: tapTempo,
   },
   {
     id: "tempo.half",
-    title: "Halve the tempo",
+    ...dynamicTitle("Halve the tempo", {}),
     section: "Transport",
     keywords: "bpm half time slower",
     enabled: (state) =>
@@ -387,7 +387,7 @@ export const BUILTIN_ACTIONS: Action[] = [
   },
   {
     id: "tempo.double",
-    title: "Double the tempo",
+    ...dynamicTitle("Double the tempo", {}),
     section: "Transport",
     keywords: "bpm double time faster",
     enabled: (state) =>
@@ -406,7 +406,7 @@ export const BUILTIN_ACTIONS: Action[] = [
 
   {
     id: "channel.add",
-    title: "Add channel",
+    ...dynamicTitle("Add channel", {}),
     section: "Channels",
     defaultShortcut: "Alt+C",
     keywords: "new sampler instrument",
@@ -415,7 +415,7 @@ export const BUILTIN_ACTIONS: Action[] = [
 
   {
     id: "pattern.add",
-    title: "Add pattern",
+    ...dynamicTitle("Add pattern", {}),
     section: "Patterns",
     defaultShortcut: "Alt+P",
     keywords: "new",
@@ -423,7 +423,7 @@ export const BUILTIN_ACTIONS: Action[] = [
   },
   {
     id: "pattern.next",
-    title: "Next pattern",
+    ...dynamicTitle("Next pattern", {}),
     section: "Patterns",
     defaultShortcut: "Mod+ArrowDown",
     enabled: (state) =>
@@ -432,7 +432,7 @@ export const BUILTIN_ACTIONS: Action[] = [
   },
   {
     id: "pattern.previous",
-    title: "Previous pattern",
+    ...dynamicTitle("Previous pattern", {}),
     section: "Patterns",
     defaultShortcut: "Mod+ArrowUp",
     enabled: (state) => patternIndex(state) > 0,
@@ -440,20 +440,20 @@ export const BUILTIN_ACTIONS: Action[] = [
   },
   {
     id: "pattern.rename",
-    title: "Rename pattern…",
+    ...dynamicTitle("Rename pattern…", {}),
     section: "Patterns",
     run: () => renamePattern(),
   },
   {
     id: "pattern.duplicate",
-    title: "Duplicate pattern",
+    ...dynamicTitle("Duplicate pattern", {}),
     section: "Patterns",
     keywords: "clone copy",
     run: () => duplicatePattern(),
   },
   {
     id: "pattern.delete",
-    title: "Delete pattern",
+    ...dynamicTitle("Delete pattern", {}),
     section: "Patterns",
     keywords: "remove",
     enabled: (state) => state.document.project.patterns.length > 1,
@@ -462,7 +462,7 @@ export const BUILTIN_ACTIONS: Action[] = [
 
   {
     id: "view.commandPalette",
-    title: "Command palette…",
+    ...dynamicTitle("Command palette…", {}),
     section: "View",
     defaultShortcut: "Mod+K",
     keywords: "search actions shortcuts",
@@ -473,7 +473,7 @@ export const BUILTIN_ACTIONS: Action[] = [
   },
   {
     id: "view.browser",
-    title: "Browser",
+    ...dynamicTitle("Browser", {}),
     section: "View",
     defaultShortcut: "Mod+B",
     keywords: "show hide toggle samples files panel",
@@ -482,7 +482,7 @@ export const BUILTIN_ACTIONS: Action[] = [
   },
   {
     id: "view.mixer",
-    title: "Mixer",
+    ...dynamicTitle("Mixer", {}),
     section: "View",
     defaultShortcut: "Mod+J",
     keywords: "show hide toggle panel",
@@ -491,7 +491,7 @@ export const BUILTIN_ACTIONS: Action[] = [
   },
   {
     id: "view.channelRack",
-    title: "Channel rack",
+    ...dynamicTitle("Channel rack", {}),
     section: "View",
     defaultShortcut: "Alt+1",
     keywords: "show step sequencer",
@@ -500,7 +500,7 @@ export const BUILTIN_ACTIONS: Action[] = [
   },
   {
     id: "view.playlist",
-    title: "Playlist",
+    ...dynamicTitle("Playlist", {}),
     section: "View",
     defaultShortcut: "Alt+2",
     keywords: "show song timeline arrangement",
@@ -509,7 +509,7 @@ export const BUILTIN_ACTIONS: Action[] = [
   },
   {
     id: "view.pianoRoll",
-    title: "Piano roll",
+    ...dynamicTitle("Piano roll", {}),
     section: "View",
     defaultShortcut: "Alt+3",
     keywords: "show notes",
@@ -518,7 +518,7 @@ export const BUILTIN_ACTIONS: Action[] = [
   },
   {
     id: "view.toggleTheme",
-    title: "Switch between light and dark",
+    ...dynamicTitle("Switch between light and dark", {}),
     section: "View",
     defaultShortcut: "Mod+Shift+L",
     keywords: "theme appearance",
@@ -526,7 +526,7 @@ export const BUILTIN_ACTIONS: Action[] = [
   },
   {
     id: "view.resetLayout",
-    title: "Reset layout",
+    ...dynamicTitle("Reset layout", {}),
     section: "View",
     keywords: "panels default restore",
     run: () => ui().resetLayout(),
@@ -534,7 +534,7 @@ export const BUILTIN_ACTIONS: Action[] = [
 
   {
     id: "options.settings",
-    title: "Settings…",
+    ...dynamicTitle("Settings…", {}),
     section: "Options",
     defaultShortcut: "Mod+Comma",
     keywords: "preferences audio device theme keymap",
@@ -542,7 +542,7 @@ export const BUILTIN_ACTIONS: Action[] = [
   },
   {
     id: "engine.copyDeviceInfo",
-    title: "Copy audio device info",
+    ...dynamicTitle("Copy audio device info", {}),
     section: "Options",
     keywords: "driver output sample rate buffer latency clipboard report",
     enabled: () => useEngineStore.getState().status !== null,
@@ -550,7 +550,7 @@ export const BUILTIN_ACTIONS: Action[] = [
   },
   {
     id: "options.keymapWindfall",
-    title: "Use Windfall shortcuts",
+    ...dynamicTitle("Use Windfall shortcuts", {}),
     section: "Options",
     keywords: "keymap keyboard preset",
     checked: (state) => state.ui.keymap === "windfall",
@@ -558,7 +558,7 @@ export const BUILTIN_ACTIONS: Action[] = [
   },
   {
     id: "options.keymapFl",
-    title: "Use FL Studio shortcuts",
+    ...dynamicTitle("Use FL Studio shortcuts", {}),
     section: "Options",
     keywords: "keymap keyboard preset",
     checked: (state) => state.ui.keymap === "fl",
@@ -567,26 +567,26 @@ export const BUILTIN_ACTIONS: Action[] = [
 
   {
     id: "help.gettingStarted",
-    title: "Getting started",
+    ...dynamicTitle("Getting started", {}),
     section: "Help",
     keywords: "tutorial first track basics",
     run: openGettingStarted,
   },
   {
     id: "help.shortcuts",
-    title: "Keyboard shortcuts",
+    ...dynamicTitle("Keyboard shortcuts", {}),
     section: "Help",
     keywords: "keys keymap",
     run: () => ui().openDialog("palette"),
   },
   {
     id: "help.about",
-    title: "About Windfall",
+    ...dynamicTitle("About Windfall", {}),
     section: "Help",
     keywords: "version license",
     run: () => {
       toast("Windfall 0.1.0", {
-        description: "A free, open source DAW. GPL-3.0.",
+        description: t("A free, open source DAW. GPL-3.0."),
       })
     },
   },

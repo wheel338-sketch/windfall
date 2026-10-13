@@ -5,6 +5,7 @@ import { instrumentDescriptor, ParamControl, ParamGroup, ParamRow, useParamBindi
 import { dispatch } from "@/lib/store"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { PackBrowser } from "./pack-browser"
+import { translatedText as t, message } from "@/lib/i18n"
 
 const amp = ["envelope.attackMs", "envelope.decayMs", "envelope.sustain", "envelope.releaseMs"]
 const filterEnv = ["filterEnvelope.attackMs", "filterEnvelope.decayMs", "filterEnvelope.sustain", "filterEnvelope.releaseMs"]
@@ -74,18 +75,18 @@ export function PolysynthEditor({ channel, params }: { channel: ChannelId; param
   const setParam: SetParam = useCallback((param, value, gesture) => dispatch({ type: "setInstrumentParam", channel, param, value }, gesture), [channel])
   const automation = useParamAutomation((param) => ({ type: "instrumentParam", channel, param }), String(channel))
   const bind = useParamBinding({ descriptor, params, setParam, ...automation })
-  if (params.type === "pocketSynth") return <Tabs defaultValue="Oscillator" aria-label="Pocket synth pages">
+  if (params.type === "pocketSynth") return <Tabs defaultValue="Oscillator" aria-label={t("Pocket synth pages")}>
     <TabsList>{POLYSYNTH_PANELS.pocketSynth.map(([title]) => <TabsTrigger key={title} value={title}>{title}</TabsTrigger>)}</TabsList>
     {POLYSYNTH_PANELS.pocketSynth.map(([title, ids]) => <TabsContent key={title} value={title}>
       <ParamGroup title={title}><ParamRow>{ids.map((id) => <ParamControl key={id} {...bind(id)} />)}</ParamRow></ParamGroup>
     </TabsContent>)}
   </Tabs>
-  return <div data-slot="polysynth-editor" role="group" aria-label={`${descriptor.name} settings`} className="flex flex-col gap-2">
+  return <div data-slot="polysynth-editor" role="group" aria-label={message("{descriptorName} settings", { descriptorName: t(descriptor.name) })} className="flex flex-col gap-2">
     {params.type === "packSynth" && <PackBrowser bind={bind} />}
     {params.type === "matrixSynth" && (["fm", "ring"] as const).map((matrix) => <ParamGroup key={matrix} title={matrix === "fm" ? "FM routing matrix" : "Ring routing matrix"}>
-      <p className="text-muted-foreground">Rows receive modulation from the operators shown above each column.</p>
-      <div className="overflow-auto"><table aria-label={`${matrix.toUpperCase()} operator routing`}>
-        <thead><tr><th scope="col">Destination / Source</th>{Array.from({ length: 6 }, (_, source) => <th key={source} scope="col">Op {source + 1}</th>)}</tr></thead>
+      <p className="text-muted-foreground">{t("Rows receive modulation from the operators shown above each column.")}</p>
+      <div className="overflow-auto"><table aria-label={matrix === "fm" ? t("FM operator routing") : t("RING operator routing")}>
+        <thead><tr><th scope="col">{t("Destination / Source")}</th>{Array.from({ length: 6 }, (_, source) => <th key={source} scope="col">Op {source + 1}</th>)}</tr></thead>
         <tbody>{Array.from({ length: 6 }, (_, destination) => <tr key={destination}><th scope="row">Op {destination + 1}</th>
           {Array.from({ length: 6 }, (_, source) => <td key={source}><ParamControl size="sm" {...bind(`${matrix}.${destination}.${source}`)} /></td>)}
         </tr>)}</tbody>
@@ -95,8 +96,8 @@ export function PolysynthEditor({ channel, params }: { channel: ChannelId; param
       <ParamRow>{ids.map((id) => <ParamControl key={id} {...bind(id)} />)}</ParamRow>
     </ParamGroup>)}
     {params.type === "hybridSeq" && <ParamGroup title="Sixteen-step sequence">
-      <div className="overflow-auto"><table aria-label="Hybrid note sequence">
-        <thead><tr><th scope="col">Step</th><th scope="col">Pitch</th><th scope="col">Velocity</th><th scope="col">Enabled</th></tr></thead>
+      <div className="overflow-auto"><table aria-label={t("Hybrid note sequence")}>
+        <thead><tr><th scope="col">{t("Step")}</th><th scope="col">{t("Pitch")}</th><th scope="col">{t("Velocity")}</th><th scope="col">{t("Enabled")}</th></tr></thead>
         <tbody>{Array.from({ length: 16 }, (_, step) => <tr key={step}>
           <th scope="row">{step + 1}</th>
           {["pitch", "velocity", "enabled"].map((field) => <td key={field}><ParamControl size="sm" {...bind(`steps.${step}.${field}`)} /></td>)}

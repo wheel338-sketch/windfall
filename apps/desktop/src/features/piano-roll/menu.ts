@@ -3,6 +3,7 @@ import {
   type ContextItem,
 } from "@/components/context-actions"
 import { NOTE_COLOR_GROUPS } from "@/lib/note-colors"
+import { translatedText as t } from "@/lib/i18n"
 
 const COLOR_GROUPS = ["auto", ...NOTE_COLOR_GROUPS.map((_, group) => String(group))]
 
@@ -13,9 +14,9 @@ export const NOTE_MENU: ContextItem[] = [
   "pianoRoll.generateProgression",
   "pianoRoll.noteProperties",
   "pianoRoll.noteCurves",
-  { submenu: "Note articulation", items: ["pianoRoll.articulation.normal", "pianoRoll.articulation.slide", "pianoRoll.articulation.portamento"] },
-  { submenu: "Set note color / MIDI channel", items: COLOR_GROUPS.map((group) => `pianoRoll.color.${group}`) },
-  { submenu: "Select by note color", items: COLOR_GROUPS.map((group) => `pianoRoll.selectColor.${group}`) },
+  { get submenu() { return t("Note articulation") }, items: ["pianoRoll.articulation.normal", "pianoRoll.articulation.slide", "pianoRoll.articulation.portamento"] },
+  { get submenu() { return t("Set note color / MIDI channel") }, items: COLOR_GROUPS.map((group) => `pianoRoll.color.${group}`) },
+  { get submenu() { return t("Select by note color") }, items: COLOR_GROUPS.map((group) => `pianoRoll.selectColor.${group}`) },
   contextSeparator,
   "pianoRoll.cut",
   "pianoRoll.copy",
@@ -33,7 +34,7 @@ export const NOTE_MENU: ContextItem[] = [
   "pianoRoll.quantize",
   "pianoRoll.quantizeEnds",
   {
-    submenu: "Selected-note tools",
+    get submenu() { return t("Selected-note tools") },
     items: [
       "pianoRoll.legato",
       "pianoRoll.staccato",
@@ -76,7 +77,7 @@ export const VIEW_MENU: ContextItem[] = [
 
 /** The tools, for the parts of the panel around the grid. */
 const TOOLS: ContextItem = {
-  submenu: "Tool",
+  get submenu() { return t("Tool") },
   items: [
     "pianoRoll.toolDraw",
     "pianoRoll.toolPaint",

@@ -14,6 +14,7 @@ import {
 } from "./descriptors"
 import { GenericParamEditor } from "./generic-param-editor"
 import type { SetParam } from "./use-param-binding"
+import { translatedText as t } from "@/lib/i18n"
 
 export type ParamDemoEvent = {
   descriptor: string
@@ -52,7 +53,7 @@ function Editor({ descriptor }: { descriptor: ParamDescriptor }) {
       <div className="mb-2 flex items-baseline gap-3">
         <h2 className="text-sm font-medium">{descriptor.name}</h2>
         <span className="text-xs text-muted-foreground">
-          {descriptor.params.length} settings
+          {descriptor.params.length}{" "}{t("settings")}
         </span>
       </div>
       <GenericParamEditor
@@ -77,16 +78,16 @@ export default function ParamDemo() {
   return (
     <main className="min-h-screen bg-chassis pb-10 text-xs text-foreground">
       <header className="sticky top-0 z-10 flex h-12 items-center gap-3 border-b bg-background px-4">
-        <h1 className="text-sm font-semibold">Parameter editors</h1>
+        <h1 className="text-sm font-semibold">{t("Parameter editors")}</h1>
         <p className="min-w-0 flex-1 truncate text-muted-foreground">
-          {hint ?? "Each editor is made from a descriptor alone"}
+          {hint ?? t("Each editor is made from a descriptor alone")}
         </p>
         <Button
           variant="outline"
           size="sm"
           onClick={() => setTheme(dark ? "light" : "dark")}
         >
-          {dark ? "Light theme" : "Dark theme"}
+          {dark ? t("Light theme") : t("Dark theme")}
         </Button>
       </header>
       <div className="mx-auto flex max-w-6xl flex-col gap-3 p-4">

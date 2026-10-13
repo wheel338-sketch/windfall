@@ -9,6 +9,7 @@ import type {
 import { backend } from "@/lib/ipc"
 import { useProjectStore } from "@/lib/store/project"
 import { getProjectGeneration, onProjectReplaced } from "@/lib/store/replaced"
+import { translatedText as t } from "@/lib/i18n"
 
 export type RulerTool = "seek" | "select" | "zoom"
 export type TimelineEdit =
@@ -173,7 +174,7 @@ export async function publishPlaybackRegion(
     const state = await backend.timelineState()
     if (!operation.current() || operation.revision !== state.revision)
       throw new Error(
-        "The project changed before the timeline selection could be applied. Retry the selection or Clear."
+        t("The project changed before the timeline selection could be applied. Retry the selection or Clear.")
       )
     receiveTimelineState(state, state.region !== null)
     if (
@@ -188,12 +189,12 @@ export async function publishPlaybackRegion(
     }
     if (!Number.isSafeInteger(state.request) || state.request < 0)
       throw new Error(
-        "The backend returned an invalid timeline request number."
+        t("The backend returned an invalid timeline request number.")
       )
     wireRequest = Math.max(wireRequest, state.request)
     if (wireRequest >= Number.MAX_SAFE_INTEGER)
       throw new Error(
-        "The timeline request limit was reached. Restart the app before selecting another playback region."
+        t("The timeline request limit was reached. Restart the app before selecting another playback region.")
       )
     const request = ++wireRequest
     // An edit invalidates the source revision, not an unchanged action owner.
@@ -211,7 +212,7 @@ export async function publishPlaybackRegion(
     )
     if (!operation.current())
       throw new Error(
-        "The project changed while the timeline selection was being applied. Retry the selection or Clear."
+        t("The project changed while the timeline selection was being applied. Retry the selection or Clear.")
       )
     receiveTimelineState(published, true)
     // An unpublished successor cannot reach guarded transport. Until its

@@ -1,12 +1,13 @@
 import type { NoteExpression, NoteId } from "@/bindings"
 import { DEFAULT_NOTE_EXPRESSION } from "@/lib/note-expression"
+import { translatedText as t } from "@/lib/i18n"
 
 export const FINE_PITCH_PRESETS = [
-  { label: "Octave down", finePitchCents: -1200 },
-  { label: "Semitone down", finePitchCents: -100 },
-  { label: "In tune", finePitchCents: 0 },
-  { label: "Semitone up", finePitchCents: 100 },
-  { label: "Octave up", finePitchCents: 1200 },
+  { get label() { return t("Octave down") }, finePitchCents: -1200 },
+  { get label() { return t("Semitone down") }, finePitchCents: -100 },
+  { get label() { return t("In tune") }, finePitchCents: 0 },
+  { get label() { return t("Semitone up") }, finePitchCents: 100 },
+  { get label() { return t("Octave up") }, finePitchCents: 1200 },
 ] as const
 
 type FinePitchNote = {

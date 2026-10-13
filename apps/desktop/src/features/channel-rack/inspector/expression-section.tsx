@@ -21,7 +21,7 @@ export const DEFAULT_EXPRESSION_MAP: ExpressionMap = {
 }
 const BUILTIN: ExpressionDestination[] = ["none", "cutoff", "resonance", "volume", "pan", "pitch", "release"]
 const PLUGIN: PluginExpressionDestination[] = ["none", "volume", "pan", "tuning", "vibrato", "expression", "brightness", "pressure"]
-const ROUTES = [{ key: "modulationX", label: "Modulation X" }, { key: "modulationY", label: "Modulation Y" }, { key: "release", label: "Release" }] as const
+const ROUTES = [{ key: "modulationX", get label() { return t("Modulation X") } }, { key: "modulationY", get label() { return t("Modulation Y") } }, { key: "release", get label() { return t("Release") } }] as const
 const options = <T extends string>(items: T[]) => items.map((value) => ({ value, label: t(value[0].toUpperCase() + value.slice(1)) }))
 
 /** A reviewed, single-step edit of the channel's built-in and hosted routes. */

@@ -45,6 +45,7 @@ import {
   type RulerTool,
   type TimelineEdit,
 } from "./timeline-store"
+import { message, plainNumber, translatedText as t } from "@/lib/i18n"
 
 function TimelineEditor({
   edit,
@@ -85,7 +86,7 @@ function TimelineEditor({
       at < 0 ||
       at > MAX_SONG_TICKS
     ) {
-      setError(`Enter a whole song tick from 0 to ${MAX_SONG_TICKS}.`)
+      setError(message("Enter a whole song tick from 0 to {maxSongTicks}.", { maxSongTicks: plainNumber(MAX_SONG_TICKS) }))
       return
     }
     let command: Command
@@ -100,7 +101,7 @@ function TimelineEditor({
         signature.numerator > 16 ||
         ![2, 4, 8, 16].includes(signature.denominator)
       ) {
-        setError("Use 1–16 beats with a beat unit of 2, 4, 8 or 16.")
+        setError(t("Use 1–16 beats with a beat unit of 2, 4, 8 or 16."))
         return
       }
       command = edit.item
@@ -118,7 +119,7 @@ function TimelineEditor({
             kind.end > MAX_SONG_TICKS))
       ) {
         setError(
-          "Give the marker a name of up to 256 bytes and a positive range inside the song bounds."
+          t("Give the marker a name of up to 256 bytes and a positive range inside the song bounds.")
         )
         return
       }
@@ -135,7 +136,7 @@ function TimelineEditor({
     if (result) close()
     else
       setError(
-        "The timeline edit was refused. Meter ticks must be distinct; navigation marker ranges must not overlap or share endpoints. The error message gives the exact reason."
+        t("The timeline edit was refused. Meter ticks must be distinct; navigation marker ranges must not overlap or share endpoints. The error message gives the exact reason.")
       )
   }
   const remove = async () => {
@@ -159,15 +160,15 @@ function TimelineEditor({
       <DialogContent>
         <DialogHeader>
           <DialogTitle>
-            {edit.item ? "Edit" : "Add"}{" "}
+            {edit.item ? t("Edit") : t("Add")}{" "}
             {edit.type === "meter"
-              ? "meter change"
-              : `${edit.kind.type} marker`}
+              ? t("meter change")
+              : message("{type} marker", { type: t(edit.kind.type) })}
           </DialogTitle>
           <DialogDescription>
             {edit.type === "meter"
-              ? "The new meter starts a bar here; the preceding bar may be shortened. Clip ticks and durations stay fixed."
-              : "Named markers label the view. Loop acts while song looping is enabled; skip jumps forward; pause stops until resumed."}
+              ? t("The new meter starts a bar here; the preceding bar may be shortened. Clip ticks and durations stay fixed.")
+              : t("Named markers label the view. Loop acts while song looping is enabled; skip jumps forward; pause stops until resumed.")}
           </DialogDescription>
         </DialogHeader>
         <form
@@ -179,7 +180,7 @@ function TimelineEditor({
         >
           <FieldGroup>
             <Field>
-              <FieldLabel htmlFor="timeline-tick">Song tick</FieldLabel>
+              <FieldLabel htmlFor="timeline-tick">{t("Song tick")}</FieldLabel>
               <Input
                 id="timeline-tick"
                 type="number"
@@ -194,7 +195,7 @@ function TimelineEditor({
               <>
                 <Field>
                   <FieldLabel htmlFor="timeline-numerator">
-                    Beats per bar
+                    {t("Beats per bar")}
                   </FieldLabel>
                   <Input
                     id="timeline-numerator"
@@ -208,7 +209,7 @@ function TimelineEditor({
                 </Field>
                 <Field>
                   <FieldLabel htmlFor="timeline-denominator">
-                    Beat unit
+                    {t("Beat unit")}
                   </FieldLabel>
                   <Input
                     id="timeline-denominator"
@@ -217,13 +218,13 @@ function TimelineEditor({
                     onChange={(event) => setDenominator(event.target.value)}
                     disabled={pending}
                   />
-                  <FieldDescription>2, 4, 8 or 16</FieldDescription>
+                  <FieldDescription>{t("2, 4, 8 or 16")}</FieldDescription>
                 </Field>
               </>
             ) : (
               <>
                 <Field>
-                  <FieldLabel htmlFor="timeline-name">Marker name</FieldLabel>
+                  <FieldLabel htmlFor="timeline-name">{t("Marker name")}</FieldLabel>
                   <Input
                     id="timeline-name"
                     value={name}
@@ -233,7 +234,7 @@ function TimelineEditor({
                 </Field>
                 {"end" in edit.kind && (
                   <Field>
-                    <FieldLabel htmlFor="timeline-end">End tick</FieldLabel>
+                    <FieldLabel htmlFor="timeline-end">{t("End tick")}</FieldLabel>
                     <Input
                       id="timeline-end"
                       type="number"
@@ -260,7 +261,7 @@ function TimelineEditor({
                   disabled={pending}
                   onClick={() => void remove()}
                 >
-                  Delete
+                  {t("Delete")}
                 </Button>
               )}
               <Button
@@ -269,10 +270,10 @@ function TimelineEditor({
                 onClick={close}
                 disabled={pending}
               >
-                Cancel
+                {t("Cancel")}
               </Button>
               <Button type="submit" disabled={pending}>
-                Save
+                {t("Save")}
               </Button>
             </DialogFooter>
           </FieldGroup>
@@ -324,7 +325,7 @@ export function TimelineControls() {
     <>
       <div className="flex flex-wrap items-center gap-2 border-b px-2 py-1">
         <ToggleGroup
-          aria-label="Ruler tool"
+          aria-label={t("Ruler tool")}
           size="sm"
           variant="outline"
           value={[tool]}
@@ -334,14 +335,14 @@ export function TimelineControls() {
               useTimelineStore.setState({ tool: next satisfies RulerTool })
           }}
         >
-          <ToggleGroupItem value="seek">Seek</ToggleGroupItem>
-          <ToggleGroupItem value="select">Select time</ToggleGroupItem>
-          <ToggleGroupItem value="zoom">Zoom region</ToggleGroupItem>
+          <ToggleGroupItem value="seek">{t("Seek")}</ToggleGroupItem>
+          <ToggleGroupItem value="select">{t("Select time")}</ToggleGroupItem>
+          <ToggleGroupItem value="zoom">{t("Zoom region")}</ToggleGroupItem>
         </ToggleGroup>
         <Button
           variant="outline"
           size="sm"
-          aria-label="Choose the previous ruler tool"
+          aria-label={t("Choose the previous ruler tool")}
           disabled={nextRulerTool(tool, "previous") === null}
           onClick={() => {
             const latest = useTimelineStore.getState().tool
@@ -349,12 +350,12 @@ export function TimelineControls() {
             if (next !== null) useTimelineStore.setState({ tool: next })
           }}
         >
-          Previous
+          {t("Previous")}
         </Button>
         <Button
           variant="outline"
           size="sm"
-          aria-label="Choose the next ruler tool"
+          aria-label={t("Choose the next ruler tool")}
           disabled={nextRulerTool(tool, "next") === null}
           onClick={() => {
             const latest = useTimelineStore.getState().tool
@@ -362,11 +363,11 @@ export function TimelineControls() {
             if (next !== null) useTimelineStore.setState({ tool: next })
           }}
         >
-          Next
+          {t("Next")}
         </Button>
         <DropdownMenu>
           <DropdownMenuTrigger render={<Button variant="outline" size="sm" />}>
-            Timeline
+            {t("Timeline")}
           </DropdownMenuTrigger>
           <DropdownMenuContent>
             <DropdownMenuGroup>
@@ -395,25 +396,24 @@ export function TimelineControls() {
               })}
             </DropdownMenuGroup>
             <DropdownMenuGroup>
-              <DropdownMenuLabel>Meter changes</DropdownMenuLabel>
+              <DropdownMenuLabel>{t("Meter changes")}</DropdownMenuLabel>
               {!timeline?.meters.length && (
-                <DropdownMenuItem disabled>No meter changes</DropdownMenuItem>
+                <DropdownMenuItem disabled>{t("No meter changes")}</DropdownMenuItem>
               )}
               {timeline?.meters.map((item) => (
                 <DropdownMenuItem
                   key={item.id}
                   onClick={() => choose({ type: "meter", item })}
                 >
-                  {item.signature.numerator}/{item.signature.denominator} at
-                  tick {item.tick}
+                  {item.signature.numerator}/{item.signature.denominator}{" "}{t("at tick")}{" "}{item.tick}
                 </DropdownMenuItem>
               ))}
             </DropdownMenuGroup>
             <DropdownMenuGroup>
-              <DropdownMenuLabel>Markers</DropdownMenuLabel>
+              <DropdownMenuLabel>{t("Markers")}</DropdownMenuLabel>
               {!timeline?.markers.length && (
                 <DropdownMenuItem disabled>
-                  No timeline markers
+                  {t("No timeline markers")}
                 </DropdownMenuItem>
               )}
               {timeline?.markers.map((item) => (
@@ -423,7 +423,7 @@ export function TimelineControls() {
                     choose({ type: "marker", kind: item.kind, item })
                   }
                 >
-                  {item.name} ({item.kind.type}, tick {item.tick})
+                  {item.name} ({item.kind.type}{t(", tick")}{" "}{item.tick})
                 </DropdownMenuItem>
               ))}
             </DropdownMenuGroup>
@@ -431,8 +431,8 @@ export function TimelineControls() {
         </DropdownMenu>
         <span className="text-muted-foreground">
           {selection
-            ? `Ticks ${selection.start}–${selection.end}${active ? " · playback region" : ""}`
-            : "Drag the ruler to select or zoom; Shift-drag selects time."}
+            ? message("Ticks {start}–{end}{active}", { start: plainNumber(selection.start), end: plainNumber(selection.end), active: active ? t(" · playback region") : "" })
+            : t("Drag the ruler to select or zoom; Shift-drag selects time.")}
         </span>
       </div>
       {error && (

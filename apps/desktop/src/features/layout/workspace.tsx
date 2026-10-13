@@ -18,7 +18,7 @@ import { runAction, useShortcutLabel } from "@/lib/actions"
 import { useChannelCount, useProjectReady } from "@/lib/store/selectors"
 import { useUiStore, type CenterTab, type PanelSizes } from "@/lib/store/ui"
 import { cn } from "@/lib/utils"
-import { message, useTranslation } from "@/lib/i18n"
+import { message, useTranslation, translatedText as t } from "@/lib/i18n"
 
 import { dividerMenu, EMPTY_PROJECT_MENU, TABS_MENU } from "./chrome-menus"
 import { EmptyProject } from "./empty-states"
@@ -90,7 +90,7 @@ function EffectsTab() {
         onClick={() => void runAction("mixer.enlargeEffects")}
         className="relative flex h-7 items-center gap-1.5 px-2.5 text-xs font-medium text-foreground outline-none after:absolute after:inset-x-2.5 after:bottom-0 after:h-0.5 after:rounded-t-full after:bg-brand focus-visible:bg-accent focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
       >
-        Effects
+        {t("Effects")}
         <HugeiconsIcon
           icon={Cancel01Icon}
           strokeWidth={2}
@@ -98,7 +98,7 @@ function EffectsTab() {
         />
       </TooltipTrigger>
       <TooltipContent side="bottom">
-        Return the effects to the mixer
+        {t("Return the effects to the mixer")}
         {shortcut && <Kbd>{shortcut}</Kbd>}
       </TooltipContent>
     </Tooltip>
@@ -133,7 +133,7 @@ function CenterDock() {
       <ContextActions items={TABS_MENU}>
         <div
           role="tablist"
-          aria-label="Editors"
+          aria-label={t("Editors")}
           onKeyDown={onKeyDown}
           className="flex h-7 shrink-0 items-center border-b bg-chassis/60 px-1"
         >
@@ -158,7 +158,7 @@ function CenterDock() {
         aria-labelledby={
           overlay || tab ? `center-tab-${overlay ?? tab}` : undefined
         }
-        aria-label={!overlay && !tab ? "Editors" : undefined}
+        aria-label={!overlay && !tab ? t("Editors") : undefined}
         className="min-h-0 flex-1 overflow-auto"
       >
         {overlay === "effects" ? (
@@ -179,7 +179,7 @@ function CenterDock() {
           </PanelBoundary>
         ) : (
           <p className="p-4 text-sm text-muted-foreground">
-            The panels are in their own windows.
+            {t("The panels are in their own windows.")}
           </p>
         )}
       </div>
@@ -213,7 +213,7 @@ function MainColumn() {
       {mixer && (
         <>
           <ContextActions items={MIXER_DIVIDER_MENU}>
-            <ResizableHandle aria-label="Resize the mixer" />
+            <ResizableHandle aria-label={t("Resize the mixer")} />
           </ContextActions>
           <ResizablePanel
             id="mixer"
@@ -265,7 +265,7 @@ export function Workspace() {
             <SideDock panel="browser" />
           </ResizablePanel>
           <ContextActions items={BROWSER_DIVIDER_MENU}>
-            <ResizableHandle aria-label="Resize the browser" />
+            <ResizableHandle aria-label={t("Resize the browser")} />
           </ContextActions>
         </>
       )}

@@ -9,6 +9,7 @@ import {
   layerOf,
   MAX_LAYER_CHILDREN,
 } from "./voice"
+import { translatedText as t } from "@/lib/i18n"
 
 /*
  * A layer channel makes no sound of its own: every note it is given plays
@@ -68,7 +69,7 @@ export async function addLayerChannel(
   const id = useProjectStore.getState().project.nextId
   const result = await dispatch({
     type: "batch",
-    label: "Add layer channel",
+    label: t("Add layer channel"),
     commands: [
       { type: "addChannel", name: "Layer", mixerTrack: MASTER_TRACK },
       {

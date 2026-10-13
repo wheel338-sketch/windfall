@@ -1,4 +1,4 @@
-import { formatNumber, message as i18nMessage } from "@/lib/i18n"
+import { formatNumber, message as i18nMessage, dynamicTitle } from "@/lib/i18n"
 import { translatedText as t, useLanguageStore } from "@/lib/i18n"
 import { create } from "zustand"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
@@ -23,4 +23,4 @@ export function PluginPicker() {
       </div>
     </section></>}</DialogContent></Dialog>
 }
-export function registerPluginPickerActions() { return registry.register([{ id: "plugins.picker", title: "Plugin picker", section: "View", keywords: "plugin tiles grid favorites thumbnails", run: () => usePluginPicker.setState({ open: true }) }]) }
+export function registerPluginPickerActions() { return registry.register([{ id: "plugins.picker", ...dynamicTitle("Plugin picker", {}), section: "View", keywords: "plugin tiles grid favorites thumbnails", run: () => usePluginPicker.setState({ open: true }) }]) }

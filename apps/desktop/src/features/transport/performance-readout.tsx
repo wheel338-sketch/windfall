@@ -3,6 +3,7 @@ import { useRef } from "react"
 import { useHint } from "@/lib/store/hint"
 import { useRealtime } from "@/lib/store/realtime"
 import { MemoryReadout } from "./memory-readout"
+import { translatedText as t, message, plainNumber } from "@/lib/i18n"
 
 /** Text this small is unreadable if it changes every frame. */
 const REFRESH_MS = 250
@@ -17,7 +18,7 @@ export function PerformanceReadout() {
   const lastDraw = useRef(0)
   const peak = useRef(0)
   const hint = useHint(
-    "Engine load: the share of each audio buffer's time spent computing it"
+    t("Engine load: the share of each audio buffer's time spent computing it")
   )
 
   useRealtime((frame) => {
@@ -31,7 +32,7 @@ export function PerformanceReadout() {
     }
     if (late.current) {
       late.current.textContent =
-        frame.xruns === 1 ? "1 dropout" : `${frame.xruns} dropouts`
+        frame.xruns === 1 ? t("1 dropout") : message("{xruns} dropouts", { xruns: plainNumber(frame.xruns) })
       late.current.hidden = frame.xruns === 0
     }
     peak.current = 0

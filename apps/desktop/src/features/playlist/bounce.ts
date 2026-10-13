@@ -5,6 +5,7 @@ import { getProjectGeneration } from "@/lib/store/replaced"
 
 import { selectedClips } from "./selectors"
 import { usePlaylistStore } from "./store"
+import { translatedText as t } from "@/lib/i18n"
 
 /** The backend renders and commits one batch; the desktop mirrors its patch. */
 export async function bounceSelectedClips(): Promise<void> {
@@ -13,7 +14,7 @@ export async function bounceSelectedClips(): Promise<void> {
   const generation = getProjectGeneration()
   const result = await attempt(
     backend.bounceSelectedClips(clips.map((clip) => clip.id)),
-    "Could not bounce the selected clips"
+    t("Could not bounce the selected clips")
   )
   if (!result || generation !== getProjectGeneration()) return
   receivePatch(result.patch)

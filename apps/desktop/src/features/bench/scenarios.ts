@@ -3,6 +3,7 @@ import { keyToRow, type TimeGridView } from "@/lib/canvas"
 
 import { HIGHEST_KEY, SONG_TICKS, TICKS_PER_BAR } from "./generate-notes"
 import { ROW_COUNT, type BenchModel } from "./model"
+import { translatedText as t } from "@/lib/i18n"
 
 export interface ScenarioContext {
   readonly view: TimeGridView
@@ -97,7 +98,7 @@ export function createScenarios(): Scenario[] {
   const scroll: Scenario = {
     name: "scroll",
     description:
-      "Continuous horizontal scroll through the whole song and back. 8 bars across the view, 16 px rows.",
+      t("Continuous horizontal scroll through the whole song and back. 8 bars across the view, 16 px rows."),
     setup({ view }) {
       workingView(view, 0)
     },
@@ -114,7 +115,7 @@ export function createScenarios(): Scenario[] {
   const zoom: Scenario = {
     name: "zoom",
     description:
-      "Zoom sweep around the middle of the song, from all 200 bars across the view to 2 bars and back.",
+      t("Zoom sweep around the middle of the song, from all 200 bars across the view to 2 bars and back."),
     setup({ view }) {
       workingView(view, 0)
     },
@@ -134,7 +135,7 @@ export function createScenarios(): Scenario[] {
   const drag: Scenario = {
     name: "drag",
     description:
-      "Dragging 1,000 selected notes in time and pitch. The move is a drag offset on the view; no note data changes until the drop.",
+      t("Dragging 1,000 selected notes in time and pitch. The move is a drag offset on the view; no note data changes until the drop."),
     setup(context) {
       wideView(context.view)
       selectForDrag(context)
@@ -153,7 +154,7 @@ export function createScenarios(): Scenario[] {
   const editRebuild: Scenario = {
     name: "edit-rebuild",
     description:
-      "Worst case for an edit: every frame 1,000 notes change in the model, the whole batch is rebuilt from the Note array (colors, sort, index) and uploaded again.",
+      t("Worst case for an edit: every frame 1,000 notes change in the model, the whole batch is rebuilt from the Note array (colors, sort, index) and uploaded again."),
     setup(context) {
       wideView(context.view)
       originalNotes = context.model.notes
@@ -183,7 +184,7 @@ export function createScenarios(): Scenario[] {
   const playhead: Scenario = {
     name: "playhead",
     description:
-      "Only the playhead moves, at 140 BPM. The grid and the notes are not redrawn.",
+      t("Only the playhead moves, at 140 BPM. The grid and the notes are not redrawn."),
     setup({ view }) {
       workingView(view, 40 * TICKS_PER_BAR)
       playheadStart = view.viewport.scrollTick
@@ -202,7 +203,7 @@ export function createScenarios(): Scenario[] {
   const overview: Scenario = {
     name: "overview",
     description:
-      "Every note on screen at once: the whole song across the view and all 88 keys, with a small zoom and scroll wobble so each frame is a full redraw.",
+      t("Every note on screen at once: the whole song across the view and all 88 keys, with a small zoom and scroll wobble so each frame is a full redraw."),
     setup({ view }) {
       const { width, height } = view.viewport
       view.setViewport({

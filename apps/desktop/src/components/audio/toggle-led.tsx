@@ -3,6 +3,7 @@ import * as React from "react"
 import { cva, type VariantProps } from "class-variance-authority"
 
 import { cn } from "@/lib/utils"
+import { translatedText as t } from "@/lib/i18n"
 
 const toggleLedVariants = cva(
   "inline-flex shrink-0 items-center justify-center font-semibold outline-none select-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 focus-visible:ring-offset-background disabled:pointer-events-none disabled:opacity-50",
@@ -105,7 +106,7 @@ function MuteSolo({
         onPressedChange={onMutedChange}
         color="var(--wf-mute, var(--wf-meter-mid))"
         disabled={disabled}
-        aria-label="Mute"
+        aria-label={t("Mute")}
       >
         M
       </ToggleLed>
@@ -115,7 +116,7 @@ function MuteSolo({
         onPressedChange={onSoloChange}
         color="var(--wf-solo, var(--wf-meter-low))"
         disabled={disabled}
-        aria-label="Solo"
+        aria-label={t("Solo")}
       >
         S
       </ToggleLed>

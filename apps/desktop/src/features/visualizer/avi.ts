@@ -1,6 +1,7 @@
 import type { VisualSettings } from "@/bindings"
 import { offlineSignal } from "./offline"
 import { frameHash, renderVisual, VISUAL_FPS } from "./render"
+import { translatedText as t } from "@/lib/i18n"
 
 const MAX_BYTES = 128 * 1024 * 1024
 const encoder = new TextEncoder()
@@ -38,14 +39,14 @@ export type AviExport = { bytes: Uint8Array; metadata: AviMetadata }
 /** RIFF AVI 1.0: bottom-up padded BGR24 BI_RGB frames and interleaved
  * signed 16-bit stereo PCM. No compressed codec or native library. */
 export async function exportVisualAvi(samples: ArrayLike<number>, sampleRate: number, settings: VisualSettings, width = 320, height = 180, cancelled: () => boolean = () => false, progress: (fraction: number) => void = () => {}, firstVisualFrame = 0): Promise<AviExport> {
-  if (!Number.isSafeInteger(firstVisualFrame) || firstVisualFrame < 0) throw new Error("Invalid visual phase")
-  if (samples.length % 2 !== 0 || !Number.isInteger(sampleRate) || sampleRate < 8000 || sampleRate > 192000 || samples.length === 0) throw new Error("Export needs nonempty stereo PCM at a supported sample rate")
-  if (samples.length / 2 > sampleRate * 30 || width < 1 || height < 1 || width > 640 || height > 360 || !Number.isInteger(width) || !Number.isInteger(height)) throw new Error("Export exceeds the 30-second or 640×360 limit")
+  if (!Number.isSafeInteger(firstVisualFrame) || firstVisualFrame < 0) throw new Error(t("Invalid visual phase"))
+  if (samples.length % 2 !== 0 || !Number.isInteger(sampleRate) || sampleRate < 8000 || sampleRate > 192000 || samples.length === 0) throw new Error(t("Export needs nonempty stereo PCM at a supported sample rate"))
+  if (samples.length / 2 > sampleRate * 30 || width < 1 || height < 1 || width > 640 || height > 360 || !Number.isInteger(width) || !Number.isInteger(height)) throw new Error(t("Export exceeds the 30-second or 640×360 limit"))
   const audioFrames = samples.length / 2
   const videoFrames = Math.ceil(audioFrames * VISUAL_FPS / sampleRate)
   const stride = Math.ceil(width * 3 / 4) * 4
   const frameBytes = stride * height
-  if (videoFrames * (frameBytes + 40) + samples.length * 2 + 4096 > MAX_BYTES) throw new Error("Uncompressed AVI exceeds the 128 MiB export budget; choose a shorter range")
+  if (videoFrames * (frameBytes + 40) + samples.length * 2 + 4096 > MAX_BYTES) throw new Error(t("Uncompressed AVI exceeds the 128 MiB export budget; choose a shorter range"))
   const videoFormat = words([40, width, height, 24 * 65536 + 1, 0, frameBytes, 0, 0, 0, 0])
   const audioFormat = new Uint8Array(16)
   const af = new DataView(audioFormat.buffer)
@@ -66,7 +67,7 @@ export async function exportVisualAvi(samples: ArrayLike<number>, sampleRate: nu
     chunks.push(packed); offset += packed.length
   }
   for (let frame = 0; frame < videoFrames; frame += 1) {
-    if (cancelled()) throw new Error("Video export cancelled")
+    if (cancelled()) throw new Error(t("Video export cancelled"))
     const first = Math.floor(frame * sampleRate / VISUAL_FPS)
     const end = Math.min(audioFrames, Math.floor((frame + 1) * sampleRate / VISUAL_FPS))
     const rgba = renderVisual(width, height, settings, offlineSignal(samples, first), firstVisualFrame + frame)
@@ -83,7 +84,7 @@ export async function exportVisualAvi(samples: ArrayLike<number>, sampleRate: nu
     const view = new DataView(pcm.buffer)
     for (let i = first * 2; i < end * 2; i += 1) {
       const value = samples[i]
-      if (!Number.isFinite(value)) throw new Error("Audio contains an invalid sample")
+      if (!Number.isFinite(value)) throw new Error(t("Audio contains an invalid sample"))
       view.setInt16((i - first * 2) * 2, Math.round(Math.max(-1, Math.min(1, value)) * (value < 0 ? 32768 : 32767)), true)
     }
     add("01wb", pcm, 0)

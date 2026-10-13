@@ -1,7 +1,7 @@
 import type { DelayParams, NoteDivision } from "@/bindings"
 import { formatMs } from "@/components/audio"
 import {
-  formatParam,
+  formatParamDisplay,
   ParamControl,
   ParamGroup,
   ParamRow,
@@ -10,6 +10,7 @@ import { useTempo } from "@/lib/store"
 
 import type { EditorProps } from "../editor-props"
 import { nearestDivision, syncedDelayMs } from "./timing"
+import { translatedText as t } from "@/lib/i18n"
 
 function formatTempo(bpm: number): string {
   return `${Number.isInteger(bpm) ? bpm : bpm.toFixed(1)} BPM`
@@ -77,11 +78,11 @@ export function DelayEditor({ bind }: EditorProps<DelayParams>) {
             className="min-w-0 text-[10px] leading-snug text-muted-foreground"
           >
             <span className="sr-only">
-              {synced ? "Delay time: " : "Closest note length: "}
+              {synced ? t("Delay time: ") : t("Closest note length: ")}
             </span>
             <span className="block font-readout text-[11px] text-foreground">
               {synced
-                ? formatParam(division, bind.value("division"))
+                ? formatParamDisplay(division, bind.value("division"))
                 : formatMs(timeMs)}
             </span>
             {equivalent}

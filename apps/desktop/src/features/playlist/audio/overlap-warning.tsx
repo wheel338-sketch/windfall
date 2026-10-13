@@ -10,6 +10,7 @@ import { MAX_AUDIO_CLIPS } from "@/lib/units"
 
 import type { GridMetrics } from "../metrics"
 import { seekSong } from "../ops"
+import { message, translatedText as t } from "@/lib/i18n"
 
 /** Where audio clips will be silent, and what to say about it. */
 export type SilentClips = {
@@ -56,7 +57,7 @@ function Warning({
   metrics: GridMetrics
 }) {
   const hint = useHint(
-    `${silent.text}. Click to go there. Mute or move some of them to hear the rest`
+    message("{silentText}. Click to go there. Mute or move some of them to hear the rest", { silentText: silent.text })
   )
 
   function show() {
@@ -74,7 +75,7 @@ function Warning({
     <button
       type="button"
       data-slot="playlist-overlap-warning"
-      aria-label={`${silent.text}. Go there`}
+      aria-label={message("{silentText}. Go there", { silentText: silent.text })}
       title={silent.text}
       className="flex h-6 shrink-0 items-center gap-1 rounded-md bg-warn/15 px-1.5 text-warn outline-none hover:bg-warn/25 focus-visible:ring-2 focus-visible:ring-ring"
       onClick={show}
@@ -82,7 +83,7 @@ function Warning({
     >
       <HugeiconsIcon icon={Alert02Icon} strokeWidth={2} className="size-3.5" />
       <span>
-        Over {MAX_AUDIO_CLIPS} clips at bar {silent.bar}
+        {t("Over")}{" "}{MAX_AUDIO_CLIPS}{" "}{t("clips at bar")}{" "}{silent.bar}
       </span>
     </button>
   )

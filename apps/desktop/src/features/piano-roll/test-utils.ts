@@ -14,6 +14,7 @@ import type { EditorSurface, PointerInput } from "./editor"
 import type { PressButton } from "./intents"
 import { forgetSavedViews, setCurrentSession } from "./session"
 import { usePianoRollStore } from "./store"
+import { message, translatedText as t } from "@/lib/i18n"
 
 /** A step is 12 px wide and a row 16 px tall; C5 sits at y 160 to 176. */
 export const TEST_VIEWPORT: Viewport = {
@@ -81,14 +82,14 @@ export const undoSteps = () => history().cursor
 
 export function channel(name: string): Channel {
   const found = project().channels.find((item) => item.name === name)
-  if (!found) throw new Error(`No channel called ${name}`)
+  if (!found) throw new Error(message("No channel called {name}", { name }))
   return found
 }
 
 export function currentPattern() {
   const id = selectedPatternId(project(), useTransportStore.getState().pattern)
   const pattern = project().patterns.find((item) => item.id === id)
-  if (!pattern) throw new Error("No pattern")
+  if (!pattern) throw new Error(t("No pattern"))
   return pattern
 }
 

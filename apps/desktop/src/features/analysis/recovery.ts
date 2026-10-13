@@ -3,6 +3,7 @@ import { toast } from "sonner"
 import { backend, errorMessage } from "@/lib/ipc"
 import { retireJob } from "./retire"
 import { isTerminalStatus, type AnalysisJob } from "./types"
+import { message as i18nMessage, translatedText as t } from "@/lib/i18n"
 
 const LIMIT = 8 // matches the native retained-record cap; IDs never persist
 type Retained = {
@@ -24,7 +25,7 @@ export function hasRecoveryCapacity(): boolean {
 export function reserveRecovery(): (job: AnalysisJob | null) => void {
   if (!hasRecoveryCapacity())
     throw new Error(
-      "Retire retained analysis jobs before submitting another (limit 8)."
+      t("Retire retained analysis jobs before submitting another (limit 8).")
     )
   useAnalysisRecovery.setState((state) => ({ pending: state.pending + 1 }))
   let completed = false
@@ -67,10 +68,10 @@ function change(id: string, patch: Partial<Omit<Retained, "job">>) {
 }
 export function recoveryFailure(id: string, error: unknown) {
   const message = errorMessage(error)
-  const identity = `Analysis job ${id} remains retained:`
+  const identity = i18nMessage("Analysis job {id} remains retained:", { id })
   // Bound retained UI evidence; the native record retains full cleanup evidence.
   const report = (
-    message.startsWith(identity) ? message : `${identity} ${message}`
+    message.startsWith(identity) ? message : i18nMessage("Analysis job {id} remains retained: {detail}", { id, detail: message })
   ).slice(0, 2048)
   change(id, { busy: false, error: report })
   return report
@@ -106,7 +107,7 @@ export function selectNextRecoveryJob() {
     ]
   useAnalysisRecovery.setState({ selected: next.job.job })
   toast(
-    `Retained analysis job ${next.job.job}: ${next.error ?? next.job.status}`
+    i18nMessage("Retained analysis job {job}: {error}", { job: next.job.job, error: next.error ?? next.job.status })
   )
 }
 /** Cleanup commands have no source/review authority and never apply a job. */
@@ -126,7 +127,7 @@ export async function recoverJob(operation: "cancel" | "retry" | "forget") {
       const job = await backend.analysisStatus(id)
       updateRecoveryJob(job)
       if (!isTerminalStatus(job.status))
-        throw new Error("Cancel the job before forgetting it")
+        throw new Error(t("Cancel the job before forgetting it"))
       await backend.analysisForget(id)
       removeRecoveryJob(id)
     }

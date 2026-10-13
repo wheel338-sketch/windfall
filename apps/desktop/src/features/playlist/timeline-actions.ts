@@ -13,6 +13,7 @@ import {
   selectTimelineRegion,
   useTimelineStore,
 } from "./timeline-store"
+import { dynamicTitle, translatedText as t } from "@/lib/i18n"
 
 const timeline = () => useTimelineStore.getState()
 const inPlaylist = (state: AppState) => state.ui.centerTab === "playlist"
@@ -53,9 +54,9 @@ export const TIMELINE_ACTIONS: Action[] = [
   ...(["seek", "select", "zoom"] as const).map((tool): Action => ({
     id: `playlist.ruler${tool}`,
     title: {
-      seek: "Seek with the ruler",
-      select: "Select time with the ruler",
-      zoom: "Zoom a dragged region",
+      get seek() { return t("Seek with the ruler") },
+      get select() { return t("Select time with the ruler") },
+      get zoom() { return t("Zoom a dragged region") },
     }[tool],
     section: "Playlist",
     keywords: "timeline region ruler",
@@ -65,20 +66,20 @@ export const TIMELINE_ACTIONS: Action[] = [
   })),
   {
     id: "playlist.addMeterChange",
-    title: "Add song meter change…",
+    ...dynamicTitle("Add song meter change…", {}),
     section: "Playlist",
     keywords: "time signature bar beat timeline",
     enabled: inPlaylist,
-    whyDisabled: () => "Open the playlist first",
+    whyDisabled: () => t("Open the playlist first"),
     run: () => editTimeline({ type: "meter" }),
   },
   ...(["named", "loop", "skip", "pause"] as const).map((type): Action => ({
     id: `playlist.add${type}Marker`,
-    title: `Add ${type} timeline marker…`,
+    ...dynamicTitle("Add {type} timeline marker…", { type: t(type) }),
     section: "Playlist",
     keywords: "timeline navigation label",
     enabled: inPlaylist,
-    whyDisabled: () => "Open the playlist first",
+    whyDisabled: () => t("Open the playlist first"),
     run: () =>
       editTimeline({
         type: "marker",
@@ -93,27 +94,27 @@ export const TIMELINE_ACTIONS: Action[] = [
   })),
   ...([false, true] as const).map((loopSong): Action => ({
     id: loopSong ? "playlist.loopSelection" : "playlist.playSelection",
-    title: loopSong ? "Loop selected song region" : "Play selected song region",
+    ...dynamicTitle(loopSong ? "Loop selected song region" : "Play selected song region", {}),
     section: "Playlist",
     keywords: "timeline time selection range",
     enabled: hasRange,
     whyDisabled: (state) =>
       inPlaylist(state)
-        ? "Select time in the playlist ruler first"
-        : "Open the playlist first",
+        ? t("Select time in the playlist ruler first")
+        : t("Open the playlist first"),
     run: () => playTimelineSelection(loopSong),
   })),
   {
     id: "playlist.zoomRegion",
-    title: "Zoom to selected song region",
+    ...dynamicTitle("Zoom to selected song region", {}),
     section: "Playlist",
     enabled: (state) => hasRange(state) && activeMetrics() !== null,
     whyDisabled: (state) =>
       !inPlaylist(state)
-        ? "Open the playlist first"
+        ? t("Open the playlist first")
         : timeline().selection
-          ? "Open the playlist canvas first"
-          : "Select time in the playlist ruler first",
+          ? t("Open the playlist canvas first")
+          : t("Select time in the playlist ruler first"),
     run: () => {
       const range = timeline().selection
       if (range) activeMetrics()?.fitRegion(range)
@@ -121,26 +122,26 @@ export const TIMELINE_ACTIONS: Action[] = [
   },
   {
     id: "playlist.exportRegion",
-    title: "Export selected song region…",
+    ...dynamicTitle("Export selected song region…", {}),
     section: "Playlist",
     enabled: hasRange,
     whyDisabled: (state) =>
       inPlaylist(state)
-        ? "Select time in the playlist ruler first"
-        : "Open the playlist first",
+        ? t("Select time in the playlist ruler first")
+        : t("Open the playlist first"),
     run: exportTimelineSelection,
   },
   {
     id: "playlist.clearRegion",
-    title: "Clear song time selection",
+    ...dynamicTitle("Clear song time selection", {}),
     section: "Playlist",
     enabled: (state) =>
       inPlaylist(state) &&
       (!!timeline().selection || timeline().active || !timeline().hydrated),
     whyDisabled: (state) =>
       inPlaylist(state)
-        ? "No song time selection to clear"
-        : "Open the playlist first",
+        ? t("No song time selection to clear")
+        : t("Open the playlist first"),
     run: clearTimelineSelection,
   },
 ]

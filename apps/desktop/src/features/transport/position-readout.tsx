@@ -10,6 +10,7 @@ import {
   ticksPerBeat,
   ticksToSeconds,
 } from "@/lib/time"
+import { translatedText as t } from "@/lib/i18n"
 
 function setText(element: HTMLElement | null, text: string) {
   if (element && element.textContent !== text) element.textContent = text
@@ -58,7 +59,7 @@ export function PositionReadout() {
     <div
       className="flex items-center gap-2.5"
       role="group"
-      aria-label="Song position"
+      aria-label={t("Song position")}
     >
       <span
         ref={pulse}
@@ -68,14 +69,14 @@ export function PositionReadout() {
       <span
         ref={position}
         className="font-readout text-[0.8125rem] font-medium text-display-foreground"
-        title="Bar, beat and step"
+        title={t("Bar, beat and step")}
       >
         001:01:1
       </span>
       <span
         ref={clock}
         className="font-readout text-[0.6875rem] text-display-dim"
-        title="Minutes and seconds"
+        title={t("Minutes and seconds")}
       >
         0:00.00
       </span>

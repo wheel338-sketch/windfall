@@ -4,12 +4,13 @@ import { dispatch } from "@/lib/store/project"
 import { PPQ, TICKS_PER_STEP } from "@/lib/units"
 
 import { currentSession } from "./session"
+import { translatedText as t } from "@/lib/i18n"
 
 export const GLIDE_PRESETS = [
-  { label: "16th", glideTicks: TICKS_PER_STEP },
-  { label: "8th", glideTicks: TICKS_PER_STEP * 2 },
-  { label: "Quarter", glideTicks: PPQ },
-  { label: "Half", glideTicks: PPQ * 2 },
+  { get label() { return t("16th") }, glideTicks: TICKS_PER_STEP },
+  { get label() { return t("8th") }, glideTicks: TICKS_PER_STEP * 2 },
+  { get label() { return t("Quarter") }, glideTicks: PPQ },
+  { get label() { return t("Half") }, glideTicks: PPQ * 2 },
 ] as const
 
 type GlideNote = {

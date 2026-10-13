@@ -1,6 +1,7 @@
 import { backend } from "@/lib/ipc"
 import { reportError } from "@/lib/errors"
 import { UI_SCALE_EVENT, uiScaleFactor } from "@/lib/ui-scale"
+import { translatedText as t } from "@/lib/i18n"
 
 /** One per webview. Serializes/coalesces changes so an earlier slow native call
  * cannot finish after the latest preference. Native runtime remembers reopen. */
@@ -8,7 +9,7 @@ export function connectNativeEditorScale(
   sync = (application: number) => backend.kind === "tauri"
     ? backend.pluginEditorScale(application)
     : Promise.resolve(),
-  fail = (error: unknown) => reportError(error, "Could not scale native plugin content")
+  fail = (error: unknown) => reportError(error, t("Could not scale native plugin content"))
 ) {
   let alive = true
   let running = false

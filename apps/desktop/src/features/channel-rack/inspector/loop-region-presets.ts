@@ -1,8 +1,9 @@
+import { translatedText as t } from "@/lib/i18n"
 export const LOOP_REGION_PRESETS = [
-  { label: "Whole", start: 0, end: 1 },
-  { label: "First half", start: 0, end: 0.5 },
-  { label: "Second half", start: 0.5, end: 1 },
-  { label: "Last quarter", start: 0.75, end: 1 },
+  { get label() { return t("Whole") }, start: 0, end: 1 },
+  { get label() { return t("First half") }, start: 0, end: 0.5 },
+  { get label() { return t("Second half") }, start: 0.5, end: 1 },
+  { get label() { return t("Last quarter") }, start: 0.75, end: 1 },
 ] as const
 
 export function nextLoopRegion(

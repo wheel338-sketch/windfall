@@ -15,6 +15,7 @@ import {
   SEVEN_BAND_LABELS,
   sevenBandSections,
 } from "./seven-band"
+import { translatedText as t, message } from "@/lib/i18n"
 
 /**
  * The fixed-band graphic equalizer: seven faders at fixed frequencies, read
@@ -39,12 +40,12 @@ export function SevenBandEditor({ bind }: EditorProps<SevenBandParams>) {
     <div
       data-slot="seven-band-editor"
       role="group"
-      aria-label="Seven Band settings"
+      aria-label={t("Seven Band settings")}
       className="flex min-w-0 flex-col gap-2"
     >
       <ResponseDisplay
         response={response}
-        label={`Seven Band response: ${describeBands(SEVEN_BAND_HZ, gains)}`}
+        label={message("Seven Band response: {bands}", { bands: describeBands(SEVEN_BAND_HZ, gains) })}
         className="h-24"
       />
       <div className="flex items-end gap-2">
@@ -64,7 +65,7 @@ export function SevenBandEditor({ bind }: EditorProps<SevenBandParams>) {
           disabled={flat || bind.disabled}
           onClick={flatten}
         >
-          Flat
+          {t("Flat")}
         </Button>
       </div>
     </div>

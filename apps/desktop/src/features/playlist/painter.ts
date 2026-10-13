@@ -51,6 +51,7 @@ import {
 import { playlistDeviceY, playlistYToRow } from "./row-geometry"
 import { loopPoints, previewOf, previewSpans, type ClipSpan } from "./preview"
 import type { ClipSprite, ClipStyle } from "./sprite"
+import { translatedText as t, message } from "@/lib/i18n"
 
 /** How a drag in progress displaces the selected clips. */
 export type DragState = {
@@ -617,8 +618,8 @@ export class ClipPainter {
       const name = !gone
         ? sprite.name
         : sprite.name === ""
-          ? "Missing sample"
-          : `Missing: ${sprite.name}`
+          ? t("Missing sample")
+          : message("Missing: {spriteName}", { spriteName: sprite.name })
       if (name === "" || !style) continue
       const h = sprite.y1 - sprite.y0
       if (h < MIN_LABEL_HEIGHT * dpr) continue

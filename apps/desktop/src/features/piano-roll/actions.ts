@@ -1,4 +1,4 @@
-import { dynamicTitle } from "@/lib/i18n"
+import { dynamicTitle, translatedText as t } from "@/lib/i18n"
 import {
   invalidateActionsOn,
   registry,
@@ -71,14 +71,14 @@ const TOOL_ACTIONS: {
   key: string
   words: string
 }[] = [
-  { tool: "draw", title: "Draw tool", key: "D", words: "pencil add notes" },
-  { tool: "paint", title: "Paint tool", key: "B", words: "brush repeat" },
-  { tool: "select", title: "Select tool", key: "S", words: "marquee box" },
-  { tool: "erase", title: "Erase tool", key: "E", words: "delete rubber" },
-  { tool: "mute", title: "Mute tool", key: "M", words: "silence unmute note" },
-  { tool: "slice", title: "Slice tool", key: "C", words: "split cut note" },
-  { tool: "zoom", title: "Zoom tool", key: "Z", words: "rectangle viewport" },
-  { tool: "playback", title: "Playback tool", key: "Y", words: "scrub seek audition" },
+  { tool: "draw", get title() { return t("Draw tool") }, key: "D", words: "pencil add notes" },
+  { tool: "paint", get title() { return t("Paint tool") }, key: "B", words: "brush repeat" },
+  { tool: "select", get title() { return t("Select tool") }, key: "S", words: "marquee box" },
+  { tool: "erase", get title() { return t("Erase tool") }, key: "E", words: "delete rubber" },
+  { tool: "mute", get title() { return t("Mute tool") }, key: "M", words: "silence unmute note" },
+  { tool: "slice", get title() { return t("Slice tool") }, key: "C", words: "split cut note" },
+  { tool: "zoom", get title() { return t("Zoom tool") }, key: "Z", words: "rectangle viewport" },
+  { tool: "playback", get title() { return t("Playback tool") }, key: "Y", words: "scrub seek audition" },
 ]
 
 function capital(word: string): string {
@@ -88,16 +88,16 @@ function capital(word: string): string {
 const ACTIONS: Action[] = [
   {
     id: "pianoRoll.dumpPlayedNotes",
-    title: "Dump played notes",
+    ...dynamicTitle("Dump played notes", {}),
     section: SECTION,
     keywords: "audition log recent held notes capture",
     enabled: (state) => inRoll(state) && canDumpPlayedNotes(),
-    whyDisabled: () => "Open a pattern channel and audition notes on it",
+    whyDisabled: () => t("Open a pattern channel and audition notes on it"),
     run: dumpPlayedNotes,
   },
   {
     id: "pianoRoll.stepEntry",
-    title: "Step entry",
+    ...dynamicTitle("Step entry", {}),
     section: SECTION,
     defaultShortcut: "\\",
     keywords: "computer keyboard insert note snap cursor",
@@ -111,7 +111,7 @@ const ACTIONS: Action[] = [
   },
   {
     id: "pianoRoll.typing",
-    title: "Typing",
+    ...dynamicTitle("Typing", {}),
     section: SECTION,
     defaultShortcut: "`",
     keywords: "computer keyboard audition octave",
@@ -125,16 +125,16 @@ const ACTIONS: Action[] = [
   },
   {
     id: "pianoRoll.exportSheetMusic",
-    title: "Export sheet music…",
+    ...dynamicTitle("Export sheet music…", {}),
     section: SECTION,
     keywords: "MusicXML PDF print notation score staff engrave save channel",
     enabled: (state) => inRoll(state) && !!editor()?.context,
-    whyDisabled: () => "Open a pattern channel in the piano roll",
+    whyDisabled: () => t("Open a pattern channel in the piano roll"),
     run: exportSheetMusic,
   },
   {
     id: "pianoRoll.generateRiff",
-    title: "Generate riff…",
+    ...dynamicTitle("Generate riff…", {}),
     section: SECTION,
     keywords: "seed melody scale append generator",
     enabled: (state) => inRoll(state) && !!editor()?.context && !editor()?.busy,
@@ -142,7 +142,7 @@ const ACTIONS: Action[] = [
   },
   {
     id: "pianoRoll.generateProgression",
-    title: "Generate progression…",
+    ...dynamicTitle("Generate progression…", {}),
     section: SECTION,
     keywords: "seed chord progression triad diatonic mood append generator",
     enabled: (state) => inRoll(state) && !!editor()?.context && !editor()?.busy,
@@ -150,7 +150,7 @@ const ACTIONS: Action[] = [
   },
   {
     id: "pianoRoll.patternTimeline",
-    title: "Pattern markers and time signatures…",
+    ...dynamicTitle("Pattern markers and time signatures…", {}),
     section: SECTION,
     keywords: "local meter change timeline pattern ruler",
     enabled: inRoll,
@@ -158,7 +158,7 @@ const ACTIONS: Action[] = [
   },
   {
     id: "pianoRoll.waveformHelper",
-    title: "Waveform helper…",
+    ...dynamicTitle("Waveform helper…", {}),
     section: SECTION,
     keywords: "audio waveform background timing reference",
     enabled: inRoll,
@@ -166,7 +166,7 @@ const ACTIONS: Action[] = [
   },
   {
     id: "pianoRoll.chordDisplay",
-    title: "Chord display",
+    ...dynamicTitle("Chord display", {}),
     section: SECTION,
     keywords: "chord name detect played selected playhead symbol inversion",
     enabled: inRoll,
@@ -174,7 +174,7 @@ const ACTIONS: Action[] = [
   },
   {
     id: "pianoRoll.lfo",
-    title: "Write note-event LFO…",
+    ...dynamicTitle("Write note-event LFO…", {}),
     section: SECTION,
     keywords: "sine triangle pulse random sample hold modulation event lane",
     enabled: hasNotes,
@@ -217,43 +217,43 @@ const ACTIONS: Action[] = [
     section: SECTION,
     keywords: "portamento duration glide ticks",
     enabled: hasSelection,
-    whyDisabled: () => "Select notes in the piano roll",
+    whyDisabled: () => t("Select notes in the piano roll"),
     run: () => setSelectedGlide(item.glideTicks),
   })),
   {
     id: "pianoRoll.glide.previous",
-    title: "Previous portamento preset",
+    ...dynamicTitle("Previous portamento preset", {}),
     section: SECTION,
     keywords: "portamento duration glide preset",
     enabled: hasSelection,
-    whyDisabled: () => "Select notes in the piano roll",
+    whyDisabled: () => t("Select notes in the piano roll"),
     run: () => setSelectedGlidePresetStep("previous"),
   },
   {
     id: "pianoRoll.glide.next",
-    title: "Next portamento preset",
+    ...dynamicTitle("Next portamento preset", {}),
     section: SECTION,
     keywords: "portamento duration glide preset",
     enabled: hasSelection,
-    whyDisabled: () => "Select notes in the piano roll",
+    whyDisabled: () => t("Select notes in the piano roll"),
     run: () => setSelectedGlidePresetStep("next"),
   },
   {
     id: "pianoRoll.glide.half",
-    title: "Halve selected portamento",
+    ...dynamicTitle("Halve selected portamento", {}),
     section: SECTION,
     keywords: "portamento duration glide half",
     enabled: hasSelection,
-    whyDisabled: () => "Select notes in the piano roll",
+    whyDisabled: () => t("Select notes in the piano roll"),
     run: () => setSelectedGlideScale("half"),
   },
   {
     id: "pianoRoll.glide.double",
-    title: "Double selected portamento",
+    ...dynamicTitle("Double selected portamento", {}),
     section: SECTION,
     keywords: "portamento duration glide double",
     enabled: hasSelection,
-    whyDisabled: () => "Select notes in the piano roll",
+    whyDisabled: () => t("Select notes in the piano roll"),
     run: () => setSelectedGlideScale("double"),
   },
   ...LENGTH_PRESETS.map((item): Action => ({
@@ -262,110 +262,110 @@ const ACTIONS: Action[] = [
     section: SECTION,
     keywords: "note length duration ticks",
     enabled: hasSelection,
-    whyDisabled: () => "Select notes in the piano roll",
+    whyDisabled: () => t("Select notes in the piano roll"),
     run: () => setSelectedLength(item.length),
   })),
   {
     id: "pianoRoll.length.previous",
-    title: "Previous length preset",
+    ...dynamicTitle("Previous length preset", {}),
     section: SECTION,
     keywords: "note length duration preset",
     enabled: hasSelection,
-    whyDisabled: () => "Select notes in the piano roll",
+    whyDisabled: () => t("Select notes in the piano roll"),
     run: () => setSelectedNoteLengthPresetStep("previous"),
   },
   {
     id: "pianoRoll.length.next",
-    title: "Next length preset",
+    ...dynamicTitle("Next length preset", {}),
     section: SECTION,
     keywords: "note length duration preset",
     enabled: hasSelection,
-    whyDisabled: () => "Select notes in the piano roll",
+    whyDisabled: () => t("Select notes in the piano roll"),
     run: () => setSelectedNoteLengthPresetStep("next"),
   },
   {
     id: "pianoRoll.length.half",
-    title: "Halve selected note lengths",
+    ...dynamicTitle("Halve selected note lengths", {}),
     section: SECTION,
     keywords: "note length half double duration",
     enabled: hasSelection,
-    whyDisabled: () => "Select notes in the piano roll",
+    whyDisabled: () => t("Select notes in the piano roll"),
     run: () => setSelectedLengthScale("half"),
   },
   {
     id: "pianoRoll.length.double",
-    title: "Double selected note lengths",
+    ...dynamicTitle("Double selected note lengths", {}),
     section: SECTION,
     keywords: "note length half double duration",
     enabled: hasSelection,
-    whyDisabled: () => "Select notes in the piano roll",
+    whyDisabled: () => t("Select notes in the piano roll"),
     run: () => setSelectedLengthScale("double"),
   },
   {
     id: "pianoRoll.start.half",
-    title: "Halve selected note starts",
+    ...dynamicTitle("Halve selected note starts", {}),
     section: SECTION,
     keywords: "note start half timing ticks",
     enabled: hasSelection,
-    whyDisabled: () => "Select notes in the piano roll",
+    whyDisabled: () => t("Select notes in the piano roll"),
     run: () => setSelectedNoteStartScale("half"),
   },
   {
     id: "pianoRoll.start.double",
-    title: "Double selected note starts",
+    ...dynamicTitle("Double selected note starts", {}),
     section: SECTION,
     keywords: "note start double timing ticks",
     enabled: hasSelection,
-    whyDisabled: () => "Select notes in the piano roll",
+    whyDisabled: () => t("Select notes in the piano roll"),
     run: () => setSelectedNoteStartScale("double"),
   },
   {
     id: "pianoRoll.key.half",
-    title: "Halve selected note distance from C5",
+    ...dynamicTitle("Halve selected note distance from C5", {}),
     section: SECTION,
     keywords: "note key C5 distance half pitch",
     enabled: hasSelection,
-    whyDisabled: () => "Select notes in the piano roll",
+    whyDisabled: () => t("Select notes in the piano roll"),
     run: () => setSelectedNoteKeyScale("half"),
   },
   {
     id: "pianoRoll.key.double",
-    title: "Double selected note distance from C5",
+    ...dynamicTitle("Double selected note distance from C5", {}),
     section: SECTION,
     keywords: "note key C5 distance double pitch",
     enabled: hasSelection,
-    whyDisabled: () => "Select notes in the piano roll",
+    whyDisabled: () => t("Select notes in the piano roll"),
     run: () => setSelectedNoteKeyScale("double"),
   },
   {
     id: "pianoRoll.fromEnd.half",
-    title: "Halve selected notes from the end",
+    ...dynamicTitle("Halve selected notes from the end", {}),
     section: SECTION,
     keywords: "note end half length start duration ticks",
     enabled: hasSelection,
-    whyDisabled: () => "Select notes in the piano roll",
+    whyDisabled: () => t("Select notes in the piano roll"),
     run: () => setSelectedNoteFromEndScale("half"),
   },
   {
     id: "pianoRoll.fromEnd.double",
-    title: "Double selected notes from the end",
+    ...dynamicTitle("Double selected notes from the end", {}),
     section: SECTION,
     keywords: "note end double length start duration ticks",
     enabled: hasSelection,
-    whyDisabled: () => "Select notes in the piano roll",
+    whyDisabled: () => t("Select notes in the piano roll"),
     run: () => setSelectedNoteFromEndScale("double"),
   },
   {
     id: "pianoRoll.noteProperties",
-    title: "Note properties…",
+    ...dynamicTitle("Note properties…", {}),
     section: SECTION,
     defaultShortcut: "Alt+Enter",
     keywords: "velocity pan pitch release modulation start length dialog",
     enabled: hasSelection,
-    whyDisabled: () => "Select notes in the piano roll",
+    whyDisabled: () => t("Select notes in the piano roll"),
     run: openNoteProperties,
   },
-  { id: "pianoRoll.noteCurves", title: "Note expression curves…", section: SECTION, keywords: "continuous pan pitch release modulation envelope per note", enabled: hasSelection, whyDisabled: () => "Select source notes", run: openNoteCurves },
+  { id: "pianoRoll.noteCurves", ...dynamicTitle("Note expression curves…", {}), section: SECTION, keywords: "continuous pan pitch release modulation envelope per note", enabled: hasSelection, whyDisabled: () => t("Select source notes"), run: openNoteCurves },
   ...TOOL_ACTIONS.map(({ tool, title, key, words }): Action => ({
     id: `pianoRoll.tool${capital(tool)}`,
     title,
@@ -383,7 +383,7 @@ const ACTIONS: Action[] = [
 
   {
     id: "pianoRoll.drum",
-    title: "Drum",
+    ...dynamicTitle("Drum", {}),
     section: SECTION,
     defaultShortcut: "G",
     keywords: "paint toggle drum sequencer steps",
@@ -398,7 +398,7 @@ const ACTIONS: Action[] = [
 
   {
     id: "pianoRoll.selectAll",
-    title: "Select all notes",
+    ...dynamicTitle("Select all notes", {}),
     section: SECTION,
     editCommand: "selectAll",
     defaultShortcut: "Mod+A",
@@ -407,14 +407,14 @@ const ACTIONS: Action[] = [
   },
   {
     id: "pianoRoll.selectMatchingPitches",
-    title: "Select matching pitches",
+    ...dynamicTitle("Select matching pitches", {}),
     section: SECTION,
     enabled: hasSelection,
     run: () => editor()?.selectMatchingPitches(),
   },
   {
     id: "pianoRoll.selectMutedNotes",
-    title: "Select muted notes",
+    ...dynamicTitle("Select muted notes", {}),
     section: SECTION,
     enabled: (state) =>
       inRoll(state) &&
@@ -423,7 +423,7 @@ const ACTIONS: Action[] = [
   },
   {
     id: "pianoRoll.restoreMutedNotes",
-    title: "Restore muted notes",
+    ...dynamicTitle("Restore muted notes", {}),
     section: SECTION,
     enabled: (state) => inRoll(state) && restorableNotes().length > 0,
     run: async () => {
@@ -441,7 +441,7 @@ const ACTIONS: Action[] = [
   },
   {
     id: "pianoRoll.selectNotesAtPlayhead",
-    title: "Select notes at the playhead",
+    ...dynamicTitle("Select notes at the playhead", {}),
     section: SECTION,
     enabled: (state) => {
       const session = currentSession()
@@ -460,7 +460,7 @@ const ACTIONS: Action[] = [
   },
   {
     id: "pianoRoll.deselect",
-    title: "Deselect all notes",
+    ...dynamicTitle("Deselect all notes", {}),
     section: SECTION,
     defaultShortcut: "Escape",
     keywords: "clear selection cancel",
@@ -476,7 +476,7 @@ const ACTIONS: Action[] = [
   },
   {
     id: "pianoRoll.delete",
-    title: "Delete selected notes",
+    ...dynamicTitle("Delete selected notes", {}),
     section: SECTION,
     editCommand: "delete",
     defaultShortcut: ["Delete", "Backspace"],
@@ -486,7 +486,7 @@ const ACTIONS: Action[] = [
   },
   {
     id: "pianoRoll.cut",
-    title: "Cut notes",
+    ...dynamicTitle("Cut notes", {}),
     section: SECTION,
     editCommand: "cut",
     defaultShortcut: "Mod+X",
@@ -495,7 +495,7 @@ const ACTIONS: Action[] = [
   },
   {
     id: "pianoRoll.copy",
-    title: "Copy notes",
+    ...dynamicTitle("Copy notes", {}),
     section: SECTION,
     editCommand: "copy",
     defaultShortcut: "Mod+C",
@@ -506,7 +506,7 @@ const ACTIONS: Action[] = [
   },
   {
     id: "pianoRoll.paste",
-    title: "Paste notes",
+    ...dynamicTitle("Paste notes", {}),
     section: SECTION,
     editCommand: "paste",
     defaultShortcut: "Mod+V",
@@ -519,7 +519,7 @@ const ACTIONS: Action[] = [
   },
   {
     id: "pianoRoll.duplicate",
-    title: "Duplicate notes to the right",
+    ...dynamicTitle("Duplicate notes to the right", {}),
     section: SECTION,
     editCommand: "duplicate",
     defaultShortcut: "Mod+D",
@@ -530,22 +530,22 @@ const ACTIONS: Action[] = [
 
   {
     id: "pianoRoll.quantize",
-    title: "Quantize selected note starts…",
+    ...dynamicTitle("Quantize selected note starts…", {}),
     section: SECTION,
     defaultShortcut: "Mod+Q",
     keywords: "align grid timing",
     enabled: hasSelection,
-    whyDisabled: () => "Select notes first",
+    whyDisabled: () => t("Select notes first"),
     run: () => openNoteTools("quantize", "start"),
   },
   {
     id: "pianoRoll.quantizeEnds",
-    title: "Quantize selected note ends…",
+    ...dynamicTitle("Quantize selected note ends…", {}),
     section: SECTION,
     defaultShortcut: "Alt+Q",
     keywords: "align grid length",
     enabled: hasSelection,
-    whyDisabled: () => "Select notes first",
+    whyDisabled: () => t("Select notes first"),
     run: () => openNoteTools("quantize", "end"),
   },
   ...NOTE_TOOLS.filter((tool) => tool.value !== "quantize").map(
@@ -555,14 +555,14 @@ const ACTIONS: Action[] = [
       section: SECTION,
       keywords: tool.description,
       enabled: hasSelection,
-      whyDisabled: () => "Select notes first",
+      whyDisabled: () => t("Select notes first"),
       run: () => openNoteTools(tool.value),
     })
   ),
 
   {
     id: "pianoRoll.nudgeLeft",
-    title: "Move notes left by one snap step",
+    ...dynamicTitle("Move notes left by one snap step", {}),
     section: SECTION,
     defaultShortcut: "ArrowLeft",
     repeats: true,
@@ -572,7 +572,7 @@ const ACTIONS: Action[] = [
   },
   {
     id: "pianoRoll.nudgeRight",
-    title: "Move notes right by one snap step",
+    ...dynamicTitle("Move notes right by one snap step", {}),
     section: SECTION,
     defaultShortcut: "ArrowRight",
     repeats: true,
@@ -582,7 +582,7 @@ const ACTIONS: Action[] = [
   },
   {
     id: "pianoRoll.transposeUp",
-    title: "Move notes up a semitone",
+    ...dynamicTitle("Move notes up a semitone", {}),
     section: SECTION,
     defaultShortcut: "ArrowUp",
     repeats: true,
@@ -592,7 +592,7 @@ const ACTIONS: Action[] = [
   },
   {
     id: "pianoRoll.transposeDown",
-    title: "Move notes down a semitone",
+    ...dynamicTitle("Move notes down a semitone", {}),
     section: SECTION,
     defaultShortcut: "ArrowDown",
     repeats: true,
@@ -602,30 +602,30 @@ const ACTIONS: Action[] = [
   },
   {
     id: "pianoRoll.octaveUp",
-    title: "Transpose up an octave",
+    ...dynamicTitle("Transpose up an octave", {}),
     section: SECTION,
     defaultShortcut: "Shift+ArrowUp",
     repeats: true,
     keywords: "pitch 12 semitones",
     enabled: hasSelection,
-    whyDisabled: () => "Select notes first",
+    whyDisabled: () => t("Select notes first"),
     run: () => editor()?.transpose(12),
   },
   {
     id: "pianoRoll.octaveDown",
-    title: "Transpose down an octave",
+    ...dynamicTitle("Transpose down an octave", {}),
     section: SECTION,
     defaultShortcut: "Shift+ArrowDown",
     repeats: true,
     keywords: "pitch 12 semitones",
     enabled: hasSelection,
-    whyDisabled: () => "Select notes first",
+    whyDisabled: () => t("Select notes first"),
     run: () => editor()?.transpose(-12),
   },
 
   {
     id: "pianoRoll.zoomFit",
-    title: "Zoom to fit all notes",
+    ...dynamicTitle("Zoom to fit all notes", {}),
     section: SECTION,
     defaultShortcut: "Mod+0",
     keywords: "view whole pattern",
@@ -634,7 +634,7 @@ const ACTIONS: Action[] = [
   },
   {
     id: "pianoRoll.zoomSelection",
-    title: "Zoom to the selection",
+    ...dynamicTitle("Zoom to the selection", {}),
     section: SECTION,
     defaultShortcut: "Mod+Shift+0",
     keywords: "view fit",
@@ -643,7 +643,7 @@ const ACTIONS: Action[] = [
   },
   {
     id: "pianoRoll.ghosts",
-    title: "Ghost notes",
+    ...dynamicTitle("Ghost notes", {}),
     section: SECTION,
     defaultShortcut: "Alt+G",
     keywords: "show hide other channels",
@@ -652,7 +652,7 @@ const ACTIONS: Action[] = [
   },
   {
     id: "pianoRoll.follow",
-    title: "Follow the playhead",
+    ...dynamicTitle("Follow the playhead", {}),
     section: SECTION,
     keywords: "scroll auto playback",
     checked: () => roll().follow,
@@ -661,7 +661,7 @@ const ACTIONS: Action[] = [
 
   {
     id: "pianoRoll.editGhosts",
-    title: "Edit ghost notes",
+    ...dynamicTitle("Edit ghost notes", {}),
     section: SECTION,
     defaultShortcut: "Alt+Shift+G",
     keywords: "other channels source lane ghost editing",
@@ -672,10 +672,9 @@ const ACTIONS: Action[] = [
 
   ...SNAP_OPTIONS.map((option): Action => ({
     id: `pianoRoll.snap.${option.id}`,
-    title:
-      option.id === "none"
-        ? "Turn snap off"
-        : `Snap to ${option.label.toLowerCase()}`,
+    ...(option.id === "none"
+      ? dynamicTitle("Turn snap off", {})
+      : dynamicTitle("Snap to {value0}", { value0: option.label.toLowerCase() })),
     section: SECTION,
     keywords: "grid magnet",
     checked: () => roll().snap === option.id,

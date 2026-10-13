@@ -16,19 +16,20 @@ import { MAX_PATTERN_STEPS, TICKS_PER_STEP } from "@/lib/units"
 
 import { currentSession } from "./session"
 import { NoteColorPicker } from "./note-color-picker"
+import { translatedText as t, message, plainNumber } from "@/lib/i18n"
 
 const MAX_TICKS = MAX_PATTERN_STEPS * TICKS_PER_STEP
 const FIELDS = [
-  { id: "start", label: "Start (ticks)", min: 0, max: MAX_TICKS - 1, step: 1, factor: 1 },
-  { id: "length", label: "Length (ticks)", min: 1, max: MAX_TICKS, step: 1, factor: 1 },
-  { id: "key", label: "MIDI key", min: 0, max: 127, step: 1, factor: 1 },
-  { id: "velocity", label: "Velocity (%)", min: 0, max: 100, step: 0.1, factor: 100 },
-  { id: "pan", label: "Pan (%)", min: -100, max: 100, step: 0.1, factor: 100 },
-  { id: "release", label: "Release (%)", min: 0, max: 100, step: 0.1, factor: 100 },
-  { id: "finePitchCents", label: "Fine pitch (cents)", min: -1200, max: 1200, step: 1, factor: 1 },
-  { id: "modulationX", label: "Modulation X (%)", min: 0, max: 100, step: 0.1, factor: 100 },
-  { id: "modulationY", label: "Modulation Y (%)", min: 0, max: 100, step: 0.1, factor: 100 },
-  { id: "glideTicks", label: "Portamento duration (ticks)", min: 1, max: MAX_TICKS, step: 1, factor: 1 },
+  { id: "start", get label() { return t("Start (ticks)") }, min: 0, max: MAX_TICKS - 1, step: 1, factor: 1 },
+  { id: "length", get label() { return t("Length (ticks)") }, min: 1, max: MAX_TICKS, step: 1, factor: 1 },
+  { id: "key", get label() { return t("MIDI key") }, min: 0, max: 127, step: 1, factor: 1 },
+  { id: "velocity", get label() { return t("Velocity (%)") }, min: 0, max: 100, step: 0.1, factor: 100 },
+  { id: "pan", get label() { return t("Pan (%)") }, min: -100, max: 100, step: 0.1, factor: 100 },
+  { id: "release", get label() { return t("Release (%)") }, min: 0, max: 100, step: 0.1, factor: 100 },
+  { id: "finePitchCents", get label() { return t("Fine pitch (cents)") }, min: -1200, max: 1200, step: 1, factor: 1 },
+  { id: "modulationX", get label() { return t("Modulation X (%)") }, min: 0, max: 100, step: 0.1, factor: 100 },
+  { id: "modulationY", get label() { return t("Modulation Y (%)") }, min: 0, max: 100, step: 0.1, factor: 100 },
+  { id: "glideTicks", get label() { return t("Portamento duration (ticks)") }, min: 1, max: MAX_TICKS, step: 1, factor: 1 },
 ] as const
 type Property = (typeof FIELDS)[number]["id"]
 type Values = Record<Property, string>
@@ -151,8 +152,8 @@ function PropertyForm({ request }: { request: Request }) {
   return <Dialog open onOpenChange={(open) => { if (!open && !submitting.current) closeNoteProperties() }}>
     <DialogContent className="max-h-[85dvh] overflow-y-auto sm:max-w-lg" showCloseButton={!pending}>
       <DialogHeader>
-        <DialogTitle>Note properties</DialogTitle>
-        <DialogDescription>Edit {request.notes.length === 1 ? "this note" : `${request.notes.length} selected notes`} in one undo step. Blank values keep each note's current value; changed values apply to every captured note.</DialogDescription>
+        <DialogTitle>{t("Note properties")}</DialogTitle>
+        <DialogDescription>{t("Edit")}{" "}{request.notes.length === 1 ? t("this note") : message("{count} selected notes", { count: plainNumber(request.notes.length) })}{" "}{t("in one undo step. Blank values keep each note's current value; changed values apply to every captured note.")}</DialogDescription>
       </DialogHeader>
       <form className="flex flex-col gap-4" onSubmit={async (event) => {
         event.preventDefault()
@@ -170,40 +171,40 @@ function PropertyForm({ request }: { request: Request }) {
         } finally { submitting.current = false; setPending(false) }
       }}>
         <Field>
-          <FieldLabel>Articulation</FieldLabel>
+          <FieldLabel>{t("Articulation")}</FieldLabel>
           <Select value={articulation} disabled={pending} onValueChange={(value) => {
             if (value === "keep" || isNoteArticulation(value)) { setArticulation(value); setArticulationTouched(value !== "keep") }
           }}>
-            <SelectTrigger aria-label="Note articulation"><SelectValue /></SelectTrigger>
+            <SelectTrigger aria-label={t("Note articulation")}><SelectValue /></SelectTrigger>
             <SelectContent><SelectGroup>
-              <SelectItem value="keep">Keep each note's articulation</SelectItem>
+              <SelectItem value="keep">{t("Keep each note's articulation")}</SelectItem>
               {NOTE_ARTICULATIONS.map((item) => <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>)}
             </SelectGroup></SelectContent>
           </Select>
-          <FieldDescription>A slide bends the held chord over this note's length and starts no voice. Portamento starts a voice gliding from the previous held pitch over its duration below.</FieldDescription>
+          <FieldDescription>{t("A slide bends the held chord over this note's length and starts no voice. Portamento starts a voice gliding from the previous held pitch over its duration below.")}</FieldDescription>
         </Field>
         <FieldGroup className="grid grid-cols-2 gap-3">
           <Field className="col-span-2">
-            <FieldLabel>Color group / MIDI channel</FieldLabel>
+            <FieldLabel>{t("Color group / MIDI channel")}</FieldLabel>
             <NoteColorPicker mixed value={colorGroup} disabled={pending} onChange={(value) => { setColorGroup(value); setColorTouched(value !== "keep") }} />
-            <FieldDescription>Explicit groups route MIDI notes to channels 1–16. Channel color keeps automatic routing.</FieldDescription>
+            <FieldDescription>{t("Explicit groups route MIDI notes to channels 1–16. Channel color keeps automatic routing.")}</FieldDescription>
           </Field>
           {FIELDS.map((field) => <Field key={field.id}>
             <FieldLabel htmlFor={`${formId}-${field.id}`}>{field.label}</FieldLabel>
-            <Input id={`${formId}-${field.id}`} type="number" min={field.min} max={field.max} step={field.step} value={values[field.id]} placeholder="Mixed · keep values" disabled={pending} onChange={(event) => change(field.id, event.target.value)} />
+            <Input id={`${formId}-${field.id}`} type="number" min={field.min} max={field.max} step={field.step} value={values[field.id]} placeholder={t("Mixed · keep values")} disabled={pending} onChange={(event) => change(field.id, event.target.value)} />
           </Field>)}
         </FieldGroup>
-        <FieldDescription>Pan: negative is left, positive is right. Release and modulation use 50% as neutral. Modulation X offsets filter cutoff; Y offsets resonance. Start and length are stored note positions before channel swing, gate and shift.</FieldDescription>
+        <FieldDescription>{t("Pan: negative is left, positive is right. Release and modulation use 50% as neutral. Modulation X offsets filter cutoff; Y offsets resonance. Start and length are stored note positions before channel swing, gate and shift.")}</FieldDescription>
         <Button type="button" variant="outline" size="sm" disabled={pending} onClick={() => {
           change("release", "50"); change("finePitchCents", "0"); change("modulationX", "50"); change("modulationY", "50")
           change("glideTicks", "240"); setArticulation("normal"); setArticulationTouched(true)
-        }}>Reset expression</Button>
-        {!current && <Alert><AlertDescription>The project changed while this dialog was open. Close it and reopen the current notes.</AlertDescription></Alert>}
-        {invalid && <Alert><AlertDescription>Use values within the displayed ranges and whole ticks, MIDI keys and cents.</AlertDescription></Alert>}
-        {failed && <Alert><AlertDescription>The captured notes could not be updated. Reopen the dialog to capture their current values.</AlertDescription></Alert>}
+        }}>{t("Reset expression")}</Button>
+        {!current && <Alert><AlertDescription>{t("The project changed while this dialog was open. Close it and reopen the current notes.")}</AlertDescription></Alert>}
+        {invalid && <Alert><AlertDescription>{t("Use values within the displayed ranges and whole ticks, MIDI keys and cents.")}</AlertDescription></Alert>}
+        {failed && <Alert><AlertDescription>{t("The captured notes could not be updated. Reopen the dialog to capture their current values.")}</AlertDescription></Alert>}
         <DialogFooter>
-          <Button type="button" variant="ghost" disabled={pending} onClick={closeNoteProperties}>Cancel</Button>
-          <Button type="submit" disabled={pending || !current || invalid || !hasEdits}>{pending ? "Applying…" : "Apply properties"}</Button>
+          <Button type="button" variant="ghost" disabled={pending} onClick={closeNoteProperties}>{t("Cancel")}</Button>
+          <Button type="submit" disabled={pending || !current || invalid || !hasEdits}>{pending ? t("Applying…") : t("Apply properties")}</Button>
         </DialogFooter>
       </form>
     </DialogContent>

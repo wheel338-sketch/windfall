@@ -8,6 +8,7 @@ import {
 
 import { closeProjectOverview, useProjectOverviewPanel } from "./actions"
 import { ProjectOverviewView } from "./view"
+import { translatedText as t } from "@/lib/i18n"
 
 export function ProjectOverviewPanel() {
   const open = useProjectOverviewPanel((state) => state.open)
@@ -21,10 +22,9 @@ export function ProjectOverviewPanel() {
     >
       <DialogContent className="flex h-dvh max-w-none! flex-col rounded-none">
         <DialogHeader>
-          <DialogTitle>Project overview</DialogTitle>
+          <DialogTitle>{t("Project overview")}</DialogTitle>
           <DialogDescription>
-            Channels, patterns and playlist clips in the open Windfall project.
-            Select a relationship to open its piano roll, or a clip to reveal it on the playlist.
+            {t("Channels, patterns and playlist clips in the open Windfall project. Select a relationship to open its piano roll, or a clip to reveal it on the playlist.")}
           </DialogDescription>
         </DialogHeader>
         {open && <ProjectOverviewView />}

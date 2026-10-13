@@ -42,6 +42,7 @@ import type {
   ScoreVoice,
   StaffKind,
 } from "./model"
+import { translatedText as t } from "@/lib/i18n"
 
 export type PaperSize = "a4" | "letter"
 
@@ -51,7 +52,7 @@ export const PAPERS: Record<
   { width: number; height: number; label: string; css: string }
 > = {
   a4: { width: 595.28, height: 841.89, label: "A4", css: "A4" },
-  letter: { width: 612, height: 792, label: "US Letter", css: "letter" },
+  letter: { width: 612, height: 792, get label() { return t("US Letter") }, css: "letter" },
 }
 
 export type LayoutOptions = {

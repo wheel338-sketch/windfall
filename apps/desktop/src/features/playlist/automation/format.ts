@@ -7,7 +7,7 @@ import {
   parsePan,
   parsePercent,
 } from "@/components/audio"
-import { formatParam, parseParam } from "@/features/params"
+import { formatParamDisplay, parseParamDisplay } from "@/features/params"
 import { rangeNormalized, rangeValue } from "@/lib/automation/curve"
 import { targetState } from "@/lib/automation/targets"
 import { formatTempo, parseTempo, tickToPosition } from "@/lib/time"
@@ -27,7 +27,7 @@ export function formatAutomationValue(
   const state = targetState(project, target)
   if (!state) return ""
   const real = rangeValue(state.range, normalized)
-  if (state.info) return formatParam(state.info, real)
+  if (state.info) return formatParamDisplay(state.info, real)
   switch (target.type) {
     case "channelVolume":
     case "trackVolume":
@@ -60,7 +60,7 @@ export function parseAutomationValue(
   if (!state) return null
   let real: number | null
   if (state.info) {
-    real = parseParam(state.info, text)
+    real = parseParamDisplay(state.info, text)
   } else {
     switch (target.type) {
       case "channelVolume":

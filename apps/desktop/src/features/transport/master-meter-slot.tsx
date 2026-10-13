@@ -9,6 +9,7 @@ import { useHint } from "@/lib/store/hint"
 import { meterFeed } from "@/lib/store/realtime"
 import { onProjectReplaced } from "@/lib/store/replaced"
 import { MASTER_TRACK } from "@/lib/units"
+import { translatedText as t } from "@/lib/i18n"
 
 // Made once, so the meter subscribes once and not on every render.
 const MASTER_FEED = meterFeed(MASTER_TRACK)
@@ -19,7 +20,7 @@ const MASTER_FEED = meterFeed(MASTER_TRACK)
  * lit until it is clicked.
  */
 export function MasterMeterSlot() {
-  const hint = useHint("Master level. Click to clear the clip light")
+  const hint = useHint(t("Master level. Click to clear the clip light"))
   const meter = useRef<LevelMeterHandle>(null)
 
   // A clip in the song before is not a clip in this one.
@@ -29,7 +30,7 @@ export function MasterMeterSlot() {
     <div
       data-slot="master-meter"
       role="group"
-      aria-label="Master level"
+      aria-label={t("Master level")}
       className="hidden w-24 shrink-0 items-center lg:flex"
       {...hint}
     >

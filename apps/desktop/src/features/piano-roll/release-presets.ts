@@ -1,10 +1,11 @@
 import type { NoteExpression, NoteId } from "@/bindings"
 import { DEFAULT_NOTE_EXPRESSION } from "@/lib/note-expression"
+import { translatedText as t } from "@/lib/i18n"
 
 export const RELEASE_PRESETS = [
-  { label: "Short", release: 0 },
-  { label: "Natural", release: 0.5 },
-  { label: "Long", release: 1 },
+  { get label() { return t("Short") }, release: 0 },
+  { get label() { return t("Natural") }, release: 0.5 },
+  { get label() { return t("Long") }, release: 1 },
 ] as const
 
 type ReleaseNote = {

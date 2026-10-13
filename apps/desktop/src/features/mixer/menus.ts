@@ -8,6 +8,7 @@ import { EFFECT_KINDS } from "@/features/params"
 
 import { addEffectActionId } from "./effect-actions"
 import { resetPeak } from "./peaks"
+import { translatedText as t, dynamicTitle } from "@/lib/i18n"
 
 /*
  * The right-click menus of the mixer's empty areas. A strip's header, an
@@ -16,7 +17,7 @@ import { resetPeak } from "./peaks"
  */
 
 const ADD_EFFECT: ContextItem = {
-  submenu: "Add effect",
+  get submenu() { return t("Add effect") },
   items: EFFECT_KINDS.map(addEffectActionId),
 }
 
@@ -72,7 +73,7 @@ export function trackValueItems(
   return [
     ...automation,
     contextSeparator,
-    { title: "Reset peak readout", run: () => resetPeak(track) },
+    { ...dynamicTitle("Reset peak readout", {}), run: () => resetPeak(track) },
   ]
 }
 

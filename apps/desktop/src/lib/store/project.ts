@@ -13,6 +13,7 @@ import { FORMAT_VERSION, MASTER_TRACK } from "@/lib/units"
 
 import { applyPatch, type DocumentState } from "./patch"
 import { getProjectGeneration, onProjectReplaced } from "./replaced"
+import { translatedText as t } from "@/lib/i18n"
 
 /** Shown for the instant before the first snapshot arrives. */
 const BLANK_PROJECT: Project = {
@@ -101,7 +102,7 @@ export function refetchSnapshot(): Promise<void> {
     })
     .catch((error: unknown) => {
       if (generation === getProjectGeneration())
-        reportError(error, "Could not load the project")
+        reportError(error, t("Could not load the project"))
       return Infinity
     })
     .then((revision) => {

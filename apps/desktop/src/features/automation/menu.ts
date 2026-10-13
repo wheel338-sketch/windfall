@@ -13,6 +13,7 @@ import { openEventEditor } from "@/features/event-editor/actions"
 
 import { createAutomationClip, showAutomation } from "./create"
 import { drivingAutomation } from "./now"
+import { translatedText as t, dynamicTitle } from "@/lib/i18n"
 
 /**
  * What the menu of a control offers about automating what it is bound to,
@@ -40,14 +41,14 @@ export function automationEntries(target: AutomationTarget): ContextItem[] {
     ...(driving
       ? [
           {
-            title: "Edit the automation instead",
+            title: t("Edit the automation instead"),
             afterClose: true,
             run: () => driving.pattern !== undefined ? openEventEditor(target, driving.pattern) : showAutomation(driving.automation.id),
           },
         ]
       : []),
     {
-      title: "Create automation clip",
+      ...dynamicTitle("Create automation clip", {}),
       disabled: blocked !== null,
       reason: blocked ?? undefined,
       // Both of these hand the keyboard to the timeline, which the closing
@@ -56,7 +57,7 @@ export function automationEntries(target: AutomationTarget): ContextItem[] {
       run: () => createAutomationClip(target),
     },
     ...existing.map((automation, index): ContextItem => ({
-      title: `Show automation: ${names[index]}`,
+      ...dynamicTitle("Show automation: {names}", { names: names[index] }),
       afterClose: true,
       run: () => showAutomation(automation.id),
     })),
@@ -65,7 +66,7 @@ export function automationEntries(target: AutomationTarget): ContextItem[] {
       ? []
       : [
           {
-            title: "Edit events in pattern",
+            title: t("Edit events in pattern"),
             afterClose: true,
             run: () => openEventEditor(target),
           },
@@ -73,13 +74,13 @@ export function automationEntries(target: AutomationTarget): ContextItem[] {
   ]
   if (existing.length === 1) {
     items.push({
-      title: "Remove automation",
+      ...dynamicTitle("Remove automation", {}),
       destructive: true,
       run: () => deleteAutomation(existing[0].id),
     })
   } else if (existing.length > 1) {
     items.push({
-      submenu: "Remove automation",
+      submenu: t("Remove automation"),
       items: existing.map((automation, index): ContextItem => ({
         title: names[index],
         destructive: true,

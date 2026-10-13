@@ -26,6 +26,7 @@ import type {
   NamedReference,
   TrackKind,
 } from "./model"
+import { translatedText as t, message, plainNumber } from "@/lib/i18n"
 
 export interface ArrangementPanelProps {
   value: ArrangementBook
@@ -133,7 +134,7 @@ function LayoutEditor({
   const [name, setName] = useState(suggested)
   return (
     <Field>
-      <FieldLabel htmlFor={id}>New layout name</FieldLabel>
+      <FieldLabel htmlFor={id}>{t("New layout name")}</FieldLabel>
       <Input
         id={id}
         value={name}
@@ -147,7 +148,7 @@ function LayoutEditor({
           size="sm"
           onClick={() => onSubmit(name, false)}
         >
-          New empty layout
+          {t("New empty layout")}
         </Button>
         <Button
           type="button"
@@ -155,14 +156,11 @@ function LayoutEditor({
           size="sm"
           onClick={() => onSubmit(name, true)}
         >
-          Duplicate layout
+          {t("Duplicate layout")}
         </Button>
       </div>
       <FieldDescription>
-        A layout is a timeline of its own. Clips placed, moved or deleted in
-        one layout leave the others as they are. Duplicate copies the clips of
-        the layout shown now; the first new layout keeps the present timeline
-        as Arrangement 1.
+        {t("A layout is a timeline of its own. Clips placed, moved or deleted in one layout leave the others as they are. Duplicate copies the clips of the layout shown now; the first new layout keeps the present timeline as Arrangement 1.")}
       </FieldDescription>
     </Field>
   )
@@ -187,30 +185,30 @@ function ReferencesEditor({
   return (
     <FieldGroup>
       <Field>
-        <FieldLabel htmlFor={`${id}-clips`}>Ordered clip IDs</FieldLabel>
+        <FieldLabel htmlFor={`${id}-clips`}>{t("Ordered clip IDs")}</FieldLabel>
         <Input
           id={`${id}-clips`}
           value={clips}
           onChange={(event) => setClips(event.target.value)}
         />
         <FieldDescription>
-          Comma-separated IDs in arrangement order. Available:{" "}
+          {t("Comma-separated IDs in arrangement order. Available:")}{" "}
           {namedClips.map((clip) => `${clip.id} (${clip.name})`).join(", ") ||
-            "none"}
+            t("none")}
           .
         </FieldDescription>
       </Field>
       <Field>
-        <FieldLabel htmlFor={`${id}-tracks`}>Ordered track IDs</FieldLabel>
+        <FieldLabel htmlFor={`${id}-tracks`}>{t("Ordered track IDs")}</FieldLabel>
         <Input
           id={`${id}-tracks`}
           value={trackIds}
           onChange={(event) => setTracks(event.target.value)}
         />
         <FieldDescription>
-          Available:{" "}
+          {t("Available:")}{" "}
           {tracks.map((track) => `${track.id} (${track.name})`).join(", ") ||
-            "none"}
+            t("none")}
           .
         </FieldDescription>
       </Field>
@@ -230,7 +228,7 @@ function ReferencesEditor({
           }))
         }
       >
-        Update arrangement references
+        {t("Update arrangement references")}
       </Button>
     </FieldGroup>
   )
@@ -277,7 +275,7 @@ export function ArrangementPanel({
       allocated <= 0 ||
       allocated > 0xffffffff
     )
-      throw new Error("No unsigned 32-bit IDs remain.")
+      throw new Error(t("No unsigned 32-bit IDs remain."))
     lastId.current = allocated
     return allocated
   }
@@ -317,21 +315,21 @@ export function ArrangementPanel({
   }
   const active = value.arrangements.find((item) => item.id === value.active)
   const groupOptions = [
-    { value: "none", label: "Ungrouped" },
+    { value: "none", label: t("Ungrouped") },
     ...value.trackGroups.map((group) => ({
       value: String(group.id),
       label: group.name,
     })),
   ]
   const linkOptions = [
-    { value: "none", label: "Unlinked" },
+    { value: "none", label: t("Unlinked") },
     ...channels.map((channel) => ({
       value: `instrument:${channel.id}`,
-      label: `Instrument: ${channel.name}`,
+      label: message("Instrument: {channelName}", { channelName: channel.name }),
     })),
     ...sources.map((source) => ({
       value: `audio:${source.id}`,
-      label: `Audio: ${source.name}`,
+      label: message("Audio: {sourceName}", { sourceName: source.name }),
     })),
   ]
   const linkValue = (kind: TrackKind | undefined) =>
@@ -351,7 +349,7 @@ export function ArrangementPanel({
       ? [
           {
             value: `audioTrack:${kind.mixer}`,
-            label: `Audio track: mixer track ${kind.mixer}`,
+            label: message("Audio track: mixer track {mixer}", { mixer: plainNumber(kind.mixer) }),
           },
         ]
       : []
@@ -365,14 +363,14 @@ export function ArrangementPanel({
   ]
   return (
     <section
-      aria-label="Playlist arrangements"
+      aria-label={t("Playlist arrangements")}
       className="flex flex-col gap-4 p-3"
     >
       <Alert>
         <AlertDescription>
           {onEdit
-            ? "Arrangement edits are saved with the project. The playlist shows, plays and exports the active arrangement."
-            : "Local arrangement edits only. Persistence and playlist playback are not connected."}
+            ? t("Arrangement edits are saved with the project. The playlist shows, plays and exports the active arrangement.")
+            : t("Local arrangement edits only. Persistence and playlist playback are not connected.")}
         </AlertDescription>
       </Alert>
       {error && (
@@ -383,10 +381,10 @@ export function ArrangementPanel({
       <fieldset disabled={busy} className="min-w-0">
         <FieldGroup>
           <FieldSet>
-            <FieldLegend>Alternative arrangements</FieldLegend>
+            <FieldLegend>{t("Alternative arrangements")}</FieldLegend>
             {active && (
               <Choice
-                label="Active arrangement"
+                label={t("Active arrangement")}
                 value={String(active.id)}
                 items={value.arrangements.map((item) => ({
                   value: String(item.id),
@@ -407,7 +405,7 @@ export function ArrangementPanel({
               />
             )}
             <NameEditor
-              label="New arrangement name"
+              label={t("New arrangement name")}
               action="Add arrangement"
               onSubmit={(name) =>
                 apply(() => ({
@@ -427,7 +425,7 @@ export function ArrangementPanel({
               <>
                 <NameEditor
                   key={`${active.id}:${active.name}`}
-                  label="Arrangement name"
+                  label={t("Arrangement name")}
                   initial={active.name}
                   action="Rename arrangement"
                   onSubmit={(name) =>
@@ -455,15 +453,15 @@ export function ArrangementPanel({
                     apply(() => ({ type: "removeArrangement", id: active.id }))
                   }
                 >
-                  Delete arrangement
+                  {t("Delete arrangement")}
                 </Button>
               </>
             )}
           </FieldSet>
           <FieldSet>
-            <FieldLegend>Track groups</FieldLegend>
+            <FieldLegend>{t("Track groups")}</FieldLegend>
             <NameEditor
-              label="New track group name"
+              label={t("New track group name")}
               action="Add track group"
               onSubmit={(name) =>
                 apply(() => ({
@@ -477,7 +475,7 @@ export function ArrangementPanel({
                 <FieldLegend>{group.name}</FieldLegend>
                 <NameEditor
                   key={group.name}
-                  label={`Name for track group ${group.id}`}
+                  label={message("Name for track group {groupId}", { groupId: plainNumber(group.id) })}
                   initial={group.name}
                   action={`Rename group ${group.id}`}
                   onSubmit={(name) =>
@@ -489,7 +487,7 @@ export function ArrangementPanel({
                   }
                 />
                 <Choice
-                  label={`Parent of ${group.name}`}
+                  label={message("Parent of {groupName}", { groupName: group.name })}
                   value={String(value.groupParents[group.id] ?? "none")}
                   items={groupOptions.filter(
                     (item) => item.value !== String(group.id)
@@ -510,22 +508,21 @@ export function ArrangementPanel({
                     apply(() => ({ type: "removeTrackGroup", id: group.id }))
                   }
                 >
-                  Remove group {group.name}
+                  {t("Remove group")}{" "}{group.name}
                 </Button>
               </FieldSet>
             ))}
             <FieldDescription>
-              Removing a group retains its tracks and promotes children to its
-              parent.
+              {t("Removing a group retains its tracks and promotes children to its parent.")}
             </FieldDescription>
           </FieldSet>
           <FieldSet>
-            <FieldLegend>Track membership and links</FieldLegend>
+            <FieldLegend>{t("Track membership and links")}</FieldLegend>
             {tracks.map((track) => (
               <FieldSet key={track.id}>
                 <FieldLegend>{track.name}</FieldLegend>
                 <Choice
-                  label={`Group for ${track.name}`}
+                  label={message("Group for {trackName}", { trackName: track.name })}
                   value={String(value.trackParents[track.id] ?? "none")}
                   items={groupOptions}
                   onChange={(parent) =>
@@ -537,7 +534,7 @@ export function ArrangementPanel({
                   }
                 />
                 <Choice
-                  label={`Source for ${track.name}`}
+                  label={message("Source for {trackName}", { trackName: track.name })}
                   value={linkValue(value.linkedTracks[track.id])}
                   items={linkChoices}
                   onChange={(value) =>
@@ -562,18 +559,18 @@ export function ArrangementPanel({
             ))}
           </FieldSet>
           <FieldSet>
-            <FieldLegend>Clip groups</FieldLegend>
+            <FieldLegend>{t("Clip groups")}</FieldLegend>
             <Field>
-              <FieldLabel htmlFor={clipInput}>Clip IDs to group</FieldLabel>
+              <FieldLabel htmlFor={clipInput}>{t("Clip IDs to group")}</FieldLabel>
               <Input
                 id={clipInput}
                 value={groupClips}
                 onChange={(event) => setGroupClips(event.target.value)}
               />
               <FieldDescription>
-                Choose at least two comma-separated IDs. Available:{" "}
+                {t("Choose at least two comma-separated IDs. Available:")}{" "}
                 {clips.map((clip) => `${clip.id} (${clip.name})`).join(", ") ||
-                  "none"}
+                  t("none")}
                 .
               </FieldDescription>
             </Field>
@@ -591,16 +588,16 @@ export function ArrangementPanel({
                 }))
               }
             >
-              Group clips
+              {t("Group clips")}
             </Button>
             {value.clipGroups.map((group) => (
               <Field key={group.id}>
                 <FieldDescription>
-                  Group {group.id}:{" "}
+                  {t("Group")}{" "}{group.id}:{" "}
                   {group.clips
                     .map(
                       (id) =>
-                        `${id} (${clips.find((clip) => clip.id === id)?.name ?? "Missing clip"})`
+                        message("{id} ({name})", { id: String(id), name: clips.find((clip) => clip.id === id)?.name ?? t("Missing clip") })
                     )
                     .join(", ")}
                 </FieldDescription>
@@ -612,18 +609,17 @@ export function ArrangementPanel({
                     apply(() => ({ type: "removeClipGroup", id: group.id }))
                   }
                 >
-                  Ungroup clips {group.id}
+                  {t("Ungroup clips")}{" "}{group.id}
                 </Button>
               </Field>
             ))}
             <FieldDescription>
-              Clip groups save associations. Grouped canvas gestures are not
-              connected.
+              {t("Clip groups save associations. Grouped canvas gestures are not connected.")}
             </FieldDescription>
           </FieldSet>
           {onMakeUnique && (
             <FieldSet>
-              <FieldLegend>Make unique</FieldLegend>
+              <FieldLegend>{t("Make unique")}</FieldLegend>
               {clips
                 .filter(
                   (clip) =>
@@ -639,13 +635,11 @@ export function ArrangementPanel({
                       void work(() => onMakeUnique(clip.id))
                     }}
                   >
-                    Make {clip.name} (clip {clip.id}) unique
+                    {t("Make")}{" "}{clip.name}{" "}{t("(clip")}{" "}{clip.id}{t(") unique")}
                   </Button>
                 ))}
               <FieldDescription>
-                Copies the source and redirects only the chosen clip: a
-                pattern, an audio source entry or an automation curve. Audio
-                copies share the immutable source file.
+                {t("Copies the source and redirects only the chosen clip: a pattern, an audio source entry or an automation curve. Audio copies share the immutable source file.")}
               </FieldDescription>
             </FieldSet>
           )}

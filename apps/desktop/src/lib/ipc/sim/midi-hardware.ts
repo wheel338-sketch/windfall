@@ -2,6 +2,7 @@ import type { ControllerState, MidiHardwareState } from "@/bindings"
 import type { Project, Command, DispatchResult } from "@/bindings"
 import type { createBrowserScoreLog } from "./score-log"
 import type { Backend } from "../backend"
+import { translatedText as t } from "@/lib/i18n"
 
 const DESKTOP_ONLY =
   "MIDI hardware is available in the desktop app. Browser simulation has no native MIDI ports."
@@ -72,7 +73,7 @@ export function createMidiHardwareMock(context?: {
     generation: context?.generation() ?? 0,
   })
   const unavailable = async (): Promise<never> => {
-    throw new Error("MIDI hardware requires the desktop app.")
+    throw new Error(t("MIDI hardware requires the desktop app."))
   }
   return {
     midiHardwareState: state,
@@ -88,7 +89,7 @@ export function createMidiHardwareMock(context?: {
     automationRecordArm: unavailable,
     scoreLogDump: async (pattern, seconds, generation) => {
       if (!context) return unavailable()
-      if (generation !== context.generation()) throw new Error("Project changed. Try again.")
+      if (generation !== context.generation()) throw new Error(t("Project changed. Try again."))
       return context.dispatch(context.log.command(context.project(), pattern, seconds, 0))
     },
     scoreLogClear: async () => { context?.log.clear(); return controllers() },

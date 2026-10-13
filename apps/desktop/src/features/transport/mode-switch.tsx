@@ -8,6 +8,7 @@ import {
 import { runAction, useShortcutLabel } from "@/lib/actions"
 import { useTransportStore } from "@/lib/store/transport"
 import { cn } from "@/lib/utils"
+import { translatedText as t } from "@/lib/i18n"
 
 const MODES: {
   mode: PlayMode
@@ -17,13 +18,13 @@ const MODES: {
 }[] = [
   {
     mode: "pattern",
-    label: "Pattern",
+    get label() { return t("Pattern") },
     action: "transport.patternMode",
     about: "Loop the selected pattern",
   },
   {
     mode: "song",
-    label: "Song",
+    get label() { return t("Song") },
     action: "transport.songMode",
     about: "Play the playlist",
   },
@@ -37,7 +38,7 @@ export function ModeSwitch() {
   return (
     <div
       role="group"
-      aria-label="What Play plays"
+      aria-label={t("What Play plays")}
       className="flex h-7 items-center rounded-md bg-muted p-0.5"
     >
       {MODES.map((item) => (

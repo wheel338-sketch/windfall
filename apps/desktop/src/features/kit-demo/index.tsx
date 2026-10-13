@@ -45,6 +45,7 @@ import {
   type DemoChannel,
 } from "./demo-data"
 import { KitStates } from "./states"
+import { translatedText as t, message } from "@/lib/i18n"
 
 export type KitEvent = { type: string; detail?: unknown }
 
@@ -251,10 +252,10 @@ export default function KitDemo() {
       <header className="sticky top-0 z-30 flex h-12 items-center gap-4 border-b bg-background/90 px-4 backdrop-blur">
         <div className="flex items-baseline gap-2">
           <h1 className="text-sm font-semibold tracking-tight">
-            Windfall control kit
+            {t("Windfall control kit")}
           </h1>
           <p className="text-xs text-muted-foreground">
-            Every control the built-in plugins share
+            {t("Every control the built-in plugins share")}
           </p>
         </div>
         <div className="ml-auto flex items-center gap-2">
@@ -265,7 +266,7 @@ export default function KitDemo() {
             {lastEvent}
           </p>
           <NumberField
-            aria-label="Tempo"
+            aria-label={t("Tempo")}
             value={tempo}
             onValueChange={(next) => {
               setTempo(next)
@@ -288,7 +289,7 @@ export default function KitDemo() {
               icon={playing ? StopIcon : PlayIcon}
               data-icon="inline-start"
             />
-            {playing ? "Stop" : "Play"}
+            {playing ? t("Stop") : t("Play")}
           </Button>
           <Button
             variant="outline"
@@ -299,7 +300,7 @@ export default function KitDemo() {
               icon={isDark ? Sun03Icon : Moon02Icon}
               data-icon="inline-start"
             />
-            {isDark ? "Light theme" : "Dark theme"}
+            {isDark ? t("Light theme") : t("Dark theme")}
           </Button>
         </div>
       </header>
@@ -307,8 +308,8 @@ export default function KitDemo() {
       <main className="mx-auto flex max-w-[1440px] flex-col gap-3 p-3">
         <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-3">
           <Panel
-            title="Channel rack"
-            hint="Click a step to toggle it, drag to paint, right-drag to clear"
+            title={t("Channel rack")}
+            hint={t("Click a step to toggle it, drag to paint, right-drag to clear")}
           >
             <StepGridGroup ref={rackRef} data-testid="rack" className="gap-1">
               {channels.map((channel) => (
@@ -325,13 +326,13 @@ export default function KitDemo() {
                       patchChannel(channel.id, { muted: !on })
                     }
                     color="var(--wf-meter-low)"
-                    aria-label={`${channel.name} on`}
+                    aria-label={message("{channelName} on", { channelName: channel.name })}
                   />
                   <PanControl
                     size="sm"
                     value={channel.pan}
                     onValueChange={(pan) => patchChannel(channel.id, { pan })}
-                    aria-label={`${channel.name} pan`}
+                    aria-label={message("{channelName} pan", { channelName: channel.name })}
                   />
                   <Knob
                     size="sm"
@@ -342,7 +343,7 @@ export default function KitDemo() {
                     defaultValue={1}
                     scale={faderTaper}
                     {...gainUnit}
-                    aria-label={`${channel.name} volume`}
+                    aria-label={message("{channelName} volume", { channelName: channel.name })}
                   />
                   <span className="w-20 shrink-0 truncate text-xs">
                     {channel.name}
@@ -350,7 +351,7 @@ export default function KitDemo() {
                   <StepGrid
                     steps={channel.steps}
                     color={channel.color}
-                    aria-label={`${channel.name} steps`}
+                    aria-label={message("{channelName} steps", { channelName: channel.name })}
                     onToggle={(step, on) => toggleStep(channel.id, step, on)}
                     {...gesture(`steps-${channel.id}`)}
                   />
@@ -359,7 +360,7 @@ export default function KitDemo() {
             </StepGridGroup>
           </Panel>
 
-          <Panel title="Mixer" hint="Meters follow the pattern">
+          <Panel title={t("Mixer")} hint={t("Meters follow the pattern")}>
             <div className="flex h-full gap-1">
               <MixerStrip
                 name="Master"
@@ -404,8 +405,8 @@ export default function KitDemo() {
 
         <div className="grid grid-cols-2 gap-3">
           <Panel
-            title="Sampler"
-            hint="Drag the region handles, or focus one and use the arrow keys"
+            title={t("Sampler")}
+            hint={t("Drag the region handles, or focus one and use the arrow keys")}
           >
             <div className="flex flex-col gap-3">
               <Waveform
@@ -427,7 +428,7 @@ export default function KitDemo() {
               />
               <div className="flex items-start gap-5">
                 <Knob
-                  label="Tune"
+                  label={t("Tune")}
                   showValue
                   bipolar
                   value={sampler.tune}
@@ -443,7 +444,7 @@ export default function KitDemo() {
                   parse={semitonesUnit.parse}
                 />
                 <Knob
-                  label="Gain"
+                  label={t("Gain")}
                   showValue
                   data-testid="knob-gain"
                   value={sampler.gain}
@@ -458,7 +459,7 @@ export default function KitDemo() {
                   {...gainUnit}
                 />
                 <Knob
-                  label="Cutoff"
+                  label={t("Cutoff")}
                   showValue
                   value={sampler.cutoff}
                   onValueChange={(cutoff) =>
@@ -471,7 +472,7 @@ export default function KitDemo() {
                   {...hzUnit}
                 />
                 <Knob
-                  label="Mix"
+                  label={t("Mix")}
                   showValue
                   data-testid="knob-mix"
                   value={sampler.mix}
@@ -488,8 +489,8 @@ export default function KitDemo() {
           </Panel>
 
           <Panel
-            title="Envelope"
-            hint="The nodes and the knobs edit the same four values"
+            title={t("Envelope")}
+            hint={t("The nodes and the knobs edit the same four values")}
           >
             <div className="flex flex-col gap-3">
               <EnvelopeEditor
@@ -505,7 +506,7 @@ export default function KitDemo() {
               />
               <div className="flex items-start gap-5">
                 <Knob
-                  label="Attack"
+                  label={t("Attack")}
                   showValue
                   value={envelope.attackMs}
                   onValueChange={(attackMs) =>
@@ -518,7 +519,7 @@ export default function KitDemo() {
                   {...msUnit}
                 />
                 <Knob
-                  label="Decay"
+                  label={t("Decay")}
                   showValue
                   value={envelope.decayMs}
                   onValueChange={(decayMs) =>
@@ -531,7 +532,7 @@ export default function KitDemo() {
                   {...msUnit}
                 />
                 <Knob
-                  label="Sustain"
+                  label={t("Sustain")}
                   showValue
                   value={envelope.sustain}
                   onValueChange={(sustain) =>
@@ -541,7 +542,7 @@ export default function KitDemo() {
                   {...percentUnit}
                 />
                 <Knob
-                  label="Release"
+                  label={t("Release")}
                   showValue
                   value={envelope.releaseMs}
                   onValueChange={(releaseMs) =>
@@ -559,8 +560,8 @@ export default function KitDemo() {
         </div>
 
         <Panel
-          title="Keyboard"
-          hint="Drag across the keys for a glissando. Lower on a key is louder."
+          title={t("Keyboard")}
+          hint={t("Drag across the keys for a glissando. Lower on a key is louder.")}
         >
           <div className="flex items-center gap-3">
             <PianoKeyboard
@@ -585,11 +586,11 @@ export default function KitDemo() {
               <ToggleLed
                 pressed={showChord}
                 onPressedChange={setShowChord}
-                aria-label="Highlight a C major chord"
+                aria-label={t("Highlight a C major chord")}
               >
                 C
               </ToggleLed>
-              Highlight a chord
+              {t("Highlight a chord")}
             </label>
           </div>
         </Panel>
@@ -642,7 +643,7 @@ function MixerStrip({
           size="sm"
           value={pan}
           onValueChange={onPanChange}
-          aria-label={`${name} pan`}
+          aria-label={message("{name} pan", { name })}
         />
       ) : (
         <div className="h-6" />
@@ -652,7 +653,7 @@ function MixerStrip({
         onValueChange={onGainChange}
         {...gesture}
         showValue
-        aria-label={`${name} level`}
+        aria-label={message("{name} level", { name })}
         className="h-48"
         meter={<LevelMeter ref={meterRef} taper={gainToFaderPosition} />}
       />

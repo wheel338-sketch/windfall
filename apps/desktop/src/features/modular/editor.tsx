@@ -22,6 +22,7 @@ import { automationItems } from "@/features/automation/menu"
 import { RackLibrary } from "./library"
 import { RackInstrumentEditor, RackEffectEditor } from "./asset-editor"
 import { RackHostedEditor } from "./hosted-editor"
+import { translatedText as t, message, plainNumber } from "@/lib/i18n"
 
 const MODULES = ["colorRouter", "envelope", "propertyScaler", "keySplitter", "keyMapper", "sequencer"] as const
 const TYPES = ["instrument", "effect", ...MODULES, "rack", "audioInput", "audioOutput", "noteInput", "noteOutput", "controlInput"] as const
@@ -55,7 +56,7 @@ export function ModularEditor({ channel, root }: { channel: Channel; root: RackG
     setBusy(true)
     const result = await dispatch({ type: "setChannelRack", id: channel.id, graph: replaceGraph(root, activePath, next), expected: root }, gesture)
     setBusy(false)
-    setError(result ? null : "Rack edit was refused. Check the project error message; the saved graph was kept.")
+    setError(result ? null : t("Rack edit was refused. Check the project error message; the saved graph was kept."))
     return result
   }
   function updateNode(next: RackNode, gesture?: number) {
@@ -69,7 +70,7 @@ export function ModularEditor({ channel, root }: { channel: Channel; root: RackG
     else if (addType === "controlInput") {
       const used = graph.nodes.flatMap((node) => node.processor.type === "controlInput" ? [node.processor.index] : [])
       const index = Array.from({ length: 32 }, (_, index) => index).find((index) => !used.includes(index))
-      if (index === undefined) { setError("All 32 macro indices are in use."); return }
+      if (index === undefined) { setError(t("All 32 macro indices are in use.")); return }
       processor = { type: "controlInput", index, value: 0.5 }
     } else if (addType === "audioInput" || addType === "audioOutput" || addType === "noteInput" || addType === "noteOutput") processor = { type: addType }
     else processor = { type: "note", module: defaultModule(addType) }
@@ -83,7 +84,7 @@ export function ModularEditor({ channel, root }: { channel: Channel; root: RackG
     const target = graph.nodes.find((node) => node.id === to.node)
     const signal = source && ports(source.processor, true).find((port) => port.id === from.port)?.signal
     if (!target || ports(target.processor, false).find((port) => port.id === to.port)?.signal !== signal) {
-      setError("These ports carry different signal types."); return
+      setError(t("These ports carry different signal types.")); return
     }
     let id: string | undefined
     if (to.port === CONTROL_IN) {
@@ -110,7 +111,7 @@ export function ModularEditor({ channel, root }: { channel: Channel; root: RackG
       setBusy(true)
       const applied = await dispatch({ type: "setChannelRack", id: channel.id, expected: latest, graph: replaceGraph(latest, activePath, { ...nested, nodes: nested.nodes.map((node) => node.id === id ? { ...node, processor: updated } : node) }) }, gesture)
       setBusy(false)
-      setError(applied ? null : "Rack parameter edit was refused; the saved graph was kept.")
+      setError(applied ? null : t("Rack parameter edit was refused; the saved graph was kept."))
       return applied
     })
     parameterQueue.current.tail = result
@@ -119,29 +120,29 @@ export function ModularEditor({ channel, root }: { channel: Channel; root: RackG
   async function loadPreset() {
     try {
       const parsed: unknown = JSON.parse(presetText)
-      if (typeof parsed !== "object" || parsed === null || !("schema" in parsed) || parsed.schema !== "windfall.rack" || !("version" in parsed) || parsed.version !== 1 || !("graph" in parsed)) throw new Error("Use a Windfall rack preset, version 1")
+      if (typeof parsed !== "object" || parsed === null || !("schema" in parsed) || parsed.schema !== "windfall.rack" || !("version" in parsed) || parsed.version !== 1 || !("graph" in parsed)) throw new Error(t("Use a Windfall rack preset, version 1"))
       // Rust deserializes and checks the full graph; this assertion does not
       // bypass schema, cycle, port, numeric or resource validation.
       await save(parsed.graph as RackGraph)
-    } catch (cause) { setError(cause instanceof Error ? cause.message : "Invalid rack preset") }
+    } catch (cause) { setError(cause instanceof Error ? cause.message : t("Invalid rack preset")) }
   }
   const height = Math.max(300, ...graph.nodes.map((node) => node.position[1] + 130))
 
-  return <div className="flex min-h-0 flex-col gap-3" aria-label="Modular rack editor">
+  return <div className="flex min-h-0 flex-col gap-3" aria-label={t("Modular rack editor")}>
     <div className="flex flex-wrap items-end gap-2">
-      <ChoiceField<AddType> label="Module type" value={addType} choices={TYPES} onChange={setAddType} />
-      {addType === "effect" && <ChoiceField<EffectKind> label="Effect module" value={effect} choices={EFFECT_KINDS} onChange={setEffect} />}
-      {addType === "instrument" && <ChoiceField<InstrumentKind> label="Instrument module" value={instrument} choices={INSTRUMENT_KINDS} onChange={setInstrument} />}
-      <Button onClick={() => void add()} disabled={busy || graph.nodes.length >= 64}>Add node</Button>
-      <Button variant="outline" disabled={busy} onClick={() => void undo()}>Undo rack edit</Button>
-      <Button variant="outline" disabled={busy} onClick={() => void redo()}>Redo rack edit</Button>
-      {activePath.length > 0 && <Button variant="outline" onClick={() => { setPath(activePath.slice(0, -1)); setSelected(null); setFrom(null) }}>Parent rack</Button>}
+      <ChoiceField<AddType> label={t("Module type")} value={addType} choices={TYPES} onChange={setAddType} />
+      {addType === "effect" && <ChoiceField<EffectKind> label={t("Effect module")} value={effect} choices={EFFECT_KINDS} onChange={setEffect} />}
+      {addType === "instrument" && <ChoiceField<InstrumentKind> label={t("Instrument module")} value={instrument} choices={INSTRUMENT_KINDS} onChange={setInstrument} />}
+      <Button onClick={() => void add()} disabled={busy || graph.nodes.length >= 64}>{t("Add node")}</Button>
+      <Button variant="outline" disabled={busy} onClick={() => void undo()}>{t("Undo rack edit")}</Button>
+      <Button variant="outline" disabled={busy} onClick={() => void redo()}>{t("Redo rack edit")}</Button>
+      {activePath.length > 0 && <Button variant="outline" onClick={() => { setPath(activePath.slice(0, -1)); setSelected(null); setFrom(null) }}>{t("Parent rack")}</Button>}
     </div>
     <RackOverflow />
     <RackLibrary channel={channel} root={root} />
     {error && <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}
     <div className="max-h-64 overflow-auto rounded-md border">
-      <svg viewBox={`0 0 800 ${height}`} className="min-w-[700px] text-primary" style={{ height }} role="img" aria-label="Rack signal wires">
+      <svg viewBox={`0 0 800 ${height}`} className="min-w-[700px] text-primary" style={{ height }} role="img" aria-label={t("Rack signal wires")}>
         {graph.edges.map((edge, index) => {
           const start = graph.nodes.find((node) => node.id === edge.from.node)?.position
           const end = graph.nodes.find((node) => node.id === edge.to.node)?.position
@@ -156,27 +157,27 @@ export function ModularEditor({ channel, root }: { channel: Channel; root: RackG
     <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
       <div className="flex max-h-96 flex-col gap-2 overflow-auto">
         {graph.nodes.map((node) => <div key={node.id} className={cn("flex flex-col gap-2 rounded-md border p-2", selected === node.id && "ring-1 ring-primary")}>
-          <Button variant="ghost" aria-label={`Edit ${node.name} ${node.id}`} onClick={() => { setSelected(node.id); setParameter("") }}>{node.name} ({node.id})</Button>
+          <Button variant="ghost" aria-label={message("Edit {nodeName} {nodeId}", { nodeName: node.name, nodeId: plainNumber(node.id) })} onClick={() => { setSelected(node.id); setParameter("") }}>{node.name} ({node.id})</Button>
           <div className="flex flex-wrap gap-1">{ports(node.processor, true).map((port) => <Button key={port.id} size="sm" variant={from && sameEndpoint(from, { node: node.id, port: port.id }) ? "default" : "outline"}
-            disabled={busy} aria-label={`${node.name} ${node.id} output ${port.name}`} onClick={() => { setFrom({ node: node.id, port: port.id }); setError(null) }}>{port.name} →</Button>)}</div>
+            disabled={busy} aria-label={message("{nodeName} {nodeId} output {portName}", { nodeName: node.name, nodeId: plainNumber(node.id), portName: port.name })} onClick={() => { setFrom({ node: node.id, port: port.id }); setError(null) }}>{port.name} →</Button>)}</div>
           <div className="flex flex-wrap gap-1">{ports(node.processor, false).map((port) => <Button key={port.id} size="sm" variant="outline" disabled={busy || !from}
-            aria-label={`${node.name} ${node.id} input ${port.name}`} onClick={() => void connect({ node: node.id, port: port.id })}>→ {port.name}</Button>)}</div>
+            aria-label={message("{nodeName} {nodeId} input {portName}", { nodeName: node.name, nodeId: plainNumber(node.id), portName: port.name })} onClick={() => void connect({ node: node.id, port: port.id })}>→ {port.name}</Button>)}</div>
         </div>)}
-        {from && <Button variant="outline" onClick={() => setFrom(null)}>Cancel connection</Button>}
-        <ul aria-label="Connected wires" className="flex flex-col gap-2">{graph.edges.map((edge, index) => <li key={index} className="flex items-end gap-2">
+        {from && <Button variant="outline" onClick={() => setFrom(null)}>{t("Cancel connection")}</Button>}
+        <ul aria-label={t("Connected wires")} className="flex flex-col gap-2">{graph.edges.map((edge, index) => <li key={index} className="flex items-end gap-2">
           <span>{edge.from.node}:{edge.from.port} → {edge.to.node}:{edge.to.port}{edge.parameter ? ` ${edge.parameter}` : ""}</span>
-          <NumberField label={`Wire ${index + 1} gain`} value={edge.gain} min={-4} max={4} step={0.01} onChange={(gain) => void save({ ...graph, edges: graph.edges.map((wire, at) => at === index ? { ...wire, gain } : wire) })} />
-          <Button variant="outline" disabled={busy} aria-label={`Disconnect wire ${index + 1}`} onClick={() => void save({ ...graph, edges: graph.edges.filter((_, at) => at !== index) })}>Disconnect</Button>
+          <NumberField label={message("Wire {index} gain", { index: plainNumber(index + 1) })} value={edge.gain} min={-4} max={4} step={0.01} onChange={(gain) => void save({ ...graph, edges: graph.edges.map((wire, at) => at === index ? { ...wire, gain } : wire) })} />
+          <Button variant="outline" disabled={busy} aria-label={message("Disconnect wire {index}", { index: plainNumber(index + 1) })} onClick={() => void save({ ...graph, edges: graph.edges.filter((_, at) => at !== index) })}>{t("Disconnect")}</Button>
         </li>)}</ul>
       </div>
       <div className="max-h-96 overflow-auto">{current && <FieldGroup>
-        <Field><FieldLabel htmlFor="rack-node-name">Node name</FieldLabel><Input key={`${current.id}:${current.name}`} id="rack-node-name" defaultValue={current.name} onBlur={(event) => { if (event.target.value !== current.name) void updateNode({ ...current, name: event.target.value }) }} /></Field>
-        <NumberField label="Node X" value={current.position[0]} min={0} max={2000} onChange={(value) => void updateNode({ ...current, position: [value, current.position[1]] })} />
-        <NumberField label="Node Y" value={current.position[1]} min={0} max={2000} onChange={(value) => void updateNode({ ...current, position: [current.position[0], value] })} />
-        {(["muted", "solo"] as const).map((key) => <Field key={key} orientation="horizontal"><Checkbox id={`rack-${key}`} checked={current[key]} onCheckedChange={(value) => void updateNode({ ...current, [key]: value === true })} /><FieldLabel htmlFor={`rack-${key}`}>{key === "muted" ? "Mute node" : "Solo node"}</FieldLabel></Field>)}
+        <Field><FieldLabel htmlFor="rack-node-name">{t("Node name")}</FieldLabel><Input key={`${current.id}:${current.name}`} id="rack-node-name" defaultValue={current.name} onBlur={(event) => { if (event.target.value !== current.name) void updateNode({ ...current, name: event.target.value }) }} /></Field>
+        <NumberField label={t("Node X")} value={current.position[0]} min={0} max={2000} onChange={(value) => void updateNode({ ...current, position: [value, current.position[1]] })} />
+        <NumberField label={t("Node Y")} value={current.position[1]} min={0} max={2000} onChange={(value) => void updateNode({ ...current, position: [current.position[0], value] })} />
+        {(["muted", "solo"] as const).map((key) => <Field key={key} orientation="horizontal"><Checkbox id={`rack-${key}`} checked={current[key]} onCheckedChange={(value) => void updateNode({ ...current, [key]: value === true })} /><FieldLabel htmlFor={`rack-${key}`}>{key === "muted" ? t("Mute node") : t("Solo node")}</FieldLabel></Field>)}
         {current.processor.type === "note" && <>
           <NoteModuleEditor key={current.id} module={current.processor.module} onChange={(module) => void updateNode({ ...current, processor: { type: "note", module } })} />
-          <details><summary>Automation and controller links</summary>
+          <details><summary>{t("Automation and controller links")}</summary>
             <GenericParamEditor descriptor={noteDescriptor(current.processor.module)} params={current.processor.module}
               contextItems={(_info, parameter) => {
                 if (current.processor.type !== "note") return []
@@ -191,7 +192,7 @@ export function ModularEditor({ channel, root }: { channel: Channel; root: RackG
                 const result = parameterQueue.current.tail.then(async () => {
                   if (generation !== getProjectGeneration() || epoch !== parameterQueue.current.epoch) return null
                   const applied = await dispatch({ type: "setInstrumentParam", channel: channel.id, param: index, value }, gesture)
-                  setError(applied ? null : "Rack module parameter edit was refused; the saved graph was kept.")
+                  setError(applied ? null : t("Rack module parameter edit was refused; the saved graph was kept."))
                   return applied
                 })
                 parameterQueue.current.tail = result
@@ -199,8 +200,8 @@ export function ModularEditor({ channel, root }: { channel: Channel; root: RackG
               }} />
           </details>
         </>}
-        {current.processor.type === "rack" && <Button onClick={() => { setPath([...activePath, current.id]); setSelected(null); setFrom(null) }}>Open nested rack</Button>}
-        {current.processor.type === "controlInput" && <NumberField label={`Macro ${current.processor.index + 1}`} value={current.processor.value} min={0} max={1} step={0.01} onChange={(value) => {
+        {current.processor.type === "rack" && <Button onClick={() => { setPath([...activePath, current.id]); setSelected(null); setFrom(null) }}>{t("Open nested rack")}</Button>}
+        {current.processor.type === "controlInput" && <NumberField label={message("Macro {index}", { index: plainNumber(current.processor.index + 1) })} value={current.processor.value} min={0} max={1} step={0.01} onChange={(value) => {
           const processor = current.processor; if (processor.type === "controlInput") void updateNode({ ...current, processor: { ...processor, value } })
         }} />}
         {(current.processor.type === "instrument" || current.processor.type === "effect") && (() => {
@@ -208,9 +209,9 @@ export function ModularEditor({ channel, root }: { channel: Channel; root: RackG
           const descriptor = processor.type === "instrument" ? instrumentDescriptor(processor.params.type) : effectDescriptor(processor.params.type)
           return <>
             <RackHostedEditor key={current.id} channel={channel.id} path={activePath} root={root} node={current} detach={() => updateNode({ ...current, hosted: undefined })} />
-            {processor.type === "effect" && <NumberField label="Effect mix" value={processor.mix} min={0} max={1} step={0.01} onChange={(mix) => void updateNode({ ...current, processor: { ...processor, mix } })} />}
+            {processor.type === "effect" && <NumberField label={t("Effect mix")} value={processor.mix} min={0} max={1} step={0.01} onChange={(mix) => void updateNode({ ...current, processor: { ...processor, mix } })} />}
             {!current.hosted && <>
-            <ChoiceField<string> label="Control destination" value={parameter || descriptor.params[0]?.id || ""} choices={descriptor.params.map((info) => info.id)} onChange={setParameter} />
+            <ChoiceField<string> label={t("Control destination")} value={parameter || descriptor.params[0]?.id || ""} choices={descriptor.params.map((info) => info.id)} onChange={setParameter} />
             {processor.type === "instrument" ? <RackInstrumentEditor key={current.id} channel={channel} node={current}
               current={() => { const latest = useProjectStore.getState().project.settings.modularRacks?.find((rack) => rack.channel === channel.id)?.graph; return latest ? graphAt(latest, activePath).nodes.find((node) => node.id === current.id) : undefined }}
               apply={(asset, gesture) => updateNode({ ...current, asset: asset ?? undefined }, gesture)}
@@ -224,11 +225,11 @@ export function ModularEditor({ channel, root }: { channel: Channel; root: RackG
         })()}
         <Button variant="destructive" disabled={busy} onClick={async () => {
           if (await save({ ...graph, nodes: graph.nodes.filter((node) => node.id !== current.id), edges: graph.edges.filter((edge) => edge.from.node !== current.id && edge.to.node !== current.id) })) { setSelected(null); setFrom(null) }
-        }}>Remove node</Button>
+        }}>{t("Remove node")}</Button>
       </FieldGroup>}</div>
     </div>
-    <FieldGroup><Field><FieldLabel htmlFor="rack-preset">Rack preset</FieldLabel><Textarea id="rack-preset" value={presetText} onChange={(event) => setPresetText(event.target.value)} placeholder="Copy or paste a Windfall rack preset" /></Field>
-      <div className="flex gap-2"><Button variant="outline" onClick={() => setPresetText(rackPreset(channel.name, graph))}>Write preset text</Button><Button variant="outline" disabled={busy || !presetText} onClick={() => void loadPreset()}>Load rack preset</Button></div>
+    <FieldGroup><Field><FieldLabel htmlFor="rack-preset">{t("Rack preset")}</FieldLabel><Textarea id="rack-preset" value={presetText} onChange={(event) => setPresetText(event.target.value)} placeholder={t("Copy or paste a Windfall rack preset")} /></Field>
+      <div className="flex gap-2"><Button variant="outline" onClick={() => setPresetText(rackPreset(channel.name, graph))}>{t("Write preset text")}</Button><Button variant="outline" disabled={busy || !presetText} onClick={() => void loadPreset()}>{t("Load rack preset")}</Button></div>
     </FieldGroup>
   </div>
 }
@@ -238,11 +239,11 @@ export function ModularRackSection({ channel }: { channel: Channel }) {
   const generation = useProjectGeneration()
   const plugin = useProjectStore((state) => state.project.plugins?.some((plugin) => plugin.target.type === "instrument" && plugin.target.channel === channel.id))
   if (channel.source.type !== "instrument" || plugin) return null
-  return <Section title="Modular rack">
-    {graph ? <Dialog><DialogTrigger render={<Button variant="outline" />}>Edit modular rack</DialogTrigger><DialogContent className="max-h-[90vh] overflow-auto sm:max-w-6xl">
-      <DialogHeader><DialogTitle>{channel.name} modular rack</DialogTitle><DialogDescription>Choose an output, then a matching input, to connect modules. Note routes carry independent note owners. Audio paths align before they mix.</DialogDescription></DialogHeader>
+  return <Section title={t("Modular rack")}>
+    {graph ? <Dialog><DialogTrigger render={<Button variant="outline" />}>{t("Edit modular rack")}</DialogTrigger><DialogContent className="max-h-[90vh] overflow-auto sm:max-w-6xl">
+      <DialogHeader><DialogTitle>{channel.name}{" "}{t("modular rack")}</DialogTitle><DialogDescription>{t("Choose an output, then a matching input, to connect modules. Note routes carry independent note owners. Audio paths align before they mix.")}</DialogDescription></DialogHeader>
       <ModularEditor key={`${generation}:${channel.id}`} channel={channel} root={graph} />
-    </DialogContent></Dialog> : <Button variant="outline" onClick={() => { if (channel.source.type === "instrument") void dispatch({ type: "setChannelRack", id: channel.id, graph: initialGraph(channel.source.params) }) }}>Create modular rack</Button>}
-    {graph && <Button variant="outline" onClick={() => void dispatch({ type: "setChannelRack", id: channel.id, graph: null })}>Remove modular rack</Button>}
+    </DialogContent></Dialog> : <Button variant="outline" onClick={() => { if (channel.source.type === "instrument") void dispatch({ type: "setChannelRack", id: channel.id, graph: initialGraph(channel.source.params) }) }}>{t("Create modular rack")}</Button>}
+    {graph && <Button variant="outline" onClick={() => void dispatch({ type: "setChannelRack", id: channel.id, graph: null })}>{t("Remove modular rack")}</Button>}
   </Section>
 }

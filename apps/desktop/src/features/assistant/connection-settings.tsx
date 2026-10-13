@@ -7,6 +7,7 @@ import { Field, FieldDescription, FieldGroup, FieldLabel } from "@/components/ui
 import { Input } from "@/components/ui/input"
 import { backend } from "@/lib/ipc"
 import { errorMessage } from "@/lib/ipc/backend"
+import { translatedText as t } from "@/lib/i18n"
 
 export function ConnectionSettings({ requestBusy, onSaved }: { requestBusy: boolean; onSaved(connection: AssistantConnection): void }) {
   const [baseUrl, setBaseUrl] = useState("")
@@ -34,18 +35,18 @@ export function ConnectionSettings({ requestBusy, onSaved }: { requestBusy: bool
   }
   const disabled = busy || requestBusy || backend.kind !== "tauri"
   return <details>
-    <summary>Bring your own key connection</summary>
+    <summary>{t("Bring your own key connection")}</summary>
     <div className="mt-3 flex flex-col gap-3">
-      <p>{hasKey ? "A key is stored; its value is never returned to this panel." : "OFF until you enter a key and enable this connection."}</p>
+      <p>{hasKey ? t("A key is stored; its value is never returned to this panel.") : t("OFF until you enter a key and enable this connection.")}</p>
       <FieldGroup>
-        <Field><FieldLabel htmlFor="assistant-base-url">Chat completions base URL</FieldLabel><Input id="assistant-base-url" value={baseUrl} maxLength={2048} disabled={disabled} placeholder="https://your-service.example/v1" onChange={(event) => setBaseUrl(event.target.value)} /><FieldDescription>HTTPS, or literal loopback HTTP for a local service. /chat/completions is appended when needed.</FieldDescription></Field>
-        <Field><FieldLabel htmlFor="assistant-model">Model name</FieldLabel><Input id="assistant-model" value={model} maxLength={256} disabled={disabled} onChange={(event) => setModel(event.target.value)} /></Field>
-        <Field><FieldLabel htmlFor="assistant-key">API key</FieldLabel><Input id="assistant-key" type="password" autoComplete="off" value={key} maxLength={4096} disabled={disabled} onChange={(event) => setKey(event.target.value)} /><FieldDescription>Leave blank to keep an existing key. This version uses a private per-user settings file outside the project, with plaintext credential storage; no OS credential-store adapter is installed.</FieldDescription></Field>
-        <Field><FieldLabel htmlFor="assistant-enable">Enable BYOK requests</FieldLabel><Checkbox id="assistant-enable" checked={enabled} disabled={disabled} onCheckedChange={setEnabled} /><FieldDescription>Saving never sends a request. Only Ask BYOK assistant contacts this endpoint. Offline help remains available.</FieldDescription></Field>
+        <Field><FieldLabel htmlFor="assistant-base-url">{t("Chat completions base URL")}</FieldLabel><Input id="assistant-base-url" value={baseUrl} maxLength={2048} disabled={disabled} placeholder="https://your-service.example/v1" onChange={(event) => setBaseUrl(event.target.value)} /><FieldDescription>{t("HTTPS, or literal loopback HTTP for a local service. /chat/completions is appended when needed.")}</FieldDescription></Field>
+        <Field><FieldLabel htmlFor="assistant-model">{t("Model name")}</FieldLabel><Input id="assistant-model" value={model} maxLength={256} disabled={disabled} onChange={(event) => setModel(event.target.value)} /></Field>
+        <Field><FieldLabel htmlFor="assistant-key">{t("API key")}</FieldLabel><Input id="assistant-key" type="password" autoComplete="off" value={key} maxLength={4096} disabled={disabled} onChange={(event) => setKey(event.target.value)} /><FieldDescription>{t("Leave blank to keep an existing key. This version uses a private per-user settings file outside the project, with plaintext credential storage; no OS credential-store adapter is installed.")}</FieldDescription></Field>
+        <Field><FieldLabel htmlFor="assistant-enable">{t("Enable BYOK requests")}</FieldLabel><Checkbox id="assistant-enable" checked={enabled} disabled={disabled} onCheckedChange={setEnabled} /><FieldDescription>{t("Saving never sends a request. Only Ask BYOK assistant contacts this endpoint. Offline help remains available.")}</FieldDescription></Field>
       </FieldGroup>
-      {backend.kind !== "tauri" && <Alert><AlertDescription>BYOK connection settings and requests require the native app.</AlertDescription></Alert>}
+      {backend.kind !== "tauri" && <Alert><AlertDescription>{t("BYOK connection settings and requests require the native app.")}</AlertDescription></Alert>}
       {error && <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}
-      <div className="flex gap-2"><Button variant="outline" disabled={disabled} onClick={() => void save(false)}>Save BYOK connection</Button><Button variant="ghost" disabled={disabled || !hasKey} onClick={() => void save(true)}>Remove key and turn OFF</Button></div>
+      <div className="flex gap-2"><Button variant="outline" disabled={disabled} onClick={() => void save(false)}>{t("Save BYOK connection")}</Button><Button variant="ghost" disabled={disabled || !hasKey} onClick={() => void save(true)}>{t("Remove key and turn OFF")}</Button></div>
     </div>
   </details>
 }

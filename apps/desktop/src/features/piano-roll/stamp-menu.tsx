@@ -17,6 +17,7 @@ import { useSession } from "./context"
 import type { PendingStampChoice } from "./editor"
 import { CHORD_STAMPS, SCALE_STAMPS, type Stamp } from "./stamps"
 import { usePianoRollStore } from "./store"
+import { translatedText as t, message } from "@/lib/i18n"
 
 export function StampMenu() {
   const session = useSession()
@@ -77,22 +78,22 @@ export function StampMenu() {
             <Button
               variant={state ? "secondary" : "outline"}
               size="sm"
-              aria-label="Choose chord or scale stamp"
+              aria-label={t("Choose chord or scale stamp")}
             />
           }
         >
-          Stamp
+          {t("Stamp")}
         </DropdownMenuTrigger>
         <DropdownMenuContent align="start" className="w-80">
           <DropdownMenuGroup>
             <DropdownMenuLabel>
-              Choose a pattern, then click its root in the grid
+              {t("Choose a pattern, then click its root in the grid")}
             </DropdownMenuLabel>
             <DropdownMenuSub>
-              <DropdownMenuSubTrigger>Chords</DropdownMenuSubTrigger>
+              <DropdownMenuSubTrigger>{t("Chords")}</DropdownMenuSubTrigger>
               <DropdownMenuSubContent className="w-64">
                 <DropdownMenuGroup>
-                  <DropdownMenuLabel>Simultaneous notes</DropdownMenuLabel>
+                  <DropdownMenuLabel>{t("Simultaneous notes")}</DropdownMenuLabel>
                   {CHORD_STAMPS.map((stamp) => (
                     <DropdownMenuItem
                       key={stamp.id}
@@ -108,13 +109,13 @@ export function StampMenu() {
               <DropdownMenuSub key={direction}>
                 <DropdownMenuSubTrigger>
                   {direction === "ascending"
-                    ? "Ascending scales"
-                    : "Descending scales"}
+                    ? t("Ascending scales")
+                    : t("Descending scales")}
                 </DropdownMenuSubTrigger>
                 <DropdownMenuSubContent className="w-72">
                   <DropdownMenuGroup>
                     <DropdownMenuLabel>
-                      One note length per scale step
+                      {t("One note length per scale step")}
                     </DropdownMenuLabel>
                     {SCALE_STAMPS.filter(
                       (stamp) => stamp.layout === direction
@@ -138,22 +139,22 @@ export function StampMenu() {
           <Button
             variant="ghost"
             size="sm"
-            aria-label="Cancel stamp placement"
+            aria-label={t("Cancel stamp placement")}
             onClick={() => {
               editor.cancel()
               session.focusGrid()
             }}
           >
-            Cancel
+            {t("Cancel")}
           </Button>
           <span
             role="status"
-            aria-label="Stamp placement"
+            aria-label={t("Stamp placement")}
             className="max-w-80 shrink-0 truncate text-muted-foreground"
             title={state.error ?? undefined}
           >
             {state.error ??
-              `${state.stamp.label}: click to place · Esc cancels`}
+              message("{stampLabel}: click to place · Esc cancels", { stampLabel: state.stamp.label })}
           </span>
         </>
       )}

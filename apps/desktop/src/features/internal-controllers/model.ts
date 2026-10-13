@@ -1,5 +1,6 @@
 import type { AutomationTarget, ControlMap, EffectKind, InternalControllerSettings, Project } from "@/bindings"
 import { dispatch, useProjectStore } from "@/lib/store/project"
+import { message, plainNumber, translatedText } from "@/lib/i18n"
 
 const PORTS: Partial<Record<EffectKind, readonly string[]>> = {
   noteEnvelope: ["Envelope"], keyboardSource: ["Pitch", "Velocity"],
@@ -42,12 +43,12 @@ export function useControllerConfig(controller: number) {
 }
 export function targetTitle(project: Project, target: AutomationTarget): string {
   if ("channel" in target) {
-    const name = project.channels.find((c) => c.id === target.channel)?.name ?? "Channel"
-    return `${name} · ${target.type === "instrumentParam" ? `parameter ${target.param + 1}` : target.type === "channelVolume" ? "Volume" : "Pan"}`
+    const name = project.channels.find((c) => c.id === target.channel)?.name ?? translatedText("Channel")
+    return message("{owner} · {target}", { owner: name, target: target.type === "instrumentParam" ? message("parameter {param}", { param: plainNumber(target.param + 1) }) : target.type === "channelVolume" ? translatedText("Volume") : translatedText("Pan") })
   }
   if ("track" in target) {
-    const name = project.mixer.tracks.find((t) => t.id === target.track)?.name || "Master"
-    return `${name} · ${target.type === "effectParam" ? `effect parameter ${target.param + 1}` : target.type === "trackVolume" ? "Volume" : target.type === "trackPan" ? "Pan" : target.type}`
+    const name = project.mixer.tracks.find((t) => t.id === target.track)?.name || translatedText("Master")
+    return message("{owner} · {target}", { owner: name, target: target.type === "effectParam" ? message("effect parameter {param}", { param: plainNumber(target.param + 1) }) : target.type === "trackVolume" ? translatedText("Volume") : target.type === "trackPan" ? translatedText("Pan") : target.type })
   }
-  return "Tempo"
+  return translatedText("Tempo")
 }

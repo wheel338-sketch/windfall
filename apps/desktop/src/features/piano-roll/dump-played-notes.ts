@@ -11,6 +11,7 @@ import { consumePlayedNotes, playedNotesFor, useNoteLogStore } from "./note-log"
 import { patternMeterAt } from "./pattern-timeline"
 import { currentSession } from "./session"
 import { snapRound, snapTicks } from "./snap"
+import { translatedText as t } from "@/lib/i18n"
 
 export function canDumpPlayedNotes(): boolean {
   const editor = currentSession()?.editor
@@ -53,8 +54,8 @@ export async function dumpPlayedNotes(): Promise<void> {
   })
   if (notes.some((note) => note.start + note.length > MAX_PATTERN_TICKS)) {
     refuse(
-      "Could not dump played notes",
-      "There is not enough room at the transport position."
+      t("Could not dump played notes"),
+      t("There is not enough room at the transport position.")
     )
     return
   }

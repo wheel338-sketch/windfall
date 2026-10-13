@@ -22,6 +22,7 @@ import {
   TEMPO_RANGE,
 } from "./curve"
 import { targetKey } from "./lanes"
+import { translatedText as t, message } from "@/lib/i18n"
 
 /*
  * What an automation moves, looked up in a project: its range, the value
@@ -255,8 +256,8 @@ function effectLabel(project: Source, effect: number): string {
   if (plugin) return plugin.name
   const found = findEffect(project, effect)
   return found
-    ? (EFFECTS[found.slot.params.type]?.name ?? "Effect")
-    : "Removed effect"
+    ? (EFFECTS[found.slot.params.type]?.name ?? t("Effect"))
+    : t("Removed effect")
 }
 
 /**
@@ -268,40 +269,40 @@ export function describeTarget(
   target: AutomationTarget
 ): string {
   const channel = (id: number) =>
-    project.channels.find((item) => item.id === id)?.name ?? "Removed channel"
+    project.channels.find((item) => item.id === id)?.name ?? t("Removed channel")
   const track = (id: number) =>
-    project.mixer.tracks.find((item) => item.id === id)?.name ?? "Removed track"
+    project.mixer.tracks.find((item) => item.id === id)?.name ?? t("Removed track")
   switch (target.type) {
     case "channelVolume":
-      return `${channel(target.channel)} → volume`
+      return message("{channel} → volume", { channel: channel(target.channel) })
     case "channelPan":
-      return `${channel(target.channel)} → pan`
+      return message("{channel} → pan", { channel: channel(target.channel) })
     case "trackVolume":
-      return `${track(target.track)} → volume`
+      return message("{track} → volume", { track: track(target.track) })
     case "trackPan":
-      return `${track(target.track)} → pan`
+      return message("{track} → pan", { track: track(target.track) })
     case "trackParam":
-      return `${track(target.track)} · ${TRACK_PROCESSING_INFO[target.param]?.name ?? "Track setting"}`
+      return message("{owner} · {parameter}", { owner: track(target.track), parameter: t(TRACK_PROCESSING_INFO[target.param]?.name ?? "Track setting") })
     case "sendGain":
-      return `${track(target.track)} → send to ${track(target.target)}`
+      return message("{track} → send to {track2}", { track: track(target.track), track2: track(target.target) })
     case "sidechainGain":
-      return `${track(target.track)} → sidechain to ${track(target.target)}`
+      return message("{track} → sidechain to {track2}", { track: track(target.track), track2: track(target.target) })
     case "effectParam": {
       const info = targetState(project, target)?.info
-      return `${effectLabel(project, target.effect)} · ${info?.name ?? "setting"}`
+      return message("{owner} · {parameter}", { owner: effectLabel(project, target.effect), parameter: t(info?.name ?? "setting") })
     }
     case "effectMix":
-      return `${effectLabel(project, target.effect)} · Mix`
+      return message("{effect} · Mix", { effect: effectLabel(project, target.effect) })
     case "instrumentParam": {
       if (target.param >= SCRIPT_PARAMETER_BASE) {
         const found = scriptParameter(project, target.channel, target.param)
-        return `${channel(target.channel)} script: ${found?.info.name ?? "removed parameter"}`
+        return message("{channel} script: {parameter}", { channel: channel(target.channel), parameter: found?.info.name ?? t("removed parameter") })
       }
       const info = targetState(project, target)?.info
-      return `${channel(target.channel)} · ${info?.name ?? "setting"}`
+      return message("{owner} · {parameter}", { owner: channel(target.channel), parameter: t(info?.name ?? "setting") })
     }
     case "tempo":
-      return "Tempo"
+      return t("Tempo")
     default: {
       const _exhaustive: never = target
       return _exhaustive
@@ -332,13 +333,13 @@ export function automationBlocked(
   const found = findEffect(project, target.effect)
   const info = targetState(project, target)?.info
   if (found?.slot.params.type === "limiter" && info?.id === "lookaheadMs") {
-    return "Changes the latency"
+    return t("Changes the latency")
   }
   if (
     found?.slot.params.type === "stereoMatrix" &&
     (info?.id === "leftDelayMs" || info?.id === "rightDelayMs")
   ) {
-    return "Changes the latency"
+    return t("Changes the latency")
   }
   return null
 }

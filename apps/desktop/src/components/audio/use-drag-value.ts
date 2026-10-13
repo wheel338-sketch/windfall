@@ -3,6 +3,7 @@ import { logicalDelta } from "@/lib/ui-scale"
 import * as React from "react"
 
 import { parseNumber } from "./units"
+import { message } from "@/lib/i18n"
 
 /** Maps a value to a 0 to 1 control position and back. */
 export type ValueScale = {
@@ -327,7 +328,7 @@ export const LIVE_TEXT_MS = 250
 
 /** What a slider says while something else is moving it. */
 export function liveValueText(live: string, stored: string): string {
-  return `${live}, automated (set to ${stored})`
+  return message("{live}, automated (set to {stored})", { live, stored })
 }
 
 // One passive listener for the whole page notes when a wheel event scrolled

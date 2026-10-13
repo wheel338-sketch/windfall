@@ -13,6 +13,7 @@ import { onProjectReplaced } from "@/lib/store/replaced"
 import { PPQ } from "@/lib/units"
 import { usePlaylistStore } from "../store"
 import { selectedAudioClips } from "./ops"
+import { translatedText as t, message, plainNumber } from "@/lib/i18n"
 
 const useComp = create(() => ({ sources: null as Clip[] | null, serial: 0, group: null as AudioTakeGroup | null }))
 onProjectReplaced(() => useComp.setState({ sources: null, group: null }))
@@ -70,7 +71,7 @@ function CompEditor({ sources, group }: { sources: Clip[], group: AudioTakeGroup
       const result = await dispatch(group
         ? { type: "compAudioTakeGroup", expected: group, sources, ranges: segments.map((segment) => ({ pass: commonPasses.find((take) => take.clip === segment.clip)?.pass ?? 256, start: segment.start, end: segment.end })), name, fadeTicks: Math.max(0, Math.round(fade * PPQ)), muteSources: mute, replaceComp: replace }
         : { type: "compAudioClips", sources, segments, destination: null, name, fadeTicks: Math.max(0, Math.round(fade * PPQ)), muteSources: mute })
-      if (!result) { setError("The comp was not applied. Resolve the project error or reopen the source selection."); return }
+      if (!result) { setError(t("The comp was not applied. Resolve the project error or reopen the source selection.")); return }
       if (useComp.getState().sources !== sources) return
       const live = new Set(useProjectStore.getState().project.playlist.clips.map((clip) => clip.id))
       usePlaylistStore.getState().select(result.created.filter((id) => live.has(id)))
@@ -80,30 +81,30 @@ function CompEditor({ sources, group }: { sources: Clip[], group: AudioTakeGroup
   }
   return <Dialog open onOpenChange={(open) => { if (!open) close() }}>
     <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-3xl">
-      <DialogHeader><DialogTitle>{group ? `Comp ${group.name}` : "Comp audio takes"}</DialogTitle><DialogDescription>{group ? `Each range chooses one recorded pass for all ${group.lanes.length} input lanes. Crossfades use the same boundaries on every lane.` : "Choose a source for each song range. The composite uses editable clips on a new lane and retains every original take."}</DialogDescription></DialogHeader>
+      <DialogHeader><DialogTitle>{group ? message("Comp {groupName}", { groupName: group.name }) : t("Comp audio takes")}</DialogTitle><DialogDescription>{group ? message("Each range chooses one recorded pass for all {count} input lanes. Crossfades use the same boundaries on every lane.", { count: plainNumber(group.lanes.length) }) : t("Choose a source for each song range. The composite uses editable clips on a new lane and retains every original take.")}</DialogDescription></DialogHeader>
       <div className="grid grid-cols-2 gap-3">
-        <Field><FieldLabel htmlFor="comp-name">Composite lane</FieldLabel><Input id="comp-name" value={name} disabled={busy} onChange={(event) => setName(event.target.value)} /></Field>
-        <Field><FieldLabel htmlFor="comp-fade">Crossfade (beats)</FieldLabel><Input id="comp-fade" type="number" min={0} max={4} step={0.01} value={fade} disabled={busy} onChange={(event) => { const value = Number(event.target.value); if (Number.isFinite(value)) setFade(Math.max(0, Math.min(4, value))) }} /></Field>
+        <Field><FieldLabel htmlFor="comp-name">{t("Composite lane")}</FieldLabel><Input id="comp-name" value={name} disabled={busy} onChange={(event) => setName(event.target.value)} /></Field>
+        <Field><FieldLabel htmlFor="comp-fade">{t("Crossfade (beats)")}</FieldLabel><Input id="comp-fade" type="number" min={0} max={4} step={0.01} value={fade} disabled={busy} onChange={(event) => { const value = Number(event.target.value); if (Number.isFinite(value)) setFade(Math.max(0, Math.min(4, value))) }} /></Field>
       </div>
-      <Field><FieldLabel htmlFor="comp-size">Range size (beats)</FieldLabel><div className="flex gap-2"><Input id="comp-size" type="number" min={0.25} max={64} step={0.25} value={size} disabled={busy} onChange={(event) => { const value = Number(event.target.value); if (Number.isFinite(value)) setSize(Math.max(0.25, Math.min(64, value))) }} /><Button variant="outline" disabled={busy || !options.length} onClick={() => setSegments(ranges(options, size))}>Reset ranges</Button></div><FieldDescription>Positions are absolute song beats, starting at zero. Adjacent ranges from different takes receive bounded equal-power overlaps.</FieldDescription></Field>
+      <Field><FieldLabel htmlFor="comp-size">{t("Range size (beats)")}</FieldLabel><div className="flex gap-2"><Input id="comp-size" type="number" min={0.25} max={64} step={0.25} value={size} disabled={busy} onChange={(event) => { const value = Number(event.target.value); if (Number.isFinite(value)) setSize(Math.max(0.25, Math.min(64, value))) }} /><Button variant="outline" disabled={busy || !options.length} onClick={() => setSegments(ranges(options, size))}>{t("Reset ranges")}</Button></div><FieldDescription>{t("Positions are absolute song beats, starting at zero. Adjacent ranges from different takes receive bounded equal-power overlaps.")}</FieldDescription></Field>
       <div className="max-h-80 overflow-y-auto rounded-md border">
-        <table className="w-full text-sm"><thead className="bg-muted text-left"><tr><th className="p-2">From beat</th><th className="p-2">To beat</th><th className="p-2">Source take</th><th className="p-2">Edit</th></tr></thead><tbody>{segments.map((segment, index) => {
+        <table className="w-full text-sm"><thead className="bg-muted text-left"><tr><th className="p-2">{t("From beat")}</th><th className="p-2">{t("To beat")}</th><th className="p-2">{t("Source take")}</th><th className="p-2">{t("Edit")}</th></tr></thead><tbody>{segments.map((segment, index) => {
           const items = options.map((clip, ordinal) => {
             const sampleId = clip.content.type === "audio" ? clip.content.sample : null
-            return { value: clip.id, label: group ? `Pass ${(commonPasses.find((take) => take.clip === clip.id)?.pass ?? 0) + 1}` : `${ordinal + 1}. ${samples.find((sample) => sample.id === sampleId)?.name ?? "Audio"}` }
+            return { value: clip.id, label: group ? message("Pass {pass}", { pass: plainNumber((commonPasses.find((take) => take.clip === clip.id)?.pass ?? 0) + 1) }) : message("{index}. {title}", { index: ordinal + 1, title: samples.find((sample) => sample.id === sampleId)?.name ?? t("Audio") }) }
           })
           return <tr key={index} className="border-t">
-            {(["start", "end"] as const).map((edge) => <td key={edge} className="p-1"><Input aria-label={`Range ${index + 1} ${edge} beat`} className="w-24" type="number" min={0} step={0.25} value={segment[edge] / PPQ} disabled={busy} onChange={(event) => { const value = Number(event.target.value); if (Number.isFinite(value)) patch(index, { [edge]: Math.max(0, Math.round(value * PPQ)) }) }} /></td>)}
-            <td className="p-1"><Select items={items} value={segment.clip} disabled={busy} onValueChange={(clip: number | null) => { if (clip !== null) patch(index, { clip }) }}><SelectTrigger aria-label={`Source for range ${index + 1}`}><SelectValue /></SelectTrigger><SelectContent><SelectGroup>{items.map((item) => <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>)}</SelectGroup></SelectContent></Select></td>
-            <td className="whitespace-nowrap p-1"><Button size="sm" variant="ghost" disabled={busy || segment.end - segment.start < 2 || segments.length >= 2048} onClick={() => setSegments((rows) => { const middle = Math.floor((segment.start + segment.end) / 2); return [...rows.slice(0, index), { ...segment, end: middle }, { ...segment, start: middle }, ...rows.slice(index + 1)] })}>Split</Button><Button size="sm" variant="ghost" aria-label={`Remove range ${index + 1}`} disabled={busy || segments.length < 2} onClick={() => setSegments((rows) => rows.filter((_, i) => i !== index))}>Remove</Button></td>
+            {(["start", "end"] as const).map((edge) => <td key={edge} className="p-1"><Input aria-label={message("Range {index} {edge} beat", { index: plainNumber(index + 1), edge: t(edge) })} className="w-24" type="number" min={0} step={0.25} value={segment[edge] / PPQ} disabled={busy} onChange={(event) => { const value = Number(event.target.value); if (Number.isFinite(value)) patch(index, { [edge]: Math.max(0, Math.round(value * PPQ)) }) }} /></td>)}
+            <td className="p-1"><Select items={items} value={segment.clip} disabled={busy} onValueChange={(clip: number | null) => { if (clip !== null) patch(index, { clip }) }}><SelectTrigger aria-label={message("Source for range {index}", { index: plainNumber(index + 1) })}><SelectValue /></SelectTrigger><SelectContent><SelectGroup>{items.map((item) => <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>)}</SelectGroup></SelectContent></Select></td>
+            <td className="whitespace-nowrap p-1"><Button size="sm" variant="ghost" disabled={busy || segment.end - segment.start < 2 || segments.length >= 2048} onClick={() => setSegments((rows) => { const middle = Math.floor((segment.start + segment.end) / 2); return [...rows.slice(0, index), { ...segment, end: middle }, { ...segment, start: middle }, ...rows.slice(index + 1)] })}>{t("Split")}</Button><Button size="sm" variant="ghost" aria-label={message("Remove range {index}", { index: plainNumber(index + 1) })} disabled={busy || segments.length < 2} onClick={() => setSegments((rows) => rows.filter((_, i) => i !== index))}>{t("Remove")}</Button></td>
           </tr>
         })}</tbody></table>
       </div>
-      <Field orientation="horizontal"><Checkbox id="comp-mute" checked={mute} disabled={busy} onCheckedChange={(value) => setMute(value === true)} /><FieldLabel htmlFor="comp-mute">Mute original source clips</FieldLabel></Field>
-      {group && <Field orientation="horizontal"><Checkbox id="comp-replace" checked={replace} disabled={busy} onCheckedChange={(value) => setReplace(value === true)} /><FieldLabel htmlFor="comp-replace">Replace the group's previous composite</FieldLabel></Field>}
-      {group && !options.length && <p role="alert" className="text-destructive">No retained pass is available on every input lane. Restore missing sources or comp individual clips.</p>}
+      <Field orientation="horizontal"><Checkbox id="comp-mute" checked={mute} disabled={busy} onCheckedChange={(value) => setMute(value === true)} /><FieldLabel htmlFor="comp-mute">{t("Mute original source clips")}</FieldLabel></Field>
+      {group && <Field orientation="horizontal"><Checkbox id="comp-replace" checked={replace} disabled={busy} onCheckedChange={(value) => setReplace(value === true)} /><FieldLabel htmlFor="comp-replace">{t("Replace the group's previous composite")}</FieldLabel></Field>}
+      {group && !options.length && <p role="alert" className="text-destructive">{t("No retained pass is available on every input lane. Restore missing sources or comp individual clips.")}</p>}
       {error && <p role="alert" className="text-destructive">{error}</p>}
-      <DialogFooter><Button variant="outline" disabled={busy} onClick={close}>Cancel</Button><Button disabled={busy || !segments.length} onClick={() => void createComp()}>{busy ? "Creating…" : "Create composite"}</Button></DialogFooter>
+      <DialogFooter><Button variant="outline" disabled={busy} onClick={close}>{t("Cancel")}</Button><Button disabled={busy || !segments.length} onClick={() => void createComp()}>{busy ? t("Creating…") : t("Create composite")}</Button></DialogFooter>
     </DialogContent>
   </Dialog>
 }

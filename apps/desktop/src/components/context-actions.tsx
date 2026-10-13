@@ -24,7 +24,7 @@ import {
 } from "@/lib/actions"
 import { reportError } from "@/lib/errors"
 import { isTextField } from "@/lib/text-field-menu"
-import { actionTitle, message, useTranslation } from "@/lib/i18n"
+import { actionTitle, dynamicMessage, useTranslation } from "@/lib/i18n"
 import type { DynamicActionMessage } from "@/lib/i18n/action-messages"
 
 import { MenuTick } from "./action-menu-item"
@@ -218,7 +218,7 @@ function ContextItems({ items: given, defer }: ContextItemsProps) {
         <ContextMenuSub key={index}>
           <ContextMenuSubTrigger>
             {hasToggles && <MenuTick checked={false} />}
-            {item.submenuMessage ? message(item.submenuMessage.key, item.submenuMessage.values) : item.submenu}
+            {item.submenuMessage ? dynamicMessage(item.submenuMessage) : item.submenu}
           </ContextMenuSubTrigger>
           <ContextMenuSubContent className="min-w-40">
             <ContextItems items={item.items} defer={defer} />
@@ -229,7 +229,7 @@ function ContextItems({ items: given, defer }: ContextItemsProps) {
     if ("label" in item) {
       return (
         <ContextMenuGroup key={index}>
-          <ContextMenuLabel>{item.labelMessage ? message(item.labelMessage.key, item.labelMessage.values) : item.label}</ContextMenuLabel>
+          <ContextMenuLabel>{item.labelMessage ? dynamicMessage(item.labelMessage) : item.label}</ContextMenuLabel>
         </ContextMenuGroup>
       )
     }
@@ -247,7 +247,7 @@ function ContextItems({ items: given, defer }: ContextItemsProps) {
         }}
       >
         {hasToggles && <MenuTick checked={item.checked ?? false} />}
-        {item.titleMessage ? message(item.titleMessage.key, item.titleMessage.values) : item.title}
+        {item.titleMessage ? dynamicMessage(item.titleMessage) : item.title}
         {item.disabled && item.reason ? (
           <ContextMenuShortcut className="tracking-normal">
             {t(item.reason)}

@@ -10,6 +10,7 @@ import { arrangementCommand } from "./commands"
 import { emptyArrangementBook } from "./model"
 import { ArrangementPanel } from "./panel"
 import { activeArrangementClipIds } from "./select-clips"
+import { translatedText as t } from "@/lib/i18n"
 
 const EMPTY_BOOK = emptyArrangementBook()
 
@@ -36,7 +37,7 @@ export function ArrangementControls() {
   )
   const send = async (command: Parameters<typeof dispatch>[0]) => {
     if (!(await dispatch(command)))
-      throw new Error("The arrangement edit was not applied.")
+      throw new Error(t("The arrangement edit was not applied."))
   }
   return (
     <div className="flex shrink-0 items-center gap-1 border-b px-2 py-1">
@@ -44,7 +45,7 @@ export function ArrangementControls() {
         <PopoverTrigger
           render={
             <Button variant="ghost" size="sm">
-              Arrangements
+              {t("Arrangements")}
               {book.arrangements.length ? ` (${book.arrangements.length})` : ""}
             </Button>
           }
@@ -72,14 +73,14 @@ export function ArrangementControls() {
       <Button
         variant="ghost"
         size="sm"
-        title="Select arrangement clips"
+        title={t("Select arrangement clips")}
         disabled={arrangementClipIds === null}
         onClick={() => {
           if (arrangementClipIds !== null)
             usePlaylistStore.getState().select(arrangementClipIds)
         }}
       >
-        Select arrangement clips
+        {t("Select arrangement clips")}
       </Button>
     </div>
   )

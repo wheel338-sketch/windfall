@@ -1,6 +1,7 @@
 import { useRef } from "react"
 import type { ActiveNotePose, ChannelId } from "@/bindings"
 import { useRealtime } from "@/lib/store/realtime"
+import { message, plainNumber, translatedText as t } from "@/lib/i18n"
 
 export type CharacterPose = { name: string; body: number; leftArm: number; rightArm: number; leftLeg: number; rightLeg: number; lift: number }
 
@@ -32,11 +33,13 @@ export function NoteCharacter({ channel }: { channel: ChannelId | null }) {
       element.querySelector(`[data-limb="${name}"]`)?.setAttribute("transform", `rotate(${angle})`)
     }
     const title = element.ownerSVGElement?.querySelector("title")
-    if (title) title.textContent = `Moss: ${pose.name}${note ? `, note ${note.key}` : ""}`
+    if (title) title.textContent = note
+      ? message("Moss: {pose}, note {key}", { pose: pose.name, key: plainNumber(note.key) })
+      : message("Moss: {pose}", { pose: pose.name })
   })
   return (
-    <svg viewBox="0 0 200 200" role="img" aria-label="Moss note character" className="h-52 w-full text-primary">
-      <title>Moss: rest</title>
+    <svg viewBox="0 0 200 200" role="img" aria-label={t("Moss note character")} className="h-52 w-full text-primary">
+      <title>{t("Moss: rest")}</title>
       <ellipse cx="100" cy="181" rx="42" ry="7" fill="currentColor" opacity="0.12" />
       <g ref={root} transform="translate(100 105)" data-pose="rest">
         <g transform="translate(-20 -5)"><path data-limb="left-arm" d="M0 0 Q-24 8 -31 35" fill="none" stroke="currentColor" strokeWidth="9" strokeLinecap="round" /></g>

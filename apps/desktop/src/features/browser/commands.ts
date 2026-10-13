@@ -47,6 +47,7 @@ import {
   useLibraryStore,
 } from "./library-store"
 import { captureFile, fileRequestCurrent, resolveFile } from "./file-token"
+import { translatedText as t, message } from "@/lib/i18n"
 
 const get = useBrowserStore.getState
 const set = useBrowserStore.setState
@@ -108,7 +109,7 @@ export async function addToRack(
   const file = captureFile(path, browser)
   const token = await attempt(
     resolveFile(file),
-    "Could not find the library file"
+    t("Could not find the library file")
   )
   if (
     !token ||
@@ -121,7 +122,7 @@ export async function addToRack(
       ? openPresetRender({ path, browser: token }, undefined,
           () => generation === getProjectGeneration() && fileRequestCurrent(file))
       : backend.addChannelFromFile(path, undefined, token),
-    "Could not add the sound"
+    t("Could not add the sound")
   )
   if (
     !result ||
@@ -152,7 +153,7 @@ export async function addToPlaylist(
   const file = captureFile(path, browser)
   const token = await attempt(
     resolveFile(file),
-    "Could not find the library file"
+    t("Could not find the library file")
   )
   if (
     !token ||
@@ -180,7 +181,7 @@ export async function separateToPlaylist(path: string, browser?: LibraryFileToke
   if (!idle()) return
   const generation = getProjectGeneration()
   const file = captureFile(path, browser)
-  const token = await attempt(resolveFile(file), "Could not find the library file")
+  const token = await attempt(resolveFile(file), t("Could not find the library file"))
   const valid = () => idle() && generation === getProjectGeneration() && fileRequestCurrent(file)
   if (!token || !valid()) return
   const clip = await addAudioFile(path, { start: songTick() }, token, valid)
@@ -201,7 +202,7 @@ export async function replaceChannelSample(
   if (!channel) return
   const token = await attempt(
     resolveFile(file),
-    "Could not find the library file"
+    t("Could not find the library file")
   )
   if (
     !token ||
@@ -214,7 +215,7 @@ export async function replaceChannelSample(
       ? openPresetRender({ path, channel: channel.id, browser: token }, undefined,
           () => generation === getProjectGeneration() && fileRequestCurrent(file))
       : backend.setChannelSampleFromFile(channel.id, path, token),
-    `Could not replace the sample of ${channel.name}`
+    message("Could not replace the sample of {channelName}", { channelName: channel.name })
   )
   if (
     result &&
@@ -241,7 +242,7 @@ export function refresh(path: string) {
  * nothing selected it reads the roots and every open root again.
  */
 export function refreshSelection() {
-  void attempt(refreshLibrary(), "Could not refresh the library")
+  void attempt(refreshLibrary(), t("Could not refresh the library"))
   const selected = get().selected
   if (selected === null) {
     void loadRoots().then(() => {
@@ -262,7 +263,7 @@ export async function addFolder(): Promise<void> {
   try {
     path = await backend.pickFolder()
   } catch (error) {
-    reportError(error, "Could not choose a folder")
+    reportError(error, t("Could not choose a folder"))
     return
   }
   if (path === null) return
@@ -272,7 +273,7 @@ export async function addFolder(): Promise<void> {
     invalidateLibrary()
     roots = await backend.browserAddRoot(path)
   } catch (error) {
-    reportError(error, "Could not add the folder")
+    reportError(error, t("Could not add the folder"))
     return
   }
 
@@ -313,11 +314,11 @@ export async function removeRoot(root: BrowserRoot): Promise<void> {
       stopPreview()
     }
   } catch (error) {
-    reportError(error, `Could not remove ${root.name}`)
+    reportError(error, message("Could not remove {rootName}", { rootName: root.name }))
   }
 }
 
 export async function copyPath(path: string): Promise<void> {
   await navigator.clipboard.writeText(path)
-  toast.success("Path copied", { description: path })
+  toast.success(t("Path copied"), { description: path })
 }

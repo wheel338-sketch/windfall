@@ -1,4 +1,5 @@
-import { dynamicTitle } from "@/lib/i18n"
+import { effectDescriptor } from "@/features/params"
+import { dynamicTitle, message, plainNumber } from "@/lib/i18n"
 import type { EffectKind } from "@/bindings"
 import { EFFECT_KINDS } from "@/features/params"
 import type { Action, AppState } from "@/lib/actions"
@@ -8,7 +9,6 @@ import { useUiStore } from "@/lib/store"
 import {
   addEffect,
   duplicateEffect,
-  effectName,
   findEffect,
   MAX_EFFECT_SLOTS,
   moveEffectBy,
@@ -22,7 +22,7 @@ import {
 import { useEffectsUi } from "./effects-ui"
 
 const SECTION = "Mixer"
-const FULL = `Holds ${MAX_EFFECT_SLOTS} at most`
+const full = () => message("Holds {max} at most", { max: plainNumber(MAX_EFFECT_SLOTS) })
 
 export const addEffectActionId = (kind: EffectKind) => `mixer.addEffect.${kind}`
 export const replaceEffectActionId = (kind: EffectKind) =>
@@ -98,7 +98,7 @@ function enlargeEffects() {
 export const EFFECT_ACTIONS: Action[] = [
   {
     id: "mixer.effects",
-    title: "Show effects",
+    ...dynamicTitle("Show effects", {}),
     section: SECTION,
     scope: "mixer",
     defaultShortcut: "E",
@@ -110,7 +110,7 @@ export const EFFECT_ACTIONS: Action[] = [
   },
   {
     id: "mixer.enlargeEffects",
-    title: "Enlarge effects",
+    ...dynamicTitle("Enlarge effects", {}),
     section: SECTION,
     scope: "mixer",
     defaultShortcut: "Shift+E",
@@ -120,7 +120,7 @@ export const EFFECT_ACTIONS: Action[] = [
   },
   {
     id: "mixer.effectsBack",
-    title: "Return effects to the mixer",
+    ...dynamicTitle("Return effects to the mixer", {}),
     section: SECTION,
     scope: "effectInspector",
     defaultShortcut: "Escape",
@@ -130,7 +130,7 @@ export const EFFECT_ACTIONS: Action[] = [
   },
   ...EFFECT_KINDS.map((kind): Action => ({
     id: addEffectActionId(kind),
-    ...dynamicTitle("Add {value0}", { value0: effectName(kind) }),
+    ...dynamicTitle("Add {value0}", { value0: effectDescriptor(kind).name }, { value0: "plain" }),
     section: ADD_EFFECT_SECTION,
     keywords: "effect insert fx plugin new",
     enabled: (state) => {
@@ -138,7 +138,7 @@ export const EFFECT_ACTIONS: Action[] = [
       return track !== undefined && !isFull(track.effects.length)
     },
     whyDisabled: (state) =>
-      isFull(selectedTrack(state)?.effects.length) ? FULL : undefined,
+      isFull(selectedTrack(state)?.effects.length) ? full() : undefined,
     run: async () => {
       const track = useUiStore.getState().selectedTrack
       if (track !== null) await addEffect(track, kind)
@@ -146,7 +146,7 @@ export const EFFECT_ACTIONS: Action[] = [
   })),
   {
     id: "mixer.openEffect",
-    title: "Open effect",
+    ...dynamicTitle("Open effect", {}),
     section: SECTION,
     keywords: "edit editor show",
     enabled: (state) => target(state) !== undefined,
@@ -154,7 +154,7 @@ export const EFFECT_ACTIONS: Action[] = [
   },
   {
     id: "mixer.bypassEffect",
-    title: "Bypass effect",
+    ...dynamicTitle("Bypass effect", {}),
     section: SECTION,
     keywords: "disable enable switch off on",
     enabled: (state) => target(state) !== undefined,
@@ -163,7 +163,7 @@ export const EFFECT_ACTIONS: Action[] = [
   },
   {
     id: "mixer.duplicateEffect",
-    title: "Duplicate effect",
+    ...dynamicTitle("Duplicate effect", {}),
     section: SECTION,
     // The key is the effect's while its slot or its header has the focus.
     scope: "effect",
@@ -175,12 +175,12 @@ export const EFFECT_ACTIONS: Action[] = [
       return found !== undefined && !isFull(found.track.effects.length)
     },
     whyDisabled: (state) =>
-      isFull(target(state)?.track.effects.length) ? FULL : undefined,
+      isFull(target(state)?.track.effects.length) ? full() : undefined,
     run: onTarget(duplicateEffect),
   },
   {
     id: "mixer.moveEffectUp",
-    title: "Move effect up",
+    ...dynamicTitle("Move effect up", {}),
     section: SECTION,
     scope: "mixer",
     defaultShortcut: "Alt+ArrowUp",
@@ -191,7 +191,7 @@ export const EFFECT_ACTIONS: Action[] = [
   },
   {
     id: "mixer.moveEffectDown",
-    title: "Move effect down",
+    ...dynamicTitle("Move effect down", {}),
     section: SECTION,
     scope: "mixer",
     defaultShortcut: "Alt+ArrowDown",
@@ -205,7 +205,7 @@ export const EFFECT_ACTIONS: Action[] = [
   },
   ...EFFECT_KINDS.map((kind): Action => ({
     id: replaceEffectActionId(kind),
-    ...dynamicTitle("Replace effect with {value0}", { value0: effectName(kind) }),
+    ...dynamicTitle("Replace effect with {value0}", { value0: effectDescriptor(kind).name }, { value0: "plain" }),
     section: REPLACE_EFFECT_SECTION,
     keywords: "swap change",
     enabled: (state) => {
@@ -219,7 +219,7 @@ export const EFFECT_ACTIONS: Action[] = [
   })),
   {
     id: "mixer.resetEffect",
-    title: "Reset effect to defaults",
+    ...dynamicTitle("Reset effect to defaults", {}),
     section: SECTION,
     keywords: "initialize settings",
     enabled: (state) => {
@@ -230,7 +230,7 @@ export const EFFECT_ACTIONS: Action[] = [
   },
   {
     id: "mixer.removeEffect",
-    title: "Remove effect",
+    ...dynamicTitle("Remove effect", {}),
     section: SECTION,
     scope: "effect",
     editCommand: "delete",

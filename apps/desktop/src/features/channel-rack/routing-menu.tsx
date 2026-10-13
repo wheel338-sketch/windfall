@@ -16,6 +16,7 @@ import {
 import { colorToCss } from "@/lib/units"
 
 import { routeChannel } from "./channel-ops"
+import { translatedText as t } from "@/lib/i18n"
 
 /** What a mixer track is called in a small space: "M" for the master, else its number. */
 export function trackNumber(index: number): string {
@@ -63,7 +64,7 @@ export function RoutingMenu({ channel, channelName, track }: RoutingMenuProps) {
   return (
     <>
       <DropdownMenuGroup>
-        <DropdownMenuLabel>{channelName} plays into</DropdownMenuLabel>
+        <DropdownMenuLabel>{channelName}{" "}{t("plays into")}</DropdownMenuLabel>
         <DropdownMenuRadioGroup
           value={track}
           onValueChange={(id: TrackId) => void routeChannel(channel, id)}

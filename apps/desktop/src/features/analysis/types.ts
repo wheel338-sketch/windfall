@@ -1,4 +1,5 @@
 /** Native process-volatile protocol. u64 identifiers/counts stay decimal strings. */
+import { translatedText as t } from "@/lib/i18n"
 export type AnalysisProvenance = {
   origin: string
   sourceRevision: string
@@ -123,7 +124,7 @@ export function taskProblem(task: AnalysisTask, model: AnalysisModel): string | 
   if (roles.length !== expected.length || new Set(roles).size !== roles.length ||
     expected.some((role) => !roles.includes(role)) ||
     model.outputs.some((o) => o.channels !== model.inputChannels))
-    return "Select a pinned model with the exact roles and preserved channels for this operation."
+    return t("Select a pinned model with the exact roles and preserved channels for this operation.")
   return undefined
 }
 export interface AnalysisBackend {

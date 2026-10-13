@@ -6,6 +6,7 @@ import type {
   ParamInfo,
 } from "@/bindings"
 import { effects, instruments } from "@/bindings/descriptors.json"
+import { message } from "@/lib/i18n"
 
 /**
  * Everything the UI knows about one kind of effect or instrument: its name,
@@ -102,7 +103,7 @@ function indexOf(descriptor: ParamDescriptor): ReadonlyMap<string, number> {
 export function paramIndex(descriptor: ParamDescriptor, id: string): number {
   const index = indexOf(descriptor).get(id)
   if (index === undefined) {
-    throw new Error(`${descriptor.name} has no parameter "${id}"`)
+    throw new Error(message("{descriptorName} has no parameter \"{id}\"", { descriptorName: descriptor.name, id }))
   }
   return index
 }

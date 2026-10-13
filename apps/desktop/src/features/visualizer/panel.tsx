@@ -17,6 +17,7 @@ import { useProjectStore } from "@/lib/store/project"
 import { exportVisualAvi } from "./avi"
 import { NoteCharacter } from "./character"
 import { renderVisual, signalFromAnalyzer, visualSongFrame } from "./render"
+import { translatedText as t } from "@/lib/i18n"
 
 const SLOT = "visualizer"
 export function downloadMedia(bytes: Uint8Array, mime: string, name: string) {
@@ -45,7 +46,7 @@ export function VisualizerCanvas({ settings }: { settings: VisualSettings }) {
   }
   useAnalyzerFrames(SLOT, { paint: draw, onClear: () => draw(null) })
   useEffect(() => { draw(latest.current) })
-  return <canvas ref={canvas} width={320} height={180} role="img" aria-label="Audio reactive scene" data-live="false" className="aspect-video w-full rounded-md" />
+  return <canvas ref={canvas} width={320} height={180} role="img" aria-label={t("Audio reactive scene")} data-live="false" className="aspect-video w-full rounded-md" />
 }
 
 function VisualizerBody() {
@@ -68,10 +69,10 @@ function VisualizerBody() {
     try {
       const guard = await mediaDocumentGuard(generation, state.revision)
       const audio = await backend.mediaRenderAudio({ start, end }, guard.generation, guard.revision)
-      if (cancel.current || generation !== getProjectGeneration()) throw new Error("Video export cancelled")
+      if (cancel.current || generation !== getProjectGeneration()) throw new Error(t("Video export cancelled"))
       const phase = visualSongFrame(songTempoMap(state.project).secondsAt(start))
       const result = await exportVisualAvi(audio.samples, audio.sampleRate, visual, 320, 180, () => cancel.current, setProgress, phase)
-      if (cancel.current || generation !== getProjectGeneration()) throw new Error("Video export cancelled")
+      if (cancel.current || generation !== getProjectGeneration()) throw new Error(t("Video export cancelled"))
       downloadMedia(result.bytes, "video/x-msvideo", "windfall-visual.avi")
       downloadMedia(new TextEncoder().encode(JSON.stringify({ ...result.metadata, range: { start, end }, visual }, null, 2)), "application/json", "windfall-visual.json")
     } catch (reason) { if (!cancel.current) setError(String(reason)) } finally { setExporting(false) }
@@ -80,21 +81,21 @@ function VisualizerBody() {
     <div className="flex flex-wrap items-center gap-2"><AnalyzerSourceSelect source={source} onChange={setSource} /><AnalyzerStatusLine slot={SLOT} /></div>
     <VisualizerCanvas settings={media.visual} />
     <FieldGroup className="grid grid-cols-3 gap-3">
-      <MediaChoice<VisualScene> label="Scene" value={media.visual.scene} options={[{ value: "orbit", label: "Orbit" }, { value: "bars", label: "Light bars" }, { value: "ribbon", label: "Ribbon" }]} onChange={(scene) => { void changeStageMedia((current) => ({ ...current, visual: { ...current.visual, scene } })) }} />
-      <MediaNumber label="Intensity" value={media.visual.intensity} max={4} step={0.1} onCommit={(intensity) => { void changeStageMedia((current) => ({ ...current, visual: { ...current.visual, intensity } })) }} />
-      <MediaNumber label="Hue" value={media.visual.hue} max={360} onCommit={(hue) => { void changeStageMedia((current) => ({ ...current, visual: { ...current.visual, hue } })) }} />
+      <MediaChoice<VisualScene> label={t("Scene")} value={media.visual.scene} options={[{ value: "orbit", label: t("Orbit") }, { value: "bars", label: t("Light bars") }, { value: "ribbon", label: t("Ribbon") }]} onChange={(scene) => { void changeStageMedia((current) => ({ ...current, visual: { ...current.visual, scene } })) }} />
+      <MediaNumber label={t("Intensity")} value={media.visual.intensity} max={4} step={0.1} onCommit={(intensity) => { void changeStageMedia((current) => ({ ...current, visual: { ...current.visual, intensity } })) }} />
+      <MediaNumber label={t("Hue")} value={media.visual.hue} max={360} onCommit={(hue) => { void changeStageMedia((current) => ({ ...current, visual: { ...current.visual, hue } })) }} />
     </FieldGroup>
-    <FieldGroup className="grid grid-cols-2 gap-3"><MediaNumber label="Export start tick" value={start} max={2147483647} onCommit={setStart} /><MediaNumber label="Export end tick" value={end} min={1} max={2147483647} onCommit={setEnd} /></FieldGroup>
-    <p className="text-xs text-muted-foreground">AVI export includes the real offline mix as stereo PCM and raw video frames at 24 fps. Short ranges only: up to 30 seconds and 128 MiB. Compressed H.264/AAC codecs remain a user licensing decision.</p>
-    <div className="flex items-center gap-3"><Button disabled={exporting || source.type !== "mixOutput" || backend.kind !== "tauri" || end <= start} onClick={() => { void exportVideo() }}>Export synchronized AVI</Button>{exporting && <><span role="status">{Math.round(progress * 100)}%</span><Button variant="outline" onClick={() => { cancel.current = true }}>Cancel export</Button></>}</div>
-    {source.type !== "mixOutput" && <p className="text-xs text-muted-foreground">Select Mix output to export this scene with the mix.</p>}
+    <FieldGroup className="grid grid-cols-2 gap-3"><MediaNumber label={t("Export start tick")} value={start} max={2147483647} onCommit={setStart} /><MediaNumber label={t("Export end tick")} value={end} min={1} max={2147483647} onCommit={setEnd} /></FieldGroup>
+    <p className="text-xs text-muted-foreground">{t("AVI export includes the real offline mix as stereo PCM and raw video frames at 24 fps. Short ranges only: up to 30 seconds and 128 MiB. Compressed H.264/AAC codecs remain a user licensing decision.")}</p>
+    <div className="flex items-center gap-3"><Button disabled={exporting || source.type !== "mixOutput" || backend.kind !== "tauri" || end <= start} onClick={() => { void exportVideo() }}>{t("Export synchronized AVI")}</Button>{exporting && <><span role="status">{Math.round(progress * 100)}%</span><Button variant="outline" onClick={() => { cancel.current = true }}>{t("Cancel export")}</Button></>}</div>
+    {source.type !== "mixOutput" && <p className="text-xs text-muted-foreground">{t("Select Mix output to export this scene with the mix.")}</p>}
     {error && <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}
-    <MediaChoice label="Moss note channel" value={media.danceChannel === null ? "none" : String(media.danceChannel)} options={[{ value: "none", label: "No channel" }, ...project.channels.map((channel) => ({ value: String(channel.id), label: channel.name }))]} onChange={(value) => { void changeStageMedia((current) => ({ ...current, danceChannel: value === "none" ? null : Number(value) })) }} />
+    <MediaChoice label={t("Moss note channel")} value={media.danceChannel === null ? "none" : String(media.danceChannel)} options={[{ value: "none", label: t("No channel") }, ...project.channels.map((channel) => ({ value: String(channel.id), label: channel.name }))]} onChange={(value) => { void changeStageMedia((current) => ({ ...current, danceChannel: value === "none" ? null : Number(value) })) }} />
     <NoteCharacter channel={media.danceChannel} />
   </div>
 }
 
 export function VisualizerPanel() {
   const open = useMediaWindows((state) => state.visualizer)
-  return <Dialog open={open} onOpenChange={(visualizer) => useMediaWindows.setState({ visualizer })}><DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-3xl"><DialogHeader><DialogTitle>Visual stage</DialogTitle><DialogDescription>Windfall scenes follow the selected audio analyzer. Moss dances to actual held notes on the chosen channel.</DialogDescription></DialogHeader>{open && <VisualizerBody />}</DialogContent></Dialog>
+  return <Dialog open={open} onOpenChange={(visualizer) => useMediaWindows.setState({ visualizer })}><DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-3xl"><DialogHeader><DialogTitle>{t("Visual stage")}</DialogTitle><DialogDescription>{t("Windfall scenes follow the selected audio analyzer. Moss dances to actual held notes on the chosen channel.")}</DialogDescription></DialogHeader>{open && <VisualizerBody />}</DialogContent></Dialog>
 }

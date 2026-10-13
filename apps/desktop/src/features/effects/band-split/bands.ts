@@ -1,4 +1,5 @@
 import { formatHz } from "@/components/audio"
+import { message } from "@/lib/i18n"
 
 /*
  * The bands of the splitter, as the engine makes them
@@ -84,6 +85,6 @@ export function describeSplit(
 ): string {
   const [low, high] = crossovers(settings, sampleRate)
   return settings.three
-    ? `Low below ${formatHz(low)}, mid up to ${formatHz(high)}, high above`
-    : `Low below ${formatHz(low)}, high above`
+    ? message("Low below {hz}, mid up to {hz2}, high above", { hz: formatHz(low), hz2: formatHz(high) })
+    : message("Low below {hz}, high above", { hz: formatHz(low) })
 }

@@ -12,6 +12,7 @@ import { clamp, colorToCss, PPQ, TICKS_PER_STEP } from "@/lib/units"
 import { GRAPH_LABELS, GRAPH_PROPERTIES, graphFraction, graphPatch, graphRange, graphReadout, graphSteps, graphValue, type GraphProperty } from "./graph-values"
 import { LEFT_WIDTH, pitches, STEPS_INSET, STEPS_TRAIL } from "./layout"
 import { useRackStore } from "./rack-store"
+import { translatedText as t, message, plainNumber } from "@/lib/i18n"
 
 const HEIGHT = 112
 const NO_NOTES: Note[] = []
@@ -151,33 +152,33 @@ function LaneGraph({ pattern, channel, lengthSteps, groupSize }: { pattern: Patt
     <div className="flex shrink-0 border-y bg-chassis/30" data-slot="rack-graph">
       <div className="sticky left-0 z-10 flex shrink-0 flex-col gap-1.5 bg-background px-3 py-2" style={{ width: LEFT_WIDTH, height: HEIGHT + 16 }}>
         <div className="flex items-center justify-between gap-2">
-          <span className="truncate font-medium">{owner?.name ?? "Channel"} graph</span>
-          <Button variant="ghost" size="xs" aria-label="Close step graph" onClick={() => useRackStore.getState().setGraphOpen(false)}>Close</Button>
+          <span className="truncate font-medium">{owner?.name ?? t("Channel")}{" "}{t("graph")}</span>
+          <Button variant="ghost" size="xs" aria-label={t("Close step graph")} onClick={() => useRackStore.getState().setGraphOpen(false)}>{t("Close")}</Button>
         </div>
         <Select value={property} onValueChange={(value) => { if (GRAPH_PROPERTIES.includes(value as GraphProperty)) setProperty(value as GraphProperty) }}>
-          <SelectTrigger size="sm" aria-label="Step graph property"><SelectValue /></SelectTrigger>
+          <SelectTrigger size="sm" aria-label={t("Step graph property")}><SelectValue /></SelectTrigger>
           <SelectContent><SelectGroup>{GRAPH_PROPERTIES.map((item) => <SelectItem key={item} value={item}>{GRAPH_LABELS[item]}</SelectItem>)}</SelectGroup></SelectContent>
         </Select>
         {property === "length" && <Select value={String(lengthRange)} onValueChange={(value) => { if (value) setLengthRange(Number(value)) }}>
-          <SelectTrigger size="sm" aria-label="Graph length range"><SelectValue /></SelectTrigger>
-          <SelectContent><SelectGroup>{[...new Set([TICKS_PER_STEP, PPQ, 4 * PPQ, lengthSteps * TICKS_PER_STEP])].sort((a, b) => a - b).map((ticks) => <SelectItem key={ticks} value={String(ticks)}>{ticks} ticks</SelectItem>)}</SelectGroup></SelectContent>
+          <SelectTrigger size="sm" aria-label={t("Graph length range")}><SelectValue /></SelectTrigger>
+          <SelectContent><SelectGroup>{[...new Set([TICKS_PER_STEP, PPQ, 4 * PPQ, lengthSteps * TICKS_PER_STEP])].sort((a, b) => a - b).map((ticks) => <SelectItem key={ticks} value={String(ticks)}>{ticks}{" "}{t("ticks")}</SelectItem>)}</SelectGroup></SelectContent>
         </Select>}
-        <span className="text-[0.625rem] text-muted-foreground" aria-live="polite">{readout || (pending ? "Applying…" : "Paint values · right-drag resets")}</span>
+        <span className="text-[0.625rem] text-muted-foreground" aria-live="polite">{readout || (pending ? t("Applying…") : t("Paint values · right-drag resets"))}</span>
       </div>
       <div style={{ paddingLeft: STEPS_INSET, paddingRight: STEPS_TRAIL }} className="flex items-center">
-        <div ref={surface} role="group" aria-label={`${owner?.name ?? "Channel"} ${GRAPH_LABELS[property]} step graph`} aria-busy={pending} className="relative flex touch-none select-none" style={{ height: HEIGHT, width: pitches(lengthSteps) }} onPointerDown={begin} onPointerMove={(event) => { if (stroke.current?.pointer === event.pointerId) paint(position(event)) }} onPointerUp={finish} onPointerCancel={cancel} onLostPointerCapture={cancel} onContextMenu={(event) => { event.preventDefault(); event.stopPropagation() }}>
+        <div ref={surface} role="group" aria-label={message("{ownerName} {graphLabels} step graph", { ownerName: owner?.name ?? t("Channel"), graphLabels: GRAPH_LABELS[property] })} aria-busy={pending} className="relative flex touch-none select-none" style={{ height: HEIGHT, width: pitches(lengthSteps) }} onPointerDown={begin} onPointerMove={(event) => { if (stroke.current?.pointer === event.pointerId) paint(position(event)) }} onPointerUp={finish} onPointerCancel={cancel} onLostPointerCapture={cancel} onContextMenu={(event) => { event.preventDefault(); event.stopPropagation() }}>
           {steps.map((items, step) => <div key={step} className={`relative flex h-full shrink-0 items-end gap-px border-r border-(--wf-grid-line) px-px ${Math.floor(step / groupSize) % 2 ? "bg-accent/30" : "bg-background/30"}`} style={{ width: pitches(1) }}>
             {items.map((original) => {
               const note = { ...original, ...preview.get(original.id)?.patch }
               const fraction = graphFraction(note, property, lengthRange)
-              return <button key={note.id} type="button" role="slider" data-graph-note={note.id} aria-label={`Step ${step + 1}, MIDI ${note.key}, ${GRAPH_LABELS[property]}`} aria-valuemin={range.min} aria-valuemax={range.max} aria-valuenow={graphValue(note, property)} aria-valuetext={graphReadout(property, graphValue(note, property))} disabled={pending} className="relative h-full min-w-0 flex-1 outline-none focus-visible:ring-2 focus-visible:ring-ring" title={`${GRAPH_LABELS[property]}: ${graphReadout(property, graphValue(note, property))}`} onKeyDown={(event) => keyEdit(event, original)} onDoubleClick={(event) => { event.stopPropagation(); cancel(); void commit([{ id: original.id, patch: graphPatch(original, property, range.reset, lengthRange) }], notes, getProjectGeneration()) }}>
+              return <button key={note.id} type="button" role="slider" data-graph-note={note.id} aria-label={message("Step {step}, MIDI {key}, {graphLabels}", { step: plainNumber(step + 1), key: plainNumber(note.key), graphLabels: GRAPH_LABELS[property] })} aria-valuemin={range.min} aria-valuemax={range.max} aria-valuenow={graphValue(note, property)} aria-valuetext={graphReadout(property, graphValue(note, property))} disabled={pending} className="relative h-full min-w-0 flex-1 outline-none focus-visible:ring-2 focus-visible:ring-ring" title={message("{name}: {value}", { name: GRAPH_LABELS[property], value: graphReadout(property, graphValue(note, property)) })} onKeyDown={(event) => keyEdit(event, original)} onDoubleClick={(event) => { event.stopPropagation(); cancel(); void commit([{ id: original.id, patch: graphPatch(original, property, range.reset, lengthRange) }], notes, getProjectGeneration()) }}>
                 <span aria-hidden className="pointer-events-none absolute inset-x-0 bottom-0 rounded-t-sm opacity-70" style={{ height: `${Math.max(0.02, fraction) * 100}%`, backgroundColor: owner ? colorToCss(owner.color) : "var(--wf-brand)" }} />
                 <span aria-hidden className="pointer-events-none absolute inset-x-0 h-0.5 bg-foreground" style={{ bottom: `calc(${fraction * 100}% - 1px)` }} />
               </button>
             })}
           </div>)}
           {["pan", "release", "finePitchCents", "modulationX", "modulationY"].includes(property) && <div aria-hidden className="pointer-events-none absolute inset-x-0 top-1/2 h-px bg-foreground/25" />}
-          {notes.every((note) => note.start >= lengthSteps * TICKS_PER_STEP) && <p className="pointer-events-none absolute inset-0 flex items-center justify-start px-3 text-muted-foreground">Turn on steps or add notes to edit their values.</p>}
+          {notes.every((note) => note.start >= lengthSteps * TICKS_PER_STEP) && <p className="pointer-events-none absolute inset-0 flex items-center justify-start px-3 text-muted-foreground">{t("Turn on steps or add notes to edit their values.")}</p>}
         </div>
       </div>
     </div>

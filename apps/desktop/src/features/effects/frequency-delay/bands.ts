@@ -1,5 +1,6 @@
 import type { ParamInfo } from "@/bindings"
 import { clampParam } from "@/features/params"
+import { translatedText as t } from "@/lib/i18n"
 
 /** The frequency delay always has this many bands. */
 export const BAND_COUNT = 16
@@ -9,17 +10,17 @@ export const LANES = [
   {
     id: "delayMs",
     name: "Delay",
-    hint: "How late each band is heard. Draw across the bars to shape an echo that sweeps through the spectrum",
+    get hint() { return t("How late each band is heard. Draw across the bars to shape an echo that sweeps through the spectrum") },
   },
   {
     id: "level",
     name: "Level",
-    hint: "How loud each band's echo is",
+    get hint() { return t("How loud each band's echo is") },
   },
   {
     id: "pan",
     name: "Pan",
-    hint: "Where each band's echo sits between left and right. The middle of the plot is the center",
+    get hint() { return t("Where each band's echo sits between left and right. The middle of the plot is the center") },
   },
 ] as const
 

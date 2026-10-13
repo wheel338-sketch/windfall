@@ -9,6 +9,7 @@ import { useMixerUi, selectedMixerTracks } from "./mixer-ui"
 import { outputChoices } from "./routing"
 import { useWaveformUi } from "./waveform-meter"
 import { openMixerRender, renderableMixerTracks } from "@/features/export/mixer-render"
+import { translatedText as t, message } from "@/lib/i18n"
 
 export function MixerToolbar({ filter, onFilterChange }: {
   filter: string
@@ -37,8 +38,8 @@ export function MixerToolbar({ filter, onFilterChange }: {
   }
   return <div className="absolute inset-x-0 top-0 z-20 flex h-9 items-center gap-2 border-b bg-chassis px-2">
     <Input
-      aria-label="Filter tracks"
-      placeholder="Filter tracks"
+      aria-label={t("Filter tracks")}
+      placeholder={t("Filter tracks")}
       className="w-40 shrink-0"
       value={filter}
       onChange={(event) => onFilterChange(event.target.value)}
@@ -49,34 +50,34 @@ export function MixerToolbar({ filter, onFilterChange }: {
       }}
     />
     <Select items={[...MIXER_LAYOUTS]} value={layout} onValueChange={(value: string | null) => { if (value) useUiStore.getState().setMixerLayout(value) }}>
-      <SelectTrigger size="sm" className="w-32" aria-label="Mixer size layout"><SelectValue /></SelectTrigger>
+      <SelectTrigger size="sm" className="w-32" aria-label={t("Mixer size layout")}><SelectValue /></SelectTrigger>
       <SelectContent><SelectGroup>{MIXER_LAYOUTS.map((item) => <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>)}</SelectGroup></SelectContent>
     </Select>
-    <Button size="sm" variant="outline" aria-pressed={meterMode === "waveform"} title={waveformError || "Switch between peak levels and stereo waveform history"} onClick={() => useUiStore.getState().setMixerMeterMode(meterMode === "level" ? "waveform" : "level")}>{meterMode === "waveform" ? "Waveforms" : "Levels"}</Button>
-    {waveformError && <span role="status" className="max-w-40 truncate text-xs text-destructive" title={waveformError}>Waveform feed unavailable</span>}
-    <Button size="sm" variant="ghost" onClick={selectAll}>Select inserts</Button>
-    <Button size="sm" variant="ghost" disabled={!selected.length} onClick={() => { useUiStore.getState().selectTrack(null); useMixerUi.setState({ selected: [], anchor: null }) }}>Clear</Button>
-    <Button size="sm" variant="outline" disabled={!renderableMixerTracks(selected).length} onClick={() => openMixerRender(selected)}>Render selected…</Button>
-    <Button size="sm" variant="outline" disabled={!tracks.some((track) => track.recording?.armed && !track.current)} onClick={() => openMixerRender(tracks.filter((track) => track.recording?.armed))}>Render armed…</Button>
-    <Popover><PopoverTrigger render={<Button size="sm" variant="outline" disabled={!selected.length}>{selected.length} selected</Button>} />
+    <Button size="sm" variant="outline" aria-pressed={meterMode === "waveform"} title={waveformError || t("Switch between peak levels and stereo waveform history")} onClick={() => useUiStore.getState().setMixerMeterMode(meterMode === "level" ? "waveform" : "level")}>{meterMode === "waveform" ? t("Waveforms") : t("Levels")}</Button>
+    {waveformError && <span role="status" className="max-w-40 truncate text-xs text-destructive" title={waveformError}>{t("Waveform feed unavailable")}</span>}
+    <Button size="sm" variant="ghost" onClick={selectAll}>{t("Select inserts")}</Button>
+    <Button size="sm" variant="ghost" disabled={!selected.length} onClick={() => { useUiStore.getState().selectTrack(null); useMixerUi.setState({ selected: [], anchor: null }) }}>{t("Clear")}</Button>
+    <Button size="sm" variant="outline" disabled={!renderableMixerTracks(selected).length} onClick={() => openMixerRender(selected)}>{t("Render selected…")}</Button>
+    <Button size="sm" variant="outline" disabled={!tracks.some((track) => track.recording?.armed && !track.current)} onClick={() => openMixerRender(tracks.filter((track) => track.recording?.armed))}>{t("Render armed…")}</Button>
+    <Popover><PopoverTrigger render={<Button size="sm" variant="outline" disabled={!selected.length}>{selected.length}{" "}{t("selected")}</Button>} />
       <PopoverContent align="start" className="w-80 space-y-3">
-        <p className="text-xs text-muted-foreground">Ctrl-click toggles tracks. Shift-click selects a range. Faders change together by the same gain ratio; pans move by the same amount.</p>
+        <p className="text-xs text-muted-foreground">{t("Ctrl-click toggles tracks. Shift-click selects a range. Faders change together by the same gain ratio; pans move by the same amount.")}</p>
         <div className="flex flex-wrap gap-1">
-          <Button size="sm" variant="outline" onClick={() => patch({ muted: !selected.every((track) => track.muted) })}>Mute / unmute</Button>
-          <Button size="sm" variant="outline" disabled={!inserts.length} onClick={() => patch({ solo: !inserts.every((track) => track.solo) }, true)}>Solo / unsolo</Button>
+          <Button size="sm" variant="outline" onClick={() => patch({ muted: !selected.every((track) => track.muted) })}>{t("Mute / unmute")}</Button>
+          <Button size="sm" variant="outline" disabled={!inserts.length} onClick={() => patch({ solo: !inserts.every((track) => track.solo) }, true)}>{t("Solo / unsolo")}</Button>
           <Button size="sm" variant="outline" onClick={() => patch({ volume: 1 })}>0 dB</Button>
-          <Button size="sm" variant="outline" onClick={() => patch({ pan: 0 })}>Center pan</Button>
+          <Button size="sm" variant="outline" onClick={() => patch({ pan: 0 })}>{t("Center pan")}</Button>
         </div>
-        <div className="flex gap-1">{(["left", "middle", "right"] as MixerDock[]).map((dock) => <Button key={dock} size="sm" variant="outline" disabled={!inserts.length} onClick={() => patch({ dock }, true)}>Dock {dock}</Button>)}</div>
-        <Select value={null} disabled={!inserts.length} items={[{ value: "none", label: "None (sends only)" }, ...routeChoices.map((track) => ({ value: String(track.id), label: track.name }))]} onValueChange={(value: string | null) => {
+        <div className="flex gap-1">{(["left", "middle", "right"] as MixerDock[]).map((dock) => <Button key={dock} size="sm" variant="outline" disabled={!inserts.length} onClick={() => patch({ dock }, true)}>{t("Dock")}{" "}{t(dock)}</Button>)}</div>
+        <Select value={null} disabled={!inserts.length} items={[{ value: "none", label: t("None (sends only)") }, ...routeChoices.map((track) => ({ value: String(track.id), label: track.name }))]} onValueChange={(value: string | null) => {
           if (value !== null) void dispatch({ type: "batch", commands: inserts.map((track) => ({ type: "setTrackOutput", id: track.id, output: value === "none" ? undefined : Number(value) })) })
-        }}><SelectTrigger aria-label="Route selected tracks"><SelectValue placeholder="Route selected tracks to…" /></SelectTrigger><SelectContent><SelectGroup>
-          {routeChoices.map((track) => <SelectItem key={track.id} value={String(track.id)}>{track.name}</SelectItem>)}<SelectItem value="none">None (sends only)</SelectItem>
+        }}><SelectTrigger aria-label={t("Route selected tracks")}><SelectValue placeholder={t("Route selected tracks to…")} /></SelectTrigger><SelectContent><SelectGroup>
+          {routeChoices.map((track) => <SelectItem key={track.id} value={String(track.id)}>{track.name}</SelectItem>)}<SelectItem value="none">{t("None (sends only)")}</SelectItem>
         </SelectGroup></SelectContent></Select>
-        <Select value={null} disabled={!inserts.length} items={[...moveChoices.map((track) => ({ value: String(track.id), label: `Before ${track.name}` })), { value: "end", label: "End of mixer" }]} onValueChange={(value: string | null) => {
+        <Select value={null} disabled={!inserts.length} items={[...moveChoices.map((track) => ({ value: String(track.id), label: message("Before {trackName}", { trackName: track.name }) })), { value: "end", label: t("End of mixer") }]} onValueChange={(value: string | null) => {
           if (value !== null) void dispatch({ type: "moveMixerTracks", expected: tracks.map((track) => track.id), ids: inserts.map((track) => track.id), before: value === "end" ? null : Number(value) })
-        }}><SelectTrigger aria-label="Move selected tracks"><SelectValue placeholder="Move selected tracks…" /></SelectTrigger><SelectContent><SelectGroup>
-          {moveChoices.map((track) => <SelectItem key={track.id} value={String(track.id)}>Before {track.name}</SelectItem>)}<SelectItem value="end">End of mixer</SelectItem>
+        }}><SelectTrigger aria-label={t("Move selected tracks")}><SelectValue placeholder={t("Move selected tracks…")} /></SelectTrigger><SelectContent><SelectGroup>
+          {moveChoices.map((track) => <SelectItem key={track.id} value={String(track.id)}>{t("Before")}{" "}{track.name}</SelectItem>)}<SelectItem value="end">{t("End of mixer")}</SelectItem>
         </SelectGroup></SelectContent></Select>
       </PopoverContent>
     </Popover>

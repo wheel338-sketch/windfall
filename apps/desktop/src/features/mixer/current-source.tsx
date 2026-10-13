@@ -5,6 +5,7 @@ import { backend, errorMessage } from "@/lib/ipc"
 import { onProjectReplaced } from "@/lib/store/replaced"
 import { Button } from "@/components/ui/button"
 import { dispatch } from "@/lib/store/project"
+import { translatedText as t } from "@/lib/i18n"
 
 export const useCurrentSource = create<{ track: number | null; error: string }>(() => ({ track: null, error: "" }))
 
@@ -51,7 +52,7 @@ export async function showCurrentUtility() {
 }
 
 export function CreateCurrentUtility() {
-  return <Button variant="outline" size="sm" onClick={() => void showCurrentUtility()}>Current</Button>
+  return <Button variant="outline" size="sm" onClick={() => void showCurrentUtility()}>{t("Current")}</Button>
 }
 
 export function CurrentSourcePanel() {
@@ -59,9 +60,9 @@ export function CurrentSourcePanel() {
   const error = useCurrentSource((state) => state.error)
   const name = useProjectStore((state) => state.project.mixer.tracks.find((track) => track.id === source)?.name)
   return <div className="shrink-0 border-b p-2 text-xs text-muted-foreground">
-    <p>Following: <span className="text-foreground">{name ?? "No source"}</span></p>
-    <p className="mt-1">Select Master or an insert to change the source. Current keeps its own effects and meters; its processed copy stays outside the song output.</p>
-    {backend.kind === "mock" && <p className="mt-1">Native audio processing is available in the desktop app.</p>}
+    <p>{t("Following:")}{" "}<span className="text-foreground">{name ?? t("No source")}</span></p>
+    <p className="mt-1">{t("Select Master or an insert to change the source. Current keeps its own effects and meters; its processed copy stays outside the song output.")}</p>
+    {backend.kind === "mock" && <p className="mt-1">{t("Native audio processing is available in the desktop app.")}</p>}
     {error && <p role="alert" className="mt-1 text-destructive">{error}</p>}
   </div>
 }

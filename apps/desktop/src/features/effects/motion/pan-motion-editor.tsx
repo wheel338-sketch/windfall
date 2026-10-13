@@ -13,6 +13,7 @@ import {
   panReach,
   type MotionSettings,
 } from "./lfo"
+import { translatedText as t, message } from "@/lib/i18n"
 
 /** Cycles the picture shows, so a random shape has more than one level. */
 const CYCLES = 2
@@ -89,13 +90,13 @@ export function PanMotionEditor({ bind }: EditorProps<PanLfoParams>) {
     <div
       data-slot="pan-motion-editor"
       role="group"
-      aria-label="Pan Motion settings"
+      aria-label={t("Pan Motion settings")}
       className="flex min-w-0 flex-col gap-2"
     >
       <div
         data-slot="motion-display"
         role="img"
-        aria-label={`Pan moves between ${formatPan(lowest)} and ${formatPan(highest)} as a ${choice.label.toLowerCase()}, one cycle every ${formatMs(seconds * 1000)}`}
+        aria-label={message("Pan moves between {pan} and {pan2} as a {choiceLabel}, one cycle every {ms}", { pan: formatPan(lowest), pan2: formatPan(highest), choiceLabel: choice.label.toLowerCase(), ms: formatMs(seconds * 1000) })}
         className="relative h-16 min-w-0 overflow-hidden rounded-md border border-border/80 bg-chassis/50"
       >
         <canvas
@@ -143,7 +144,7 @@ export function PanMotionEditor({ bind }: EditorProps<PanLfoParams>) {
               <span className="block font-readout text-[11px] text-foreground">
                 {formatMs(seconds * 1000)}
               </span>
-              per cycle
+              {t("per cycle")}
             </p>
           </ParamRow>
         </ParamGroup>

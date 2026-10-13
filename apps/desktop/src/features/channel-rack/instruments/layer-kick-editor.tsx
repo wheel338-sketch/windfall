@@ -10,6 +10,7 @@ import { onHistoryNavigation } from "@/lib/store/project"
 import { getProjectGeneration, onProjectReplaced } from "@/lib/store/replaced"
 import { useInstrumentBinding } from "./use-instrument-binding"
 import { prepareAsset } from "./asset-job"
+import { translatedText as t, message, plainNumber } from "@/lib/i18n"
 
 export function LayerKickEditor({ channel }: { channel: InstrumentChannel }) {
   const dispatch = useInstrumentAssetDispatch()
@@ -24,20 +25,20 @@ export function LayerKickEditor({ channel }: { channel: InstrumentChannel }) {
     const generation = getProjectGeneration(), expected = channel.source
     setBusy(true); setError(null)
     try {
-      if (file.size > 16*1024*1024) throw new Error("Choose a WAV of 16 MiB or less")
+      if (file.size > 16*1024*1024) throw new Error(t("Choose a WAV of 16 MiB or less"))
       const bytes = await file.arrayBuffer()
       const asset = await prepareAsset({ type: "layer",bytes },job.signal)
       if (generation !== getProjectGeneration() || job.signal.aborted) return
-      if (!await dispatch({ type: "setInstrumentAsset",channel: channel.id,expected,asset })) throw new Error("The instrument changed; prepare the source again")
+      if (!await dispatch({ type: "setInstrumentAsset",channel: channel.id,expected,asset })) throw new Error(t("The instrument changed; prepare the source again"))
     } catch (error) { if (!job.signal.aborted) setError(error instanceof Error ? error.message : String(error)) }
     finally { if (request.current === job && !job.signal.aborted) setBusy(false) }
   }
-  return <div role="group" aria-label="Layer Kick settings" className="flex flex-col gap-3">
+  return <div role="group" aria-label={t("Layer Kick settings")} className="flex flex-col gap-3">
     <ParamGroup title="Swept body"><ParamRow>{["pitchHz","decayMs","pitchDropSemitones","pitchDecayMs","click","level"].map(id => <ParamControl key={id} {...bind(id)} />)}</ParamRow></ParamGroup>
     <ParamGroup title="Optional sample layer">
-      <FieldGroup><Field><FieldLabel htmlFor={`kick-layer-${channel.id}`}>Load kick layer WAV</FieldLabel><Input id={`kick-layer-${channel.id}`} type="file" accept=".wav" disabled={busy} onChange={event => { const file = event.target.files?.[0]; event.target.value = ""; if (file) void load(file) }} /><FieldDescription>{asset?.type === "pcm" ? `${asset.samples.length} mono frames at ${asset.sampleRate} Hz` : "Synthesized kick only. WAV layers keep up to 32768 mono frames; longer files fade at the limit."}</FieldDescription></Field></FieldGroup>
+      <FieldGroup><Field><FieldLabel htmlFor={`kick-layer-${channel.id}`}>{t("Load kick layer WAV")}</FieldLabel><Input id={`kick-layer-${channel.id}`} type="file" accept=".wav" disabled={busy} onChange={event => { const file = event.target.files?.[0]; event.target.value = ""; if (file) void load(file) }} /><FieldDescription>{asset?.type === "pcm" ? message("{count} mono frames at {sampleRate} Hz", { count: plainNumber(asset.samples.length), sampleRate: plainNumber(asset.sampleRate) }) : t("Synthesized kick only. WAV layers keep up to 32768 mono frames; longer files fade at the limit.")}</FieldDescription></Field></FieldGroup>
       {error && <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}
-      <Button variant="outline" disabled={!asset || busy} onClick={() => void dispatch({ type: "setInstrumentAsset",channel: channel.id,expected: channel.source,asset: null })}>Remove sample layer</Button>
+      <Button variant="outline" disabled={!asset || busy} onClick={() => void dispatch({ type: "setInstrumentAsset",channel: channel.id,expected: channel.source,asset: null })}>{t("Remove sample layer")}</Button>
       <ParamRow>{["sampleMix","sampleTune","sampleStart"].map(id => <ParamControl key={id} {...bind(id)} />)}</ParamRow>
     </ParamGroup>
   </div>

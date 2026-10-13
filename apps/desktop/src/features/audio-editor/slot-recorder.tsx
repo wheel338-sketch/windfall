@@ -6,6 +6,7 @@ import { getProjectGeneration, onProjectReplaced } from "@/lib/store/replaced"
 import { usePlaylistStore } from "@/features/playlist/store"
 import type { AudioLoggerState } from "@/features/audio-logger/types"
 import { AudioEditorButton } from "./index"
+import { translatedText as t, message, plainNumber } from "@/lib/i18n"
 
 /** Uses the existing bounded native history worker. The callback copies only
  * this exact chain position, after the slot and before downstream effects. */
@@ -53,17 +54,17 @@ export function SlotRecorder({ effect }: { effect: number }) {
     } catch (reason) { if (atGeneration === getProjectGeneration()) setError(errorMessage(reason)) }
     finally { if (atGeneration === getProjectGeneration()) setPending(false) }
   }
-  return <section aria-label="Audio editor recorder" className="mt-3 flex flex-col gap-2 rounded-md border p-2">
-    <p className="text-sm font-medium">Audio editor recorder</p>
-    <p className="text-xs text-muted-foreground">Records what passes through this slot, before later effects and the fader. Insert a Send tap slot to place a transparent recorder between effects. History length follows the audio logger settings.</p>
-    <output aria-label="Slot recorded duration">{(source?.availableSeconds ?? 0).toFixed(3)} s{source?.droppedFrames ? ` · ${source.droppedFrames} dropped frames` : ""}</output>
+  return <section aria-label={t("Audio editor recorder")} className="mt-3 flex flex-col gap-2 rounded-md border p-2">
+    <p className="text-sm font-medium">{t("Audio editor recorder")}</p>
+    <p className="text-xs text-muted-foreground">{t("Records what passes through this slot, before later effects and the fader. Insert a Send tap slot to place a transparent recorder between effects. History length follows the audio logger settings.")}</p>
+    <output aria-label={t("Slot recorded duration")}>{(source?.availableSeconds ?? 0).toFixed(3)} s{source?.droppedFrames ? message(" · {droppedFrames} dropped frames", { droppedFrames: plainNumber(source.droppedFrames) }) : ""}</output>
     {error && <p role="alert">{error}</p>}
     {state?.error && <p role="alert">{state.error}</p>}
     {source?.error && <p role="alert">{source.error}</p>}
     <div className="flex flex-wrap gap-2">
-      {!recording ? <Button size="sm" variant="outline" disabled={pending || !state || othersRecording} onClick={() => void start()}>Record this slot</Button> : <>
-        <Button size="sm" disabled={pending || !source?.availableFrames} onClick={() => void stop(true)}>Stop and edit slot recording</Button>
-        <Button size="sm" variant="outline" disabled={pending} onClick={() => void stop(false)}>Discard slot recording</Button>
+      {!recording ? <Button size="sm" variant="outline" disabled={pending || !state || othersRecording} onClick={() => void start()}>{t("Record this slot")}</Button> : <>
+        <Button size="sm" disabled={pending || !source?.availableFrames} onClick={() => void stop(true)}>{t("Stop and edit slot recording")}</Button>
+        <Button size="sm" variant="outline" disabled={pending} onClick={() => void stop(false)}>{t("Discard slot recording")}</Button>
       </>}
       {clip !== null && <AudioEditorButton key={clip} clip={clip} defaultOpen />}
     </div>

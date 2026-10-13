@@ -1,3 +1,4 @@
+import { translatedText as t, message } from "@/lib/i18n"
 export const PITCH_NAMES = [
   "C",
   "C♯",
@@ -14,12 +15,12 @@ export const PITCH_NAMES = [
 ] as const
 
 export const TRIADS = [
-  { quality: "major", label: "Major", intervals: [0, 4, 7] },
-  { quality: "minor", label: "Minor", intervals: [0, 3, 7] },
-  { quality: "diminished", label: "Diminished", intervals: [0, 3, 6] },
-  { quality: "augmented", label: "Augmented", intervals: [0, 4, 8] },
-  { quality: "sus2", label: "Suspended second", intervals: [0, 2, 7] },
-  { quality: "sus4", label: "Suspended fourth", intervals: [0, 5, 7] },
+  { quality: "major", get label() { return t("Major") }, intervals: [0, 4, 7] },
+  { quality: "minor", get label() { return t("Minor") }, intervals: [0, 3, 7] },
+  { quality: "diminished", get label() { return t("Diminished") }, intervals: [0, 3, 6] },
+  { quality: "augmented", get label() { return t("Augmented") }, intervals: [0, 4, 8] },
+  { quality: "sus2", get label() { return t("Suspended second") }, intervals: [0, 2, 7] },
+  { quality: "sus4", get label() { return t("Suspended fourth") }, intervals: [0, 5, 7] },
 ] as const
 
 export type TriadQuality = (typeof TRIADS)[number]["quality"]
@@ -373,7 +374,7 @@ export function detectChord(keys: readonly number[]): ChordDetection {
   if (!pitchClasses.length) {
     return {
       kind: "empty",
-      label: "No notes selected",
+      label: t("No notes selected"),
       symbol: "",
       root: null,
       bass: null,
@@ -411,8 +412,8 @@ export function detectChord(keys: readonly number[]): ChordDetection {
     return {
       kind: "interval",
       label: power
-        ? `${bassName} power chord`
-        : `${bassName}–${PITCH_NAMES[other]} ${INTERVAL_NAMES[interval]}`,
+        ? message("{bassName} power chord", { bassName })
+        : message("{low}–{high} {interval}", { low: bassName, high: PITCH_NAMES[other], interval: t(INTERVAL_NAMES[interval]) }),
       symbol: power ? `${bassName}5` : `${bassName}–${PITCH_NAMES[other]}`,
       root: bass,
       bass,
@@ -459,7 +460,7 @@ export function detectChord(keys: readonly number[]): ChordDetection {
       .sort((a, b) => a - b)
     return {
       kind: "unknown",
-      label: `Unknown chord (${pitchClasses.map((pc) => PITCH_NAMES[pc]).join(", ")})`,
+      label: message("Unknown chord ({map})", { map: pitchClasses.map((pc) => PITCH_NAMES[pc]).join(", ") }),
       symbol: "?",
       root: null,
       bass,
@@ -481,7 +482,9 @@ export function detectChord(keys: readonly number[]): ChordDetection {
     .filter(({ interval }) => bits & (1 << interval))
   return {
     kind: triad ? "triad" : "chord",
-    label: `${rootName} ${template.name}${root === bass ? "" : ` / ${bassName}`}`,
+    label: root === bass
+      ? message("{root} {quality}", { root: rootName, quality: t(template.name) })
+      : message("{root} {quality} / {bass}", { root: rootName, quality: t(template.name), bass: bassName }),
     symbol: `${rootName}${template.suffix}${root === bass ? "" : `/${bassName}`}`,
     root,
     bass,

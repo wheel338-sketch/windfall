@@ -3,6 +3,7 @@ import { useEffect, useEffectEvent, useRef } from "react"
 import type { EffectId } from "@/bindings"
 import { gainReductionFeed } from "@/lib/store"
 import { cn } from "@/lib/utils"
+import { message, translatedText as t } from "@/lib/i18n"
 
 /*
  * Gain reduction of a compressor or limiter, drawn from the realtime feed.
@@ -150,7 +151,7 @@ export function GainReductionMeter({ effect, label, className }: MeterProps) {
   return (
     <div
       role="group"
-      aria-label={`${label} gain reduction`}
+      aria-label={message("{label} gain reduction", { label })}
       data-slot="gain-reduction-meter"
       className={cn(
         "flex w-11 shrink-0 flex-col items-center gap-1",
@@ -184,7 +185,7 @@ export function GainReductionMeter({ effect, label, className }: MeterProps) {
         </div>
       </div>
       <div className="flex h-3.5 w-full items-center justify-center rounded-[3px] bg-display font-readout text-[9px] leading-none text-display-foreground shadow-[inset_0_1px_1px_rgb(0_0_0/0.4)]">
-        <span className="sr-only">Deepest reduction </span>
+        <span className="sr-only">{t("Deepest reduction")}{" "}</span>
         <span ref={text} data-slot="gain-reduction-value">
           0.0
         </span>

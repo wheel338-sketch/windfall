@@ -58,7 +58,7 @@ export function createTauriBackend(): Backend {
     if (loading) return loading
     const epoch = documentEpoch
     loading = invokeCall<WindowSnapshot>("window_document_snapshot").then((owned) => {
-      if (!owned?.caller?.token) throw new Error("The native window did not supply its caller identity")
+      if (!owned?.caller?.token) throw new Error(translatedText("The native window did not supply its caller identity"))
       callerToken = owned.caller.token
       if (epoch === documentEpoch) documentGeneration = owned.generation
       return owned
@@ -68,13 +68,13 @@ export function createTauriBackend(): Backend {
   async function call<T>(command: string, args?: Record<string, unknown>): Promise<T> {
     const epoch = documentEpoch
     if (callerToken === null) await loadIdentity()
-    if (epoch !== documentEpoch) throw new Error("The project was replaced before this window action could start")
+    if (epoch !== documentEpoch) throw new Error(translatedText("The project was replaced before this window action could start"))
     // Capture once before invoking; never retry a refused mutation with a new identity.
     const caller = { generation: generation(), token: callerToken }
     return invokeCall<T>(command, { ...args, caller })
   }
   function generation() {
-    if (documentGeneration === null) throw new Error("The window is still loading its project")
+    if (documentGeneration === null) throw new Error(translatedText("The window is still loading its project"))
     return documentGeneration
   }
   const realtimeHandlers = new Set<(frame: RealtimeFrame) => void>()
@@ -105,7 +105,7 @@ export function createTauriBackend(): Backend {
   return {
     kind: "tauri",
     updateCall: <T>(command: string, args: Record<string, unknown>) => {
-      if (!["update_check", "update_download", "update_install_begin", "update_install_cancel", "update_install"].includes(command)) return Promise.reject(new Error("Unknown update operation"))
+      if (!["update_check", "update_download", "update_install_begin", "update_install_cancel", "update_install"].includes(command)) return Promise.reject(new Error(translatedText("Unknown update operation")))
       return call<T>(command, args)
     },
     analyzerSmokeEnabled: () => call("analyzer_smoke_enabled"),
@@ -322,7 +322,7 @@ export function createTauriBackend(): Backend {
     documentSnapshot: async () => {
       const epoch = documentEpoch
       const owned = await loadIdentity()
-      if (epoch !== documentEpoch) throw new Error("The project was replaced while its snapshot loaded")
+      if (epoch !== documentEpoch) throw new Error(translatedText("The project was replaced while its snapshot loaded"))
       documentGeneration = owned.generation
       return owned.snapshot
     },
@@ -565,7 +565,7 @@ export function createTauriBackend(): Backend {
           const epoch = documentEpoch
           if (!(await guard())) return
           try {
-            if (epoch !== documentEpoch) throw new Error("The project was replaced while confirming window close")
+            if (epoch !== documentEpoch) throw new Error(translatedText("The project was replaced while confirming window close"))
             await call("window_close")
           } catch (error) {
             // Native caller/operation ownership can refuse a stale close.

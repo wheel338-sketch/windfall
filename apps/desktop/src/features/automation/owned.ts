@@ -7,6 +7,7 @@ import type {
   TrackId,
 } from "@/bindings"
 import { useProjectStore } from "@/lib/store/project"
+import { message, plainNumber } from "@/lib/i18n"
 
 /*
  * What goes with a thing when it is deleted. An automation lives as long
@@ -114,16 +115,16 @@ export function ownedSentence({ automations, clips }: Owned): string | null {
   const count = automations.length
   if (count === 0) return null
   if (count === 1) {
-    const name = `The automation "${automations[0].name}"`
-    if (clips === 0) return `${name} is deleted with it.`
+    const name = message("The automation \"{automationsName}\"", { automationsName: automations[0].name })
+    if (clips === 0) return message("{name} is deleted with it.", { name })
     return clips === 1
-      ? `${name} and its clip on the playlist are deleted with it.`
-      : `${name} and its ${clips} clips on the playlist are deleted with it.`
+      ? message("{name} and its clip on the playlist are deleted with it.", { name })
+      : message("{name} and its {clips} clips on the playlist are deleted with it.", { name, clips: plainNumber(clips) })
   }
-  if (clips === 0) return `${count} automations are deleted with it.`
+  if (clips === 0) return message("{count} automations are deleted with it.", { count: plainNumber(count) })
   return clips === 1
-    ? `${count} automations and their clip on the playlist are deleted with it.`
-    : `${count} automations and their ${clips} clips on the playlist are deleted with it.`
+    ? message("{count} automations and their clip on the playlist are deleted with it.", { count: plainNumber(count) })
+    : message("{count} automations and their {clips} clips on the playlist are deleted with it.", { count: plainNumber(count), clips: plainNumber(clips) })
 }
 
 /** What deleting `owner` from the open project takes with it, as a sentence. */

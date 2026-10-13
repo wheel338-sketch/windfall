@@ -8,6 +8,7 @@ import { INSTRUMENT_KINDS } from "@/features/params"
 
 import { LENGTH_PRESETS } from "./actions"
 import { showInMixer } from "./channel-ops"
+import { translatedText as t, dynamicTitle } from "@/lib/i18n"
 
 /*
  * The right-click menus of the rack's empty areas. A channel's name has a
@@ -16,7 +17,7 @@ import { showInMixer } from "./channel-ops"
  */
 
 const ADD_CHANNEL: ContextItem = {
-  submenu: "Add channel",
+  get submenu() { return t("Add channel") },
   items: [
     "channel.add",
     ...INSTRUMENT_KINDS.map((kind) => `channel.addInstrument.${kind}`),
@@ -26,7 +27,7 @@ const ADD_CHANNEL: ContextItem = {
 }
 
 const PATTERN_LENGTH: ContextItem = {
-  submenu: "Pattern length",
+  get submenu() { return t("Pattern length") },
   items: LENGTH_PRESETS.map((steps) => `pattern.length${steps}`),
 }
 
@@ -88,10 +89,9 @@ export function channelValueItems(
     ...automationItems(channelTarget(channel, field)),
     contextSeparator,
     {
-      title:
-        field === "volume"
+      ...dynamicTitle(field === "volume"
           ? "Show the mixer track it plays into"
-          : "Show the mixer track it is panned into",
+          : "Show the mixer track it is panned into", {}),
       run: () => showInMixer(channel),
     },
   ]

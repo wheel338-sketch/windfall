@@ -24,6 +24,7 @@ import { synthSoundActionId } from "../actions"
 import { loadInstrumentSound, selectedChannel } from "../channel-ops"
 import { matchingPreset, SYNTH_PRESETS, type SynthSettings } from "./presets"
 import { nextSynthSoundPreset } from "./synth-sound-preset-step"
+import { translatedText as t, message } from "@/lib/i18n"
 
 // Rendered only while the menu is open, so it can follow the app state.
 function SoundItems() {
@@ -80,7 +81,7 @@ function SoundItems() {
           )
         }}
       >
-        Previous sound
+        {t("Previous sound")}
       </DropdownMenuItem>
       <DropdownMenuItem
         disabled={!next}
@@ -97,11 +98,10 @@ function SoundItems() {
           )
         }}
       >
-        Next sound
+        {t("Next sound")}
       </DropdownMenuItem>
       <p className="px-2 py-1.5 text-muted-foreground">
-        A sound replaces every setting of the synth. Undo brings the old ones
-        back.
+        {t("A sound replaces every setting of the synth. Undo brings the old ones back.")}
       </p>
     </>
   )
@@ -115,8 +115,8 @@ export function SoundMenu({ params }: { params: SynthSettings }) {
   const preset = matchingPreset(params)
   const hint = useHint(
     preset
-      ? `Sound: ${preset.name}. ${preset.description}. Click to load another starting point`
-      : "Sound: your own. Click to load a starting point over it"
+      ? message("Sound: {presetName}. {description}. Click to load another starting point", { presetName: preset.name, description: preset.description })
+      : t("Sound: your own. Click to load a starting point over it")
   )
 
   return (
@@ -126,13 +126,13 @@ export function SoundMenu({ params }: { params: SynthSettings }) {
           <Button
             variant="ghost"
             size="xs"
-            aria-label={`Sound: ${preset?.name ?? "edited"}`}
+            aria-label={message("Sound: {presetName}", { presetName: preset?.name ?? t("edited") })}
             className="max-w-36 shrink-0"
             {...hint}
           />
         }
       >
-        <span className="truncate">{preset?.name ?? "Edited"}</span>
+        <span className="truncate">{preset?.name ?? t("Edited")}</span>
         <HugeiconsIcon
           icon={ArrowDown01Icon}
           strokeWidth={2}

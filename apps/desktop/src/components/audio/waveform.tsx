@@ -11,6 +11,7 @@ import {
 } from "./canvas"
 import { formatDb, formatPercent, gainToDb } from "./units"
 import { useDragValue } from "./use-drag-value"
+import { message, translatedText as t } from "@/lib/i18n"
 
 export type WaveformPeaks = Float32Array | readonly number[]
 
@@ -398,7 +399,7 @@ function Waveform({
       {Math.abs(gainDb) > GAIN_LABEL_DB ? (
         <span
           data-slot="waveform-gain"
-          title={`Display gain ${formatDb(gainDb, 0)}`}
+          title={message("Display gain {db}", { db: formatDb(gainDb, 0) })}
           className="absolute top-0.5 right-1 rounded-[2px] bg-background/70 px-0.5 text-[9px] leading-3 text-muted-foreground tabular-nums"
         >
           {formatDisplayGain(gain)}
@@ -411,7 +412,7 @@ function Waveform({
           value={from}
           min={0}
           max={Math.max(0, to - minRegion)}
-          label="Region start"
+          label={t("Region start")}
           disabled={disabled}
           format={formatPosition}
           onValueChange={onStartChange}
@@ -426,7 +427,7 @@ function Waveform({
           value={to}
           min={Math.min(1, from + minRegion)}
           max={1}
-          label="Region end"
+          label={t("Region end")}
           disabled={disabled}
           format={formatPosition}
           onValueChange={onEndChange}

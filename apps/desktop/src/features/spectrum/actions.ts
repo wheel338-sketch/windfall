@@ -1,6 +1,7 @@
 import { create } from "zustand"
 
 import { registry, type Action } from "@/lib/actions"
+import { dynamicTitle } from "@/lib/i18n"
 
 export const useSpectrumPanel = create(() => ({ open: false }))
 
@@ -11,7 +12,7 @@ export function closeSpectrum() {
 const SPECTRUM_ACTIONS: Action[] = [
   {
     id: "view.spectrum",
-    title: "Show spectrum",
+    ...dynamicTitle("Show spectrum", {}),
     section: "View",
     keywords: "frequency power bins",
     run: () => useSpectrumPanel.setState({ open: true }),

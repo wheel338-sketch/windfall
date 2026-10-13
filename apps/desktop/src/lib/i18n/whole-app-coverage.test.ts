@@ -87,13 +87,50 @@ describe("whole application localization admission", () => {
     `, hasKey)).toEqual([])
     expect(localizationViolations("fixture.ts", 'import { message } from "@/lib/i18n"; toast.error(message("missing.fixture.key"))', hasKey))
       .toEqual([expect.objectContaining({ text: "missing.fixture.key" })])
-    for (const reason of [...Object.values(invariantLiterals), ...invariantPatterns.map((entry) => entry.reason), ...Object.values(sameAsEnglish)])
+    for (const reason of [...Object.values(invariantLiterals), ...invariantPatterns.map(([, reason]) => reason), ...Object.values(sameAsEnglish)])
       expect(reason.trim().length).toBeGreaterThan(10)
     expect(localizationViolations("fixture.tsx", 'function t(value: string) { return value }; const view = <span>{t("Raw caption")}</span>', hasKey))
       .toEqual([expect.objectContaining({ text: "Raw caption" })])
     expect(localizationViolations("fixture.tsx", 'const view = <><span>Space</span><kbd>Space</kbd></>', hasKey))
       .toEqual([expect.objectContaining({ text: "Space", context: "JSX text" })])
     for (const reason of Object.values(invariantKeyboardKeys)) expect(reason.length).toBeGreaterThan(10)
+  })
+  it("binds a mapped list's item to where its callback shows it", () => {
+    const failures = localizationViolations("fixture.tsx", `
+      const view = <ul>
+        {(["previous", "next"] as const).map((direction) => <li key={direction} data-direction={direction}>{direction === "previous" ? <b/> : <i/>}</li>)}
+        {["Shown raw"].map((caption) => <li key={caption}>{caption}</li>)}
+        {[["gain", "Tuple caption"]].map(([id, caption]) => <li key={id}>{caption}</li>)}
+        {Object.entries(rows).map(([id, caption]) => <li key={id}>{caption}</li>)}
+      </ul>;
+      const rows = { gain: "Entry caption" };
+    `, hasKey)
+    // Technical IDs that are only compared or used as keys are not captions.
+    expect(failures.map(({ text }) => text).sort()).toEqual(["Entry caption", "Shown raw", "Tuple caption"])
+  })
+  it("treats every value of a table looked up for display as a caption", () => {
+    const failures = localizationViolations("fixture.tsx", `
+      const NAMES = { meter: "Peak meter", scope: "Oscilloscope" };
+      const view = (kind: "meter" | "scope") => <span title={NAMES[kind]}>{NAMES[kind]}</span>;
+    `, hasKey)
+    expect(failures.map(({ text }) => text).sort()).toEqual(["Oscilloscope", "Peak meter"])
+  })
+  it("leaves closed code values and literal syntax samples alone, and nothing else", () => {
+    const failures = localizationViolations("fixture.tsx", `
+      type Reason = "desktopRequired" | "stale";
+      type Status = { reason: Reason | null; label: string };
+      const status: Status = { reason: "desktopRequired", label: "Open caption" };
+      const view = <p>Type <code>kick OR snare</code> to search</p>;
+    `, hasKey)
+    expect(failures.map(({ text }) => text).sort()).toEqual(["Open caption", "Type", "to search"])
+  })
+  it("tells arithmetic from a concatenated phrase", () => {
+    const failures = localizationViolations("fixture.tsx", `
+      const first = value("preDelayMs") + 3.7 * (0.6 + value("size"));
+      const view = <p>{first}<span>{"Delay: " + first}</span></p>;
+    `, hasKey)
+    expect(failures.map(({ context }) => context)).toContain("concatenated display phrase")
+    expect(failures.some(({ text }) => text.includes("3.7"))).toBe(false)
   })
   it("rejects semantic string parameters and concatenations of translated fragments", () => {
     const failures = localizationViolations("fixture.tsx", `

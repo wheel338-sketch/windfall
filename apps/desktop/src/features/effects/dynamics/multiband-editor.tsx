@@ -3,7 +3,7 @@ import type {
   MultibandMaximizerParams,
 } from "@/bindings"
 import {
-  formatParam,
+  formatParamDisplay,
   ParamControl,
   ParamGroup,
   ParamRow,
@@ -16,6 +16,7 @@ import { formatLatency } from "../limiter/latency"
 import { useSampleRate } from "../sample-rate"
 import { BandDisplay, type BandSetting } from "./band-display"
 import { BANDS, maximizerLatencyFrames, type BandKey } from "./curves"
+import { message, translatedText as t } from "@/lib/i18n"
 
 const BAND_HINTS: Record<BandKey, string> = {
   low: "the lows",
@@ -41,33 +42,33 @@ function BandGroup({
         <ParamControl
           {...bind(`${band}.thresholdDb`)}
           label="Threshold"
-          description={`The level above which ${what} are turned down, measured in this band alone`}
+          description={message("The level above which {what} are turned down, measured in this band alone", { what })}
         />
         <ParamControl
           {...bind(`${band}.ratio`)}
           label="Ratio"
-          description={`How hard ${what} are turned down over the threshold`}
+          description={message("How hard {what} are turned down over the threshold", { what })}
         />
         <ParamControl
           {...bind(`${band}.attackMs`)}
           label="Attack"
-          description={`How quickly the gain of ${what} drops`}
+          description={message("How quickly the gain of {what} drops", { what })}
         />
         <ParamControl
           {...bind(`${band}.releaseMs`)}
           label="Release"
-          description={`How quickly the gain of ${what} recovers`}
+          description={message("How quickly the gain of {what} recovers", { what })}
         />
         <ParamControl
           {...bind(`${band}.makeupDb`)}
           label="Makeup"
-          description={`Gain added to ${what} after compression`}
+          description={message("Gain added to {what} after compression", { what })}
         />
         {ceiling && (
           <ParamControl
             {...bind(`${band}CeilingDb`)}
             label="Ceiling"
-            description={`No sample of ${what} gets past this level before the bands are added up`}
+            description={message("No sample of {what} gets past this level before the bands are added up", { what })}
           />
         )}
       </ParamRow>
@@ -77,15 +78,15 @@ function BandGroup({
 
 /** What the display says for assistive technology. */
 function splitLabel(bind: ParamBinder): string {
-  const low = formatParam(
+  const low = formatParamDisplay(
     bind.info("lowCrossoverHz"),
     bind.value("lowCrossoverHz")
   )
-  const high = formatParam(
+  const high = formatParamDisplay(
     bind.info("highCrossoverHz"),
     bind.value("highCrossoverHz")
   )
-  return `Three bands split at ${low} and ${high}`
+  return message("Three bands split at {low} and {high}", { low, high })
 }
 
 function Editor({
@@ -109,7 +110,7 @@ function Editor({
     <div
       data-slot="multiband-editor"
       role="group"
-      aria-label={`${name} settings`}
+      aria-label={message("{name} settings", { name })}
       className="flex max-w-[44rem] flex-col gap-2"
     >
       <div className="flex items-stretch gap-2.5">
@@ -179,12 +180,11 @@ function Editor({
             data-slot="maximizer-latency"
             className="text-[10px] leading-snug text-muted-foreground"
           >
-            The band limiters and the limiter on the sum look ahead, which
-            delays this track by{" "}
+            {t("The band limiters and the limiter on the sum look ahead, which delays this track by")}{" "}
             <span className="font-readout text-foreground/85">
               {formatLatency(maximizerLatencyFrames(sampleRate), sampleRate)}
             </span>
-            . The engine delays every other track to match.
+            {t(". The engine delays every other track to match.")}
           </p>
         </ParamGroup>
       )}

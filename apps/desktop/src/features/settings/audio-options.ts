@@ -1,6 +1,7 @@
 import type { AudioDevice, AudioHost, AudioSettings } from "@/bindings"
 import type { StoredAudioSettings } from "@/lib/ipc"
 import { formatSampleRate } from "@/lib/time"
+import { translatedText as t, message } from "@/lib/i18n"
 
 /** The sample rates worth offering. Devices list many more than anyone uses. */
 export const COMMON_SAMPLE_RATES = [
@@ -79,13 +80,13 @@ function withDefault(
   label: (value: number) => string
 ): Option<number>[] {
   const options: Option<number>[] = [
-    { value: DEFAULT_NUMBER, label: "Default" },
+    { value: DEFAULT_NUMBER, label: t("Default") },
     ...offered.map((value) => ({ value, label: label(value) })),
   ]
   if (stored != null && !offered.includes(stored)) {
     options.push({
       value: stored,
-      label: `${label(stored)}, not offered by this device`,
+      label: message("{label}, not offered by this device", { label: label(stored) }),
     })
   }
   return options
@@ -119,11 +120,11 @@ export function nameOptions(
   stored: string | null | undefined
 ): Option<string>[] {
   const options = [
-    { value: DEFAULT_TEXT, label: "Default" },
+    { value: DEFAULT_TEXT, label: t("Default") },
     ...items.map((item) => ({ value: item.name, label: item.name })),
   ]
   if (stored != null && !items.some((item) => item.name === stored)) {
-    options.push({ value: stored, label: `${stored}, not found` })
+    options.push({ value: stored, label: message("{stored}, not found", { stored }) })
   }
   return options
 }

@@ -6,6 +6,7 @@ import { useRealtime } from "@/lib/store/realtime"
 import { useTransportStore } from "@/lib/store/transport"
 import { formatMusicalPosition } from "@/lib/timeline"
 import { formatClock, ticksToSeconds } from "@/lib/time"
+import { translatedText as t } from "@/lib/i18n"
 
 function setText(element: HTMLElement | null, text: string) {
   if (element && element.textContent !== text) element.textContent = text
@@ -39,27 +40,27 @@ export function LargeClock() {
   return (
     <div
       role="group"
-      aria-label="Song position"
+      aria-label={t("Song position")}
       data-slot="large-clock"
       className="flex min-w-0 flex-col items-center gap-6 rounded-lg bg-display px-4 py-8 font-readout tabular-nums"
     >
       <div className="flex flex-col items-center gap-2">
-        <span className="text-xs text-display-dim">Bar, beat and step</span>
+        <span className="text-xs text-display-dim">{t("Bar, beat and step")}</span>
         <span
           ref={position}
           data-part="position"
-          title="Bar, beat and step"
+          title={t("Bar, beat and step")}
           className="text-[clamp(2rem,8vw,5rem)] leading-none font-medium text-display-foreground"
         >
           001:01:1
         </span>
       </div>
       <div className="flex flex-col items-center gap-2">
-        <span className="text-xs text-display-dim">Minutes and seconds</span>
+        <span className="text-xs text-display-dim">{t("Minutes and seconds")}</span>
         <span
           ref={clock}
           data-part="time"
-          title="Minutes and seconds"
+          title={t("Minutes and seconds")}
           className="text-[clamp(1.5rem,6vw,3.5rem)] leading-none text-display-foreground"
         >
           0:00.00

@@ -88,6 +88,7 @@ import {
   patternTickInSong,
   ROW_COUNT,
 } from "./view-math"
+import { translatedText as t } from "@/lib/i18n"
 
 const GUTTER_WIDTH = 68
 const RULER_HEIGHT = 38
@@ -426,7 +427,7 @@ export function Workspace({ patternId, channelId }: WorkspaceProps) {
                 ref={gridRef}
                 tabIndex={0}
                 role="application"
-                aria-label="Note grid"
+                aria-label={t("Note grid")}
                 className="focus-frame relative min-h-0 min-w-0"
               >
                 {failure === null ? (
@@ -441,7 +442,7 @@ export function Workspace({ patternId, channelId }: WorkspaceProps) {
                     role="alert"
                     className="absolute inset-0 flex items-center justify-center p-6 text-center text-muted-foreground"
                   >
-                    The note grid could not start: {failure}
+                    {t("The note grid could not start:")}{" "}{failure}
                   </p>
                 )}
               </div>

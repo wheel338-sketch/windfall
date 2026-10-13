@@ -1,6 +1,7 @@
 import { useRef } from "react"
 import type { AudioEditPreview } from "./types"
 import { frameAt, selectionBetween, type Selection } from "./selection"
+import { translatedText as t, message, plainNumber } from "@/lib/i18n"
 
 export function Waveform({
   preview,
@@ -37,7 +38,7 @@ export function Waveform({
   return (
     <svg
       role="img"
-      aria-label={`Clip ${spectral ? "spectrogram" : "waveform"}, selected frames ${selection.start} to ${selection.end}`}
+      aria-label={message("Clip {spectral}, selected frames {start} to {end}", { spectral: spectral ? t("spectrogram") : t("waveform"), start: plainNumber(selection.start), end: plainNumber(selection.end) })}
       viewBox="0 0 1000 160"
       preserveAspectRatio="none"
       className="h-40 w-full touch-none rounded-md border bg-background"

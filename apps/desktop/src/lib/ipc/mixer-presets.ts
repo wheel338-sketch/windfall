@@ -1,4 +1,5 @@
 import type { MixerTrackPreset } from "@/bindings"
+import { message, translatedText as t, plainNumber } from "@/lib/i18n"
 
 /*
  * The user's mixer track preset library: a folder of `.wfmixer` files the
@@ -101,12 +102,12 @@ export function mockMixerPresetLibrary(
       value = JSON.parse(text)
     } catch (error) {
       throw new Error(
-        `Invalid mixer preset: ${error instanceof Error ? error.message : String(error)}`,
+        message("Invalid mixer preset: {value}", { value: error instanceof Error ? error.message : String(error) }),
         { cause: error }
       )
     }
-    if (!looksLikePreset(value)) throw new Error("Invalid mixer preset")
-    if (value.version !== 1) throw new Error("Unsupported mixer preset version")
+    if (!looksLikePreset(value)) throw new Error(t("Invalid mixer preset"))
+    if (value.version !== 1) throw new Error(t("Unsupported mixer preset version"))
     return value
   }
 
@@ -145,7 +146,7 @@ export function mockMixerPresetLibrary(
 
   function known(file: string): string {
     if (!isPresetFile(file))
-      throw new Error("That is not a preset of the mixer preset library")
+      throw new Error(t("That is not a preset of the mixer preset library"))
     return file
   }
 
@@ -168,10 +169,10 @@ export function mockMixerPresetLibrary(
     },
     mixerPresetLibrarySave: async (preset) => {
       if (!looksLikePreset(preset) || preset.version !== 1)
-        throw new Error("Unsupported mixer preset version")
+        throw new Error(t("Unsupported mixer preset version"))
       if ([...files.keys()].filter(isPresetFile).length >= MAX_LIBRARY_PRESETS)
         throw new Error(
-          `The mixer preset library is full (${MAX_LIBRARY_PRESETS} presets). Delete one first`
+          message("The mixer preset library is full ({maxLibraryPresets} presets). Delete one first", { maxLibraryPresets: plainNumber(MAX_LIBRARY_PRESETS) })
         )
       const stem = presetFileStem(preset.name)
       const taken = new Set([...files.keys()].map((file) => file.toLowerCase()))
@@ -184,17 +185,17 @@ export function mockMixerPresetLibrary(
         files.set(file, JSON.stringify(preset, null, 2))
         return describe(file)
       }
-      throw new Error("Too many presets of the library share this name")
+      throw new Error(t("Too many presets of the library share this name"))
     },
     mixerPresetLibraryRead: async (file) => {
       const text = files.get(known(file))
       if (text === undefined)
-        throw new Error("Could not open the mixer preset: it is not there")
+        throw new Error(t("Could not open the mixer preset: it is not there"))
       return structuredClone(parse(text))
     },
     mixerPresetLibraryDelete: async (file) => {
       if (!files.delete(known(file)))
-        throw new Error("That preset is no longer in the library")
+        throw new Error(t("That preset is no longer in the library"))
     },
   }
 }

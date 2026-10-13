@@ -5,6 +5,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Choice } from "./tools-panel"
 import type { AudioRegion, AudioEditPreview } from "./types"
 import type { Selection } from "./selection"
+import { message, plainNumber, translatedText as t } from "@/lib/i18n"
 
 const byteLength = (text: string) => new TextEncoder().encode(text).length
 
@@ -58,47 +59,47 @@ function RegionRow({ region, index, preview, disabled, onSelect, onSave, onDelet
       end: region.endFrame === region.startFrame ? Math.min(region.endFrame + 1, preview.frames) : region.endFrame,
     })}>{region.name} · {region.startFrame}–{region.endFrame}</Button>
     <div className="flex flex-wrap gap-2">
-      <Input aria-label={`Name of annotation ${index + 1}`} value={name} disabled={disabled} onChange={event => setName(event.target.value)} />
-      <Input type="number" aria-label={`Annotation ${index + 1} start frame`} value={start} disabled={disabled} onChange={event => setStart(event.target.valueAsNumber)} />
-      <Input type="number" aria-label={`Annotation ${index + 1} end frame`} value={end} disabled={disabled} onChange={event => setEnd(event.target.valueAsNumber)} />
-      <Choice label={`Annotation ${index + 1} navigation`} value={navigation} disabled={disabled}
-        options={[{ value: "named", label: "Named" }, { value: "loop", label: "Loop" }, { value: "skip", label: "Skip" }, { value: "pause", label: "Pause" }]}
+      <Input aria-label={message("Name of annotation {index}", { index: plainNumber(index + 1) })} value={name} disabled={disabled} onChange={event => setName(event.target.value)} />
+      <Input type="number" aria-label={message("Annotation {index} start frame", { index: plainNumber(index + 1) })} value={start} disabled={disabled} onChange={event => setStart(event.target.valueAsNumber)} />
+      <Input type="number" aria-label={message("Annotation {index} end frame", { index: plainNumber(index + 1) })} value={end} disabled={disabled} onChange={event => setEnd(event.target.valueAsNumber)} />
+      <Choice label={message("Annotation {index} navigation", { index: plainNumber(index + 1) })} value={navigation} disabled={disabled}
+        options={[{ value: "named", label: t("Named") }, { value: "loop", label: t("Loop") }, { value: "skip", label: t("Skip") }, { value: "pause", label: t("Pause") }]}
         onChange={value => setEntries([...entries.filter(note => !note.startsWith("WindfallNavigation/1 ") && !note.startsWith("WindfallLoop/1 ")),
           ...(value === "named" ? [] : [`WindfallNavigation/1 ${value}${value === "pause" ? "" : ` ${end}`}`])])} />
     </div>
-    {slice && <fieldset className="flex flex-wrap gap-2"><legend className="text-sm">Slice attributes</legend>
+    {slice && <fieldset className="flex flex-wrap gap-2"><legend className="text-sm">{t("Slice attributes")}</legend>
       {["Gain", "Pitch semitones", "Attack ms", "Release ms", "Reverse (0 or 1)", "Deck (0 or 1)"].map((label, at) =>
-        <label key={label} className="text-sm">{label}<Input type="number" step="any" aria-label={`${region.name} ${label}`} value={slice[at] ?? ""} disabled={disabled}
+        <label key={label} className="text-sm">{t(label)}<Input type="number" step="any" aria-label={message("{name} {label}", { name: region.name, label: t(label) })} value={slice[at] ?? ""} disabled={disabled}
           onChange={event => attribute("WindfallSlice/1 ", slice.map((value, i) => i === at ? event.target.value : value).join(" "))} /></label>)}
     </fieldset>}
-    {beats && <fieldset className="flex gap-2"><legend className="text-sm">Source beats</legend>
-      {["BPM", "Beats"].map((label, at) => <label key={label} className="text-sm">{label}<Input type="number" step="any" aria-label={`${region.name} ${label}`} value={beats[at] ?? ""} disabled={disabled}
+    {beats && <fieldset className="flex gap-2"><legend className="text-sm">{t("Source beats")}</legend>
+      {["BPM", "Beats"].map((label, at) => <label key={label} className="text-sm">{t(label)}<Input type="number" step="any" aria-label={message("{name} {label}", { name: region.name, label: t(label) })} value={beats[at] ?? ""} disabled={disabled}
         onChange={event => attribute("WindfallBeats/1 ", beats.map((value, i) => i === at ? event.target.value : value).join(" "))} /></label>)}
     </fieldset>}
-    {tempo && <fieldset className="flex flex-wrap gap-2"><legend className="text-sm">WAV tempo and meter</legend>
+    {tempo && <fieldset className="flex flex-wrap gap-2"><legend className="text-sm">{t("WAV tempo and meter")}</legend>
       {["Tempo BPM", "Integer beats", "Meter numerator", "Meter denominator", "Tempo root key (-1 for none)", "One shot (0 or 1)"].map((label, at) =>
-        <label key={label} className="text-sm">{label}<Input type="number" step="any" aria-label={`${region.name} ${label}`} value={tempo[at] ?? ""} disabled={disabled || (at === 1 && beats !== undefined)}
+        <label key={label} className="text-sm">{t(label)}<Input type="number" step="any" aria-label={message("{name} {label}", { name: region.name, label: t(label) })} value={tempo[at] ?? ""} disabled={disabled || (at === 1 && beats !== undefined)}
           onChange={event => attribute("WindfallTempo/1 ", tempo.map((value, i) => i === at ? event.target.value : value).join(" "))} /></label>)}
     </fieldset>}
-    {root !== undefined && <label className="text-sm">Root MIDI key<Input type="number" min={0} max={127} aria-label={`${region.name} Root MIDI key`} value={root} disabled={disabled}
+    {root !== undefined && <label className="text-sm">{t("Root MIDI key")}<Input type="number" min={0} max={127} aria-label={message("{regionName} Root MIDI key", { regionName: region.name })} value={root} disabled={disabled}
       onChange={event => attribute("WindfallRoot/1 ", event.target.value)} /></label>}
-    {loop && <fieldset className="flex gap-2"><legend className="text-sm">Sample loop</legend>
-      <Choice label={`${region.name} Loop direction`} value={loop[0] ?? "forward"} disabled={disabled}
-        options={[{value: "forward", label: "Forward"}, {value: "alternating", label: "Alternating"}, {value: "backward", label: "Backward"}]}
+    {loop && <fieldset className="flex gap-2"><legend className="text-sm">{t("Sample loop")}</legend>
+      <Choice label={message("{regionName} Loop direction", { regionName: region.name })} value={loop[0] ?? "forward"} disabled={disabled}
+        options={[{value: "forward", label: t("Forward")}, {value: "alternating", label: t("Alternating")}, {value: "backward", label: t("Backward")}]}
         onChange={value => attribute("WindfallLoop/1 ", `${value} ${loop[1] ?? "0"}`)} />
-      <label className="text-sm">Repeat count (0 is infinite)<Input type="number" min={0} step={1} aria-label={`${region.name} Loop repeat count`} value={loop[1] ?? "0"} disabled={disabled}
+      <label className="text-sm">{t("Repeat count (0 is infinite)")}<Input type="number" min={0} step={1} aria-label={message("{regionName} Loop repeat count", { regionName: region.name })} value={loop[1] ?? "0"} disabled={disabled}
         onChange={event => attribute("WindfallLoop/1 ", `${loop[0] ?? "forward"} ${event.target.value}`)} /></label>
-      {(loop[0] !== "forward" || loop[1] !== "0") && <p className="text-xs text-muted-foreground">This sample loop imports to the song timeline as named boundaries; the song loop cannot play its direction or finite repeat count.</p>}
+      {(loop[0] !== "forward" || loop[1] !== "0") && <p className="text-xs text-muted-foreground">{t("This sample loop imports to the song timeline as named boundaries; the song loop cannot play its direction or finite repeat count.")}</p>}
     </fieldset>}
-    <label className="block text-sm">Cue notes
-      <Textarea aria-label={`Notes of annotation ${index + 1}`} value={notes} disabled={disabled} onChange={event => setEntries(event.target.value.split("\n").filter(Boolean))} />
+    <label className="block text-sm">{t("Cue notes")}
+      <Textarea aria-label={message("Notes of annotation {index}", { index: plainNumber(index + 1) })} value={notes} disabled={disabled} onChange={event => setEntries(event.target.value.split("\n").filter(Boolean))} />
     </label>
-    <p className="text-xs text-muted-foreground">One cue note per line. Source attributes and navigation notes travel with the WAV.</p>
+    <p className="text-xs text-muted-foreground">{t("One cue note per line. Source attributes and navigation notes travel with the WAV.")}</p>
     <div className="flex flex-wrap gap-2">
-      <Button size="sm" variant="outline" disabled={disabled || !valid} onClick={save}>Save annotation {index + 1}</Button>
-      <Button size="sm" variant="ghost" disabled={disabled} aria-label={`Remove ${region.name}`} onClick={onDelete}>Remove</Button>
-      {!slice && start < end && <Button size="sm" variant="outline" disabled={disabled} onClick={() => attribute("WindfallSlice/1 ", "1 0 1 4 0 0")}>Add slice attributes</Button>}
-      {!beats && <Button size="sm" variant="outline" disabled={disabled} onClick={() => attribute("WindfallBeats/1 ", `${tempo?.[0] ?? "120"} ${tempo?.[1] && tempo[1] !== "0" ? tempo[1] : "4"}`)}>Add beat metadata</Button>}
+      <Button size="sm" variant="outline" disabled={disabled || !valid} onClick={save}>{t("Save annotation")}{" "}{index + 1}</Button>
+      <Button size="sm" variant="ghost" disabled={disabled} aria-label={message("Remove {regionName}", { regionName: region.name })} onClick={onDelete}>{t("Remove")}</Button>
+      {!slice && start < end && <Button size="sm" variant="outline" disabled={disabled} onClick={() => attribute("WindfallSlice/1 ", "1 0 1 4 0 0")}>{t("Add slice attributes")}</Button>}
+      {!beats && <Button size="sm" variant="outline" disabled={disabled} onClick={() => attribute("WindfallBeats/1 ", `${tempo?.[0] ?? "120"} ${tempo?.[1] && tempo[1] !== "0" ? tempo[1] : "4"}`)}>{t("Add beat metadata")}</Button>}
     </div>
   </li>
 }
@@ -111,10 +112,10 @@ export function Regions({preview,selection,disabled,onSelect,onWrite}: {
   const regions=preview.regions ?? []
   const canAdd=!disabled && name.trim().length>0 && byteLength(name.trim())<=256 && regions.length<256
   function add(marker: boolean) { onWrite([...regions,{name:name.trim(),startFrame:selection.start,endFrame:marker ? selection.start : selection.end}]) }
-  return <section aria-label="Audio regions and markers" className="rounded-md border p-2">
-    <label htmlFor="editor-region-name" className="text-sm">Region or marker name</label>
+  return <section aria-label={t("Audio regions and markers")} className="rounded-md border p-2">
+    <label htmlFor="editor-region-name" className="text-sm">{t("Region or marker name")}</label>
     <Input id="editor-region-name" value={name} maxLength={256} disabled={disabled} onChange={event=>setName(event.target.value)} />
-    <div className="flex gap-2 py-2"><Button size="sm" variant="outline" disabled={!canAdd} onClick={()=>add(false)}>Add region</Button><Button size="sm" variant="outline" disabled={!canAdd} onClick={()=>add(true)}>Add marker at selection start</Button></div>
+    <div className="flex gap-2 py-2"><Button size="sm" variant="outline" disabled={!canAdd} onClick={()=>add(false)}>{t("Add region")}</Button><Button size="sm" variant="outline" disabled={!canAdd} onClick={()=>add(true)}>{t("Add marker at selection start")}</Button></div>
     <ul className="space-y-2">{regions.map((region,i)=><RegionRow key={`${preview.token}-${i}`} region={region} index={i} preview={preview} disabled={disabled}
       onSelect={onSelect} onDelete={()=>onWrite(regions.filter((_,index)=>index!==i))}
       onSave={updated=>onWrite(regions.map((value,index)=>index===i ? updated : value))} />)}</ul>

@@ -22,6 +22,7 @@ import {
 import { Field, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { usePromptStore } from "@/lib/store/prompts"
+import { translatedText as t } from "@/lib/i18n"
 
 /**
  * Remembers the last request, so a dialog still has its words to show while
@@ -51,7 +52,7 @@ function ConfirmDialog() {
         </AlertDialogHeader>
         <AlertDialogFooter>
           <AlertDialogCancel>
-            {shown?.cancelLabel ?? "Cancel"}
+            {shown?.cancelLabel ?? t("Cancel")}
           </AlertDialogCancel>
           {shown?.choices.map((choice) => (
             <AlertDialogAction
@@ -113,7 +114,7 @@ function TextDialog() {
               variant="outline"
               onClick={() => request?.resolve(null)}
             >
-              Cancel
+              {t("Cancel")}
             </Button>
             <Button type="submit">{shown?.submitLabel}</Button>
           </DialogFooter>

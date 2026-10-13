@@ -7,7 +7,7 @@ import {
 
 import { ToggleLed } from "@/components/audio"
 import { ContextActions } from "@/components/context-actions"
-import { formatParam, type ParamBinder } from "@/features/params"
+import { formatParamDisplay, type ParamBinder } from "@/features/params"
 import { useHint } from "@/lib/store/hint"
 import { cn } from "@/lib/utils"
 
@@ -24,6 +24,7 @@ import {
   type Lane,
   type PlotPoint,
 } from "./bands"
+import { message, translatedText } from "@/lib/i18n"
 
 const BANDS = Array.from({ length: BAND_COUNT }, (_, band) => band)
 
@@ -103,12 +104,12 @@ function Bar({ band, lane, bind, bipolar }: BarProps) {
     <div
       role="slider"
       tabIndex={binding.disabled ? -1 : 0}
-      aria-label={info.name}
+      aria-label={translatedText(info.name)}
       aria-orientation="vertical"
       aria-valuemin={info.min}
       aria-valuemax={info.max}
       aria-valuenow={value}
-      aria-valuetext={formatParam(info, value)}
+      aria-valuetext={formatParamDisplay(info, value)}
       aria-disabled={binding.disabled || undefined}
       data-slot="band-bar"
       data-param={id}
@@ -170,7 +171,7 @@ export function BandPlot({ lane, bind }: BandPlotProps) {
   const first = bind.info(bandParam(0, lane))
   const bipolar = first.min < 0
   const hint = useHint(
-    `${described.name} of each band. ${described.hint}. Drag across to draw, double-click a bar to reset it`
+    message("{describedName} of each band. {hint}. Drag across to draw, double-click a bar to reset it", { describedName: described.name, hint: described.hint })
   )
 
   function draw(event: PointerEvent<HTMLDivElement>) {
@@ -199,14 +200,14 @@ export function BandPlot({ lane, bind }: BandPlotProps) {
           aria-hidden
           className="flex w-12 shrink-0 flex-col justify-between text-right font-readout text-[9px] leading-none text-muted-foreground"
         >
-          <span>{formatParam(first, first.max)}</span>
-          {bipolar ? <span>{formatParam(first, 0)}</span> : null}
-          <span>{formatParam(first, first.min)}</span>
+          <span>{formatParamDisplay(first, first.max)}</span>
+          {bipolar ? <span>{formatParamDisplay(first, 0)}</span> : null}
+          <span>{formatParamDisplay(first, first.min)}</span>
         </div>
         <div
           ref={plot}
           role="group"
-          aria-label={`${described.name} of the sixteen bands`}
+          aria-label={message("{describedName} of the sixteen bands", { describedName: described.name })}
           data-slot="band-bars"
           data-lane={lane}
           className={cn(
@@ -265,7 +266,7 @@ export function BandPlot({ lane, bind }: BandPlotProps) {
                 <ToggleLed
                   variant="dot"
                   size="sm"
-                  aria-label={toggle.info.name}
+                  aria-label={translatedText(toggle.info.name)}
                   pressed={toggle.value >= 0.5}
                   disabled={toggle.disabled}
                   onPressedChange={(next) => {

@@ -14,6 +14,7 @@ import { effectName } from "./effect-ops"
 import { useMixerUi, selectedMixerTracks, visualMixerOrder, selectMixerTrack } from "./mixer-ui"
 import { resetAllPeaks } from "./peaks"
 import { feedersOf } from "./routing"
+import { message, plainNumber, translatedText as t } from "@/lib/i18n"
 
 /*
  * Everything the mixer does to the project, in one place. The strips and
@@ -71,7 +72,7 @@ export async function addTrack(): Promise<void> {
 function listNames(names: string[]): string {
   const shown = names.slice(0, 3).map((name) => `"${name}"`)
   const rest = names.length - shown.length
-  return rest > 0 ? `${shown.join(", ")} and ${rest} more` : shown.join(", ")
+  return rest > 0 ? message("{names} and {rest} more", { names: shown.join(", "), rest: plainNumber(rest) }) : shown.join(", ")
 }
 
 /**
@@ -87,46 +88,46 @@ export function deleteWarning(track: MixerTrack): string | null {
   )
   const parts: string[] = []
   const keys = mixerTracks().filter((source) => source.sidechains?.some((send) => send.target === track.id))
-  if (keys.length) parts.push(`Detector-only routes from ${listNames(keys.map((source) => source.name))} will be removed.`)
+  if (keys.length) parts.push(message("Detector-only routes from {names} will be removed.", { names: listNames(keys.map((source) => source.name)) }))
   if (channels.length === 1) {
     parts.push(
-      `The channel "${channels[0].name}" plays into this track. It will fall back to the master.`
+      message("The channel \"{name}\" plays into this track. It will fall back to the master.", { name: channels[0].name })
     )
   } else if (channels.length > 1) {
     parts.push(
-      `${channels.length} channels play into this track: ${listNames(channels.map((channel) => channel.name))}. They will fall back to the master.`
+      message("{count} channels play into this track: {names}. They will fall back to the master.", { count: channels.length, names: listNames(channels.map((channel) => channel.name)) })
     )
   }
   if (clips.length === 1) {
     parts.push(
-      "An audio clip on the playlist plays into this track. It will play into the master instead."
+      t("An audio clip on the playlist plays into this track. It will play into the master instead.")
     )
   } else if (clips.length > 1) {
     parts.push(
-      `${clips.length} audio clips on the playlist play into this track. They will play into the master instead.`
+      message("{count} audio clips on the playlist play into this track. They will play into the master instead.", { count: clips.length })
     )
   }
   if (outputs.length === 1) {
     parts.push(
-      `The track "${outputs[0].name}" is routed into it and will go to the master instead.`
+      message("The track \"{name}\" is routed into it and will go to the master instead.", { name: outputs[0].name })
     )
   } else if (outputs.length > 1) {
     parts.push(
-      `${outputs.length} tracks are routed into it and will go to the master instead.`
+      message("{count} tracks are routed into it and will go to the master instead.", { count: outputs.length })
     )
   }
   if (sends.length > 0) {
     parts.push(
       sends.length === 1
-        ? `The send from "${sends[0].name}" will be removed.`
-        : `Sends from ${sends.length} tracks will be removed.`
+        ? message("The send from \"{name}\" will be removed.", { name: sends[0].name })
+        : message("Sends from {count} tracks will be removed.", { count: sends.length })
     )
   }
   const effects = track.effects.length
   if (effects === 1) {
-    parts.push(`Its ${effectName(track.effects[0].params.type)} goes with it.`)
+    parts.push(message("Its {effect} goes with it.", { effect: effectName(track.effects[0].params.type) }))
   } else if (effects > 1) {
-    parts.push(`Its ${effects} effects go with it.`)
+    parts.push(message("Its {count} effects go with it.", { count: effects }))
   }
   // Of its fader and pan, of its effects, and of the sends from and to it.
   const automation = automationGoingWith({ type: "track", track: track.id })
@@ -144,10 +145,10 @@ export async function deleteTrack(id: TrackId): Promise<void> {
   const warning = deleteWarning(track)
   if (warning !== null) {
     const choice = await askConfirm({
-      title: `Delete the track "${track.name}"?`,
+      title: message("Delete the track \"{trackName}\"?", { trackName: track.name }),
       description: warning,
       choices: [
-        { id: "delete", label: "Delete track", variant: "destructive" },
+        { id: "delete", label: t("Delete track"), variant: "destructive" },
       ],
     })
     if (choice !== "delete") return
@@ -232,7 +233,7 @@ export async function resetLevels(): Promise<void> {
     commands.push({ type: "updateMixerTrack", id: track.id, patch })
   }
   if (commands.length === 0) return
-  await dispatch({ type: "batch", label: "Reset mixer levels", commands })
+  await dispatch({ type: "batch", label: t("Reset mixer levels"), commands })
 }
 
 export function unsoloAll() {
@@ -255,7 +256,7 @@ export async function setOutput(id: TrackId, output: TrackId | null) {
 
 export async function removeSidechain(from: TrackId, to: TrackId) {
   const automation = automationGoingWith({ type: "sidechain", track: from, target: to })
-  if (automation !== null && await askConfirm({ title: "Remove sidechain?", description: `${automation} Undo brings it back.`, choices: [{ id: "remove", label: "Remove sidechain", variant: "destructive" }] }) !== "remove") return
+  if (automation !== null && await askConfirm({ title: t("Remove sidechain?"), description: message("{automation} Undo brings it back.", { automation }), choices: [{ id: "remove", label: t("Remove sidechain"), variant: "destructive" }] }) !== "remove") return
   await dispatch({ type: "setSidechain", from, to })
 }
 
@@ -274,11 +275,11 @@ export async function removeSend(from: TrackId, to: TrackId): Promise<void> {
     target: to,
   })
   if (automation !== null) {
-    const target = findTrack(to)?.name ?? "the track"
+    const target = findTrack(to)?.name ?? t("the track")
     const choice = await askConfirm({
-      title: `Remove the send to "${target}"?`,
-      description: `${automation} Undo brings them back.`,
-      choices: [{ id: "remove", label: "Remove send", variant: "destructive" }],
+      title: message("Remove the send to \"{target}\"?", { target }),
+      description: message("{automation} Undo brings them back.", { automation }),
+      choices: [{ id: "remove", label: t("Remove send"), variant: "destructive" }],
     })
     if (choice !== "remove") return
   }

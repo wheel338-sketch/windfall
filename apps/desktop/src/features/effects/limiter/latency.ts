@@ -1,3 +1,4 @@
+import { message, plainNumber } from "@/lib/i18n"
 import type { EffectSlot } from "@/bindings"
 
 /**
@@ -50,6 +51,5 @@ export function framesToMs(frames: number, sampleRate: number): number {
 /** "5.0 ms (240 samples)". */
 export function formatLatency(frames: number, sampleRate: number): string {
   const ms = framesToMs(frames, sampleRate)
-  const unit = frames === 1 ? "sample" : "samples"
-  return `${ms.toFixed(ms < 10 ? 1 : 0)} ms (${frames} ${unit})`
+  return message("{ms} ms ({shown} samples)", { ms: ms.toFixed(ms < 10 ? 1 : 0), count: frames, shown: plainNumber(frames) })
 }

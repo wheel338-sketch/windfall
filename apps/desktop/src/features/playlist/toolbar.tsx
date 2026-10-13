@@ -50,6 +50,7 @@ import { nextPlaylistSnapScale } from "./playlist-snap-scale"
 import { nextPlaylistTool } from "./playlist-tool-step"
 import { SNAP_MODES, type SnapMode } from "./snap"
 import { usePlaylistStore } from "./store"
+import { translatedText as t, message } from "@/lib/i18n"
 
 const TOOL_ICONS: Record<Tool, IconSvgElement> = {
   draw: PencilEdit01Icon,
@@ -145,7 +146,7 @@ function Tools() {
     <div className="flex items-center gap-1.5">
       <div
         role="group"
-        aria-label="Tools"
+        aria-label={t("Tools")}
         className="flex items-center rounded-md bg-(--wf-step-off)/60 p-px"
       >
         {TOOLS.map((item) => (
@@ -163,21 +164,21 @@ function Tools() {
         type="button"
         variant="outline"
         size="sm"
-        aria-label="Choose the previous playlist tool"
+        aria-label={t("Choose the previous playlist tool")}
         disabled={nextPlaylistTool(tool, "previous") === null}
         onClick={() => stepTool("previous")}
       >
-        Previous
+        {t("Previous")}
       </Button>
       <Button
         type="button"
         variant="outline"
         size="sm"
-        aria-label="Choose the next playlist tool"
+        aria-label={t("Choose the next playlist tool")}
         disabled={nextPlaylistTool(tool, "next") === null}
         onClick={() => stepTool("next")}
       >
-        Next
+        {t("Next")}
       </Button>
     </div>
   )
@@ -187,18 +188,20 @@ function StepToggle() {
   const step = usePlaylistStore((state) => state.step)
   const shortcut = useShortcutLabel("playlist.step")
   const hint = useHint(
-    `Step${shortcut ? ` (${shortcut})` : ""}: drag across an automation curve to write held points on the snap grid`
+    shortcut
+      ? message("Step ({shortcut}): drag across an automation curve to write held points on the snap grid", { shortcut })
+      : t("Step: drag across an automation curve to write held points on the snap grid")
   )
   return (
     <Button
       variant={step ? "secondary" : "ghost"}
       size="sm"
-      aria-label="Step"
+      aria-label={t("Step")}
       aria-pressed={step}
       onClick={() => void runAction("playlist.step")}
       {...hint}
     >
-      Step
+      {t("Step")}
     </Button>
   )
 }
@@ -208,7 +211,7 @@ function SnapMenu() {
   const setSnap = usePlaylistStore((state) => state.setSnap)
   const current = SNAP_MODES.find((item) => item.mode === snap)
   const hint = useHint(
-    "Snap: what clips line up with when placed, moved and resized. Hold Alt to ignore it for one drag"
+    t("Snap: what clips line up with when placed, moved and resized. Hold Alt to ignore it for one drag")
   )
 
   function scaleSnap(direction: "finer" | "coarser") {
@@ -225,7 +228,7 @@ function SnapMenu() {
             <Button
               variant="outline"
               size="sm"
-              aria-label={`Snap: ${current?.label ?? snap}`}
+              aria-label={message("Snap: {currentLabel}", { currentLabel: current?.label ?? snap })}
               className="gap-1.5 px-1.5"
               {...hint}
             />
@@ -245,7 +248,7 @@ function SnapMenu() {
         </DropdownMenuTrigger>
         <DropdownMenuContent className="w-56">
           <DropdownMenuGroup>
-            <DropdownMenuLabel>Snap</DropdownMenuLabel>
+            <DropdownMenuLabel>{t("Snap")}</DropdownMenuLabel>
             <DropdownMenuRadioGroup
               value={snap}
               onValueChange={(mode: SnapMode) => setSnap(mode)}
@@ -270,21 +273,21 @@ function SnapMenu() {
         type="button"
         variant="outline"
         size="sm"
-        aria-label="Choose a finer playlist snap"
+        aria-label={t("Choose a finer playlist snap")}
         disabled={nextPlaylistSnapScale(snap, "finer") === null}
         onClick={() => scaleSnap("finer")}
       >
-        Finer
+        {t("Finer")}
       </Button>
       <Button
         type="button"
         variant="outline"
         size="sm"
-        aria-label="Choose a coarser playlist snap"
+        aria-label={t("Choose a coarser playlist snap")}
         disabled={nextPlaylistSnapScale(snap, "coarser") === null}
         onClick={() => scaleSnap("coarser")}
       >
-        Coarser
+        {t("Coarser")}
       </Button>
     </div>
   )
@@ -305,15 +308,15 @@ function SongControls() {
     state.project.playlist.clips.some((clip) => clip.content.type !== "pattern")
   )
   const playHint = useHint(
-    "Play the song: switches the transport from the pattern to the playlist and starts it"
+    t("Play the song: switches the transport from the pattern to the playlist and starts it")
   )
   const notice = mode === "pattern" && silentInPattern
   const modeHint = useHint(
     notice
-      ? "The transport loops one pattern, so the audio and automation clips on the playlist are not playing. Switch to Song to hear them"
+      ? t("The transport loops one pattern, so the audio and automation clips on the playlist are not playing. Switch to Song to hear them")
       : mode === "song"
-        ? "Play plays the playlist from the song position"
-        : "Play loops the selected pattern. Switch to Song to play the playlist"
+        ? t("Play plays the playlist from the song position")
+        : t("Play loops the selected pattern. Switch to Song to play the playlist")
   )
 
   return (
@@ -326,7 +329,7 @@ function SongControls() {
           {...playHint}
         >
           <HugeiconsIcon icon={PlayIcon} strokeWidth={2} />
-          Play song
+          {t("Play song")}
         </Button>
       )}
       <span
@@ -341,10 +344,10 @@ function SongControls() {
         {...modeHint}
       >
         {mode === "song"
-          ? "Playing from the playlist"
+          ? t("Playing from the playlist")
           : notice
-            ? "Play loops the pattern: audio and automation play in Song mode"
-            : "Play loops the pattern"}
+            ? t("Play loops the pattern: audio and automation play in Song mode")
+            : t("Play loops the pattern")}
       </span>
       <ModeSwitch />
       <IconAction
@@ -372,7 +375,7 @@ export function PlaylistToolbar({ metrics }: { metrics: GridMetrics }) {
     <ContextActions items={PANEL_MENU}>
       <div
         role="toolbar"
-        aria-label="Playlist"
+        aria-label={t("Playlist")}
         className="flex h-9 shrink-0 items-center gap-2 overflow-x-auto overflow-y-hidden border-b bg-chassis/40 px-1.5 whitespace-nowrap"
       >
         <IconAction

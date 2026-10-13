@@ -4,6 +4,7 @@ import { LevelMeter, type LevelMeterHandle } from "@/components/audio"
 import { meterFeed } from "@/lib/store/realtime"
 import { onProjectReplaced } from "@/lib/store/replaced"
 import { gainToDb, MASTER_TRACK } from "@/lib/units"
+import { translatedText as t } from "@/lib/i18n"
 
 const MASTER_FEED = meterFeed(MASTER_TRACK)
 
@@ -43,27 +44,27 @@ export function LargeMasterMeter() {
   return (
     <div
       role="group"
-      aria-label="Master level"
+      aria-label={t("Master level")}
       data-slot="large-master-meter"
       className="flex flex-col items-center gap-4 rounded-lg bg-display p-6"
     >
       <div className="grid w-full grid-cols-2 gap-4 text-center font-readout tabular-nums">
         <div
           role="group"
-          aria-label="Left peak level"
+          aria-label={t("Left peak level")}
           className="flex flex-col gap-1"
         >
-          <span className="text-xs text-display-dim">Left</span>
+          <span className="text-xs text-display-dim">{t("Left")}</span>
           <span ref={left} data-side="left" className="text-xl text-display-foreground">
             −∞ dBFS
           </span>
         </div>
         <div
           role="group"
-          aria-label="Right peak level"
+          aria-label={t("Right peak level")}
           className="flex flex-col gap-1"
         >
-          <span className="text-xs text-display-dim">Right</span>
+          <span className="text-xs text-display-dim">{t("Right")}</span>
           <span ref={right} data-side="right" className="text-xl text-display-foreground">
             −∞ dBFS
           </span>
@@ -76,12 +77,12 @@ export function LargeMasterMeter() {
         subscribe={subscribe}
         minDb={-60}
         maxDb={6}
-        clipLabel="Clear master clip indicator"
-        aria-label="Stereo master meter"
+        clipLabel={t("Clear master clip indicator")}
+        aria-label={t("Stereo master meter")}
         className="h-[min(24rem,50vh)] w-36"
       />
       <span className="text-xs text-display-dim">
-        Peak level · −60 to +6 dBFS
+        {t("Peak level · −60 to +6 dBFS")}
       </span>
     </div>
   )

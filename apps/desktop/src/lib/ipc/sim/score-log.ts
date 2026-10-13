@@ -1,5 +1,6 @@
 import type { ChannelId, Command, NoteInit, Project, ScoreLogState } from "@/bindings"
 import { PPQ } from "@/lib/units"
+import { translatedText as t } from "@/lib/i18n"
 
 const SPAN = 30 * 60 * 1000
 const LIMIT = 16_384
@@ -56,9 +57,9 @@ export function createBrowserScoreLog(storage: Pick<Storage, "getItem" | "setIte
     clear() { notes = []; open.clear(); persist() },
     command(project: Project, pattern: number, seconds: number | null, quantize: number): Command {
       sync(project)
-      if (!project.patterns.some((item) => item.id === pattern)) throw new Error("The pattern no longer exists.")
+      if (!project.patterns.some((item) => item.id === pattern)) throw new Error(t("The pattern no longer exists."))
       const picked = notes.filter((note) => seconds === null || Date.now() - note.on <= seconds * 1000).sort((a, b) => a.on - b.on)
-      if (picked.length === 0) throw new Error("Nothing has been played to put into the pattern.")
+      if (picked.length === 0) throw new Error(t("Nothing has been played to put into the pattern."))
       const rate = project.settings.tempoBpm * PPQ / 60 / 1000
       const lanes = new Map<ChannelId, NoteInit[]>()
       for (const note of picked) {
@@ -70,8 +71,8 @@ export function createBrowserScoreLog(storage: Pick<Storage, "getItem" | "setIte
         lane.push({ start, length: Math.max(1, Math.min(245760, Math.round((note.off - note.on) * rate))), key: note.key, velocity: note.velocity })
         lanes.set(note.channel, lane)
       }
-      if (!lanes.size) throw new Error("No logged channels remain in the project.")
-      return { type: "batch", label: "Dump note log", commands: [...lanes].map(([channel, notes]) => ({ type: "addNotes", pattern, channel, notes })) }
+      if (!lanes.size) throw new Error(t("No logged channels remain in the project."))
+      return { type: "batch", label: t("Dump note log"), commands: [...lanes].map(([channel, notes]) => ({ type: "addNotes", pattern, channel, notes })) }
     },
   }
 }

@@ -4,6 +4,7 @@ import { cn } from "@/lib/utils"
 
 import { useDisplayCanvas } from "../use-display-canvas"
 import { TRANSIENT_RANGE_DB, transientShape } from "./curves"
+import { translatedText as t, message } from "@/lib/i18n"
 
 const COLORS = {
   grid: "var(--wf-grid-line)",
@@ -77,12 +78,12 @@ export const TransientDisplay = memo(function TransientDisplay({
   })
 
   const part =
-    listen === 1 ? "attack only" : listen === 2 ? "sustain only" : "whole hit"
+    listen === 1 ? t("attack only") : listen === 2 ? t("sustain only") : t("whole hit")
   return (
     <div
       data-slot="transient-display"
       role="img"
-      aria-label={`A hit before and after shaping, ${part}`}
+      aria-label={message("A hit before and after shaping, {part}", { part })}
       className={cn(
         "relative h-20 overflow-hidden rounded-[5px] bg-(--wf-meter-bg) ring-1 ring-(--wf-grid-line-strong) in-data-enlarged:h-28",
         className

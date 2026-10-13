@@ -3,15 +3,16 @@
  * in `crates/windfall-dsp/src/multiband` and `mastering` do it.
  */
 
+import { translatedText as t } from "@/lib/i18n"
 export const DISPLAY_MIN_HZ = 20
 export const DISPLAY_MAX_HZ = 20_000
 /** The quietest level a band display shows, in dB. The loudest is 0. */
 export const DISPLAY_FLOOR_DB = -60
 
 export const BANDS = [
-  { key: "low", title: "Low" },
+  { key: "low", get title() { return t("Low") } },
   { key: "mid", title: "Mid" },
-  { key: "high", title: "High" },
+  { key: "high", get title() { return t("High") } },
 ] as const
 export type BandKey = (typeof BANDS)[number]["key"]
 

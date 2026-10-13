@@ -71,7 +71,7 @@ export function NotebookPanel({
   const invalid = invalidPage !== -1 || pages.length > MAX_PAGES || cueInvalid
   const items = visiblePages.map((item, index) => ({
     value: index,
-    label: `${index + 1}. ${item.title.trim() || t("Untitled page")}`,
+    label: message("{index}. {title}", { index: index + 1, title: item.title.trim() || t("Untitled page") }),
   }))
 
   // Only a page transition renders React, not each realtime frame. Keep drafts

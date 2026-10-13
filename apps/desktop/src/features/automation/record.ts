@@ -13,6 +13,7 @@ import { MAX_SONG_TICKS } from "@/lib/units"
 
 import { editedWhileAutomated } from "./notice"
 import { drivingAutomation } from "./now"
+import { translatedText as t } from "@/lib/i18n"
 
 /** A session arm, separate from audio recording and never persisted. */
 export const useAutomationRecordStore = create<{ recordArmed: boolean }>(
@@ -34,7 +35,7 @@ useAutomationRecordStore.subscribe((state, previous) => {
   backend
     .automationRecordArm(state.recordArmed)
     .catch((error: unknown) =>
-      reportError(error, "Could not change automation recording")
+      reportError(error, t("Could not change automation recording"))
     )
 })
 

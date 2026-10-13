@@ -1,6 +1,7 @@
 import { registry, type Action } from "@/lib/actions"
 
 import { useTouchControllersStore } from "./store"
+import { dynamicTitle } from "@/lib/i18n"
 
 export function closeTouchControllers() {
   useTouchControllersStore.getState().close()
@@ -9,14 +10,14 @@ export function closeTouchControllers() {
 const TOUCH_CONTROLLER_ACTIONS: Action[] = [
   {
     id: "view.touchKeyboard",
-    title: "Touch keyboard",
+    ...dynamicTitle("Touch keyboard", {}),
     section: "View",
     keywords: "on-screen piano keys touch screen controllers play audition",
     run: () => useTouchControllersStore.getState().show("keyboard"),
   },
   {
     id: "view.touchPads",
-    title: "Touch pads",
+    ...dynamicTitle("Touch pads", {}),
     section: "View",
     keywords: "on-screen drum pads touch screen controllers finger drumming",
     run: () => useTouchControllersStore.getState().show("pads"),

@@ -43,6 +43,7 @@ import {
 } from "./tree-model"
 import { TreeRowView } from "./tree-row"
 import { ROW_HEIGHT, useVirtualWindow } from "./use-virtual-window"
+import { translatedText as t } from "@/lib/i18n"
 
 /** Letters typed closer together than this build up one search. */
 const TYPE_AHEAD_MS = 600
@@ -113,7 +114,7 @@ export function TreeView() {
   const [menuRowId, setMenuRowId] = useState<string | null>(null)
   const typed = useRef({ text: "", at: 0 })
   const hint = useHint(
-    "Arrow keys move through sounds and play them. Enter adds one to the rack."
+    t("Arrow keys move through sounds and play them. Enter adds one to the rack.")
   )
 
   // Where the list was scrolled to last time. After a restart the open
@@ -379,7 +380,7 @@ export function TreeView() {
         <div
           ref={treeRef}
           role="tree"
-          aria-label="Sounds and folders"
+          aria-label={t("Sounds and folders")}
           aria-activedescendant={
             selectedIndex >= 0 ? `${baseId}-${selectedIndex}` : undefined
           }

@@ -16,6 +16,7 @@ import { cn } from "@/lib/utils"
 
 import { setOutput } from "./operations"
 import { outputChoices } from "./routing"
+import { translatedText as t, message, plainNumber } from "@/lib/i18n"
 
 const NONE = "none"
 
@@ -45,8 +46,8 @@ export function LoopNote({ count }: { count: number }) {
   return (
     <p className="max-w-52 px-2 pt-1 pb-1.5 text-[10px] leading-snug text-muted-foreground">
       {count === 1
-        ? "1 track is not listed. It already plays into this one, so routing to it would loop."
-        : `${count} tracks are not listed. They already play into this one, so routing to them would loop.`}
+        ? t("1 track is not listed. It already plays into this one, so routing to it would loop.")
+        : message("{count} tracks are not listed. They already play into this one, so routing to them would loop.", { count: plainNumber(count) })}
     </p>
   )
 }
@@ -80,7 +81,7 @@ function OutputChoices({
         ))}
         <DropdownMenuSeparator />
         <DropdownMenuRadioItem value={NONE} closeOnClick>
-          None (sends only)
+          {t("None (sends only)")}
         </DropdownMenuRadioItem>
       </DropdownMenuRadioGroup>
       <LoopNote count={looping} />
@@ -105,9 +106,9 @@ export function OutputSelect({
           ?.name ?? null)
   )
   const hint = useHint(
-    "Where this track's sound goes next: the master, another track, or only its sends"
+    t("Where this track's sound goes next: the master, another track, or only its sends")
   )
-  const label = target ?? "No output"
+  const label = target ?? t("No output")
 
   return (
     <DropdownMenu>
@@ -116,7 +117,7 @@ export function OutputSelect({
           <button
             type="button"
             data-slot="track-output"
-            aria-label={`Output: ${target ?? "none"}`}
+            aria-label={message("Output: {target}", { target: target ?? t("none") })}
             className={cn(
               "flex h-[18px] min-w-0 items-center gap-0.5 rounded-[3px] bg-muted/60 pr-1 pl-0.5 text-[10px] leading-none text-foreground/85 outline-none hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring aria-expanded:bg-muted aria-expanded:text-foreground",
               output === null && "text-muted-foreground italic",

@@ -121,7 +121,7 @@ export function PluginControls({ binding }: { binding: PluginBinding }) {
             setError(
               state.instances.find((instance) =>
                 sameTarget(instance.target, binding.target)
-              )?.error ?? (backend.kind === "mock" ? "Native plugin hosting is unavailable in browser mode" : null)
+              )?.error ?? (backend.kind === "mock" ? t("Native plugin hosting is unavailable in browser mode") : null)
             )
         })
         .catch((error: unknown) => {
@@ -197,7 +197,7 @@ export function PluginControls({ binding }: { binding: PluginBinding }) {
               value={binding.sidechainInput ?? -1}
               items={[
                 { value: -1, label: t("First auxiliary input") },
-                ...(binding.auxiliaryInputs ?? []).map((input) => ({ value: input.index, label: `${input.name || i18nMessage("Input {value0}", { value0: input.index + 1 })} · ${input.channels === 1 ? t("Mono") : input.channels === 2 ? t("Stereo") : i18nMessage("{count} channels", { count: input.channels })}` })),
+                ...(binding.auxiliaryInputs ?? []).map((input) => ({ value: input.index, label: i18nMessage("{input} · {layout}", { input: input.name || i18nMessage("Input {value0}", { value0: input.index + 1 }), layout: input.channels === 1 ? t("Mono") : input.channels === 2 ? t("Stereo") : i18nMessage("{count} channels", { count: input.channels }) }) })),
                 ...(binding.sidechainInput != null && !(binding.auxiliaryInputs ?? []).some((input) => input.index === binding.sidechainInput) ? [{ value: binding.sidechainInput, label: i18nMessage("Saved input {value0} (unavailable)", { value0: binding.sidechainInput + 1 }) }] : []),
               ]}
               onValueChange={(input: number | null) => {

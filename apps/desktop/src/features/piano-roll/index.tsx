@@ -18,6 +18,7 @@ import { useUiStore } from "@/lib/store/ui"
 
 import { NO_CHANNEL_MENU } from "./menu"
 import { Workspace } from "./workspace"
+import { translatedText as t } from "@/lib/i18n"
 
 function NoChannels() {
   return (
@@ -27,18 +28,16 @@ function NoChannels() {
           <EmptyMedia variant="icon">
             <HugeiconsIcon icon={MusicNote03Icon} strokeWidth={2} />
           </EmptyMedia>
-          <EmptyTitle>There is no channel to write notes for</EmptyTitle>
+          <EmptyTitle>{t("There is no channel to write notes for")}</EmptyTitle>
           <EmptyDescription>
-            The piano roll edits the notes one channel plays in the current
-            pattern. Add a channel, or drag a sample in from the browser, and
-            its notes open here.
+            {t("The piano roll edits the notes one channel plays in the current pattern. Add a channel, or drag a sample in from the browser, and its notes open here.")}
           </EmptyDescription>
         </EmptyHeader>
         <EmptyContent>
           <div className="flex flex-wrap justify-center gap-2">
             <ActionButton action="channel.add" />
             <ActionButton action="view.channelRack" variant="outline">
-              Go to the channel rack
+              {t("Go to the channel rack")}
             </ActionButton>
           </div>
         </EmptyContent>
