@@ -66,6 +66,13 @@ pub fn export_bundle(
     destination: &Path,
     platform: Platform,
 ) -> Result<(), String> {
+    // A universal app resolves a fat runtime through its current native slice.
+    // Preserve both slices' usable distribution stamp when the desktop exports.
+    let platform = if platform.mac() {
+        let mut magic = [0u8; 4];
+        fs::File::open(binary).and_then(|mut f| f.read_exact(&mut magic)).map_err(|e| format!("Windfall runtime is missing/unreadable: {e}"))?;
+        if matches!(magic, [0xca, 0xfe, 0xba, 0xbe] | [0xbe, 0xba, 0xfe, 0xca] | [0xca, 0xfe, 0xba, 0xbf] | [0xbf, 0xba, 0xfe, 0xca]) { Platform::MacUniversal } else { platform }
+    } else { platform };
     // Native probe verifies the actual exported C ABI before publishing bytes.
     let stamp = export_runtime::probe(binary, &platform.stamp())?;
     if platform == Platform::MacUniversal {
