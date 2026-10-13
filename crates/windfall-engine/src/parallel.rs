@@ -210,7 +210,8 @@ impl Workers {
     /// Safety: tasks have distinct exclusive contexts. None may be accessed,
     /// moved or dropped until this function returns, INCLUDING on an overrun.
     pub unsafe fn run(&mut self, tasks: &[Task], shared: &Shared) {
-        self.active_batch.store(true, Ordering::Release);
+        self.active_batch
+            .store(tasks.len() > 1 && !self.lanes.is_empty(), Ordering::Release);
         for chunk in tasks.chunks(self.count()) {
             for (lane, task) in self.lanes.iter_mut().zip(chunk.iter().skip(1)) {
                 let submission = Submission {
