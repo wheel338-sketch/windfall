@@ -4,7 +4,7 @@ import { logicalWheel } from "@/lib/ui-scale"
 import { ADD_WIDTH, visibleRange, type StripLayout } from "./layout"
 import { MixerStrip } from "./strip"
 import { useStripView } from "./strip-view"
-import { message } from "@/lib/i18n"
+import { message, translatedText as t } from "@/lib/i18n"
 
 /** Each dock retains its own scroll position and virtualized strip window. */
 export function DockStrips({
@@ -75,7 +75,7 @@ export function DockStrips({
     <div
       ref={attach}
       role="group"
-      aria-label={message("{dock} mixer dock", { dock })}
+      aria-label={message("{dock} mixer dock", { dock: t(dock) })}
       data-slot={`mixer-dock-${dock}`}
       className={
         dock === "middle"

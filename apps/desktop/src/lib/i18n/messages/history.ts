@@ -25,5 +25,5 @@ export const historyEs = {
   "Steps of {runLabel}": "Pasos de {runLabel}",
   "Undo history": "Historial de deshacer",
   "Unfold": "Desplegar",
-  "{open} the {count} steps of {runLabel}": "{open} the {count} steps of {runLabel}",
+  "{open} the {count} steps of {runLabel}": "{open} los {count} pasos de {runLabel}",
 } satisfies Record<keyof typeof historyEn, Message>

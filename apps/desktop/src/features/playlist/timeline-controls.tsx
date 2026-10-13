@@ -163,7 +163,7 @@ function TimelineEditor({
             {edit.item ? t("Edit") : t("Add")}{" "}
             {edit.type === "meter"
               ? t("meter change")
-              : message("{type} marker", { type: edit.kind.type })}
+              : message("{type} marker", { type: t(edit.kind.type) })}
           </DialogTitle>
           <DialogDescription>
             {edit.type === "meter"

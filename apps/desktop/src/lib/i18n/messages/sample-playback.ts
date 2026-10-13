@@ -79,7 +79,7 @@ export const samplePlaybackEs = {
   "Slice start": "Inicio del corte",
   "Source tempo": "Tempo de la fuente",
   "Source waveform and slice boundaries": "Forma de onda de la fuente y límites de los cortes",
-  "Source {deck}": "Source {deck}",
+  "Source {deck}": "Fuente {deck}",
   "Split slice": "Dividir corte",
   "Starting position": "Posición inicial",
   "The migrated source is retained inside this project. Choosing Source A replaces it.": "La fuente migrada se conserva dentro de este proyecto. Al elegir la Fuente A se reemplaza.",

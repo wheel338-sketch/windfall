@@ -231,12 +231,6 @@ export const libEn = {
   "{track} → send to {track2}": "{track} → send to {track2}",
   "{track} → sidechain to {track2}": "{track} → sidechain to {track2}",
   "{track} → volume": "{track} → volume",
-  "↑": "↑",
-  "↓": "↓",
-  "⇧": "⇧",
-  "⌃": "⌃",
-  "⌘": "⌘",
-  "⌥": "⌥",
 } as const
 
 export const libEs = {
@@ -312,7 +306,7 @@ export const libEs = {
   "Could not save the project": "No se pudo guardar el proyecto",
   "Could not start a new project": "No se pudo iniciar un nuevo proyecto",
   "Current source no longer exists.": "La fuente de Actual ya no existe.",
-  "Del": "Del",
+  "Del": "Supr",
   "Delete {patternName}?": "¿Eliminar {patternName}?",
   "Derived file cleanup requires the desktop app.": "La limpieza de archivos derivados requiere la aplicación de escritorio.",
   "Desktop app required": "Se requiere la aplicación de escritorio",
@@ -334,7 +328,7 @@ export const libEs = {
   "Native editors require the Windows desktop app": "Los editores nativos requieren la aplicación de escritorio para Windows",
   "Native note capabilities require the installed desktop application.": "Las capacidades nativas de nota requieren la aplicación de escritorio instalada.",
   "Native plugins require the Windows desktop app": "Los plugins nativos requieren la aplicación de escritorio para Windows",
-  "No audio: {error}": "No audio: {error}",
+  "No audio: {error}": "Sin audio: {error}",
   "No batch to undo.": "No hay ningún lote que deshacer.",
   "No logged channels remain in the project.": "No queda ningún canal registrado en el proyecto.",
   "No playlist track plays a pattern or audio clip, so there are no tracks to export.": "Ninguna pista de la lista de reproducción reproduce un patrón o un clip de audio, así que no hay pistas que exportar.",
@@ -470,10 +464,4 @@ export const libEs = {
   "{track} → send to {track2}": "{track} → envío a {track2}",
   "{track} → sidechain to {track2}": "{track} → cadena lateral a {track2}",
   "{track} → volume": "{track} → volumen",
-  "↑": "↑",
-  "↓": "↓",
-  "⇧": "⇧",
-  "⌃": "⌃",
-  "⌘": "⌘",
-  "⌥": "⌥",
 } satisfies Record<keyof typeof libEn, Message>

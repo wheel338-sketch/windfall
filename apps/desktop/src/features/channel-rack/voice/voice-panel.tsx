@@ -149,7 +149,7 @@ function EnvelopeControls({
   onChange(value: ModulationEnvelope): void
 }) {
   const gestures = useContext(GestureContext)
-  const title = message("{target}{target2} envelope", { target: target[0].toUpperCase(), target2: target.slice(1) })
+  const title = target === "filter" ? t("Filter envelope") : target === "pitch" ? t("Pitch envelope") : target === "pan" ? t("Pan envelope") : t("Resonance envelope")
   const { max: maxDepth, unit: depthUnit } = ENVELOPE_DEPTH[target]
   const set = (patch: Partial<ModulationEnvelope>) =>
     onChange({ ...value, ...patch })
@@ -158,7 +158,7 @@ function EnvelopeControls({
       <FieldLegend>{title}</FieldLegend>
       <FieldGroup>
         <Enabled
-          label={message("Enable {target} envelope", { target })}
+          label={message("Enable {target} envelope", { target: t(target) })}
           checked={value.enabled}
           onChange={(enabled) => set({ enabled })}
         />
@@ -262,7 +262,7 @@ function TargetLfoControls({
       <FieldLegend>{title}</FieldLegend>
       <FieldGroup>
         <Enabled
-          label={message("Enable {target} LFO", { target })}
+          label={message("Enable {target} LFO", { target: t(target) })}
           checked={value.enabled}
           onChange={(enabled) => set({ enabled })}
         />

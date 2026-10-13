@@ -7,7 +7,7 @@ import { METRONOME_GAINS, nextMetronomeGain } from "./metronome-gain"
 import { nextMetronomeGainScale } from "./metronome-gain-scale"
 import { nextMetronomePreset } from "./metronome-preset-step"
 import { useRecordingStore } from "./recording-store"
-import { translatedText as t, message } from "@/lib/i18n"
+import { translatedText as t } from "@/lib/i18n"
 
 export function MetronomeControls() {
   const settings = useTransportStore((state) => state.metronome ?? DEFAULT_METRONOME)
@@ -27,7 +27,7 @@ export function MetronomeControls() {
       </div>
       <div className="flex gap-1">
         {(["previous", "next"] as const).map((direction) => (
-          <Button key={direction} variant="outline" size="sm" aria-label={message("Choose the {direction} metronome volume", { direction })} disabled={recording || nextMetronomePreset(settings.gain, direction) === null} onClick={() => {
+          <Button key={direction} variant="outline" size="sm" aria-label={direction === "previous" ? t("Choose the previous metronome volume") : t("Choose the next metronome volume")} disabled={recording || nextMetronomePreset(settings.gain, direction) === null} onClick={() => {
             if (useRecordingStore.getState().state.active) return
             const latest = useTransportStore.getState().metronome?.gain ?? DEFAULT_METRONOME.gain
             const next = nextMetronomePreset(latest, direction)

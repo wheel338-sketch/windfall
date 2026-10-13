@@ -127,8 +127,35 @@ export function invariantReason(text: string, context?: string): string | undefi
   return terms.length && terms.every(invariant) ? "Only invariant terms joined by notation symbols." : undefined
 }
 
+const each = (reason: string, keys: readonly string[]) => Object.fromEntries(keys.map((key) => [key, reason]))
+const numbered = (word: string, count: number) => Array.from({ length: count }, (_, index) => `${word} ${index + 1}`)
+
 /** Identical translations also require a reason, even for punctuation templates. */
 export const sameAsEnglish: Readonly<Record<string, string>> = {
+  ...each("Only parameters, punctuation and invariant names; each parameter is localized at its source.", [
+    "r{revision}", "{scope} · {label}", "{device} · {control}", "{description}. {action}", "{slot}: {output}",
+    "{device} · {channel} · {control}", "{owner} · {target}", "{owner} · {parameter}", "{device}: {left} / {right}",
+    "{name}, {place}", "{root} {quality}", "{root} {quality} / {bass}", "{root} {scale}", "{id} ({name})",
+    "{input} · {layout}", "{index}. {title}", "{name} · FL Studio", "Moss: {pose}", "Color {group} · MIDI {group2}",
+  ]),
+  ...each("Spanish music software counts in ticks, clips, cents, pads and bytes too; the rest is parameters and punctuation.", [
+    "{value}{value2} cents", "{value} ticks", "{tick} ticks", " (ticks {start}–{end})", "Ticks {start}–{end}{active}",
+    "{count} clips", "2400 cents", "Macro {index}", "Pad {index}, {pad}", "{device}: {left} mono", "Audio: {sourceName}",
+    "{size}, bipolar", "{size}, unipolar", "bytes ·", "· tick", "(clip", ", tick", "· Solo", "ticks)", "ticks", "Tick",
+    "Streaming, −14 LUFS", "Swing (%)",
+  ]),
+  ...each("Spanish spells this word the same way.", [
+    "general", "General", "vocal", "Regular", "Balance", "Base", "Bipolar", "Color", "Detector", "Normal", "Pedal",
+    "Nasal", "Triple", "Natural", "Control", "Tempo", "Solo", ...numbered("Pedal", 11),
+  ]),
+  ...each("Established term that Spanish-speaking producers use unchanged.", [
+    "Plugins", "Mono legato", "Vol", "1x12 combo", "Combo", "Ducking", "Flanger", "Fuzz", "Notch", "Overdrive", "Post",
+    "Pre", "Scratch", "Twin", "Vocoder", "Wah", "Legato", "Multisampler", "Tom", "Chorus", "Drive", "Phaser", "Stack",
+    "2 Color", "Mod", "Scoop", "Fader", "Sampler", "Blues", "Drop 2", "Flam", "Groove", "Staccato", "Swing",
+    "Portamento", "Pads", ...numbered("Pad", 16),
+  ]),
+  ...each("Keyboard key name printed the same on a Spanish keyboard.", ["Esc", "Num +", "Num -", "key.alt", "key.ctrl", "key.win"]),
+  "Set tempo 120; create pattern Verse; add channel Bass": "Example in the offline assistant's command syntax, which is read in English.",
   "{name}: {value}": "Only parameters and punctuation; the name is localized at its source.",
   "{name}: {value}. {description}": "Only parameters and punctuation; semantic parameters are localized at their source.",
   "{name}{mark} - Windfall": "Authored project name, unsaved mark and product name.",

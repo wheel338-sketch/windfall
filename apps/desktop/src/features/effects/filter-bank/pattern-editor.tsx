@@ -17,7 +17,7 @@ export function PatternEditor({ bind, unit, kind }: {
   const ids = Array.from({ length: POINTS }, (_, i) => `${prefix}.${i}`)
   const values = ids.map((id) => bind.value(id))
   const min = kind === "gate" ? 0 : -1
-  const label = message("Unit {unit} {kind} envelope", { unit: plainNumber(unit + 1), kind })
+  const label = message("Unit {unit} {kind} envelope", { unit: plainNumber(unit + 1), kind: t(kind) })
   const y = (value: number) => 90 - ((value - min) / (1 - min)) * 80
   const points = values.map((value, i) => `${10 + i * 40},${y(value)}`).join(" ")
   const draw = (event: PointerEvent<SVGSVGElement>) => {

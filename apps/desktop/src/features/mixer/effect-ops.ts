@@ -138,12 +138,12 @@ async function confirmLosingAutomation(
   const automation = automationGoingWith({ type: "effect", effect: id })
   if (automation === null) return true
   const choice = await askConfirm({
-    title: message("{what} the {effect}?", { what, effect: effectName(kind) }),
+    title: message(what === "Remove" ? "Remove the {effect}?" : "Replace the {effect}?", { effect: effectName(kind) }),
     description: message("{automation} Undo brings them back.", { automation }),
     choices: [
       {
         id: "go",
-        label: message("{what} effect", { what }),
+        label: what === "Remove" ? t("Remove effect") : t("Replace effect"),
         variant: "destructive",
       },
     ],

@@ -51,7 +51,7 @@ export const touchControllersEs = {
   "Touch keyboard and pads": "Teclado y pads táctiles",
   "Touch keyboard, {channelName}": "Teclado táctil, {channelName}",
   "Touch pads": "Pads táctiles",
-  "empty": "empty",
+  "empty": "vacío",
   "{note} to {note2}": "{note} a {note2}",
   "{range} octaves": "{range} octavas",
 } satisfies Record<keyof typeof touchControllersEn, Message>

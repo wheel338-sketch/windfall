@@ -1,7 +1,6 @@
 import type { Message } from "../types"
 
 export const visualizerEn = {
-  ", note {key}": ", note {key}",
   "AVI export includes the real offline mix as stereo PCM and raw video frames at 24 fps. Short ranges only: up to 30 seconds and 128 MiB. Compressed H.264/AAC codecs remain a user licensing decision.": "AVI export includes the real offline mix as stereo PCM and raw video frames at 24 fps. Short ranges only: up to 30 seconds and 128 MiB. Compressed H.264/AAC codecs remain a user licensing decision.",
   "Analysis extends beyond the audio": "Analysis extends beyond the audio",
   "Audio contains an invalid sample": "Audio contains an invalid sample",
@@ -33,7 +32,6 @@ export const visualizerEn = {
 } as const
 
 export const visualizerEs = {
-  ", note {key}": ", nota {key}",
   "AVI export includes the real offline mix as stereo PCM and raw video frames at 24 fps. Short ranges only: up to 30 seconds and 128 MiB. Compressed H.264/AAC codecs remain a user licensing decision.": "La exportación AVI incluye la mezcla real sin conexión como PCM estéreo y fotogramas de vídeo sin comprimir a 24 fps. Solo intervalos cortos: hasta 30 segundos y 128 MiB. Los códecs comprimidos H.264/AAC siguen siendo una decisión de licencia del usuario.",
   "Analysis extends beyond the audio": "El análisis se extiende más allá del audio",
   "Audio contains an invalid sample": "El audio contiene una muestra no válida",

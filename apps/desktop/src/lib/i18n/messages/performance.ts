@@ -1,7 +1,6 @@
 import type { Message } from "../types"
 
 export const performanceEn = {
-  "0.0": "0.0",
   "0.0 / 60 seconds": "0.0 / 60 seconds",
   "Assign patterns, audio clips or automation clips to pads, then launch or stop them on a musical boundary. Each track plays one pad. Keyboard and touch activate the same controls.": "Assign patterns, audio clips or automation clips to pads, then launch or stop them on a musical boundary. Each track plays one pad. Keyboard and touch activate the same controls.",
   "Assign track {track} scene {scene}": "Assign track {track} scene {scene}",
@@ -38,7 +37,6 @@ export const performanceEn = {
 } as const
 
 export const performanceEs = {
-  "0.0": "0.0",
   "0.0 / 60 seconds": "0.0 / 60 segundos",
   "Assign patterns, audio clips or automation clips to pads, then launch or stop them on a musical boundary. Each track plays one pad. Keyboard and touch activate the same controls.": "Asigna patrones, clips de audio o clips de automatización a los pads y lánzalos o detenlos en un límite musical. Cada pista reproduce un pad. El teclado y la pantalla táctil activan los mismos controles.",
   "Assign track {track} scene {scene}": "Asignar pista {track}, escena {scene}",
@@ -69,7 +67,7 @@ export const performanceEs = {
   "Track": "Pista",
   "Track bank": "Banco de pistas",
   "launches": "lanzamientos",
-  "{sampleRate} / 60 seconds": "{sampleRate} / 60 seconds",
+  "{sampleRate} / 60 seconds": "{sampleRate} / 60 segundos",
   "{tick} ticks": "{tick} ticks",
-  "{type} clip {clipId}": "{type} clip {clipId}",
+  "{type} clip {clipId}": "Clip de {type} {clipId}",
 } satisfies Record<keyof typeof performanceEn, Message>

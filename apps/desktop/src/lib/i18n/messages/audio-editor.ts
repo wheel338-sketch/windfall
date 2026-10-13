@@ -269,7 +269,7 @@ export const audioEditorEs = {
   "Choose an ordered source range inside the preserved waveform.": "Elige un rango ordenado de la fuente dentro de la forma de onda conservada.",
   "Clean up": "Limpieza",
   "Clear noise profile": "Borrar perfil de ruido",
-  "Clip {spectral}, selected frames {start} to {end}": "Clip {spectral}, selected frames {start} to {end}",
+  "Clip {spectral}, selected frames {start} to {end}": "Clip: {spectral}, fotogramas seleccionados del {start} al {end}",
   "Clipping threshold": "Umbral de saturación",
   "Close editor": "Cerrar editor",
   "Combined note and warp anchors must remain ordered with ratios from 0.25 to 4.": "Los anclajes combinados de notas y de warp deben seguir ordenados, con proporciones de 0.25 a 4.",
