@@ -156,6 +156,58 @@ fn exported_clap_and_vst3_load_through_own_host_audio_state_tempo_and_reset() {
         );
     }
 }
+
+#[test]
+fn raw_sf2_native_bundles_reopen_state_and_match_in_app_soundfont_pcm_through_own_host() {
+    let program = common::soundfont_program();
+    let mut pool = windfall_engine::SamplePool::new();
+    pool.insert_soundfont(program.project.channels[0].sample_instrument.clone().unwrap(), &common::sf2::bytes()).unwrap();
+    let reference = windfall_engine::render(&program.project, &pool, &windfall_engine::RenderOptions::default(), &mut |_| true);
+    assert!(reference.samples().iter().any(|v| v.abs() > 0.001));
+    for format in ["clap", "vst3"] {
+        let root = Path::new(env!("CARGO_TARGET_TMPDIR")).join(format!("raw-sf2-{format}-{}", std::process::id()));
+        std::fs::create_dir_all(&root).unwrap();
+        let destination = root.join("bundle");
+        if destination.exists() { std::fs::remove_dir_all(&destination).unwrap(); }
+        export_bundle(&program, runtime(), &destination, Platform::native().unwrap()).unwrap();
+        let embedded = Program::decode(&std::fs::read(destination.join("Windfall.vst3/Contents/Resources/windfall-state.json")).unwrap()).unwrap();
+        assert!(embedded.samples.is_empty(), "raw bank must never become a generic PCM sampler");
+        assert_eq!(embedded.soundfonts[0].id, program.soundfonts[0].id);
+        assert_eq!(embedded.soundfonts[0].bytes, common::sf2::bytes());
+        assert_eq!(embedded.project, program.project);
+        // Original project-relative path does not exist anywhere in this bundle.
+        assert!(!destination.join("original.sf2").exists());
+        let path = destination.join(format!("Windfall.{format}"));
+        let state = {
+            let module = PluginHost::windfall().load(&path).unwrap();
+            let mut instance = module.create(&module.descriptors()[0].id).unwrap();
+            instance.save_state().unwrap()
+        };
+        // A fresh instance restores native host state, not an already parsed owner.
+        let module = PluginHost::windfall().load(&path).unwrap();
+        let mut instance = module.create(&module.descriptors()[0].id).unwrap();
+        instance.load_state(&state).unwrap();
+        let mut instrument = instance.prepare_instrument(48_000.0, 256).unwrap();
+        instrument.set_transport(Transport { playing: true, tempo_bpm: 120.0, position_beats: 0.0, ..Transport::default() });
+        let mut output = Vec::new();
+        for block in 0..64 {
+            let frame = block * 64;
+            instrument.set_transport(Transport { playing: true, tempo_bpm: 120.0, position_beats: frame as f64 / 24_000.0, ..Transport::default() });
+            let (mut left, mut right) = ([0.0; 64], [0.0; 64]);
+            instrument.process(&mut left, &mut right);
+            output.extend(left.into_iter().zip(right).flat_map(|(l, r)| [l, r]));
+        }
+        assert_eq!(output, reference.samples()[..output.len()], "{format} real SF2 PCM differs from in-app render");
+        assert!(!instrument.health().failed);
+        instrument.reset();
+        instrument.set_transport(Transport::default());
+        let (mut left, mut right) = ([0.0; 64], [0.0; 64]);
+        instrument.process(&mut left, &mut right);
+        assert!(left.iter().chain(&right).all(|v| *v == 0.0));
+        instance.release_instrument(instrument).unwrap();
+        assert_eq!(instance.save_state().unwrap().as_bytes(), state.as_bytes());
+    }
+}
 #[test]
 fn runtime_probe_and_real_host_refuse_missing_unstamped_mismatched_and_corrupt_bundles() {
     use windfall_plugin_host::export_runtime::{Stamp, probe};

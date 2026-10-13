@@ -1,5 +1,46 @@
 # Windfall CLAP export target
 
+## Round-six raw-bank packet checkpoint — 2026-10-13
+
+Schema 2 carries original SF2 bytes in `soundfonts`, keyed by the project's
+raw `SampleId`; it never turns a bank source into a PCM sample. Schema 1 PCM
+packets still load. Native desktop export snapshots source paths outside the
+document lock, reads each owned bank once with exact bounded IO, and checks
+retained sources and selected presets before publishing a bundle. Recalled
+programs use their embedded bytes and never open the original SF2 path.
+
+All raw SF2 payloads together, including nested rack payloads, are limited to
+16 MiB. Both JSON layers and the complete Windfall packet are limited to 64 MiB;
+JSON byte-array overhead can therefore cause the encoded-state limit to refuse
+a bank below the raw-byte limit. Refusals identify the limit. Raw source IDs
+must be unique and refer to raw-bank project assets; PCM entries cannot claim
+those IDs. Missing or corrupt recalled bank data is preserved in saved state,
+reported through CLAP host logging, the bounded runtime diagnostic and native
+panel status, and rendered as silence for the affected instrument.
+
+Main-channel banks are parsed with the existing shared 256 MiB retained-bank
+budget before activation or active publication. Rack banks also share that
+budget across standalone banks and retained generations. Rack raw-bank
+preflight runs on the control thread; a damaged payload is marked unavailable
+only in the detached playback copy. The existing publication acknowledgement
+returns displaced engines/banks for destruction on control. State capture
+keeps the exact original identities and bytes. Recalled programs also pin
+drawn curve assets while inactive.
+
+Asset audit: drawn shape/time/volume/scratch curves serialize by content in
+effect parameters; spectral banks, drum patches and layered hits live in the
+instrument asset; slice/grain playback curves and mappings live in channel
+assets with embedded PCM sources; convolution IRs live in effect slots;
+versioned generated wavetable/piano recipes and their controls remain project
+data; script libraries include revision identities and source text; nested
+rack/preset graphs own their instrument, audio, zone, IR and raw-bank payloads.
+The exhaustive export fixture matches all 50 instrument and 68 effect kinds
+without a wildcard, forcing an explicit asset decision for any new kind.
+
+This checkpoint is edit-only. The registered tests and native own-host PCM,
+GM workflow, allocator, hostility and legacy fixtures are listed in
+`docs/qa/2026-10-13-r6-plugin-sf2.md`; none was executed by this worker.
+
 ## Round-five source checkpoint — 2026-10-13
 
 This section supersedes the historical checkpoints below. The source is
