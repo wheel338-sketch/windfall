@@ -472,6 +472,7 @@ impl HostedInstrument for Unit {
         };
         let key = key.min(127);
         let note = windfall_plugin_host::bridge::slots::NoteSnapshot {
+            expression: None,
             id: windfall_plugin_host::FIRST_NOTE_INSTANCE_ID + slot as u32,
             key,
             channel: expression.color_group.unwrap_or(0),

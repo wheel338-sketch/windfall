@@ -66,6 +66,17 @@ impl NotePan {
             (target.1 - self.from.1) / self.duration as f32,
         );
     }
+    pub fn set_position(&mut self, position: f32, law: PanLaw, sample_rate: f32) {
+        self.position = if position.is_finite() {
+            position.clamp(-1.0, 1.0)
+        } else {
+            0.0
+        };
+        self.retarget(law, sample_rate);
+    }
+    pub fn settled(&self) -> bool {
+        self.elapsed >= self.duration
+    }
     #[inline]
     pub fn tick(&mut self) -> (f32, f32) {
         if self.elapsed >= self.duration {

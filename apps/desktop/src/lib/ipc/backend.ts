@@ -41,7 +41,7 @@ import type { ProjectFilesBackend } from "./files"
 import type { MixerPresetLibraryBackend } from "./mixer-presets"
 import type { RemoteContentBackend } from "./remote-content"
 
-export type PluginNoteCapabilities = { projectPanLaw: boolean; instances: boolean; nativePan: boolean[]; nativeVolume: boolean[] }
+export type PluginNoteCapabilities = { projectPanLaw: boolean; instances: boolean; nativePan: boolean[]; nativeVolume: boolean[]; observedChannels?: number[]; refusal?: string | null }
 export type Unsubscribe = () => void
 /** Runtime correlation envelope, never saved in a project or export preset. */
 export type ExportRequestProgress = ExportProgress & { request?: string }

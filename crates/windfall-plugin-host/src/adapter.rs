@@ -202,7 +202,7 @@ impl PluginNoteControls {
         .zip(values)
         .all(|(kind, value)| kind.valid(value))
     }
-    fn mapped(self, key: u8) -> PluginNoteExpression {
+    pub fn mapped(self, key: u8) -> PluginNoteExpression {
         let [pan, tuning, brightness, expression, volume] = self.values(key);
         PluginNoteExpression {
             values: [volume, pan, tuning, 0.5, expression, brightness, 0.5],
@@ -227,7 +227,7 @@ const EXPRESSION_KINDS: [NoteExpressionKind; 7] = [
     NoteExpressionKind::Pressure,
 ];
 impl PluginNoteExpression {
-    fn valid(self) -> bool {
+    pub(crate) fn valid(self) -> bool {
         self.mask & !0x7f == 0
             && EXPRESSION_KINDS
                 .into_iter()

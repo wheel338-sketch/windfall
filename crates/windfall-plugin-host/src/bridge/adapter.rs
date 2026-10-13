@@ -69,6 +69,7 @@ pub struct Audio {
     instances: Box<[NoteSnapshot]>,
     note_instances: bool,
     expression_masks: [u32; 16],
+    project_law: u32,
     generation: u64,
     epoch: u64,
     sequence: u64,
@@ -127,6 +128,7 @@ impl Audio {
             instances: vec![NoteSnapshot::EMPTY; crate::MAX_NOTE_INSTANCES].into_boxed_slice(),
             note_instances: false,
             expression_masks: [0; 16],
+            project_law: 0,
             generation: 1,
             epoch: 1,
             sequence: 0,
@@ -202,6 +204,8 @@ impl Audio {
         }
     }
     fn begin_block(&mut self) {
+        self.input.project_law = self.project_law;
+        self.input.law_event_count = 0;
         self.input.sidechain_input = self.sidechain_input;
         // A valid host position can advance past the explicit wire bound.
         // Exhaustion must never reach a fallible encoder on the callback.
@@ -378,6 +382,24 @@ impl Audio {
     pub fn native_note_capabilities(&self) -> (bool, [u32; 16]) {
         (self.note_instances, self.expression_masks)
     }
+    pub fn set_project_pan_law(&mut self, law: windfall_dsp::ProjectPanLaw) -> bool {
+        let code = crate::project_expression::encode_law(Some(law));
+        if code == self.project_law { return true; }
+        self.project_law = code;
+        if !self.advance_generation() { return false; }
+        let count = self.input.law_event_count;
+        if count > 0 && self.input.law_events[count - 1].0 == self.cursor as u32 {
+            self.input.law_events[count - 1].1 = code;
+        } else if count < MAX_BLOCK {
+            self.input.law_events[count] = (self.cursor as u32, code);
+            self.input.law_event_count += 1;
+        } else {
+            self.input.controls_complete = false;
+            self.health.dropped_events = self.health.dropped_events.saturating_add(1);
+            return false;
+        }
+        true
+    }
     pub fn supports_note_instances(&self) -> bool {
         self.note_instances
     }
@@ -394,8 +416,9 @@ impl Audio {
             self.health.dropped_events = self.health.dropped_events.saturating_add(1);
             return false;
         };
-        let mut events = [HostEvent::AllNotesOff { time: 0 }; 6];
-        let count = note.events(&self.expression_masks, &mut events);
+        let mut events = [HostEvent::AllNotesOff { time: 0 }; 8];
+        let masks = if note.expression.is_some() { [0x7f; 16] } else { self.expression_masks };
+        let count = note.events(&masks, &mut events);
         self.instances[slot] = note;
         if !self.advance_generation() {
             return false;
@@ -411,21 +434,37 @@ impl Audio {
         true
     }
     pub fn set_note_controls(&mut self, id: u32, controls: crate::PluginNoteControls) -> bool {
+        let Some(note) = self.instances.iter().find(|n| n.id == id && id != 0) else { return false; };
+        if !controls.valid(note.key) { return false; }
+        let key = note.key;
+        if let Some(note) = self.instances.iter_mut().find(|n| n.id == id) { note.controls = controls; }
+        self.set_note_expression(id, controls.mapped(key))
+    }
+    pub fn set_note_expression(&mut self, id: u32, expression: crate::PluginNoteExpression) -> bool {
         let Some(slot) = self.instances.iter().position(|n| n.id == id && id != 0) else {
             return false;
         };
-        if !controls.valid(self.instances[slot].key) {
+        if !expression.valid() {
             return false;
         }
-        if self.instances[slot].controls == controls {
+        if self.instances[slot].expression == Some(expression) {
             return true;
         }
-        self.instances[slot].controls = controls;
+        let before = self.instances[slot].expression.unwrap_or_else(|| self.instances[slot].controls.mapped(self.instances[slot].key));
+        // Explicit neutral values clear destinations removed by a map edit.
+        let mut expression = expression;
+        for index in 0..7 {
+            if expression.mask & (1 << index) == 0 {
+                expression.values[index] = crate::project_expression::NEUTRAL.values[index];
+            }
+        }
+        expression.mask |= before.mask;
+        self.instances[slot].expression = Some(expression);
         if !self.advance_generation() {
             return false;
         }
-        let mut events = [HostEvent::AllNotesOff { time: 0 }; 5];
-        let count = self.instances[slot].expression_events(&self.expression_masks, &mut events);
+        let mut events = [HostEvent::AllNotesOff { time: 0 }; 7];
+        let count = self.instances[slot].expression_events(&[0x7f; 16], &mut events);
         if self.input.event_count + count > ORDINARY_EVENTS {
             self.input.controls_complete = false;
             self.health.dropped_events = self.health.dropped_events.saturating_add(count as u64);
@@ -974,6 +1013,7 @@ mod tests {
         let (mut audio, region) = make(Kind::Instrument, 0);
         audio.configure_note_capabilities(true, [0x7f; 16]).unwrap();
         let a = NoteSnapshot {
+            expression: None,
             id: crate::FIRST_NOTE_INSTANCE_ID,
             key: 60,
             channel: 3,
@@ -987,6 +1027,7 @@ mod tests {
             },
         };
         let b = NoteSnapshot {
+            expression: None,
             id: a.id + 1,
             channel: 15,
             ..a
@@ -1014,6 +1055,7 @@ mod tests {
         let (mut audio, region) = make(Kind::Instrument, 0);
         audio.configure_note_capabilities(true, [0x7f; 16]).unwrap();
         let note = NoteSnapshot {
+            expression: None,
             id: crate::FIRST_NOTE_INSTANCE_ID,
             key: 60,
             channel: 0,

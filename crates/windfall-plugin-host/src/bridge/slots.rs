@@ -220,6 +220,13 @@ impl Region {
             || block.parameter_count > PARAM_CAPACITY
             || block.sidechain_input.is_some_and(|index| index >= 64)
             || block.event_count > EVENT_CAPACITY
+            || block.law_event_count > MAX_BLOCK
+            || crate::project_expression::decode_law(block.project_law).is_err()
+            || block.law_events[..block.law_event_count].iter().enumerate().any(|(i, event)| {
+                event.0 as usize >= self.config.block
+                    || crate::project_expression::decode_law(event.1).is_err()
+                    || (i > 0 && event.0 <= block.law_events[i - 1].0)
+            })
             || self.timeline_epoch() != Ok(block.epoch)
         {
             return false;
@@ -247,6 +254,12 @@ impl Region {
         self.put(slot, FLAGS, u32::from(!block.controls_complete));
         self.put(slot, NOTE_CHANNEL, 0);
         self.put(slot, INSTANCE_COUNT, block.instance_count as u32);
+        self.put(slot, PROJECT_LAW, block.project_law);
+        self.put(slot, PROJECT_LAW_COUNT, block.law_event_count as u32);
+        for (index, (time, law)) in block.law_events[..block.law_event_count].iter().enumerate() {
+            self.put(slot, LAW_EVENTS + index * 2, *time);
+            self.put(slot, LAW_EVENTS + index * 2 + 1, *law);
+        }
         self.put(
             slot,
             SIDECHAIN_PORT,
@@ -347,6 +360,18 @@ impl Region {
         block.transport = decode_transport(std::array::from_fn(|index| {
             self.get(slot, TRANSPORT + index)
         }))?;
+        block.project_law = self.get(slot, PROJECT_LAW);
+        crate::project_expression::decode_law(block.project_law)?;
+        block.law_event_count = self.get(slot, PROJECT_LAW_COUNT) as usize;
+        if block.law_event_count > MAX_BLOCK { return Err(ProtocolError::Layout); }
+        for index in 0..block.law_event_count {
+            let event = (self.get(slot, LAW_EVENTS + index * 2), self.get(slot, LAW_EVENTS + index * 2 + 1));
+            if event.0 as usize >= frames || (index > 0 && event.0 <= block.law_events[index - 1].0) {
+                return Err(ProtocolError::Event);
+            }
+            crate::project_expression::decode_law(event.1)?;
+            block.law_events[index] = event;
+        }
         let input = self.get(slot, SIDECHAIN_PORT);
         if input > 64 {
             return Err(ProtocolError::Layout);
@@ -586,9 +611,12 @@ pub struct NoteSnapshot {
     pub channel: u8,
     pub velocity: f32,
     pub controls: crate::PluginNoteControls,
+    /// Full mapped expressions; None preserves the legacy controls API.
+    pub expression: Option<crate::PluginNoteExpression>,
 }
 impl NoteSnapshot {
     pub const EMPTY: Self = Self {
+        expression: None,
         id: 0,
         key: 0,
         channel: 0,
@@ -608,9 +636,11 @@ impl NoteSnapshot {
             && self.velocity.is_finite()
             && (0.0..=1.0).contains(&self.velocity)
             && self.controls.valid(self.key)
+            && self.expression.is_none_or(|expression| expression.valid() && expression.values.iter().all(|value| value.is_finite()))
     }
     fn encode(self) -> [u32; NOTE_SNAPSHOT_WORDS] {
-        [
+        let mut words = [0; NOTE_SNAPSHOT_WORDS];
+        words[..9].copy_from_slice(&[
             self.id,
             u32::from(self.key),
             u32::from(self.channel),
@@ -620,10 +650,27 @@ impl NoteSnapshot {
             self.controls.modulation_x.to_bits(),
             self.controls.modulation_y.to_bits(),
             self.controls.volume.to_bits(),
-        ]
+        ]);
+        if let Some(expression) = self.expression {
+            words[9] = 1;
+            words[10] = expression.mask;
+            for (index, value) in expression.values.into_iter().enumerate() {
+                words[11 + index * 2] = value.to_bits() as u32;
+                words[12 + index * 2] = (value.to_bits() >> 32) as u32;
+            }
+        }
+        words
     }
     fn decode(words: [u32; NOTE_SNAPSHOT_WORDS]) -> Result<Self, ProtocolError> {
         let note = Self {
+            expression: match words[9] {
+                0 if words[10..].iter().all(|word| *word == 0) => None,
+                1 => Some(crate::PluginNoteExpression {
+                    mask: words[10],
+                    values: std::array::from_fn(|index| f64::from_bits(pair(words[11 + index * 2], words[12 + index * 2]))),
+                }),
+                _ => return Err(ProtocolError::Event),
+            },
             id: words[0],
             key: u8::try_from(words[1]).map_err(|_| ProtocolError::Event)?,
             channel: u8::try_from(words[2]).map_err(|_| ProtocolError::Event)?,
@@ -641,7 +688,7 @@ impl NoteSnapshot {
         }
         Ok(note)
     }
-    pub fn events(self, masks: &[u32; 16], out: &mut [HostEvent; 6]) -> usize {
+    pub fn events(self, masks: &[u32; 16], out: &mut [HostEvent; 8]) -> usize {
         out[0] = HostEvent::NoteOnInstance {
             time: 0,
             id: self.id,
@@ -653,18 +700,11 @@ impl NoteSnapshot {
     }
     pub fn expression_events(self, masks: &[u32; 16], out: &mut [HostEvent]) -> usize {
         use crate::NoteExpressionKind as K;
+        let expression = self.expression.unwrap_or_else(|| self.controls.mapped(self.key));
         let mut count = 0;
-        for (kind, value) in [
-            (K::Pan, (f64::from(self.controls.pan) + 1.0) / 2.0),
-            (
-                K::Tuning,
-                f64::from(self.controls.pitch) - f64::from(self.key),
-            ),
-            (K::Brightness, f64::from(self.controls.modulation_x)),
-            (K::Expression, f64::from(self.controls.modulation_y)),
-            (K::Volume, f64::from(self.controls.volume)),
-        ] {
-            if masks[self.channel as usize] & kind.mask() != 0 {
+        for (index, kind) in [K::Volume, K::Pan, K::Tuning, K::Vibrato, K::Expression, K::Brightness, K::Pressure].into_iter().enumerate() {
+            let value = expression.values[index];
+            if masks[self.channel as usize] & expression.mask & kind.mask() != 0 {
                 out[count] = HostEvent::NoteExpression {
                     time: 0,
                     id: self.id,
@@ -681,6 +721,9 @@ impl NoteSnapshot {
 }
 
 pub struct InputBlock {
+    pub project_law: u32,
+    pub law_events: [(u32, u32); MAX_BLOCK],
+    pub law_event_count: usize,
     pub epoch: u64,
     pub control_start: u64,
     pub control_end: u64,
@@ -701,6 +744,9 @@ pub struct InputBlock {
 impl InputBlock {
     pub fn new() -> Self {
         Self {
+            project_law: 0,
+            law_events: [(0, 0); MAX_BLOCK],
+            law_event_count: 0,
             epoch: 1,
             control_start: 0,
             control_end: 0,
@@ -770,6 +816,44 @@ mod tests {
         .unwrap()
     }
     #[test]
+    fn v10_law_timeline_and_full_expression_snapshot_roundtrip_and_validate_channels() {
+        let region = region();
+        let mut input = InputBlock::new();
+        input.project_law = 2;
+        input.law_events[0] = (13, 4);
+        input.law_event_count = 1;
+        let expression = crate::PluginNoteExpression {
+            values: [0.25, 0.125, -0.5, 0.3, 0.4, 0.7, 0.9],
+            mask: 0x7f,
+        };
+        let note = NoteSnapshot {
+            id: crate::FIRST_NOTE_INSTANCE_ID,
+            key: 69,
+            channel: 14,
+            velocity: 0.5,
+            expression: Some(expression),
+            ..NoteSnapshot::EMPTY
+        };
+        assert!(note.valid());
+        input.instances[0] = note;
+        input.instance_count = 1;
+        assert!(region.submit(0, &input));
+        let mut decoded = InputBlock::new();
+        region.take_input(&mut decoded).unwrap().unwrap();
+        assert_eq!(decoded.project_law, 2);
+        assert_eq!(&decoded.law_events[..decoded.law_event_count], &[(13, 4)]);
+        assert_eq!(decoded.instances[0], note);
+        assert_eq!(decoded.instances[0].expression.unwrap().values, expression.values);
+        let invalid = NoteSnapshot { channel: 16, ..note };
+        assert!(!invalid.valid());
+        assert_eq!(NoteSnapshot::decode(invalid.encode()), Err(ProtocolError::Event));
+        input.instances[0] = invalid;
+        assert!(!region.submit(1, &input));
+        input.instances[0] = note;
+        input.law_events[0].1 = 5;
+        assert!(!region.submit(1, &input));
+    }
+    #[test]
     fn native_owner_completion_fails_before_counter_wrap() {
         let region = region();
         region.storage.words()[OWNER_COMPLETIONS].store((u32::MAX - 1).to_le(), Ordering::Relaxed);
@@ -786,7 +870,7 @@ mod tests {
         assert_eq!((TRANSPORT, EPOCH, REPLY_IDENTITY), (16, 30, 32));
         assert_eq!(
             (HEADER_WORDS * 4, SLOT_WORDS * 4, REGION_BYTES),
-            (256, 532_800, 2_131_456)
+            (256, 602_432, 2_409_984)
         );
         let before: Vec<_> = region
             .storage

@@ -1,4 +1,8 @@
 export const inspectorEn = {
+  "Note MIDI channel {channel}": "Note MIDI channel {channel}",
+  "Pan route: {pan}; Volume route: {volume}": "Pan route: {pan}; Volume route: {volume}",
+  "Native": "Native",
+  "Invalid note MIDI channel: expected a zero-based channel from 0 through 15; the note was refused.": "Invalid note MIDI channel: expected a zero-based channel from 0 through 15; the note was refused.",
   "Saved output {output} (unavailable)": "Saved output {output} (unavailable)",
   "Parameter {id} is unavailable. Its automation and controller links are retained and will resume when it returns.": "Parameter {id} is unavailable. Its automation and controller links are retained and will resume when it returns.",
   "Saved output {output} to mixer track {track} is unavailable. The route is retained.": "Saved output {output} to mixer track {track} is unavailable. The route is retained.",
@@ -625,6 +629,10 @@ export const inspectorEn = {
 } as const
 
 export const inspectorEs = {
+  "Note MIDI channel {channel}": "Canal MIDI de nota {channel}",
+  "Pan route: {pan}; Volume route: {volume}": "Ruta de panorama: {pan}; ruta de volumen: {volume}",
+  "Native": "Nativa",
+  "Invalid note MIDI channel: expected a zero-based channel from 0 through 15; the note was refused.": "Canal MIDI de nota no válido: se esperaba un canal de 0 a 15; se rechazó la nota.",
   "Saved output {output} (unavailable)": "Salida guardada {output} (no disponible)",
   "Parameter {id} is unavailable. Its automation and controller links are retained and will resume when it returns.": "El par�metro {id} no est� disponible. Su automatizaci�n y enlaces de controlador se conservan y se reanudar�n cuando vuelva.",
   "Saved output {output} to mixer track {track} is unavailable. The route is retained.": "La salida guardada {output} a la pista de mezclador {track} no est� disponible. La ruta se conserva.",

@@ -2059,9 +2059,7 @@ impl Runtime {
                 .get(&token)
                 .filter(|r| r.playback && r.revision == revision)
             {
-                let mut capabilities = record.note_capabilities.snapshot();
-                capabilities.project_pan_law = false;
-                return Ok(capabilities);
+                return Ok(record.note_capabilities.snapshot());
             }
             Err("Hosted note capabilities are unavailable for this document".into())
         })
@@ -2130,8 +2128,8 @@ impl Adapter {
 }
 #[derive(Clone, Copy)]
 struct ExpressionOwner {
-    pan_state: windfall_dsp::NotePan,
-    pan_gains: (f32, f32),
+    ramp: windfall_plugin_host::project_expression::NoteRamp,
+    frame_controls: windfall_plugin_host::PluginNoteExpression,
     id: windfall_dsp::NoteInstanceId,
     native: u32,
     key: u8,
@@ -2146,8 +2144,8 @@ struct ExpressionOwner {
 }
 impl ExpressionOwner {
     const EMPTY: Self = Self {
-        pan_state: windfall_dsp::NotePan::CENTER,
-        pan_gains: (1.0, 1.0),
+        ramp: windfall_plugin_host::project_expression::NoteRamp::EMPTY,
+        frame_controls: windfall_plugin_host::project_expression::NEUTRAL,
         id: windfall_dsp::NoteInstanceId(0),
         native: 0,
         key: 0,
@@ -2160,36 +2158,27 @@ impl ExpressionOwner {
         dirty: false,
         gain: 1.0,
     };
-    fn controls(
-        self,
-        map: windfall_dsp::ExpressionMap,
-        native_pan_law: bool,
-    ) -> windfall_plugin_host::PluginNoteExpression {
+    fn desired(self, map: windfall_dsp::ExpressionMap) -> windfall_plugin_host::PluginNoteExpression {
         let mut controls = map.plugin_controls(
             self.pan,
             f64::from(self.pitch) - f64::from(self.key),
             self.expression,
         );
-        if native_pan_law {
-            // Native Pan is normalized to 0..1. Volume retains total energy
-            // independently of Pan; both capabilities are required.
-            let (left, right) = self.pan_gains;
-            let sum = left + right;
-            controls.values[1] = if sum > 0.0 {
-                f64::from(right / sum)
-            } else {
-                0.5
-            };
-            controls.values[0] *= f64::from(sum * 0.5);
-            controls.mask |= windfall_plugin_host::NoteExpressionKind::Pan.mask()
-                | windfall_plugin_host::NoteExpressionKind::Volume.mask();
-        }
         controls.values[0] *= f64::from(self.gain);
-        windfall_plugin_host::PluginNoteExpression {
-            values: controls.values,
-            mask: controls.mask,
-        }
+        if self.gain != 1.0 { controls.mask |= windfall_plugin_host::NoteExpressionKind::Volume.mask(); }
+        windfall_plugin_host::PluginNoteExpression { values: controls.values, mask: controls.mask }
     }
+    fn retarget(&mut self, map: windfall_dsp::ExpressionMap, law: Option<windfall_core::PanLaw>, native: bool, rate: f32) {
+        let controls = self.desired(map);
+        if self.started {
+            self.ramp.retarget(controls, law, native, rate);
+        } else {
+            self.ramp = windfall_plugin_host::project_expression::NoteRamp::new(controls, law, native);
+        }
+        self.frame_controls = self.ramp.current();
+    }
+    fn controls(self) -> windfall_plugin_host::PluginNoteExpression { self.frame_controls }
+
 }
 
 struct Audio {
@@ -2237,8 +2226,6 @@ impl Audio {
             midi_controls,
             expression_owners,
             expression_map,
-            note_capabilities,
-            apply_pan_law,
             reconcile_notes,
             reset_notes,
             transport,
@@ -2291,18 +2278,12 @@ impl Audio {
                         note.key,
                         note.channel,
                         note.velocity,
-                        note.controls(
-                            *expression_map,
-                            *apply_pan_law && note_capabilities.supports_pan_law(note.channel),
-                        ),
+                        note.controls(),
                     )
                 } else if note.dirty {
                     instrument.set_note_expression(
                         note.native,
-                        note.controls(
-                            *expression_map,
-                            *apply_pan_law && note_capabilities.supports_pan_law(note.channel),
-                        ),
+                        note.controls(),
                     )
                 } else {
                     true
@@ -2478,13 +2459,13 @@ impl HostedEffect for Audio {
         self.process_sidechain(left, right, None);
     }
     fn process_sidechain(&mut self, left: &mut [f32], right: &mut [f32], key: Option<&[[f32; 2]]>) {
-        if self.instrument && !self.note_law.settled(self.pan_clock) {
+        if self.instrument && self.expression_owners.iter().any(|note| note.native != 0 && note.ramp.active()) {
             let frames = left.len().min(right.len());
             for index in 0..frames {
                 for slot in 0..self.expression_owners.len() {
                     if self.expression_owners[slot].native != 0 {
                         let note = &mut self.expression_owners[slot];
-                        note.pan_gains = note.pan_state.tick();
+                        note.frame_controls = note.ramp.tick();
                         self.publish_expression_owner(slot);
                     }
                 }
@@ -2500,9 +2481,9 @@ impl HostedEffect for Audio {
             // Publish the exact endpoint even when a callback ends at frame 240.
             for slot in 0..self.expression_owners.len() {
                 let note = &mut self.expression_owners[slot];
-                let gains = note.pan_state.gains();
-                if note.native != 0 && note.pan_gains != gains {
-                    note.pan_gains = gains;
+                let controls = note.ramp.current();
+                if note.native != 0 && note.frame_controls != controls {
+                    note.frame_controls = controls;
                     self.publish_expression_owner(slot);
                 }
             }
@@ -2637,6 +2618,8 @@ impl HostedInstrument for Audio {
             return;
         };
         self.expression_owners[slot].gain = gain.clamp(0.0, 4.0);
+        let channel = self.expression_owners[slot].channel;
+        self.expression_owners[slot].retarget(self.expression_map, self.apply_pan_law.then_some(self.pan_law), self.note_capabilities.supports_pan_law(channel), self.pan_ramp_frames as f32 * 200.0);
         self.expression_owners[slot].dirty = true;
         self.publish_expression_owner(slot);
     }
@@ -2646,6 +2629,7 @@ impl HostedInstrument for Audio {
         }
         let kind = bytes[0] & 0xf0;
         let channel = bytes[0] & 15;
+        self.note_capabilities.observe_channel(channel);
         if bytes.len() == 3 && kind == 0x90 && bytes[2] != 0 {
             self.start_on_channel(bytes[1], channel, f32::from(bytes[2]) / 127.0);
             return true;
@@ -2685,10 +2669,7 @@ impl HostedInstrument for Audio {
             .iter_mut()
             .filter(|note| note.native != 0)
         {
-            let mapped = map.plugin_controls(note.pan, 0.0, note.expression);
-            note.pan_state =
-                windfall_dsp::NotePan::new((mapped.values[1] * 2.0 - 1.0) as f32, self.pan_law);
-            note.pan_gains = note.pan_state.gains();
+            note.retarget(map, self.apply_pan_law.then_some(self.pan_law), self.note_capabilities.supports_pan_law(note.channel), self.pan_ramp_frames as f32 * 200.0);
         }
         for slot in 0..self.expression_owners.len() {
             if self.expression_owners[slot].native != 0 {
@@ -2713,8 +2694,7 @@ impl HostedInstrument for Audio {
             .iter_mut()
             .filter(|note| note.native != 0)
         {
-            note.pan_state
-                .retarget(law, self.pan_ramp_frames as f32 * 200.0);
+            note.retarget(self.expression_map, Some(law), self.note_capabilities.supports_pan_law(note.channel), self.pan_ramp_frames as f32 * 200.0);
             note.dirty = true;
         }
         self.reconcile_notes = true;
@@ -2737,6 +2717,11 @@ impl HostedInstrument for Audio {
         pan: f32,
         expression: windfall_dsp::NoteExpression,
     ) {
+        if expression.color_group.is_some_and(|channel| channel > 15) {
+            self.note_capabilities.refuse_channel();
+            return;
+        }
+        self.note_capabilities.observe_channel(expression.color_group.unwrap_or(0));
         let expression = expression.clamped();
         if !self.note_instances {
             self.start_on_channel(key, expression.color_group.unwrap_or(0), velocity);
@@ -2782,12 +2767,16 @@ impl HostedInstrument for Audio {
                 break next;
             }
         };
-        let mapped = self.expression_map.plugin_controls(pan, 0.0, expression);
-        let pan_state =
-            windfall_dsp::NotePan::new((mapped.values[1] * 2.0 - 1.0) as f32, self.pan_law);
+        let pitch = f32::from(key.min(127)) + expression.fine_pitch_cents / 100.0;
+        let pan = if pan.is_finite() { pan.clamp(-1.0, 1.0) } else { 0.0 };
+        let mapped = self.expression_map.plugin_controls(
+            pan, f64::from(pitch) - f64::from(key.min(127)), expression,
+        );
+        let raw = windfall_plugin_host::PluginNoteExpression { values: mapped.values, mask: mapped.mask };
+        let ramp = windfall_plugin_host::project_expression::NoteRamp::new(raw, self.apply_pan_law.then_some(self.pan_law), self.note_capabilities.supports_pan_law(expression.color_group.unwrap_or(0)));
         self.expression_owners[slot] = ExpressionOwner {
-            pan_state,
-            pan_gains: pan_state.gains(),
+            ramp,
+            frame_controls: ramp.current(),
             id,
             native,
             key: key.min(127),
@@ -2798,7 +2787,7 @@ impl HostedInstrument for Audio {
             } else {
                 0.0
             },
-            pitch: f32::from(key.min(127)) + expression.fine_pitch_cents / 100.0,
+            pitch,
             expression,
             started: false,
             dirty: true,
@@ -2826,6 +2815,10 @@ impl HostedInstrument for Audio {
         pan: f32,
         expression: windfall_dsp::NoteExpression,
     ) {
+        if expression.color_group.is_some_and(|channel| channel > 15) {
+            self.note_capabilities.refuse_channel();
+            return;
+        }
         let Some(slot) = self
             .expression_owners
             .iter()
@@ -2840,15 +2833,12 @@ impl HostedInstrument for Audio {
             + (expression.fine_pitch_cents - note.expression.fine_pitch_cents) / 100.0)
             .clamp(key - 120.0, key + 120.0);
         note.expression = expression;
-        let mapped = self.expression_map.plugin_controls(pan, 0.0, expression);
-        note.pan_state =
-            windfall_dsp::NotePan::new((mapped.values[1] * 2.0 - 1.0) as f32, self.pan_law);
-        note.pan_gains = note.pan_state.gains();
         note.pan = if pan.is_finite() {
             pan.clamp(-1.0, 1.0)
         } else {
             0.0
         };
+        note.retarget(self.expression_map, self.apply_pan_law.then_some(self.pan_law), self.note_capabilities.supports_pan_law(note.channel), self.pan_ramp_frames as f32 * 200.0);
         note.dirty = true;
         self.publish_expression_owner(slot);
     }
@@ -2865,6 +2855,8 @@ impl HostedInstrument for Audio {
         }
         let key = f32::from(self.expression_owners[slot].key);
         self.expression_owners[slot].pitch = pitch.clamp(key - 120.0, key + 120.0);
+        let channel = self.expression_owners[slot].channel;
+        self.expression_owners[slot].retarget(self.expression_map, self.apply_pan_law.then_some(self.pan_law), self.note_capabilities.supports_pan_law(channel), self.pan_ramp_frames as f32 * 200.0);
         self.expression_owners[slot].dirty = true;
         self.publish_expression_owner(slot);
     }
@@ -2909,14 +2901,9 @@ impl HostedInstrument for Audio {
 
 impl Audio {
     fn publish_expression_owner(&mut self, slot: usize) {
-        if self.reconcile_notes {
-            return;
-        }
+        if self.reconcile_notes { return; }
         let note = self.expression_owners[slot];
-        let controls = note.controls(
-            self.expression_map,
-            self.apply_pan_law && self.note_capabilities.supports_pan_law(note.channel),
-        );
+        let controls = self.expression_owners[slot].controls();
         let bend_range = self.expression_map.bend_range_semitones;
         let accepted = if let Some(Adapter::Instrument(adapter)) = self.adapter_mut() {
             adapter.set_bend_range_semitones(bend_range);

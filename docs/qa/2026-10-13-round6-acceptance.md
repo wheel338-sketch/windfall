@@ -10,6 +10,8 @@ Integration in progress. No final acceptance recommendation yet. Tracker files r
 
 ## Final gates
 
+- Pan-bridge merged without conflicts; `cargo check --workspace --all-targets` PASS, zero warnings/errors, exit 0, 9 s (`target/round6-branch04-check-repair3.log`). Repaired usize parameter reserve conversion and native test PluginFactory trait import. Earlier failed checks retained. ABI10 fixture/helper must be rebuilt. Hand-off honestly retains SOFTWARE: independently addressable per-note audio for mixed native/host Pan/Volume routes; seamless sounding-owner capability-loss/return migration with complete ramp phase and crossfades. Those remain unimplemented, not external checks.
+
 - Raw-SF2 plugin export merged without conflicts; `cargo check --workspace --all-targets` PASS, zero warnings/errors, exit 0, 8 s (`target/round6-branch03-check.log`). Exact-bank/asset/callback/native PCM tests pending; no compile repair or dependency added.
 
 - Updates merged without conflicts; `cargo check --workspace --all-targets` PASS, zero warnings/errors, exit 0, 8 s (`target/round6-branch02-check-repair1.log`). Added an explicit `Result<(), String>` for capture publication's error type; initial inference failure retained. Rollback/dirty capture/endpoint native tests pending.

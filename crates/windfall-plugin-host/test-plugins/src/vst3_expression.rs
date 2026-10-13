@@ -7,6 +7,7 @@ use vst3::Steinberg::{Vst::*, *};
 struct Voice {
     id: i32,
     velocity: f32,
+    volume: f64,
     pan: f64,
     tuning: f64,
     expression: f64,
@@ -16,6 +17,7 @@ impl Voice {
     const EMPTY: Self = Self {
         id: -1,
         velocity: 0.0,
+        volume: 1.0,
         pan: 0.5,
         tuning: 0.0,
         expression: 0.5,
@@ -66,6 +68,7 @@ impl Voices {
                     .find(|voice| voice.id == expression.noteId)
                 {
                     match expression.typeId {
+                        0 => voice.volume = expression.value * 4.0,
                         1 => voice.pan = expression.value,
                         2 => voice.tuning = 240.0 * (expression.value - 0.5),
                         4 => voice.expression = expression.value,
@@ -81,7 +84,7 @@ impl Voices {
         let mut result = [0.0_f64; 2];
         for voice in &self.0 {
             if voice.id >= 0 {
-                let mark = f64::from(voice.velocity)
+                let mark = voice.volume * f64::from(voice.velocity)
                     * (1.0 + voice.tuning / 12.0 + voice.expression / 4.0 + voice.brightness / 8.0);
                 result[0] += mark * (1.0 - voice.pan);
                 result[1] += mark * voice.pan;
@@ -127,7 +130,7 @@ impl INoteExpressionControllerTrait for Component {
             && bus == 0
             && (0..15).contains(&channel)
         {
-            4
+            if self.project_expression_probe { 5 } else { 4 }
         } else {
             0
         }
@@ -146,7 +149,7 @@ impl INoteExpressionControllerTrait for Component {
             return kInvalidArgument;
         }
         let mut value: NoteExpressionTypeInfo = unsafe { std::mem::zeroed() };
-        value.typeId = [1, 2, 4, 5][index as usize];
+        value.typeId = if self.project_expression_probe { [0, 1, 2, 4, 5][index as usize] } else { [1, 2, 4, 5][index as usize] };
         value.unitId = -1;
         value.valueDesc.defaultValue = 0.5;
         value.valueDesc.maximum = 1.0;

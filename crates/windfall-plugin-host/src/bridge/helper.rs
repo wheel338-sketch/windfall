@@ -12,13 +12,17 @@ use crate::{
     PluginProcessor, PluginState, ProcessStatus,
 };
 use std::{
-    collections::{BTreeMap, BTreeSet},
+    collections::BTreeMap,
     io,
     net::{SocketAddr, TcpStream},
     path::Path,
     sync::Arc,
     time::{Duration, Instant},
 };
+
+#[cfg(all(test, windows))]
+#[path = "helper_ramp_tests.rs"]
+mod ramp_tests;
 
 fn error(message: impl std::fmt::Display) -> io::Error {
     io::Error::new(io::ErrorKind::InvalidData, message.to_string())
@@ -39,13 +43,14 @@ fn reply(socket: &mut TcpStream, packet: &Packet) -> io::Result<()> {
 }
 
 struct Native {
+    expression_ramps: crate::project_expression::Bank,
     wrapper: crate::wrapper::WrapperOptions,
     processor: Option<PluginProcessor>,
     instance: PluginInstance,
     region: Region,
     parameters: Vec<ParameterSpec>,
     host_values: BTreeMap<u32, f64>,
-    uncertain: BTreeSet<u32>,
+    uncertain: UncertainParameters,
     notes_uncertain: bool,
     sequence: Option<u64>,
     epoch: u64,
@@ -53,6 +58,29 @@ struct Native {
     processed_epoch: u64,
     offline: bool,
     dirty: bool,
+}
+// The helper's timed parameter path must not allocate BTreeSet nodes or free
+// them when acknowledging a block. IDs are bounded by the negotiated table.
+struct UncertainParameters {
+    ids: [u32; PARAM_CAPACITY],
+    count: usize,
+}
+impl UncertainParameters {
+    fn new() -> Self { Self { ids: [0; PARAM_CAPACITY], count: 0 } }
+    fn contains(&self, id: &u32) -> bool { self.ids[..self.count].contains(id) }
+    fn insert(&mut self, id: u32) {
+        if !self.contains(&id) && self.count < PARAM_CAPACITY {
+            self.ids[self.count] = id;
+            self.count += 1;
+        }
+    }
+    fn remove(&mut self, id: &u32) {
+        if let Some(index) = self.ids[..self.count].iter().position(|other| other == id) {
+            self.count -= 1;
+            self.ids[index] = self.ids[self.count];
+        }
+    }
+    fn clear(&mut self) { self.count = 0; }
 }
 impl Drop for Native {
     fn drop(&mut self) {
@@ -254,33 +282,33 @@ impl Native {
             self.host_values.get(&value.id) != Some(&value.value)
                 || self.uncertain.contains(&value.id)
         });
-        if needs_parameters {
-            self.deactivate()?;
-            // Only changed or unproven host intent is reconciled. Equal old
-            // host values must not overwrite a newer native preset/automation.
-            for value in snapshot {
-                if self.host_values.get(&value.id) != Some(&value.value)
-                    || self.uncertain.contains(&value.id)
-                {
-                    if !self.instance.set_param(value.id, value.value) {
-                        return Err(error("native inactive parameter admission failed"));
-                    }
-                    self.host_values.insert(value.id, value.value);
-                    self.uncertain.remove(&value.id);
-                }
-            }
-            self.activate()?;
-        }
         let processor = self
             .processor
             .as_mut()
             .ok_or_else(|| error("native processor unavailable"))?;
+        self.expression_ramps.set_law(crate::project_expression::decode_law(input.project_law).map_err(error)?);
         processor.set_transport(input.transport);
         processor.set_sidechain_input(input.sidechain_input);
         let mut admitted = true;
         output.native_drops = 0;
         if discontinuity || needs_parameters || self.notes_uncertain {
             processor.reset();
+            self.expression_ramps.reset();
+            // Recovery uses the prepared native event reserve. Re-activation
+            // allocates native buffers and belongs to control/state admission,
+            // never to the helper's block-processing path.
+            for value in snapshot {
+                if self.host_values.get(&value.id) != Some(&value.value)
+                    || self.uncertain.contains(&value.id)
+                {
+                    let accepted = processor.push_recovery_event(HostEvent::Param {
+                        time: 0, id: value.id, value: value.value,
+                    });
+                    admitted &= accepted;
+                    if accepted { self.host_values.insert(value.id, value.value); }
+                    else { output.native_drops = output.native_drops.saturating_add(1); }
+                }
+            }
             for (key, velocity) in input.notes.iter().enumerate() {
                 if *velocity > 0.0 {
                     let accepted = processor.push_recovery_event(HostEvent::NoteOn {
@@ -297,15 +325,15 @@ impl Native {
             }
         }
         if discontinuity || needs_parameters || self.notes_uncertain {
-            let masks =
-                std::array::from_fn(|channel| processor.note_expression_mask(channel as u8));
+            let masks = [0x7f; 16];
             for note in &input.instances[..input.instance_count] {
                 if !processor.supports_note_instances() {
                     return Err(error("instance snapshot for key-only native plugin"));
                 }
-                let mut events = [HostEvent::AllNotesOff { time: 0 }; 6];
+                let mut events = [HostEvent::AllNotesOff { time: 0 }; 8];
                 let count = note.events(&masks, &mut events);
                 for event in &events[..count] {
+                    if self.expression_ramps.observe(*event) { continue; }
                     let accepted = processor.push_recovery_event(*event);
                     admitted &= accepted;
                     if !accepted {
@@ -318,12 +346,21 @@ impl Native {
         output.right.copy_from_slice(&input.right);
         let mut at = 0;
         let mut event_at = 0;
+        let mut law_at = 0;
         let mut no_drop = true;
         let mut good_audio = true;
         while at < self.region.config.block {
+            while law_at < input.law_event_count && input.law_events[law_at].0 as usize == at {
+                self.expression_ramps.set_law(crate::project_expression::decode_law(input.law_events[law_at].1).map_err(error)?);
+                law_at += 1;
+            }
             while event_at < input.event_count && input.events[event_at].time() as usize == at {
                 let mut event = input.events[event_at];
                 event.set_time(0);
+                if self.expression_ramps.observe(event) {
+                    event_at += 1;
+                    continue;
+                }
                 match event {
                     HostEvent::NoteOff { key, channel, .. } => {
                         processor.release_note_on_channel(key, channel)
@@ -352,11 +389,15 @@ impl Native {
                 }
                 event_at += 1;
             }
-            let end = if event_at < input.event_count {
+            let mut end = if event_at < input.event_count {
                 input.events[event_at].time() as usize
             } else {
                 self.region.config.block
             };
+            if law_at < input.law_event_count { end = end.min(input.law_events[law_at].0 as usize); }
+            let ramping = self.expression_ramps.active();
+            admitted &= self.expression_ramps.frame(processor);
+            if ramping || self.expression_ramps.active() { end = end.min(at + 1); }
             if end <= at {
                 return Err(error("unordered bridge event times"));
             }
@@ -779,6 +820,7 @@ fn run(address: SocketAddr) -> io::Result<()> {
     let expression_masks =
         std::array::from_fn(|channel| processor.note_expression_mask(channel as u8));
     let mut native = Native {
+        expression_ramps: crate::project_expression::Bank::new(config.sample_rate as f32),
         wrapper: (**wrapper).clone(),
         instance,
         processor: Some(processor),
@@ -788,7 +830,7 @@ fn run(address: SocketAddr) -> io::Result<()> {
             .iter()
             .map(|value| (value.id, value.value))
             .collect(),
-        uncertain: BTreeSet::new(),
+        uncertain: UncertainParameters::new(),
         notes_uncertain: false,
         sequence: None,
         epoch: 1,
@@ -1069,13 +1111,14 @@ mod tests {
             stepped: false,
         };
         let mut native = Native {
+            expression_ramps: crate::project_expression::Bank::new(48_000.0),
             wrapper: Default::default(),
             processor: Some(processor),
             instance,
             region: region.clone(),
             parameters: vec![spec],
             host_values: BTreeMap::from([(7, 0.5)]),
-            uncertain: BTreeSet::new(),
+            uncertain: UncertainParameters::new(),
             notes_uncertain: false,
             sequence: None,
             epoch: 1,

@@ -1,6 +1,6 @@
 import { message, translatedText as t, useLanguageStore } from "@/lib/i18n"
 import { usePluginBinding } from "@/features/plugins/store"
-import { useNativeNoteCapabilities, panLawSupported } from "@/features/plugins/note-capabilities"
+import { useNativeNoteCapabilities, useNoteChannels, expressionSupported } from "@/features/plugins/note-capabilities"
 import { useState } from "react"
 import type { Channel, ExpressionDestination, ExpressionMap, PluginExpressionDestination } from "@/bindings"
 import { Alert, AlertDescription } from "@/components/ui/alert"
@@ -29,13 +29,16 @@ export function ExpressionSection({ channel }: { channel: Channel }) {
   useLanguageStore((state) => state.language)
   const binding = usePluginBinding({ type: "instrument", channel: channel.id })
   const native = useNativeNoteCapabilities(binding?.target)
+  const midiChannels = useNoteChannels(binding?.target, native.capabilities)
   const revision = useProjectStore((state) => state.revision)
   const [review, setReview] = useState(() => ({ map: structuredClone(channel.expressionMap ?? DEFAULT_EXPRESSION_MAP), revision, generation: getProjectGeneration() }))
   const [pending, setPending] = useState(false)
   const [failed, setFailed] = useState(false)
   const stale = revision !== review.revision || review.generation !== getProjectGeneration()
   const map = review.map
-  const refused = !!binding && ROUTES.some(({ key }) => ["pan", "volume"].includes(map[key].plugin)) && !panLawSupported(native.capabilities)
+  const pan = ROUTES.some(({ key }) => map[key].plugin === "pan")
+  const volume = ROUTES.some(({ key }) => map[key].plugin === "volume")
+  const refused = !!binding && (pan || volume) && midiChannels.some((channel) => !expressionSupported(native.capabilities, channel, pan, volume))
   const valid = ROUTES.every(({ key }) => Number.isFinite(map[key].amount) && map[key].amount >= 0 && map[key].amount <= 1)
     && Number.isFinite(map.pitchRangeCents) && map.pitchRangeCents >= 1 && map.pitchRangeCents <= 4800
     && Number.isFinite(map.bendRangeSemitones) && map.bendRangeSemitones >= 1 && map.bendRangeSemitones <= 96

@@ -1,8 +1,8 @@
-//! Explicit version-seven words. These offsets, not Rust object layouts, are the ABI.
+//! Explicit version-ten words. These offsets, not Rust object layouts, are the ABI.
 
 use crate::{HostEvent, Transport};
 
-pub const VERSION: u32 = 9;
+pub const VERSION: u32 = 10;
 pub const DEFAULT_BLOCK: usize = 256;
 pub const MAGIC: u32 = u32::from_le_bytes(*b"WFBR");
 pub const SLOT_COUNT: usize = 4;
@@ -23,9 +23,12 @@ pub const OUTPUT: usize = KEY_INPUT + MAX_BLOCK * 2;
 pub const AUX_OUTPUT: usize = OUTPUT + MAX_BLOCK * 2;
 pub const NOTES: usize = AUX_OUTPUT + MAX_BLOCK * 2 * crate::MAX_PORTS as usize;
 pub const NOTE_KEYS: usize = 16 * 128;
-pub const NOTE_SNAPSHOT_WORDS: usize = 9;
+pub const NOTE_SNAPSHOT_WORDS: usize = 25;
 pub const INSTANCES: usize = NOTES + NOTE_KEYS;
-pub const PARAMETERS: usize = INSTANCES + crate::MAX_NOTE_INSTANCES * NOTE_SNAPSHOT_WORDS;
+pub const LAW_EVENTS: usize = INSTANCES + crate::MAX_NOTE_INSTANCES * NOTE_SNAPSHOT_WORDS;
+pub const PARAMETERS: usize = LAW_EVENTS + MAX_BLOCK * 2;
+pub const PROJECT_LAW: usize = 56;
+pub const PROJECT_LAW_COUNT: usize = 57;
 pub const INSTANCE_COUNT: usize = 54;
 pub const OUTPUT_COUNT: usize = 55;
 pub const EVENTS: usize = PARAMETERS + PARAM_CAPACITY * 3;
@@ -510,12 +513,12 @@ mod tests {
         assert_eq!(SLOT_WORDS * 4 % 64, 0);
     }
     #[test]
-    fn earlier_mapping_versions_never_downgrade_the_v8_note_snapshot_contract() {
+    fn earlier_mapping_versions_never_downgrade_the_v10_project_expression_contract() {
         let mut header = config().header().unwrap();
-        assert_eq!(header[1], 9);
+        assert_eq!(header[1], 10);
         assert_eq!(header[OWNER_COMPLETIONS], 0);
         assert_eq!(header[TIMELINE_EPOCH], 1);
-        for version in [1, 2, 3, 4, 5, 6, 7, 8] {
+        for version in 1..10 {
             header[1] = version;
             assert_eq!(
                 Config::from_header(&header, REGION_BYTES),
