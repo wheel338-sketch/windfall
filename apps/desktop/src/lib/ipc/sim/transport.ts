@@ -170,6 +170,12 @@ export class TransportSim {
     if (this.state.playing) return
     this.state = { ...this.state, playing: true }
     this.tick = this.position
+    if (this.inSong() && !this.region && this.tick === 0) {
+      const start = project.playlist.timeline?.markers
+        .filter((marker) => marker.kind.type === "start")
+        .at(-1)
+      if (start) this.tick = start.tick
+    }
     this.keepInRange(project)
   }
 
@@ -413,7 +419,12 @@ export class TransportSim {
       let destination = this.region?.start ?? 0
       for (const marker of project.playlist.timeline?.markers ?? []) {
         const kind = marker.kind
-        if (kind.type === "named") continue
+        if (
+          kind.type === "named" ||
+          kind.type === "start" ||
+          kind.type === "punch"
+        )
+          continue
         const at = kind.type === "loop" ? kind.end : marker.tick
         if (
           at < this.tick ||

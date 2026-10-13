@@ -159,6 +159,38 @@ describe("simulated transport", () => {
     })
   }
 
+  it("uses imported start anchors and passes punch markers without navigation", () => {
+    const project = song(1920)
+    project.playlist.timeline = {
+      meters: [],
+      markers: [
+        {
+          id: project.nextId++,
+          tick: 240,
+          name: "Start",
+          kind: { type: "start" },
+        },
+        {
+          id: project.nextId++,
+          tick: 480,
+          name: "Punch",
+          kind: { type: "punch", end: 960 },
+        },
+      ],
+    }
+    const transport = new TransportSim(1)
+    transport.set({ mode: "song" }, project)
+    transport.play(project)
+    expect(transport.tick).toBe(240)
+    expect(transport.advance(project, 0.5).playing).toBe(true)
+    expect(transport.tick).toBe(1200)
+    transport.stop()
+    transport.seek(600, project)
+    transport.play(project)
+    transport.advance(project, 0.125)
+    expect(transport.tick).toBe(840)
+  })
+
   it("stops where playback started, and starts there again", () => {
     const project = song()
     const transport = new TransportSim(1)

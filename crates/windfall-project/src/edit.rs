@@ -121,6 +121,7 @@ pub(crate) enum Edit {
     ArrangementBook(Change<crate::ArrangementBook>),
     Timeline(Change<crate::Timeline>),
     TakeGroups(Change<Vec<crate::AudioTakeGroup>>),
+    NoteEditGroups(Change<Vec<crate::NoteEditGroup>>),
     Settings(Change<ProjectSettings>),
     Plugins(Change<Vec<crate::PluginBinding>>),
     /// Replaces the routing of the effects' separately routable outputs.
@@ -201,6 +202,9 @@ impl Edit {
             Edit::Settings(change) => project.settings = change.result(direction).clone(),
             Edit::Notebook(change) => project.notebook = change.result(direction).clone(),
             Edit::Timeline(change) => project.playlist.timeline = change.result(direction).clone(),
+            Edit::NoteEditGroups(change) => {
+                project.note_edit_groups = change.result(direction).clone()
+            }
             Edit::TakeGroups(change) => {
                 project.playlist.take_groups = change.result(direction).clone()
             }
@@ -294,6 +298,7 @@ impl Edit {
             Edit::Settings(_) => touched.settings = true,
             Edit::Notebook(_) => touched.notebook = true,
             Edit::Timeline(_) => touched.playlist = true,
+            Edit::NoteEditGroups(_) => touched.note_edit_groups = true,
             Edit::TakeGroups(_) => touched.playlist = true,
             Edit::Plugins(_) => touched.plugins = true,
             Edit::EffectOutputs(_) => touched.mixer = true,
@@ -347,6 +352,7 @@ impl Edit {
             Edit::Settings(change) => change.old == change.new,
             Edit::Notebook(change) => change.old == change.new,
             Edit::Timeline(change) => change.old == change.new,
+            Edit::NoteEditGroups(change) => change.old == change.new,
             Edit::ArrangementBook(change) => change.old == change.new,
             Edit::TakeGroups(change) => change.old == change.new,
             Edit::Plugins(change) => change.old == change.new,
@@ -382,6 +388,7 @@ impl Edit {
             (Edit::Notebook(first), Edit::Notebook(second)) => first.new = second.new,
             (Edit::ArrangementBook(first), Edit::ArrangementBook(second)) => first.new = second.new,
             (Edit::Timeline(first), Edit::Timeline(second)) => first.new = second.new,
+            (Edit::NoteEditGroups(first), Edit::NoteEditGroups(second)) => first.new = second.new,
             (Edit::TakeGroups(first), Edit::TakeGroups(second)) => first.new = second.new,
             (Edit::Plugins(first), Edit::Plugins(second)) => first.new = second.new,
             (Edit::EffectOutputs(first), Edit::EffectOutputs(second)) => first.new = second.new,

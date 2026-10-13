@@ -167,6 +167,7 @@ impl Builder<'_> {
                             .playlist
                             .clips
                             .iter()
+                            .filter(|clip| self.project().playlist.arrangement_book.shows(clip))
                             .map(|c| c.start.saturating_add(c.length))
                             .max()
                             .unwrap_or(0)
@@ -223,7 +224,26 @@ impl Builder<'_> {
                     }
                 }
                 5 | 9 | 10 => {
-                    self.report.say(section,Outcome::Approximated,format!("Marker {:?} action {} retained as a named marker; start-position/punch transport behavior is not translated.",marker.name,marker.kind));
+                    let kind = if marker.kind == 5 {
+                        MarkerKind::Start
+                    } else if marker.kind == 9 {
+                        let end = markers
+                            .iter()
+                            .filter(|m| m.position > marker.position && m.kind == 10)
+                            .min_by_key(|m| m.position)
+                            .map(|m| crate::units::rescale(m.position, self.ppq).ticks)
+                            .and_then(|t| u32::try_from(t).ok());
+                        match end.filter(|end| *end > tick) {
+                            Some(end) => MarkerKind::Punch { end },
+                            None => {
+                                self.report.say(section,Outcome::Dropped,format!("Punch in {:?} has no later positive punch-out endpoint; label retained without inventing a recording range.",marker.name));
+                                MarkerKind::Named
+                            }
+                        }
+                    } else {
+                        MarkerKind::Named
+                    };
+                    self.report.say(section,Outcome::Approximated,format!("Marker {:?} action {} translated: start is the default playback anchor; paired punch in/out is a bounded recording region; punch-out labels remain at their source ticks.",marker.name,marker.kind));
                     Command::AddTimelineMarker {
                         tick,
                         name: marker
@@ -238,12 +258,12 @@ impl Builder<'_> {
                                 }
                                 .into()
                             }),
-                        kind: MarkerKind::Named,
+                        kind,
                     }
                 }
                 kind => {
                     self.report.count(section, Outcome::Dropped, 1);
-                    self.report.say(section, Outcome::Dropped, format!("Arrangement marker kind {kind} is not mapped: its navigation semantics are not supported by this importer."));
+                    self.report.say(section, Outcome::Dropped, format!("SCOPE: Arrangement marker kind {kind}: DawVert mi_flp.py and PyFLP arrangement.py establish actions 1..5,8,9,10 but no operation for this value; source marker bytes retained without an invented action."));
                     continue;
                 }
             };

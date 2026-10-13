@@ -39,8 +39,16 @@ impl Builder<'_> {
             let Some(target) = self.automation_target(source) else {
                 self.report
                     .count(section, Outcome::Dropped, events.len() as u32);
-                self.report.say(section, Outcome::Dropped,
-                    format!("Recorded pattern target {location:#010x} is unsupported; original event records are archived in the saved project when imported from a file."));
+                let text = if let crate::target::ControlTarget::ChannelPlugin { channel, param } =
+                    source
+                {
+                    self.instrument_target_report(channel, param)
+                } else {
+                    format!(
+                        "Recorded pattern target {location:#010x} is unsupported; original event records are archived in the saved project when imported from a file."
+                    )
+                };
+                self.report.say(section, Outcome::Dropped, text);
                 continue;
             };
             let mut points = BTreeMap::new();
@@ -83,7 +91,7 @@ impl Builder<'_> {
             {
                 self.report.count(section, Outcome::Approximated, accepted);
                 self.report.say(section, Outcome::Approximated,
-                    "Recorded control integers were mapped to held pattern events; source interpolation and nonlinear control tapers may differ.");
+                    "Recorded controls were mapped to held pattern events; plugin values accept public normalized f32 words as well as legacy native-unit integer words; source interpolation and nonlinear control tapers may differ.");
             } else {
                 accepted = 0;
             }
@@ -115,7 +123,10 @@ impl Builder<'_> {
     }
 
     pub(super) fn patterns(&mut self) {
+        let mut edit_groups = self.project().note_edit_groups.clone();
         for (index, pattern) in self.flp.patterns.iter().enumerate() {
+            let mut groups: BTreeMap<(ChannelId, u16), Vec<windfall_project::NoteId>> =
+                BTreeMap::new();
             let id = if index == 0 {
                 self.project().patterns[0].id
             } else {
@@ -186,6 +197,39 @@ impl Builder<'_> {
                 );
             }
             for note in &pattern.notes {
+                let source_channel = self.flp.channel(note.channel);
+                let add_root = source_channel
+                    .is_some_and(|c| c.params.is_some_and(|p| p.add_root == Some(true)));
+                let key_offset = if add_root {
+                    source_channel.map_or(0, |c| c.root_note.unwrap_or(60) as i64 - 60)
+                } else {
+                    0
+                };
+                let key = (i64::from(note.key) + key_offset).clamp(0, 127) as u8;
+                let channel_pitch =
+                    source_channel
+                        .filter(|c| c.plugin.is_some())
+                        .map_or(0.0, |c| {
+                            f64::from(c.pitch.unwrap_or(0))
+                                + f64::from(c.fine_tune.unwrap_or(0))
+                                + if c.params.is_none_or(|p| p.main_pitch != Some(false)) {
+                                    f64::from(self.flp.settings.main_pitch.unwrap_or(0))
+                                } else {
+                                    0.0
+                                }
+                        });
+                if source_channel
+                    .and_then(|c| c.params)
+                    .and_then(|p| p.key_region)
+                    .is_some_and(|(first, last)| {
+                        u32::from(note.key) < first || u32::from(note.key) > last
+                    })
+                {
+                    self.report.count(ReportSection::Notes, Outcome::Dropped, 1);
+                    self.report.say(ReportSection::Notes,Outcome::Exact,format!("Channel {} note {} excluded by the public inclusive playable key region.",note.channel,note.key));
+                    continue;
+                }
+                let fine = (f64::from(note.fine_pitch.min(240)) - 120.0) * 10.0 + channel_pitch;
                 let targets = self.note_channels(note.channel);
                 let start = units::rescale(note.position, self.ppq);
                 let length = if note.length == 0 {
@@ -214,28 +258,28 @@ impl Builder<'_> {
                     Outcome::Approximated
                 };
                 if note.fine_pitch > 240
+                    || channel_pitch != 0.0
                     || note.flags & 8 != 0
                     || note.mod_x != 128
                     || note.mod_y != 128
                     || note.release != 64
                     || note.midi_channel > 15
-                    || note.group != 0
                     || note.velocity > 128
                     || note.pan > 128
                 {
                     outcome = Outcome::Approximated;
-                    self.report.say(ReportSection::Notes, outcome, "Modulation, release, slide flags and note-color MIDI channels were mapped to Windfall's controls. Source note-edit groups are not translated; out-of-range levels, color channels and fine pitch were clamped. Slide chord targeting and other source-instrument behavior may differ.");
+                    self.report.say(ReportSection::Notes, outcome, "Modulation, release, slide duration and note-color MIDI channels were mapped. Slides target the highest sounding note of the same color, transpose the held chord by that interval, begin at the slide onset and finish at its end without changing original note endings; out-of-range expression was clamped.");
                 }
                 for channel in targets {
                     let init = NoteInit {
                         start: start.ticks as u32,
                         length: length.ticks.clamp(1, u64::from(MAX_PATTERN_TICKS)) as u32,
-                        key: note.key as u8,
+                        key,
                         velocity: Some(units::note_velocity(note.velocity)),
                         pan: Some(units::note_pan(note.pan)),
                         expression: Some(windfall_project::NoteExpression {
                             release: f32::from(note.release.min(128)) / 128.0,
-                            fine_pitch_cents: (f32::from(note.fine_pitch.min(240)) - 120.0) * 10.0,
+                            fine_pitch_cents: fine.clamp(-1200.0, 1200.0) as f32,
                             modulation_x: f32::from(note.mod_x) / 256.0,
                             modulation_y: f32::from(note.mod_y) / 256.0,
                             articulation: if note.flags & 8 != 0 {
@@ -247,20 +291,30 @@ impl Builder<'_> {
                             color_group: Some(note.midi_channel.min(15)),
                         }),
                     };
-                    if self
-                        .apply(
-                            ReportSection::Notes,
-                            "A note",
-                            Command::AddNotes {
-                                pattern: id,
-                                channel,
-                                notes: vec![init],
-                            },
-                        )
-                        .is_none()
-                    {
+                    if let Some(created) = self.apply(
+                        ReportSection::Notes,
+                        "A note",
+                        Command::AddNotes {
+                            pattern: id,
+                            channel,
+                            notes: vec![init],
+                        },
+                    ) {
+                        if note.group != 0 {
+                            groups
+                                .entry((channel, note.group))
+                                .or_default()
+                                .extend(created.into_iter().map(windfall_project::NoteId));
+                        }
+                    } else {
                         outcome = Outcome::Dropped;
                     }
+                }
+                if channel_pitch != 0.0 {
+                    self.report.say(ReportSection::Notes,Outcome::Approximated,format!("Channel {} static pitch/fine tune {channel_pitch} cents folded into note expression; stand-in +/-1200-cent bounds apply; original events retained.",note.channel));
+                }
+                if add_root {
+                    self.report.say(ReportSection::Notes,Outcome::Approximated,format!("Channel {} keyboard add-root transposes the triggered key by root_note-60: {} -> {key}; MIDI bounds apply. Original root and flag retained.",note.channel,note.key));
                 }
                 self.report.count(ReportSection::Notes, outcome, 1);
             }
@@ -287,6 +341,24 @@ impl Builder<'_> {
                 self.report
                     .count(ReportSection::Notes, Outcome::Approximated, 1);
             }
+            for ((channel, group), notes) in groups {
+                self.report.say(ReportSection::Notes,Outcome::Exact,format!("Pattern {} note-edit group {group}: {} native note IDs grouped for selection/move/resize independently of MIDI color.",pattern.iid,notes.len()));
+                edit_groups.push(windfall_project::NoteEditGroup {
+                    pattern: id,
+                    channel,
+                    group,
+                    notes,
+                });
+            }
+        }
+        if !edit_groups.is_empty() {
+            self.apply(
+                ReportSection::Notes,
+                "Note edit groups",
+                Command::SetNoteEditGroups {
+                    groups: edit_groups,
+                },
+            );
         }
     }
 }

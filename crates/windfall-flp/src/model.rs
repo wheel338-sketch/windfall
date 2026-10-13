@@ -285,6 +285,8 @@ pub struct Channel {
     pub pan: Option<u32>,
     /// Pitch in cents. Event 219, bytes 8 to 12. Agreed (PyFLP, DawVert).
     pub pitch: Option<i32>,
+    /// Keyboard fine tune in cents, signed event 142 (PyFLP Keyboard).
+    pub fine_tune: Option<i32>,
     /// The mixer insert the channel plays into: 0 is the master. Event 22.
     /// Agreed (DawVert, FLParser; PyFLP adds that -1 means the selected
     /// insert).
@@ -295,7 +297,14 @@ pub struct Channel {
     pub swing: Option<u16>,
     /// Nonlinear fine shift. Event 89 (PyFLP); retained, not guessed.
     pub time_shift: Option<u16>,
-    /// Semitone range for channel pitch control. Event 83 (PyFLP).
+    /// Legacy cutoff/resonance words, events 71/83 (PyFLP, DawVert, LMMS).
+    pub cutoff: Option<u16>,
+    pub resonance: Option<u16>,
+    /// Event 219 optional filter fields, raw 0..256 and filter kind.
+    pub filter_mod_x: Option<u32>,
+    pub filter_mod_y: Option<u32>,
+    pub filter_type: Option<u32>,
+    /// Wrapper MIDI record 1, bytes 8..12 (PyFLP plugin.py).
     pub pitch_range: Option<u16>,
     /// Note echo, event 209 (PyFLP DelayEvent and DawVert).
     pub echo: Option<ChannelEcho>,
@@ -370,6 +379,21 @@ pub struct CutGroups {
 /// as a pair of 16-bit numbers and decodes them to the same value.
 #[derive(Debug, Clone, Copy, PartialEq, Default)]
 pub struct ChannelParams {
+    /// Public named fields in PyFLP ParametersEvent and DawVert channel.py.
+    pub main_pitch: Option<bool>,
+    pub add_root: Option<bool>,
+    pub key_region: Option<(u32, u32)>,
+    pub remove_dc: Option<bool>,
+    pub normalize: Option<bool>,
+    pub inverted: Option<bool>,
+    pub declick_mode: Option<u8>,
+    pub crossfade: Option<u32>,
+    pub trim: Option<u32>,
+    pub midi_channel_through: Option<u32>,
+    pub sample_offset: Option<f64>,
+    pub stretch_formant: Option<f64>,
+    pub fix_trim: Option<bool>,
+    pub drum_stretch: [Option<f32>; 5],
     /// PyFLP ParametersEvent / DawVert channel.py, bytes 40..64 and 92..96.
     pub arp_direction: Option<u32>,
     pub arp_range: Option<u32>,

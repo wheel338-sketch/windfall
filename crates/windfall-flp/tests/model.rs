@@ -182,6 +182,7 @@ fn a_sampler_channel_reads_its_name_colour_sample_and_levels() {
             full_porta: Some(false),
             gate: Some(0),
             delay_flags: Some(0),
+            ..Default::default()
         }),
         envelopes: vec![
             EnvelopeLfo::default(),

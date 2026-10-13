@@ -1491,7 +1491,12 @@ impl VoicePool {
                     && voice.fade == 0
                     && voice.end > at
             })
-            .max_by_key(|voice| voice.started)
+            .max_by(|a, b| {
+                a.glide
+                    .map_or(a.pitch, |g| g.at(at))
+                    .total_cmp(&b.glide.map_or(b.pitch, |g| g.at(at)))
+                    .then(a.started.cmp(&b.started))
+            })
         else {
             return;
         };
@@ -1606,6 +1611,56 @@ mod tests {
     use windfall_project::MAX_ENVELOPE_MS;
 
     use super::*;
+    #[test]
+    fn imported_slide_uses_highest_matching_color_pitch_and_preserves_endings() {
+        let mut pool = VoicePool::new(48000);
+        for (i, pitch, color, end) in [
+            (0, 72.0, 3, 600.0),
+            (1, 60.0, 3, 480.0),
+            (2, 80.0, 4, 600.0),
+            (3, 90.0, 3, 100.0),
+        ] {
+            let v = &mut pool.voices[i];
+            v.active = true;
+            v.channel = ChannelId(1);
+            v.origin = Origin::Sequenced;
+            v.color_group = color;
+            v.pitch = pitch;
+            v.end = end;
+            v.started = i as u64;
+        }
+        let expression = NoteExpression {
+            color_group: Some(3),
+            ..NoteExpression::NEUTRAL
+        };
+        pool.slide_notes(
+            ChannelId(1),
+            76,
+            expression,
+            120.0,
+            360.0,
+            Origin::Sequenced,
+        );
+        for (i, from, to) in [(0, 72.0, 76.0), (1, 60.0, 64.0)] {
+            let g = pool.voices[i].glide.unwrap();
+            assert_eq!(g.at(120.0), from);
+            assert_eq!(g.at(240.0), (from + to) / 2.0);
+            assert_eq!(g.at(360.0), to);
+        }
+        assert!(pool.voices[2].glide.is_none());
+        assert!(pool.voices[3].glide.is_none());
+        pool.slide_notes(
+            ChannelId(1),
+            70,
+            expression,
+            240.0,
+            480.0,
+            Origin::Sequenced,
+        );
+        assert_eq!(pool.voices[0].glide.unwrap().at(480.0), 70.0);
+        assert_eq!(pool.voices[1].glide.unwrap().at(480.0), 58.0);
+        assert_eq!(pool.voices[1].end, 480.0);
+    }
 
     /// What a decay or release has left `elapsed` frames into `frames`.
     fn fall(elapsed: u64, frames: u64) -> f64 {

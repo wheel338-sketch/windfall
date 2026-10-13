@@ -373,6 +373,9 @@ impl Builder<'_> {
     ) {
         let section = ReportSection::Effects;
         let plugin = &slot.plugin;
+        for text in super::native::reports(&plugin.internal_name, &plugin.state) {
+            self.report.say(section, Outcome::Approximated, text);
+        }
         let hosted = plugin.hosted();
         let shown = name_or(slot.name.as_deref(), || {
             hosted
@@ -505,7 +508,11 @@ impl Builder<'_> {
         let patch = EffectSlotPatch {
             // Switching all of an insert's slots off is one button in FL
             // Studio; here every effect of the track is switched off.
-            enabled: Some(slot.enabled.unwrap_or(true) && insert.effects_enabled()),
+            enabled: Some(
+                slot.enabled.unwrap_or(true)
+                    && insert.effects_enabled()
+                    && super::native::enabled(&plugin.internal_name, &plugin.state).unwrap_or(true),
+            ),
             mix: Some((mix as f32 / FULL as f32).clamp(0.0, 1.0)),
         };
         let command = Command::UpdateEffect {

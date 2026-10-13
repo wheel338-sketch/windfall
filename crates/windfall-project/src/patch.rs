@@ -17,6 +17,7 @@ pub struct Touched {
     pub notebook: bool,
     pub settings: bool,
     pub plugins: bool,
+    pub note_edit_groups: bool,
     pub samples: bool,
     pub channels: bool,
     pub mixer: bool,
@@ -35,6 +36,7 @@ impl Touched {
             settings: true,
             notebook: true,
             plugins: true,
+            note_edit_groups: true,
             samples: true,
             channels: true,
             mixer: true,
@@ -53,6 +55,7 @@ impl Touched {
     pub fn merge(&mut self, other: &Touched) {
         self.settings |= other.settings;
         self.notebook |= other.notebook;
+        self.note_edit_groups |= other.note_edit_groups;
         self.plugins |= other.plugins;
         self.samples |= other.samples;
         self.channels |= other.channels;
@@ -74,6 +77,9 @@ impl Touched {
 #[serde(rename_all = "camelCase")]
 #[ts(export)]
 pub struct ProjectPatch {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub note_edit_groups: Option<Vec<crate::NoteEditGroup>>,
     /// Counts up by one for every patch the document produces. A UI that
     /// sees a gap has missed a patch and must fetch the whole project again.
     #[ts(type = "number")]

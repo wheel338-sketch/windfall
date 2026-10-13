@@ -73,6 +73,7 @@ pub(crate) struct Plan {
     pub echo_history: Arc<crate::effect_host::HistoryPool>,
     _asset_pins: windfall_dsp::asset::AssetPins,
     pub navigation: Vec<crate::timeline::NavigationPoint>,
+    pub song_start: Option<u32>,
     pub signature: windfall_project::TimeSignature,
     pub meters: Result<
         Vec<windfall_project::timeline::MeterSegment>,
@@ -1095,6 +1096,7 @@ pub(crate) fn compile(project: &Project, pool: &SamplePool) -> Plan {
         echo_history: Arc::new(crate::effect_host::HistoryPool::default()),
         _asset_pins: windfall_dsp::asset::AssetPins::default(),
         navigation: crate::timeline::compile(&project.playlist.timeline),
+        song_start: project.playlist.timeline.start_tick(),
         signature: project.settings.time_signature,
         meters: windfall_project::timeline::MeterMap::checked(
             project.settings.time_signature,

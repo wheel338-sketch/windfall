@@ -63,6 +63,135 @@ impl Session {
             &conversion.sampler_loops,
             &mut warnings,
         )?;
+        let slice_metadata: Vec<_> = conversion
+            .native_slices
+            .iter()
+            .filter_map(|request| {
+                decoded
+                    .pool
+                    .get(request.sample)
+                    .map(|buffer| (request.sample, buffer.frames(), buffer.channels() as usize))
+            })
+            .collect();
+        warnings.extend(windfall_flp::convert::resolve_native_slices(
+            &mut project,
+            &conversion.native_slices,
+            &slice_metadata,
+        ));
+        let mut cue_requests = Vec::new();
+        let mut cue_metadata = Vec::new();
+        for &(channel, sample) in &conversion.sample_cues {
+            let Some(buffer) = decoded.pool.get(sample) else {
+                continue;
+            };
+            let Some(asset) = project.sample(sample) else {
+                continue;
+            };
+            let SamplePath::External(path) = &asset.path else {
+                continue;
+            };
+            match windfall_codec::read_wav_metadata_file(path) {
+                Ok(metadata) => {
+                    let pitch = project
+                        .channel(channel)
+                        .and_then(|c| c.sample_playback.as_ref())
+                        .and_then(|a| a.slices.first())
+                        .map_or(0.0, |s| s.pitch);
+                    let mut cues = metadata.cues;
+                    cues.sort_by_key(|c| c.frame);
+                    if cues.len() > 68 {
+                        warnings.push(format!("Sample {} has {} cues; only the MIDI-key range 60..127 fits the stand-in.",asset.name,cues.len()));
+                    }
+                    if !cues.is_empty() {
+                        cue_requests.push(windfall_flp::convert::SliceRequest {
+                            channel,
+                            sample,
+                            pitch,
+                            attack_ms: 0.0,
+                            release_ms: 5.0,
+                            base_key: 60,
+                            slices: cues
+                                .into_iter()
+                                .take(68)
+                                .enumerate()
+                                .map(|(i, c)| windfall_flp::convert::NativeSlice {
+                                    start: c.frame,
+                                    key: 60 + i as u8,
+                                    reverse: false,
+                                    name: c.label,
+                                })
+                                .collect(),
+                        });
+                        cue_metadata.push((sample, buffer.frames(), 2));
+                    }
+                }
+                Err(error) => warnings.push(format!(
+                    "Slicex sample {} cue metadata: {error}; embedded cue fallback retained.",
+                    asset.name
+                )),
+            }
+        }
+        // WAV cues already use frame units; scale 2 makes the common resolver
+        // retain these coordinates, unlike Slicer's channels/2 stored starts.
+        warnings.extend(windfall_flp::convert::resolve_native_slices(
+            &mut project,
+            &cue_requests,
+            &cue_metadata,
+        ));
+        let peaks: Vec<_> = conversion
+            .normalization
+            .iter()
+            .filter_map(|(_, sample)| {
+                decoded.pool.get(*sample).map(|buffer| {
+                    (
+                        *sample,
+                        buffer
+                            .samples()
+                            .iter()
+                            .copied()
+                            .filter(|v| v.is_finite())
+                            .map(f32::abs)
+                            .fold(0.0_f32, f32::max),
+                    )
+                })
+            })
+            .collect();
+        warnings.extend(windfall_flp::convert::resolve_normalization(
+            &mut project,
+            &conversion.normalization,
+            &peaks,
+        ));
+        let trim_pcm: Vec<_> = conversion
+            .sample_trim
+            .iter()
+            .filter_map(|(_, sample, _)| {
+                decoded
+                    .pool
+                    .get(*sample)
+                    .map(|buffer| (*sample, buffer.samples(), buffer.channels() as usize))
+            })
+            .collect();
+        warnings.extend(windfall_flp::convert::resolve_sample_trim(
+            &mut project,
+            &conversion.sample_trim,
+            &trim_pcm,
+        ));
+        let layer_pcm: Vec<_> = conversion
+            .layer_samples
+            .iter()
+            .filter_map(|(_, sample)| {
+                decoded
+                    .pool
+                    .get(*sample)
+                    .cloned()
+                    .map(|buffer| (*sample, buffer))
+            })
+            .collect();
+        warnings.extend(windfall_flp::convert::resolve_layer_samples(
+            &mut project,
+            &conversion.layer_samples,
+            &layer_pcm,
+        ));
         let missing_samples = project
             .samples
             .iter()

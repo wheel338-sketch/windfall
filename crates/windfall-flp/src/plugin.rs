@@ -37,6 +37,10 @@ pub struct HostedPlugin {
     /// The plugin's own saved data, with the few bytes FL Studio puts in
     /// front of it. Record 53.
     pub state: Vec<u8>,
+    /// PyFLP MIDI subrecord 1: RPN bend range in semitones, bytes 8..12.
+    pub pitch_bend_range: Option<u32>,
+    /// PyFLP flags subrecord 2, word at offset 9, bit 0.
+    pub send_pitch_bend_range: Option<bool>,
 }
 
 /// The plugin standard of a hosted plugin.
@@ -95,6 +99,10 @@ impl Plugin {
             let data = state.get(start..end)?;
             let text = || Some(crate::text::decode_bytes(data)).filter(|text| !text.is_empty());
             match id {
+                1 if data.len() >= 12 => hosted.pitch_bend_range = Some(u32_at(data, 8)),
+                2 if data.len() >= 13 => {
+                    hosted.send_pitch_bend_range = Some(u32_at(data, 9) & 1 != 0)
+                }
                 50 if data.len() >= 4 => {
                     hosted.format = match u32_at(data, 0) {
                         0 | 4 => PluginFormat::Vst2,

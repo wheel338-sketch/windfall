@@ -400,6 +400,9 @@ impl Document {
     fn patch_contents(&self, touched: &Touched) -> ProjectPatch {
         let project = &self.project;
         ProjectPatch {
+            note_edit_groups: touched
+                .note_edit_groups
+                .then(|| project.note_edit_groups.clone()),
             revision: self.revision,
             settings: touched.settings.then(|| project.settings.clone()),
             plugins: touched.plugins.then(|| project.plugins.clone()),

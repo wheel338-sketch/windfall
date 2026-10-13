@@ -9,12 +9,387 @@ use windfall_project::{
 };
 
 impl Builder<'_> {
+    pub(super) fn channel_sample_fx(
+        &mut self,
+        id: ChannelId,
+        source: &Channel,
+        target: windfall_project::TrackId,
+        name: &str,
+    ) {
+        let p = source.params.unwrap_or_default();
+        let mut effects = Vec::new();
+        if p.remove_dc == Some(true) {
+            effects.push((windfall_dsp::EffectKind::DcBlock, Vec::new()));
+        }
+        if source.fx_flags.is_some_and(|f| f & 256 != 0) {
+            effects.push((
+                windfall_dsp::EffectKind::StereoMatrix,
+                vec![("ll", 0.0), ("rr", 0.0), ("lr", 1.0), ("rl", 1.0)],
+            ));
+        }
+        if p.inverted == Some(true) {
+            effects.push((
+                windfall_dsp::EffectKind::Polarity,
+                vec![("left", 1.0), ("right", 1.0)],
+            ));
+        }
+        if !effects.is_empty() {
+            let track = if self.channel_filters.contains_key(&source.iid) {
+                self.project().channel(id).map_or(target, |c| c.mixer_track)
+            } else {
+                let Some(track) = self.create(
+                    ReportSection::Channels,
+                    "Sample effects bus",
+                    Command::AddMixerTrack {
+                        name: Some(format!("{name} sample effects")),
+                    },
+                ) else {
+                    return;
+                };
+                let track = windfall_project::TrackId(track);
+                self.apply(
+                    ReportSection::Channels,
+                    "Sample effects routing",
+                    Command::SetTrackOutput {
+                        id: track,
+                        output: Some(target),
+                    },
+                );
+                self.apply(
+                    ReportSection::Channels,
+                    "Sample effects owner",
+                    Command::UpdateChannel {
+                        id,
+                        patch: windfall_project::ChannelPatch {
+                            mixer_track: Some(track),
+                            ..Default::default()
+                        },
+                    },
+                );
+                track
+            };
+            for (kind, values) in effects {
+                let Some(effect) = self.create(
+                    ReportSection::Channels,
+                    "Sample effect",
+                    Command::AddEffect {
+                        track,
+                        kind,
+                        index: None,
+                    },
+                ) else {
+                    continue;
+                };
+                let mut params = kind.default_params();
+                for (id, value) in values {
+                    if let Some(i) = kind.descriptors().iter().position(|d| d.id == id) {
+                        params.set(i, value);
+                    }
+                }
+                self.apply(
+                    ReportSection::Channels,
+                    "Sample effect controls",
+                    Command::SetEffectParams {
+                        track,
+                        effect: windfall_project::EffectId(effect),
+                        params,
+                    },
+                );
+                self.report.say(ReportSection::Channels,Outcome::Approximated,format!("Channel {} sample {} mapped on its private bus; the stand-in processes summed voices instead of destructive source preprocessing.",source.iid,kind.name()));
+            }
+        }
+        if let Some(p) = source.params {
+            self.report.say(ReportSection::Channels,Outcome::Approximated,format!("Channel {} keyboard fine tune {:?} cents, main-pitch participation {:?}, inclusive key region {:?}, sample offset {:?}, loop crossfade {:?}/256 mapped; original controls retained.",source.iid,source.fine_tune,p.main_pitch,p.key_region,p.sample_offset,p.crossfade));
+            for (field, value) in [
+                (
+                    "MIDI channel through",
+                    p.midi_channel_through.filter(|v| *v != 0),
+                ),
+                (
+                    "declick mode",
+                    p.declick_mode.filter(|v| *v != 0).map(u32::from),
+                ),
+                ("fix legacy trim", p.fix_trim.filter(|v| *v).map(u32::from)),
+            ] {
+                if let Some(value) = value {
+                    self.report.say(ReportSection::Channels,Outcome::Dropped,format!("SCOPE: Channel {} {field}={value}: PyFLP channel.py and DawVert channel.py establish the field/name; their converters and LMMS importer do not establish the MIDI-through operation, source declick kernel or legacy-trim dependency. This operation cannot be inferred from the serialized scalar; retained verbatim.",source.iid));
+                }
+            }
+            for (i, v) in p.drum_stretch.into_iter().enumerate() {
+                if let Some(v) = v.filter(|v| *v != 0.0 && *v != 1.0) {
+                    self.report.say(ReportSection::Channels,Outcome::Dropped,format!("SCOPE: Channel {} drum stretch {}={v}: DawVert channel.py defines float fields tone/over/noise/band/time, but mi_flp.py, PyFLP and LMMS do not define their DSP units or kernel; original float retained.",source.iid,["tone","over","noise","band","time"][i]));
+                }
+            }
+            if let Some(v) = p.stretch_formant.filter(|v| v.is_finite() && *v != 0.0) {
+                self.report.say(ReportSection::Channels,Outcome::Dropped,format!("Channel {} stretch formant {v} semitones decoded with DawVert (word-.5)*24; stand-in spectral stretch has a boolean formant-preservation control rather than a formant offset.",source.iid));
+            }
+        }
+    }
+    /// Public mi_flp.py channel filter fit. A private bus preserves source
+    /// mixer routing and keeps another channel's audio out of this filter.
+    /// Processing after voice summation is an explicit stand-in approximation.
+    pub(super) fn channel_filter(
+        &mut self,
+        id: ChannelId,
+        channel: &Channel,
+        target: windfall_project::TrackId,
+        name: &str,
+    ) {
+        let automated=self.flp.initial_controls.iter().any(|v|matches!(crate::target::ControlTarget::decode(v.location),crate::target::ControlTarget::Channel {channel:iid,param:crate::target::ChannelParam::ModX|crate::target::ChannelParam::ModY} if iid==channel.iid))
+            || self.flp.remote_controllers.iter().any(|v|matches!(v.target(),crate::target::ControlTarget::Channel {channel:iid,param:crate::target::ChannelParam::ModX|crate::target::ChannelParam::ModY} if iid==channel.iid))
+            || self.flp.patterns.iter().any(|p|p.control_events.iter().any(|v|matches!(crate::target::ControlTarget::decode(v.location),crate::target::ControlTarget::Channel {channel:iid,param:crate::target::ChannelParam::ModX|crate::target::ChannelParam::ModY} if iid==channel.iid)));
+        if channel.cutoff.is_none()
+            && channel.resonance.is_none()
+            && channel.filter_mod_x.is_none()
+            && channel.filter_mod_y.is_none()
+            && !automated
+        {
+            return;
+        }
+        let Some(track) = self.create(
+            ReportSection::Channels,
+            "Channel filter bus",
+            Command::AddMixerTrack {
+                name: Some(format!("{name} filter")),
+            },
+        ) else {
+            return;
+        };
+        let track = windfall_project::TrackId(track);
+        self.apply(
+            ReportSection::Channels,
+            "Channel filter routing",
+            Command::SetTrackOutput {
+                id: track,
+                output: Some(target),
+            },
+        );
+        self.apply(
+            ReportSection::Channels,
+            "Channel filter owner",
+            Command::UpdateChannel {
+                id,
+                patch: windfall_project::ChannelPatch {
+                    mixer_track: Some(track),
+                    ..Default::default()
+                },
+            },
+        );
+        let kind = windfall_dsp::EffectKind::SelectableFilter;
+        let Some(effect) = self.create(
+            ReportSection::Channels,
+            "Channel filter",
+            Command::AddEffect {
+                track,
+                kind,
+                index: None,
+            },
+        ) else {
+            return;
+        };
+        let effect = windfall_project::EffectId(effect);
+        let mut params = kind.default_params();
+        let alternate = channel.filter_type.unwrap_or(0) != 0;
+        let cutoff: fn(f64) -> f64 = if alternate {
+            channel_cutoff_alt
+        } else {
+            channel_cutoff
+        };
+        let x = channel
+            .filter_mod_x
+            .map(f64::from)
+            .unwrap_or_else(|| channel.cutoff.map_or(256.0, |v| f64::from(v) / 4.0));
+        let y = channel.filter_mod_y.map(f64::from).unwrap_or_else(|| {
+            channel
+                .resonance
+                .map_or(0.0, |v| f64::from(v) * 256.0 / 640.0)
+        });
+        for (name, value) in [
+            ("frequencyHz", cutoff(x) as f32),
+            ("q", channel_resonance(y) as f32),
+            (
+                "mode",
+                match channel.filter_type.unwrap_or(0) {
+                    2 => 2.0,
+                    3 => 1.0,
+                    4 => 3.0,
+                    _ => 0.0,
+                },
+            ),
+        ] {
+            if let Some(i) = kind.descriptors().iter().position(|p| p.id == name) {
+                params.set(i, value);
+            }
+        }
+        self.apply(
+            ReportSection::Channels,
+            "Channel filter controls",
+            Command::SetEffectParams {
+                track,
+                effect,
+                params,
+            },
+        );
+        self.channel_filters.insert(
+            channel.iid,
+            super::ImportedEffect {
+                track,
+                id: effect,
+                kind,
+                links: vec![
+                    super::effects::ParamLink {
+                        fl_param: 2,
+                        fl_range: (0.0, 256.0),
+                        id: "frequencyHz",
+                        convert: cutoff,
+                        destination_range: None,
+                    },
+                    super::effects::ParamLink {
+                        fl_param: 3,
+                        fl_range: (0.0, 256.0),
+                        id: "q",
+                        convert: channel_resonance,
+                        destination_range: None,
+                    },
+                ],
+            },
+        );
+        self.report.say(ReportSection::Channels,Outcome::Approximated,format!("Channel {} cutoff/resonance/type mapped on a private bus: modern /256, legacy cutoff /1024 and resonance /640; DawVert midi_filter=(n*100)^2*925/2048 (non-fast types *2.7), Q=1+6*n. Full cutoff uses a 20kHz bypass approximation. Double/SVF slopes and per-voice processing differ. Mod X/Y clip and recorded automation use the same functions.",channel.iid));
+    }
     /// Runs after channel creation. The command replaces the whole voice
     /// block, so tools not described by Polyphony retain their defaults.
     pub(super) fn channel_voice(&mut self, id: ChannelId, channel: &Channel) -> Outcome {
         let section = ReportSection::Channels;
         let mut settings = ChannelVoiceSettings::default();
         let mut outcome = Outcome::Exact;
+        if let Some(plugin) = channel
+            .plugin
+            .as_ref()
+            .filter(|p| p.internal_name.eq_ignore_ascii_case("Fruity DX10"))
+            && plugin.state.len() >= 92
+        {
+            let word = |i: usize| {
+                u32::from_le_bytes(
+                    plugin.state[i * 4..i * 4 + 4]
+                        .try_into()
+                        .expect("bounded DX10 state"),
+                )
+            };
+            settings.envelopes.lfos.pitch = windfall_project::TargetLfo {
+                enabled: word(11) != 0,
+                shape: windfall_project::LfoShape::Sine,
+                rate_hz: (word(14) as f32 / 65536.0 * 127.0).clamp(0.01, 20.0),
+                depth: (word(11) as f32 / 65536.0 / 5.5).clamp(0.0, 1.0),
+            };
+            self.report.say(section,Outcome::Approximated,format!("Channel {} Fruity DX10 vibrato/lforate mapped using DawVert amount=n/5.5, rate=n*127; shared pitch LFO depth and 0.01..20Hz stand-in range apply.",channel.iid));
+            outcome = Outcome::Approximated;
+        }
+        let wrapper = channel.plugin.as_ref().and_then(|p| p.hosted());
+        if let Some(range) = channel
+            .pitch_range
+            .map(u32::from)
+            .or_else(|| wrapper.as_ref().and_then(|w| w.pitch_bend_range))
+        {
+            let mut map = self
+                .project()
+                .channel(id)
+                .map_or_else(windfall_project::ExpressionMap::default, |c| {
+                    c.expression_map
+                });
+            map.bend_range_semitones = (range as f32).clamp(1.0, 96.0);
+            self.apply(
+                section,
+                "Channel pitch-bend range",
+                Command::SetChannelExpressionMap {
+                    id,
+                    map,
+                    expected: None,
+                },
+            );
+            self.report.say(section,if (1..=96).contains(&range){Outcome::Exact}else{Outcome::Approximated},format!("Channel {} wrapper MIDI pitch range {range} semitones mapped to the existing plugin MIDI bend range (1..96); send-RPN flag {:?} retained. Event 83 is resonance, not pitch range; event 219 pitch is cents.",channel.iid,wrapper.as_ref().and_then(|w|w.send_pitch_bend_range)));
+        }
+        if let Some(plugin) = channel
+            .plugin
+            .as_ref()
+            .filter(|p| p.internal_name.trim().eq_ignore_ascii_case("SimSynth"))
+        {
+            let state = &plugin.state;
+            let v = |i: usize| {
+                state
+                    .get(i * 8..i * 8 + 8)
+                    .and_then(|b| b.try_into().ok())
+                    .map(f64::from_le_bytes)
+                    .filter(|v| v.is_finite())
+            };
+            let flag = |i: usize| {
+                state
+                    .get(436 + i * 4..440 + i * 4)
+                    .and_then(|b| b.try_into().ok())
+                    .map(u32::from_le_bytes)
+                    .is_some_and(|v| v != 0)
+            };
+            if state.len() >= 436 {
+                settings.envelopes.filter = windfall_project::ModulationEnvelope {
+                    enabled: flag(14),
+                    attack_ms: (4.0 * v(41).unwrap_or(0.0).powi(3) * 1000.0).clamp(0.0, 60000.0)
+                        as f32,
+                    decay_ms: (4.0 * v(42).unwrap_or(0.0).powi(3) * 1000.0).clamp(0.0, 60000.0)
+                        as f32,
+                    sustain: v(43).unwrap_or(1.0).clamp(0.0, 1.0) as f32,
+                    release_ms: (4.0 * v(44).unwrap_or(0.0).powi(3) * 1000.0).clamp(0.0, 60000.0)
+                        as f32,
+                    // DawVert's Vital modulation amount is env*.6 of its
+                    // 128-semitone cutoff span: 6.4 octaves at full amount.
+                    depth: (v(28).unwrap_or(0.0) * 6.4).clamp(-8.0, 8.0) as f32,
+                };
+                let source_shape = (v(24).unwrap_or(0.0) * 10.0).round() as i32;
+                let shape = match source_shape {
+                    0 => windfall_project::LfoShape::Triangle,
+                    1 => windfall_project::LfoShape::Triangle,
+                    2 => windfall_project::LfoShape::Square,
+                    _ => windfall_project::LfoShape::Sine,
+                };
+                let multiplier = if matches!(source_shape, 1 | 4) {
+                    2.0
+                } else {
+                    1.0
+                };
+                let rate = (2.0_f64.powf((1.0 + v(22).unwrap_or(0.5) * 998.0 - 500.0) / 100.0)
+                    * multiplier)
+                    .clamp(0.01, 20.0) as f32;
+                settings.envelopes.lfos.cutoff = windfall_project::TargetLfo {
+                    enabled: flag(12) && flag(14),
+                    shape,
+                    rate_hz: rate,
+                    depth: ((v(29).unwrap_or(0.5) - 0.5) * 2.0).clamp(-1.0, 1.0) as f32,
+                };
+                let weighted = |offset: usize| {
+                    let mut weight = 0.0;
+                    let mut amount = 0.0;
+                    for i in 0..3 {
+                        if flag(i * 4) {
+                            let level = v(i * 7 + 3).unwrap_or(0.0).clamp(0.0, 1.0);
+                            weight += level;
+                            amount += level * v(i * 7 + offset).unwrap_or(0.5);
+                        }
+                    }
+                    if weight > 0.0 { amount / weight } else { 0.5 }
+                };
+                let mut pitch_env = settings.envelopes.filter;
+                pitch_env.enabled = (weighted(5) - 0.5).abs() > f64::EPSILON;
+                pitch_env.depth = ((weighted(5) - 0.5) * 4800.0).clamp(-2400.0, 2400.0) as f32;
+                settings.envelopes.pitch = pitch_env;
+                settings.envelopes.lfos.pitch = windfall_project::TargetLfo {
+                    enabled: flag(12),
+                    shape,
+                    rate_hz: rate,
+                    depth: ((weighted(4) - 0.5) * 2.0).clamp(-1.0, 1.0) as f32,
+                };
+                self.report.say(section,Outcome::Approximated,format!("Channel {} SimSynth osc1/2/3_env and osc1/2/3_lfo are combined by enabled oscillator level into the stand-in's shared pitch routes; centered source amounts use (v-.5)*4800 cents and (v-.5)*2 LFO depth. Distinct oscillator trajectories cannot be represented by this stand-in.",channel.iid));
+                self.report.say(section,Outcome::Approximated,format!("Channel {} SimSynth svf ADSR: 4*v^3 seconds, depth=env*6.4 octaves; LFO rate=2^((1+rate*998-500)/100), saw/noise doubled; on/cutoff depth mapped, source shape {source_shape} approximated by the available sine/triangle/square. Oscillator-specific pitch routes, delay/retrigger, band/high outputs and chorus have no matching per-oscillator stand-in controls.",channel.iid));
+                outcome = Outcome::Approximated;
+            }
+        }
         if let Some(polyphony) = channel.polyphony {
             settings.polyphony.max_voices = match polyphony.max {
                 0 => {
@@ -106,9 +481,11 @@ impl Builder<'_> {
                     );
                 }
             }
-            if let Some(gate) = params.gate.filter(|g| *g != 1447 && *g != 0) {
+            if let Some(gate) = params.gate.filter(|g| ![0, 450, 1446, 1447].contains(g)) {
                 outcome = Outcome::Approximated;
-                self.report.say(section,Outcome::Dropped,format!("Channel {} gate={gate}: public sources give logarithmic endpoints but no tick conversion; kept in the source archive.",channel.iid));
+                self.report.say(section,Outcome::Dropped,format!("SCOPE: Channel {} gate={gate}: PyFLP Time.gate gives musical endpoints only; DawVert channel.py stores a u16 without a logarithmic curve, and mi_flp.py/LMMS provide no formula for interior words. Source word retained.",channel.iid));
+            } else if params.gate.is_some_and(|g| [450, 1446].contains(&g)) {
+                self.report.say(section,Outcome::Approximated,format!("Channel {} gate={} mapped at its public musical endpoint (450=0:03 source ticks,1446=4:00 quarter notes); full_porta bypasses gate when portamento is active.",channel.iid,params.gate.unwrap()));
             }
             for (flag, name) in [(2, "ping-pong"), (4, "fat mode")] {
                 if params.delay_flags.is_some_and(|v| v & flag != 0) {
@@ -202,7 +579,7 @@ impl Builder<'_> {
             if env.lfo_amount.is_some_and(|a| a != 0) {
                 // Only the published 50% = sixteen steps anchor has a lawful
                 // time conversion; do not guess an exponential period curve.
-                if env.lfo_speed == Some(32950) && index != 1 && index < 5 {
+                if env.lfo_speed == Some(32950) && index < 5 {
                     let lfo = windfall_project::TargetLfo {
                         enabled: true,
                         shape: match env.lfo_shape.unwrap_or(0) {
@@ -215,6 +592,7 @@ impl Builder<'_> {
                     };
                     match index {
                         0 => settings.envelopes.lfos.pan = lfo,
+                        1 => settings.envelopes.lfos.volume = lfo,
                         2 => settings.envelopes.lfos.cutoff = lfo,
                         3 => settings.envelopes.lfos.resonance = lfo,
                         4 => settings.envelopes.lfos.pitch = lfo,
@@ -222,7 +600,7 @@ impl Builder<'_> {
                     }
                     self.report.say(section,Outcome::Approximated,format!("Channel {} {target} LFO shape/depth and published sixteen-step period mapped at import tempo.",channel.iid));
                 } else {
-                    self.report.say(section,Outcome::Dropped,format!("Channel {} {target} LFO speed {:?}: no public period conversion for this raw value; archived.",channel.iid,env.lfo_speed));
+                    self.report.say(section,Outcome::Dropped,format!("SCOPE: Channel {} {target} LFO speed {:?}: PyFLP LFO.speed and DawVert channel.py establish range 200..65536 and 32950=sixteen steps, but no nonlinear period curve; mi_flp.py's LFO conversion is commented out, LMMS only reads raw data. Interior periods cannot be inferred; archived.",channel.iid,env.lfo_speed));
                 }
                 for (name, value) in [
                     (
@@ -251,6 +629,24 @@ impl Builder<'_> {
         }
         outcome
     }
+}
+
+fn channel_cutoff(raw: f64) -> f64 {
+    if raw >= 256.0 {
+        20000.0
+    } else {
+        (raw.clamp(0.0, 256.0) / 256.0 * 100.0).powi(2) * 925.0 / 2048.0
+    }
+}
+fn channel_cutoff_alt(raw: f64) -> f64 {
+    if raw >= 256.0 {
+        20000.0
+    } else {
+        channel_cutoff(raw) * 2.7
+    }
+}
+fn channel_resonance(raw: f64) -> f64 {
+    1.0 + 6.0 * raw.clamp(0.0, 256.0) / 256.0
 }
 
 #[cfg(test)]

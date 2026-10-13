@@ -1505,6 +1505,38 @@ impl Transaction<'_> {
                 "Change plugin wrapper"
             }
             Command::UpdateSettings { patch } => self.update_settings(patch)?,
+            Command::SetNoteEditGroups { groups } => {
+                if groups.len() > 65536
+                    || groups.iter().map(|g| g.notes.len()).sum::<usize>() > 262144
+                {
+                    return Err(CommandError::invalid(
+                        "Note edit group count exceeds bounds",
+                    ));
+                }
+                let mut members = std::collections::HashSet::new();
+                for group in &groups {
+                    let lane = self
+                        .project
+                        .pattern(group.pattern)
+                        .and_then(|p| p.lane(group.channel));
+                    if group.group == 0
+                        || group.notes.is_empty()
+                        || group.notes.iter().any(|id| {
+                            !members.insert(*id)
+                                || lane.is_none_or(|l| !l.notes.iter().any(|n| n.id == *id))
+                        })
+                    {
+                        return Err(CommandError::invalid(
+                            "Note groups require distinct notes in their pattern/channel",
+                        ));
+                    }
+                }
+                self.push(Edit::NoteEditGroups(Change {
+                    old: self.project.note_edit_groups.clone(),
+                    new: groups,
+                }));
+                "Note edit groups"
+            }
             Command::ReplaceNotebook { notebook } => {
                 let new = notebook.normalized()?;
                 self.push(Edit::Notebook(Change {
