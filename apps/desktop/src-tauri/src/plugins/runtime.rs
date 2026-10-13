@@ -2,6 +2,9 @@
 #[cfg(target_os = "macos")]
 #[path = "au_owner.rs"]
 mod au_owner;
+#[cfg(any(target_os = "macos", target_os = "linux"))]
+#[path = "platform_editors.rs"]
+mod platform_editors;
 
 use std::{
     collections::BTreeMap,
@@ -596,6 +599,8 @@ fn maintain_owner(
         }
     }
     windfall_plugin_host::gui::pump_events(Some(Duration::ZERO));
+    #[cfg(any(target_os = "macos", target_os = "linux"))]
+    platform_editors::maintain(owner, owner_errors, owner_revision);
     let selection = owner.selection.clone();
     for (token, record) in &mut owner.instances {
         // A cancellation can race the callback's return. Always
@@ -1514,6 +1519,14 @@ impl Runtime {
                         && binding.wrapper == record.binding.wrapper
                 })
             {
+                #[cfg(any(target_os = "macos", target_os = "linux"))]
+                {
+                    let mut options = super::wrapper::editor(&record.binding, parent);
+                    options.scale =
+                        f64::from(scale.load(std::sync::atomic::Ordering::Relaxed)) / 100.0;
+                    return record.control.editor_with_options(open, options);
+                }
+                #[cfg(not(any(target_os = "macos", target_os = "linux")))]
                 return record
                     .control
                     .editor_with_options(open, super::wrapper::editor(&record.binding, parent));
@@ -1570,6 +1583,12 @@ impl Runtime {
                 if record.plugin.editor().is_some()
                     && let Err(error) = record.plugin.set_editor_scale(application)
                 {
+                    errors.push(format!("{}: {error}", record.binding.name));
+                }
+            }
+            #[cfg(any(target_os = "macos", target_os = "linux"))]
+            for record in owner.bridges.values() {
+                if let Err(error) = record.control.set_editor_scale(application) {
                     errors.push(format!("{}: {error}", record.binding.name));
                 }
             }

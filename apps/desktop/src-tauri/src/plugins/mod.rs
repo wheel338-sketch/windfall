@@ -3,6 +3,8 @@
 mod bridge;
 mod capture_ack;
 mod manager_workflows;
+#[cfg(target_os = "linux")]
+pub(crate) mod platform_parent;
 mod runtime;
 mod wrapper;
 pub(crate) use capture_ack::{CaptureAcknowledgement, CaptureOutcome};

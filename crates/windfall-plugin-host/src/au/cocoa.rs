@@ -38,7 +38,7 @@ impl Drop for Metadata {
     fn drop(&mut self) {
         // kAudioUnitProperty_CocoaUI returns owned CFURL and CFString refs.
         let count = self.bytes as usize / size_of::<usize>();
-        for value in &self.storage[..count] {
+        for value in &self.storage[..count.min(self.storage.len())] {
             if *value != 0 {
                 unsafe {
                     CFRelease(*value as Cf);
@@ -163,6 +163,12 @@ impl Editor {
             storage,
             bytes: size,
         };
+        if size as usize > metadata.storage.len() * size_of::<usize>()
+            || (size as usize) < size_of::<CocoaInfo>()
+            || size as usize % size_of::<usize>() != 0
+        {
+            return Err(EditorError::Failed("invalid AU Cocoa metadata size".into()));
+        }
         let info = unsafe { &*metadata.storage.as_ptr().cast::<CocoaInfo>() };
         let bundle = unsafe { CFBundleCreate(ptr::null(), info.bundle_url) };
         if bundle.is_null() {
@@ -187,8 +193,24 @@ impl Editor {
                 continue;
             }
             factory = unsafe { send(send(class, b"alloc\0"), b"init\0") };
-            if !factory.is_null() {
+            let responds: unsafe extern "C" fn(Obj, Obj, Obj) -> i8 =
+                unsafe { std::mem::transmute(objc_msgSend as unsafe extern "C" fn()) };
+            if !factory.is_null()
+                && unsafe {
+                    responds(
+                        factory,
+                        selector(b"respondsToSelector:\0"),
+                        selector(b"uiViewForAudioUnit:withSize:\0"),
+                    )
+                } != 0
+            {
                 break;
+            }
+            if !factory.is_null() {
+                unsafe {
+                    void_send(factory, b"release\0");
+                }
+                factory = ptr::null_mut();
             }
         }
         if factory.is_null() {

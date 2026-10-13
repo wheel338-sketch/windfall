@@ -2,6 +2,7 @@
 //! proxy thread delivers requests/ticks; it never constructs or drops an AU.
 use super::*;
 use std::{cell::RefCell, sync::OnceLock};
+use windfall_plugin_host::gui::dispatch::Startup;
 static APP: OnceLock<tauri::AppHandle> = OnceLock::new();
 static NEXT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
 type Pump = Box<dyn FnMut(Option<Job>)>;
@@ -54,9 +55,20 @@ pub(super) fn start(
     if APP.get().is_none() {
         return Err("Cocoa plugin dispatcher is not installed".into());
     }
-    let id = NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    let id = NEXT
+        .fetch_update(
+            std::sync::atomic::Ordering::Relaxed,
+            std::sync::atomic::Ordering::Relaxed,
+            |next| next.checked_add(1),
+        )
+        .map_err(|_| "Cocoa plugin owner identity exhausted")?;
     let (ready, initialized) = mpsc::sync_channel(1);
+    let cancelled = Arc::new(Startup::default());
+    let initialize_cancelled = cancelled.clone();
     dispatch(move || {
+        if !initialize_cancelled.begin() {
+            return;
+        }
         let mut owner = Owner {
             selection,
             host: PluginHost::windfall(),
@@ -86,12 +98,25 @@ pub(super) fn start(
                 }),
             );
         });
-        let _ = ready.send(());
+        if !initialize_cancelled.publish()
+            || ready.send(()).is_err()
+            || initialize_cancelled.is_cancelled()
+        {
+            OWNERS.with(|owners| {
+                owners.borrow_mut().remove(&id);
+            });
+        }
     })?;
-    initialized
-        .recv_timeout(Duration::from_secs(15))
-        .map_err(|_| "Cocoa plugin initialization timed out")?;
-    std::thread::Builder::new()
+    if initialized.recv_timeout(Duration::from_secs(15)).is_err() {
+        cancelled.cancel();
+        let _ = dispatch(move || {
+            OWNERS.with(|owners| {
+                owners.borrow_mut().remove(&id);
+            });
+        });
+        return Err("Cocoa plugin initialization timed out".into());
+    }
+    let proxy = std::thread::Builder::new()
         .name("au-main-dispatch".into())
         .spawn(move || {
             loop {
@@ -125,6 +150,15 @@ pub(super) fn start(
                 });
             });
         })
-        .map_err(|e| e.to_string())?;
+        .map_err(|e| e.to_string());
+    if let Err(error) = proxy {
+        cancelled.cancel();
+        let _ = dispatch(move || {
+            OWNERS.with(|owners| {
+                owners.borrow_mut().remove(&id);
+            });
+        });
+        return Err(error);
+    }
     Ok(id)
 }
