@@ -59,12 +59,14 @@ impl Drop for Busy<'_> {
 }
 impl Updates {
     pub(crate) fn window_destroyed(&self, label: &str) {
-        if label != "main" { return; }
+        if label != "main" {
+            return;
+        }
         // Native destruction can bypass a React cleanup or retire its caller
         // first. The owned freeze must still thaw the other live windows.
-        let shutdown=lock(&self.shutdown).take().map(|(_,shutdown)|shutdown);
-        if let Some(shutdown)=shutdown {
-            tauri::async_runtime::spawn_blocking(move||drop(shutdown));
+        let shutdown = lock(&self.shutdown).take().map(|(_, shutdown)| shutdown);
+        if let Some(shutdown) = shutdown {
+            tauri::async_runtime::spawn_blocking(move || drop(shutdown));
         }
     }
     fn begin(&self) -> Result<Busy<'_>, String> {
@@ -171,7 +173,9 @@ pub async fn update_check(
 
     main_only(&window)?;
     let _busy = state.begin()?;
-    if lock(&state.shutdown).is_some() { return Err("Resolve the pending installation decision first".into()); }
+    if lock(&state.shutdown).is_some() {
+        return Err("Resolve the pending installation decision first".into());
+    }
     *lock(&state.pending) = None;
     let (key, endpoint) = match operator_configuration(channel) {
         Ok(config) => config,
@@ -183,8 +187,15 @@ pub async fn update_check(
             });
         }
     };
-    let Some(manifest) = crate::update_transfer::fetch(endpoint, crate::update_transfer::MANIFEST_CAP, |_, _| {}).await? else {
-        return Ok(CheckResult { configured: true, reason: None, update: None });
+    let Some(manifest) =
+        crate::update_transfer::fetch(endpoint, crate::update_transfer::MANIFEST_CAP, |_, _| {})
+            .await?
+    else {
+        return Ok(CheckResult {
+            configured: true,
+            reason: None,
+            update: None,
+        });
     };
     let reply = crate::update_transfer::Reply::new(manifest)?;
     let updater = app
@@ -243,18 +254,30 @@ pub async fn update_check(
     })
 }
 
-async fn bounded_verified_download(mut update: Update, progress: impl FnMut(u64, Option<u64>)) -> Result<Vec<u8>, String> {
-    let bytes = crate::update_transfer::fetch(update.download_url.clone(), crate::update_transfer::PACKAGE_CAP, progress).await?
-        .ok_or("Update package is empty")?;
+async fn bounded_verified_download(
+    mut update: Update,
+    progress: impl FnMut(u64, Option<u64>),
+) -> Result<Vec<u8>, String> {
+    let bytes = crate::update_transfer::fetch(
+        update.download_url.clone(),
+        crate::update_transfer::PACKAGE_CAP,
+        progress,
+    )
+    .await?
+    .ok_or("Update package is empty")?;
     verify_bounded_bytes(&mut update, bytes).await
 }
 async fn verify_bounded_bytes(update: &mut Update, bytes: Vec<u8>) -> Result<Vec<u8>, String> {
-    if bytes.is_empty() || bytes.len() > crate::update_transfer::PACKAGE_CAP { return Err("Update package is empty or exceeds 512 MiB".into()); }
+    if bytes.is_empty() || bytes.len() > crate::update_transfer::PACKAGE_CAP {
+        return Err("Update package is empty or exceeds 512 MiB".into());
+    }
     let reply = crate::update_transfer::Reply::new(bytes)?;
     update.download_url = reply.url.clone();
     update.timeout = Some(Duration::from_secs(15));
     update.no_proxy = true;
-    update.download(|_, _| {}, || {}).await.map_err(|error|format!("Download or signature verification failed. Nothing was installed. {error}"))
+    update.download(|_, _| {}, || {}).await.map_err(|error| {
+        format!("Download or signature verification failed. Nothing was installed. {error}")
+    })
 }
 
 #[tauri::command]
@@ -269,7 +292,9 @@ pub async fn update_download(
 
     main_only(&window)?;
     let _busy = state.begin()?;
-    if lock(&state.shutdown).is_some() { return Err("Resolve the pending installation decision first".into()); }
+    if lock(&state.shutdown).is_some() {
+        return Err("Resolve the pending installation decision first".into());
+    }
     let update = {
         let pending = lock(&state.pending);
         let candidate = pending
@@ -279,8 +304,13 @@ pub async fn update_download(
         candidate.update.clone()
     };
     let bytes = bounded_verified_download(update, |downloaded, total| {
-        let _ = progress.send(Progress { downloaded, total, verified: false });
-    }).await?;
+        let _ = progress.send(Progress {
+            downloaded,
+            total,
+            verified: false,
+        });
+    })
+    .await?;
     let total = bytes.len() as u64;
     let mut pending = lock(&state.pending);
     let candidate = pending
@@ -307,14 +337,23 @@ pub async fn update_install_begin(
     let _window_call = caller.enter(&window, "update_install_begin")?;
     main_only(&window)?;
     let _busy = state.begin()?;
-    if lock(&state.shutdown).is_some() { return Err("Update installation already awaits a decision".into()); }
-    if !lock(&state.pending).as_ref().is_some_and(|candidate|candidate.info.token==token && candidate.bytes.is_some()) { return Err("Download and verify the selected update first".into()); }
+    if lock(&state.shutdown).is_some() {
+        return Err("Update installation already awaits a decision".into());
+    }
+    if !lock(&state.pending)
+        .as_ref()
+        .is_some_and(|candidate| candidate.info.token == token && candidate.bytes.is_some())
+    {
+        return Err("Download and verify the selected update first".into());
+    }
     let session = session.inner().clone();
     let (shutdown, snapshot) = tauri::async_runtime::spawn_blocking(move || {
-        let shutdown=session.begin_update_shutdown()?;
-        Ok::<_,String>((shutdown,session.document_snapshot()))
-    }).await.map_err(|error|error.to_string())??;
-    *lock(&state.shutdown)=Some((token,shutdown));
+        let shutdown = session.begin_update_shutdown()?;
+        Ok::<_, String>((shutdown, session.document_snapshot()))
+    })
+    .await
+    .map_err(|error| error.to_string())??;
+    *lock(&state.shutdown) = Some((token, shutdown));
     Ok(snapshot)
 }
 #[tauri::command]
@@ -326,13 +365,19 @@ pub async fn update_install_cancel(
 ) -> Result<(), String> {
     let _window_call = caller.enter(&window, "update_install_cancel")?;
     main_only(&window)?;
-    let _busy=state.begin()?;
-    let shutdown={
-        let mut owned=lock(&state.shutdown);
-        if owned.as_ref().is_some_and(|(current,_)|*current!=token){return Err("Stale installation decision".into());}
-        owned.take().map(|(_,shutdown)|shutdown)
+    let _busy = state.begin()?;
+    let shutdown = {
+        let mut owned = lock(&state.shutdown);
+        if owned.as_ref().is_some_and(|(current, _)| *current != token) {
+            return Err("Stale installation decision".into());
+        }
+        owned.take().map(|(_, shutdown)| shutdown)
     };
-    if let Some(shutdown)=shutdown { tauri::async_runtime::spawn_blocking(move||shutdown.rollback()).await.map_err(|error|error.to_string())??; }
+    if let Some(shutdown) = shutdown {
+        tauri::async_runtime::spawn_blocking(move || shutdown.rollback())
+            .await
+            .map_err(|error| error.to_string())??;
+    }
     Ok(())
 }
 
@@ -353,13 +398,27 @@ pub async fn update_install(
     let _busy = state.begin()?;
     let mut shutdown = {
         let mut owned = lock(&state.shutdown);
-        if owned.as_ref().is_some_and(|(current,_)|*current!=token){return Err("Stale installation decision".into());}
-        owned.take().map(|(_,shutdown)|shutdown).ok_or("Begin installation before answering the unsaved-work prompt")?
+        if owned.as_ref().is_some_and(|(current, _)| *current != token) {
+            return Err("Stale installation decision".into());
+        }
+        owned
+            .take()
+            .map(|(_, shutdown)| shutdown)
+            .ok_or("Begin installation before answering the unsaved-work prompt")?
     };
-    let decision=decision.as_deref().ok_or("Choose save, discard or cancel before installing")?;
-    if !matches!(decision,"save"|"discard"){ shutdown.rollback()?; return Err("Installation cancelled".into()); }
-    if decision=="save" { shutdown.save(path.as_deref())?; }
-    if decision=="save" && session.document_snapshot().dirty { return Err("The project was not saved; installation cancelled".into()); }
+    let decision = decision
+        .as_deref()
+        .ok_or("Choose save, discard or cancel before installing")?;
+    if !matches!(decision, "save" | "discard") {
+        shutdown.rollback()?;
+        return Err("Installation cancelled".into());
+    }
+    if decision == "save" {
+        shutdown.save(path.as_deref())?;
+    }
+    if decision == "save" && session.document_snapshot().dirty {
+        return Err("The project was not saved; installation cancelled".into());
+    }
     let candidate = {
         let mut pending = lock(&state.pending);
         let candidate = pending
@@ -376,18 +435,32 @@ pub async fn update_install(
     let (candidate, result) = tauri::async_runtime::spawn_blocking(move || {
         let result = (|| {
             shutdown.quiesce()?;
-            let bytes = candidate.bytes.as_ref().ok_or("No verified update package.")?;
-            if let Err(error)=candidate.update.install(bytes) {
-                let rollback=shutdown.rollback();
-                return Err(format!("Installation failed. Keep the current installation and retry. {error}{}",rollback.err().map(|error|format!("; {error}")).unwrap_or_default()));
+            let bytes = candidate
+                .bytes
+                .as_ref()
+                .ok_or("No verified update package.")?;
+            if let Err(error) = candidate.update.install(bytes) {
+                let rollback = shutdown.rollback();
+                return Err(format!(
+                    "Installation failed. Keep the current installation and retry. {error}{}",
+                    rollback
+                        .err()
+                        .map(|error| format!("; {error}"))
+                        .unwrap_or_default()
+                ));
             }
             // macOS/Linux return on success; retain the freeze until restart.
             std::mem::forget(shutdown);
-            Ok::<_,String>(())
+            Ok::<_, String>(())
         })();
         (candidate, result)
-    }).await.map_err(|error|error.to_string())?;
-    if let Err(error)=result { *lock(&state.pending)=Some(candidate); return Err(error); }
+    })
+    .await
+    .map_err(|error| error.to_string())?;
+    if let Err(error) = result {
+        *lock(&state.pending) = Some(candidate);
+        return Err(error);
+    }
     app.restart();
 }
 
@@ -395,47 +468,105 @@ pub async fn update_install(
 mod tests {
     use super::*;
     fn signer(args: &[&std::ffi::OsStr]) {
-        let cli = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../node_modules/@tauri-apps/cli/tauri.js");
+        let cli = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../node_modules/@tauri-apps/cli/tauri.js");
         let mut command = std::process::Command::new("node");
-        command.arg(cli).args(args).env("CI", "true").env_remove("TAURI_SIGNING_PRIVATE_KEY").env_remove("TAURI_SIGNING_PRIVATE_KEY_PATH").env_remove("TAURI_SIGNING_PRIVATE_KEY_PASSWORD").stdin(std::process::Stdio::null());
-        #[cfg(windows)] {
+        command
+            .arg(cli)
+            .args(args)
+            .env("CI", "true")
+            .env_remove("TAURI_SIGNING_PRIVATE_KEY")
+            .env_remove("TAURI_SIGNING_PRIVATE_KEY_PATH")
+            .env_remove("TAURI_SIGNING_PRIVATE_KEY_PASSWORD")
+            .stdin(std::process::Stdio::null());
+        #[cfg(windows)]
+        {
             use std::os::windows::process::CommandExt;
             command.creation_flags(0x08000000);
         }
-        let result = command.output().expect("the workspace's installed Tauri signer CLI is required");
-        assert!(result.status.success(), "Tauri signer failed: {}", String::from_utf8_lossy(&result.stderr));
+        let result = command
+            .output()
+            .expect("the workspace's installed Tauri signer CLI is required");
+        assert!(
+            result.status.success(),
+            "Tauri signer failed: {}",
+            String::from_utf8_lossy(&result.stderr)
+        );
         // Never print signer stdout: it includes the temporary private key.
     }
     #[test]
-    fn generated_key_packages_use_the_production_verifier_and_reject_corruption_truncation_and_wrong_keys() {
+    fn generated_key_packages_use_the_production_verifier_and_reject_corruption_truncation_and_wrong_keys()
+     {
         use std::ffi::OsStr;
         let folder = tempfile::tempdir().unwrap();
         let key = folder.path().join("test-key");
         let wrong = folder.path().join("wrong-key");
         for path in [&key, &wrong] {
-            signer(&[OsStr::new("signer"), OsStr::new("generate"), OsStr::new("--ci"), OsStr::new("--password"), OsStr::new(""), OsStr::new("--write-keys"), path.as_os_str()]);
+            signer(&[
+                OsStr::new("signer"),
+                OsStr::new("generate"),
+                OsStr::new("--ci"),
+                OsStr::new("--password"),
+                OsStr::new(""),
+                OsStr::new("--write-keys"),
+                path.as_os_str(),
+            ]);
         }
         let package = folder.path().join("package.bin");
         let bytes = b"Windfall signed package fixture: exact bounded bytes".to_vec();
         std::fs::write(&package, &bytes).unwrap();
-        signer(&[OsStr::new("signer"),OsStr::new("sign"),OsStr::new("--private-key-path"),key.as_os_str(),OsStr::new("--password"),OsStr::new(""),package.as_os_str()]);
+        signer(&[
+            OsStr::new("signer"),
+            OsStr::new("sign"),
+            OsStr::new("--private-key-path"),
+            key.as_os_str(),
+            OsStr::new("--password"),
+            OsStr::new(""),
+            package.as_os_str(),
+        ]);
         let signature = std::fs::read_to_string(package.with_extension("bin.sig")).unwrap();
-        let app = tauri::test::mock_builder().plugin(tauri_plugin_updater::Builder::new().build())
-            .build(tauri::generate_context!()).unwrap();
+        let app = tauri::test::mock_builder()
+            .plugin(tauri_plugin_updater::Builder::new().build())
+            .build(tauri::generate_context!())
+            .unwrap();
         tauri::async_runtime::block_on(async {
-            for public in [key.with_extension("pub"),wrong.with_extension("pub")] {
-                let key_text=std::fs::read_to_string(&public).unwrap();
+            for public in [key.with_extension("pub"), wrong.with_extension("pub")] {
+                let key_text = std::fs::read_to_string(&public).unwrap();
                 let manifest=serde_json::to_vec(&serde_json::json!({"version":"9.9.9","url":"https://updates.invalid/package","signature":signature})).unwrap();
-                let reply=crate::update_transfer::Reply::new(manifest).unwrap();
-                let updater=app.updater_builder().pubkey(key_text.trim()).endpoints(vec![reply.url.clone()]).unwrap()
-                    .no_proxy().configure_client(|client|client.no_proxy().redirect(reqwest::redirect::Policy::none())).build().unwrap();
-                let update=updater.check().await.unwrap().unwrap();
-                let correct=public==key.with_extension("pub");
-                let accepted=verify_bounded_bytes(&mut update.clone(),bytes.clone()).await;
-                if correct {assert_eq!(accepted.unwrap(),bytes);} else {assert!(accepted.is_err());}
-                let mut corrupt=bytes.clone();corrupt[3]^=0x80;
-                assert!(verify_bounded_bytes(&mut update.clone(),corrupt).await.is_err());
-                assert!(verify_bounded_bytes(&mut update.clone(),bytes[..bytes.len()-1].to_vec()).await.is_err());
+                let reply = crate::update_transfer::Reply::new(manifest).unwrap();
+                let updater = app
+                    .updater_builder()
+                    .pubkey(key_text.trim())
+                    .endpoints(vec![reply.url.clone()])
+                    .unwrap()
+                    .no_proxy()
+                    .configure_client(|client| {
+                        client
+                            .no_proxy()
+                            .redirect(reqwest::redirect::Policy::none())
+                    })
+                    .build()
+                    .unwrap();
+                let update = updater.check().await.unwrap().unwrap();
+                let correct = public == key.with_extension("pub");
+                let accepted = verify_bounded_bytes(&mut update.clone(), bytes.clone()).await;
+                if correct {
+                    assert_eq!(accepted.unwrap(), bytes);
+                } else {
+                    assert!(accepted.is_err());
+                }
+                let mut corrupt = bytes.clone();
+                corrupt[3] ^= 0x80;
+                assert!(
+                    verify_bounded_bytes(&mut update.clone(), corrupt)
+                        .await
+                        .is_err()
+                );
+                assert!(
+                    verify_bounded_bytes(&mut update.clone(), bytes[..bytes.len() - 1].to_vec())
+                        .await
+                        .is_err()
+                );
             }
         });
     }

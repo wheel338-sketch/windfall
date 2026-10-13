@@ -1039,7 +1039,6 @@ pub enum Command {
         output: u32,
         track: Option<TrackId>,
     },
-
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, TS)]

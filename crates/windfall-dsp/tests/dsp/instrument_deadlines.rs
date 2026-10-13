@@ -419,37 +419,37 @@ fn profile(params: InstrumentParams, voices: usize) {
         }
         reference = Some(stats.hash);
         overall_peak = overall_peak.max(stats.peak);
-    // Release, drain the complete declared serial effects tail, then demand
-    // exact silence. This phase has its own allocator and ratio measurements.
-    let mut stats = PcmStats::default();
-    let mut drained = false;
-    let started = Instant::now();
-    let calls = allocator_calls(|| {
-        for key in 0..128 {
-            unit.note_off(key);
-        }
-        for _ in 0..release_blocks {
-            unit.process(&mut left, &mut right);
-            stats.observe(&left, &right);
-        }
-        drained = unit.active_voices() == 0;
-        for _ in 0..tail_blocks {
-            unit.process(&mut left, &mut right);
-            stats.observe(&left, &right);
-        }
-    });
-    let tail_elapsed = started.elapsed();
-    assert_eq!(calls, 0, "{label}: release/tail touched the allocator");
-    assert!(
-        drained,
-        "{label}: voices exceeded the five-second release allowance"
-    );
-    stats.assert_bounded(&label);
-    assert!(
-        left.iter().chain(&right).all(|x| *x == 0.0),
-        "{label}: tail did not end"
-    );
-    tail_times[trial] = tail_elapsed;
+        // Release, drain the complete declared serial effects tail, then demand
+        // exact silence. This phase has its own allocator and ratio measurements.
+        let mut stats = PcmStats::default();
+        let mut drained = false;
+        let started = Instant::now();
+        let calls = allocator_calls(|| {
+            for key in 0..128 {
+                unit.note_off(key);
+            }
+            for _ in 0..release_blocks {
+                unit.process(&mut left, &mut right);
+                stats.observe(&left, &right);
+            }
+            drained = unit.active_voices() == 0;
+            for _ in 0..tail_blocks {
+                unit.process(&mut left, &mut right);
+                stats.observe(&left, &right);
+            }
+        });
+        let tail_elapsed = started.elapsed();
+        assert_eq!(calls, 0, "{label}: release/tail touched the allocator");
+        assert!(
+            drained,
+            "{label}: voices exceeded the five-second release allowance"
+        );
+        stats.assert_bounded(&label);
+        assert!(
+            left.iter().chain(&right).all(|x| *x == 0.0),
+            "{label}: tail did not end"
+        );
+        tail_times[trial] = tail_elapsed;
     }
     let audio_seconds = (BLOCKS * BLOCK) as f64 / RATE as f64;
     let unrestricted = times[0];
@@ -467,8 +467,12 @@ fn profile(params: InstrumentParams, voices: usize) {
     );
 
     let unrestricted_tail = tail_times[0];
-    let best_tail = super::deadline_cpu::report("instrument tail", &mut tail_times[1..], unrestricted_tail);
-    assert!(best_tail.as_secs_f64() < tail_seconds * MAX_RATIO, "{label}: tail realtime ratio");
+    let best_tail =
+        super::deadline_cpu::report("instrument tail", &mut tail_times[1..], unrestricted_tail);
+    assert!(
+        best_tail.as_secs_f64() < tail_seconds * MAX_RATIO,
+        "{label}: tail realtime ratio"
+    );
 
     // Exercise a real control transition as well as the repeated publications
     // in the timing loop. Build the Copy settings outside the allocator guard.

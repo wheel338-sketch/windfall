@@ -60,7 +60,10 @@ pub(crate) fn execute(project: &mut Project, command: Command) -> Result<Outcome
     };
     let result = transaction.run(command).and_then(|label| {
         crate::rack::check_project(transaction.project).map_err(CommandError::invalid)?;
-        transaction.project.check_plugin_routing().map_err(CommandError::invalid)?;
+        transaction
+            .project
+            .check_plugin_routing()
+            .map_err(CommandError::invalid)?;
         if transaction.edits.iter().any(|edit| match edit {
             Edit::Clips { remove, insert } => remove
                 .iter()
@@ -1361,69 +1364,122 @@ impl Transaction<'_> {
             }
             Command::SetPluginState { target, state } => {
                 if matches!(target, crate::PluginTarget::Rack { .. }) {
-                    self.edit_rack_plugin(target, |plugin| { plugin.state = state; Ok(()) })?;
+                    self.edit_rack_plugin(target, |plugin| {
+                        plugin.state = state;
+                        Ok(())
+                    })?;
                 } else {
+                    let mut plugins = self.project.plugins.clone();
+                    let plugin = plugins
+                        .iter_mut()
+                        .find(|plugin| plugin.target == target)
+                        .ok_or_else(|| {
+                            CommandError::invalid("the plugin is not in this project")
+                        })?;
+                    plugin.state = state;
+                    plugin.validate().map_err(CommandError::invalid)?;
+                    self.push(Edit::Plugins(Change {
+                        old: self.project.plugins.clone(),
+                        new: plugins,
+                    }));
+                }
+                "Save plugin state"
+            }
+            Command::ReadmitPlugin {
+                target,
+                state,
+                parameters,
+                auxiliary_inputs,
+                outputs,
+            } => {
                 let mut plugins = self.project.plugins.clone();
                 let plugin = plugins
                     .iter_mut()
                     .find(|plugin| plugin.target == target)
                     .ok_or_else(|| CommandError::invalid("the plugin is not in this project"))?;
-                plugin.state = state;
-                plugin.validate().map_err(CommandError::invalid)?;
-                self.push(Edit::Plugins(Change {
-                    old: self.project.plugins.clone(),
-                    new: plugins,
-                }));
-                }
-                "Save plugin state"
-            }
-            Command::ReadmitPlugin { target, state, parameters, auxiliary_inputs, outputs } => {
-                let mut plugins = self.project.plugins.clone();
-                let plugin = plugins.iter_mut().find(|plugin| plugin.target == target)
-                    .ok_or_else(|| CommandError::invalid("the plugin is not in this project"))?;
-                let mut current = plugin.clone(); current.parameters = parameters.clone(); current.capabilities.unavailable_parameters.clear();
+                let mut current = plugin.clone();
+                current.parameters = parameters.clone();
+                current.capabilities.unavailable_parameters.clear();
                 current.validate().map_err(CommandError::invalid)?;
-                plugin.capabilities.revision = plugin.capabilities.revision.checked_add(1)
-                    .ok_or_else(|| CommandError::invalid("plugin capability revision exhausted"))?;
+                plugin.capabilities.revision =
+                    plugin.capabilities.revision.checked_add(1).ok_or_else(|| {
+                        CommandError::invalid("plugin capability revision exhausted")
+                    })?;
                 plugin.state = state;
                 plugin.admit_parameters(parameters);
                 plugin.auxiliary_inputs = auxiliary_inputs;
                 plugin.capabilities.outputs = outputs;
                 plugin.validate().map_err(CommandError::invalid)?;
-                self.push(Edit::Plugins(Change { old: self.project.plugins.clone(), new: plugins }));
+                self.push(Edit::Plugins(Change {
+                    old: self.project.plugins.clone(),
+                    new: plugins,
+                }));
                 "Re-admit plugin capabilities"
             }
-            Command::SetPluginOutputRoute { target, output, track } => {
-                let mut plugins = self.project.plugins.clone();
-                let plugin = plugins.iter_mut().find(|plugin| plugin.target == target)
-                    .ok_or_else(|| CommandError::invalid("the plugin is not in this project"))?;
-                if let Some(track) = track {
-                    if !plugin.capabilities.outputs.iter().any(|port| port.index == output)
-                        || self.project.mixer.track(track).is_none_or(|track| track.current) {
-                        return Err(CommandError::invalid("the native output or mixer track is unavailable"));
-                    }
-                }
-                plugin.capabilities.routes.retain(|route| route.output != output);
-                if let Some(track) = track { plugin.capabilities.routes.push(crate::PluginOutputRoute { output, track }); }
-                plugin.validate().map_err(CommandError::invalid)?;
-                self.push(Edit::Plugins(Change { old: self.project.plugins.clone(), new: plugins }));
-                "Route native plugin output"
-            }
-            Command::SetPluginWrapper { target, options } => {
-                options.validate().map_err(CommandError::invalid)?;
-                if matches!(target, crate::PluginTarget::Rack { .. }) {
-                    self.edit_rack_plugin(target, |plugin| { plugin.wrapper = options; Ok(()) })?;
-                } else {
+            Command::SetPluginOutputRoute {
+                target,
+                output,
+                track,
+            } => {
                 let mut plugins = self.project.plugins.clone();
                 let plugin = plugins
                     .iter_mut()
                     .find(|plugin| plugin.target == target)
                     .ok_or_else(|| CommandError::invalid("the plugin is not in this project"))?;
-                plugin.wrapper = options;
+                if let Some(track) = track {
+                    if !plugin
+                        .capabilities
+                        .outputs
+                        .iter()
+                        .any(|port| port.index == output)
+                        || self
+                            .project
+                            .mixer
+                            .track(track)
+                            .is_none_or(|track| track.current)
+                    {
+                        return Err(CommandError::invalid(
+                            "the native output or mixer track is unavailable",
+                        ));
+                    }
+                }
+                plugin
+                    .capabilities
+                    .routes
+                    .retain(|route| route.output != output);
+                if let Some(track) = track {
+                    plugin
+                        .capabilities
+                        .routes
+                        .push(crate::PluginOutputRoute { output, track });
+                }
+                plugin.validate().map_err(CommandError::invalid)?;
                 self.push(Edit::Plugins(Change {
                     old: self.project.plugins.clone(),
                     new: plugins,
                 }));
+                "Route native plugin output"
+            }
+            Command::SetPluginWrapper { target, options } => {
+                options.validate().map_err(CommandError::invalid)?;
+                if matches!(target, crate::PluginTarget::Rack { .. }) {
+                    self.edit_rack_plugin(target, |plugin| {
+                        plugin.wrapper = options;
+                        Ok(())
+                    })?;
+                } else {
+                    let mut plugins = self.project.plugins.clone();
+                    let plugin = plugins
+                        .iter_mut()
+                        .find(|plugin| plugin.target == target)
+                        .ok_or_else(|| {
+                            CommandError::invalid("the plugin is not in this project")
+                        })?;
+                    plugin.wrapper = options;
+                    self.push(Edit::Plugins(Change {
+                        old: self.project.plugins.clone(),
+                        new: plugins,
+                    }));
                 }
                 "Change plugin wrapper"
             }
@@ -1959,7 +2015,9 @@ impl Transaction<'_> {
             }
             Command::DuplicateAutomation { id } => self.duplicate_automation(id)?,
             Command::SetScriptLibrary { mut library } => {
-                library.register_parameters(&self.project.settings.scripts).map_err(CommandError::invalid)?;
+                library
+                    .register_parameters(&self.project.settings.scripts)
+                    .map_err(CommandError::invalid)?;
                 library.check().map_err(CommandError::invalid)?;
                 let old = self.project.settings.clone();
                 for asset in &library.assets {
@@ -1997,10 +2055,12 @@ impl Transaction<'_> {
                 let mut new = old.clone();
                 new.scripts = library.clone();
                 self.push(Edit::Settings(Change { old, new }));
-                self.remove_automations_of(|target| matches!(*target,
+                self.remove_automations_of(|target| {
+                    matches!(*target,
                     AutomationTarget::InstrumentParam { channel, param }
                         if param >= crate::scripting::SCRIPT_PARAMETER_BASE
-                            && library.parameter_state(channel, param).is_none()));
+                            && library.parameter_state(channel, param).is_none())
+                });
                 "Change scripts"
             }
             Command::Batch { label, commands } => {
@@ -2093,15 +2153,37 @@ impl Transaction<'_> {
             new: plugins,
         }));
     }
-    fn edit_rack_plugin(&mut self, target: crate::PluginTarget, edit: impl FnOnce(&mut crate::PluginBinding) -> Result<(), CommandError>) -> Result<(), CommandError> {
-        let crate::PluginTarget::Rack { channel, path, .. } = target else { return Err(CommandError::invalid("Expected a rack plugin owner")); };
-        let before = self.project.settings.modular_racks.iter().find(|r| r.channel == channel).ok_or_else(|| CommandError::invalid("The plugin rack was removed"))?.graph.clone();
+    fn edit_rack_plugin(
+        &mut self,
+        target: crate::PluginTarget,
+        edit: impl FnOnce(&mut crate::PluginBinding) -> Result<(), CommandError>,
+    ) -> Result<(), CommandError> {
+        let crate::PluginTarget::Rack { channel, path, .. } = target else {
+            return Err(CommandError::invalid("Expected a rack plugin owner"));
+        };
+        let before = self
+            .project
+            .settings
+            .modular_racks
+            .iter()
+            .find(|r| r.channel == channel)
+            .ok_or_else(|| CommandError::invalid("The plugin rack was removed"))?
+            .graph
+            .clone();
         let mut graph = before.clone();
         let count = path.iter().take_while(|id| **id != 0).count();
-        let binding = graph.node_at_mut(&path[..count]).and_then(|node| node.hosted.as_mut()).filter(|binding| binding.target == target).ok_or_else(|| CommandError::invalid("The hosted rack node was removed"))?;
+        let binding = graph
+            .node_at_mut(&path[..count])
+            .and_then(|node| node.hosted.as_mut())
+            .filter(|binding| binding.target == target)
+            .ok_or_else(|| CommandError::invalid("The hosted rack node was removed"))?;
         edit(binding)?;
         binding.validate().map_err(CommandError::invalid)?;
-        self.run(Command::SetChannelRack { id: channel, expected: Some(before), graph: Some(graph) })?;
+        self.run(Command::SetChannelRack {
+            id: channel,
+            expected: Some(before),
+            graph: Some(graph),
+        })?;
         Ok(())
     }
 
@@ -2116,8 +2198,15 @@ impl Transaction<'_> {
         }
         if matches!(target, crate::PluginTarget::Rack { .. }) {
             return self.edit_rack_plugin(target, |plugin| {
-                let param = plugin.parameters.iter_mut().find(|p| p.id == id && !p.read_only).ok_or_else(|| CommandError::invalid("the plugin parameter cannot be changed"))?;
-                param.value = if param.stepped { value.round() } else { value }.clamp(param.min, param.max);
+                let param = plugin
+                    .parameters
+                    .iter_mut()
+                    .find(|p| p.id == id && !p.read_only)
+                    .ok_or_else(|| {
+                        CommandError::invalid("the plugin parameter cannot be changed")
+                    })?;
+                param.value =
+                    if param.stepped { value.round() } else { value }.clamp(param.min, param.max);
                 Ok(())
             });
         }
@@ -2525,7 +2614,11 @@ impl Transaction<'_> {
             let mut new = old.clone();
             new.modular_racks.push(crate::ChannelRack {
                 channel: copy_id,
-                graph: { let mut graph = rack.graph; graph.bind_hosted_owners(copy_id); graph },
+                graph: {
+                    let mut graph = rack.graph;
+                    graph.bind_hosted_owners(copy_id);
+                    graph
+                },
             });
             self.push(Edit::Settings(Change { old, new }));
         }
@@ -2820,22 +2913,45 @@ impl Transaction<'_> {
     ) -> Result<String, CommandError> {
         if param >= crate::scripting::SCRIPT_PARAMETER_BASE {
             self.channel_index(channel)?;
-            let (index, info, _) = self.project.settings.scripts.parameter(channel, param)
+            let (index, info, _) = self
+                .project
+                .settings
+                .scripts
+                .parameter(channel, param)
                 .ok_or_else(|| CommandError::invalid("Script parameter owner was removed"))?;
             if !value.is_finite() || value < info.min as f32 || value > info.max as f32 {
-                return Err(CommandError::invalid("Script parameter is outside declared bounds"));
+                return Err(CommandError::invalid(
+                    "Script parameter is outside declared bounds",
+                ));
             }
             let mut library = self.project.settings.scripts.clone();
-            let binding = library.channels.iter_mut().find(|b| b.channel == channel)
+            let binding = library
+                .channels
+                .iter_mut()
+                .find(|b| b.channel == channel)
                 .ok_or_else(|| CommandError::invalid("Script assignment was removed"))?;
             if binding.parameters.is_empty() {
                 let reference = binding.script.clone();
-                let defaults = crate::scripting::Program::compile(&library.asset(&reference).unwrap().source)
-                    .map_err(|e| CommandError::invalid(e.to_string()))?.parameters
-                    .iter().map(|p| p.default).collect();
-                library.channels.iter_mut().find(|b| b.channel == channel).unwrap().parameters = defaults;
+                let defaults =
+                    crate::scripting::Program::compile(&library.asset(&reference).unwrap().source)
+                        .map_err(|e| CommandError::invalid(e.to_string()))?
+                        .parameters
+                        .iter()
+                        .map(|p| p.default)
+                        .collect();
+                library
+                    .channels
+                    .iter_mut()
+                    .find(|b| b.channel == channel)
+                    .unwrap()
+                    .parameters = defaults;
             }
-            library.channels.iter_mut().find(|b| b.channel == channel).unwrap().parameters[index] = f64::from(value).clamp(info.min, info.max);
+            library
+                .channels
+                .iter_mut()
+                .find(|b| b.channel == channel)
+                .unwrap()
+                .parameters[index] = f64::from(value).clamp(info.min, info.max);
             self.run(Command::SetScriptLibrary { library })?;
             return Ok(format!("Change script {}", info.name));
         }
@@ -4749,8 +4865,13 @@ impl Transaction<'_> {
             }
             AutomationTarget::InstrumentParam { channel, param } => {
                 if param >= crate::scripting::SCRIPT_PARAMETER_BASE {
-                    return self.project.automation_range(target).zip(self.project.automation_stored_value(target))
-                        .ok_or_else(|| CommandError::invalid("Script parameter owner was removed"));
+                    return self
+                        .project
+                        .automation_range(target)
+                        .zip(self.project.automation_stored_value(target))
+                        .ok_or_else(|| {
+                            CommandError::invalid("Script parameter owner was removed")
+                        });
                 }
                 if self
                     .project
@@ -4883,8 +5004,10 @@ impl Transaction<'_> {
             }
             AutomationTarget::InstrumentParam { channel: id, param } => {
                 if let Some((_, info, _)) = project.settings.scripts.parameter(id, param) {
-                    return unused_name(format!("{} script {}", channel(id), info.name),
-                        project.automations.iter().map(|a| a.name.as_str()));
+                    return unused_name(
+                        format!("{} script {}", channel(id), info.name),
+                        project.automations.iter().map(|a| a.name.as_str()),
+                    );
                 }
                 if let Some(rack) = project
                     .settings

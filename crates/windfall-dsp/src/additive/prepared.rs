@@ -209,10 +209,14 @@ impl PreparedEngine {
 
     pub(super) fn set_note_pan_law(&mut self, law: windfall_core::PanLaw) {
         self.pan_law = law;
-        for voice in &mut self.voices { voice.pan.retarget(law, self.rate); }
+        for voice in &mut self.voices {
+            voice.pan.retarget(law, self.rate);
+        }
     }
     pub(super) fn pan_latest(&mut self, pan: f32) {
-        if let Some(index) = self.latest { self.voices[index].pan = crate::note_pan::NotePan::new(pan, self.pan_law); }
+        if let Some(index) = self.latest {
+            self.voices[index].pan = crate::note_pan::NotePan::new(pan, self.pan_law);
+        }
     }
     pub(super) fn note_off(&mut self, key: u8) {
         for v in &mut self.voices {
@@ -406,7 +410,13 @@ macro_rules! prepared_instrument {
             fn set_note_pan_law(&mut self, law: windfall_core::PanLaw) {
                 self.engine.set_note_pan_law(law);
             }
-            fn note_on_expression(&mut self, key: u8, velocity: f32, pan: f32, _expression: crate::NoteExpression) {
+            fn note_on_expression(
+                &mut self,
+                key: u8,
+                velocity: f32,
+                pan: f32,
+                _expression: crate::NoteExpression,
+            ) {
                 self.note_on(key, velocity);
                 self.engine.pan_latest(pan);
             }

@@ -26,8 +26,8 @@ mod shell;
 mod sync;
 #[cfg(all(test, windows))]
 mod test_alloc;
-mod updates;
 mod update_transfer;
+mod updates;
 mod window_calls;
 #[cfg(all(test, windows))]
 #[global_allocator]
@@ -89,7 +89,9 @@ pub fn run() {
             if matches!(event, WindowEvent::Destroyed)
                 && let Some(session) = window.try_state::<Session>()
             {
-                window.state::<updates::Updates>().window_destroyed(window.label());
+                window
+                    .state::<updates::Updates>()
+                    .window_destroyed(window.label());
                 window
                     .state::<window_calls::WindowCalls>()
                     .closed(window.label());

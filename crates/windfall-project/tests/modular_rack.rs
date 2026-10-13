@@ -78,10 +78,27 @@ fn document() -> (Document, ChannelId) {
 fn rack_node_assets_are_owned_portable_checked_and_undoable_with_legacy_defaults() {
     let (mut doc, channel) = document();
     let mut rack = graph();
-    rack.nodes[1].processor = RackProcessor::Instrument { params: InstrumentKind::LayerKick.default_params() };
-    rack.nodes[1].asset = Some(RackNodeAsset::Instrument { asset: windfall_dsp::InstrumentAsset::Pcm(windfall_dsp::instrument_asset::LayerPcm::from_samples(48000, &[0.25, -0.5, 0.125])) });
-    rack.nodes[2].processor = RackProcessor::Effect { params: EffectKind::Convolver.default_params(), mix: 1.0 };
-    rack.nodes[2].asset = Some(RackNodeAsset::Impulse { impulse: ConvolverImpulse { name: "Owned IR".into(), sample_rate: 48000, group_delay: 0, eq_gains: None, frames: vec![[1.0, 0.5], [0.25, -0.125]] } });
+    rack.nodes[1].processor = RackProcessor::Instrument {
+        params: InstrumentKind::LayerKick.default_params(),
+    };
+    rack.nodes[1].asset = Some(RackNodeAsset::Instrument {
+        asset: windfall_dsp::InstrumentAsset::Pcm(
+            windfall_dsp::instrument_asset::LayerPcm::from_samples(48000, &[0.25, -0.5, 0.125]),
+        ),
+    });
+    rack.nodes[2].processor = RackProcessor::Effect {
+        params: EffectKind::Convolver.default_params(),
+        mix: 1.0,
+    };
+    rack.nodes[2].asset = Some(RackNodeAsset::Impulse {
+        impulse: ConvolverImpulse {
+            name: "Owned IR".into(),
+            sample_rate: 48000,
+            group_delay: 0,
+            eq_gains: None,
+            frames: vec![[1.0, 0.5], [0.25, -0.125]],
+        },
+    });
     set(&mut doc, channel, Some(rack.clone())).unwrap();
     let saved = doc.project().clone();
     let reopened: Project = serde_json::from_str(&serde_json::to_string(&saved).unwrap()).unwrap();
@@ -89,10 +106,20 @@ fn rack_node_assets_are_owned_portable_checked_and_undoable_with_legacy_defaults
     assert_eq!(reopened.settings.modular_racks[0].graph, rack);
     let (body, _) = ChannelPreset::capture(&saved, channel).unwrap();
     let file = Preset::of_channel("Owned rack", body, None);
-    let loaded = Preset::from_json(file.to_json().unwrap().as_bytes()).unwrap().0;
+    let loaded = Preset::from_json(file.to_json().unwrap().as_bytes())
+        .unwrap()
+        .0;
     assert_eq!(loaded.channel.unwrap().rack, Some(rack.clone()));
     let previous = rack.clone();
-    rack.nodes[2].asset = Some(RackNodeAsset::Impulse { impulse: ConvolverImpulse { name: "Replacement".into(), sample_rate: 48000, group_delay: 0, eq_gains: None, frames: vec![[0.125; 2]] } });
+    rack.nodes[2].asset = Some(RackNodeAsset::Impulse {
+        impulse: ConvolverImpulse {
+            name: "Replacement".into(),
+            sample_rate: 48000,
+            group_delay: 0,
+            eq_gains: None,
+            frames: vec![[0.125; 2]],
+        },
+    });
     set(&mut doc, channel, Some(rack.clone())).unwrap();
     doc.undo().unwrap();
     assert_eq!(doc.project().settings.modular_racks[0].graph, previous);
@@ -103,7 +130,9 @@ fn rack_node_assets_are_owned_portable_checked_and_undoable_with_legacy_defaults
     assert!(set(&mut doc, channel, Some(rack)).is_err());
     assert_eq!(*doc.project(), before);
     let mut legacy = serde_json::to_value(graph()).unwrap();
-    for node in legacy["nodes"].as_array_mut().unwrap() { node.as_object_mut().unwrap().remove("asset"); }
+    for node in legacy["nodes"].as_array_mut().unwrap() {
+        node.as_object_mut().unwrap().remove("asset");
+    }
     let legacy: RackGraph = serde_json::from_value(legacy).unwrap();
     assert!(legacy.nodes.iter().all(|n| n.asset.is_none()));
 }
@@ -112,61 +141,169 @@ fn rack_node_assets_are_owned_portable_checked_and_undoable_with_legacy_defaults
 fn rack_sample_zones_preserve_missing_sources_and_relink_as_one_history_step() {
     let (mut doc, channel) = document();
     let mut rack = graph();
-    rack.nodes[1].processor = RackProcessor::Instrument { params: InstrumentKind::MultiSampler.default_params() };
-    let missing = RackNodeAsset::Zones { zones: vec![RackSampleZone {
-        mapping: windfall_dsp::sample_bank::SampleZone::default(),
-        audio: RackAudioAsset { name: "Missing take.wav".into(), sample_rate: 48000, frames: None },
-    }] };
+    rack.nodes[1].processor = RackProcessor::Instrument {
+        params: InstrumentKind::MultiSampler.default_params(),
+    };
+    let missing = RackNodeAsset::Zones {
+        zones: vec![RackSampleZone {
+            mapping: windfall_dsp::sample_bank::SampleZone::default(),
+            audio: RackAudioAsset {
+                name: "Missing take.wav".into(),
+                sample_rate: 48000,
+                frames: None,
+            },
+        }],
+    };
     rack.nodes[1].asset = Some(missing.clone());
     set(&mut doc, channel, Some(rack.clone())).unwrap();
     assert_eq!(missing.missing_sources(), ["Missing take.wav"]);
-    let RackNodeAsset::Zones { zones } = rack.nodes[1].asset.as_mut().unwrap() else { unreachable!() };
+    let RackNodeAsset::Zones { zones } = rack.nodes[1].asset.as_mut().unwrap() else {
+        unreachable!()
+    };
     zones[0].audio.frames = Some(vec![[0.25, -0.5]; 32]);
     set(&mut doc, channel, Some(rack.clone())).unwrap();
-    assert!(rack.nodes[1].asset.as_ref().unwrap().missing_sources().is_empty());
+    assert!(
+        rack.nodes[1]
+            .asset
+            .as_ref()
+            .unwrap()
+            .missing_sources()
+            .is_empty()
+    );
     doc.undo().unwrap();
-    assert_eq!(doc.project().settings.modular_racks[0].graph.nodes[1].asset, Some(missing));
+    assert_eq!(
+        doc.project().settings.modular_racks[0].graph.nodes[1].asset,
+        Some(missing)
+    );
     doc.redo().unwrap();
     let restored = &doc.project().settings.modular_racks[0].graph;
     assert_eq!(restored, &rack);
-    let RackNodeAsset::Zones { zones } = rack.nodes[1].asset.as_mut().unwrap() else { unreachable!() };
+    let RackNodeAsset::Zones { zones } = rack.nodes[1].asset.as_mut().unwrap() else {
+        unreachable!()
+    };
     zones[0].mapping.sample = 44;
     assert!(set(&mut doc, channel, Some(rack)).is_err());
 }
 
 #[test]
-fn nested_hosted_node_owners_capture_state_parameters_presets_and_removal_history_without_aliasing() {
+fn nested_hosted_node_owners_capture_state_parameters_presets_and_removal_history_without_aliasing()
+{
     let (mut doc, channel) = document();
-    let mut inner = RackGraph { next_id: 2, nodes: vec![node(1, RackProcessor::Effect { params: EffectKind::Polarity.default_params(), mix: 1.0 })], ..Default::default() };
+    let mut inner = RackGraph {
+        next_id: 2,
+        nodes: vec![node(
+            1,
+            RackProcessor::Effect {
+                params: EffectKind::Polarity.default_params(),
+                mix: 1.0,
+            },
+        )],
+        ..Default::default()
+    };
     inner.nodes[0].hosted = Some(PluginBinding {
         capabilities: Default::default(),
-        wrapper: Default::default(), target: PluginTarget::Effect { effect: EffectId(0) }, format: "clap".into(), path: "C:/owned/fixture.clap".into(), id: "org.windfall.test.bridge-delayed".into(), name: "Owned fixture".into(), state: vec![10, 20, 30], parameters: vec![PluginParameter { id: 7, name: "Gain".into(), min: 0.0, max: 1.0, value: 0.5, stepped: false, read_only: false, automatable: true }], sidechain_input: None, auxiliary_inputs: Vec::new(),
+        wrapper: Default::default(),
+        target: PluginTarget::Effect {
+            effect: EffectId(0),
+        },
+        format: "clap".into(),
+        path: "C:/owned/fixture.clap".into(),
+        id: "org.windfall.test.bridge-delayed".into(),
+        name: "Owned fixture".into(),
+        state: vec![10, 20, 30],
+        parameters: vec![PluginParameter {
+            id: 7,
+            name: "Gain".into(),
+            min: 0.0,
+            max: 1.0,
+            value: 0.5,
+            stepped: false,
+            read_only: false,
+            automatable: true,
+        }],
+        sidechain_input: None,
+        auxiliary_inputs: Vec::new(),
     });
-    let mut rack = RackGraph { next_id: 2, nodes: vec![node(1, RackProcessor::Rack { graph: Box::new(inner) })], ..Default::default() };
+    let mut rack = RackGraph {
+        next_id: 2,
+        nodes: vec![node(
+            1,
+            RackProcessor::Rack {
+                graph: Box::new(inner),
+            },
+        )],
+        ..Default::default()
+    };
     set(&mut doc, channel, Some(rack.clone())).unwrap();
-    let target = PluginTarget::Rack { channel, path: [1, 1, 0, 0], instrument: false };
+    let target = PluginTarget::Rack {
+        channel,
+        path: [1, 1, 0, 0],
+        instrument: false,
+    };
     assert_eq!(doc.project().plugin_bindings().len(), 1);
     assert_eq!(doc.project().plugin(target).unwrap().state, [10, 20, 30]);
-    doc.dispatch(Command::SetPluginParam { target, id: 7, value: 0.75 }, None).unwrap();
-    assert_eq!(doc.project().plugin(target).unwrap().parameters[0].value, 0.75);
-    doc.undo().unwrap(); assert_eq!(doc.project().plugin(target).unwrap().parameters[0].value, 0.5);
-    doc.redo().unwrap(); assert_eq!(doc.project().plugin(target).unwrap().parameters[0].value, 0.75);
-    doc.dispatch(Command::SetPluginState { target, state: vec![40, 50] }, None).unwrap();
+    doc.dispatch(
+        Command::SetPluginParam {
+            target,
+            id: 7,
+            value: 0.75,
+        },
+        None,
+    )
+    .unwrap();
+    assert_eq!(
+        doc.project().plugin(target).unwrap().parameters[0].value,
+        0.75
+    );
+    doc.undo().unwrap();
+    assert_eq!(
+        doc.project().plugin(target).unwrap().parameters[0].value,
+        0.5
+    );
+    doc.redo().unwrap();
+    assert_eq!(
+        doc.project().plugin(target).unwrap().parameters[0].value,
+        0.75
+    );
+    doc.dispatch(
+        Command::SetPluginState {
+            target,
+            state: vec![40, 50],
+        },
+        None,
+    )
+    .unwrap();
     let before = doc.project().clone();
     let loaded = file::from_json(&file::to_json(&before).unwrap()).unwrap();
     assert_eq!(loaded.plugin(target).unwrap().state, [40, 50]);
     let mut relinked = before.settings.modular_racks[0].graph.clone();
-    let mut provider = before.plugin(target).unwrap().clone(); provider.path = "D:/new machine/fixture.clap".into(); provider.state.clear(); provider.parameters[0].value = 0.0;
+    let mut provider = before.plugin(target).unwrap().clone();
+    provider.path = "D:/new machine/fixture.clap".into();
+    provider.state.clear();
+    provider.parameters[0].value = 0.0;
     relinked.replace_hosted_provider(&[1, 1], provider).unwrap();
     let binding = relinked.node_at(&[1, 1]).unwrap().hosted.as_ref().unwrap();
-    assert_eq!(binding.path, "D:/new machine/fixture.clap"); assert_eq!(binding.state, [40, 50]); assert_eq!(binding.parameters[0].value, 0.75);
+    assert_eq!(binding.path, "D:/new machine/fixture.clap");
+    assert_eq!(binding.state, [40, 50]);
+    assert_eq!(binding.parameters[0].value, 0.75);
     let (body, _) = ChannelPreset::capture(&before, channel).unwrap();
     let preset = Preset::of_channel("Hosted rack", body, None);
-    assert_eq!(Preset::from_json(preset.to_json().unwrap().as_bytes()).unwrap().0.channel.unwrap().rack, Some(before.settings.modular_racks[0].graph.clone()));
-    rack.nodes.clear(); set(&mut doc, channel, Some(rack)).unwrap();
+    assert_eq!(
+        Preset::from_json(preset.to_json().unwrap().as_bytes())
+            .unwrap()
+            .0
+            .channel
+            .unwrap()
+            .rack,
+        Some(before.settings.modular_racks[0].graph.clone())
+    );
+    rack.nodes.clear();
+    set(&mut doc, channel, Some(rack)).unwrap();
     assert!(doc.project().plugin(target).is_none());
-    doc.undo().unwrap(); assert_eq!(doc.project().plugin(target).unwrap().state, [40, 50]);
-    doc.redo().unwrap(); assert!(doc.project().plugin(target).is_none());
+    doc.undo().unwrap();
+    assert_eq!(doc.project().plugin(target).unwrap().state, [40, 50]);
+    doc.redo().unwrap();
+    assert!(doc.project().plugin(target).is_none());
 }
 fn set(
     document: &mut Document,

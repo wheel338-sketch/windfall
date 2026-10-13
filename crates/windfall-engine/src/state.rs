@@ -73,8 +73,7 @@ const TAIL_SLACK_FRAMES: u64 = 256;
 
 /// Most routed effect outputs one track can have: every slot of its chain
 /// with every output an effect can offer.
-const MAX_TAPS_PER_TRACK: usize =
-    windfall_project::MAX_EFFECT_SLOTS * 64;
+const MAX_TAPS_PER_TRACK: usize = windfall_project::MAX_EFFECT_SLOTS * 64;
 
 /// Lengths, in frames, of the fades a change of plan can start.
 #[derive(Debug, Clone, Copy)]
@@ -688,8 +687,13 @@ impl Layout {
                 self.reach[channel.track] = self.reach[channel.track].max(latency);
                 if let Some(binding) = plan.plugins.iter().find(|binding| binding.target == key) {
                     for route in &binding.capabilities.routes {
-                        if binding.capabilities.outputs.iter().any(|port| port.index == route.output)
-                            && let Some(target) = plan.track_ids.get(route.track.0) {
+                        if binding
+                            .capabilities
+                            .outputs
+                            .iter()
+                            .any(|port| port.index == route.output)
+                            && let Some(target) = plan.track_ids.get(route.track.0)
+                        {
                             self.arrival[target] = self.arrival[target].max(latency);
                             self.reach[target] = self.reach[target].max(latency);
                         }
@@ -988,7 +992,12 @@ impl PlanState {
             {
                 crate::message::retire(garbage, crate::message::Garbage::SampleBank(bank));
             }
-            if garbage.slots() > 0 && let Some(rack) = seat.unit.as_mut().and_then(InstrumentUnit::take_retired_rack) {
+            if garbage.slots() > 0
+                && let Some(rack) = seat
+                    .unit
+                    .as_mut()
+                    .and_then(InstrumentUnit::take_retired_rack)
+            {
                 crate::message::retire(garbage, crate::message::Garbage::ModularRack(rack));
             }
         }
@@ -1039,7 +1048,10 @@ impl PlanState {
                             .as_ref()
                             .map(|asset| &asset.identity))
             {
-                let family = rack_families.entry(channel.id).or_insert_with(crate::modular::assets::GenerationFamily::new).clone();
+                let family = rack_families
+                    .entry(channel.id)
+                    .or_insert_with(crate::modular::assets::GenerationFamily::new)
+                    .clone();
                 let rack = crate::modular::ModularRack::prepare_in_family(
                     graph,
                     sample_rate,
@@ -1228,22 +1240,48 @@ impl PlanState {
             .try_fold(0_usize, |total, bytes| total.checked_add(bytes))
             .ok_or(crate::project_preparation::ProjectPreparationError::SizeOverflow)?;
         let mut echo_reservation = echo_history.reserve(new_histories)?;
-        let (mut prepared, mut plugins) = crate::plugins::prepare(plan, sample_rate, &known_plugins)?;
+        let (mut prepared, mut plugins) =
+            crate::plugins::prepare(plan, sample_rate, &known_plugins)?;
         // Aggregate rack latency participates in the containing instrument's
         // existing compensation key. Child records retain their native targets.
         for channel in &plan.channels {
-            let Some(graph) = &channel.rack else { continue; };
-            let root = windfall_project::PluginTarget::Instrument { channel: channel.id };
+            let Some(graph) = &channel.rack else {
+                continue;
+            };
+            let root = windfall_project::PluginTarget::Instrument {
+                channel: channel.id,
+            };
             if let Some(rack) = prepared_racks.get(&channel.id) {
                 use std::hash::{Hash, Hasher};
                 let mut hash = std::collections::hash_map::DefaultHasher::new();
-                graph.fingerprint().map_err(crate::project_preparation::ProjectPreparationError::Rack)?.hash(&mut hash);
-                plan.factory_stamp.map_or(0, |stamp| stamp.identity()).hash(&mut hash);
+                graph
+                    .fingerprint()
+                    .map_err(crate::project_preparation::ProjectPreparationError::Rack)?
+                    .hash(&mut hash);
+                plan.factory_stamp
+                    .map_or(0, |stamp| stamp.identity())
+                    .hash(&mut hash);
                 plugins.insert(root, (hash.finish(), rack.latency_samples()));
-                for &(target, identity, latency) in rack.plugin_records() { plugins.insert(target, (identity ^ plan.factory_stamp.map_or(0, |s| s.identity()), latency)); }
+                for &(target, identity, latency) in rack.plugin_records() {
+                    plugins.insert(
+                        target,
+                        (
+                            identity ^ plan.factory_stamp.map_or(0, |s| s.identity()),
+                            latency,
+                        ),
+                    );
+                }
             } else if let Some(held) = held {
-                if let Some(record) = held.plugins.get(&root) { plugins.insert(root, *record); }
-                for binding in &plan.plugins { if matches!(binding.target, windfall_project::PluginTarget::Rack { channel: owner, .. } if owner == channel.id) && let Some(record) = held.plugins.get(&binding.target) { plugins.insert(binding.target, *record); } }
+                if let Some(record) = held.plugins.get(&root) {
+                    plugins.insert(root, *record);
+                }
+                for binding in &plan.plugins {
+                    if matches!(binding.target, windfall_project::PluginTarget::Rack { channel: owner, .. } if owner == channel.id)
+                        && let Some(record) = held.plugins.get(&binding.target)
+                    {
+                        plugins.insert(binding.target, *record);
+                    }
+                }
             }
         }
         Layout::validate_native_routes(plan, sample_rate, &plugins)?;
@@ -1316,14 +1354,39 @@ impl PlanState {
 
         let mut native_instrument_outputs = Vec::new();
         for binding in &plan.plugins {
-            let windfall_project::PluginTarget::Instrument { channel } = binding.target else { continue; };
-            let Some(channel) = plan.channel_ids.get(channel.0) else { continue; };
-            let latency = ledger.plugins.get(&binding.target).map_or(0, |record| record.1);
+            let windfall_project::PluginTarget::Instrument { channel } = binding.target else {
+                continue;
+            };
+            let Some(channel) = plan.channel_ids.get(channel.0) else {
+                continue;
+            };
+            let latency = ledger
+                .plugins
+                .get(&binding.target)
+                .map_or(0, |record| record.1);
             for route in &binding.capabilities.routes {
-                if !binding.capabilities.outputs.iter().any(|port| port.index == route.output) { continue; }
-                let Some(track) = plan.track_ids.get(route.track.0).filter(|&track| !plan.tracks[track].current) else { continue; };
+                if !binding
+                    .capabilities
+                    .outputs
+                    .iter()
+                    .any(|port| port.index == route.output)
+                {
+                    continue;
+                }
+                let Some(track) = plan
+                    .track_ids
+                    .get(route.track.0)
+                    .filter(|&track| !plan.tracks[track].current)
+                else {
+                    continue;
+                };
                 let delay = layout.arrival[track].saturating_sub(latency);
-                native_instrument_outputs.push(NativeInstrumentOutput { channel, bus: route.output, track, delay: crate::rack::Compensation::new(delay, delay) });
+                native_instrument_outputs.push(NativeInstrumentOutput {
+                    channel,
+                    bus: route.output,
+                    track,
+                    delay: crate::rack::Compensation::new(delay, delay),
+                });
             }
         }
         let mut edges = vec![Ramp::at_rest(0.0); plan.edge_count];
@@ -1900,9 +1963,26 @@ impl PlanState {
             {
                 unit.inherit_sample_bank_notes(previous);
                 fn owns_assets(graph: &windfall_project::RackGraph) -> bool {
-                    graph.nodes.iter().any(|node| node.asset.is_some() || node.hosted.is_some() || match &node.processor { windfall_project::RackProcessor::Rack { graph } => owns_assets(graph), _ => false })
+                    graph.nodes.iter().any(|node| {
+                        node.asset.is_some()
+                            || node.hosted.is_some()
+                            || match &node.processor {
+                                windfall_project::RackProcessor::Rack { graph } => {
+                                    owns_assets(graph)
+                                }
+                                _ => false,
+                            }
+                    })
                 }
-                unit.inherit_rack_retirement(previous, found.is_some_and(|index| old_plan.channels[index].rack.as_deref().is_some_and(owns_assets)));
+                unit.inherit_rack_retirement(
+                    previous,
+                    found.is_some_and(|index| {
+                        old_plan.channels[index]
+                            .rack
+                            .as_deref()
+                            .is_some_and(owns_assets)
+                    }),
+                );
             }
             if seat.unit.is_none() {
                 seat.unit = before

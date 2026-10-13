@@ -67,8 +67,21 @@ struct PluginAddresses {
     parameters: Vec<crate::PluginParameter>,
 }
 impl PluginAddresses {
-    fn of(binding: &crate::PluginBinding) -> Self { Self { target: binding.target, format: binding.format.clone(), path: binding.path.clone(), id: binding.id.clone(), parameters: binding.parameters.clone() } }
-    fn matches(&self, binding: &crate::PluginBinding) -> bool { self.target == binding.target && self.format == binding.format && self.path == binding.path && self.id == binding.id }
+    fn of(binding: &crate::PluginBinding) -> Self {
+        Self {
+            target: binding.target,
+            format: binding.format.clone(),
+            path: binding.path.clone(),
+            id: binding.id.clone(),
+            parameters: binding.parameters.clone(),
+        }
+    }
+    fn matches(&self, binding: &crate::PluginBinding) -> bool {
+        self.target == binding.target
+            && self.format == binding.format
+            && self.path == binding.path
+            && self.id == binding.id
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -86,7 +99,9 @@ fn project_asset_pins(project: &Project) -> windfall_dsp::asset::AssetPins {
             .iter()
             .flat_map(|track| track.effects.iter().map(|effect| &effect.params)),
     );
-    for rack in &project.settings.modular_racks { pins.extend(rack.graph.effect_asset_pins()); }
+    for rack in &project.settings.modular_racks {
+        pins.extend(rack.graph.effect_asset_pins());
+    }
     pins
 }
 
@@ -459,15 +474,28 @@ impl Document {
     /// address for reuse. Rejected transactions never enter this registry.
     fn retain_plugin_addresses(&mut self, touched: &mut Touched) {
         for binding in &mut self.project.plugins {
-            if let Some(known) = self.plugin_addresses.iter_mut().find(|known| known.matches(binding)) {
+            if let Some(known) = self
+                .plugin_addresses
+                .iter_mut()
+                .find(|known| known.matches(binding))
+            {
                 let before = binding.clone();
                 let current = std::mem::replace(&mut binding.parameters, known.parameters.clone());
                 let missing = binding.capabilities.unavailable_parameters.clone();
                 binding.admit_parameters(current);
-                for id in missing { if !binding.capabilities.unavailable_parameters.contains(&id) { binding.capabilities.unavailable_parameters.push(id); } }
+                for id in missing {
+                    if !binding.capabilities.unavailable_parameters.contains(&id) {
+                        binding.capabilities.unavailable_parameters.push(id);
+                    }
+                }
                 known.parameters = binding.parameters.clone();
-                if *binding != before { touched.plugins = true; self.saved = None; }
-            } else { self.plugin_addresses.push(PluginAddresses::of(binding)); }
+                if *binding != before {
+                    touched.plugins = true;
+                    self.saved = None;
+                }
+            } else {
+                self.plugin_addresses.push(PluginAddresses::of(binding));
+            }
         }
     }
 

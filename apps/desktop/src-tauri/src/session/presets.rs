@@ -194,7 +194,13 @@ impl Session {
         };
         let folder = source.parent().unwrap_or(Path::new("."));
         let mut missing_audio = Vec::new();
-        if let Some(graph) = preset.channel.as_ref().and_then(|channel| channel.rack.as_ref()) { missing_audio.extend(graph.missing_assets()); }
+        if let Some(graph) = preset
+            .channel
+            .as_ref()
+            .and_then(|channel| channel.rack.as_ref())
+        {
+            missing_audio.extend(graph.missing_assets());
+        }
         for asset in &preset.assets {
             match asset_file(folder, asset).and_then(|file| fs::metadata(file).ok()) {
                 Some(metadata) if metadata.is_file() => {
@@ -411,9 +417,16 @@ fn hosted(preset: &Preset) -> Vec<&PluginBinding> {
     if let Some(channel) = &preset.channel {
         bindings.extend(&channel.plugin);
         fn add<'a>(graph: &'a windfall_project::RackGraph, out: &mut Vec<&'a PluginBinding>) {
-            for node in &graph.nodes { out.extend(&node.hosted); if let windfall_project::RackProcessor::Rack { graph } = &node.processor { add(graph, out); } }
+            for node in &graph.nodes {
+                out.extend(&node.hosted);
+                if let windfall_project::RackProcessor::Rack { graph } = &node.processor {
+                    add(graph, out);
+                }
+            }
         }
-        if let Some(graph) = &channel.rack { add(graph, &mut bindings); }
+        if let Some(graph) = &channel.rack {
+            add(graph, &mut bindings);
+        }
     }
     if let Some(plugin) = &preset.plugin
         && let PluginPresetState::Hosted { binding, .. } = &plugin.state

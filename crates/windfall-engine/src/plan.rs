@@ -299,7 +299,9 @@ impl PlanTrack {
         self.edges
             .iter()
             .filter_map(|edge| edge.tap)
-            .filter(|tap| tap.place == place && usize::from(tap.output) < windfall_dsp::MAX_AUX_OUTPUTS)
+            .filter(|tap| {
+                tap.place == place && usize::from(tap.output) < windfall_dsp::MAX_AUX_OUTPUTS
+            })
             .fold(0, |mask, tap| mask | (1 << tap.output))
     }
 }
@@ -827,7 +829,11 @@ impl Plan {
                 .iter()
                 .flat_map(|track| track.effects.iter().map(|effect| &effect.params)),
         );
-        for channel in &self.channels { if let Some(graph) = &channel.rack { self._asset_pins.extend(graph.effect_asset_pins()); } }
+        for channel in &self.channels {
+            if let Some(graph) = &channel.rack {
+                self._asset_pins.extend(graph.effect_asset_pins());
+            }
+        }
         for track in &mut self.tracks {
             track.instruments.clear();
         }
@@ -902,7 +908,9 @@ impl Plan {
     /// The clock domain for a song tick: static map time, or musical ticks
     /// while a bounded internal link integrates tempo on the control grid.
     pub fn warp(&self, tick: f64) -> f64 {
-        if self.linked_tempo() { return tick; }
+        if self.linked_tempo() {
+            return tick;
+        }
         match &self.tempo_map {
             Some(map) => map.warp(tick),
             None => tick,
@@ -911,7 +919,9 @@ impl Plan {
 
     /// The inverse of [`warp`](Self::warp).
     pub fn unwarp(&self, warped: f64) -> f64 {
-        if self.linked_tempo() { return warped; }
+        if self.linked_tempo() {
+            return warped;
+        }
         match &self.tempo_map {
             Some(map) => map.unwarp(warped),
             None => warped,
@@ -1061,12 +1071,21 @@ pub(crate) fn compile(project: &Project, pool: &SamplePool) -> Plan {
 
     let waves = crate::track_workers::GraphWaves::compile(&order, tracks.len(), &[], &[])
         .expect("compiled track order");
-    let script_parameters = project.settings.scripts.parameter_addresses.iter().enumerate().map(|(index, address)| {
+    let script_parameters = project
+        .settings
+        .scripts
+        .parameter_addresses
+        .iter()
+        .enumerate()
+        .map(|(index, address)| {
             let channel = channel_ids.get(address.channel.0)?;
-            let (parameter, _, _) = project.settings.scripts.parameter(address.channel,
-                windfall_project::scripting::SCRIPT_PARAMETER_BASE + index as u32)?;
+            let (parameter, _, _) = project.settings.scripts.parameter(
+                address.channel,
+                windfall_project::scripting::SCRIPT_PARAMETER_BASE + index as u32,
+            )?;
             Some((channel, parameter))
-        }).collect();
+        })
+        .collect();
     let mut plan = Plan {
         performance_clips: Vec::new(),
         performance_clip_ids: IdIndex::default(),
@@ -1310,8 +1329,11 @@ fn compile_pattern(
         if program.is_some() {
             for note in lane.notes.iter().filter(|note| note.start < source_length) {
                 if let Some(program) = program.filter(|p| p.dynamic()) {
-                    length = length.max(program.maximum_end(windfall_project::scripting::ScriptNote::from(note))
-                        .unwrap_or(note.start.saturating_add(note.length)));
+                    length = length.max(
+                        program
+                            .maximum_end(windfall_project::scripting::ScriptNote::from(note))
+                            .unwrap_or(note.start.saturating_add(note.length)),
+                    );
                 }
                 for output in crate::script_notes::transform(program, note).as_slice() {
                     length = length.max(output.start.saturating_add(output.length));
@@ -1329,8 +1351,12 @@ fn compile_pattern(
         for note in lane.notes.iter().filter(|note| note.start < source_length) {
             let program = script_notes.get(channel).and_then(Option::as_ref);
             let transformed_notes = if program.is_some_and(|p| p.dynamic()) {
-                windfall_project::scripting::TransformedNotes::single(windfall_project::scripting::ScriptNote::from(note))
-            } else { crate::script_notes::transform(program, note) };
+                windfall_project::scripting::TransformedNotes::single(
+                    windfall_project::scripting::ScriptNote::from(note),
+                )
+            } else {
+                crate::script_notes::transform(program, note)
+            };
             for transformed in transformed_notes.as_slice() {
                 let Some((tick, duration)) =
                     timing.place(transformed.start, transformed.length, length, swing)
@@ -1347,9 +1373,15 @@ fn compile_pattern(
                     pan: pan(transformed.pan),
                     expression: note.expression.clamped(),
                     scripted: program.is_some(),
-                    script_input: program.filter(|p| p.dynamic()).map(|_| windfall_project::scripting::ScriptNote::from(note)),
-                    script_tail: program.filter(|p| p.dynamic()).and_then(|p|
-                        p.maximum_end(windfall_project::scripting::ScriptNote::from(note)).ok())
+                    script_input: program
+                        .filter(|p| p.dynamic())
+                        .map(|_| windfall_project::scripting::ScriptNote::from(note)),
+                    script_tail: program
+                        .filter(|p| p.dynamic())
+                        .and_then(|p| {
+                            p.maximum_end(windfall_project::scripting::ScriptNote::from(note))
+                                .ok()
+                        })
                         .map(|end| tick + f64::from(end - note.start)),
                 });
             }
@@ -1492,7 +1524,10 @@ fn compile_playlist(
                     && tick < f64::from(end)
                     && only.is_none_or(|only| only == event.channel)
                 {
-                    song_end = song_end.max((shift + event.script_tail.unwrap_or(event.tick + event.length)).ceil() as u32);
+                    song_end = song_end.max(
+                        (shift + event.script_tail.unwrap_or(event.tick + event.length)).ceil()
+                            as u32,
+                    );
                 }
             }
         }
@@ -1638,8 +1673,13 @@ pub(crate) fn compile_audio_clips(
 /// itself, feeds a soloed track through outputs and sends, or carries a
 /// soloed track's signal on toward the master.
 #[cfg(test)]
-fn compile_mixer(mixer: &Mixer) -> (Vec<PlanTrack>, Vec<usize>) { compile_mixer_plugins(mixer, &[]) }
-fn compile_mixer_plugins(mixer: &Mixer, plugins: &[windfall_project::PluginBinding]) -> (Vec<PlanTrack>, Vec<usize>) {
+fn compile_mixer(mixer: &Mixer) -> (Vec<PlanTrack>, Vec<usize>) {
+    compile_mixer_plugins(mixer, &[])
+}
+fn compile_mixer_plugins(
+    mixer: &Mixer,
+    plugins: &[windfall_project::PluginBinding],
+) -> (Vec<PlanTrack>, Vec<usize>) {
     let fallback_master = [MixerTrack {
         dock: windfall_project::MixerDock::default(),
         external_output: None,
@@ -1744,18 +1784,34 @@ fn compile_mixer_plugins(mixer: &Mixer, plugins: &[windfall_project::PluginBindi
                 });
                 Some(edge)
             });
-            let native_taps = plugins.iter().filter_map(|binding| {
-                let windfall_project::PluginTarget::Effect { effect } = binding.target else { return None; };
-                let place = effects.iter().position(|slot| slot.id == effect)?;
-                Some((binding, effect, place))
-            }).flat_map(|(binding, effect, place)| {
-                binding.capabilities.routes.iter().filter_map(move |route| {
-                    if !binding.capabilities.outputs.iter().any(|port| port.index == route.output) { return None; }
-                    let mut edge = edge(route.track, false, false, 1.0)?;
-                    edge.tap = Some(PlanTap { effect, output: route.output as u8, place });
-                    Some(edge)
+            let native_taps = plugins
+                .iter()
+                .filter_map(|binding| {
+                    let windfall_project::PluginTarget::Effect { effect } = binding.target else {
+                        return None;
+                    };
+                    let place = effects.iter().position(|slot| slot.id == effect)?;
+                    Some((binding, effect, place))
                 })
-            });
+                .flat_map(|(binding, effect, place)| {
+                    binding.capabilities.routes.iter().filter_map(move |route| {
+                        if !binding
+                            .capabilities
+                            .outputs
+                            .iter()
+                            .any(|port| port.index == route.output)
+                        {
+                            return None;
+                        }
+                        let mut edge = edge(route.track, false, false, 1.0)?;
+                        edge.tap = Some(PlanTap {
+                            effect,
+                            output: route.output as u8,
+                            place,
+                        });
+                        Some(edge)
+                    })
+                });
             let edges: Vec<PlanEdge> = output
                 .into_iter()
                 .chain(sends)

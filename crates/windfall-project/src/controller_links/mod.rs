@@ -599,7 +599,7 @@ fn collect_targets(project: &Project, command: &Command, found: &mut Vec<Automat
             };
             let param = index as u32;
             match *target {
-                PluginTarget::Rack { .. } => {},
+                PluginTarget::Rack { .. } => {}
                 PluginTarget::Instrument { channel } => {
                     add(AutomationTarget::InstrumentParam { channel, param });
                 }

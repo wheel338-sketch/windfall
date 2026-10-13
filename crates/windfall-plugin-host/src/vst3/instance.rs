@@ -144,7 +144,13 @@ impl VstInstance {
                 }
             }
         }
-        let Capabilities { layout, params, values, controller_values, deactivation_values } = Self::read_capabilities(&component, &controller)?;
+        let Capabilities {
+            layout,
+            params,
+            values,
+            controller_values,
+            deactivation_values,
+        } = Self::read_capabilities(&component, &controller)?;
         let separate = separate_guard.is_some();
         // Ownership of termination moves to Objects. Drop COM refs without
         // calling terminate a second time (forget only the initialized wrappers).
@@ -174,7 +180,10 @@ impl VstInstance {
             deactivation_values,
         })
     }
-    fn read_capabilities(component: &ComPtr<IComponent>, controller: &Option<ComPtr<IEditController>>) -> Result<Capabilities, PluginError> {
+    fn read_capabilities(
+        component: &ComPtr<IComponent>,
+        controller: &Option<ComPtr<IEditController>>,
+    ) -> Result<Capabilities, PluginError> {
         let mut layout = PluginLayout {
             has_state: true,
             ..PluginLayout::default()
@@ -303,7 +312,13 @@ impl VstInstance {
             .filter(|v| v.writable)
             .map(|v| (v.id, 0.0, None))
             .collect();
-        Ok(Capabilities { layout, params, values: values.into(), controller_values, deactivation_values })
+        Ok(Capabilities {
+            layout,
+            params,
+            values: values.into(),
+            controller_values,
+            deactivation_values,
+        })
     }
     fn value(&self, id: u32) -> Option<&Value> {
         self.values
@@ -365,16 +380,30 @@ impl InstanceBackend for VstInstance {
         }
     }
     fn refresh_capabilities(&mut self) -> Result<(), PluginError> {
-        if self.active { return Err(PluginError::AlreadyActive); }
+        if self.active {
+            return Err(PluginError::AlreadyActive);
+        }
         let previous_edits = self.deactivation_values.clone();
-        let Capabilities { layout, params, values, controller_values, mut deactivation_values } = Self::read_capabilities(&self.objects.component, &self.objects.controller)?;
+        let Capabilities {
+            layout,
+            params,
+            values,
+            controller_values,
+            mut deactivation_values,
+        } = Self::read_capabilities(&self.objects.component, &self.objects.controller)?;
         for (id, _, after) in &mut deactivation_values {
-            *after = previous_edits.iter().find(|(previous, _, _)| previous == id).and_then(|(_, _, after)| *after);
+            *after = previous_edits
+                .iter()
+                .find(|(previous, _, _)| previous == id)
+                .and_then(|(_, _, after)| *after);
         }
         for value in values.iter() {
             if let Some(previous) = self.value(value.id)
                 && previous.pending.load(Ordering::Relaxed)
-                && !deactivation_values.iter().any(|(id, _, after)| *id == value.id && after.is_some()) {
+                && !deactivation_values
+                    .iter()
+                    .any(|(id, _, after)| *id == value.id && after.is_some())
+            {
                 value.set(previous.normalized());
                 value.pending.store(true, Ordering::Relaxed);
             }

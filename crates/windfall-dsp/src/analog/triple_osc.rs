@@ -40,7 +40,13 @@ impl Instrument for TripleOsc {
     fn set_note_pan_law(&mut self, law: windfall_core::PanLaw) {
         self.bank.set_note_pan_law(law, self.sample_rate);
     }
-    fn note_on_expression(&mut self, key: u8, velocity: f32, pan: f32, _expression: crate::NoteExpression) {
+    fn note_on_expression(
+        &mut self,
+        key: u8,
+        velocity: f32,
+        pan: f32,
+        _expression: crate::NoteExpression,
+    ) {
         self.note_on(key, velocity);
         self.bank.pan_latest(pan);
     }
@@ -77,7 +83,11 @@ impl Instrument for TripleOsc {
                 sum.1 += sample * pan.1;
             }
             *left = output(sum.0 * p.gain * 0.35);
-            *right = if sum.0 == sum.1 { *left } else { output(sum.1 * p.gain * 0.35) };
+            *right = if sum.0 == sum.1 {
+                *left
+            } else {
+                output(sum.1 * p.gain * 0.35)
+            };
         }
     }
 }

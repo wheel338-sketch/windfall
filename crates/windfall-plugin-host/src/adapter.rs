@@ -81,7 +81,9 @@ pub struct PluginEffect {
 }
 
 impl PluginEffect {
-    pub fn copy_output(&self, bus: u32, output: &mut [[f32; 2]]) -> bool { self.processor.copy_output(bus, output) }
+    pub fn copy_output(&self, bus: u32, output: &mut [[f32; 2]]) -> bool {
+        self.processor.copy_output(bus, output)
+    }
     pub fn controls_processed(&self) -> bool {
         self.processor.controls_processed()
     }
@@ -263,7 +265,9 @@ pub struct PluginInstrument {
 }
 
 impl PluginInstrument {
-    pub fn copy_output(&self, bus: u32, output: &mut [[f32; 2]]) -> bool { self.processor.copy_output(bus, output) }
+    pub fn copy_output(&self, bus: u32, output: &mut [[f32; 2]]) -> bool {
+        self.processor.copy_output(bus, output)
+    }
     pub fn controls_processed(&self) -> bool {
         self.processor.controls_processed()
     }
@@ -344,7 +348,10 @@ impl PluginInstrument {
     }
 
     pub fn native_note_capabilities(&self) -> (bool, [u32; 16]) {
-        (self.processor.supports_note_instances(), std::array::from_fn(|channel| self.processor.note_expression_mask(channel as u8)))
+        (
+            self.processor.supports_note_instances(),
+            std::array::from_fn(|channel| self.processor.note_expression_mask(channel as u8)),
+        )
     }
     pub fn supports_note_instances(&self) -> bool {
         self.processor.supports_note_instances() || self.processor.supports_midi_expression()

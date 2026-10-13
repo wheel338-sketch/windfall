@@ -254,7 +254,13 @@ impl Instrument for SpeechVoice {
         self.pan_law = law;
         self.note_pan.retarget(law, self.sample_rate);
     }
-    fn note_on_expression(&mut self, key: u8, velocity: f32, pan: f32, _expression: crate::NoteExpression) {
+    fn note_on_expression(
+        &mut self,
+        key: u8,
+        velocity: f32,
+        pan: f32,
+        _expression: crate::NoteExpression,
+    ) {
         self.note_on(key, velocity);
         if velocity.is_finite() && velocity > 0.0 {
             self.note_pan = crate::note_pan::NotePan::new(pan, self.pan_law);

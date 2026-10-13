@@ -209,36 +209,116 @@ fn wrapper_options_preserve_legacy_json_and_roundtrip_history_clone_and_reopen()
 #[test]
 fn readmission_keeps_tombstone_addresses_automation_links_routes_and_history() {
     let mut doc = Document::new(Project::new("Dynamic capabilities"));
-    doc.dispatch(Command::AddPluginInstrument { plugin: binding() }, None).unwrap();
+    doc.dispatch(Command::AddPluginInstrument { plugin: binding() }, None)
+        .unwrap();
     let original = doc.project().plugins[0].clone();
-    let PluginTarget::Instrument { channel } = original.target else { unreachable!() };
+    let PluginTarget::Instrument { channel } = original.target else {
+        unreachable!()
+    };
     let target = AutomationTarget::InstrumentParam { channel, param: 0 };
-    doc.dispatch(Command::AddAutomation { name: None, target, points: None }, None).unwrap();
-    doc.dispatch(Command::SetControllerLinks { links: vec![ControllerLink {
-        source: ControlSource::Midi { device: None, channel: None, control: MidiControl::Cc { number: 7 } },
-        target: LinkTarget::Param { target }, map: Default::default(),
-    }] }, None).unwrap();
+    doc.dispatch(
+        Command::AddAutomation {
+            name: None,
+            target,
+            points: None,
+        },
+        None,
+    )
+    .unwrap();
+    doc.dispatch(
+        Command::SetControllerLinks {
+            links: vec![ControllerLink {
+                source: ControlSource::Midi {
+                    device: None,
+                    channel: None,
+                    control: MidiControl::Cc { number: 7 },
+                },
+                target: LinkTarget::Param { target },
+                map: Default::default(),
+            }],
+        },
+        None,
+    )
+    .unwrap();
     let links = doc.project().settings.controller_links.clone();
     let automations = doc.project().automations.clone();
-    let mut new = original.parameters[0].clone(); new.id = 99; new.name = "New control".into();
-    let readmit = |parameters| Command::ReadmitPlugin { target: original.target, state: vec![4, 5], parameters, auxiliary_inputs: vec![], outputs: vec![PluginAuxInput { index: 2, name: "Extra".into(), channels: 2 }] };
+    let mut new = original.parameters[0].clone();
+    new.id = 99;
+    new.name = "New control".into();
+    let readmit = |parameters| Command::ReadmitPlugin {
+        target: original.target,
+        state: vec![4, 5],
+        parameters,
+        auxiliary_inputs: vec![],
+        outputs: vec![PluginAuxInput {
+            index: 2,
+            name: "Extra".into(),
+            channels: 2,
+        }],
+    };
     doc.dispatch(readmit(vec![new.clone()]), None).unwrap();
-    assert_eq!(doc.project().plugins[0].parameters.iter().map(|param| param.id).collect::<Vec<_>>(), [43, 99]);
-    assert_eq!(doc.project().plugins[0].capabilities.unavailable_parameters, [43]);
+    assert_eq!(
+        doc.project().plugins[0]
+            .parameters
+            .iter()
+            .map(|param| param.id)
+            .collect::<Vec<_>>(),
+        [43, 99]
+    );
+    assert_eq!(
+        doc.project().plugins[0].capabilities.unavailable_parameters,
+        [43]
+    );
     assert_eq!(doc.project().automations, automations);
     assert_eq!(doc.project().settings.controller_links, links);
-    doc.dispatch(Command::SetPluginOutputRoute { target: original.target, output: 2, track: Some(TrackId::MASTER) }, None).unwrap();
+    doc.dispatch(
+        Command::SetPluginOutputRoute {
+            target: original.target,
+            output: 2,
+            track: Some(TrackId::MASTER),
+        },
+        None,
+    )
+    .unwrap();
     let routed = doc.project().plugins[0].clone();
-    doc.dispatch(Command::ReadmitPlugin { target: original.target, state: vec![6], parameters: vec![new.clone()], auxiliary_inputs: vec![], outputs: vec![] }, None).unwrap();
-    assert_eq!(doc.project().plugins[0].capabilities.routes, routed.capabilities.routes);
+    doc.dispatch(
+        Command::ReadmitPlugin {
+            target: original.target,
+            state: vec![6],
+            parameters: vec![new.clone()],
+            auxiliary_inputs: vec![],
+            outputs: vec![],
+        },
+        None,
+    )
+    .unwrap();
+    assert_eq!(
+        doc.project().plugins[0].capabilities.routes,
+        routed.capabilities.routes
+    );
     assert_eq!(doc.project().plugins[0].capability_diagnostics().len(), 2);
     let reopened = file::from_json(&file::to_json(doc.project()).unwrap()).unwrap();
-    assert_eq!(reopened.plugins, doc.project().plugins); reopened.check().unwrap();
-    doc.undo().unwrap(); assert_eq!(doc.project().plugins[0], routed);
+    assert_eq!(reopened.plugins, doc.project().plugins);
+    reopened.check().unwrap();
+    doc.undo().unwrap();
+    assert_eq!(doc.project().plugins[0], routed);
     doc.redo().unwrap();
-    doc.dispatch(readmit(vec![new, original.parameters[0].clone()]), None).unwrap();
-    assert_eq!(doc.project().plugins[0].parameters.iter().map(|param| param.id).collect::<Vec<_>>(), [43, 99]);
-    assert!(doc.project().plugins[0].capabilities.unavailable_parameters.is_empty());
+    doc.dispatch(readmit(vec![new, original.parameters[0].clone()]), None)
+        .unwrap();
+    assert_eq!(
+        doc.project().plugins[0]
+            .parameters
+            .iter()
+            .map(|param| param.id)
+            .collect::<Vec<_>>(),
+        [43, 99]
+    );
+    assert!(
+        doc.project().plugins[0]
+            .capabilities
+            .unavailable_parameters
+            .is_empty()
+    );
     assert!(doc.project().plugins[0].capability_diagnostics().is_empty());
     assert_eq!(doc.project().automations, automations);
     assert_eq!(doc.project().settings.controller_links, links);
@@ -250,25 +330,48 @@ fn legacy_binding_omits_capabilities_and_loads_with_empty_admission() {
     assert!(value.get("capabilities").is_none());
     value.as_object_mut().unwrap().remove("wrapper");
     let binding: PluginBinding = serde_json::from_value(value).unwrap();
-    assert!(binding.capabilities.is_default()); binding.validate().unwrap();
+    assert!(binding.capabilities.is_default());
+    binding.validate().unwrap();
 }
 
 #[test]
 fn undo_and_discarded_redo_cannot_reuse_a_dynamic_parameter_address() {
     let mut doc = Document::new(Project::new("Permanent addresses"));
-    doc.dispatch(Command::AddPluginInstrument { plugin: binding() }, None).unwrap();
+    doc.dispatch(Command::AddPluginInstrument { plugin: binding() }, None)
+        .unwrap();
     let target = doc.project().plugins[0].target;
-    let mut param = doc.project().plugins[0].parameters[0].clone(); param.id = 99;
-    let command = |parameters| Command::ReadmitPlugin { target, state: vec![], parameters, auxiliary_inputs: vec![], outputs: vec![] };
+    let mut param = doc.project().plugins[0].parameters[0].clone();
+    param.id = 99;
+    let command = |parameters| Command::ReadmitPlugin {
+        target,
+        state: vec![],
+        parameters,
+        auxiliary_inputs: vec![],
+        outputs: vec![],
+    };
     doc.dispatch(command(vec![param.clone()]), None).unwrap();
     doc.undo().unwrap();
     assert_eq!(doc.project().plugins[0].parameters[1].id, 99);
-    assert_eq!(doc.project().plugins[0].capabilities.unavailable_parameters, [99]);
+    assert_eq!(
+        doc.project().plugins[0].capabilities.unavailable_parameters,
+        [99]
+    );
     param.id = 100;
     doc.dispatch(command(vec![param]), None).unwrap();
-    assert_eq!(doc.project().plugins[0].parameters.iter().map(|p| p.id).collect::<Vec<_>>(), [43, 99, 100]);
+    assert_eq!(
+        doc.project().plugins[0]
+            .parameters
+            .iter()
+            .map(|p| p.id)
+            .collect::<Vec<_>>(),
+        [43, 99, 100]
+    );
     let before = doc.project().clone();
-    let mut duplicate = before.plugins[0].parameters[0].clone(); duplicate.id = 101;
-    assert!(doc.dispatch(command(vec![duplicate.clone(), duplicate]), None).is_err());
+    let mut duplicate = before.plugins[0].parameters[0].clone();
+    duplicate.id = 101;
+    assert!(
+        doc.dispatch(command(vec![duplicate.clone(), duplicate]), None)
+            .is_err()
+    );
     assert_eq!(doc.project(), &before);
 }

@@ -59,7 +59,13 @@ macro_rules! instrument {
             fn set_note_pan_law(&mut self, law: windfall_core::PanLaw) {
                 self.0.set_note_pan_law(law);
             }
-            fn note_on_expression(&mut self, key: u8, velocity: f32, pan: f32, _expression: crate::NoteExpression) {
+            fn note_on_expression(
+                &mut self,
+                key: u8,
+                velocity: f32,
+                pan: f32,
+                _expression: crate::NoteExpression,
+            ) {
                 self.note_on(key, velocity);
                 self.0.pan_latest(pan);
             }

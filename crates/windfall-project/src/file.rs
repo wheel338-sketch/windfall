@@ -168,7 +168,10 @@ pub fn from_json(json: &str) -> Result<Project, LoadError> {
         serde_json::from_value(value)?
     };
     if project.settings.scripts.parameter_addresses.is_empty() {
-        project.settings.scripts.register_parameters(&crate::scripting::ScriptLibrary::default())
+        project
+            .settings
+            .scripts
+            .register_parameters(&crate::scripting::ScriptLibrary::default())
             .map_err(LoadError::Invalid)?;
     }
     project.check().map_err(LoadError::Invalid)?;

@@ -4,10 +4,7 @@
 use windfall_dsp::rack_note::{
     EnvelopeDestination, NoteSequence, RackNote, RackNoteModule, SequenceMode,
 };
-use windfall_dsp::{
-    EffectParams, EffectSlot, InstrumentParams, NoteExpression,
-    NoteInstanceId,
-};
+use windfall_dsp::{EffectParams, EffectSlot, InstrumentParams, NoteExpression, NoteInstanceId};
 use windfall_project::rack::*;
 
 #[path = "modular_assets.rs"]
@@ -353,20 +350,54 @@ impl ModularRack {
     pub fn prepare(graph: &RackGraph, sample_rate: u32, tempo: f64) -> Result<Self, String> {
         Self::prepare_with_input_latency(graph, sample_rate, tempo, 0)
     }
-    pub fn prepare_with_factory(graph: &RackGraph, sample_rate: u32, tempo: f64, factory: &dyn crate::plugins::PluginFactory) -> Result<Self, String> {
-        Self::prepare_in_family(graph, sample_rate, tempo, 0, assets::GenerationFamily::new(), Some(factory))
+    pub fn prepare_with_factory(
+        graph: &RackGraph,
+        sample_rate: u32,
+        tempo: f64,
+        factory: &dyn crate::plugins::PluginFactory,
+    ) -> Result<Self, String> {
+        Self::prepare_in_family(
+            graph,
+            sample_rate,
+            tempo,
+            0,
+            assets::GenerationFamily::new(),
+            Some(factory),
+        )
     }
     pub fn parallel_safe(&self) -> bool {
-        self.nodes.iter().all(|node| match &node.unit { Unit::Instrument { dsp, .. } => !dsp.is_hosted(), Unit::Effect { dsp, .. } => !dsp.is_hosted(), _ => true })
+        self.nodes.iter().all(|node| match &node.unit {
+            Unit::Instrument { dsp, .. } => !dsp.is_hosted(),
+            Unit::Effect { dsp, .. } => !dsp.is_hosted(),
+            _ => true,
+        })
     }
     pub fn control_boundary(&mut self) {
-        for node in &mut self.nodes { match &mut node.unit { Unit::Instrument { dsp, .. } => dsp.control_boundary(), Unit::Effect { dsp, .. } => dsp.control_boundary(), _ => {} } }
+        for node in &mut self.nodes {
+            match &mut node.unit {
+                Unit::Instrument { dsp, .. } => dsp.control_boundary(),
+                Unit::Effect { dsp, .. } => dsp.control_boundary(),
+                _ => {}
+            }
+        }
     }
     pub fn transport(&mut self, transport: crate::plugins::PluginTransport) {
-        for node in &mut self.nodes { match &mut node.unit { Unit::Instrument { dsp, .. } => dsp.transport(transport), Unit::Effect { dsp, .. } => dsp.transport(transport), _ => {} } }
+        for node in &mut self.nodes {
+            match &mut node.unit {
+                Unit::Instrument { dsp, .. } => dsp.transport(transport),
+                Unit::Effect { dsp, .. } => dsp.transport(transport),
+                _ => {}
+            }
+        }
     }
     pub(crate) fn retire_from_document(&mut self) {
-        for node in &mut self.nodes { match &mut node.unit { Unit::Instrument { dsp, .. } => dsp.retire(), Unit::Effect { dsp, .. } => dsp.retire(), _ => {} } }
+        for node in &mut self.nodes {
+            match &mut node.unit {
+                Unit::Instrument { dsp, .. } => dsp.retire(),
+                Unit::Effect { dsp, .. } => dsp.retire(),
+                _ => {}
+            }
+        }
         self.all_notes_off();
     }
     pub fn prepare_with_input_latency(
@@ -375,9 +406,23 @@ impl ModularRack {
         tempo: f64,
         source_latency: usize,
     ) -> Result<Self, String> {
-        Self::prepare_in_family(graph, sample_rate, tempo, source_latency, assets::GenerationFamily::new(), None)
+        Self::prepare_in_family(
+            graph,
+            sample_rate,
+            tempo,
+            source_latency,
+            assets::GenerationFamily::new(),
+            None,
+        )
     }
-    pub(crate) fn prepare_in_family(graph: &RackGraph, sample_rate: u32, tempo: f64, source_latency: usize, family: std::sync::Arc<assets::GenerationFamily>, factory: Option<&dyn crate::plugins::PluginFactory>) -> Result<Self, String> {
+    pub(crate) fn prepare_in_family(
+        graph: &RackGraph,
+        sample_rate: u32,
+        tempo: f64,
+        source_latency: usize,
+        family: std::sync::Arc<assets::GenerationFamily>,
+        factory: Option<&dyn crate::plugins::PluginFactory>,
+    ) -> Result<Self, String> {
         graph.check()?;
         if !(8_000..=384_000).contains(&sample_rate) || !tempo.is_finite() || tempo <= 0.0 {
             return Err("Invalid rack sample rate or tempo".into());
@@ -437,45 +482,93 @@ impl ModularRack {
                 let unit = match &node.processor {
                     RackProcessor::Instrument { params } => {
                         if let Some(binding) = &node.hosted {
-                            let mut unit = factory.map(|factory| factory.instrument(binding, sample_rate, crate::mixer::MAX_BLOCK)).transpose()?;
+                            let mut unit = factory
+                                .map(|factory| {
+                                    factory.instrument(
+                                        binding,
+                                        sample_rate,
+                                        crate::mixer::MAX_BLOCK,
+                                    )
+                                })
+                                .transpose()?;
                             if let Some(unit) = &mut unit {
                                 unit.adopt_parameters(&binding.parameters);
-                                for parameter in &binding.parameters { if !parameter.read_only { unit.set_param(parameter.id, parameter.value); } }
+                                for parameter in &binding.parameters {
+                                    if !parameter.read_only {
+                                        unit.set_param(parameter.id, parameter.value);
+                                    }
+                                }
                                 unit.set_tempo(tempo as f32);
                             }
-                            Unit::Instrument { dsp: RackInstrument::Hosted(unit), params: Box::new(*params) }
+                            Unit::Instrument {
+                                dsp: RackInstrument::Hosted(unit),
+                                params: Box::new(*params),
+                            }
                         } else {
-                        let mut dsp = assets::instrument(params, node.asset.as_ref(), bank_budget)?;
-                        dsp.prepare(sample_rate as f32, 1);
-                        dsp.set_params(params);
-                        dsp.set_tempo(tempo as f32);
-                        Unit::Instrument {
-                            dsp: RackInstrument::Builtin(dsp),
-                            params: Box::new(*params),
-                        }
+                            let mut dsp =
+                                assets::instrument(params, node.asset.as_ref(), bank_budget)?;
+                            dsp.prepare(sample_rate as f32, 1);
+                            dsp.set_params(params);
+                            dsp.set_tempo(tempo as f32);
+                            Unit::Instrument {
+                                dsp: RackInstrument::Builtin(dsp),
+                                params: Box::new(*params),
+                            }
                         }
                     }
                     RackProcessor::Effect { params, mix } => {
                         if let Some(binding) = &node.hosted {
-                            let unit = factory.map(|factory| factory.effect(binding, sample_rate, crate::mixer::MAX_BLOCK)).transpose()?;
-                            if unit.as_ref().is_some_and(|unit| unit.latency() > sample_rate as usize) { return Err("Native rack latency exceeds one second".into()); }
-                            generation.reserve_runtime(crate::rack::Compensation::reserved_payload(unit.as_ref().map_or(0, |unit| unit.latency()), 0).ok_or("Native rack dry history size overflow")?)?;
-                            let mut dsp = crate::plugins::ExternalEffect::new(unit, binding, sample_rate, !node.muted, *mix);
-                            if let Some(unit) = &mut dsp.unit { unit.set_tempo(tempo as f32); }
-                            Unit::Effect { dsp: RackEffect::Hosted(dsp), params: Box::new(*params) }
+                            let unit = factory
+                                .map(|factory| {
+                                    factory.effect(binding, sample_rate, crate::mixer::MAX_BLOCK)
+                                })
+                                .transpose()?;
+                            if unit
+                                .as_ref()
+                                .is_some_and(|unit| unit.latency() > sample_rate as usize)
+                            {
+                                return Err("Native rack latency exceeds one second".into());
+                            }
+                            generation.reserve_runtime(
+                                crate::rack::Compensation::reserved_payload(
+                                    unit.as_ref().map_or(0, |unit| unit.latency()),
+                                    0,
+                                )
+                                .ok_or("Native rack dry history size overflow")?,
+                            )?;
+                            let mut dsp = crate::plugins::ExternalEffect::new(
+                                unit,
+                                binding,
+                                sample_rate,
+                                !node.muted,
+                                *mix,
+                            );
+                            if let Some(unit) = &mut dsp.unit {
+                                unit.set_tempo(tempo as f32);
+                            }
+                            Unit::Effect {
+                                dsp: RackEffect::Hosted(dsp),
+                                params: Box::new(*params),
+                            }
                         } else {
-                        let mut params = *params;
-                        if let Some(bytes) = params.kind().history_bytes(sample_rate as f32) { generation.reserve_runtime(bytes)?; }
-                        let mut dsp = EffectSlot::new(assets::effect(&mut params, node.asset.as_ref(), sample_rate)?);
-                        dsp.prepare(sample_rate as f32, 1);
-                        dsp.set_params(&params);
-                        dsp.set_tempo(tempo as f32);
-                        dsp.set_mix(*mix);
-                        dsp.set_enabled(!node.muted);
-                        Unit::Effect {
-                            dsp: RackEffect::Builtin(dsp),
-                            params: Box::new(params),
-                        }
+                            let mut params = *params;
+                            if let Some(bytes) = params.kind().history_bytes(sample_rate as f32) {
+                                generation.reserve_runtime(bytes)?;
+                            }
+                            let mut dsp = EffectSlot::new(assets::effect(
+                                &mut params,
+                                node.asset.as_ref(),
+                                sample_rate,
+                            )?);
+                            dsp.prepare(sample_rate as f32, 1);
+                            dsp.set_params(&params);
+                            dsp.set_tempo(tempo as f32);
+                            dsp.set_mix(*mix);
+                            dsp.set_enabled(!node.muted);
+                            Unit::Effect {
+                                dsp: RackEffect::Builtin(dsp),
+                                params: Box::new(params),
+                            }
                         }
                     }
                     RackProcessor::Note { module } => Unit::Note(*module),
@@ -493,10 +586,13 @@ impl ModularRack {
                 })
             })
             .collect::<Result<_, _>>()?;
-        let asset_pins = windfall_dsp::asset::AssetPins::for_effects(nodes.iter().filter_map(|node| match &node.unit {
-            Unit::Effect { params, .. } => Some(params.as_ref()),
-            _ => None,
-        }));
+        let asset_pins =
+            windfall_dsp::asset::AssetPins::for_effects(nodes.iter().filter_map(|node| {
+                match &node.unit {
+                    Unit::Effect { params, .. } => Some(params.as_ref()),
+                    _ => None,
+                }
+            }));
         let mut arrival = vec![0usize; nodes.len()];
         let mut input_latency = vec![0usize; nodes.len()];
         for &index in &order {
@@ -541,7 +637,11 @@ impl ModularRack {
         if frames > sample_rate as usize * 16 || frames > 1024 * 1024 {
             return Err("Rack compensation storage exceeds 16 seconds of stereo frames".into());
         }
-        generation.reserve_runtime(frames.checked_mul(8).ok_or("Rack compensation byte size overflow")?)?;
+        generation.reserve_runtime(
+            frames
+                .checked_mul(8)
+                .ok_or("Rack compensation byte size overflow")?,
+        )?;
         let edges = flat
             .edges
             .into_iter()
@@ -564,11 +664,20 @@ impl ModularRack {
             .into_iter()
             .map(|index| (index, Ring::new(latency - arrival[index])))
             .collect();
-        let plugin_records = flat.nodes.iter().zip(&nodes).filter_map(|(flat, node)| {
-            let binding = flat.hosted.as_ref()?;
-            let latency = match &node.unit { Unit::Instrument { dsp, .. } => dsp.latency_samples(), Unit::Effect { dsp, .. } => dsp.latency_samples(), _ => 0 };
-            Some((binding.target, crate::plugins::identity(binding), latency))
-        }).collect();
+        let plugin_records = flat
+            .nodes
+            .iter()
+            .zip(&nodes)
+            .filter_map(|(flat, node)| {
+                let binding = flat.hosted.as_ref()?;
+                let latency = match &node.unit {
+                    Unit::Instrument { dsp, .. } => dsp.latency_samples(),
+                    Unit::Effect { dsp, .. } => dsp.latency_samples(),
+                    _ => 0,
+                };
+                Some((binding.target, crate::plugins::identity(binding), latency))
+            })
+            .collect();
         Ok(Self {
             plugin_records,
             _asset_pins: asset_pins,
@@ -590,11 +699,15 @@ impl ModularRack {
             _generation: generation,
         })
     }
-    pub(crate) fn finished_retiring(&self) -> bool { self.active_voices() == 0 && self.quiet_frames >= self.tail_samples().max(self.latency) }
+    pub(crate) fn finished_retiring(&self) -> bool {
+        self.active_voices() == 0 && self.quiet_frames >= self.tail_samples().max(self.latency)
+    }
     pub fn latency_samples(&self) -> usize {
         self.latency
     }
-    pub(crate) fn plugin_records(&self) -> &[(windfall_project::PluginTarget, u64, usize)] { &self.plugin_records }
+    pub(crate) fn plugin_records(&self) -> &[(windfall_project::PluginTarget, u64, usize)] {
+        &self.plugin_records
+    }
     /// Drained once per callback into the engine-wide observable counter.
     pub fn take_rejected_events(&mut self) -> u64 {
         std::mem::take(&mut self.rejected)
@@ -1247,7 +1360,11 @@ impl ModularRack {
             }
             left[frame] = if out[0].is_finite() { out[0] } else { 0.0 };
             right[frame] = if out[1].is_finite() { out[1] } else { 0.0 };
-            if out.iter().all(|v| v.abs() < 1e-8) { self.quiet_frames = self.quiet_frames.saturating_add(1); } else { self.quiet_frames = 0; }
+            if out.iter().all(|v| v.abs() < 1e-8) {
+                self.quiet_frames = self.quiet_frames.saturating_add(1);
+            } else {
+                self.quiet_frames = 0;
+            }
         }
     }
 }

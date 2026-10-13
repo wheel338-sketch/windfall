@@ -166,10 +166,19 @@ impl Policy {
             for bus in 0..crate::MAX_PORTS {
                 let output = &mut self.auxiliary_check[..ol.len()];
                 self.native.copy_output(bus, output);
-                auxiliary_quiet &= output.iter().flatten().all(|value| value.is_finite() && value.abs() <= 1e-9);
+                auxiliary_quiet &= output
+                    .iter()
+                    .flatten()
+                    .all(|value| value.is_finite() && value.abs() <= 1e-9);
             }
         }
-        if self.smart && idle && quiet(ol) && quiet(or) && auxiliary_quiet && self.tail != u32::MAX as usize {
+        if self.smart
+            && idle
+            && quiet(ol)
+            && quiet(or)
+            && auxiliary_quiet
+            && self.tail != u32::MAX as usize
+        {
             self.quiet = self.quiet.saturating_add(ol.len());
             // Finite tails plus one second of observed quiet; output readings
             // never authorize skipping a plugin that declares an endless tail.
@@ -185,9 +194,14 @@ impl Policy {
 }
 impl ProcessorBackend for Policy {
     fn copy_output(&self, bus: u32, output: &mut [[f32; 2]]) -> bool {
-        if self.fixed.is_some() { self.rendered.copy(bus, output) }
-        else if self.asleep { output.fill([0.0; 2]); false }
-        else { self.native.copy_output(bus, output) }
+        if self.fixed.is_some() {
+            self.rendered.copy(bus, output)
+        } else if self.asleep {
+            output.fill([0.0; 2]);
+            false
+        } else {
+            self.native.copy_output(bus, output)
+        }
     }
     fn controls_processed(&self) -> bool {
         self.fixed.as_ref().is_none_or(|fixed| {
@@ -282,7 +296,9 @@ impl ProcessorBackend for Policy {
                 }
                 ol[frame] = fixed.output[0][cursor];
                 or[frame] = fixed.output[1][cursor];
-                for (rendered, bus) in self.rendered.buses.iter_mut().zip(&fixed.auxiliary.buses) { rendered[frame] = bus[cursor]; }
+                for (rendered, bus) in self.rendered.buses.iter_mut().zip(&fixed.auxiliary.buses) {
+                    rendered[frame] = bus[cursor];
+                }
                 fixed.input[0][cursor] = il[frame];
                 fixed.input[1][cursor] = ir[frame];
                 fixed.key[cursor] = key
@@ -301,7 +317,13 @@ impl ProcessorBackend for Policy {
                         fixed.steady,
                         out,
                     )?;
-                    for (bus, output) in fixed.auxiliary.buses.iter_mut().enumerate() { if self.asleep { output.fill([0.0; 2]); } else { self.native.copy_output(bus as u32, output); } }
+                    for (bus, output) in fixed.auxiliary.buses.iter_mut().enumerate() {
+                        if self.asleep {
+                            output.fill([0.0; 2]);
+                        } else {
+                            self.native.copy_output(bus as u32, output);
+                        }
+                    }
                     drops = drops.saturating_add(result.dropped_events);
                     status = result.status;
                     fixed.events.clear();

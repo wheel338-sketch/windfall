@@ -259,21 +259,32 @@ impl Node {
 
     fn reset_clock(&mut self, source: &Source) {
         match &mut self.dsp {
-            Dsp::Envelope(d) => d.reset(), Dsp::Peak(d) => d.reset(),
-            Dsp::Keyboard(d) => d.reset(), Dsp::Formula(d) => d.reset(),
-            Dsp::Xy(d) => d.reset(), Dsp::Xyz(d) => d.reset(),
-            Dsp::Voltage(d) => d.reset(), Dsp::Surface => {}
+            Dsp::Envelope(d) => d.reset(),
+            Dsp::Peak(d) => d.reset(),
+            Dsp::Keyboard(d) => d.reset(),
+            Dsp::Formula(d) => d.reset(),
+            Dsp::Xy(d) => d.reset(),
+            Dsp::Xyz(d) => d.reset(),
+            Dsp::Voltage(d) => d.reset(),
+            Dsp::Surface => {}
         }
         for held in &mut self.held {
-            if held.is_some_and(|note| note.origin == Origin::Sequenced) { *held = None; }
+            if held.is_some_and(|note| note.origin == Origin::Sequenced) {
+                *held = None;
+            }
         }
-        self.values.fill(0.0); self.dc.fill([0.0; 8]);
-        self.sync_rate = None; self.drawn = 0.0; self.gate = false;
+        self.values.fill(0.0);
+        self.dc.fill([0.0; 8]);
+        self.sync_rate = None;
+        self.drawn = 0.0;
+        self.gate = false;
         match source.params {
             EffectParams::XyPad(p) => self.values[..2].copy_from_slice(&[p.x, p.y]),
             EffectParams::XyzPad(p) => self.values[..3].copy_from_slice(&[p.x, p.y, p.z]),
             EffectParams::ControlSurface(p) => {
-                for (i, value) in self.values.iter_mut().enumerate() { *value = p.get(i).unwrap_or(0.0); }
+                for (i, value) in self.values.iter_mut().enumerate() {
+                    *value = p.get(i).unwrap_or(0.0);
+                }
             }
             EffectParams::KeyboardSource(p) => self.values[0] = f32::from(p.root_key) / 127.0,
             _ => {}
@@ -301,7 +312,9 @@ impl Node {
     }
     pub fn note_off(&mut self, channel: usize, key: u8, origin: Origin) {
         for held in &mut self.held {
-            if held.is_some_and(|n| n.channel == channel && n.key == key && n.origin == origin && n.input.is_none()) {
+            if held.is_some_and(|n| {
+                n.channel == channel && n.key == key && n.origin == origin && n.input.is_none()
+            }) {
                 *held = None;
             }
         }
@@ -515,8 +528,18 @@ impl Runtime {
     ) {
         for (i, source) in plan.control_sources.iter().enumerate() {
             if source.id == id {
-                self.nodes[i].process(source, params, audio, base, self.clock,
-                    if plan.linked_tempo() { self.source_tempo } else { tempo });
+                self.nodes[i].process(
+                    source,
+                    params,
+                    audio,
+                    base,
+                    self.clock,
+                    if plan.linked_tempo() {
+                        self.source_tempo
+                    } else {
+                        tempo
+                    },
+                );
             }
         }
     }
@@ -571,7 +594,9 @@ impl Runtime {
     pub fn release_script_input(&mut self, input: u64) {
         for node in &mut self.nodes {
             for held in &mut node.held {
-                if held.is_some_and(|note| note.input == Some(input)) { *held = None; }
+                if held.is_some_and(|note| note.input == Some(input)) {
+                    *held = None;
+                }
             }
         }
     }
@@ -600,8 +625,12 @@ impl Runtime {
         }
     }
     pub fn reset_clock(&mut self, plan: &Plan) {
-        for (node, source) in self.nodes.iter_mut().zip(&plan.control_sources) { node.reset_clock(source); }
-        for (value, link) in self.values.iter_mut().zip(&plan.control_links) { *value = link.initial; }
+        for (node, source) in self.nodes.iter_mut().zip(&plan.control_sources) {
+            node.reset_clock(source);
+        }
+        for (value, link) in self.values.iter_mut().zip(&plan.control_links) {
+            *value = link.initial;
+        }
         self.source_tempo = plan.tempo_bpm;
     }
     pub fn take_over(&mut self, plan: &Plan, old: &mut Self, old_plan: &Plan) {
@@ -657,8 +686,11 @@ pub(crate) fn take_over(
             continue;
         };
         let value = link.range.value(state.controls.values[index]);
-        if matches!(link.target, Target::Tempo) { state.tell_tempo(old.tempo()); }
-        else { automation::set(plan, state, link.target, value, now, automation::GRID); }
+        if matches!(link.target, Target::Tempo) {
+            state.tell_tempo(old.tempo());
+        } else {
+            automation::set(plan, state, link.target, value, now, automation::GRID);
+        }
         match (link.target, before.target) {
             (Target::ChannelGain(new), Target::ChannelGain(was))
                 if plan.channels[new].audible == old_plan.channels[was].audible =>
@@ -705,26 +737,47 @@ pub(crate) fn step(plan: &Plan, state: &mut PlanState, now: u64) -> Option<f64> 
         };
         let value = state.controls.values[index] + (target - state.controls.values[index]) * alpha;
         let value = if matches!(link.target, Target::Tempo) {
-            value.clamp(link.key.map.min.min(link.key.map.max), link.key.map.min.max(link.key.map.max))
-        } else { value };
+            value.clamp(
+                link.key.map.min.min(link.key.map.max),
+                link.key.map.min.max(link.key.map.max),
+            )
+        } else {
+            value
+        };
         state.controls.values[index] = value;
         if matches!(link.target, Target::Tempo) {
             tempo = Some(f64::from(link.range.value(value)).clamp(
-                windfall_project::MIN_TEMPO_BPM, windfall_project::MAX_TEMPO_BPM));
+                windfall_project::MIN_TEMPO_BPM,
+                windfall_project::MAX_TEMPO_BPM,
+            ));
         } else {
-            automation::set(plan, state, link.target, link.range.value(value), now, automation::GRID);
+            automation::set(
+                plan,
+                state,
+                link.target,
+                link.range.value(value),
+                now,
+                automation::GRID,
+            );
         }
     }
     tempo
 }
 
 pub(crate) fn same_tempo_links(a: &[Link], b: &[Link]) -> bool {
-    a.iter().filter(|link| matches!(link.target, Target::Tempo)).map(|link| &link.key)
-        .eq(b.iter().filter(|link| matches!(link.target, Target::Tempo)).map(|link| &link.key))
+    a.iter()
+        .filter(|link| matches!(link.target, Target::Tempo))
+        .map(|link| &link.key)
+        .eq(b
+            .iter()
+            .filter(|link| matches!(link.target, Target::Tempo))
+            .map(|link| &link.key))
 }
 
 pub(crate) fn has_tempo(links: &[Link]) -> bool {
-    links.iter().any(|link| matches!(link.target, Target::Tempo))
+    links
+        .iter()
+        .any(|link| matches!(link.target, Target::Tempo))
 }
 
 #[cfg(test)]

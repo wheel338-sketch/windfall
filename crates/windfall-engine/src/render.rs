@@ -158,8 +158,13 @@ pub fn render_reporting(
     };
     let linked_tempo = plan.linked_tempo();
     let frames_per_tick = samples_per_tick(
-        if linked_tempo { windfall_project::MIN_TEMPO_BPM } else { plan.tempo_bpm },
-        f64::from(sample_rate));
+        if linked_tempo {
+            windfall_project::MIN_TEMPO_BPM
+        } else {
+            plan.tempo_bpm
+        },
+        f64::from(sample_rate),
+    );
     let region = options.region.filter(|_| options.mode == PlayMode::Song);
     let body_frames = region.map_or((ticks * frames_per_tick).ceil() as usize, |range| {
         if linked_tempo {
@@ -245,8 +250,14 @@ pub fn render_reporting(
 
     let block = options.block_frames.max(1);
     let certain = if linked_tempo {
-        ((ticks * samples_per_tick(project.settings.tempo_bpm, f64::from(sample_rate))).ceil() as usize).min(most)
-    } else if options.auto_tail { body_end } else { most };
+        ((ticks * samples_per_tick(project.settings.tempo_bpm, f64::from(sample_rate))).ceil()
+            as usize)
+            .min(most)
+    } else if options.auto_tail {
+        body_end
+    } else {
+        most
+    };
     let mut data = Vec::with_capacity(certain * 2);
     let mut done = 0;
     // One past the last frame that was not silent.
@@ -284,7 +295,9 @@ pub fn render_reporting(
         // out of time is kept whole.
         data.truncate(loud_end.max(body_end) * 2);
     }
-    if linked_tempo && !cancelled { data.truncate(most * 2); }
+    if linked_tempo && !cancelled {
+        data.truncate(most * 2);
+    }
     let plugin_error = plugin_error();
     if plugin_error.is_some() {
         data.clear();

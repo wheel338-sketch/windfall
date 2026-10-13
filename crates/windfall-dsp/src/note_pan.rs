@@ -12,34 +12,65 @@ pub struct NotePan {
     duration: u32,
 }
 impl Default for NotePan {
-    fn default() -> Self { Self::new(0.0, PanLaw::Balance) }
+    fn default() -> Self {
+        Self::new(0.0, PanLaw::Balance)
+    }
 }
 impl NotePan {
-    pub const CENTER: Self = Self { position: 0.0, from: (1.0,1.0), target:(1.0,1.0), step:(0.0,0.0), elapsed:0, duration:0 };
+    pub const CENTER: Self = Self {
+        position: 0.0,
+        from: (1.0, 1.0),
+        target: (1.0, 1.0),
+        step: (0.0, 0.0),
+        elapsed: 0,
+        duration: 0,
+    };
     pub fn new(position: f32, law: PanLaw) -> Self {
-        let position = if position.is_finite() { position.clamp(-1.0, 1.0) } else { 0.0 };
+        let position = if position.is_finite() {
+            position.clamp(-1.0, 1.0)
+        } else {
+            0.0
+        };
         let gains = law.gains(position);
-        Self { position, from: gains, target: gains, step: (0.0,0.0), elapsed: 0, duration: 0 }
+        Self {
+            position,
+            from: gains,
+            target: gains,
+            step: (0.0, 0.0),
+            elapsed: 0,
+            duration: 0,
+        }
     }
     #[inline]
     pub fn gains(&self) -> (f32, f32) {
-        if self.elapsed >= self.duration { return self.target; }
+        if self.elapsed >= self.duration {
+            return self.target;
+        }
         let fraction = self.elapsed as f32;
-        (self.from.0 + self.step.0*fraction,
-         self.from.1 + self.step.1*fraction)
+        (
+            self.from.0 + self.step.0 * fraction,
+            self.from.1 + self.step.1 * fraction,
+        )
     }
     pub fn retarget(&mut self, law: PanLaw, sample_rate: f32) {
         let target = law.gains(self.position);
-        if target == self.target { return; }
+        if target == self.target {
+            return;
+        }
         self.from = self.gains();
         self.target = target;
         self.elapsed = 0;
         self.duration = (sample_rate * 0.005).round().max(1.0) as u32;
-        self.step = ((target.0-self.from.0)/self.duration as f32, (target.1-self.from.1)/self.duration as f32);
+        self.step = (
+            (target.0 - self.from.0) / self.duration as f32,
+            (target.1 - self.from.1) / self.duration as f32,
+        );
     }
     #[inline]
     pub fn tick(&mut self) -> (f32, f32) {
-        if self.elapsed >= self.duration { return self.target; }
+        if self.elapsed >= self.duration {
+            return self.target;
+        }
         let gains = self.gains();
         self.elapsed = self.elapsed.saturating_add(1).min(self.duration);
         gains

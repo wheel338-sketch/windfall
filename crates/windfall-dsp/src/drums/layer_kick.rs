@@ -194,13 +194,25 @@ impl Instrument for LayerKick {
     fn set_note_pan_law(&mut self, law: windfall_core::PanLaw) {
         self.pan_law = law;
         self.kick.set_note_pan_law(law);
-        for voice in &mut self.voices { voice.pan.retarget(law, self.rate); }
+        for voice in &mut self.voices {
+            voice.pan.retarget(law, self.rate);
+        }
     }
-    fn note_on_expression(&mut self, key: u8, velocity: f32, pan: f32, _expression: crate::NoteExpression) {
+    fn note_on_expression(
+        &mut self,
+        key: u8,
+        velocity: f32,
+        pan: f32,
+        _expression: crate::NoteExpression,
+    ) {
         self.note_on(key, velocity);
         if key <= 127 && velocity.is_finite() && velocity > 0.0 {
             self.kick.0.pan_latest(pan);
-            if let Some(voice) = self.voices.iter_mut().find(|v| v.active && v.order == self.serial) {
+            if let Some(voice) = self
+                .voices
+                .iter_mut()
+                .find(|v| v.active && v.order == self.serial)
+            {
                 voice.pan = crate::note_pan::NotePan::new(pan, self.pan_law);
             }
         }

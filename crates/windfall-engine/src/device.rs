@@ -148,8 +148,11 @@ impl Engine {
     /// and stream destruction, and cancels automatic device recovery.
     pub fn suspend(&self) -> Result<(), String> {
         let (done, wait) = mpsc::channel();
-        lock(&self.requests).send(Request::Suspend(done)).map_err(|_| "Audio device owner is unavailable".to_owned())?;
-        wait.recv().map_err(|_| "Audio shutdown acknowledgement was lost".to_owned())?
+        lock(&self.requests)
+            .send(Request::Suspend(done))
+            .map_err(|_| "Audio device owner is unavailable".to_owned())?;
+        wait.recv()
+            .map_err(|_| "Audio shutdown acknowledgement was lost".to_owned())?
     }
 
     /// What is open right now. `buffer_frames` is the size of the buffers
@@ -403,7 +406,10 @@ impl<B: Backend, C: Fn() -> Instant> Supervisor<B, C> {
 
     fn suspend(&mut self) -> Result<(), String> {
         self.recovery.cancel();
-        let closing = self.controller.begin_close(true).map_err(|error|error.to_string())?;
+        let closing = self
+            .controller
+            .begin_close(true)
+            .map_err(|error| error.to_string())?;
         self.stream = None;
         self.controller.finish_close(closing);
         let mut status = lock(&self.status);
@@ -1613,20 +1619,22 @@ mod tests {
 
     #[test]
     fn installer_suspend_destroys_the_stream_cancels_recovery_and_reopens_running() {
-        let mut bench=Bench::running();
-        bench.controller.play();bench.process();
+        let mut bench = Bench::running();
+        bench.controller.play();
+        bench.process();
         assert!(bench.controller.frame().playing);
-        let attempts=bench.attempts();
+        let attempts = bench.attempts();
         bench.supervisor.suspend().unwrap();
         assert!(bench.supervisor.stream.is_none());
         assert!(!bench.status().running);
         assert!(bench.status().error.is_none());
-        assert!(bench.run(0,30_000).is_empty());
-        assert_eq!(bench.attempts(),attempts);
-        bench.configure(30_001);bench.process();
+        assert!(bench.run(0, 30_000).is_empty());
+        assert_eq!(bench.attempts(), attempts);
+        bench.configure(30_001);
+        bench.process();
         assert!(bench.status().running);
         assert!(bench.controller.frame().playing);
-        assert_eq!(bench.attempts(),attempts+1);
+        assert_eq!(bench.attempts(), attempts + 1);
     }
 
     #[test]

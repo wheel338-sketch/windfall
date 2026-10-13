@@ -3,8 +3,8 @@
 
 mod bench;
 mod compressor;
-mod delay;
 mod deadline_cpu;
+mod delay;
 mod e3_circuits;
 mod eq;
 mod examples;

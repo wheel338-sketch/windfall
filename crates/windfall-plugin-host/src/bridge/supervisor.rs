@@ -92,7 +92,10 @@ enum Job {
     Stop,
 }
 type ReadmissionSnapshot = (Vec<u8>, Vec<DescribedParameter>, crate::PluginLayout);
-struct ReadmissionCache { request: u64, snapshot: ReadmissionSnapshot }
+struct ReadmissionCache {
+    request: u64,
+    snapshot: ReadmissionSnapshot,
+}
 struct Inner {
     jobs: mpsc::SyncSender<Job>,
     worker: Mutex<Option<JoinHandle<()>>>,
@@ -131,10 +134,7 @@ pub struct Control(Arc<Inner>);
 impl Control {
     /// Discover on a fresh helper before any audio submission. Native metadata
     /// and state are queried on the creating owner, never inside the desktop.
-    pub fn describe(
-        &self,
-        timeout: Duration,
-    ) -> Result<ReadmissionSnapshot, String> {
+    pub fn describe(&self, timeout: Duration) -> Result<ReadmissionSnapshot, String> {
         let packet = self.call(Message::Describe, timeout)?;
         packet.validate().map_err(|error| error.to_string())?;
         match packet.body {
@@ -144,21 +144,51 @@ impl Control {
         }
     }
     pub fn last_valid_readmission(&self) -> Option<ReadmissionSnapshot> {
-        self.0.last_readmission.lock().unwrap_or_else(|error| error.into_inner()).as_ref().map(|cache| cache.snapshot.clone())
+        self.0
+            .last_readmission
+            .lock()
+            .unwrap_or_else(|error| error.into_inner())
+            .as_ref()
+            .map(|cache| cache.snapshot.clone())
     }
-    pub fn readmission_requested(&self) -> bool { self.0.region.readmission_requested() }
-    pub fn readmit(&self, epoch: u64, pending: &[ParameterSpec], timeout: Duration) -> Result<ReadmissionSnapshot, String> {
+    pub fn readmission_requested(&self) -> bool {
+        self.0.region.readmission_requested()
+    }
+    pub fn readmit(
+        &self,
+        epoch: u64,
+        pending: &[ParameterSpec],
+        timeout: Duration,
+    ) -> Result<ReadmissionSnapshot, String> {
         self.check_capture_epoch(epoch)?;
-        let packet = self.call(Message::Readmit { epoch, pending: pending.iter().copied().map(Into::into).collect() }, timeout)?;
+        let packet = self.call(
+            Message::Readmit {
+                epoch,
+                pending: pending.iter().copied().map(Into::into).collect(),
+            },
+            timeout,
+        )?;
         self.check_capture_epoch(epoch)?;
         packet.validate().map_err(|error| error.to_string())?;
         match packet.body {
             Message::Described { parameters, layout } => {
-                let mut cache = self.0.last_readmission.lock().unwrap_or_else(|error| error.into_inner());
+                let mut cache = self
+                    .0
+                    .last_readmission
+                    .lock()
+                    .unwrap_or_else(|error| error.into_inner());
                 self.check_capture_epoch(epoch)?;
-                if cache.as_ref().is_none_or(|cache| packet.request > cache.request) { *cache = Some(ReadmissionCache { request: packet.request, snapshot: (packet.state.clone(), parameters.clone(), layout.clone()) }); }
+                if cache
+                    .as_ref()
+                    .is_none_or(|cache| packet.request > cache.request)
+                {
+                    *cache = Some(ReadmissionCache {
+                        request: packet.request,
+                        snapshot: (packet.state.clone(), parameters.clone(), layout.clone()),
+                    });
+                }
                 Ok((packet.state, parameters, layout))
-            },
+            }
             Message::Error { message } => Err(message),
             _ => Err("unexpected capability re-admission response".into()),
         }

@@ -154,7 +154,9 @@ impl Session {
     }
     pub(super) fn recording_idle(&self) -> Result<MutexGuard<'_, Option<Take>>, String> {
         let take = lock(&self.inner.recording);
-        if self.inner.update_installing.load(Ordering::Acquire) { return Err("Project edits are frozen for update installation".into()); }
+        if self.inner.update_installing.load(Ordering::Acquire) {
+            return Err("Project edits are frozen for update installation".into());
+        }
         if take.is_some()
             || self.inner.recording_finishing.load(Ordering::Acquire)
             || self.inner.performance_capturing.load(Ordering::Acquire)

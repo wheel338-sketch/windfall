@@ -215,8 +215,12 @@ impl Processor {
         self.captures = Some(captures);
     }
 
-    pub(crate) fn rendered_end(&self) -> Option<u64> { self.rendered_end }
-    pub(crate) fn effective_tempo(&self) -> f64 { self.state.tempo() }
+    pub(crate) fn rendered_end(&self) -> Option<u64> {
+        self.rendered_end
+    }
+    pub(crate) fn effective_tempo(&self) -> f64 {
+        self.state.tempo()
+    }
 
     pub(crate) fn output_frame(&self) -> u64 {
         self.frame
@@ -452,7 +456,13 @@ impl Processor {
                 })
             });
         if pad_automation {
-            if (if self.plan.linked_tempo() { self.frame.saturating_sub(self.control_origin) } else { self.frame }).is_multiple_of(GRID) {
+            if (if self.plan.linked_tempo() {
+                self.frame.saturating_sub(self.control_origin)
+            } else {
+                self.frame
+            })
+            .is_multiple_of(GRID)
+            {
                 self.automate();
                 self.step_controls();
             }
@@ -467,8 +477,11 @@ impl Processor {
         if !automating && self.plan.control_sources.is_empty() {
             return most;
         }
-        let into = if self.plan.linked_tempo() { self.frame.saturating_sub(self.control_origin) % GRID }
-            else { self.frame % GRID };
+        let into = if self.plan.linked_tempo() {
+            self.frame.saturating_sub(self.control_origin) % GRID
+        } else {
+            self.frame % GRID
+        };
         if into == 0 {
             self.automate();
             self.step_controls();
@@ -482,7 +495,11 @@ impl Processor {
             self.control_origin = self.frame;
             self.state.controls.reset_clock(&self.plan);
             let tick = self.sequencer.tick(&self.plan, self.frame);
-            let tempo = self.plan.tempo_map.as_ref().map_or(self.plan.tempo_bpm, |m| m.tempo_at(tick));
+            let tempo = self
+                .plan
+                .tempo_map
+                .as_ref()
+                .map_or(self.plan.tempo_bpm, |m| m.tempo_at(tick));
             self.state.tell_tempo(tempo);
             self.sequencer.control_tempo(tempo, self.frame);
             self.state.controls.source_tempo = tempo;
@@ -495,10 +512,18 @@ impl Processor {
         if self.plan.linked_tempo() {
             self.state.controls.source_tempo = previous;
             let tick = self.sequencer.tick(&self.plan, self.frame);
-            let static_tempo = self.plan.tempo_map.as_ref().map_or(self.plan.tempo_bpm, |map| map.tempo_at(tick));
+            let static_tempo = self
+                .plan
+                .tempo_map
+                .as_ref()
+                .map_or(self.plan.tempo_bpm, |map| map.tempo_at(tick));
             let replay = &self.plan.tempo_replay;
             let index = (self.frame.saturating_sub(self.control_origin) / GRID) as usize;
-            let tempo = replay.get(index).or_else(|| replay.last()).copied().unwrap_or_else(|| linked.unwrap_or(static_tempo));
+            let tempo = replay
+                .get(index)
+                .or_else(|| replay.last())
+                .copied()
+                .unwrap_or_else(|| linked.unwrap_or(static_tempo));
             self.sequencer.control_tempo(tempo, self.frame);
             self.state.controls.clock = self.sequencer.clock();
             self.state.tell_tempo(tempo);
@@ -554,7 +579,9 @@ impl Processor {
         };
         #[cfg(feature = "plugin-export")]
         let tempo = self.plugin_tempo.unwrap_or(tempo);
-        if !self.plan.linked_tempo() { self.state.tell_tempo(tempo); }
+        if !self.plan.linked_tempo() {
+            self.state.tell_tempo(tempo);
+        }
     }
 
     /// The place automation is read at for frame `frame`: in the song while
@@ -910,7 +937,8 @@ impl Processor {
                                 origin: Origin::Hardware,
                                 expression: Default::default(),
                             },
-                            now, true,
+                            now,
+                            true,
                         );
                     }
                 }
@@ -1098,43 +1126,100 @@ impl Processor {
     /// Starts a note on frame `now`: on its channel's instrument if it has
     /// one, and as a sampler voice otherwise, including per-voice expression.
     fn script_input(&mut self, note: Note, now: u64, raw: bool) {
-        let Some(program) = self.state.scripts.get(note.channel).and_then(Option::as_ref) else {
-            if raw && !self.script_notes.register_plain(self.plan.channels[note.channel].id, note) {
+        let Some(program) = self
+            .state
+            .scripts
+            .get(note.channel)
+            .and_then(Option::as_ref)
+        else {
+            if raw
+                && !self
+                    .script_notes
+                    .register_plain(self.plan.channels[note.channel].id, note)
+            {
                 let count = self.shared.rejected_rack_events.load(Ordering::Relaxed);
-                self.shared.rejected_rack_events.store(count.saturating_add(1), Ordering::Relaxed);
+                self.shared
+                    .rejected_rack_events
+                    .store(count.saturating_add(1), Ordering::Relaxed);
                 return;
             }
-            self.start(note, now); return;
+            self.start(note, now);
+            return;
         };
-        if !raw && !program.dynamic() { self.start(note, now); return; }
+        if !raw && !program.dynamic() {
+            self.start(note, now);
+            return;
+        }
         let tick = self.sequencer.clock().tick_at(now);
-        let musical = |at| note.source.and_then(|s| s.song_origin).map_or(at, |origin| self.plan.unwarp(at - origin));
-        let score_input = if raw { None } else { note.source.and_then(|source|
-            self.plan.pattern_ids.get(source.pattern.0).and_then(|pattern|
-                self.plan.patterns[pattern].events.iter().find(|event| event.source == source.note)
-                    .and_then(|event| event.script_input))) };
+        let musical = |at| {
+            note.source
+                .and_then(|s| s.song_origin)
+                .map_or(at, |origin| self.plan.unwarp(at - origin))
+        };
+        let score_input = if raw {
+            None
+        } else {
+            note.source.and_then(|source| {
+                self.plan
+                    .pattern_ids
+                    .get(source.pattern.0)
+                    .and_then(|pattern| {
+                        self.plan.patterns[pattern]
+                            .events
+                            .iter()
+                            .find(|event| event.source == source.note)
+                            .and_then(|event| event.script_input)
+                    })
+            })
+        };
         let input = score_input.unwrap_or(windfall_project::scripting::ScriptNote {
-            start: 0, length: if raw { windfall_project::TICKS_PER_STEP } else {
-                (musical(note.end) - musical(tick)).round().max(1.0) as u32 },
-            key: note.key, velocity: note.velocity, pan: note.pan,
+            start: 0,
+            length: if raw {
+                windfall_project::TICKS_PER_STEP
+            } else {
+                (musical(note.end) - musical(tick)).round().max(1.0) as u32
+            },
+            key: note.key,
+            velocity: note.velocity,
+            pan: note.pan,
         });
         let input_start = input.start;
         let result = program.evaluate_notes(input);
         let gated = program.gates_live_notes();
         let before = self.script_notes.rejected;
         if let Ok(outputs) = result {
-            let song_origin = note.source.and_then(|s| s.song_origin).or_else(||
-                (raw && self.sequencer.in_song()).then(|| self.sequencer.pass_start()));
-            self.script_notes.admit(&self.plan, self.plan.channels[note.channel].id, note, outputs,
-                crate::script_notes::Timing { input_start, clock_tick: tick, gated, song_origin });
-        } else { self.script_notes.rejected = self.script_notes.rejected.saturating_add(1); }
+            let song_origin = note
+                .source
+                .and_then(|s| s.song_origin)
+                .or_else(|| (raw && self.sequencer.in_song()).then(|| self.sequencer.pass_start()));
+            self.script_notes.admit(
+                &self.plan,
+                self.plan.channels[note.channel].id,
+                note,
+                outputs,
+                crate::script_notes::Timing {
+                    input_start,
+                    clock_tick: tick,
+                    gated,
+                    song_origin,
+                },
+            );
+        } else {
+            self.script_notes.rejected = self.script_notes.rejected.saturating_add(1);
+        }
         let count = self.shared.rejected_rack_events.load(Ordering::Relaxed);
-        self.shared.rejected_rack_events.store(count.saturating_add(self.script_notes.rejected.saturating_sub(before)), Ordering::Relaxed);
+        self.shared.rejected_rack_events.store(
+            count.saturating_add(self.script_notes.rejected.saturating_sub(before)),
+            Ordering::Relaxed,
+        );
         self.fire_script_notes(now);
     }
 
     fn fire_script_notes(&mut self, now: u64) {
-        while let Some(note) = self.script_notes.pop(&self.plan, self.sequencer.clock(), now) {
+        while let Some(note) = self
+            .script_notes
+            .pop(&self.plan, self.sequencer.clock(), now)
+        {
             self.start(note, now);
         }
     }
@@ -1145,10 +1230,13 @@ impl Processor {
             self.state.channel_voice[channel].release_script_input(id);
             for slot in 0..self.state.channel_voice[channel].owners.len() {
                 if let Some(owner) = self.state.channel_voice[channel].owners[slot]
-                    && owner.note.input == Some(id) {
+                    && owner.note.input == Some(id)
+                {
                     self.release_instance(channel, owner.instance);
                     self.state.channel_voice[channel].owners[slot] = None;
-                    self.state.channel_voice[channel].held.note_off(owner.note.key);
+                    self.state.channel_voice[channel]
+                        .held
+                        .note_off(owner.note.key);
                 }
             }
         }
@@ -1302,9 +1390,13 @@ impl Processor {
     }
 
     fn release_input(&mut self, channel: usize, key: u8, origin: Origin) {
-        if let Some(input) = self.script_notes.release(self.plan.channels[channel].id, key, origin)
-            && input.scripted {
-            self.release_script_input(input.id); return;
+        if let Some(input) = self
+            .script_notes
+            .release(self.plan.channels[channel].id, key, origin)
+            && input.scripted
+        {
+            self.release_script_input(input.id);
+            return;
         }
         // A layer's keys were played on the channels it resolves to.
         if let Some(targets) = self.plan.channels[channel].layer.as_ref() {
@@ -1573,8 +1665,11 @@ impl Processor {
     /// back from changing at once.
     fn adopt(&mut self, plan: Arc<Plan>, mut state: Box<PlanState>) {
         let now = self.frame;
-        let reset_tempo = plan.linked_tempo() && !crate::internal_controllers::same_tempo_links(
-            &plan.control_links, &self.plan.control_links);
+        let reset_tempo = plan.linked_tempo()
+            && !crate::internal_controllers::same_tempo_links(
+                &plan.control_links,
+                &self.plan.control_links,
+            );
         if !self.performance.compatible(&self.plan, &plan) {
             self.release_performance(false);
         }
@@ -1633,7 +1728,9 @@ impl Processor {
                 unit.move_ends(moved);
             }
         }
-        if plan.linked_tempo() { self.sequencer.control_tempo(state.tempo(), now); }
+        if plan.linked_tempo() {
+            self.sequencer.control_tempo(state.tempo(), now);
+        }
         let old_plan = std::mem::replace(&mut self.plan, plan);
         self.script_notes.prune_channels(&self.plan);
         for unit in state.instrument_units() {
@@ -1650,7 +1747,9 @@ impl Processor {
             self.reset_control_clock();
             self.landed = true;
         }
-        if jumped { self.clips.release_all(); }
+        if jumped {
+            self.clips.release_all();
+        }
         self.chase_clips();
     }
 
@@ -1784,7 +1883,9 @@ impl Processor {
             position_beats: tick / windfall_core::PPQ as f64,
             position_seconds: if self.plan.linked_tempo() {
                 self.frame.saturating_sub(self.control_origin) as f64 / f64::from(self.sample_rate)
-            } else { warped * 60.0 / (self.plan.tempo_bpm * windfall_core::PPQ as f64) },
+            } else {
+                warped * 60.0 / (self.plan.tempo_bpm * windfall_core::PPQ as f64)
+            },
             numerator: signature.numerator as u16,
             denominator: signature.denominator as u16,
             meter_anchor: segment.map(|segment| crate::plugins::MeterAnchor {
@@ -1888,7 +1989,9 @@ impl Processor {
             cursor = next;
         }
         self.sequencer.advance(&self.plan, cursor.frame, end);
-        if !self.sequencer.playing() && let Some(last) = final_frame {
+        if !self.sequencer.playing()
+            && let Some(last) = final_frame
+        {
             self.rendered_end = Some(last);
         }
         if in_song {
@@ -2226,8 +2329,15 @@ impl Processor {
                 self.state.tell_tempo(self.plan.tempo_bpm);
             }
             if self.plan.linked_tempo() {
-                self.performance.advance_control_tempo(to - from, self.sample_rate, self.state.tempo());
-            } else { self.performance.advance(&self.plan, to - from, self.sample_rate); }
+                self.performance.advance_control_tempo(
+                    to - from,
+                    self.sample_rate,
+                    self.state.tempo(),
+                );
+            } else {
+                self.performance
+                    .advance(&self.plan, to - from, self.sample_rate);
+            }
             self.render_voice_audio(base, from, to);
             return;
         }
@@ -2239,10 +2349,17 @@ impl Processor {
             self.plan
                 .performance_tick
                 .store(self.performance.tick().to_bits(), Ordering::Relaxed);
-            if self.plan.linked_tempo() || self.state.scripts.iter().flatten().any(|p| p.dynamic()) {
-                self.performance.step_with_scripts(&self.plan, self.sample_rate, &self.state.scripts,
-                    self.plan.linked_tempo().then(|| self.state.tempo()));
-            } else { self.performance.step(&self.plan, self.sample_rate); }
+            if self.plan.linked_tempo() || self.state.scripts.iter().flatten().any(|p| p.dynamic())
+            {
+                self.performance.step_with_scripts(
+                    &self.plan,
+                    self.sample_rate,
+                    &self.state.scripts,
+                    self.plan.linked_tempo().then(|| self.state.tempo()),
+                );
+            } else {
+                self.performance.step(&self.plan, self.sample_rate);
+            }
             if let Some(capture) = &self.performance_recording {
                 for index in 0..self.performance.accepted_len() {
                     capture.launch(now, self.performance.accepted(index));
@@ -2285,7 +2402,10 @@ impl Processor {
                     }
                 }
             }
-            if !self.plan.linked_tempo() && !self.sequencer.playing() && (self.performance.active() || restoring) {
+            if !self.plan.linked_tempo()
+                && !self.sequencer.playing()
+                && (self.performance.active() || restoring)
+            {
                 let bpm = self
                     .performance
                     .tempo_override(&self.plan)

@@ -88,16 +88,25 @@ impl Record {
         }
         Ok(())
     }
-    pub fn readmit(&self, desired: &[PluginParameter]) -> Result<(Vec<u8>, super::capabilities::Readmission), String> {
+    pub fn readmit(
+        &self,
+        desired: &[PluginParameter],
+    ) -> Result<(Vec<u8>, super::capabilities::Readmission), String> {
         self.check_document(desired)?;
         let snapshot = self.metadata.snapshot()?;
         let mut pending = self.specs.clone();
         for spec in &mut pending {
-            if let Some(parameter) = desired.iter().find(|param| param.id == spec.id) { spec.value = f64::from(parameter.value); }
+            if let Some(parameter) = desired.iter().find(|param| param.id == spec.id) {
+                spec.value = f64::from(parameter.value);
+            }
         }
-        let (state, parameters, layout) = self.control.readmit(snapshot.1, &pending, Duration::from_secs(2))?;
+        let (state, parameters, layout) =
+            self.control
+                .readmit(snapshot.1, &pending, Duration::from_secs(2))?;
         self.check_document(desired)?;
-        if self.metadata.snapshot()? != snapshot { return Err("Plugin controls changed during capability re-admission".into()); }
+        if self.metadata.snapshot()? != snapshot {
+            return Err("Plugin controls changed during capability re-admission".into());
+        }
         Ok((state, super::capabilities::described(parameters, layout)))
     }
     pub fn capture(&self, desired: &[PluginParameter]) -> Result<CapturedBinding, String> {
@@ -401,9 +410,13 @@ impl Drop for Audio {
 impl HostedEffect for Audio {
     fn retire_from_document(&mut self) {
         self.retired = true;
-        if let Some(selection) = &self.selection { let _ = selection.compare_exchange(self.token, 0, Ordering::AcqRel, Ordering::Acquire); }
+        if let Some(selection) = &self.selection {
+            let _ = selection.compare_exchange(self.token, 0, Ordering::AcqRel, Ordering::Acquire);
+        }
     }
-    fn copy_output(&self, bus: u32, output: &mut [[f32; 2]]) -> bool { self.process.copy_output(bus, output) }
+    fn copy_output(&self, bus: u32, output: &mut [[f32; 2]]) -> bool {
+        self.process.copy_output(bus, output)
+    }
     fn set_sidechain_input(&mut self, input: Option<u32>) {
         self.process.set_sidechain_input(input);
     }
@@ -430,7 +443,9 @@ impl HostedEffect for Audio {
         self.publish(changed);
     }
     fn transport(&mut self, transport: PluginTransport) {
-        if !self.retired && let Some(selection) = &self.selection {
+        if !self.retired
+            && let Some(selection) = &self.selection
+        {
             selection.store(self.token, Ordering::Release);
         }
         // ABI3 retains the checked native meter anchor at the first frame.
@@ -523,10 +538,19 @@ impl Audio {
 }
 impl HostedInstrument for Audio {
     fn set_note_gain(&mut self, id: windfall_dsp::NoteInstanceId, gain: f32) {
-        if !gain.is_finite() { return; }
-        let Some(owner) = self.notes.iter_mut().find(|owner| owner.engine == id && owner.note.id != 0) else { return; };
+        if !gain.is_finite() {
+            return;
+        }
+        let Some(owner) = self
+            .notes
+            .iter_mut()
+            .find(|owner| owner.engine == id && owner.note.id != 0)
+        else {
+            return;
+        };
         owner.note.controls.volume = owner.source_gain * gain.clamp(0.0, 4.0);
-        self.process.set_note_controls(owner.note.id, owner.note.controls);
+        self.process
+            .set_note_controls(owner.note.id, owner.note.controls);
         self.publish(false);
     }
     fn midi_message(&mut self, bytes: &[u8]) -> bool {
@@ -888,7 +912,7 @@ mod tests {
         )
         .unwrap();
         let mut audio = Audio {
-        retired: false,
+            retired: false,
             note_capabilities: Arc::new(super::super::note_capabilities::Published::default()),
             notes: vec![NoteOwner::EMPTY; windfall_plugin_host::MAX_NOTE_INSTANCES]
                 .into_boxed_slice(),

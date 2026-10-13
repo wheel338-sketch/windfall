@@ -147,7 +147,9 @@ pub use window_document::WindowDocumentSnapshot;
 /// The audio output as the session needs it. [`Engine`] is the real one.
 pub trait AudioDevice: Send + Sync {
     fn status(&self) -> EngineStatus;
-    fn suspend(&self) -> Result<(), String> { Err("Audio device does not support acknowledged update shutdown".into()) }
+    fn suspend(&self) -> Result<(), String> {
+        Err("Audio device does not support acknowledged update shutdown".into())
+    }
     /// Closes the stream and opens one with new settings. May take seconds.
     fn reconfigure(&self, settings: &AudioSettings);
     /// Lists the hosts and devices of this machine. May take a while.
@@ -155,7 +157,9 @@ pub trait AudioDevice: Send + Sync {
 }
 
 impl AudioDevice for Engine {
-    fn suspend(&self) -> Result<(), String> { Engine::suspend(self) }
+    fn suspend(&self) -> Result<(), String> {
+        Engine::suspend(self)
+    }
     fn status(&self) -> EngineStatus {
         Engine::status(self)
     }

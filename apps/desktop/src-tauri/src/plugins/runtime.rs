@@ -72,15 +72,32 @@ pub(crate) struct CapturedState {
     serial: u64,
 }
 impl CapturedState {
-    fn overlay_document(&mut self, before: &[windfall_project::PluginParameter], desired: &[windfall_project::PluginParameter]) {
+    fn overlay_document(
+        &mut self,
+        before: &[windfall_project::PluginParameter],
+        desired: &[windfall_project::PluginParameter],
+    ) {
         for param in desired {
-            if before.iter().find(|old| old.id == param.id).is_some_and(|old| old.value != param.value) {
+            if before
+                .iter()
+                .find(|old| old.id == param.id)
+                .is_some_and(|old| old.value != param.value)
+            {
                 let mut value = param.value;
                 if let Some(metadata) = &mut self.readmission
-                    && let Some(current) = metadata.parameters.iter_mut().find(|current| current.id == param.id) {
-                    value = value.clamp(current.min, current.max); current.value = value;
+                    && let Some(current) = metadata
+                        .parameters
+                        .iter_mut()
+                        .find(|current| current.id == param.id)
+                {
+                    value = value.clamp(current.min, current.max);
+                    current.value = value;
                 }
-                if let Some((_, stored)) = self.parameters.iter_mut().find(|(id, _)| *id == param.id) { *stored = value; }
+                if let Some((_, stored)) =
+                    self.parameters.iter_mut().find(|(id, _)| *id == param.id)
+                {
+                    *stored = value;
+                }
             }
         }
     }
@@ -409,7 +426,11 @@ impl Instance {
             // Read after the returned boundary: callbacks may publish new controls
             // while the owner waits, and their generations must not be acknowledged
             // using a value read before that boundary.
-            if rebuilding && self.restart { self.plugin.refresh_capabilities().map_err(|error| error.to_string())?; }
+            if rebuilding && self.restart {
+                self.plugin
+                    .refresh_capabilities()
+                    .map_err(|error| error.to_string())?;
+            }
             let intents = self.capture_intents(desired);
             let mut reconciled = Vec::with_capacity(intents.len());
             for CaptureIntent {
@@ -419,7 +440,9 @@ impl Instance {
                 value,
             } in intents
             {
-                if self.plugin.param(id).is_none() { continue; }
+                if self.plugin.param(id).is_none() {
+                    continue;
+                }
                 // Lifecycle edits linearize after the queued controls returned by
                 // this boundary. They supersede both accepted and rejected points.
                 if self.plugin.deactivation_param_value(id).is_some() {
@@ -462,9 +485,13 @@ impl Instance {
             let parameters = self.parameter_values();
             self.check_capture_document(desired)?;
             let readmission = if rebuilding && self.restart {
-                self.plugin.refresh_capabilities().map_err(|error| error.to_string())?;
+                self.plugin
+                    .refresh_capabilities()
+                    .map_err(|error| error.to_string())?;
                 Some(super::capabilities::native(&mut self.plugin))
-            } else { None };
+            } else {
+                None
+            };
             Ok((state, parameters, reconciled, readmission))
         })();
         // Even a failed save must give the sounding instance back when safe.
@@ -473,7 +500,9 @@ impl Instance {
             // audio slot remains in its bounded dry/silent ownership fallback.
             self.ownership.cancel();
             Ok(())
-        } else { self.restore() };
+        } else {
+            self.restore()
+        };
         let recovery_error = match restore {
             Ok(()) => None,
             // A requested restart will install a new plan and its correct
@@ -483,10 +512,16 @@ impl Instance {
             Err(error) => return Err(error),
         };
         if rebuilding && let Ok((state, parameters, _, readmission)) = &captured {
-            self.pending_capture = Some((desired.to_vec(), CapturedState {
-                bytes: state.as_bytes().to_vec(), parameters: parameters.clone(), readmission: readmission.clone(),
-                restart: self.restart, serial: self.dirty_serial,
-            }));
+            self.pending_capture = Some((
+                desired.to_vec(),
+                CapturedState {
+                    bytes: state.as_bytes().to_vec(),
+                    parameters: parameters.clone(),
+                    readmission: readmission.clone(),
+                    restart: self.restart,
+                    serial: self.dirty_serial,
+                },
+            ));
         }
         if lifetime.cancelled() {
             return Err("Plugin capture was cancelled".into());
@@ -532,8 +567,15 @@ pub(crate) fn binding_identity(binding: &PluginBinding) -> u64 {
     }
     binding.capabilities.revision.hash(&mut hash);
     binding.capabilities.unavailable_parameters.hash(&mut hash);
-    for port in &binding.capabilities.outputs { port.index.hash(&mut hash); port.channels.hash(&mut hash); }
-    for param in &binding.parameters { param.id.hash(&mut hash); param.min.to_bits().hash(&mut hash); param.max.to_bits().hash(&mut hash); }
+    for port in &binding.capabilities.outputs {
+        port.index.hash(&mut hash);
+        port.channels.hash(&mut hash);
+    }
+    for param in &binding.parameters {
+        param.id.hash(&mut hash);
+        param.min.to_bits().hash(&mut hash);
+        param.max.to_bits().hash(&mut hash);
+    }
     hash.finish()
 }
 struct Owner {
@@ -603,7 +645,9 @@ fn maintain_owner(
             owner.bridges.remove(&token);
         }
         for (token, record) in &mut owner.bridges {
-            if record.editor_open && selected(&owner.selection, record.binding.target) != Some(*token) {
+            if record.editor_open
+                && selected(&owner.selection, record.binding.target) != Some(*token)
+            {
                 let _ = record.control.editor(false);
                 record.editor_open = false;
             }
@@ -611,7 +655,9 @@ fn maintain_owner(
                 && selected(&owner.selection, record.binding.target) == Some(*token)
                 && record.revision == owner_revision.load(std::sync::atomic::Ordering::Acquire)
             {
-                record.dirty_serial = record.dirty_serial.max(record.control.native_change_serial());
+                record.dirty_serial = record
+                    .dirty_serial
+                    .max(record.control.native_change_serial());
                 let failed = record.status().failed;
                 if failed && record.dirty_serial <= record.acknowledged_serial {
                     record.dirty_serial = record.acknowledged_serial.saturating_add(1);
@@ -666,7 +712,12 @@ fn maintain_owner(
         }
         let target = &record.target;
         let instance = &mut record.plugin;
-        if record.playback && selected(&selection, record.target) != Some(*token) && instance.editor().is_some() { instance.close_editor(); }
+        if record.playback
+            && selected(&selection, record.target) != Some(*token)
+            && instance.editor().is_some()
+        {
+            instance.close_editor();
+        }
         let current = record.playback
             && selected(&selection, *target) == Some(*token)
             && record.revision == owner_revision.load(std::sync::atomic::Ordering::Relaxed);
@@ -1125,7 +1176,11 @@ impl Runtime {
                 .host
                 .create_audio_unit(&binding.id)
                 .map_err(|e| e.to_string())?;
-            let kind = if binding.target.is_instrument() { windfall_plugin_host::PluginKind::Instrument } else { windfall_plugin_host::PluginKind::Effect };
+            let kind = if binding.target.is_instrument() {
+                windfall_plugin_host::PluginKind::Instrument
+            } else {
+                windfall_plugin_host::PluginKind::Effect
+            };
             if instance.descriptor().kind != kind {
                 return Err("AU instrument/effect role mismatch".into());
             }
@@ -1156,7 +1211,11 @@ impl Runtime {
             .into_iter()
             .find(|descriptor| descriptor.id == binding.id)
             .ok_or_else(|| "The scanned plugin ID is absent from this file".to_owned())?;
-        let kind = if binding.target.is_instrument() { windfall_plugin_host::PluginKind::Instrument } else { windfall_plugin_host::PluginKind::Effect };
+        let kind = if binding.target.is_instrument() {
+            windfall_plugin_host::PluginKind::Instrument
+        } else {
+            windfall_plugin_host::PluginKind::Effect
+        };
         if descriptor.format != format || descriptor.kind != kind {
             return Err(
                 "Plugin format or instrument/effect role does not match its binding".into(),
@@ -1176,7 +1235,9 @@ impl Runtime {
                 instance.set_param(param.id, f64::from(param.value));
             }
         }
-        instance.refresh_capabilities().map_err(|error| error.to_string())?;
+        instance
+            .refresh_capabilities()
+            .map_err(|error| error.to_string())?;
         Ok(instance)
     }
     pub fn discover(&self, mut binding: PluginBinding) -> Result<PluginBinding, String> {
@@ -1229,7 +1290,8 @@ impl Runtime {
         }
         self.call(move |owner| {
             let mut instance = Self::create(owner, &binding)?;
-            binding.capabilities.outputs = super::capabilities::ports(&instance.layout().audio_outputs);
+            binding.capabilities.outputs =
+                super::capabilities::ports(&instance.layout().audio_outputs);
             binding.auxiliary_inputs = instance
                 .layout()
                 .audio_inputs
@@ -1395,9 +1457,21 @@ impl Runtime {
                         record.pending_capture = Some((desired.clone(), captured.clone()));
                         return Ok(Some(captured));
                     }
-                    if let Some((bytes, parameters, layout)) = record.control.last_valid_readmission() {
+                    if let Some((bytes, parameters, layout)) =
+                        record.control.last_valid_readmission()
+                    {
                         let metadata = super::capabilities::described(parameters, layout);
-                        let captured = CapturedState { bytes, parameters: metadata.parameters.iter().map(|param| (param.id, param.value)).collect(), readmission: Some(metadata), restart: true, serial: record.dirty_serial };
+                        let captured = CapturedState {
+                            bytes,
+                            parameters: metadata
+                                .parameters
+                                .iter()
+                                .map(|param| (param.id, param.value))
+                                .collect(),
+                            readmission: Some(metadata),
+                            restart: true,
+                            serial: record.dirty_serial,
+                        };
                         record.pending_capture = Some((desired.clone(), captured.clone()));
                         return Ok(Some(captured));
                     }
@@ -1408,9 +1482,14 @@ impl Runtime {
                         let checkpoint = record.control.last_valid_state();
                         let captured = CapturedState {
                             readmission: None,
-                            bytes: checkpoint.map_or_else(|| record.binding.state.clone(), |state| state.state),
-                            parameters: desired.iter().map(|parameter| (parameter.id, parameter.value)).collect(),
-                            restart: true, serial: record.dirty_serial,
+                            bytes: checkpoint
+                                .map_or_else(|| record.binding.state.clone(), |state| state.state),
+                            parameters: desired
+                                .iter()
+                                .map(|parameter| (parameter.id, parameter.value))
+                                .collect(),
+                            restart: true,
+                            serial: record.dirty_serial,
                         };
                         record.pending_capture = Some((desired.clone(), captured.clone()));
                         return Ok(Some(captured));
@@ -1419,11 +1498,17 @@ impl Runtime {
                     let mut readmission = None;
                     let captured = if readmitting {
                         record.readmit(&desired).map(|(bytes, metadata)| {
-                            let values = metadata.parameters.iter().map(|p| (p.id, p.value)).collect();
+                            let values = metadata
+                                .parameters
+                                .iter()
+                                .map(|p| (p.id, p.value))
+                                .collect();
                             readmission = Some(metadata);
                             (bytes, values)
                         })
-                    } else { record.capture(&desired) };
+                    } else {
+                        record.capture(&desired)
+                    };
                     let (bytes, parameters) = match captured {
                         Ok(captured) => captured,
                         Err(error) => {
@@ -1432,7 +1517,11 @@ impl Runtime {
                         }
                     };
                     let captured = CapturedState {
-                        readmission, bytes, parameters, restart: readmitting, serial,
+                        readmission,
+                        bytes,
+                        parameters,
+                        restart: readmitting,
+                        serial,
                     };
                     // Preserve successful bytes across preparation refusal, lost
                     // ACK receipts and helper exit. Retry document acceptance,
@@ -1456,7 +1545,8 @@ impl Runtime {
                     return Ok(None);
                 };
                 if let Some((before, captured)) = &record.pending_capture {
-                    let mut captured = captured.clone(); captured.overlay_document(before, &desired);
+                    let mut captured = captured.clone();
+                    captured.overlay_document(before, &desired);
                     record.pending_capture = Some((desired.clone(), captured.clone()));
                     return Ok(Some(captured));
                 }
@@ -1469,8 +1559,11 @@ impl Runtime {
                 let state = captured.state.into_bytes();
                 let restart = record.restart;
                 let captured = CapturedState {
-                    readmission: captured.readmission, bytes: state, parameters: captured.parameters,
-                    restart, serial: record.dirty_serial,
+                    readmission: captured.readmission,
+                    bytes: state,
+                    parameters: captured.parameters,
+                    restart,
+                    serial: record.dirty_serial,
                 };
                 record.pending_capture = Some((desired.clone(), captured.clone()));
                 Ok(Some(captured))
@@ -1563,13 +1656,25 @@ impl Runtime {
             if let Some(record) = owner.bridges.get_mut(&ticket.token) {
                 record.capture_sent = false;
                 record.acknowledged_serial = record.acknowledged_serial.max(ticket.serial);
-                if record.pending_capture.as_ref().is_some_and(|(_, captured)| captured.serial <= ticket.serial) { record.pending_capture = None; }
+                if record
+                    .pending_capture
+                    .as_ref()
+                    .is_some_and(|(_, captured)| captured.serial <= ticket.serial)
+                {
+                    record.pending_capture = None;
+                }
                 checkpoint(owner, lifetime);
                 return Ok(super::capture_ack::CaptureAckCompletion::Acknowledged);
             }
             let completion = if let Some(record) = owner.instances.get_mut(&ticket.token) {
                 record.capture_sent = false;
-                if record.pending_capture.as_ref().is_some_and(|(_, captured)| captured.serial <= ticket.serial) { record.pending_capture = None; }
+                if record
+                    .pending_capture
+                    .as_ref()
+                    .is_some_and(|(_, captured)| captured.serial <= ticket.serial)
+                {
+                    record.pending_capture = None;
+                }
                 if record.dirty_serial == ticket.serial {
                     record.dirty = false;
                     record.restart = false;
@@ -1615,11 +1720,16 @@ impl Runtime {
             {
                 let options = super::wrapper::editor(&record.binding, parent);
                 #[cfg(any(target_os = "macos", target_os = "linux"))]
-                let options = { let mut options = options; options.scale = f64::from(scale.load(std::sync::atomic::Ordering::Relaxed)) / 100.0; options };
-                let result = record
-                    .control
-                    .editor_with_options(open, options);
-                if result.is_ok() { record.editor_open = open; }
+                let options = {
+                    let mut options = options;
+                    options.scale =
+                        f64::from(scale.load(std::sync::atomic::Ordering::Relaxed)) / 100.0;
+                    options
+                };
+                let result = record.control.editor_with_options(open, options);
+                if result.is_ok() {
+                    record.editor_open = open;
+                }
                 return result;
             }
             let record = selected(&owner.selection, target)
@@ -1772,28 +1882,44 @@ impl Runtime {
             Ok(audio)
         })
     }
-    pub(crate) fn update_shutdown_barrier(&self) -> Result<(),String> {
+    pub(crate) fn update_shutdown_barrier(&self) -> Result<(), String> {
         self.call(|owner| {
             // Audio::drop queued all native retirement before the acknowledged
             // stream shutdown. FIFO dispatch joins those jobs before returning.
             for record in owner.instances.values_mut() {
-                if let Some(adapter)=record.ownership.take_returned() { record.retire(adapter); }
-                if let Some(adapter)=record.returned.take() { record.retire(adapter); }
+                if let Some(adapter) = record.ownership.take_returned() {
+                    record.retire(adapter);
+                }
+                if let Some(adapter) = record.returned.take() {
+                    record.retire(adapter);
+                }
             }
             Ok(())
         })
     }
-    pub fn note_capabilities(&self, target: PluginTarget) -> Result<super::NoteCapabilities, String> {
+    pub fn note_capabilities(
+        &self,
+        target: PluginTarget,
+    ) -> Result<super::NoteCapabilities, String> {
         let revision = self.document_revision();
         self.call(move |owner| {
-            let token = selected(&owner.selection, target).ok_or("No running hosted instrument is selected")?;
-            if let Some(record) = owner.instances.get(&token).filter(|r| r.instrument && r.playback && r.revision == revision) {
+            let token = selected(&owner.selection, target)
+                .ok_or("No running hosted instrument is selected")?;
+            if let Some(record) = owner
+                .instances
+                .get(&token)
+                .filter(|r| r.instrument && r.playback && r.revision == revision)
+            {
                 return Ok(record.note_capabilities.snapshot());
             }
             #[cfg(any(windows, target_os = "macos", target_os = "linux"))]
-            if let Some(record) = owner.bridges.get(&token).filter(|r| r.playback && r.revision == revision) {
-                let mut capabilities=record.note_capabilities.snapshot();
-                capabilities.project_pan_law=false;
+            if let Some(record) = owner
+                .bridges
+                .get(&token)
+                .filter(|r| r.playback && r.revision == revision)
+            {
+                let mut capabilities = record.note_capabilities.snapshot();
+                capabilities.project_pan_law = false;
                 return Ok(capabilities);
             }
             Err("Hosted note capabilities are unavailable for this document".into())
@@ -1906,10 +2032,14 @@ impl ExpressionOwner {
         if native_pan_law {
             // Native Pan is normalized to 0..1. Volume retains total energy
             // independently of Pan; both capabilities are required.
-            let (left,right)=self.pan_gains;
-            let sum=left+right;
-            controls.values[1]=if sum>0.0 {f64::from(right/sum)} else {0.5};
-            controls.values[0]*=f64::from(sum*0.5);
+            let (left, right) = self.pan_gains;
+            let sum = left + right;
+            controls.values[1] = if sum > 0.0 {
+                f64::from(right / sum)
+            } else {
+                0.5
+            };
+            controls.values[0] *= f64::from(sum * 0.5);
             controls.mask |= windfall_plugin_host::NoteExpressionKind::Pan.mask()
                 | windfall_plugin_host::NoteExpressionKind::Volume.mask();
         }
@@ -2020,12 +2150,18 @@ impl Audio {
                         note.key,
                         note.channel,
                         note.velocity,
-                        note.controls(*expression_map, *apply_pan_law && note_capabilities.supports_pan_law(note.channel)),
+                        note.controls(
+                            *expression_map,
+                            *apply_pan_law && note_capabilities.supports_pan_law(note.channel),
+                        ),
                     )
                 } else if note.dirty {
                     instrument.set_note_expression(
                         note.native,
-                        note.controls(*expression_map, *apply_pan_law && note_capabilities.supports_pan_law(note.channel)),
+                        note.controls(
+                            *expression_map,
+                            *apply_pan_law && note_capabilities.supports_pan_law(note.channel),
+                        ),
                     )
                 } else {
                     true
@@ -2130,9 +2266,18 @@ impl Drop for Audio {
 impl HostedEffect for Audio {
     fn retire_from_document(&mut self) {
         self.retired = true;
-        if let Some(selection) = &self.selection { let _ = selection.compare_exchange(self.token, 0, std::sync::atomic::Ordering::AcqRel, std::sync::atomic::Ordering::Acquire); }
+        if let Some(selection) = &self.selection {
+            let _ = selection.compare_exchange(
+                self.token,
+                0,
+                std::sync::atomic::Ordering::AcqRel,
+                std::sync::atomic::Ordering::Acquire,
+            );
+        }
     }
-    fn copy_output(&self, bus: u32, output: &mut [[f32; 2]]) -> bool { self.rendered.copy(bus, output) }
+    fn copy_output(&self, bus: u32, output: &mut [[f32; 2]]) -> bool {
+        self.rendered.copy(bus, output)
+    }
     fn set_sidechain_input(&mut self, input: Option<u32>) {
         self.sidechain_input = input;
     }
@@ -2157,11 +2302,14 @@ impl HostedEffect for Audio {
         }
         if let Some(Adapter::Instrument(adapter)) = self.adapter() {
             let capabilities = adapter.native_note_capabilities();
-            self.note_capabilities.publish(capabilities.0, capabilities.1);
+            self.note_capabilities
+                .publish(capabilities.0, capabilities.1);
         }
     }
     fn transport(&mut self, transport: windfall_engine::plugins::PluginTransport) {
-        if !self.retired && let Some(selection) = &self.selection {
+        if !self.retired
+            && let Some(selection) = &self.selection
+        {
             selection.store(self.token, std::sync::atomic::Ordering::Relaxed);
         }
         let transport = windfall_plugin_host::Transport {
@@ -2194,8 +2342,8 @@ impl HostedEffect for Audio {
             for index in 0..frames {
                 for slot in 0..self.expression_owners.len() {
                     if self.expression_owners[slot].native != 0 {
-                        let note=&mut self.expression_owners[slot];
-                        note.pan_gains=note.pan_state.tick();
+                        let note = &mut self.expression_owners[slot];
+                        note.pan_gains = note.pan_state.tick();
                         self.publish_expression_owner(slot);
                     }
                 }
@@ -2210,10 +2358,10 @@ impl HostedEffect for Audio {
         } else {
             // Publish the exact endpoint even when a callback ends at frame 240.
             for slot in 0..self.expression_owners.len() {
-                let note=&mut self.expression_owners[slot];
-                let gains=note.pan_state.gains();
-                if note.native!=0 && note.pan_gains!=gains {
-                    note.pan_gains=gains;
+                let note = &mut self.expression_owners[slot];
+                let gains = note.pan_state.gains();
+                if note.native != 0 && note.pan_gains != gains {
+                    note.pan_gains = gains;
                     self.publish_expression_owner(slot);
                 }
             }
@@ -2260,7 +2408,13 @@ impl HostedEffect for Audio {
 }
 
 impl Audio {
-    fn process_pan_block(&mut self, left: &mut [f32], right: &mut [f32], key: Option<&[[f32; 2]]>, output_offset: usize) {
+    fn process_pan_block(
+        &mut self,
+        left: &mut [f32],
+        right: &mut [f32],
+        key: Option<&[[f32; 2]]>,
+        output_offset: usize,
+    ) {
         // Reconcile after engine commands and note expirations, immediately
         // before sounding. A boundary alone must never resurrect a released key.
         self.reconcile();
@@ -2275,12 +2429,19 @@ impl Audio {
             }
             None => {}
         }
-        let adapter = self.ownership.as_ref().and_then(|ownership| ownership.current());
+        let adapter = self
+            .ownership
+            .as_ref()
+            .and_then(|ownership| ownership.current());
         for (bus, output) in self.rendered.buses.iter_mut().enumerate() {
             let output = &mut output[output_offset..output_offset + left.len().min(right.len())];
             match adapter {
-                Some(Adapter::Effect(unit)) => { unit.copy_output(bus as u32, output); }
-                Some(Adapter::Instrument(unit)) => { unit.copy_output(bus as u32, output); }
+                Some(Adapter::Effect(unit)) => {
+                    unit.copy_output(bus as u32, output);
+                }
+                Some(Adapter::Instrument(unit)) => {
+                    unit.copy_output(bus as u32, output);
+                }
                 None => output.fill([0.0; 2]),
             }
         }
@@ -2324,8 +2485,16 @@ pub(crate) mod ownership_tests;
 mod sidechain_bus_tests;
 impl HostedInstrument for Audio {
     fn set_note_gain(&mut self, id: windfall_dsp::NoteInstanceId, gain: f32) {
-        if !gain.is_finite() { return; }
-        let Some(slot) = self.expression_owners.iter().position(|owner| owner.id == id && owner.native != 0) else { return; };
+        if !gain.is_finite() {
+            return;
+        }
+        let Some(slot) = self
+            .expression_owners
+            .iter()
+            .position(|owner| owner.id == id && owner.native != 0)
+        else {
+            return;
+        };
         self.expression_owners[slot].gain = gain.clamp(0.0, 4.0);
         self.expression_owners[slot].dirty = true;
         self.publish_expression_owner(slot);
@@ -2370,10 +2539,15 @@ impl HostedInstrument for Audio {
             return;
         }
         self.expression_map = map;
-        for note in self.expression_owners.iter_mut().filter(|note|note.native!=0) {
-            let mapped=map.plugin_controls(note.pan,0.0,note.expression);
-            note.pan_state=windfall_dsp::NotePan::new((mapped.values[1]*2.0-1.0) as f32,self.pan_law);
-            note.pan_gains=note.pan_state.gains();
+        for note in self
+            .expression_owners
+            .iter_mut()
+            .filter(|note| note.native != 0)
+        {
+            let mapped = map.plugin_controls(note.pan, 0.0, note.expression);
+            note.pan_state =
+                windfall_dsp::NotePan::new((mapped.values[1] * 2.0 - 1.0) as f32, self.pan_law);
+            note.pan_gains = note.pan_state.gains();
         }
         for slot in 0..self.expression_owners.len() {
             if self.expression_owners[slot].native != 0 {
@@ -2385,8 +2559,8 @@ impl HostedInstrument for Audio {
     fn set_note_pan_law(&mut self, law: windfall_core::PanLaw) {
         // The engine explicitly supplies the project law. Direct host clients
         // which never opt in retain the plugin's native expression semantics.
-        self.apply_pan_law=true;
-        self.pan_law=law;
+        self.apply_pan_law = true;
+        self.pan_law = law;
         if self.pan_clock == 0 {
             self.note_law = windfall_core::PanLawRamp::at_rest(law);
         } else {
@@ -2398,7 +2572,8 @@ impl HostedInstrument for Audio {
             .iter_mut()
             .filter(|note| note.native != 0)
         {
-            note.pan_state.retarget(law, self.pan_ramp_frames as f32 * 200.0);
+            note.pan_state
+                .retarget(law, self.pan_ramp_frames as f32 * 200.0);
             note.dirty = true;
         }
         self.reconcile_notes = true;
@@ -2466,8 +2641,9 @@ impl HostedInstrument for Audio {
                 break next;
             }
         };
-        let mapped=self.expression_map.plugin_controls(pan,0.0,expression);
-        let pan_state=windfall_dsp::NotePan::new((mapped.values[1]*2.0-1.0) as f32,self.pan_law);
+        let mapped = self.expression_map.plugin_controls(pan, 0.0, expression);
+        let pan_state =
+            windfall_dsp::NotePan::new((mapped.values[1] * 2.0 - 1.0) as f32, self.pan_law);
         self.expression_owners[slot] = ExpressionOwner {
             pan_state,
             pan_gains: pan_state.gains(),
@@ -2523,9 +2699,10 @@ impl HostedInstrument for Audio {
             + (expression.fine_pitch_cents - note.expression.fine_pitch_cents) / 100.0)
             .clamp(key - 120.0, key + 120.0);
         note.expression = expression;
-        let mapped=self.expression_map.plugin_controls(pan,0.0,expression);
-        note.pan_state=windfall_dsp::NotePan::new((mapped.values[1]*2.0-1.0) as f32,self.pan_law);
-        note.pan_gains=note.pan_state.gains();
+        let mapped = self.expression_map.plugin_controls(pan, 0.0, expression);
+        note.pan_state =
+            windfall_dsp::NotePan::new((mapped.values[1] * 2.0 - 1.0) as f32, self.pan_law);
+        note.pan_gains = note.pan_state.gains();
         note.pan = if pan.is_finite() {
             pan.clamp(-1.0, 1.0)
         } else {
@@ -2595,7 +2772,10 @@ impl Audio {
             return;
         }
         let note = self.expression_owners[slot];
-        let controls = note.controls(self.expression_map, self.apply_pan_law && self.note_capabilities.supports_pan_law(note.channel));
+        let controls = note.controls(
+            self.expression_map,
+            self.apply_pan_law && self.note_capabilities.supports_pan_law(note.channel),
+        );
         let bend_range = self.expression_map.bend_range_semitones;
         let accepted = if let Some(Adapter::Instrument(adapter)) = self.adapter_mut() {
             adapter.set_bend_range_semitones(bend_range);
@@ -2813,7 +2993,7 @@ impl PluginFactory for Runtime {
                 );
 
                 Ok(Box::new(Audio {
-                retired: false,
+                    retired: false,
                     note_capabilities,
                     rendered: windfall_plugin_host::outputs::OutputBank::new(block),
                     sidechain_input: None,
@@ -2850,7 +3030,7 @@ impl PluginFactory for Runtime {
             Ok(Box::new(Audio {
                 retired: false,
                 note_capabilities: Arc::new(super::note_capabilities::Published::default()),
-                    rendered: windfall_plugin_host::outputs::OutputBank::new(block),
+                rendered: windfall_plugin_host::outputs::OutputBank::new(block),
                 sidechain_input: None,
                 instrument: false,
                 selection: fallback_selection,
@@ -2990,7 +3170,7 @@ impl PluginFactory for Runtime {
                 );
 
                 Ok(Box::new(Audio {
-                retired: false,
+                    retired: false,
                     note_capabilities,
                     rendered: windfall_plugin_host::outputs::OutputBank::new(block),
                     sidechain_input: None,
@@ -3031,7 +3211,7 @@ impl PluginFactory for Runtime {
             Ok(Box::new(Audio {
                 retired: false,
                 note_capabilities: Arc::new(super::note_capabilities::Published::default()),
-                    rendered: windfall_plugin_host::outputs::OutputBank::new(block),
+                rendered: windfall_plugin_host::outputs::OutputBank::new(block),
                 sidechain_input: None,
                 instrument: true,
                 selection: fallback_selection,

@@ -1,7 +1,6 @@
 //! Headless tests of the session: no window, no audio device. The engine is
 //! a [`Processor`] the tests run by hand.
 
-mod update_shutdown;
 mod analysis_jobs;
 mod analyzers;
 mod archive;
@@ -48,8 +47,8 @@ mod plugin_update;
 #[cfg(windows)]
 mod plugins;
 mod project_preparation;
-mod rack_second_pass;
 mod rack_assets;
+mod rack_second_pass;
 mod recording;
 #[path = "../recording_completion_qa.rs"]
 mod recording_completion_qa;
@@ -65,6 +64,7 @@ mod song;
 mod stem_separation;
 mod timeline;
 mod transport_acceptance;
+mod update_shutdown;
 mod versions;
 
 use std::collections::HashMap;
@@ -299,7 +299,10 @@ impl FakeDevice {
 }
 
 impl AudioDevice for FakeDevice {
-    fn suspend(&self) -> Result<(), String> { lock(&self.status).running=false; Ok(()) }
+    fn suspend(&self) -> Result<(), String> {
+        lock(&self.status).running = false;
+        Ok(())
+    }
     fn status(&self) -> EngineStatus {
         lock(&self.status).clone()
     }

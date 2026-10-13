@@ -416,9 +416,15 @@ pub fn render_stems(
         StemMode::ToMaster => {
             // The mix comes first even when it is not wanted, where only
             // it can say how long an automatic tail is.
-            let linked_tempo = project.settings.controller_links.iter().any(|link|
-                matches!(link.source, windfall_project::ControlSource::Internal { .. })
-                    && link.target == windfall_project::LinkTarget::Param { target: windfall_project::AutomationTarget::Tempo });
+            let linked_tempo = project.settings.controller_links.iter().any(|link| {
+                matches!(
+                    link.source,
+                    windfall_project::ControlSource::Internal { .. }
+                ) && link.target
+                    == windfall_project::LinkTarget::Param {
+                        target: windfall_project::AutomationTarget::Tempo,
+                    }
+            });
             let mix_pass = mix.is_some() || options.auto_tail || linked_tempo;
             let mut tempo_trajectory = Vec::new();
             let passes = tracks.len() + usize::from(mix_pass);
@@ -648,11 +654,21 @@ impl Pass {
         };
         let linked_tempo = plan.linked_tempo();
         let frames_per_tick = samples_per_tick(
-            if linked_tempo { windfall_project::MIN_TEMPO_BPM } else { plan.tempo_bpm }, f64::from(sample_rate));
+            if linked_tempo {
+                windfall_project::MIN_TEMPO_BPM
+            } else {
+                plan.tempo_bpm
+            },
+            f64::from(sample_rate),
+        );
         let region = options.region.filter(|_| options.mode == PlayMode::Song);
         let body_frames = region.map_or((ticks * frames_per_tick).ceil() as usize, |range| {
-            if linked_tempo { (f64::from(range.end - range.start) * frames_per_tick).ceil() as usize }
-            else { let (first, last) = crate::timeline::region_frames(&plan, range, sample_rate); (last - first) as usize }
+            if linked_tempo {
+                (f64::from(range.end - range.start) * frames_per_tick).ceil() as usize
+            } else {
+                let (first, last) = crate::timeline::region_frames(&plan, range, sample_rate);
+                (last - first) as usize
+            }
         });
         let tail_frames = if options.tail_secs.is_finite() {
             (f64::from(options.tail_secs.max(0.0)) * f64::from(sample_rate)).round() as usize
@@ -757,15 +773,23 @@ impl Pass {
         let mut completed = true;
         while done < most && completed {
             let frames = if self.linked_tempo {
-                self.block.min(most - done).min((crate::automation::GRID - done as u64 % crate::automation::GRID) as usize)
-            } else { self.block.min(most - done) };
+                self.block
+                    .min(most - done)
+                    .min((crate::automation::GRID - done as u64 % crate::automation::GRID) as usize)
+            } else {
+                self.block.min(most - done)
+            };
             let fresh = &mut buffer[..frames * 2];
             self.processor.process(fresh);
             if done.is_multiple_of(crate::automation::GRID as usize)
-                && let Some(trajectory) = &mut clock_capture {
+                && let Some(trajectory) = &mut clock_capture
+            {
                 trajectory.push(self.processor.effective_tempo());
             }
-            if self.linked_tempo && length.is_none() && let Some(end) = self.processor.rendered_end() {
+            if self.linked_tempo
+                && length.is_none()
+                && let Some(end) = self.processor.rendered_end()
+            {
                 body_end = self.latency + end as usize;
                 most = body_end + self.tail_frames;
             }

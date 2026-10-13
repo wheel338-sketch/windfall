@@ -40,57 +40,128 @@ fn annotated(rig: &Rig) -> (ClipId, String) {
     use windfall_codec::{WavCue, WavLoop, WavLoopKind, WavMetadata, WavNote, WavSlice, WavTempo};
     let path = rig.file("annotated.wav");
     let metadata = WavMetadata {
-        cues: vec![WavCue { id: 17, frame: 1, label: "Loop phrase".into() },
-            WavCue { id: 23, frame: 4, label: "Skip phrase".into() },
-            WavCue { id: 42, frame: 7, label: "Pause here".into() }],
-        slices: vec![WavSlice { cue_id: 17, length: 2 }],
-        loops: vec![WavLoop { cue_id: 17, start: 1, end: 3, kind: WavLoopKind::Forward, play_count: 0 }],
-        notes: vec![WavNote { cue_id: 17, text: "Authored cue note é".into() },
-            WavNote { cue_id: 17, text: "WindfallSlice/1 0.5 7 2 10 1 0".into() },
-            WavNote { cue_id: 17, text: "WindfallBeats/1 123 3.5".into() },
-            WavNote { cue_id: 23, text: "WindfallNavigation/1 skip 6".into() },
-            WavNote { cue_id: 42, text: "WindfallNavigation/1 pause".into() }],
-        tempo: Some(WavTempo { bpm: 123.0, beats: 0, numerator: 3, denominator: 4, root_key: Some(48), one_shot: false }),
+        cues: vec![
+            WavCue {
+                id: 17,
+                frame: 1,
+                label: "Loop phrase".into(),
+            },
+            WavCue {
+                id: 23,
+                frame: 4,
+                label: "Skip phrase".into(),
+            },
+            WavCue {
+                id: 42,
+                frame: 7,
+                label: "Pause here".into(),
+            },
+        ],
+        slices: vec![WavSlice {
+            cue_id: 17,
+            length: 2,
+        }],
+        loops: vec![WavLoop {
+            cue_id: 17,
+            start: 1,
+            end: 3,
+            kind: WavLoopKind::Forward,
+            play_count: 0,
+        }],
+        notes: vec![
+            WavNote {
+                cue_id: 17,
+                text: "Authored cue note é".into(),
+            },
+            WavNote {
+                cue_id: 17,
+                text: "WindfallSlice/1 0.5 7 2 10 1 0".into(),
+            },
+            WavNote {
+                cue_id: 17,
+                text: "WindfallBeats/1 123 3.5".into(),
+            },
+            WavNote {
+                cue_id: 23,
+                text: "WindfallNavigation/1 skip 6".into(),
+            },
+            WavNote {
+                cue_id: 42,
+                text: "WindfallNavigation/1 pause".into(),
+            },
+        ],
+        tempo: Some(WavTempo {
+            bpm: 123.0,
+            beats: 0,
+            numerator: 3,
+            denominator: 4,
+            root_key: Some(48),
+            one_shot: false,
+        }),
         root_key: Some(48),
     };
     let audio = AudioBuffer::from_interleaved(1920, 1, (0..8).map(|f| f as f32 / 16.0).collect());
-    let mut writer = windfall_codec::WavWriter::create_with_metadata(&path, 1920, 1,
-        windfall_codec::WavSampleFormat::Float32, &windfall_codec::AudioTags::default(), &metadata).unwrap();
+    let mut writer = windfall_codec::WavWriter::create_with_metadata(
+        &path,
+        1920,
+        1,
+        windfall_codec::WavSampleFormat::Float32,
+        &windfall_codec::AudioTags::default(),
+        &metadata,
+    )
+    .unwrap();
     writer.write(audio.samples()).unwrap();
     writer.finalize().unwrap();
-    let result = rig.session.add_audio_clip_from_file(&path, ClipPlace { track: None, start: 100, mixer_track: None }).unwrap();
+    let result = rig
+        .session
+        .add_audio_clip_from_file(
+            &path,
+            ClipPlace {
+                track: None,
+                start: 100,
+                mixer_track: None,
+            },
+        )
+        .unwrap();
     (ClipId(*result.created.last().unwrap()), path)
 }
 
 /// Independent byte walker: no production metadata reader is used here.
 fn riff_annotations(bytes: &[u8]) -> (Vec<u32>, Vec<(String, u32, String)>, Vec<(u32, u32)>) {
-    let word = |at| u32::from_le_bytes(bytes[at..at+4].try_into().unwrap());
+    let word = |at| u32::from_le_bytes(bytes[at..at + 4].try_into().unwrap());
     assert_eq!(&bytes[..4], b"RIFF");
     assert_eq!(word(4) as usize + 8, bytes.len());
     let (mut cues, mut text, mut lengths) = (Vec::new(), Vec::new(), Vec::new());
     let mut at = 12;
     while at + 8 <= bytes.len() {
-        let end = at + 8 + word(at+4) as usize;
+        let end = at + 8 + word(at + 4) as usize;
         assert!(end <= bytes.len());
-        if &bytes[at..at+4] == b"cue " {
-            for i in 0..word(at+8) as usize { cues.push(word(at+8+4+i*24+20)); }
+        if &bytes[at..at + 4] == b"cue " {
+            for i in 0..word(at + 8) as usize {
+                cues.push(word(at + 8 + 4 + i * 24 + 20));
+            }
         }
-        if &bytes[at..at+4] == b"LIST" && &bytes[at+8..at+12] == b"adtl" {
-            let mut sub = at+12;
-            while sub+8 <= end {
-                let finish = sub+8+word(sub+4) as usize;
+        if &bytes[at..at + 4] == b"LIST" && &bytes[at + 8..at + 12] == b"adtl" {
+            let mut sub = at + 12;
+            while sub + 8 <= end {
+                let finish = sub + 8 + word(sub + 4) as usize;
                 assert!(finish <= end);
-                let id = word(sub+8);
-                if [&b"labl"[..], &b"note"[..]].contains(&&bytes[sub..sub+4]) {
-                    assert_eq!(bytes[finish-1], 0);
-                    text.push((String::from_utf8(bytes[sub..sub+4].to_vec()).unwrap(), id,
-                        String::from_utf8(bytes[sub+12..finish-1].to_vec()).unwrap()));
-                } else if &bytes[sub..sub+4] == b"ltxt" { lengths.push((id, word(sub+12))); }
-                sub = finish + (word(sub+4) as usize & 1);
+                let id = word(sub + 8);
+                if [&b"labl"[..], &b"note"[..]].contains(&&bytes[sub..sub + 4]) {
+                    assert_eq!(bytes[finish - 1], 0);
+                    text.push((
+                        String::from_utf8(bytes[sub..sub + 4].to_vec()).unwrap(),
+                        id,
+                        String::from_utf8(bytes[sub + 12..finish - 1].to_vec()).unwrap(),
+                    ));
+                } else if &bytes[sub..sub + 4] == b"ltxt" {
+                    lengths.push((id, word(sub + 12)));
+                }
+                sub = finish + (word(sub + 4) as usize & 1);
             }
             assert_eq!(sub, end);
         }
-        at = end + (word(at+4) as usize & 1);
+        at = end + (word(at + 4) as usize & 1);
     }
     assert_eq!(at, bytes.len());
     (cues, text, lengths)
@@ -99,8 +170,10 @@ fn riff_annotations(bytes: &[u8]) -> (Vec<u32>, Vec<(String, u32, String)>, Vec<
 fn riff_payload<'a>(bytes: &'a [u8], id: &[u8; 4]) -> &'a [u8] {
     let mut at = 12;
     while at + 8 <= bytes.len() {
-        let length = u32::from_le_bytes(bytes[at+4..at+8].try_into().unwrap()) as usize;
-        if &bytes[at..at+4] == id { return &bytes[at+8..at+8+length]; }
+        let length = u32::from_le_bytes(bytes[at + 4..at + 8].try_into().unwrap()) as usize;
+        if &bytes[at..at + 4] == id {
+            return &bytes[at + 8..at + 8 + length];
+        }
         at += 8 + length + (length & 1);
     }
     panic!("missing RIFF chunk")
@@ -108,28 +181,49 @@ fn riff_payload<'a>(bytes: &'a [u8], id: &[u8; 4]) -> &'a [u8] {
 
 #[test]
 fn wav_editor_annotations_import_rename_save_transfer_timeline_history_and_reopen() {
-    use windfall_project::MarkerKind;
     use windfall_ipc::{AudioEditDestination, AudioEditTransferRequest};
+    use windfall_project::MarkerKind;
     let rig = Rig::new();
     let (clip, source) = annotated(&rig);
     let original = std::fs::read(&source).unwrap();
     let preview = rig.session.audio_editor_open(clip).unwrap();
     assert_eq!(preview.regions.len(), 4);
-    assert_eq!((preview.regions[0].start_frame, preview.regions[0].end_frame), (1, 3));
-    assert!(preview.regions[0].notes.contains(&"Authored cue note é".into()));
-    assert!(preview.regions[0].notes.contains(&"WindfallSlice/1 0.5 7 2 10 1 0".into()));
-    assert!(preview.regions[3].notes.contains(&"WindfallBeats/1 123 3.5".into()));
+    assert_eq!(
+        (preview.regions[0].start_frame, preview.regions[0].end_frame),
+        (1, 3)
+    );
+    assert!(
+        preview.regions[0]
+            .notes
+            .contains(&"Authored cue note é".into())
+    );
+    assert!(
+        preview.regions[0]
+            .notes
+            .contains(&"WindfallSlice/1 0.5 7 2 10 1 0".into())
+    );
+    assert!(
+        preview.regions[3]
+            .notes
+            .contains(&"WindfallBeats/1 123 3.5".into())
+    );
     let before = rig.project();
     let mut renamed = preview.regions.clone();
     renamed[0].name = "Renamed phrase".into();
-    rig.session.audio_editor_regions(preview.token, renamed.clone()).unwrap();
+    rig.session
+        .audio_editor_regions(preview.token, renamed.clone())
+        .unwrap();
     let after = rig.project();
-    rig.session.undo().unwrap(); assert_eq!(rig.project(), before);
-    rig.session.redo().unwrap(); assert_eq!(rig.project(), after);
+    rig.session.undo().unwrap();
+    assert_eq!(rig.project(), before);
+    rig.session.redo().unwrap();
+    assert_eq!(rig.project(), after);
     let preview = rig.session.audio_editor_open(clip).unwrap();
     let path = rig.file("selection.wav");
     let before = rig.session.document_snapshot();
-    rig.session.audio_editor_save_wav(preview.token, 1, 7, path.clone()).unwrap();
+    rig.session
+        .audio_editor_save_wav(preview.token, 1, 7, path.clone())
+        .unwrap();
     assert_eq!(rig.session.document_snapshot(), before);
     let bytes = std::fs::read(&path).unwrap();
     let (cues, text, lengths) = riff_annotations(&bytes);
@@ -140,44 +234,88 @@ fn wav_editor_annotations_import_rename_save_transfer_timeline_history_and_reope
     assert!(text.contains(&("note".into(), 4, "WindfallBeats/1 123 2.625".into())));
     assert!(lengths.contains(&(1, 2)));
     let smpl = riff_payload(&bytes, b"smpl");
-    let word = |at| u32::from_le_bytes(smpl[at..at+4].try_into().unwrap());
-    assert_eq!((word(12), word(28), word(36), word(40), word(44), word(48), word(56)), (48, 1, 1, 0, 0, 1, 0));
+    let word = |at| u32::from_le_bytes(smpl[at..at + 4].try_into().unwrap());
+    assert_eq!(
+        (
+            word(12),
+            word(28),
+            word(36),
+            word(40),
+            word(44),
+            word(48),
+            word(56)
+        ),
+        (48, 1, 1, 0, 0, 1, 0)
+    );
     let acid = riff_payload(&bytes, b"acid");
     assert_eq!(u32::from_le_bytes(acid[12..16].try_into().unwrap()), 0); // fractional beats use note
     assert_eq!(u16::from_le_bytes(acid[18..20].try_into().unwrap()), 3);
     assert_eq!(f32::from_le_bytes(acid[20..24].try_into().unwrap()), 123.0);
     let decoded = windfall_codec::decode_file(&path).unwrap();
     assert_eq!(decoded.channels(), 2);
-    assert_eq!(decoded.samples(), &[0.0625, 0.0625, 0.125, 0.125, 0.1875, 0.1875, 0.25, 0.25, 0.3125, 0.3125, 0.375, 0.375]);
+    assert_eq!(
+        decoded.samples(),
+        &[
+            0.0625, 0.0625, 0.125, 0.125, 0.1875, 0.1875, 0.25, 0.25, 0.3125, 0.3125, 0.375, 0.375
+        ]
+    );
     let metadata = windfall_codec::read_wav_metadata_file(&path).unwrap();
     assert_eq!((metadata.loops[0].start, metadata.loops[0].end), (0, 2));
     assert_eq!(metadata.tempo.unwrap().numerator, 3);
     assert_eq!(metadata.root_key, Some(48));
-    rig.session.audio_editor_import_timeline(preview.token).unwrap();
+    rig.session
+        .audio_editor_import_timeline(preview.token)
+        .unwrap();
     let imported = rig.project();
     let markers = &imported.playlist.timeline.markers;
-    assert!(markers.iter().any(|m| m.tick == 101 && m.name == "Renamed phrase" && m.kind == MarkerKind::Loop { end: 103 }));
-    assert!(markers.iter().any(|m| m.tick == 104 && m.kind == MarkerKind::Skip { end: 106 }));
-    assert!(markers.iter().any(|m| m.tick == 107 && m.kind == MarkerKind::Pause));
+    assert!(markers.iter().any(|m| m.tick == 101
+        && m.name == "Renamed phrase"
+        && m.kind == MarkerKind::Loop { end: 103 }));
+    assert!(
+        markers
+            .iter()
+            .any(|m| m.tick == 104 && m.kind == MarkerKind::Skip { end: 106 })
+    );
+    assert!(
+        markers
+            .iter()
+            .any(|m| m.tick == 107 && m.kind == MarkerKind::Pause)
+    );
     let mut before_timeline = before.project.clone();
     before_timeline.next_id = imported.next_id; // allocated marker IDs stay retired on undo
-    rig.session.undo().unwrap(); assert_eq!(rig.project(), before_timeline);
-    rig.session.redo().unwrap(); assert_eq!(rig.project(), imported);
+    rig.session.undo().unwrap();
+    assert_eq!(rig.project(), before_timeline);
+    rig.session.redo().unwrap();
+    assert_eq!(rig.project(), imported);
     let preview = rig.session.audio_editor_open(clip).unwrap();
-    let result = rig.session.audio_editor_transfer(AudioEditTransferRequest {
-        token: preview.token, start_frame: 1, end_frame: 7,
-        destination: AudioEditDestination::Sampler { channel: rig.channel(0) },
-    }).unwrap();
+    let result = rig
+        .session
+        .audio_editor_transfer(AudioEditTransferRequest {
+            token: preview.token,
+            start_frame: 1,
+            end_frame: 7,
+            destination: AudioEditDestination::Sampler {
+                channel: rig.channel(0),
+            },
+        })
+        .unwrap();
     let sample = SampleId(result.created[0]);
     let project = rig.project();
     let transferred = project.sample(sample).unwrap();
-    let windfall_project::SamplePath::External(path) = &transferred.path else { panic!("owned edited WAV") };
-    assert_eq!(windfall_codec::read_wav_metadata_file(path).unwrap(), metadata);
+    let windfall_project::SamplePath::External(path) = &transferred.path else {
+        panic!("owned edited WAV")
+    };
+    assert_eq!(
+        windfall_codec::read_wav_metadata_file(path).unwrap(),
+        metadata
+    );
     assert_eq!(transferred.regions[0].notes, renamed[0].notes);
     let mut before_transfer = imported.clone();
     before_transfer.next_id = project.next_id; // the derived sample's ID stays retired
-    rig.session.undo().unwrap(); assert_eq!(rig.project(), before_transfer);
-    rig.session.redo().unwrap(); assert_eq!(rig.project(), project);
+    rig.session.undo().unwrap();
+    assert_eq!(rig.project(), before_transfer);
+    rig.session.redo().unwrap();
+    assert_eq!(rig.project(), project);
     assert_eq!(std::fs::read(source).unwrap(), original);
     let saved = rig.file("annotations.windfall");
     rig.session.project_save(Some(&saved)).unwrap();
@@ -185,7 +323,10 @@ fn wav_editor_annotations_import_rename_save_transfer_timeline_history_and_reope
     let fresh = rig.restart();
     fresh.session.project_open(&saved).unwrap();
     assert_eq!(fresh.project(), saved_project);
-    assert_eq!(fresh.session.audio_editor_open(clip).unwrap().regions, renamed);
+    assert_eq!(
+        fresh.session.audio_editor_open(clip).unwrap().regions,
+        renamed
+    );
 }
 
 #[test]
@@ -194,23 +335,45 @@ fn wav_annotation_invalid_or_stale_edits_never_publish_files_or_timeline_history
     let (clip, _) = annotated(&rig);
     let preview = rig.session.audio_editor_open(clip).unwrap();
     let before = rig.session.document_snapshot();
-    for note in ["WindfallSlice/1 NaN 0 1 4 0 0", "WindfallNavigation/1 skip 0", "WindfallBeats/1 120 NaN"] {
+    for note in [
+        "WindfallSlice/1 NaN 0 1 4 0 0",
+        "WindfallNavigation/1 skip 0",
+        "WindfallBeats/1 120 NaN",
+    ] {
         let mut regions = preview.regions.clone();
         regions[0].notes = vec![note.into()];
-        assert!(rig.session.audio_editor_regions(preview.token, regions).is_err());
+        assert!(
+            rig.session
+                .audio_editor_regions(preview.token, regions)
+                .is_err()
+        );
         assert_eq!(rig.session.document_snapshot(), before);
     }
     let path = rig.file("kept.wav");
     std::fs::write(&path, b"kept").unwrap();
     let hold = rig.session.hold("audio-editor:wav-staged");
-    let job = rig.session.background(move |s| s.audio_editor_save_wav(preview.token, 0, 8, path));
+    let job = rig
+        .session
+        .background(move |s| s.audio_editor_save_wav(preview.token, 0, 8, path));
     hold.wait();
-    rig.session.dispatch(Command::AddPlaylistTrack { name: None, index: None }, None).unwrap();
+    rig.session
+        .dispatch(
+            Command::AddPlaylistTrack {
+                name: None,
+                index: None,
+            },
+            None,
+        )
+        .unwrap();
     let after = rig.session.document_snapshot();
     hold.release();
     assert!(job.join().unwrap().unwrap_err().contains("changed"));
     assert_eq!(std::fs::read(rig.file("kept.wav")).unwrap(), b"kept");
-    assert!(rig.session.audio_editor_import_timeline(preview.token).is_err());
+    assert!(
+        rig.session
+            .audio_editor_import_timeline(preview.token)
+            .is_err()
+    );
     assert_eq!(rig.session.document_snapshot(), after);
 }
 
@@ -219,23 +382,70 @@ fn wav_annotations_follow_reversed_pitched_offset_view_and_baked_edit_frames() {
     use windfall_project::{AudioClipPatch, AudioClipUpdate, ClipPatch, ClipUpdate};
     let rig = Rig::new();
     let (clip, _) = annotated(&rig);
-    rig.session.prepare_clip_command(Command::Batch { label: Some("Transformed annotated view".into()), commands: vec![
-        Command::UpdateClips { updates: vec![ClipUpdate { id: clip, patch: ClipPatch { offset: Some(1), length: Some(4), ..Default::default() } }] },
-        Command::UpdateAudioClips { updates: vec![AudioClipUpdate { id: clip, patch: AudioClipPatch { reverse: Some(true), pitch: Some(12.0), ..Default::default() } }] },
-    ] }).unwrap();
+    rig.session
+        .prepare_clip_command(Command::Batch {
+            label: Some("Transformed annotated view".into()),
+            commands: vec![
+                Command::UpdateClips {
+                    updates: vec![ClipUpdate {
+                        id: clip,
+                        patch: ClipPatch {
+                            offset: Some(1),
+                            length: Some(4),
+                            ..Default::default()
+                        },
+                    }],
+                },
+                Command::UpdateAudioClips {
+                    updates: vec![AudioClipUpdate {
+                        id: clip,
+                        patch: AudioClipPatch {
+                            reverse: Some(true),
+                            pitch: Some(12.0),
+                            ..Default::default()
+                        },
+                    }],
+                },
+            ],
+        })
+        .unwrap();
     let preview = rig.session.audio_editor_open(clip).unwrap();
     assert_eq!(preview.frames, 4);
     // Independent boundary equation: (8 - source_frame - offset*speed)/speed.
-    assert_eq!((preview.regions[0].start_frame, preview.regions[0].end_frame), (2, 3));
-    assert_eq!((preview.regions[1].start_frame, preview.regions[1].end_frame), (0, 1));
-    assert!(preview.regions[1].notes.contains(&"WindfallNavigation/1 skip 1".into()));
+    assert_eq!(
+        (preview.regions[0].start_frame, preview.regions[0].end_frame),
+        (2, 3)
+    );
+    assert_eq!(
+        (preview.regions[1].start_frame, preview.regions[1].end_frame),
+        (0, 1)
+    );
+    assert!(
+        preview.regions[1]
+            .notes
+            .contains(&"WindfallNavigation/1 skip 1".into())
+    );
     assert!(!preview.regions.iter().any(|r| r.name == "Pause here"));
-    assert!(preview.regions[2].notes.contains(&"WindfallBeats/1 123 2.625".into()));
-    let result = rig.session.audio_editor_apply(AudioEditRequest { token: preview.token, operation: Op::Silence, start_frame: 3, end_frame: 4 }).unwrap();
+    assert!(
+        preview.regions[2]
+            .notes
+            .contains(&"WindfallBeats/1 123 2.625".into())
+    );
+    let result = rig
+        .session
+        .audio_editor_apply(AudioEditRequest {
+            token: preview.token,
+            operation: Op::Silence,
+            start_frame: 3,
+            end_frame: 4,
+        })
+        .unwrap();
     let sample = SampleId(result.created[0]);
     let project = rig.project();
     let asset = project.sample(sample).unwrap();
-    let windfall_project::SamplePath::External(path) = &asset.path else { panic!("derived WAV") };
+    let windfall_project::SamplePath::External(path) = &asset.path else {
+        panic!("derived WAV")
+    };
     let metadata = windfall_codec::read_wav_metadata_file(path).unwrap();
     let (frames, notes, _) = riff_annotations(&std::fs::read(path).unwrap());
     assert_eq!(frames, [2, 0, 0]);

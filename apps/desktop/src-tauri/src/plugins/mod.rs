@@ -1,13 +1,13 @@
 //! Cached, isolated discovery and a native owner thread for audio instances.
 #[cfg(any(windows, target_os = "macos", target_os = "linux"))]
 mod bridge;
-mod capture_ack;
 mod capabilities;
+mod capture_ack;
 mod manager_workflows;
+mod note_capabilities;
 #[cfg(target_os = "linux")]
 pub(crate) mod platform_parent;
 mod runtime;
-mod note_capabilities;
 pub use note_capabilities::NoteCapabilities;
 mod wrapper;
 pub(crate) use capture_ack::{CaptureAcknowledgement, CaptureOutcome};

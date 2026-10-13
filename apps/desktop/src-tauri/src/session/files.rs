@@ -241,8 +241,15 @@ impl Session {
     ) -> Result<String, String> {
         self.project_save_owned(path, numbered, false)
     }
-    pub(super) fn project_save_owned(&self, path: Option<&str>, numbered: bool, installation: bool) -> Result<String, String> {
-        if !installation { drop(self.recording_idle()?); }
+    pub(super) fn project_save_owned(
+        &self,
+        path: Option<&str>,
+        numbered: bool,
+        installation: bool,
+    ) -> Result<String, String> {
+        if !installation {
+            drop(self.recording_idle()?);
+        }
         let chosen = path
             .map(|path| paths::absolute(path).map(with_project_extension))
             .transpose()?;
@@ -251,7 +258,9 @@ impl Session {
         // copied the project first also writes first, so an older copy can
         // never land on top of a newer one.
         let saving = lock(&self.inner.save);
-        if !installation { drop(self.recording_idle()?); }
+        if !installation {
+            drop(self.recording_idle()?);
+        }
         let (
             mut project,
             _asset_pins,
@@ -280,7 +289,11 @@ impl Session {
         };
         #[cfg(test)]
         self.pause("save:write");
-        project = if installation { self.capture_plugins_idle(project, plugin_revision)? } else { self.capture_plugins(project, plugin_revision)? };
+        project = if installation {
+            self.capture_plugins_idle(project, plugin_revision)?
+        } else {
+            self.capture_plugins(project, plugin_revision)?
+        };
         self.pin_derived_project(&project);
 
         let prepare = |project: &mut Project, target: &Path| -> Result<_, String> {

@@ -264,7 +264,9 @@ fn start(
                         }
                     },
                 );
-                for (bus, output) in packet.auxiliary.buses.iter_mut().enumerate() { native.copy_output(bus as u32, output); }
+                for (bus, output) in packet.auxiliary.buses.iter_mut().enumerate() {
+                    native.copy_output(bus as u32, output);
+                }
                 match result {
                     Ok(mut result) => {
                         result.dropped_events = result.dropped_events.saturating_add(drops);
@@ -336,7 +338,12 @@ impl Threaded {
 }
 impl ProcessorBackend for Threaded {
     fn copy_output(&self, bus: u32, output: &mut [[f32; 2]]) -> bool {
-        if self.failed { output.fill([0.0; 2]); false } else { self.rendered.copy(bus, output) }
+        if self.failed {
+            output.fill([0.0; 2]);
+            false
+        } else {
+            self.rendered.copy(bus, output)
+        }
     }
     fn controls_processed(&self) -> bool {
         !self.failed && self.signals.completed_controls.load(Ordering::Acquire) == self.controls
@@ -429,7 +436,14 @@ impl ProcessorBackend for Threaded {
             }
             out_left[frame] = self.local.output[0][cursor];
             out_right[frame] = self.local.output[1][cursor];
-            for (rendered, bus) in self.rendered.buses.iter_mut().zip(&self.local.auxiliary.buses) { rendered[frame] = bus[cursor]; }
+            for (rendered, bus) in self
+                .rendered
+                .buses
+                .iter_mut()
+                .zip(&self.local.auxiliary.buses)
+            {
+                rendered[frame] = bus[cursor];
+            }
             self.local.input[0][cursor] = in_left[frame];
             self.local.input[1][cursor] = in_right[frame];
             self.local.key[cursor] = key

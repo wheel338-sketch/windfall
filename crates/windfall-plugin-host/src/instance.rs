@@ -77,7 +77,9 @@ pub(crate) trait InstanceBackend {
         processor.stop();
         Ok(())
     }
-    fn refresh_capabilities(&mut self) -> Result<(), PluginError> { Ok(()) }
+    fn refresh_capabilities(&mut self) -> Result<(), PluginError> {
+        Ok(())
+    }
     fn layout(&self) -> &PluginLayout;
     fn shape(&self) -> AudioShape;
     fn params(&self) -> &[PluginParam];
@@ -169,7 +171,9 @@ impl PluginInstance {
     /// owner after returning/deactivating audio. Existing processors are never
     /// resized or mutated; the caller must prepare a fresh plan afterwards.
     pub fn refresh_capabilities(&mut self) -> Result<(), PluginError> {
-        if self.is_active() { return Err(PluginError::AlreadyActive); }
+        if self.is_active() {
+            return Err(PluginError::AlreadyActive);
+        }
         self.backend.refresh_capabilities()
     }
 
@@ -285,8 +289,12 @@ impl PluginInstance {
         match state.content()? {
             StateContent::Native(bytes) => {
                 self.backend.load_state(bytes)?;
-                if self.is_active() { Ok(()) } else { self.refresh_capabilities() }
-            },
+                if self.is_active() {
+                    Ok(())
+                } else {
+                    self.refresh_capabilities()
+                }
+            }
             StateContent::Parameters(values) => {
                 for (id, value) in values {
                     self.set_param(id, value);

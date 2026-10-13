@@ -278,7 +278,9 @@ impl Default for Notes {
 
 impl Notes {
     pub fn latest(&self) -> Option<usize> {
-        self.slots.iter().position(|note| note.active && note.order == self.counter)
+        self.slots
+            .iter()
+            .position(|note| note.active && note.order == self.counter)
     }
     pub fn reset(&mut self) {
         *self = Self::default();

@@ -434,8 +434,16 @@ impl Region {
         for bus in 0..output.output_count.min(crate::MAX_PORTS as usize) {
             for frame in 0..self.config.block {
                 let value = output.auxiliary.buses[bus][frame];
-                self.put(slot, AUX_OUTPUT + (bus * MAX_BLOCK + frame) * 2, value[0].to_bits());
-                self.put(slot, AUX_OUTPUT + (bus * MAX_BLOCK + frame) * 2 + 1, value[1].to_bits());
+                self.put(
+                    slot,
+                    AUX_OUTPUT + (bus * MAX_BLOCK + frame) * 2,
+                    value[0].to_bits(),
+                );
+                self.put(
+                    slot,
+                    AUX_OUTPUT + (bus * MAX_BLOCK + frame) * 2 + 1,
+                    value[1].to_bits(),
+                );
             }
         }
         self.publish(slot, DONE);
@@ -490,13 +498,20 @@ impl Region {
             }
         }
         let count = self.get(slot, OUTPUT_COUNT) as usize;
-        if count > crate::MAX_PORTS as usize { return Err(ProtocolError::Audio); }
+        if count > crate::MAX_PORTS as usize {
+            return Err(ProtocolError::Audio);
+        }
         output.output_count = count;
         for bus in 0..count {
             for frame in 0..self.config.block {
                 let at = AUX_OUTPUT + (bus * MAX_BLOCK + frame) * 2;
-                let value = [f32::from_bits(self.get(slot, at)), f32::from_bits(self.get(slot, at + 1))];
-                if value.iter().any(|sample| !sample.is_finite()) { return Err(ProtocolError::Audio); }
+                let value = [
+                    f32::from_bits(self.get(slot, at)),
+                    f32::from_bits(self.get(slot, at + 1)),
+                ];
+                if value.iter().any(|sample| !sample.is_finite()) {
+                    return Err(ProtocolError::Audio);
+                }
                 output.auxiliary.buses[bus][frame] = value;
             }
         }

@@ -13,13 +13,30 @@ pub use wrapper::{PluginProcessingMode, PluginWrapperOptions};
 #[serde(tag = "type", rename_all = "camelCase")]
 #[ts(export)]
 pub enum PluginTarget {
-    Instrument { channel: ChannelId },
-    Effect { effect: EffectId },
+    Instrument {
+        channel: ChannelId,
+    },
+    Effect {
+        effect: EffectId,
+    },
     /// A graph-local owner, with zero padding after the nested node path.
-    Rack { channel: ChannelId, path: [u32; 4], instrument: bool },
+    Rack {
+        channel: ChannelId,
+        path: [u32; 4],
+        instrument: bool,
+    },
 }
 impl PluginTarget {
-    pub fn is_instrument(self) -> bool { matches!(self, Self::Instrument { .. } | Self::Rack { instrument: true, .. }) }
+    pub fn is_instrument(self) -> bool {
+        matches!(
+            self,
+            Self::Instrument { .. }
+                | Self::Rack {
+                    instrument: true,
+                    ..
+                }
+        )
+    }
 }
 
 /// A discovered parameter in native units. Its id survives list reordering.
@@ -70,7 +87,9 @@ pub struct PluginCapabilities {
     pub routes: Vec<PluginOutputRoute>,
 }
 impl PluginCapabilities {
-    pub fn is_default(&self) -> bool { *self == Self::default() }
+    pub fn is_default(&self) -> bool {
+        *self == Self::default()
+    }
 }
 
 /// Everything needed to reopen an instance. Missing files retain this data.
@@ -112,10 +131,14 @@ impl PluginBinding {
         for saved in &mut self.parameters {
             if let Some(current) = parameters.iter().find(|param| param.id == saved.id) {
                 *saved = current.clone();
-            } else { self.capabilities.unavailable_parameters.push(saved.id); }
+            } else {
+                self.capabilities.unavailable_parameters.push(saved.id);
+            }
         }
         for current in parameters {
-            if !self.parameters.iter().any(|param| param.id == current.id) { self.parameters.push(current); }
+            if !self.parameters.iter().any(|param| param.id == current.id) {
+                self.parameters.push(current);
+            }
         }
     }
     pub fn parameter_available(&self, id: u32) -> bool {
@@ -127,27 +150,69 @@ impl PluginBinding {
         let mut diagnostics = self.capabilities.unavailable_parameters.iter().map(|id| {
             format!("Parameter {id} is unavailable; its automation and controller links are retained.")
         }).collect::<Vec<_>>();
-        diagnostics.extend(self.capabilities.routes.iter().filter(|route| {
-            !self.capabilities.outputs.iter().any(|port| port.index == route.output)
-        }).map(|route| format!("Saved output {} to mixer track {} is unavailable.", route.output + 1, route.track.0)));
+        diagnostics.extend(
+            self.capabilities
+                .routes
+                .iter()
+                .filter(|route| {
+                    !self
+                        .capabilities
+                        .outputs
+                        .iter()
+                        .any(|port| port.index == route.output)
+                })
+                .map(|route| {
+                    format!(
+                        "Saved output {} to mixer track {} is unavailable.",
+                        route.output + 1,
+                        route.track.0
+                    )
+                }),
+        );
         diagnostics
     }
     /// Validates bounded saved data before it reaches native code.
     pub fn validate(&self) -> Result<(), &'static str> {
         self.wrapper.validate()?;
-        if self.capabilities.outputs.len() > 64 || self.capabilities.routes.len() > 64
+        if self.capabilities.outputs.len() > 64
+            || self.capabilities.routes.len() > 64
             || self.capabilities.unavailable_parameters.len() > self.parameters.len()
-            || self.capabilities.outputs.iter().enumerate().any(|(at, port)| {
-                port.index >= 64 || port.channels == 0 || port.channels > 64
-                    || self.capabilities.outputs[..at].iter().any(|other| other.index == port.index)
-            })
-            || self.capabilities.routes.iter().enumerate().any(|(at, route)| {
-                route.output >= 64 || self.capabilities.routes[..at].iter().any(|other| other.output == route.output)
-            })
-            || self.capabilities.unavailable_parameters.iter().enumerate().any(|(at, id)| {
-                !self.parameters.iter().any(|param| param.id == *id)
-                    || self.capabilities.unavailable_parameters[..at].contains(id)
-            }) { return Err("invalid plugin capability snapshot"); }
+            || self
+                .capabilities
+                .outputs
+                .iter()
+                .enumerate()
+                .any(|(at, port)| {
+                    port.index >= 64
+                        || port.channels == 0
+                        || port.channels > 64
+                        || self.capabilities.outputs[..at]
+                            .iter()
+                            .any(|other| other.index == port.index)
+                })
+            || self
+                .capabilities
+                .routes
+                .iter()
+                .enumerate()
+                .any(|(at, route)| {
+                    route.output >= 64
+                        || self.capabilities.routes[..at]
+                            .iter()
+                            .any(|other| other.output == route.output)
+                })
+            || self
+                .capabilities
+                .unavailable_parameters
+                .iter()
+                .enumerate()
+                .any(|(at, id)| {
+                    !self.parameters.iter().any(|param| param.id == *id)
+                        || self.capabilities.unavailable_parameters[..at].contains(id)
+                })
+        {
+            return Err("invalid plugin capability snapshot");
+        }
         if self.sidechain_input.is_some_and(|index| index >= 64)
             || self.auxiliary_inputs.len() > 64
             || self
@@ -194,25 +259,52 @@ impl crate::Project {
     pub fn plugin(&self, target: PluginTarget) -> Option<&PluginBinding> {
         if let PluginTarget::Rack { channel, path, .. } = target {
             let count = path.iter().take_while(|id| **id != 0).count();
-            return self.settings.modular_racks.iter().find(|r| r.channel == channel)?.graph.node_at(&path[..count])?.hosted.as_ref().filter(|p| p.target == target);
+            return self
+                .settings
+                .modular_racks
+                .iter()
+                .find(|r| r.channel == channel)?
+                .graph
+                .node_at(&path[..count])?
+                .hosted
+                .as_ref()
+                .filter(|p| p.target == target);
         }
         self.plugins.iter().find(|plugin| plugin.target == target)
     }
     /// Control-side inventory shared by hosting, capture and file review.
     pub fn plugin_bindings(&self) -> Vec<&PluginBinding> {
         fn add<'a>(graph: &'a crate::RackGraph, out: &mut Vec<&'a PluginBinding>) {
-            for node in &graph.nodes { if let Some(binding) = &node.hosted { out.push(binding); } if let crate::RackProcessor::Rack { graph } = &node.processor { add(graph, out); } }
+            for node in &graph.nodes {
+                if let Some(binding) = &node.hosted {
+                    out.push(binding);
+                }
+                if let crate::RackProcessor::Rack { graph } = &node.processor {
+                    add(graph, out);
+                }
+            }
         }
         let mut out: Vec<_> = self.plugins.iter().collect();
-        for rack in &self.settings.modular_racks { add(&rack.graph, &mut out); }
+        for rack in &self.settings.modular_racks {
+            add(&rack.graph, &mut out);
+        }
         out
     }
     pub fn plugin_bindings_mut(&mut self) -> Vec<&mut PluginBinding> {
         fn add<'a>(graph: &'a mut crate::RackGraph, out: &mut Vec<&'a mut PluginBinding>) {
-            for node in &mut graph.nodes { if let Some(binding) = &mut node.hosted { out.push(binding); } if let crate::RackProcessor::Rack { graph } = &mut node.processor { add(graph, out); } }
+            for node in &mut graph.nodes {
+                if let Some(binding) = &mut node.hosted {
+                    out.push(binding);
+                }
+                if let crate::RackProcessor::Rack { graph } = &mut node.processor {
+                    add(graph, out);
+                }
+            }
         }
         let mut out: Vec<_> = self.plugins.iter_mut().collect();
-        for rack in &mut self.settings.modular_racks { add(&mut rack.graph, &mut out); }
+        for rack in &mut self.settings.modular_racks {
+            add(&mut rack.graph, &mut out);
+        }
         out
     }
 }
@@ -221,21 +313,58 @@ impl crate::Project {
     pub(crate) fn check_plugin_routing(&self) -> Result<(), String> {
         let mut edges = std::collections::HashMap::<crate::TrackId, Vec<crate::TrackId>>::new();
         for track in &self.mixer.tracks {
-            edges.entry(track.id).or_default().extend(track.output.into_iter().chain(track.sends.iter().map(|send| send.target)).chain(track.sidechains.iter().map(|send| send.target)));
+            edges.entry(track.id).or_default().extend(
+                track
+                    .output
+                    .into_iter()
+                    .chain(track.sends.iter().map(|send| send.target))
+                    .chain(track.sidechains.iter().map(|send| send.target)),
+            );
         }
         for route in &self.mixer.effect_outputs {
-            if let Some(track) = self.mixer.tracks.iter().find(|track| track.effect(route.effect).is_some()) { edges.entry(track.id).or_default().push(route.target); }
+            if let Some(track) = self
+                .mixer
+                .tracks
+                .iter()
+                .find(|track| track.effect(route.effect).is_some())
+            {
+                edges.entry(track.id).or_default().push(route.target);
+            }
         }
         for binding in &self.plugins {
-            let PluginTarget::Effect { effect } = binding.target else { continue; };
-            let Some(source) = self.mixer.tracks.iter().find(|track| track.effect(effect).is_some()) else { continue; };
+            let PluginTarget::Effect { effect } = binding.target else {
+                continue;
+            };
+            let Some(source) = self
+                .mixer
+                .tracks
+                .iter()
+                .find(|track| track.effect(effect).is_some())
+            else {
+                continue;
+            };
             for route in &binding.capabilities.routes {
                 // Retained stale routes cannot create signal edges. They remain
                 // visible and will be checked again if the native bus returns.
-                if !binding.capabilities.outputs.iter().any(|port| port.index == route.output)
-                    || self.mixer.track(route.track).is_none() { continue; }
-                if source.id == crate::TrackId::MASTER || source.current || self.mixer.track(route.track).is_some_and(|track| track.current) {
-                    return Err("native output cannot feed from Master/Current or into Current".into());
+                if !binding
+                    .capabilities
+                    .outputs
+                    .iter()
+                    .any(|port| port.index == route.output)
+                    || self.mixer.track(route.track).is_none()
+                {
+                    continue;
+                }
+                if source.id == crate::TrackId::MASTER
+                    || source.current
+                    || self
+                        .mixer
+                        .track(route.track)
+                        .is_some_and(|track| track.current)
+                {
+                    return Err(
+                        "native output cannot feed from Master/Current or into Current".into(),
+                    );
                 }
                 edges.entry(source.id).or_default().push(route.track);
             }
@@ -244,8 +373,12 @@ impl crate::Project {
             let mut pending = edges.get(source).cloned().unwrap_or_default();
             let mut seen = std::collections::HashSet::new();
             while let Some(next) = pending.pop() {
-                if next == *source { return Err("native output routing would create a mixer feedback loop".into()); }
-                if seen.insert(next) { pending.extend(edges.get(&next).into_iter().flatten().copied()); }
+                if next == *source {
+                    return Err("native output routing would create a mixer feedback loop".into());
+                }
+                if seen.insert(next) {
+                    pending.extend(edges.get(&next).into_iter().flatten().copied());
+                }
             }
         }
         Ok(())

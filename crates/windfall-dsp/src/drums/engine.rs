@@ -402,10 +402,14 @@ impl<P: Settings, const N: usize> Engine<P, N> {
 
     pub(super) fn set_note_pan_law(&mut self, law: windfall_core::PanLaw) {
         self.pan_law = law;
-        for voice in &mut self.voices { voice.pan.retarget(law, self.rate); }
+        for voice in &mut self.voices {
+            voice.pan.retarget(law, self.rate);
+        }
     }
     pub(super) fn pan_latest(&mut self, pan: f32) {
-        if let Some(index) = self.latest { self.voices[index].pan = crate::note_pan::NotePan::new(pan, self.pan_law); }
+        if let Some(index) = self.latest {
+            self.voices[index].pan = crate::note_pan::NotePan::new(pan, self.pan_law);
+        }
     }
     pub fn note_off(&mut self, key: u8) {
         for voice in &mut self.voices {

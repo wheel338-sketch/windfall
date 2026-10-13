@@ -549,9 +549,25 @@ impl VstProcessor {
 }
 impl ProcessorBackend for VstProcessor {
     fn copy_output(&self, bus: u32, output: &mut [[f32; 2]]) -> bool {
-        let Some(channels) = self.outputs.buffers.get(bus as usize).filter(|channels| !channels.is_empty() && channels[0].len() >= output.len()) else { output.fill([0.0; 2]); return false; };
-        if self.outputs.main == Some(bus as usize) { output.fill([0.0; 2]); return false; }
-        for (frame, out) in output.iter_mut().enumerate() { *out = [channels[0][frame], channels[usize::from(channels.len() > 1)][frame]]; }
+        let Some(channels) = self
+            .outputs
+            .buffers
+            .get(bus as usize)
+            .filter(|channels| !channels.is_empty() && channels[0].len() >= output.len())
+        else {
+            output.fill([0.0; 2]);
+            return false;
+        };
+        if self.outputs.main == Some(bus as usize) {
+            output.fill([0.0; 2]);
+            return false;
+        }
+        for (frame, out) in output.iter_mut().enumerate() {
+            *out = [
+                channels[0][frame],
+                channels[usize::from(channels.len() > 1)][frame],
+            ];
+        }
         true
     }
     fn supports_midi_expression(&self) -> bool {

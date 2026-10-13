@@ -232,11 +232,18 @@ fn cpu_share(kind: EffectKind, extreme: bool, rate: f32, block: usize, edits: bo
             effect.process(&mut left, &mut right);
             std::hint::black_box((&left, &right));
         }
-        *trial = Duration::from_secs_f64(start.elapsed().as_secs_f64() / (blocks * block) as f64 * f64::from(rate));
+        *trial = Duration::from_secs_f64(
+            start.elapsed().as_secs_f64() / (blocks * block) as f64 * f64::from(rate),
+        );
     }
     assert!(left.iter().chain(&right).all(|value| value.is_finite()));
     let unrestricted = trials[0];
-    super::deadline_cpu::report("E1 CPU share (seconds per audio second)", &mut trials[1..], unrestricted).as_secs_f64()
+    super::deadline_cpu::report(
+        "E1 CPU share (seconds per audio second)",
+        &mut trials[1..],
+        unrestricted,
+    )
+    .as_secs_f64()
 }
 
 #[test]

@@ -68,82 +68,105 @@ fn measure(params: EffectParams, fraction: f64) {
         let mut trials = [(0.0_f64, 0.0_f64, 0.0_f64, 0.0_f64); 4];
         for (trial, result) in trials.iter_mut().enumerate() {
             let _core = (trial > 0).then(super::deadline_cpu::PerformanceCore::enter);
-        let mut effect = AnyEffect::new(&params);
-        effect.prepare(RATE, block);
-        effect.set_params(&params);
-        if let AnyEffect::PitchCorrect(pitch) = &mut effect {
-            pitch.set_harmony_notes([48, 52, 55, 60]);
-        }
-        let frames = 4096.max(block * 8);
-        let mut left = [0.0; 2048];
-        let mut right = [0.0; 2048];
-        // Warm detector/LPC and capture rings outside the timed interval.
-        let warm_frames = match kind {
-            EffectKind::PerformanceRack => (RATE * 1.1) as usize,
-            EffectKind::PitchShift | EffectKind::PitchCorrect | EffectKind::TimeTransport => {
-                (RATE * 0.1) as usize
+            let mut effect = AnyEffect::new(&params);
+            effect.prepare(RATE, block);
+            effect.set_params(&params);
+            if let AnyEffect::PitchCorrect(pitch) = &mut effect {
+                pitch.set_harmony_notes([48, 52, 55, 60]);
             }
-            _ => 4096,
-        };
-        let source: Vec<_> = (0..warm_frames + frames)
-            .map(|n| {
-                if kind == EffectKind::PitchCorrect {
-                    let phase = std::f64::consts::TAU * 137.3 * n as f64 / RATE as f64;
-                    (0.25 * phase.sin() + 0.05 * (2.0 * phase).sin() + 0.025 * (3.0 * phase).sin())
-                        as f32
-                } else {
-                    material(n)
+            let frames = 4096.max(block * 8);
+            let mut left = [0.0; 2048];
+            let mut right = [0.0; 2048];
+            // Warm detector/LPC and capture rings outside the timed interval.
+            let warm_frames = match kind {
+                EffectKind::PerformanceRack => (RATE * 1.1) as usize,
+                EffectKind::PitchShift | EffectKind::PitchCorrect | EffectKind::TimeTransport => {
+                    (RATE * 0.1) as usize
                 }
-            })
-            .collect();
-        // Independent stereo histories exercise both LPC/correlation paths.
-        // Exact equality/inversion is a useful optimization, but not a dense oracle.
-        let right_source: Vec<_> = (0..warm_frames + frames)
-            .map(|n| material(n + 179) * 0.77 + 0.031 * (n as f32 * 0.01073).cos())
-            .collect();
-        for (index, chunk) in source[..warm_frames].chunks(block).enumerate() {
-            left[..chunk.len()].copy_from_slice(chunk);
-            right[..chunk.len()]
-                .copy_from_slice(&right_source[index * block..index * block + chunk.len()]);
-            effect.process(&mut left[..chunk.len()], &mut right[..chunk.len()]);
-        }
-        let mut elapsed = 0.0_f64;
-        let mut maximum = 0.0_f64;
-        for (index, chunk) in source[warm_frames..].chunks(block).enumerate() {
-            left[..chunk.len()].copy_from_slice(chunk);
-            let offset = warm_frames + index * block;
-            right[..chunk.len()].copy_from_slice(&right_source[offset..offset + chunk.len()]);
-            let edited = moving_params(params, index);
-            let start = Instant::now();
-            effect.set_params(&edited);
-            effect.process(&mut left[..chunk.len()], &mut right[..chunk.len()]);
-            let cost = start.elapsed().as_secs_f64();
-            elapsed += cost;
-            maximum = maximum.max(cost);
-            assert!(
-                left[..chunk.len()]
-                    .iter()
-                    .chain(&right[..chunk.len()])
-                    .all(|s| s.is_finite())
+                _ => 4096,
+            };
+            let source: Vec<_> = (0..warm_frames + frames)
+                .map(|n| {
+                    if kind == EffectKind::PitchCorrect {
+                        let phase = std::f64::consts::TAU * 137.3 * n as f64 / RATE as f64;
+                        (0.25 * phase.sin()
+                            + 0.05 * (2.0 * phase).sin()
+                            + 0.025 * (3.0 * phase).sin()) as f32
+                    } else {
+                        material(n)
+                    }
+                })
+                .collect();
+            // Independent stereo histories exercise both LPC/correlation paths.
+            // Exact equality/inversion is a useful optimization, but not a dense oracle.
+            let right_source: Vec<_> = (0..warm_frames + frames)
+                .map(|n| material(n + 179) * 0.77 + 0.031 * (n as f32 * 0.01073).cos())
+                .collect();
+            for (index, chunk) in source[..warm_frames].chunks(block).enumerate() {
+                left[..chunk.len()].copy_from_slice(chunk);
+                right[..chunk.len()]
+                    .copy_from_slice(&right_source[index * block..index * block + chunk.len()]);
+                effect.process(&mut left[..chunk.len()], &mut right[..chunk.len()]);
+            }
+            let mut elapsed = 0.0_f64;
+            let mut maximum = 0.0_f64;
+            for (index, chunk) in source[warm_frames..].chunks(block).enumerate() {
+                left[..chunk.len()].copy_from_slice(chunk);
+                let offset = warm_frames + index * block;
+                right[..chunk.len()].copy_from_slice(&right_source[offset..offset + chunk.len()]);
+                let edited = moving_params(params, index);
+                let start = Instant::now();
+                effect.set_params(&edited);
+                effect.process(&mut left[..chunk.len()], &mut right[..chunk.len()]);
+                let cost = start.elapsed().as_secs_f64();
+                elapsed += cost;
+                maximum = maximum.max(cost);
+                assert!(
+                    left[..chunk.len()]
+                        .iter()
+                        .chain(&right[..chunk.len()])
+                        .all(|s| s.is_finite())
+                );
+            }
+
+            let mut reset = f64::INFINITY;
+            let mut maximum_reset = 0.0_f64;
+            for _ in 0..8 {
+                let start = Instant::now();
+                effect.reset();
+                let cost = start.elapsed().as_secs_f64();
+                reset = reset.min(cost);
+                maximum_reset = maximum_reset.max(cost);
+            }
+            *result = (
+                elapsed * RATE as f64 / frames as f64,
+                maximum,
+                reset,
+                maximum_reset,
             );
         }
-
-        let mut reset = f64::INFINITY;
-        let mut maximum_reset = 0.0_f64;
-        for _ in 0..8 {
-            let start = Instant::now();
-            effect.reset();
-            let cost = start.elapsed().as_secs_f64();
-            reset = reset.min(cost);
-            maximum_reset = maximum_reset.max(cost);
-        }
-            *result = (elapsed * RATE as f64 / frames as f64, maximum, reset, maximum_reset);
-        }
-        let mut times = trials[1..].iter().map(|t| Duration::from_secs_f64(t.0)).collect::<Vec<_>>();
-        let realtime_share = super::deadline_cpu::report("P2 CPU share (seconds per audio second)", &mut times, Duration::from_secs_f64(trials[0].0)).as_secs_f64();
-        let maximum = trials[1..].iter().map(|t| t.1).fold(f64::INFINITY, f64::min);
-        let reset = trials[1..].iter().map(|t| t.2).fold(f64::INFINITY, f64::min);
-        let maximum_reset = trials[1..].iter().map(|t| t.3).fold(f64::INFINITY, f64::min);
+        let mut times = trials[1..]
+            .iter()
+            .map(|t| Duration::from_secs_f64(t.0))
+            .collect::<Vec<_>>();
+        let realtime_share = super::deadline_cpu::report(
+            "P2 CPU share (seconds per audio second)",
+            &mut times,
+            Duration::from_secs_f64(trials[0].0),
+        )
+        .as_secs_f64();
+        let maximum = trials[1..]
+            .iter()
+            .map(|t| t.1)
+            .fold(f64::INFINITY, f64::min);
+        let reset = trials[1..]
+            .iter()
+            .map(|t| t.2)
+            .fold(f64::INFINITY, f64::min);
+        let maximum_reset = trials[1..]
+            .iter()
+            .map(|t| t.3)
+            .fold(f64::INFINITY, f64::min);
         println!("P2 trial callback/reset maxima (unrestricted first): {trials:?}");
         println!(
             "P2 {kind:?} params={params:?} block={block} rate={RATE} CPU-share={realtime_share:.6} max-callback-us={:.3} reset-best-us={:.3} reset-max-us={:.3} debug-factor={DEBUG_FACTOR}",

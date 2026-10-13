@@ -355,19 +355,30 @@ fn synthetic_pan_family(kind: windfall_dsp::InstrumentKind) -> bool {
 fn every_remaining_pan_family_uses_identical_live_and_offline_pcm_under_every_law() {
     use windfall_project::ChannelSource;
     for kind in windfall_dsp::InstrumentKind::ALL {
-        if !synthetic_pan_family(kind) { continue; }
+        if !synthetic_pan_family(kind) {
+            continue;
+        }
         for law in PanLaw::ALL {
-            let mut rig=Rig::new();rig.project.settings.pan_law=law;
-            let channel=rig.synth_on(Default::default(),TrackId::MASTER);
-            rig.channel_mut(channel).source=ChannelSource::Instrument {asset:None,params:kind.default_params()};
-            rig.project.patterns[0].length_steps=1;
-            rig.note(channel,0,240).pan=0.65;
-            let options=RenderOptions{sample_rate:RATE,tail_secs:0.0,block_frames:127,..Default::default()};
-            let offline=render(&rig.project,&rig.pool,&options,&mut |_|true);
-            assert!(peak(offline.samples())>1e-7,"silent fixture: {kind:?}");
-            for block in [17,64,127] {
-                let live=rig.play(RATE,offline.frames(),block);
-                assert_eq!(live,offline.samples(),"{kind:?} {law:?} block {block}");
+            let mut rig = Rig::new();
+            rig.project.settings.pan_law = law;
+            let channel = rig.synth_on(Default::default(), TrackId::MASTER);
+            rig.channel_mut(channel).source = ChannelSource::Instrument {
+                asset: None,
+                params: kind.default_params(),
+            };
+            rig.project.patterns[0].length_steps = 1;
+            rig.note(channel, 0, 240).pan = 0.65;
+            let options = RenderOptions {
+                sample_rate: RATE,
+                tail_secs: 0.0,
+                block_frames: 127,
+                ..Default::default()
+            };
+            let offline = render(&rig.project, &rig.pool, &options, &mut |_| true);
+            assert!(peak(offline.samples()) > 1e-7, "silent fixture: {kind:?}");
+            for block in [17, 64, 127] {
+                let live = rig.play(RATE, offline.frames(), block);
+                assert_eq!(live, offline.samples(), "{kind:?} {law:?} block {block}");
             }
         }
     }

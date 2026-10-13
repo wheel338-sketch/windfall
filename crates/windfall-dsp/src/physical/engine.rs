@@ -362,13 +362,16 @@ impl Engine {
         }
     }
 
-
     pub(super) fn set_note_pan_law(&mut self, law: windfall_core::PanLaw) {
         self.pan_law = law;
-        for voice in &mut self.voices { voice.pan.retarget(law, self.sample_rate); }
+        for voice in &mut self.voices {
+            voice.pan.retarget(law, self.sample_rate);
+        }
     }
     pub(super) fn pan_latest(&mut self, pan: f32) {
-        if let Some(index) = self.latest { self.voices[index].pan = crate::note_pan::NotePan::new(pan, self.pan_law); }
+        if let Some(index) = self.latest {
+            self.voices[index].pan = crate::note_pan::NotePan::new(pan, self.pan_law);
+        }
     }
     pub fn note_off(&mut self, key: u8) {
         for voice in &mut self.voices {
@@ -405,7 +408,10 @@ impl Engine {
             }
         }
         // Fixed headroom at the eight-voice cap; stereo is centered mono.
-        let mut output = (output.0 * settings.level * 0.25, output.1 * settings.level * 0.25);
+        let mut output = (
+            output.0 * settings.level * 0.25,
+            output.1 * settings.level * 0.25,
+        );
         if self.retrigger_remaining > 0 {
             let total = (self.sample_rate * 0.004).ceil().max(1.0);
             if self.retrigger_remaining as f32 == total {

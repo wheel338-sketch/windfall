@@ -326,7 +326,8 @@ impl<P: Patch> Instrument for Runtime<P> {
         self.operator_graph = None;
         self.controls.reset();
         self.notes.reset();
-        self.note_pans.fill(crate::note_pan::NotePan::new(0.0, self.pan_law));
+        self.note_pans
+            .fill(crate::note_pan::NotePan::new(0.0, self.pan_law));
         self.lfo_phase = 0.0;
         self.tail = 0;
         self.effects_clean = true;
@@ -348,15 +349,27 @@ impl<P: Patch> Instrument for Runtime<P> {
         let frame = self.controls.target().frame();
         self.notes
             .note_on(key, velocity, frame.polyphony, frame.glide, self.rate);
-        if velocity.is_finite() && velocity > 0.0 { self.pan_latest(0.0); }
+        if velocity.is_finite() && velocity > 0.0 {
+            self.pan_latest(0.0);
+        }
     }
     fn set_note_pan_law(&mut self, law: windfall_core::PanLaw) {
         self.pan_law = law;
-        for pan in &mut self.note_pans { pan.retarget(law, self.rate); }
+        for pan in &mut self.note_pans {
+            pan.retarget(law, self.rate);
+        }
     }
-    fn note_on_expression(&mut self, key: u8, velocity: f32, pan: f32, _expression: crate::NoteExpression) {
+    fn note_on_expression(
+        &mut self,
+        key: u8,
+        velocity: f32,
+        pan: f32,
+        _expression: crate::NoteExpression,
+    ) {
         self.note_on(key, velocity);
-        if velocity.is_finite() && velocity > 0.0 { self.pan_latest(pan); }
+        if velocity.is_finite() && velocity > 0.0 {
+            self.pan_latest(pan);
+        }
     }
     fn note_off(&mut self, key: u8) {
         self.notes.note_off(key);
@@ -590,8 +603,18 @@ macro_rules! instrument {
             fn note_on(&mut self, key: u8, velocity: f32) {
                 self.0.note_on(key, velocity);
             }
-            fn set_note_pan_law(&mut self, law: windfall_core::PanLaw) { self.0.set_note_pan_law(law); }
-            fn note_on_expression(&mut self, key: u8, velocity: f32, pan: f32, expression: crate::NoteExpression) { self.0.note_on_expression(key, velocity, pan, expression); }
+            fn set_note_pan_law(&mut self, law: windfall_core::PanLaw) {
+                self.0.set_note_pan_law(law);
+            }
+            fn note_on_expression(
+                &mut self,
+                key: u8,
+                velocity: f32,
+                pan: f32,
+                expression: crate::NoteExpression,
+            ) {
+                self.0.note_on_expression(key, velocity, pan, expression);
+            }
             fn note_off(&mut self, key: u8) {
                 self.0.note_off(key);
             }

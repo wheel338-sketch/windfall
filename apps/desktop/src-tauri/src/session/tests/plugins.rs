@@ -1288,7 +1288,10 @@ fn render_and_speculative_instances_cannot_take_editor_or_state_ownership() {
 
 // N4 uses explicit helper/fixture injection; historical in-process R4 tests above
 // remain unchanged. This exercises the actual current desktop helper entry.
-pub(super) fn n4_manager(rig: &Rig, vst3: bool) -> (std::sync::Arc<crate::plugins::PluginManager>, String) {
+pub(super) fn n4_manager(
+    rig: &Rig,
+    vst3: bool,
+) -> (std::sync::Arc<crate::plugins::PluginManager>, String) {
     let library = PathBuf::from(
         std::env::var_os("WINDFALL_BRIDGE_FIXTURE")
             .expect("build the owned bridge fixture explicitly"),

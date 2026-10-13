@@ -116,7 +116,13 @@ impl Session {
         &self,
         generation: Option<u64>,
     ) -> Result<TransportState, String> {
-        if self.inner.update_installing.load(std::sync::atomic::Ordering::Acquire) { return Err("Project edits are frozen for update installation".into()); }
+        if self
+            .inner
+            .update_installing
+            .load(std::sync::atomic::Ordering::Acquire)
+        {
+            return Err("Project edits are frozen for update installation".into());
+        }
         let _recording = generation.map(|_| self.recording_idle()).transpose()?;
         // Held across the check and the start, so the last clip cannot be
         // removed in between.

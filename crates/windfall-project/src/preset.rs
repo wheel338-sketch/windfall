@@ -488,9 +488,18 @@ impl PluginPreset {
     /// holds for it, so capture the live state into the project first.
     pub fn capture(project: &Project, target: PluginTarget) -> Result<Self, String> {
         if matches!(target, PluginTarget::Rack { .. }) {
-            let mut binding = project.plugin(target).cloned().ok_or("The hosted rack node no longer exists")?;
+            let mut binding = project
+                .plugin(target)
+                .cloned()
+                .ok_or("The hosted rack node no longer exists")?;
             binding.target = placeholder(target.is_instrument());
-            return Ok(Self { tables: None, state: PluginPresetState::Hosted { instrument: target.is_instrument(), binding } });
+            return Ok(Self {
+                tables: None,
+                state: PluginPresetState::Hosted {
+                    instrument: target.is_instrument(),
+                    binding,
+                },
+            });
         }
         let binding = project.plugin(target).cloned().map(|mut binding| {
             binding.target = placeholder(matches!(target, PluginTarget::Instrument { .. }));
@@ -776,7 +785,11 @@ impl ChannelPreset {
         if let Some(graph) = &self.rack {
             project.settings.modular_racks.push(crate::ChannelRack {
                 channel: id,
-                graph: { let mut graph = graph.clone(); graph.bind_hosted_owners(id); graph },
+                graph: {
+                    let mut graph = graph.clone();
+                    graph.bind_hosted_owners(id);
+                    graph
+                },
             });
         }
         if let Some(binding) = &self.plugin {

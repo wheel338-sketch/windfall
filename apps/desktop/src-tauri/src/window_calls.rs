@@ -125,7 +125,12 @@ impl WindowCalls {
         }
         let exclusive = matches!(
             command,
-            "project_new" | "project_open" | "flp_open" | "template_new" | "update_install" | "update_install_begin"
+            "project_new"
+                | "project_open"
+                | "flp_open"
+                | "template_new"
+                | "update_install"
+                | "update_install_begin"
         );
         if calls.exclusive || (exclusive && !calls.active.is_empty()) {
             return Err("Another window operation is finishing. Retry when it completes.".into());

@@ -278,8 +278,12 @@ impl InstanceBackend for ClapInstance {
     fn refresh_capabilities(&mut self) -> Result<(), PluginError> {
         // Finish a requested owner callback without consuming its dirty/restart
         // notifications. The installed owner will deliver those through idle.
-        let callback = self.instance.access_shared_handler(|shared| shared.take(flag::CALLBACK));
-        if callback != 0 { self.instance.call_on_main_thread_callback(); }
+        let callback = self
+            .instance
+            .access_shared_handler(|shared| shared.take(flag::CALLBACK));
+        if callback != 0 {
+            self.instance.call_on_main_thread_callback();
+        }
         let plugin = self.instance.plugin_handle();
         let inputs = read_ports(self.extensions.audio_ports, &plugin, true)?;
         let outputs = read_ports(self.extensions.audio_ports, &plugin, false)?;
@@ -292,8 +296,11 @@ impl InstanceBackend for ClapInstance {
             }
             let mut buffer = NotePortInfoBuffer::new();
             if let Some(port) = ports.get(&plugin, 0, true, &mut buffer) {
-                if port.supported_dialects.contains(NoteDialects::CLAP) { dialect = Dialect::Clap; }
-                else if port.supported_dialects.contains(NoteDialects::MIDI) { dialect = Dialect::Midi; }
+                if port.supported_dialects.contains(NoteDialects::CLAP) {
+                    dialect = Dialect::Clap;
+                } else if port.supported_dialects.contains(NoteDialects::MIDI) {
+                    dialect = Dialect::Midi;
+                }
             }
         }
         let params = read_params(self.extensions.params, &plugin);
@@ -302,7 +309,10 @@ impl InstanceBackend for ClapInstance {
         self.layout.note_inputs = note_inputs;
         self.layout.note_outputs = note_outputs;
         self.layout.parameter_count = params.len() as u32;
-        self.inputs = inputs; self.outputs = outputs; self.dialect = dialect; self.params = params;
+        self.inputs = inputs;
+        self.outputs = outputs;
+        self.dialect = dialect;
+        self.params = params;
         Ok(())
     }
     fn layout(&self) -> &PluginLayout {

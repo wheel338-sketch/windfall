@@ -62,7 +62,11 @@ impl ChannelVoiceRuntime {
         let slot = self
             .chord
             .iter()
-            .position(|n| n.is_some_and(|n| n.key == note.key && n.origin == note.origin && n.input == note.input))
+            .position(|n| {
+                n.is_some_and(|n| {
+                    n.key == note.key && n.origin == note.origin && n.input == note.input
+                })
+            })
             .or_else(|| self.chord.iter().position(Option::is_none));
         if let Some(slot) = slot {
             self.chord[slot] = Some(note);
@@ -164,7 +168,9 @@ impl ChannelVoiceRuntime {
             return;
         }
         // Playing a held key again releases the echoes of the earlier press.
-        if note.input.is_none() { self.release_held_echo(note.key, note.origin); }
+        if note.input.is_none() {
+            self.release_held_echo(note.key, note.origin);
+        }
         let Some(slot) = self.held_echoes.iter().position(Option::is_none) else {
             self.rejected_echoes = self.rejected_echoes.saturating_add(1);
             return;
@@ -227,11 +233,15 @@ impl ChannelVoiceRuntime {
 
     pub fn release_script_input(&mut self, input: u64) {
         for slot in &mut self.chord {
-            if slot.is_some_and(|note| note.input == Some(input)) { *slot = None; }
+            if slot.is_some_and(|note| note.input == Some(input)) {
+                *slot = None;
+            }
         }
         self.refresh_chord();
         for slot in &mut self.echo_sources {
-            if let Some((id, note)) = *slot && note.input == Some(input) {
+            if let Some((id, note)) = *slot
+                && note.input == Some(input)
+            {
                 self.echo.cancel(id);
                 *slot = None;
             }

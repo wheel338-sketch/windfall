@@ -86,7 +86,8 @@ impl Transaction<'_> {
         let new = Processor::of_source(&preset.source, preset.plugin.as_ref());
         self.remove_automations_of(|automation| match *automation {
             AutomationTarget::InstrumentParam { channel, param } => {
-                channel == id && param < crate::scripting::SCRIPT_PARAMETER_BASE
+                channel == id
+                    && param < crate::scripting::SCRIPT_PARAMETER_BASE
                     && (replacing_rack || !old.keeps_param(&new, param))
             }
             _ => false,
@@ -162,18 +163,35 @@ impl Transaction<'_> {
         let old = Processor::of_state(&current.state);
         let new = Processor::of_state(&preset.state);
         match (target, preset.state) {
-            (target @ PluginTarget::Rack { instrument, .. }, PluginPresetState::Hosted { instrument: wanted, mut binding }) if instrument == wanted => {
+            (
+                target @ PluginTarget::Rack { instrument, .. },
+                PluginPresetState::Hosted {
+                    instrument: wanted,
+                    mut binding,
+                },
+            ) if instrument == wanted => {
                 binding.target = target;
-                self.edit_rack_plugin(target, |plugin| { *plugin = binding; Ok(()) })?;
+                self.edit_rack_plugin(target, |plugin| {
+                    *plugin = binding;
+                    Ok(())
+                })?;
             }
-            (PluginTarget::Rack { .. }, _) => return Err(CommandError::invalid("A hosted rack node requires a native preset of the same instrument/effect role")),
+            (PluginTarget::Rack { .. }, _) => {
+                return Err(CommandError::invalid(
+                    "A hosted rack node requires a native preset of the same instrument/effect role",
+                ));
+            }
             (PluginTarget::Instrument { channel }, state) if state.is_instrument() => {
                 let index = self.channel_index(channel)?;
                 self.remove_automations_of(|automation| match *automation {
                     AutomationTarget::InstrumentParam {
                         channel: moved,
                         param,
-                    } => moved == channel && param < crate::scripting::SCRIPT_PARAMETER_BASE && !old.keeps_param(&new, param),
+                    } => {
+                        moved == channel
+                            && param < crate::scripting::SCRIPT_PARAMETER_BASE
+                            && !old.keeps_param(&new, param)
+                    }
                     _ => false,
                 });
                 match state {

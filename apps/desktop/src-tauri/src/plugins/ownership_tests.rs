@@ -1487,49 +1487,80 @@ fn production_vst3_requires_scanned_file_identity_format_id_and_role() {
 
 #[test]
 fn native_clap_project_pan_laws_and_live_ramps_match_render_pcm_without_allocation() {
-    use windfall_dsp::{NoteExpression,NoteInstanceId};
     use windfall_core::PanLaw;
-    for law in [PanLaw::Balance,PanLaw::ConstantPower,PanLaw::Compromise,PanLaw::Linear] {
-        let (runtime,binding)=clap_expression_fixture(false);
-        let mut unit=runtime.instrument(&binding,48_000,64).unwrap();unit.transport(transport());
-        runtime.note_capabilities(binding.target).unwrap().require_pan_law(0).unwrap();
-        let factory=runtime.render_factory().unwrap();
-        let mut center=factory.instrument(&binding,48_000,64).unwrap();center.transport(transport());
+    use windfall_dsp::{NoteExpression, NoteInstanceId};
+    for law in [
+        PanLaw::Balance,
+        PanLaw::ConstantPower,
+        PanLaw::Compromise,
+        PanLaw::Linear,
+    ] {
+        let (runtime, binding) = clap_expression_fixture(false);
+        let mut unit = runtime.instrument(&binding, 48_000, 64).unwrap();
+        unit.transport(transport());
+        runtime
+            .note_capabilities(binding.target)
+            .unwrap()
+            .require_pan_law(0)
+            .unwrap();
+        let factory = runtime.render_factory().unwrap();
+        let mut center = factory.instrument(&binding, 48_000, 64).unwrap();
+        center.transport(transport());
         unit.set_note_pan_law(law);
-        unit.note_on_instance(NoteInstanceId(1),69,0.4,0.65,NoteExpression::NEUTRAL);
-        center.note_on_instance(NoteInstanceId(1),69,0.4,0.0,NoteExpression::NEUTRAL);
-        let baseline=expression_audio(center.as_mut(),512);
-        let actual=expression_audio(unit.as_mut(),512);
-        let gains=law.gains(0.65);
-        assert!(actual.iter().any(|v|v[0].abs()>0.001));
+        unit.note_on_instance(NoteInstanceId(1), 69, 0.4, 0.65, NoteExpression::NEUTRAL);
+        center.note_on_instance(NoteInstanceId(1), 69, 0.4, 0.0, NoteExpression::NEUTRAL);
+        let baseline = expression_audio(center.as_mut(), 512);
+        let actual = expression_audio(unit.as_mut(), 512);
+        let gains = law.gains(0.65);
+        assert!(actual.iter().any(|v| v[0].abs() > 0.001));
         for i in 0..512 {
-            assert!((actual[i][0]-baseline[i][0]*gains.0).abs()<2e-6,"{law:?} left {i}");
-            assert!((actual[i][1]-baseline[i][1]*gains.1).abs()<2e-6,"{law:?} right {i}");
+            assert!(
+                (actual[i][0] - baseline[i][0] * gains.0).abs() < 2e-6,
+                "{law:?} left {i}"
+            );
+            assert!(
+                (actual[i][1] - baseline[i][1] * gains.1).abs() < 2e-6,
+                "{law:?} right {i}"
+            );
         }
-        assert_eq!(crate::test_alloc::allocator_calls(||unit.set_note_pan_law(PanLaw::Linear)),0);
-        let baseline=expression_audio(center.as_mut(),512);
-        let ramp=expression_audio(unit.as_mut(),512);
-        let to=PanLaw::Linear.gains(0.65);
+        assert_eq!(
+            crate::test_alloc::allocator_calls(|| unit.set_note_pan_law(PanLaw::Linear)),
+            0
+        );
+        let baseline = expression_audio(center.as_mut(), 512);
+        let ramp = expression_audio(unit.as_mut(), 512);
+        let to = PanLaw::Linear.gains(0.65);
         for i in 0..512 {
-            let part=(i as f32/240.0).min(1.0);
-            assert!((ramp[i][0]-baseline[i][0]*(gains.0+(to.0-gains.0)*part)).abs()<2e-6,"{law:?} ramp left {i}");
-            assert!((ramp[i][1]-baseline[i][1]*(gains.1+(to.1-gains.1)*part)).abs()<2e-6,"{law:?} ramp right {i}");
+            let part = (i as f32 / 240.0).min(1.0);
+            assert!(
+                (ramp[i][0] - baseline[i][0] * (gains.0 + (to.0 - gains.0) * part)).abs() < 2e-6,
+                "{law:?} ramp left {i}"
+            );
+            assert!(
+                (ramp[i][1] - baseline[i][1] * (gains.1 + (to.1 - gains.1) * part)).abs() < 2e-6,
+                "{law:?} ramp right {i}"
+            );
         }
     }
 }
 #[test]
 fn vst3_missing_native_volume_visibly_refuses_per_note_law_and_keeps_pcm_running() {
-    use windfall_dsp::{NoteExpression,NoteInstanceId};
-    let (runtime,binding)=fixture(23);
-    let mut unit=runtime.instrument(&binding,48_000,64).unwrap();unit.transport(transport());
-    let caps=runtime.note_capabilities(binding.target).unwrap();
+    use windfall_dsp::{NoteExpression, NoteInstanceId};
+    let (runtime, binding) = fixture(23);
+    let mut unit = runtime.instrument(&binding, 48_000, 64).unwrap();
+    unit.transport(transport());
+    let caps = runtime.note_capabilities(binding.target).unwrap();
     assert!(caps.instances && caps.native_pan[0] && !caps.native_volume[0]);
-    assert!(caps.require_pan_law(0).unwrap_err().contains("native Pan, Volume or note-instance"));
+    assert!(
+        caps.require_pan_law(0)
+            .unwrap_err()
+            .contains("native Pan, Volume or note-instance")
+    );
     assert!(!caps.native_pan[15]);
-    unit.note_on_instance(NoteInstanceId(1),69,0.5,0.4,NoteExpression::NEUTRAL);
-    let before=expression_audio(unit.as_mut(),512);
+    unit.note_on_instance(NoteInstanceId(1), 69, 0.5, 0.4, NoteExpression::NEUTRAL);
+    let before = expression_audio(unit.as_mut(), 512);
     unit.set_note_pan_law(windfall_core::PanLaw::Linear);
-    let after=expression_audio(unit.as_mut(),512);
-    assert_eq!(before,after);
-    assert!(after.iter().any(|v|v[0]>0.0 && v[1]>0.0));
+    let after = expression_audio(unit.as_mut(), 512);
+    assert_eq!(before, after);
+    assert!(after.iter().any(|v| v[0] > 0.0 && v[1] > 0.0));
 }

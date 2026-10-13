@@ -403,13 +403,16 @@ impl<T: Tone> AdditiveEngine<T> {
         voice.amp.gate_on();
     }
 
-
     pub(super) fn set_note_pan_law(&mut self, law: windfall_core::PanLaw) {
         self.pan_law = law;
-        for voice in &mut self.voices { voice.pan.retarget(law, self.sample_rate); }
+        for voice in &mut self.voices {
+            voice.pan.retarget(law, self.sample_rate);
+        }
     }
     pub(super) fn pan_latest(&mut self, pan: f32) {
-        if let Some(index) = self.latest { self.voices[index].pan = crate::note_pan::NotePan::new(pan, self.pan_law); }
+        if let Some(index) = self.latest {
+            self.voices[index].pan = crate::note_pan::NotePan::new(pan, self.pan_law);
+        }
     }
 
     /// See [`Instrument::note_off`](crate::Instrument::note_off).
@@ -478,7 +481,12 @@ impl<T: Tone> AdditiveEngine<T> {
         let mut bus_right = [0.0_f32; CONTROL_PERIOD];
         for voice in &mut self.voices {
             if voice.stage != Stage::Idle {
-                voice.render(&self.setup, offset, &mut bus[..frames], &mut bus_right[..frames]);
+                voice.render(
+                    &self.setup,
+                    offset,
+                    &mut bus[..frames],
+                    &mut bus_right[..frames],
+                );
             }
         }
         for index in 0..frames {
@@ -589,7 +597,13 @@ macro_rules! engine_instrument {
             fn set_note_pan_law(&mut self, law: windfall_core::PanLaw) {
                 self.engine.set_note_pan_law(law);
             }
-            fn note_on_expression(&mut self, key: u8, velocity: f32, pan: f32, _expression: crate::NoteExpression) {
+            fn note_on_expression(
+                &mut self,
+                key: u8,
+                velocity: f32,
+                pan: f32,
+                _expression: crate::NoteExpression,
+            ) {
                 self.note_on(key, velocity);
                 self.engine.pan_latest(pan);
             }

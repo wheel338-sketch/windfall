@@ -170,7 +170,14 @@ impl Edit {
     pub(crate) fn effect_asset_pins(&self) -> windfall_dsp::asset::AssetPins {
         if let Self::Settings(change) = self {
             let mut pins = windfall_dsp::asset::AssetPins::default();
-            for rack in change.old.modular_racks.iter().chain(&change.new.modular_racks) { pins.extend(rack.graph.effect_asset_pins()); }
+            for rack in change
+                .old
+                .modular_racks
+                .iter()
+                .chain(&change.new.modular_racks)
+            {
+                pins.extend(rack.graph.effect_asset_pins());
+            }
             return pins;
         }
         let tracks = match self {

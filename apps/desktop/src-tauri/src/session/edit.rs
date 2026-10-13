@@ -59,23 +59,29 @@ impl Session {
             return Err("Plugin parameters changed during state capture; retrying".into());
         }
         let commands = if let Some(metadata) = &captured.readmission {
-            vec![Command::ReadmitPlugin { target, state: captured.bytes.clone(), parameters: metadata.parameters.clone(), auxiliary_inputs: metadata.auxiliary_inputs.clone(), outputs: metadata.outputs.clone() }]
+            vec![Command::ReadmitPlugin {
+                target,
+                state: captured.bytes.clone(),
+                parameters: metadata.parameters.clone(),
+                auxiliary_inputs: metadata.auxiliary_inputs.clone(),
+                outputs: metadata.outputs.clone(),
+            }]
         } else {
-        let mut commands: Vec<_> = captured
-            .parameters
-            .iter()
-            .filter(|(id, _)| {
-                binding
-                    .parameters
-                    .iter()
-                    .any(|param| param.id == *id && !param.read_only)
-            })
-            .map(|&(id, value)| Command::SetPluginParam { target, id, value })
-            .collect();
-        commands.push(Command::SetPluginState {
-            target,
-            state: captured.bytes.clone(),
-        });
+            let mut commands: Vec<_> = captured
+                .parameters
+                .iter()
+                .filter(|(id, _)| {
+                    binding
+                        .parameters
+                        .iter()
+                        .any(|param| param.id == *id && !param.read_only)
+                })
+                .map(|&(id, value)| Command::SetPluginParam { target, id, value })
+                .collect();
+            commands.push(Command::SetPluginState {
+                target,
+                state: captured.bytes.clone(),
+            });
             commands
         };
         let ticket = self.sample_edit_ticket(
@@ -138,33 +144,66 @@ impl Session {
         // Copy only target IDs under State. Native ownership queries may wait,
         // and therefore run after releasing every document/recording guard.
         let (targets, runtime) = {
-            let state=self.state();
-            let mut targets=Vec::new();
-            fn collect(command:&Command, project:&windfall_project::Project, targets:&mut Vec<windfall_project::PluginTarget>) {
+            let state = self.state();
+            let mut targets = Vec::new();
+            fn collect(
+                command: &Command,
+                project: &windfall_project::Project,
+                targets: &mut Vec<windfall_project::PluginTarget>,
+            ) {
                 match command {
-                    Command::UpdateSettings {patch} if patch.pan_law.is_some_and(|law|law!=project.settings.pan_law) => {
-                        targets.extend(project.plugins.iter().filter_map(|binding|matches!(binding.target,windfall_project::PluginTarget::Instrument{..}).then_some(binding.target)));
+                    Command::UpdateSettings { patch }
+                        if patch
+                            .pan_law
+                            .is_some_and(|law| law != project.settings.pan_law) =>
+                    {
+                        targets.extend(project.plugins.iter().filter_map(|binding| {
+                            matches!(
+                                binding.target,
+                                windfall_project::PluginTarget::Instrument { .. }
+                            )
+                            .then_some(binding.target)
+                        }));
                     }
-                    Command::SetChannelExpressionMap{id,map,..} => {
-                        let native=map.modulation_x.plugin==windfall_dsp::PluginExpressionDestination::Pan
-                            || map.modulation_y.plugin==windfall_dsp::PluginExpressionDestination::Pan
-                            || map.release.plugin==windfall_dsp::PluginExpressionDestination::Pan
-                            || map.modulation_x.plugin==windfall_dsp::PluginExpressionDestination::Volume
-                            || map.modulation_y.plugin==windfall_dsp::PluginExpressionDestination::Volume
-                            || map.release.plugin==windfall_dsp::PluginExpressionDestination::Volume;
-                        let target=windfall_project::PluginTarget::Instrument{channel:*id};
-                        if native && project.plugin(target).is_some(){targets.push(target);}
+                    Command::SetChannelExpressionMap { id, map, .. } => {
+                        let native = map.modulation_x.plugin
+                            == windfall_dsp::PluginExpressionDestination::Pan
+                            || map.modulation_y.plugin
+                                == windfall_dsp::PluginExpressionDestination::Pan
+                            || map.release.plugin == windfall_dsp::PluginExpressionDestination::Pan
+                            || map.modulation_x.plugin
+                                == windfall_dsp::PluginExpressionDestination::Volume
+                            || map.modulation_y.plugin
+                                == windfall_dsp::PluginExpressionDestination::Volume
+                            || map.release.plugin
+                                == windfall_dsp::PluginExpressionDestination::Volume;
+                        let target = windfall_project::PluginTarget::Instrument { channel: *id };
+                        if native && project.plugin(target).is_some() {
+                            targets.push(target);
+                        }
                     }
-                    Command::Batch{commands,..} => for command in commands {collect(command,project,targets);},
-                    _=>{}
+                    Command::Batch { commands, .. } => {
+                        for command in commands {
+                            collect(command, project, targets);
+                        }
+                    }
+                    _ => {}
                 }
             }
-            collect(command,state.document.project(),&mut targets);
-            (targets,crate::sync::lock(&self.inner.plugins).as_ref().map(|manager|manager.runtime.clone()))
+            collect(command, state.document.project(), &mut targets);
+            (
+                targets,
+                crate::sync::lock(&self.inner.plugins)
+                    .as_ref()
+                    .map(|manager| manager.runtime.clone()),
+            )
         };
         if !targets.is_empty() {
-            let runtime=runtime.ok_or("Native note capabilities require a running hosted instrument")?;
-            for target in targets { runtime.note_capabilities(target)?.require_pan_law(0)?; }
+            let runtime =
+                runtime.ok_or("Native note capabilities require a running hosted instrument")?;
+            for target in targets {
+                runtime.note_capabilities(target)?.require_pan_law(0)?;
+            }
         }
         Ok(())
     }

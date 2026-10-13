@@ -869,8 +869,13 @@ async fn audio_editor_regions(
 
 #[tauri::command]
 async fn audio_editor_save_wav(
-    session: State<'_, Session>, token: u32, start: u32, end: u32, path: String,
-    window: tauri::WebviewWindow, caller: crate::window_calls::WindowCaller,
+    session: State<'_, Session>,
+    token: u32,
+    start: u32,
+    end: u32,
+    path: String,
+    window: tauri::WebviewWindow,
+    caller: crate::window_calls::WindowCaller,
 ) -> Result<(), String> {
     let _window_call = caller.enter(&window, "audio_editor_save_wav")?;
     let session = session.inner().clone();
@@ -879,8 +884,10 @@ async fn audio_editor_save_wav(
 
 #[tauri::command]
 async fn audio_editor_import_timeline(
-    session: State<'_, Session>, token: u32,
-    window: tauri::WebviewWindow, caller: crate::window_calls::WindowCaller,
+    session: State<'_, Session>,
+    token: u32,
+    window: tauri::WebviewWindow,
+    caller: crate::window_calls::WindowCaller,
 ) -> Result<DispatchResult, String> {
     let _window_call = caller.enter(&window, "audio_editor_import_timeline")?;
     let session = session.inner().clone();

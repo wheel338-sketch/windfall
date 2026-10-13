@@ -99,26 +99,48 @@ impl Native {
         self.activate()?;
         result
     }
-    fn readmit(&mut self, epoch: u64, pending: &[ControlParameter]) -> io::Result<(Vec<u8>, Vec<DescribedParameter>, crate::PluginLayout)> {
+    fn readmit(
+        &mut self,
+        epoch: u64,
+        pending: &[ControlParameter],
+    ) -> io::Result<(Vec<u8>, Vec<DescribedParameter>, crate::PluginLayout)> {
         self.check_capture_epoch(epoch)?;
         self.deactivate()?;
         self.instance.idle(&mut |_| {});
         self.instance.refresh_capabilities().map_err(error)?;
         for intent in pending {
             if let Some(param) = self.instance.param(intent.id) {
-                let pending = self.host_values.get(&intent.id) != Some(&intent.value) || self.uncertain.contains(&intent.id);
-                if !param.read_only && pending && self.instance.deactivation_param_value(intent.id).is_none() && !self.instance.set_param(intent.id, intent.value) {
+                let pending = self.host_values.get(&intent.id) != Some(&intent.value)
+                    || self.uncertain.contains(&intent.id);
+                if !param.read_only
+                    && pending
+                    && self.instance.deactivation_param_value(intent.id).is_none()
+                    && !self.instance.set_param(intent.id, intent.value)
+                {
                     return Err(error("refreshed parameter reconciliation refused"));
                 }
             }
         }
         let state = captured_state(self.instance.save_state().map_err(error)?)?;
-        let parameters = self.instance.params().to_vec().into_iter().filter(|param| !param.hidden).map(|param| DescribedParameter {
-            spec: ControlParameter { id: param.id, min: param.min, max: param.max,
-                value: self.instance.param_value(param.id).unwrap_or(param.default),
-                read_only: param.read_only, stepped: param.stepped },
-            name: param.name, automatable: param.automatable,
-        }).collect();
+        let parameters = self
+            .instance
+            .params()
+            .to_vec()
+            .into_iter()
+            .filter(|param| !param.hidden)
+            .map(|param| DescribedParameter {
+                spec: ControlParameter {
+                    id: param.id,
+                    min: param.min,
+                    max: param.max,
+                    value: self.instance.param_value(param.id).unwrap_or(param.default),
+                    read_only: param.read_only,
+                    stepped: param.stepped,
+                },
+                name: param.name,
+                automatable: param.automatable,
+            })
+            .collect();
         self.check_capture_epoch(epoch)?;
         Ok((state, parameters, self.instance.layout().clone()))
     }
@@ -796,7 +818,11 @@ fn run(address: SocketAddr) -> io::Result<()> {
                         response.state = state;
                         response.body = Message::Described { parameters, layout };
                     }
-                    Err(error) => response.body = Message::Error { message: error.to_string() },
+                    Err(error) => {
+                        response.body = Message::Error {
+                            message: error.to_string(),
+                        }
+                    }
                 },
                 Message::Describe => match native.describe() {
                     Ok((state, parameters, layout)) => {
@@ -888,7 +914,9 @@ fn run(address: SocketAddr) -> io::Result<()> {
             native.adopt_timeline()?;
         }
         let mut worked = false;
-        if native.processor.is_some() && let Some((slot, sequence)) = native.region.take_input(&mut input).map_err(error)? {
+        if native.processor.is_some()
+            && let Some((slot, sequence)) = native.region.take_input(&mut input).map_err(error)?
+        {
             worked = true;
             let result = native.admit_input(input.epoch).and_then(|admitted| {
                 if admitted {
@@ -914,7 +942,12 @@ fn run(address: SocketAddr) -> io::Result<()> {
         let mut changed = false;
         let mut restart = false;
         native.instance.idle(&mut |notification| {
-            restart |= matches!(notification, PluginNotification::RestartRequested | PluginNotification::ParamsRescanned | PluginNotification::LatencyChanged { .. });
+            restart |= matches!(
+                notification,
+                PluginNotification::RestartRequested
+                    | PluginNotification::ParamsRescanned
+                    | PluginNotification::LatencyChanged { .. }
+            );
             #[cfg(any(target_os = "macos", target_os = "linux"))]
             match &notification {
                 PluginNotification::EditorScaleRefused {
@@ -937,7 +970,9 @@ fn run(address: SocketAddr) -> io::Result<()> {
             }
         });
         native.adopt_timeline()?;
-        if restart { native.region.request_readmission(); }
+        if restart {
+            native.region.request_readmission();
+        }
         if changed {
             native.region.publish_native_change().map_err(error)?;
         }

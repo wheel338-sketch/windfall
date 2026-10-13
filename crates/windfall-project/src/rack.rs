@@ -179,59 +179,114 @@ impl RackProcessor {
 impl RackGraph {
     /// Selecting the same native identity at a new path relinks saved state.
     /// Selecting another identity deliberately loads that provider's defaults.
-    pub fn replace_hosted_provider(&mut self, path: &[u32], mut binding: crate::PluginBinding) -> Result<(), String> {
+    pub fn replace_hosted_provider(
+        &mut self,
+        path: &[u32],
+        mut binding: crate::PluginBinding,
+    ) -> Result<(), String> {
         binding.validate().map_err(str::to_owned)?;
         let node = self.node_at_mut(path).ok_or("The rack node was removed")?;
-        if !matches!(node.processor, RackProcessor::Instrument { .. } | RackProcessor::Effect { .. })
-            || matches!(node.processor, RackProcessor::Instrument { .. }) != binding.target.is_instrument() {
+        if !matches!(
+            node.processor,
+            RackProcessor::Instrument { .. } | RackProcessor::Effect { .. }
+        ) || matches!(node.processor, RackProcessor::Instrument { .. })
+            != binding.target.is_instrument()
+        {
             return Err("Rack plugin role does not match this node".into());
         }
-        if let Some(before) = &node.hosted && before.format == binding.format && before.id == binding.id {
+        if let Some(before) = &node.hosted
+            && before.format == binding.format
+            && before.id == binding.id
+        {
             binding.state = before.state.clone();
             binding.wrapper = before.wrapper;
             binding.sidechain_input = before.sidechain_input;
             for parameter in &mut binding.parameters {
-                if let Some(saved) = before.parameters.iter().find(|saved| saved.id == parameter.id) {
+                if let Some(saved) = before
+                    .parameters
+                    .iter()
+                    .find(|saved| saved.id == parameter.id)
+                {
                     parameter.value = saved.value.clamp(parameter.min, parameter.max);
                 }
             }
         }
         binding.validate().map_err(str::to_owned)?;
-        node.name = binding.name.clone(); node.asset = None; node.hosted = Some(binding);
+        node.name = binding.name.clone();
+        node.asset = None;
+        node.hosted = Some(binding);
         Ok(())
     }
     pub fn effect_asset_pins(&self) -> windfall_dsp::asset::AssetPins {
-        let mut pins = windfall_dsp::asset::AssetPins::for_effects(self.nodes.iter().filter_map(|node| match &node.processor { RackProcessor::Effect { params, .. } => Some(params), _ => None }));
-        for node in &self.nodes { if let RackProcessor::Rack { graph } = &node.processor { pins.extend(graph.effect_asset_pins()); } }
+        let mut pins =
+            windfall_dsp::asset::AssetPins::for_effects(self.nodes.iter().filter_map(|node| {
+                match &node.processor {
+                    RackProcessor::Effect { params, .. } => Some(params),
+                    _ => None,
+                }
+            }));
+        for node in &self.nodes {
+            if let RackProcessor::Rack { graph } = &node.processor {
+                pins.extend(graph.effect_asset_pins());
+            }
+        }
         pins
     }
     pub fn fingerprint(&self) -> Result<u64, String> {
         use std::hash::{Hash, Hasher};
         let mut hash = std::collections::hash_map::DefaultHasher::new();
-        serde_json::to_vec(self).map_err(|error| error.to_string())?.hash(&mut hash);
+        serde_json::to_vec(self)
+            .map_err(|error| error.to_string())?
+            .hash(&mut hash);
         Ok(hash.finish())
     }
     pub fn missing_assets(&self) -> Vec<String> {
         let mut missing = Vec::new();
         for node in &self.nodes {
-            if let Some(asset) = &node.asset { missing.extend(asset.missing_sources().into_iter().map(|name| format!("{}: {name}", node.name))); }
-            if node.asset.is_none() && let RackProcessor::Effect { params: EffectParams::Scratch(params), .. } = &node.processor && params.source_id != 0 {
-                missing.push(format!("{}: unowned legacy sample {}; relink its WAV", node.name, params.source_id));
+            if let Some(asset) = &node.asset {
+                missing.extend(
+                    asset
+                        .missing_sources()
+                        .into_iter()
+                        .map(|name| format!("{}: {name}", node.name)),
+                );
             }
-            if let RackProcessor::Rack { graph } = &node.processor { missing.extend(graph.missing_assets()); }
+            if node.asset.is_none()
+                && let RackProcessor::Effect {
+                    params: EffectParams::Scratch(params),
+                    ..
+                } = &node.processor
+                && params.source_id != 0
+            {
+                missing.push(format!(
+                    "{}: unowned legacy sample {}; relink its WAV",
+                    node.name, params.source_id
+                ));
+            }
+            if let RackProcessor::Rack { graph } = &node.processor {
+                missing.extend(graph.missing_assets());
+            }
         }
         missing
     }
     /// Canonicalize native ownership after copy, preset import or node-ID remap.
     pub fn bind_hosted_owners(&mut self, channel: ChannelId) {
         fn bind(graph: &mut RackGraph, channel: ChannelId, path: &mut [u32; 4], depth: usize) {
-            if depth >= 4 { return; }
+            if depth >= 4 {
+                return;
+            }
             for node in &mut graph.nodes {
                 path[depth] = node.id;
                 if let Some(binding) = &mut node.hosted {
-                    binding.target = crate::PluginTarget::Rack { channel, path: *path, instrument: matches!(node.processor, RackProcessor::Instrument { .. }) };
+                    binding.target = crate::PluginTarget::Rack {
+                        channel,
+                        path: *path,
+                        instrument: matches!(node.processor, RackProcessor::Instrument { .. }),
+                    };
                 }
-                if let RackProcessor::Rack { graph } = &mut node.processor { bind(graph, channel, path, depth + 1); }
+                if let RackProcessor::Rack { graph } = &mut node.processor {
+                    bind(graph, channel, path, depth + 1);
+                }
                 path[depth] = 0;
             }
         }
@@ -356,8 +411,21 @@ impl RackGraph {
         let mut edges = 0;
         self.check_nested(1, &mut nodes, &mut edges)?;
         fn bytes(graph: &RackGraph) -> usize {
-            graph.nodes.iter().map(|node| node.asset.as_ref().map_or(0, crate::RackNodeAsset::payload_bytes) + node.hosted.as_ref().map_or(0, |p| p.state.len())
-                + if let RackProcessor::Rack { graph } = &node.processor { bytes(graph) } else { 0 }).sum()
+            graph
+                .nodes
+                .iter()
+                .map(|node| {
+                    node.asset
+                        .as_ref()
+                        .map_or(0, crate::RackNodeAsset::payload_bytes)
+                        + node.hosted.as_ref().map_or(0, |p| p.state.len())
+                        + if let RackProcessor::Rack { graph } = &node.processor {
+                            bytes(graph)
+                        } else {
+                            0
+                        }
+                })
+                .sum()
         }
         if bytes(self) > crate::rack_assets::MAX_RACK_ASSET_BYTES {
             return Err("Rack assets exceed the aggregate 64 MiB payload limit".into());
@@ -574,11 +642,20 @@ impl RackGraph {
         }
         let mut ids = std::collections::HashSet::new();
         for node in &self.nodes {
-            if let Some(asset) = &node.asset { asset.check(&node.processor)?; }
+            if let Some(asset) = &node.asset {
+                asset.check(&node.processor)?;
+            }
             if let Some(binding) = &node.hosted {
                 binding.validate().map_err(str::to_owned)?;
-                if node.asset.is_some() || !matches!(node.processor, RackProcessor::Instrument { .. } | RackProcessor::Effect { .. }) {
-                    return Err("Hosted rack nodes own native state instead of a built-in asset".into());
+                if node.asset.is_some()
+                    || !matches!(
+                        node.processor,
+                        RackProcessor::Instrument { .. } | RackProcessor::Effect { .. }
+                    )
+                {
+                    return Err(
+                        "Hosted rack nodes own native state instead of a built-in asset".into(),
+                    );
                 }
             }
             if node.id == 0 || node.id >= self.next_id || !ids.insert(node.id) {
@@ -646,7 +723,9 @@ impl RackGraph {
                 return Err("Duplicate rack edge".into());
             }
             if signal == RackSignal::Control {
-                if to.hosted.is_some() { return Err("Use the native parameter controls for a hosted rack node".into()); }
+                if to.hosted.is_some() {
+                    return Err("Use the native parameter controls for a hosted rack node".into());
+                }
                 if edge
                     .parameter
                     .as_deref()
@@ -686,7 +765,9 @@ impl RackGraph {
             } else if edge.parameter.is_some() {
                 return Err("Only control wires name a parameter".into());
             }
-            if from.hosted.is_some() && edge.from.port >= AUX_AUDIO_BASE { return Err("This native rack provider exposes its main stereo bus".into()); }
+            if from.hosted.is_some() && edge.from.port >= AUX_AUDIO_BASE {
+                return Err("This native rack provider exposes its main stereo bus".into());
+            }
         }
         let order = self.order()?;
         // Bound multiplicative note fanout before admission, including chords.
@@ -772,7 +853,10 @@ impl RackGraph {
                 RackProcessor::Instrument { params } => params.latency_samples(rate),
                 RackProcessor::Effect { params, .. } => {
                     incoming.saturating_add(match &self.nodes[index].asset {
-                        Some(crate::RackNodeAsset::Impulse { impulse }) => windfall_dsp::spectral::CONVOLUTION_PARTITION + impulse.group_delay_at(rate as u32),
+                        Some(crate::RackNodeAsset::Impulse { impulse }) => {
+                            windfall_dsp::spectral::CONVOLUTION_PARTITION
+                                + impulse.group_delay_at(rate as u32)
+                        }
                         _ => params.latency_samples(rate),
                     })
                 }
@@ -855,7 +939,9 @@ pub fn check_project(project: &Project) -> Result<(), String> {
         rack.graph.check()?;
         let mut canonical = rack.graph.clone();
         canonical.bind_hosted_owners(rack.channel);
-        if canonical != rack.graph { return Err("Hosted rack binding has a different node owner".into()); }
+        if canonical != rack.graph {
+            return Err("Hosted rack binding has a different node owner".into());
+        }
     }
     Ok(())
 }
@@ -872,7 +958,10 @@ pub struct RackPreset {
     pub graph: RackGraph,
 }
 impl RackPreset {
-    pub fn to_json(&self) -> Result<String, String> { self.graph.check()?; serde_json::to_string(self).map_err(|error| error.to_string()) }
+    pub fn to_json(&self) -> Result<String, String> {
+        self.graph.check()?;
+        serde_json::to_string(self).map_err(|error| error.to_string())
+    }
     pub fn new(name: String, graph: RackGraph) -> Result<Self, String> {
         graph.check()?;
         if name.len() > 256 {

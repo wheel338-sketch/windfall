@@ -173,10 +173,14 @@ pub(super) struct Bank {
 impl Bank {
     pub fn set_note_pan_law(&mut self, law: windfall_core::PanLaw, rate: f32) {
         self.law = law;
-        for voice in &mut self.voices { voice.pan.retarget(law, rate); }
+        for voice in &mut self.voices {
+            voice.pan.retarget(law, rate);
+        }
     }
     pub fn pan_latest(&mut self, pan: f32) {
-        if let Some(index) = self.latest { self.voices[index].pan = crate::note_pan::NotePan::new(pan, self.law); }
+        if let Some(index) = self.latest {
+            self.voices[index].pan = crate::note_pan::NotePan::new(pan, self.law);
+        }
     }
 
     pub fn reset(&mut self) {
