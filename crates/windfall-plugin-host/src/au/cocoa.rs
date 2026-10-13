@@ -165,7 +165,7 @@ impl Editor {
         };
         if size as usize > metadata.storage.len() * size_of::<usize>()
             || (size as usize) < size_of::<CocoaInfo>()
-            || size as usize % size_of::<usize>() != 0
+            || !(size as usize).is_multiple_of(size_of::<usize>())
         {
             return Err(EditorError::Failed("invalid AU Cocoa metadata size".into()));
         }

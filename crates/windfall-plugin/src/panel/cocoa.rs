@@ -39,6 +39,8 @@ unsafe extern "C" fn load(target: Obj, _: Obj, _: Obj) {
         void(text, c"release");
     }));
 }
+// Keep native frame coordinates explicit at the small AppKit boundary.
+#[allow(clippy::too_many_arguments)]
 unsafe fn control(
     class: &CStr,
     parent: Obj,

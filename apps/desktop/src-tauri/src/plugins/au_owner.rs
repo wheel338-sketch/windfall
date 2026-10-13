@@ -43,6 +43,8 @@ pub(super) fn run_if_main(id: u64, job: Job) -> Result<Option<Job>, String> {
         Ok(None)
     })
 }
+// These are the independently owned control queues/context, moved once to main.
+#[allow(clippy::too_many_arguments)]
 pub(super) fn start(
     receiver: mpsc::Receiver<Job>,
     selection: Selection,
