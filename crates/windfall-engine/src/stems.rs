@@ -142,8 +142,10 @@ impl std::fmt::Display for StemError {
 impl std::error::Error for StemError {}
 
 /// What a streamed render came to.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Streamed {
+    /// Authoritative full-mix clock used to place cues in every output.
+    pub frame_map: crate::RenderFrameMap,
     /// Frames of each stream. Every stream of a render is the same length.
     pub frames: u64,
     /// Audio clips that are in none of the streams, as
@@ -330,6 +332,7 @@ pub fn render_streaming(
 ) -> Streamed {
     render_streaming_checked(project, pool, options, sink, progress).unwrap_or_else(|error| {
         Streamed {
+            frame_map: Default::default(),
             frames: 0,
             dropped_clips: 0,
             completed: false,
@@ -433,6 +436,7 @@ pub fn render_stems(
             };
             let mut length = None;
             let mut dropped_clips = 0;
+            let mut frame_map = None;
             if mix_pass {
                 let scale = share(0);
                 let pass = Pass::new(compile(project, pool), options, &[])?;
@@ -447,6 +451,7 @@ pub fn render_stems(
                 }
                 length = Some(done.frames as usize);
                 dropped_clips = done.dropped_clips;
+                frame_map = Some(done.frame_map);
             }
             let tempo_trajectory: std::sync::Arc<[f64]> = tempo_trajectory.into();
             let mut frames = length.unwrap_or(0) as u64;
@@ -467,9 +472,11 @@ pub fn render_stems(
                     return Ok(done);
                 }
                 frames = done.frames;
+                if frame_map.is_none() { frame_map = Some(done.frame_map); }
                 dropped_clips = done.dropped_clips;
             }
             Ok(Streamed {
+                frame_map: frame_map.unwrap_or_default(),
                 frames,
                 dropped_clips,
                 completed: true,
@@ -622,6 +629,7 @@ struct Pass {
     /// The frame of the processor on which the pattern or song ends.
     body_end: usize,
     linked_tempo: bool,
+    frame_map: crate::RenderFrameMap,
     tail_frames: usize,
     /// The frame on which the longest tail the options allow ends.
     most: usize,
@@ -636,6 +644,7 @@ impl Pass {
     /// Sets a processor up to play `plan` as `options` say, listening to
     /// `tracks` each on its own as well as to the master.
     fn new(plan: Plan, options: &RenderOptions, tracks: &[TrackId]) -> Result<Self, StemError> {
+        let frame_map = crate::RenderFrameMap::new(&plan, options);
         let provider = plan.plugin_factory.clone();
         let sample_rate = options.sample_rate.max(1);
         let pattern = options
@@ -722,6 +731,7 @@ impl Pass {
             latency,
             body_end: latency + body_frames,
             linked_tempo,
+            frame_map,
             tail_frames,
             most: latency + body_frames + tail_frames,
             auto_tail: options.auto_tail,
@@ -781,6 +791,9 @@ impl Pass {
             };
             let fresh = &mut buffer[..frames * 2];
             self.processor.process(fresh);
+            if self.processor.rendered_end().is_none_or(|end| (done as u64) < end) {
+                self.frame_map.record(done as u64, self.processor.export_clock());
+            }
             if done.is_multiple_of(crate::automation::GRID as usize)
                 && let Some(trajectory) = &mut clock_capture
             {
@@ -840,6 +853,7 @@ impl Pass {
         }
         check()?;
         Ok(Streamed {
+            frame_map: self.frame_map,
             frames: frames as u64,
             dropped_clips: self.processor.clips_left_out(),
             completed,

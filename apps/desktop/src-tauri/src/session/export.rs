@@ -171,6 +171,7 @@ enum Outcome {
         dropped_clips: u32,
         /// What mastering measured, when the export asked for it.
         mastering: Option<windfall_ipc::MasteringReview>,
+        wav_metadata: Option<String>,
     },
     Cancelled,
 }
@@ -199,14 +200,15 @@ impl Progress<'_> {
 
     /// `outcome` is for the event that ends an export that did not fail.
     fn send(&self, done: bool, error: Option<String>, outcome: Option<Outcome>) {
-        let (files, dropped_clips, cancelled, mastering) = match outcome {
+        let (files, dropped_clips, cancelled, mastering, wav_metadata) = match outcome {
             Some(Outcome::Written {
                 files,
                 dropped_clips,
                 mastering,
-            }) => (Some(files), dropped_clips, None, mastering),
-            Some(Outcome::Cancelled) => (None, 0, Some(true), None),
-            None => (None, 0, None, None),
+                wav_metadata,
+            }) => (Some(files), dropped_clips, None, mastering, wav_metadata),
+            Some(Outcome::Cancelled) => (None, 0, Some(true), None, None),
+            None => (None, 0, None, None, None),
         };
         let progress = ExportProgress {
             path: self.path.clone(),
@@ -217,6 +219,7 @@ impl Progress<'_> {
             files,
             cancelled,
             mastering,
+            wav_metadata,
         };
         self.session.emit(match &self.request {
             Some(request) => Event::ExportRequestProgress {
@@ -750,24 +753,6 @@ fn write_files(
         genre: &project_settings.genre,
         comments: &project_settings.comments,
     };
-    let wav_metadata = if matches!(job.settings, EncoderSettings::Wav { .. }) {
-        match options.mode {
-            PlayMode::Song => markers::song_metadata(
-                &job.project,
-                &prepared_pool,
-                options.sample_rate,
-                options.region,
-            )?,
-            PlayMode::Pattern => markers::pattern_metadata(
-                &job.project,
-                job.pattern,
-                options.sample_rate,
-                options.pattern_loops,
-            )?,
-        }
-    } else {
-        windfall_codec::WavMetadata::default()
-    };
     for (target, file) in job.targets.iter().zip(&transaction.files) {
         let encoder = Encoder::open_with_wav_metadata(
             &file.stage,
@@ -775,7 +760,7 @@ fn write_files(
             options.sample_rate,
             encoder_channels(&job.settings),
             &tags,
-            &wav_metadata,
+            &windfall_codec::WavMetadata::default(),
         );
         encoders.push(encoder.map_err(|error| named(&target.path, job, &error.to_string()))?);
     }
@@ -909,6 +894,21 @@ fn write_files(
     // The mix that was set aside goes before the files are put in place.
     drop(master);
 
+    let wav_metadata = if matches!(job.settings, EncoderSettings::Wav { .. }) {
+        let metadata = match options.mode {
+            PlayMode::Song => markers::song_metadata(&job.project, &streamed.frame_map, options.region)?,
+            PlayMode::Pattern => markers::pattern_metadata(&job.project, job.pattern, &streamed.frame_map, options.pattern_loops)?,
+        };
+        for encoder in &mut encoders {
+            encoder.set_rendered_wav_metadata(&metadata).map_err(|error| error.to_string())?;
+        }
+        Some(if metadata.tempo.is_some() {
+            "WAV tempo and beat metadata written for the constant rendered tempo."
+        } else {
+            "WAV static tempo and beat metadata omitted because the rendered tempo or meter changes."
+        }.to_owned())
+    } else { None };
+
     // Finalize under staging names so a later encoder failure cannot
     // replace an earlier destination. The transaction restores backups
     // if moving a completed set fails part way through.
@@ -938,6 +938,7 @@ fn write_files(
         files: files.collect(),
         dropped_clips: streamed.dropped_clips,
         mastering: review,
+        wav_metadata,
     })
 }
 

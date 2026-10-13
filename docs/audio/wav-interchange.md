@@ -44,8 +44,24 @@ Offline rendering uses finite `play_passes`, which disables interactive timeline
 navigation in the existing engine. Navigation cues therefore describe the
 linear rendered audio; their notes retain the musical actions. They do not
 claim that the renderer performed jumps or paused waiting for a person. Cue
-positions still follow the compiled tempo map. ACID/beat notes are omitted for
-varying tempo or meter, which cannot be represented by one constant value.
+positions follow the actual offline render clock. Native song/region/pattern
+exports capture sequencer clock anchors after processing each linked-tempo
+control grid, including audio-dependent sources. Region exports use their own
+seek epoch and output origin. Mixer output stems share the full-mix clock;
+isolated mixer and playlist stems replay its effective tempo, even when the
+detector's input is removed from a stem. Metadata uses that captured trajectory,
+never a static tempo reconstruction for a linked clock. Pattern note `ltxt`
+regions map both musical endpoints to output frames, including swing, gate,
+shift and repeated prepared-score extents.
+
+ACID/beat notes are emitted only for a constant tempo over the rendered musical
+body and a representable meter. A changing clock omits both `acid` and
+`WindfallBeats/1`; cues, loops and note regions remain. The final native export
+result's optional `wavMetadata` message reports whether the static tempo/beat
+claim was written or omitted. Tail samples do not add musical beats. Metadata
+discovered during rendering is appended after RIFF `data`, with its size included
+in the final RIFF header; PCM stays in place and the staging transaction still
+protects existing destination files.
 
 These versioned notes are a Windfall extension, not an ACID/RIFF standard or a
 claim of third-party support. Other applications can read standard regions and

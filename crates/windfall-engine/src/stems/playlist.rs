@@ -276,7 +276,10 @@ pub fn render_playlist_stems(
 
     // The mix comes first even when it is not wanted, where only it can
     // say how long an automatic tail is.
-    let mix_pass = mix.is_some() || options.auto_tail;
+    let linked_tempo = compile(project, pool).linked_tempo();
+    let mix_pass = mix.is_some() || options.auto_tail || linked_tempo;
+    let mut tempo_trajectory = Vec::new();
+    let mut frame_map = None;
     let passes = tracks.len() + usize::from(mix_pass);
     let share =
         |pass: usize| move |fraction: f32| (pass as f32 + fraction.clamp(0.0, 1.0)) / passes as f32;
@@ -286,10 +289,11 @@ pub fn render_playlist_stems(
     if mix_pass {
         let scale = share(0);
         let pass = Pass::new(compile(project, pool), options, &[]);
-        let done = pass?.run(
+        let done = pass?.run_clock(
             None,
             &mut |_, block| mix.is_none_or(|stream| sink(stream, block)),
             &mut |fraction| progress(scale(fraction)),
+            linked_tempo.then_some(&mut tempo_trajectory),
         )?;
         if !done.completed {
             return Ok(done);
@@ -297,11 +301,15 @@ pub fn render_playlist_stems(
         length = Some(done.frames as usize);
         frames = done.frames;
         dropped_clips = done.dropped_clips;
+        frame_map = Some(done.frame_map);
     }
+    let tempo_trajectory: std::sync::Arc<[f64]> = tempo_trajectory.into();
     for (number, &(stream, id)) in tracks.iter().enumerate() {
         let scale = share(number + usize::from(mix_pass));
         let stem = playlist_stem_project(project, id);
-        let pass = Pass::new(compile(&stem, pool), options, &[]);
+        let mut plan = compile(&stem, pool);
+        plan.tempo_replay = tempo_trajectory.clone();
+        let pass = Pass::new(plan, options, &[]);
         let done = pass?.run(
             length,
             &mut |_, block| sink(stream, block),
@@ -311,11 +319,13 @@ pub fn render_playlist_stems(
             return Ok(done);
         }
         frames = done.frames;
+        if frame_map.is_none() { frame_map = Some(done.frame_map); }
         // A lane alone never drops more clips than the mix does; report the
         // most any stream of the render left out.
         dropped_clips = dropped_clips.max(done.dropped_clips);
     }
     Ok(Streamed {
+        frame_map: frame_map.unwrap_or_default(),
         frames,
         dropped_clips,
         completed: true,

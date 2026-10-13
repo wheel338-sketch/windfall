@@ -254,6 +254,14 @@ impl Encoder {
         }
     }
 
+    /// Adds WAV metadata discovered from the completed render trajectory.
+    pub fn set_rendered_wav_metadata(&mut self, metadata: &crate::WavMetadata) -> Result<(), CodecError> {
+        match &mut self.inner {
+            Inner::Wav(writer) => writer.set_rendered_metadata(metadata),
+            _ => Err(CodecError::InvalidInput("Rendered WAV metadata requires a WAV encoder".into())),
+        }
+    }
+
     /// Completes the file and moves it to its destination, replacing any
     /// file already there.
     pub fn finalize(self) -> Result<(), CodecError> {
