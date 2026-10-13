@@ -180,7 +180,9 @@ pub(crate) fn wrap(
     });
     let (send, receive, worker) = start(native, &signals);
     Box::new(Threaded {
-        rendered: crate::outputs::OutputBank::new(block),
+        // The fixed DSP quantum can be smaller than the outer callback. Keep
+        // prepared result storage for the standard callback ceiling as well.
+        rendered: crate::outputs::OutputBank::new(block.max(crate::bridge::protocol::MAX_BLOCK)),
         send,
         receive,
         local: Packet::new(block),
@@ -418,6 +420,10 @@ impl ProcessorBackend for Threaded {
         else {
             return Err(ProcessFailed);
         };
+        if out_left.len() > self.rendered.buses[0].len() {
+            self.failed = true;
+            return Err(ProcessFailed);
+        }
         let block = self.local.input[0].len();
         let mut event_at = 0;
         let mut drops = 0_u32;

@@ -451,6 +451,9 @@ pub fn launch(options: Launch) -> Result<(Control, Audio, usize), String> {
         .stdin(Stdio::piped())
         .stdout(Stdio::null())
         .stderr(Stdio::null());
+    if std::env::var_os("WINDFALL_PLUGIN_HELPER_DIAGNOSTICS").is_some() {
+        command.stderr(Stdio::inherit());
+    }
     #[cfg(windows)]
     {
         use std::os::windows::process::CommandExt;

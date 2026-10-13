@@ -420,7 +420,7 @@ unsafe extern "C" fn process(
     // SAFETY: every pointer below comes from the host's block.
     unsafe {
         match plugin.kind {
-            Kind::Dynamic => process_dynamic(plugin, block),
+            Kind::Dynamic => process_dynamic(plugin, audio, block),
             Kind::Gain => process_gain(plugin, block),
             Kind::BridgeDelayed
             | Kind::BridgeIdleHang
@@ -559,7 +559,7 @@ unsafe fn process_bridge_note_probe(
     CLAP_PROCESS_CONTINUE
 }
 
-unsafe fn process_dynamic(plugin: &Plugin, block: &clap_process) -> clap_process_status {
+unsafe fn process_dynamic(plugin: &Plugin, audio: &mut Audio, block: &clap_process) -> clap_process_status {
     let mut incoming = unsafe { Incoming::new(block.in_events) };
     for frame in 0..block.frames_count {
         while let Some(event) = unsafe { incoming.due(frame) } { unsafe { handle_param_event(plugin, event, block.out_events); } }
@@ -569,7 +569,7 @@ unsafe fn process_dynamic(plugin: &Plugin, block: &clap_process) -> clap_process
             let input = unsafe { channel(block.audio_inputs, block.audio_inputs_count, 0, ch) };
             if !input.is_null() { pair[ch as usize] = unsafe { *input.add(frame as usize) } * plugin.value(slot::GAIN) as f32; }
         }
-        if mode == 1.0 { pair = unsafe { plugin.audio() }.bridge_delay.tick(pair, 1.0); }
+        if mode == 1.0 { pair = audio.bridge_delay.tick(pair, 1.0); }
         for ch in 0..2 { let out = unsafe { channel(block.audio_outputs, block.audio_outputs_count, 0, ch) }; if !out.is_null() { unsafe { *out.add(frame as usize) = pair[ch as usize]; } } }
         for bus in 1..block.audio_outputs_count {
             for ch in 0..unsafe { (*block.audio_outputs.add(bus as usize)).channel_count } {

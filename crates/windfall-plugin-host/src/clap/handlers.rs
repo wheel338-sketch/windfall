@@ -345,6 +345,42 @@ impl HostTailImpl for AudioThread<'_> {
 /// offers to plugins.
 pub(crate) struct WindfallHost;
 
+// clack-extensions =0.2.0 publishes HostNotePorts through a double reference
+// (&&clap_host_note_ports), exposing a pointer-to-pointer as the C vtable.
+// Register an ABI-correct local table using the same public owner dispatcher.
+// Keep the pinned dependency unchanged; native rescan tests exercise this table.
+#[derive(Clone, Copy)]
+struct NativeNotePorts;
+// SAFETY: identifier and side match the raw CLAP host-note-ports ABI below.
+unsafe impl clack_host::extensions::Extension for NativeNotePorts {
+    const IDENTIFIERS: &'static [&'static std::ffi::CStr] =
+        <HostNotePorts as clack_host::extensions::Extension>::IDENTIFIERS;
+    type ExtensionSide =
+        <HostNotePorts as clack_host::extensions::Extension>::ExtensionSide;
+    unsafe fn from_raw(_: clack_host::extensions::RawExtension<Self::ExtensionSide>) -> Self { Self }
+}
+// SAFETY: a single static reference to the exact C struct, with matching callbacks.
+unsafe impl clack_host::extensions::ExtensionImplementation<WindfallHost> for NativeNotePorts {
+    const IMPLEMENTATION: clack_host::extensions::RawExtensionImplementation =
+        clack_host::extensions::RawExtensionImplementation::new(
+            &clap_sys::ext::note_ports::clap_host_note_ports {
+                supported_dialects: Some(native_note_dialects),
+                rescan: Some(native_note_rescan),
+            },
+        );
+}
+unsafe extern "C" fn native_note_dialects(host: *const clap_sys::host::clap_host) -> u32 {
+    // SAFETY: the public dispatcher validates the CLAP host and owner access.
+    unsafe { clack_host::extensions::wrapper::HostWrapper::<WindfallHost>::handle_main_thread(host, |state| Ok(state.supported_dialects().bits())) }.unwrap_or(0)
+}
+unsafe extern "C" fn native_note_rescan(host: *const clap_sys::host::clap_host, flags: u32) {
+    // SAFETY: the public dispatcher validates the CLAP host and owner access.
+    let _ = unsafe { clack_host::extensions::wrapper::HostWrapper::<WindfallHost>::handle_main_thread(host, |state| {
+        HostNotePortsImpl::rescan(state, NotePortRescanFlags::from_bits_truncate(flags));
+        Ok(())
+    }) };
+}
+
 impl HostHandlers for WindfallHost {
     type Shared<'a> = Shared;
     type MainThread<'a> = MainThread<'a>;
@@ -361,7 +397,7 @@ impl HostHandlers for WindfallHost {
             .register::<HostGui>()
             .register::<HostTimer>()
             .register::<HostAudioPorts>()
-            .register::<HostNotePorts>();
+            .register::<NativeNotePorts>();
     }
 }
 

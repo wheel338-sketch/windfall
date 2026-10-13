@@ -578,7 +578,8 @@ pub fn entry() -> bool {
         }
         run(address)
     })();
-    if result.is_err() {
+    if let Err(error) = result {
+        eprintln!("Windfall audio helper failed: {error}");
         std::process::exit(70);
     }
     true

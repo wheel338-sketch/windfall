@@ -18,6 +18,7 @@ fn clap_and_vst3_live_switches_readmit_ports_latency_parameters_and_note_capabil
         assert_eq!(baseline.audio_outputs.len(), 1);
         assert!(instance.refresh_capabilities().is_err());
         for phase in 1..=6 {
+            eprintln!("dynamic fixture {format} phase {phase}: processing current admission");
             assert!(processor.set_param(0, 12000, phase as f64));
             let mut left = [1.0; 128];
             let mut right = [1.0; 128];
@@ -25,6 +26,7 @@ fn clap_and_vst3_live_switches_readmit_ports_latency_parameters_and_note_capabil
                 processor.process(&mut left, &mut right),
                 ProcessStatus::Failed
             );
+            eprintln!("dynamic process returned; owner idle begins");
             let mut requested = false;
             instance.idle(&mut |notification| {
                 requested |= matches!(
@@ -46,6 +48,7 @@ fn clap_and_vst3_live_switches_readmit_ports_latency_parameters_and_note_capabil
             });
             assert!(requested, "{format} phase {phase}");
             instance.deactivate(processor).unwrap();
+            eprintln!("dynamic fixture {format} phase {phase}: inactive refresh");
             instance.refresh_capabilities().unwrap();
             let state = instance.save_state().unwrap();
             processor = instance.activate(48_000.0, 128).unwrap();
@@ -88,6 +91,7 @@ fn clap_and_vst3_live_switches_readmit_ports_latency_parameters_and_note_capabil
                 assert_eq!(stereo, [[0.21, 0.22]; 128]);
             }
             let mut reopened = module.create(id).unwrap();
+            eprintln!("dynamic fixture {format} phase {phase}: reopen state");
             reopened
                 .load_state(&PluginState::from_bytes(state.into_bytes()))
                 .unwrap();
