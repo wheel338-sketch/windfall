@@ -82,7 +82,7 @@ mod windows {
                     file.take(crate::MAX_STATE_BYTES as u64 + 1)
                         .read_to_end(&mut bytes)
                         .map_err(|e| e.to_string())?;
-                    context.state.load(crate::Program::decode(&bytes)?)
+                    context.state.load_editor(crate::Program::decode(&bytes)?)
                 })();
                 let label = result.err().unwrap_or_else(|| {
                     "Program queued. Host transport and tempo drive playback.".into()

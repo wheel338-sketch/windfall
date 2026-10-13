@@ -43,11 +43,7 @@ impl Program {
     /// Validate on the main thread before preparing or replacing state.
     pub fn validate(&self) -> Result<(), String> {
         self.project.check()?;
-        if !self.project.plugins.is_empty() {
-            return Err(
-                "Nested native plugins need an export-owned provider; not supported yet".into(),
-            );
-        }
+        for binding in &self.project.plugins { crate::nested::validate(binding)?; }
         for track in &self.project.mixer.tracks {
             if track.recording.is_some() {
                 return Err(

@@ -3,9 +3,11 @@
 //! IO, device opening, controller locks or project compilation occurs in process.
 
 mod clap;
+mod nested;
 pub mod package;
 mod panel;
 mod publication;
+mod runtime;
 mod state;
 mod vst3;
 
@@ -26,6 +28,7 @@ pub struct GuestEngine {
     _controller: Controller,
     sample_rate: u32,
     latency: u32,
+    provider: Option<std::sync::Arc<nested::Provider>>,
 }
 
 impl GuestEngine {
@@ -37,7 +40,9 @@ impl GuestEngine {
             return Err("Host sample rate must be an integral 8000–384000 Hz".into());
         }
         program.validate()?;
-        let samples = program.sample_pool();
+        let mut samples = program.sample_pool();
+        let provider = if program.project.plugins.is_empty() { None } else { Some(nested::Provider::new()?) };
+        if let Some(provider) = &provider { samples.set_plugin_factory(provider.clone()); }
         // Host clock wins. Retain the original document in state, but remove
         // internal clock/navigation drivers from the detached playback plan.
         let mut playback = program.project.clone();
@@ -48,12 +53,15 @@ impl GuestEngine {
         let (processor, controller) =
             Processor::prepare_plugin(&playback, &samples, sample_rate as u32, OUTPUT_CHANNELS)
                 .map_err(|error| error.to_string())?;
+        if let Some(error) = provider.as_ref().and_then(|p| p.error()) { return Err(error); }
+        if let Some(error) = controller.project_preparation_error() { return Err(error.to_string()); }
         let latency = controller.latency_frames();
         Ok(Self {
             processor,
             _controller: controller,
             sample_rate: sample_rate as u32,
             latency,
+            provider,
         })
     }
 

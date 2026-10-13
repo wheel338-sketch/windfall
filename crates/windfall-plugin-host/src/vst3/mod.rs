@@ -31,6 +31,7 @@ pub(crate) struct Vst3Module {
     inner: std::sync::Arc<ModuleData>,
 }
 pub(crate) struct ModuleData {
+    path: std::path::PathBuf,
     #[cfg(target_os = "macos")]
     owner: bundle_macos::MacModuleLease,
     #[cfg(not(target_os = "macos"))]
@@ -87,7 +88,7 @@ impl Vst3Module {
         {
             let owner = bundle_macos::MacModuleLease::load(_path)?;
             Ok(Self {
-                inner: std::rc::Rc::new(ModuleData { owner }),
+                inner: std::rc::Rc::new(ModuleData { owner, path: _path.to_owned() }),
             })
         }
         #[cfg(not(target_os = "macos"))]
@@ -158,6 +159,7 @@ impl Vst3Module {
             // Once module entry succeeds, every later failure must still
             // run module exit before unloading the library.
             let mut module = ModuleData {
+                path: path.to_owned(),
                 factory: None,
                 library,
                 exit,

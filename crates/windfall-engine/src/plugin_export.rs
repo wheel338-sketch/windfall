@@ -14,18 +14,16 @@ impl Processor {
         samples: &SamplePool,
         sample_rate: u32,
         output_channels: usize,
-    ) -> Result<(Self, Controller), crate::sampler_processing::SamplerPreparationError> {
-        let prepared = Controller::try_prepare_project(project, samples)?;
+    ) -> Result<(Self, Controller), String> {
+        let prepared = Controller::try_prepare_project(project, samples).map_err(|e| e.to_string())?;
         let controller = Controller::new();
         controller.set_prepared_project(project, prepared);
-        if controller.project_preparation_error().is_some() {
-            return Err(
-                crate::sampler_processing::SamplerPreparationError::Unsupported(
-                    "Detached plugin project publication was refused.",
-                ),
-            );
+        if let Some(error) = controller.project_preparation_error() {
+            return Err(error.to_string());
         }
-        let mut processor = Self::reopen(&controller, sample_rate);
+        let (mut processor, _, retirement) = controller.try_attach(sample_rate,
+            crate::project_preparation::AttachmentMode::Independent).map_err(|e| e.to_string())?;
+        drop(retirement);
         processor.set_output_channels(output_channels);
         // Consume the numeric startup prefix before the external clock can
         // play. Otherwise the first callback's default pattern/seek messages

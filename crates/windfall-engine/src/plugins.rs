@@ -25,6 +25,9 @@ pub struct PluginTransport {
 
 /// Prepared effects. Setup and destruction belong to the factory's owner thread.
 pub trait HostedEffect: Send {
+    /// Hard-reset owned callback state and invalidate asynchronous output.
+    /// No native owner calls, allocation, destruction, IO or wait are allowed.
+    fn reset_hosted(&mut self) {}
     fn set_sidechain_input(&mut self, _input: Option<u32>) {}
     /// Services an ownership exchange without processing sound. Called at
     /// callback/block boundaries for stopped, bypassed and retiring slots too.
@@ -268,6 +271,12 @@ pub(crate) struct ExternalEffect {
 }
 
 impl ExternalEffect {
+    #[cfg(feature = "plugin-export")]
+    pub fn reset_plugin(&mut self) {
+        if let Some(unit) = &mut self.unit { unit.reset_hosted(); }
+        self.dry.reset_plugin();
+        self.scratch.fill([0.0; 2]);
+    }
     pub fn new(
         unit: Option<Box<dyn HostedEffect>>,
         binding: &PluginBinding,

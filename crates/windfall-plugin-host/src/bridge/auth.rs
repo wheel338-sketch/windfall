@@ -63,6 +63,16 @@ fn parent_budget(deadline: Instant, cancelled: Option<&AtomicBool>) -> io::Resul
 }
 
 pub struct Key([u8; 32]);
+/// Export DLLs each have their own Rust statics. A PID/serial pair alone can
+/// collide when a host loads two exported bundles/formats in the same process.
+/// Generate an independent public namespace nonce off audio; it is separate
+/// from (and never reveals) the subsequently generated bootstrap secret.
+pub fn session_nonce() -> io::Result<u64> {
+    let random = Key::generate()?;
+    let nonce = u64::from_le_bytes(random.0[..8].try_into().expect("eight RNG bytes"));
+    if nonce == 0 { return Err(io::Error::other("bridge namespace RNG returned zero")); }
+    Ok(nonce)
+}
 impl Key {
     pub fn generate() -> io::Result<Self> {
         let mut bytes = [0; 32];

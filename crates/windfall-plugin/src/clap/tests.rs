@@ -38,7 +38,7 @@ unsafe impl std::alloc::GlobalAlloc for Metered {
         unsafe { std::alloc::System.realloc(ptr, layout, size) }
     }
 }
-fn realtime<T>(operation: impl FnOnce() -> T) -> (T, usize) {
+pub(crate) fn realtime<T>(operation: impl FnOnce() -> T) -> (T, usize) {
     struct Guard;
     impl Drop for Guard {
         fn drop(&mut self) {
@@ -53,7 +53,7 @@ fn realtime<T>(operation: impl FnOnce() -> T) -> (T, usize) {
     (result, count)
 }
 
-fn program() -> Program {
+pub(crate) fn program() -> Program {
     let mut program = Program::default();
     program.project.next_id = 20;
     program.project.samples.push(SampleAsset {

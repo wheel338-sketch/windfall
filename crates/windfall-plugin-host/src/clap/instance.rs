@@ -45,6 +45,8 @@ struct Extensions {
 }
 
 pub(crate) struct ClapInstance {
+    reported_latency: Option<u32>,
+    pending_latency: Option<u32>,
     /// Declared before the instance so that it can never outlive it.
     editor: Option<Editor>,
     instance: PluginInstance<WindfallHost>,
@@ -243,6 +245,8 @@ impl ClapInstance {
         };
 
         Ok(Self {
+            reported_latency: None,
+            pending_latency: None,
             editor: None,
             instance,
             extensions,
@@ -399,6 +403,10 @@ impl InstanceBackend for ClapInstance {
             .extensions
             .latency
             .map_or(0, |latency| latency.get(&self.instance.plugin_handle()));
+        if self.reported_latency.is_some_and(|before| before != latency) {
+            self.pending_latency = Some(latency);
+        }
+        self.reported_latency = Some(latency);
         shared.latency.store(latency, Ordering::Relaxed);
         self.instance
             .access_shared_handler(|shared| shared.take(flag::LATENCY));
@@ -456,11 +464,13 @@ impl InstanceBackend for ClapInstance {
             }
         }
 
+        if let Some(samples) = self.pending_latency.take() { notify(PluginNotification::LatencyChanged { samples }); }
         if flags & flag::LATENCY != 0
             && let (Some(latency), Some(active)) = (self.extensions.latency, active)
         {
             let samples = latency.get(&self.instance.plugin_handle());
             if active.latency.swap(samples, Ordering::Relaxed) != samples {
+                self.reported_latency = Some(samples);
                 notify(PluginNotification::LatencyChanged { samples });
             }
         }

@@ -2,6 +2,9 @@
 //! existing host-fixture pattern, build only when the integrator runs this test.
 #![cfg(any(windows, target_os = "linux", target_os = "macos"))]
 mod common;
+#[cfg(windows)]
+#[path = "native_export/notifications.rs"]
+mod notifications;
 use std::{
     path::{Path, PathBuf},
     process::Command,
@@ -151,5 +154,59 @@ fn exported_clap_and_vst3_load_through_own_host_audio_state_tempo_and_reset() {
             )
             .is_ok()
         );
+    }
+}
+#[test]
+fn runtime_probe_and_real_host_refuse_missing_unstamped_mismatched_and_corrupt_bundles() {
+    use windfall_plugin_host::export_runtime::{probe, Stamp};
+    let expected = Stamp::current();
+    probe(runtime(), &expected).unwrap();
+    let mut wrong = expected.clone(); wrong.abi += 1;
+    assert!(probe(runtime(), &wrong).unwrap_err().contains("runtime mismatch"));
+    wrong = expected.clone(); wrong.version.push_str("-wrong");
+    assert!(probe(runtime(), &wrong).unwrap_err().contains("runtime mismatch"));
+    wrong = expected.clone(); wrong.target.push_str("-wrong");
+    assert!(probe(runtime(), &wrong).unwrap_err().contains("runtime mismatch"));
+    let root = Path::new(env!("CARGO_TARGET_TMPDIR")).join(format!("runtime-refusals-{}", std::process::id()));
+    std::fs::create_dir_all(&root).unwrap();
+    assert!(probe(&root.join("missing"), &expected).unwrap_err().contains("runtime is missing"));
+    let invalid = root.join("invalid.dll"); std::fs::write(&invalid, b"not native code").unwrap();
+    assert!(probe(&invalid, &expected).unwrap_err().contains("Cannot load Windfall runtime"));
+    let resources = root.join("resources");
+    let executable = root.join("application/Windfall.exe");
+    let bundled = resources.join("plugin-runtime").join(windfall_plugin_host::export_runtime::filename());
+    let adjacent = executable.parent().unwrap().join("plugin-runtime").join(windfall_plugin_host::export_runtime::filename());
+    std::fs::create_dir_all(bundled.parent().unwrap()).unwrap();
+    std::fs::create_dir_all(adjacent.parent().unwrap()).unwrap();
+    std::fs::copy(runtime(), &bundled).unwrap(); std::fs::copy(runtime(), &adjacent).unwrap();
+    assert_eq!(windfall_plugin::package::resolve_runtime(&resources, &executable, None).unwrap(), bundled);
+    std::fs::write(&bundled, b"invalid preferred runtime").unwrap();
+    assert!(windfall_plugin::package::resolve_runtime(&resources, &executable, None).is_err());
+    std::fs::remove_file(&bundled).unwrap();
+    assert_eq!(windfall_plugin::package::resolve_runtime(&resources, &executable, None).unwrap(), adjacent);
+    for format in ["clap", "vst3"] {
+        let destination = root.join(format!("bundle-{format}"));
+        if destination.exists() { std::fs::remove_dir_all(&destination).unwrap(); }
+        export_bundle(&Program::default(), runtime(), &destination, Platform::native().unwrap()).unwrap();
+        let resources = if format == "vst3" || cfg!(target_os = "macos") {
+            destination.join(format!("Windfall.{format}/Contents/Resources"))
+        } else { destination.clone() };
+        let manifest = resources.join("windfall-runtime.json");
+        let bundle = destination.join(format!("Windfall.{format}"));
+        let module = PluginHost::windfall().load(&bundle).unwrap();
+        let id = module.descriptors()[0].id.clone();
+        std::fs::remove_file(&manifest).unwrap();
+        assert!(module.create(&id).err().unwrap().to_string().contains("stamp is missing"));
+        for at in 0..3 {
+            let mut wrong = expected.clone();
+            match at { 0 => wrong.abi += 1, 1 => wrong.version.push_str("-wrong"), _ => wrong.target.push_str("-wrong") }
+            std::fs::write(&manifest, serde_json::to_vec(&wrong).unwrap()).unwrap();
+            assert!(module.create(&id).err().unwrap().to_string().contains("runtime mismatch"));
+        }
+        std::fs::write(&manifest, b"invalid stamp").unwrap();
+        assert!(module.create(&id).err().unwrap().to_string().contains("stamp is invalid"));
+        std::fs::write(&manifest, serde_json::to_vec(&expected).unwrap()).unwrap();
+        std::fs::write(resources.join("windfall-state.json"), b"invalid state").unwrap();
+        assert!(module.create(&id).is_err());
     }
 }

@@ -163,6 +163,19 @@ impl Audio {
     pub fn desired_generation(&self) -> u64 {
         self.generation
     }
+    pub fn parameters(&self) -> &[ParameterSpec] { &self.parameters }
+    /// Plugin hard reset additionally removes transition ramps and old PCM.
+    /// Ordinary seek retains the click-suppression transition via reset_timeline.
+    pub fn reset_hard(&mut self) {
+        self.all_notes_off();
+        self.reset_timeline();
+        self.output.left.fill(0.0);
+        self.output.right.fill(0.0);
+        self.last = [0.0; 2];
+        self.correction = [0.0; 2];
+        self.ramp_remaining = 0;
+        self.transition = false;
+    }
     /// Local collection intent, never evidence of native admission/processing.
     pub fn collection_frontier(&self) -> (u64, u64, u64) {
         (self.epoch, self.sequence, self.generation)
@@ -897,6 +910,24 @@ mod tests {
             .unwrap(),
             region,
         )
+    }
+    #[test]
+    fn hard_reset_clears_held_notes_pcm_ramps_and_old_completion_proof() {
+        for kind in [Kind::Instrument, Kind::Effect] {
+            let (mut audio, region) = make(kind, 17);
+            audio.note_on(60, 1.0);
+            audio.last = [0.75, -0.25]; audio.correction = audio.last;
+            audio.ramp_remaining = 64; audio.available = true;
+            audio.output.left.fill(0.75); audio.output.right.fill(-0.25);
+            audio.dry.fill([0.5, -0.5]); audio.completed_proof = Some((1, 0, 2));
+            audio.reset_hard();
+            assert_eq!(audio.voices(), 0); assert_eq!(audio.completed_proof(), None);
+            assert_eq!(region.timeline_epoch(), Ok(2));
+            let (mut left, mut right) = ([0.0; 64], [0.0; 64]);
+            audio.process(&mut left, &mut right);
+            assert!(left.iter().chain(&right).all(|v| *v == 0.0));
+            assert_eq!(audio.collection_frontier().0, 2);
+        }
     }
     #[test]
     fn instance_snapshot_retains_overlap_expression_and_all_channels_after_reset() {
