@@ -8,7 +8,10 @@ Integration in progress. No final acceptance recommendation yet. Tracker files r
 - Merged `gpt/r6-wav-tempo` with `--no-ff`, no conflicts. Workspace all-target check started; no result credited yet. Preset-render, FLP and languages did not yet contain a completed hand-off at initial readiness inspection.
 - WAV-tempo check PASS: `cargo check --workspace --all-targets`, zero warnings/errors, exit 0, 9 s (`target/round6-branch01-check-repair2.log`). Two fixture compile repairs: `UpdateClips.updates` and explicitly f32 controller-map range inputs. No assertion/tolerance change; failed initial/repair1 logs retained. Native tempo/PCM fixtures remain unexecuted.
 
-## Final gates
+### Integration and verification record
+
+- Six-merge frontend lint PASS `pnpm --dir apps/desktop lint`, exit 0, zero diagnostics, 34 s (`target/round6-lint-first.log`). Six-merge Rust strict Clippy PASS `cargo clippy --workspace --all-targets -- -D warnings`, exit 0, zero diagnostics, 3 s (`target/round6-clippy-six-repair2.log`); retained initial/new preset fixed-chunk warnings, replaced both stereo iterators without changing samples/assertions.
+- Cross-branch source review found an additional real export seam: the new retained original `.wfpreset` has no PCM, so the SF2-only packet preparation would refuse it. Implemented schema **3** `presetSources` with exact bytes/source IDs, separate rendered PCM, 1 MiB per original /16 MiB aggregate /64 MiB outer limits, immutable bounded file reads and FileKey fencing, schema1/2 compatibility, duplicate/unknown/type refusal and non-destructive damaged/missing recall diagnostics. Native `rendered_preset_plugin_packet_carries_exact_original_source_without_pcm_substitution` PASS **1/0/0**, exit 0, 144 s (`target/round6-raw-preset-native.log`): exact originals and result PCM survive source-file deletion and encode/decode, source IDs never claim PCM, damaged bytes stay saveable and reported, duplicate/oversized inputs refuse. Initial all-target check required adding the default empty source table to an existing Packet test literal; no assertion changed (`target/round6-raw-preset-check.log`). Runtime/helper rebuild is required before further native bundle tests. Documentation updated; no dependency/registry change.
 
 - Artifact audits PASS: fresh `bash scripts/gen-bindings.sh target/round6/fresh-bindings` 623 files, exit 0, 14 s (`target/round6-bindings-fresh-first.log`); `node scripts/check-bindings.mjs target/round6/fresh-bindings` (`round6-bindings-compare-first.log`), `node scripts/check-sim.mjs` (`round6-sim-check-first.log`), `node --test scripts/check-bindings.test.mjs` **10/0/0** (`round6-bindings-node-first.log`), `node target/round6/prefix-audit.cjs` (`round6-prefix-first.log`) all exit 0. Base **c0144d31** preserved: Command 129→130, Effect enum+ALL 68/68, Instrument enum+ALL 50/50, effect 1095 params/469 choices, instrument 1577/453, note modules 221/15 and track indices.
 - Integrated new preset UI translated in en/es with complete templates, retained raw errors, reactive controls/re-render/proprietary source report and locale rate formatting. Local pinned shadcn docs command and official Base UI component docs read; no installation. Typecheck PASS 13 s (`target/round6-typecheck-localization.log`). Mounted dialog/catalog tests PASS **14/0/0**, two files, 7 s (`target/round6-preset-ui-localization-final.log`), including live en→es with edited note retained. Updated rate text expectations to actual Intl en-US grouped numbers (44,100/48,000), not a weaker match. No claim that this closes whole-app or Rust-code localization gaps.
@@ -49,7 +52,12 @@ Integration in progress. No final acceptance recommendation yet. Tracker files r
 
 - Updates merged without conflicts; `cargo check --workspace --all-targets` PASS, zero warnings/errors, exit 0, 8 s (`target/round6-branch02-check-repair1.log`). Added an explicit `Result<(), String>` for capture publication's error type; initial inference failure retained. Rollback/dirty capture/endpoint native tests pending.
 
-Pending. Counts are reported only for commands actually completed in this run.
+## Final gate table
+
+Pending all eight merges. Counts above are actual completed commands on the
+stated intermediate source; no final full-workspace or frontend-suite result is
+credited yet. Packet schema3 strict Clippy passes with zero diagnostics, exit0,
+8s (`target/round6-packet-clippy-repair1.log`).
 
 ## Cross-target checks
 

@@ -22,7 +22,6 @@ mod files;
 mod files_qa;
 mod flp;
 mod import_formats;
-mod preset_render;
 mod import_recording;
 mod library;
 mod mastering_qa;
@@ -48,6 +47,7 @@ mod plugin_recording;
 mod plugin_update;
 #[cfg(windows)]
 mod plugins;
+mod preset_render;
 mod project_preparation;
 mod rack_assets;
 mod rack_second_pass;

@@ -867,9 +867,11 @@ fn carry_owned_presets(
         };
         let source = Path::new(source);
         if source.parent() != Some(owned_folder)
-            || !source
-                .extension()
-                .is_some_and(|e| e.eq_ignore_ascii_case("ds") || e.eq_ignore_ascii_case("wav") || e.eq_ignore_ascii_case("wfpreset"))
+            || !source.extension().is_some_and(|e| {
+                e.eq_ignore_ascii_case("ds")
+                    || e.eq_ignore_ascii_case("wav")
+                    || e.eq_ignore_ascii_case("wfpreset")
+            })
         {
             continue;
         }

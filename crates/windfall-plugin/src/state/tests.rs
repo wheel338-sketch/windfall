@@ -65,7 +65,9 @@ fn raw_sf2_identity_bytes_and_real_instrument_pcm_survive_packet_recall() {
             guest
                 .render(256)
                 .unwrap()
-                .as_chunks::<{ crate::OUTPUT_CHANNELS }>().0.iter()
+                .as_chunks::<{ crate::OUTPUT_CHANNELS }>()
+                .0
+                .iter()
                 .flat_map(|f| [f[2], f[3]]),
         );
     }
@@ -137,6 +139,7 @@ fn schema_one_pcm_packets_still_load_and_hostile_packets_are_bounded() {
         project: windfall_project::file::to_json(&bank.project).unwrap(),
         samples: vec![],
         soundfonts: bank.soundfonts,
+        preset_sources: vec![],
     };
     assert!(
         Program::decode(&serde_json::to_vec(&packet).unwrap())

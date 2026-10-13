@@ -347,7 +347,9 @@ fn rendered_metadata_follows_streamed_pcm_without_rewriting_or_moving_data() {
     assert!(data < cues);
     let actual: Vec<f32> = table[data]
         .1
-        .as_chunks::<4>().0.iter()
+        .as_chunks::<4>()
+        .0
+        .iter()
         .map(|b| f32::from_le_bytes(*b))
         .collect();
     assert_eq!(actual, samples);

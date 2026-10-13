@@ -170,15 +170,24 @@ impl SampleCache {
     ///
     /// The error is a sentence that names the file and can be shown as it is.
     pub fn decode(&self, path: &Path) -> Result<AudioBuffer, String> {
-        if let Some(reason) = crate::session::unsupported_source(path) { return Err(reason.into()); }
+        if let Some(reason) = crate::session::unsupported_source(path) {
+            return Err(reason.into());
+        }
         let key = FileKey::of(path)?;
         if let Some(buffer) = lock(&self.inner).touch(&key) {
             return Ok(buffer);
         }
-        let buffer = if path.extension().is_some_and(|e| e.eq_ignore_ascii_case("wfpreset")) {
+        let buffer = if path
+            .extension()
+            .is_some_and(|e| e.eq_ignore_ascii_case("wfpreset"))
+        {
             let bytes = crate::session::read_preset_source(path)?;
-            windfall_engine::preset_render::render(&bytes, Default::default(), 48_000, &mut || true)?
-        } else { windfall_codec::decode_file(path).map_err(|error| unreadable(path, &error))? };
+            windfall_engine::preset_render::render(&bytes, Default::default(), 48_000, &mut || {
+                true
+            })?
+        } else {
+            windfall_codec::decode_file(path).map_err(|error| unreadable(path, &error))?
+        };
         if FileKey::of(path)? != key {
             return Err("The source file changed while audio was being decoded. Try again.".into());
         }

@@ -325,7 +325,10 @@ impl Project {
     }
     /// A source preset is raw recipe storage, carried with project assets.
     pub fn is_preset_source(&self, id: SampleId) -> bool {
-        self.settings.preset_renders.iter().any(|recipe| recipe.source == id)
+        self.settings
+            .preset_renders
+            .iter()
+            .any(|recipe| recipe.source == id)
     }
 
     pub fn channel(&self, id: ChannelId) -> Option<&Channel> {

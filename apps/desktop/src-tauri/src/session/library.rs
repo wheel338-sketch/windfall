@@ -49,7 +49,11 @@ pub(super) struct Import {
 }
 impl Import {
     fn name(&self) -> String {
-        paths::stem(self.owned.as_ref().map_or(&self.file, |owned| &owned.original))
+        paths::stem(
+            self.owned
+                .as_ref()
+                .map_or(&self.file, |owned| &owned.original),
+        )
     }
 }
 
@@ -400,9 +404,14 @@ impl Session {
 
     fn decode_for_generation(&self, path: &str, generation: u64) -> Result<Import, String> {
         let file = paths::absolute(path)?;
-        if file.extension().is_some_and(|e| e.eq_ignore_ascii_case("wfpreset") || e.eq_ignore_ascii_case("ds")) {
-            let import = self.prepare_preset_import(&file, generation, None, Default::default(), None)?;
-            #[cfg(test)] self.pause("import:decoded");
+        if file
+            .extension()
+            .is_some_and(|e| e.eq_ignore_ascii_case("wfpreset") || e.eq_ignore_ascii_case("ds"))
+        {
+            let import =
+                self.prepare_preset_import(&file, generation, None, Default::default(), None)?;
+            #[cfg(test)]
+            self.pause("import:decoded");
             return Ok(import);
         }
         self.pin_derived(&file);
@@ -453,7 +462,10 @@ impl Session {
         installed: Option<std::sync::Arc<std::sync::atomic::AtomicBool>>,
         build: impl FnOnce(&State, SamplePath, SampleId, &AudioBuffer) -> Command,
     ) -> Result<DispatchResult, String> {
-        let original_file = import.owned.as_ref().map_or_else(|| import.file.clone(), |p| p.original.clone());
+        let original_file = import
+            .owned
+            .as_ref()
+            .map_or_else(|| import.file.clone(), |p| p.original.clone());
         let mut owned_preset = self.own_preset(&mut import);
         // Read annotations off-lock from the same decoded file version. The
         // ordinary post-preparation version guard below covers this read too.
@@ -506,20 +518,34 @@ impl Session {
                 // source's exact ID, including optional mixer allocations.
                 let source_id = if owned.settings.is_some() {
                     let mut candidate = windfall_project::Document::new(project.clone());
-                    candidate.dispatch(command.clone(), None).map_err(|e| e.to_string())?;
+                    candidate
+                        .dispatch(command.clone(), None)
+                        .map_err(|e| e.to_string())?;
                     if let Some(settings) = owned.settings
-                        && let Some(channel) = candidate.project().channels.iter().find(|c| c.source.sample() == Some(sample)) {
+                        && let Some(channel) = candidate
+                            .project()
+                            .channels
+                            .iter()
+                            .find(|c| c.source.sample() == Some(sample))
+                    {
                         command = Command::Batch {
                             label: Some("Prepare rendered sampler".into()),
-                            commands: vec![command, Command::UpdateSampler {
-                                id: channel.id, patch: windfall_project::SamplerPatch {
-                                    root_key: Some(settings.note), ..Default::default()
+                            commands: vec![
+                                command,
+                                Command::UpdateSampler {
+                                    id: channel.id,
+                                    patch: windfall_project::SamplerPatch {
+                                        root_key: Some(settings.note),
+                                        ..Default::default()
+                                    },
                                 },
-                            }],
+                            ],
                         };
                     }
                     Some(SampleId(candidate.project().next_id))
-                } else { None };
+                } else {
+                    None
+                };
                 command = Command::Batch {
                     label: Some("Import preset source and rendered sample".into()),
                     commands: vec![
@@ -540,9 +566,16 @@ impl Session {
                 if let (Some(settings), Some(source)) = (owned.settings, source_id) {
                     command = Command::Batch {
                         label: Some("Render preset as sample".into()),
-                        commands: vec![command, Command::RegisterPresetRender {
-                            recipe: windfall_project::SamplePresetRender { sample, source, settings },
-                        }],
+                        commands: vec![
+                            command,
+                            Command::RegisterPresetRender {
+                                recipe: windfall_project::SamplePresetRender {
+                                    sample,
+                                    source,
+                                    settings,
+                                },
+                            },
+                        ],
                     };
                 }
             }
@@ -564,7 +597,9 @@ impl Session {
             }
             let mut ticket =
                 self.sample_edit_ticket(&state, command, None, vec![(sample, source.clone())])?;
-            if let Some(guard) = &import.render_guard { ticket = ticket.cancellable(guard.cancellation()); }
+            if let Some(guard) = &import.render_guard {
+                ticket = ticket.cancellable(guard.cancellation());
+            }
             if let Some(installed) = &installed {
                 ticket = ticket.on_install(installed.clone());
             }
@@ -596,7 +631,8 @@ impl Session {
                 );
             }
             if crate::samples::FileKey::of(&owned.original)? != owned.original_version
-                || super::preset_assets::read_original(&owned.original)? != owned.bytes {
+                || super::preset_assets::read_original(&owned.original)? != owned.bytes
+            {
                 return Err("The preset source changed during preparation. Try again.".into());
             }
         }

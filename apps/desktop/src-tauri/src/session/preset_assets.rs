@@ -11,16 +11,23 @@ use windfall_core::AudioBuffer;
 
 static SERIAL: AtomicU64 = AtomicU64::new(0);
 pub(crate) fn read_original(path: &std::path::Path) -> Result<Vec<u8>, String> {
-    let limit = if path.extension().is_some_and(|e| e.eq_ignore_ascii_case("wfpreset")) {
+    let limit = if path
+        .extension()
+        .is_some_and(|e| e.eq_ignore_ascii_case("wfpreset"))
+    {
         windfall_engine::preset_render::MAX_PRESET_BYTES
-    } else { windfall_codec::MAX_DRUMSYNTH_PRESET_BYTES };
+    } else {
+        windfall_codec::MAX_DRUMSYNTH_PRESET_BYTES
+    };
     let mut bytes = Vec::new();
     fs::File::open(path)
         .map_err(|e| e.to_string())?
         .take(limit as u64 + 1)
         .read_to_end(&mut bytes)
         .map_err(|e| e.to_string())?;
-    if bytes.len() > limit { return Err(format!("Preset source exceeds {limit} bytes.")); }
+    if bytes.len() > limit {
+        return Err(format!("Preset source exceeds {limit} bytes."));
+    }
     Ok(bytes)
 }
 pub(super) struct OwnedPreset {
@@ -38,7 +45,9 @@ impl Drop for OwnedPreset {
     fn drop(&mut self) {
         if !self.installed {
             let _ = fs::remove_file(&self.path);
-            if self.rendered_owned { let _ = fs::remove_file(&self.rendered); }
+            if self.rendered_owned {
+                let _ = fs::remove_file(&self.rendered);
+            }
         }
     }
 }
@@ -49,8 +58,13 @@ impl Session {
 
     /// Both public DrumSynth and Windfall recipes use this same RAII ownership
     /// and subsequent import batch. No installed asset can be overwritten.
-    pub(super) fn stage_preset(&self, original: &std::path::Path, bytes: Vec<u8>, audio: &AudioBuffer,
-        original_version: crate::samples::FileKey) -> Result<OwnedPreset, String> {
+    pub(super) fn stage_preset(
+        &self,
+        original: &std::path::Path,
+        bytes: Vec<u8>,
+        audio: &AudioBuffer,
+        original_version: crate::samples::FileKey,
+    ) -> Result<OwnedPreset, String> {
         let folder = self.store().recordings_dir().join("Imported presets");
         fs::create_dir_all(&folder).map_err(|e| e.to_string())?;
         let mut staged = tempfile::NamedTempFile::new_in(&folder).map_err(|e| e.to_string())?;
@@ -66,7 +80,10 @@ impl Session {
                 crate::paths::stem(original),
                 std::process::id(),
                 SERIAL.fetch_add(1, Ordering::Relaxed),
-                original.extension().and_then(|e| e.to_str()).unwrap_or("wfpreset")
+                original
+                    .extension()
+                    .and_then(|e| e.to_str())
+                    .unwrap_or("wfpreset")
             ));
             match staged.persist_noclobber(&path) {
                 Ok(_) => {
@@ -97,10 +114,16 @@ impl Session {
             rendered_owned: false,
         };
         let staged_wav = tempfile::NamedTempFile::new_in(&folder).map_err(|e| e.to_string())?;
-        windfall_codec::write_wav(staged_wav.path(), audio, windfall_codec::WavSampleFormat::Float32)
-            .map_err(|e| e.to_string())?;
+        windfall_codec::write_wav(
+            staged_wav.path(),
+            audio,
+            windfall_codec::WavSampleFormat::Float32,
+        )
+        .map_err(|e| e.to_string())?;
         staged_wav.as_file().sync_all().map_err(|e| e.to_string())?;
-        staged_wav.persist_noclobber(&rendered).map_err(|e| e.error.to_string())?;
+        staged_wav
+            .persist_noclobber(&rendered)
+            .map_err(|e| e.error.to_string())?;
         owned.rendered_owned = true;
         Ok(owned)
     }

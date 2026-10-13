@@ -25,11 +25,27 @@ pub struct EmbeddedSoundFont {
     pub bytes: Vec<u8>,
 }
 
+#[derive(Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct EmbeddedPresetSource {
+    pub id: SampleId,
+    pub bytes: Vec<u8>,
+}
+
+fn preset_source(project: &Project, id: SampleId) -> bool {
+    project
+        .settings
+        .preset_renders
+        .iter()
+        .any(|recipe| recipe.source == id)
+}
+
 #[derive(Clone)]
 pub struct Program {
     pub project: Project,
     pub samples: Vec<EmbeddedSample>,
     pub soundfonts: Vec<EmbeddedSoundFont>,
+    pub preset_sources: Vec<EmbeddedPresetSource>,
     // Copy curve handles need control-side roots even while the host is inactive.
     _asset_pins: std::sync::Arc<windfall_dsp::asset::AssetPins>,
 }
@@ -43,6 +59,8 @@ struct Packet {
     samples: Vec<EmbeddedSample>,
     #[serde(default)]
     soundfonts: Vec<EmbeddedSoundFont>,
+    #[serde(default)]
+    preset_sources: Vec<EmbeddedPresetSource>,
 }
 
 struct Bounded(Vec<u8>);
@@ -85,10 +103,16 @@ impl Program {
             project,
             samples,
             soundfonts,
+            preset_sources: Vec::new(),
             _asset_pins: std::sync::Arc::new(pins),
         }
     }
     /// Validate on the main thread before preparing or replacing state.
+    pub fn with_preset_sources(mut self, sources: Vec<EmbeddedPresetSource>) -> Self {
+        self.preset_sources = sources;
+        self
+    }
+
     pub fn validate(&self) -> Result<(), String> {
         self.project.check()?;
         for binding in &self.project.plugins {
@@ -112,8 +136,15 @@ impl Program {
             }
         }
         if self.project.samples.len() > MAX_SAMPLES
-            || self.samples.len() != self.project.samples.iter().filter(|s| !s.soundfont).count()
+            || self.samples.len()
+                != self
+                    .project
+                    .samples
+                    .iter()
+                    .filter(|s| !s.soundfont && !preset_source(&self.project, s.id))
+                    .count()
             || self.soundfonts.len() > MAX_SAMPLES
+            || self.preset_sources.len() > MAX_SAMPLES
         {
             return Err("Every project PCM sample must have exactly one embedded PCM asset".into());
         }
@@ -121,11 +152,11 @@ impl Program {
         let mut ids = std::collections::HashSet::new();
         for sample in &self.samples {
             if !ids.insert(sample.id)
-                || !self
-                    .project
-                    .samples
-                    .iter()
-                    .any(|asset| asset.id == sample.id && !asset.soundfont)
+                || !self.project.samples.iter().any(|asset| {
+                    asset.id == sample.id
+                        && !asset.soundfont
+                        && !preset_source(&self.project, asset.id)
+                })
             {
                 return Err("Duplicate or unknown embedded sample identity".into());
             }
@@ -145,6 +176,24 @@ impl Program {
             }
         }
         let mut raw_bytes = 0usize;
+        let mut preset_bytes = 0usize;
+        for source in &self.preset_sources {
+            if !ids.insert(source.id) || !preset_source(&self.project, source.id) {
+                return Err("Duplicate or unknown embedded preset source identity".into());
+            }
+            if source.bytes.len() > windfall_engine::preset_render::MAX_PRESET_BYTES {
+                return Err("An embedded preset source exceeds 1 MiB".into());
+            }
+            preset_bytes = preset_bytes
+                .checked_add(source.bytes.len())
+                .ok_or("Preset source byte overflow")?;
+        }
+        if preset_bytes > MAX_RAW_BANK_BYTES {
+            return Err("Plugin original preset sources exceed the aggregate 16 MiB limit".into());
+        }
+        bytes = bytes
+            .checked_add(preset_bytes)
+            .ok_or("Embedded assets exceed the state bound")?;
         for bank in &self.soundfonts {
             if !ids.insert(bank.id)
                 || !self
@@ -209,12 +258,14 @@ impl Program {
             project: &'a str,
             samples: &'a [EmbeddedSample],
             soundfonts: &'a [EmbeddedSoundFont],
+            preset_sources: &'a [EmbeddedPresetSource],
         }
         let packet = BorrowedPacket {
-            schema: 2,
+            schema: 3,
             project: &project,
             samples: &self.samples,
             soundfonts: &self.soundfonts,
+            preset_sources: &self.preset_sources,
         };
         let mut output = Bounded(Vec::new());
         serde_json::to_writer(&mut output, &packet).map_err(|e| e.to_string())?;
@@ -226,7 +277,9 @@ impl Program {
             return Err("Plugin state exceeds 64 MiB".into());
         }
         let packet: Packet = serde_json::from_slice(bytes).map_err(|e| e.to_string())?;
-        if !matches!(packet.schema, 1 | 2) || (packet.schema == 1 && !packet.soundfonts.is_empty())
+        if !matches!(packet.schema, 1..=3)
+            || (packet.schema == 1 && !packet.soundfonts.is_empty())
+            || (packet.schema < 3 && !packet.preset_sources.is_empty())
         {
             return Err("Unsupported Windfall plugin-state schema".into());
         }
@@ -234,7 +287,8 @@ impl Program {
             windfall_project::file::from_json(&packet.project).map_err(|e| e.to_string())?,
             packet.samples,
             packet.soundfonts,
-        );
+        )
+        .with_preset_sources(packet.preset_sources);
         program.validate()?;
         Ok(program)
     }
@@ -252,6 +306,32 @@ impl Program {
             );
         }
         pool
+    }
+
+    pub(crate) fn preset_source_diagnostics(&self) -> Vec<String> {
+        self.project
+            .samples
+            .iter()
+            .filter(|source| preset_source(&self.project, source.id))
+            .filter_map(
+                |source| match self.preset_sources.iter().find(|raw| raw.id == source.id) {
+                    None => Some(format!("Missing original preset source '{}'", source.name)),
+                    Some(raw) => windfall_project::Preset::from_json(&raw.bytes)
+                        .err()
+                        .map(|error| format!("Original preset source '{}': {error}", source.name)),
+                },
+            )
+            .collect()
+    }
+
+    pub fn validate_preset_sources(&self) -> Result<(), String> {
+        self.validate()?;
+        let errors = self.preset_source_diagnostics();
+        if errors.is_empty() {
+            Ok(())
+        } else {
+            Err(errors.join("\n"))
+        }
     }
 
     /// Control-side only. Missing/corrupt bytes install an unavailable bank,

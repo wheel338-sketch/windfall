@@ -12,7 +12,10 @@ mod state;
 mod vst3;
 
 pub use clap::clap_entry;
-pub use state::{EmbeddedSample, EmbeddedSoundFont, MAX_RAW_BANK_BYTES, MAX_STATE_BYTES, Program};
+pub use state::{
+    EmbeddedPresetSource, EmbeddedSample, EmbeddedSoundFont, MAX_RAW_BANK_BYTES, MAX_STATE_BYTES,
+    Program,
+};
 
 use windfall_engine::{Controller, Processor};
 
@@ -43,6 +46,7 @@ impl GuestEngine {
         program.validate()?;
         let mut samples = program.sample_pool();
         let mut preparation_errors = program.prepare_soundfonts(&mut samples);
+        preparation_errors.extend(program.preset_source_diagnostics());
         let provider = if program.project.plugins.is_empty() {
             None
         } else {

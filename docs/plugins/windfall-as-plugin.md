@@ -2,9 +2,17 @@
 
 ## Round-six raw-bank packet checkpoint — 2026-10-13
 
-Schema 2 carries original SF2 bytes in `soundfonts`, keyed by the project's
-raw `SampleId`; it never turns a bank source into a PCM sample. Schema 1 PCM
-packets still load. Native desktop export snapshots source paths outside the
+Schema 3 additionally carries original Windfall preset bytes in `presetSources`,
+keyed by the source IDs of retained render recipes. These never become PCM;
+the rendered result remains a separate embedded PCM asset. Each original preset
+is limited to 1 MiB and all originals together to 16 MiB, within the shared
+64 MiB encoded packet limit. Export validates every source before publication;
+missing or damaged recalled originals remain saveable, with a visible diagnostic,
+and do not silence the already rendered sample. Schema 1/2 packets still load.
+
+Schema 2 introduced original SF2 bytes in `soundfonts`, keyed by the project's
+raw `SampleId`; it never turns a bank source into a PCM sample. Native desktop
+export snapshots source paths outside the
 document lock, reads each owned bank once with exact bounded IO, and checks
 retained sources and selected presets before publishing a bundle. Recalled
 programs use their embedded bytes and never open the original SF2 path.

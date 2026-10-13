@@ -1570,7 +1570,8 @@ async fn samples_reload(
 
 #[tauri::command]
 fn preset_render_begin(
-    session: State<'_, Session>, window: tauri::WebviewWindow,
+    session: State<'_, Session>,
+    window: tauri::WebviewWindow,
     caller: crate::window_calls::WindowCaller,
 ) -> Result<crate::session::PresetRenderTicket, String> {
     let _window_call = caller.enter(&window, "preset_render_begin")?;
@@ -1578,7 +1579,9 @@ fn preset_render_begin(
 }
 #[tauri::command]
 fn preset_render_cancel(
-    session: State<'_, Session>, request: u64, window: tauri::WebviewWindow,
+    session: State<'_, Session>,
+    request: u64,
+    window: tauri::WebviewWindow,
     caller: crate::window_calls::WindowCaller,
 ) -> Result<(), String> {
     let _window_call = caller.enter(&window, "preset_render_cancel")?;
@@ -1587,8 +1590,11 @@ fn preset_render_cancel(
 }
 #[tauri::command]
 async fn preset_render_file(
-    session: State<'_, Session>, request: u64, input: crate::session::PresetRenderRequest,
-    window: tauri::WebviewWindow, caller: crate::window_calls::WindowCaller,
+    session: State<'_, Session>,
+    request: u64,
+    input: crate::session::PresetRenderRequest,
+    window: tauri::WebviewWindow,
+    caller: crate::window_calls::WindowCaller,
 ) -> Result<DispatchResult, String> {
     let _window_call = caller.enter(&window, "preset_render_file")?;
     let session = session.inner().clone();

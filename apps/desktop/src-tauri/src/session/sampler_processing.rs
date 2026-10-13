@@ -35,7 +35,10 @@ pub(super) struct PreparedSampleEdit {
 }
 
 impl SampleEditTicket {
-    pub(super) fn cancellable(mut self, flag: std::sync::Arc<std::sync::atomic::AtomicBool>) -> Self {
+    pub(super) fn cancellable(
+        mut self,
+        flag: std::sync::Arc<std::sync::atomic::AtomicBool>,
+    ) -> Self {
         self.cancelled = Some(flag);
         self
     }
@@ -64,14 +67,21 @@ impl SampleEditTicket {
         self
     }
     fn current(&self) -> bool {
-        !self.cancelled.as_ref().is_some_and(|flag| flag.load(Ordering::Acquire)) && self.request
-            .is_none_or(|id| self.session.inner.sampler_ticket.load(Ordering::Acquire) == id)
+        !self
+            .cancelled
+            .as_ref()
+            .is_some_and(|flag| flag.load(Ordering::Acquire))
+            && self
+                .request
+                .is_none_or(|id| self.session.inner.sampler_ticket.load(Ordering::Acquire) == id)
     }
 
     /// Slow DSP/compilation; call only after dropping State/library guards.
     /// Does not acquire recording exclusion, including for recording-finish imports.
     pub(super) fn prepare(mut self) -> Result<PreparedSampleEdit, String> {
-        if !self.current() { return Err("Preset/sample preparation cancelled".into()); }
+        if !self.current() {
+            return Err("Preset/sample preparation cancelled".into());
+        }
         self.candidate_pool = self
             .preparation
             .as_ref()

@@ -1,7 +1,7 @@
 //! Snapshot-only packaging. Export never edits document paths or history.
 use super::Session;
 use windfall_plugin::{
-    EmbeddedSample, EmbeddedSoundFont, MAX_RAW_BANK_BYTES, Program,
+    EmbeddedPresetSource, EmbeddedSample, EmbeddedSoundFont, MAX_RAW_BANK_BYTES, Program,
     package::{Platform, export_bundle, resolve_runtime},
 };
 impl Session {
@@ -53,9 +53,39 @@ pub(super) fn prepare_export_program(
     project.own_soundfont_sources()?;
     let mut samples = Vec::new();
     let mut soundfonts = Vec::new();
+    let mut preset_sources = Vec::new();
+    let mut preset_bytes = 0usize;
     let mut raw_bytes = 0usize;
     for asset in &project.samples {
-        if asset.soundfont {
+        if project
+            .settings
+            .preset_renders
+            .iter()
+            .any(|recipe| recipe.source == asset.id)
+        {
+            let path =
+                windfall_project::file::resolve_sample_path(&asset.path, sample_dir, factory_dir)
+                    .ok_or_else(|| {
+                    format!("Original preset source '{}' cannot be resolved", asset.name)
+                })?;
+            let before = crate::samples::FileKey::of(&path)?;
+            let bytes = super::preset_assets::read_original(&path)?;
+            if crate::samples::FileKey::of(&path)? != before {
+                return Err("Original preset source changed while exporting; retry".into());
+            }
+            preset_bytes = preset_bytes
+                .checked_add(bytes.len())
+                .ok_or("Preset source byte overflow")?;
+            if preset_bytes > MAX_RAW_BANK_BYTES {
+                return Err(
+                    "Plugin original preset sources exceed the aggregate 16 MiB limit".into(),
+                );
+            }
+            preset_sources.push(EmbeddedPresetSource {
+                id: asset.id,
+                bytes,
+            });
+        } else if asset.soundfont {
             let path =
                 windfall_project::file::resolve_sample_path(&asset.path, sample_dir, factory_dir)
                     .ok_or_else(|| format!("Raw SF2 source '{}' cannot be resolved", asset.name))?;
@@ -97,9 +127,10 @@ pub(super) fn prepare_export_program(
             });
         }
     }
-    let program = Program::new(project, samples, soundfonts);
+    let program = Program::new(project, samples, soundfonts).with_preset_sources(preset_sources);
     program.validate()?;
     // Export refuses corrupt or missing preset data before publishing a bundle.
     program.validate_soundfont_sources()?;
+    program.validate_preset_sources()?;
     Ok(program)
 }
