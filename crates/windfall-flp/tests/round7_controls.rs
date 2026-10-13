@@ -172,6 +172,7 @@ fn multiband_delay_sixteen_bands_and_eight_banks_import_play_and_reopen() {
     assert!(report.contains("bank_8/pan.15="));
     assert!(report.contains("banks.7.pan.15"));
     assert!(!report.contains("no corresponding stand-in control"));
+    assert!(!report.contains("omitted:"));
 
     // What it sounds like. Feedback and mix have no public field, so the
     // test sets them to none and fully wet to hear the bands alone.
@@ -385,4 +386,60 @@ fn simsynth_pulse_width_octave_layers_filter_outputs_and_lfo_delay_import_play_a
     let params = instrument_params(&c.project);
     assert_eq!(instrument_value(&params, "highMix"), 0.0);
     assert_eq!(instrument_value(&params, "bandMix"), 0.0);
+}
+
+#[test]
+fn a_decoded_control_without_a_stand_in_control_is_filed_as_omitted_and_the_rest_is_not() {
+    use windfall_flp::{Outcome, ReportSection};
+    // Fruity Soft Clipper: threshold has a stand-in control, postgain has
+    // none. Fruity Blood Overdrive: two words the public layout names
+    // without a meaning.
+    let mut state = vec![0_u8; 8];
+    state[..4].copy_from_slice(&100_i32.to_le_bytes());
+    state[4..].copy_from_slice(&64_i32.to_le_bytes());
+    let c = effect("Fruity Soft Clipper", &state);
+    let effects = c
+        .report
+        .categories
+        .iter()
+        .find(|category| category.section == ReportSection::Effects)
+        .unwrap();
+    let line = |part: &str| {
+        effects
+            .lines
+            .iter()
+            .find(|line| line.text.contains(part))
+            .unwrap_or_else(|| panic!("no line about {part}: {:?}", effects.lines))
+    };
+    let omitted = line("postgain=64");
+    assert_eq!(omitted.outcome, Outcome::Dropped);
+    assert!(omitted.text.ends_with(
+        "omitted: decoded public field with no corresponding stand-in control (state retained)."
+    ));
+    let translated = line("threshold=100");
+    assert_eq!(translated.outcome, Outcome::Approximated);
+    assert!(translated.text.contains("ceilingDb"));
+    // The original state is kept whole either way.
+    assert_eq!(reopened(&c).retained_plugins[0].state, state);
+
+    let c = effect("Fruity Blood Overdrive", &[0_u8; 36]);
+    let effects = c
+        .report
+        .categories
+        .iter()
+        .find(|category| category.section == ReportSection::Effects)
+        .unwrap();
+    let unnamed = effects
+        .lines
+        .iter()
+        .find(|line| line.text.contains("unknown_1"))
+        .unwrap();
+    assert_eq!(unnamed.outcome, Outcome::Approximated);
+    assert!(unnamed.text.contains("without a meaning"));
+    assert!(
+        effects
+            .lines
+            .iter()
+            .all(|line| !line.text.contains("omitted:"))
+    );
 }

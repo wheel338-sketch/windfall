@@ -374,7 +374,8 @@ impl Builder<'_> {
         let section = ReportSection::Effects;
         let plugin = &slot.plugin;
         for text in super::native::reports(&plugin.internal_name, &plugin.state) {
-            self.report.say(section, Outcome::Approximated, text);
+            self.report
+                .say(section, super::native::outcome(&text), text);
         }
         let hosted = plugin.hosted();
         let shown = name_or(slot.name.as_deref(), || {

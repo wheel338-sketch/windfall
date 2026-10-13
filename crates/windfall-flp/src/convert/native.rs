@@ -1184,6 +1184,21 @@ pub(super) fn unmapped(device: &str, field: &str) -> Unmapped {
     }
 }
 
+/// How the import review words a decoded sound control that has no stand-in
+/// control. Lines that end with it are filed as dropped, not approximated.
+pub(super) const OMITTED: &str =
+    "omitted: decoded public field with no corresponding stand-in control (state retained).";
+
+/// The review outcome of one line of [`reports`]: an omitted control is not
+/// in the Windfall project; everything else is there in some form.
+pub(super) fn outcome(line: &str) -> crate::report::Outcome {
+    if line.ends_with(OMITTED) {
+        crate::report::Outcome::Dropped
+    } else {
+        crate::report::Outcome::Approximated
+    }
+}
+
 /// Report every field independently, including absent tails and decoded fields
 /// for which the stand-in has no control. No generic defaults warning hides a
 /// known layout. This runs off the audio thread during review.
@@ -1278,7 +1293,7 @@ pub(super) fn reports(name: &str, state: &[u8]) -> Vec<String> {
                     Unmapped::Display=>format!("{name}.{}={v}: editor display state; nothing heard depends on it (state retained).",f.name),
                     Unmapped::NoMeaning=>format!("{name}.{}={v}: named in the public layout without a meaning; kept opaque (state retained).",f.name),
                     Unmapped::Elsewhere(rule)=>format!("{name}.{}={v}: {rule}.",f.name),
-                    Unmapped::Open=>format!("{name}.{}={v}: decoded public field; no corresponding stand-in control (state retained).",f.name),
+                    Unmapped::Open=>format!("{name}.{}={v}: {OMITTED}",f.name),
                 },
             },
         }

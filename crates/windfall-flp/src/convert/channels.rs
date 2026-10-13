@@ -166,7 +166,7 @@ impl Builder<'_> {
             if let Some(plugin) = &channel.plugin {
                 for text in super::native::reports(&plugin.internal_name, &plugin.state) {
                     self.report
-                        .say(ReportSection::Channels, Outcome::Approximated, text);
+                        .say(ReportSection::Channels, super::native::outcome(&text), text);
                 }
             }
             let sampler = channel.kind == ChannelKind::Sampler && channel.plugin.is_none();

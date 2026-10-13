@@ -412,14 +412,20 @@ Processor` `effect_on`, `Effector` `bypass` (the effect slot's enable);
   Fruity Delay 3, SimSynth) and Effector `effect`, whose selector order no
   public source gives.
 
-### Still open: decoded sound controls with no stand-in control
+### Omitted: decoded sound controls with no stand-in control
+
+The end state of the import row (`docs/qa/README.md`, decisions of
+2026-10-13) is that a described field whose stand-in has no matching control
+is named in the import review as omitted, with the original state kept, and
+that the list is pinned by a test. Adding these controls to the stand-ins is
+work on the stand-ins, not on the importer. Each line below is filed in the
+review under "dropped" and ends "omitted: decoded public field with no
+corresponding stand-in control (state retained)."
 
 233 control families on 33 devices. A family written `name.#` or
 `bank_#_e/name` stands for each index of that control (every vocoder band, the 12
 pitcher keys, the 8 delay-bank units). `fruit kick` and `fruity kick` are two
-names of one device. Each still imports with
-the per-field report "decoded public field; no corresponding stand-in control
-(state retained)".
+names of one device.
 
 | Device | Count | Fields |
 |---|---|---|
