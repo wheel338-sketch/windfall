@@ -1,11 +1,12 @@
 //! VST3 Linux IRunLoop queried through IPlugFrame. poll(2) is nonblocking;
 //! callbacks and all registration/refcount retirement run on the editor owner.
 use super::Frame;
+use crate::gui::lifecycle::LocalRegistry;
 use crate::gui::run_loop::{Registrations, Source};
 use std::{
     cell::{Cell, RefCell},
     collections::BTreeMap,
-    rc::{Rc, Weak},
+    rc::Rc,
     time::Instant,
 };
 use vst3::{
@@ -40,7 +41,8 @@ pub(in crate::vst3) struct State {
     book: RefCell<Registrations>,
     handlers: RefCell<BTreeMap<u64, Handler>>,
 }
-thread_local! { static LOOPS: RefCell<Vec<Weak<State>>> = const { RefCell::new(Vec::new()) }; }
+// No TLS destructor may outlive an exported host library's code mapping.
+thread_local! { static LOOPS: LocalRegistry<State> = const { LocalRegistry::new() }; }
 #[derive(Clone)]
 pub(in crate::vst3) struct RunLoop(Rc<State>);
 impl std::ops::Deref for RunLoop {
@@ -58,18 +60,20 @@ impl RunLoop {
             book: RefCell::new(Registrations::default()),
             handlers: RefCell::new(BTreeMap::new()),
         });
-        LOOPS.with(|loops| loops.borrow_mut().push(Rc::downgrade(&state)));
+        LOOPS.with(|registry| registry.add(&state));
         Self(state)
     }
 }
 pub(in crate::vst3) fn pump() {
-    let loops = LOOPS.with(|loops| {
-        let mut loops = loops.borrow_mut();
-        loops.retain(|run_loop| run_loop.strong_count() != 0);
-        loops.iter().filter_map(Weak::upgrade).collect::<Vec<_>>()
-    });
+    let loops = LOOPS.with(LocalRegistry::live);
     for run_loop in loops {
         run_loop.poll();
+    }
+}
+impl Drop for State {
+    fn drop(&mut self) {
+        self.alive.set(false);
+        LOOPS.with(LocalRegistry::retire);
     }
 }
 impl State {

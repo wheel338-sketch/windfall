@@ -1,6 +1,61 @@
 //! Portable editor ownership/resize/DPI policy. Native backends only observe and
 //! apply window geometry; plugin calls always stay on the creating GUI thread.
 use super::EditorError;
+use std::{
+    cell::{Cell, RefCell},
+    rc::{Rc, Weak},
+};
+
+/// A destructor-free TLS slot, explicitly emptied by its native owners. A
+/// Vec/RefCell stored directly in TLS would register a thread-exit destructor
+/// that could call unmapped code after an exported host DLL is unloaded.
+pub(crate) struct LocalRegistry<T> {
+    slot: Cell<*mut RefCell<Vec<Weak<T>>>>,
+}
+impl<T> LocalRegistry<T> {
+    pub const fn new() -> Self {
+        Self {
+            slot: Cell::new(std::ptr::null_mut()),
+        }
+    }
+    pub fn add(&self, owner: &Rc<T>) {
+        if self.slot.get().is_null() {
+            self.slot
+                .set(Box::into_raw(Box::new(RefCell::new(Vec::new()))));
+        }
+        // The slot is !Send/!Sync. Only this GUI owner accesses its stable box,
+        // and retirement never runs with this borrow held.
+        unsafe { &*self.slot.get() }
+            .borrow_mut()
+            .push(Rc::downgrade(owner));
+    }
+    pub fn live(&self) -> Vec<Rc<T>> {
+        let pointer = self.slot.get();
+        if pointer.is_null() {
+            return Vec::new();
+        }
+        let mut owners = unsafe { &*pointer }.borrow_mut();
+        owners.retain(|owner| owner.strong_count() != 0);
+        owners.iter().filter_map(Weak::upgrade).collect()
+    }
+    pub fn retire(&self) {
+        let pointer = self.slot.get();
+        if pointer.is_null() {
+            return;
+        }
+        let empty = {
+            let mut owners = unsafe { &*pointer }.borrow_mut();
+            owners.retain(|owner| owner.strong_count() != 0);
+            owners.is_empty()
+        };
+        if empty {
+            self.slot.set(std::ptr::null_mut());
+            unsafe {
+                drop(Box::from_raw(pointer));
+            }
+        }
+    }
+}
 
 pub(crate) fn dimensions(width: u32, height: u32) -> Option<(u32, u32)> {
     ((1..=32768).contains(&width) && (1..=32768).contains(&height)).then_some((width, height))
@@ -203,5 +258,35 @@ mod tests {
                 "parent"
             ]
         );
+    }
+    #[test]
+    fn owner_registry_reclaims_its_tls_storage_before_library_unload_and_can_reopen() {
+        struct Native {
+            registry: Rc<LocalRegistry<Native>>,
+            retired: Rc<Cell<usize>>,
+        }
+        impl Drop for Native {
+            fn drop(&mut self) {
+                self.retired.set(self.retired.get() + 1);
+                self.registry.retire();
+            }
+        }
+        assert!(!std::mem::needs_drop::<LocalRegistry<Native>>());
+        let registry = Rc::new(LocalRegistry::new());
+        let retired = Rc::new(Cell::new(0));
+        for expected in [1, 2] {
+            let native = Rc::new(Native {
+                registry: registry.clone(),
+                retired: retired.clone(),
+            });
+            registry.add(&native);
+            let held_by_pump = registry.live();
+            drop(native);
+            assert_eq!(retired.get(), expected - 1);
+            drop(held_by_pump);
+            assert_eq!(retired.get(), expected);
+            assert!(registry.slot.get().is_null());
+            assert!(registry.live().is_empty());
+        }
     }
 }

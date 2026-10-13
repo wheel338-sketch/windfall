@@ -3,7 +3,7 @@ use super::{
     cocoa_ffi::*,
     lifecycle::{Backend, Observation},
 };
-use std::{cell::Cell, ptr, sync::OnceLock};
+use std::{cell::Cell, ffi::CString, ptr, sync::OnceLock};
 unsafe extern "C" fn should_close(delegate: Obj, _: Obj, _: Obj) -> i8 {
     let mut value = ptr::null_mut();
     unsafe {
@@ -15,16 +15,20 @@ unsafe extern "C" fn should_close(delegate: Obj, _: Obj, _: Obj) -> i8 {
     // Defer closing until idle has removed/destroyed the plugin's GUI.
     0
 }
-fn delegate_class() -> Result<Obj, String> {
-    static CLASS: OnceLock<usize> = OnceLock::new();
-    let class = *CLASS.get_or_init(|| unsafe {
-        let class = objc_allocateClassPair(
-            objc_getClass(c"NSObject".as_ptr()),
-            c"WindfallHostedEditorDelegate".as_ptr(),
-            0,
-        );
+struct ClassLease(Obj);
+impl Drop for ClassLease {
+    fn drop(&mut self) {
+        unsafe {
+            objc_disposeClassPair(self.0);
+        }
+    }
+}
+fn delegate_class(close: &Cell<bool>) -> Result<ClassLease, String> {
+    let name = CString::new(format!("WindfallHostedEditorDelegate_{close:p}")).unwrap();
+    let class = unsafe {
+        let class = objc_allocateClassPair(objc_getClass(c"NSObject".as_ptr()), name.as_ptr(), 0);
         if class.is_null() {
-            return 0;
+            return Err("Cocoa editor delegate allocation failed".into());
         }
         let implementation: unsafe extern "C" fn() =
             std::mem::transmute(should_close as unsafe extern "C" fn(Obj, Obj, Obj) -> i8);
@@ -48,21 +52,18 @@ fn delegate_class() -> Result<Obj, String> {
             ) == 0
         {
             objc_disposeClassPair(class);
-            return 0;
+            return Err("Cocoa editor delegate registration failed".into());
         }
         objc_registerClassPair(class);
-        class as usize
-    });
-    if class == 0 {
-        Err("Cocoa editor delegate registration failed".into())
-    } else {
-        Ok(class as Obj)
-    }
+        class
+    };
+    Ok(ClassLease(class))
 }
 pub(crate) struct Window {
     window: Obj,
     view: Obj,
     delegate: Obj,
+    _class: ClassLease,
     close: Box<Cell<bool>>,
     application: Cell<f64>,
 }
@@ -78,7 +79,8 @@ impl Window {
             return Err("Cocoa editors require the application main thread".into());
         }
         let _pool = Pool::new();
-        let class = delegate_class()?;
+        let mut close = Box::new(Cell::new(false));
+        let class = delegate_class(&close)?;
         unsafe {
             let application = send(
                 objc_getClass(c"NSApplication".as_ptr()),
@@ -122,12 +124,11 @@ impl Window {
                 void(window, c"release");
                 return Err("AppKit did not create a parent NSView".into());
             }
-            let delegate = send(send(class, c"alloc"), c"init");
+            let delegate = send(send(class.0, c"alloc"), c"init");
             if delegate.is_null() {
                 void(window, c"release");
                 return Err("Cocoa editor delegate allocation failed".into());
             }
-            let mut close = Box::new(Cell::new(false));
             object_setInstanceVariable(
                 delegate,
                 c"windfallClose".as_ptr(),
@@ -138,6 +139,7 @@ impl Window {
                 window,
                 view,
                 delegate,
+                _class: class,
                 close,
                 application: Cell::new(1.0),
             })

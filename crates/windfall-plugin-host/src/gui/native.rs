@@ -1,14 +1,10 @@
 //! Cocoa/X11 adapter with owner-local polling; no native callback owns a plugin.
 #[cfg(target_os = "macos")]
 use super::cocoa::Window;
-use super::lifecycle::{Backend, Lifecycle};
+use super::lifecycle::{Backend, Lifecycle, LocalRegistry};
 #[cfg(target_os = "linux")]
 use super::x11::Window;
-use std::{
-    cell::RefCell,
-    ffi::c_void,
-    rc::{Rc, Weak},
-};
+use std::{cell::RefCell, ffi::c_void, rc::Rc};
 
 pub(crate) trait WindowClient {
     fn adjust_size(&self, width: u32, height: u32) -> (u32, u32);
@@ -17,7 +13,9 @@ pub(crate) trait WindowClient {
 }
 thread_local! {
     static TOKEN: u8 = const { 0 };
-    static WINDOWS: RefCell<Vec<Weak<State>>> = const { RefCell::new(Vec::new()) };
+    // A destructor-bearing TLS vector would register code for thread exit. That
+    // code may already be unmapped when this host is linked into an export DLL.
+    static WINDOWS: LocalRegistry<State> = const { LocalRegistry::new() };
 }
 pub(crate) fn token() -> usize {
     TOKEN.with(|v| std::ptr::from_ref(v) as usize)
@@ -48,6 +46,11 @@ impl State {
         }
     }
 }
+impl Drop for State {
+    fn drop(&mut self) {
+        WINDOWS.with(LocalRegistry::retire);
+    }
+}
 pub(crate) struct HostWindow {
     state: Rc<State>,
 }
@@ -69,7 +72,7 @@ impl HostWindow {
             lifecycle: RefCell::new(lifecycle),
             client,
         });
-        WINDOWS.with(|windows| windows.borrow_mut().push(Rc::downgrade(&state)));
+        WINDOWS.with(|registry| registry.add(&state));
         Ok(Self { state })
     }
     /// NSView* on Cocoa; XID encoded in the pointer-sized value on X11.
@@ -109,11 +112,7 @@ impl HostWindow {
 pub(crate) fn pump_events(wait: Option<std::time::Duration>) {
     #[cfg(target_os = "macos")]
     super::cocoa::pump_events();
-    let windows = WINDOWS.with(|windows| {
-        let mut windows = windows.borrow_mut();
-        windows.retain(|window| window.strong_count() != 0);
-        windows.iter().filter_map(Weak::upgrade).collect::<Vec<_>>()
-    });
+    let windows = WINDOWS.with(LocalRegistry::live);
     for window in windows {
         window.poll();
     }
