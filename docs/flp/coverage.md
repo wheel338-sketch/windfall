@@ -238,3 +238,11 @@ Every fixture is constructed in Rust; no third-party preset/project/audio enters
 the repository. Processor layouts not implemented yet, note grouping, controller
 formulas/smoothing, instrument parameter numbering, nonlinear timing and start/
 punch regions remain software work, not merely archival or external checks.
+
+Round-six final workspace gates pass: format, strict Clippy, **4,716 Rust tests /
+0 failures**, typecheck, lint, **6,453 frontend tests / 0 failures**, regenerated
+bindings and refreshed/freshness-checked simulator. The native fixture/helper/
+export paths must be injected as documented in the round-six record. The initial
+missing-environment failure is retained separately; assertions and opt-in test
+annotations were unchanged. This passing gate verifies the implemented subset;
+the full FLP row remains **not done** with the software omissions listed above.
