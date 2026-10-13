@@ -334,6 +334,20 @@ impl Control {
     pub fn editor(&self, open: bool) -> Result<(), String> {
         self.editor_with_options(open, crate::EditorOptions::default())
     }
+    /// Called only after the desktop callback/facade is destroyed. The helper
+    /// releases native notes and deactivates on its GUI/native owner, then the
+    /// supervisor confirms exit. A nonanswer is contained by the same deadline.
+    pub fn shutdown_for_update(&self) -> Result<(), String> {
+        let result = self.call(Message::Shutdown, Duration::from_secs(2)).and_then(|packet| {
+            match packet.body {
+                Message::Stopped => Ok(()),
+                Message::Error { message } => Err(message),
+                _ => Err("unexpected update shutdown bridge response".into()),
+            }
+        });
+        self.terminate();
+        result
+    }
     pub fn editor_with_options(
         &self,
         open: bool,

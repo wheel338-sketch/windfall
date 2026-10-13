@@ -751,6 +751,9 @@ fn run(address: SocketAddr) -> io::Result<()> {
         )
         .map_err(error)?;
     processor.set_realtime(!offline);
+    // Settings/opaque state survive owner replacement; sounding voices do not.
+    // This runs on the helper's native owner before any audio slot is accepted.
+    processor.reset();
     let latency = processor.latency_samples() as usize;
     if let Err(error_value) = region.negotiate_latency(latency) {
         region.latch_helper_failure();
@@ -843,6 +846,13 @@ fn run(address: SocketAddr) -> io::Result<()> {
                     }
                 },
                 Message::Shutdown => {
+                    // The host has joined its callback. Flush note releases
+                    // and clear transient voices before native deactivation.
+                    if let Some(processor) = native.processor.as_mut() {
+                        processor.all_notes_off(0);
+                        processor.process(&mut [0.0; 1], &mut [0.0; 1]);
+                        processor.reset();
+                    }
                     native.deactivate()?;
                     reply(&mut socket, &response)?;
                     return Ok(());

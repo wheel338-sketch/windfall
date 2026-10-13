@@ -502,12 +502,9 @@ impl<B: Backend, C: Fn() -> Instant> Supervisor<B, C> {
 
     fn suspend(&mut self) -> Result<(), String> {
         self.recovery.cancel();
-        let closing = self
-            .controller
-            .begin_close(true)
+        self.controller
+            .suspend_stream(|| self.stream = None)
             .map_err(|error| error.to_string())?;
-        self.stream = None;
-        self.controller.finish_close(closing);
         let mut status = lock(&self.status);
         status.running = false;
         status.error = None;
