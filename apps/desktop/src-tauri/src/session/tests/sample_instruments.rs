@@ -107,6 +107,49 @@ fn soundfont_native_hardware_cc_changes_real_pcm_without_document_edits() {
 }
 
 #[test]
+fn soundfont_registration_discards_cached_pcm_and_an_already_decoded_audio_job() {
+    let rig=Rig::new();let channel=soundfont_channel(&rig);let file=rig.file("sf-queued.sf2");
+    std::fs::write(&file,general_midi_fixture()).unwrap();
+    // Model a previously registered, unused audio identity and its queued load.
+    // The late job really invokes the ordinary codec, then pauses before attach.
+    let (source,generation)={
+        let mut state=rig.session.state();
+        let source=windfall_project::SampleId(state.document.dispatch(Command::AddSample {
+            name:"Earlier source".into(),path:SamplePath::External(file.clone())},None).unwrap().created[0]);
+        state.pool.insert(source,windfall_core::AudioBuffer::from_interleaved(48000,1,vec![0.25;16]));
+        state.loaded.insert(source);state.loading.insert(source);
+        (source,state.generation)
+    };
+    let hold=rig.session.hold("samples:decoded");let queued=file.clone();
+    let job=rig.session.background(move|session|session.load_samples(generation,
+        vec![(source,std::path::PathBuf::from(queued))],Vec::new(),false));
+    hold.wait();rig.session.soundfont_load(channel,None,file,0,0).unwrap();
+    {
+        let state=rig.session.state();assert!(!state.pool.contains(source));
+        assert!(!state.loaded.contains(&source));assert!(!state.loading.contains(&source));
+        assert!(!state.failed.contains(&source));
+    }
+    hold.release();assert_eq!(job.join().unwrap(),0);
+    let state=rig.session.state();assert!(!state.failed.contains(&source));
+    let asset=state.document.project().channel(channel).unwrap().sample_instrument.as_ref().unwrap();
+    assert_eq!(asset.soundfont_source(),Some(source));
+    assert!(state.pool.has_sample_instrument_asset(&asset.canonical(state.document.project())));
+}
+
+#[test]
+fn soundfont_readiness_retry_reuses_the_parsed_owner_without_rereading_changed_bytes() {
+    let rig=Rig::new();let channel=soundfont_channel(&rig);let file=rig.file("sf-retry.sf2");
+    std::fs::write(&file,general_midi_fixture()).unwrap();rig.session.soundfont_load(channel,None,file.clone(),0,0).unwrap();
+    let (project,original,preparation)={let state=rig.session.state();
+        (state.document.project().clone(),state.pool.clone(),rig.session.project_preparation(&state))};
+    let mut retry=windfall_engine::SamplePool::new();retry.reuse_soundfont_candidates(&original);
+    std::fs::write(&file,b"changed after validated preparation").unwrap();
+    let ready=preparation.load_sample_instruments(&project,&retry).unwrap();
+    let asset=project.channel(channel).unwrap().sample_instrument.as_ref().unwrap();
+    assert!(ready.has_sample_instrument_asset(&asset.canonical(&project)));
+}
+
+#[test]
 fn speech_render_saves_a_source_as_one_history_step_and_reopens() {
     let rig = Rig::new();
     let channel = ChannelId(

@@ -220,6 +220,7 @@ impl PreparedSampleEdit {
             ticket.gesture,
             Vec::new(),
         )?;
+        next.candidate_pool.reuse_soundfont_candidates(&ticket.candidate_pool);
         next.preparation = Some(preparation);
         next.request = ticket.request;
         next.preserve_noop = ticket.preserve_noop;
@@ -250,7 +251,7 @@ impl Session {
                 .document
                 .project()
                 .sample(asset.id)
-                .is_some_and(|old| old.path != asset.path)
+                .is_some_and(|old| old.path != asset.path || old.soundfont != asset.soundfont)
             {
                 candidate_pool.remove(asset.id);
             }
@@ -305,7 +306,7 @@ impl Session {
         }
         if applied.touched.samples {
             for asset in &document.project().samples {
-                if !candidate_pool.contains(asset.id)
+                if !asset.soundfont && !candidate_pool.contains(asset.id)
                     && !state.loading.contains(&asset.id)
                     && let Ok(path) = super::samples::locate(
                         asset,
